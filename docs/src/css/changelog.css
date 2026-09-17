@@ -32,7 +32,10 @@
   color: var(--contentsecondary);
 }
 
-.blog-post-page .tag {
+/* The theme's tag class is a CSS-module hash; rel="tag" is the stable hook.
+   Same chip as the version on the changelog list. */
+.blog-post-page a[rel="tag"] {
+  display: inline-block;
   font-family: var(--ifm-font-family-monospace);
   font-size: 11px;
   line-height: 16px;
@@ -41,6 +44,13 @@
   border-radius: 5px;
   background-color: var(--bgelevated1);
   color: var(--contentsecondary);
+  text-decoration: none;
+}
+
+.blog-post-page a[rel="tag"]:hover {
+  color: var(--contentprimary);
+  border-color: var(--borderdark);
+  text-decoration: none;
 }
 
 .blog-post-page .pagination-nav {

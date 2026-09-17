@@ -219,7 +219,7 @@ code:not(pre code) {
 }
 
 /* Links inside articles: underlined, offset, and neutral. */
-article a:not([class*="card"]):not(.hash-link):not(.table-of-contents__link):not(.pagination-nav__link) {
+article a:not([class*="card"]):not(.hash-link):not(.table-of-contents__link):not(.pagination-nav__link):not([rel="tag"]) {
   text-decoration: underline;
   text-underline-offset: 3px;
   text-decoration-thickness: 1px;
@@ -229,7 +229,7 @@ article a:not([class*="card"]):not(.hash-link):not(.table-of-contents__link):not
     text-underline-offset 200ms ease;
 }
 
-article a:not([class*="card"]):not(.hash-link):not(.table-of-contents__link):not(.pagination-nav__link):hover {
+article a:not([class*="card"]):not(.hash-link):not(.table-of-contents__link):not(.pagination-nav__link):not([rel="tag"]):hover {
   text-decoration-color: var(--contentprimary);
   text-underline-offset: 4px;
 }
