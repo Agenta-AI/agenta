@@ -47,16 +47,16 @@ reviews:
   # organization's own exclusions are therefore repeated here explicitly, or its lock files
   # and generated code would be reviewed as if they were hand-written.
   #
-  # This is PASS 3: the web design work, which is the only thing that changed since passes 1
-  # and 2 read the rest. Passes 1 and 2 covered production source and then tests across the
-  # whole pull request. The MCP redesign then added 60 files to the pass-1 set and took it to
-  # 342, over the cap, so the remaining passes are split by area instead of by kind.
+  # This is PASS 4, the last one: api, sdks and services, which passes 1 and 2 read before the
+  # MCP redesign and nothing has read since. Passes 1 and 2 covered production source and then
+  # tests across the whole pull request. The redesign then took the pass-1 set over the 300
+  # cap, so the remaining work was split by area instead of by kind.
   #
-  #   pass 3 (this file):  web/**, minus Storybook           160 files
-  #   pass 4 (swap in):    api/**, sdks/**, services/**      181 files
+  #   pass 3 (done):       web/**, minus Storybook           160 files
+  #   pass 4 (this file):  api/**, sdks/**, services/**      181 files
   #
-  # Pass 4's list is kept ready at ~/agenta-mcp-release/reviews/coderabbit-pass4.yaml; the
-  # swap is a copy of that file's path_filters block over this one.
+  # Pass 3's list is kept in the release evidence if it is ever needed again; nothing further
+  # is planned after this pass.
   #
   # Storybook is out because the human reviewers read the stories, and because a story is
   # exercised by the Storybook build that CI now runs. Tests are out because pass 2 took
@@ -79,10 +79,10 @@ reviews:
     - "!**/*.lock"
     - "!**/*.generated.*"
     - "!**/generated/**"
-    # Everything outside web/. Pass 4 takes api, sdks and services; the rest is either
-    # infrastructure, this team's own notes, or generated client code.
+    # Everything pass 3 took, plus the areas no pass covers: infrastructure, generated client
+    # code, this team's own notes, and the marketing site.
+    - "!web/**"
     - "!antd-inventory/**"
-    - "!api/**"
     - "!benchmarks/**"
     - "!clients/**"
     - "!docs/**"
@@ -90,16 +90,11 @@ reviews:
     - "!examples/**"
     - "!hooks/**"
     - "!hosting/**"
-    - "!sdks/**"
-    - "!services/**"
     - "!website/**"
     - "!.github/**"
     - "!.coderabbit.yaml"
     - "!.gitleaksignore"
     - "!.gitignore"
-    # Read by people, not by CodeRabbit: the reviewers read the stories, and the Storybook
-    # build in CI is what catches a story whose component changed shape.
-    - "!web/storybook/**"
     # Tests, which pass 2 already took.
     - "!**/tests/**"
     - "!**/test/**"
