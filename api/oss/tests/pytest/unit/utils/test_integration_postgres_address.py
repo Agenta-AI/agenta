@@ -163,6 +163,34 @@ def test_a_declared_absence_skips_by_name_rather_than_failing(monkeypatch, decla
     assert "AGENTA_TEST_NO_DATABASE" in str(outcome.value)
 
 
+def test_the_direct_caller_honours_the_declaration_too(monkeypatch):
+    """The second way in, pinned, because deleting its check left the layer green.
+
+    `guard_the_deployment_under_test` is not the only path to "this case needs the database":
+    files that ask for the address themselves call `require_core_uri`, as the grant-rekey
+    migration file does. Declaring the absence at the guard alone left 15 of the Railway job's
+    111 errors standing, and nothing here said so: the two lines that fix it could be deleted
+    and every case still passed (issue 6940).
+    """
+    monkeypatch.setenv("AGENTA_TEST_NO_DATABASE", "1")
+    monkeypatch.setattr(helper, "_connectable", lambda _uri: False)
+
+    with pytest.raises(pytest.skip.Exception) as outcome:
+        helper.require_core_uri()
+
+    assert "declares no database access" in str(outcome.value)
+    assert "AGENTA_TEST_NO_DATABASE" in str(outcome.value)
+
+
+def test_the_direct_caller_still_refuses_without_the_declaration(monkeypatch):
+    """And undeclared it refuses, so the skip is the declaration's doing and not the path's."""
+    monkeypatch.delenv("AGENTA_TEST_NO_DATABASE", raising=False)
+    monkeypatch.setattr(helper, "_connectable", lambda _uri: False)
+
+    with pytest.raises(AssertionError):
+        helper.require_core_uri()
+
+
 @pytest.mark.parametrize("off", ["", "0", "false", "no"])
 def test_a_variable_turned_off_is_not_a_declaration(monkeypatch, off):
     """Set-and-empty is how a workflow turns one of these off, so it must not read as set."""
