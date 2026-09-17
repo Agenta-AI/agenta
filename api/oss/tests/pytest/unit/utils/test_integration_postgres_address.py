@@ -245,7 +245,7 @@ def test_one_marker_is_minted_however_many_workers_ask(monkeypatch, tmp_path):
     monkeypatch.setattr(
         helper,
         "mint_deployment_marker",
-        lambda _api, _key: (minted.append(_MARKER) or _MARKER),
+        lambda _api, _key: minted.append(_MARKER) or _MARKER,
     )
     monkeypatch.setattr(helper, "remove_deployment_marker", lambda *_args: None)
     monkeypatch.setattr(helper, "_carries_user", _answers_with({_MARKER}))
