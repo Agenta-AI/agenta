@@ -256,7 +256,10 @@ export const ApiKeyRejected: Story = sheet(
         status: "verify_failed",
         url: "https://mcp.axiom.co/mcp",
         name: "Axiom",
-        probe: KEY_PROBE,
+        probe: {
+            ...KEY_PROBE,
+            auth: {...KEY_PROBE.auth, challenge_status: 401, challenge_schemes: ["Bearer"]},
+        },
         endpointId: "mcp-1",
         slug: "axiom",
         error: "The server rejected the credential (401).",

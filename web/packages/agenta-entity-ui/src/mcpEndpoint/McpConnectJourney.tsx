@@ -44,6 +44,7 @@ import {
     connectionNameProblem,
     isBusy,
     mcpChallengeSchemeToShow,
+    mcpChallengeStatus,
     readMcpProbeResponse,
     toolPrefixFromName,
     useMcpConnectJourney,
@@ -145,6 +146,21 @@ const UNREACHABLE_ADVICE =
     "Check the address and that the server speaks HTTP transport. Private-network servers must be reachable from Agenta."
 
 const KEY_REJECTED_HEADLINE = "The server rejected this key."
+
+/**
+ * The same sentence, naming the status the spec's C6 copy names.
+ *
+ * The spec writes "The server rejected this key (401)." and the status code is the one part
+ * of that screen a person can act on or paste to a provider's support desk. It was dropped
+ * for want of a number to put there, and what stood in its place was the relayed sentence
+ * our own MCP client writes when it cannot read an answer, which says less (round 6c,
+ * D-R6C-1).
+ *
+ * The number is the challenge's, which is how this server answers a request it will not
+ * authorize. Where nothing challenged, the clause goes rather than a guess.
+ */
+const keyRejectedHeadlineFor = (status: number | null): string =>
+    status ? `The server rejected this key (${status}).` : KEY_REJECTED_HEADLINE
 const KEY_REJECTED_ADVICE = "Check the header the server expects, or pick another secret."
 /**
  * The same advice, naming what the server expects where it said so.
@@ -578,6 +594,7 @@ export function McpConnectSheet({
     // What the server named when it refused the anonymous handshake, where that is anything
     // the Authorization default does not already cover.
     const challengeScheme = mcpChallengeSchemeToShow(state.probe)
+    const challengeStatus = mcpChallengeStatus(state.probe)
 
     /** The one error that belongs to a field rather than to the screen. */
     const nameError = state.status === "naming" ? (nameProblem ?? state.error) : null
@@ -774,10 +791,14 @@ export function McpConnectSheet({
                     {screen === "api_key" && state.status === "verify_failed" ? (
                         <InlineError
                             id={KEY_PROBLEM_ID}
-                            headline={KEY_REJECTED_HEADLINE}
+                            headline={keyRejectedHeadlineFor(challengeStatus)}
                             className="-mt-2"
                         >
-                            {state.error} {keyRejectedAdviceFor(challengeScheme)}
+                            {/* The spec's sentence, and only it. The relayed sentence that
+                                used to sit here was our own client's "did not answer
+                                initialize", which names a protocol call where the status code
+                                and the header advice are what a reader can act on. */}
+                            {keyRejectedAdviceFor(challengeScheme)}
                         </InlineError>
                     ) : null}
 

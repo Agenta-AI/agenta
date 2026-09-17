@@ -12,6 +12,7 @@ import {describe, expect, it} from "vitest"
 import {
     mcpChallengeScheme,
     mcpChallengeSchemeToShow,
+    mcpChallengeStatus,
 } from "../../src/mcpEndpoint/core/probeResponse"
 import type {MCPServerProbe} from "../../src/mcpEndpoint/core/types"
 
@@ -52,5 +53,18 @@ describe("mcpChallengeSchemeToShow", () => {
 
     it("names nothing when the server named nothing", () => {
         expect(mcpChallengeSchemeToShow(probe([]))).toBeNull()
+    })
+})
+
+describe("mcpChallengeStatus", () => {
+    it("reads the status the server refused with", () => {
+        expect(mcpChallengeStatus(probe(["Bearer"], 401))).toBe(401)
+    })
+
+    it("answers nothing where nothing challenged", () => {
+        // A reconnect never probes, and the spec's sentence drops its clause rather than
+        // naming a number nobody was told.
+        expect(mcpChallengeStatus(probe(["Bearer"]))).toBeNull()
+        expect(mcpChallengeStatus(null)).toBeNull()
     })
 })
