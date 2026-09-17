@@ -34,7 +34,7 @@
 
 .theme-doc-sidebar-container .menu,
 .sidebarShellMenu {
-  /* No top padding: the pinned rail below carries it. */
+  /* No top padding: the rail below carries it. */
   padding: 0 24px 48px 32px;
 }
 
@@ -93,16 +93,11 @@ li.sidebar-section-title > .menu__list {
 }
 
 /* ---- Section rail ---- */
-/* Pinned to the top of the scrolling sidebar: only the page menu below it
-   scrolls. It bleeds to the sidebar edges so its background covers the rows
-   passing underneath, and it carries the divider. */
+/* Scrolls with the page menu. It bleeds to the sidebar edges so the divider
+   spans the full width. */
 .sectionRail {
-  position: sticky;
-  top: 0;
-  z-index: 1;
   margin: 0 -24px 20px -32px;
   padding: 20px 24px 20px 32px;
-  background-color: var(--bgdefault);
   border-bottom: 1px solid var(--borderdefault);
 }
 
