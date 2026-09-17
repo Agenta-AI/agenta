@@ -222,6 +222,14 @@ def test_trigger_inputs_reference_documents_the_context_shape():
         assert key in content, f"trigger-inputs.md omits {key!r}"
 
 
+def test_trigger_inputs_reference_keeps_messages_task_only():
+    content = " ".join(_file("references/trigger-inputs.md").content.split())
+    assert "`messages` entry containing only the task" in content
+    assert "not schedule/trigger metadata, timing checks, or skip-run guards" in content
+    assert "Configure when to run in the schedule or trigger settings" in content
+    assert '"event": "$.event.attributes"' in content
+
+
 def test_config_schema_has_example_commit_revision_requests():
     content = _file("references/config-schema.md").content
     assert "## Example requests" in content

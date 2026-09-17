@@ -5,6 +5,8 @@ import {
     filesToParts,
     jumpGateOpen,
     messageText,
+    restoreHeldRefusedSend,
+    restoreRefusedSend as restoreRefusedSendInto,
     sideEffectingToolsInRange,
 } from "@agenta/chat/assets"
 import {getMessageTraceId, mergePendingSendEchoRows} from "@agenta/chat/assets"
@@ -64,10 +66,6 @@ import {answerThenSteer} from "./assets/answerThenSteer"
 import {isAgentFileUploadsEnabled} from "./assets/constants"
 import {CONTENT_VISIBILITY_ENABLED} from "./assets/conversationLayout"
 import {runWithInFlightSubmit} from "./assets/inFlightSubmit"
-import {
-    restoreHeldRefusedSend,
-    restoreRefusedSend as restoreRefusedSendInto,
-} from "./assets/refusedMessageRecovery"
 import AgentComposerDock from "./components/AgentComposerDock"
 import AgentTranscript from "./components/AgentTranscript"
 import AgentTurn from "./components/AgentTurn"
@@ -771,12 +769,23 @@ const AgentConversation = ({
             setStopped(false)
             // Clear only the pending run this manual retry took over, after admission succeeds.
             const pendingRunNonce = consumedRunNonceRef.current
+            // The message leaves the composer HERE, before the send can fail: its draft, the
+            // template provenance (which empties the editor) and the entries it consumed go now.
+            // Both refusal paths put things back afterwards — the early one in `handleSubmit`'s
+            // catch, the late one through `restoreLateRefusedSend`. Run after the await, this
+            // cleanup landed ~30 ms after a late refusal had already restored the text and wiped
+            // it again, leaving the message in neither place (#6697).
+            composer.clearDraft()
+            onboardingChat.consumeTemplateProvenance()
+            attachments.clearAttachments(consumedUids)
             // One path: `submit` sends now or queues behind held messages via the shared release gate.
             if (policy === "steer") await steer({text: trimmed, fileParts})
             else await submit({text: trimmed, fileParts, stagedFiles})
             setPendingRun((current) => (current?.nonce === pendingRunNonce ? null : current))
+            return
         }
-        // The message left the composer — drop its persisted draft (and any pending capture).
+        // A rewrite of a held message: nothing was sent, but the composer's contents moved to
+        // the row, so the same bookkeeping applies.
         composer.clearDraft()
         onboardingChat.consumeTemplateProvenance()
         attachments.clearAttachments(consumedUids)
@@ -788,8 +797,10 @@ const AgentConversation = ({
         text: string,
         extraFiles: File[] = [],
         policy: "queue" | "steer" = "queue",
-    ) =>
-        runWithInFlightSubmit(inFlightSubmitRef, async () => {
+    ) => {
+        // What a rejection has to put back: the tray, plus any take uploaded on the way out.
+        let outbound = files
+        return runWithInFlightSubmit(inFlightSubmitRef, async () => {
             const trimmed = text.trim()
             if (!trimmed && files.length === 0 && extraFiles.length === 0) return
             if (!attachmentsSettled) return
@@ -829,14 +840,19 @@ const AgentConversation = ({
                 : []
             if (!uploadedExtras) return
             const outboundFiles = [...files, ...uploadedExtras]
+            outbound = outboundFiles
             const fileParts = outboundFiles.length
                 ? stagedFilesToParts(outboundFiles, sessionId)
                 : undefined
             await finishSubmit(trimmed, fileParts, stagedUids, outboundFiles, policy)
         }).catch(() => {
-            richInputRef.current?.setMarkdown(text)
+            // The send rejected before the runner took it. The composer was cleared at the
+            // send, so the words AND everything it consumed come back (idempotently).
+            void richInputRef.current?.setMarkdown(text)
+            restoreAttachments(outbound)
             attachments.setRejections([{name: "Message", reason: "wasn't sent — try again."}])
         })
+    }
 
     handleSubmitRef.current = handleSubmit
 

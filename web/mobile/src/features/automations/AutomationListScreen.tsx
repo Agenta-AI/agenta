@@ -16,19 +16,17 @@ import {
     runsWhenLabel,
     useAutomations,
 } from "@agenta/automation-ui"
-import {agentWorkflowsListQueryStateAtom, type Workflow} from "@agenta/entities/workflow"
 import {AgentChip} from "@agenta/entity-ui/agent"
 import {pageContentWidthClass} from "@agenta/ui/components/page-width"
 import {useFilterMenuView} from "@agenta/ui/filter-menu"
 import {useMediaQuery} from "@agenta/ui/hooks"
 import {ListTable, ListTableToolbar, type ListTableColumn} from "@agenta/ui/list-table"
+import {Button} from "@agenta/ui/ui"
 import {ClockClockwise, Lightning, Plus} from "@phosphor-icons/react"
-import {useAtomValue} from "jotai"
 import {useRouter} from "next/router"
 
 import {PageTitle} from "@/components/PageTitle"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
-import {Button} from "@/components/ui/button"
 
 import {useBindProjectContext} from "../context/useBindProjectContext"
 import {AppShell} from "../nav/AppShell"
@@ -143,32 +141,16 @@ export const AutomationListScreen = ({
             }),
         [],
     )
-    const {automations, isLoading, error, refetch} = useAutomations(search)
-
-    // Same roster `useAutomations` already reads for its search, so the name in a row and the
-    // name it matched on can never disagree.
-    const agentsQuery = useAtomValue(agentWorkflowsListQueryStateAtom)
-    const agentNames = useMemo(
-        () =>
-            new Map(
-                (agentsQuery.data ?? []).map((agent: Workflow) => [
-                    agent.id,
-                    agent.name || agent.slug || "",
-                ]),
-            ),
-        [agentsQuery.data],
-    )
+    // The rows label from the same names the search matched on, so the two can never disagree.
+    const {automations, isLoading, error, refetch, agentNames, agentsReady} = useAutomations(search)
 
     // The menu's Agent row offers the same roster the rows label from, named the same way.
     const agents = useMemo(
         () =>
-            (agentsQuery.data ?? [])
-                .map((agent: Workflow) => ({
-                    id: agent.id,
-                    name: (agent.name || agent.slug || "").trim(),
-                }))
-                .filter((agent: {id: string; name: string}) => agent.id && agent.name),
-        [agentsQuery.data],
+            [...agentNames]
+                .map(([id, name]) => ({id, name: name.trim()}))
+                .filter((agent) => agent.id && agent.name),
+        [agentNames],
     )
 
     const term = search.trim()
@@ -224,7 +206,7 @@ export const AutomationListScreen = ({
                     const agentName = agentLabel(
                         automation.agentId,
                         agentNames.get(automation.agentId ?? "")?.trim() || null,
-                        !agentsQuery.isPending,
+                        agentsReady,
                     )
 
                     return (
@@ -335,12 +317,12 @@ export const AutomationListScreen = ({
                                     Automations
                                 </h1>
                                 <Button
-                                    size="sm"
                                     aria-label="New automation"
-                                    className="text-xs font-normal"
+                                    // Square icon button on a phone, where the label is hidden.
+                                    className="max-sm:size-8 max-sm:px-0"
                                     onClick={() => void router.push(`${base}/automations/new`)}
                                 >
-                                    <Plus className="size-3" />
+                                    <Plus />
                                     {/* The label costs more than it earns at phone width: it
                                         pushed the page's own title into an ellipsis. */}
                                     <span className="hidden sm:inline">New automation</span>

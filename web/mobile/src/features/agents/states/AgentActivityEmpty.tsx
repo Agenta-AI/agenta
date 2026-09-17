@@ -1,4 +1,5 @@
-import {ChatCircleDots, Lightning} from "@phosphor-icons/react"
+import {Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle} from "@agenta/ui/ui"
+import {MessagesSquare, Zap} from "lucide-react"
 
 import type {AgentActivityTab} from "../agentActivityView"
 
@@ -17,18 +18,14 @@ const COPY: Record<AgentActivityTab, {title: string; body: string}> = {
 export const AgentActivityEmpty = ({tab}: {tab: AgentActivityTab}) => {
     const copy = COPY[tab]
     return (
-        <div className="flex flex-col items-center justify-center gap-2.5 px-8 py-12 text-center">
-            <span className="inline-flex size-10 shrink-0 items-center justify-center rounded-[10px] bg-muted text-muted-foreground">
-                {tab === "runs" ? (
-                    <Lightning aria-hidden size={19} />
-                ) : (
-                    <ChatCircleDots aria-hidden size={19} />
-                )}
-            </span>
-            <p className="m-0 text-[14px] font-medium text-foreground">{copy.title}</p>
-            <p className="m-0 max-w-[42ch] text-[13px] leading-snug text-muted-foreground">
-                {copy.body}
-            </p>
-        </div>
+        <Empty className="py-12">
+            <EmptyHeader>
+                <EmptyMedia variant="icon">
+                    {tab === "runs" ? <Zap /> : <MessagesSquare />}
+                </EmptyMedia>
+                <EmptyTitle>{copy.title}</EmptyTitle>
+                <EmptyDescription>{copy.body}</EmptyDescription>
+            </EmptyHeader>
+        </Empty>
     )
 }

@@ -7,7 +7,6 @@ import {
     type Workflow,
 } from "@agenta/entities/workflow"
 import {HomeFocus, type HomeListAgent} from "@agenta/home-ui"
-import {pageContentWidthClass} from "@agenta/ui/components/page-width"
 import {useAtomValue} from "jotai"
 
 import {PageTitle} from "@/components/PageTitle"
@@ -19,6 +18,7 @@ import {AppShell} from "../nav/AppShell"
 import {NavDrawer} from "../nav/NavDrawer"
 
 import {resolveHomeSurface} from "./homeSurface"
+import {HOME_PAGE_FRAME} from "./pageFrame"
 import {HomeSkeleton} from "./states/HomeSkeleton"
 import {HomeListError, HomeListSkeleton, HomeSectionEmpty} from "./states/HomeStates"
 import {useHomeHandoff} from "./useHomeHandoff"
@@ -65,11 +65,8 @@ export const HomeScreen = ({workspaceId, projectId}: {workspaceId: string; proje
         [agents],
     )
 
-    // The frame every screen here applies: the shared column plus a phone's own gutters below
-    // `lg`, widening to the page gutters above it. The deep top inset is Home's own — the centred
-    // column is the whole page, so it hangs rather than starting at the top. The skeleton takes
-    // the SAME frame, or the hold sits somewhere the page does not.
-    const frame = `${pageContentWidthClass} px-4 pb-12 pt-10 lg:px-16 lg:pb-16 lg:pt-[120px]`
+    // The skeleton takes the SAME frame, or the hold sits somewhere the page does not.
+    const frame = HOME_PAGE_FRAME
 
     const homeBody = (
         <HomeFocus

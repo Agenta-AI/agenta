@@ -1,19 +1,19 @@
 import {useCallback, useMemo, useRef, useState} from "react"
 
-import type {AuthMessage, AuthSecurityAdapter} from "@agenta/auth-ui"
-
 import {
     clearPendingTurnstileToken,
     isTurnstileEnabled,
     setPendingTurnstileToken,
-} from "@/oss/lib/helpers/auth/turnstile"
+} from "@agenta/auth"
 
-import TurnstileWidget, {TurnstileWidgetHandle} from "../Turnstile"
+import {TurnstileWidget, type TurnstileWidgetHandle} from "./TurnstileWidget"
+import type {AuthMessage, AuthSecurityAdapter} from "./types"
 
 /**
  * The EE security seam: adapts Cloudflare Turnstile (widget + the pending-token side channel
- * the API middleware reads) to the package's neutral AuthSecurityAdapter. Returns undefined
- * when the deployment has no Turnstile — the forms then skip the whole dance.
+ * the API middleware reads) to the neutral AuthSecurityAdapter the forms take. Returns undefined
+ * when the deployment has no Turnstile — the forms then skip the whole dance. Shared by the
+ * desktop and /m so both send the token the API insists on.
  */
 export const useTurnstileSecurity = (
     setMessage: (message: AuthMessage) => void,

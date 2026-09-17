@@ -1,9 +1,11 @@
 import {useEffect, useMemo, useState} from "react"
 
+import {Button} from "@agenta/ui/ui"
 import {useQuery} from "@tanstack/react-query"
 import {useRouter} from "next/router"
 
 import {ScreenScaffold} from "@/components/ScreenScaffold"
+import {HomePageSkeleton} from "@/features/home/states/HomePageSkeleton"
 import {
     fetchProjects,
     projectHomeUrl,
@@ -27,7 +29,7 @@ interface ContextResolverProps {
 /**
  * `/m/` root flow: resolve a project (remembered → desktop continuity → first) and forward to
  * its home. There is no picker page — switching lives in the drawer, exactly like the desktop
- * rail. This route only ever shows "Loading", an error, or leaves.
+ * rail. This route only ever shows the home skeleton, an error, or leaves.
  *
  * Also the body of every `/w/...` index gate — the desktop's `WorkspaceSelection` /
  * `WorkspaceRedirect` / `WorkspaceProjectRedirect` trio, collapsed into one resolver because
@@ -79,25 +81,22 @@ export const ContextResolver = ({workspaceId}: ContextResolverProps = {}) => {
     // Signed out is not a screen on a phone — the auth page is, and AuthGate routes there
     // from wherever the user landed (this page redirects away too fast to be that gate).
 
-    let body
     if (result?.kind === "error" || (result?.kind === "ok" && groups.length === 0)) {
-        body = (
-            <div className="flex grow flex-col items-center justify-center gap-3 p-6 text-center">
-                <p className="text-muted-foreground text-xs">
-                    {result?.kind === "ok" ? "No projects found." : "Something went wrong."}
-                </p>
-                <button
-                    type="button"
-                    className="border-border min-h-11 cursor-pointer rounded-md border px-3 py-2 text-xs"
-                    onClick={() => void query.refetch()}
-                >
-                    Retry
-                </button>
-            </div>
+        return (
+            <ScreenScaffold>
+                <div className="flex grow flex-col items-center justify-center gap-3 p-6 text-center">
+                    <p className="text-muted-foreground text-xs">
+                        {result?.kind === "ok" ? "No projects found." : "Something went wrong."}
+                    </p>
+                    <Button type="button" variant="outline" onClick={() => void query.refetch()}>
+                        Retry
+                    </Button>
+                </div>
+            </ScreenScaffold>
         )
-    } else {
-        body = <p className="text-muted-foreground grow p-6 text-center text-xs">Loading…</p>
     }
 
-    return <ScreenScaffold>{body}</ScreenScaffold>
+    // Every resolution forwards to a project home, so hold that page's own skeleton: the
+    // arrival is then one continuous frame rather than a line of text the home replaces.
+    return <HomePageSkeleton />
 }

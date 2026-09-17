@@ -76,6 +76,25 @@ export function toAutomation(
 }
 
 /**
+ * The id a binding needs looked up before it can name an agent.
+ *
+ * A trigger written through the SDK or the API often binds only a variant or a revision —
+ * the backend stores references as sent and never fills the artifact in. `agentId` then holds
+ * that leaf id, which no agent roster is keyed by, and the row reads "Unknown agent" for a
+ * perfectly good agent. Null when the artifact is named, or when nothing is.
+ */
+export function agentBindingLookup(
+    references?: Record<string, {id?: string | null} | undefined> | null,
+): {kind: "variant" | "revision"; id: string} | null {
+    if (references?.application?.id || references?.workflow?.id) return null
+    const variantId = references?.application_variant?.id ?? references?.workflow_variant?.id
+    if (variantId) return {kind: "variant", id: variantId}
+    const revisionId = references?.application_revision?.id ?? references?.workflow_revision?.id
+    if (revisionId) return {kind: "revision", id: revisionId}
+    return null
+}
+
+/**
  * The stored `data.inputs_fields` as an object.
  *
  * The schema allows a bare selector STRING there ("$" = the whole event context), which no editor

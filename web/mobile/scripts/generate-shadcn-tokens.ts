@@ -221,7 +221,8 @@ const VARS: Record<string, [string, string]> = {
     // literally, so mobile must publish the same names off the same palette roles.
     "ag-sidebar-bg": [color(p.shell.railBg.light), color(p.shell.railBg.dark)],
     "ag-shell-line": [color(p.shell.line.light), color(p.shell.line.dark)],
-    ring: [color(p.accent.primary.light), color(p.accent.primary.dark)],
+    // shadcn's `ring` is a neutral grey, not the brand colour (palette `surface.ring`).
+    ring: [color(p.surface.ring.light), color(p.surface.ring.dark)],
     // ── @agenta/ui control primitives (Button/Input/Switch) ──
     // The kit's state tokens, fed from the SAME palette roles that generate the desktop
     // --ag-* layer, so a shared control renders identically in both apps.
@@ -258,6 +259,7 @@ const VARS: Record<string, [string, string]> = {
     "btn-link-active": [color(p.button.linkActive.light), color(p.button.linkActive.dark)],
     // Plain vars referenced VERBATIM inside the kit's arbitrary shadow values
     // (shadow-[0_2px_0_var(--ag-controlOutline)]) — emitted with the desktop's exact names.
+    "ag-ring": [color(p.surface.ring.light), color(p.surface.ring.dark)],
     "ag-controlOutline": [
         color(p.surface.controlOutline.light),
         color(p.surface.controlOutline.dark),

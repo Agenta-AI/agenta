@@ -1317,8 +1317,9 @@ _TRIGGER_INPUTS_FIELDS_SCHEMA: Dict[str, Any] = {
         "resolves as a JSON Pointer, and any other leaf passes through literally — "
         "selectors are never interpolated into a larger string, and an unmatched selector "
         "resolves to null. Omit this field to pass the whole fire context through as-is. "
-        "Canonical pattern: include an explicit imperative `messages` entry and map the "
-        'event payload under a sibling key, e.g. `{"messages": [{"role": "user", '
+        "Put only the task in `messages`, not schedule/trigger metadata, timing checks, or "
+        "skip-run guards. Configure when to run in the schedule or trigger settings. For "
+        'subscriptions, map event data under a sibling key, e.g. `{"messages": [{"role": "user", '
         '"content": "Handle this event."}], "payload": "$.event.attributes"}`.'
     ),
     "anyOf": [

@@ -128,25 +128,11 @@ export const AntdVsAgenta: Story = {
                 a={<Button danger>Danger</Button>}
                 s={<ShadButton variant="destructive-outline">Danger</ShadButton>}
             />
-            {/* These three rows are opted out of the pixel gate for SUB-PIXEL PHASE only. Their
-                geometry matches antd token for token — height 24/28/34, padding-inline 7/15/15,
-                radius 6/8/10, font 12/12/14, weight 400 (antd/lib/button/style/index.js L156-184
-                against `controlScale` in oss/tailwind.config.ts and the `Button` block in
-                oss/src/styles/tokens/antd-themeConfig.json). Measured per glyph on the crops:
-                every glyph's ink centroid sits a CONSTANT +0.50 device px (= 0.25 CSS px at
-                DPR 2) right of antd's, with identical advances, identical ink extent and an
-                identical baseline — a translation, not a typography difference. On `small → sm`
-                both borders land byte-identically and the residual is 64 red px of 4512 (1.42%),
-                purely glyph anti-aliasing at the shifted phase. On `large → lg` (170 of 9452,
-                1.80%) and `primary danger → destructive` (57 of 5656, 1.01%) the border-box width
-                is fractional (139 and 101 device px = 69.5 and 50.5 CSS px), so that same
-                sub-pixel offset makes Chrome snap the RIGHT border to a different device column —
-                antd's lands at cols 136-137 / 99, ours at 138 / 100. Ratios are not comparable
-                across crops: a PASSING row carries 61 red px on 8176 (0.75%), i.e. the same
-                magnitude as `small → sm`. Nothing here is a component regression, and changing
-                geometry that already matches antd to move a ratio would be one. */}
+            {/* Button follows shadcn Nova, not antd — this pairing is a visual sanity check, not a
+                pixel gate. Nova sizes: xs 24 / sm 28 / default 32 / lg 36; antd's Button theme
+                tokens were flattened to the same scale so unmigrated buttons sit beside it. */}
             <BRow
-                label="primary danger → destructive — sub-pixel border snap not reproduced (57px of 5656)"
+                label="primary danger → destructive (Nova tint)"
                 a={
                     <Button type="primary" danger>
                         Del
@@ -155,7 +141,7 @@ export const AntdVsAgenta: Story = {
                 s={<ShadButton variant="destructive">Del</ShadButton>}
             />
             <BRow
-                label="small → sm — sub-pixel text phase not reproduced (64px of 4512)"
+                label="small → sm"
                 a={<Button size="small">Small</Button>}
                 s={
                     <ShadButton variant="outline" size="sm">
@@ -164,7 +150,7 @@ export const AntdVsAgenta: Story = {
                 }
             />
             <BRow
-                label="large → lg — sub-pixel border snap not reproduced (170px of 9452)"
+                label="large → lg"
                 a={<Button size="large">Large</Button>}
                 s={
                     <ShadButton variant="outline" size="lg">
@@ -172,15 +158,9 @@ export const AntdVsAgenta: Story = {
                     </ShadButton>
                 }
             />
-            {/* Icon rows are opted out of the pixel gate ("not reproduced") for the icon's VERTICAL
-                position only — see CopyButton.stories.tsx for the full antd `resetIcon()`
-                derivation. antd's `.ant-btn-icon > svg` gets `vertical-align: -0.125em`
-                (style/index.js L27-46, wired at button/style/index.js L48) and `.ant-btn` keeps the
-                UA `line-height: normal`, so the icon wrapper's line box is 15.5px with the svg at
-                its top: antd lands the glyph at 6.25px in the 28px button instead of the geometric
-                7.00px. We centre it exactly, so antd is the off-centre one. */}
+            {/* Icon is centred exactly; antd lifts it 0.75px (see CopyButton.stories.tsx). */}
             <BRow
-                label="circle → icon — 0.75px icon lift not reproduced (antd is off-centre)"
+                label="circle → icon"
                 a={<Button shape="circle" icon={<PlusOutlined />} />}
                 s={
                     <ShadButton variant="outline" size="icon" className="rounded-control-round">
@@ -206,6 +186,53 @@ export const AntdVsAgenta: Story = {
                     </ShadButton>
                 }
             />
+        </div>
+    ),
+}
+
+const NOVA_VARIANTS = [
+    "default",
+    "outline",
+    "dashed",
+    "secondary",
+    "ghost",
+    "destructive",
+    "destructive-outline",
+    "link",
+] as const
+const NOVA_SIZES = ["xs", "sm", "default", "lg"] as const
+
+// Every variant × size of the Nova-styled Button, with and without a leading icon.
+export const NovaMatrix: Story = {
+    render: () => (
+        <div className="flex flex-col gap-3">
+            {NOVA_VARIANTS.map((variant) => (
+                <div key={variant} className="flex items-center gap-3">
+                    <div className="w-36 text-xs text-colorTextSecondary">{variant}</div>
+                    {NOVA_SIZES.map((size) => (
+                        <ShadButton key={size} variant={variant} size={size}>
+                            {size}
+                        </ShadButton>
+                    ))}
+                    {NOVA_SIZES.map((size) => (
+                        <ShadButton key={`${size}-icon`} variant={variant} size={size}>
+                            <PlusOutlined data-icon="inline-start" />
+                            {size}
+                        </ShadButton>
+                    ))}
+                    {(["icon-xs", "icon-sm", "icon", "icon-lg"] as const).map((size) => (
+                        <ShadButton key={size} variant={variant} size={size} aria-label="add">
+                            <PlusOutlined />
+                        </ShadButton>
+                    ))}
+                    <ShadButton variant={variant} disabled>
+                        disabled
+                    </ShadButton>
+                    <LoadingButton variant={variant} loading>
+                        loading
+                    </LoadingButton>
+                </div>
+            ))}
         </div>
     ),
 }

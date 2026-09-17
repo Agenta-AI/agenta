@@ -2,9 +2,8 @@ import {useState} from "react"
 
 import {RevealCollapse} from "@agenta/chat/components"
 import type {AgentModelKeyStatus} from "@agenta/chat/hooks"
+import {Button} from "@agenta/ui/ui"
 import {Lock} from "lucide-react"
-
-import {Button} from "@/components/ui/button"
 
 import {ProviderKeySheet} from "../settings/ProviderKeySheet"
 
