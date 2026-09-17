@@ -6,9 +6,9 @@
 // rather than copying it: its own clamp threshold, its own toggle wording, its own retry rule, and
 // no test. Both apps render the package's component now.
 //
-// What is pinned here is this app's half: a failed turn renders it with the run's reason, the
-// retry is offered for the one class this app passes a retry for, and each failure class the
-// reader can clear with a credential draws the escape that clears it.
+// What is pinned here is this app's half: a failed turn renders it with the run's reason, and each
+// failure class draws the escape that clears it. Which classes those are is the package's rule,
+// held in one place for both apps; this app's job is to pass the escapes at all.
 //
 // It had drawn neither of those two, on the grounds that this app has no provider drawer. It does
 // have the destination: Settings -> LLM providers renders the same shared AI-providers page the
@@ -83,10 +83,37 @@ describe("mobile TurnRow: a run that failed", () => {
         expect(shown).toContain("model authentication failed")
     })
 
-    it("offers Try again for the continuation race, which is the class it passes a retry for", () => {
+    it("offers Try again for the continuation race, the positive control", () => {
         expect(
             renderTurn(failedTurn("This turn was resumed elsewhere.", "continuation_resumed")),
         ).toContain("Try again")
+    })
+
+    it.each(["rate_limited", "execution_lost", "credential_delivery_failed"])(
+        "offers Try again for %s, which is transient and has nothing else to fix",
+        (code) => {
+            // This app narrowed the retry to `continuation_resumed` alone, on top of the
+            // package's own class list, so every other transient failure drew a button on the
+            // desktop and none on a phone.
+            expect(renderTurn(failedTurn("Try that again.", code))).toContain("Try again")
+        },
+    )
+
+    it("offers Try again for a request that never reached Agenta", () => {
+        // A transport failure carries no code at all; position is the only thing to gate on.
+        const message = {
+            id: "turn-1",
+            role: "assistant",
+            parts: [],
+            metadata: {runError: {message: "Network request failed.", transport: true}},
+        } as unknown as UIMessage
+
+        expect(renderTurn(message)).toContain("Try again")
+    })
+
+    it("offers no retry on a failure class nothing but a new request would fix", () => {
+        // The package decides this, and it still decides it: a model refusal is not transient.
+        expect(renderTurn(failedTurn("model authentication failed"))).not.toContain("Try again")
     })
 
     it("offers the key escape when the starter grant is spent, and takes the reader there", () => {

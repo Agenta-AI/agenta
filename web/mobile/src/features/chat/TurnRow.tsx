@@ -39,9 +39,9 @@ import {useAtomValue, useSetAtom} from "jotai"
 import {Bot, Brain, ChevronRight, User} from "lucide-react"
 
 import {AssistantMarkdown} from "./AssistantMarkdown"
-import {continuationRetryAction} from "./continuationRetry"
 import {isLiveReasoningPart, isLiveTextItem} from "./markdownStream"
 import {useProviderRecovery} from "./providerRecovery"
+import {runRetryAction} from "./runRetry"
 import {ToolLine} from "./ToolLine"
 
 type ToolsItem = Extract<TurnViewModel["items"][number], {kind: "tools"}>
@@ -263,10 +263,7 @@ const TurnRowInner = ({
                     stateKey={errorKey(turn.message.id)}
                     code={turn.status.errorCode ?? undefined}
                     transport={isMessageRunErrorTransport(turn.message)}
-                    onRetry={continuationRetryAction(
-                        turn,
-                        onRewind ? () => onRewind(turn) : undefined,
-                    )}
+                    onRetry={runRetryAction(turn, onRewind ? () => onRewind(turn) : undefined)}
                     // Both classes the callout can clear with a credential go to the same page,
                     // as they do on the desktop.
                     onAddKey={openProviders}
