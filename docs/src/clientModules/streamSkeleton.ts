@@ -15,6 +15,8 @@ const MAX_WAIT_MS = 8000;
 
 type StreamPlayer = {
   addEventListener: (event: string, handler: () => void) => void;
+  /** HTMLMediaElement readyState; 2 (HAVE_CURRENT_DATA) means a frame is available. */
+  readyState?: number;
 };
 
 declare global {
@@ -65,6 +67,9 @@ function watch(frame: HTMLIFrameElement, wrapper: HTMLElement): void {
       player.addEventListener("loadeddata", finish);
       player.addEventListener("canplay", finish);
       player.addEventListener("error", finish);
+      // A cached iframe can be past these events before the SDK is ready;
+      // they are not replayed, so check the state as well.
+      if ((player.readyState ?? 0) >= 2) finish();
     } catch {
       finish();
     }
