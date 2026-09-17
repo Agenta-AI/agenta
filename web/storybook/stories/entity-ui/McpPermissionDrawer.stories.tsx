@@ -289,8 +289,8 @@ export const ReadOnly: Story = {
  * Two rules the catalog cannot honour, for opposite reasons.
  *
  * `retired_tool` is a rule for a tool the server stopped advertising. It stays as an editable row
- * marked "not in catalog", because a server can go quiet about a tool temporarily and dropping the
- * rule would re-admit it under the default when it came back.
+ * marked "no longer offered", because a server can go quiet about a tool temporarily and dropping
+ * the rule would re-admit it under the default when it came back.
  *
  * `delete_issue` is hidden by the server's own include filter, so it may not carry a permission at
  * all: the API refuses the whole policy, and the agent cannot run until the rule is gone. Its row

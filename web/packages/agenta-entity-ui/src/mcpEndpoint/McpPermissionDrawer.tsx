@@ -508,6 +508,10 @@ export default function McpPermissionDrawer({
                 emptyLabel: "This server exposes no tools yet.",
                 readOnlyLabel: "Read-only",
                 writeLabel: "Write",
+                // The spec's own phrase for a saved rule whose tool the server has stopped
+                // advertising. "Not in catalog" is the Composio wording and names a thing an MCP
+                // server does not have.
+                staleLabel: "no longer offered",
                 toolOptions,
                 presets,
                 lockedTool: (toolKey) =>

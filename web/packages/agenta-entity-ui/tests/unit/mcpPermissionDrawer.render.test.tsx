@@ -525,7 +525,10 @@ describe("D3 — one tool overridden", () => {
         // author's decision and re-admit the tool under the default when it came back.
         await render({policy: {permission: "allow", tool_permissions: {retired_tool: "deny"}}})
 
-        expect(text()).toContain("not in catalog")
+        // The spec's own phrase. "Not in catalog" is the Composio drawer's, and an MCP server has
+        // no catalog: it advertises a tool list, and this one has stopped advertising this tool.
+        expect(text()).toContain("no longer offered")
+        expect(text()).not.toContain("not in catalog")
         expect(labelled("Permission for retired_tool")?.getAttribute("disabled")).toBeNull()
     })
 })

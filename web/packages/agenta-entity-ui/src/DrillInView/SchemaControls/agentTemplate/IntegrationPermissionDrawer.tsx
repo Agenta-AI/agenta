@@ -72,6 +72,9 @@ import {PermissionPolicySelect, type PermissionPolicyOption} from "./PermissionP
 /** Rows rendered per group before the "Show N more" link. */
 const GROUP_PAGE_SIZE = 25
 
+/** What a row says about a saved key the source no longer lists. The Composio wording. */
+const DEFAULT_STALE_LABEL = "not in catalog"
+
 // Persisted expand state per source and group (key = `${catalogKey}:${groupKey}`).
 const permissionGroupsExpandedAtom = atomWithStorage<Record<string, boolean>>(
     "agenta:tools:permission-groups-expanded",
@@ -176,6 +179,9 @@ export interface PermissionDrawerSource {
     rowValue?: (toolKey: string) => PermissionRowValue | undefined
     /** Above the controls: the login-expired banner (D4). */
     banner?: ReactNode
+    /** What a row says about a saved key the source no longer lists. An MCP server "no longer
+     *  offers" a tool, which is the spec's own phrase; a Composio catalog does not list it. */
+    staleLabel?: string
     /** With the banner up, everything below it is readable and inert until the login is renewed. */
     controlsDisabled?: boolean
     /** Under the tool list: remediation a row cannot offer on its own. */
@@ -236,6 +242,7 @@ const ToolRow = memo(function ToolRow({
     lockedReason,
     triggerTitle,
     readOnly,
+    staleLabel,
 }: {
     tool: CatalogToolInfo
     permission: GatewayPermission
@@ -245,6 +252,7 @@ const ToolRow = memo(function ToolRow({
     lockedReason?: string | null
     triggerTitle?: string
     readOnly?: boolean
+    staleLabel: string
 }) {
     // Only the row's tint depends on this; the clamp and the toggle live in ExpandableDescription.
     const [expanded, setExpanded] = useState(false)
@@ -268,7 +276,7 @@ const ToolRow = memo(function ToolRow({
                                 variant="outlined"
                                 className="m-0 px-1.5 text-[11px] font-normal leading-4"
                             >
-                                not in catalog
+                                {staleLabel}
                             </Badge>
                         ) : null}
                     </div>
@@ -324,6 +332,7 @@ function ToolGroup({
     lockedTool,
     rowValue,
     readOnly,
+    staleLabel,
 }: {
     label: string
     groupKey: string
@@ -337,6 +346,7 @@ function ToolGroup({
     lockedTool?: (toolKey: string) => string | null
     rowValue?: (toolKey: string) => PermissionRowValue | undefined
     readOnly?: boolean
+    staleLabel: string
 }) {
     const [expanded, setExpanded] = useAtom(permissionGroupsExpandedAtom)
     const [shown, setShown] = useState(GROUP_PAGE_SIZE)
@@ -426,6 +436,7 @@ function ToolGroup({
                                 lockedReason={lockedTool?.(tool.key)}
                                 triggerTitle={shownValue?.triggerTitle}
                                 readOnly={readOnly}
+                                staleLabel={staleLabel}
                             />
                         )
                     })}
@@ -460,6 +471,7 @@ function PermissionDrawerBody({
     disabled,
     readOnlyLabel = "Read-only",
     writeLabel = "Write and delete",
+    staleLabel = DEFAULT_STALE_LABEL,
     toolOptions = defaultToolOptions,
     presets,
     lockedTool,
@@ -622,6 +634,7 @@ function PermissionDrawerBody({
                             lockedTool={lockedTool}
                             rowValue={rowValue}
                             readOnly={readOnly}
+                            staleLabel={staleLabel}
                         />
                         <ToolGroup
                             label={writeLabel}
@@ -636,6 +649,7 @@ function PermissionDrawerBody({
                             lockedTool={lockedTool}
                             rowValue={rowValue}
                             readOnly={readOnly}
+                            staleLabel={staleLabel}
                         />
                     </div>
                 )}
@@ -835,6 +849,7 @@ export function IntegrationPermissionDrawer({
                     searchCount={source.searchCount}
                     readOnlyLabel={source.readOnlyLabel}
                     writeLabel={source.writeLabel}
+                    staleLabel={source.staleLabel}
                     toolOptions={source.toolOptions}
                     presets={source.presets}
                     lockedTool={source.lockedTool}
