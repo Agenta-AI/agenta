@@ -13,6 +13,7 @@ import {createRoot} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
 import {PROBE_RESPONSE_BODY_LIMIT} from "@agenta/entities/mcpEndpoint"
+import {TOUCH_TARGET_MINIMUM_PX, touchTargetHeight} from "@agenta/ui/ui"
 
 import {ShowResponsePanel} from "../../src/mcpEndpoint/components/ShowResponsePanel"
 
@@ -81,6 +82,16 @@ describe("the probe's raw answer", () => {
         await toggle()
 
         expect(panel()?.textContent).toHaveLength(PROBE_RESPONSE_BODY_LIMIT)
+    })
+
+    it("has a 44px hit area on the toggle without leaving the baseline", async () => {
+        // A 24px inline link button in a dialog a phone shows: the chrome stays on the
+        // sentence's baseline and an invisible box carries the rest of the reach.
+        await render({body: "boom"})
+
+        const button = document.querySelector("button")
+        expect(button!.className).toContain("align-baseline")
+        expect(touchTargetHeight(button!.className)).toBe(TOUCH_TARGET_MINIMUM_PX)
     })
 
     it("shows the body alone when there was no status line", async () => {

@@ -12,6 +12,8 @@ import {getSettingsTabDescription} from "@agenta/settings"
 import {act, cleanup, fireEvent, render, screen, within} from "@testing-library/react"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
+import {TOUCH_TARGET_MINIMUM_PX, touchTargetHeight} from "@agenta/ui/ui"
+
 import McpServersSection from "../../src/mcp/McpServersSection"
 
 // `vi.hoisted` and `vi.mock` are lifted above every import by the transform, so the mocks
@@ -561,6 +563,18 @@ describe("read-only", () => {
         show([LINEAR], {readOnly: true})
         const row = screen.getByText("Linear").closest("tr") as HTMLTableRowElement
         expect(within(row).queryAllByRole("button")).toHaveLength(0)
+    })
+})
+
+describe("touch targets", () => {
+    it("gives the status cell's Reconnect a 44px hit area at its 24px height", () => {
+        // The repair offered where the problem is reported, on a phone. 24px is the control
+        // scale's smallest step and the row rhythm needs it, so the reach is an invisible box.
+        show([OCTOLENS])
+
+        const reconnect = screen.getByRole("button", {name: "Reconnect"})
+        expect(reconnect.className).toContain("h-control-xs")
+        expect(touchTargetHeight(reconnect.className)).toBe(TOUCH_TARGET_MINIMUM_PX)
     })
 })
 

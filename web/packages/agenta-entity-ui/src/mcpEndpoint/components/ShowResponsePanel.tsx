@@ -15,7 +15,7 @@
 import {useState} from "react"
 
 import {PROBE_RESPONSE_BODY_LIMIT} from "@agenta/entities/mcpEndpoint"
-import {Button} from "@agenta/ui/ui"
+import {Button, cn, touchTargetExpansion} from "@agenta/ui/ui"
 
 export interface ShowResponsePanelProps {
     /** The status line, when the answer had one. */
@@ -31,7 +31,9 @@ export const ShowResponsePanel = ({statusLine, body}: ShowResponsePanelProps) =>
             <Button
                 variant="link"
                 size="xs"
-                className="px-0 align-baseline text-xs"
+                // 24px of chrome, 44px of hit area: the expansion is invisible, so the toggle
+                // keeps its place on the sentence's baseline.
+                className={cn("px-0 align-baseline text-xs", touchTargetExpansion(24))}
                 aria-expanded={open}
                 onClick={() => setOpen((current) => !current)}
             >

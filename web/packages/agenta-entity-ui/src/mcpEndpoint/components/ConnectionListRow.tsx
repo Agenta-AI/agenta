@@ -19,7 +19,7 @@
 import {getMcpConnectionStatusLabel, type McpConnectionStatus} from "@agenta/entities/mcpEndpoint"
 import {StatusIndicator} from "@agenta/ui/components/presentational"
 import {cn} from "@agenta/ui/styles"
-import {Button, IconTile} from "@agenta/ui/ui"
+import {Button, IconTile, touchTargetExpansion} from "@agenta/ui/ui"
 import {ArrowClockwise, Check, Plugs, Plus} from "@phosphor-icons/react"
 
 export interface ConnectionListRowProps {
@@ -102,6 +102,9 @@ export function ConnectionListRow({
                             disabled={busy}
                             onClick={onAdd}
                             aria-label={`Add ${name} to this agent`}
+                            // 28px of chrome on both actions, so the row keeps the desktop
+                            // rhythm, and an invisible box around it for a finger.
+                            className={touchTargetExpansion(28)}
                         >
                             <Plus size={12} />
                             Add
@@ -114,6 +117,7 @@ export function ConnectionListRow({
                         disabled={busy}
                         onClick={onReconnect}
                         aria-label={`Reconnect ${name}`}
+                        className={touchTargetExpansion(28)}
                     >
                         <ArrowClockwise size={12} />
                         Reconnect

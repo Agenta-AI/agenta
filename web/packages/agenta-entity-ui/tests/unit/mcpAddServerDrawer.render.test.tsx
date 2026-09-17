@@ -11,6 +11,8 @@ import {act, createElement} from "react"
 import {createRoot} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
+import {TOUCH_TARGET_MINIMUM_PX, touchTargetHeight} from "@agenta/ui/ui"
+
 import {
     McpAddServerDrawer,
     type McpConnectionOption,
@@ -236,6 +238,21 @@ describe("McpAddServerDrawer while the registry is in flight", () => {
         expect(skeleton!.children).toHaveLength(3)
         expect(text()).not.toContain("No MCP servers in this project yet")
         expect(text()).not.toContain("No servers match")
+    })
+})
+
+describe("the connection row's actions on a phone", () => {
+    it("give Add and Reconnect a 44px hit area at the row's own 28px height", async () => {
+        // The row rhythm is the desktop's and stays 28px; the reach is an invisible box. Both
+        // actions, because a row offers one or the other and never both.
+        await render()
+
+        for (const label of ["Add Axiom to this agent", "Reconnect Octolens"]) {
+            const action = buttonNamed(label)
+            expect(action, label).toBeDefined()
+            expect(action!.className, label).toContain("h-control-sm")
+            expect(touchTargetHeight(action!.className), label).toBe(TOUCH_TARGET_MINIMUM_PX)
+        }
     })
 })
 
