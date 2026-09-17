@@ -18,7 +18,7 @@ import {
 import {Plus} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 
-import {RailField, railInfoLabel} from "../../drawers/shared/RailField"
+import {FieldLayoutProvider, RailField, railInfoLabel} from "../../drawers/shared/RailField"
 import {CreateSecretDrawer} from "../../secret"
 
 type Dict = Record<string, string>
@@ -119,148 +119,151 @@ export function McpServerFormView({value, onChange, disabled}: McpServerFormView
     }
 
     return (
-        <div className="flex flex-col gap-3">
-            <RailField label="Server name">
-                <Input
-                    value={name}
-                    onChange={(event) => setServer({name: event.target.value})}
-                    placeholder="exa"
-                    aria-label="Server name"
-                    aria-invalid={invalidName || undefined}
-                    disabled={disabled}
-                />
-                {invalidName ? (
-                    <span className="mt-1 text-xs text-[var(--ag-colorError)]">
-                        Use only letters, numbers, dots, hyphens, or underscores.
-                    </span>
-                ) : null}
-            </RailField>
-
-            <RailField label="MCP URL" align="center">
-                <Input
-                    value={connection.url ?? ""}
-                    onChange={(event) => setConnection({url: event.target.value})}
-                    placeholder="https://example.com/mcp"
-                    aria-label="MCP URL"
-                    disabled={disabled}
-                />
-            </RailField>
-
-            <RailField label="Authentication" align="center">
-                <Select
-                    value={credentialType}
-                    onValueChange={(next) => setAuthenticationType(next as AuthenticationType)}
-                    disabled={disabled}
-                >
-                    <SelectTrigger className="w-full" aria-label="Authentication">
-                        <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="none">None</SelectItem>
-                        <SelectItem value="header_secret_refs">Secret header</SelectItem>
-                        <SelectItem value="oauth" disabled>
-                            <span className="flex flex-1 items-center justify-between gap-2">
-                                OAuth
-                                <Badge className="text-[12px]">Soon</Badge>
-                            </span>
-                        </SelectItem>
-                    </SelectContent>
-                </Select>
-            </RailField>
-
-            {credentialType === "header_secret_refs" ? (
-                <>
-                    <RailField
-                        label={railInfoLabel(
-                            "Header name",
-                            "The HTTP header required by the MCP server, for example x-api-key",
-                        )}
-                        align="center"
-                    >
-                        <Input
-                            value={secretHeader.name}
-                            onChange={(event) =>
-                                writeSecretHeader({
-                                    ...secretHeader,
-                                    name: event.target.value.trim(),
-                                })
-                            }
-                            placeholder="x-api-key"
-                            aria-label="Header name"
-                            disabled={disabled}
-                        />
-                    </RailField>
-
-                    <RailField
-                        label={railInfoLabel(
-                            "Project secret",
-                            "The selected secret is resolved securely when the agent runs",
-                        )}
-                        align="center"
-                    >
-                        <Select
-                            value={selectedSecretExists ? secretHeader.slug : undefined}
-                            onValueChange={(slug) => writeSecretHeader({...secretHeader, slug})}
-                            open={secretSelectOpen}
-                            onOpenChange={setSecretSelectOpen}
-                            disabled={disabled}
-                        >
-                            <SelectTrigger className="w-full" aria-label="Project secret">
-                                <SelectValue
-                                    placeholder={
-                                        secretHeader.slug && !selectedSecretExists
-                                            ? "Selected secret is unavailable"
-                                            : "Select a project secret"
-                                    }
-                                />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {secretOptions.length === 0 ? (
-                                    <div className="px-3 py-input-y-ghost text-field-md text-colorTextSecondary">
-                                        No project secrets found
-                                    </div>
-                                ) : (
-                                    secretOptions.map((option) => (
-                                        <SelectItem key={option.value} value={option.value}>
-                                            {option.label}
-                                        </SelectItem>
-                                    ))
-                                )}
-                                <SelectSeparator />
-                                {/* Not a SelectItem: it is an action, not a value. Controlled-open
-                                    lets it close the dropdown and open the drawer cleanly. */}
-                                {/* Without a header name `writeSecretHeader` stores `headers: {}`,
-                                    so the new secret would not reach the draft. */}
-                                <Button
-                                    variant="ghost"
-                                    disabled={disabled || !secretHeader.name}
-                                    onClick={() => {
-                                        setCreateSecretMounted(true)
-                                        setSecretSelectOpen(false)
-                                        setCreateSecretOpen(true)
-                                    }}
-                                    className="min-h-control w-full justify-start gap-2 rounded-control-sm px-3 py-1 text-field-md font-normal"
-                                >
-                                    <Plus size={13} className="shrink-0" />
-                                    Create secret
-                                </Button>
-                            </SelectContent>
-                        </Select>
-                    </RailField>
-
-                    {createSecretMounted ? (
-                        <CreateSecretDrawer
-                            open={createSecretOpen}
-                            onClose={() => setCreateSecretOpen(false)}
-                            headerName={secretHeader.name}
-                            serverName={name}
-                            onCreated={(row) =>
-                                writeSecretHeader({...secretHeader, slug: row.slug})
-                            }
-                        />
+        // Stacked, like the trigger and secret forms: label above its control.
+        <FieldLayoutProvider layout="stacked">
+            <div className="flex flex-col gap-4">
+                <RailField label="Server name">
+                    <Input
+                        value={name}
+                        onChange={(event) => setServer({name: event.target.value})}
+                        placeholder="Exa"
+                        aria-label="Server name"
+                        // The drawer remounts the form per open, so mount-focus is open-focus.
+                        autoFocus
+                        aria-invalid={invalidName || undefined}
+                        disabled={disabled}
+                    />
+                    {invalidName ? (
+                        <span className="mt-1 text-xs text-[var(--ag-colorError)]">
+                            Use only letters, numbers, dots, hyphens, or underscores.
+                        </span>
                     ) : null}
-                </>
-            ) : null}
-        </div>
+                </RailField>
+
+                <RailField label="MCP URL">
+                    <Input
+                        value={connection.url ?? ""}
+                        onChange={(event) => setConnection({url: event.target.value})}
+                        placeholder="https://example.com/mcp"
+                        aria-label="MCP URL"
+                        disabled={disabled}
+                    />
+                </RailField>
+
+                <RailField label="Authentication">
+                    <Select
+                        value={credentialType}
+                        onValueChange={(next) => setAuthenticationType(next as AuthenticationType)}
+                        disabled={disabled}
+                    >
+                        <SelectTrigger className="w-full" aria-label="Authentication">
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="none">None</SelectItem>
+                            <SelectItem value="header_secret_refs">Secret header</SelectItem>
+                            <SelectItem value="oauth" disabled>
+                                <span className="flex flex-1 items-center justify-between gap-2">
+                                    OAuth
+                                    <Badge className="text-[12px]">Soon</Badge>
+                                </span>
+                            </SelectItem>
+                        </SelectContent>
+                    </Select>
+                </RailField>
+
+                {credentialType === "header_secret_refs" ? (
+                    <>
+                        <RailField
+                            label={railInfoLabel(
+                                "Header name",
+                                "The HTTP header required by the MCP server, for example x-api-key",
+                            )}
+                        >
+                            <Input
+                                value={secretHeader.name}
+                                onChange={(event) =>
+                                    writeSecretHeader({
+                                        ...secretHeader,
+                                        name: event.target.value.trim(),
+                                    })
+                                }
+                                placeholder="x-api-key"
+                                aria-label="Header name"
+                                disabled={disabled}
+                            />
+                        </RailField>
+
+                        <RailField
+                            label={railInfoLabel(
+                                "Project secret",
+                                "The selected secret is resolved securely when the agent runs",
+                            )}
+                        >
+                            <Select
+                                value={selectedSecretExists ? secretHeader.slug : undefined}
+                                onValueChange={(slug) => writeSecretHeader({...secretHeader, slug})}
+                                open={secretSelectOpen}
+                                onOpenChange={setSecretSelectOpen}
+                                disabled={disabled}
+                            >
+                                <SelectTrigger className="w-full" aria-label="Project secret">
+                                    <SelectValue
+                                        placeholder={
+                                            secretHeader.slug && !selectedSecretExists
+                                                ? "Selected secret is unavailable"
+                                                : "Select a project secret"
+                                        }
+                                    />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {secretOptions.length === 0 ? (
+                                        <div className="px-3 py-input-y-ghost text-field-md text-colorTextSecondary">
+                                            No project secrets found
+                                        </div>
+                                    ) : (
+                                        secretOptions.map((option) => (
+                                            <SelectItem key={option.value} value={option.value}>
+                                                {option.label}
+                                            </SelectItem>
+                                        ))
+                                    )}
+                                    <SelectSeparator />
+                                    {/* Not a SelectItem: it is an action, not a value. Controlled-open
+                                    lets it close the dropdown and open the drawer cleanly. */}
+                                    {/* Without a header name `writeSecretHeader` stores `headers: {}`,
+                                    so the new secret would not reach the draft. */}
+                                    <Button
+                                        variant="ghost"
+                                        disabled={disabled || !secretHeader.name}
+                                        onClick={() => {
+                                            setCreateSecretMounted(true)
+                                            setSecretSelectOpen(false)
+                                            setCreateSecretOpen(true)
+                                        }}
+                                        className="min-h-control w-full justify-start gap-2 rounded-control-sm px-3 py-1 text-field-md font-normal"
+                                    >
+                                        <Plus size={13} className="shrink-0" />
+                                        Create secret
+                                    </Button>
+                                </SelectContent>
+                            </Select>
+                        </RailField>
+
+                        {createSecretMounted ? (
+                            <CreateSecretDrawer
+                                open={createSecretOpen}
+                                onClose={() => setCreateSecretOpen(false)}
+                                headerName={secretHeader.name}
+                                serverName={name}
+                                onCreated={(row) =>
+                                    writeSecretHeader({...secretHeader, slug: row.slug})
+                                }
+                            />
+                        ) : null}
+                    </>
+                ) : null}
+            </div>
+        </FieldLayoutProvider>
     )
 }

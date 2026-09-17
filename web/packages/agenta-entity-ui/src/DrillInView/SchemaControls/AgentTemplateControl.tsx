@@ -1280,8 +1280,10 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                       const readOnly = disabled || def.isReadOnly(draft)
                       const Form = def.FormView
                       const itemKey = `${shownEditing.kind}-${shownEditing.mode}-${shownEditing.index}`
-                      // Skills state their identity in their own form; the drawer drops its chrome.
-                      const bareChrome = shownEditing.kind === "skill"
+                      // Skills state their identity in their own form, and an MCP server's title
+                      // already says what it is; both drawers drop the badge and subtitle.
+                      const bareChrome =
+                          shownEditing.kind === "skill" || shownEditing.kind === "mcp"
                       const isSubagent = Boolean(def.statesOwnIdentity?.(draft))
                       // An inline skill's way into the registry, from the drawer's footer: the
                       // draft is what gets published, and the row it came from is what gets
@@ -1353,12 +1355,14 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                               subtitle={
                                   bareChrome ? undefined : isSubagent ? "Subagent" : desc.subtitle
                               }
-                              // A skill's footer-left is its Publish action; every other kind
-                              // keeps the note.
+                              // A skill's footer-left is its Publish action; the MCP drawer has
+                              // no note; every other kind keeps it.
                               footerNote={
                                   shownEditing.kind === "skill"
                                       ? publishAction
-                                      : "Changes apply to this agent configuration"
+                                      : shownEditing.kind === "mcp"
+                                        ? undefined
+                                        : "Changes apply to this agent configuration"
                               }
                               width={def.drawerWidth?.(draft)}
                               contentFlush={Boolean(def.formFlush?.(draft))}

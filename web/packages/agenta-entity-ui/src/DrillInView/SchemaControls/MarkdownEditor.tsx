@@ -22,6 +22,7 @@ import {
     type CSSProperties,
     type DragEvent,
     type MouseEvent,
+    type RefObject,
     useCallback,
     useEffect,
     useId,
@@ -40,6 +41,7 @@ import {SharedEditor} from "@agenta/ui/shared-editor"
 import {cn} from "@agenta/ui/styles"
 import {Badge} from "@agenta/ui/ui"
 import {registerCodeHighlighting} from "@lexical/code"
+import {$getRoot} from "lexical"
 import {createPortal} from "react-dom"
 
 import {CodeBlockLanguageMenu} from "./CodeBlockLanguageMenu"
@@ -60,6 +62,8 @@ export interface MarkdownEditorProps {
     onChange: (next: string) => void
     placeholder?: string
     disabled?: boolean
+    /** Focus the editor on mount (e.g. a drawer whose only task is this document). */
+    autoFocus?: boolean
     /** Optional file-name tag shown on the left of the editor toolbar (e.g. "AGENTS.md"). */
     filename?: string
     /** Show a formatting toolbar (heading/bold/italic/lists/link/code/quote) above the editor. */
@@ -126,11 +130,51 @@ function CodeHighlightSync() {
     return null
 }
 
+/**
+ * Focuses the editor once on mount with the caret at the document start, then pins the scroll
+ * region to the top. Not Lexical's AutoFocusPlugin: that keeps whatever selection the markdown
+ * import left behind, which put the caret (and the scroll) mid-document.
+ */
+function FocusStartOnMount({
+    hasContent,
+    scrollRef,
+}: {
+    hasContent: boolean
+    scrollRef: RefObject<HTMLDivElement | null>
+}) {
+    const [editor] = useLexicalComposerContext()
+
+    useEffect(() => {
+        let frame = 0
+        let attempts = 0
+        const tick = () => {
+            const ready =
+                editor.getRootElement() !== null &&
+                (!hasContent ||
+                    editor.getEditorState().read(() => $getRoot().getChildrenSize() > 0))
+            // The content editable and the import both land a frame or two after mount.
+            if (!ready && attempts++ < 60) {
+                frame = requestAnimationFrame(tick)
+                return
+            }
+            editor.update(() => $getRoot().selectStart(), {tag: "skip-scroll-into-view"})
+            editor.focus(undefined, {defaultSelection: "rootStart"})
+            frame = requestAnimationFrame(() => scrollRef.current?.scrollTo({top: 0}))
+        }
+        frame = requestAnimationFrame(tick)
+        return () => cancelAnimationFrame(frame)
+        // Mount-only: re-running on a value edit would yank the caret back to the top.
+    }, [editor])
+
+    return null
+}
+
 export function MarkdownEditor({
     value,
     onChange,
     placeholder,
     disabled,
+    autoFocus = false,
     filename,
     showToolbar = false,
     toolbarContainer,
@@ -153,6 +197,7 @@ export function MarkdownEditor({
 
     const [text, setText] = useState(value ?? "")
     const lastExternal = useRef(value ?? "")
+    const scrollRef = useRef<HTMLDivElement>(null)
     const [internalView, setInternalView] = useState<MarkdownView>(defaultView)
 
     const effectiveView = view ?? internalView
@@ -344,6 +389,7 @@ export function MarkdownEditor({
             {/* tabIndex: a scroll region must be keyboard-reachable (axe scrollable-region-focusable)
                 — in rendered/read-only view it has no focusable content of its own. */}
             <div
+                ref={scrollRef}
                 tabIndex={0}
                 className="md-prose min-h-0 flex-1 overflow-y-auto"
                 onMouseDown={focusOnBlankClick}
@@ -353,6 +399,7 @@ export function MarkdownEditor({
         </div>
     ) : boundStyle || grow ? (
         <div
+            ref={scrollRef}
             tabIndex={0}
             className={cn("md-prose overflow-y-auto", grow && "min-h-0 flex-1")}
             style={boundStyle}
@@ -395,6 +442,9 @@ export function MarkdownEditor({
             )}
             <MarkdownViewSync enabled={markdownView} onApplied={onViewApplied} />
             <CodeHighlightSync />
+            {autoFocus && !editorDisabled ? (
+                <FocusStartOnMount hasContent={Boolean(value)} scrollRef={scrollRef} />
+            ) : null}
             {/* Source view wraps the whole document in one markdown CodeNode — its picker is
                 meaningless there, so the menu is for author-inserted blocks in rich text only. */}
             {!markdownView && <CodeBlockLanguageMenu editable={!editorDisabled} />}

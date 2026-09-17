@@ -26,7 +26,11 @@ import {Cube, Key, Wrench} from "@phosphor-icons/react"
 import {atom, useAtomValue, useSetAtom} from "jotai"
 
 import {useHasChangedUnder, useRevertUnder} from "../../../drawers/shared/ChangedPathsContext"
-import {useFocusPaths, useHasFocusUnder} from "../../../drawers/shared/FocusPathsContext"
+import {
+    useFocusPaths,
+    useHasFocusUnder,
+    useIsPathVisible,
+} from "../../../drawers/shared/FocusPathsContext"
 import {FieldLayoutProvider, RailField} from "../../../drawers/shared/RailField"
 import {SectionRail, type SectionRailItem} from "../../../drawers/shared/SectionRail"
 import type {PickerSelection} from "../connectionPicker"
@@ -394,7 +398,8 @@ export function useModelHarness({
         [runnerPermissionSchema],
     )
     const currentRunnerPermission = runnerPermissionValue ?? "allow_reads"
-    const runnerPermissionSummary = permissionPolicyLabel(currentRunnerPermission)
+    // "Policy · Allow all" — the label lives here, so the body's select can run full width.
+    const runnerPermissionSummary = `Policy · ${permissionPolicyLabel(currentRunnerPermission)}`
 
     const {hasBuildKitOverlay, buildKitSection} = useBuildKit({
         revisionId: revisionId ?? null,
@@ -426,6 +431,7 @@ export function useModelHarness({
     // across several, the group headers earn their keep by saying which change belongs where.
     const focus = useFocusPaths()
     const sandboxInFocus = useHasFocusUnder("sandbox.kind")
+    const policyInFocus = useIsPathVisible("runner.permissions.default")
     // Hidden harness policies do not focus the model picker.
     const harnessKindInFocus = useHasFocusUnder("harness.kind")
     const flatFocus = focus.active
@@ -627,25 +633,27 @@ export function useModelHarness({
 
     const permissionsBody = (
         <>
-            {runnerPermissionSchema ? (
-                <RailField label="Policy" align="center" path="runner.permissions.default">
-                    <PermissionPolicySelect
-                        value={currentRunnerPermission}
-                        onChange={(v) =>
-                            setSection("runner", {
-                                ...runner,
-                                permissions: {...runnerPermissions, default: v},
-                            })
-                        }
-                        options={runnerPermissionOptions}
-                        disabled={disabled}
-                        aria-label="Policy"
-                    />
-                </RailField>
+            {/* No rail label: the section header already reads "Policy: …", so the select
+                takes the full width. */}
+            {runnerPermissionSchema && policyInFocus ? (
+                <PermissionPolicySelect
+                    value={currentRunnerPermission}
+                    onChange={(v) =>
+                        setSection("runner", {
+                            ...runner,
+                            permissions: {...runnerPermissions, default: v},
+                        })
+                    }
+                    options={runnerPermissionOptions}
+                    disabled={disabled}
+                    aria-label="Policy"
+                />
             ) : null}
         </>
     )
 
+    // The Attach button sits in the panel header; the section portals it into this slot.
+    const [secretsHeaderSlot, setSecretsHeaderSlot] = useState<HTMLElement | null>(null)
     const secretsBody = (
         <AgentSecretsSection
             revisionId={revisionId}
@@ -654,6 +662,7 @@ export function useModelHarness({
             localDraftDirty={credentialOperationsBlocked}
             canEditSecrets={permissions?.canEditSecrets ?? false}
             onRevisionCommitted={handleCredentialRevisionCommitted}
+            attachContainer={secretsHeaderSlot}
         />
     )
 
@@ -719,15 +728,6 @@ export function useModelHarness({
                 },
                 body: executionBody,
             },
-            hasBuildKitOverlay && {
-                item: {
-                    value: "build-kit",
-                    label: "Build kit",
-                    icon: <Wrench size={14} />,
-                },
-                // The block carries its own title + enable switch, so it needs no panel header.
-                body: buildKitSection,
-            },
             // Unlike the others this is not schema-gated: the vault is a property of the agent, not
             // of its config schema, so the panel is always offered — it is the only way to reach
             // the secrets from Advanced, which is where they have always lived.
@@ -739,9 +739,19 @@ export function useModelHarness({
                 },
                 header: {
                     title: "Custom secrets",
-                    caption: `Credentials this agent may read at run time. ${secretsSummary}.`,
+                    caption: `Credentials this agent can use while it works. ${secretsSummary}.`,
+                    extra: <span ref={setSecretsHeaderSlot} className="flex shrink-0" />,
                 },
                 body: secretsBody,
+            },
+            hasBuildKitOverlay && {
+                item: {
+                    value: "build-kit",
+                    label: "Build kit",
+                    icon: <Wrench size={14} />,
+                },
+                // The block carries its own title + enable switch, so it needs no panel header.
+                body: buildKitSection,
             },
         ] as (AdvancedPanel | false)[]
     ).filter((panel): panel is AdvancedPanel => Boolean(panel))
@@ -827,7 +837,7 @@ export function useModelHarness({
         runnerPermissionSummary,
         advancedSummary,
         advancedDrawerBody,
-        // Rail + one panel at a time: no wider than the Model drawer.
-        advancedDrawerWidth: 560,
+        // Rail + one panel at a time; 50px over the Model drawer so the build-kit rows breathe.
+        advancedDrawerWidth: 610,
     }
 }
