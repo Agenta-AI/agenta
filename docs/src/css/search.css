@@ -64,6 +64,13 @@
   background-color: var(--bgdefault) !important;
 }
 
+/* "Clear the query" text button and its divider: the close button and the
+   native clear on the field are enough. */
+.DocSearch-Clear,
+.DocSearch-Actions .DocSearch-Divider {
+  display: none !important;
+}
+
 /* The Algolia mark greyscaled like on /search. */
 .DocSearch-Logo svg {
   opacity: 0.6;
