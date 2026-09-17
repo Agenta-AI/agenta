@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import Layout from '@theme/Layout';
 import BrowserOnly from '@docusaurus/BrowserOnly';
 import clsx from 'clsx';
@@ -404,16 +404,16 @@ function matchesCategory(labels: Label[] | undefined, category: string | null): 
     return !category || Boolean(labels?.some((l) => l.name === category));
 }
 
+const SHIPPED = shippedFeatures.slice(0, 7);
+const CATEGORIES = categoriesOf([...SHIPPED, ...inProgressFeatures, ...plannedFeatures]);
+
 export default function RoadmapPage() {
     const pageDescription = 'What we shipped, what we are building next, and what we plan to build.';
-    const shipped = shippedFeatures.slice(0, 7);
+    const shipped = SHIPPED;
+    const categories = CATEGORIES;
     // The Category links filter every section to one label; clicking the
     // active one clears the filter.
     const [category, setCategory] = useState<string | null>(null);
-    const categories = useMemo(
-        () => categoriesOf([...shipped, ...inProgressFeatures, ...plannedFeatures]),
-        [shipped],
-    );
     const countOf = (features: Array<{ labels?: Label[] }>) =>
         features.filter((f) => matchesCategory(f.labels, category)).length;
 

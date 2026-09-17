@@ -10,13 +10,14 @@ import type {Props} from '@theme/BlogLayout';
 import SidebarShell from '@site/src/components/SidebarShell';
 
 export default function BlogLayout(props: Props): ReactNode {
-  const {sidebar, toc, children, ...layoutProps} = props;
+  // The entry page's table of contents is not rendered: the changelog has no
+  // TOC column in the design.
+  const {sidebar, toc: _toc, children, ...layoutProps} = props;
 
   return (
     <Layout {...layoutProps}>
       <SidebarShell sidebar={sidebar && <BlogSidebar sidebar={sidebar} />}>
         {children}
-        {toc}
       </SidebarShell>
     </Layout>
   );

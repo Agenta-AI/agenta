@@ -1,4 +1,4 @@
-import React from "react";
+import React, { type ReactNode } from "react";
 import clsx from "clsx";
 
 type Props = {
@@ -16,7 +16,7 @@ type Props = {
  * which also covers raw <iframe> embeds; use this component on new pages so
  * the caption and the accessible title come along.
  */
-export default function Video({ src, title, caption }: Props): JSX.Element {
+export default function Video({ src, title, caption }: Props): ReactNode {
   return (
     <figure className={clsx("mediaFigure", caption && "mediaFigure--captioned")}>
       <iframe

@@ -13,16 +13,25 @@
 
   /* Reading column grows; the TOC column is a fixed 240px on the right.
      The OpenAPI theme caps its column at 75%; the frame sets the widths instead. */
-  [class*="docMainContainer"] .row > .col:first-child {
+  [class*="docMainContainer"] > .container > .row > .col:first-child {
     flex: 1 1 0%;
     min-width: 0;
     max-width: none !important;
   }
 
-  [class*="docMainContainer"] .row > .col.col--3 {
+  [class*="docMainContainer"] > .container > .row > .col.col--3 {
     flex: 0 0 var(--doc-toc-width);
     max-width: var(--doc-toc-width);
     padding-left: 24px;
+  }
+}
+
+/* Below the sidebar breakpoint the shell keeps the stock container gutters
+   and only needs vertical room under the header. */
+@media (max-width: 996px) {
+  .sidebarShellMain > .container {
+    padding-top: 24px;
+    padding-bottom: 48px;
   }
 }
 

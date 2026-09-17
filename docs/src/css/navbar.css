@@ -184,8 +184,9 @@
 
 /* Mobile: single row, compact logo, search collapses to an icon. */
 @media (max-width: 996px) {
+  /* The theme positions the search box at right: var(--ifm-navbar-padding-horizontal). */
   .navbar {
-    padding: 0 16px;
+    --ifm-navbar-padding-horizontal: 16px;
   }
 
   .navbar__logo,

@@ -16,7 +16,7 @@ type ShellProps = {
  * with the same padding the doc pages get. Widths come from tokens.css so the
  * two layouts stay aligned.
  */
-export default function SidebarShell({ sidebar, children }: ShellProps): JSX.Element {
+export default function SidebarShell({ sidebar, children }: ShellProps): ReactNode {
   return (
     <div className={styles.shell}>
       <aside className={styles.sidebar}>
@@ -38,7 +38,7 @@ type GroupProps = {
 };
 
 /** A titled list in the sidebar, like a docs sidebar category. */
-export function SidebarGroup({ title, children }: GroupProps): JSX.Element {
+export function SidebarGroup({ title, children }: GroupProps): ReactNode {
   return (
     <div className="sidebarGroup">
       <div className="sidebarGroupTitle">{title}</div>

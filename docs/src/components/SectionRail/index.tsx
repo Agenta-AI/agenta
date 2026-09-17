@@ -1,4 +1,4 @@
-import React from "react";
+import React, { type ReactNode } from "react";
 import { useThemeConfig } from "@docusaurus/theme-common";
 import NavbarItem, { type Props as NavbarItemConfig } from "@theme/NavbarItem";
 
@@ -8,7 +8,7 @@ import NavbarItem, { type Props as NavbarItemConfig } from "@theme/NavbarItem";
  * hamburger menu renders them (`mobile`), which gives `menu__link` rows with
  * icons and the same active-state resolution the navbar uses.
  */
-export default function SectionRail(): JSX.Element {
+export default function SectionRail(): ReactNode {
   const items = (useThemeConfig().navbar.items as NavbarItemConfig[]).filter(
     (item) => item.position === "left",
   );

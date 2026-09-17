@@ -42,6 +42,8 @@
 
 .sectionHeader h2 {
     margin: 0;
+    /* Anchor jumps from the sidebar land below the fixed header. */
+    scroll-margin-top: calc(var(--ifm-navbar-height) + var(--doc-main-padding-top));
 }
 
 .sectionCount {

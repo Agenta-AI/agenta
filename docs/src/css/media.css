@@ -59,13 +59,21 @@
   margin-bottom: 0 !important;
 }
 
-/* <Video> (src/components/Video): frame + caption strip */
+/* <Video> (src/components/Video): frame + caption strip. The frame is
+   restated here so the component works for any host, not only the two the
+   raw-iframe rules above match. */
 .mediaFigure {
   margin: 0 0 24px;
 }
 
 .mediaFigure iframe {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
   margin-bottom: 0 !important;
+  border: 1px solid var(--borderdefault);
+  border-radius: var(--radius-lg);
+  background-color: var(--bgelevated1);
 }
 
 .mediaFigure--captioned iframe {
