@@ -18,8 +18,8 @@ describe("turn startup label", () => {
         store.set(startTurnClockAtom, "session", "Working")
         expect(store.get(turnStartAtomFamily("session"))).toBe("Working")
 
-        store.set(startTurnClockAtom, "session", "Agent ready")
-        expect(store.get(turnStartAtomFamily("session"))).toBe("Agent ready")
+        store.set(startTurnClockAtom, "session", "Ready")
+        expect(store.get(turnStartAtomFamily("session"))).toBe("Ready")
     })
 
     it("clears idempotently on every terminal path", () => {

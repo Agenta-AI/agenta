@@ -172,7 +172,8 @@ export const ExecutionMetricsDisplay = memo(function ExecutionMetricsDisplay({
                     className,
                 )}
             >
-                <TooltipProvider>
+                {/* A second's delay: the breakdown is for a reader who lingers, not one passing over. */}
+                <TooltipProvider delayDuration={1000}>
                     {segments.map((segment, index) => (
                         <Fragment key={segment.key}>
                             {segment.tooltip ? (

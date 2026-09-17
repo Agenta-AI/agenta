@@ -36,18 +36,12 @@ import {AgentIntroCard} from "@agenta/entity-ui/agent"
 import {SecretRequestDock} from "@agenta/entity-ui/clientTools"
 import {isOnScreen, isOverlayOpen} from "@agenta/shared/utils"
 import {message, modal} from "@agenta/ui/app-message"
-import {
-    ChatBubble,
-    ChatBubbleAvatar,
-    ChatJumpToLatest,
-    turnRowClass,
-} from "@agenta/ui/components/presentational"
+import {ChatBubble, ChatJumpToLatest} from "@agenta/ui/components/presentational"
 import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 import {isAltChord} from "@agenta/ui/shortcuts"
 import {Button} from "@agenta/ui/ui"
 import {useQueryClient} from "@tanstack/react-query"
 import {useAtomValue, useSetAtom} from "jotai"
-import {User} from "lucide-react"
 
 import {ContentRail} from "@/components/ContentRail"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
@@ -64,9 +58,10 @@ import {MODEL_KEY_WAIT_LIMIT_MS, pendingTaskDecision} from "./pendingTaskPolicy"
 import {selectedRevisionAtomFamily} from "./selectedRevision"
 import {ChatLoading} from "./states/ChatStates"
 import {cancelledStopAction} from "./stopHereState"
-import {TurnRow} from "./TurnRow"
+import {TranscriptTurns} from "./TranscriptTurns"
+import {mobileTurnRowClass} from "./turnRowClass"
+import {mergeAssistantRuns} from "./turnRuns"
 import {deriveMobileRemoteTurnPresentation, showTrailingWorkingPulse} from "./turnStatus"
-import {TurnStatusLine} from "./TurnStatusLine"
 import {useApprovalActions, type ApprovalActions} from "./useApprovalActions"
 import {useSessionWatch} from "./useSessionWatch"
 import {useStartBlankSession} from "./useStartBlankSession"
@@ -507,7 +502,7 @@ export const LiveConversation = ({
     // transcript on renders that changed nothing about it (a watch reconnect, a steer phase).
     // Memoized, it re-pins exactly when the turns actually change.
     const visibleTurns = useMemo(
-        () => conversation.turns.filter((turn) => !turn.hidden),
+        () => mergeAssistantRuns(conversation.turns.filter((turn) => !turn.hidden)),
         [conversation.turns],
     )
     const autoScroll = useTranscriptAutoScroll(visibleTurns)
@@ -610,11 +605,10 @@ export const LiveConversation = ({
             <ContentRail className="flex grow flex-col gap-3 p-4 pb-[calc(1rem+env(safe-area-inset-bottom))]">
                 {/* A held or failed Home task stays visible until accepted. */}
                 {heldTaskText ? (
-                    <div className={`${turnRowClass} justify-end`}>
+                    <div className={`${mobileTurnRowClass} justify-end`}>
                         <ChatBubble
                             placement="end"
                             variant="filled"
-                            avatar={<ChatBubbleAvatar icon={<User className="size-4" />} />}
                             className="min-w-0 max-w-[85%]"
                             classNames={{
                                 content: "min-w-0 max-w-full overflow-hidden text-xs",
@@ -643,23 +637,14 @@ export const LiveConversation = ({
                         ) : null}
                     </div>
                 ) : null}
-                {visibleTurns.map((turn) => (
-                    <TurnRow
-                        workflowId={agentId}
-                        key={turn.message.id}
-                        turn={turn}
-                        onClientToolOutput={conversation.sendToolOutput}
-                        onRewind={handleRewind}
-                        sessionId={sessionId}
-                    />
-                ))}
-                {/* The working indicator moved into the streaming turn itself, beside its avatar,
-                    where the desktop has always had it — as a line after the whole list it floated
-                    far below the turn it described. It falls back to here for the one case that
-                    turn cannot cover: the request is submitted and no assistant turn exists yet. */}
-                <TurnStatusLine
-                    working={showTrailingWorkingPulse(showingTurnActivity, visibleTurns)}
-                    waitingForInput={conversation.hitlPending}
+                <TranscriptTurns
+                    turns={visibleTurns}
+                    sessionId={sessionId}
+                    remoteRunning={showingTurnActivity && !streamingHere}
+                    waitingOnUser={conversation.hitlPending}
+                    pending={showTrailingWorkingPulse(showingTurnActivity, visibleTurns)}
+                    onClientToolOutput={conversation.sendToolOutput}
+                    onRewind={handleRewind}
                 />
             </ContentRail>
         )
