@@ -636,25 +636,9 @@ html,
   .ag-menu {
     display: inline-flex !important;
   }
-  .ag-tpl {
-    grid-template-columns: 1fr !important;
-  }
   .ag-interop {
     grid-template-columns: 1fr !important;
     gap: 40px !important;
-  }
-  .ag-tpl-md {
-    border-left: none !important;
-    border-top: 1px solid var(--th-border-subtle) !important;
-  }
-  .ag-tpl-md-scroll {
-    position: static !important;
-    height: 320px !important;
-  }
-  .ag-tpl-tabs {
-    flex-wrap: wrap !important;
-    justify-content: center !important;
-    border-radius: 16px !important;
   }
   .ag-row {
     flex-direction: column !important;
@@ -736,23 +720,6 @@ html,
   /* How it works: drop the files drawer so the chat story owns the width. */
   .ag-hiw-files {
     display: none !important;
-  }
-
-  /* Templates: stack each spec row (label over its chips) so the harness switch
-     and chip rows get the full panel width instead of a 84px-narrowed column. */
-  .ag-tpl-left {
-    padding: 26px 20px 24px !important;
-  }
-  .ag-tpl-grid {
-    grid-template-columns: 1fr !important;
-    column-gap: 0 !important;
-  }
-  .ag-tpl-grid > span {
-    padding: 15px 0 3px !important;
-  }
-  .ag-tpl-grid > div {
-    padding: 2px 0 13px !important;
-    border-top: none !important;
   }
 
   /* CTA band: vertical padding follows the section token; tighten the row gap. */
@@ -1103,14 +1070,33 @@ html,
 }
 
 /* The controls grid keeps only its own border; no full-section vertical rails. */
-.ag-controls { position: relative; }
+.ag-controls {
+  position: relative;
+}
 /* Preserve readable list columns instead of clipping skill names on phones. */
 @media (max-width: 560px) {
-  .ag-controls-diagram { grid-template-columns: minmax(0, 1fr) 64px minmax(0, 1fr) !important; }
-  .ag-controls-diagram > div:nth-child(2) { transform: scaleX(calc(64 / 140)); transform-origin: left; width: 140px; }
-  .ag-controls-diagram > div:nth-child(2) > div { transform: scaleX(calc(140 / 64)); }
-  .ag-controls-diagram > div:first-child, .ag-controls-diagram > div:last-child { padding: 4px !important; }
-  .ag-controls-diagram > div:first-child > span, .ag-controls-diagram > div:last-child > span { padding-inline: 4px !important; font-size: 10px !important; gap: 4px !important; white-space: normal !important; }
+  .ag-controls-diagram {
+    grid-template-columns: minmax(0, 1fr) 64px minmax(0, 1fr) !important;
+  }
+  .ag-controls-diagram > div:nth-child(2) {
+    transform: scaleX(calc(64 / 140));
+    transform-origin: left;
+    width: 140px;
+  }
+  .ag-controls-diagram > div:nth-child(2) > div {
+    transform: scaleX(calc(140 / 64));
+  }
+  .ag-controls-diagram > div:first-child,
+  .ag-controls-diagram > div:last-child {
+    padding: 4px !important;
+  }
+  .ag-controls-diagram > div:first-child > span,
+  .ag-controls-diagram > div:last-child > span {
+    padding-inline: 4px !important;
+    font-size: 10px !important;
+    gap: 4px !important;
+    white-space: normal !important;
+  }
 }
 
 /* Restored self-hosting section. */
@@ -1119,10 +1105,19 @@ html,
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.22);
 }
 @media (max-width: 1100px) {
-  .ag-oss { grid-template-columns: 1fr !important; gap: 48px !important; }
-  .ag-oss-strip { grid-template-columns: 1fr !important; }
-  .ag-oss-strip > a { border-left: none !important; }
-  .ag-oss-strip > a + a { border-top: 1px solid rgba(255, 255, 255, 0.09); }
+  .ag-oss {
+    grid-template-columns: 1fr !important;
+    gap: 48px !important;
+  }
+  .ag-oss-strip {
+    grid-template-columns: 1fr !important;
+  }
+  .ag-oss-strip > a {
+    border-left: none !important;
+  }
+  .ag-oss-strip > a + a {
+    border-top: 1px solid rgba(255, 255, 255, 0.09);
+  }
 }
 @media (max-width: 560px) {
   .ag-oss-btns > a {
@@ -1136,8 +1131,16 @@ html,
 
 /* Product capability cards restored from the supplied design. */
 @media (max-width: 860px) {
-  .ag-v2-grid2 { grid-template-columns: 1fr !important; }
-  .ag-v2-grid2 > div { height: 480px !important; }
-  .ag-v2-conn { grid-template-columns: 1fr !important; }
-  .ag-v2-conn > div { border-left: none !important; }
+  .ag-v2-grid2 {
+    grid-template-columns: 1fr !important;
+  }
+  .ag-v2-grid2 > div {
+    height: 480px !important;
+  }
+  .ag-v2-conn {
+    grid-template-columns: 1fr !important;
+  }
+  .ag-v2-conn > div {
+    border-left: none !important;
+  }
 }

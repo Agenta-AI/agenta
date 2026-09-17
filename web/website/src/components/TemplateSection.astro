@@ -5,140 +5,387 @@ import TemplateExplorer from "./TemplateExplorer.tsx";
 ---
 
 <Section
+  id="coworkers"
   data-screen-label="Templates"
   class="ag-secpad ag-tplsec"
-  style="background:var(--tplsec-bg);padding:var(--section-pad-y) 0;"
+  style="background:var(--tplsec-bg);padding:var(--section-pad-y) 24px;"
 >
-  <div
-    style="display:flex;flex-direction:column;align-items:center;gap:48px;"
-  >
+  <div class="ag-tplsec-inner">
     <SectionTitle
       badge="Templates"
-      title="An agent for every job"
-      subtitle="Get productive in minutes with pre-built templates. Then make it yours."
+      title="Start from a coworker that already works."
+      subtitle="Pick a template for your team, connect your tools, and make it yours."
     />
-    <!-- React island — hydrates when scrolled into view. -->
     <TemplateExplorer client:visible />
   </div>
 </Section>
 
 <style is:global>
-  /* Section surface: light = white section panel; dark = the original
-     --ag-d-bg-2 (the --th-bg-* ladder maps this slot to bg-1 in dark, so the
-     surface is pinned locally to keep dark bit-identical). */
   .ag-tplsec {
     --tplsec-bg: var(--th-bg-1);
-  }
-  [data-theme="dark"] .ag-tplsec {
-    --tplsec-bg: var(--ag-d-bg-2);
-  }
-
-  /* TemplateExplorer island theme vars (the island renders into this section).
-     Light values follow the light-theme spec's Templates recipes; dark values
-     are the island's original literals, verbatim. */
-  .ag-tplx {
-    /* area tabs */
-    /* Framer's segmented switch: a paper track with a WHITE raised chip for
-       the selected item, not a yellow tint. Every label keeps ink-900. */
     --tplx-tabs-bg: var(--paper-80);
     --tplx-tabs-border: var(--paper-line);
     --tplx-tab-on-bg: var(--paper-0);
     --tplx-tab-on-border: var(--paper-line);
-    --tplx-tab-on-shadow: 0 1px 2px rgba(72, 70, 68, 0.06);
+    --tplx-tab-on-shadow: var(--shadow-ring);
     --tplx-tab-on-text: var(--ink-900);
-    --tplx-tab-text: var(--ink-900); /* Framer keeps every label at ink-900 */
-    /* featured panel frame */
-    --tplx-panel-bg: var(--surface-app);
-    --tplx-panel-shadow: var(--shadow-frame);
-    /* text */
-    --tplx-eyebrow: var(--ink-300);
+    --tplx-tab-text: var(--ink-900);
     --tplx-title: var(--ink-900);
     --tplx-tagline: var(--ink-600);
-    /* spec-grid hairlines */
-    --tplx-rule: var(--paper-150);
-    --tplx-rule-soft: var(--paper-150);
-    /* trigger chip */
-    --tplx-trig-bg: rgba(242, 242, 92, 0.35);
-    --tplx-trig-ring: rgba(36, 36, 36, 0.12);
-    --tplx-trig-text: var(--ink-900);
-    --tplx-trig-dot: var(--yellow-500);
-    --tplx-trig-dot-glow: none;
-    /* harness segmented switch */
-    --tplx-seg-bg: var(--paper-100);
-    --tplx-seg-ring: var(--paper-150);
-    --tplx-seg-on-bg: #ffffff;
-    --tplx-seg-on-shadow: var(--shadow-ring);
-    --tplx-seg-on-text: var(--ink-900);
-    --tplx-seg-text: var(--ink-600);
-    /* "Soon" tag */
-    --tplx-soon-bg: var(--paper-150);
-    --tplx-soon-text: var(--ink-500);
-    /* white chips (models / tools) */
-    --tplx-chip-bg: #ffffff;
-    --tplx-chip-shadow: var(--shadow-ring);
-    --tplx-chip-text: var(--ink-900);
-    /* terracotta skill chips */
-    --tplx-skill-bg: rgba(217, 119, 87, 0.12);
-    --tplx-skill-ring: rgba(217, 119, 87, 0.3);
-    --tplx-skill-text: var(--ink-900);
-    /* AGENTS.md viewer */
-    --tplx-md-bg: var(--paper-50);
-    --tplx-md-border: var(--divider-app);
-    --tplx-md-hdr-border: var(--divider-app);
-    --tplx-md-dot: var(--paper-200);
-    --tplx-md-name: var(--ink-500);
-    --tplx-md-text: var(--ink-450);
-    --tplx-md-fade: linear-gradient(
-      to bottom,
-      rgba(252, 251, 250, 0),
-      rgba(252, 251, 250, 0.95)
-    );
+    --tplv-pill-bg: var(--paper-0);
+    --tplv-pill-shadow:
+      0 1px 2px rgba(0, 0, 0, 0.06), 0 0 0 1px rgba(36, 36, 36, 0.06);
+    --tplv-pill-text: var(--ink-900);
+    --tplv-text: var(--ink-900);
+    --tplv-muted: var(--ink-500);
+    --tplv-bar: rgba(36, 36, 36, 0.12);
+    --tplv-logo: #b9b8b6;
+    /* Measured template-vignette palette from the approved design handoff. */
+    --tpl-tint-1: #f8f8dd;
+    --tpl-tint-2: #e5f1f9;
+    --tpl-tint-3: #f9e5e5;
+    --tpl-tint-4: var(--paper-150);
+    --tpl-acc-1: #d9d92c;
+    --tpl-acc-2: #113955;
+    --tpl-acc-3: #d94c4a;
+    --tpl-acc-4: var(--ink-900);
+    --tpl-onacc-1: var(--ink-900);
+    --tpl-onacc-2: var(--paper-0);
+    --tpl-onacc-3: var(--paper-0);
+    --tpl-onacc-4: var(--paper-0);
   }
-  [data-theme="dark"] .ag-tplx {
+
+  [data-theme="dark"] .ag-tplsec {
+    --tplsec-bg: var(--ag-d-bg-2);
     --tplx-tabs-bg: rgba(255, 255, 255, 0.04);
     --tplx-tabs-border: rgba(255, 255, 255, 0.08);
     --tplx-tab-on-bg: rgba(242, 242, 92, 0.12);
     --tplx-tab-on-border: rgba(242, 242, 92, 0.3);
     --tplx-tab-on-shadow: none;
-    --tplx-tab-on-text: #f7f6f4;
+    --tplx-tab-on-text: var(--text-on-dark-heading);
     --tplx-tab-text: rgba(255, 255, 255, 0.55);
-    --tplx-panel-bg: var(--ag-d-bg-2);
-    --tplx-panel-shadow:
-      0 24px 70px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.07);
-    --tplx-eyebrow: rgba(255, 255, 255, 0.36);
-    --tplx-title: #f7f6f4;
+    --tplx-title: var(--text-on-dark-heading);
     --tplx-tagline: rgba(255, 255, 255, 0.55);
-    --tplx-rule: rgba(255, 255, 255, 0.07);
-    --tplx-rule-soft: rgba(255, 255, 255, 0.05);
-    --tplx-trig-bg: rgba(242, 242, 92, 0.1);
-    --tplx-trig-ring: rgba(242, 242, 92, 0.25);
-    --tplx-trig-text: #f7f6f4;
-    --tplx-trig-dot: var(--yellow-400);
-    --tplx-trig-dot-glow: 0 0 8px rgba(242, 242, 92, 0.7);
-    --tplx-seg-bg: rgba(255, 255, 255, 0.04);
-    --tplx-seg-ring: rgba(255, 255, 255, 0.08);
-    --tplx-seg-on-bg: rgba(255, 255, 255, 0.09);
-    --tplx-seg-on-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14);
-    --tplx-seg-on-text: #f7f6f4;
-    --tplx-seg-text: rgba(255, 255, 255, 0.5);
-    --tplx-soon-bg: rgba(255, 255, 255, 0.08);
-    --tplx-soon-text: rgba(255, 255, 255, 0.55);
-    --tplx-chip-bg: rgba(255, 255, 255, 0.05);
-    --tplx-chip-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1);
-    --tplx-chip-text: rgba(255, 255, 255, 0.82);
-    --tplx-skill-bg: rgba(217, 119, 87, 0.1);
-    --tplx-skill-ring: rgba(217, 119, 87, 0.28);
-    --tplx-skill-text: rgba(255, 255, 255, 0.85);
-    --tplx-md-bg: rgba(0, 0, 0, 0.34);
-    --tplx-md-border: rgba(255, 255, 255, 0.07);
-    --tplx-md-hdr-border: rgba(255, 255, 255, 0.06);
-    --tplx-md-dot: rgba(255, 255, 255, 0.14);
-    --tplx-md-name: rgba(255, 255, 255, 0.5);
-    --tplx-md-text: rgba(255, 255, 255, 0.7);
-    --tplx-md-fade: linear-gradient(
-      to bottom,
-      rgba(18, 17, 19, 0),
-      rgba(15, 14, 16, 0.9)
-    );
+    --tplv-pill-bg: #2a292e;
+    --tplv-pill-shadow: 0 0 0 1px rgba(255, 255, 255, 0.1);
+    --tplv-pill-text: var(--text-on-dark-heading);
+    --tplv-text: var(--text-on-dark-heading);
+    --tplv-muted: rgba(255, 255, 255, 0.4);
+    --tplv-bar: rgba(255, 255, 255, 0.14);
+    --tpl-tint-1: rgba(242, 242, 92, 0.1);
+    --tpl-tint-2: rgba(140, 207, 255, 0.1);
+    --tpl-tint-3: rgba(255, 142, 140, 0.1);
+    --tpl-tint-4: rgba(246, 245, 243, 0.07);
+    --tpl-acc-1: var(--yellow-400);
+    --tpl-acc-2: #8ccfff;
+    --tpl-acc-3: #ff8e8c;
+    --tpl-acc-4: var(--paper-100);
+    --tpl-onacc-1: var(--ink-900);
+    --tpl-onacc-2: #113955;
+    --tpl-onacc-3: #5e0908;
+    --tpl-onacc-4: var(--ink-900);
+  }
+
+  .ag-tplsec-inner {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 48px;
+  }
+
+  .ag-tplx {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 36px;
+    width: min(1072px, 100%);
+  }
+
+  .ag-tpl-tabs {
+    display: inline-flex;
+    gap: 4px;
+    max-width: 100%;
+    padding: 4px;
+    border: 1px solid var(--tplx-tabs-border);
+    border-radius: 12px;
+    background: var(--tplx-tabs-bg);
+  }
+
+  .ag-tpl-tabs button {
+    display: inline-flex;
+    align-items: center;
+    height: 36px;
+    padding: 0 16px;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    background: transparent;
+    box-shadow: none;
+    color: var(--tplx-tab-text);
+    cursor: pointer;
+    font: var(--text-label);
+    white-space: nowrap;
+  }
+
+  .ag-tpl-tabs button[aria-selected="true"] {
+    border-color: var(--tplx-tab-on-border);
+    background: var(--tplx-tab-on-bg);
+    box-shadow: var(--tplx-tab-on-shadow);
+    color: var(--tplx-tab-on-text);
+    font-weight: 600;
+  }
+
+  .ag-tpl-tabs button:focus-visible,
+  .ag-tpl-card:focus-visible {
+    outline: 2px solid var(--th-text-hi);
+    outline-offset: 3px;
+  }
+
+  .ag-tpl-cards {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    width: calc(100% + 2px);
+    margin: 0 -1px;
+    border-top: 1px solid var(--th-border);
+    border-left: 1px solid var(--th-border);
+  }
+
+  .ag-tpl-card {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 20px;
+    padding: 16px 16px 28px;
+    border-right: 1px solid var(--th-border);
+    border-bottom: 1px solid var(--th-border);
+    background: var(--th-bg-1);
+    color: inherit;
+    text-decoration: none;
+  }
+
+  .ag-tpl-vignette {
+    display: flex;
+    height: 220px;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    padding: 20px;
+    border-radius: 10px;
+    background: var(--tpl-card-tint);
+    color: var(--tplv-text);
+  }
+
+  .ag-tpl-card-copy {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 0 8px;
+  }
+
+  .ag-tpl-card-copy h3,
+  .ag-tpl-card-copy p {
+    margin: 0;
+    text-wrap: pretty;
+  }
+
+  .ag-tpl-card-copy h3 {
+    color: var(--tplx-title);
+    font: 400 20px/1.3 var(--font-display);
+  }
+
+  .ag-tpl-card-copy p {
+    color: var(--tplx-tagline);
+    font: var(--text-body-sm);
+  }
+
+  .ag-tplv-pill {
+    display: inline-flex;
+    height: 30px;
+    align-items: center;
+    gap: 7px;
+    padding: 0 11px;
+    border-radius: var(--radius-pill);
+    background: var(--tplv-pill-bg);
+    box-shadow: var(--tplv-pill-shadow);
+    color: var(--tplv-pill-text);
+    font: 500 12.5px/1 var(--font-sans);
+    white-space: nowrap;
+  }
+
+  .ag-tplv-pill--accent {
+    background: var(--tpl-card-accent);
+    box-shadow: none;
+    color: var(--tpl-card-on-accent);
+  }
+
+  .ag-tplv-tool-logo {
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    flex: 0 0 auto;
+    background: currentColor;
+    color: var(--tplv-logo);
+    -webkit-mask-position: center;
+    mask-position: center;
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+    -webkit-mask-size: contain;
+    mask-size: contain;
+  }
+
+  svg.ag-tplv-tool-logo {
+    background: transparent;
+  }
+
+  .ag-tplv-timeline {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .ag-tplv-step {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding-left: 8px;
+    color: var(--tplv-text);
+    font: 400 12.5px/1 var(--font-sans);
+  }
+
+  .ag-tplv-step b {
+    display: inline-flex;
+    width: 18px;
+    height: 18px;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: var(--tplv-pill-bg);
+    color: var(--tpl-card-accent);
+    font: 600 10px/1 var(--font-sans);
+  }
+
+  .ag-tplv-checks {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .ag-tplv-checks span {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--tplv-muted);
+    font: 400 13px/1 var(--font-sans);
+  }
+
+  .ag-tplv-checks span.is-active {
+    color: var(--tplv-text);
+    font-weight: 500;
+  }
+
+  .ag-tplv-checks i {
+    width: 6px;
+    height: 6px;
+    flex: 0 0 auto;
+    border-radius: 50%;
+    background: var(--tplv-muted);
+  }
+
+  .ag-tplv-checks .is-active i {
+    background: var(--tpl-card-accent);
+  }
+
+  .ag-tplv-chat {
+    display: flex;
+    width: 100%;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .ag-tplv-chat > span:not(.ag-tplv-pill) {
+    max-width: 90%;
+    align-self: flex-start;
+    padding: 9px 12px;
+    border-radius: 12px 12px 12px 4px;
+    background: var(--tplv-pill-bg);
+    box-shadow: var(--tplv-pill-shadow);
+    color: var(--tplv-text);
+    font: 400 12.5px/1.4 var(--font-sans);
+  }
+
+  .ag-tplv-chat > .ag-tplv-chat-reply {
+    align-self: flex-end;
+    border-radius: 12px 12px 4px 12px;
+    background: var(--tpl-card-accent);
+    box-shadow: none;
+    color: var(--tpl-card-on-accent);
+  }
+
+  .ag-tplv-chat .ag-tplv-pill {
+    align-self: flex-end;
+  }
+
+  .ag-tplv-bars {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+  }
+
+  .ag-tplv-bars > div {
+    display: flex;
+    align-items: flex-end;
+    gap: 12px;
+  }
+
+  .ag-tplv-bars > div span {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    color: var(--tplv-muted);
+    font: 400 12px/1 var(--font-sans);
+  }
+
+  .ag-tplv-bars > div span.is-active {
+    color: var(--tplv-text);
+    font-weight: 600;
+  }
+
+  .ag-tplv-bars i {
+    display: block;
+    width: 34px;
+    height: 48px;
+    border-radius: 5px;
+    background: var(--tplv-bar);
+  }
+
+  .ag-tplv-bars span:nth-child(2) i {
+    height: 34px;
+  }
+
+  .ag-tplv-bars span:nth-child(3) i {
+    height: 22px;
+    background: var(--tpl-card-accent);
+  }
+
+  @media (max-width: 1024px) {
+    .ag-tpl-cards {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @media (max-width: 860px) {
+    .ag-tpl-tabs {
+      flex-wrap: wrap;
+      justify-content: center;
+      border-radius: 12px;
+    }
+  }
+
+  @media (max-width: 640px) {
+    .ag-tpl-cards {
+      grid-template-columns: 1fr;
+    }
   }
 </style>
