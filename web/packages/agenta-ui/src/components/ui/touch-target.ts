@@ -1,19 +1,26 @@
 /**
  * The 44px touch minimum, reached without changing what a control looks like.
  *
- * A control keeps the height the desktop row rhythm gives it and grows an invisible `after`
- * box around itself, so a finger has 44px to land on and a pointer sees exactly the button it
- * saw before. The pattern started in `@agenta/chat`'s ApprovalCard and was named in the mobile
- * app's tool line; this is the one copy of it, so the geometry cannot drift per call site.
+ * A control keeps the size the desktop row rhythm gives it and grows an invisible `after` box
+ * around itself, so a finger has 44px to land on and a pointer sees exactly the button it saw
+ * before. The pattern started in `@agenta/chat`'s ApprovalCard and was named in the mobile app's
+ * tool line; this is the one copy of it, so the geometry cannot drift per call site.
  *
- * The inset is chosen per rendered dimension because the box grows symmetrically: 8px a side
- * brings a 28px control to 44 and leaves a 24px one at 40, which is the shortfall the mobile
- * parity audit found. The heights are the shared control scale's own — `control-xs` is 24px and
- * `control-sm` is 28px. A width is given only for a control the minimum also fails on the other
- * axis, which is an icon button: a labelled control's own text carries it past 44 wide.
+ * Three things set the inset, and leaving any of them out leaves a control short:
  *
- * Every class here is a literal, because neither Tailwind toolchain sees a class name this
- * module builds at runtime.
+ * - The rendered size, because the box grows symmetrically. The heights are the shared control
+ *   scale's own: `control-xs` is 24px and `control-sm` is 28px.
+ * - The axis. A labelled control is already wider than the minimum and asks for its height alone;
+ *   an icon button is short on both axes and asks for both.
+ * - The control's own border. An absolutely positioned pseudo-element resolves its inset against
+ *   the PADDING box, and the shared Button paints a 1px transparent border on every side, so an
+ *   inset written for the visible edge starts a pixel inside it and lands 2px short on the axis.
+ *   That is D126: six controls were written for 44 and measured 42 in a browser. The border is
+ *   charged here rather than at the call sites, and defaults to the Button's own 1px, because
+ *   every call site but the two bare buttons is a Button.
+ *
+ * Every class here is a literal, because neither Tailwind toolchain sees a class name this module
+ * builds at runtime.
  */
 
 /** The mobile minimum, in px. */
@@ -25,47 +32,75 @@ export type TouchTargetControlHeight = 24 | 28
 /** Rendered control widths the expansion is defined for, in px. */
 export type TouchTargetControlWidth = 28 | 30
 
-/** A control the expansion is asked for, when the minimum fails it on both axes. */
+/** A control's own border, in px: the shared Button's 1, or 0 for a button that zeroes it. */
+export type TouchTargetControlBorder = 0 | 1
+
+/** The control the expansion is asked for. */
 export interface TouchTargetControlBox {
     height: TouchTargetControlHeight
-    width: TouchTargetControlWidth
+    /** Given only for a control the minimum also fails on the other axis, which is an icon button. */
+    width?: TouchTargetControlWidth
+    /** Defaults to the shared Button's 1px. A control with `border-0` has to say so. */
+    border?: TouchTargetControlBorder
 }
 
 /** One Tailwind spacing step, in px. */
 const SPACING_STEP_PX = 4
 
-const verticalByHeight: Record<TouchTargetControlHeight, string> = {
-    // 10px a side: 24 + 20 = 44.
-    24: "after:-inset-y-2.5",
-    // 8px a side: 28 + 16 = 44. The inset ApprovalCard and the tool line already use.
-    28: "after:-inset-y-2",
+/** What a labelled control reaches past its visible edge; its own text carries it past 44 wide. */
+const LABELLED_REACH_PX = 4
+
+/**
+ * Insets by [size][border], each `(44 - size) / 2 + border` so the box measured at the VISIBLE
+ * edge is 44: the border the inset is measured from inside of is added back.
+ */
+const verticalByHeight: Record<
+    TouchTargetControlHeight,
+    Record<TouchTargetControlBorder, string>
+> = {
+    // 24 + 2 x 10 = 44 with no border; the bordered one reaches the same 10 past the edge.
+    24: {0: "after:-inset-y-2.5", 1: "after:-inset-y-[11px]"},
+    // 28 + 2 x 8 = 44 with no border. 8px is the inset ApprovalCard and the tool line had,
+    // which is exactly the one that measured 42 on a bordered control.
+    28: {0: "after:-inset-y-2", 1: "after:-inset-y-[9px]"},
 }
 
-/** A labelled control is wider than the minimum already; this keeps a finger off its edge. */
-const DEFAULT_HORIZONTAL = "after:-inset-x-1"
+const horizontalByWidth: Record<
+    TouchTargetControlWidth,
+    Record<TouchTargetControlBorder, string>
+> = {
+    28: {0: "after:-inset-x-2", 1: "after:-inset-x-[9px]"},
+    // No spacing step is 7px, so the arbitrary value is the exact one; the next step up would
+    // reach into the neighbouring cell's own control.
+    30: {0: "after:-inset-x-[7px]", 1: "after:-inset-x-[8px]"},
+}
 
-const horizontalByWidth: Record<TouchTargetControlWidth, string> = {
-    // 8px a side: 28 + 16 = 44.
-    28: "after:-inset-x-2",
-    // 7px a side: 30 + 14 = 44. No spacing step is 7px, so the arbitrary value is the exact one;
-    // the next step up would overshoot into the neighbouring cell's own control.
-    30: "after:-inset-x-[7px]",
+const labelledHorizontal: Record<TouchTargetControlBorder, string> = {
+    0: "after:-inset-x-1",
+    1: "after:-inset-x-[5px]",
 }
 
 const SCAFFOLDING_CLASSES = "relative after:absolute after:content-['']"
 
 /**
  * Classes that take a control to the 44px touch minimum, chrome unchanged. Pass the height alone
- * for a labelled control, or both dimensions for an icon button. The caller keeps its own
- * `relative`-free layout classes; this string brings its own.
+ * for a labelled Button, or the box for anything that zeroes its border or is short on both axes.
+ * The caller keeps its own `relative`-free layout classes; this string brings its own.
  */
 export const touchTargetExpansion = (
     control: TouchTargetControlHeight | TouchTargetControlBox,
 ): string => {
-    const height = typeof control === "number" ? control : control.height
+    const box: TouchTargetControlBox = typeof control === "number" ? {height: control} : control
+    const border = box.border ?? 1
     const horizontal =
-        typeof control === "number" ? DEFAULT_HORIZONTAL : horizontalByWidth[control.width]
-    return `${SCAFFOLDING_CLASSES} ${horizontal} ${verticalByHeight[height]}`
+        box.width === undefined ? labelledHorizontal[border] : horizontalByWidth[box.width][border]
+    return `${SCAFFOLDING_CLASSES} ${horizontal} ${verticalByHeight[box.height][border]}`
+}
+
+/** The hit area a class string yields, in px. `null` on an axis whose size it cannot read. */
+export interface TouchTargetHitArea {
+    width: number | null
+    height: number | null
 }
 
 /**
@@ -95,12 +130,6 @@ const controlBoxByClass: Record<string, Partial<TouchTargetHitArea>> = {
 /** The scaffolding without which an `after` inset paints no box and so expands no hit area. */
 const SCAFFOLDING = SCAFFOLDING_CLASSES.split(" ")
 
-/** The hit area a class string yields, in px. `null` on an axis whose size it cannot read. */
-export interface TouchTargetHitArea {
-    width: number | null
-    height: number | null
-}
-
 const insetPx = (candidate: string, axis: "x" | "y"): number | null => {
     const match = new RegExp(
         `^after:-inset(?:-${axis})?-(?:\\[(\\d+(?:\\.\\d+)?)px\\]|(\\d+(?:\\.\\d+)?))$`,
@@ -118,8 +147,23 @@ const insetOnAxis = (classes: string[], axis: "x" | "y"): number =>
     }, 0)
 
 /**
- * The hit area a class string yields, in px. Reads the dimension classes and the `after` insets
- * from the same string, so changing one without the other is visible to a test.
+ * The border the class string paints, in px, because the inset is measured from inside it. An
+ * explicit width (`border-0`, `border-2`) is what a call site writes to override the component's
+ * own, so it wins over the bare `border` the Button always carries.
+ */
+const borderOf = (classes: string[]): number => {
+    const explicit = classes.reduce<number | null>((found, candidate) => {
+        const match = /^border-(\d+)$/.exec(candidate)
+        return match ? Number(match[1]) : found
+    }, null)
+    if (explicit !== null) return explicit
+    return classes.includes("border") ? 1 : 0
+}
+
+/**
+ * The hit area a class string yields, in px, measured at the control's visible edge. Reads the
+ * dimension, the border and the `after` insets from the same string, so changing one without the
+ * others is visible to a test.
  */
 export const touchTargetHitArea = (className: string): TouchTargetHitArea => {
     const classes = className.split(/\s+/).filter(Boolean)
@@ -135,8 +179,9 @@ export const touchTargetHitArea = (className: string): TouchTargetHitArea => {
         {width: null, height: null},
     )
     if (!SCAFFOLDING.every((candidate) => classes.includes(candidate))) return box
+    const border = borderOf(classes)
     const grow = (size: number | null, axis: "x" | "y") =>
-        size === null ? null : size + insetOnAxis(classes, axis) * 2
+        size === null ? null : size + Math.max(0, insetOnAxis(classes, axis) - border) * 2
     return {width: grow(box.width, "x"), height: grow(box.height, "y")}
 }
 
@@ -153,3 +198,6 @@ export const touchTargetHeight = (className: string): number | null =>
  */
 export const touchTargetWidth = (className: string): number | null =>
     touchTargetHitArea(className).width
+
+/** What a labelled control reaches past each visible edge horizontally, in px. */
+export const TOUCH_TARGET_LABELLED_REACH_PX = LABELLED_REACH_PX

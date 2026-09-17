@@ -721,7 +721,7 @@ const RowActions = <T,>({items, record}: {items: ActionItem<T>[]; record: T}) =>
                     // so a height-only expansion left it 38px wide.
                     className={clsx(
                         "flex h-6 w-[30px] cursor-pointer items-center justify-center rounded-md border-0 bg-transparent text-colorTextSecondary hover:bg-colorFillTertiary hover:text-colorText",
-                        touchTargetExpansion({height: 24, width: 30}),
+                        touchTargetExpansion({height: 24, width: 30, border: 0}),
                     )}
                 >
                     <DotsThreeVertical size={16} weight="bold" />

@@ -40,6 +40,27 @@ describe("the drawer's Close button", () => {
         })
     })
 
+    it("reaches the minimum measured from the edge a finger can see", () => {
+        // D126: this is a real Button, so it paints the shared 1px transparent border, and an
+        // absolutely positioned pseudo-element insets from the PADDING box. An 8px inset on this
+        // control therefore reaches 7px past the visible edge and lands at 42, which is what it
+        // measured in a browser. Asserted against the button's own rendered classes rather than
+        // against the arithmetic, so the border has to be charged for this to read 44.
+        openSheet()
+
+        const close = screen.getByRole("button", {name: "Close"})
+        const classes = close.className.split(/\s+/)
+        expect(classes, "not the bordered Button this case is about").toContain("border")
+        expect(classes).not.toContain("border-0")
+
+        const inset = classes
+            .map((candidate) => /^after:-inset-[xy]-\[(\d+)px\]$/.exec(candidate)?.[1])
+            .find(Boolean)
+        expect(inset, "no arbitrary inset: the border is not being charged").toBeDefined()
+        // 28px of chrome, reaching (inset - 1) past each visible edge.
+        expect(28 + (Number(inset) - 1) * 2).toBe(TOUCH_TARGET_MINIMUM_PX)
+    })
+
     it("gains the hit area with nothing a reader can see", () => {
         // The button is on every drawer in the product, so the expansion had to be invisible
         // rather than a bigger control on surfaces nobody re-reviewed.
