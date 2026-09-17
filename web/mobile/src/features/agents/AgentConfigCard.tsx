@@ -59,10 +59,6 @@ export const AgentConfigCard = ({
         [summary.integrationKeys],
     )
 
-    // User MCP servers are a Claude-harness feature; on any other harness the row only offers a
-    // setting the runtime ignores — unless a server is already configured, which is worth saying.
-    const showMcp = summary.mcps > 0 || Boolean(summary.harness?.toLowerCase().includes("claude"))
-
     // The names when there are any, because a narrow row can hold them and "3 skills" says how
     // many and never which. The count and the empty action are the shared ones.
     const skills =
@@ -118,17 +114,19 @@ export const AgentConfigCard = ({
                         }
                         onClick={onEdit}
                     />
-                    {showMcp ? (
-                        <AgentOverviewCardRow
-                            icon={<Plugs size={ICON} />}
-                            label={AGENT_CONFIG_ROW_TITLES.mcps}
-                            // The shared card's rule, not this fork's own wording: it said
-                            // "connected", which claims an authorized state no summary card
-                            // can know, and which the shared card was fixed away from.
-                            detail={mcpSummaryDetail(summary.mcps, {canEdit: true})}
-                            onClick={onEdit}
-                        />
-                    ) : null}
+                    {/* Drawn unconditionally, like the shared card. It had been gated on a
+                        Claude harness or an existing server, so the one row that says "Connect a
+                        server" was missing on exactly the agents that have none — and the two
+                        cards disagreed about which rows an agent has. */}
+                    <AgentOverviewCardRow
+                        icon={<Plugs size={ICON} />}
+                        label={AGENT_CONFIG_ROW_TITLES.mcps}
+                        // The shared card's rule, not this fork's own wording: it said
+                        // "connected", which claims an authorized state no summary card
+                        // can know, and which the shared card was fixed away from.
+                        detail={mcpSummaryDetail(summary.mcps, {canEdit: true})}
+                        onClick={onEdit}
+                    />
                     <AgentOverviewCardRow
                         icon={<GraduationCap size={ICON} />}
                         label={AGENT_CONFIG_ROW_TITLES.skills}

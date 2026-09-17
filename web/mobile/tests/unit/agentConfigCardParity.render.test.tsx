@@ -7,10 +7,12 @@
 // sibling cards share so the three read as one column rather than three framed panels. What must
 // not differ is WHICH rows there are and what each is called.
 //
-// It had differed, twice over. The MCP row said "N connected", claiming an authorized state no
-// summary card can know, where the shared card had been fixed to "N configured". And the
+// It had differed, three times over. The MCP row said "N connected", claiming an authorized state
+// no summary card can know, where the shared card had been fixed to "N configured". The
 // permissions row — the setting that decides whether a run stops to ask — was missing here
-// entirely. Both halves are the same failure: a forked list of rows with nothing holding the two
+// entirely. And the MCP row itself was drawn only on a Claude harness or an agent that already had
+// a server, so the one row that says "Connect a server" was absent on exactly the agents with
+// none. All three are the same failure: a forked list of rows with nothing holding the two
 // lists together. The vocabulary lives in `@agenta/entity-ui/agent` now and this renders both
 // cards against one revision to prove they read it.
 import {act} from "react"
@@ -38,10 +40,7 @@ vi.mock("../../../packages/agenta-entity-ui/src/agent/state", async () => {
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT: boolean}).IS_REACT_ACT_ENVIRONMENT =
     true
 
-/**
- * One agent, configured enough that every row has something to state. The harness is Claude
- * because this app hides the MCP row on a harness that ignores the setting.
- */
+/** One agent, configured enough that every row has something to state. */
 const AGENT = {
     llm: {model: "anthropic/claude-opus-5"},
     harness: {kind: "claude_code"},
@@ -92,10 +91,11 @@ const remount = async () => {
 
 /**
  * An agent with nothing configured, which is where every divergence was hiding: the cards agreed
- * on the fully-populated strings and disagreed on all three empty ones. The Claude harness keeps
- * the MCP row drawn, since this app hides it on a harness that ignores the setting.
+ * on the fully-populated strings and disagreed on all three empty ones. The harness is deliberately
+ * NOT Claude: this app used to hide the MCP row on any other harness, so the empty MCP row is only
+ * checked here if the agent carries the harness the gate would have hidden it on.
  */
-const EMPTY_AGENT = {harness: {kind: "claude_code"}}
+const EMPTY_AGENT = {harness: {kind: "pi_core"}}
 
 describe("the agent Configuration card, on both apps", () => {
     it("names every row the shared vocabulary lists", async () => {
@@ -176,6 +176,25 @@ describe("an agent with nothing configured, on both apps", () => {
         expect(mobile).toContain("Add integrations")
         expect(desktop).toContain("Add tools")
         expect(mobile).not.toContain("No integrations")
+    })
+
+    it("draws the MCP row on a harness that is not Claude, with no server on the agent", async () => {
+        // The state the gate hid: no MCP server, and a harness the gate did not recognise. Both
+        // cards have to offer the connect verb here, because this is the agent that needs it.
+        const mobile = await mount(
+            <AgentConfigCard agentId="agent" onEdit={() => undefined} />,
+            EMPTY_AGENT,
+        )
+        await remount()
+        const desktop = await mount(
+            <AgentConfigSummaryCard appId="agent" onEdit={() => undefined} />,
+            EMPTY_AGENT,
+        )
+
+        for (const shown of [mobile, desktop]) {
+            expect(shown).toContain(AGENT_CONFIG_ROW_TITLES.mcps)
+            expect(shown).toContain("Connect a server")
+        }
     })
 
     it("counts the brief the same way once there is one", async () => {
