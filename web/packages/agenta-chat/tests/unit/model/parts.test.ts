@@ -1,11 +1,11 @@
 import type {ToolUIPart, UIMessage} from "ai"
 import {describe, expect, it} from "vitest"
 
+import {MCP_SERVER_NOTICE_PART} from "../../../src/model/mcpServerNotice"
 import {
     isEmptyAssistantTurn,
     isToolPart,
     isVisiblePart,
-    MCP_SERVER_NOTICE_PART,
     partToolName,
     toolIdentity,
 } from "../../../src/model/parts"
@@ -52,6 +52,17 @@ describe("isVisiblePart", () => {
                 data: {serverName: "mock-mcp"},
             } as unknown as UIMessage["parts"][number]),
         ).toBe(true)
+    })
+
+    it("is false for a notice the reader refuses", () => {
+        // A part of this type that names no server draws nothing, so treating it as visible
+        // keeps an otherwise empty turn on screen with no content in it.
+        expect(
+            isVisiblePart({
+                type: MCP_SERVER_NOTICE_PART,
+                data: {serverName: "  "},
+            } as unknown as UIMessage["parts"][number]),
+        ).toBe(false)
     })
 })
 

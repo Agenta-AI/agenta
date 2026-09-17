@@ -2,11 +2,12 @@ import type {FileUIPart, ToolUIPart, UIMessage} from "ai"
 
 import {
     isExplainedByMcpNotice,
+    MCP_SERVER_NOTICE_PART,
     mcpServerNotices,
     readMcpServerNotice,
     type McpServerNotice,
 } from "./mcpServerNotice"
-import {isToolPart, MCP_SERVER_NOTICE_PART, partToolName, toolIdentity} from "./parts"
+import {isToolPart, partToolName, toolIdentity} from "./parts"
 
 // The one fold both apps render from: the desktop turn (AgentMessage.tsx) and the mobile turn
 // (TurnRow, through buildTurnViewModels) call into this file. It began as a hand-copied twin of

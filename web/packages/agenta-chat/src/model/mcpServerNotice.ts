@@ -21,7 +21,14 @@
 import {gatewayRefusalCode, gatewayRefusalMessage} from "@agenta/entities/mcpEndpoint/refusal"
 import type {UIMessage} from "ai"
 
-import {MCP_SERVER_NOTICE_PART} from "./parts"
+/**
+ * The part the SDK projects an MCP server's failed handshake to the browser as.
+ *
+ * Named once here, beside the reader, because three separate rules decide what counts as
+ * content, and a turn whose only part is this one is not an empty turn: it carries the sentence
+ * saying why the server did not join, and the action that fixes it.
+ */
+export const MCP_SERVER_NOTICE_PART = "data-mcp-server-failed"
 
 /** The failure class a disconnected connection refuses its handshake with. */
 export const MCP_AUTH_REQUIRED_CODE = "auth_required"
@@ -76,6 +83,18 @@ export const readMcpServerNotice = (data: unknown): McpServerNotice | null => {
             code === MCP_AUTH_REQUIRED_CODE || readString(requirement?.state) === "needs_auth",
     }
 }
+
+/**
+ * Does this part carry a notice the chat will actually show?
+ *
+ * The type alone does not say so: `readMcpServerNotice` refuses a payload with no server name,
+ * and every renderer goes through it. A rule that counts the part by type instead lets such a
+ * part answer for the turn and then draw nothing, leaving a silent bubble where "no response"
+ * belonged.
+ */
+export const isReadableMcpServerNoticePart = (part: {type: string}): boolean =>
+    part.type === MCP_SERVER_NOTICE_PART &&
+    readMcpServerNotice((part as {data?: unknown}).data) !== null
 
 /** Every server notice a turn carries, in the order the run emitted them. */
 export const mcpServerNotices = (parts: UIMessage["parts"]): McpServerNotice[] => {

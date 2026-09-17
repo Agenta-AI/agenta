@@ -1,5 +1,7 @@
 import type {ToolUIPart, UIMessage} from "ai"
 
+import {isReadableMcpServerNoticePart} from "./mcpServerNotice"
+
 // Copied verbatim from web/oss/src/components/AgentChatSlice/components/AgentMessage.tsx
 // (2026-07-25); the OSS original remains authoritative for the desktop chat until the
 // re-plumb PR deletes it. Keep byte-parity if either side changes.
@@ -19,15 +21,6 @@ export const toolIdentity = (p: ToolUIPart): string => {
     return `${p.type}::${inputKey}`
 }
 
-/**
- * The part the SDK projects an MCP server's failed handshake to the browser as.
- *
- * Named once here because three separate rules decide what counts as content, and a turn whose
- * only part is this one is not an empty turn: it carries the sentence saying why the server did
- * not join, and the action that fixes it.
- */
-export const MCP_SERVER_NOTICE_PART = "data-mcp-server-failed"
-
 // Copied verbatim from web/oss/src/components/AgentChatSlice/AgentConversation.tsx
 // (2026-07-25); the OSS original remains authoritative for the desktop chat until the
 // re-plumb PR deletes it. Keep byte-parity if either side changes.
@@ -38,7 +31,7 @@ export const isVisiblePart = (p: UIMessage["parts"][number]): boolean =>
     (p.type === "reasoning" && Boolean((p as {text?: string}).text?.trim())) ||
     p.type === "file" ||
     p.type === "source-url" ||
-    p.type === MCP_SERVER_NOTICE_PART ||
+    isReadableMcpServerNoticePart(p) ||
     p.type.startsWith("tool-") ||
     p.type === "dynamic-tool"
 

@@ -29,6 +29,20 @@ describe("deriveTurnStatus", () => {
         expect(status.noResponse).toBe(false)
     })
 
+    it("does not count a notice the reader refuses as the turn's answer", () => {
+        // `readMcpServerNotice` returns null without a server name, so every renderer skips
+        // this part. Counting it by type would call the turn answered and then draw nothing,
+        // leaving a blank bubble where "no response" belongs.
+        const message = {
+            id: "a1",
+            role: "assistant",
+            parts: [{type: "data-mcp-server-failed", data: {serverName: "  "}}],
+        } as unknown as UIMessage
+        const status = deriveTurnStatus(message, {isUser: false, isStreaming: false})
+        expect(status.hasAnswer).toBe(false)
+        expect(status.noResponse).toBe(true)
+    })
+
     it("trusts traceError on an answer-less turn", () => {
         const message = {id: "a1", role: "assistant", parts: []} as unknown as UIMessage
         const status = deriveTurnStatus(message, {

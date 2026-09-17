@@ -1,6 +1,7 @@
 import type {UIMessage} from "ai"
 
-import {isToolPart, MCP_SERVER_NOTICE_PART} from "./parts"
+import {isReadableMcpServerNoticePart} from "./mcpServerNotice"
+import {isToolPart} from "./parts"
 
 export interface TurnStatusContext {
     isUser: boolean
@@ -44,7 +45,7 @@ export const deriveTurnStatus = (
             isToolPart(p.type) ||
             p.type === "file" ||
             p.type === "source-url" ||
-            p.type === MCP_SERVER_NOTICE_PART,
+            isReadableMcpServerNoticePart(p),
     )
     const hasReasoning = message.parts.some(
         (p) => p.type === "reasoning" && (p as {text?: string}).text,

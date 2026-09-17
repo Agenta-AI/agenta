@@ -31,8 +31,8 @@ import {
 import {
     buildTurnRenderItems,
     executedToolIdentities,
+    isReadableMcpServerNoticePart,
     isToolPart,
-    MCP_SERVER_NOTICE_PART,
     toolPartsSignature,
 } from "@agenta/chat/model"
 import {
@@ -312,7 +312,7 @@ const AgentMessage = ({
             isToolPart(p.type) ||
             p.type === "file" ||
             p.type === "source-url" ||
-            p.type === MCP_SERVER_NOTICE_PART,
+            isReadableMcpServerNoticePart(p),
     )
     const hasReasoning = message.parts.some(
         (p) => p.type === "reasoning" && (p as {text?: string}).text,
