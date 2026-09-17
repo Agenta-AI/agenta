@@ -14,12 +14,13 @@ can be trusted against the other.
 
 While `AGENTA_GATEWAYS_MOCKS_ENABLED` is on, this process also serves a mock OAuth
 authorization server and a second, OAuth-protected MCP surface at `/oauth/mcp`
-(`issuer.py`). `/` stays unauthenticated, because every other mock suite speaks to it.
+(`issuer.py`), and a third, header-authenticated surface at `/key/mcp`. `/` stays
+unauthenticated, because every other mock suite speaks to it.
 """
 
 import json
 
-from fastapi import FastAPI, Request
+from fastapi import APIRouter, FastAPI, Request
 from fastapi.responses import JSONResponse, Response
 
 from oss.src.core.gateways.mcps.dtos import (
@@ -133,6 +134,78 @@ async def _serve(request: Request) -> Response:
     )
 
 
+# The header-authenticated MCP surface.
+#
+# The third thing an MCP server can want, and the one no mock could express. `/` is open,
+# `/oauth/mcp` publishes OAuth metadata, and the bearer profile on `/` is selected by an
+# `X-Agenta-Mock-Profile` request header that only a test sends. So a person driving a
+# browser had no address that answers the way a key-authenticated server answers, and the
+# connect journey's API-key screen — which the probe reaches by reporting `unknown` for a
+# 401 that names no OAuth metadata — could not be reached by hand at all.
+#
+# Deliberately publishing NO protected-resource document and NO `resource_metadata` in the
+# challenge: that absence is the whole signal. A 401 that names one is the OAuth path, and
+# this surface exists to be the other one.
+KEY_MCP_PATH = "/key/mcp"
+
+KEY_REALM = "agenta-mock-mcp-key"
+
+
+def _key_challenge() -> Response:
+    """The 401 a server that wants a header answers with.
+
+    `Bearer` names a scheme and nothing else. RFC 9728 s5.1 is what turns a challenge into
+    an OAuth start, and it does that through `resource_metadata`, which is absent here.
+    """
+    return JSONResponse(
+        status_code=401,
+        content={
+            "error": "invalid_token",
+            "error_description": (
+                f"send the API key in the {env.mock_gateways.mcp_key_header} header"
+            ),
+        },
+        headers={"WWW-Authenticate": f'Bearer realm="{KEY_REALM}"'},
+    )
+
+
+def _key_accepted(request: Request) -> bool:
+    """Both forms the gateway sends an API key in.
+
+    An endpoint that registers a `credential_header` sends the stored value verbatim under
+    that name; one that registers none falls back to `Authorization: Bearer <value>`
+    (`providers/http/adapter.py::_credential_headers`). A mock that took only one of them
+    would refuse a correctly configured connection for a reason that is not the product.
+    """
+    expected = env.mock_gateways.mcp_key_value
+    if not expected:
+        return False
+    if request.headers.get(env.mock_gateways.mcp_key_header) == expected:
+        return True
+    return request.headers.get("Authorization") == f"Bearer {expected}"
+
+
+def build_key_router() -> APIRouter:
+    """The header-authenticated surface, as a router so it is testable without the flag."""
+    router = APIRouter()
+
+    @router.get(KEY_MCP_PATH)
+    async def challenge_on_probe() -> Response:
+        """`/` answers 405 to a GET, which tells a client nothing. This one challenges,
+        the way the OAuth surface does, so a GET and a POST agree about what is wanted."""
+        return _key_challenge()
+
+    @router.post(KEY_MCP_PATH)
+    async def key_relay(request: Request) -> Response:
+        if not _key_accepted(request):
+            return _key_challenge()
+        # The same handler `/` and `/oauth/mcp` use, so all three answer one request with
+        # one set of bytes and the framing rules stay in one place.
+        return await _serve(request)
+
+    return router
+
+
 @app.get("/")
 async def reject_get() -> Response:
     return Response(status_code=405)
@@ -149,3 +222,4 @@ async def reject_delete() -> Response:
 # an authorization server by accident.
 if env.mock_gateways.enabled:
     app.include_router(build_oauth_router(relay=_serve))
+    app.include_router(build_key_router())
