@@ -93,13 +93,13 @@ is visible in D113: each reviewer found one half of it, and neither half alone i
 | --- | --- | --- | --- | --- | --- |
 | Codex, as filed | 0 | 1 | 5 | 2 | 8 |
 | Second reviewer, as filed | 0 | 0 | 8 | 8 | 16 |
-| **At the close of round 4** | 0 | 4 | 45 | 39 | 93 |
+| **At the close of round 4** | 0 | 4 | 45 | 40 | 95 |
 
 The close row is the disposition table counted, and it is the only total worth quoting. Severity is
 as verified rather than as filed, and two findings carry no severity, one withdrawn and one investigated and found not to be a
-defect, so the severity columns sum to 88 against 93 rows.
+defect, so the severity columns sum to 89 against 95 rows.
 
-Getting from the two reviewers' 24 filed findings to 93 takes three additions, and they are listed
+Getting from the two reviewers' 24 filed findings to 95 takes three additions, and they are listed
 rather than summed because an earlier version of this section presented addition rows that did not
 reconcile with the close. Two Codex findings were duplicates of Opus ones, leaving 22 unique reviewer
 findings. Verifying them added 6. Delta-checking the fixes added 5, every one of them created by a
@@ -200,6 +200,8 @@ finding, and is empty while one is owed.
 | D178 | web7 live | P2 | P2 | **fixed** | `cdf51982a7` | saved header kept; mutation kills 1 |
 | D179 | r5b Codex | P2 | P2 | **fixed** | `b546205833` | 5 sites fixed; 1 pinned, see D187 |
 | D187 | delta-check | | P3 | fix owed, integrator | | 4 of 5 prototype-safe sites unpinned |
+| D188 | QA 6e | P2 | not a defect | withdrawn by QA | `5243d1807e` hardening | the model declined the call; my cause was wrong |
+| D189 | web8 | | P3 | **fixed** | `5243d1807e`, `3951bbaa5c` | the notice's Reconnect action was never pinned |
 | D185 | delta-check | | P3 | **fixed** | `8f8d6eb16a` | 1 case per package; covers the live gap |
 | D186 | QA 6d, merge | P2 | P2 | deferred, 6930 | | a stored pane preference hides the chat |
 | D180 | r5b Codex | P2 | P2 | **fixed** | `4fc3651100` | flag set true on a successful swap |
@@ -2698,6 +2700,225 @@ distinguish safe from unsafe behaviour there.
 That is D187, and it is the same shape this round has now found five times: a guard written, the defect
 genuinely closed, and the guard itself resting on nothing. It is P3 because the product is correct
 today; it matters because the next person to touch one of those four sites gets no signal.
+
+## The upstream merge, checked for what it dropped
+
+Upstream was merged into the branch after this record closed, rewriting the mobile chat's turn
+rendering into a shared timeline and forcing four of this release's own pieces to be re-homed. A merge
+of that shape is where work goes missing quietly, so it was checked rather than taken on the merge's
+own report. It comes out clean, and the one thing I predicted would be wrong was not.
+
+**A baseline was taken before the merge landed**, because "unchanged apart from these resolutions"
+cannot be verified afterwards without one: the full production diff of the branch's contribution, the
+checksums of the files the resolutions touch, and the exact lines carrying the three behaviours most
+likely to be lost.
+
+**The first comparison I ran was against the wrong span and would have reported a false clean.** Taking
+the branch's production files as those changed since the last candidate gives 26 files, of which only
+one moved across the merge and none was deleted, which looks like nothing happened. The correct span is
+the branch's whole contribution against its merge base with upstream, which is 368 files, of which 27
+moved and four were deleted. The narrow answer was not wrong about its own 26 files; it was an answer
+to a question nobody asked.
+
+**Two of the four deletions were already gone before the merge**, so they are not the merge's doing.
+The other two were, and only one of them had been announced.
+
+**The announced one: the phone's config-pane preference file.** Its job was to keep that preference
+under a key of the mobile app's own rather than the shared desktop one, which was the fix for a defect
+where a desktop preference bled into the phone layout. The file is gone and **the property survives**,
+under upstream's own mechanism, which keys the preference by viewport rather than by app and so uses
+two separate keys. Established by construction rather than by reading: the shared desktop key was set
+and the phone layout rendered, and the chat column stayed. The same case fails when upstream's
+mechanism is broken, so it pins the new mechanism rather than passing out of habit.
+
+**The unannounced one: a mobile tool-line component.** It rendered a single tool call as a row with its
+status, sentence, expandable raw input and output, approval verdict and remembered expand state. It is
+replaced by an upstream activity step doing the same job with the same helpers and the same remembered
+state, now shared between the two apps rather than duplicated. Nothing was lost. It is recorded because
+it was not on the list of resolutions and a reader comparing that list against the diff would otherwise
+find a file missing with no explanation.
+
+**All five behaviours still bite.** Narrowing the retry to one error code kills eight cases across two
+files. Removing the credential escapes kills three. Removing the approval re-submit guard kills two.
+Removing the notice card from the timeline kills three. And the config-pane case kills one.
+
+**My prediction about that last one was wrong, and it is worth recording as such.** I said before the
+check that the ported case was the one I expected to find hollow, because a case written against our
+mechanism can keep passing against a different mechanism reaching the same layout, which is exactly
+what happened earlier this round with the drawer cases. It is not hollow. It seeds the desktop key,
+renders the workspace at phone width, and asserts the chat column is visible, and it flips under the
+mutation. I was right about the failure mode being common and wrong about this instance, and the
+difference is that this case asserts the outcome a person sees rather than the mechanism that produces
+it, which is what makes it survive a change of mechanism.
+
+**One scare on the merged head, settled rather than waved through.** The development server logged four
+missing exports after the merge, which is exactly what a genuinely broken import looks like and also
+what a stale module graph looks like. QA read it as stale and probed a chat route, which rendered. That
+is suggestive rather than conclusive, so it was checked at the source: all four symbols are defined,
+and each is re-exported through precisely the sub-barrel its consumer imports from, the two activity
+helpers through the model barrel, the reference skin through the skin barrel, the held-for hook through
+the hooks barrel. The positive control is a type check of the mobile app on the merged head, which
+passes clean. So the source graph is sound and the log line is the development server's, not the code's.
+Recorded because after a merge of this size a missing-export message deserves more than a rendered page
+before anyone dismisses it.
+
+**One thing the merge does not change**, and it should not be read as fixed by it: a stored preference
+can still hide the conversation, approval gate and all, under upstream's mechanism as much as under
+ours. That is the separately filed issue, and porting the config-pane case does not close it, because
+that case is about which key is read and the issue is about what a preference is allowed to hide.
+
+### D188. A failed call is hidden whether or not a notice explains it (P2)
+
+The timeline's hide rule, after the upstream merge.
+
+Source: QA on the merged head, reporting no notice card, no reconnect action and none of the failure
+strings after a revoked login. My own live run on the same head rendered the notice correctly. Both
+observations are real and one rule explains them.
+
+**The stream evidence, from a live run with the network visible.** The notice part arrives, and first,
+carrying the server name, a handshake reason, a 409 and an auth-required code. The tool call is
+attempted. The harness answers that the tool is not found, which is correct rather than a defect,
+because a disconnected server never completes its handshake so its tools are not offered for that turn.
+The notice renders and the raw tool error is suppressed, so the reader gets one explanation rather than
+two. **So nothing upstream changed**: the possibility that a disconnected server simply produces
+nothing to notice does not hold.
+
+**WITHDRAWN, and the cause was not the one I gave.** I explained QA's absence with the hide rule:
+unscoped, it hides an MCP call whether or not a notice explains it, so where the notice is present the
+reader sees it and where it is absent the reader sees nothing, which fitted both runs exactly. It was
+wrong. QA read its own transcript and found that the model **declined to attempt the tool call**,
+answering conversationally that it would need the connection re-established and offering to reconnect.
+No attempted call means no failure, means no notice is warranted, means nothing to render. Its
+assertion had also fired while the turn was still in flight. Same harness and same app as my run, so
+neither variable I proposed was it either.
+
+**Why this is the sharpest thing in the record, and it is about me rather than the product.** I built an
+explanation that fitted both observations and I had no evidence for it on QA's path. I inferred the
+hide rule's behaviour there from its behaviour on mine, which is the same error as reading a status and
+calling it a refusal, or rendering a fixture and calling it the page. A mechanism that accounts for the
+facts is not thereby the mechanism. QA had the deciding evidence in its own dump the whole time, and
+what produced it was reading the transcript rather than grepping it for the markers a call that was
+never made could never have left.
+
+**One pointer from the fix author that outlives all of this**, and is the sharpest thing to come out of
+the exchange. The notice derivation reads one message's parts, while upstream folds a run's messages
+together afterwards. If a harness emits the notice in a later message than the failed call it explains,
+reading one message's parts would miss it, which is why the fix widened the lookup to the turn's items.
+So for any future report of an absent notice on another harness, the question is not whether the notice
+is found but whether it is emitted at all. That is a much better first question than the one I was
+asking, and it is recorded here because the next person to chase this will otherwise start where I did.
+
+**Two causes, not one, and the second is the one that recurs.** The model declining the call explains
+this instance. Independently, the assertion fired while the turn was still running, and that one can
+report an empty turn on any path, including one where the notice arrives a moment later. The fix
+author made this point and it is right: a harness that asserts without awaiting a settled turn will
+produce this shape again whatever the model does.
+
+**A third variant of the same trap surfaced immediately afterwards and was caught before it was
+reported.** A rerun showed the notice genuinely absent, and the dump showed why: the server was set to
+ask before every call, so the second call raised its own approval gate, the scenario approved the first
+gate and not the second, and the call never executed. Nothing could fail, so nothing was owed. The
+detector added to prevent exactly this returned true anyway, because an approval card contains the
+words "tool call". The fix was to make "attempted" mean executed rather than requested. Recorded
+because the near-miss is more instructive than the finding: a guard written against a known trap fell
+to the same trap one layer in, on a string match.
+
+**What survives, and it is worth keeping.** The scenario asserted on a model's willingness to call a
+tool and reported the absence as a product defect, which is a dependency sitting in the middle of a
+test nobody had noticed was load-bearing. QA is making it deterministic: wait for the turn to finish,
+and assert the notice only once a call was actually attempted, so a model that talks its way out is an
+inconclusive run rather than a missing notice.
+
+**The commit stands as hardening rather than as a fix.** It scopes the hide so a failed MCP call with
+no notice can never be silent, which is a guarantee worth having whether or not anything was producing
+that state, and it closes a real coverage gap recorded as D189. It is not a regression fix, because
+there was no regression.
+
+**The sharpest statement of this pattern is QA's, not mine, and it is worth quoting.** Its report had
+carried two mechanism claims beside the finding, that the absence was broader than the notice card and
+that the damage was in the rewritten turn row, and it went back and marked both withdrawn rather than
+letting them stand under a retraction that only covered the conclusion. On the second it named
+something I had not: two other scenarios passing narrows where a fault could be, and it had used that
+narrowing as evidence that there was a fault. So a fact about where a defect could live became a reason
+to believe one did, and the line sent people to a file that was never involved.
+
+That is the same move I made from the other direction on the same day, and neither of us was broken out
+of it by a better hypothesis. What broke it was a question that changed how the evidence was read
+rather than what was believed about it.
+
+**A note on how far a wrong explanation travelled before it was caught.** Between my giving it and QA's
+retraction, the fix author had taken my one-rule reading as the thing it could not prove statically and
+had said so to the coordinator, so for a short while a withdrawn explanation was the shared
+understanding of three people and the stated justification for a commit. Nothing was built wrongly,
+because the commit is right on its own terms as hardening. But the speed at which a tidy explanation
+became everyone's working model, on no evidence from the path it explained, is the part worth keeping.
+I corrected it to the author directly rather than letting the record be the correction.
+
+**The two variables I proposed were both wrong**, and are recorded because proposing them is what
+resolved it. I asked which harness and which app, on the reasoning that two other harnesses emit the
+signal through a different branch. QA ran the same harness and the same app as me. But asking made QA
+read its transcript rather than grep it again, which is where the answer was.
+
+### D189. The notice's action was never pinned (P3, fixed)
+
+Source: web8, found while fixing the above. Every case written for the notice asserted its sentence and
+none asserted its action, because showing the action needs the endpoints query resolved and no case had
+ever seeded it. So the card's only interactive element, the one a person presses to fix the thing the
+card is telling them about, was covered by nothing.
+
+Fixed in the same commit. Recorded separately because it is the fifth instance this round of a guard
+resting on nothing, and because the shape here is the most instructive of the five: the cases were not
+lazy, they asserted exactly what the fixture let them see, and the fixture stopped one field short of
+the part that matters.
+
+## The pushed head, checked once
+
+Checked at `890953d2b4`, which is what was pushed and what the stack serves.
+
+**A commit rewrite that could not work, and my part in endorsing it.** The fix author rewrote two
+commits to take a withdrawn premise out of their bodies rather than annotate it, on the stated ground
+that the branch was unpushed and only their worktree was on it. I agreed in writing that this was the
+better instinct. The premise was false: the fix commit was already merged and pushed, so the rewrite
+produced a pair of hashes that live on no branch and resolve to nothing. The correction shipped instead
+as one comment-only commit on top. The shipped lineage is `5243d1807e`, the fix; `a538e41925`, the
+note; and `3951bbaa5c`, that correction. Those are the hashes to cite; the rewritten pair resolves to
+nothing on any branch.
+
+I record it because the error is mine as much as theirs and it is the same one this round keeps
+finding: I accepted a stated premise about the state of a branch without running the one command that
+checks it, and I had the repository in front of me. The instinct to rewrite rather than annotate was
+right; whether it was available was a fact, and facts are checkable.
+
+**The notice was finally owed, and it was delivered.** Every run in this thread until now either had
+the notice arrive and render, which is what mine did, or had nothing owed because no call executed. On
+the pushed head QA drove the case where the call genuinely executed against a revoked server and
+failed, and the notice rendered with its action. That is the first run in which the product was
+actually asked for this behaviour, and it gave it.
+
+**The notice renders, and its hardening is held by a test rather than only by a commit message.**
+Removing the card's rendering kills five cases. Removing the scoping from the hide kills two, and one
+of them is exactly the guarantee the scoping exists for: a failed MCP call with no notice to account
+for it stays visible. That was the thing I most wanted to know, because hardening added without an
+observed defect is the easiest kind to add without cover, and here it has cover. The two packages that
+killed nothing were checked before the run rather than after: neither references the mutated module at
+all, so the zero is irrelevance rather than a gap.
+
+**The action is pinned, six cases across two packages.** Breaking the card's ability to resolve a
+connectable endpoint kills four cases in one package and two in the other. The dependency is the
+endpoints query, and the new case is the first anywhere to mock it with data already resolved, which
+is precisely why it is the first to assert the button rather than the sentence.
+
+**The ported config-pane case asserts the outcome a person sees.** Pointing the viewport preference at
+the wide key regardless of viewport kills it, and its assertion is that the chat column's own node is
+present and un-hidden, without touching which key or atom produced that state. That is why it survived
+a wholesale change of mechanism when a case written against the mechanism would not have, and it is the
+clearest example in this record of the difference between the two.
+
+**The diff attribution is exact.** Our production contribution is 364 files at the pushed head against
+368 before the merge, and the four missing are the four already accounted for: two that were gone
+before the merge, one replaced by an upstream component doing the same work, and one whose property
+survives under upstream's own mechanism, verified by construction. Nothing else left the branch between
+the merge and the push.
 
 ## What the round confirmed
 
