@@ -804,3 +804,36 @@ describe("while the tool list is being read", () => {
         })
     })
 })
+
+/**
+ * A saved value that is not one of the three decisions, drawn (D172).
+ *
+ * The saved shape is JSON, so a table can carry another surface's spelling. Passed through, the
+ * row's control had nothing to draw it as and rendered empty, which reads as a tool with no rule
+ * while the saved policy says it has one. The value is dropped now, so the row shows the floor
+ * the declared table sets and a person sees what the run will do.
+ */
+describe("a saved per-tool value the drawer cannot draw", () => {
+    const misCasedValue = {
+        permission: "allow",
+        tool_permissions: {get_issue: "Allow"},
+    } as unknown as McpServerPolicy
+
+    it("draws the row as the floor the table sets rather than as nothing", async () => {
+        await render({policy: misCasedValue})
+
+        // The row's own control, not the page text: every other row reads the same floor, so a
+        // page-wide check cannot tell an empty control from a filled one.
+        const control = labelled("Permission for get_issue")
+        expect(control?.textContent).toBeTruthy()
+        // `Allow` is not a decision, so `get_issue` falls to the declared table's floor, and
+        // the row says so the way every inheriting row does.
+        expect(control?.textContent).toContain("Inherits ask")
+    })
+
+    it("does not let the server permission govern a table that was declared", async () => {
+        await render({policy: misCasedValue})
+
+        expect(labelled("Default permission")?.textContent).not.toContain("Allow all")
+    })
+})

@@ -36,6 +36,21 @@ export interface McpServerPolicy {
     new_tool_permission?: McpPermission | null
 }
 
+const PERMISSIONS: readonly McpPermission[] = ["allow", "ask", "deny"]
+
+/**
+ * Whether a saved value is one of the three decisions.
+ *
+ * The saved shape is JSON, so a value can be anything: a spelling from another surface
+ * (`"Allow"`), a leftover from an older field, a number. A value that is not exactly one of
+ * these is not a decision and is dropped, which is what the runner's intake does with the same
+ * input, and what an ABSENT value already does. So an unreadable value is never more permissive
+ * than saying nothing, and never reaches a control that has nothing to draw it as (D172).
+ */
+export function isMcpPermission(value: unknown): value is McpPermission {
+    return typeof value === "string" && (PERMISSIONS as readonly string[]).includes(value)
+}
+
 /** How the wire spells the two per-tool fields. This module, like the SDK model it mirrors,
  *  spells them `tool_permissions` and `new_tool_permission`. */
 const WIRE_PER_TOOL_FIELDS = ["toolPermissions", "newToolPermission"] as const
@@ -65,12 +80,27 @@ export function readMcpPolicy(item: Record<string, unknown> | null | undefined):
     return policy as McpServerPolicy
 }
 
-export const toolPermissions = (policy: McpServerPolicy): Record<string, McpPermission> =>
-    policy.tool_permissions ?? {}
+/** The table's readable entries. An entry whose value is not a decision is dropped. */
+export const toolPermissions = (policy: McpServerPolicy): Record<string, McpPermission> => {
+    const declared = policy.tool_permissions ?? {}
+    const readable: Record<string, McpPermission> = {}
+    for (const [tool, permission] of Object.entries(declared)) {
+        if (isMcpPermission(permission)) readable[tool] = permission
+    }
+    return readable
+}
 
-/** Whether the author opted into per-tool policy for this server. */
+/**
+ * Whether the author opted into per-tool policy for this server.
+ *
+ * Read from what was DECLARED rather than from what parsed, the way the runner reads it: a table
+ * whose only entry is unreadable is still a table somebody wrote, and reading the opt-in off the
+ * parse would hand that server back to its whole-server permission.
+ */
 export function isPerTool(policy: McpServerPolicy): boolean {
-    return Object.keys(toolPermissions(policy)).length > 0 || policy.new_tool_permission != null
+    return (
+        Object.keys(policy.tool_permissions ?? {}).length > 0 || policy.new_tool_permission != null
+    )
 }
 
 /** Whether the filter hides this tool, in which case it may not carry a permission. */
@@ -97,7 +127,8 @@ export function resolvedNewToolPermission(policy: McpServerPolicy): McpPermissio
     // permission decides nothing, and `ask` is the floor a human answers at.
     if (isMisCasedPolicy(policy)) return "ask"
     if (!isPerTool(policy)) return null
-    return policy.new_tool_permission ?? "ask"
+    // An unreadable floor beside a declared table is the same as none: a human decides.
+    return isMcpPermission(policy.new_tool_permission) ? policy.new_tool_permission : "ask"
 }
 
 /**
@@ -122,7 +153,10 @@ export function effectiveToolPermission(
     // the `ask` floor. Never from the server permission, so the provenance is always "new".
     const resolved = resolvedNewToolPermission(policy)
     if (resolved) return {permission: resolved, source: "new"}
-    return {permission: policy.permission ?? null, source: policy.permission ? "server" : "default"}
+    // An unreadable server permission is not a decision either, so the run's ladder decides,
+    // which is what an absent one already does.
+    const server = isMcpPermission(policy.permission) ? policy.permission : null
+    return {permission: server, source: server ? "server" : "default"}
 }
 
 const withoutKey = (table: Record<string, McpPermission>, key: string) => {
