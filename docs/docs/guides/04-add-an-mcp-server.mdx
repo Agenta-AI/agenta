@@ -27,9 +27,7 @@ Start from `Settings` in the sidebar, then `MCPs`, and click `Connect MCP`. You 
 
    **`Reachable · no sign-in needed`.** The sheet asks only for a name. Click `Connect`.
 
-4. The sheet reads `Connected` and reports how many tools it found. Click `Done`.
-
-Started from an agent, the connection is added to that agent when you click `Done`, and its permission drawer opens so you can decide what the agent may run. Started from `Settings`, a new row appears in the table.
+The sheet closes itself as soon as the connection exists. Started from an agent, the permission drawer opens on the new connection with its tools listed, so you can decide what the agent may run. Started from `Settings`, the new row is in the table.
 
 A step that fails keeps what you typed and offers `Try again`, which repeats that step rather than starting over. `Change` on the result card takes you back to the URL field with the address kept. While Agenta waits for the provider, `Cancel` returns you to the name step with the name you chose, and the sign-in you abandoned is discarded.
 
@@ -120,7 +118,7 @@ On an OAuth connection this means consent was abandoned, or the grant was revoke
 
 **`Another connection in this project already uses this name.`** Names are compared after every character outside letters, digits, and underscores is replaced with an underscore, so `Acme Tools` and `Acme-Tools` count as the same name. Pick a name that differs by more than punctuation.
 
-**Connected, but the tool list failed.** Agenta shows the server's own wording for the refusal. The credentials were saved, so click `Retry tools` and do not authorize again.
+**The tool list could not be read.** The permission drawer says so where the tools would be, and shows the server's own wording for the refusal when it gave one. Click `Retry tools` to read it again. Your credentials were saved, so there is nothing to authorize. If the drawer says instead that the server is not connected yet, it offers `Connect` rather than a retry, because a tool list cannot be read until the connection is authorized.
 
 **`This server exposes no tools yet.`** The server answered with an empty tool list, and that is a real answer rather than a failed conversation. A server Agenta cannot read reports its own error instead, as above.
 
