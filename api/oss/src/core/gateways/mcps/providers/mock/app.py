@@ -1,10 +1,21 @@
 """Deployable mock MCP Streamable HTTP server.
 
 A standalone ASGI app (`uvicorn oss.src.core.gateways.mcps.providers.mock.app:app`),
-not mounted into the main API process. Stateless JSON mode: one JSON-RPC request in,
-one `application/json` response out, `202` for a notification — the same shape as
-the runner's internal tool server (services/runner/src/tools/tool-mcp-http.ts), no
-session id, no SSE leg. `GET`/`DELETE` answer `405`.
+not mounted into the main API process. Stateless: one JSON-RPC request in, one response
+out, `202` and no body for a notification, no session id. `GET`/`DELETE` answer `405`.
+
+Most methods answer `application/json`. `tools/list` answers `text/event-stream`, and the
+stream carries a `notifications/message` BEFORE the result, because the transport lets a
+server do that and a client that joined every `data:` line got two JSON documents in one
+string and parsed neither: it reported no tools and dropped the server. A single-event mock
+could not show that, so the one SSE-framed method sends a real notification first (D63).
+`tools/list` is also paginated, one tool per page, so a client that reads the first page and
+stops is visible here rather than against a real provider (D69).
+
+The framing rules are strict on purpose, and every surface below shares one handler so they
+cannot drift: a call past the handshake must carry the negotiated `mcp-protocol-version`,
+`initialize` must not, and an `_meta` envelope is validated on notifications too. A mock that
+accepted what a client happened to send is a mock that certifies a broken client.
 
 Delegates every POST straight to `MockMCPAdapter` so both tiers share one
 implementation of the control convention, including the opening handshake and the
