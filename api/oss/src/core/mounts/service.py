@@ -1012,7 +1012,7 @@ class MountsService:
                             "" if rel == ".gitignore" else rel[: -len("/.gitignore")]
                         )
                         gitignore_reads.append((dir_rel, obj.key))
-                subdir_prefixes.extend(level_subdirs)
+                subdir_prefixes.extend(s.key for s in level_subdirs)
 
             # Bounded COUNT: enough to know it's "more than the cap" — stop before descending further.
             if cap is not None and len(kept) >= cap:
@@ -1147,7 +1147,10 @@ class MountsService:
                 seen.add(rel)
                 shallow.append(MountFile(path=rel, size=obj.size, mtime=obj.mtime))
             subdir_rels: List[str] = []
-            for sub_key in level_subdirs:
+            # A folder's time: its marker's (creation) until a counted child is newer.
+            mtimes: dict[str, int] = {}
+            for sub in level_subdirs:
+                sub_key = sub.key
                 rel = (
                     sub_key[len(mount_base) :]
                     if sub_key.startswith(mount_base)
@@ -1159,18 +1162,23 @@ class MountsService:
                     continue
                 seen.add(rel)
                 subdir_rels.append(rel)
+                if sub.mtime is not None:
+                    mtimes[rel] = sub.mtime
 
             counts: dict[str, int] = {}
             if with_counts and subdir_rels:
                 semaphore = asyncio.Semaphore(_LIST_CONCURRENCY)
 
-                async def _count_children(sub_rel: str) -> Tuple[str, int]:
+                async def _count_children(
+                    sub_rel: str,
+                ) -> Tuple[str, int, Optional[int]]:
                     async with semaphore:
                         c_files, c_subs = await self.mounts_store.list_objects_shallow(
                             bucket=bucket, prefix=f"{mount_base}{sub_rel}/"
                         )
                     child_seen: set[str] = set()
                     n = 0
+                    newest = mtimes.get(sub_rel)
                     for o in c_files:
                         r = (
                             o.key[len(mount_base) :]
@@ -1180,7 +1188,18 @@ class MountsService:
                         if r and r != sub_rel and _keep(r, False):
                             child_seen.add(r)
                             n += 1
-                    for s in c_subs:
+                            if o.mtime is not None and (
+                                newest is None or o.mtime > newest
+                            ):
+                                newest = o.mtime
+                    for sub in c_subs:
+                        s = sub.key
+                        # The folder's own marker lists here with its time (S3 rolls it up at
+                        # the parent level); a common prefix carries none.
+                        if sub.mtime is not None and (
+                            newest is None or sub.mtime > newest
+                        ):
+                            newest = sub.mtime
                         r = (
                             s[len(mount_base) :] if s.startswith(mount_base) else s
                         ).rstrip("/")
@@ -1192,17 +1211,23 @@ class MountsService:
                         ):
                             child_seen.add(r)
                             n += 1
-                    return sub_rel, n
+                    return sub_rel, n, newest
 
-                for sub_rel, n in await asyncio.gather(
+                for sub_rel, n, newest in await asyncio.gather(
                     *(_count_children(s) for s in subdir_rels)
                 ):
                     counts[sub_rel] = n
+                    if newest is not None:
+                        mtimes[sub_rel] = newest
 
             for rel in subdir_rels:
                 shallow.append(
                     MountFile(
-                        path=rel, size=0, is_folder=True, item_count=counts.get(rel)
+                        path=rel,
+                        size=0,
+                        is_folder=True,
+                        item_count=counts.get(rel),
+                        mtime=mtimes.get(rel),
                     )
                 )
             return MountFileList(files=shallow, total=len(shallow))

@@ -14,7 +14,7 @@ stack.
 
 import io
 import zipfile
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 from uuid import UUID, uuid4
 
 import pytest
@@ -239,21 +239,23 @@ class FakeMountStorage:
         # INCLUDING the queried prefix's own marker (`key == prefix`), which the descent must not
         # re-list (regression guard for the infinite-loop hang).
         b = self._store.get(bucket, {})
+        mtimes = self._mtimes.get(bucket, {})
         files: List[StoreObject] = []
-        subdirs: set[str] = set()
+        subdirs: dict[str, Optional[int]] = {}
         for k, v in b.items():
             if not k.startswith(prefix):
                 continue
             rest = k[len(prefix) :]
             if "/" in rest:
-                subdirs.add(prefix + rest.split("/", 1)[0] + "/")
+                subdirs.setdefault(prefix + rest.split("/", 1)[0] + "/", None)
             elif k.endswith("/"):
-                subdirs.add(
-                    k
-                )  # an empty-folder marker at this level (may equal `prefix`)
+                # An empty-folder marker at this level (may equal `prefix`): it carries a time.
+                subdirs[k] = mtimes.get(k)
             else:
-                files.append(StoreObject(key=k, size=len(v)))
-        return files, sorted(subdirs)
+                files.append(StoreObject(key=k, size=len(v), mtime=mtimes.get(k)))
+        return files, [
+            StoreObject(key=k, size=0, mtime=subdirs[k]) for k in sorted(subdirs)
+        ]
 
     async def get_object(self, *, bucket: str, key: str) -> bytes:
         b = self._store.get(bucket, {})
@@ -871,6 +873,27 @@ class TestMountFileOpsRoundtrip:
         by_path = {f.path: f for f in listing.files}
         assert by_path["a"].item_count == 3  # one.txt, two.txt, nested/ (not .git)
         assert by_path["b"].item_count == 1
+
+    async def test_shallow_folder_time_is_marker_or_newest_child(self):
+        # A folder's mtime: its marker's when empty, else the newest immediate child's — so a
+        # just-created folder sorts as new, and a folder someone wrote into recently stays near.
+        mount = _make_mount()
+        service, pid, mid = _make_service(mount)
+        store = service.mounts_store
+        base = service._storage_key(project_id=pid, mount=mount)
+        await service.create_folder(project_id=pid, mount_id=mid, path="fresh")
+        store.set_mtime(_BUCKET, f"{base}fresh/", 500)
+        for path, mtime in [("old/a.txt", 100), ("old/b.txt", 300)]:
+            await service.write_file(
+                project_id=pid, mount_id=mid, path=path, content=b"x"
+            )
+            store.set_mtime(_BUCKET, f"{base}{path}", mtime)
+        listing = await service.list_files(
+            project_id=pid, mount_id=mid, depth=1, with_counts=True
+        )
+        by_path = {f.path: f for f in listing.files}
+        assert by_path["fresh"].mtime == 500
+        assert by_path["old"].mtime == 300
 
     async def test_key_is_namespaced_under_mount_prefix(self):
         mount = _make_mount()

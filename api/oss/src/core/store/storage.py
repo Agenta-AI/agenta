@@ -493,25 +493,26 @@ class ObjectStore:
         *,
         bucket: str,
         prefix: str,
-    ) -> "tuple[List[StoreObject], List[str]]":
+    ) -> "tuple[List[StoreObject], List[StoreObject]]":
         """One directory LEVEL under `prefix` (delimiter `/`): the immediate file objects, plus the
-        immediate subdirectory prefixes (full keys ending in `/`). Lets a caller descend the tree and
-        prune whole subtrees (a gitignored `node_modules`) WITHOUT enumerating their contents — the
-        `recursive=True` flat listing has no way to exclude a prefix, so a mount full of dependency
-        files must otherwise be scanned in its entirety."""
+        immediate subdirectory prefixes (full keys ending in `/`, size 0; `mtime` only when the entry
+        is an explicit folder marker). Lets a caller descend the tree and prune whole subtrees (a
+        gitignored `node_modules`) WITHOUT enumerating their contents — the `recursive=True` flat
+        listing has no way to exclude a prefix, so a mount full of dependency files must otherwise
+        be scanned in its entirety."""
         client = self._client()
         files: List[StoreObject] = []
-        subdirs: List[str] = []
+        subdirs: List[StoreObject] = []
         async for obj in client.list_objects(bucket, prefix=prefix, recursive=False):
             if obj is None:
                 continue
             name = obj.object_name
-            # A common-prefix (subdir) or an explicit empty-folder marker both end in `/`.
-            if getattr(obj, "is_dir", False) or name.endswith("/"):
-                subdirs.append(name)
-                continue
             last_modified = getattr(obj, "last_modified", None)
             mtime = int(last_modified.timestamp() * 1000) if last_modified else None
+            # A common-prefix (subdir) or an explicit empty-folder marker both end in `/`.
+            if getattr(obj, "is_dir", False) or name.endswith("/"):
+                subdirs.append(StoreObject(key=name, size=0, mtime=mtime))
+                continue
             files.append(StoreObject(key=name, size=obj.size or 0, mtime=mtime))
         return files, subdirs
 
