@@ -1,6 +1,6 @@
 /**
  * Ejected from @docusaurus/theme-classic: the "Releases" list under the
- * section rail. One row per entry; long titles wrap to a second line.
+ * section rail. One row per entry; long titles truncate on one line.
  */
 import React, {memo, type ReactNode} from 'react';
 import clsx from 'clsx';
@@ -21,6 +21,7 @@ function BlogSidebarDesktop({sidebar}: Props): ReactNode {
             isNavLink
             to={item.permalink}
             className={clsx('menu__link', styles.link)}
+            title={item.title}
             activeClassName="menu__link--active">
             {item.title}
           </Link>

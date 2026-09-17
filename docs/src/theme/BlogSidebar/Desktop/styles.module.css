@@ -1,9 +1,9 @@
-/* Rows grow with their title instead of the fixed 28px, so a long title
-   wraps to a second line rather than truncating. */
+/* One line per release; long titles truncate (the full title is in the
+   link's title attribute). */
 .link {
-  height: auto;
-  min-height: 28px;
-  padding-top: 5px;
-  padding-bottom: 5px;
-  line-height: 18px;
+  display: block;
+  line-height: 28px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
