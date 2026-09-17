@@ -106,12 +106,29 @@ def test_the_sdk_reads_the_shared_ladder(ladder_case):
         assert policy.tool_permissions[named["tool"]] == named["permission"]
 
 
+_MIS_CASED = "sendersThatMisCaseTheirFields"
+
+
 def _senders_that_mis_case_their_fields() -> List[Dict[str, Any]]:
-    return [
+    """The entries of that block addressed to this reader, and never none of them.
+
+    Read at collection, and empty is a failure. pytest answers an empty parametrize with one
+    skipped case reading "got empty parameter set", so deleting the block from the fixture left
+    the other two readers red and this one green: the guard disappeared and the run said it had
+    passed. The same silent-skip shape as D129, one level down (D174).
+    """
+    senders = [
         sender
-        for sender in _ladder().get("sendersThatMisCaseTheirFields", [])
+        for sender in _ladder().get(_MIS_CASED, [])
         if "sdk" in sender["foreignTo"]
     ]
+    if not senders:
+        raise AssertionError(
+            f"The shared ladder fixture has no {_MIS_CASED} entry addressed to the SDK. That "
+            "block states what a reader fed the other convention must not resolve to (issue "
+            "6917), and the three readers of it are only a guard while each has a case to run."
+        )
+    return senders
 
 
 def _decision(policy: MCPPolicy, tool: str):
