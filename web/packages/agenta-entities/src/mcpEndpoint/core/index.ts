@@ -93,7 +93,6 @@ export {
 } from "./agentReference"
 export type {McpGatewayConnectionRef} from "./agentReference"
 export {
-    clearPerToolPolicy,
     effectiveToolPermission,
     isPerTool,
     isToolHidden,
@@ -105,7 +104,13 @@ export {
     toolPermissions,
 } from "./toolPolicy"
 export type {McpPermission, McpServerPolicy, McpToolFilterPolicy} from "./toolPolicy"
-export {fromGatewayPermissions, MCP_SUPPORTS_INHERIT, toGatewayPermissions} from "./policyAdapter"
+export {
+    askWritesPolicy,
+    fromGatewayPermissions,
+    isAskWritesPolicy,
+    MCP_SUPPORTS_INHERIT,
+    toGatewayPermissions,
+} from "./policyAdapter"
 export type {GatewayConnectionPermissions} from "./policyAdapter"
 export {toCatalogTools} from "./toolCatalog"
 export type {McpCatalogTool} from "./toolCatalog"

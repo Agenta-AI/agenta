@@ -136,6 +136,17 @@ const choose = async (trigger: Element | null, option: string) => {
     )
 }
 
+/** Type into the search field the way a person does: React reads the native value setter. */
+const search = async (value: string) => {
+    const input = document.querySelector<HTMLInputElement>('input[aria-label="Search tools"]')
+    expect(input).toBeTruthy()
+    const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set
+    await act(async () => {
+        setValue?.call(input, value)
+        input!.dispatchEvent(new Event("input", {bubbles: true}))
+    })
+}
+
 const openMenu = async (trigger: Element | null) => {
     expect(trigger).toBeTruthy()
     await act(async () =>
@@ -210,6 +221,18 @@ describe("D1 — the drawer at its default", () => {
         ).toBe("Search 8 tools")
     })
 
+    it("counts one tool in the singular", async () => {
+        // "Search 1 tools" was on screen for any server advertising a single tool. The same noun
+        // count is spelled once now, in the shared `formatCount`.
+        listMcpTools.mockResolvedValue([LINEAR_TOOLS[0]])
+        await render()
+
+        expect(
+            document.querySelector<HTMLInputElement>('input[aria-label="Search tools"]')
+                ?.placeholder,
+        ).toBe("Search 1 tool")
+    })
+
     it("splits the tools into the two groups the server's own annotation decides", async () => {
         await render()
 
@@ -266,10 +289,17 @@ describe("a server just added to an agent", () => {
         expect(justAdded.tool_permissions).toBeUndefined()
     })
 
-    it("reads back as the preset whose saved value is the absence, not as Allow all", async () => {
+    it("reads back as the preset named for the absence, not as one that promises behaviour", async () => {
+        // It used to read back as "Ask for write and delete", whose help line says read-only tools
+        // run automatically. Nothing written carries no such promise: the run's own ladder decides
+        // every tool. That preset writes a shape of its own now, and the absence has its own name
+        // (decision 45).
         await render({policy: justAdded})
 
-        expect(labelled("Default permission")?.textContent).toContain("Ask for write and delete")
+        expect(labelled("Default permission")?.textContent).toContain("Follow agent policy")
+        expect(labelled("Default permission")?.textContent).not.toContain(
+            "Ask for write and delete",
+        )
         expect(labelled("Default permission")?.textContent).not.toContain("Allow all")
         expect(labelled("Default permission")?.textContent).not.toContain("Custom")
     })
@@ -304,8 +334,51 @@ describe("a server just added to an agent", () => {
     })
 })
 
+describe("a search that names none of this server's tools", () => {
+    it("says so, rather than emptying the list under its own headers", async () => {
+        // Two groups still headed "Read-only · 4" and "Write · 4" with nothing under them read as
+        // a server that stopped advertising its tools, which is a different answer. The sentence
+        // is the connection detail drawer's, so one filter's emptiness reads the same everywhere.
+        await render()
+
+        await search("nothing here matches this")
+
+        expect(text()).toContain("No tool here matches that.")
+        expect(text()).not.toContain("Read-only · 4")
+        expect(text()).not.toContain("Write · 4")
+    })
+
+    it("does not say the server has no tools, which is a different answer", async () => {
+        await render()
+
+        await search("zzz")
+
+        expect(text()).not.toContain("This server exposes no tools yet.")
+    })
+
+    it("brings the groups back when the query matches again", async () => {
+        await render()
+
+        await search("zzz")
+        await search("issue")
+
+        expect(text()).not.toContain("No tool here matches that.")
+        expect(text()).toContain("Get Linear issue")
+    })
+
+    it("counts a match on the description, not only on the name", async () => {
+        // The rule the groups filter by and the rule that decides this message are one rule.
+        await render()
+
+        await search("cannot be undone")
+
+        expect(text()).not.toContain("No tool here matches that.")
+        expect(text()).toContain("Delete issue")
+    })
+})
+
 describe("D2 — the preset menu", () => {
-    it("holds the five presets, each with the line that says what it does", async () => {
+    it("holds the presets, each with the line that says what it does", async () => {
         await render()
 
         await openMenu(labelled("Default permission"))
@@ -322,6 +395,16 @@ describe("D2 — the preset menu", () => {
         expect(menu).toContain("Deny all")
         expect(menu).toContain("Tools stay listed but never run")
         expect(menu).toContain("Custom")
+        // The sixth, which only this source has: the preset whose saved value is the absence of a
+        // policy. Its help line states the one fact the absence carries, in the words the group
+        // rollups already use for it.
+        expect(menu).toContain("Follow agent policy")
+        expect(menu).toContain("Follows agent policy for every tool")
+        // The spec's own sentence for Custom, which the preset table already carries. The menu had
+        // written its own, "Set below, per tool", so the one preset an author cannot pick was also
+        // the one described in words the spec never uses.
+        expect(menu).toContain("Per-tool permissions below")
+        expect(menu).not.toContain("Set below, per tool")
     })
 
     it("shows Custom but refuses to let anyone pick it", async () => {
@@ -348,6 +431,123 @@ describe("D2 — the preset menu", () => {
     })
 })
 
+describe("Ask for write and delete — the preset that writes what it says", () => {
+    // Its help line promises that read-only tools run automatically and everything else asks.
+    // Nothing on this wire says that on its own, so the preset spells it out: ask at the server,
+    // every read-only tool allowed by name, ask for anything the table does not name. It used to
+    // write nothing at all, which is the absent policy, under that same help line (decision 45).
+    const READ_ONLY = {
+        get_current_user: "allow",
+        get_issue: "allow",
+        list_issues: "allow",
+        list_comments: "allow",
+    }
+
+    it("names every read-only tool the server advertises", async () => {
+        const onChange = await render({policy: {permission: "allow"}})
+
+        await choose(labelled("Default permission"), "Ask for write and delete")
+
+        expect(onChange).toHaveBeenCalledWith({
+            permission: "ask",
+            tool_permissions: READ_ONLY,
+            new_tool_permission: "ask",
+        })
+    })
+
+    it("writes something other than the shape a newly added server carries", async () => {
+        const onChange = await render({policy: {permission: "allow"}})
+
+        await choose(labelled("Default permission"), "Ask for write and delete")
+
+        expect(onChange.mock.calls[0][0]).not.toEqual({})
+    })
+
+    it("reads back as itself from that shape", async () => {
+        await render({
+            policy: {
+                permission: "ask",
+                tool_permissions: READ_ONLY,
+                new_tool_permission: "ask",
+            } as McpServerPolicy,
+        })
+
+        expect(labelled("Default permission")?.textContent).toContain("Ask for write and delete")
+        expect(labelled("Default permission")?.textContent).not.toContain("Custom")
+    })
+
+    it("names only the read-only tools this server's filter admits", async () => {
+        // The API refuses a whole policy that gives a permission to a tool the filter hides, so
+        // naming one would leave an agent that cannot run at all.
+        const onChange = await render({
+            policy: {
+                permission: "allow",
+                tools: {mode: "include", names: ["get_issue", "create_issue"]},
+            } as McpServerPolicy,
+        })
+
+        await choose(labelled("Default permission"), "Ask for write and delete")
+
+        expect(onChange).toHaveBeenCalledWith({
+            tools: {mode: "include", names: ["get_issue", "create_issue"]},
+            permission: "ask",
+            tool_permissions: {get_issue: "allow"},
+            new_tool_permission: "ask",
+        })
+    })
+
+    it("shows the grant on the rows it just named, not an inherited value", async () => {
+        // The preset's whole claim is per tool, so the rows have to carry it: a read-only row
+        // still reading "Inherits ask" after the pick would say the opposite of what was picked.
+        const onChange = await render({policy: {permission: "allow"}})
+
+        await choose(labelled("Default permission"), "Ask for write and delete")
+        await render({policy: onChange.mock.calls[0][0] as McpServerPolicy})
+
+        for (const tool of ["get_current_user", "get_issue", "list_issues", "list_comments"]) {
+            expect(labelled(`Permission for ${tool}`)?.textContent).toContain("Allow")
+            expect(labelled(`Permission for ${tool}`)?.textContent).not.toContain("Inherits")
+        }
+    })
+
+    it("leaves the write rows inheriting the ask the preset wrote as the floor", async () => {
+        const onChange = await render({policy: {permission: "allow"}})
+
+        await choose(labelled("Default permission"), "Ask for write and delete")
+        await render({policy: onChange.mock.calls[0][0] as McpServerPolicy})
+
+        for (const tool of ["create_issue", "delete_issue"]) {
+            expect(labelled(`Permission for ${tool}`)?.textContent).toContain("Inherits ask")
+        }
+    })
+
+    it("summarises the reads as running automatically and the writes as asking", async () => {
+        const onChange = await render({policy: {permission: "allow"}})
+
+        await choose(labelled("Default permission"), "Ask for write and delete")
+        await render({policy: onChange.mock.calls[0][0] as McpServerPolicy})
+
+        // The promise, visible in the two group headers.
+        expect(text()).toContain("runs automatically")
+        expect(text()).toContain("asks first")
+        expect(text()).not.toContain("mixed")
+    })
+
+    it("is not offered until the tool list has arrived", async () => {
+        // Picking it without the list would write no tool names at all, which is the absent policy
+        // wearing this preset's words. The list area beside it is showing its own loading rows.
+        listMcpTools.mockImplementation(() => new Promise(() => undefined))
+        await render()
+
+        await openMenu(labelled("Default permission"))
+        const option = [...document.querySelectorAll('[role="option"]')].find((node) =>
+            node.textContent?.startsWith("Ask for write and delete"),
+        )
+
+        expect(option?.getAttribute("aria-disabled")).toBe("true")
+    })
+})
+
 describe("D3 — one tool overridden", () => {
     const custom: McpServerPolicy = {
         permission: "allow",
@@ -365,7 +565,9 @@ describe("D3 — one tool overridden", () => {
         // the server permission. Picking the preset whose saved value is the absence used to clear
         // the floor alone and return, handing the governing slot back to `allow`, so the select
         // read "Allow all" and every tool still ran unapproved after a pick that asked for the
-        // opposite. mcpPolicyAdapter.test.ts walks the same three steps at the adapter.
+        // opposite (decision 42). mcpPolicyAdapter.test.ts walks the same three steps at the
+        // adapter. The pick is "Follow agent policy" now, which is the preset that saves the
+        // absence since decision 45.
         const afterOverride: McpServerPolicy = {
             permission: "allow",
             tool_permissions: {delete_issue: "deny"},
@@ -373,13 +575,13 @@ describe("D3 — one tool overridden", () => {
         }
         const onChange = await render({policy: afterOverride})
 
-        await choose(labelled("Default permission"), "Ask for write and delete")
+        await choose(labelled("Default permission"), "Follow agent policy")
 
         expect(onChange).toHaveBeenCalledWith({})
 
         await render({policy: onChange.mock.calls[0][0] as McpServerPolicy})
 
-        expect(labelled("Default permission")?.textContent).toContain("Ask for write and delete")
+        expect(labelled("Default permission")?.textContent).toContain("Follow agent policy")
         expect(labelled("Default permission")?.textContent).not.toContain("Allow all")
     })
 
@@ -414,7 +616,10 @@ describe("D3 — one tool overridden", () => {
         // author's decision and re-admit the tool under the default when it came back.
         await render({policy: {permission: "allow", tool_permissions: {retired_tool: "deny"}}})
 
-        expect(text()).toContain("not in catalog")
+        // The spec's own phrase. "Not in catalog" is the Composio drawer's, and an MCP server has
+        // no catalog: it advertises a tool list, and this one has stopped advertising this tool.
+        expect(text()).toContain("no longer offered")
+        expect(text()).not.toContain("not in catalog")
         expect(labelled("Permission for retired_tool")?.getAttribute("disabled")).toBeNull()
     })
 })
@@ -504,6 +709,14 @@ describe("View tools — the same drawer with nothing to set", () => {
         await render({readOnly: true})
 
         expect(text()).toContain("8 tools")
+    })
+
+    it("carries one tool in the singular too", async () => {
+        listMcpTools.mockResolvedValue([LINEAR_TOOLS[0]])
+        await render({readOnly: true})
+
+        expect(text()).toContain("1 tool")
+        expect(text()).not.toContain("1 tools")
     })
 
     it("offers no control that would write to an agent this view does not own", async () => {

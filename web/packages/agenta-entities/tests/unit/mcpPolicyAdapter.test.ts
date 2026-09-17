@@ -9,7 +9,9 @@
 import {describe, expect, it} from "vitest"
 
 import {
+    askWritesPolicy,
     fromGatewayPermissions,
+    isAskWritesPolicy,
     MCP_SUPPORTS_INHERIT,
     toGatewayPermissions,
 } from "../../src/mcpEndpoint/core/policyAdapter"
@@ -271,5 +273,147 @@ describe("MCP_SUPPORTS_INHERIT", () => {
 
         expect(next.new_tool_permission).toBeUndefined()
         expect(toGatewayPermissions(next).default).toBe("ask")
+    })
+})
+
+describe("askWritesPolicy", () => {
+    // The preset's help line promises that read-only tools run automatically and everything else
+    // asks. Nothing on this wire says that on its own, so the preset spells it out by name. It used
+    // to write nothing at all and leave the run's own ladder to decide, which is a different
+    // behaviour from the one it described (decision 45).
+    const readOnly = ["get_issue", "list_issues"]
+
+    it("asks at the server, allows every read-only tool by name, and asks for the rest", () => {
+        expect(askWritesPolicy(readOnly)).toEqual({
+            permission: "ask",
+            tool_permissions: {get_issue: "allow", list_issues: "allow"},
+            new_tool_permission: "ask",
+        })
+    })
+
+    it("differs from the shape a newly added server carries, which is nothing at all", () => {
+        // The two were one shape before, which is why the preset could not be told from the
+        // absence and its help line described behaviour the wire did not carry.
+        expect(askWritesPolicy(readOnly)).not.toEqual({})
+    })
+
+    it("reads back as itself", () => {
+        expect(isAskWritesPolicy(askWritesPolicy(readOnly), readOnly)).toBe(true)
+    })
+
+    it("keeps the tool filter and everything else the preset does not own", () => {
+        expect(askWritesPolicy(readOnly, {tools: {mode: "all"}}).tools).toEqual({mode: "all"})
+    })
+
+    it("names only the read-only tools the include filter admits", () => {
+        // The API refuses a whole policy that gives a permission to a tool the filter hides, so
+        // naming one would produce an agent that fails on every run rather than once at save.
+        const filtered = {tools: {mode: "include" as const, names: ["get_issue"]}}
+
+        expect(askWritesPolicy(readOnly, filtered).tool_permissions).toEqual({get_issue: "allow"})
+    })
+
+    it("names no tool at all when the filter admits none of the reads", () => {
+        const filtered = {tools: {mode: "include" as const, names: ["create_issue"]}}
+        const next = askWritesPolicy(readOnly, filtered)
+
+        expect("tool_permissions" in next).toBe(false)
+        expect(next).toEqual({
+            tools: {mode: "include", names: ["create_issue"]},
+            permission: "ask",
+            new_tool_permission: "ask",
+        })
+    })
+
+    it("takes an entry stranded behind the filter out with the rest of the table", () => {
+        // Such an entry makes the agent unrunnable, so a preset pick that clears the table is a
+        // repair rather than a loss.
+        const stranded = {
+            tools: {mode: "include" as const, names: ["get_issue"]},
+            tool_permissions: {create_issue: "deny" as const},
+        }
+
+        expect(askWritesPolicy(readOnly, stranded).tool_permissions).toEqual({get_issue: "allow"})
+    })
+
+    it("still reads back as itself against a filtered server", () => {
+        const filtered = {tools: {mode: "include" as const, names: ["get_issue"]}}
+
+        expect(isAskWritesPolicy(askWritesPolicy(readOnly, filtered), readOnly)).toBe(true)
+    })
+})
+
+describe("isAskWritesPolicy", () => {
+    const readOnly = ["get_issue", "list_issues"]
+
+    it("says no to the absence, which is a different preset now", () => {
+        expect(isAskWritesPolicy({}, readOnly)).toBe(false)
+    })
+
+    it("says no when the server permission is not ask", () => {
+        expect(
+            isAskWritesPolicy(
+                {
+                    permission: "allow",
+                    tool_permissions: {get_issue: "allow", list_issues: "allow"},
+                    new_tool_permission: "ask",
+                },
+                readOnly,
+            ),
+        ).toBe(false)
+    })
+
+    it("says no when the table names a tool the server does not call read-only", () => {
+        // An always-ask server with one tool allowed by hand carries the same three fields. It is
+        // not this preset, and calling it one would promise that every read runs automatically.
+        expect(
+            isAskWritesPolicy(
+                {
+                    permission: "ask",
+                    tool_permissions: {get_issue: "allow", delete_issue: "allow"},
+                    new_tool_permission: "ask",
+                },
+                readOnly,
+            ),
+        ).toBe(false)
+    })
+
+    it("says no when a read-only tool is missing from the table", () => {
+        expect(
+            isAskWritesPolicy(
+                {
+                    permission: "ask",
+                    tool_permissions: {get_issue: "allow"},
+                    new_tool_permission: "ask",
+                },
+                readOnly,
+            ),
+        ).toBe(false)
+    })
+
+    it("says no when an entry is not allow", () => {
+        expect(
+            isAskWritesPolicy(
+                {
+                    permission: "ask",
+                    tool_permissions: {get_issue: "allow", list_issues: "deny"},
+                    new_tool_permission: "ask",
+                },
+                readOnly,
+            ),
+        ).toBe(false)
+    })
+
+    it("reads the shape alone while the tool list has not arrived", () => {
+        // Null is "the read-only set is unknown". Demanding the exact set then would make the
+        // drawer say "Custom" for as long as the list takes and then correct itself.
+        const policy = {
+            permission: "ask" as const,
+            tool_permissions: {get_issue: "allow" as const},
+            new_tool_permission: "ask" as const,
+        }
+
+        expect(isAskWritesPolicy(policy, null)).toBe(true)
+        expect(isAskWritesPolicy(policy, readOnly)).toBe(false)
     })
 })

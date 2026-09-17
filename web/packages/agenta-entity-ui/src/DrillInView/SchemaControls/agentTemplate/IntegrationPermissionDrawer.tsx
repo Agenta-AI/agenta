@@ -28,7 +28,7 @@ import {
     type ToolCatalogAction,
     type ToolCatalogActionDetails,
 } from "@agenta/entities/gatewayTool"
-import {humanizeActionKey} from "@agenta/shared/utils"
+import {formatCount, humanizeActionKey} from "@agenta/shared/utils"
 import {HeightCollapse} from "@agenta/ui"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {Badge, Button, SearchInput, SkeletonRows} from "@agenta/ui/ui"
@@ -49,6 +49,7 @@ import {
     withStaleTools,
     type CatalogToolInfo,
     type IntegrationPreset,
+    type PermissionPresetValue,
 } from "../integrationPolicy"
 import {
     permissionPolicyLabel,
@@ -71,6 +72,21 @@ import {PermissionPolicySelect, type PermissionPolicyOption} from "./PermissionP
 /** Rows rendered per group before the "Show N more" link. */
 const GROUP_PAGE_SIZE = 25
 
+/** What a row says about a saved key the source no longer lists. The Composio wording. */
+const DEFAULT_STALE_LABEL = "not in catalog"
+
+/**
+ * Whether one row survives the search. One rule, so the groups and the "nothing matched" message
+ * cannot disagree about what matched.
+ *
+ * Description included: a person hunting "the one that files an issue" knows what a tool does
+ * rather than what it is called, and every row here renders its description, so a description match
+ * always shows the text it matched on (round 4, D6).
+ */
+const toolMatchesSearch = (tool: CatalogToolInfo, search: string): boolean =>
+    !search ||
+    `${tool.key} ${tool.name ?? ""} ${tool.description ?? ""}`.toLowerCase().includes(search)
+
 // Persisted expand state per source and group (key = `${catalogKey}:${groupKey}`).
 const permissionGroupsExpandedAtom = atomWithStorage<Record<string, boolean>>(
     "agenta:tools:permission-groups-expanded",
@@ -82,6 +98,37 @@ export interface PermissionRowValue {
     value: GatewayPermission
     /** What the TRIGGER says, where the menu's name for that value is not the whole truth. */
     triggerTitle?: string
+}
+
+/** One entry in the default-permission menu, before the drawer adds the glyph and the count. */
+export interface PermissionPresetOption {
+    value: PermissionPresetValue
+    label: string
+    /** The line under the label in the open menu. */
+    help: string
+    /** Shown, and shown as the current value, but not pickable: a state reached by setting per-tool
+     *  values, or one whose write needs data that has not arrived yet. */
+    disabled?: boolean
+    /** Draw a divider above this option. */
+    separatorBefore?: boolean
+}
+
+/**
+ * The default-permission presets, for a source whose presets are not the Composio five.
+ *
+ * MCP needs its own because two of them mean different things there. Its absent policy has a
+ * preset of its own, "Follow agent policy", and its "Ask for write and delete" writes an explicit
+ * shape the runner honours rather than the absence (decision 45). Reading and writing are the
+ * source's, because both need the server's tool annotations, which the drawer does not interpret.
+ */
+export interface PermissionPresetSource {
+    /** Menu order. */
+    options: PermissionPresetOption[]
+    /** The preset the saved policy reads back as. */
+    value: PermissionPresetValue
+    /** Per-tool rules behind it, for the Custom count. */
+    overrideCount: number
+    onPick: (preset: PermissionPresetValue) => void
 }
 
 /** The catalog a source hands the drawer, already fetched and already in the drawer's shape. */
@@ -119,6 +166,15 @@ export interface PermissionDrawerSource {
     /** The per-tool menu, when a source needs its own labels. Defaults to the four shared values. */
     toolOptions?: PermissionPolicyOption[]
     /**
+     * The default-permission menu, when the Composio five do not describe this source.
+     *
+     * A source that brings its own owns its help lines too, so the note qualifying "Ask for write
+     * and delete" against the agent's policy is not drawn for it: that note exists because the
+     * Composio preset saves `inherit` and its words are true only while the agent is on its
+     * default, which is not how an MCP server saves it any more (decision 45).
+     */
+    presets?: PermissionPresetSource
+    /**
      * Why this tool may not be given a permission, or null when it may. A locked row shows the
      * reason where its description would be and its control is disabled: the MCP API refuses a
      * whole policy that names a filter-hidden tool, so offering the control would build a config
@@ -135,6 +191,9 @@ export interface PermissionDrawerSource {
     rowValue?: (toolKey: string) => PermissionRowValue | undefined
     /** Above the controls: the login-expired banner (D4). */
     banner?: ReactNode
+    /** What a row says about a saved key the source no longer lists. An MCP server "no longer
+     *  offers" a tool, which is the spec's own phrase; a Composio catalog does not list it. */
+    staleLabel?: string
     /** With the banner up, everything below it is readable and inert until the login is renewed. */
     controlsDisabled?: boolean
     /** Under the tool list: remediation a row cannot offer on its own. */
@@ -165,6 +224,17 @@ export interface IntegrationPermissionDrawerProps {
     source?: PermissionDrawerSource
 }
 
+/** The Composio five, in the shape a source supplies its own presets in. */
+const defaultPresetOptions: PermissionPresetOption[] = INTEGRATION_PRESETS.map((def) => ({
+    value: def.value,
+    label: def.label,
+    help: def.help,
+    // Custom is what a non-empty per-tool map READS BACK as, never something to pick: contracts
+    // section 10 gives it no default of its own to write.
+    disabled: def.value === "custom",
+    separatorBefore: def.value === "custom",
+}))
+
 const defaultToolOptions: PermissionPolicyOption[] = TOOL_PERMISSION_OPTIONS.map((option) => ({
     value: option.value,
     title: option.label,
@@ -184,6 +254,7 @@ const ToolRow = memo(function ToolRow({
     lockedReason,
     triggerTitle,
     readOnly,
+    staleLabel,
 }: {
     tool: CatalogToolInfo
     permission: GatewayPermission
@@ -193,6 +264,7 @@ const ToolRow = memo(function ToolRow({
     lockedReason?: string | null
     triggerTitle?: string
     readOnly?: boolean
+    staleLabel: string
 }) {
     // Only the row's tint depends on this; the clamp and the toggle live in ExpandableDescription.
     const [expanded, setExpanded] = useState(false)
@@ -216,7 +288,7 @@ const ToolRow = memo(function ToolRow({
                                 variant="outlined"
                                 className="m-0 px-1.5 text-[11px] font-normal leading-4"
                             >
-                                not in catalog
+                                {staleLabel}
                             </Badge>
                         ) : null}
                     </div>
@@ -272,6 +344,7 @@ function ToolGroup({
     lockedTool,
     rowValue,
     readOnly,
+    staleLabel,
 }: {
     label: string
     groupKey: string
@@ -285,6 +358,7 @@ function ToolGroup({
     lockedTool?: (toolKey: string) => string | null
     rowValue?: (toolKey: string) => PermissionRowValue | undefined
     readOnly?: boolean
+    staleLabel: string
 }) {
     const [expanded, setExpanded] = useAtom(permissionGroupsExpandedAtom)
     const [shown, setShown] = useState(GROUP_PAGE_SIZE)
@@ -300,17 +374,10 @@ function ToolGroup({
             ),
         [tools, permissions],
     )
-    const matching = useMemo(() => {
-        if (!search) return tools
-        // Description included: a person hunting "the one that files an issue" knows what a tool
-        // does rather than what it is called, and every row here renders its description, so a
-        // description match always shows the text it matched on (round 4, D6).
-        return tools.filter((tool) =>
-            `${tool.key} ${tool.name ?? ""} ${tool.description ?? ""}`
-                .toLowerCase()
-                .includes(search),
-        )
-    }, [tools, search])
+    const matching = useMemo(
+        () => (search ? tools.filter((tool) => toolMatchesSearch(tool, search)) : tools),
+        [tools, search],
+    )
     if (tools.length === 0) return null
     const visible = matching.slice(0, shown)
     const remaining = matching.length - visible.length
@@ -374,6 +441,7 @@ function ToolGroup({
                                 lockedReason={lockedTool?.(tool.key)}
                                 triggerTitle={shownValue?.triggerTitle}
                                 readOnly={readOnly}
+                                staleLabel={staleLabel}
                             />
                         )
                     })}
@@ -408,7 +476,9 @@ function PermissionDrawerBody({
     disabled,
     readOnlyLabel = "Read-only",
     writeLabel = "Write and delete",
+    staleLabel = DEFAULT_STALE_LABEL,
     toolOptions = defaultToolOptions,
+    presets,
     lockedTool,
     rowValue,
     banner,
@@ -442,43 +512,54 @@ function PermissionDrawerBody({
         [catalogTools],
     )
     const search = query.trim().toLowerCase()
-    const {preset, overrideCount} = readIntegrationPreset(permissions)
+    const saved = readIntegrationPreset(permissions)
+    // A source with its own presets reads and writes them itself: both need the server's tool
+    // annotations, which this drawer lists but does not interpret.
+    const preset = presets?.value ?? saved.preset
+    const overrideCount = presets?.overrideCount ?? saved.overrideCount
+    const presetList = presets?.options ?? defaultPresetOptions
 
     // The count belongs on the selected option, so an author sees how many tools carry their own
     // rule without opening the menu.
     const presetOptions = useMemo(
         () =>
-            INTEGRATION_PRESETS.map((def) => {
-                // Custom is what a non-empty per-tool map READS BACK as, never something to pick:
-                // contracts section 10 gives it no default of its own to write.
-                const isCustom = def.value === "custom"
-                return {
-                    value: def.value,
-                    title:
-                        isCustom && overrideCount > 0
-                            ? `${def.label} · ${overrideCount} ${
-                                  overrideCount === 1 ? "override" : "overrides"
-                              }`
-                            : def.label,
-                    help: isCustom ? "Set below, per tool" : def.help,
-                    icon: <PolicyGlyph value={def.value} size={14} />,
-                    separatorBefore: isCustom,
-                    disabled: isCustom,
-                }
-            }),
-        [overrideCount],
+            presetList.map((def) => ({
+                value: def.value,
+                // Custom's help line is the table's, like every other preset's: the table already
+                // carries the spec's own sentence for it, and a second one written here said the
+                // same thing in different words.
+                title:
+                    def.value === "custom" && overrideCount > 0
+                        ? `${def.label} · ${overrideCount} ${
+                              overrideCount === 1 ? "override" : "overrides"
+                          }`
+                        : def.label,
+                help: def.help,
+                icon: <PolicyGlyph value={def.value} size={14} />,
+                separatorBefore: def.separatorBefore,
+                disabled: def.disabled,
+            })),
+        [presetList, overrideCount],
     )
 
-    // Open question 1: the preset saves `inherit`, which means "reads run, writes ask" only while
-    // the agent-wide mode is its default. Say so rather than letting the words quietly change.
+    // Open question 1: the Composio preset saves `inherit`, which means "reads run, writes ask"
+    // only while the agent-wide mode is its default. Say so rather than letting the words quietly
+    // change. A source with its own presets is not qualified here, because it owns its own words:
+    // the MCP one writes what it says instead of leaning on the agent's ladder (decision 45).
     const agentPolicyNote =
-        preset === "ask_writes" && agentPolicy && agentPolicy !== DEFAULT_PERMISSION_POLICY
+        !presets &&
+        preset === "ask_writes" &&
+        agentPolicy &&
+        agentPolicy !== DEFAULT_PERMISSION_POLICY
             ? `This agent's permission policy is set to ${
                   permissionPolicyLabel(agentPolicy)?.toLowerCase() ?? agentPolicy
               }, so these tools follow it.`
             : null
 
     const inert = disabled || controlsDisabled
+    // The server has tools; this query names none of them.
+    const noMatches =
+        search.length > 0 && !catalogTools.some((tool) => toolMatchesSearch(tool, search))
 
     return (
         // Stable gutter: expanding a row must not summon a scrollbar that shifts every control left.
@@ -500,9 +581,14 @@ function PermissionDrawerBody({
                         <PermissionPolicySelect
                             value={preset}
                             onChange={(value) =>
-                                onChangePermissions(
-                                    presetPermissions(value as IntegrationPreset, permissions),
-                                )
+                                presets
+                                    ? presets.onPick(value as PermissionPresetValue)
+                                    : onChangePermissions(
+                                          presetPermissions(
+                                              value as IntegrationPreset,
+                                              permissions,
+                                          ),
+                                      )
                             }
                             options={presetOptions}
                             disabled={inert}
@@ -517,7 +603,8 @@ function PermissionDrawerBody({
                 )}
 
                 <SearchInput
-                    placeholder={`Search ${searchCount ?? catalogTools.length} tools`}
+                    // formatCount, because a one-tool server read "Search 1 tools".
+                    placeholder={`Search ${formatCount(searchCount ?? catalogTools.length, "tool")}`}
                     aria-label="Search tools"
                     value={query}
                     onValueChange={setQuery}
@@ -540,6 +627,14 @@ function PermissionDrawerBody({
                     <div className="px-1 py-4 text-xs text-[var(--ag-colorTextTertiary)]">
                         {emptyLabel}
                     </div>
+                ) : noMatches ? (
+                    // Said in place of the groups, headers and all: two empty groups under their
+                    // own counts read as a server that stopped advertising its tools, which is a
+                    // different answer from "this query does not name any of them". Same sentence
+                    // the connection detail drawer's tool filter uses.
+                    <div className="px-1 py-4 text-xs text-[var(--ag-colorTextTertiary)]">
+                        No tool here matches that.
+                    </div>
                 ) : (
                     <div className="flex flex-col gap-2">
                         <ToolGroup
@@ -555,6 +650,7 @@ function PermissionDrawerBody({
                             lockedTool={lockedTool}
                             rowValue={rowValue}
                             readOnly={readOnly}
+                            staleLabel={staleLabel}
                         />
                         <ToolGroup
                             label={writeLabel}
@@ -569,6 +665,7 @@ function PermissionDrawerBody({
                             lockedTool={lockedTool}
                             rowValue={rowValue}
                             readOnly={readOnly}
+                            staleLabel={staleLabel}
                         />
                     </div>
                 )}
@@ -768,7 +865,9 @@ export function IntegrationPermissionDrawer({
                     searchCount={source.searchCount}
                     readOnlyLabel={source.readOnlyLabel}
                     writeLabel={source.writeLabel}
+                    staleLabel={source.staleLabel}
                     toolOptions={source.toolOptions}
+                    presets={source.presets}
                     lockedTool={source.lockedTool}
                     rowValue={source.rowValue}
                     banner={source.banner}

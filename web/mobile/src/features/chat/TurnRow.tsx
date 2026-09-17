@@ -39,8 +39,9 @@ import {useAtomValue, useSetAtom} from "jotai"
 import {Bot, Brain, ChevronRight, User} from "lucide-react"
 
 import {AssistantMarkdown} from "./AssistantMarkdown"
-import {continuationRetryAction} from "./continuationRetry"
 import {isLiveReasoningPart, isLiveTextItem} from "./markdownStream"
+import {useProviderRecovery} from "./providerRecovery"
+import {runRetryAction} from "./runRetry"
 import {ToolLine} from "./ToolLine"
 
 type ToolsItem = Extract<TurnViewModel["items"][number], {kind: "tools"}>
@@ -182,6 +183,7 @@ const TurnRowInner = ({
         turn.message.parts as {state?: string; errorText?: string}[],
     )
     const usage = getMessageUsage(turn.message)
+    const openProviders = useProviderRecovery()
 
     // The turn's text, which is what a reader wants on the clipboard — not its tool rows.
     const copyText = (turn.message.parts ?? [])
@@ -261,10 +263,11 @@ const TurnRowInner = ({
                     stateKey={errorKey(turn.message.id)}
                     code={turn.status.errorCode ?? undefined}
                     transport={isMessageRunErrorTransport(turn.message)}
-                    onRetry={continuationRetryAction(
-                        turn,
-                        onRewind ? () => onRewind(turn) : undefined,
-                    )}
+                    onRetry={runRetryAction(turn, onRewind ? () => onRewind(turn) : undefined)}
+                    // Both classes the callout can clear with a credential go to the same page,
+                    // as they do on the desktop.
+                    onAddKey={openProviders}
+                    onSignIn={openProviders}
                 />
             ) : null}
         </div>

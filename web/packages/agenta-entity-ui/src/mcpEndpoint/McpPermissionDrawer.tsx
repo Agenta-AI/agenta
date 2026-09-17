@@ -21,6 +21,7 @@
 import {useCallback, useEffect, useMemo, useRef, useState, type ReactNode} from "react"
 
 import {
+    askWritesPolicy,
     fromGatewayPermissions,
     gatewayRefusalCode,
     gatewayRefusalMessage,
@@ -35,6 +36,7 @@ import {
     type McpToolSummary,
 } from "@agenta/entities/mcpEndpoint"
 import {projectIdAtom} from "@agenta/shared/state"
+import {formatCount} from "@agenta/shared/utils"
 import {StatusIndicator} from "@agenta/ui/components/presentational"
 import {Alert, Button, IconTile, InlineConfirm} from "@agenta/ui/ui"
 import {ArrowClockwise, Plugs} from "@phosphor-icons/react"
@@ -43,15 +45,20 @@ import {useAtomValue} from "jotai"
 import {
     IntegrationPermissionDrawer,
     type PermissionDrawerCatalog,
+    type PermissionPresetSource,
 } from "../DrillInView/SchemaControls/agentTemplate/IntegrationPermissionDrawer"
 import {PolicyGlyph} from "../DrillInView/SchemaControls/agentTemplate/PermissionGlyph"
 import type {PermissionPolicyOption} from "../DrillInView/SchemaControls/agentTemplate/PermissionPolicySelect"
-import {TOOL_PERMISSION_OPTIONS} from "../DrillInView/SchemaControls/integrationPolicy"
-import type {PermissionPolicy} from "../DrillInView/SchemaControls/permissionPolicy"
+import {
+    TOOL_PERMISSION_OPTIONS,
+    type PermissionPresetValue,
+} from "../DrillInView/SchemaControls/integrationPolicy"
 import type {
     GatewayConnectionPermissions,
     GatewayPermission,
 } from "../DrillInView/SchemaControls/toolUtils"
+
+import {MCP_PRESETS, PRESET_PERMISSION, readMcpPreset} from "./mcpPresets"
 
 /** A tool the server's include filter hides may not be given a permission at all. */
 const HIDDEN_TOOL_REASON = "Hidden by this server's tool filter"
@@ -95,8 +102,6 @@ export interface McpPermissionDrawerProps {
     onReconnect?: () => void
     /** Detach the server from THIS agent. Omitted, the footer link is not offered. */
     onRemove?: () => void
-    /** The agent-wide permission policy, for the note under the preset. */
-    agentPolicy?: PermissionPolicy | null
     /** Settings' "View tools": the same drawer with nothing to set. */
     readOnly?: boolean
     disabled?: boolean
@@ -168,7 +173,7 @@ function DrawerTitle({
                 ) : null}
                 {toolCount != null ? (
                     <span className="shrink-0 text-xs font-normal text-colorTextTertiary">
-                        {toolCount} tools
+                        {formatCount(toolCount, "tool")}
                     </span>
                 ) : null}
             </div>
@@ -232,7 +237,6 @@ export default function McpPermissionDrawer({
     onChange,
     onReconnect,
     onRemove,
-    agentPolicy,
     readOnly,
     disabled,
 }: McpPermissionDrawerProps) {
@@ -358,6 +362,52 @@ export default function McpPermissionDrawer({
         [permissions],
     )
 
+    /**
+     * The read-only tools the server advertises, by the name a policy entry is keyed by.
+     *
+     * Null until the list has been read, which is the difference between "this server has no
+     * read-only tools" and "nobody has asked yet". The "Ask for write and delete" preset names
+     * these tools one by one, so without them it would write the absent shape under a help line
+     * promising the opposite.
+     */
+    const readOnlyToolNames = useMemo(
+        () =>
+            tools.status === "ready"
+                ? catalogTools.filter((tool) => tool.readOnly === true).map((tool) => tool.key)
+                : null,
+        [catalogTools, tools.status],
+    )
+
+    const {preset, overrideCount} = useMemo(
+        () => readMcpPreset(policy, readOnlyToolNames),
+        [policy, readOnlyToolNames],
+    )
+
+    const presets = useMemo<PermissionPresetSource>(
+        () => ({
+            options: MCP_PRESETS.map((option) =>
+                // Disabled, beside the list's own loading rows, until the tool list arrives: this
+                // is the one preset that writes tool names, and writing it without them would save
+                // the absent policy under a help line promising the opposite.
+                option.value === "ask_writes" && readOnlyToolNames === null
+                    ? {...option, disabled: true}
+                    : option,
+            ),
+            value: preset,
+            overrideCount,
+            onPick: (picked: PermissionPresetValue) => {
+                if (picked === "ask_writes") {
+                    onChange(askWritesPolicy(readOnlyToolNames ?? [], policy))
+                    return
+                }
+                const value = PRESET_PERMISSION[picked]
+                // Custom is not pickable; nothing else has no value.
+                if (value) write({default: value, tools: {}})
+            },
+        }),
+        [onChange, overrideCount, policy, preset, readOnlyToolNames, write],
+    )
+
     const errorNode = useMemo<ReactNode>(() => {
         if (!slug) {
             return (
@@ -435,7 +485,6 @@ export default function McpPermissionDrawer({
             permissions={permissions}
             onChangePermissions={write}
             onChangeToolPermission={setTool}
-            agentPolicy={agentPolicy}
             disabled={disabled}
             source={{
                 catalogKey: slug ?? "mcp",
@@ -459,7 +508,12 @@ export default function McpPermissionDrawer({
                 emptyLabel: "This server exposes no tools yet.",
                 readOnlyLabel: "Read-only",
                 writeLabel: "Write",
+                // The spec's own phrase for a saved rule whose tool the server has stopped
+                // advertising. "Not in catalog" is the Composio wording and names a thing an MCP
+                // server does not have.
+                staleLabel: "no longer offered",
                 toolOptions,
+                presets,
                 lockedTool: (toolKey) =>
                     isToolHidden(policy, toolKey) ? HIDDEN_TOOL_REASON : null,
                 rowValue,

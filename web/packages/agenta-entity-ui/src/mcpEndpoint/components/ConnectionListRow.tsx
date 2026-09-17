@@ -17,6 +17,7 @@
  * sends every click inside it back to the row.
  */
 import {getMcpConnectionStatusLabel, type McpConnectionStatus} from "@agenta/entities/mcpEndpoint"
+import {formatCount} from "@agenta/shared/utils"
 import {StatusIndicator} from "@agenta/ui/components/presentational"
 import {cn} from "@agenta/ui/styles"
 import {Button, IconTile, touchTargetExpansion} from "@agenta/ui/ui"
@@ -56,7 +57,7 @@ export function ConnectionListRow({
         ? getMcpConnectionStatusLabel(status)
         : toolCount == null
           ? host
-          : `${host} · ${toolCount} ${toolCount === 1 ? "tool" : "tools"}`
+          : `${host} · ${formatCount(toolCount, "tool")}`
 
     return (
         <div

@@ -52,11 +52,10 @@ export const mcpItemNeedsRepair = (
  * because its per-tool rules are keyed by the old spelling.
  *
  * No server permission is written, and that absence IS the value (decision 36): with no
- * `permission` the run's own permission ladder decides. The drawer reads that absence back
- * through the one preset whose saved value is `inherit`, which is "Ask for write and delete";
- * there is no preset named "Follow agent policy", only a per-tool value by that name. Writing
- * "allow" here would let every tool of a server nobody has looked at run unapproved, the
- * direction the D88 review closed.
+ * `permission` the run's own permission ladder decides. The drawer reads that absence back as the
+ * preset named for it, "Follow agent policy", which is also what every row here reads (decision
+ * 45). Writing "allow" here would let every tool of a server nobody has looked at run unapproved,
+ * the direction the D88 review closed.
  */
 export const buildMcpAgentItem = (option: {
     slug: string

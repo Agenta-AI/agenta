@@ -145,14 +145,6 @@ export function setNewToolPermission(
     return pruned({...policy, new_tool_permission: permission})
 }
 
-/** Opt out of per-tool policy, handing the server permission back its authority. */
-export function clearPerToolPolicy(policy: McpServerPolicy): McpServerPolicy {
-    const next: McpServerPolicy = {...policy}
-    delete next.tool_permissions
-    delete next.new_tool_permission
-    return next
-}
-
 /**
  * Entries naming tools the server no longer advertises.
  *
