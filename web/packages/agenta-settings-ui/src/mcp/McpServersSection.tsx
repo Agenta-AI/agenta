@@ -317,7 +317,11 @@ export default function McpServersSection({
                             <StatusIndicator
                                 tone={STATUS_TONE[status]}
                                 label={getMcpConnectionStatusLabel(status)}
-                                className="text-[13px]"
+                                // min-w-0 lets the indicator's own truncation act. Without it its
+                                // automatic minimum is its text, so at phone width the cell's
+                                // content overran the column and slid the Reconnect link under the
+                                // next cell's row menu, which covered 43 of its 70px.
+                                className="min-w-0 text-[13px]"
                             />
                             {/* The repair is offered where the problem is reported, so a row
                                 that needs attention does not send the reader to a menu. */}
@@ -328,7 +332,9 @@ export default function McpServersSection({
                                     // No `h-auto`: the size's own height is the app's control
                                     // scale, and overriding it left a 20px tap target on a phone.
                                     // The scale's 24px is still under the 44px touch minimum, so
-                                    // the invisible expansion carries the rest.
+                                    // the invisible expansion carries the rest. The Button's own
+                                    // base classes keep it from shrinking, so the status text
+                                    // beside it is what gives way.
                                     className={cn("p-0 text-xs", touchTargetExpansion(24))}
                                     onClick={(event) => {
                                         // The row opens the connection on click; this is a

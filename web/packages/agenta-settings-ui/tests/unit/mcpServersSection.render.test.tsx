@@ -575,6 +575,15 @@ describe("touch targets", () => {
         const reconnect = screen.getByRole("button", {name: "Reconnect"})
         expect(reconnect.className).toContain("h-control-xs")
         expect(touchTargetHeight(reconnect.className)).toBe(TOUCH_TARGET_MINIMUM_PX)
+        // A tall enough control is no use if the cell beside it covers the control itself. At
+        // phone width the status cell's content overran its column and slid this link 49px under
+        // the actions cell, where the row menu's own hit area took 43 of its 70px. The Button
+        // already refuses to shrink, so the status text beside it is what has to give way: that
+        // is what the indicator's own `truncate` was for, and it could not act while the
+        // indicator's automatic minimum was its own text.
+        const indicator = document.querySelector('[data-testid="mcp-connection-status"] span')
+        expect(indicator, "no status indicator").not.toBeNull()
+        expect(indicator!.className).toContain("min-w-0")
     })
 })
 

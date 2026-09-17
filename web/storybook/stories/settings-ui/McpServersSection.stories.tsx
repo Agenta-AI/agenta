@@ -46,6 +46,19 @@ const STALE_KEY = row(
     {is_valid: false},
 )
 
+/**
+ * A name and an address with nowhere to wrap, for `LongestContent`. Both are longer than any
+ * column they can land in, which is the case that would push the row's menu against the edge of
+ * the scroller if the table could grow.
+ */
+const LONG_NAME = row(
+    "verylong",
+    "Acme Corporation Internal Knowledge Base And Ticketing Bridge",
+    "https://mcp.internal.acme-corporation.example.com/knowledge-base/ticketing/v2/mcp",
+    "oauth",
+    "sec-linear",
+)
+
 /** The vault rows the Auth column resolves `secret_id` against. */
 const SECRETS = [
     {id: "sec-linear", name: "linear_token", slug: "linear_token", type: "custom_secret"},
@@ -104,6 +117,19 @@ type Story = StoryObj<typeof McpServersSection>
 /** E1 as the spec draws it: the four columns over a healthy project. */
 export const Populated: Story = {
     parameters: {agenta: fixture([LINEAR, AXIOM, MEMORY])},
+}
+
+/**
+ * A name and an address that overrun their columns.
+ *
+ * The question this answers is whether the row's menu can ever sit flush against the scroller's
+ * right edge, where the invisible box that carries it to the touch minimum would be clipped. It
+ * cannot: the table is `w-full table-fixed`, so it is always exactly as wide as the scroller and
+ * long content truncates inside its own column instead of widening the table. The menu keeps its
+ * clearance, and the scroller never scrolls.
+ */
+export const LongestContent: Story = {
+    parameters: {agenta: fixture([LONG_NAME, LINEAR, AXIOM])},
 }
 
 /**

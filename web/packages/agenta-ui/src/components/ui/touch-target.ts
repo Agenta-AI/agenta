@@ -51,17 +51,24 @@ const SPACING_STEP_PX = 4
 const LABELLED_REACH_PX = 4
 
 /**
- * Insets by [size][border], each `(44 - size) / 2 + border` so the box measured at the VISIBLE
- * edge is 44: the border the inset is measured from inside of is added back.
+ * Insets by [size][border]. The size class is the BORDER box (`box-border`), the inset is measured
+ * from inside the border, so the hit box is `(size - 2 x border) + 2 x inset` and the reach past
+ * the edge a reader can see is `inset - border`. Each entry is therefore
+ *
+ *     inset = (44 - size) / 2 + border
+ *
+ * Do not add an inset to the size class and call it the hit area. That is the arithmetic that
+ * shipped six controls at 42 while every comment and every test said 44 (D126), because the
+ * reader repeated the same mistake and so agreed with the class instead of with the browser.
  */
 const verticalByHeight: Record<
     TouchTargetControlHeight,
     Record<TouchTargetControlBorder, string>
 > = {
-    // 24 + 2 x 10 = 44 with no border; the bordered one reaches the same 10 past the edge.
+    // Reach 10 past the visible edge: 24 + 20 = 44 on a bare control, (24 - 2) + 22 = 44 bordered.
     24: {0: "after:-inset-y-2.5", 1: "after:-inset-y-[11px]"},
-    // 28 + 2 x 8 = 44 with no border. 8px is the inset ApprovalCard and the tool line had,
-    // which is exactly the one that measured 42 on a bordered control.
+    // Reach 8: 28 + 16 = 44 bare, (28 - 2) + 18 = 44 bordered. The bare 8 is the inset ApprovalCard
+    // and the mobile tool line already used, and the one that measured 42 on a bordered control.
     28: {0: "after:-inset-y-2", 1: "after:-inset-y-[9px]"},
 }
 
@@ -69,12 +76,14 @@ const horizontalByWidth: Record<
     TouchTargetControlWidth,
     Record<TouchTargetControlBorder, string>
 > = {
+    // Reach 8: 28 + 16 = 44 bare, (28 - 2) + 18 = 44 bordered.
     28: {0: "after:-inset-x-2", 1: "after:-inset-x-[9px]"},
-    // No spacing step is 7px, so the arbitrary value is the exact one; the next step up would
-    // reach into the neighbouring cell's own control.
+    // Reach 7: 30 + 14 = 44 bare, (30 - 2) + 16 = 44 bordered. No spacing step is 7px, so the
+    // arbitrary value is the exact one; the next step up would reach into the neighbouring cell.
     30: {0: "after:-inset-x-[7px]", 1: "after:-inset-x-[8px]"},
 }
 
+/** Reach 4 either way, which is `LABELLED_REACH_PX`, not a number sized to arrive at 44. */
 const labelledHorizontal: Record<TouchTargetControlBorder, string> = {
     0: "after:-inset-x-1",
     1: "after:-inset-x-[5px]",
