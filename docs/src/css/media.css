@@ -32,6 +32,14 @@
   margin-bottom: 0;
 }
 
+/* <Stream responsive> positions its iframe absolutely inside a padding-top
+   box. With the wrapper's padding zeroed above, the iframe flows in the
+   normal way and the aspect ratio sizes it. */
+.markdown div[style*="padding-top"] > iframe[src*="cloudflarestream"] {
+  position: static !important;
+  inset: auto !important;
+}
+
 /* Screenshots (IdealImage swaps an <svg> placeholder for the <img>). */
 .markdown img {
   border-radius: var(--radius-lg);

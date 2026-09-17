@@ -57,8 +57,9 @@ h4:not([class*="openapi"]) {
 
 /* Heading anchor: a small bordered square with a link icon after the
    heading text, shown while the heading is hovered (Docusaurus toggles the
-   opacity). Replaces the stock "#". */
-.hash-link {
+   opacity). Replaces the stock "#"; the a.hash-link selectors outrank the
+   theme's .hash-link rules (its 0.5em padding and '#' content). */
+a.hash-link {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -82,7 +83,7 @@ h4:not([class*="openapi"]) {
     color var(--ifm-transition-fast) ease;
 }
 
-.hash-link::before {
+a.hash-link::before {
   content: "";
   flex-shrink: 0;
   width: 12px;
@@ -94,7 +95,7 @@ h4:not([class*="openapi"]) {
     center / contain no-repeat;
 }
 
-.hash-link:hover {
+a.hash-link:hover {
   border-color: var(--borderdark);
   color: var(--contentprimary);
 }
