@@ -52,6 +52,14 @@ vi.mock("jotai", async (importOriginal) => ({
 
 import McpConnectJourney from "../../src/mcpEndpoint/McpConnectJourney"
 
+/** jsdom has none, and a Radix trigger on the reconnect screen measures itself on mount. */
+class StubResizeObserver {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+}
+globalThis.ResizeObserver ??= StubResizeObserver as unknown as typeof ResizeObserver
+
 let host: HTMLDivElement
 let root: ReturnType<typeof createRoot>
 
@@ -129,6 +137,33 @@ const Host = () => {
     const [open, setOpenState] = useState(true)
     setOpen = setOpenState
     return createElement(McpConnectJourney, {open, onClose: () => setOpenState(false)})
+}
+
+/** The connection whose login was revoked, as every Reconnect entry point hands it over. */
+const REVOKED = {
+    id: "mcp-9",
+    slug: "acme-7mx",
+    name: "Acme",
+    url: "https://mcp.acme.test/",
+    authMode: "oauth" as const,
+}
+
+/** The same host, opened as a reconnect: the sheet the row menu, the drawer and the chat open. */
+const ReconnectHost = () => {
+    const [open, setOpenState] = useState(true)
+    setOpen = setOpenState
+    return createElement(McpConnectJourney, {
+        open,
+        onClose: () => setOpenState(false),
+        reconnect: REVOKED,
+    })
+}
+
+const openReconnect = async () => {
+    await act(async () => {
+        root.render(createElement(ReconnectHost))
+    })
+    await settle()
 }
 
 beforeEach(() => {
@@ -222,6 +257,34 @@ describe("the rendered journey", () => {
         expect(document.querySelector('[data-testid="mcp-connect-journey"]')).toBeNull()
         expect(document.body.textContent).not.toContain("is connected.")
         expect(button("Done")).toBeUndefined()
+    })
+
+    it("opens a reconnect with both actions live, waiting on the press", async () => {
+        await openReconnect()
+
+        // A reconnect enters at scope discovery, which is where the press that opens the
+        // provider's window has to happen, so the screen shows what it is about to do and
+        // waits. Reading that status as busy disabled Connect and Cancel together, and the
+        // press that would have resolved it was the one disabled: no way forward and no way
+        // back but the close X (round 6c, D-R6C-4).
+        expect(document.body.textContent).toContain("Reconnect MCP server")
+        expect(button("Connect")?.disabled).toBe(false)
+        expect(button("Cancel")?.disabled).toBe(false)
+
+        // And nothing has gone to the provider yet, because nobody has pressed anything.
+        // A sheet that had a request in flight would be right to disable its actions; this
+        // one has none, which is why disabling them was the defect.
+        expect(discoverMcpConnect).not.toHaveBeenCalled()
+    })
+
+    it("starts the work on the press, which is what the wait was for", async () => {
+        await openReconnect()
+        await press(button("Connect"))
+
+        // The press is what opens the provider's window, so it is also what may start
+        // discovery: an engine refuses `window.open` once a promise has resolved. Enabling
+        // the button is only half the fix if the press still reaches nothing.
+        expect(discoverMcpConnect).toHaveBeenCalledWith("mcp-9", "project-1")
     })
 
     it("asks for a URL again after closing and reopening", async () => {

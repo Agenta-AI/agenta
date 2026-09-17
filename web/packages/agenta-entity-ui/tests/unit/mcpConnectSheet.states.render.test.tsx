@@ -76,6 +76,12 @@ const KEY_PROBE_BEARER = {
     auth: {...KEY_PROBE.auth, challenge_status: 401, challenge_schemes: ["Bearer"]},
 }
 
+/** A server that asked for a credential and named no scheme at all. */
+const KEY_PROBE_NO_SCHEME = {
+    ...KEY_PROBE,
+    auth: {...KEY_PROBE.auth, challenge_status: 401, challenge_schemes: []},
+}
+
 const NO_AUTH_PROBE = {
     reachable: true,
     server_name: "Acme",
@@ -460,6 +466,150 @@ describe("C4, the provider's window", () => {
     })
 })
 
+describe("every description a field points at is on screen", () => {
+    /**
+     * D127. The hint ids were written by hand at the call sites and set on the control
+     * whatever the screen, so any screen that drew no hint left the control naming an element
+     * that was not in the document. Four screens did that on the name field alone, and a
+     * description that points at nothing reads to assistive technology as no description,
+     * silently.
+     */
+    const dangling = (label: string): string[] =>
+        (control(label)?.getAttribute("aria-describedby") ?? "")
+            .split(/\s+/)
+            .filter(Boolean)
+            .filter((id) => !document.getElementById(id))
+
+    const screens: [string, McpJourneyState, Partial<McpConnectJourneyProps> | undefined][] = [
+        ["C1, the address", state({status: "url_entry"}), undefined],
+        [
+            "C3, the OAuth name step",
+            state({
+                status: "naming",
+                url: "https://mcp.linear.app/mcp",
+                name: "Linear",
+                probe: OAUTH_PROBE,
+            }),
+            undefined,
+        ],
+        [
+            "C5, the key step, which draws no hint under the name",
+            state({
+                status: "naming",
+                url: "https://mcp.axiom.co/mcp",
+                name: "Axiom",
+                probe: KEY_PROBE,
+            }),
+            undefined,
+        ],
+        [
+            "C5's no-auth half, which draws none either",
+            state({
+                status: "naming",
+                url: "https://mcp.acme.test/mcp",
+                name: "Acme",
+                probe: NO_AUTH_PROBE,
+            }),
+            undefined,
+        ],
+        [
+            "C6, where an error box is the description",
+            state({
+                status: "verify_failed",
+                url: "https://mcp.axiom.co/mcp",
+                name: "Axiom",
+                probe: KEY_PROBE,
+                endpointId: "mcp-1",
+                slug: "axiom",
+                error: "The server rejected the credential.",
+            }),
+            undefined,
+        ],
+        [
+            "the reconnect entry, where the name is locked",
+            state({
+                status: "discovering_scopes",
+                url: "https://mcp.linear.app/mcp",
+                name: "Linear",
+                endpointId: "mcp-9",
+                slug: "linear-7mx",
+                createdHere: false,
+            }),
+            {
+                reconnect: {
+                    id: "mcp-9",
+                    slug: "linear-7mx",
+                    name: "Linear",
+                    url: "https://mcp.linear.app/mcp",
+                    authMode: "oauth" as const,
+                },
+            },
+        ],
+    ]
+
+    for (const [name, current, props] of screens) {
+        it(`resolves every reference on ${name}`, async () => {
+            await open(current, props)
+
+            for (const label of ["Server URL", "Name", "Header", "Project secret"]) {
+                if (!control(label)) continue
+                expect({[label]: dangling(label)}).toEqual({[label]: []})
+            }
+        })
+    }
+})
+
+describe("the reconnect entry, which opens on a screen nobody has pressed", () => {
+    const RECONNECT = {
+        id: "mcp-9",
+        slug: "linear-7mx",
+        name: "Linear",
+        url: "https://mcp.linear.app/mcp",
+    }
+
+    it("offers both actions on the OAuth entry, where nothing is running yet", async () => {
+        // `discovering_scopes` is where a reconnect starts, because the window the press
+        // opens can only be opened inside the press. Reading it as busy disabled Connect and
+        // Cancel together, and the press that would have resolved it was the one disabled
+        // (round 6c, D-R6C-4).
+        await open(
+            state({
+                status: "discovering_scopes",
+                url: RECONNECT.url,
+                name: RECONNECT.name,
+                endpointId: RECONNECT.id,
+                slug: RECONNECT.slug,
+                createdHere: false,
+            }),
+            {reconnect: {...RECONNECT, authMode: "oauth"}},
+        )
+
+        expect(text()).toContain("Reconnect MCP server")
+        expect(button("Connect")?.disabled).toBe(false)
+        expect(button("Cancel")?.disabled).toBe(false)
+    })
+
+    it("leaves the key entry as it always was, which is the contrast", async () => {
+        // A key connection reconnects through `manual_auth`, which is not a busy status, so
+        // this sheet never stalled. Only the OAuth entry sat in a busy status with nothing
+        // in flight, which is what locates the defect in the status rather than the screen.
+        await open(
+            state({
+                status: "manual_auth",
+                url: RECONNECT.url,
+                name: RECONNECT.name,
+                endpointId: RECONNECT.id,
+                slug: RECONNECT.slug,
+                createdHere: false,
+            }),
+            {reconnect: {...RECONNECT, authMode: "api_key"}},
+        )
+
+        expect(text()).toContain("Reconnect MCP server")
+        expect(button("Cancel")?.disabled).toBe(false)
+    })
+})
+
 describe("C5, the server wants a key", () => {
     const keyScreen = state({
         status: "naming",
@@ -469,7 +619,7 @@ describe("C5, the server wants a key", () => {
     })
 
     it("names the header and the secret, and says where the value goes", async () => {
-        await open(keyScreen)
+        await open({...keyScreen, probe: KEY_PROBE_BEARER})
 
         expect(text()).toContain("Reachable · needs an API key")
         expect((control("Header") as HTMLInputElement).value).toBe("Authorization")
@@ -477,6 +627,17 @@ describe("C5, the server wants a key", () => {
         expect(text()).toContain(
             "Pick a project secret or create one. The value is sent as this header when the agent runs and is never shown again.",
         )
+    })
+
+    it("offers only the two actions the spec draws", async () => {
+        await open(keyScreen)
+
+        // "Connect without authentication" used to sit here. This screen is only ever
+        // reached by a server that refused the anonymous handshake, so connecting without a
+        // credential would make a connection the server has already said no to (decision 53).
+        expect(text()).not.toContain("Connect without authentication")
+        expect(button("Cancel")).toBeDefined()
+        expect(button("Connect")).toBeDefined()
     })
 
     it("attaches the secret label to the control it names", async () => {
@@ -493,6 +654,39 @@ describe("C5, the server wants a key", () => {
         await open(keyScreen)
 
         expect(button("Connect")?.disabled).toBe(true)
+    })
+
+    it("prefills x-api-key when the challenge named no scheme", async () => {
+        // The spec's C5 note: the scheme picks "Authorization" and otherwise "x-api-key".
+        // The field was seeded "Authorization" whatever the server said, which is a claim
+        // about a header nobody had been told.
+        await open({...keyScreen, probe: KEY_PROBE_NO_SCHEME})
+
+        expect((control("Header") as HTMLInputElement).value).toBe("x-api-key")
+    })
+
+    it("keeps Authorization on a reconnect, which never probed", async () => {
+        await open(
+            state({
+                status: "manual_auth",
+                url: "https://mcp.axiom.co/mcp",
+                name: "Axiom",
+                endpointId: "mcp-1",
+                slug: "axiom",
+                createdHere: false,
+            }),
+            {
+                reconnect: {
+                    id: "mcp-1",
+                    slug: "axiom",
+                    name: "Axiom",
+                    url: "https://mcp.axiom.co/mcp",
+                    authMode: "api_key" as const,
+                },
+            },
+        )
+
+        expect((control("Header") as HTMLInputElement).value).toBe("Authorization")
     })
 
     it("names the scheme the server asked for, where it asked for one", async () => {
@@ -548,8 +742,11 @@ describe("C6, the key was refused", () => {
         expect(control("Header")?.getAttribute("aria-invalid")).toBe("true")
         expect(control("Project secret")?.getAttribute("aria-invalid")).toBe("true")
         expect(text()).toContain(
-            "The server rejected this key. The server rejected the credential (401). Check the header the server expects, or pick another secret.",
+            "The server rejected this key. Check the header the server expects, or pick another secret.",
         )
+        // Our own client's "did not answer initialize" no longer stands in for the status
+        // code (round 6c, D-R6C-1).
+        expect(text()).not.toContain("The server rejected the credential (401).")
         expect(button("Try again")).toBeDefined()
     })
 
@@ -562,8 +759,24 @@ describe("C6, the key was refused", () => {
         for (const label of ["Header", "Project secret"]) {
             const described = describedText(control(label))
             expect(described).toContain("The server rejected this key.")
-            expect(described).toContain("The server rejected the credential (401).")
+            expect(described).toContain("Check the header the server expects")
         }
+    })
+
+    it("names the status the server refused with, as the spec writes it", async () => {
+        await open({...rejected, probe: KEY_PROBE_BEARER})
+
+        // The spec's sentence is "The server rejected this key (401)." The number is the one
+        // part of this screen a person can act on or paste to a provider's support desk.
+        expect(text()).toContain("The server rejected this key (401).")
+    })
+
+    it("drops the status where nothing challenged, rather than guessing one", async () => {
+        // A reconnect never probes, so there is no challenge and no number to name.
+        await open({...rejected, probe: null})
+
+        expect(text()).toContain("The server rejected this key.")
+        expect(text()).not.toMatch(/rejected this key \(/)
     })
 
     it("names what the server expects when the challenge said so", async () => {
@@ -573,7 +786,7 @@ describe("C6, the key was refused", () => {
         // to put in it. Decision 27 replaces the spec's em dashes with a colon, and keeps
         // the clause.
         expect(text()).toContain(
-            "The server rejected this key. The server rejected the credential (401). " +
+            "The server rejected this key (401). " +
                 "Check the header the server expects: DSN or pick another secret.",
         )
     })

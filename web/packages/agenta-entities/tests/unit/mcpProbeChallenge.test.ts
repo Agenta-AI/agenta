@@ -12,6 +12,8 @@ import {describe, expect, it} from "vitest"
 import {
     mcpChallengeScheme,
     mcpChallengeSchemeToShow,
+    mcpChallengeStatus,
+    mcpDefaultKeyHeader,
 } from "../../src/mcpEndpoint/core/probeResponse"
 import type {MCPServerProbe} from "../../src/mcpEndpoint/core/types"
 
@@ -52,5 +54,41 @@ describe("mcpChallengeSchemeToShow", () => {
 
     it("names nothing when the server named nothing", () => {
         expect(mcpChallengeSchemeToShow(probe([]))).toBeNull()
+    })
+})
+
+describe("mcpChallengeStatus", () => {
+    it("reads the status the server refused with", () => {
+        expect(mcpChallengeStatus(probe(["Bearer"], 401))).toBe(401)
+    })
+
+    it("answers nothing where nothing challenged", () => {
+        // A reconnect never probes, and the spec's sentence drops its clause rather than
+        // naming a number nobody was told.
+        expect(mcpChallengeStatus(probe(["Bearer"]))).toBeNull()
+        expect(mcpChallengeStatus(null)).toBeNull()
+    })
+})
+
+describe("mcpDefaultKeyHeader", () => {
+    it("picks Authorization when the challenge named a scheme", () => {
+        // A scheme travels in `Authorization` by definition, so a server that named one has
+        // told us the header.
+        expect(mcpDefaultKeyHeader(probe(["Bearer"], 401))).toBe("Authorization")
+        expect(mcpDefaultKeyHeader(probe(["DSN"], 401))).toBe("Authorization")
+    })
+
+    it("picks x-api-key when it challenged and named none", () => {
+        // The spec's C5 note. A server that asked for a credential without naming a scheme
+        // is asking for something that is not a scheme, and this is the commonest header for
+        // one; it is also what this field has always shown as its placeholder.
+        expect(mcpDefaultKeyHeader(probe([], 401))).toBe("x-api-key")
+        expect(mcpDefaultKeyHeader(probe(undefined, 401))).toBe("x-api-key")
+    })
+
+    it("leaves Authorization alone where there was no probe at all", () => {
+        // A reconnect never probes, and changing the header under a connection that already
+        // works would be a guess about somebody's server.
+        expect(mcpDefaultKeyHeader(null)).toBe("Authorization")
     })
 })

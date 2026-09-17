@@ -52,7 +52,14 @@ export interface McpServerFormViewProps {
 
 export function McpServerFormView({value, onChange, disabled}: McpServerFormViewProps) {
     const endpointsQuery = useAtomValue(mcpEndpointsQueryAtom)
-    const [connecting, setConnecting] = useState(false)
+    /**
+     * Which journey is open, because two controls here open the same sheet for opposite
+     * reasons. "Connect MCP" in the picker makes a new connection; the expired-login banner
+     * repairs the one this item already names. A single boolean sent both to the new-connect
+     * entry, so Reconnect opened a blank sheet at address entry and the way out of an expired
+     * login was to make a SECOND connection and repoint the agent at it (round 6c, D132).
+     */
+    const [connecting, setConnecting] = useState<"new" | "reconnect" | null>(null)
     const [permissionsOpen, setPermissionsOpen] = useState(false)
 
     const endpoints = useMemo(() => endpointsQuery.data ?? [], [endpointsQuery.data])
@@ -118,7 +125,7 @@ export function McpServerFormView({value, onChange, disabled}: McpServerFormView
                         <Button
                             variant="ghost"
                             disabled={disabled}
-                            onClick={() => setConnecting(true)}
+                            onClick={() => setConnecting("new")}
                             className="min-h-control w-full justify-start gap-2 rounded-control-sm px-3 py-1 text-field-md font-normal"
                         >
                             <Plus size={13} className="shrink-0" />
@@ -200,7 +207,7 @@ export function McpServerFormView({value, onChange, disabled}: McpServerFormView
                     toolPrefix={prefix || undefined}
                     policy={readMcpPolicy(value)}
                     onChange={(policy) => onChange({...value, policy})}
-                    onReconnect={() => setConnecting(true)}
+                    onReconnect={() => setConnecting("reconnect")}
                     status={selected ? getMcpConnectionStatus(selected) : undefined}
                     cachedToolCount={selected ? readMcpToolCount(selected) : null}
                     disabled={disabled}
@@ -210,16 +217,32 @@ export function McpServerFormView({value, onChange, disabled}: McpServerFormView
             {connecting ? (
                 <McpConnectJourney
                     open
-                    onClose={() => setConnecting(false)}
+                    onClose={() => setConnecting(null)}
                     existingNames={endpoints.map((endpoint) => endpoint.name)}
-                    // Selects the new connection for THIS agent only; nothing else changes.
+                    reconnect={
+                        connecting === "reconnect" && selected?.id && selected.slug
+                            ? {
+                                  id: selected.id,
+                                  slug: selected.slug,
+                                  name: selected.name || selected.slug,
+                                  url: selected.data.route.base_url || "",
+                                  authMode: selected.auth_mode,
+                              }
+                            : null
+                    }
                     onConnected={({slug, name}) => {
-                        onChange({
-                            ...value,
-                            name: toolPrefixFromName(name) ?? slug,
-                            connection: buildMcpConnectionRef(slug),
-                        })
-                        setConnecting(false)
+                        // Only a new connection is selected for this agent. A reconnect
+                        // renewed the login on the connection this item already names, so
+                        // the reference stays, and with it the tool prefix frozen when the
+                        // server was added.
+                        if (connecting === "new") {
+                            onChange({
+                                ...value,
+                                name: toolPrefixFromName(name) ?? slug,
+                                connection: buildMcpConnectionRef(slug),
+                            })
+                        }
+                        setConnecting(null)
                     }}
                 />
             ) : null}

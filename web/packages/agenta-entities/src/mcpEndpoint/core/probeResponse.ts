@@ -71,3 +71,38 @@ export function mcpChallengeSchemeToShow(probe: MCPServerProbe | null | undefine
     if (!scheme) return null
     return scheme.toLowerCase() === MCP_DEFAULT_CHALLENGE_SCHEME.toLowerCase() ? null : scheme
 }
+
+/**
+ * The status this server refuses an unacceptable credential with, or null.
+ *
+ * The challenge the probe read is the evidence: it is how the server answered a request it
+ * would not authorize, which is exactly what a rejected key is. The number the spec's C6
+ * sentence names comes from here rather than from the failure itself, because the failure
+ * reaches this client through the relay and carries the relay's status, not the server's.
+ *
+ * Null where nothing challenged, and a reconnect never probes, so that sentence drops the
+ * clause rather than guessing a number.
+ */
+export function mcpChallengeStatus(probe: MCPServerProbe | null | undefined): number | null {
+    const status = probe?.auth?.challenge_status
+    return typeof status === "number" && status > 0 ? status : null
+}
+
+/**
+ * The header name the key screen starts with, from what the server's challenge named.
+ *
+ * The spec's C5 note: the header is prefilled from the probe, "using the WWW-Authenticate
+ * scheme to pick Authorization and otherwise x-api-key". A scheme travels in `Authorization`
+ * by definition, so a server that named one has told us the header. A server that challenged
+ * and named nothing has told us only that it wants a credential, and the commonest header for
+ * one that is not a scheme is `x-api-key`, which is also the placeholder this field has always
+ * shown. Either way it stays editable, and either way the value is a starting point rather
+ * than a claim.
+ *
+ * A journey with no probe keeps `Authorization`: a reconnect never probes, and changing the
+ * header under a connection that already works would be a guess about somebody's server.
+ */
+export function mcpDefaultKeyHeader(probe: MCPServerProbe | null | undefined): string {
+    if (!probe) return "Authorization"
+    return mcpChallengeScheme(probe) ? "Authorization" : "x-api-key"
+}

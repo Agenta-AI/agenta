@@ -23,7 +23,7 @@ import {
 } from "@agenta/web-tests/playwright/config/testTags"
 import {test as baseTest} from "@agenta/web-tests/tests/fixtures/base.fixture"
 import {expect} from "@agenta/web-tests/utils"
-import type {ConsoleMessage, Page} from "@playwright/test"
+import type {Page} from "@playwright/test"
 
 import {AGENT_APPS_UNAVAILABLE_REASON, queryWorkflowAgentState} from "../utils/agentApps"
 import {expectAuthenticatedSession} from "../utils/auth"
@@ -189,16 +189,6 @@ const warmPlayground = async (page: Page, basePath: string): Promise<void> => {
 const PLAYGROUND_WARMUP_MS = 4 * ROUTE_WARMUP_MS
 
 /**
- * How a browser says it asked a development server for a chunk that is no longer there.
- *
- * The three spellings the bundlers in use report it under. Narrow on purpose: this pattern is
- * the whole of the reload allowance's licence, and anything it does not match is a page that
- * failed to fill for a reason worth failing on.
- */
-const STALE_CHUNK =
-    /ChunkLoadError|Loading chunk \S+ failed|Failed to fetch dynamically imported module/i
-
-/**
  * Open the agent's Add MCP server drawer.
  *
  * The section itself is conditional: it appears only while the agent's harness says it can reach
@@ -219,39 +209,15 @@ const openAddMcpDrawer = async (page: Page) => {
     // anyway: the lazily loaded configuration pane still renders for the first time here, and
     // the agent's own session is opened before the page paints at all.
     //
-    // One reload is allowed, and ONLY for the condition it was written for: a development
-    // server serving a chunk id the last rebuild replaced, which the client reports before it
-    // gives up. Ungated, the same allowance absorbed a different class entirely — a panel
-    // empty on first render and populated on the second, which is exactly D94's desktop cause
-    // and exactly what this file exists to catch, so the defect could not fail the case
-    // (round 4, D96). A panel that does not fill, for any reason the page did not report as a
-    // stale chunk, now fails here.
-    const staleChunk: string[] = []
-    const noteStaleChunk = (text: string) => {
-        if (STALE_CHUNK.test(text)) staleChunk.push(text)
-    }
-    const onConsole = (message: ConsoleMessage) => {
-        if (message.type() === "error") noteStaleChunk(message.text())
-    }
-    const onPageError = (error: Error) => noteStaleChunk(error.message)
-    page.on("console", onConsole)
-    page.on("pageerror", onPageError)
-    try {
-        try {
-            await expect(sectionHeader.or(addLink).first()).toBeVisible({
-                timeout: PLAYGROUND_WARMUP_MS,
-            })
-        } catch (error) {
-            if (!staleChunk.length) throw error
-            await page.reload({waitUntil: "domcontentloaded"})
-            await expect(sectionHeader.or(addLink).first()).toBeVisible({
-                timeout: PLAYGROUND_WARMUP_MS,
-            })
-        }
-    } finally {
-        page.off("console", onConsole)
-        page.off("pageerror", onPageError)
-    }
+    // No reload. There used to be one here, for a development server serving a chunk id the
+    // last rebuild replaced; ungated it absorbed a panel that was empty on first render and
+    // populated on the second, which is D94's desktop cause and the thing this file exists to
+    // catch (round 4, D96). Gating it on the reported symptom was not enough either: zero
+    // reloads happened across every trace, the wait settles in seconds against a budget of
+    // minutes, and a gate keyed on a symptom would still license a reload on a real
+    // dynamic-import failure, which is a defect and not a flake. A panel that does not fill
+    // fails here, whatever the reason (decision 54).
+    await expect(sectionHeader.or(addLink).first()).toBeVisible({timeout: PLAYGROUND_WARMUP_MS})
     if (!(await addLink.isVisible())) {
         await sectionHeader.first().click()
     }

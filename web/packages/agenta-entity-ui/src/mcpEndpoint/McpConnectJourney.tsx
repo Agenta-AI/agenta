@@ -31,8 +31,10 @@
  * to narrow it, because the scopes are the server's business and nobody could answer.
  */
 import {
+    cloneElement,
     useCallback,
     useEffect,
+    useId,
     useMemo,
     useRef,
     useState,
@@ -44,6 +46,8 @@ import {
     connectionNameProblem,
     isBusy,
     mcpChallengeSchemeToShow,
+    mcpChallengeStatus,
+    mcpDefaultKeyHeader,
     readMcpProbeResponse,
     toolPrefixFromName,
     useMcpConnectJourney,
@@ -98,12 +102,8 @@ const RECONNECT_TITLE = "Reconnect MCP server"
 const URL_HELP =
     "The server's HTTP endpoint. Agenta checks it and detects whether it needs OAuth, an API key, or nothing."
 
-/** The two nodes the address field can be described by, exactly one of which is rendered. */
-const URL_HELP_ID = "mcp-url-help"
+/** The box the address field is described by once the check has failed. */
 const URL_PROBLEM_ID = "mcp-url-problem"
-
-/** The scheme line under the Header field, where the challenge named one. */
-const HEADER_HELP_ID = "mcp-header-help"
 
 /**
  * The box that says why a key was refused, which both refused fields point at.
@@ -145,6 +145,21 @@ const UNREACHABLE_ADVICE =
     "Check the address and that the server speaks HTTP transport. Private-network servers must be reachable from Agenta."
 
 const KEY_REJECTED_HEADLINE = "The server rejected this key."
+
+/**
+ * The same sentence, naming the status the spec's C6 copy names.
+ *
+ * The spec writes "The server rejected this key (401)." and the status code is the one part
+ * of that screen a person can act on or paste to a provider's support desk. It was dropped
+ * for want of a number to put there, and what stood in its place was the relayed sentence
+ * our own MCP client writes when it cannot read an answer, which says less (round 6c,
+ * D-R6C-1).
+ *
+ * The number is the challenge's, which is how this server answers a request it will not
+ * authorize. Where nothing challenged, the clause goes rather than a guess.
+ */
+const keyRejectedHeadlineFor = (status: number | null): string =>
+    status ? `The server rejected this key (${status}).` : KEY_REJECTED_HEADLINE
 const KEY_REJECTED_ADVICE = "Check the header the server expects, or pick another secret."
 /**
  * The same advice, naming what the server expects where it said so.
@@ -345,7 +360,22 @@ export function McpConnectSheet({
     const {state} = journey
     const namedSecrets = useAtomValue(customNamedSecretsAtom)
 
-    const [headerName, setHeaderName] = useState("Authorization")
+    /**
+     * What the person typed in Header, or null while they have typed nothing.
+     *
+     * Null rather than a seeded string, because the probe answers after this mounts and the
+     * prefill depends on what it found. Seeding at mount would have to be corrected later,
+     * which means deciding whether a correction is allowed to overwrite a typed value; not
+     * seeding at all makes that question disappear.
+     */
+    const [headerName, setHeaderName] = useState<string | null>(null)
+    /**
+     * The header the screen shows: what was typed, or the spec's C5 prefill.
+     *
+     * The scheme the challenge named picks `Authorization`, because a scheme travels in that
+     * header; a challenge that named none picks `x-api-key`. Editable either way.
+     */
+    const headerValue = headerName ?? mcpDefaultKeyHeader(state.probe)
     const [secretSlug, setSecretSlug] = useState("")
     const [creatingSecret, setCreatingSecret] = useState(false)
     // Latches on first open so the create drawer's hooks stay unmounted until needed.
@@ -367,11 +397,26 @@ export function McpConnectSheet({
      * two steps. A reconnect opens ON this screen with nothing pressed and nothing typed,
      * which is why the screen submits nothing until this says someone asked.
      */
-    const [afterCreate, setAfterCreate] = useState<"credential" | "skip" | null>(null)
+    const [afterCreate, setAfterCreate] = useState<"credential" | null>(null)
 
     const path = authPathFor(state, reconnect)
     const screen = screenFor(state, path, consentRequested)
-    const busy = isBusy(state)
+    /**
+     * Whether something is in flight: the machine's answer, corrected for the one status that
+     * covers two situations.
+     *
+     * `discovering_scopes` is both "discovery is running" and, on a reconnect, "this screen is
+     * waiting for the press that starts it" — a reconnect opens there because the window
+     * discovery ends at can only be opened inside a gesture. `screenFor` knows that and draws
+     * the OAuth screen; `isBusy` did not, so a reconnect opened with Connect AND Cancel
+     * disabled and the only thing that could enable them was the press it had disabled. It
+     * never resolved, and the close X was the only way out (round 6c, D-R6C-4). Two buttons
+     * dead together is the shape: a validation rule would not disable Cancel.
+     *
+     * The same deadlock as D30, which `RETRY_TARGET` closed for `creating` and `verifying`.
+     */
+    const awaitingConsentPress = state.status === "discovering_scopes" && !consentRequested
+    const busy = isBusy(state) && !awaitingConsentPress
     // The window in which the connection is real but this dialog has not caught up.
     const sealed = state.status === "saving"
 
@@ -442,14 +487,10 @@ export function McpConnectSheet({
     // The second half of the key screen's one press, once the row it needs exists.
     useEffect(() => {
         if (state.status !== "manual_auth" || !afterCreate) return
-        if (afterCreate === "skip") {
-            journey.skipAuthentication()
-            return
-        }
         const secretId = namedSecrets.find((secret) => secret.slug === secretSlug)?.id
         if (!secretId) return
-        void journey.submitManualCredential({headerName, secretId})
-    }, [afterCreate, headerName, journey, namedSecrets, secretSlug, state.status])
+        void journey.submitManualCredential({headerName: headerValue, secretId})
+    }, [afterCreate, headerValue, journey, namedSecrets, secretSlug, state.status])
 
     const nameProblem =
         state.status === "naming"
@@ -481,27 +522,11 @@ export function McpConnectSheet({
         journey.retry()
     }, [journey, requestConsent])
 
-    /**
-     * Connect a server that turned out to want nothing.
-     *
-     * Offered because the probe said "could not tell", not "needs a key". Dropping it would
-     * turn an inconclusive answer into a refusal for every server that authenticates in a
-     * way discovery cannot see, including the ones that do not authenticate at all.
-     */
-    const skipAuthentication = useCallback(() => {
-        if (state.status === "naming") {
-            setAfterCreate("skip")
-            void journey.submitName()
-            return
-        }
-        journey.skipAuthentication()
-    }, [journey, state.status])
-
     const submitCredential = useCallback(() => {
         const secretId = selectedSecretId()
         if (!secretId) return
-        void journey.submitManualCredential({headerName, secretId})
-    }, [headerName, journey, selectedSecretId])
+        void journey.submitManualCredential({headerName: headerValue, secretId})
+    }, [headerValue, journey, selectedSecretId])
 
     const confirm = useCallback(() => {
         switch (state.status) {
@@ -563,6 +588,7 @@ export function McpConnectSheet({
     // What the server named when it refused the anonymous handshake, where that is anything
     // the Authorization default does not already cover.
     const challengeScheme = mcpChallengeSchemeToShow(state.probe)
+    const challengeStatus = mcpChallengeStatus(state.probe)
 
     /** The one error that belongs to a field rather than to the screen. */
     const nameError = state.status === "naming" ? (nameProblem ?? state.error) : null
@@ -595,7 +621,6 @@ export function McpConnectSheet({
                             // wrong with this address, and the line explaining what the
                             // field is for is no longer the thing to read.
                             hint={screen === "url" ? URL_HELP : null}
-                            hintId={URL_HELP_ID}
                         >
                             <Input
                                 autoFocus
@@ -604,13 +629,12 @@ export function McpConnectSheet({
                                 value={state.url}
                                 disabled={busy}
                                 aria-label="Server URL"
-                                // Whichever of the two is on screen. The help line goes away
-                                // when the check fails and the failure box takes its place,
-                                // so a fixed id left the refused field describing nothing
-                                // (round 4, P2) — which is the one state where a reader most
-                                // needs the description read to them.
+                                // The failure box, when the check has failed. The help line
+                                // is `HintedField`'s to name, and it names it only while it
+                                // is rendered, so the refused field describes the box that
+                                // replaced it rather than a line that is gone (round 4, P2).
                                 aria-describedby={
-                                    screen === "url_failed" ? URL_PROBLEM_ID : URL_HELP_ID
+                                    screen === "url_failed" ? URL_PROBLEM_ID : undefined
                                 }
                                 aria-invalid={screen === "url_failed" || undefined}
                                 onChange={(event) => journey.setUrl(event.target.value)}
@@ -666,7 +690,6 @@ export function McpConnectSheet({
                                     </>
                                 ) : null
                             }
-                            hintId="mcp-name-help"
                         >
                             <Input
                                 autoFocus={!reconnect}
@@ -675,7 +698,6 @@ export function McpConnectSheet({
                                 // and people already call this connection.
                                 disabled={!!reconnect || busy}
                                 aria-label="Name"
-                                aria-describedby="mcp-name-help"
                                 onChange={(event) => journey.setName(event.target.value)}
                             />
                         </HintedField>
@@ -705,22 +727,16 @@ export function McpConnectSheet({
                                     hint={
                                         challengeScheme ? headerSchemeHint(challengeScheme) : null
                                     }
-                                    hintId={HEADER_HELP_ID}
                                 >
                                     <Input
                                         className="font-mono text-[13px]"
                                         placeholder="Authorization"
-                                        value={headerName}
+                                        value={headerValue}
                                         aria-label="Header"
                                         aria-describedby={
-                                            [
-                                                challengeScheme ? HEADER_HELP_ID : null,
-                                                state.status === "verify_failed"
-                                                    ? KEY_PROBLEM_ID
-                                                    : null,
-                                            ]
-                                                .filter(Boolean)
-                                                .join(" ") || undefined
+                                            state.status === "verify_failed"
+                                                ? KEY_PROBLEM_ID
+                                                : undefined
                                         }
                                         onChange={(event) =>
                                             setHeaderName(event.target.value.trim())
@@ -742,7 +758,7 @@ export function McpConnectSheet({
                                                 ? KEY_PROBLEM_ID
                                                 : undefined
                                         }
-                                        canCreate={!!headerName}
+                                        canCreate={!!headerValue}
                                         onCreate={() => {
                                             setSecretDrawerMounted(true)
                                             setCreatingSecret(true)
@@ -759,10 +775,14 @@ export function McpConnectSheet({
                     {screen === "api_key" && state.status === "verify_failed" ? (
                         <InlineError
                             id={KEY_PROBLEM_ID}
-                            headline={KEY_REJECTED_HEADLINE}
+                            headline={keyRejectedHeadlineFor(challengeStatus)}
                             className="-mt-2"
                         >
-                            {state.error} {keyRejectedAdviceFor(challengeScheme)}
+                            {/* The spec's sentence, and only it. The relayed sentence that
+                                used to sit here was our own client's "did not answer
+                                initialize", which names a protocol call where the status code
+                                and the header advice are what a reader can act on. */}
+                            {keyRejectedAdviceFor(challengeScheme)}
                         </InlineError>
                     ) : null}
 
@@ -816,7 +836,7 @@ export function McpConnectSheet({
                         <CreateSecretDrawer
                             open={creatingSecret}
                             onClose={() => setCreatingSecret(false)}
-                            headerName={headerName}
+                            headerName={headerValue}
                             serverName={state.name}
                             onCreated={(row) => setSecretSlug(row.slug)}
                         />
@@ -827,20 +847,6 @@ export function McpConnectSheet({
                     <>
                         <Divider className="my-0 border-colorBorderSecondary" />
                         <div className="flex items-center justify-end gap-2">
-                            {screen === "api_key" && !reconnect ? (
-                                // The probe could not say what this server wants. A server
-                                // that wants nothing has to have a way through, or an
-                                // inconclusive answer becomes a refusal.
-                                <Button
-                                    variant="link"
-                                    size="xs"
-                                    className="mr-auto px-0 text-xs"
-                                    disabled={busy || !state.name.trim()}
-                                    onClick={skipAuthentication}
-                                >
-                                    Connect without authentication
-                                </Button>
-                            ) : null}
                             <Button variant="outline" onClick={handleClose} disabled={busy}>
                                 Cancel
                             </Button>
@@ -912,7 +918,6 @@ const canConfirm = ({
  */
 const HintedField = ({
     hint,
-    hintId,
     children,
     ...field
 }: {
@@ -922,20 +927,30 @@ const HintedField = ({
     error?: string
     invalid?: boolean
     hint?: ReactNode
-    hintId: string
-    children: ReactElement
-}) => (
-    <div className="flex flex-col gap-1.5">
-        <Field {...field} className="gap-1.5">
-            {children}
-        </Field>
-        {hint ? (
-            <p id={hintId} className="m-0 text-xs leading-normal text-colorTextTertiary">
-                {hint}
-            </p>
-        ) : null}
-    </div>
-)
+    children: ReactElement<{"aria-describedby"?: string}>
+}) => {
+    // Generated here, and named only while the line it names is on screen. The ids used to be
+    // written by hand at each call site and set on the control unconditionally, so every
+    // screen that drew no hint left the control pointing at an element that was not in the
+    // document: four of them on the name field alone (round 4, D127). A field cannot forget
+    // an id it never writes.
+    const hintId = useId()
+    const own = children.props["aria-describedby"]
+    const describedBy = [own, hint ? hintId : null].filter(Boolean).join(" ") || undefined
+
+    return (
+        <div className="flex flex-col gap-1.5">
+            <Field {...field} className="gap-1.5">
+                {cloneElement(children, {"aria-describedby": describedBy})}
+            </Field>
+            {hint ? (
+                <p id={hintId} className="m-0 text-xs leading-normal text-colorTextTertiary">
+                    {hint}
+                </p>
+            ) : null}
+        </div>
+    )
+}
 
 /**
  * The failure box: a sentence in the error fill, with the first clause carrying the weight.
