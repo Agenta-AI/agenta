@@ -1,0 +1,1143 @@
+@import "./tokens.css";
+@import "./tokens-dark.css";
+@import "./theme.css";
+
+/* ── base reset (from the design's inline <style>) ──────────── */
+html,
+body {
+  margin: 0;
+  background: var(--th-page);
+}
+* {
+  box-sizing: border-box;
+}
+a {
+  color: inherit;
+}
+
+/* ── keyframes (ported verbatim from the design) ────────────── */
+@keyframes ag-pulse {
+  0% {
+    transform: scale(1);
+    opacity: 0.5;
+  }
+  70% {
+    transform: scale(1.7);
+    opacity: 0;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+@keyframes accordion-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+/* Open-standards marquee tracks (a duplicated strip translated -50%). */
+@keyframes ag-marquee {
+  to {
+    transform: translateX(-50%);
+  }
+}
+@keyframes ag-marquee-rev {
+  from {
+    transform: translateX(-50%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+/* ── reduced motion: honor the OS setting (WCAG 2.3.3) ────────
+   Neutralizes the looping play-button pulse, the marquees, and one-shot
+   reveals, and collapses hover transitions to instant. Near-zero (not 0) so
+   animationend/transitionend still fire for any JS that awaits them.
+   Sections with scroll-driven motion (How it works) ship a static fallback. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ── page frame ──────────────────────────────────────────────────────
+   The 1440 column every page lives in. Framer's column is flat: the page
+   ground shows only outside it, on windows wider than 1440. Rendered once,
+   by layouts/Site.astro. */
+.ag-wrap {
+  width: 100%;
+  max-width: 1440px;
+  margin: 0 auto;
+  background: var(--th-page);
+  box-sizing: border-box;
+  font-family: var(--font-sans);
+}
+
+/* ── section grid ────────────────────────────────────────────────────
+   The hairline round every band, drawn ONLY through components/Section.astro.
+   Stacked bands overlap by 1px so two neighbours share a single line, and the
+   left/right edges line up down the whole page with the nav's rest-state
+   borders above them. */
+.ag-section {
+  border: 1px solid var(--th-section-border);
+  margin-top: -1px;
+  box-sizing: border-box;
+}
+/* Bands that are dark in both themes: a faint white line, never the paper one. */
+.ag-section--dark {
+  border-color: var(--th-darksec-border);
+}
+/* Framer's white bodies (blog, authors, pricing) carry no line at all. No
+   overlap either, so the band above keeps its bottom line visible. */
+.ag-section--flat {
+  border: 0;
+  margin-top: 0;
+}
+
+/* ── badge / eyebrow ─────────────────────────────────────────────────
+   Framer's section eyebrow, measured on the deployed build: 24px tall, 2px 12px
+   padding, fully round, 1px outline, transparent inside, 12px/400 uppercase.
+   Rendered ONLY through components/Badge.astro. */
+.ag-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+  padding: 2px 12px;
+  border: 1px solid var(--th-badge-ring);
+  border-radius: var(--radius-pill);
+  background: var(--th-badge-bg);
+  color: var(--th-badge-text);
+  font: 400 12px/20px var(--font-sans);
+  letter-spacing: normal;
+  text-transform: uppercase;
+  text-decoration: none;
+  white-space: nowrap;
+  box-sizing: border-box;
+}
+/* The text-only eyebrow Framer sets above page titles ("OUR BLOG"): the badge's
+   type and colour with no outline. Same tokens, so it follows the theme. */
+.ag-eyebrow {
+  font: 400 12px/20px var(--font-sans);
+  letter-spacing: normal;
+  text-transform: uppercase;
+  color: var(--th-badge-text);
+}
+/* Fixed recipes for bands that keep one look in both themes. */
+.ag-badge--dark {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(229, 229, 227, 0.18);
+  color: rgba(255, 255, 255, 0.8);
+}
+.ag-badge--yellow {
+  background: var(--yellow-400);
+  border-color: rgba(36, 36, 36, 0.12);
+  color: var(--ink-900);
+}
+
+/* ── nav shell ───────────────────────────────────────────────────────
+   Base geometry for every nav (landing + inner pages): a 68px-tall bar that is
+   a positioning context for the absolutely-centered link layer. `position:
+   relative` here; the pill variant upgrades it to sticky below.
+   The scroll-pill machinery (`.nav-scrolled` styles + the rAF loop) is
+   landing-only: SiteNav renders `data-pill` and runs the rAF loop ONLY when
+   passed `sticky`, so inner pages get the identical bar with no scroll motion. */
+.ag-navshell {
+  /* One source of truth for the scrolled pill's width: the pill uses it, and
+     the side rules measure their gap from it. */
+  --nav-pill-w: min(var(--nav-pill-max), calc(100% - 32px));
+  position: relative;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  height: 68px;
+  box-sizing: border-box;
+  /* At rest the bar is the first band of the page grid: Framer draws it with a
+     1px left, right and bottom border in the grid colour, and the section
+     below continues the same two vertical lines. The borders sit on the shell,
+     which never moves, so the pill animation cannot disturb them. */
+  border: 1px solid var(--th-section-border);
+  border-top: 0;
+  transition: border-color 0.25s ease;
+}
+/* Once the bar has become the floating pill there is no band left to outline. */
+.nav-scrolled .ag-navshell {
+  border-color: transparent;
+}
+/* Pill variant (landing): the shell sticks and the rAF loop toggles
+   `.nav-scrolled` on <html> past 24px. Only .ag-nav-inner animates — it narrows
+   into a centered pill and drops by --nav-pill-inset, carrying brand (left) and
+   CTAs (right) inward. The center links sit in a separate absolutely-centered
+   layer, so they hold x (dx=0) and only ride down (dy=+inset) with the pill. */
+nav[data-pill] {
+  position: sticky;
+  top: 0;
+}
+/* At rest the bar is flat: full column width, the page-ground fill, no radius
+   and no shadow. On scroll it narrows to the pill, drops by --nav-pill-inset,
+   and puts on the glass fill, the 16px radius and the two-layer border. */
+.ag-nav-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 68px;
+  padding: 0 var(--nav-pad-x);
+  box-sizing: border-box;
+  width: 100%;
+  margin-inline: auto;
+  position: relative;
+  border: none;
+  background: var(--th-nav-rest-bg);
+  border-radius: 0;
+  box-shadow: none;
+  transition:
+    background 0.25s ease,
+    box-shadow 0.25s ease,
+    border-radius 0.25s ease,
+    width 0.25s ease,
+    transform 0.25s ease;
+}
+.nav-scrolled .ag-nav-inner {
+  /* Narrow to the pill and drop clear of the top edge. margin-inline auto keeps
+     it centred, so brand and CTAs ride its edges inward symmetrically. */
+  width: var(--nav-pill-w);
+  transform: translateY(var(--nav-pill-inset));
+  background: var(--th-glass);
+  border-radius: var(--nav-pill-radius);
+  box-shadow: var(--th-pill-shadow);
+  -webkit-backdrop-filter: blur(5px);
+  backdrop-filter: blur(5px);
+}
+
+/* Center links: pinned to the shell's exact center in BOTH states. Absolute
+   positioning against the sticky shell (whose box never changes) guarantees a
+   0,0 rect delta between the bar and pill. */
+.ag-navlinks {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  z-index: 1;
+  transition: transform 0.25s ease;
+}
+/* Links ride the pill down by the same inset so they stay centered on it: only
+   the y shifts (dy = +inset), x is untouched (dx = 0), matching agenta.ai. */
+.nav-scrolled .ag-navlinks {
+  transform: translate(-50%, calc(-50% + var(--nav-pill-inset)));
+}
+
+/* ── nav brand: wordmark condenses to the leaf symbol on scroll ──
+   The brand shows the full wordmark at rest; when the nav enters the pill the
+   overflow-hidden container clips the mark left-to-right down to the leaf,
+   leaving only the symbol (matches agenta.ai). Reduced-motion users get the end
+   states instantly via the global prefers-reduced-motion rule above. */
+/* Framer keeps the whole wordmark in the pill at 35px tall, so there is no
+   clip-to-leaf step here. */
+.ag-brand {
+  display: flex;
+  align-items: center;
+}
+
+/* ── the rules either side of the pill ───────────────────────
+   Framer runs a hairline from each edge of the nav's own column in to the
+   pill, ending in a 4x9 rounded cap that meets the pill's outer ring. The
+   rules are children of the SHELL, not of the pill, so they start exactly at
+   the column border and never spill past it. Their inner end lands 8px off
+   the pill box, which is where the pill's 8px outer ring sits, so cap and
+   ring meet. They fade in with the pill. */
+.ag-nav-rule {
+  position: absolute;
+  top: 50%;
+  height: 9px;
+  margin-top: -4.5px;
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    opacity 0.25s ease,
+    transform 0.25s ease;
+}
+.nav-scrolled .ag-nav-rule {
+  opacity: 1;
+  transform: translateY(var(--nav-pill-inset));
+}
+.ag-nav-rule-l {
+  left: 0;
+  right: calc(50% + var(--nav-pill-w) / 2 + 8px);
+}
+.ag-nav-rule-r {
+  right: 0;
+  left: calc(50% + var(--nav-pill-w) / 2 + 8px);
+}
+.ag-nav-rule::before,
+.ag-nav-rule::after {
+  content: "";
+  position: absolute;
+  background: var(--th-nav-rule);
+}
+/* the hairline, filling everything the cap does not */
+.ag-nav-rule::before {
+  top: 4px;
+  height: 1px;
+}
+.ag-nav-rule-l::before {
+  left: 0;
+  right: 4px;
+}
+.ag-nav-rule-r::before {
+  right: 0;
+  left: 4px;
+}
+/* the cap that meets the pill */
+.ag-nav-rule::after {
+  top: 0;
+  width: 4px;
+  height: 9px;
+}
+.ag-nav-rule-l::after {
+  right: 0;
+  border-radius: 999px 0 0 999px;
+}
+.ag-nav-rule-r::after {
+  left: 0;
+  border-radius: 0 999px 999px 0;
+}
+/* Once the pill fills its column there is no slot left to draw them in. */
+@media (max-width: 1400px) {
+  .ag-nav-rule {
+    display: none;
+  }
+}
+
+/* ── scrollbars (ported verbatim) ───────────────────────────── */
+::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--th-scrollbar);
+  border-radius: 10px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--th-scrollbar-hover);
+  background-clip: content-box;
+}
+[data-scroll="dark"]::-webkit-scrollbar {
+  width: 10px;
+}
+html,
+[data-scroll="dark"] {
+  scrollbar-width: thin;
+  scrollbar-color: var(--th-scrollbar) transparent;
+}
+
+/* ── theme switcher (SiteNav) ────────────────────────────────
+   A 30px ghost square that cycles system → light → dark. data-pref (set by
+   the SiteNav script) picks which of the three icons is visible. */
+.ag-theme-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: none;
+  border-radius: 8px;
+  /* No fill and no ring: the switcher is a utility, not a call to action, and
+     a boxed control here competed with "Book a demo" and "Get started". It
+     picks up a hover fill like the nav links do. */
+  background: transparent;
+  box-shadow: none;
+  color: var(--th-nav-text);
+  cursor: pointer;
+  transition:
+    background 0.2s ease,
+    color 0.2s ease;
+}
+.ag-theme-btn:hover {
+  background: var(--th-hover);
+  color: var(--th-text-hi);
+}
+.ag-theme-btn [data-ico] {
+  display: none;
+  line-height: 0;
+}
+.ag-theme-btn[data-pref="system"] [data-ico="system"],
+.ag-theme-btn[data-pref="light"] [data-ico="light"],
+.ag-theme-btn[data-pref="dark"] [data-ico="dark"] {
+  display: inline-flex;
+}
+/* Before the script sets data-pref, show the system icon so the button never
+   renders empty. */
+.ag-theme-btn:not([data-pref]) [data-ico="system"] {
+  display: inline-flex;
+}
+
+/* ── interactive affordances (the .dc.html used DC hover hooks) ─ */
+.ag-navlink,
+.ag-navtrigger {
+  height: 36px;
+  padding: 8px 12px;
+  letter-spacing: 0.02em;
+}
+.ag-navlink:hover {
+  background: var(--th-hover);
+}
+/* Light nav links darken to ink-900 on hover (mockup); dark keeps its fixed
+   white alpha so the dark site stays pixel-identical. */
+:root:not([data-theme="dark"]) .ag-navlink:hover {
+  color: var(--ink-900);
+}
+.ag-foot-link:hover {
+  color: var(--th-text-hi);
+}
+.ag-foot-social:hover {
+  background: var(--th-active);
+}
+
+/* ── buttons: ONE definition for the whole site ──────────────────────
+   Framer draws every button at the same size — 36px tall, 0/12px padding, an
+   8px radius, Inter 14/500 with 0.02em tracking, a 1px border and an inset
+   white highlight. Only the fill and the border colour change per variant.
+   Nothing moves on hover: hovering the live Framer buttons leaves the
+   gradient, the border, the shadow, the transform and the opacity untouched,
+   so the pointer cursor and the focus ring carry the affordance.
+
+   Use these classes everywhere, in .astro and .tsx alike. Button.astro is a
+   thin wrapper over them. Do not hand-roll a button's inline styles again. */
+.ag-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 12px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  font: var(--text-label);
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  cursor: pointer;
+  text-decoration: none;
+  box-sizing: border-box;
+}
+.ag-btn:focus-visible {
+  outline: 2px solid var(--th-text-hi);
+  outline-offset: 2px;
+}
+.ag-btn--primary {
+  background: var(--grad-btn-primary);
+  border-color: var(--yellow-border);
+  box-shadow: var(--shadow-btn-primary);
+  color: var(--ink-900);
+}
+.ag-btn--outline {
+  background: var(--th-btn-ghost-bg);
+  border-color: var(--th-btn-ghost-border);
+  box-shadow: var(--th-btn-ghost-shadow);
+  color: var(--th-btn-ghost-text);
+}
+.ag-btn--dark {
+  background: var(--grad-btn-dark);
+  border-color: var(--carbon-border);
+  box-shadow: var(--shadow-btn-dark);
+  color: var(--text-on-dark);
+}
+.ag-btn--ghost {
+  background: transparent;
+  box-shadow: none;
+  color: var(--th-nav-text);
+}
+.ag-btn--block {
+  width: 100%;
+}
+
+/* ── nav dropdowns (Resources / Community) ───────────────────────────
+   Open on hover and on keyboard focus (focus-within). The panel sits flush
+   under the trigger; a transparent bridge (padding-top on the panel wrapper)
+   spans the gap so crossing the cursor never closes it. A short open delay is
+   hover-intent: brushing past doesn't flash the menu open. */
+.ag-navdd {
+  position: relative;
+  display: inline-flex;
+}
+.ag-navdd-panel {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  padding-top: 8px;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-4px);
+  transition:
+    opacity 0.16s ease,
+    transform 0.16s ease,
+    visibility 0.16s ease;
+  transition-delay: 0.12s;
+  z-index: 60;
+}
+.ag-navdd:hover .ag-navdd-panel,
+.ag-navdd:focus-within .ag-navdd-panel {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+  transition-delay: 0s;
+}
+.ag-navdd-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 264px;
+  padding: 8px;
+  border-radius: 14px;
+  background: var(--th-menu-bg);
+  box-shadow: var(--th-menu-shadow);
+}
+.ag-navdd-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 10px;
+  border-radius: 10px;
+  text-decoration: none;
+  transition: background 0.16s ease;
+}
+.ag-navdd-item:hover {
+  background: var(--th-hover);
+}
+.ag-navdd-ico {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  background: var(--th-ctl-bg);
+  box-shadow: inset 0 0 0 1px var(--th-ctl-ring);
+  color: var(--th-text-prose);
+}
+.ag-navdd-title {
+  font: var(--text-label);
+  color: var(--th-text-hi);
+  line-height: 1.25;
+}
+.ag-navdd-desc {
+  font: var(--text-caption);
+  color: var(--th-text-mut);
+  line-height: 1.25;
+}
+/* Chevron flips when its menu is open, like agenta.ai. */
+.ag-navdd:hover .ag-navdd-chev,
+.ag-navdd:focus-within .ag-navdd-chev {
+  transform: rotate(180deg);
+}
+.ag-navdd-chev {
+  display: inline-flex;
+  transition: transform 0.16s ease;
+}
+
+/* ── mobile menu (replaces the DC sc-if/menuOpen state) ─────── */
+.ag-menu {
+  display: none;
+}
+.ag-mobile-menu {
+  display: none;
+}
+.ag-mobile-menu.is-open {
+  display: flex;
+}
+
+/* ── blog cards ──────────────────────────────────────────────────────────
+   Vertical post cards (featured/grid/related) are flex columns so the card
+   fills its grid cell (grid stretches items) and the meta/date row, which
+   carries margin-top:auto, pins to a consistent bottom baseline regardless of
+   title/excerpt length. Declared as a class (not inline) so the blog index's
+   category-filter rule (#blog-grid[data-filter] > a:not(...)) still wins on
+   specificity and hides non-matching cards, and so the JS "load more" toggle
+   can hide cards without clobbering the card's display. */
+.ag-vcard {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+/* "Load more" pagination hide — !important so it beats both .ag-vcard's flex
+   and any filter rule while a card is beyond the revealed batch. */
+.blog-hidden {
+  display: none !important;
+}
+
+/* ============================================================================
+   Responsive — ported VERBATIM from the design's <style> block.
+   handoff/RESPONSIVE.md standardizes the intent; the design encodes it at
+   1100px (grid collapse) and 860px (mobile: nav → hamburger, single column).
+   QA widths 768 and 390 both fall under 860 → full mobile treatment.
+============================================================================ */
+/* Landing section rhythm steps down with the layout: redefining the token here
+   scales every section that reads var(--section-pad-y) at once (desktop 112 →
+   mobile 64 → phone 56). Sections must reference the token, not hard numbers. */
+@media (max-width: 860px) {
+  :root {
+    --section-pad-y: 64px;
+  }
+}
+@media (max-width: 600px) {
+  :root {
+    --section-pad-y: 56px;
+  }
+}
+/* Footer: the 1440 artboard's 172px side padding + space-between drops the link
+   columns below the brand between ~860px and 1200px, isolating the brand on its
+   own row. Tighten the padding and lay the columns out 2-up through that band so
+   the brand+columns row holds down to the mobile (860px) breakpoint. */
+@media (max-width: 1200px) {
+  .ag-foot-top {
+    padding-left: 56px !important;
+    padding-right: 56px !important;
+  }
+  .ag-foot-bottom {
+    padding-left: 56px !important;
+    padding-right: 56px !important;
+  }
+  /* Three columns (Company / Resources / Legal) stay in one row down to mobile. */
+  .ag-foot-cols {
+    display: grid !important;
+    grid-template-columns: repeat(3, auto);
+    gap: 36px 56px !important;
+  }
+}
+@media (max-width: 1100px) {
+  .ag-int {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+}
+@media (max-width: 860px) {
+  .ag-navlinks,
+  .ag-navcta {
+    display: none !important;
+  }
+  .ag-menu {
+    display: inline-flex !important;
+  }
+  .ag-tpl {
+    grid-template-columns: 1fr !important;
+  }
+  .ag-interop {
+    grid-template-columns: 1fr !important;
+    gap: 40px !important;
+  }
+  .ag-tpl-md {
+    border-left: none !important;
+    border-top: 1px solid var(--th-border-subtle) !important;
+  }
+  .ag-tpl-md-scroll {
+    position: static !important;
+    height: 320px !important;
+  }
+  .ag-tpl-tabs {
+    flex-wrap: wrap !important;
+    justify-content: center !important;
+    border-radius: 16px !important;
+  }
+  .ag-row {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 36px !important;
+  }
+  .ag-row > div {
+    flex: none !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+  .ag-cta-row {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 28px !important;
+  }
+  .ag-cta-img {
+    display: none !important;
+  }
+  .ag-int {
+    grid-template-columns: 1fr !important;
+  }
+  .ag-foot-top {
+    padding: 48px 24px 40px !important;
+    flex-direction: column !important;
+    gap: 40px !important;
+  }
+  .ag-foot-bottom {
+    padding: 18px 24px !important;
+  }
+  .ag-foot-cols {
+    grid-template-columns: repeat(2, auto) !important;
+    gap: 32px !important;
+  }
+  .ag-hero {
+    padding-top: 80px !important;
+    padding-bottom: 88px !important;
+  }
+  .ag-h1 {
+    font-size: 38px !important;
+    line-height: 1.08 !important;
+  }
+  .ag-video {
+    height: 240px !important;
+  }
+  .ag-secpad {
+    padding-top: 64px !important;
+    padding-bottom: 64px !important;
+  }
+}
+@media (min-width: 861px) {
+  .ag-mobile-menu {
+    display: none !important;
+  }
+}
+
+/* ============================================================================
+   Phone (<=600px). The <=860 block already gives the full mobile treatment
+   (hamburger nav, single-column grids); this tightens type scale, section
+   padding, and the two components that still crowd at ~412px: the How-it-works
+   files drawer and the Templates spec rows.
+============================================================================ */
+@media (max-width: 600px) {
+  /* Hero: smaller headline, tighter band. */
+  .ag-hero {
+    padding-top: 64px !important;
+    padding-bottom: 64px !important;
+  }
+  .ag-h1 {
+    font-size: 32px !important;
+    line-height: 1.1 !important;
+  }
+  /* Section vertical rhythm. */
+  .ag-secpad {
+    padding-top: 56px !important;
+    padding-bottom: 56px !important;
+  }
+
+  /* How it works: drop the files drawer so the chat story owns the width. */
+  .ag-hiw-files {
+    display: none !important;
+  }
+
+  /* Templates: stack each spec row (label over its chips) so the harness switch
+     and chip rows get the full panel width instead of a 84px-narrowed column. */
+  .ag-tpl-left {
+    padding: 26px 20px 24px !important;
+  }
+  .ag-tpl-grid {
+    grid-template-columns: 1fr !important;
+    column-gap: 0 !important;
+  }
+  .ag-tpl-grid > span {
+    padding: 15px 0 3px !important;
+  }
+  .ag-tpl-grid > div {
+    padding: 2px 0 13px !important;
+    border-top: none !important;
+  }
+
+  /* CTA band: vertical padding follows the section token; tighten the row gap. */
+  .ag-cta-row {
+    gap: 22px !important;
+  }
+}
+
+/* ============================================================================
+   Long-form prose (.ag-prose) — dark reading styles for MDX-rendered bodies
+   (blog posts + author bios). These MUST be global, not scoped: the content is
+   rendered from MDX at runtime, so scoped selectors can't match its children.
+   Body is a muted warm white for comfortable reading; headings brighter; links
+   carry the brand accent; code sits on a subtle raised surface.
+============================================================================ */
+/* Body scale tuned against Linear's blog (linear.app/now): 15–16px regular 400
+   with a slight negative tracking reads far lighter than a heavier 17px block.
+   We keep Inter for body and GT Alpina for headings — only size/weight/leading
+   and tracking follow Linear. */
+.ag-prose {
+  color: var(--th-text-prose);
+  font-family: var(--font-sans);
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 1.65;
+  letter-spacing: -0.011em;
+}
+.ag-prose > :first-child {
+  margin-top: 0;
+}
+.ag-prose p {
+  margin: 0 0 1.25em;
+}
+.ag-prose h2 {
+  margin: 2em 0 0.55em;
+  font: 400 26px/1.25 var(--font-display);
+  letter-spacing: -0.015em;
+  color: var(--th-text-hi);
+  text-wrap: pretty;
+}
+.ag-prose h3 {
+  margin: 1.7em 0 0.5em;
+  font: 400 20px/1.3 var(--font-display);
+  letter-spacing: -0.012em;
+  color: var(--th-text-hi);
+  text-wrap: pretty;
+}
+.ag-prose h4 {
+  margin: 1.5em 0 0.4em;
+  font: 600 16px/1.4 var(--font-sans);
+  letter-spacing: -0.006em;
+  color: var(--th-text-hi);
+}
+.ag-prose a {
+  color: var(--th-link);
+  font-weight: 400;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  text-decoration-color: var(--th-accent-underline);
+  /* Long URLs/identifiers in prose links must break rather than force the page
+     wider than the phone viewport (they otherwise expand the layout to ~459px). */
+  overflow-wrap: anywhere;
+}
+.ag-prose a:hover {
+  text-decoration-color: var(--th-link);
+}
+.ag-prose strong {
+  color: var(--th-text-hi);
+  font-weight: 600;
+}
+.ag-prose em {
+  font-style: italic;
+}
+.ag-prose ul,
+.ag-prose ol {
+  margin: 0 0 1.15em;
+  padding-left: 1.4em;
+}
+.ag-prose li {
+  margin: 0.35em 0;
+}
+.ag-prose li::marker {
+  color: var(--th-text-dim);
+}
+.ag-prose li > ul,
+.ag-prose li > ol {
+  margin: 0.35em 0;
+}
+.ag-prose code {
+  font-family: var(--font-mono);
+  font-size: 0.88em;
+  background: var(--th-code-bg);
+  border: 1px solid var(--th-code-border);
+  border-radius: 5px;
+  padding: 0.12em 0.4em;
+  color: var(--th-code-text);
+  /* Inline code with a long token/URL must break rather than force the page
+     wider than the phone viewport. Fenced <pre> code is exempted below. */
+  overflow-wrap: anywhere;
+}
+.ag-prose pre {
+  margin: 0 0 1.4em;
+  padding: 18px 20px;
+  background: var(--th-pre-bg);
+  border: 1px solid var(--th-pre-border);
+  border-radius: 12px;
+  overflow-x: auto;
+  font-size: 14px;
+  line-height: 1.6;
+}
+/* Fenced blocks (and any Shiki-highlighted <pre>) drop the inline-code chrome,
+   and keep normal wrapping so multi-line code scrolls (via .ag-prose pre) rather
+   than breaking mid-token like inline code. */
+.ag-prose pre code {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: inherit;
+  color: var(--th-pre-text);
+  overflow-wrap: normal;
+}
+.ag-prose blockquote {
+  margin: 1.4em 0;
+  padding: 4px 0 4px 20px;
+  border-left: 2px solid var(--th-link);
+  color: var(--th-text-body);
+  font-style: italic;
+}
+.ag-prose blockquote p:last-child {
+  margin-bottom: 0;
+}
+.ag-prose hr {
+  border: none;
+  border-top: 1px solid var(--th-border);
+  margin: 2.4em 0;
+}
+.ag-prose img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  border-radius: 12px;
+  margin: 1.6em 0;
+  box-shadow: inset 0 0 0 1px var(--th-border-subtle);
+}
+.ag-prose table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0 0 1.4em;
+  font-size: 15px;
+  display: block;
+  overflow-x: auto;
+}
+.ag-prose th,
+.ag-prose td {
+  padding: 10px 14px;
+  border: 1px solid var(--th-border);
+  text-align: left;
+}
+.ag-prose th {
+  color: var(--th-text-hi);
+  font-weight: 600;
+  background: var(--th-hover);
+}
+
+/* ============================================================================
+   Mobile responsiveness fixes (audit 2026-07). These extend the existing
+   860 = mobile / 600 = phone convention to the pages, headings, and the mobile
+   menu that were never wired into it. Every rule sits inside a max-width query,
+   so desktop (>=861px) is untouched.
+============================================================================ */
+@media (max-width: 860px) {
+  /* Slim the nav bar/pill on mobile — 68px reads too chunky on a phone — and
+     tighten the side padding so the logo and hamburger sit closer to the edges. */
+  .ag-navshell,
+  .ag-nav-inner {
+    height: 54px;
+  }
+  .ag-nav-inner {
+    padding-left: 18px;
+    padding-right: 18px;
+  }
+
+  /* Floating-nav mobile menu. The menu is a normal-flow sibling after <nav>, so
+     once the landing nav sticks and floats into its pill, opening the menu would
+     render it anchored near the top of the document — off-screen when scrolled
+     (measured top: -1081px at scrollY 1148). Pin it to the viewport under the
+     bar/pill so it is always reachable. Above 861px it stays display:none. */
+  .ag-mobile-menu.is-open {
+    position: fixed;
+    top: 58px;
+    left: 12px;
+    right: 12px;
+    z-index: 55;
+    margin-top: 0 !important;
+    max-height: calc(100dvh - 70px);
+    overflow-y: auto;
+    border-top: 1px solid var(--th-border-subtle) !important;
+    border-radius: 14px;
+    box-shadow: var(--th-menu-shadow);
+  }
+  /* When the landing nav has floated into its pill (inset 12px), drop the menu a
+     touch lower so it clears the pill's bottom edge. */
+  .nav-scrolled .ag-mobile-menu.is-open {
+    top: 70px;
+  }
+
+  /* Authors grids never collapsed (inline repeat(3,1fr)); 3-up -> 2-up on tablet.
+     Blog grids keep their own #id rules and are unaffected by this class rule. */
+  .ag-authors-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+
+  /* Shared section side-gutter (authors/blog/404). Previously this reduction
+     lived only inside the blog pages' scoped <style> blocks, so it never reached
+     the authors pages — promoted here so every .ag-pad section gets it. */
+  .ag-pad {
+    padding-left: 20px !important;
+    padding-right: 20px !important;
+  }
+
+  /* Keep large serif section headings off the screen edges. */
+  .ag-sechead {
+    padding-inline: 20px;
+  }
+
+  /* Heading scale — mirror the .ag-h1 mobile steps for every other big heading. */
+  .ag-sectitle {
+    font-size: 34px !important;
+    line-height: 1.14 !important;
+  }
+  .ag-sectitle-xl {
+    font-size: 40px !important;
+  }
+  .ag-dlg {
+    font-size: 34px !important;
+    line-height: 1.14 !important;
+  }
+  .ag-bighead {
+    font-size: 34px !important;
+  }
+}
+
+@media (max-width: 600px) {
+  /* Authors grids: single column on phones. */
+  .ag-authors-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Imprint/contact definition lists: the fixed 160px label column squeezes the
+     value to a ~45px sliver that char-wraps addresses/emails. Stack label over
+     value on phones. */
+  .ag-deflist {
+    grid-template-columns: 1fr !important;
+    gap: 2px 0 !important;
+  }
+  .ag-deflist dt {
+    margin-top: 16px;
+  }
+  .ag-deflist dt:first-of-type {
+    margin-top: 0;
+  }
+  /* Give those panels back inner width on phones. */
+  .ag-info-panel {
+    padding-left: 22px !important;
+    padding-right: 22px !important;
+  }
+
+  /* Heading scale — phone step. */
+  .ag-sectitle {
+    font-size: 28px !important;
+  }
+  .ag-sectitle-xl {
+    font-size: 32px !important;
+  }
+  .ag-dlg {
+    font-size: 28px !important;
+  }
+  .ag-bighead {
+    font-size: 30px !important;
+  }
+}
+
+/* Small phones (<=440px): two content-driven CTA fixes that share this width. */
+@media (max-width: 440px) {
+  /* Pricing hosting toggle (React island): the two options
+     "Agenta Cloud (we host)" / "Self-hosted (you host)" no longer fit side by
+     side and the labels wrap mid-word. Go full-width and stack each option's
+     label over its sublabel so nothing breaks. */
+  .hosting-toggle {
+    width: 100%;
+  }
+  .hosting-tab {
+    flex: 1 1 0;
+    min-width: 0;
+    flex-direction: column;
+    gap: 1px !important;
+    height: auto !important;
+    padding: 9px 8px !important;
+    justify-content: center;
+    text-align: center;
+  }
+  .hosting-tab-label,
+  .hosting-tab-sub {
+    white-space: nowrap;
+  }
+}
+
+/* How-it-works "Automate" tool rows (React island): the file + timestamp meta
+   ("onboarding-v2-prd.md · 09:02") crowds the WRITE_FILE label on small phones.
+   Shrink the row's type a touch so it reads cleanly instead of wrapping tightly. */
+@media (max-width: 480px) {
+  .hiw-toolrow {
+    gap: 6px 9px !important;
+    padding: 8px 11px !important;
+    /* Let the file+time meta drop to its own line (as a whole) rather than
+       break the filename mid-word next to the label. */
+    flex-wrap: wrap !important;
+  }
+  .hiw-toolrow-label {
+    font-size: 11px !important;
+  }
+  .hiw-toolrow-meta {
+    font-size: 10.5px !important;
+    white-space: nowrap;
+  }
+}
+
+/* Stay in control bento: the two panel columns collapse to one on small
+   screens, and the panels give back some horizontal padding. */
+@media (max-width: 860px) {
+  .ag-bento {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+  .ag-bento > div {
+    padding: 40px 24px 48px !important;
+  }
+}
+/* The secret-vault mock: its fixed sidebar and mono key names do not fit a
+   phone side by side, so the two panes stack. */
+@media (max-width: 560px) {
+  .ag-vault {
+    flex-direction: column !important;
+  }
+  .ag-vault > div {
+    flex: none !important;
+    border-radius: 10px !important;
+  }
+}
+
+/* The controls grid keeps only its own border; no full-section vertical rails. */
+.ag-controls { position: relative; }
+/* Preserve readable list columns instead of clipping skill names on phones. */
+@media (max-width: 560px) {
+  .ag-controls-diagram { grid-template-columns: minmax(0, 1fr) 64px minmax(0, 1fr) !important; }
+  .ag-controls-diagram > div:nth-child(2) { transform: scaleX(calc(64 / 140)); transform-origin: left; width: 140px; }
+  .ag-controls-diagram > div:nth-child(2) > div { transform: scaleX(calc(140 / 64)); }
+  .ag-controls-diagram > div:first-child, .ag-controls-diagram > div:last-child { padding: 4px !important; }
+  .ag-controls-diagram > div:first-child > span, .ag-controls-diagram > div:last-child > span { padding-inline: 4px !important; font-size: 10px !important; gap: 4px !important; white-space: normal !important; }
+}
+
+/* Restored self-hosting section. */
+.ag-oss-chip:hover {
+  color: rgba(255, 255, 255, 0.95);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.22);
+}
+@media (max-width: 1100px) {
+  .ag-oss { grid-template-columns: 1fr !important; gap: 48px !important; }
+  .ag-oss-strip { grid-template-columns: 1fr !important; }
+  .ag-oss-strip > a { border-left: none !important; }
+  .ag-oss-strip > a + a { border-top: 1px solid rgba(255, 255, 255, 0.09); }
+}
+@media (max-width: 560px) {
+  .ag-oss-btns > a {
+    flex: 1 1 0;
+    min-width: 0;
+    justify-content: center;
+    padding: 0 8px !important;
+    font-size: 13px !important;
+  }
+}
+
+/* Product capability cards restored from the supplied design. */
+@media (max-width: 860px) {
+  .ag-v2-grid2 { grid-template-columns: 1fr !important; }
+  .ag-v2-grid2 > div { height: 480px !important; }
+  .ag-v2-conn { grid-template-columns: 1fr !important; }
+  .ag-v2-conn > div { border-left: none !important; }
+}
