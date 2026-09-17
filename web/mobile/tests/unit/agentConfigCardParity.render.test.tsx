@@ -40,10 +40,20 @@ vi.mock("../../../packages/agenta-entity-ui/src/agent/state", async () => {
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT: boolean}).IS_REACT_ACT_ENVIRONMENT =
     true
 
+/**
+ * The three harness kinds the API declares, plus a revision that names none. The gate that used to
+ * hide the MCP row matched `.includes("claude")` on this field, so a suite pinned to one value
+ * could not see it; "claude_code" is not even one of the three, and only the loose match let it
+ * through.
+ */
+const HARNESS_KINDS = ["pi_core", "claude", "codex", undefined] as const
+
+const harnessSection = (kind: (typeof HARNESS_KINDS)[number]) => (kind ? {harness: {kind}} : {})
+
 /** One agent, configured enough that every row has something to state. */
 const AGENT = {
     llm: {model: "anthropic/claude-opus-5"},
-    harness: {kind: "claude_code"},
+    harness: {kind: "claude"},
     instructions: {agents_md: "Answer briefly and cite the source."},
     tools: [{type: "gateway_connection", connection: {integration: "linear"}}],
     mcps: [{slug: "octolens"}, {slug: "axiom"}],
@@ -93,7 +103,7 @@ const remount = async () => {
  * An agent with nothing configured, which is where every divergence was hiding: the cards agreed
  * on the fully-populated strings and disagreed on all three empty ones. The harness is deliberately
  * NOT Claude: this app used to hide the MCP row on any other harness, so the empty MCP row is only
- * checked here if the agent carries the harness the gate would have hidden it on.
+ * checked here if the agent carries a harness the gate would have hidden it on.
  */
 const EMPTY_AGENT = {harness: {kind: "pi_core"}}
 
@@ -178,17 +188,19 @@ describe("an agent with nothing configured, on both apps", () => {
         expect(mobile).not.toContain("No integrations")
     })
 
-    it("draws the MCP row on a harness that is not Claude, with no server on the agent", async () => {
-        // The state the gate hid: no MCP server, and a harness the gate did not recognise. Both
-        // cards have to offer the connect verb here, because this is the agent that needs it.
+    it.each(HARNESS_KINDS)("draws the MCP row on harness %s, with no server", async (kind) => {
+        // The state the gate hid: no MCP server, on every harness the API declares and on a
+        // revision naming none. Both cards have to offer the connect verb here, because this is
+        // the agent that needs it.
+        const agent = harnessSection(kind)
         const mobile = await mount(
             <AgentConfigCard agentId="agent" onEdit={() => undefined} />,
-            EMPTY_AGENT,
+            agent,
         )
         await remount()
         const desktop = await mount(
             <AgentConfigSummaryCard appId="agent" onEdit={() => undefined} />,
-            EMPTY_AGENT,
+            agent,
         )
 
         for (const shown of [mobile, desktop]) {
