@@ -253,6 +253,9 @@ describe("a retry after a save whose response was lost", () => {
         },
     }
 
+    /** A create that went out and never came back with an answer. */
+    const lostAnswer = new Error("network down")
+
     /** Type the URL and the name, then submit it. */
     const submitNamed = async (name = "Acme", url = "https://mcp.acme.test/") => {
         await act(async () => journey.setUrl(url))
@@ -266,11 +269,30 @@ describe("a retry after a save whose response was lost", () => {
         await settle()
     }
 
+    /** Submit the same name again, which is what Try again does. */
+    const retryName = async () => {
+        await act(async () => {
+            await journey.submitName()
+        })
+        await settle()
+    }
+
+    /**
+     * The sequence the adoption exists for: a save that landed and lost its answer, then a
+     * retry the API refuses because the row from the first one is already there.
+     */
+    const submitThenRetryAfterALostSave = async () => {
+        createMcpEndpoint.mockRejectedValueOnce(lostAnswer)
+        createMcpEndpoint.mockRejectedValue(nameTaken)
+        await mountJourney()
+        await submitNamed()
+        await retryName()
+    }
+
     it("continues from the row its own lost save already made", async () => {
         // The first save landed and only its answer was lost, so the retry's create is refused
         // by the row the person already owns. Telling them to rename it is a dead end: the only
         // way forward was to invent a second name for one connection (round 4, D3).
-        createMcpEndpoint.mockRejectedValue(nameTaken)
         queryMcpEndpoints.mockResolvedValue({
             count: 1,
             endpoints: [
@@ -284,8 +306,7 @@ describe("a retry after a save whose response was lost", () => {
             ],
         })
 
-        await mountJourney()
-        await submitNamed()
+        await submitThenRetryAfterALostSave()
 
         expect(journey.state.status).toBe("discovering_scopes")
         expect(journey.state.endpointId).toBe("mcp-1")
@@ -293,10 +314,64 @@ describe("a retry after a save whose response was lost", () => {
         expect(journey.state.error).toBeNull()
     })
 
+    it("refuses a name the project already uses, however well the address matches", async () => {
+        // Nothing of this journey's can be behind a conflict it meets on its first try, so the
+        // row is somebody else's connection even though it points at the same server. Taking
+        // it over reported a connection as made under a name that was never free, which is
+        // what the API refused and the sheet went on to call success (round 6, D-R6-3).
+        createMcpEndpoint.mockRejectedValue(nameTaken)
+        queryMcpEndpoints.mockResolvedValue({
+            count: 1,
+            endpoints: [
+                {
+                    id: "mcp-9",
+                    slug: "acme-someone-else",
+                    name: "Acme",
+                    auth_mode: "oauth",
+                    data: {route: {base_url: "https://mcp.acme.test/"}},
+                },
+            ],
+        })
+
+        await mountJourney()
+        await submitNamed()
+
+        expect(journey.state.status).toBe("naming")
+        expect(journey.state.endpointId).toBeNull()
+        expect(journey.state.error).toContain("already uses this name")
+        // The refusal is the answer; the list is not even consulted.
+        expect(queryMcpEndpoints).not.toHaveBeenCalled()
+    })
+
+    it("keeps refusing it however many times the same name is submitted", async () => {
+        // A second press of Connect is not a retry of a lost save: the first press was
+        // refused, so it wrote nothing that a later conflict could be.
+        createMcpEndpoint.mockRejectedValue(nameTaken)
+        queryMcpEndpoints.mockResolvedValue({
+            count: 1,
+            endpoints: [
+                {
+                    id: "mcp-9",
+                    slug: "acme-someone-else",
+                    name: "Acme",
+                    auth_mode: "oauth",
+                    data: {route: {base_url: "https://mcp.acme.test/"}},
+                },
+            ],
+        })
+
+        await mountJourney()
+        await submitNamed()
+        await retryName()
+
+        expect(journey.state.status).toBe("naming")
+        expect(journey.state.endpointId).toBeNull()
+        expect(journey.state.error).toContain("already uses this name")
+    })
+
     it("does not claim the row it adopted, so cancelling leaves it alone", async () => {
         // The row it found is indistinguishable from one somebody else made a moment earlier.
         // Deleting that on cancel would destroy a connection this journey never created.
-        createMcpEndpoint.mockRejectedValue(nameTaken)
         queryMcpEndpoints.mockResolvedValue({
             count: 1,
             endpoints: [
@@ -309,8 +384,7 @@ describe("a retry after a save whose response was lost", () => {
             ],
         })
 
-        await mountJourney()
-        await submitNamed()
+        await submitThenRetryAfterALostSave()
         await act(async () => {
             await journey.cancel()
         })
@@ -323,7 +397,6 @@ describe("a retry after a save whose response was lost", () => {
     it("still refuses a name another server has already taken", async () => {
         // The name matches and the address does not, so this is the collision the refusal is
         // for: two connections to two servers cannot share one label.
-        createMcpEndpoint.mockRejectedValue(nameTaken)
         queryMcpEndpoints.mockResolvedValue({
             count: 1,
             endpoints: [
@@ -336,8 +409,7 @@ describe("a retry after a save whose response was lost", () => {
             ],
         })
 
-        await mountJourney()
-        await submitNamed()
+        await submitThenRetryAfterALostSave()
 
         expect(journey.state.status).toBe("naming")
         expect(journey.state.endpointId).toBeNull()
@@ -345,11 +417,9 @@ describe("a retry after a save whose response was lost", () => {
     })
 
     it("leaves the refusal standing when the connection list cannot be read", async () => {
-        createMcpEndpoint.mockRejectedValue(nameTaken)
         queryMcpEndpoints.mockRejectedValue(new Error("network down"))
 
-        await mountJourney()
-        await submitNamed()
+        await submitThenRetryAfterALostSave()
 
         expect(journey.state.status).toBe("naming")
         expect(journey.state.error).toContain("already uses this name")

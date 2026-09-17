@@ -177,13 +177,23 @@ export const mcpConnectAcceptanceTests = (license: TestLicenseType) => () => {
 
             await scenarios.when("the user submits that name", async () => {
                 const dialog = await startJourney(page, `${mockMcpBase()}/`, name)
-                await dialog.getByRole("button", {name: "Connect", exact: true}).click()
 
-                // The SERVER's refusal, which is the one this case exists to exercise. The
-                // client refuses a collision it can see in its own list, and both sentences
-                // open the same way, so matching on the opening proves only that something
-                // refused: the case passed identically whether or not the request was ever
-                // made (D51). The next step is the server's alone.
+                // The SERVER's refusal is what this case exists to exercise, and both checks
+                // now say the same sentence (decision 15), so the copy alone cannot tell
+                // whether the request was ever made. The response is what can: a create that
+                // reaches the API and comes back 409 is the refusal, and a journey that
+                // reports success afterwards has taken over somebody else's connection
+                // instead of refusing it (round 6, D-R6-3).
+                const refused = page.waitForResponse(
+                    (response) =>
+                        response.request().method() === "POST" &&
+                        new URL(response.url()).pathname.endsWith("/gateways/mcps/endpoints/") &&
+                        response.status() === 409,
+                    {timeout: PROBE_MS},
+                )
+                await dialog.getByRole("button", {name: "Connect", exact: true}).click()
+                await refused
+
                 const refusal = dialog.getByText(
                     "Give this connection a name no other one in the project uses.",
                 )
@@ -191,6 +201,8 @@ export const mcpConnectAcceptanceTests = (license: TestLicenseType) => () => {
                 // Said once rather than twice: the field error and a generic paragraph both
                 // rendering it is what D39 was about.
                 await expect(dialog.getByText("already uses this name")).toHaveCount(1)
+                // Nothing was connected: a success screen here is the defect this case caught.
+                await expect(dialog.getByText("is connected.")).toHaveCount(0)
             })
 
             await scenarios.then("the journey stays on the name step", async () => {

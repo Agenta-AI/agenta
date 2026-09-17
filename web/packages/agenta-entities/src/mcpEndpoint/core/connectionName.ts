@@ -70,10 +70,25 @@ export function suggestConnectionName({
 }
 
 /**
+ * What the API answers a taken display name with, as a reader meets it: the `message` and
+ * the `next_step` of its 409 `mcp_connection_name_taken`, joined the way
+ * `gatewayRefusalMessage` joins them.
+ *
+ * Repeated here rather than asked for, because the client refuses a collision it can
+ * already see without making the request. Two wordings for one refusal is how a person
+ * learns that the sheet and the server disagree about what a duplicate is, so both paths
+ * say this (decision 15). `mcpConnectionName.test.ts` pins it against the API's own
+ * strings in `api/oss/src/core/gateways/mcps/types.py` and `.../gateways/exceptions.py`.
+ */
+export const NAME_TAKEN_REFUSAL =
+    "Another connection in this project already uses this name; pick a different one. " +
+    "Give this connection a name no other one in the project uses."
+
+/**
  * Why this display name cannot be used, or null when it can.
  *
  * Compared on the normalized form the API deduplicates on, so this refuses exactly what a
- * save would refuse.
+ * save would refuse, in the words the save would refuse it with.
  */
 export function connectionNameProblem({
     name,
@@ -95,7 +110,7 @@ export function connectionNameProblem({
         .filter((existing) => existing !== mine)
 
     if (taken.includes(normalize(trimmed))) {
-        return "Another connection in this project already uses this name."
+        return NAME_TAKEN_REFUSAL
     }
     return null
 }

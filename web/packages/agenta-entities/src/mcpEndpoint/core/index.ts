@@ -72,7 +72,12 @@ export type {
     McpToolAnnotations,
     McpToolSummary,
 } from "./connectJourney"
-export {connectionNameProblem, hostnameLabel, suggestConnectionName} from "./connectionName"
+export {
+    connectionNameProblem,
+    hostnameLabel,
+    NAME_TAKEN_REFUSAL,
+    suggestConnectionName,
+} from "./connectionName"
 export {
     buildMcpConnectionRef,
     isLegacyMcpItem,

@@ -105,6 +105,17 @@ describe("connectionNameProblem", () => {
         )
     })
 
+    it("refuses it in the API's own words, so the two checks read as one rule", () => {
+        // Decision 15. The client refuses a collision it can already see without asking, and
+        // the server refuses the ones it cannot. A person who meets both must not be able to
+        // tell that there were two checks, so this string is the API's 409 verbatim:
+        // `MCPConnectionNameTakenError` plus the `next_step` its handler attaches.
+        expect(connectionNameProblem({name: "Acme", existingNames: ["Acme"]})).toBe(
+            "Another connection in this project already uses this name; pick a different one. " +
+                "Give this connection a name no other one in the project uses.",
+        )
+    })
+
     it("refuses one that only looks different", () => {
         // The API sees both as "Acme_Tools", so accepting this would submit a name the
         // server rejects.
