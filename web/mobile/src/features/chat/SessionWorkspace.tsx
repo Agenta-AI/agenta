@@ -2,7 +2,6 @@ import {useCallback, useEffect, useMemo, useRef, useState, type ReactNode} from 
 
 import {
     chatPanelMaximizedAtom,
-    configPanelCollapsedAtom,
     FILES_PANE_MAX,
     FILES_PANE_MIN,
     filesPaneWidthAtom,
@@ -26,8 +25,9 @@ import {useRouter} from "next/router"
 
 import {AppShell} from "../nav/AppShell"
 
+import {mobileConfigPanelCollapsedAtom} from "./configPaneState"
 import {selectedRevisionAtomFamily} from "./selectedRevision"
-import {resolveSessionPanes} from "./sessionPanes"
+import {conversationHidden, resolveSessionPanes} from "./sessionPanes"
 import {SessionsPane} from "./SessionsPane"
 import {SessionTabs} from "./SessionTabs"
 import {SessionTopBar} from "./SessionTopBar"
@@ -109,7 +109,7 @@ export const SessionWorkspace = ({
     // An automation row's "Test run" (config pane) lands in a new session with this agent.
     useTriggerTestRun({entityId, agentId, base})
 
-    const configCollapsed = useAtomValue(configPanelCollapsedAtom)
+    const configCollapsed = useAtomValue(mobileConfigPanelCollapsedAtom)
     // Files dock as a resizable right-edge pane, as they do on the desktop, rather than an
     // overlay drawer. Scope is the AGENT, not the session: opening files then switching session
     // must not snap the pane shut.
@@ -147,7 +147,7 @@ export const SessionWorkspace = ({
 
     // The desktop's coexistence rule: too narrow for both side panes, so they take turns.
     // Edge-triggered, so they cannot evict each other in a loop.
-    const setConfigCollapsed = useSetAtom(configPanelCollapsedAtom)
+    const setConfigCollapsed = useSetAtom(mobileConfigPanelCollapsedAtom)
     const canPanesCoexist = useCanPanesCoexist(SIDEBAR_DEFAULT_WIDTH)
     const panesMustAlternate = twoPane && !canPanesCoexist
     const prevFilesOpenRef = useRef(filesOpen)
@@ -291,7 +291,9 @@ export const SessionWorkspace = ({
                             resizable={twoPane && showPane}
                             paneGrow={!twoPane && showPane}
                             paneClassName={!twoPane && !showPane ? "hidden" : undefined}
-                            fillClassName={!twoPane && showPane ? "hidden" : undefined}
+                            fillClassName={
+                                conversationHidden({twoPane, showPane}) ? "hidden" : undefined
+                            }
                             // Controlled width: the drag must write through per tick, or the pane only
                             // snaps at pointer-up.
                             onResize={(size) => setPaneSize(size)}

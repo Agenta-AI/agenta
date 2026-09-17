@@ -1,4 +1,4 @@
-import {chatPanelMaximizedAtom, configPanelCollapsedAtom} from "@agenta/chat/state"
+import {chatPanelMaximizedAtom} from "@agenta/chat/state"
 import {querySessionStreams} from "@agenta/entities/session"
 import {useSessionFilesPane} from "@agenta/entity-ui/drive"
 import {SessionTabRail, withShortcutKey} from "@agenta/sessions-ui"
@@ -14,6 +14,7 @@ import {PageTitle} from "@/components/PageTitle"
 
 import {useSessionRowMenu} from "../sessions/useSessionRowMenu"
 
+import {mobileConfigPanelCollapsedAtom} from "./configPaneState"
 import {InspectSessionButton} from "./InspectSessionButton"
 import {SessionHistoryMenu} from "./SessionHistoryMenu"
 import {useSessionTabClose} from "./useSessionTabClose"
@@ -54,7 +55,7 @@ export const SessionTabs = ({
     const menu = useSessionRowMenu(base)
     const startBlank = useStartBlankSession(base)
     const closeTabs = useSessionTabClose({agentId, sessionId, base})
-    const [configCollapsed, setConfigCollapsed] = useAtom(configPanelCollapsedAtom)
+    const [configCollapsed, setConfigCollapsed] = useAtom(mobileConfigPanelCollapsedAtom)
     const {open: filesOpen, openPane} = useSessionFilesPane(agentId ?? sessionId, sessionId)
     // Key leads with `session-stream`: a rename patches by key PREFIX, so a nested key never
     // matches and the title lags. The singular GET redirects onto the web app, so POST it.

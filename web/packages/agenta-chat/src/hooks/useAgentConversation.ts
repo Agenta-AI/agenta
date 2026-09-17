@@ -21,6 +21,7 @@ import {
     invalidateSessionLivenessQueries,
     fetchSessionInteractionStatesAtom,
     interactionStatesFromWatchEvent,
+    isApprovalNotPendingError,
     recordInteractionAnswerAtom,
     respondInteractionAnswerAtom,
     respondInteractionAnswersAtom,
@@ -62,7 +63,12 @@ import {startupLabelFromDataPart} from "../assets/startupPhases"
 import {getMessageTraceId} from "../assets/trace"
 import {reconcileInteractionRowStates} from "../assets/transcriptToMessages"
 import {isClientToolPart as defaultIsClientToolPart} from "../clientTools"
-import {classifyAgentRunError, type ParsedRunError, type RunErrorMetadata} from "../model/error"
+import {
+    classifyAgentRunError,
+    parseAgentRunError,
+    type ParsedRunError,
+    type RunErrorMetadata,
+} from "../model/error"
 import {withoutSharedSenderAcceptanceMessages} from "../model/livePreview"
 import {deriveSessionRunStatus, type SessionRunStatus} from "../model/sessionStatus"
 import {
@@ -919,6 +925,39 @@ export const useAgentConversation = ({
         }
     }, [pendingApprovalId])
 
+    // Run failures become conversation content; an accepted transport loss stays connection state.
+    // A callback rather than effect-only code, because a failure that never reaches `useChat` has
+    // no other way onto the screen, and an approval the server refuses is one of those.
+    const stampRunError = useCallback(
+        (parsed: ParsedRunError) => {
+            const stamp: RunErrorMetadata = {runError: parsed}
+            setMessages((prev) => {
+                const last = prev.length > 0 ? prev[prev.length - 1] : undefined
+                const existing = (last?.metadata as RunErrorMetadata | undefined)?.runError
+                if (last?.role === "assistant") {
+                    if (existing?.message === parsed.message) return prev // already stamped
+                    const next = [...prev]
+                    next[next.length - 1] = {
+                        ...last,
+                        metadata: {...(last.metadata as object | undefined), ...stamp},
+                    }
+                    return next
+                }
+                // No trailing assistant turn (failed before one existed) — add a minimal carrier.
+                return [
+                    ...prev,
+                    {
+                        id: `run-error-${generateId()}`,
+                        role: "assistant",
+                        parts: [],
+                        metadata: stamp,
+                    } as (typeof prev)[number],
+                ]
+            })
+        },
+        [setMessages],
+    )
+
     // Durable gates resume on the server; legacy gates still release the local SDK.
     const sendToolOutput = useCallback(
         async ({toolName, toolCallId, output, errorText}: ToolOutputSettleInput) => {
@@ -931,40 +970,58 @@ export const useAgentConversation = ({
                     ? {outcome: "error", error: errorText}
                     : {outcome: "completed", output: output ?? {}}),
             }
-            const outcome = await submitApprovalForCapability({
-                durableApprovals: supportsDurableApprovals(sessionId),
-                submitDurable: () => respondInteractionAnswer({sessionId, toolCallId, resolution}),
-                retireDurable: () => {
-                    liveGateInteractionRef.current = null
-                },
-                recordLegacy: () => recordInteractionAnswer({sessionId, toolCallId, resolution}),
-                releaseLegacy: () => {
-                    if (errorText !== undefined) {
-                        addToolOutput({
-                            state: "output-error",
-                            tool: toolName as never,
-                            toolCallId,
-                            errorText,
-                        }).catch(ignoreStreamRejection)
-                    } else {
-                        addToolOutput({
-                            tool: toolName as never,
-                            toolCallId,
-                            output: (output ?? {}) as never,
-                        }).catch(ignoreStreamRejection)
-                    }
-                },
-            })
-            if (approvalResponseOwnerRef.current === toolCallId) {
-                setRecoverableContinuation(outcome.recoverable)
-                setContinuationExecutionId(outcome.executionId ?? null)
+            const settle = (result: {recoverable: boolean; executionId?: string}) => {
+                if (approvalResponseOwnerRef.current !== toolCallId) return
+                setRecoverableContinuation(result.recoverable)
+                setContinuationExecutionId(result.executionId ?? null)
             }
+
+            let outcome: {recoverable: boolean; executionId?: string}
+            try {
+                outcome = await submitApprovalForCapability({
+                    durableApprovals: supportsDurableApprovals(sessionId),
+                    submitDurable: () =>
+                        respondInteractionAnswer({sessionId, toolCallId, resolution}),
+                    retireDurable: () => {
+                        liveGateInteractionRef.current = null
+                    },
+                    recordLegacy: () =>
+                        recordInteractionAnswer({sessionId, toolCallId, resolution}),
+                    releaseLegacy: () => {
+                        if (errorText !== undefined) {
+                            addToolOutput({
+                                state: "output-error",
+                                tool: toolName as never,
+                                toolCallId,
+                                errorText,
+                            }).catch(ignoreStreamRejection)
+                        } else {
+                            addToolOutput({
+                                tool: toolName as never,
+                                toolCallId,
+                                output: (output ?? {}) as never,
+                            }).catch(ignoreStreamRejection)
+                        }
+                    },
+                })
+            } catch (error) {
+                // A transcript reloaded after an approved gate replays its tool output, and the
+                // gate the first submit settled is not pending any more. The answer is already in;
+                // only this second submit is redundant. Nothing caught it before, so the rejection
+                // reached no handler at all: dev showed the Next error overlay and production got
+                // a silently dead approval. The mobile dock has always read it this way.
+                if (!isApprovalNotPendingError(error)) stampRunError(parseAgentRunError(error))
+                settle({recoverable: false})
+                return
+            }
+            settle(outcome)
         },
         [
             addToolOutput,
             recordInteractionAnswer,
             respondInteractionAnswer,
             sessionId,
+            stampRunError,
             supportsDurableApprovals,
         ],
     )
@@ -989,35 +1046,9 @@ export const useAgentConversation = ({
         [sessionId, setSessionStatus],
     )
 
-    // Run failures become conversation content; an accepted transport loss stays connection state.
     useEffect(() => {
-        const parsed = errorBoundary.runError
-        if (!parsed) return
-        const stamp: RunErrorMetadata = {runError: parsed}
-        setMessages((prev) => {
-            const last = prev.length > 0 ? prev[prev.length - 1] : undefined
-            const existing = (last?.metadata as RunErrorMetadata | undefined)?.runError
-            if (last?.role === "assistant") {
-                if (existing?.message === parsed.message) return prev // already stamped
-                const next = [...prev]
-                next[next.length - 1] = {
-                    ...last,
-                    metadata: {...(last.metadata as object | undefined), ...stamp},
-                }
-                return next
-            }
-            // No trailing assistant turn (failed before one existed) — add a minimal carrier.
-            return [
-                ...prev,
-                {
-                    id: `run-error-${generateId()}`,
-                    role: "assistant",
-                    parts: [],
-                    metadata: stamp,
-                } as (typeof prev)[number],
-            ]
-        })
-    }, [errorBoundary.runError, setMessages])
+        if (errorBoundary.runError) stampRunError(errorBoundary.runError)
+    }, [errorBoundary.runError, stampRunError])
 
     // A live turn makes the transcript no longer a copy of the server's, and we can't know how many
     // records the runner logged for it — so drop the watermark and let the next open re-sync from

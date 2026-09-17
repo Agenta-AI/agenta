@@ -163,6 +163,9 @@ export {
     type SessionInteractionRowStates,
 } from "./state/interactionStatus"
 export {
+    APPROVAL_NOT_PENDING,
+    ApprovalNotPendingError,
+    isApprovalNotPendingError,
     recordInteractionAnswerAtom,
     respondInteractionAnswerAtom,
     respondInteractionAnswersAtom,

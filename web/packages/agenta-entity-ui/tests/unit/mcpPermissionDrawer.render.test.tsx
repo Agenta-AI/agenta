@@ -533,6 +533,63 @@ describe("Ask for write and delete — the preset that writes what it says", () 
         expect(text()).not.toContain("mixed")
     })
 
+    it("names no preset while the list is on its way, for a policy shaped like this one", async () => {
+        // The adversarial policy: the three fields this preset writes, allowing the one tool that
+        // deletes things. The select read "Ask for write and delete" from that shape alone, so
+        // until the rows arrived it told a reader that this server's read-only tools run
+        // automatically. It shows the list area's own loading bar instead now.
+        listMcpTools.mockImplementation(() => new Promise(() => undefined))
+        await render({
+            policy: {
+                permission: "ask",
+                tool_permissions: {delete_issue: "allow"},
+                new_tool_permission: "ask",
+            } as McpServerPolicy,
+        })
+
+        expect(labelled("Default permission")).toBeNull()
+        expect(text()).not.toContain("Ask for write and delete")
+        // The label stays, so the row keeps its meaning while the control is pending.
+        expect(text()).toContain("Default permission")
+    })
+
+    it("says Custom for that policy once the list has settled it", async () => {
+        await render({
+            policy: {
+                permission: "ask",
+                tool_permissions: {delete_issue: "allow"},
+                new_tool_permission: "ask",
+            } as McpServerPolicy,
+        })
+
+        expect(labelled("Default permission")?.textContent).toContain("Custom · 1 override")
+        expect(labelled("Default permission")?.textContent).not.toContain(
+            "Ask for write and delete",
+        )
+    })
+
+    it("names no preset for its own policy while the list is on its way either", async () => {
+        listMcpTools.mockImplementation(() => new Promise(() => undefined))
+        await render({
+            policy: {
+                permission: "ask",
+                tool_permissions: {get_issue: "allow"},
+                new_tool_permission: "ask",
+            } as McpServerPolicy,
+        })
+
+        expect(labelled("Default permission")).toBeNull()
+    })
+
+    it("draws a preset for every other policy while the list is on its way", async () => {
+        // Pending must not stand in for an answer the drawer could give. Nothing about an absent
+        // policy depends on which tools a server calls read-only.
+        listMcpTools.mockImplementation(() => new Promise(() => undefined))
+        await render({policy: {}})
+
+        expect(labelled("Default permission")?.textContent).toContain("Follow agent policy")
+    })
+
     it("is not offered until the tool list has arrived", async () => {
         // Picking it without the list would write no tool names at all, which is the absent policy
         // wearing this preset's words. The list area beside it is showing its own loading rows.

@@ -16,6 +16,13 @@ import {MCP_PRESETS, readMcpPreset} from "../../src/mcpEndpoint/mcpPresets"
 
 const READ_ONLY = ["get_issue", "list_issues"]
 
+/** The tool list in hand, which is the only state in which a preset can be named for certain. */
+const loaded = {names: READ_ONLY, arriving: false}
+/** The list still on its way. */
+const arriving = {names: null, arriving: true}
+/** No list, and none coming: a read that failed does not come back. */
+const absent = {names: null, arriving: false}
+
 describe("MCP_PRESETS", () => {
     it("adds one preset to the shared five, for the state the wire spells as an absence", () => {
         expect(MCP_PRESETS.map((preset) => preset.value)).toEqual([
@@ -68,21 +75,21 @@ describe("MCP_PRESETS", () => {
 
 describe("readMcpPreset", () => {
     it("reads a policy with nothing written as the preset named for that", () => {
-        expect(readMcpPreset({}, READ_ONLY)).toEqual({preset: "follow_agent", overrideCount: 0})
+        expect(readMcpPreset({}, loaded)).toEqual({preset: "follow_agent", overrideCount: 0})
     })
 
     it("does not read it as the preset that promises read-only tools run automatically", () => {
-        expect(readMcpPreset({}, READ_ONLY).preset).not.toBe("ask_writes")
+        expect(readMcpPreset({}, loaded).preset).not.toBe("ask_writes")
     })
 
     it("reads each whole-server value as its own preset", () => {
-        expect(readMcpPreset({permission: "ask"}, READ_ONLY).preset).toBe("always_ask")
-        expect(readMcpPreset({permission: "allow"}, READ_ONLY).preset).toBe("allow_all")
-        expect(readMcpPreset({permission: "deny"}, READ_ONLY).preset).toBe("deny_all")
+        expect(readMcpPreset({permission: "ask"}, loaded).preset).toBe("always_ask")
+        expect(readMcpPreset({permission: "allow"}, loaded).preset).toBe("allow_all")
+        expect(readMcpPreset({permission: "deny"}, loaded).preset).toBe("deny_all")
     })
 
     it("reads the shape the ask-writes preset writes back as that preset", () => {
-        expect(readMcpPreset(askWritesPolicy(READ_ONLY), READ_ONLY)).toEqual({
+        expect(readMcpPreset(askWritesPolicy(READ_ONLY), loaded)).toEqual({
             preset: "ask_writes",
             overrideCount: 2,
         })
@@ -95,7 +102,7 @@ describe("readMcpPreset", () => {
             new_tool_permission: "allow",
         }
 
-        expect(readMcpPreset(byHand, READ_ONLY)).toEqual({preset: "custom", overrideCount: 1})
+        expect(readMcpPreset(byHand, loaded)).toEqual({preset: "custom", overrideCount: 1})
     })
 
     it("reads an ask-writes shape that names the wrong tools as Custom", () => {
@@ -107,12 +114,53 @@ describe("readMcpPreset", () => {
             new_tool_permission: "ask",
         }
 
-        expect(readMcpPreset(askedPlusOne, READ_ONLY).preset).toBe("custom")
+        expect(readMcpPreset(askedPlusOne, loaded).preset).toBe("custom")
     })
 
-    it("reads the shape alone while the tool list has not arrived", () => {
-        // Otherwise the select says "Custom · 2 overrides" for as long as the list takes and then
-        // corrects itself, on the policy this preset just wrote.
-        expect(readMcpPreset(askWritesPolicy(READ_ONLY), null).preset).toBe("ask_writes")
+    it("names no preset at all while the list that would settle it is on its way", () => {
+        // Not "Ask for write and delete": naming it makes its help line's promise, and without the
+        // list nobody has checked which tools this policy allows.
+        expect(readMcpPreset(askWritesPolicy(READ_ONLY), arriving)).toEqual({
+            preset: null,
+            overrideCount: 2,
+        })
+    })
+
+    it("names no preset for a policy allowing the most destructive tool a server has", () => {
+        // The adversarial case, and the reason the pending state exists. These three fields are
+        // the ones the preset writes, so a shape-only read called this "Ask for write and delete"
+        // and told a reader that its read-only tools run automatically.
+        const destructive: McpServerPolicy = {
+            permission: "ask",
+            tool_permissions: {delete_issue: "allow"},
+            new_tool_permission: "ask",
+        }
+
+        expect(readMcpPreset(destructive, arriving).preset).toBeNull()
+        // And once the list settles it, the honest answer, which claims nothing about reads.
+        expect(readMcpPreset(destructive, loaded).preset).toBe("custom")
+    })
+
+    it("falls back to the conservative read once no list is coming", () => {
+        // A tool list that failed is not on its way back, and a control that waits forever is its
+        // own untruth. Custom says there are per-tool rules and claims nothing about which.
+        expect(readMcpPreset(askWritesPolicy(READ_ONLY), absent).preset).toBe("custom")
+    })
+
+    it("answers every other policy the same with the list or without it", () => {
+        // Pending must never stand in for an answer this could give. Only the ask-writes shape is
+        // unknowable; a policy that is not that shape reads the same in all three states.
+        for (const policy of [
+            {},
+            {permission: "allow"} as McpServerPolicy,
+            {permission: "deny"} as McpServerPolicy,
+            {permission: "ask"} as McpServerPolicy,
+            {permission: "allow", tool_permissions: {delete_issue: "deny"}} as McpServerPolicy,
+        ]) {
+            const settled = readMcpPreset(policy, loaded)
+            expect(readMcpPreset(policy, arriving)).toEqual(settled)
+            expect(readMcpPreset(policy, absent)).toEqual(settled)
+            expect(settled.preset).not.toBeNull()
+        }
     })
 })
