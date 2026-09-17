@@ -33,6 +33,7 @@ import {
     McpPermissionDrawer,
     type McpConnectionOption,
 } from "../../../mcpEndpoint"
+import type {PermissionPolicy} from "../permissionPolicy"
 
 import {ConfigItemList} from "./ConfigItemList"
 import {type ItemRowStatus} from "./ItemRow"
@@ -54,6 +55,9 @@ export interface McpServersSectionBodyProps {
     /** Driven by the section header's add button, which renders outside this body. */
     addOpen: boolean
     onAddClose: () => void
+    /** The agent's own `runner.permissions.default`, which the permission drawer's "Follow agent
+     *  policy" preset names: that preset's whole meaning is this value. */
+    agentPolicy?: PermissionPolicy | null
 }
 
 export function McpServersSectionBody({
@@ -64,6 +68,7 @@ export function McpServersSectionBody({
     removeItem,
     closeEditor,
     statusFor,
+    agentPolicy,
     emptyAdd,
     addOpen,
     onAddClose,
@@ -253,6 +258,7 @@ export function McpServersSectionBody({
                     cachedToolCount={
                         permissionEndpoint ? readMcpToolCount(permissionEndpoint) : null
                     }
+                    agentPolicy={agentPolicy}
                     disabled={disabled}
                 />
             ) : null}

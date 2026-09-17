@@ -130,6 +130,12 @@ export interface PermissionPresetSource {
     overrideCount: number
     onPick: (preset: PermissionPresetValue) => void
     /**
+     * The preset whose meaning is "the agent's own permission policy decides", so the note naming
+     * that policy is drawn under it. Both tables have one and they are not the same preset, which
+     * is why a source names its own.
+     */
+    agentPolicyPreset?: PermissionPresetValue
+    /**
      * The source cannot say which preset this policy is yet, so the select gives way to the
      * loading affordance the list area uses. Naming a preset is making its help line's promise,
      * and a guess held until the data arrives is the promise made on a policy nobody has read.
@@ -548,13 +554,16 @@ function PermissionDrawerBody({
         [presetList, overrideCount],
     )
 
-    // Open question 1: the Composio preset saves `inherit`, which means "reads run, writes ask"
-    // only while the agent-wide mode is its default. Say so rather than letting the words quietly
-    // change. A source with its own presets is not qualified here, because it owns its own words:
-    // the MCP one writes what it says instead of leaning on the agent's ladder (decision 45).
+    // The Composio preset saves `inherit`, which means "reads run, writes ask" only while the
+    // agent-wide mode is its default, so the note names that mode when it is not. A source with
+    // its own presets points the same sentence at a different one: MCP's "Ask for write and
+    // delete" writes what it says and needs no qualifying (decision 45), while its "Follow agent
+    // policy" leans on the ladder entirely and is the preset whose whole meaning IS the policy
+    // this sentence names.
+    const notePreset = presets ? presets.agentPolicyPreset : "ask_writes"
     const agentPolicyNote =
-        !presets &&
-        preset === "ask_writes" &&
+        notePreset &&
+        preset === notePreset &&
         agentPolicy &&
         agentPolicy !== DEFAULT_PERMISSION_POLICY
             ? `This agent's permission policy is set to ${
