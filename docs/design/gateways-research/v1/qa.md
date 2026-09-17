@@ -88,6 +88,12 @@ API-only request: those prove the proxy, not the product path.
    whole-directory run reports a different connection missing on each run while each file passes
    on its own. The mock addresses fail more plainly, as read timeouts.
 
+   Since D97 the API integration layers dial the deployment's published Postgres port, which they
+   read from `POSTGRES_PORT`, and a layer whose database is unreachable now fails loudly instead of
+   skipping. One consequence for this list: the `integration/sessions` layer runs on a host-side
+   invocation too, and it is the layer that needs `REDIS_URI_VOLATILE` and `REDIS_URI_DURABLE`
+   above, pointed at the ports the local override publishes Redis on.
+
    The two mock-upstream variables matter for more than `test_mock_upstreams.py`. The OAuth
    endpoint-write and recovery suites relay through the mock MCP server too, and they fail
    without it.

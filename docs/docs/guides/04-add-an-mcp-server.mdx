@@ -23,7 +23,11 @@ Start from `Settings` in the sidebar, then `MCPs`, and click `Connect MCP`. You 
 
    **`Reachable · signs in with OAuth`.** Click `Connect`. The provider's authorization page opens in a new window. Complete it there, and the sheet carries on by itself. Agenta does not ask you to choose scopes. The server decides what it grants.
 
-   **`Reachable · needs an API key`.** Agenta prefills `Header` with `Authorization`, and you can edit it to whatever the server expects, such as `x-api-key`. Pick the `Project secret` that holds the key. If the project has no secrets yet, click `Create secret` in that list to make one without leaving the sheet. Click `Connect`. Agenta calls the server once with that credential, so a wrong header or a wrong key fails here rather than during an agent run. If the server turns out to need nothing, click `Connect without authentication` instead.
+   **`Reachable · needs an API key`.** Agenta prefills `Header` with `Authorization`. Edit it to whatever the server expects, such as `x-api-key`. Pick the `Project secret` that holds the key, and if the project has no secrets yet, click `Create secret` in that list to make one without leaving the sheet. Click `Connect`. Agenta calls the server once with that credential, so a wrong header or a wrong key fails here rather than during an agent run.
+
+   You land on this screen under the same line when the server asked to be signed in without saying how. Agenta shows the key form because a header is the only thing it can offer, not because it read a requirement for one. If the server in fact needs nothing, click `Connect without authentication`.
+
+   If the server named an authentication scheme other than Bearer, a line under `Header` says which one it asked for. The field still starts on `Authorization`, because the scheme names what goes in the header's value rather than the header itself.
 
    **`Reachable · no sign-in needed`.** The sheet asks only for a name. Click `Connect`.
 
@@ -57,24 +61,28 @@ Permissions belong to the agent, not to the connection. Two agents can share one
 
 The permission drawer opens on `Default permission`.
 
-1. Pick a preset. `Always ask` holds every tool call for your approval. `Ask for write and delete` runs read-only tools on their own and asks before anything else. `Allow all` runs everything without asking. `Deny all` keeps the tools listed but never runs them. A server you have just added starts on `Ask for write and delete`.
+1. Pick a preset. `Always ask` holds every tool call for your approval. `Ask for write and delete` runs the tools the server marks read-only on their own and asks before anything else. `Allow all` runs everything without asking. `Deny all` keeps the tools listed but never runs them. `Follow agent policy` hands every tool on this server to the agent's own permission policy, and a server you have just added starts there.
 2. Override individual tools in the list below. `Allow` runs the tool without asking, `Always ask` pauses the run for you, `Deny` never runs it, and `Follow agent policy` hands the tool back to the agent's own permission policy.
 3. Any override switches `Default permission` to `Custom`, with a count of how many tools you have overridden. Picking a preset again clears every override.
 
 Click `Done` to write the change to the agent.
 
+`Ask for write and delete` cannot be picked until the tool list has loaded, because it works by naming the read-only tools one by one.
+
 A tool you have not given a rule of its own reads `Follow agent policy` when nothing else governs it, and `Inherits allow`, `Inherits ask` or `Inherits deny` when the preset you chose does.
+
+`Follow agent policy` means the same thing wherever you meet it. As the preset it hands the whole server to the agent's policy. As one tool's own value it hands back that tool. On a group header it reports that the tools in that group are doing it.
 
 Tools are grouped into `Read-only` and `Write` by whether the server marks them read-only, with a count on each group header and a summary of what the group does as a whole: `runs automatically`, `asks first`, `never runs`, `follows agent policy`, or `mixed` when the tools in it disagree. A tool the server does not mark read-only is grouped with the write tools. A group of more than 25 tools shows the first 25 and a `Show N more` link.
 
 A description too long for its row ends in an ellipsis. Click `Show more` to read it in full, and `Show less` to put it back.
 
-A `Search N tools` box sits above the list. It matches a tool's name and its description, so you can search for what a tool does rather than for what it is called. A group with no match reads "No matches in this group.". The box only narrows what you are looking at, and it changes no rule.
+A `Search N tools` box sits above the list. It matches a tool's name and its description, so you can search for what a tool does rather than for what it is called. A query that matches nothing reads "No tool here matches that." in place of the groups, which tells you the query found nothing rather than that the server stopped offering tools. Where one group matches and the other does not, the empty one says so. The box only narrows what you are looking at, and it changes no rule.
 
 Two kinds of row behave differently:
 
 - A tool that the server's tool filter hides reads "Hidden by this server's tool filter" and its control is disabled. A hidden tool is never offered to the model, so it needs no permission. If a rule you set earlier is now stranded on a hidden tool, the row offers `Remove` so you can clear it. That filter is a configuration field and not the search box above it, and it is described in [MCP servers](/reference/agents/mcp-servers).
-- A tool the server has stopped advertising stays in the list, still editable. Agenta keeps your rule for it, because a server can drop a tool and bring it back, and a dropped rule would let it return under a wider decision than you chose.
+- A tool the server has stopped advertising stays in the list, marked `no longer offered` and still editable. Agenta keeps your rule for it, because a server can drop a tool and bring it back, and a dropped rule would let it return under a wider decision than you chose.
 
 To detach the server from this agent, click `Remove from agent` at the bottom of the drawer and confirm. The connection stays in the project.
 
@@ -94,7 +102,7 @@ Connect the same URL a second time, from `Connect MCP` in `Settings` or `Connect
 
 ## Rename, disconnect, or remove a connection
 
-Open `Settings > MCPs`. The table lists each connection with its `Server URL`, its `Auth`, which reads `OAuth`, `API key` with the secret it uses, or `None`, and its `Status`. A narrow window drops the detail columns, so on a phone a row shows its name and its status alone. Each row has a menu at the end of it.
+Open `Settings > MCPs`. The table lists each connection with its `Server URL`, its `Auth`, which reads `OAuth`, `API key` with the secret it uses, or `None`, and its `Status`. A narrow window drops the detail columns, so on a phone a row shows its name and its status alone. Click a row to open the connection, where you can rename it and read its tool list. Each row also has a menu at the end of it.
 
 - **Reconnect.** Repairs whichever way the connection authenticates. On an OAuth connection it takes you back through the provider's authorization page. On a key-authenticated one it reopens the sheet with the URL and the name locked, so you can supply the header and the secret again.
 - **View tools.** Opens the same drawer an agent uses, with the tools grouped and described but nothing to set. What an agent may call is set in that agent's configuration.
@@ -114,11 +122,11 @@ On an OAuth connection this means consent was abandoned, or the grant was revoke
 
 **`Reached the address, but it isn't an MCP server.`** Something answered and it was not an MCP server. This usually means the URL points at a web page or a different API on the same host.
 
-**`The server rejected this key.`** Agenta shows the server's own refusal beneath that sentence. Check the `Header` against the server's documentation, and check that the project secret holds the right key. Click `Try again` once you have corrected either one.
+**`The server rejected this key.`** Agenta shows the server's own refusal beneath that sentence, then asks you to check the header or pick another secret. Where the server named the scheme it expects, the message names it too. Check `Header` against the server's documentation, check that the project secret holds the right key, and click `Try again` once you have corrected either one.
 
 **`Another connection in this project already uses this name.`** Names are compared after every character outside letters, digits, and underscores is replaced with an underscore, so `Acme Tools` and `Acme-Tools` count as the same name. Pick a name that differs by more than punctuation.
 
-**The tool list could not be read.** The permission drawer says so where the tools would be, and shows the server's own wording for the refusal when it gave one. Click `Retry tools` to read it again. Your credentials were saved, so there is nothing to authorize. If the drawer says instead that the server is not connected yet, it offers `Connect` rather than a retry, because a tool list cannot be read until the connection is authorized.
+**The tool list could not be read.** Whichever drawer you opened says so where the tools would be, and shows the server's own wording for the refusal when it gave one. Click `Retry tools` to read it again. Your credentials were saved, so there is nothing to authorize. If the drawer says instead that the server is not connected yet, it offers `Connect` rather than a retry, because a tool list cannot be read until the connection is authorized.
 
 **`This server exposes no tools yet.`** The server answered with an empty tool list, and that is a real answer rather than a failed conversation. A server Agenta cannot read reports its own error instead, as above.
 

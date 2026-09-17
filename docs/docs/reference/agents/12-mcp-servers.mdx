@@ -95,6 +95,8 @@ Setting either `tool_permissions` or `new_tool_permission` opts this server into
 
 The permission editor writes that field for you in one case worth knowing. If the server itself is set to `allow` and you then give one tool a rule of its own, the editor also records `allow` as the default for the tools you have not named, so those tools keep running as they did instead of dropping to `ask`. Set `new_tool_permission` yourself to choose a narrower default.
 
+Picking `Ask for write and delete` in that editor writes all three fields at once: `permission` becomes `ask`, every tool the server marks read-only is given `allow` by name in `tool_permissions`, and `new_tool_permission` becomes `ask`. So the read-only tools run on their own, everything else waits, and a tool the server adds later waits too. Only tools the connection's filter admits are named, so the policy stays valid.
+
 With both fields absent, the entry carries no per-tool policy and `permission` governs the server, or `runner.permissions.default` when `permission` is `null`.
 
 `tool_permissions` may not name a tool that `tools.mode: "include"` hides. That configuration is rejected rather than silently dropped.
