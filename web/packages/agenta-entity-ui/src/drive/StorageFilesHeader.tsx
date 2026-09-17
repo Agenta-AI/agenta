@@ -24,7 +24,7 @@ export default function StorageFilesHeader({
 
     if (drive.isLoading) {
         return (
-            <ConfigRowTrailing>
+            <ConfigRowTrailing reserve={false}>
                 <SkeletonBlock className="h-[14px] w-[44px]" />
             </ConfigRowTrailing>
         )
@@ -32,7 +32,7 @@ export default function StorageFilesHeader({
 
     if (drive.errored) {
         return (
-            <ConfigRowTrailing>
+            <ConfigRowTrailing reserve={false}>
                 <span className={MUTED}>Unavailable</span>
             </ConfigRowTrailing>
         )
@@ -50,6 +50,7 @@ export default function StorageFilesHeader({
 
     return (
         <ConfigRowTrailing
+            reserve={false}
             // A mount that failed (e.g. the agent mount over an empty session) badges the count.
             affordance={
                 drive.partialErrored ? (
