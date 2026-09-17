@@ -8,7 +8,7 @@
  * the agent overview) sets the same per-session atoms; `useSessionFilesPane` folds them into the
  * split's open flag.
  */
-import {useCallback, useEffect, useMemo} from "react"
+import {useCallback, useEffect, useMemo, useRef} from "react"
 
 import {type DriveId} from "@agenta/entities/drive"
 import {useSessionDriveSummary} from "@agenta/entities/drive"
@@ -82,6 +82,9 @@ export function SessionFilesPane({
         open ? (artifactId ?? undefined) : undefined,
     )
 
+    // Every opener writes a fresh request, so the same path clicked twice still re-opens.
+    const requestSeq = useRef(0)
+    const initialPathSeq = useMemo(() => (requestSeq.current += 1), [quickLook])
     // A quick look resolves a tail to the presented path; an empty path is the root itself.
     const initialPath = useMemo(
         () =>
@@ -118,6 +121,7 @@ export function SessionFilesPane({
                 drive={drive}
                 scope="session"
                 initialPath={initialPath}
+                initialPathSeq={initialPathSeq}
                 chrome
                 onClose={closeControl === "collapse" ? close : undefined}
                 closeVariant="collapse"
