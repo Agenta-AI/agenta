@@ -28,6 +28,7 @@ import pytest
 from oss.tests.pytest.utils.postgres import (
     confirm_deployment_under_test,
     confirm_same_server,
+    confirm_the_deployment_names_its_databases,
     resolve_core_uri,
     resolve_tracing_uri,
     unreachable,
@@ -78,7 +79,10 @@ def _absent(database: str, absence: str):
 def guard_the_deployment_under_test(*, databases, absence: str) -> None:
     """Find the deployment, prove it is the right one, then let anything global change.
 
-    The order is the guard. Core is resolved first because a layer with no database to reach
+    The order is the guard. What the deployment calls its databases is settled before any of
+    them is dialled, because a name composed from a licence nobody stated sends the layer
+    looking for a database that does not exist and, where absence is a skip, reports that as
+    green. Core is resolved first after that, because a layer with no database to reach
     must end before the identity check asks the deployment for anything, so an unreachable
     run writes nothing anywhere. Identity is settled next, before any other address, because
     a server that is not this deployment's is a refusal and must never become a skip on the
@@ -92,6 +96,8 @@ def guard_the_deployment_under_test(*, databases, absence: str) -> None:
     A plain function, because the ordering above is the whole point of it and a fixture is
     hard to hold still long enough to check that.
     """
+    confirm_the_deployment_names_its_databases()
+
     core = _RESOLVERS["core"]()
     if core is None:
         _absent("core", absence)

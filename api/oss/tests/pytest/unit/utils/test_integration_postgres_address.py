@@ -323,6 +323,9 @@ class TestNothingGlobalChangesUntilTheAddressIsProven:
 
     @pytest.fixture(autouse=True)
     def _a_deployment_that_answers(self, monkeypatch, marker_row):
+        # Stated, because a run that does not say what the deployment calls its databases is
+        # refused before any of this (D146).
+        monkeypatch.setenv("AGENTA_LICENSE", "ee")
         monkeypatch.setattr(helper, "_connectable", lambda _uri: True)
         monkeypatch.setenv("POSTGRES_PORT", "5452")
         monkeypatch.setattr(helper.env.postgres, "uri_core", _LOOPBACK)
@@ -354,3 +357,38 @@ class TestNothingGlobalChangesUntilTheAddressIsProven:
             )
 
         assert helper.env.postgres.uri_core == _LOOPBACK
+
+
+class TestARunThatCannotNameTheDatabasesFails:
+    """D146. The names are composed from the licence, unset reads as OSS, and a layer that
+    skips what it cannot reach then reports a green run of nothing against an EE stack."""
+
+    def test_an_unstated_licence_fails_naming_the_variable(self, monkeypatch):
+        for variable in ("AGENTA_LICENSE", "POSTGRES_DB_PREFIX", "POSTGRES_URI_CORE"):
+            monkeypatch.delenv(variable, raising=False)
+
+        with pytest.raises(AssertionError) as refusal:
+            helper.confirm_the_deployment_names_its_databases()
+
+        message = str(refusal.value)
+        assert "AGENTA_LICENSE" in message
+        # And the two other ways of saying it, so the reader is not sent to the only one.
+        assert "POSTGRES_DB_PREFIX" in message
+        assert "POSTGRES_URI_CORE" in message
+
+    @pytest.mark.parametrize(
+        "variable, value",
+        [
+            ("AGENTA_LICENSE", "ee"),
+            ("POSTGRES_DB_PREFIX", "agenta_oss"),
+            ("POSTGRES_URI_CORE", _IN_NETWORK),
+        ],
+    )
+    def test_any_of_the_three_ways_of_saying_it_is_enough(
+        self, monkeypatch, variable, value
+    ):
+        for name in ("AGENTA_LICENSE", "POSTGRES_DB_PREFIX", "POSTGRES_URI_CORE"):
+            monkeypatch.delenv(name, raising=False)
+        monkeypatch.setenv(variable, value)
+
+        helper.confirm_the_deployment_names_its_databases()
