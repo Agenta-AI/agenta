@@ -287,6 +287,7 @@ export function McpServersSectionBody({
                         name: connectingEndpoint.name || connectingEndpoint.slug,
                         url: connectingEndpoint.data.route.base_url || "",
                         authMode: connectingEndpoint.auth_mode,
+                        credentialHeader: connectingEndpoint.data.route.credential_header,
                     }}
                     onConnected={() => void refreshEndpoints()}
                 />

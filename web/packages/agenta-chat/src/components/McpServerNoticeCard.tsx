@@ -83,6 +83,7 @@ export const McpServerNoticeCard = ({notice, className}: McpServerNoticeCardProp
                         name: endpoint.name || endpoint.slug,
                         url: endpoint.data?.route?.base_url || "",
                         authMode: endpoint.auth_mode,
+                        credentialHeader: endpoint.data?.route?.credential_header,
                     }}
                     onConnected={() => {
                         setConnecting(false)
