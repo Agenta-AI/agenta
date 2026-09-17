@@ -153,9 +153,8 @@ const selectEvaluatorTemplate = async (page: Page, templateName: string) => {
 }
 
 /**
- * A success toast. These are no longer antd `message` nodes (`.ant-message`): the
- * @agenta/ui app-message facade draws them with Sonner, which sets no ARIA role on
- * the toast itself. `appToast` matches the Sonner and `Notification` markers instead.
+ * A success toast. Which surface carries it depends on the screen, so this goes
+ * through `appToast`, which matches all of them.
  */
 const successToast = (page: Page, text: string) => appToast(page, text)
 

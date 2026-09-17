@@ -182,9 +182,9 @@ const testEvaluators = () => {
             await creationPromise
 
             // Verify the success message
-            await expect(
-                page.locator(".ant-message").getByText(EVALUATOR_CREATE_SUCCESS_MESSAGE).first(),
-            ).toBeVisible({timeout: 10000})
+            await expect(appToast(page, EVALUATOR_CREATE_SUCCESS_MESSAGE)).toBeVisible({
+                timeout: 10000,
+            })
 
             // Post-create navigation leads to the full-page playground
             // (EVALUATOR_FULL_PAGE_NAV_ENABLED=true). Assert the redirect first,
@@ -253,9 +253,9 @@ const testEvaluators = () => {
                 .click()
             await creationPromise
 
-            await expect(
-                page.locator(".ant-message").getByText(EVALUATOR_CREATE_SUCCESS_MESSAGE).first(),
-            ).toBeVisible({timeout: 10000})
+            await expect(appToast(page, EVALUATOR_CREATE_SUCCESS_MESSAGE)).toBeVisible({
+                timeout: 10000,
+            })
 
             // Step 2: Post-commit navigates to `/apps/<id>/playground` — the
             // full-page surface introduced by the EVALUATOR_FULL_PAGE_NAV
@@ -400,12 +400,6 @@ const testEvaluators = () => {
 
             // Step 4: Verify the success message (already checked inside the helper,
             // but we confirm the final state here as well).
-            // The HUMAN evaluator path toasts through `@agenta/ui/app-message`, which
-            // draws a Sonner toast rather than an antd `.ant-message` node. The
-            // automatic-evaluator assertions elsewhere in this file still use
-            // `.ant-message` and are still correct: that path toasts through antd
-            // (`WorkflowRevisionDrawerWrapper` imports `message` from "antd"). Same
-            // message text, two different emitters.
             await expect(appToast(page, HUMAN_EVALUATOR_CREATE_SUCCESS_MESSAGE)).toBeVisible({
                 timeout: 10000,
             })
@@ -480,9 +474,9 @@ const testEvaluators = () => {
                 .click()
             await creationPromise
 
-            await expect(
-                page.locator(".ant-message").getByText(EVALUATOR_CREATE_SUCCESS_MESSAGE).first(),
-            ).toBeVisible({timeout: 10000})
+            await expect(appToast(page, EVALUATOR_CREATE_SUCCESS_MESSAGE)).toBeVisible({
+                timeout: 10000,
+            })
 
             // Post-create navigation leads to the full-page playground; navigate back
             // to the evaluators table before attempting to edit via the row menu.
@@ -539,9 +533,9 @@ const testEvaluators = () => {
                 .click()
             await creationPromise
 
-            await expect(
-                page.locator(".ant-message").getByText(EVALUATOR_CREATE_SUCCESS_MESSAGE).first(),
-            ).toBeVisible({timeout: 10000})
+            await expect(appToast(page, EVALUATOR_CREATE_SUCCESS_MESSAGE)).toBeVisible({
+                timeout: 10000,
+            })
 
             // Post-create navigation leads to the full-page playground; navigate back
             // to the evaluators table before attempting to delete via the row menu.
@@ -609,9 +603,9 @@ const testEvaluators = () => {
                 .click()
             await creationPromise
 
-            await expect(
-                page.locator(".ant-message").getByText(EVALUATOR_CREATE_SUCCESS_MESSAGE).first(),
-            ).toBeVisible({timeout: 10000})
+            await expect(appToast(page, EVALUATOR_CREATE_SUCCESS_MESSAGE)).toBeVisible({
+                timeout: 10000,
+            })
 
             // Post-create lands on the full-page playground (all evaluator
             // kinds, not just LLM/code).
@@ -664,9 +658,9 @@ const testEvaluators = () => {
                 .click()
             await creationPromise
 
-            await expect(
-                page.locator(".ant-message").getByText(EVALUATOR_CREATE_SUCCESS_MESSAGE).first(),
-            ).toBeVisible({timeout: 10000})
+            await expect(appToast(page, EVALUATOR_CREATE_SUCCESS_MESSAGE)).toBeVisible({
+                timeout: 10000,
+            })
 
             // Post-create navigation lands directly on the full-page playground
             // (`WorkflowRevisionDrawerWrapper:489-502` evaluator-create branch).
@@ -750,9 +744,9 @@ const testEvaluators = () => {
                 .last()
                 .click()
             await creationPromise
-            await expect(
-                page.locator(".ant-message").getByText(EVALUATOR_CREATE_SUCCESS_MESSAGE).first(),
-            ).toBeVisible({timeout: 10000})
+            await expect(appToast(page, EVALUATOR_CREATE_SUCCESS_MESSAGE)).toBeVisible({
+                timeout: 10000,
+            })
 
             // Navigate back to the registry, then click the row.
             await navigateToEvaluators()
@@ -823,9 +817,9 @@ const testEvaluators = () => {
                 .last()
                 .click()
             await creationPromise
-            await expect(
-                page.locator(".ant-message").getByText(EVALUATOR_CREATE_SUCCESS_MESSAGE).first(),
-            ).toBeVisible({timeout: 10000})
+            await expect(appToast(page, EVALUATOR_CREATE_SUCCESS_MESSAGE)).toBeVisible({
+                timeout: 10000,
+            })
 
             // Capture the post-create URL — it's the playground URL we want to
             // re-visit directly. (Post-create navigation already lands here.)
@@ -887,9 +881,9 @@ const testEvaluators = () => {
                 .last()
                 .click()
             await creationPromise
-            await expect(
-                page.locator(".ant-message").getByText(EVALUATOR_CREATE_SUCCESS_MESSAGE).first(),
-            ).toBeVisible({timeout: 10000})
+            await expect(appToast(page, EVALUATOR_CREATE_SUCCESS_MESSAGE)).toBeVisible({
+                timeout: 10000,
+            })
 
             // Post-create lands on the full-page playground; the
             // WorkflowEntityCard switcher appears in the sidebar from there.

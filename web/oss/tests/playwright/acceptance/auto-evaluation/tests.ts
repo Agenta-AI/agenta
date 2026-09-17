@@ -479,8 +479,6 @@ const waitAndClickDeleteForRun = async (
     await expect(deleteModal).toBeVisible({timeout: 10000})
     await deleteModal.getByRole("button", {name: AUTO_EVAL_DELETE_OK_BUTTON}).click()
 
-    // The success message toasts through @agenta/ui's app-message facade, which draws a
-    // Sonner toast, not an antd `.ant-message` node.
     await expect(appToast(page, AUTO_EVAL_DELETE_SUCCESS)).toBeVisible({
         timeout: 15000,
     })
