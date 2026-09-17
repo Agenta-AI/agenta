@@ -25,7 +25,8 @@
 
 .theme-doc-sidebar-container .menu,
 .sidebarShellMenu {
-  padding: 20px 24px 48px 32px;
+  /* No top padding: the pinned rail below carries it. */
+  padding: 0 24px 48px 32px;
 }
 
 /* ---- Rows shared by the rail and the page menu ---- */
@@ -83,6 +84,19 @@ li.sidebar-section-title > .menu__list {
 }
 
 /* ---- Section rail ---- */
+/* Pinned to the top of the scrolling sidebar: only the page menu below it
+   scrolls. It bleeds to the sidebar edges so its background covers the rows
+   passing underneath, and it carries the divider. */
+.sectionRail {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  margin: 0 -24px 20px -32px;
+  padding: 20px 24px 20px 32px;
+  background-color: var(--bgdefault);
+  border-bottom: 1px solid var(--borderdefault);
+}
+
 /* The navbar item module sets display: inline-flex; the row must fill the
    sidebar like the page links below it. */
 .sectionRail .menu__link {
@@ -100,12 +114,6 @@ li.sidebar-section-title > .menu__list {
   width: 15px;
   height: 15px;
   flex-shrink: 0;
-}
-
-.sectionRailDivider {
-  height: 1px;
-  margin: 20px -24px 20px -32px;
-  background-color: var(--borderdefault);
 }
 
 /* ---- Group labels ---- */

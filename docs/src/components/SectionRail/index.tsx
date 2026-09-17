@@ -14,15 +14,12 @@ export default function SectionRail(): ReactNode {
   );
 
   return (
-    <>
-      <nav className="sectionRail" aria-label="Sections">
-        <ul className="menu__list">
-          {items.map((item, i) => (
-            <NavbarItem mobile {...item} key={i} />
-          ))}
-        </ul>
-      </nav>
-      <div className="sectionRailDivider" role="presentation" />
-    </>
+    <nav className="sectionRail" aria-label="Sections">
+      <ul className="menu__list">
+        {items.map((item, i) => (
+          <NavbarItem mobile {...item} key={i} />
+        ))}
+      </ul>
+    </nav>
   );
 }
