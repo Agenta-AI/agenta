@@ -7,7 +7,7 @@
  * Emits fully-built `@ag.embed` entries; the PANEL owns the list write (append / filter),
  * preserving itemListOps' carry-by-reference guarantee for entries it can't parse.
  */
-import {useCallback, useMemo, useState} from "react"
+import {useCallback, useMemo} from "react"
 
 import {projectIdAtom} from "@agenta/shared/state"
 import {
@@ -25,7 +25,6 @@ const buildSkillEmbedEntry = (target: SkillEmbedTarget): Record<string, unknown>
 
 import {toSourceInfo} from "./registrySections"
 import {SkillCreateDrawer} from "./SkillCreateDrawer"
-import {SkillImportDrawer} from "./SkillImportDrawer"
 import {SkillPickerDrawer, type SkillAddChoice} from "./SkillPickerDrawer"
 import type {SkillListItem} from "./types"
 import {useSkillCreateEntry} from "./useSkillCreateEntry"
@@ -98,13 +97,8 @@ export function SkillPickerHost({open, onClose, added, onAdd, onRemove}: SkillsP
         [onRemove],
     )
 
-    // The `+ New skill ▾` paths: created/imported skills also land on this agent.
-    const {createOpen, upload, onWrite, onUpload, closeCreate} = useSkillCreateEntry()
-    const [importOpen, setImportOpen] = useState(false)
-    const createActions = useMemo(
-        () => ({onWrite, onUpload, onImport: () => setImportOpen(true)}),
-        [onWrite, onUpload],
-    )
+    // New skill opens the editor straight away; a created skill also lands on this agent.
+    const {createOpen, onWrite, closeCreate} = useSkillCreateEntry()
 
     const addCreated = useCallback(
         (created: {slug: string; workflowId?: string; name: string; description?: string}) => {
@@ -121,24 +115,6 @@ export function SkillPickerHost({open, onClose, added, onAdd, onRemove}: SkillsP
         [onAdd],
     )
 
-    const addImported = useCallback(
-        (imported: {name?: string; workflowId?: string; pathInRepo: string}[]) => {
-            onAdd(
-                imported
-                    .filter((entry) => entry.name)
-                    .map((entry) =>
-                        buildSkillEmbedEntry({
-                            slug: entry.name!,
-                            workflowId: entry.workflowId,
-                            name: entry.name!,
-                            mode: "latest",
-                        }),
-                    ),
-            )
-        },
-        [onAdd],
-    )
-
     return (
         <>
             <SkillPickerDrawer
@@ -148,20 +124,13 @@ export function SkillPickerHost({open, onClose, added, onAdd, onRemove}: SkillsP
                 loading={query.isPending}
                 onAdd={handleAdd}
                 onRemove={handleRemove}
-                createActions={createActions}
+                onNewSkill={onWrite}
             />
             <SkillCreateDrawer
                 open={createOpen}
                 onClose={closeCreate}
                 projectId={projectId}
-                upload={upload}
                 onCreated={addCreated}
-            />
-            <SkillImportDrawer
-                open={importOpen}
-                onClose={() => setImportOpen(false)}
-                projectId={projectId}
-                onImported={addImported}
             />
         </>
     )

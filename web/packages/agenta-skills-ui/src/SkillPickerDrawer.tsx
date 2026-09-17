@@ -4,9 +4,8 @@ import {useEffect, useMemo, useState} from "react"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {cn} from "@agenta/ui/styles"
 import {Button, EmptyState, SearchInput} from "@agenta/ui/ui"
-import {Check, Lightning} from "@phosphor-icons/react"
+import {Check, Lightning, Plus} from "@phosphor-icons/react"
 
-import {NewSkillMenuButton, type NewSkillMenuButtonProps} from "./NewSkillMenuButton"
 import {SkillAvatar} from "./SkillCard"
 import type {SkillListItem} from "./types"
 
@@ -24,8 +23,11 @@ export interface SkillPickerDrawerProps {
     /** One write per author action. May be async; rows disable until it settles. */
     onAdd: (choices: SkillAddChoice[]) => void | Promise<void>
     onRemove: (skills: SkillListItem[]) => void | Promise<void>
-    /** The `+ New skill ▾` paths; created skills land in the registry AND on this agent. */
-    createActions: Pick<NewSkillMenuButtonProps, "onWrite" | "onUpload" | "onImport">
+    /**
+     * Opens the create drawer; a created skill lands in the registry AND on this agent. The
+     * picker closes first — one drawer at a time.
+     */
+    onNewSkill: () => void
     width?: number
 }
 
@@ -97,23 +99,29 @@ export function SkillPickerDrawer({
     loading,
     onAdd,
     onRemove,
-    createActions,
+    onNewSkill,
     width = 480,
 }: SkillPickerDrawerProps) {
     const [search, setSearch] = useState("")
     const [busy, setBusy] = useState(false)
+    // Done is inert until a tap has changed the agent: with nothing done, it is only Close.
+    const [changed, setChanged] = useState(false)
     const run = async (write: () => void | Promise<void>) => {
         if (busy) return
         setBusy(true)
         try {
             await write()
+            setChanged(true)
         } finally {
             setBusy(false)
         }
     }
 
     useEffect(() => {
-        if (!open) setSearch("")
+        if (!open) {
+            setSearch("")
+            setChanged(false)
+        }
     }, [open])
 
     const visible = useMemo(() => {
@@ -147,22 +155,34 @@ export function SkillPickerDrawer({
                 body: {padding: 0, display: "flex", flexDirection: "column", overflow: "hidden"},
             }}
             footer={
-                // w-full, or the sheet's end-justified footer shrinks this row to its buttons.
-                <div className="flex w-full items-center justify-between gap-3">
-                    <NewSkillMenuButton {...createActions} variant="outline" disabled={busy} />
-                    <Button variant="default" onClick={onClose}>
-                        Done
-                    </Button>
-                </div>
+                <Button variant="default" onClick={onClose} disabled={!changed || busy}>
+                    Done
+                </Button>
             }
         >
             <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4">
-                <SearchInput
-                    placeholder="Search skills..."
-                    aria-label="Search skills"
-                    value={search}
-                    onValueChange={setSearch}
-                />
+                {/* Search and New skill share a row: finding one and making one are the two
+                    ways in, side by side. */}
+                <div className="flex items-center gap-2">
+                    <SearchInput
+                        placeholder="Search skills..."
+                        aria-label="Search skills"
+                        value={search}
+                        onValueChange={setSearch}
+                    />
+                    <Button
+                        variant="outline"
+                        disabled={busy}
+                        onClick={() => {
+                            onClose()
+                            onNewSkill()
+                        }}
+                        className="shrink-0 gap-1.5"
+                    >
+                        <Plus size={14} />
+                        New skill
+                    </Button>
+                </div>
 
                 {!loading && visible.length === 0 ? (
                     // The @agenta/ui/ui EmptyState has no title prop; both lines go in description.
