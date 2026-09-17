@@ -147,6 +147,15 @@ RUN node_modules/.bin/tsx scripts/pin-codex-adapter.ts install-agent codex --age
 # than silently shipping cold approvals. Retires when upstream codex-acp#310 lands.
 RUN node_modules/.bin/tsx scripts/patch-codex-acp-approvals.ts
 
+# Make the pin READABLE BY ANY UID. `~/.local/share` is created 0700 by the install above, so a
+# container started with `user: "<id -u>:<id -g>"` (the documented subscription self-host scheme)
+# cannot even traverse into the adapter this image just pinned — and the runner's boot-time seed
+# (src/engines/sandbox_agent/adapter-seed.ts) copies exactly that tree into the data dir the
+# daemon resolves from the overridden HOME. `a+rX` adds read everywhere and execute only where it
+# already exists, so directories stay traversable and files keep their own exec bit. Nothing here
+# is a secret: it is a pinned, public, Apache-2.0 adapter baked at build time.
+RUN chmod -R a+rX /home/node/.local
+
 # Call the local tsx binary directly to avoid pnpm/corepack HOME writes when the
 # container runs as a non-root host uid.
 CMD ["node_modules/.bin/tsx", "src/server.ts"]

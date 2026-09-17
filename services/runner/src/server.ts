@@ -90,6 +90,7 @@ import {
   runnerConfigSummary,
 } from "./config/runner-config.ts";
 import { applyDaytonaSdkEnv } from "./engines/sandbox_agent/daytona-provider.ts";
+import { seedPinnedAgentProcesses } from "./engines/sandbox_agent/adapter-seed.ts";
 import { isEntrypoint } from "./entry.ts";
 import { insecureEgressAllowed } from "./tools/ssrf-guard.ts";
 import {
@@ -1623,6 +1624,12 @@ if (isEntrypoint(import.meta.url)) {
   // credential, mutually exclusive artifact, invalid lifecycle values) fails startup here. Log
   // one redacted summary, then bridge the typed Daytona credential into the ambient names the
   // vendored SDK reads during sandbox creation.
+  // BEFORE ANY DAEMON CAN START, which is why it sits at boot rather than in the acquire path:
+  // the daemon reads its data dir when the first run spawns it, and under a HOME override the
+  // image's pinned Codex adapter is not there. Seeding it is what stops the daemon cold-installing
+  // a floating adapter and wedging the handshake. Never throws. See `adapter-seed.ts`.
+  seedPinnedAgentProcesses();
+
   const runnerConfig = loadRunnerConfig();
   // The shared token is required to SERVE, but not to parse config: the per-request config reads
   // (provider defaults) must not depend on an auth secret. So it is asserted here, at the one
