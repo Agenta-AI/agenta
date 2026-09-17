@@ -301,7 +301,7 @@ const config: Config = {
           items: [
             { label: "Privacy policy", to: "/administration/security/privacy-policy" },
             { label: "Terms of service", to: "/administration/security/terms-of-service" },
-            { label: "Data processing agreement", to: "/administration/security/dpa" },
+            { label: "DPA", to: "/administration/security/dpa" },
             { label: "Imprint", href: "https://agenta.ai/imprint" },
           ],
         },
