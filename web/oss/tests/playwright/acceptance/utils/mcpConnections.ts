@@ -13,7 +13,7 @@
  * - The mock upstream only exists while `AGENTA_GATEWAYS_MOCKS_ENABLED` is on.
  */
 import {expect} from "@agenta/web-tests/utils"
-import type {Page} from "@playwright/test"
+import type {Locator, Page} from "@playwright/test"
 
 /**
  * The mock as it is reachable inside the compose network, which is the last resort.
@@ -303,13 +303,50 @@ export const fillJourneyUrlAndName = async (page: Page, url: string, name: strin
 }
 
 /**
- * Wait for a journey that reached its connected state to take itself off the screen.
+ * Wait for a journey that connected to take itself off the screen, and for what replaced it.
  *
  * Nothing is pressed. Success is the new row and nothing else (decision 26), so the sheet
  * closes as soon as the grant is stored and the list has been refreshed. It used to end on a
- * "Connected" screen with a Done button, and the wait is kept because whatever the test does
- * next is behind the sheet either way.
+ * "Connected" screen whose sentence was the success assertion; with that screen gone, a bare
+ * wait for the sheet to disappear would pass for a sheet that was cancelled, closed or
+ * crashed, so `connected` is what the caller expects to find behind it and is required.
  */
-export const finishJourney = async (page: Page): Promise<void> => {
+export const finishJourney = async (
+    page: Page,
+    /** The success this journey was for, as the surface that opened it shows it. */
+    connected: Locator,
+): Promise<void> => {
     await expect(journeyDialog(page)).toHaveCount(0, {timeout: 60000})
+    await expect(connected).toBeVisible({timeout: 30000})
 }
+
+/**
+ * Capture the consent completions the opener receives, from before the window is opened.
+ *
+ * The provider's window posts one message back and its callback page then closes itself on a
+ * three-second timer, which the mock round trip beats, so anything read off that page is a
+ * race. The message is not: it lands in the opener and stays in this array whatever the
+ * window does next, and it is the actual mechanism the journey waits on.
+ */
+export const captureConsentMessages = async (page: Page): Promise<void> => {
+    await page.evaluate(() => {
+        const seen: {origin: string; type?: unknown; success?: unknown}[] = []
+        ;(window as unknown as {__mcpConsent: typeof seen}).__mcpConsent = seen
+        window.addEventListener("message", (event: MessageEvent) => {
+            const data = event.data as {type?: unknown; success?: unknown} | null
+            if (!data || typeof data !== "object") return
+            seen.push({origin: event.origin, type: data.type, success: data.success})
+        })
+    })
+}
+
+/** The completions captured so far, newest last. */
+export const consentMessages = (page: Page) =>
+    page.evaluate(
+        () =>
+            (
+                window as unknown as {
+                    __mcpConsent?: {origin: string; type?: unknown; success?: unknown}[]
+                }
+            ).__mcpConsent ?? [],
+    )
