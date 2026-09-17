@@ -224,7 +224,7 @@ export default function StorageSection({
                     ) : phase === "error" ? (
                         <div className="flex flex-col gap-1">
                             <Text type="secondary" className="!text-xs">
-                                Couldn&rsquo;t load files.{" "}
+                                Couldn&rsquo;t reach the file store.{" "}
                                 {drive.retry ? (
                                     <DriveRetryButton
                                         onRetry={drive.retry}
@@ -236,8 +236,7 @@ export default function StorageSection({
                                 transient failure; the "not configured" hint only matters if it keeps
                                 failing (self-hosted deploys without an object store). */}
                             <Text type="secondary" className="!text-xs !text-colorTextTertiary">
-                                If it keeps failing, the file store may not be configured on this
-                                deployment.
+                                Still failing? This deployment may have no file store configured.
                             </Text>
                         </div>
                     ) : phase === "no-session" ? (
