@@ -25,7 +25,7 @@ Start from `Settings` in the sidebar, then `MCPs`, and click `Connect MCP`. You 
 
    **`Reachable · needs an API key`.** Agenta prefills `Header` with `Authorization`. Edit it to whatever the server expects, such as `x-api-key`. Pick the `Project secret` that holds the key, and if the project has no secrets yet, click `Create secret` in that list to make one without leaving the sheet. Click `Connect`. Agenta calls the server once with that credential, so a wrong header or a wrong key fails here rather than during an agent run.
 
-   You land on this screen under the same line when the server asked to be signed in without saying how. Agenta shows the key form because a header is the only thing it can offer, not because it read a requirement for one. If the server in fact needs nothing, click `Connect without authentication`.
+   You land on this screen under the same line when the server refused to be reached without a credential and did not say which kind it wants. Agenta shows the key form because a credential is the only thing that refusal can be answered with. A server that needs nothing answers the first check plainly and shows `Reachable · no sign-in needed` instead.
 
    If the server named an authentication scheme other than Bearer, a line under `Header` says which one it asked for. The field still starts on `Authorization`, because the scheme names what goes in the header's value rather than the header itself.
 
