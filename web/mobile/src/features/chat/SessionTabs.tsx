@@ -5,7 +5,7 @@ import {SessionTabRail, withShortcutKey} from "@agenta/sessions-ui"
 import {shortcutAria} from "@agenta/shared/utils"
 import {ShortcutKeys} from "@agenta/ui/shortcuts"
 import {Button, SimpleTooltip} from "@agenta/ui/ui"
-import {SidebarSimple} from "@phosphor-icons/react"
+import {Folder, FolderOpen, SidebarSimple} from "@phosphor-icons/react"
 import {useQuery} from "@tanstack/react-query"
 import {useAtomValue} from "jotai"
 import {useRouter} from "next/router"
@@ -145,12 +145,12 @@ export const SessionTabs = ({
                                 // The glyph's weight carries the state; no colour shift on top.
                                 className="h-7 w-7 shrink-0 p-0 max-md:hidden"
                             >
-                                {/* Phosphor draws the panel on the left; the files pane is on the right. */}
-                                <SidebarSimple
-                                    size={14}
-                                    weight={filesOpen ? "fill" : "regular"}
-                                    className="-scale-x-100"
-                                />
+                                {/* A folder says "files" where a panel glyph wouldn't; open = pane shown. */}
+                                {filesOpen ? (
+                                    <FolderOpen size={14} weight="fill" />
+                                ) : (
+                                    <Folder size={14} />
+                                )}
                             </Button>
                         </SimpleTooltip>
                     </>

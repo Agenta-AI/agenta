@@ -756,6 +756,7 @@ export function DriveExplorer({
                         onToggleGitignored={toggleShowGitignoredPref}
                         treeVisible={treeVisible}
                         onToggleTree={toggleTree}
+                        mirrored={mirrored}
                         onClose={onClose}
                         closeVariant={closeVariant}
                         expanded={drawerExpanded}
