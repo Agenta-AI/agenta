@@ -36,6 +36,26 @@ export interface McpServerPolicy {
     new_tool_permission?: McpPermission | null
 }
 
+/** How the wire spells the two per-tool fields. This module, like the SDK model it mirrors,
+ *  spells them `tool_permissions` and `new_tool_permission`. */
+const WIRE_PER_TOOL_FIELDS = ["toolPermissions", "newToolPermission"] as const
+
+/**
+ * Whether this policy declares a per-tool table this reader cannot see.
+ *
+ * The wire names the two per-tool fields differently from the model, and the wire policy is a
+ * free-form mapping, so a policy in the wire's convention reaches this reader with its table
+ * invisible. What is left reads as a legitimate "server allow, no table" policy, so a tool the
+ * table denied would be shown, and run, as allowed (issue 6917).
+ *
+ * Narrow on purpose: the two aliases, not any unknown key, so a policy carrying a field this
+ * package predates still reads.
+ */
+export function isMisCasedPolicy(policy: McpServerPolicy): boolean {
+    const raw = policy as unknown as Record<string, unknown>
+    return WIRE_PER_TOOL_FIELDS.some((field) => field in raw)
+}
+
 const EMPTY: McpServerPolicy = {}
 
 /** The policy on a config item, whatever shape the item is otherwise in. */
@@ -73,6 +93,9 @@ export function isToolHidden(policy: McpServerPolicy, toolName: string): boolean
  * is both the unsafe direction and not what the run does (D88).
  */
 export function resolvedNewToolPermission(policy: McpServerPolicy): McpPermission | null {
+    // A table this reader cannot see is still a table: the author opted in, so the server
+    // permission decides nothing, and `ask` is the floor a human answers at.
+    if (isMisCasedPolicy(policy)) return "ask"
     if (!isPerTool(policy)) return null
     return policy.new_tool_permission ?? "ask"
 }
@@ -88,6 +111,10 @@ export function effectiveToolPermission(
     policy: McpServerPolicy,
     toolName: string,
 ): {permission: McpPermission | null; source: "tool" | "new" | "server" | "default"} {
+    // Refused rather than read, and before the table is consulted, because the table this
+    // reader can see is not the one the author wrote (issue 6917).
+    if (isMisCasedPolicy(policy)) return {permission: "ask", source: "new"}
+
     const entry = toolPermissions(policy)[toolName]
     if (entry) return {permission: entry, source: "tool"}
 

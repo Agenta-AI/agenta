@@ -30,6 +30,7 @@
 import type {GatewayPermission} from "../../gatewayTool/core/types"
 
 import {
+    isMisCasedPolicy,
     isPerTool,
     isToolHidden,
     resolvedNewToolPermission,
@@ -75,6 +76,13 @@ const isMcpPermission = (value: GatewayPermission): value is McpPermission => va
  * declared, the server permission otherwise, and `inherit` when neither is written.
  */
 export function toGatewayPermissions(policy: McpServerPolicy): GatewayConnectionPermissions {
+    // A policy whose per-tool table is in the wire's convention is one this package cannot
+    // read, so the drawer must not draw it as the server permission: that is how a server
+    // marked `allow` would show every tool the author denied as allowed (issue 6917). It
+    // draws the floor a human answers at instead, and names no tool, because the names it
+    // can see are not the author's.
+    if (isMisCasedPolicy(policy)) return {default: "ask", tools: {}}
+
     const floor = resolvedNewToolPermission(policy)
     return {
         default: floor ?? policy.permission ?? "inherit",
