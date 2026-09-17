@@ -28,7 +28,7 @@ import {
     type ToolCatalogAction,
     type ToolCatalogActionDetails,
 } from "@agenta/entities/gatewayTool"
-import {humanizeActionKey} from "@agenta/shared/utils"
+import {formatCount, humanizeActionKey} from "@agenta/shared/utils"
 import {HeightCollapse} from "@agenta/ui"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {Badge, Button, SearchInput, SkeletonRows} from "@agenta/ui/ui"
@@ -583,7 +583,8 @@ function PermissionDrawerBody({
                 )}
 
                 <SearchInput
-                    placeholder={`Search ${searchCount ?? catalogTools.length} tools`}
+                    // formatCount, because a one-tool server read "Search 1 tools".
+                    placeholder={`Search ${formatCount(searchCount ?? catalogTools.length, "tool")}`}
                     aria-label="Search tools"
                     value={query}
                     onValueChange={setQuery}

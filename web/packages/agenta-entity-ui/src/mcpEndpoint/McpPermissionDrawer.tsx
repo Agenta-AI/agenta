@@ -36,6 +36,7 @@ import {
     type McpToolSummary,
 } from "@agenta/entities/mcpEndpoint"
 import {projectIdAtom} from "@agenta/shared/state"
+import {formatCount} from "@agenta/shared/utils"
 import {StatusIndicator} from "@agenta/ui/components/presentational"
 import {Alert, Button, IconTile, InlineConfirm} from "@agenta/ui/ui"
 import {ArrowClockwise, Plugs} from "@phosphor-icons/react"
@@ -172,7 +173,7 @@ function DrawerTitle({
                 ) : null}
                 {toolCount != null ? (
                     <span className="shrink-0 text-xs font-normal text-colorTextTertiary">
-                        {toolCount} tools
+                        {formatCount(toolCount, "tool")}
                     </span>
                 ) : null}
             </div>

@@ -210,6 +210,18 @@ describe("D1 — the drawer at its default", () => {
         ).toBe("Search 8 tools")
     })
 
+    it("counts one tool in the singular", async () => {
+        // "Search 1 tools" was on screen for any server advertising a single tool. The same noun
+        // count is spelled once now, in the shared `formatCount`.
+        listMcpTools.mockResolvedValue([LINEAR_TOOLS[0]])
+        await render()
+
+        expect(
+            document.querySelector<HTMLInputElement>('input[aria-label="Search tools"]')
+                ?.placeholder,
+        ).toBe("Search 1 tool")
+    })
+
     it("splits the tools into the two groups the server's own annotation decides", async () => {
         await render()
 
@@ -274,7 +286,9 @@ describe("a server just added to an agent", () => {
         await render({policy: justAdded})
 
         expect(labelled("Default permission")?.textContent).toContain("Follow agent policy")
-        expect(labelled("Default permission")?.textContent).not.toContain("Ask for write and delete")
+        expect(labelled("Default permission")?.textContent).not.toContain(
+            "Ask for write and delete",
+        )
         expect(labelled("Default permission")?.textContent).not.toContain("Allow all")
         expect(labelled("Default permission")?.textContent).not.toContain("Custom")
     })
@@ -601,6 +615,14 @@ describe("View tools — the same drawer with nothing to set", () => {
         await render({readOnly: true})
 
         expect(text()).toContain("8 tools")
+    })
+
+    it("carries one tool in the singular too", async () => {
+        listMcpTools.mockResolvedValue([LINEAR_TOOLS[0]])
+        await render({readOnly: true})
+
+        expect(text()).toContain("1 tool")
+        expect(text()).not.toContain("1 tools")
     })
 
     it("offers no control that would write to an agent this view does not own", async () => {
