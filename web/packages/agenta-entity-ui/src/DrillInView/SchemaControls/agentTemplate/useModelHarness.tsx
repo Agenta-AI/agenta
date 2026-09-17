@@ -26,7 +26,11 @@ import {Cube, Key, Wrench} from "@phosphor-icons/react"
 import {atom, useAtomValue, useSetAtom} from "jotai"
 
 import {useHasChangedUnder, useRevertUnder} from "../../../drawers/shared/ChangedPathsContext"
-import {useFocusPaths, useHasFocusUnder} from "../../../drawers/shared/FocusPathsContext"
+import {
+    useFocusPaths,
+    useHasFocusUnder,
+    useIsPathVisible,
+} from "../../../drawers/shared/FocusPathsContext"
 import {FieldLayoutProvider, RailField} from "../../../drawers/shared/RailField"
 import {SectionRail, type SectionRailItem} from "../../../drawers/shared/SectionRail"
 import type {PickerSelection} from "../connectionPicker"
@@ -427,6 +431,7 @@ export function useModelHarness({
     // across several, the group headers earn their keep by saying which change belongs where.
     const focus = useFocusPaths()
     const sandboxInFocus = useHasFocusUnder("sandbox.kind")
+    const policyInFocus = useIsPathVisible("runner.permissions.default")
     // Hidden harness policies do not focus the model picker.
     const harnessKindInFocus = useHasFocusUnder("harness.kind")
     const flatFocus = focus.active
@@ -626,28 +631,25 @@ export function useModelHarness({
         </>
     )
 
-    // Stacked, not railed: the section header already reads "Policy · …", so the select runs
-    // full width. The label stays as a RailField so a dirty policy keeps its per-row change
-    // detail and Restore (which reverts only this path, leaving hidden rules dirty).
     const permissionsBody = (
-        <FieldLayoutProvider layout="stacked">
-            {runnerPermissionSchema ? (
-                <RailField label="Policy" path="runner.permissions.default">
-                    <PermissionPolicySelect
-                        value={currentRunnerPermission}
-                        onChange={(v) =>
-                            setSection("runner", {
-                                ...runner,
-                                permissions: {...runnerPermissions, default: v},
-                            })
-                        }
-                        options={runnerPermissionOptions}
-                        disabled={disabled}
-                        aria-label="Policy"
-                    />
-                </RailField>
+        <>
+            {/* No rail label: the section header already reads "Policy: …", so the select
+                takes the full width. */}
+            {runnerPermissionSchema && policyInFocus ? (
+                <PermissionPolicySelect
+                    value={currentRunnerPermission}
+                    onChange={(v) =>
+                        setSection("runner", {
+                            ...runner,
+                            permissions: {...runnerPermissions, default: v},
+                        })
+                    }
+                    options={runnerPermissionOptions}
+                    disabled={disabled}
+                    aria-label="Policy"
+                />
             ) : null}
-        </FieldLayoutProvider>
+        </>
     )
 
     // The Attach button sits in the panel header; the section portals it into this slot.
