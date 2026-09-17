@@ -9,9 +9,10 @@
  * An everyday reason shows in full; a big one (a stacktrace) clamps behind a "Show more" that
  * opens a scrollable block, so it cannot drown the chat.
  *
- * The two recovery escapes are props rather than wiring, because they are not shared: the desktop
- * app has a provider drawer to send the reader to and the mobile app does not, and a button that
- * opens nothing is worse than no button.
+ * The two recovery escapes are props rather than wiring, because the destination is not shared:
+ * the desktop app opens its provider drawer and the mobile app routes to Settings -> LLM providers,
+ * which renders the same page. Still props, and still omitted rather than faked where a host has
+ * nowhere to send the reader, because a button that opens nothing is worse than no button.
  */
 import {Button} from "@agenta/ui/ui"
 import {XCircle} from "@phosphor-icons/react"
