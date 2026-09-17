@@ -371,7 +371,22 @@ export function McpConnectSheet({
 
     const path = authPathFor(state, reconnect)
     const screen = screenFor(state, path, consentRequested)
-    const busy = isBusy(state)
+    /**
+     * Whether something is in flight: the machine's answer, corrected for the one status that
+     * covers two situations.
+     *
+     * `discovering_scopes` is both "discovery is running" and, on a reconnect, "this screen is
+     * waiting for the press that starts it" — a reconnect opens there because the window
+     * discovery ends at can only be opened inside a gesture. `screenFor` knows that and draws
+     * the OAuth screen; `isBusy` did not, so a reconnect opened with Connect AND Cancel
+     * disabled and the only thing that could enable them was the press it had disabled. It
+     * never resolved, and the close X was the only way out (round 6c, D-R6C-4). Two buttons
+     * dead together is the shape: a validation rule would not disable Cancel.
+     *
+     * The same deadlock as D30, which `RETRY_TARGET` closed for `creating` and `verifying`.
+     */
+    const awaitingConsentPress = state.status === "discovering_scopes" && !consentRequested
+    const busy = isBusy(state) && !awaitingConsentPress
     // The window in which the connection is real but this dialog has not caught up.
     const sealed = state.status === "saving"
 
