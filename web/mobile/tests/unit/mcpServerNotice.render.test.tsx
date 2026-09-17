@@ -89,7 +89,9 @@ describe("mobile TurnRow: an MCP server that did not join the run", () => {
         const html = renderTurn([noticePart()])
 
         expect(html).toContain('data-mcp-server-notice="mock-mcp"')
-        expect(textOf(html)).toContain("mock-mcp needs authorization before its tools can run")
+        // The two halves are separate elements in the banner, so they are matched separately.
+        expect(textOf(html)).toContain("mock-mcp needs a new sign-in.")
+        expect(textOf(html)).toContain("Its tools fail until someone in the project reconnects.")
         // The marker is addressed to the runner; it has no business on a screen.
         expect(textOf(html)).not.toContain("agenta_code")
     })
@@ -98,7 +100,11 @@ describe("mobile TurnRow: an MCP server that did not join the run", () => {
         const html = renderTurn([noticePart(), failedToolPart("mcp__mock-mcp__echo")])
 
         expect(html).toContain('data-mcp-server-notice="mock-mcp"')
-        expect(textOf(html)).not.toContain("No such tool available")
+        // The notice and NOTHING else. The failed row's own error text only appears once the row
+        // is expanded, so asserting the absence of the harness sentence let a rendered row through.
+        expect(textOf(html)).toBe(
+            "mock-mcp needs a new sign-in.Its tools fail until someone in the project reconnects.",
+        )
     })
 
     it("keeps a failure from a server the turn says nothing about", () => {

@@ -107,3 +107,43 @@ export function agentConfigSummary(parameters: unknown): AgentConfigSummary {
  */
 export const mcpSummaryDetail = (mcps: number, {canEdit = false} = {}): string =>
     mcps ? `${mcps} configured` : canEdit ? "Connect a server" : "None configured"
+
+/**
+ * The rows every agent summary card shows, in order, with the title each one carries.
+ *
+ * The two cards are not one component: the desktop one renders the playground panel's
+ * accordion sections and the mobile one renders the overview rail's own shell, which its two
+ * sibling cards share so the three read as one column. What must not differ is WHICH rows there
+ * are and what they are called. The mobile card was missing `permissions` entirely and had
+ * drifted on the MCP row's wording, which is the same failure twice, so the vocabulary lives
+ * here and both cards read it.
+ *
+ * The tools row's noun is the one variable: the mobile card calls it Integrations.
+ */
+export const AGENT_CONFIG_ROW_KEYS = [
+    "model",
+    "instructions",
+    "tools",
+    "mcps",
+    "skills",
+    "permissions",
+] as const
+
+export type AgentConfigRowKey = (typeof AGENT_CONFIG_ROW_KEYS)[number]
+
+export const AGENT_CONFIG_ROW_TITLES: Record<AgentConfigRowKey, string> = {
+    model: "Model",
+    instructions: "Instructions",
+    tools: "Tools",
+    mcps: "MCP servers",
+    skills: "Skills",
+    permissions: "Permissions",
+}
+
+/**
+ * What the permissions row says. "Not set" rather than a blank: a revision written before the
+ * field existed has no default, and an empty right-hand side reads as a value that failed to
+ * load.
+ */
+export const permissionsSummaryDetail = (permissions: string | null): string =>
+    permissions || "Not set"

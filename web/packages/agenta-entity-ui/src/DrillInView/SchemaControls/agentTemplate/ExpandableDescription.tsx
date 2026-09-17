@@ -88,7 +88,11 @@ export function ExpandableDescription({
                         event.stopPropagation()
                         setExpanded(!expanded)
                     }}
-                    className="mt-1 w-fit cursor-pointer border-0 bg-transparent p-0 text-xs text-[var(--ag-colorLink)]"
+                    // `text-colorInfo`, not a raw `--ag-colorLink`: that variable exists only
+                    // through antd's runtime, so on /m the control rendered at the inherited
+                    // colour. `min-h-control-xs` puts the tap target on the shared control scale
+                    // without giving an inline toggle any chrome.
+                    className="mt-1 inline-flex min-h-control-xs w-fit cursor-pointer items-center border-0 bg-transparent p-0 text-xs text-colorInfo"
                 >
                     {expanded ? "Show less" : "Show more"}
                 </button>

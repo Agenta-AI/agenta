@@ -2,13 +2,15 @@ import {useMemo} from "react"
 
 import {composioLogo, PROVIDERS} from "@agenta/entities/workflow"
 import {
+    AGENT_CONFIG_ROW_TITLES,
     agentConfigSummary,
     agentLatestRevisionAtomFamily,
     mcpSummaryDetail,
+    permissionsSummaryDetail,
 } from "@agenta/entity-ui/agent"
 import {humanizeActionKey} from "@agenta/shared/utils"
 import {LogoMarks} from "@agenta/ui/components/presentational"
-import {Cpu, FileText, GraduationCap, Plugs, Wrench} from "@phosphor-icons/react"
+import {Cpu, FileText, GraduationCap, Plugs, ShieldCheck, Wrench} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 
 import {AgentOverviewCard} from "./AgentOverviewCard"
@@ -67,7 +69,7 @@ export const AgentConfigCard = ({
     return (
         <AgentOverviewCard title="Configuration" action="Edit" onAction={onEdit}>
             {revision.isPending ? (
-                <AgentOverviewCardSkeleton rows={4} />
+                <AgentOverviewCardSkeleton rows={6} />
             ) : revision.isError ? (
                 <AgentOverviewCardError
                     message="Couldn't load this agent's configuration."
@@ -77,14 +79,14 @@ export const AgentConfigCard = ({
                 <>
                     <AgentOverviewCardRow
                         icon={<Cpu size={ICON} />}
-                        label="Model"
+                        label={AGENT_CONFIG_ROW_TITLES.model}
                         detail={summary.model ? modelName(summary.model) : "Choose a model"}
                         title={summary.model ?? undefined}
                         onClick={onEdit}
                     />
                     <AgentOverviewCardRow
                         icon={<FileText size={ICON} />}
-                        label="Instructions"
+                        label={AGENT_CONFIG_ROW_TITLES.instructions}
                         detail={
                             summary.instructions
                                 ? `${INSTRUCTIONS_FILE} · ${summary.instructionWords}w`
@@ -115,7 +117,7 @@ export const AgentConfigCard = ({
                     {showMcp ? (
                         <AgentOverviewCardRow
                             icon={<Plugs size={ICON} />}
-                            label="MCP servers"
+                            label={AGENT_CONFIG_ROW_TITLES.mcps}
                             // The shared card's rule, not this fork's own wording: it said
                             // "connected", which claims an authorized state no summary card
                             // can know, and which the shared card was fixed away from.
@@ -125,9 +127,18 @@ export const AgentConfigCard = ({
                     ) : null}
                     <AgentOverviewCardRow
                         icon={<GraduationCap size={ICON} />}
-                        label="Skills"
+                        label={AGENT_CONFIG_ROW_TITLES.skills}
                         detail={skills}
                         title={summary.skillNames.join(", ") || undefined}
+                        onClick={onEdit}
+                    />
+                    {/* The shared card's last row, which this one never had: the agent's default
+                        tool permission is the setting that decides whether a run stops to ask, and
+                        a card claiming to say what the agent IS cannot leave it out. */}
+                    <AgentOverviewCardRow
+                        icon={<ShieldCheck size={ICON} />}
+                        label={AGENT_CONFIG_ROW_TITLES.permissions}
+                        detail={permissionsSummaryDetail(summary.permissions)}
                         onClick={onEdit}
                     />
                 </>

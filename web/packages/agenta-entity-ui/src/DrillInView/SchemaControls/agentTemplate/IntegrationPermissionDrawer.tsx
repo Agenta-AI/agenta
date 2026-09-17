@@ -381,7 +381,7 @@ function ToolGroup({
                         <button
                             type="button"
                             onClick={() => setShown((value) => value + GROUP_PAGE_SIZE)}
-                            className="cursor-pointer border-0 border-t border-solid border-[var(--ag-colorBorderSecondary)] bg-transparent px-3 py-2 text-left text-xs text-[var(--ag-colorLink)]"
+                            className="cursor-pointer border-0 border-t border-solid border-[var(--ag-colorBorderSecondary)] bg-transparent px-3 py-2 text-left text-xs text-colorInfo"
                         >
                             Show {remaining} more
                         </button>

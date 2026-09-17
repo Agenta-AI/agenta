@@ -172,7 +172,35 @@ const menuItems = () => screen.getAllByRole("menuitem").map((item) => item.textC
 const statusTone = (cell: HTMLElement) =>
     (cell.firstElementChild as HTMLElement | null)?.className ?? ""
 
+/**
+ * The viewport the case means, since two of the four columns are a wider screen's.
+ *
+ * jsdom implements no `matchMedia`, so without this every breakpoint reads false and every
+ * case would silently be a phone. Cases that do not say otherwise are a desktop, which is what
+ * the spec's 1000px page is.
+ */
+const setViewport = (width: number) => {
+    Object.defineProperty(window, "matchMedia", {
+        writable: true,
+        configurable: true,
+        value: (query: string) => {
+            const min = Number(/min-width:\s*(\d+)px/.exec(query)?.[1] ?? 0)
+            return {
+                matches: width >= min,
+                media: query,
+                onchange: null,
+                addListener: () => undefined,
+                removeListener: () => undefined,
+                addEventListener: () => undefined,
+                removeEventListener: () => undefined,
+                dispatchEvent: () => false,
+            }
+        },
+    })
+}
+
 beforeEach(() => {
+    setViewport(1440)
     confirmSpy = vi.fn()
     setters.remove.mockReset()
     setters.disconnect.mockReset()
@@ -187,6 +215,21 @@ describe("the registry table", () => {
         for (const heading of ["Name", "Server URL", "Auth", "Status"]) {
             expect(screen.getByRole("columnheader", {name: heading})).toBeTruthy()
         }
+    })
+
+    it("keeps what identifies and acts on a row at phone width, and drops the details", () => {
+        // Measured, the four columns are a 986px table, which a 348px phone can only scroll
+        // sideways. The acceptance is that it reflows instead, and the table's own mechanism for
+        // that is a per-column breakpoint. The URL and the auth are one tap away in the row.
+        setViewport(430)
+        show([LINEAR])
+
+        expect(screen.getByRole("columnheader", {name: "Name"})).toBeTruthy()
+        expect(screen.getByRole("columnheader", {name: "Status"})).toBeTruthy()
+        expect(screen.queryByRole("columnheader", {name: "Server URL"})).toBeNull()
+        expect(screen.queryByRole("columnheader", {name: "Auth"})).toBeNull()
+        // The row still says which server it is, which is what a narrow table is for.
+        expect(screen.getByTestId("mcp-connection-name").textContent).toBe("Linear")
     })
 
     it("leads each row with the server tile and the connection name", () => {

@@ -31,9 +31,13 @@ export {
     type AgentConfigSummaryCopy,
 } from "./AgentConfigSummaryCard"
 export {
+    AGENT_CONFIG_ROW_KEYS,
+    AGENT_CONFIG_ROW_TITLES,
     agentConfigSummary,
     mcpSummaryDetail,
+    permissionsSummaryDetail,
     prettifyKind,
+    type AgentConfigRowKey,
     type AgentConfigSummary,
 } from "./agentConfigSummary"
 export {agentLatestRevisionAtomFamily} from "./state"
