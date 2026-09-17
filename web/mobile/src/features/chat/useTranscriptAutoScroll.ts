@@ -1,6 +1,6 @@
 import {useCallback, useEffect, useLayoutEffect, useRef, useState} from "react"
 
-import {shouldRevealJump} from "@agenta/chat/assets"
+import {clippedEdges, scrollEdgeMask, shouldRevealJump} from "@agenta/chat/assets"
 
 /** Follow keeps tracking appends from this close to the bottom. Deliberately small and NOT the
  * pill's threshold: auto-scrolling someone who has scrolled up to read is the worse failure. */
@@ -15,6 +15,9 @@ export const useTranscriptAutoScroll = (content: unknown) => {
     // desktop): leaving the follow band means "stop auto-scrolling", not "offer a way back" — at
     // 80px the pill used to appear on barely a nudge.
     const [showJump, setShowJump] = useState(false)
+    // The scroller's edge fades, from the same measurements: they are its scroll state, not a
+    // decoration, so the first message is never dimmed while the transcript sits at its top.
+    const [edgeMask, setEdgeMask] = useState("none")
 
     const measure = useCallback((el: HTMLDivElement) => {
         // A pane hidden behind the config split measures 0 everywhere; that is not the reader moving.
@@ -22,6 +25,9 @@ export const useTranscriptAutoScroll = (content: unknown) => {
         nearBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight <= NEAR_BOTTOM_PX
         const next = !nearBottomRef.current && shouldRevealJump(el)
         setShowJump((prev) => (prev === next ? prev : next))
+        const edges = clippedEdges(el)
+        const mask = scrollEdgeMask(edges.top, edges.bottom)
+        setEdgeMask((prev) => (prev === mask ? prev : mask))
     }, [])
 
     const onScroll = useCallback(() => {
@@ -40,12 +46,10 @@ export const useTranscriptAutoScroll = (content: unknown) => {
     useLayoutEffect(() => {
         const el = ref.current
         if (!el) return
-        if (nearBottomRef.current) {
-            el.scrollTop = el.scrollHeight
-            return
-        }
+        // Pinned: land on the newest turn first, then read the edges from where that left us.
         // Parked mid-scroll: streamed growth moves the newest turn further away without firing a
         // scroll event, so re-measure on content instead of waiting for a gesture that never comes.
+        if (nearBottomRef.current) el.scrollTop = el.scrollHeight
         measure(el)
     }, [content, measure])
 
@@ -59,12 +63,12 @@ export const useTranscriptAutoScroll = (content: unknown) => {
         const observer = new ResizeObserver(() => {
             if (el.clientHeight === 0) return
             if (nearBottomRef.current) el.scrollTop = el.scrollHeight
-            else measure(el)
+            measure(el)
         })
         observer.observe(el)
         for (const child of Array.from(el.children)) observer.observe(child)
         return () => observer.disconnect()
     }, [content, measure])
 
-    return {ref, onScroll, jumpToLatest, showJump}
+    return {ref, onScroll, jumpToLatest, showJump, edgeMask}
 }

@@ -6,7 +6,6 @@ import {
     createTurnViewModelCache,
     getPendingApprovals,
 } from "@agenta/chat/model"
-import {ChatJumpToLatest} from "@agenta/ui/components/presentational"
 import {useAtomValue} from "jotai"
 
 import {ContentRail} from "@/components/ContentRail"
@@ -206,7 +205,7 @@ const ReplayScreen = ({
         body = <ChatEmpty />
     } else {
         body = (
-            <ContentRail className="flex grow flex-col gap-3 p-4 pb-[calc(1rem+env(safe-area-inset-bottom))]">
+            <ContentRail className="flex grow flex-col gap-3 p-4 pt-6 pb-[calc(1rem+env(safe-area-inset-bottom))]">
                 <TranscriptTurns
                     turns={visibleTurns}
                     sessionId={sessionId}
@@ -222,9 +221,8 @@ const ReplayScreen = ({
         <ScreenScaffold
             scrollRef={autoScroll.ref}
             onScroll={autoScroll.onScroll}
-            scrollOverlay={
-                <ChatJumpToLatest show={autoScroll.showJump} onClick={autoScroll.jumpToLatest} />
-            }
+            // Same edge fades the live conversation wears.
+            scrollStyle={{maskImage: autoScroll.edgeMask, WebkitMaskImage: autoScroll.edgeMask}}
             embedded={embedded}
             header={
                 <>

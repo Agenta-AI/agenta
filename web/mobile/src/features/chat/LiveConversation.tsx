@@ -1,8 +1,6 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {
-    EDGE_FADE_MASK,
-    jumpGateOpen,
     latestTurnId,
     resolveStopExecution,
     shouldShowStopControl,
@@ -32,11 +30,12 @@ import {
 } from "@agenta/chat/model"
 import {getSessionTurnId} from "@agenta/chat/state"
 import {cancelSessionExecution} from "@agenta/entities/session"
+import {invalidateAgentCommittedRevisionCache} from "@agenta/entities/workflow"
 import {AgentIntroCard} from "@agenta/entity-ui/agent"
 import {SecretRequestDock} from "@agenta/entity-ui/clientTools"
 import {isOnScreen, isOverlayOpen} from "@agenta/shared/utils"
 import {message, modal} from "@agenta/ui/app-message"
-import {ChatBubble, ChatJumpToLatest} from "@agenta/ui/components/presentational"
+import {ChatBubble} from "@agenta/ui/components/presentational"
 import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 import {isAltChord} from "@agenta/ui/shortcuts"
 import {Button} from "@agenta/ui/ui"
@@ -52,6 +51,7 @@ import {AppShell} from "../nav/AppShell"
 import {livenessQueryKey, useLivenessUpdatedAt} from "../sessions/useLivenessPoll"
 
 import {ApprovalDock} from "./ApprovalDock"
+import {committedRevisionIds} from "./committedRevisionIds"
 import {Composer} from "./Composer"
 import {ConnectModelStrip} from "./ConnectModelStrip"
 import {MODEL_KEY_WAIT_LIMIT_MS, pendingTaskDecision} from "./pendingTaskPolicy"
@@ -78,6 +78,12 @@ import {useTranscriptAutoScroll} from "./useTranscriptAutoScroll"
  * mobile's detached resume path; after it fires, the records change and the watch relay's
  * `revalidate()` folds the resumed turn in.
  */
+/** The caret is in a field that is not ours — leave it there. */
+const isTypingElsewhere = (active: Element | null): boolean =>
+    active instanceof HTMLElement &&
+    active !== document.body &&
+    (active.isContentEditable || active.tagName === "INPUT" || active.tagName === "TEXTAREA")
+
 export const LiveConversation = ({
     entityId,
     sessionId,
@@ -159,6 +165,20 @@ export const LiveConversation = ({
         [conversation.messages],
     )
 
+    // The agent committing itself: the stream carries a one-way `data-committed-revision` part.
+    // Follow it — pin the workspace and retarget the next send — and drop the latest-revision
+    // caches, or the config pane and the version chip keep showing the revision it replaced.
+    // The desktop does the same in its own host hook; the shared engine leaves it to the skin.
+    const committedSeenRef = useRef<Set<string>>(new Set())
+    useEffect(() => {
+        for (const revisionId of committedRevisionIds(conversation.messages)) {
+            if (committedSeenRef.current.has(revisionId)) continue
+            committedSeenRef.current.add(revisionId)
+            invalidateAgentCommittedRevisionCache()
+            if (revisionId !== entityId) adoptSecretRevision(revisionId)
+        }
+    }, [adoptSecretRevision, conversation.messages, entityId])
+
     // The connect-model gate — desktop parity. The engine deliberately leaves this to the skin
     // (`useAgentConversation` says so): a keyless project must be told to add a key BEFORE the
     // send, not shown a raw 422 after it. Blocks the composer, holds the parked task, and raises
@@ -202,6 +222,19 @@ export const LiveConversation = ({
         input?.setMarkdown(cancelEdit())
         input?.focus()
     }, [cancelEdit])
+
+    // Landing on a session — a new one from `+` or the shortcut, or a switch to an existing one —
+    // puts the caret in the composer, once it can take input. Not while the caret is already in
+    // some other field: a self-commit remounts this screen mid-edit in the config pane.
+    const disabled = conversation.isHydrating || modelBlocked
+    useEffect(() => {
+        if (disabled) return
+        const frame = requestAnimationFrame(() => {
+            if (isTypingElsewhere(document.activeElement)) return
+            composerRef.current?.focus()
+        })
+        return () => cancelAnimationFrame(frame)
+    }, [disabled, sessionId])
 
     // Keep Home tasks session-scoped until admission; failures require an explicit retry.
     const pendingTasks = useAtomValue(pendingTasksAtom)
@@ -525,15 +558,6 @@ export const LiveConversation = ({
     })
     const secretDockOpen =
         !streamingHere && !stopping && !conversation.stopped && Boolean(pendingSecret)
-    // A docked gate holds the jump pill back — same rule, same reasons, as the desktop. This
-    // surface has no question-form dock yet, so approvals, connect, and secret cards gate it.
-    const gateOpen =
-        jumpGateOpen({
-            approvals: pendingApprovals.length,
-            elicitationOpen: false,
-            connectionOpen: connects.open,
-        }) || secretDockOpen
-
     // Rewind: re-run the conversation from a turn. The hook only SCANS (it never opens dialogs),
     // so the warning about tools that already ran, and putting a rewound user message back into
     // the composer, are this surface's job — same division the desktop uses. `composerRef` is
@@ -602,7 +626,7 @@ export const LiveConversation = ({
         body = <ChatLoading />
     } else {
         body = (
-            <ContentRail className="flex grow flex-col gap-3 p-4 pb-[calc(1rem+env(safe-area-inset-bottom))]">
+            <ContentRail className="flex grow flex-col gap-3 p-4 pt-6 pb-[calc(1rem+env(safe-area-inset-bottom))]">
                 {/* A held or failed Home task stays visible until accepted. */}
                 {heldTaskText ? (
                     <div className={`${mobileTurnRowClass} justify-end`}>
@@ -656,16 +680,13 @@ export const LiveConversation = ({
             <ScreenScaffold
                 scrollRef={autoScroll.ref}
                 onScroll={autoScroll.onScroll}
-                scrollOverlay={
-                    <ChatJumpToLatest
-                        show={autoScroll.showJump && !gateOpen}
-                        onClick={autoScroll.jumpToLatest}
-                    />
-                }
                 embedded={embedded}
-                // The top edge fades as a MASK, exactly as the desktop transcript does — content
-                // dissolves under the tab bar instead of being cut by a hard line.
-                scrollStyle={{maskImage: EDGE_FADE_MASK, WebkitMaskImage: EDGE_FADE_MASK}}
+                // Edge fades as a MASK, only where content is clipped — the Home list's rule, so
+                // the first message reads crisp at the top and the bottom says there is more.
+                scrollStyle={{
+                    maskImage: autoScroll.edgeMask,
+                    WebkitMaskImage: autoScroll.edgeMask,
+                }}
                 footer={
                     <div className="relative">
                         {/* What you have lined up stays visible while a gate is open: the queued
@@ -808,7 +829,7 @@ export const LiveConversation = ({
                             onSteer={({text, parts, stagedFiles}) =>
                                 conversation.steer({text, parts, stagedFiles})
                             }
-                            disabled={conversation.isHydrating || modelBlocked}
+                            disabled={disabled}
                             placeholder={
                                 modelBlocked ? "Connect a model to start chatting…" : undefined
                             }

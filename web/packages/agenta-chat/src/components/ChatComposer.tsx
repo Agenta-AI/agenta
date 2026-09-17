@@ -196,6 +196,9 @@ export const ChatComposer = ({
                 disabled={disabled}
                 hideSendButton={hideSendButton}
                 hideShortcutHints={hideShortcutHints ?? !hasKeyboard}
+                // A touch keyboard has no modifier to make a newline with, so its Enter IS the
+                // newline and the send button sends. Enter sends only where Shift/⌘ can be held.
+                submitOnEnter={hasKeyboard}
                 placeholder={
                     placeholder ??
                     (waitingOnUser

@@ -54,9 +54,11 @@
 :root {
     --radius: 0.625rem;
     /* The composer's send takes the primary fill here, not the desktop's lime accent. The button
-       reads these hooks itself (ComposerSendButton), and the theme tokens carry the dark values. */
+       reads these hooks itself (ComposerSendButton), and the theme tokens carry the dark values:
+       the glyph is the container colour, so it reads white on the light theme's ink and ink on
+       the dark theme's yellow — the pairing Home's send already uses. */
     --ag-composer-send-bg: var(--colorPrimary);
-    --ag-composer-send-fg: var(--colorTextLightSolid);
+    --ag-composer-send-fg: var(--colorBgContainer);
     --ag-composer-send-hover-bg: color-mix(in srgb, var(--colorPrimary) 85%, transparent);
 }
 

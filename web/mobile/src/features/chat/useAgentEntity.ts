@@ -29,6 +29,32 @@ export const retrieveBoundRevision = async (projectId: string, boundId: string) 
 }
 
 /**
+ * The cache key for an agent's latest revision. It sits UNDER `["workflows", "latestRevision"]`
+ * on purpose: that is the prefix `invalidateAgentCommittedRevisionCache` clears after every
+ * commit — the config pane's auto-save, the agent committing itself, a `workflow-changed` watch
+ * event — and a key of this app's own was reached by none of them. A session that was not
+ * pinned then resolved through a snapshot taken when the page first asked, so a new tab, or a
+ * switch to one without a pin, showed a revision several commits old.
+ */
+export const agentLatestRevisionQueryKey = (projectId: string, boundId: string | null) =>
+    ["workflows", "latestRevision", "mobile", projectId, boundId] as const
+
+/**
+ * The id a session row binds its agent by. The WORKFLOW ref when the row carries one — a
+ * revision ref beside it names the turn that ran, not what the workspace should follow — else
+ * the first ref that is an id at all (a trigger may bind a variant or a revision only).
+ */
+export const boundReferenceId = (
+    references: {key?: string | null; id?: string | null}[] | null | undefined,
+): string | null => {
+    if (!references?.length) return null
+    const workflow = references.find(
+        (ref) => ref.key === "workflow" && ref.id && isValidUUID(ref.id),
+    )
+    return workflow?.id ?? references.find((ref) => ref.id && isValidUUID(ref.id))?.id ?? null
+}
+
+/**
  * Resolve the entity the conversation engine invokes: session → owning agent (the latest
  * turn's workflow reference, off `/sessions/query`) → that agent's LATEST revision id. The engine's
  * request builder reads everything else (invocation URL, config, references) off the workflow
@@ -68,11 +94,11 @@ export const useAgentEntity = (
         (candidate) => candidate.id === sessionId || candidate.session_id === sessionId,
     )
     // No row is a real answer for a session with no turns yet. Another session's row is not.
-    const listedAgentId = row?.references?.find((ref) => ref.id && isValidUUID(ref.id))?.id ?? null
+    const listedAgentId = boundReferenceId(row?.references)
     const boundId = listedAgentId ?? fallbackAgentId ?? null
 
     const revisionQuery = useQuery({
-        queryKey: ["mobile", "agent-latest-revision", projectId, boundId],
+        queryKey: agentLatestRevisionQueryKey(projectId, boundId),
         queryFn: () => retrieveBoundRevision(projectId, boundId ?? ""),
         enabled: Boolean(boundId && projectId),
         staleTime: 30_000,

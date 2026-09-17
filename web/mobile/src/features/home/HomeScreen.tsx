@@ -41,7 +41,7 @@ export const HomeScreen = ({workspaceId, projectId}: {workspaceId: string; proje
     const base = `/w/${workspaceId}/p/${projectId}`
     const agentsQuery = useAtomValue(agentWorkflowsListQueryStateAtom)
     const agents = useMemo<Workflow[]>(() => agentsQuery.data ?? [], [agentsQuery.data])
-    const handoff = useHomeHandoff(base)
+    const handoff = useHomeHandoff(base, projectId)
     const surface = resolveHomeSurface({
         agentCount: agents.length,
         isPending: agentsQuery.isPending,
@@ -72,6 +72,7 @@ export const HomeScreen = ({workspaceId, projectId}: {workspaceId: string; proje
         <HomeFocus
             className={frame}
             agents={listAgents}
+            preferredAgentId={handoff.preferredAgentId}
             templates={AGENT_TEMPLATES}
             attachments={handoff.attachments}
             onStartTask={handoff.onStartTask}
