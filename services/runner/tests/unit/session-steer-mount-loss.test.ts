@@ -65,7 +65,7 @@ import type { MountCredentials } from "../../src/engines/sandbox_agent/mount.ts"
 import type { SessionEnvironment } from "../../src/engines/sandbox_agent.ts";
 
 /** The one durable cwd every environment of a given session shares. */
-const CWD = "/tmp/agenta/mounts/proj-1/mount-1";
+const CWD = "/var/lib/agenta/mounts/proj-1/mount-1";
 const KEY = "proj-1:session-1";
 
 /** `Promise.withResolvers` is Node 24 but outside this package's tsc `lib` target. */

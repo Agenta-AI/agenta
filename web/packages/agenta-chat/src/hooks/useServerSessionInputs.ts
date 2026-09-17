@@ -14,6 +14,7 @@ import {useAtomValue, useSetAtom} from "jotai"
 
 import {attachmentIdForPart} from "../assets/files"
 import {reduceSessionPendingInputs, type SessionPendingInputView} from "../assets/pendingInputs"
+import {startupLabelFromDataPart} from "../assets/startupPhases"
 
 import type {QueuedMessage} from "./useAgentChatQueue"
 import {useMountGeneration} from "./useMountGeneration"
@@ -30,10 +31,14 @@ export interface ServerInputWatcher {
     /** No turn will ever carry it: refused, errored, or accepted by nothing. */
     onFailed?: () => void
     /**
-     * The accepted turn finished and its records have been re-read. If the saved row still has
-     * not arrived by now it never will, so the echo stops waiting silently.
+     * The accepted turn's stream ended on its own and its records have been re-read. If the
+     * saved row still has not arrived by now it never will, so the echo stops waiting silently.
+     * Not reported for a connection that dropped after acceptance: the turn may still be running,
+     * and the liveness poll re-reads the records when it ends.
      */
     onSettled?: () => void
+    /** The runner narrated a startup phase (#6047); the run stream is their only source. */
+    onStartupPhase?: (label: string) => void
 }
 
 export interface ServerSessionInputs {
@@ -57,7 +62,22 @@ const emptyView = reduceSessionPendingInputs(null)
 
 const RUN_ERROR_FRAME_TYPES = new Set(["error", "data-agent-error"])
 
-type RunFrame = {kind: "accepted"; executionId: string} | {kind: "error"} | {kind: "started"} | null
+type RunFrame =
+    | {kind: "accepted"; executionId: string}
+    | {kind: "error"}
+    | {kind: "started"}
+    | {kind: "status"; label: string}
+    | null
+
+/**
+ * What one run stream said about the send that opened it. `accepted` is whether a frame named the
+ * turn; `ended` is whether the stream closed on its own rather than the connection dropping.
+ * Only the two together mean "this turn is over", which is what settlement needs.
+ */
+export interface RunAdmission {
+    accepted: boolean
+    ended: boolean
+}
 
 const runFrameFromLine = (line: string): RunFrame => {
     const payload = line.startsWith("data:") ? line.slice(5).trim() : line.trim()
@@ -70,6 +90,8 @@ const runFrameFromLine = (line: string): RunFrame => {
         }
         if (typeof frame.type !== "string") return null
         if (RUN_ERROR_FRAME_TYPES.has(frame.type)) return {kind: "error"}
+        const label = startupLabelFromDataPart(frame)
+        if (label) return {kind: "status", label}
         // The runner emits its `turn` event only after it admits the request, and the Vercel
         // adapter forwards that id as message metadata. It is the only thing in an ordinary
         // request's stream that proves a turn exists.
@@ -108,11 +130,11 @@ const runFrameFromLine = (line: string): RunFrame => {
 export const readRunAdmission = async (
     response: Response,
     watcher?: ServerInputWatcher,
-): Promise<boolean> => {
+): Promise<RunAdmission> => {
     const reader = response.body?.getReader()
     if (!reader) {
         watcher?.onFailed?.()
-        return false
+        return {accepted: false, ended: true}
     }
     const decoder = new TextDecoder()
     let buffer = ""
@@ -128,17 +150,22 @@ export const readRunAdmission = async (
             if (!frame) continue
             // Scanning continues past the turn-id frame, because a detached run names its turn in
             // a frame of its own, and that id is what retires the echo on identity.
+            if (frame.kind === "status") {
+                watcher?.onStartupPhase?.(frame.label)
+                continue
+            }
             if (frame.kind === "started") {
                 started = true
                 continue
             }
             if (frame.kind === "error") {
-                if (started) continue
+                if (started || accepted) continue
                 return "error"
             }
+            if (accepted) continue
             accepted = true
             watcher?.onAccepted?.(frame.executionId)
-            return "accepted"
+            // The chunk may carry a status frame right behind the acceptance; keep going.
         }
         return null
     }
@@ -146,22 +173,25 @@ export const readRunAdmission = async (
         for (;;) {
             const {done, value} = await reader.read()
             if (done) break
-            if (accepted) continue
+            // Still scanned past acceptance: the startup phases arrive after it.
             if (scan(decoder.decode(value, {stream: true})) === "error") {
                 watcher?.onFailed?.()
                 await reader.cancel().catch(() => undefined)
-                return false
+                return {accepted: false, ended: true}
             }
         }
         // A last frame with no trailing newline is still a frame, and it can be the refusal.
         if (!accepted && buffer.trim() && scan("\n") === "error") {
             watcher?.onFailed?.()
-            return false
+            return {accepted: false, ended: true}
         }
     } catch {
-        // A dropped connection says nothing about the turn either way, so it reports nothing.
+        // A dropped connection says nothing about the turn either way: not a failure, and not an
+        // ending. A turn that keeps running on the server after the browser's connection fell
+        // over still saves its row, and reading the drop as "finished" put "wasn't sent" under it.
+        return {accepted, ended: false}
     }
-    return accepted
+    return {accepted, ended: true}
 }
 
 export const parkedInputIdFromBody = (body: unknown): string | null => {
@@ -179,6 +209,7 @@ export const useServerSessionInputs = ({
     locallyBusy,
     isSharedReaderReady,
     onExecuted,
+    onStartupPhase,
 }: {
     entityId: string
     sessionId: string
@@ -186,7 +217,14 @@ export const useServerSessionInputs = ({
     locallyBusy: boolean
     /** Read current transport readiness when admitting input, including after reconnect. */
     isSharedReaderReady?: () => boolean
-    onExecuted?: () => void
+    /**
+     * A durable send's run stream ended, so the records may hold rows this browser has not
+     * adopted. A host that re-reads them returns the read, resolving `false` when it could not
+     * reach the log; settlement waits on it and draws no conclusion from a failed read.
+     */
+    onExecuted?: () => void | boolean | Promise<void | boolean>
+    /** A startup phase the run stream narrated for a send this hook admitted. */
+    onStartupPhase?: (label: string) => void
 }): ServerSessionInputs => {
     const projectId = useAtomValue(projectIdAtom)
     const scope = JSON.stringify([projectId, sessionId])
@@ -204,6 +242,8 @@ export const useServerSessionInputs = ({
     const messagesRef = useRef(messages)
     const entityIdRef = useRef(entityId)
     const onExecutedRef = useRef(onExecuted)
+    const onStartupPhaseRef = useRef(onStartupPhase)
+    onStartupPhaseRef.current = onStartupPhase
     const isSharedReaderReadyRef = useRef(isSharedReaderReady)
     const loadInFlightRef = useRef<{
         scope: string
@@ -333,16 +373,31 @@ export const useServerSessionInputs = ({
             // run in the background so the composer can admit Queue/Steer while that run streams.
             // A 200 only proves the request was taken: the turn is accepted when the stream's
             // first frame names it, and a stream that ends without one never started a turn.
-            void readRunAdmission(response, watcher)
-                .then(async (accepted) => {
+            void readRunAdmission(response, {
+                ...watcher,
+                onStartupPhase: (label) => {
+                    if (mount.isCurrent(generation)) onStartupPhaseRef.current?.(label)
+                },
+            })
+                .then(async ({accepted, ended}) => {
                     if (!mount.isCurrent(generation)) return
                     await refresh()
                     if (!mount.isCurrent(generation)) return
-                    onExecutedRef.current?.()
-                    // ONLY for a turn this stream actually named. Silence means the runner never
-                    // emits acceptance on this path, not that nothing was sent, and settling on
-                    // it would put "wasn't sent" under a message that was.
-                    if (accepted) watcher?.onSettled?.()
+                    // Settlement WAITS for the re-read it starts. The saved row that retires this
+                    // send's echo arrives in that read; reporting before it landed flagged a
+                    // delivered, answered message as not sent whenever the read took longer
+                    // than the turn (held back 45 s in the browser: the note went up at 6.6 s,
+                    // under the reply).
+                    const reconciled = await Promise.resolve()
+                        .then(() => onExecutedRef.current?.())
+                        .catch(() => false)
+                    if (!mount.isCurrent(generation)) return
+                    // ONLY for a turn this stream actually named, whose stream ended on its own,
+                    // once the records were actually read. Silence means the runner never emits
+                    // acceptance on this path, not that nothing was sent; a dropped connection
+                    // means the turn may still be running; a failed read means nothing is known.
+                    // Settling on any of them would put "wasn't sent" under a message that was.
+                    if (accepted && ended && reconciled !== false) watcher?.onSettled?.()
                 })
                 .catch(() => undefined)
             return "running"

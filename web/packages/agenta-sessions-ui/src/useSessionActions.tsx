@@ -7,7 +7,7 @@ import {
     unarchiveSessionRemote,
 } from "@agenta/entities/session"
 import {shareUrl} from "@agenta/sessions/link"
-import {pinnedSessionIdsAtom, toggleSessionPinAtom} from "@agenta/sessions/state"
+import {pinnedSessionIdsAtom, toggleSessionPinAtom, unpinSessionAtom} from "@agenta/sessions/state"
 import {projectIdAtom} from "@agenta/shared/state"
 import {message, modal} from "@agenta/ui/app-message"
 import {copyToClipboard} from "@agenta/ui/utils"
@@ -82,6 +82,7 @@ export const useSessionActions = ({localCache, sharePathFor}: UseSessionActionsO
     const projectId = useAtomValue(projectIdAtom) ?? ""
     const pinnedIds = useAtomValue(pinnedSessionIdsAtom)
     const togglePin = useSetAtom(toggleSessionPinAtom)
+    const unpin = useSetAtom(unpinSessionAtom)
 
     const revalidate = useCallback(() => {
         void queryClient.invalidateQueries({queryKey: ["sessions-page"]})
@@ -151,9 +152,12 @@ export const useSessionActions = ({localCache, sharePathFor}: UseSessionActionsO
                     return
                 }
             }
+            // Archiving drops the pin: a pinned row leads every list, which is the opposite of
+            // what archiving asks for, and the menu will not pin it back until it is unarchived.
+            if (!target.archived) unpin(target.sessionId)
             revalidate()
         },
-        [isCached, localCache, projectId, revalidate],
+        [isCached, localCache, projectId, revalidate, unpin],
     )
 
     const remove = useCallback(
@@ -182,11 +186,12 @@ export const useSessionActions = ({localCache, sharePathFor}: UseSessionActionsO
                             return
                         }
                     }
+                    unpin(target.sessionId)
                     revalidate()
                 },
             })
         },
-        [isCached, localCache, projectId, revalidate],
+        [isCached, localCache, projectId, revalidate, unpin],
     )
 
     const copyShareLink = useCallback(

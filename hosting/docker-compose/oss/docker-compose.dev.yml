@@ -218,8 +218,12 @@ services:
             watchmedo auto-restart --directory=/app/ee/src --directory=/app/ee/databases --directory=/app/oss/src
             --directory=/app/oss/databases --directory=/app/entrypoints --directory=/sdks/python/agenta
             --directory=/clients/python/agenta_client --pattern=*.py --recursive --ignore-patterns=*/tests/*
-            --signal SIGTERM --kill-after 5 --
+            --signal SIGTERM --kill-after 5 --debounce-interval 1 --
             python -m entrypoints.worker_streams
+        # === RESOURCES =========================================== #
+        # Cap child PIDs so a reloader/consumer leak fails loudly instead of
+        # exhausting the host (a rebase file-event burst orphaned ~219 workers).
+        pids_limit: 20
         # === STORAGE ============================================== #
         volumes:
             - ../../../api/ee:/app/ee
@@ -268,8 +272,12 @@ services:
             watchmedo auto-restart --directory=/app/ee/src --directory=/app/ee/databases --directory=/app/oss/src
             --directory=/app/oss/databases --directory=/app/entrypoints --directory=/sdks/python/agenta
             --directory=/clients/python/agenta_client --pattern=*.py --recursive --ignore-patterns=*/tests/*
-            --signal SIGTERM --kill-after 5 --
+            --signal SIGTERM --kill-after 5 --debounce-interval 1 --
             python -m entrypoints.worker_queues
+        # === RESOURCES =========================================== #
+        # Cap child PIDs so a reloader/consumer leak fails loudly instead of
+        # exhausting the host (a rebase file-event burst orphaned ~219 workers).
+        pids_limit: 20
         # === STORAGE ============================================== #
         volumes:
             - ../../../api/ee:/app/ee
@@ -389,8 +397,10 @@ services:
                 "*.pyc",
                 "--reload-exclude",
                 "__pycache__",
-                "--root-path",
-                "/services",
+                # No --root-path: traefik strips /services, and the app strips it again itself
+                # (ServicesPrefixStripMiddleware). Setting it too made every mounted sub-app 404 —
+                # /agent/v0/* answered "Not Found" for authenticated requests while
+                # /services/health still worked.
                 "--loop",
                 "uvloop",
                 "--http",
@@ -600,8 +610,10 @@ services:
     seaweedfs:
         # === IMAGE ================================================ #
         # Pinned (not :latest) so the IAM/STS subsystem stays on a known-good build — it has
-        # regressed across releases (e.g. 4.13). 4.37 verified working with the config below.
-        image: chrislusf/seaweedfs:4.37
+        # regressed across releases (e.g. 4.13). 4.47 verified working with the config below.
+        # Never go below 4.42: older builds keep listing a pre-versioning object after its
+        # delete marker is written, so a deleted file reappears in a geesefs mount, unreadable.
+        image: chrislusf/seaweedfs:4.47
         # === EXECUTION ============================================ #
         # ONLY FOR SEAWEEDFS (the bundled dev store). Real S3/R2/MinIO ship their own STS/IAM
         # and ignore all of this. Two configs, both generated from env (no committed files):

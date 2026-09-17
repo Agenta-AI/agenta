@@ -83,9 +83,9 @@ describe("what every harness is told", () => {
     // The fix for an observed failure: with no stated path, a model guessed a structurally-wrong
     // absolute skills path from memory as its first move (ENOENT + an approval interruption).
     const withSkills = platformGuidanceAppendix(
-      run({ skillsPath: "/tmp/agenta/mounts/p/s/agents/skills" }),
+      run({ skillsPath: "/var/lib/agenta/mounts/p/s/agents/skills" }),
     );
-    assert.ok(withSkills?.includes("/tmp/agenta/mounts/p/s/agents/skills"));
+    assert.ok(withSkills?.includes("/var/lib/agenta/mounts/p/s/agents/skills"));
     assert.ok(withSkills?.includes("never construct the path from memory"));
     const withoutSkills = platformGuidanceAppendix(run({}));
     assert.ok(!withoutSkills?.includes("rendered skill files"));

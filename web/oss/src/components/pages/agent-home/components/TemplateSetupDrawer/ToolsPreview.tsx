@@ -1,6 +1,11 @@
 import {useState} from "react"
 
-import {PROVIDERS, templateToolCount, type AgentStarterTemplate} from "@agenta/entities/workflow"
+import {
+    PROVIDERS,
+    templateConnections,
+    templateToolCount,
+    type AgentStarterTemplate,
+} from "@agenta/entities/workflow"
 import {CollapsibleProviderGroup, SubSectionHeader} from "@agenta/entity-ui/drawers/shared"
 
 /**
@@ -9,14 +14,20 @@ import {CollapsibleProviderGroup, SubSectionHeader} from "@agenta/entity-ui/draw
  * rows) but without the edit/add affordances. First provider group is expanded by default.
  */
 const ToolsPreview = ({template}: {template: AgentStarterTemplate}) => {
+    // The primary option per slot: an alternative does the same job elsewhere, so listing it
+    // here would double the apparent tool count.
+    // A slot whose playbook never named its calls has no group to draw.
+    const integrations = templateConnections(template)
+        .map((slot) => slot.primary)
+        .filter((integration) => integration.tools?.length)
     const [expanded, setExpanded] = useState<Record<string, boolean>>(() =>
-        Object.fromEntries(template.requiredIntegrations.map((i, idx) => [i.slug, idx === 0])),
+        Object.fromEntries(integrations.map((i, idx) => [i.slug, idx === 0])),
     )
 
     return (
         <div className="flex flex-col gap-2">
             <SubSectionHeader label="Connected apps" count={templateToolCount(template)} />
-            {template.requiredIntegrations.map((integration) => {
+            {integrations.map((integration) => {
                 const provider = PROVIDERS[integration.slug]
                 const open = expanded[integration.slug] ?? false
                 return (
@@ -24,15 +35,15 @@ const ToolsPreview = ({template}: {template: AgentStarterTemplate}) => {
                         key={integration.slug}
                         logo={provider?.logo}
                         name={provider?.label ?? integration.slug}
-                        countText={`${integration.tools.length} ${
-                            integration.tools.length === 1 ? "tool" : "tools"
+                        countText={`${(integration.tools ?? []).length} ${
+                            (integration.tools ?? []).length === 1 ? "tool" : "tools"
                         }`}
                         open={open}
                         onToggle={() =>
                             setExpanded((prev) => ({...prev, [integration.slug]: !open}))
                         }
                     >
-                        {integration.tools.map((tool) => (
+                        {(integration.tools ?? []).map((tool) => (
                             <div key={tool.name} className="flex flex-col gap-0.5 px-2 py-1.5">
                                 <span className="text-xs text-[var(--ag-colorText)]">
                                     {tool.name}

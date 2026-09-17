@@ -8,7 +8,14 @@ from xml.etree import ElementTree
 
 import aiohttp
 from miniopy_async import Minio
+from miniopy_async.commonconfig import ENABLED, Filter
 from miniopy_async.credentials import Credentials
+from miniopy_async.lifecycleconfig import (
+    LifecycleConfig,
+    NoncurrentVersionExpiration,
+    Rule,
+)
+from miniopy_async.versioningconfig import VersioningConfig
 from miniopy_async.signer import sign_v4_sts
 from miniopy_async.deleteobjects import DeleteObject
 from miniopy_async.error import S3Error
@@ -26,6 +33,10 @@ _SEAWEEDFS_MAX_SESSION_SECONDS = 43200
 
 # AWS GetFederationToken accepts DurationSeconds in [900, 129600].
 _AWS_MAX_FEDERATION_SECONDS = 129600
+
+# Identifies the lifecycle rule we own, so a rewrite replaces ours and leaves an operator's
+# other rules alone. Never rename it: an old rule under a stale id would linger forever.
+_RETENTION_RULE_ID = "agenta-noncurrent-version-expiration"
 
 
 def _parse_sts_credentials(xml_text: str) -> Credentials:
@@ -141,6 +152,95 @@ class ObjectStore:
         client = self._client()
         if not await client.bucket_exists(bucket):
             await client.make_bucket(bucket)
+
+    async def ensure_version_retention(
+        self,
+        *,
+        bucket: str,
+        retention_days: int,
+    ) -> bool:
+        """Turn on bucket versioning and expire noncurrent versions after `retention_days`.
+
+        Bundled SeaweedFS only. A remote S3 bucket (cloud) belongs to the operator: enabling
+        versioning there changes their storage bill and their lifecycle policy, so we never
+        do it from application startup.
+
+        Idempotent and best-effort by design — it reads the current state first and only
+        writes what differs, so it can run on every boot. `retention_days <= 0` removes
+        our expiration rule but leaves versioning unchanged.
+        Returns True when the bucket ends up versioned with our rule applied.
+        """
+        if not self.enabled or not self.is_seaweedfs:
+            return False
+
+        client = self._client()
+
+        if retention_days <= 0:
+            config = await client.get_bucket_lifecycle(bucket)
+            existing = getattr(config, "rules", None) or []
+            rules = [rule for rule in existing if rule.rule_id != _RETENTION_RULE_ID]
+            if len(rules) != len(existing):
+                if rules:
+                    await client.set_bucket_lifecycle(bucket, LifecycleConfig(rules))
+                else:
+                    await client.delete_bucket_lifecycle(bucket)
+            return False
+
+        versioning = await client.get_bucket_versioning(bucket)
+        if getattr(versioning, "status", None) != ENABLED:
+            await client.set_bucket_versioning(bucket, VersioningConfig(ENABLED))
+
+        if not await self._retention_rule_matches(client, bucket, retention_days):
+            await client.set_bucket_lifecycle(
+                bucket,
+                LifecycleConfig(
+                    await self._retention_rules(client, bucket, retention_days)
+                ),
+            )
+        return True
+
+    @staticmethod
+    async def _retention_rule_matches(
+        client: Minio,
+        bucket: str,
+        retention_days: int,
+    ) -> bool:
+        config = await client.get_bucket_lifecycle(bucket)
+        for rule in getattr(config, "rules", None) or []:
+            if rule.rule_id != _RETENTION_RULE_ID:
+                continue
+            expiration = rule.noncurrent_version_expiration
+            return (
+                bool(expiration and expiration.noncurrent_days == retention_days)
+                and rule.status == ENABLED
+            )
+        return False
+
+    @staticmethod
+    async def _retention_rules(
+        client: Minio,
+        bucket: str,
+        retention_days: int,
+    ) -> List[Rule]:
+        """Our retention rule plus any rule an operator added, since PutBucketLifecycle
+        replaces the whole configuration rather than merging into it."""
+        config = await client.get_bucket_lifecycle(bucket)
+        rules = [
+            rule
+            for rule in (getattr(config, "rules", None) or [])
+            if rule.rule_id != _RETENTION_RULE_ID
+        ]
+        rules.append(
+            Rule(
+                ENABLED,
+                rule_id=_RETENTION_RULE_ID,
+                rule_filter=Filter(prefix=""),
+                noncurrent_version_expiration=NoncurrentVersionExpiration(
+                    noncurrent_days=retention_days
+                ),
+            )
+        )
+        return rules
 
     def _scope_policy(self, *, bucket: str, prefix: str) -> str:
         """Inline STS session policy scoping credentials to one mount prefix.

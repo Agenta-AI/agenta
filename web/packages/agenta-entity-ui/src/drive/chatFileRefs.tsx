@@ -46,6 +46,8 @@ export const fileCandidate = (text: string): string | null => {
     // tool-path tail to match the mount-relative file, while removing it turns `/tmp/...` into an
     // unrelated drive-relative path and loses the information needed for that match (#5983).
     const t = trimmed.startsWith("./") ? trimmed.slice(2) : trimmed
+    // A trailing slash names a directory: nothing for Quick Look to open, and no basename to show.
+    if (t.endsWith("/")) return null
     return t && /\/|\.[A-Za-z][A-Za-z0-9]{0,7}$/.test(t) ? t : null
 }
 

@@ -28,8 +28,11 @@ SUPERTOKENS_IMAGE="${SUPERTOKENS_IMAGE:-$(require_compose_service_image "$SOURCE
 REDIS_IMAGE="${REDIS_IMAGE:-$(require_compose_redis_image "$SOURCE_COMPOSE_FILE")}"
 POSTGRES_IMAGE="${POSTGRES_IMAGE:-$(require_compose_service_image "$SOURCE_COMPOSE_FILE" "postgres")}"
 GATEWAY_IMAGE="${AGENTA_GATEWAY_IMAGE:-}"
-# Pin a 4.37-era SeaweedFS: its advanced IAM (the STS path mounts need) regressed in other releases.
-SEAWEEDFS_IMAGE="${SEAWEEDFS_IMAGE:-chrislusf/seaweedfs:4.37}"
+# Pin SeaweedFS: its advanced IAM (the STS path mounts need) regressed in other releases, and
+# older builds keep listing a pre-versioning object after its delete marker
+# is written, so a deleted file reappears in a geesefs mount and cannot be read.
+# Never go below 4.42.
+SEAWEEDFS_IMAGE="${SEAWEEDFS_IMAGE:-chrislusf/seaweedfs:4.47}"
 
 require_cmd() {
     if ! command -v "$1" >/dev/null 2>&1; then

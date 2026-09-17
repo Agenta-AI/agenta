@@ -73,7 +73,23 @@ describe("drivePathFromToolPath", () => {
         ).toEqual({origin: "session", path: "notes/a.md"})
     })
 
+    it("strips the local durable root a run gets today, and the one it got before 2026-09", () => {
+        // The local root moved from `/tmp/agenta` to `/var/lib/agenta`; sessions recorded under the
+        // old one keep its paths forever, so both have to resolve to the same drive path.
+        expect(drivePathFromToolPath("/var/lib/agenta/mounts/proj-1/mount-1/notes/a.md")).toEqual({
+            origin: "session",
+            path: "notes/a.md",
+        })
+        expect(drivePathFromToolPath("/tmp/agenta/mounts/proj-1/mount-1/notes/a.md")).toEqual({
+            origin: "session",
+            path: "notes/a.md",
+        })
+    })
+
     it("routes the `<cwd>-agent` sibling mount to the agent origin", () => {
+        expect(
+            drivePathFromToolPath("/var/lib/agenta/mounts/proj-1/mount-1-agent/skills/SKILL.md"),
+        ).toEqual({origin: "agent", path: "skills/SKILL.md"})
         expect(
             drivePathFromToolPath("/tmp/agenta/mounts/proj-1/mount-1-agent/skills/SKILL.md"),
         ).toEqual({origin: "agent", path: "skills/SKILL.md"})
