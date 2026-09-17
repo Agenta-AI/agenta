@@ -67,6 +67,12 @@
   margin-bottom: 0;
 }
 
+/* Media sits 16px above the summary in the list (24px in the entry page). */
+.main :global(.markdown) iframe,
+.main :global(.markdown) div:has(> iframe) {
+  margin-bottom: 16px !important;
+}
+
 .main :global(.markdown) {
   font-size: 15px;
   line-height: 26px;

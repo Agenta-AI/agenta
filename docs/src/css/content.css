@@ -8,8 +8,7 @@
   .sidebarShellMain > .container {
     max-width: none;
     margin: 0;
-    padding: var(--doc-main-padding-top) calc(var(--doc-main-padding-x) - var(--ifm-spacing-horizontal))
-      var(--doc-main-padding-bottom) !important;
+    padding: var(--doc-main-padding-top) var(--doc-main-padding-x) var(--doc-main-padding-bottom) !important;
   }
 
   /* Reading column grows; the TOC column is a fixed 240px on the right.
@@ -135,12 +134,15 @@ details:not([class*="openapi"]) {
 }
 
 /* ---- Prev / next pagination: the "Next" card ---- */
+/* Flex instead of the stock grid so a lone "Next" card spans the column. */
 .pagination-nav {
+  display: flex;
   margin-top: 48px;
   gap: 12px;
 }
 
 .pagination-nav__link {
+  flex: 1 1 0;
   border: 1px solid var(--borderdefault);
   border-radius: var(--radius-lg);
   padding: 14px 18px;

@@ -38,7 +38,7 @@ button.menu__link {
   appearance: none;
   background: none;
   border: 0;
-  font: inherit;
+  font-family: inherit;
   text-align: left;
   cursor: pointer;
 }
@@ -62,6 +62,12 @@ button.menu__link {
 .menu__list .menu__list {
   margin-top: 1px;
   padding-left: 10px;
+}
+
+/* A group's own pages sit flush with the group label; only real nested
+   categories indent. */
+li.sidebar-section-title > .menu__list {
+  padding-left: 0;
 }
 
 /* ---- Section rail ---- */

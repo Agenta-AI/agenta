@@ -121,7 +121,12 @@
 }
 
 /* Search button in the header: a 260px field with a bordered ⌘K key chip. */
+.navbar [class*="navbarSearchContainer"] {
+  padding: 0;
+}
+
 .navbar .DocSearch-Button {
+  box-sizing: border-box;
   width: 260px;
   height: 32px;
   margin: 0;
