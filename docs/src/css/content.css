@@ -416,114 +416,33 @@ details:not([class*="openapi"]) {
 }
 
 /* ---- Doc cards ---- */
-a[class*="cardContainer"] {
-  --ifm-link-hover-decoration: none;
-  box-shadow: none;
-  border: 1px solid var(--borderdefault);
-  border-radius: var(--radius-lg);
-  padding: 18px;
-  font-variant-emoji: no-emoji;
-  position: relative;
-  transition: border-color var(--ifm-transition-fast) ease;
-}
-
-a[class*="cardContainer"]:hover {
-  border-color: var(--borderdark);
-  box-shadow: none;
-}
-
-.card.padding--lg[class*="cardContainer"] {
-  padding: 18px !important;
-}
-
-[class*="cardTitle"] {
-  font-size: 15px !important;
-  line-height: 22px !important;
-  font-weight: var(--ifm-font-weight-bold) !important;
-  margin-bottom: 4px;
-}
-
-/* Hide the default emoji icon on doc cards */
+/* The card and its grid live in src/theme/DocCard and DocCardList. */
+/* Hide the default emoji icon the theme prepends to card titles. */
 [class*="cardTitle"]::before {
   display: none !important;
 }
 
-[class*="cardDescription"] {
-  font-size: 14px !important;
-  line-height: 20px;
+/* Generated category index pages: the header reads as a page header. */
+[class*="generatedIndexPage"] header {
+  margin-bottom: 20px;
+}
+
+[class*="generatedIndexPage"] header h1 {
+  margin-bottom: 8px;
+}
+
+[class*="generatedIndexPage"] header p {
+  margin: 0;
+  font-size: 16px;
+  line-height: 26px;
   color: var(--contentsecondary);
 }
 
-/* Custom icon support for cards using CSS custom properties.
-   Usage: <CustomDocCard item={{...}} icon="🚀" /> or noIcon={true}. */
-.custom-icon [class*="cardTitle"],
-.no-icon [class*="cardTitle"],
-.icon-img [class*="cardTitle"] {
-  font-size: 0 !important;
-}
-
-.custom-icon [class*="cardTitle"]::after,
-.no-icon [class*="cardTitle"]::after,
-.icon-img [class*="cardTitle"]::after {
-  content: attr(title) !important;
-  font-size: 15px !important;
-  display: inline !important;
-}
-
-.custom-icon [class*="cardTitle"]::before {
-  content: var(--card-icon) !important;
-  font-size: 18px !important;
-  margin-right: 8px !important;
-  display: inline-block !important;
-  line-height: 1 !important;
-  flex-shrink: 0 !important;
-  vertical-align: text-bottom !important;
-  position: relative !important;
-  top: 2px !important;
-}
-
-.no-icon [class*="cardTitle"]::before {
-  content: "" !important;
-  display: none !important;
-}
-
-.icon-img [class*="cardTitle"]::before {
-  content: "" !important;
-  width: 18px !important;
-  height: 18px !important;
-  margin-right: 8px !important;
-  display: inline-block !important;
-  background-size: contain !important;
-  background-repeat: no-repeat !important;
-  background-position: center !important;
-  background-image: var(--card-icon-bg) !important;
-  flex-shrink: 0 !important;
-  vertical-align: text-bottom !important;
-  position: relative !important;
-  top: 2px !important;
-}
-
-/* DocCardList: full-width cards (FAQ category pages, API reference pages) */
-[class*="docCardListItem"] {
-  --ifm-col-width: 100% !important;
-  max-width: 100% !important;
-  flex-basis: 100% !important;
-  width: 100% !important;
-}
-
-section.row > article.col.col--6,
-section.row > .col.col--6,
-section.row > .col--6 {
-  --ifm-col-width: 100% !important;
-  max-width: 100% !important;
-  flex: 0 0 100% !important;
-  width: 100% !important;
-}
-
-/* The generated API index page: hide its lead paragraph and first card. */
-[href="/reference/api/agenta-backend"],
-[class*="generatedIndexPage"] header p,
-[class*="generatedIndexPage"] [class*="list_"] article:first-child {
+/* The OpenAPI plugin's generated index lists its own info page first; that
+   card is hidden by its link. (The old rule hid the first card and the lead
+   on every generated index, which took the first FAQ entry with it.) */
+[class*="docCardListItem"]:has(> a[href="/reference/api/agenta-backend"]),
+[href="/reference/api/agenta-backend"] {
   display: none;
 }
 

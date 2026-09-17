@@ -52,7 +52,7 @@ h4:not([class*="openapi"]) {
   margin-top: -8px;
 }
 
-.markdown h2 {
+.markdown h2:not([class*="cardTitle"]) {
   margin-top: 44px;
 }
 
