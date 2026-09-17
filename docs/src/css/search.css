@@ -1,32 +1,30 @@
 /* DocSearch modal and the /search results page. The header button lives in navbar.css. */
 
-/* Frosted-glass modal: a mostly-opaque translucent panel with a backdrop
-   blur. The opacity is high enough that busy page content stays obscured and
-   doesn't clash with the muted text. */
+/* A flat, opaque panel with a hairline border and a soft shadow, like the
+   version dropdown and the Ask AI menu. */
 .DocSearch-Modal {
   border-radius: var(--radius-lg) !important;
-  /* 92% of the theme background so busy page content stays obscured behind the
-     muted text; color-mix keeps it linked to the palette in both themes. */
-  background-color: color-mix(
-    in srgb,
-    var(--bgdefault) 92%,
-    transparent
-  ) !important;
-  -webkit-backdrop-filter: blur(24px) saturate(180%);
-  backdrop-filter: blur(24px) saturate(180%);
-  border: 1px solid rgba(0, 0, 0, 0.06);
+  background-color: var(--bgdefault) !important;
+  border: 1px solid var(--borderdefault);
+  box-shadow: 0 16px 48px rgb(0 0 0 / 0.16) !important;
 }
 
 [data-theme="dark"] .DocSearch-Modal {
-  border-color: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 16px 48px rgb(0 0 0 / 0.5) !important;
 }
 
 .DocSearch-SearchBar,
-.DocSearch-Form,
-.DocSearch-Footer {
+.DocSearch-Form {
   background: transparent !important;
   box-shadow: none !important;
   border: none !important;
+}
+
+.DocSearch-Footer {
+  background: transparent !important;
+  box-shadow: none !important;
+  border: 0 !important;
+  border-top: 1px solid var(--borderdefault) !important;
 }
 
 /* Neutralize DocSearch's blue/lavender accents and use the doc palette.
@@ -50,23 +48,31 @@
   --docsearch-footer-background: transparent !important;
 }
 
-/* Keep the modal-background transparent so surfaces that use it (e.g. the
-   sticky section headers) blend with the frosted modal instead of showing a
-   lighter band. Floating popovers that need a solid surface are handled
-   directly (see .DocSearch-Menu-content). */
+/* Surfaces that use the modal background (sticky section headers) match the
+   panel. */
 :root,
 [data-theme="dark"] {
-  --docsearch-modal-background: transparent !important;
+  --docsearch-modal-background: var(--bgdefault) !important;
 }
 
 [data-theme="dark"] {
   --docsearch-soft-primary-color: rgba(255, 255, 255, 0.07) !important;
 }
 
-/* Sticky section headers: transparent so they show the modal's frosted panel
-   exactly (no lighter/white band). */
+/* Sticky section headers on the panel surface. */
 .DocSearch-Hit-source {
-  background-color: transparent !important;
+  background-color: var(--bgdefault) !important;
+}
+
+/* The Algolia mark greyscaled like on /search. */
+.DocSearch-Logo svg {
+  opacity: 0.6;
+  filter: grayscale(1);
+  transition: opacity var(--ifm-transition-fast) ease;
+}
+
+.DocSearch-Logo a:hover svg {
+  opacity: 1;
 }
 
 /* Selected/hovered result: a subtle neutral-grey highlight with normal text,
