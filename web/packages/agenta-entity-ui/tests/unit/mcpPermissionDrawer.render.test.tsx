@@ -322,6 +322,11 @@ describe("D2 — the preset menu", () => {
         expect(menu).toContain("Deny all")
         expect(menu).toContain("Tools stay listed but never run")
         expect(menu).toContain("Custom")
+        // The spec's own sentence for Custom, which the preset table already carries. The menu had
+        // written its own, "Set below, per tool", so the one preset an author cannot pick was also
+        // the one described in words the spec never uses.
+        expect(menu).toContain("Per-tool permissions below")
+        expect(menu).not.toContain("Set below, per tool")
     })
 
     it("shows Custom but refuses to let anyone pick it", async () => {

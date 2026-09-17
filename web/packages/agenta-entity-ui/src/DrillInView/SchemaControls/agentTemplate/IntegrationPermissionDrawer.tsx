@@ -450,7 +450,10 @@ function PermissionDrawerBody({
         () =>
             INTEGRATION_PRESETS.map((def) => {
                 // Custom is what a non-empty per-tool map READS BACK as, never something to pick:
-                // contracts section 10 gives it no default of its own to write.
+                // contracts section 10 gives it no default of its own to write. Its help line is
+                // the table's, like every other preset's: the table already carries the spec's own
+                // sentence for it, and a second one written here said the same thing in different
+                // words.
                 const isCustom = def.value === "custom"
                 return {
                     value: def.value,
@@ -460,7 +463,7 @@ function PermissionDrawerBody({
                                   overrideCount === 1 ? "override" : "overrides"
                               }`
                             : def.label,
-                    help: isCustom ? "Set below, per tool" : def.help,
+                    help: def.help,
                     icon: <PolicyGlyph value={def.value} size={14} />,
                     separatorBefore: isCustom,
                     disabled: isCustom,
