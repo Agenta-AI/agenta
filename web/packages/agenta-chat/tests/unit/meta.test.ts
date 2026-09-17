@@ -53,8 +53,20 @@ describe("isClientToolPart", () => {
     })
 
     it("still claims a parked unknown client tool so the fallback settles it", () => {
-        const part = toolPart({type: "tool-mysteryTool", state: "input-available"})
+        const part = toolPart({
+            type: "tool-mysteryTool",
+            state: "input-available",
+            render: {kind: "mystery"},
+        })
         expect(isClientToolPart(part, settledCtx)).toBe(true)
+        const hinted = toolPart({type: "tool-mysteryTool", state: "input-available"})
+        const renderMap = new Map([["call_1", {kind: "mystery"}]])
+        expect(isClientToolPart(hinted, settledCtx, renderMap)).toBe(true)
+    })
+
+    it("does NOT claim a parked server tool with no render hint (still running remotely)", () => {
+        const part = toolPart({type: "tool-test_run", state: "input-available"})
+        expect(isClientToolPart(part, settledCtx)).toBe(false)
     })
 
     it("does NOT claim an unsettled tool while the turn is still streaming", () => {

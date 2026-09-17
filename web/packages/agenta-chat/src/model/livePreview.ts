@@ -92,18 +92,19 @@ const applyFrame = (
     frame: SessionLiveFrame,
 ): PreviewPart | undefined => {
     switch (frame.type) {
+        // The AI SDK's `state`, mirrored: a text still being written must not read as the answer.
         case "text-start":
-            return current ?? {type: "text", text: ""}
+            return {...(current ?? {type: "text", text: ""}), state: "streaming"}
         case "text-delta":
             return {
                 type: "text",
+                state: "streaming",
                 text:
                     stringValue(current?.type === "text" ? current.text : "") +
                     stringValue(frame.payload.delta),
             }
         case "text-end":
-            return current
-        // Without the AI SDK's `state`, a watched session's thinking reads as already settled.
+            return current ? {...current, state: "done"} : current
         case "reasoning-start":
             return {...(current ?? {type: "reasoning", text: ""}), state: "streaming"}
         case "reasoning-delta":

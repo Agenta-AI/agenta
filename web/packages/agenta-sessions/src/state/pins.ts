@@ -38,3 +38,15 @@ export const toggleSessionPinAtom = atom(null, (get, set, sessionId: string) => 
             : [sessionId, ...current],
     })
 })
+
+/** Drop a pin, if there is one. Archiving and deleting call this: an archived session is out of
+ * the way on purpose, and a pin would keep it at the head of every list — and the menu refuses to
+ * pin an archived session, so the state would be one you could not reach on purpose. */
+export const unpinSessionAtom = atom(null, (get, set, sessionId: string) => {
+    const projectId = get(projectIdAtom)
+    if (!projectId) return
+    const all = get(pinnedByProjectAtom)
+    const current = all[projectId] ?? []
+    if (!current.includes(sessionId)) return
+    set(pinnedByProjectAtom, {...all, [projectId]: current.filter((id) => id !== sessionId)})
+})
