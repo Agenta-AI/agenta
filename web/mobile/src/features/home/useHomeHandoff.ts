@@ -90,7 +90,15 @@ export const useHomeHandoff = (base: string, projectId: string) => {
     )
 
     const onCreateFromPrompt = useCallback(
-        async ({text, templateName}: {text: string; templateName?: string}) => {
+        async ({
+            text,
+            templateName,
+            templateKey,
+        }: {
+            text: string
+            templateName?: string
+            templateKey?: string
+        }) => {
             const {staged, parts} = stagedParts()
             // Same ordering as `onStartTask`: the create navigates to the chat route, which seeds
             // its tray from the store on mount, so the rows must be gone before that.
@@ -102,6 +110,9 @@ export const useHomeHandoff = (base: string, projectId: string) => {
                 // A template names the agent after itself; free text leaves the create core's
                 // own default to name it from the task.
                 name: templateName,
+                // Carries the template's accounts to the session's connect step. Absent for free
+                // text, which has nothing declarable to ask for.
+                templateKey,
             })
             if (ok) return
             // The same channel the chat composer uses for a send that did not land: docked above

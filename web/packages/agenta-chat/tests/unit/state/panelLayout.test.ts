@@ -32,6 +32,14 @@ describe("resolveConfigPanelCollapsed", () => {
     it("honours a stored preference to hide the pane, desktop included", () => {
         expect(resolveConfigPanelCollapsed(true, false)).toBe(true)
     })
+
+    it("hides the config pane on a desktop when the host asks for it", () => {
+        expect(resolveConfigPanelCollapsed(null, false, true)).toBe(true)
+    })
+
+    it("lets a stored preference beat the host's default, as it beats the phone's", () => {
+        expect(resolveConfigPanelCollapsed(false, false, true)).toBe(false)
+    })
 })
 
 describe("configPanelCollapsedAtom", () => {

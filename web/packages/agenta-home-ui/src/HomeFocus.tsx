@@ -37,10 +37,17 @@ export interface HomeFocusProps {
     /** Run the task with the bound agent. */
     onStartTask: (input: {agentId: string; text: string}) => void | Promise<void>
     /**
-     * Create an agent from what was typed in create mode. A template contributes only its NAME —
-     * its instruction is already in the composer, where it can be edited before sending.
+     * Create an agent from what was typed in create mode. A template contributes its NAME and its
+     * KEY — the instruction is already in the composer, where it can be edited before sending.
+     *
+     * The key is what lets the session ask for the template's accounts (`useSessionSetupStep`).
+     * Without it a template picked here would be the one create path that never gates.
      */
-    onCreateFromPrompt: (input: {text: string; templateName?: string}) => void | Promise<void>
+    onCreateFromPrompt: (input: {
+        text: string
+        templateName?: string
+        templateKey?: string
+    }) => void | Promise<void>
     /** Where "Browse all N templates" lands. */
     templatesHref: string
     /** A start or a create is in flight and the page has not moved yet. */
@@ -181,6 +188,8 @@ export const HomeFocus = ({
                                 ...input,
                                 templateName:
                                     binding.kind === "template" ? binding.template.name : undefined,
+                                templateKey:
+                                    binding.kind === "template" ? binding.template.key : undefined,
                             })
                             setBindingChoice({kind: "agent", id: null})
                         }}

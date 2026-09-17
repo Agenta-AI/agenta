@@ -18,6 +18,7 @@ export {
 export {AgentsPanel, type AgentsPanelEntry, type AgentsPanelProps} from "./AgentsPanel"
 export {NewAgentButton, type NewAgentButtonProps, type NewAgentTemplate} from "./NewAgentButton"
 export {TemplateGallery, type TemplateGalleryProps} from "./TemplateGallery"
+export {TEMPLATE_GALLERY_COPY} from "./templateGalleryCopy"
 export {TemplateDetail, type TemplateDetailProps} from "./TemplateDetail"
 export {TemplateCard, type TemplateCardProps} from "./TemplateCard"
 export {TemplateProviderMarks} from "./TemplateProviderMarks"
