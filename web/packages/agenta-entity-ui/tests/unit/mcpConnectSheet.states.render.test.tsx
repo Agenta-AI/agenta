@@ -479,6 +479,17 @@ describe("C5, the server wants a key", () => {
         )
     })
 
+    it("offers only the two actions the spec draws", async () => {
+        await open(keyScreen)
+
+        // "Connect without authentication" used to sit here. This screen is only ever
+        // reached by a server that refused the anonymous handshake, so connecting without a
+        // credential would make a connection the server has already said no to (decision 53).
+        expect(text()).not.toContain("Connect without authentication")
+        expect(button("Cancel")).toBeDefined()
+        expect(button("Connect")).toBeDefined()
+    })
+
     it("attaches the secret label to the control it names", async () => {
         await open(keyScreen)
 
@@ -548,8 +559,11 @@ describe("C6, the key was refused", () => {
         expect(control("Header")?.getAttribute("aria-invalid")).toBe("true")
         expect(control("Project secret")?.getAttribute("aria-invalid")).toBe("true")
         expect(text()).toContain(
-            "The server rejected this key. The server rejected the credential (401). Check the header the server expects, or pick another secret.",
+            "The server rejected this key. Check the header the server expects, or pick another secret.",
         )
+        // Our own client's "did not answer initialize" no longer stands in for the status
+        // code (round 6c, D-R6C-1).
+        expect(text()).not.toContain("The server rejected the credential (401).")
         expect(button("Try again")).toBeDefined()
     })
 
@@ -562,8 +576,24 @@ describe("C6, the key was refused", () => {
         for (const label of ["Header", "Project secret"]) {
             const described = describedText(control(label))
             expect(described).toContain("The server rejected this key.")
-            expect(described).toContain("The server rejected the credential (401).")
+            expect(described).toContain("Check the header the server expects")
         }
+    })
+
+    it("names the status the server refused with, as the spec writes it", async () => {
+        await open({...rejected, probe: KEY_PROBE_BEARER})
+
+        // The spec's sentence is "The server rejected this key (401)." The number is the one
+        // part of this screen a person can act on or paste to a provider's support desk.
+        expect(text()).toContain("The server rejected this key (401).")
+    })
+
+    it("drops the status where nothing challenged, rather than guessing one", async () => {
+        // A reconnect never probes, so there is no challenge and no number to name.
+        await open({...rejected, probe: null})
+
+        expect(text()).toContain("The server rejected this key.")
+        expect(text()).not.toMatch(/rejected this key \(/)
     })
 
     it("names what the server expects when the challenge said so", async () => {
@@ -573,7 +603,7 @@ describe("C6, the key was refused", () => {
         // to put in it. Decision 27 replaces the spec's em dashes with a colon, and keeps
         // the clause.
         expect(text()).toContain(
-            "The server rejected this key. The server rejected the credential (401). " +
+            "The server rejected this key (401). " +
                 "Check the header the server expects: DSN or pick another secret.",
         )
     })

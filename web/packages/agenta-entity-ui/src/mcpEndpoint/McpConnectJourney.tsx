@@ -44,6 +44,7 @@ import {
     connectionNameProblem,
     isBusy,
     mcpChallengeSchemeToShow,
+    mcpChallengeStatus,
     readMcpProbeResponse,
     toolPrefixFromName,
     useMcpConnectJourney,
@@ -145,6 +146,21 @@ const UNREACHABLE_ADVICE =
     "Check the address and that the server speaks HTTP transport. Private-network servers must be reachable from Agenta."
 
 const KEY_REJECTED_HEADLINE = "The server rejected this key."
+
+/**
+ * The same sentence, naming the status the spec's C6 copy names.
+ *
+ * The spec writes "The server rejected this key (401)." and the status code is the one part
+ * of that screen a person can act on or paste to a provider's support desk. It was dropped
+ * for want of a number to put there, and what stood in its place was the relayed sentence
+ * our own MCP client writes when it cannot read an answer, which says less (round 6c,
+ * D-R6C-1).
+ *
+ * The number is the challenge's, which is how this server answers a request it will not
+ * authorize. Where nothing challenged, the clause goes rather than a guess.
+ */
+const keyRejectedHeadlineFor = (status: number | null): string =>
+    status ? `The server rejected this key (${status}).` : KEY_REJECTED_HEADLINE
 const KEY_REJECTED_ADVICE = "Check the header the server expects, or pick another secret."
 /**
  * The same advice, naming what the server expects where it said so.
@@ -367,11 +383,26 @@ export function McpConnectSheet({
      * two steps. A reconnect opens ON this screen with nothing pressed and nothing typed,
      * which is why the screen submits nothing until this says someone asked.
      */
-    const [afterCreate, setAfterCreate] = useState<"credential" | "skip" | null>(null)
+    const [afterCreate, setAfterCreate] = useState<"credential" | null>(null)
 
     const path = authPathFor(state, reconnect)
     const screen = screenFor(state, path, consentRequested)
-    const busy = isBusy(state)
+    /**
+     * Whether something is in flight: the machine's answer, corrected for the one status that
+     * covers two situations.
+     *
+     * `discovering_scopes` is both "discovery is running" and, on a reconnect, "this screen is
+     * waiting for the press that starts it" — a reconnect opens there because the window
+     * discovery ends at can only be opened inside a gesture. `screenFor` knows that and draws
+     * the OAuth screen; `isBusy` did not, so a reconnect opened with Connect AND Cancel
+     * disabled and the only thing that could enable them was the press it had disabled. It
+     * never resolved, and the close X was the only way out (round 6c, D-R6C-4). Two buttons
+     * dead together is the shape: a validation rule would not disable Cancel.
+     *
+     * The same deadlock as D30, which `RETRY_TARGET` closed for `creating` and `verifying`.
+     */
+    const awaitingConsentPress = state.status === "discovering_scopes" && !consentRequested
+    const busy = isBusy(state) && !awaitingConsentPress
     // The window in which the connection is real but this dialog has not caught up.
     const sealed = state.status === "saving"
 
@@ -442,10 +473,6 @@ export function McpConnectSheet({
     // The second half of the key screen's one press, once the row it needs exists.
     useEffect(() => {
         if (state.status !== "manual_auth" || !afterCreate) return
-        if (afterCreate === "skip") {
-            journey.skipAuthentication()
-            return
-        }
         const secretId = namedSecrets.find((secret) => secret.slug === secretSlug)?.id
         if (!secretId) return
         void journey.submitManualCredential({headerName, secretId})
@@ -480,22 +507,6 @@ export function McpConnectSheet({
         requestConsent()
         journey.retry()
     }, [journey, requestConsent])
-
-    /**
-     * Connect a server that turned out to want nothing.
-     *
-     * Offered because the probe said "could not tell", not "needs a key". Dropping it would
-     * turn an inconclusive answer into a refusal for every server that authenticates in a
-     * way discovery cannot see, including the ones that do not authenticate at all.
-     */
-    const skipAuthentication = useCallback(() => {
-        if (state.status === "naming") {
-            setAfterCreate("skip")
-            void journey.submitName()
-            return
-        }
-        journey.skipAuthentication()
-    }, [journey, state.status])
 
     const submitCredential = useCallback(() => {
         const secretId = selectedSecretId()
@@ -563,6 +574,7 @@ export function McpConnectSheet({
     // What the server named when it refused the anonymous handshake, where that is anything
     // the Authorization default does not already cover.
     const challengeScheme = mcpChallengeSchemeToShow(state.probe)
+    const challengeStatus = mcpChallengeStatus(state.probe)
 
     /** The one error that belongs to a field rather than to the screen. */
     const nameError = state.status === "naming" ? (nameProblem ?? state.error) : null
@@ -759,10 +771,14 @@ export function McpConnectSheet({
                     {screen === "api_key" && state.status === "verify_failed" ? (
                         <InlineError
                             id={KEY_PROBLEM_ID}
-                            headline={KEY_REJECTED_HEADLINE}
+                            headline={keyRejectedHeadlineFor(challengeStatus)}
                             className="-mt-2"
                         >
-                            {state.error} {keyRejectedAdviceFor(challengeScheme)}
+                            {/* The spec's sentence, and only it. The relayed sentence that
+                                used to sit here was our own client's "did not answer
+                                initialize", which names a protocol call where the status code
+                                and the header advice are what a reader can act on. */}
+                            {keyRejectedAdviceFor(challengeScheme)}
                         </InlineError>
                     ) : null}
 
@@ -827,20 +843,6 @@ export function McpConnectSheet({
                     <>
                         <Divider className="my-0 border-colorBorderSecondary" />
                         <div className="flex items-center justify-end gap-2">
-                            {screen === "api_key" && !reconnect ? (
-                                // The probe could not say what this server wants. A server
-                                // that wants nothing has to have a way through, or an
-                                // inconclusive answer becomes a refusal.
-                                <Button
-                                    variant="link"
-                                    size="xs"
-                                    className="mr-auto px-0 text-xs"
-                                    disabled={busy || !state.name.trim()}
-                                    onClick={skipAuthentication}
-                                >
-                                    Connect without authentication
-                                </Button>
-                            ) : null}
                             <Button variant="outline" onClick={handleClose} disabled={busy}>
                                 Cancel
                             </Button>
