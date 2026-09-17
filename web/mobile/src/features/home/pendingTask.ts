@@ -80,13 +80,15 @@ export const sendPendingTaskAtom = atom(
             if (tasks[sessionId] === sending) {
                 // Keep the refusal's own sentence with the task: the chat screen is the only
                 // surface this send has, so a reason dropped here is a reason the user never sees.
+                // Write the slot unconditionally: `sending` carries the PREVIOUS attempt's reason
+                // on a retry, and leaving it in place would caption this failure with that one.
                 const reason = refusedSendReason(error)
                 set(pendingTasksAtom, {
                     ...tasks,
                     [sessionId]: {
                         ...sending,
                         delivery: "failed",
-                        ...(reason ? {failureReason: reason} : {}),
+                        failureReason: reason ?? undefined,
                     },
                 })
             }
