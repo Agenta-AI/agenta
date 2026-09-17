@@ -171,6 +171,31 @@ const control = (label: string) =>
 const button = (label: string) =>
     [...document.querySelectorAll("button")].find((candidate) => candidate.textContent === label)
 
+/** Control heights in px, restated here so this file does not lean on the kit for them. */
+const SIZE_BY_CLASS_UNDER_TEST: Record<string, number> = {
+    "h-control-xs": 24,
+    "h-control-sm": 28,
+}
+
+/**
+ * The reach a control's classes yield, derived here rather than asked of the kit.
+ *
+ * D126 shipped because the touch helper and its reader shared one assumption, so a case that
+ * asks either of them confirms the class the helper wrote rather than the box a finger gets.
+ * The size class is the border box and the `after` inset is measured from inside the border, so
+ * the box at the edge a reader can see is `size - 2 x border + 2 x inset`.
+ */
+const reachOf = (className: string) => {
+    const classes = className.split(/\s+/).filter(Boolean)
+    const size = SIZE_BY_CLASS_UNDER_TEST[classes.find((c) => c in SIZE_BY_CLASS_UNDER_TEST) ?? ""]
+    const border = classes.includes("border-0") ? 0 : classes.includes("border") ? 1 : 0
+    const inset = classes
+        .map((c) => /^after:-inset-y-(?:\[(\d+)px\]|(\d+(?:\.\d+)?))$/.exec(c))
+        .find(Boolean)
+    const px = inset ? Number(inset[1] ?? Number(inset[2]) * 4) : 0
+    return {size, border, inset: px, reach: size - 2 * border + 2 * px}
+}
+
 const press = async (element: Element | undefined) => {
     await act(async () => {
         element?.dispatchEvent(new MouseEvent("click", {bubbles: true}))
@@ -425,6 +450,33 @@ describe("C4, the provider's window", () => {
         )
         expect(button("Open the window again")).toBeDefined()
         expect(button("Connect")).toBeUndefined()
+    })
+
+    it("gives both of its links 44px of reach at the row's own 24px height", async () => {
+        // The quiet half of the screen's actions, and on this screen the only two controls
+        // there are: a person whose consent window went behind something has nothing else to
+        // press. A link has no chrome, so it sits on the scale's smallest step and the reach
+        // beyond it is an invisible box. The row's 16px gap is wider than the 10px either box
+        // reaches sideways, so the two do not take each other's presses.
+        await open(
+            state({
+                status: "awaiting_consent",
+                url: "https://mcp.linear.app/mcp",
+                name: "Linear",
+                probe: OAUTH_PROBE,
+                endpointId: "mcp-1",
+            }),
+        )
+
+        for (const label of ["Open the window again", "Cancel"]) {
+            const link = button(label)
+            expect(link, label).toBeDefined()
+            const measured = reachOf(link!.className)
+            expect(measured.size, `${label}: not the 24px control this case is about`).toBe(24)
+            expect(measured.border, `${label}: not the bordered Button this case is about`).toBe(1)
+            expect(measured.reach, label).toBe(44)
+            expect(link!.className, label).not.toMatch(/after:(bg|border|text|shadow)-/)
+        }
     })
 
     it("abandons one attempt on Cancel without closing what was typed", async () => {

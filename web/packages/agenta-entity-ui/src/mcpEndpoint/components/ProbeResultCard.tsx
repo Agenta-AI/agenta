@@ -6,7 +6,7 @@
  * about, and a flow that showed the address on one step and the key field on the next made
  * people close the dialog to check what they had typed.
  */
-import {Button, IconTile} from "@agenta/ui/ui"
+import {Button, cn, IconTile, touchTargetExpansion} from "@agenta/ui/ui"
 import {CheckCircle, Plugs} from "@phosphor-icons/react"
 
 /** How the server said it authorizes. `none` is a server that asked for nothing. */
@@ -51,7 +51,14 @@ export const ProbeResultCard = ({url, mode, onChange}: ProbeResultCardProps) => 
             </span>
         </div>
         {onChange ? (
-            <Button variant="link" size="xs" className="shrink-0 px-0 text-xs" onClick={onChange}>
+            <Button
+                variant="link"
+                size="xs"
+                // The control scale's 24px is under the 44px touch minimum, so the invisible
+                // expansion carries the rest. The card's own row keeps its height.
+                className={cn("shrink-0 px-0 text-xs", touchTargetExpansion(24))}
+                onClick={onChange}
+            >
                 Change
             </Button>
         ) : null}

@@ -59,6 +59,7 @@ import {EnhancedModal, ModalContent} from "@agenta/ui"
 import {
     Alert,
     Button,
+    cn,
     Divider,
     Field,
     Input,
@@ -69,6 +70,7 @@ import {
     SelectSeparator,
     SelectTrigger,
     SelectValue,
+    touchTargetExpansion,
 } from "@agenta/ui/ui"
 import {ArrowSquareOut, CircleNotch, Plus, WarningCircle} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
@@ -793,10 +795,14 @@ export function McpConnectSheet({
                         >
                             {sealed ? null : (
                                 <div className="flex items-center gap-4 text-xs">
+                                    {/* Both links are the control scale's 24px, under the 44px
+                                        touch minimum, so each grows an invisible box to reach it.
+                                        The row's gap is 16px, wider than the 10px either box
+                                        reaches sideways, so they do not overlap each other. */}
                                     <Button
                                         variant="link"
                                         size="xs"
-                                        className="px-0 text-xs"
+                                        className={cn("px-0 text-xs", touchTargetExpansion(24))}
                                         onClick={() => consentPopupRef.current?.focus()}
                                     >
                                         Open the window again
@@ -804,7 +810,10 @@ export function McpConnectSheet({
                                     <Button
                                         variant="link"
                                         size="xs"
-                                        className="px-0 text-xs text-colorTextTertiary"
+                                        className={cn(
+                                            "px-0 text-xs text-colorTextTertiary",
+                                            touchTargetExpansion(24),
+                                        )}
                                         onClick={() => {
                                             closeConsentPopup()
                                             // A reconnect has no screen behind this one, so
