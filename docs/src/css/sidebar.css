@@ -46,8 +46,8 @@
   padding: 0 10px;
   margin: 0 -10px;
   border-radius: var(--radius-md);
-  font-size: 13px;
-  line-height: 18px;
+  font-size: 14px;
+  line-height: 20px;
   font-weight: var(--ifm-font-weight-normal);
   color: var(--sidebar-link-color);
   transition:

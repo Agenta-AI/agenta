@@ -40,8 +40,8 @@ h4:not([class*="openapi"]) {
 /* The first paragraph under a page title reads as its lead: larger, muted. */
 .theme-doc-markdown > header + p,
 .theme-doc-markdown > header + .row > .col > p:first-child {
-  font-size: 17px;
-  line-height: 28px;
+  font-size: 16px;
+  line-height: 26px;
   color: var(--contentsecondary);
   margin-top: -8px;
 }
