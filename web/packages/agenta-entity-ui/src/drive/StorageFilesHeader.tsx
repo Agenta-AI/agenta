@@ -30,13 +30,8 @@ export default function StorageFilesHeader({
         )
     }
 
-    if (drive.errored) {
-        return (
-            <ConfigRowTrailing reserve={false}>
-                <span className={MUTED}>Unavailable</span>
-            </ConfigRowTrailing>
-        )
-    }
+    // The body says what went wrong and offers the retry; the header stays quiet.
+    if (drive.errored) return null
 
     const count = drive.fileCount
     // "N+" when the count scan hit its cap on a very large tree (a floor, not exact).
