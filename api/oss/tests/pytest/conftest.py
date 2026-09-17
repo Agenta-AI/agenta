@@ -10,3 +10,11 @@ from utils.accounts import (
     cls_account,  # noqa: F401
     mod_account,  # noqa: F401
 )
+
+
+from oss.tests.pytest.utils.postgres import forget_this_runs_verdicts
+
+
+def pytest_sessionfinish(session, exitstatus):
+    """Take this run's deployment-identity verdict files back out of the temp directory."""
+    forget_this_runs_verdicts()

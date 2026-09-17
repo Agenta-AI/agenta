@@ -277,16 +277,18 @@ def remove_deployment_marker(api_url: str, auth_key: str, identifier: UUID) -> N
         )
     except httpx.HTTPError as failure:
         warnings.warn(
-            f"The identity marker {identifier} could not be removed from {api_url}: "
-            f"{failure.__class__.__name__}. It is an empty ephemeral account.",
+            f"The identity marker was not removed from {api_url}: "
+            f"{failure.__class__.__name__}. It is an empty ephemeral account, users.id "
+            f"{identifier}, and DELETE {_ACCOUNTS_PATH} takes it away.",
             stacklevel=2,
         )
         return
 
     if response.status_code != 204:
         warnings.warn(
-            f"The identity marker {identifier} was not removed from {api_url}: "
-            f"{response.status_code}. It is an empty ephemeral account.",
+            f"The identity marker was not removed from {api_url}: "
+            f"{response.status_code}. It is an empty ephemeral account, users.id "
+            f"{identifier}, and DELETE {_ACCOUNTS_PATH} takes it away.",
             stacklevel=2,
         )
 
@@ -409,6 +411,23 @@ def _verdict_for(uri: str, api_url: str, auth_key: str) -> Dict[str, object]:
         finally:
             os.close(handle)
             lock.unlink(missing_ok=True)
+
+
+def forget_this_runs_verdicts() -> None:
+    """Remove the verdict and lock files this run left behind.
+
+    Each is a few hundred bytes and every run of every layer leaves one, which on a box that
+    runs these suites all day is a slow pile of files nobody reads twice. Every worker removes
+    the same ones at the end of the run, which is when no case can still need them: under
+    xdist's default scheduling the workers shut down together once the queue is empty, and a
+    removal that loses a race only costs the next reader one ephemeral account.
+    """
+    for path in Path(tempfile.gettempdir()).glob(f"agenta-deployment-{_run_id()}-*"):
+        try:
+            path.unlink()
+        except OSError:
+            # Housekeeping. A file that cannot be removed is not worth a failed run.
+            pass
 
 
 @lru_cache(maxsize=1)
