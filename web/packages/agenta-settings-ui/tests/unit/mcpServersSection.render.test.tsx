@@ -16,6 +16,9 @@ import McpServersSection from "../../src/mcp/McpServersSection"
 
 // `vi.hoisted` and `vi.mock` are lifted above every import by the transform, so the mocks
 // below are installed before the component under test is evaluated despite reading later.
+/** Every reconnect the section has handed the sheet, newest last. */
+const {opened} = vi.hoisted(() => ({opened: [] as ({slug?: string; name?: string} | null)[]}))
+
 const atoms = vi.hoisted(() => ({
     endpoints: {toString: () => "endpointsAtom"},
     refresh: {toString: () => "refreshAtom"},
@@ -40,8 +43,19 @@ vi.mock("@agenta/entities/secret", () => ({customNamedSecretsAtom: atoms.secrets
 // list. Neither is this file's subject, so both are stubbed. The drawer stub reports the state
 // of whatever endpoint it is handed, which is what the by-key case asserts on.
 vi.mock("@agenta/entity-ui/mcpEndpoint", () => ({
-    McpConnectJourney: ({open}: {open: boolean}) =>
-        open ? <div data-testid="mcp-connect-journey" /> : null,
+    // Records what it is handed, so a case can assert the reconnect reaches it. A journey
+    // opened without one is a blank sheet at address entry, which repairs nothing and invites
+    // a second connection (D131's remainder, after D132).
+    McpConnectJourney: ({
+        open,
+        reconnect,
+    }: {
+        open: boolean
+        reconnect?: {slug?: string; name?: string} | null
+    }) => {
+        if (open) opened.push(reconnect ?? null)
+        return open ? <div data-testid="mcp-connect-journey" /> : null
+    },
     McpConnectionDetail: ({endpoint}: {endpoint: {name?: string; secret_id?: string} | null}) =>
         endpoint ? (
             <div data-testid="mcp-connection-detail">
@@ -200,6 +214,7 @@ const setViewport = (width: number) => {
 }
 
 beforeEach(() => {
+    opened.length = 0
     setViewport(1440)
     confirmSpy = vi.fn()
     setters.remove.mockReset()
@@ -571,5 +586,21 @@ describe("the page's own sentence", () => {
         expect(getSettingsTabDescription("mcpEndpoints", {} as never)).toBe(
             "MCP servers connected to this project. Each agent chooses which of these to use and what it may run.",
         )
+    })
+})
+
+describe("the way back from an expired login", () => {
+    it("opens the sheet as a reconnect, naming the row it was opened from", () => {
+        // The row menu is one of the entry points that repair a login. What it must hand the
+        // sheet is the connection: a journey opened without one starts at address entry and
+        // the only way forward is a second connection (D132, and D131's remainder).
+        show([OCTOLENS])
+        openRowMenu("Octolens")
+        act(() => {
+            fireEvent.click(screen.getByRole("menuitem", {name: "Reconnect"}))
+        })
+
+        expect(screen.getByTestId("mcp-connect-journey")).toBeTruthy()
+        expect(opened.at(-1)).toMatchObject({slug: "octolens", name: "Octolens"})
     })
 })
