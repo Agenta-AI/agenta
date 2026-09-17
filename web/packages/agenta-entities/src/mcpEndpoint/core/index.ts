@@ -52,7 +52,13 @@ export type {
     MCPServerProbe,
     MCPToolFilter,
 } from "./types"
-export {gatewayRefusalCode, gatewayRefusalMessage, isNameTakenRefusal} from "./refusal"
+export {
+    gatewayRefusalCode,
+    gatewayRefusalMessage,
+    gatewayRefusalStatus,
+    isCredentialRefusal,
+    isNameTakenRefusal,
+} from "./refusal"
 export {
     jsonRpcErrorMessage,
     jsonRpcResult,

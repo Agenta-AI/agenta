@@ -46,7 +46,6 @@ import {
     connectionNameProblem,
     isBusy,
     mcpChallengeSchemeToShow,
-    mcpChallengeStatus,
     mcpDefaultKeyHeader,
     readMcpProbeResponse,
     toolPrefixFromName,
@@ -155,8 +154,12 @@ const KEY_REJECTED_HEADLINE = "The server rejected this key."
  * our own MCP client writes when it cannot read an answer, which says less (round 6c,
  * D-R6C-1).
  *
- * The number is the challenge's, which is how this server answers a request it will not
- * authorize. Where nothing challenged, the clause goes rather than a guess.
+ * The number is the credentialed request's own: the specification's transition is one
+ * authenticated call whose 401 or 403 lands here, and this sentence is about that call. It
+ * was taken from the anonymous probe's challenge instead, which is a real number about a
+ * different request, so an anonymous 401 followed by a 403 read "(401)" and a timeout read
+ * "(401)" as well (round 4, D133 reopened). Only a status that answered about the credential
+ * reaches this screen now, so the clause is never a guess and never absent when it is owed.
  */
 const keyRejectedHeadlineFor = (status: number | null): string =>
     status ? `The server rejected this key (${status}).` : KEY_REJECTED_HEADLINE
@@ -588,7 +591,8 @@ export function McpConnectSheet({
     // What the server named when it refused the anonymous handshake, where that is anything
     // the Authorization default does not already cover.
     const challengeScheme = mcpChallengeSchemeToShow(state.probe)
-    const challengeStatus = mcpChallengeStatus(state.probe)
+    // The status of the request that carried the key, not the one that carried nothing.
+    const refusedStatus = state.failureStatus
 
     /** The one error that belongs to a field rather than to the screen. */
     const nameError = state.status === "naming" ? (nameProblem ?? state.error) : null
@@ -775,14 +779,16 @@ export function McpConnectSheet({
                     {screen === "api_key" && state.status === "verify_failed" ? (
                         <InlineError
                             id={KEY_PROBLEM_ID}
-                            headline={keyRejectedHeadlineFor(challengeStatus)}
+                            headline={keyRejectedHeadlineFor(refusedStatus)}
                             className="-mt-2"
                         >
-                            {/* The spec's sentence, and only it. The relayed sentence that
-                                used to sit here was our own client's "did not answer
-                                initialize", which names a protocol call where the status code
-                                and the header advice are what a reader can act on. */}
-                            {keyRejectedAdviceFor(challengeScheme)}
+                            {/* The server's own words, where it wrote any. Deleting them left
+                                static copy around a number, which on a typed gateway refusal
+                                threw away the only account of what went wrong; the sentence
+                                that made deleting them look right was our own client's "did
+                                not answer initialize", and that failure no longer reaches
+                                this screen at all (round 4, D133 reopened). */}
+                            {state.error} {keyRejectedAdviceFor(challengeScheme)}
                         </InlineError>
                     ) : null}
 

@@ -406,6 +406,91 @@ describe("a retry after a save whose response was lost", () => {
         expect(journey.state.error).toContain("already uses this name")
     })
 
+    it("forgets the attempt once the name is edited", async () => {
+        // The gate used to be a flag, and a flag outlives what set it: a lost save, an edit
+        // to the name, and then a conflict on the NEW name was adopted as though it were the
+        // lost row. That row is somebody else's connection, and the credential submit that
+        // follows writes over it (round 4, D170).
+        createMcpEndpoint.mockRejectedValueOnce(lostAnswer)
+        createMcpEndpoint.mockRejectedValue(nameTaken)
+        queryMcpEndpoints.mockResolvedValue({
+            count: 1,
+            endpoints: [
+                {
+                    id: "mcp-other",
+                    slug: "acme-someone-else",
+                    name: "Acme renamed",
+                    auth_mode: "oauth",
+                    data: {route: {base_url: "https://mcp.acme.test/"}},
+                },
+            ],
+        })
+
+        await mountJourney()
+        await submitNamed()
+        // The person renames it and tries again; the conflict is now on a name this journey
+        // has never successfully sent.
+        await act(async () => journey.setName("Acme renamed"))
+        await retryName()
+
+        expect(journey.state.status).toBe("naming")
+        expect(journey.state.endpointId).toBeNull()
+        expect(journey.state.error).toContain("already uses this name")
+    })
+
+    it("forgets it when the address is edited too", async () => {
+        createMcpEndpoint.mockRejectedValueOnce(lostAnswer)
+        createMcpEndpoint.mockRejectedValue(nameTaken)
+        queryMcpEndpoints.mockResolvedValue({
+            count: 1,
+            endpoints: [
+                {
+                    id: "mcp-other",
+                    slug: "acme-someone-else",
+                    name: "Acme",
+                    auth_mode: "oauth",
+                    data: {route: {base_url: "https://mcp.elsewhere.test/"}},
+                },
+            ],
+        })
+
+        await mountJourney()
+        await submitNamed()
+        await act(async () => journey.setUrl("https://mcp.elsewhere.test/"))
+        await retryName()
+
+        expect(journey.state.endpointId).toBeNull()
+        expect(journey.state.error).toContain("already uses this name")
+    })
+
+    it("never opens the question on a failure the server answered", async () => {
+        // A status is the server saying it did not write the row, so a later conflict cannot
+        // be this attempt's. Only a failure nothing answered leaves it open.
+        createMcpEndpoint.mockRejectedValueOnce({
+            response: {status: 400, data: {detail: "Bad request."}},
+        })
+        createMcpEndpoint.mockRejectedValue(nameTaken)
+        queryMcpEndpoints.mockResolvedValue({
+            count: 1,
+            endpoints: [
+                {
+                    id: "mcp-1",
+                    slug: "acme-7mx",
+                    name: "Acme",
+                    auth_mode: "oauth",
+                    data: {route: {base_url: "https://mcp.acme.test/"}},
+                },
+            ],
+        })
+
+        await mountJourney()
+        await submitNamed()
+        await retryName()
+
+        expect(journey.state.endpointId).toBeNull()
+        expect(journey.state.error).toContain("already uses this name")
+    })
+
     it("asks nothing extra when the save simply succeeds", async () => {
         await mountJourney()
         await submitNamed()

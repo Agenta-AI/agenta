@@ -149,3 +149,34 @@ export function isNameTakenRefusal(error: unknown): boolean {
     if (!detail || typeof detail !== "object") return false
     return (detail as {code?: unknown}).code === MCP_NAME_TAKEN_CODE
 }
+
+/**
+ * The status an answered request carried, or null when nothing answered.
+ *
+ * Read from the transport for a control-plane call and from the relayed failure for a
+ * data-plane one, because a caller asking "did the server refuse this, or did it never
+ * reply" should not have to know which plane it reached (the argument `gatewayRefusalCode`
+ * makes for the cause).
+ *
+ * Null is meaningful and is not a zero: it says nothing answered.
+ */
+export const gatewayRefusalStatus = (error: unknown): number | null => {
+    if (error instanceof McpProtocolError) return error.status
+    const status = (error as {response?: {status?: unknown}} | null | undefined)?.response?.status
+    return typeof status === "number" && status > 0 ? status : null
+}
+
+/** The two statuses that are a server's answer about the credential it was given. */
+const CREDENTIAL_REFUSED = new Set([401, 403])
+
+/**
+ * Whether this failure is the server refusing the credential, rather than not answering.
+ *
+ * The specification routes exactly these to the rejected-key screen. Everything else — a
+ * timeout, a 502, a refusal from our own side — is a failure to check the key, not a verdict
+ * on it, and the screen that says the key was rejected must not claim one (round 4, D133).
+ */
+export const isCredentialRefusal = (error: unknown): boolean => {
+    const status = gatewayRefusalStatus(error)
+    return status !== null && CREDENTIAL_REFUSED.has(status)
+}

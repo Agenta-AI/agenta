@@ -152,6 +152,14 @@ export interface McpJourneyState {
      * not delete one on cancel.
      */
     createdHere: boolean
+    /**
+     * The status behind the current failure, where something answered.
+     *
+     * Read by the key screen, which names it: the specification's sentence is about the
+     * request that carried the credential, and a number taken from any other request is a
+     * confident false specific.
+     */
+    failureStatus: number | null
     error: string | null
 }
 
@@ -193,7 +201,17 @@ export type McpJourneyEvent =
     | {type: "choose_manual_auth"}
     | {type: "verify_started"}
     | {type: "verify_succeeded"}
-    | {type: "verify_failed"; error: string}
+    | {
+          type: "verify_failed"
+          error: string
+          /**
+           * The status the server answered the credentialed request with. Only 401 and 403
+           * reach this event; anything else is a failure to check the key rather than a
+           * verdict on it, and its caller routes it to the check's own failure screen
+           * (round 4, D133 reopened).
+           */
+          status?: number | null
+      }
     | {type: "saved"}
     | {type: "consent_abandoned"}
     | {type: "retry"}
@@ -211,6 +229,7 @@ export function startJourney(): McpJourneyState {
         endpointId: null,
         slug: null,
         createdHere: false,
+        failureStatus: null,
         error: null,
     }
 }
@@ -327,6 +346,7 @@ export function journeyReducer(state: McpJourneyState, event: McpJourneyEvent): 
                 ...state,
                 status: "check_failed",
                 probe: event.probe ?? null,
+                failureStatus: null,
                 error: event.error,
             }
 
@@ -416,7 +436,12 @@ export function journeyReducer(state: McpJourneyState, event: McpJourneyEvent): 
             return {...state, status: "saving", error: null}
 
         case "verify_failed":
-            return {...state, status: "verify_failed", error: event.error}
+            return {
+                ...state,
+                status: "verify_failed",
+                failureStatus: event.status ?? null,
+                error: event.error,
+            }
 
         case "saved":
             // The end of the journey. Nothing is drawn for it: the connection exists, the

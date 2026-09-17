@@ -45,10 +45,22 @@ export class McpProtocolError extends Error {
      */
     readonly code: string | null
 
-    constructor(message: string, code: string | null = null) {
+    /**
+     * The status the answer carried, when something answered.
+     *
+     * Carried for the same reason as `code`: the response does not survive the throw, and a
+     * caller deciding what a failure MEANS needs it. A credential refused with 401 or 403 is
+     * that server's answer about that credential; a timeout or a 502 is not an answer about
+     * the credential at all, and a screen that says "the server rejected this key" would be
+     * asserting a rejection that did not happen (round 4, D133 reopened).
+     */
+    readonly status: number | null
+
+    constructor(message: string, code: string | null = null, status: number | null = null) {
         super(message)
         this.name = "McpProtocolError"
         this.code = code
+        this.status = status
     }
 }
 
