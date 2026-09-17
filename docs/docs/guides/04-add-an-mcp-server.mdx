@@ -122,7 +122,7 @@ On an OAuth connection this means consent was abandoned, or the grant was revoke
 
 **`Reached the address, but it isn't an MCP server.`** Something answered and it was not an MCP server. This usually means the URL points at a web page or a different API on the same host.
 
-**`The server rejected this key.`** Agenta shows the server's own refusal beneath that sentence, then asks you to check the header or pick another secret. Where the server named the scheme it expects, the message names it too. Check `Header` against the server's documentation, check that the project secret holds the right key, and click `Try again` once you have corrected either one.
+**`The server rejected this key.`** Where the server gave a status code, the sentence names it. Agenta shows the server's own refusal underneath, and where the server named an authentication scheme it adds `This server asked for the <scheme> scheme.` before asking you to check the header or pick another secret. Check `Header` against the server's documentation, check that the project secret holds the right key, and click `Try again` once you have corrected either one.
 
 **`Another connection in this project already uses this name.`** Names are compared after every character outside letters, digits, and underscores is replaced with an underscore, so `Acme Tools` and `Acme-Tools` count as the same name. Pick a name that differs by more than punctuation.
 
