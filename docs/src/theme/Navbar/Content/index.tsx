@@ -1,5 +1,9 @@
-import React from 'react';
-import {useThemeConfig, ErrorCauseBoundary} from '@docusaurus/theme-common';
+import React, {type ReactNode} from 'react';
+import {
+  useThemeConfig,
+  useColorMode,
+  ErrorCauseBoundary,
+} from '@docusaurus/theme-common';
 import {
   splitNavbarItems,
   useNavbarMobileSidebar,
@@ -37,11 +41,30 @@ ${JSON.stringify(item, null, 2)}`,
   );
 }
 
+/** Light/dark toggle between the CTAs; the footer has the three-way switch. */
+function ColorModeToggle(): ReactNode {
+  const {colorMode, setColorMode} = useColorMode();
+  const next = colorMode === 'dark' ? 'light' : 'dark';
+  return (
+    <button
+      type="button"
+      className={styles.colorModeToggle}
+      onClick={() => setColorMode(next)}
+      aria-label={`Switch to ${next} mode`}
+      title={`Switch to ${next} mode`}>
+      <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+        <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" strokeWidth="2" />
+        <path d="M12 3a9 9 0 0 1 0 18z" fill="currentColor" />
+      </svg>
+    </button>
+  );
+}
+
 /**
  * One header row: logo and version on the left, search and the CTAs on the
- * right. The section links (position: "left") are not rendered here; the
- * sidebar rail shows them on desktop and the hamburger menu on mobile. Social
- * links and the theme switch live in the footer.
+ * right, with the light/dark toggle between the CTAs. The section links
+ * (position: "left") are not rendered here; the sidebar rail shows them on
+ * desktop and the hamburger menu on mobile. Social links live in the footer.
  */
 export default function NavbarContent(): JSX.Element {
   const mobileSidebar = useNavbarMobileSidebar();
@@ -53,8 +76,13 @@ export default function NavbarContent(): JSX.Element {
   const [, rightItems] = splitNavbarItems(
     items.filter((item) => item.type !== 'docsVersionDropdown'),
   );
-  // Search is placed explicitly, before the action buttons.
+  // Search is placed explicitly, before the action buttons. The primary CTA
+  // (the filled button) goes last, after the theme toggle.
   const actionItems = rightItems.filter((item) => item.type !== 'search');
+  const isPrimary = (item: NavbarItemConfig) =>
+    typeof item.html === 'string' && item.html.includes('nav_primary_button');
+  const secondaryItems = actionItems.filter((item) => !isPrimary(item));
+  const primaryItems = actionItems.filter(isPrimary);
 
   return (
     <div className="navbar__inner">
@@ -72,7 +100,11 @@ export default function NavbarContent(): JSX.Element {
           <SearchBar />
         </NavbarSearch>
         <div className={styles.actions}>
-          <NavbarItems items={actionItems} />
+          <NavbarItems items={secondaryItems} />
+          <span className={styles.divider} role="presentation" />
+          <ColorModeToggle />
+          <span className={styles.divider} role="presentation" />
+          <NavbarItems items={primaryItems} />
         </div>
       </div>
     </div>
