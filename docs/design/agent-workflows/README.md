@@ -43,6 +43,7 @@ from in-flight project notes and historical archaeology.
 
 ## projects/
 
+- [agent-plugin-templates](projects/agent-plugin-templates/) - Agent Plugins packages that install linked agents, skills, files, connections, and automation recipes.
 - [code-tool-sandbox](projects/code-tool-sandbox/) — sandboxed code-tool execution.
 - [harness-capabilities](projects/harness-capabilities/) — per-harness capability model.
 - [model-config](projects/model-config/) — model selection config.
