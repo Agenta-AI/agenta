@@ -191,9 +191,12 @@
 }
 
 /* ===== Back-to-top button ===== */
+/* Its right edge lines up with the "On this page" column. */
 .theme-back-to-top-button {
   width: 2.5rem !important;
   height: 2.5rem !important;
+  right: var(--doc-main-padding-x) !important;
+  bottom: 24px !important;
   border-radius: var(--radius-md) !important;
   background-color: var(--bgdefault) !important;
   border: 1px solid var(--borderdefault) !important;
