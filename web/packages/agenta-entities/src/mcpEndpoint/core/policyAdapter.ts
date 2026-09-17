@@ -30,6 +30,7 @@
 import type {GatewayPermission} from "../../gatewayTool/core/types"
 
 import {
+    isMcpPermission as isReadableMcpPermission,
     isMisCasedPolicy,
     isPerTool,
     isToolHidden,
@@ -67,7 +68,17 @@ export interface GatewayConnectionPermissions {
  */
 export const MCP_SUPPORTS_INHERIT = true
 
-const isMcpPermission = (value: GatewayPermission): value is McpPermission => value !== "inherit"
+/**
+ * Whether a value the drawer hands back is one this policy can save.
+ *
+ * `inherit` is the drawer's word for absence and is written by deleting, not by saving. Anything
+ * else has to be one of the three decisions: the filter used to test only for the sentinel, so a
+ * value the drawer never offered — one read out of a saved policy in another surface's spelling,
+ * for instance — travelled straight back into the saved policy, where the SDK refuses the whole
+ * of it and the agent's next run fails (D172).
+ */
+const isMcpPermission = (value: GatewayPermission): value is McpPermission =>
+    value !== "inherit" && isReadableMcpPermission(value)
 
 /**
  * The drawer's view of a saved MCP policy.

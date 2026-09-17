@@ -21,10 +21,14 @@ import path from "node:path"
 
 import {describe, expect, it} from "vitest"
 
-import {toGatewayPermissions} from "../../src/mcpEndpoint/core/policyAdapter"
+import {
+    fromGatewayPermissions,
+    toGatewayPermissions,
+} from "../../src/mcpEndpoint/core/policyAdapter"
 import {
     effectiveToolPermission,
     resolvedNewToolPermission,
+    type McpPermission,
     type McpServerPolicy,
 } from "../../src/mcpEndpoint/core/toolPolicy"
 
@@ -186,6 +190,49 @@ describe("a policy that declares nothing is not invalid", () => {
     it("draws inherit when the policy is empty", () => {
         expect(toGatewayPermissions({})).toEqual({default: "inherit", tools: {}})
         expect(effectiveToolPermission({}, "any_tool_at_all")).toEqual({
+            permission: null,
+            source: "default",
+        })
+    })
+})
+
+/**
+ * A value that is not one of the three decisions is not a decision (D172).
+ *
+ * The saved shape is JSON, so a table can carry another surface's spelling. Passed through, it
+ * reached a control with nothing to draw it as, the row rendered empty, and the write filter,
+ * which tested only for the `inherit` sentinel, put it straight back into the saved policy —
+ * where the SDK model refuses the whole policy and the agent's next run fails.
+ */
+describe("a value that is not one of the three decisions", () => {
+    const misCasedValue: McpServerPolicy = {
+        permission: "allow",
+        tool_permissions: {delete_repository: "Allow" as McpPermission},
+    }
+
+    it("is dropped, so the tool falls to the floor the declared table sets", () => {
+        expect(effectiveToolPermission(misCasedValue, "delete_repository")).toEqual({
+            permission: "ask",
+            source: "new",
+        })
+    })
+
+    it("leaves the table declared, so the server permission still governs nothing", () => {
+        expect(resolvedNewToolPermission(misCasedValue)).toBe("ask")
+        expect(toGatewayPermissions(misCasedValue)).toEqual({default: "ask", tools: {}})
+    })
+
+    it("is never written back into a saved policy", () => {
+        const saved = fromGatewayPermissions(
+            {default: "ask", tools: {delete_repository: "Allow" as McpPermission}},
+            misCasedValue,
+        )
+
+        expect(saved.tool_permissions).toBeUndefined()
+    })
+
+    it("is not a decision at the server level either", () => {
+        expect(effectiveToolPermission({permission: "Allow" as McpPermission}, "any")).toEqual({
             permission: null,
             source: "default",
         })
