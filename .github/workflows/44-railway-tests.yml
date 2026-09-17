@@ -401,9 +401,16 @@ jobs:
       # This job tests a deployed Railway stack over HTTP and has no route to its Postgres.
       # The integration layer refuses an unreachable database rather than skipping, because a
       # layer that skips what it cannot reach reports a green run of nothing (D97). Declaring
-      # the absence here makes the skip visible in the run's own output instead, and leaves
-      # the refusal in place everywhere the absence is not declared.
-      AGENTA_TEST_NO_DATABASE: "1"
+      # the absence makes the skip visible in the run's own output instead, and leaves the
+      # refusal in place everywhere the absence is not declared.
+      #
+      # Scoped to the integration layer, because this env block is job-level and the job is a
+      # matrix over unit, integration and acceptance. Declared for all three it would be a
+      # standing offer to any layer that later grows a database-bound case, and the acceptance
+      # layer has an undeclared skip of its own (issue 6939) that must not quietly inherit
+      # this one. The empty string is how a workflow says "not set": the reader treats it, and
+      # `0`, `false` and `no`, as no declaration at all.
+      AGENTA_TEST_NO_DATABASE: ${{ matrix.layer == 'integration' && '1' || '' }}
     steps:
       - uses: actions/checkout@v6
 
