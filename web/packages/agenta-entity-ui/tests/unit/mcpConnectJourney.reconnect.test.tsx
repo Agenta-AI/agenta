@@ -247,6 +247,26 @@ describe("where a credential check that got no answer lands", () => {
         expect(journey.state.error).toContain("Forbidden for this key.")
     })
 
+    it("does not read our own call's 401 as the server's verdict on the key", async () => {
+        // The internal read that fetches the row happens BEFORE the relay call, and only the
+        // relay carries the chosen server's answer about the credential. A session that
+        // expired makes this read answer 401; classified as the relay's it reads as the
+        // server rejecting a key it was never shown. The body is shaped like a third party's
+        // on purpose, so nothing but the call it came from can tell them apart (D184, D185).
+        queryMcpEndpoints.mockRejectedValue({
+            response: {status: 401, data: {detail: "The server rejected this key."}},
+        })
+        await mountJourney(KEY_AUTHENTICATED)
+        await act(async () => {
+            await journey.submitManualCredential({headerName: "x-api-key", secretId: "sec-1"})
+        })
+
+        expect(journey.state.status).toBe("check_failed")
+        expect(journey.state.failureStatus).toBeNull()
+        // And the relay was never reached, so there is no verdict to report either way.
+        expect(listMcpTools).not.toHaveBeenCalled()
+    })
+
     it("treats a gateway 502 as a failure to check, not a refusal", async () => {
         listMcpTools.mockRejectedValue({
             response: {status: 502, data: {detail: "Upstream unavailable."}},
