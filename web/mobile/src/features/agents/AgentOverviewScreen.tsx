@@ -1,6 +1,6 @@
 import {useCallback, useMemo} from "react"
 
-import {chatPanelMaximizedAtom, configPanelCollapsedAtom} from "@agenta/chat/state"
+import {chatPanelMaximizedAtom} from "@agenta/chat/state"
 import {agentWorkflowsListQueryStateAtom, type Workflow} from "@agenta/entities/workflow"
 import {pageContentWidthClass} from "@agenta/ui/components/page-width"
 import {useAtomValue, useSetAtom} from "jotai"
@@ -8,6 +8,7 @@ import {useAtomValue, useSetAtom} from "jotai"
 import {PageTitle} from "@/components/PageTitle"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
 
+import {mobileConfigPanelCollapsedAtom} from "../chat/configPaneState"
 import {useStartBlankSession} from "../chat/useStartBlankSession"
 import {useBindProjectContext} from "../context/useBindProjectContext"
 import {AppShell} from "../nav/AppShell"
@@ -58,7 +59,7 @@ export const AgentOverviewScreen = ({
     // Configuration is edited in the session workspace here, so this lands on a blank session
     // with the config pane on screen. BOTH flags are written — either alone leaves it hidden.
     const setChatMaximized = useSetAtom(chatPanelMaximizedAtom)
-    const setConfigCollapsed = useSetAtom(configPanelCollapsedAtom)
+    const setConfigCollapsed = useSetAtom(mobileConfigPanelCollapsedAtom)
     const onEditConfig = useCallback(() => {
         setChatMaximized(false)
         setConfigCollapsed(false)
