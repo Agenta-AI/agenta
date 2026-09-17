@@ -169,16 +169,19 @@ const keyRejectedHeadlineFor = (status: number | null): string =>
     status ? `The server rejected this key (${status}).` : KEY_REJECTED_HEADLINE
 const KEY_REJECTED_ADVICE = "Check the header the server expects, or pick another secret."
 /**
- * The same advice, naming what the server expects where it said so.
+ * The same advice, preceded by what the server asked for where it said so.
  *
  * The spec's sentence had this clause and the implementation dropped it, because the probe
  * returned nothing to put in it. It returns the challenge now. Decision 27 asks for the
  * spec's em dashes to become a period or a colon, not for the clause to go.
+ *
+ * What the challenge names is a scheme, not a header: `Bearer` means `Authorization: Bearer
+ * <token>`. Reading it into "the header the server expects" told the reader to type `Bearer`
+ * into the Header field, which is the one thing that cannot be right. The sentence the Header
+ * field's own hint already uses says the same fact correctly, so it says it here too.
  */
 const keyRejectedAdviceFor = (scheme: string | null): string =>
-    scheme
-        ? `Check the header the server expects: ${scheme} or pick another secret.`
-        : KEY_REJECTED_ADVICE
+    scheme ? `${headerSchemeHint(scheme)} ${KEY_REJECTED_ADVICE}` : KEY_REJECTED_ADVICE
 
 const WAITING_BODY =
     "Finish signing in in the window that opened. This closes on its own when you're done."

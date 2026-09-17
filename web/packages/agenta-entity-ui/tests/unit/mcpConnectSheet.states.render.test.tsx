@@ -898,16 +898,19 @@ describe("C6, the key was refused", () => {
         expect(text()).toContain("The server rejected this key (401).")
     })
 
-    it("names what the server expects when the challenge said so", async () => {
+    it("names what the server asked for when the challenge said so", async () => {
         await open({...rejected, probe: KEY_PROBE_WITH_SCHEME})
 
         // The spec's sentence carried this clause and it was dropped for want of anything
-        // to put in it. Decision 27 replaces the spec's em dashes with a colon, and keeps
-        // the clause.
+        // to put in it. Decision 27 replaces the spec's em dashes with a period, and keeps
+        // the clause. What the challenge names is a scheme, so the screen says "scheme" —
+        // reading it as the header name tells the reader to type `DSN` into the Header field.
         expect(text()).toContain(
             "The server rejected this key (403). The server rejected the credential. " +
-                "Check the header the server expects: DSN or pick another secret.",
+                "This server asked for the DSN scheme. " +
+                "Check the header the server expects, or pick another secret.",
         )
+        expect(text()).not.toContain("the header the server expects: DSN")
     })
 
     it("is the same sheet a key connection reconnects through, with nothing re-decided", async () => {
