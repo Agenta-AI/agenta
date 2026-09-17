@@ -689,7 +689,36 @@ describe("C5, the server wants a key", () => {
         expect((control("Header") as HTMLInputElement).value).toBe("X-Acme-Token")
     })
 
-    it("keeps Authorization on a reconnect, which never probed", async () => {
+    it("reconnects with the header the connection is already saved under", async () => {
+        // A key reconnect repairs a credential and changes nothing else (decisions 10 and
+        // 34). Prefilling the probe's default offered `Authorization` over a saved
+        // `X-Api-Key`, so a person who accepted what was on screen broke a working
+        // connection (round 6d, live).
+        await open(
+            state({
+                status: "manual_auth",
+                url: "https://mcp.axiom.co/mcp",
+                name: "Axiom",
+                endpointId: "mcp-1",
+                slug: "axiom",
+                createdHere: false,
+            }),
+            {
+                reconnect: {
+                    id: "mcp-1",
+                    slug: "axiom",
+                    name: "Axiom",
+                    url: "https://mcp.axiom.co/mcp",
+                    authMode: "api_key" as const,
+                    credentialHeader: "X-Api-Key",
+                },
+            },
+        )
+
+        expect((control("Header") as HTMLInputElement).value).toBe("X-Api-Key")
+    })
+
+    it("keeps Authorization on a reconnect that saved no header of its own", async () => {
         await open(
             state({
                 status: "manual_auth",

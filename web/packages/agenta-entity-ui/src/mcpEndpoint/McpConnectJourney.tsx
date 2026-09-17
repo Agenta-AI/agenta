@@ -89,6 +89,8 @@ export interface McpConnectJourneyProps {
         url: string
         /** How the connection authorizes, so a reconnect repairs the right thing. */
         authMode?: "oauth" | "api_key" | "none"
+        /** The header its credential is already sent under, which a repair keeps. */
+        credentialHeader?: string | null
     } | null
     /** The connection, once it is real. Agents reference it by `slug`. */
     onConnected?: (endpoint: {id: string; slug: string; name: string}) => void
@@ -377,8 +379,14 @@ export function McpConnectSheet({
      *
      * The scheme the challenge named picks `Authorization`, because a scheme travels in that
      * header; a challenge that named none picks `x-api-key`. Editable either way.
+     *
+     * A reconnect starts from the header the connection is already saved with, because it
+     * repairs a credential and changes nothing else (decisions 10 and 34). Offering the
+     * probe's default there put `Authorization` over a saved `X-Api-Key`, so accepting what
+     * was on screen broke a working connection.
      */
-    const headerValue = headerName ?? mcpDefaultKeyHeader(state.probe)
+    const headerValue =
+        headerName ?? reconnect?.credentialHeader?.trim() ?? mcpDefaultKeyHeader(state.probe)
     const [secretSlug, setSecretSlug] = useState("")
     const [creatingSecret, setCreatingSecret] = useState(false)
     // Latches on first open so the create drawer's hooks stay unmounted until needed.
@@ -578,8 +586,19 @@ export function McpConnectSheet({
             case "verify_failed":
                 // A connection that authorizes with nothing is repaired by saying so; there
                 // is no credential on this screen to submit.
-                if (path === "none") journey.skipAuthentication()
-                else submitCredential()
+                if (path === "none") {
+                    journey.skipAuthentication()
+                    return
+                }
+                // A refused credential took its row with it, so trying again makes one, and
+                // the credential follows as soon as it exists — the same two steps this
+                // screen's first press takes.
+                if (!state.endpointId) {
+                    setAfterCreate("credential")
+                    void journey.submitName()
+                    return
+                }
+                submitCredential()
                 return
             default:
                 // A finished journey has nothing left to confirm but its own closing, which
@@ -593,6 +612,7 @@ export function McpConnectSheet({
         path,
         requestConsent,
         retryConsent,
+        state.endpointId,
         state.status,
         state.url,
         submitCredential,

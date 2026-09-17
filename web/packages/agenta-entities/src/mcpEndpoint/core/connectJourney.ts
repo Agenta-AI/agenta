@@ -211,6 +211,16 @@ export type McpJourneyEvent =
            * (round 4, D133 reopened).
            */
           status?: number | null
+          /**
+           * The pending row this journey made was removed with the refusal.
+           *
+           * A credential the server refused leaves a row carrying a secret that does not
+           * work, and the registry has no health field to say so, so it read as Connected
+           * (decision 30). The journey takes it away again rather than leaving a connection
+           * that reports itself working; the identity goes with it, and a retry creates a
+           * fresh row (round 6d, live).
+           */
+          discardedRow?: boolean
       }
     | {type: "saved"}
     | {type: "consent_abandoned"}
@@ -451,6 +461,9 @@ export function journeyReducer(state: McpJourneyState, event: McpJourneyEvent): 
                 status: "verify_failed",
                 failureStatus: event.status ?? null,
                 error: event.error,
+                endpointId: event.discardedRow ? null : state.endpointId,
+                slug: event.discardedRow ? null : state.slug,
+                createdHere: event.discardedRow ? false : state.createdHere,
             }
 
         case "saved":

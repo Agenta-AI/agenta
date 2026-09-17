@@ -227,6 +227,7 @@ export function McpServerFormView({value, onChange, disabled}: McpServerFormView
                                   name: selected.name || selected.slug,
                                   url: selected.data.route.base_url || "",
                                   authMode: selected.auth_mode,
+                                  credentialHeader: selected.data.route.credential_header,
                               }
                             : null
                     }

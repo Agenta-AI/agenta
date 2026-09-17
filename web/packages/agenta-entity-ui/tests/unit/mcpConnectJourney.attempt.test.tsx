@@ -21,6 +21,7 @@ const {
     probeMcpUrl,
     createMcpEndpoint,
     deleteMcpEndpoint,
+    editMcpEndpoint,
     beginMcpConnect,
     discoverMcpConnect,
     listMcpTools,
@@ -29,6 +30,7 @@ const {
     probeMcpUrl: vi.fn(),
     createMcpEndpoint: vi.fn(),
     deleteMcpEndpoint: vi.fn(),
+    editMcpEndpoint: vi.fn(),
     beginMcpConnect: vi.fn(),
     discoverMcpConnect: vi.fn(),
     listMcpTools: vi.fn(),
@@ -40,6 +42,7 @@ vi.mock("../../../agenta-entities/src/mcpEndpoint/api/api", async (importOrigina
     probeMcpUrl,
     createMcpEndpoint,
     deleteMcpEndpoint,
+    editMcpEndpoint,
     beginMcpConnect,
     discoverMcpConnect,
     listMcpTools,
@@ -801,5 +804,57 @@ describe("the URL check has an end", () => {
         // Nothing was learned, so nothing is claimed: the failure screen falls back to the
         // unreachable wording rather than reading a cause it does not have.
         expect(journey.state.probe).toBeNull()
+    })
+})
+
+describe("a credential the server refused", () => {
+    it("takes the row away with it, so nothing reports itself connected", async () => {
+        // The row carries a secret that does not work, and the registry has no health field
+        // to say so, so it sat in the list reading Connected while its own detail said the
+        // server had not answered (round 6d, live).
+        probeMcpUrl.mockResolvedValue({
+            count: 1,
+            probe: {reachable: true, server_name: "Axiom", auth: {mode: "unknown"}},
+        })
+        editMcpEndpoint.mockResolvedValue({count: 1, endpoint: {id: "mcp-1", slug: "acme-7mx"}})
+        queryMcpEndpoints.mockResolvedValue({
+            count: 1,
+            endpoints: [
+                {
+                    id: "mcp-1",
+                    slug: "acme-7mx",
+                    name: "Axiom",
+                    auth_mode: "api_key",
+                    data: {route: {base_url: "https://mcp.acme.test/"}},
+                },
+            ],
+        })
+        listMcpTools.mockRejectedValue({
+            response: {status: 401, data: {detail: "The server rejected this key."}},
+        })
+
+        await mountJourney()
+        await act(async () => journey.setUrl("https://mcp.acme.test/"))
+        await act(async () => {
+            await journey.submitUrl("https://mcp.acme.test/")
+        })
+        await act(async () => journey.setName("Axiom"))
+        await act(async () => {
+            await journey.submitName()
+        })
+        await settle()
+        expect(journey.state.endpointId).toBe("mcp-1")
+
+        await act(async () => {
+            await journey.submitManualCredential({headerName: "X-Api-Key", secretId: "wrong"})
+        })
+        await settle()
+
+        expect(journey.state.status).toBe("verify_failed")
+        expect(deleteMcpEndpoint).toHaveBeenCalledWith("mcp-1", "project-1")
+        // And nothing is left pointing at it, so a retry makes a fresh row rather than
+        // writing another credential onto the one that was refused.
+        expect(journey.state.endpointId).toBeNull()
+        expect(journey.state.createdHere).toBe(false)
     })
 })

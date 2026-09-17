@@ -66,6 +66,15 @@ export interface McpConnectJourneyOptions {
         name: string
         url: string
         authMode?: "oauth" | "api_key" | "none"
+        /**
+         * The header this connection's credential is already sent under.
+         *
+         * A key reconnect repairs a credential and changes nothing else (decisions 10 and
+         * 34), so the field it asks about starts where the connection left it. Prefilling the
+         * probe's default instead offered `Authorization` over a saved `X-Api-Key`, and a
+         * person who accepted what was on screen broke a working connection.
+         */
+        credentialHeader?: string | null
     } | null
     /** Called once the connection is real, with the slug agents reference it by. */
     onConnected?: (endpoint: {id: string; slug: string; name: string}) => void
@@ -188,6 +197,16 @@ export function useMcpConnectJourney({
      * conflict can be compared against, and editing either field abandons it.
      */
     const attemptedCreateRef = useRef<{name: string; url: string} | null>(null)
+
+    /**
+     * Whether the row this journey is holding is one it made, rather than one it was given.
+     *
+     * The same question `createdHere` answers on the state, kept here because the callbacks
+     * that need it do not re-read the state: `submitManualCredential` is memoised on the
+     * fields it sends, so the state it closes over predates the create it is asking about,
+     * and reading `createdHere` there answered for the wrong moment.
+     */
+    const createdHereRef = useRef(false)
 
     /** Whatever was attempted is no longer what is being asked for. */
     const forgetAttemptedCreate = useCallback(() => {
@@ -387,6 +406,8 @@ export function useMcpConnectJourney({
         const attempt = attemptRef.current
         /** Continue from a row, however this journey came by it. */
         const continueFrom = (row: {id: string; slug: string}, adopted?: boolean) => {
+            createdHereRef.current =
+                createdHereRef.current || (!endpointRef.current && !adopted && !reconnect)
             endpointRef.current = row
             // This transition already moves an OAuth connection to `discovering_scopes`, and
             // the component's effect owns that state. Awaiting discovery here as well ran it
@@ -569,10 +590,23 @@ export function useMcpConnectJourney({
                     })
                     return
                 }
+                // The row this journey made carries a secret the server refused, and the
+                // registry has no health field to say so, so it would sit there reporting
+                // itself Connected (decision 30). Take it away again; a retry makes a fresh
+                // one. A reconnect's row is somebody's working connection and is never
+                // touched, which `cancelDeletesEndpoint` is already the rule for.
+                const abandoned = endpointRef.current
+                const discardedRow = createdHereRef.current && !!abandoned
+                if (discardedRow && abandoned) {
+                    endpointRef.current = null
+                    createdHereRef.current = false
+                    await deleteMcpEndpoint(abandoned.id, projectId).catch(() => undefined)
+                }
                 dispatch({
                     type: "verify_failed",
                     status: gatewayRefusalStatus(error),
                     error: stated || "The server did not accept that credential.",
+                    discardedRow,
                 })
             }
         },
