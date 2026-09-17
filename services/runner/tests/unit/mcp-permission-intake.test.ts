@@ -341,13 +341,30 @@ describe("why intake marks the name rather than leaving it to the gate", () => {
  *
  * This reader's input is `wire`, because that is what the SDK sends and the runner receives, so
  * a case is green only when the SDK's output is the thing resolved here.
+ *
+ * A missing fixture fails here, with the resolved path and the two readers that move with it,
+ * rather than with a bare ENOENT (D129).
  */
-const LADDER = JSON.parse(
-  readFileSync(
-    fileURLToPath(new URL("../fixtures/mcp-policy-ladder.json", import.meta.url)),
-    "utf8",
-  ),
-) as {
+const LADDER_PATH = fileURLToPath(
+  new URL("../fixtures/mcp-policy-ladder.json", import.meta.url),
+);
+
+const readLadder = (): string => {
+  try {
+    return readFileSync(LADDER_PATH, "utf8");
+  } catch (cause) {
+    throw new Error(
+      `The shared per-tool permission ladder fixture is not at ${LADDER_PATH}. It is the only ` +
+        `thing keeping the SDK, the runner and the editor on one rule (D88), so its absence ` +
+        `fails rather than skips (D129). Moving it means moving all three readers: this one, ` +
+        `sdks/python/oss/tests/pytest/unit/agents/mcp/test_mcp_policy_ladder_fixture.py and ` +
+        `web/packages/agenta-entities/tests/unit/mcp-policy-ladder.test.ts.`,
+      { cause },
+    );
+  }
+};
+
+const LADDER = JSON.parse(readLadder()) as {
   unnamedTool: string;
   cases: {
     name: string;

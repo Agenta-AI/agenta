@@ -1,28 +1,37 @@
-"""Where the integration layer's Postgres actually is, from wherever pytest is running.
+"""Which Postgres the integration layer runs against, and whether it is the right one.
 
-Two addresses for one server, and only one of them moves.
-
-Inside the compose network it is `postgres:5432`, which is what every container reads out of
-the deployment's env file and is correct there. On the host that same server is reached
+Two questions, and the second one is the one that bites. The first is where the server is:
+inside the compose network it is `postgres:5432`, which is what every container reads out of
+the deployment's env file and is correct there, while on the host that same server is reached
 through a **published** port, which `env.sh` allocates per worktree so two stacks can run
 side by side, and which the stack's own env file records as `POSTGRES_PORT`. Those are
 different numbers, and reading the in-network one as the host one is how a host-side run
-dials somebody else's deployment or nothing at all (D97). The mock-gateway addresses had the
-same two meanings and the same defect (D76); this is the same fix for the database.
+dials nothing at all (D97). The mock-gateway addresses had the same two meanings and the same
+defect (D76).
 
-The check opens a real connection rather than a TCP probe: reaching the port proves a server
-is listening, not that this deployment's database is there. But the port is what identifies
-the deployment now, not the database name. The name separates licences and nothing else —
-every EE stack on a box calls its database `agenta_ee_core`, so a run that fell back to
-`127.0.0.1:5432` and found an EE stack there would have seeded projects and executed against
-a deployment nobody named.
+The second question is whose database answered. Opening a real connection proves a server is
+listening; it proves nothing about which deployment it serves. The database name does not
+settle it either: it separates licences and nothing else, so every EE stack on a box calls its
+database `agenta_ee_core` while publishing it on a port of its own. A stale, guessed or unset
+`POSTGRES_PORT` therefore reaches a real database with the expected name and the wrong owner,
+and the seeding fixtures write this release's cases into a deployment nobody named (D128).
+
+So the address is checked for identity as well as reachability: the API under test writes a
+row through its own API, and the database this module dialled has to have that row. Nothing
+else distinguishes two stacks that run the same schema. Both checks fail loudly, because the
+layer that skipped what it could not find reported a green run in which 93 of 101 cases did
+not execute (D97).
 """
 
 import asyncio
 import os
+from concurrent.futures import ThreadPoolExecutor
 from functools import lru_cache
-from typing import Optional
+from typing import Awaitable, Callable, Optional, Tuple, TypeVar
 from urllib.parse import urlparse, urlunparse
+from uuid import UUID, uuid4
+
+import httpx
 
 from oss.src.utils.env import env
 
@@ -30,12 +39,42 @@ from oss.src.utils.env import env
 # remapped onto it, so it is never the value that moves.
 _CONTAINER_PORT = 5432
 
+_CONNECT_TIMEOUT = 2.0
+
+# The endpoint every test layer already uses to mint ephemeral accounts, and the only write
+# this module makes. It goes through the API under test, never into a database this module
+# dialled: writing into an address whose owner is still unproven is the accident the identity
+# check exists to prevent.
+_ACCOUNTS_PATH = "/admin/simple/accounts/"
+_ACCOUNTS_TIMEOUT = 30.0
+
+_Result = TypeVar("_Result")
+
+
+def _blocking(work: Callable[[], Awaitable[_Result]]) -> _Result:
+    """Run one coroutine to completion, whether or not a loop is already running.
+
+    These helpers are called from a synchronous fixture in one place and from inside an
+    async fixture in another (`test_mcp_oauth_grant_rekey_migration`). `asyncio.run` refuses
+    the second, and that refusal used to be answered by assuming the database was fine,
+    which switched the guard off in the one caller that goes on to create a database. A
+    private thread carries no loop, so both callers get a real answer.
+    """
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        return pool.submit(lambda: asyncio.run(work())).result()
+
+
+def _dsn(uri: str) -> str:
+    return uri.replace("postgresql+asyncpg://", "postgresql://")
+
 
 async def _can_connect(dsn: str) -> bool:
     import asyncpg
 
     try:
-        connection = await asyncio.wait_for(asyncpg.connect(dsn), timeout=2.0)
+        connection = await asyncio.wait_for(
+            asyncpg.connect(dsn), timeout=_CONNECT_TIMEOUT
+        )
     except (OSError, asyncio.TimeoutError, asyncpg.PostgresError):
         return False
 
@@ -44,11 +83,7 @@ async def _can_connect(dsn: str) -> bool:
 
 
 def _connectable(uri: str) -> bool:
-    dsn = uri.replace("postgresql+asyncpg://", "postgresql://")
-    try:
-        return asyncio.run(_can_connect(dsn))
-    except RuntimeError:  # already inside a loop; assume usable and let the test say
-        return True
+    return _blocking(lambda: _can_connect(_dsn(uri)))
 
 
 def published_port() -> Optional[int]:
@@ -110,31 +145,156 @@ def use_reachable_core_uri() -> Optional[str]:
     return resolved
 
 
+def api_under_test() -> Tuple[str, str]:
+    """The API these cases are about, and the key that lets the suite write through it.
+
+    The deployment under test is named by its API, not by a database address: the database
+    address is the value that goes stale. Absence is a failure for the same reason the
+    absence of a database is one — a suite that cannot say which deployment it is testing
+    has nothing to report.
+    """
+    api_url = (os.getenv("AGENTA_API_URL") or "").strip().rstrip("/")
+    auth_key = (os.getenv("AGENTA_AUTH_KEY") or "").strip()
+    if not api_url or not auth_key:
+        raise AssertionError(
+            "The integration layer cannot tell which deployment it is testing. "
+            "AGENTA_API_URL names the API whose database these cases must run against, and "
+            "AGENTA_AUTH_KEY lets the suite write one row through it to prove the database "
+            f"is that API's (read {api_url or 'no API URL'} and "
+            f"{'a key' if auth_key else 'no key'}). Both are in the stack's env file; "
+            "`load-env <env-file>` exports them."
+        )
+    return api_url, auth_key
+
+
+@lru_cache(maxsize=1)
+def deployment_marker() -> Tuple[str, UUID]:
+    """A row the API under test has just written into its own database, and that API's address.
+
+    One ephemeral account per session, created through the sanctioned admin endpoint, the
+    same way every other layer mints accounts. What makes it a marker is that no other
+    deployment on the box can have it: the identifier is minted by the API under test, in
+    the database the API under test uses.
+    """
+    api_url, auth_key = api_under_test()
+    email = f"integration-identity-{uuid4().hex[:12]}@test.agenta.ai"
+
+    try:
+        response = httpx.post(
+            f"{api_url}{_ACCOUNTS_PATH}",
+            headers={"Authorization": f"Access {auth_key}"},
+            json={
+                "accounts": {
+                    "user": {
+                        "user": {"email": email},
+                        "options": {"create_api_keys": False, "seed_defaults": False},
+                    }
+                }
+            },
+            timeout=_ACCOUNTS_TIMEOUT,
+        )
+    except httpx.HTTPError as failure:
+        raise AssertionError(
+            f"The integration layer could not reach the API under test at {api_url} to "
+            f"identify its database ({failure.__class__.__name__}). AGENTA_API_URL has to "
+            "name an API this host can reach."
+        ) from None
+
+    if response.status_code != 200:
+        raise AssertionError(
+            f"The API under test at {api_url} refused to mint the account that identifies "
+            f"its database: {response.status_code}. AGENTA_AUTH_KEY has to be the key that "
+            "deployment accepts."
+        )
+
+    accounts = response.json().get("accounts") or {}
+    account = next(iter(accounts.values()), {})
+    identifier = (account.get("user") or {}).get("id")
+    if not identifier:
+        raise AssertionError(
+            f"The API under test at {api_url} answered the account endpoint without a user "
+            "id, so there is no row to identify its database by."
+        )
+
+    return api_url, UUID(str(identifier))
+
+
+async def _carries_user(dsn: str, identifier: UUID) -> bool:
+    import asyncpg
+
+    connection = await asyncio.wait_for(asyncpg.connect(dsn), timeout=_CONNECT_TIMEOUT)
+    try:
+        found = await connection.fetchval(
+            "SELECT 1 FROM users WHERE id = $1", identifier
+        )
+    finally:
+        await connection.close()
+    return found is not None
+
+
+@lru_cache(maxsize=1)
+def confirm_deployment_under_test(uri: str) -> None:
+    """Refuse an address that answers but belongs to somebody else.
+
+    Reachability was already proven when this runs, so the failure here is not "no server".
+    It is a server whose database does not carry the row the API under test just wrote,
+    which on this box means another stack's database with the same name, reached through a
+    port that moved. The cases downstream seed projects, so the refusal has to come before
+    them and has to name both sides: the API that was asked, and the address that answered.
+    """
+    api_url, identifier = deployment_marker()
+
+    detail = ""
+    try:
+        present = _blocking(lambda: _carries_user(_dsn(uri), identifier))
+    except Exception as failure:
+        # Any failure to read the marker leaves the owner unproven, which is the same
+        # answer as a missing row. A database with no `users` table arrives here.
+        present = False
+        detail = f" Reading it back failed: {failure.__class__.__name__}."
+
+    if present:
+        return
+
+    port = published_port()
+    raise AssertionError(
+        "The integration layer reached a Postgres that is not the deployment under test. "
+        f"The API at {api_url} wrote user {identifier} into its own database, and "
+        f"{_redacted(uri)} does not have that row, so it serves another deployment.{detail} "
+        "Seeding would write this release's cases into somebody else's database. "
+        f"POSTGRES_PORT was read as {port if port is not None else 'nowhere'}: point it at "
+        "the stack under test, or point AGENTA_API_URL at the deployment this database "
+        "belongs to."
+    )
+
+
 def require_core_uri() -> str:
-    """The resolved URI, or a failure that says what to do about it.
+    """The resolved URI of the deployment under test, or a failure that says what to do.
 
     The integration layer exists to run against a deployment's database. A layer that skips
     when it cannot find one reports a green run in which almost nothing executed: against the
     stack this was written for, 93 of 101 cases skipped and the process exited 0 (D97). A
     release gate reading the exit code, or the last line, is then told the suite passed.
 
-    So the absence of a database is a failure here, and the sentence names the two variables
-    that fix it rather than the fact that something was unreachable.
+    So the absence of a database is a failure here, and so is the presence of the wrong one
+    (D128). Both sentences name the variables that fix them rather than the fact that
+    something went wrong.
     """
     resolved = use_reachable_core_uri()
-    if resolved is not None:
-        return resolved
+    if resolved is None:
+        configured = env.postgres.uri_core
+        port = published_port()
+        raise AssertionError(
+            "The integration layer could not reach this deployment's Postgres. It tried "
+            f"{_redacted(configured)} and {_redacted(_on_loopback(configured))}. "
+            "Point it at the stack under test: POSTGRES_URI_CORE for the database, or "
+            "POSTGRES_PORT for the host port compose published "
+            f"(read {'as ' + str(port) if port is not None else 'nowhere'}). "
+            "Both are in the stack's env file; `load-env <env-file>` exports them."
+        )
 
-    configured = env.postgres.uri_core
-    port = published_port()
-    raise AssertionError(
-        "The integration layer could not reach this deployment's Postgres. It tried "
-        f"{_redacted(configured)} and {_redacted(_on_loopback(configured))}. "
-        "Point it at the stack under test: POSTGRES_URI_CORE for the database, or "
-        "POSTGRES_PORT for the host port compose published "
-        f"(read {'as ' + str(port) if port is not None else 'nowhere'}). "
-        "Both are in the stack's env file; `load-env <env-file>` exports them."
-    )
+    confirm_deployment_under_test(resolved)
+    return resolved
 
 
 def _redacted(uri: str) -> str:

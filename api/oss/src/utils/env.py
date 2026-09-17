@@ -878,13 +878,22 @@ class CloudflareConfig(BaseModel):
 # ---------------------------------------------------------------------------
 
 
+# The REST scope discovery and execution have to agree on (#5174). Named, because it is the
+# value the code ships and a deployment may override, and a test that reads the field default
+# instead reads whatever COMPOSIO_API_URL says in the shell it runs in (D95).
+COMPOSIO_DEFAULT_API_URL = "https://backend.composio.dev/api/v3.1"
+
+
+def composio_api_url() -> str:
+    """The Composio REST scope: the deployment's override, else the shipped default."""
+    return os.getenv("COMPOSIO_API_URL") or COMPOSIO_DEFAULT_API_URL
+
+
 class ComposioConfig(BaseModel):
     """Composio integration configuration"""
 
     api_key: str | None = os.getenv("COMPOSIO_API_KEY")
-    api_url: str = os.getenv(
-        "COMPOSIO_API_URL", "https://backend.composio.dev/api/v3.1"
-    )
+    api_url: str = composio_api_url()
     # Dev: when set, unknown-trigger drops log at WARNING instead of INFO.
     webhook_target: str | None = os.getenv("COMPOSIO_WEBHOOK_TARGET")
     # Override the registered webhook URL. Composio requires public HTTPS; in dev
