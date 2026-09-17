@@ -222,8 +222,13 @@ export {TimePicker, type TimePickerProps} from "./time-picker"
 export {
     touchTargetExpansion,
     touchTargetHeight,
+    touchTargetHitArea,
+    touchTargetWidth,
     TOUCH_TARGET_MINIMUM_PX,
+    type TouchTargetControlBox,
     type TouchTargetControlHeight,
+    type TouchTargetControlWidth,
+    type TouchTargetHitArea,
 } from "./touch-target"
 export {cn} from "./utils"
 export {

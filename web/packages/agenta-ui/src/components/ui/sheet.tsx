@@ -5,6 +5,7 @@ import {cva, type VariantProps} from "class-variance-authority"
 import {X} from "lucide-react"
 
 import {Button} from "./button"
+import {touchTargetExpansion} from "./touch-target"
 import {cn} from "./utils"
 
 /**
@@ -142,8 +143,14 @@ function SheetHeader({
                     <Button
                         variant="ghost"
                         size="icon-sm"
-                        // -my-0.5 centres the 28px button on the 24px title line.
-                        className="-my-0.5 shrink-0"
+                        // -my-0.5 centres the 28px button on the 24px title line. The invisible
+                        // expansion takes the 28px square to the 44px touch minimum; its 8px
+                        // reach to the right stops at the header's own 8px gap, so it covers no
+                        // part of the title.
+                        className={cn(
+                            "-my-0.5 shrink-0",
+                            touchTargetExpansion({height: 28, width: 28}),
+                        )}
                         aria-label="Close"
                     >
                         <X />
