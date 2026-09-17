@@ -47,20 +47,57 @@ reviews:
   # organization's own exclusions are therefore repeated here explicitly, or its lock files
   # and generated code would be reviewed as if they were hand-written.
   #
-  # This is pass 1: production source, which is what actually needs reviewing. Pass 2 swaps
-  # this list for the tests, and also takes the infrastructure and repository configuration
-  # excluded at the bottom of this list. Neither pass covers the design-doc markdown under
-  # docs/design/**, which is this team's working notes rather than shipped code and is
-  # reviewed by the people writing it.
+  # This is PASS 3: the web design work, which is the only thing that changed since passes 1
+  # and 2 read the rest. Passes 1 and 2 covered production source and then tests across the
+  # whole pull request. The MCP redesign then added 60 files to the pass-1 set and took it to
+  # 342, over the cap, so the remaining passes are split by area instead of by kind.
+  #
+  #   pass 3 (this file):  web/**, minus Storybook           140 files
+  #   pass 4 (swap in):    api/**, sdks/**, services/**      182 files
+  #
+  # Pass 4's list is kept ready at ~/agenta-mcp-release/reviews/coderabbit-pass4.yaml; the
+  # swap is a copy of that file's path_filters block over this one.
+  #
+  # Storybook is out because the human reviewers read the stories, and because a story is
+  # exercised by the Storybook build that CI now runs. Tests are out because pass 2 took
+  # them. Neither pass covers the design-doc markdown under docs/design/**, which is this
+  # team's working notes rather than shipped code and is reviewed by the people writing it.
+  #
+  # Re-measure after any rebase or merge; the counts move with the base:
+  #   pass 3:
+  #     git diff --name-only e5643f00f5..HEAD | grep -E '^web/' \
+  #       | grep -vE '^web/storybook/|\.lock$|\.generated\.|/generated/|(^|/)tests?/|\.(test|spec)\.tsx?$' | wc -l
+  #   pass 4:
+  #     git diff --name-only e5643f00f5..HEAD | grep -E '^(api|sdks|services)/' \
+  #       | grep -vE '\.lock$|\.generated\.|/generated/|^docs/designs?/|(^|/)tests?/|(^|/)test_[^/]*\.py$|(^|/)pytest\.ini$|(^|/)run-tests\.py$' | wc -l
   path_filters:
     # Repeated from the Organization UI configuration, which this list replaces rather than
     # extends. Keep them in step with the organization's settings.
     - "!**/*.lock"
     - "!**/*.generated.*"
     - "!**/generated/**"
-    # This pull request's own scoping.
-    - "!docs/design/**"
-    - "!docs/designs/**"
+    # Everything outside web/. Pass 4 takes api, sdks and services; the rest is either
+    # infrastructure, this team's own notes, or generated client code.
+    - "!antd-inventory/**"
+    - "!api/**"
+    - "!benchmarks/**"
+    - "!clients/**"
+    - "!docs/**"
+    - "!ee/**"
+    - "!examples/**"
+    - "!hooks/**"
+    - "!hosting/**"
+    - "!sdks/**"
+    - "!services/**"
+    - "!website/**"
+    - "!.github/**"
+    - "!.coderabbit.yaml"
+    - "!.gitleaksignore"
+    - "!.gitignore"
+    # Read by people, not by CodeRabbit: the reviewers read the stories, and the Storybook
+    # build in CI is what catches a story whose component changed shape.
+    - "!web/storybook/**"
+    # Tests, which pass 2 already took.
     - "!**/tests/**"
     - "!**/test/**"
     - "!**/test_*.py"
@@ -70,12 +107,3 @@ reviews:
     - "!**/*.spec.tsx"
     - "!**/pytest.ini"
     - "!**/run-tests.py"
-    # Infrastructure and repository configuration, which pass 2 takes instead so this pass
-    # stays under the 300-file cap. Without these four the set is 304 files against
-    # e5643f00f5 and the review is skipped outright; with them it is 282. Re-measure after
-    # any rebase, the count moves with the base:
-    #   git diff --name-only e5643f00f5..HEAD | grep -vE '\.lock$|\.generated\.|/generated/|^docs/designs?/|(^|/)tests?/|(^|/)test_[^/]*\.py$|\.(test|spec)\.tsx?$|(^|/)pytest\.ini$|(^|/)run-tests\.py$|^hosting/|^\.github/|^[^/]+$' | wc -l
-    - "!hosting/**"
-    - "!.github/**"
-    - "!.coderabbit.yaml"
-    - "!.gitleaksignore"
