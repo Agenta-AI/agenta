@@ -199,9 +199,9 @@ describe("the harness code marker", () => {
     })
 })
 
-describe("which failures are the chosen server refusing a credential", () => {
-    /** The relay's shape for an upstream refusal: 424, with the cause in the error data. */
-    const relayed = (status: number) => ({
+describe("which relay failures are the chosen server refusing a credential", () => {
+    /** The OAuth form: the relay maps the refusal to 424 and names the cause. */
+    const mapped = (status: number) => ({
         response: {
             status,
             data: {
@@ -216,29 +216,49 @@ describe("which failures are the chosen server refusing a credential", () => {
         },
     })
 
-    it("reads the cause, because the relay never answers with the upstream's status", () => {
-        // `_map_gateway_exception` turns an upstream refusal into 424, or 502 for a server
-        // error, so deciding on status alone could never see one (round 4, D182).
-        expect(isCredentialRefusal(relayed(424))).toBe(true)
-        expect(isCredentialRefusal(relayed(502))).toBe(true)
+    /** The API-key form: the relay passes the server's status and body through bare. */
+    const bare = (status: number, data: unknown) => ({response: {status, data}})
+
+    it("recognises a bare relayed 401 as the server's answer, and names it", () => {
+        // An API-key connection's refusal is not mapped: the relay passes the third party's
+        // status and body through. Requiring the cause would stop a genuine wrong key being
+        // recognised, which is D175 reintroduced through its own fix (round 4, D182).
+        const refused = bare(401, {error: "invalid_api_key", detail: "bad key"})
+
+        expect(isCredentialRefusal(refused)).toBe(true)
+        expect(credentialRefusalStatus(refused)).toBe(401)
     })
 
-    it("is not a failure with no cause behind it", () => {
-        // A timeout is not a verdict on the credential, and the screen that says the key was
-        // rejected must not claim one.
+    it("recognises the mapped form too, and names no code for it", () => {
+        // 424 says the upstream refused and nothing about how, so printing it would put a
+        // platform number where the sentence promises the server's.
+        expect(isCredentialRefusal(mapped(424))).toBe(true)
+        expect(credentialRefusalStatus(mapped(424))).toBeNull()
+    })
+
+    it("is not our own middleware's unauthorised answer", () => {
+        // A session that expired between the internal read and the relay call answers with
+        // one of two shapes we write. Neither is a verdict on anybody's credential.
+        expect(isCredentialRefusal(bare(401, {detail: "Unauthorized"}))).toBe(false)
+        expect(
+            isCredentialRefusal(
+                bare(401, {
+                    detail: {message: "An unexpected error occurred.", operation_id: "op-1"},
+                }),
+            ),
+        ).toBe(false)
+    })
+
+    it("is still the server's where its body merely carries a detail field", () => {
+        // The relay forwards the third party's body verbatim and it may use that key, so
+        // recognising ours by the presence of `detail` would swallow a real refusal.
+        expect(isCredentialRefusal(bare(403, {detail: {message: "Forbidden for this key"}}))).toBe(
+            true,
+        )
+    })
+
+    it("is not a failure with no answer behind it", () => {
         expect(isCredentialRefusal(new Error("socket hang up"))).toBe(false)
-        expect(isCredentialRefusal({response: {status: 424, data: {}}})).toBe(false)
-    })
-
-    it("names no status for a refusal the relay reported as its own", () => {
-        // 424 says the upstream refused and says nothing about how. Printing it would put a
-        // platform number where the spec asks for the server's, which is what D133 was
-        // reopened for; the upstream's own status is not carried yet (issue 6926).
-        expect(credentialRefusalStatus(relayed(424))).toBeNull()
-    })
-
-    it("names one where a route did relay the server's own status", () => {
-        expect(credentialRefusalStatus({response: {status: 401, data: {}}})).toBe(401)
-        expect(isCredentialRefusal({response: {status: 401, data: {}}})).toBe(true)
+        expect(isCredentialRefusal(bare(502, {}))).toBe(false)
     })
 })

@@ -166,39 +166,72 @@ export const gatewayRefusalStatus = (error: unknown): number | null => {
     return typeof status === "number" && status > 0 ? status : null
 }
 
-/** The cause the relay gives a refusal that came from the server the person chose. */
+/** The cause the relay gives a refusal it recognised as the chosen server's. */
 const UPSTREAM_REFUSED = "upstream_error"
 
-/** The statuses a route may relay verbatim, where one does. */
+/** The statuses a server answers with about a credential it was given. */
 const CREDENTIAL_REFUSED = new Set([401, 403])
 
+/** The sentence our own middleware answers an unauthorised request with, verbatim. */
+const OUR_UNAUTHORISED = "Unauthorized"
+
+const bodyOf = (error: unknown): unknown =>
+    (error as {response?: {data?: unknown}} | null | undefined)?.response?.data
+
 /**
- * Whether this failure is the chosen server refusing the credential, rather than our own
- * side refusing the request or nothing answering at all.
+ * Whether an unauthorised answer is OUR middleware's rather than the chosen server's.
  *
- * Read from the cause, not the status. The relay never answers with the upstream's status:
- * `_map_gateway_exception` turns an upstream refusal into 424, or 502 for a server error,
- * and puts `upstream_error` in the JSON-RPC error data. So every 401 and 403 this route can
- * produce is our own — a session, a policy, an entitlement — and deciding on status alone
- * meant the rejected-key screen was reachable only by the failures it is not for (round 4,
- * D182). A timeout carries no cause and is a failure to check the key, not a verdict on it.
+ * Matched on the two shapes we actually produce, not on the presence of a `detail` key: the
+ * relay forwards the third party's body verbatim, and a third party may well use that key,
+ * so recognising ours loosely would take a genuine wrong-key refusal for a session expiry.
+ *
+ * The two are `{"detail": "Unauthorized"}`, which both of the middleware's 401 sites answer
+ * with, and the wrapped form carrying a message beside an operation id.
+ */
+const isOurUnauthorised = (error: unknown): boolean => {
+    const detail = (bodyOf(error) as {detail?: unknown} | null | undefined)?.detail
+    if (detail === OUR_UNAUTHORISED) return true
+    if (detail && typeof detail === "object") {
+        const {message, operation_id: operationId} = detail as {
+            message?: unknown
+            operation_id?: unknown
+        }
+        return typeof message === "string" && typeof operationId === "string"
+    }
+    return false
+}
+
+/**
+ * Whether THIS RELAY CALL's failure is the chosen server refusing the credential.
+ *
+ * Ask it only about the relay call. The submit that reaches it also reads and writes our own
+ * API first, and a session that expired made that read answer 401; classified here it would
+ * have read as the server rejecting a key it never saw (round 4, D184).
+ *
+ * Two forms count, because the relay has two behaviours and the difference is the
+ * connection's auth mode. An OAuth connection's refusal is mapped to 424 carrying the
+ * `upstream_error` cause. An API-KEY connection's is passed through bare, with the third
+ * party's status and its body, so a 401 or 403 here is the server's answer unless the body
+ * is one our own middleware writes. Requiring the cause would have made a genuine wrong API
+ * key stop being recognised, which is the defect D175 closed, reintroduced through its fix.
  */
 export const isCredentialRefusal = (error: unknown): boolean => {
     if (gatewayRefusalCode(error) === UPSTREAM_REFUSED) return true
-    // A route that does relay the status verbatim is still answering about the credential.
-    // None does today; keeping it costs nothing and stops this reading as status-blind.
     const status = gatewayRefusalStatus(error)
-    return status !== null && CREDENTIAL_REFUSED.has(status)
+    if (status === null || !CREDENTIAL_REFUSED.has(status)) return false
+    return !isOurUnauthorised(error)
 }
 
 /**
  * The status to show beside "the server rejected this key", or null.
  *
- * Only a status the chosen server actually answered with. The relay's own 424 says the
- * upstream refused and says nothing about how, so printing it would put a platform number
- * where the specification asks for the server's, which is the mistake D133 was reopened
- * for. The upstream's status is not carried structurally today; issue 6926 is where that
- * shape is tracked, and until then this screen names no code on the relay's own refusals.
+ * Only a status the chosen server answered with. A bare relayed 401 or 403 IS that, and this
+ * fallback is what keeps the wrong-key screen naming the code for an API-key connection: do
+ * not remove it on the grounds that the relay maps upstream failures, because it maps only
+ * the OAuth ones. The 424 of that mapped form says the upstream refused and nothing about
+ * how, so printing it would put a platform number where the specification asks for the
+ * server's, which is the mistake D133 was reopened for; that form names no code until the
+ * upstream's status is carried structurally (issue 6926).
  */
 export const credentialRefusalStatus = (error: unknown): number | null => {
     const status = gatewayRefusalStatus(error)

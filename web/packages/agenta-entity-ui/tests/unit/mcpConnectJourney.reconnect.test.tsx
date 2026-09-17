@@ -310,6 +310,59 @@ describe("what a key reconnect sends back", () => {
     })
 })
 
+describe("a session that expired during the credential submit", () => {
+    it("reports the check failing, not the server rejecting a key it never saw", async () => {
+        // The submit reads our own API before it reaches the relay, and a session that
+        // expired makes that read answer 401. Classified as the relay's, it read as the
+        // server rejecting a credential it had never been shown (round 4, D184).
+        queryMcpEndpoints.mockRejectedValue({
+            response: {status: 401, data: {detail: "Unauthorized"}},
+        })
+
+        await mountJourney(KEY_AUTHENTICATED)
+        await act(async () => {
+            await journey.submitManualCredential({headerName: "X-Api-Key", secretId: "sec-1"})
+        })
+
+        expect(journey.state.status).toBe("check_failed")
+        expect(journey.state.failureStatus).toBeNull()
+        // And nothing was written on the way, because the read never succeeded.
+        expect(editMcpEndpoint).not.toHaveBeenCalled()
+        expect(listMcpTools).not.toHaveBeenCalled()
+    })
+
+    it("reports it the same way when the session goes between the read and the relay", async () => {
+        // The residual the shape rule is for: the relay call itself answers 401, but with
+        // our own middleware's body rather than a server's.
+        listMcpTools.mockRejectedValue({
+            response: {status: 401, data: {detail: "Unauthorized"}},
+        })
+
+        await mountJourney(KEY_AUTHENTICATED)
+        await act(async () => {
+            await journey.submitManualCredential({headerName: "X-Api-Key", secretId: "sec-1"})
+        })
+
+        expect(journey.state.status).toBe("check_failed")
+    })
+
+    it("still calls a bare relayed 401 what it is, and names it", async () => {
+        // An API-key connection's refusal is passed through bare, so this is the server's
+        // answer even though the status matches ours.
+        listMcpTools.mockRejectedValue({
+            response: {status: 401, data: {error: "invalid_api_key"}},
+        })
+
+        await mountJourney(KEY_AUTHENTICATED)
+        await act(async () => {
+            await journey.submitManualCredential({headerName: "X-Api-Key", secretId: "sec-1"})
+        })
+
+        expect(journey.state.status).toBe("verify_failed")
+        expect(journey.state.failureStatus).toBe(401)
+    })
+})
+
 describe("a reconnect abandoned while the row is being read", () => {
     it("writes nothing and verifies nothing", async () => {
         // Reading the row back is a round trip, and the guard ran only after the write and
