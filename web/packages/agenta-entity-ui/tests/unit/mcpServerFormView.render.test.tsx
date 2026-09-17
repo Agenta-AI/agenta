@@ -22,12 +22,37 @@ const endpoints = [
         secret_id: "secret-1",
         data: {route: {base_url: "https://mcp.linear.app"}},
     },
+    {
+        // The same server after someone revoked its login: no stored credential, which is
+        // what every surface reads as "Login expired".
+        id: "mcp-2",
+        slug: "octolens",
+        name: "Octolens",
+        auth_mode: "oauth" as const,
+        namespace: "custom" as const,
+        data: {route: {base_url: "https://app.octolens.com/mcp"}},
+    },
 ]
 
 vi.mock("@agenta/entities/mcpEndpoint", async (importOriginal) => ({
-    // The reference and policy helpers are the code under test; only the query is stubbed.
+    // The reference and policy helpers are the code under test; the query and the tool list
+    // are stubbed, because the permission drawer reads a catalogue as soon as it opens and
+    // this file is about what the form does, not about what a server answers.
     ...(await importOriginal<typeof import("@agenta/entities/mcpEndpoint")>()),
     mcpEndpointsQueryAtom: {},
+    listMcpTools: vi.fn(async () => []),
+}))
+
+/**
+ * The permission drawer stands in for itself.
+ *
+ * What is under test here is which journey the form opens when the drawer asks it to, not
+ * what the drawer draws. The real one reads a tool catalogue the moment it opens, which this
+ * file has no server for, so the stub is one button that calls the prop the form passes.
+ */
+vi.mock("../../src/mcpEndpoint/McpPermissionDrawer", () => ({
+    default: ({onReconnect}: {onReconnect?: () => void}) =>
+        createElement("button", {onClick: onReconnect}, "Reconnect from the drawer"),
 }))
 
 vi.mock("jotai", async (importOriginal) => ({
@@ -51,6 +76,26 @@ const render = async (value: Record<string, unknown>) => {
 }
 
 const text = () => document.body.textContent ?? ""
+
+/** jsdom has none, and the sheet's Radix controls measure themselves on mount. */
+class StubResizeObserver {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+}
+globalThis.ResizeObserver ??= StubResizeObserver as unknown as typeof ResizeObserver
+
+const click = async (element: Element | undefined | null) => {
+    expect(element).toBeTruthy()
+    await act(async () => {
+        element?.dispatchEvent(new MouseEvent("click", {bubbles: true}))
+    })
+    for (let i = 0; i < 3; i++) {
+        await act(async () => {
+            await Promise.resolve()
+        })
+    }
+}
 
 const buttonReading = (label: string) =>
     [...document.querySelectorAll("button")].find(
@@ -114,5 +159,23 @@ describe("the form's Permissions row", () => {
         await render({name: "", connection: gateway("")})
 
         expect(buttonReading("Set permissions")?.hasAttribute("disabled")).toBe(true)
+    })
+})
+
+describe("the expired-login banner's way back", () => {
+    it("opens the sheet as a reconnect, not as a new connection", async () => {
+        // The banner repairs the connection this item already names. Opening the new-connect
+        // entry instead made the only way out of an expired login a SECOND connection, which
+        // the item would then be repointed at, taking the frozen tool prefix with it
+        // (round 6c, D132).
+        await render({connection: gateway("octolens"), name: "octolens"})
+
+        await click(buttonReading("Set permissions"))
+        await click(buttonReading("Reconnect from the drawer"))
+
+        expect(text()).toContain("Reconnect MCP server")
+        expect(text()).not.toContain("Connect MCP server")
+        // A reconnect is not asked for an address: it already has one.
+        expect(document.querySelector('input[aria-label="Server URL"]')).toBeNull()
     })
 })

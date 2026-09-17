@@ -31,8 +31,10 @@
  * to narrow it, because the scopes are the server's business and nobody could answer.
  */
 import {
+    cloneElement,
     useCallback,
     useEffect,
+    useId,
     useMemo,
     useRef,
     useState,
@@ -99,12 +101,8 @@ const RECONNECT_TITLE = "Reconnect MCP server"
 const URL_HELP =
     "The server's HTTP endpoint. Agenta checks it and detects whether it needs OAuth, an API key, or nothing."
 
-/** The two nodes the address field can be described by, exactly one of which is rendered. */
-const URL_HELP_ID = "mcp-url-help"
+/** The box the address field is described by once the check has failed. */
 const URL_PROBLEM_ID = "mcp-url-problem"
-
-/** The scheme line under the Header field, where the challenge named one. */
-const HEADER_HELP_ID = "mcp-header-help"
 
 /**
  * The box that says why a key was refused, which both refused fields point at.
@@ -607,7 +605,6 @@ export function McpConnectSheet({
                             // wrong with this address, and the line explaining what the
                             // field is for is no longer the thing to read.
                             hint={screen === "url" ? URL_HELP : null}
-                            hintId={URL_HELP_ID}
                         >
                             <Input
                                 autoFocus
@@ -616,13 +613,12 @@ export function McpConnectSheet({
                                 value={state.url}
                                 disabled={busy}
                                 aria-label="Server URL"
-                                // Whichever of the two is on screen. The help line goes away
-                                // when the check fails and the failure box takes its place,
-                                // so a fixed id left the refused field describing nothing
-                                // (round 4, P2) — which is the one state where a reader most
-                                // needs the description read to them.
+                                // The failure box, when the check has failed. The help line
+                                // is `HintedField`'s to name, and it names it only while it
+                                // is rendered, so the refused field describes the box that
+                                // replaced it rather than a line that is gone (round 4, P2).
                                 aria-describedby={
-                                    screen === "url_failed" ? URL_PROBLEM_ID : URL_HELP_ID
+                                    screen === "url_failed" ? URL_PROBLEM_ID : undefined
                                 }
                                 aria-invalid={screen === "url_failed" || undefined}
                                 onChange={(event) => journey.setUrl(event.target.value)}
@@ -678,7 +674,6 @@ export function McpConnectSheet({
                                     </>
                                 ) : null
                             }
-                            hintId="mcp-name-help"
                         >
                             <Input
                                 autoFocus={!reconnect}
@@ -687,7 +682,6 @@ export function McpConnectSheet({
                                 // and people already call this connection.
                                 disabled={!!reconnect || busy}
                                 aria-label="Name"
-                                aria-describedby="mcp-name-help"
                                 onChange={(event) => journey.setName(event.target.value)}
                             />
                         </HintedField>
@@ -717,7 +711,6 @@ export function McpConnectSheet({
                                     hint={
                                         challengeScheme ? headerSchemeHint(challengeScheme) : null
                                     }
-                                    hintId={HEADER_HELP_ID}
                                 >
                                     <Input
                                         className="font-mono text-[13px]"
@@ -725,14 +718,9 @@ export function McpConnectSheet({
                                         value={headerName}
                                         aria-label="Header"
                                         aria-describedby={
-                                            [
-                                                challengeScheme ? HEADER_HELP_ID : null,
-                                                state.status === "verify_failed"
-                                                    ? KEY_PROBLEM_ID
-                                                    : null,
-                                            ]
-                                                .filter(Boolean)
-                                                .join(" ") || undefined
+                                            state.status === "verify_failed"
+                                                ? KEY_PROBLEM_ID
+                                                : undefined
                                         }
                                         onChange={(event) =>
                                             setHeaderName(event.target.value.trim())
@@ -914,7 +902,6 @@ const canConfirm = ({
  */
 const HintedField = ({
     hint,
-    hintId,
     children,
     ...field
 }: {
@@ -924,20 +911,30 @@ const HintedField = ({
     error?: string
     invalid?: boolean
     hint?: ReactNode
-    hintId: string
-    children: ReactElement
-}) => (
-    <div className="flex flex-col gap-1.5">
-        <Field {...field} className="gap-1.5">
-            {children}
-        </Field>
-        {hint ? (
-            <p id={hintId} className="m-0 text-xs leading-normal text-colorTextTertiary">
-                {hint}
-            </p>
-        ) : null}
-    </div>
-)
+    children: ReactElement<{"aria-describedby"?: string}>
+}) => {
+    // Generated here, and named only while the line it names is on screen. The ids used to be
+    // written by hand at each call site and set on the control unconditionally, so every
+    // screen that drew no hint left the control pointing at an element that was not in the
+    // document: four of them on the name field alone (round 4, D127). A field cannot forget
+    // an id it never writes.
+    const hintId = useId()
+    const own = children.props["aria-describedby"]
+    const describedBy = [own, hint ? hintId : null].filter(Boolean).join(" ") || undefined
+
+    return (
+        <div className="flex flex-col gap-1.5">
+            <Field {...field} className="gap-1.5">
+                {cloneElement(children, {"aria-describedby": describedBy})}
+            </Field>
+            {hint ? (
+                <p id={hintId} className="m-0 text-xs leading-normal text-colorTextTertiary">
+                    {hint}
+                </p>
+            ) : null}
+        </div>
+    )
+}
 
 /**
  * The failure box: a sentence in the error fill, with the first clause carrying the weight.

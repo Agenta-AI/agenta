@@ -159,6 +159,13 @@ const ReconnectHost = () => {
     })
 }
 
+const openReconnect = async () => {
+    await act(async () => {
+        root.render(createElement(ReconnectHost))
+    })
+    await settle()
+}
+
 beforeEach(() => {
     vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true)
     probeMcpUrl.mockResolvedValue({
@@ -253,10 +260,7 @@ describe("the rendered journey", () => {
     })
 
     it("opens a reconnect with both actions live, waiting on the press", async () => {
-        await act(async () => {
-            root.render(createElement(ReconnectHost))
-        })
-        await settle()
+        await openReconnect()
 
         // A reconnect enters at scope discovery, which is where the press that opens the
         // provider's window has to happen, so the screen shows what it is about to do and
@@ -268,7 +272,19 @@ describe("the rendered journey", () => {
         expect(button("Cancel")?.disabled).toBe(false)
 
         // And nothing has gone to the provider yet, because nobody has pressed anything.
+        // A sheet that had a request in flight would be right to disable its actions; this
+        // one has none, which is why disabling them was the defect.
         expect(discoverMcpConnect).not.toHaveBeenCalled()
+    })
+
+    it("starts the work on the press, which is what the wait was for", async () => {
+        await openReconnect()
+        await press(button("Connect"))
+
+        // The press is what opens the provider's window, so it is also what may start
+        // discovery: an engine refuses `window.open` once a promise has resolved. Enabling
+        // the button is only half the fix if the press still reaches nothing.
+        expect(discoverMcpConnect).toHaveBeenCalledWith("mcp-9", "project-1")
     })
 
     it("asks for a URL again after closing and reopening", async () => {
