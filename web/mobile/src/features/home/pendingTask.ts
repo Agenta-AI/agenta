@@ -7,6 +7,14 @@ export interface PendingTask {
     agentId: string
     text: string
     parts?: FileUIPart[]
+    /**
+     * The starter template this agent was created from, when it was.
+     *
+     * The template declares the connections the agent will need, and nothing else on the session
+     * route can name it: the agent's config is written by the builder during this very turn, and
+     * the URL carries only the agent id. Without it the connect step has nothing to read.
+     */
+    templateKey?: string
     delivery?: "sending" | "failed"
     /** The refusal's own sentence, when the send was refused with one. */
     failureReason?: string

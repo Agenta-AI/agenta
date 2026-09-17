@@ -41,14 +41,3 @@ export const resolveSessionPanes = ({
     // conversation, and the tab rail above it still reaches every session.
     return {showConfig, showPane: showConfig || (twoPane && chatMaximized)}
 }
-
-/**
- * Whether the conversation is off the screen: the class the workspace hides it with, as a rule a
- * test can read. Every defect on this surface has been this one boolean coming out true on a phone
- * for a reason nobody on the phone chose, so it is stated rather than inlined.
- */
-export const conversationHidden = ({
-    twoPane,
-    showPane,
-}: Pick<SessionPaneInputs, "twoPane"> & Pick<SessionPanes, "showPane">): boolean =>
-    !twoPane && showPane

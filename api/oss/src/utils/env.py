@@ -1479,6 +1479,17 @@ class RunnerConfig(BaseModel):
 # ---------------------------------------------------------------------------
 
 
+def _store_version_retention_days_default() -> int:
+    days = _parse_optional_int_env("AGENTA_STORE_VERSION_RETENTION_DAYS")
+    if days is None:
+        return 30
+    if days < 0:
+        raise ValueError(
+            f"AGENTA_STORE_VERSION_RETENTION_DAYS must be 0 or greater, got {days}"
+        )
+    return days
+
+
 class StoreConfig(BaseModel):
     """Shared S3-compatible object store credentials.
 
@@ -1512,6 +1523,15 @@ class StoreConfig(BaseModel):
     # back to a baked-in local-dev key when unset (see core/store/webidentity.py).
     jwt_private_key: str | None = os.getenv("AGENTA_STORE_JWT_PRIVATE_KEY")
     jwt_issuer: str = os.getenv("AGENTA_STORE_JWT_ISSUER") or "http://api:8000"
+
+    # How long the bundled SeaweedFS keeps a version that is no longer current — every
+    # overwritten body and every deleted object. Without it a DeleteObject is final, so a
+    # runaway delete (an agent running `rm -rf` over a FUSE mount) is unrecoverable. Applies
+    # to the bundled store only; a remote S3 bucket's versioning and lifecycle stay under the
+    # operator's control. 0 removes Agenta's expiration rule and leaves existing versioning enabled.
+    version_retention_days: int = Field(
+        default_factory=_store_version_retention_days_default
+    )
 
     model_config = ConfigDict(extra="ignore")
 

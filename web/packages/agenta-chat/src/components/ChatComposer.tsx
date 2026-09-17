@@ -78,6 +78,11 @@ export interface ChatComposerProps {
     extraPrefix?: ReactNode
     /** The input's trailing slot (onboarding actions). */
     trailing?: ReactNode
+    /**
+     * Docked INSIDE the input frame, above the editor and the attachments tray — for host
+     * content that belongs to the message being composed (the create surface's connect step).
+     */
+    headerExtra?: ReactNode
     /** The `/` palette's sections. Omit where the surface has no commands. */
     slashCommands?: SlashCommandSection[]
     /**
@@ -116,6 +121,7 @@ export const ChatComposer = ({
     onViewAttachment,
     extraPrefix,
     trailing,
+    headerExtra,
     slashCommands,
     fileMentions,
     fallback,
@@ -196,6 +202,9 @@ export const ChatComposer = ({
                 disabled={disabled}
                 hideSendButton={hideSendButton}
                 hideShortcutHints={hideShortcutHints ?? !hasKeyboard}
+                // A touch keyboard has no modifier to make a newline with, so its Enter IS the
+                // newline and the send button sends. Enter sends only where Shift/⌘ can be held.
+                submitOnEnter={hasKeyboard}
                 placeholder={
                     placeholder ??
                     (waitingOnUser
@@ -251,15 +260,18 @@ export const ChatComposer = ({
                     </div>
                 }
                 header={
-                    <HeightCollapse open={files.length > 0}>
-                        <ComposerAttachments
-                            files={files}
-                            onRemove={removeFile}
-                            onView={uploadsEnabled ? onViewAttachment : undefined}
-                            onRetry={uploads.retry}
-                            canRetry={uploads.canRetry}
-                        />
-                    </HeightCollapse>
+                    <>
+                        {headerExtra}
+                        <HeightCollapse open={files.length > 0}>
+                            <ComposerAttachments
+                                files={files}
+                                onRemove={removeFile}
+                                onView={uploadsEnabled ? onViewAttachment : undefined}
+                                onRetry={uploads.retry}
+                                canRetry={uploads.canRetry}
+                            />
+                        </HeightCollapse>
+                    </>
                 }
                 trailing={trailing}
             />

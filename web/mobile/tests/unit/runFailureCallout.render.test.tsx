@@ -1,10 +1,12 @@
 // @vitest-environment jsdom
 //
-// The mobile turn's wiring into the shared run-failure callout.
+// The mobile turn's wiring into its run-failure callout.
 //
-// This app drew its own callout, a private `RunErrorCallout` that reimplemented the desktop's
-// rather than copying it: its own clamp threshold, its own toggle wording, its own retry rule, and
-// no test. Both apps render the package's component now.
+// The callout is this app's own again: it draws a failure as a step on the activity timeline, or
+// as a card when the run never started, which the shared one has no form for. What it does NOT
+// decide for itself is WHICH failure class gets which action — those sets live in
+// `@agenta/chat/components` beside the desktop's callout, and this suite reads them from there so
+// a class added in one app cannot go unanswered in the other.
 //
 // What is pinned here is this app's half: a failed turn renders it with the run's reason, and each
 // failure class draws the escape that clears it. Which classes those are is the package's rule,
@@ -94,10 +96,12 @@ const press = (label: string) => {
 }
 
 describe("mobile TurnRow: a run that failed", () => {
-    it("renders the shared callout with the run's own reason", () => {
+    it("renders the callout with the run's own reason", () => {
+        // "Couldn't start the run" is the card form, which is what a failure with no steps behind
+        // it draws; the step form says "The run stopped".
         const shown = renderTurn(failedTurn("model authentication failed"))
 
-        expect(shown).toContain("The agent run failed")
+        expect(shown).toContain("Couldn't start the run")
         expect(shown).toContain("model authentication failed")
     })
 

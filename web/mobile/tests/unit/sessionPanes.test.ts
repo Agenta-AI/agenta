@@ -6,7 +6,7 @@
  */
 import {describe, expect, it} from "vitest"
 
-import {conversationHidden, resolveSessionPanes} from "@/features/chat/sessionPanes"
+import {resolveSessionPanes} from "@/features/chat/sessionPanes"
 
 const phone = {twoPane: false, hasEntity: true, chatMaximized: false, configCollapsed: true}
 
@@ -34,20 +34,6 @@ describe("resolveSessionPanes on a phone", () => {
             showConfig: false,
             showPane: false,
         })
-    })
-})
-
-describe("conversationHidden", () => {
-    it("takes the conversation off a phone only when the pane has the screen", () => {
-        expect(conversationHidden({twoPane: false, showPane: true})).toBe(true)
-        expect(conversationHidden({twoPane: false, showPane: false})).toBe(false)
-    })
-
-    it("never takes it off a window wide enough for both", () => {
-        // The pane sits BESIDE the conversation above the breakpoint, so an open pane is not a
-        // hidden chat there. Dropping the width half of the rule hides it at every width.
-        expect(conversationHidden({twoPane: true, showPane: true})).toBe(false)
-        expect(conversationHidden({twoPane: true, showPane: false})).toBe(false)
     })
 })
 

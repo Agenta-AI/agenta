@@ -14,6 +14,7 @@ import {useAtomValue, useSetAtom} from "jotai"
 
 import {attachmentIdForPart} from "../assets/files"
 import {reduceSessionPendingInputs, type SessionPendingInputView} from "../assets/pendingInputs"
+import {startupLabelFromDataPart} from "../assets/startupPhases"
 import {readSendRefusal} from "../model/error"
 
 import type {QueuedMessage} from "./useAgentChatQueue"
@@ -37,6 +38,8 @@ export interface ServerInputWatcher {
      * and the liveness poll re-reads the records when it ends.
      */
     onSettled?: () => void
+    /** The runner narrated a startup phase (#6047); the run stream is their only source. */
+    onStartupPhase?: (label: string) => void
 }
 
 export interface ServerSessionInputs {
@@ -60,7 +63,12 @@ const emptyView = reduceSessionPendingInputs(null)
 
 const RUN_ERROR_FRAME_TYPES = new Set(["error", "data-agent-error"])
 
-type RunFrame = {kind: "accepted"; executionId: string} | {kind: "error"} | {kind: "started"} | null
+type RunFrame =
+    | {kind: "accepted"; executionId: string}
+    | {kind: "error"}
+    | {kind: "started"}
+    | {kind: "status"; label: string}
+    | null
 
 /**
  * What one run stream said about the send that opened it. `accepted` is whether a frame named the
@@ -83,6 +91,8 @@ const runFrameFromLine = (line: string): RunFrame => {
         }
         if (typeof frame.type !== "string") return null
         if (RUN_ERROR_FRAME_TYPES.has(frame.type)) return {kind: "error"}
+        const label = startupLabelFromDataPart(frame)
+        if (label) return {kind: "status", label}
         // The runner emits its `turn` event only after it admits the request, and the Vercel
         // adapter forwards that id as message metadata. It is the only thing in an ordinary
         // request's stream that proves a turn exists.
@@ -141,17 +151,22 @@ export const readRunAdmission = async (
             if (!frame) continue
             // Scanning continues past the turn-id frame, because a detached run names its turn in
             // a frame of its own, and that id is what retires the echo on identity.
+            if (frame.kind === "status") {
+                watcher?.onStartupPhase?.(frame.label)
+                continue
+            }
             if (frame.kind === "started") {
                 started = true
                 continue
             }
             if (frame.kind === "error") {
-                if (started) continue
+                if (started || accepted) continue
                 return "error"
             }
+            if (accepted) continue
             accepted = true
             watcher?.onAccepted?.(frame.executionId)
-            return "accepted"
+            // The chunk may carry a status frame right behind the acceptance; keep going.
         }
         return null
     }
@@ -159,7 +174,7 @@ export const readRunAdmission = async (
         for (;;) {
             const {done, value} = await reader.read()
             if (done) break
-            if (accepted) continue
+            // Still scanned past acceptance: the startup phases arrive after it.
             if (scan(decoder.decode(value, {stream: true})) === "error") {
                 watcher?.onFailed?.()
                 await reader.cancel().catch(() => undefined)
@@ -195,6 +210,7 @@ export const useServerSessionInputs = ({
     locallyBusy,
     isSharedReaderReady,
     onExecuted,
+    onStartupPhase,
 }: {
     entityId: string
     sessionId: string
@@ -208,6 +224,8 @@ export const useServerSessionInputs = ({
      * reach the log; settlement waits on it and draws no conclusion from a failed read.
      */
     onExecuted?: () => void | boolean | Promise<void | boolean>
+    /** A startup phase the run stream narrated for a send this hook admitted. */
+    onStartupPhase?: (label: string) => void
 }): ServerSessionInputs => {
     const projectId = useAtomValue(projectIdAtom)
     const scope = JSON.stringify([projectId, sessionId])
@@ -225,6 +243,8 @@ export const useServerSessionInputs = ({
     const messagesRef = useRef(messages)
     const entityIdRef = useRef(entityId)
     const onExecutedRef = useRef(onExecuted)
+    const onStartupPhaseRef = useRef(onStartupPhase)
+    onStartupPhaseRef.current = onStartupPhase
     const isSharedReaderReadyRef = useRef(isSharedReaderReady)
     const loadInFlightRef = useRef<{
         scope: string
@@ -357,7 +377,12 @@ export const useServerSessionInputs = ({
             // run in the background so the composer can admit Queue/Steer while that run streams.
             // A 200 only proves the request was taken: the turn is accepted when the stream's
             // first frame names it, and a stream that ends without one never started a turn.
-            void readRunAdmission(response, watcher)
+            void readRunAdmission(response, {
+                ...watcher,
+                onStartupPhase: (label) => {
+                    if (mount.isCurrent(generation)) onStartupPhaseRef.current?.(label)
+                },
+            })
                 .then(async ({accepted, ended}) => {
                     if (!mount.isCurrent(generation)) return
                     await refresh()

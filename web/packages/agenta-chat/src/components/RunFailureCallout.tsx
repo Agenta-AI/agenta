@@ -50,7 +50,7 @@ export const RETRYABLE_CODES = new Set([
 ])
 
 /** An admission refusal means the message was not sent, not that an agent run failed. */
-const NOT_SENT_CODES = new Set([SESSION_TURN_IN_USE_CODE])
+export const NOT_SENT_CODES = new Set([SESSION_TURN_IN_USE_CODE])
 
 /** The ONE rule driving both the clamp and the toggle — they can't disagree and hide text (#5350). */
 export const isBigError = (text: string) => text.length > 240 || text.split("\n").length > 4

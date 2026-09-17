@@ -13,6 +13,7 @@ const gate = (overrides: Partial<PendingTaskGate> = {}): PendingTaskGate => ({
     modelKeyLoading: false,
     modelKeyWaitedMs: 0,
     modelBlocked: false,
+    setupBlocking: false,
     ...overrides,
 })
 
@@ -129,5 +130,35 @@ describe("pendingTaskDecision", () => {
                 ),
             ).toBe("hold")
         })
+    })
+})
+
+// The template connect step, run inside the session (#6043). The card is what the user is
+// looking at, so its hold outranks the vault's invisible one.
+describe("pendingTaskDecision — the connect step", () => {
+    it("holds while the step is up or still deciding", () => {
+        expect(pendingTaskDecision(gate({setupBlocking: true}))).toBe("hold")
+    })
+
+    it("sends once the step resolves", () => {
+        expect(pendingTaskDecision(gate({setupBlocking: false}))).toBe("send")
+    })
+
+    it("outranks the vault wait, so a visible card is never stacked on an invisible one", () => {
+        // Both waits are on. Were the vault checked first, its deadline could abandon the very
+        // message the card is holding, under a card that still says Continue.
+        expect(
+            pendingTaskDecision(
+                gate({
+                    setupBlocking: true,
+                    modelKeyLoading: true,
+                    modelKeyWaitedMs: MODEL_KEY_WAIT_LIMIT_MS,
+                }),
+            ),
+        ).toBe("hold")
+    })
+
+    it("still holds for hydration first — a send now would race the fill", () => {
+        expect(pendingTaskDecision(gate({hydrating: true, setupBlocking: false}))).toBe("hold")
     })
 })

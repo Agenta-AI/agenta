@@ -53,12 +53,17 @@ const renderAssistantTurn = (inspectorEnabled: boolean) => {
 
 describe("mobile turn inspector control", () => {
     it("shows the trace action without hover when the debug preference is on", () => {
+        // The row carries the hover-reveal class or it does not; with the preference on it does
+        // not, so the toolbar is visible and clickable from the start. Asserting the absence
+        // rather than an `opacity-100` the row no longer adds: the reveal is one class, and a
+        // row without it needs no pointer to appear.
         const toolbar = renderAssistantTurn(true).querySelector(
             '[aria-label="View trace"]',
         )?.parentElement
 
-        expect(toolbar?.className).toContain("opacity-100")
-        expect(toolbar?.className).toContain("pointer-events-auto")
+        expect(toolbar?.className).not.toContain("opacity-0")
+        expect(toolbar?.className).not.toContain("pointer-events-none")
+        expect(toolbar?.className).not.toContain("group-hover:opacity-100")
     })
 
     it("keeps the normal hover reveal while the debug preference is off", () => {

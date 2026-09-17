@@ -34,3 +34,33 @@ export const clearTurnClockAtom = atom(null, (get, set, sessionId: string) => {
 /** The latest observed startup label for a session, or null when no turn is being narrated. */
 export const useStartupPhase = (sessionId: string): string | null =>
     useAtomValue(turnStartAtomFamily(sessionId)) ?? null
+
+/** How long each turn worked, measured on this client; only turns streamed here have one. */
+interface TurnSpan {
+    startedAt: number
+    endedAt?: number
+}
+
+const turnSpanMapAtom = atom<Record<string, TurnSpan>>({})
+
+export const turnSpanAtomFamily = atomFamily((messageId: string) =>
+    selectAtom(turnSpanMapAtom, (m): TurnSpan | undefined => m[messageId]),
+)
+
+/** Start the clock, or resume it with the start shifted by the pause: working time only. */
+export const startTurnSpanAtom = atom(null, (get, set, messageId: string) => {
+    const current = get(turnSpanMapAtom)
+    const span = current[messageId]
+    if (span && !span.endedAt) return
+    const now = Date.now()
+    const startedAt = span?.endedAt ? span.startedAt + (now - span.endedAt) : now
+    set(turnSpanMapAtom, {...current, [messageId]: {startedAt}})
+})
+
+/** Freeze the clock on settle or while parked on the reader; one never started stays absent. */
+export const settleTurnSpanAtom = atom(null, (get, set, messageId: string) => {
+    const current = get(turnSpanMapAtom)
+    const span = current[messageId]
+    if (!span || span.endedAt) return
+    set(turnSpanMapAtom, {...current, [messageId]: {...span, endedAt: Date.now()}})
+})

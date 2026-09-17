@@ -27,7 +27,7 @@
       "description": "Content-addressed tag for ghcr.io/agenta-ai/agenta-preview-redis, built by workflow 42 from hosting/railway/oss/images/redis. When the wrapper source changes, regenerate with images/compute-tag.sh (see template/README.md). Never 'latest', never a pr-* tag."
     },
     "seaweedfs_tag": {
-      "default": "content-03d718eacd47",
+      "default": "content-e4dfd75d327c",
       "description": "Content-addressed tag for ghcr.io/agenta-ai/agenta-preview-seaweedfs, built by workflow 42 from hosting/railway/oss/images/seaweedfs. When the wrapper source changes, regenerate with images/compute-tag.sh (see template/README.md). Never 'latest', never a pr-* tag."
     }
   },

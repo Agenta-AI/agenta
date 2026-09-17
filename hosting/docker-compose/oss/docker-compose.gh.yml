@@ -514,7 +514,9 @@ services:
         # The bundled durable object store for session/agent mounts. Without it, runner mount
         # signing returns 503 and agent file writes are silently lost. Pinned (not :latest) so the
         # IAM/STS subsystem stays on a known-good build — it has regressed across releases.
-        image: chrislusf/seaweedfs:4.37
+        # Never go below 4.42: older builds keep listing a pre-versioning object after its
+        # delete marker is written, so a deleted file reappears in a geesefs mount, unreadable.
+        image: chrislusf/seaweedfs:4.47
         # === EXECUTION ============================================ #
         # ONLY FOR SEAWEEDFS (the bundled store). Real S3/R2/MinIO ship their own STS/IAM and ignore
         # all of this. Two configs, both generated from env (no committed files):

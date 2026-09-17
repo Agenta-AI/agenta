@@ -330,6 +330,21 @@ async def lifespan(*args, **kwargs):
         except Exception as e:  # noqa: BLE001
             log.warning("Store bucket ensure failed at startup: %s", e)
 
+        # Separate from the bucket ensure above: a store that cannot do versioning must
+        # still serve mounts, so a failure here degrades recoverability, nothing else.
+        try:
+            applied = await store.ensure_version_retention(
+                bucket=env.store.bucket,
+                retention_days=env.store.version_retention_days,
+            )
+            if applied:
+                log.info(
+                    "Store bucket versioning on; noncurrent versions kept %s days.",
+                    env.store.version_retention_days,
+                )
+        except Exception as e:  # noqa: BLE001
+            log.warning("Store bucket version retention ensure failed: %s", e)
+
     # The execution watchdog. It needs the records plane to write the terminal outcome a
     # dead runner owed, and the watch publisher so an open browser sees the turn close.
     _orphan_sweep_task = asyncio.create_task(

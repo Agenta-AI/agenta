@@ -53,6 +53,13 @@
 
 :root {
     --radius: 0.625rem;
+    /* The composer's send takes the primary fill here, not the desktop's lime accent. The button
+       reads these hooks itself (ComposerSendButton), and the theme tokens carry the dark values:
+       the glyph is the container colour, so it reads white on the light theme's ink and ink on
+       the dark theme's yellow — the pairing Home's send already uses. */
+    --ag-composer-send-bg: var(--colorPrimary);
+    --ag-composer-send-fg: var(--colorBgContainer);
+    --ag-composer-send-hover-bg: color-mix(in srgb, var(--colorPrimary) 85%, transparent);
 }
 
 @theme inline {
@@ -302,6 +309,9 @@
     --animate-accordion-up: accordion-up 0.2s cubic-bezier(0.645, 0.045, 0.355, 1);
     --animate-skeleton: skeleton 1.4s ease infinite;
     --animate-config-shimmer: config-shimmer 1.8s ease-in-out 2 forwards;
+    /* The live line's verb (activity fold, startup label): a light sweeps through the words. */
+    --animate-text-shimmer: text-shimmer 2.4s linear infinite;
+    /* The live line's three dots: each rises 3px and brightens in turn. */
     /* Home's create-mode ring. The component lives in @agenta/home-ui, which ships no CSS. */
     --animate-composer-ring: composer-ring-spin 3s linear infinite;
     --animate-composer-ring-in: composer-ring-in 0.25s ease-out both;
@@ -435,6 +445,17 @@
         background-position: 0 50%;
     }
 }
+/* One full tile per cycle over a 200%-wide periodic gradient: the frame at the end of a loop
+   is the frame at its start, so the sweep never blinks back to the left. */
+@keyframes text-shimmer {
+    from {
+        background-position: 0% 0;
+    }
+    to {
+        background-position: -200% 0;
+    }
+}
+
 @keyframes config-shimmer {
     0% {
         mask-position: 180% 0;

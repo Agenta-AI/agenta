@@ -557,7 +557,8 @@ posthog:
 #           secretName: agenta-store-tls
 #     image:
 #       repository: chrislusf/seaweedfs
-#       tag: "4.37"  # pin a 4.37-era image — IAM regressed in other releases
+#       tag: "4.47"  # pinned — IAM regressed in other releases; 4.42 is the floor for
+#                    # versioned deletes (older builds leave deleted files listed but unreadable)
 
 # ================================================================== #
 # === extraObjects — arbitrary Kubernetes resources ===

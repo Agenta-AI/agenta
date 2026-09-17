@@ -1,9 +1,12 @@
 import {useCallback, useState} from "react"
 
+import {markSessionFresh} from "@agenta/chat/state"
 import {
     agentTemplateByKey,
     agentTemplateSeed,
+    appendSetupPreamble,
     invalidateWorkflowsListCache,
+    type AgentSetupSelection,
 } from "@agenta/entities/workflow"
 import {useCreateAgent} from "@agenta/home-ui"
 import type {FileUIPart} from "ai"
@@ -44,29 +47,49 @@ export const useNewAgentAction = (base: string) => {
              */
             sessionId?: string
             seedParts?: FileUIPart[]
+            /** The starter template this create came from, carried to the session's connect step. */
+            templateKey?: string
+            /**
+             * What the pre-create connect step decided (#6043) — which accounts are connected,
+             * which were skipped, how much the agent may do. Rides along on the seed so the
+             * builder knows; see `appendSetupPreamble`. Absent when the step didn't run.
+             */
+            setup?: AgentSetupSelection
+            /**
+             * Commit THIS already-minted ephemeral instead of minting a fresh one — first run
+             * configures the agent before it exists (see `useEphemeralAgent`), so the entity the
+             * user has been editing is the one that must be committed.
+             */
+            entityId?: string
         }): Promise<boolean> => {
             if (creating) return false
             setCreating(true)
             setError(null)
-            const created = await createAgent({name: params?.name})
+            const created = await createAgent({name: params?.name, entityId: params?.entityId})
             if (!created) {
                 setCreating(false)
                 return false
             }
-            // The agents list is a filtered view over the workflows list query; invalidate it or the
-            // new agent is missing from the roster until something else refetches.
-            void invalidateWorkflowsListCache()
 
-            const seed = params?.seedMessage?.trim() ?? ""
+            const typed = params?.seedMessage?.trim() ?? ""
+            const seed = params?.setup ? appendSetupPreamble(typed, params.setup) : typed
             const seedParts = params?.seedParts
             const seeded = isSeededCreate({seed, partCount: seedParts?.length ?? 0})
             const sessionId = seeded ? (params?.sessionId ?? newId()) : null
             if (sessionId) {
                 // The session does not exist server-side until its first turn — mint the id, stash
-                // the instruction, and let the chat screen's engine send it once.
+                // the instruction, and let the chat screen's engine send it once. Fresh-marked
+                // (idempotent for a caller-minted id): without it the chat treats the id as an
+                // EXISTING session and goes asking the server for history it doesn't have.
+                markSessionFresh(sessionId)
                 stashTask({
                     sessionId,
-                    task: {agentId: created.appId, text: seed, parts: seedParts},
+                    task: {
+                        agentId: created.appId,
+                        text: seed,
+                        parts: seedParts,
+                        templateKey: params?.templateKey,
+                    },
                 })
             }
 
@@ -75,6 +98,11 @@ export const useNewAgentAction = (base: string) => {
             const navigated = await router
                 .push(agentHandoffPath({base, appId: created.appId, sessionId}))
                 .catch(() => false)
+            // AFTER the navigation, deliberately: the agents list is a filtered view over the
+            // workflows query, and Home's first-run surface flips to the overview the moment the
+            // refetch lands — invalidating before the push raced the hand-off and could strand
+            // the user on Home with the seed never sent (and the creator's error line unmounted).
+            void invalidateWorkflowsListCache()
             if (!navigated) {
                 // The agent exists; only the navigation failed. Release the latch, or the button
                 // stays dead for the rest of the mount.
@@ -90,11 +118,16 @@ export const useNewAgentAction = (base: string) => {
 
     const create = useCallback(() => void run(), [run])
 
+    /**
+     * A template pick. It creates and hands off like every other entry; the connect step is the
+     * SESSION's to run, off the template key carried on the stashed task. Stopping here instead
+     * only worked for a host that rendered the card, so a pick from anywhere else did nothing.
+     */
     const createFromTemplate = useCallback(
         (templateKey: string) => {
             const template = agentTemplateByKey(templateKey)
             if (!template) return
-            void run(agentTemplateSeed(template))
+            void run({...agentTemplateSeed(template), templateKey})
         },
         [run],
     )
@@ -105,12 +138,25 @@ export const useNewAgentAction = (base: string) => {
      * mints its ephemeral with — naming from the prompt is the agent's job, not the composer's.
      */
     const createFromPrompt = useCallback(
-        (input: {text: string; sessionId?: string; parts?: FileUIPart[]; name?: string}) =>
+        (input: {
+            text: string
+            /** A template pick carries the template's name; a plain description carries none. */
+            name?: string
+            /** And its key, so the session can ask for the accounts the template declares. */
+            templateKey?: string
+            sessionId?: string
+            parts?: FileUIPart[]
+            setup?: AgentSetupSelection
+            entityId?: string
+        }) =>
             run({
                 name: input.name,
+                templateKey: input.templateKey,
                 seedMessage: input.text,
                 sessionId: input.sessionId,
                 seedParts: input.parts,
+                setup: input.setup,
+                entityId: input.entityId,
             }),
         [run],
     )

@@ -35,7 +35,10 @@ const SIGNED_BODY = {
 
 describe("agent mount constants", () => {
   it("derives a sibling mount path", () => {
-    assert.equal(agentMountPath("/tmp/agenta/run-1"), "/tmp/agenta/run-1-agent");
+    assert.equal(
+      agentMountPath("/var/lib/agenta/run-1"),
+      "/var/lib/agenta/run-1-agent",
+    );
     assert.equal(AGENT_MOUNT_ENV_VAR, "AGENTA_AGENT_MOUNT_DIR");
     assert.equal(AGENT_FILES_LINK_NAME, "agent-files");
   });
@@ -93,15 +96,23 @@ describe("signAgentMountCredentials", () => {
       },
       "skills and notes",
     );
-    assert.match(calledUrl, /artifact_id=artifact-1&name=skills%20and%20notes$/);
+    assert.match(
+      calledUrl,
+      /artifact_id=artifact-1&name=skills%20and%20notes$/,
+    );
   });
 
   it("returns null on non-2xx, network errors, and missing fields", async () => {
-    const base = { apiBase: "http://api:8000", authorization: "ApiKey abc", log: SILENT };
+    const base = {
+      apiBase: "http://api:8000",
+      authorization: "ApiKey abc",
+      log: SILENT,
+    };
     assert.equal(
       await signAgentMountCredentials("artifact-1", {
         ...base,
-        fetchImpl: (async () => response(false, {}, 503)) as unknown as typeof fetch,
+        fetchImpl: (async () =>
+          response(false, {}, 503)) as unknown as typeof fetch,
       }),
       null,
     );
@@ -118,7 +129,9 @@ describe("signAgentMountCredentials", () => {
       await signAgentMountCredentials("artifact-1", {
         ...base,
         fetchImpl: (async () =>
-          response(true, { credentials: { bucket: "only-one-field" } })) as unknown as typeof fetch,
+          response(true, {
+            credentials: { bucket: "only-one-field" },
+          })) as unknown as typeof fetch,
       }),
       null,
     );
@@ -178,6 +191,7 @@ describe("linkAgentFiles", () => {
     await linkAgentFiles("/tmp/run", "/tmp/run-agent", {
       lstat: (async () => ({
         isSymbolicLink: () => true,
+        isDirectory: () => false,
       })) as unknown as typeof import("node:fs/promises").lstat,
       readlink: (async () =>
         "/tmp/run-agent") as unknown as typeof import("node:fs/promises").readlink,
@@ -198,6 +212,7 @@ describe("linkAgentFiles", () => {
     await linkAgentFiles("/tmp/run", "/tmp/run-agent", {
       lstat: (async () => ({
         isSymbolicLink: () => false,
+        isDirectory: () => false,
       })) as unknown as typeof import("node:fs/promises").lstat,
       readlink: (async () => {
         throw new Error("should not read a regular file");
@@ -221,6 +236,7 @@ describe("linkAgentFiles", () => {
     await linkAgentFiles("/tmp/run", "/tmp/run-agent", {
       lstat: (async () => ({
         isSymbolicLink: () => true,
+        isDirectory: () => false,
       })) as unknown as typeof import("node:fs/promises").lstat,
       readlink: (async () =>
         "/tmp/old-agent") as unknown as typeof import("node:fs/promises").readlink,
@@ -264,9 +280,14 @@ describe("linkAgentFiles", () => {
   it("treats a concurrent symlink EEXIST as success", async () => {
     const logs: string[] = [];
     await linkAgentFiles("/tmp/run", "/tmp/run-agent", {
-      lstat: (async () => {
-        throw Object.assign(new Error("missing"), { code: "ENOENT" });
-      }) as unknown as typeof import("node:fs/promises").lstat,
+      lstat: (() => {
+        let checks = 0;
+        return (async () => {
+          if (++checks === 1) throw Object.assign(new Error("missing"), { code: "ENOENT" });
+          return { isSymbolicLink: () => true };
+        }) as unknown as typeof import("node:fs/promises").lstat;
+      })(),
+      readlink: (async () => "/tmp/run-agent") as unknown as typeof import("node:fs/promises").readlink,
       symlink: (async () => {
         throw Object.assign(new Error("exists"), { code: "EEXIST" });
       }) as unknown as typeof import("node:fs/promises").symlink,

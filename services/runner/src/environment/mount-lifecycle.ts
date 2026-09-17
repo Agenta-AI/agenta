@@ -267,6 +267,8 @@ export async function mountLocalAgentCwd(
   const creds = ctx.env.agentMountCreds;
   if (!creds || plan.isDaytona) return false;
   const mountPath = agentMountPath(plan.workspace.cwd);
+  // A warm reuse never re-acquires, so this is NOT where a lost `agent-files` link is repaired.
+  // `runTurn` does that, once per turn, on every turn. See its call to `linkAgentFiles`.
   if (ctx.env.agentMountedPath === mountPath) return true;
   try {
     mkdirSync(mountPath, { recursive: true });

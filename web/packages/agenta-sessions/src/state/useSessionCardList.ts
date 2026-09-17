@@ -167,7 +167,11 @@ export const useSessionCardList = ({
             })
         const result: SessionCardGroup[] = []
         if (waitingRows.length > 0)
-            result.push({key: "waiting", label: "Waiting on you", rows: waitingRows.map(vm)})
+            result.push({
+                key: "waiting",
+                label: "Waiting for your input",
+                rows: waitingRows.map(vm),
+            })
         if (pinnedRows.length > 0)
             result.push({key: "pinned", label: "Pinned", rows: pinnedRows.map(vm)})
         result.push({

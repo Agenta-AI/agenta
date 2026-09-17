@@ -7,8 +7,11 @@
 // own `No such tool available` — nothing about authorization, nothing to act on.
 //
 // The payload-to-sentence mapping and the fold into render items are pinned in `@agenta/chat`.
-// What is pinned here is this app's half: that the row renders the notice card at all, and that
-// the errored call for a server the turn already explains is not sitting beside it.
+// What is pinned here is this app's half: that the row renders the notice card at all, above the
+// activity timeline rather than inside it, and that the errored call for a server the turn already
+// explains is not sitting beside it. The timeline folds only calls, client tools and the model's
+// own text, and it hides failed calls outright, so a notice rendered as a step would vanish along
+// with the failure it explains.
 import {act} from "react"
 
 import {buildTurnViewModels, createExecutedToolIdentityCache} from "@agenta/chat/model"
@@ -109,10 +112,14 @@ describe("mobile TurnRow: an MCP server that did not join the run", () => {
         )
     })
 
-    it("keeps a failure from a server the turn says nothing about", () => {
+    it("draws the notice whether or not the call behind it is on the timeline", () => {
+        // The timeline hides a failed call by product rule (`hiddenFromFold`), and the notice is
+        // derived from exactly such a call, so the card is the reader's ONLY signal that a server
+        // is missing. It renders above the timeline rather than as a step, so nothing about which
+        // calls the fold shows can take it away.
         const html = renderTurn([noticePart(), failedToolPart("mcp__other-server__search")])
 
         expect(html).toContain('data-mcp-server-notice="mock-mcp"')
-        expect(textOf(html)).toContain("Other server failed")
+        expect(textOf(html)).not.toContain("Other server failed")
     })
 })

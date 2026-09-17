@@ -1,5 +1,7 @@
 export {expect, type Locator} from "@playwright/test"
 
+export {appToast} from "./toasts"
+
 /**
  * Runs a Playwright locator boolean check (isEnabled, isVisible, isChecked, ...)
  * meant to be polled until true. Swallows "not there yet" failures so the poll can

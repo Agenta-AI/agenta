@@ -1,6 +1,7 @@
 import {useCallback} from "react"
 
 import {AutomationDrawer} from "@agenta/automation-ui"
+import {configPanelCollapsedAtom} from "@agenta/chat/state"
 import type {TriggerOwnerRef} from "@agenta/entity-ui/drill-in"
 import {StorageFilesHeader, StorageSection} from "@agenta/entity-ui/drive"
 import {AgentBuildPanel} from "@agenta/playground-ui/agent-build"
@@ -12,7 +13,6 @@ import {useSetAtom} from "jotai"
 import {ChevronsLeft} from "lucide-react"
 import {useRouter} from "next/router"
 
-import {mobileConfigPanelCollapsedAtom} from "./configPaneState"
 import {DrillInBridgeProvider} from "./DrillInBridgeProvider"
 
 /**
@@ -37,7 +37,7 @@ export const ConfigPane = ({
     workspaceId: string
     projectId: string
 }) => {
-    const setConfigCollapsed = useSetAtom(mobileConfigPanelCollapsedAtom)
+    const setConfigCollapsed = useSetAtom(configPanelCollapsedAtom)
     const router = useRouter()
     // A row's "Run history" is the automation detail screen opened on its runs (`?view=runs`).
     const openRunHistory = useCallback(
