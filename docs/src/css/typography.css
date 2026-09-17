@@ -106,13 +106,15 @@ code {
   font-family: var(--ifm-font-family-monospace);
 }
 
+/* Inline code: a flat tint, no border, in the text colour. */
 code:not(pre code) {
-  font-size: 0.9em;
-  font-weight: 500;
-  letter-spacing: -0.02em;
-  padding: 0.2em 0.4em;
+  font-size: 0.85em;
+  font-weight: var(--ifm-font-weight-normal);
+  letter-spacing: -0.01em;
+  padding: 0.15em 0.3em;
+  color: var(--contentprimary);
   background-color: var(--bgelevated1);
-  border: 1px solid var(--borderlight);
+  border: 0;
   border-radius: 4px;
 }
 
@@ -139,7 +141,7 @@ code:not(pre code) {
 .theme-code-block pre {
   font-size: 14px;
   line-height: 1.65;
-  padding: 14px 16px;
+  padding: 12px;
   margin: 0;
 }
 
@@ -150,7 +152,7 @@ code:not(pre code) {
 
 /* Title bar (```lang title="...") */
 .theme-code-block > div:first-child:not([class*="codeBlockContent"]) {
-  padding: 10px 16px;
+  padding: 8px 12px;
   border-bottom: 1px solid var(--borderlight);
   font-size: 13px;
   color: var(--contentsecondary);
@@ -159,8 +161,8 @@ code:not(pre code) {
 
 /* Copy button: bare icon in the top-right corner, always visible. */
 .theme-code-block [class*="buttonGroup"] {
-  top: 12px;
-  right: 8px;
+  top: 10px;
+  right: 6px;
   opacity: 1;
 }
 
