@@ -16,8 +16,6 @@ import {atomWithQuery} from "jotai-tanstack-query"
 
 import {type Mount} from "@agenta/entities/session"
 
-import {renderPdfFirstPage} from "./pdfThumb"
-
 /** Subset of the File System Access API we use to stream a download straight to disk (Chromium).
  * Declared locally — the global typings aren't present in every browser even when the runtime is,
  * and the buffered fallback needs none of it. Mirrors the ETL `exportWriter` feature-detect. We
@@ -83,6 +81,22 @@ export const mountFileBlobQueryFamily = atomFamily(
     (a, b) => a.mountId === b.mountId && a.path === b.path,
 )
 
+/** Object URL for a drive file's bytes — revoked on change/unmount. */
+export function useMountFileObjectUrl(
+    mount: Mount | null,
+    path: string,
+): {url: string | null; isPending: boolean; failed: boolean} {
+    const query = useAtomValue(mountFileBlobQueryFamily({mountId: mount?.id ?? "", path}))
+    const blob = query.data ?? null
+    const url = useMemo(() => (blob ? URL.createObjectURL(blob) : null), [blob])
+    useEffect(() => {
+        return () => {
+            if (url) URL.revokeObjectURL(url)
+        }
+    }, [url])
+    return {url, isPending: query.isPending, failed: !query.isPending && !blob}
+}
+
 /** Longest side of a generated grid thumbnail, in px. */
 const THUMB_PX = 256
 
@@ -114,22 +128,21 @@ async function downscaleImage(blob: Blob): Promise<string | null> {
 }
 
 /**
- * A file's grid THUMBNAIL as a small data-URL string — a downscaled image or a rendered PDF first
- * page. The heavy original bytes are fetched, converted, and DROPPED; only the tiny string is
- * retained (generous `gcTime`, strings are cheap). So browsing thousands of image/pdf files keeps
- * memory bounded (KBs per seen tile, not the full originals) and scroll-back is instant with no
- * re-decode/re-render. Keyed separately from the full-size {@link mountFileBlobQueryFamily} viewer.
+ * A file's grid THUMBNAIL as a small data-URL string — a downscaled image. The heavy original
+ * bytes are fetched, converted, and DROPPED; only the tiny string is retained (generous `gcTime`,
+ * strings are cheap). So browsing thousands of image files keeps memory bounded (KBs per seen
+ * tile, not the full originals) and scroll-back is instant with no re-decode/re-render. Keyed
+ * separately from the full-size {@link mountFileBlobQueryFamily} viewer.
  */
 export const mountFileThumbnailQueryFamily = atomFamily(
-    ({mountId, path, mode}: {mountId: string; path: string; mode: "image" | "pdf"}) =>
+    ({mountId, path}: {mountId: string; path: string}) =>
         atomWithQuery<string | null>((get) => {
             const projectId = get(projectIdAtom) ?? ""
             return {
-                queryKey: ["mounts", "thumb", projectId, mountId, path, mode],
+                queryKey: ["mounts", "thumb", projectId, mountId, path],
                 queryFn: async () => {
                     const blob = await fetchMountFileBlob({mountId, projectId, path})
-                    if (!blob) return null
-                    return mode === "pdf" ? renderPdfFirstPage(blob) : downscaleImage(blob)
+                    return blob ? downscaleImage(blob) : null
                 },
                 enabled: Boolean(mountId && path && projectId),
                 staleTime: Infinity,
@@ -137,24 +150,8 @@ export const mountFileThumbnailQueryFamily = atomFamily(
                 refetchOnWindowFocus: false,
             }
         }),
-    (a, b) => a.mountId === b.mountId && a.path === b.path && a.mode === b.mode,
+    (a, b) => a.mountId === b.mountId && a.path === b.path,
 )
-
-/** Object URL for a drive file's bytes — revoked on change/unmount. */
-export function useMountFileObjectUrl(
-    mount: Mount | null,
-    path: string,
-): {url: string | null; isPending: boolean; failed: boolean} {
-    const query = useAtomValue(mountFileBlobQueryFamily({mountId: mount?.id ?? "", path}))
-    const blob = query.data ?? null
-    const url = useMemo(() => (blob ? URL.createObjectURL(blob) : null), [blob])
-    useEffect(() => {
-        return () => {
-            if (url) URL.revokeObjectURL(url)
-        }
-    }, [url])
-    return {url, isPending: query.isPending, failed: !query.isPending && !blob}
-}
 
 /** Download one drive file (any type) via the bytes endpoint. */
 /**

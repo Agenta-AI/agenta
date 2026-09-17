@@ -8,3 +8,7 @@ storybook/public/agent-custom-secrets/
 
 # Vendored pdfjs worker, copied into public/ at dev and build time.
 **/public/pdf.worker.min.mjs
+# Generated previews and Astro build artifacts.
+storybook/storybook-static/
+website/.astro/
+website/dist/
