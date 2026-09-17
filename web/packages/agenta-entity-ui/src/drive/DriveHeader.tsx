@@ -23,9 +23,8 @@ import {
     ClockCountdown,
     Copy,
     EyeSlash,
-    Folder,
-    FolderOpen,
     GitBranch,
+    SidebarSimple,
     Sliders,
     WarningCircle,
     X,
@@ -60,6 +59,7 @@ export const DriveHeader = ({
     onToggleGitignored,
     treeVisible,
     onToggleTree,
+    mirrored = false,
     onClose,
     closeVariant = "close",
     expanded,
@@ -90,6 +90,8 @@ export const DriveHeader = ({
     onToggleGitignored: () => void
     treeVisible: boolean
     onToggleTree: () => void
+    /** The tree is docked on the right. */
+    mirrored?: boolean
     /** For hosts whose close lives in this row. */
     onClose?: () => void
     closeVariant?: "close" | "collapse"
@@ -256,11 +258,12 @@ export const DriveHeader = ({
                     onClick={onToggleTree}
                     className={treeVisible ? ROW_ICON_BTN_ON : ROW_ICON_BTN}
                 >
-                    {treeVisible ? (
-                        <FolderOpen size={16} weight="fill" />
-                    ) : (
-                        <Folder size={16} weight="fill" />
-                    )}
+                    {/* Phosphor draws the panel on the left; the tree is docked on the right. */}
+                    <SidebarSimple
+                        size={16}
+                        weight={treeVisible ? "fill" : "regular"}
+                        className={mirrored ? "-scale-x-100" : undefined}
+                    />
                 </Button>
             </Tooltip>
             {onClose && closeVariant === "collapse" ? (
