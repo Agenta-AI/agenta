@@ -373,16 +373,17 @@
   height: 20px;
 }
 
-/* Primary nav items: full-width padded rows. Scoped to the hamburger primary
-   panel so the desktop doc sidebar and the mobile doc-sidebar panel are
-   unaffected. */
-.navbar-sidebar__item:has(.mobileSidebarFooter) .menu__list .menu__link {
-  display: flex;
-  align-items: center;
+/* Hamburger rows (both panels): taller than the desktop sidebar rows so they
+   work as touch targets. */
+.navbar-sidebar .menu__link {
   height: auto;
-  padding: 10px 12px;
-  margin: 1px 8px 1px 0;
-  border-radius: var(--radius-md);
+  min-height: 40px;
+  padding: 8px 12px;
+  margin: 0;
   font-size: 14px;
-  transition: background-color var(--ifm-transition-fast) ease;
+  line-height: 20px;
+}
+
+.navbar-sidebar__item:has(.mobileSidebarFooter) .menu__list .menu__link {
+  margin: 1px 8px 1px 0;
 }
