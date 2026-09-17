@@ -321,6 +321,23 @@ describe("the rendered journey", () => {
         expect(beginMcpConnect).toHaveBeenCalledTimes(1)
     })
 
+    it("starts the work again on a second press, once", async () => {
+        // The latch is cleared by `requestConsent`, which every press and every retry calls,
+        // and no case pressed Connect twice in one mount, so nothing held the reset in place
+        // (round 4, D183). A latch that never cleared would leave a failed attempt with no
+        // way forward, which is the deadlock this screen already had once.
+        discoverMcpConnect.mockRejectedValueOnce(new Error("discovery is down"))
+
+        await openReconnect()
+        await press(button("Connect"))
+        expect(discoverMcpConnect).toHaveBeenCalledTimes(1)
+
+        // The refusal screen offers Try again, which opens a window and starts over.
+        await press(button("Try again"))
+
+        expect(discoverMcpConnect).toHaveBeenCalledTimes(2)
+    })
+
     it("asks for a URL again after closing and reopening", async () => {
         await openJourney()
 

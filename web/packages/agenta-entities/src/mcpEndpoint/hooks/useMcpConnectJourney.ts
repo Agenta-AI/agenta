@@ -535,6 +535,19 @@ export function useMcpConnectJourney({
             if (!endpoint) return
             const attempt = attemptRef.current
             dispatch({type: "verify_started"})
+
+            /** What a failure that was never about the credential lands on. */
+            const reportCheckFailed = (error: unknown, fallback: string) =>
+                dispatch({
+                    type: "probe_failed",
+                    probe: state.probe,
+                    error: gatewayRefusalMessage(error) || fallback,
+                })
+
+            // Our own API first: read the row back, then write the credential onto it. A
+            // failure here is ours, whatever status it carries. A session that expired made
+            // this read answer 401, and classified as the relay's it read as the server
+            // rejecting a key it had never been shown (round 4, D184).
             try {
                 // The edit route writes what it is given rather than merging, so the whole
                 // document goes back with only the credential changed. Sending the four
@@ -549,9 +562,11 @@ export function useMcpConnectJourney({
                 // at any more (round 4, D181).
                 if (!isCurrent(attempt)) return
                 if (!stored) {
-                    throw new Error(
+                    reportCheckFailed(
+                        null,
                         "This connection could not be read back, so nothing was changed. Try again.",
                     )
+                    return
                 }
                 await editMcpEndpoint(
                     {
@@ -578,36 +593,34 @@ export function useMcpConnectJourney({
                     },
                     projectId,
                 )
+            } catch (error) {
+                if (!isCurrent(attempt)) return
+                reportCheckFailed(error, "The connection could not be saved. Try again.")
+                return
+            }
 
-                // Saving a reference to a secret proves nothing about the secret. The step is
-                // called Verify and the person is told "Verifying…", so it has to ask the
-                // server: one authenticated handshake through the gateway, which injects the
-                // credential and surfaces the upstream's refusal if it is the wrong one.
-                // Without this a wrong header name or secret reads as connected until an
-                // agent run fails, which is a long way from here.
+            // And now the relay, which is the only call in this submit that can carry the
+            // chosen server's answer about the credential.
+            //
+            // Saving a reference to a secret proves nothing about the secret. The step is
+            // called Verify and the person is told "Verifying…", so it has to ask the
+            // server: one authenticated handshake through the gateway, which injects the
+            // credential and surfaces the upstream's refusal if it is the wrong one.
+            // Without this a wrong header name or secret reads as connected until an
+            // agent run fails, which is a long way from here.
+            try {
                 await listMcpTools(endpoint.slug, projectId)
-
                 if (!isCurrent(attempt)) return
                 dispatch({type: "verify_succeeded"})
             } catch (error) {
                 if (!isCurrent(attempt)) return
-                const stated = gatewayRefusalMessage(error)
                 if (!isCredentialRefusal(error)) {
                     // Nothing answered about the credential, so nothing may say it was
                     // rejected. This is the check failing, which is the screen the design
                     // draws for a server that did not answer (round 4, D133 reopened).
-                    dispatch({
-                        type: "probe_failed",
-                        probe: state.probe,
-                        error: stated || "The server could not be reached to check that key.",
-                    })
+                    reportCheckFailed(error, "The server could not be reached to check that key.")
                     return
                 }
-                // The row this journey made carries a secret the server refused, and the
-                // registry has no health field to say so, so it would sit there reporting
-                // itself Connected (decision 30). Take it away again; a retry makes a fresh
-                // one. A reconnect's row is somebody's working connection and is never
-                // touched, which `cancelDeletesEndpoint` is already the rule for.
                 const abandoned = endpointRef.current
                 const discardedRow = createdHereRef.current && !!abandoned
                 if (discardedRow && abandoned) {
@@ -618,7 +631,9 @@ export function useMcpConnectJourney({
                 dispatch({
                     type: "verify_failed",
                     status: credentialRefusalStatus(error),
-                    error: stated || "The server did not accept that credential.",
+                    error:
+                        gatewayRefusalMessage(error) ||
+                        "The server did not accept that credential.",
                     discardedRow,
                 })
             }
