@@ -147,7 +147,8 @@ export function SkillPickerDrawer({
                 body: {padding: 0, display: "flex", flexDirection: "column", overflow: "hidden"},
             }}
             footer={
-                <div className="flex items-center justify-between">
+                // w-full, or the sheet's end-justified footer shrinks this row to its buttons.
+                <div className="flex w-full items-center justify-between gap-3">
                     <NewSkillMenuButton {...createActions} variant="outline" disabled={busy} />
                     <Button variant="default" onClick={onClose}>
                         Done
