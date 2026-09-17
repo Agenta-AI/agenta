@@ -3,11 +3,15 @@
   flex-direction: column;
   min-height: 0;
   overflow-y: auto;
+  scrollbar-width: none;
   border-right: 1px solid var(--ag-shell-line);
   background: var(--ag-surface-raised);
   color: var(--foreground);
   font-size: 14px;
   line-height: 1.5;
+}
+.ag-demo-config::-webkit-scrollbar {
+  display: none;
 }
 .ag-settings-header {
   display: flex;
@@ -54,11 +58,11 @@
   align-items: center;
   gap: 10px;
   width: 100%;
-  padding: 8px 10px;
+  padding: 10px 12px;
   margin: 0;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--background);
+  border: 1px solid var(--ag-colorBorderSecondary);
+  border-radius: 8px;
+  background: var(--ag-surface-section-content);
   color: var(--foreground);
   text-align: left;
   font: inherit;
@@ -114,18 +118,23 @@
   color: var(--muted-foreground);
   font-size: 12px;
 }
+.ag-settings-mono {
+  font-family: var(--font-mono, ui-monospace, monospace);
+}
 .ag-settings-fields input,
-.ag-settings-fields textarea {
+.ag-settings-fields textarea,
+.ag-settings-body > textarea {
   box-sizing: border-box;
   width: 100%;
-  border: 1px solid var(--input);
+  border: 1px solid var(--ag-colorBorder);
   border-radius: 6px;
   padding: 8px 10px;
-  background: var(--background);
+  background: var(--ag-surface-section-content);
   color: var(--foreground);
   font: inherit;
 }
-.ag-settings-fields textarea {
+.ag-settings-fields textarea,
+.ag-settings-body > textarea {
   min-height: 210px;
   resize: vertical;
   font-size: 12px;
@@ -157,4 +166,90 @@
 }
 [data-theme="dark"] .ag-settings-item img {
   filter: brightness(0) invert(0.8);
+}
+
+/* Product-parity row furniture: avatar squares, name rows, previews, tags. */
+.ag-settings-avatar,
+.ag-settings-item > .ag-settings-avatar {
+  position: relative;
+  display: flex;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  color: #fff;
+}
+.ag-settings-avatar--muted {
+  background: var(--muted);
+  color: var(--muted-foreground);
+}
+.ag-settings-dot {
+  position: absolute;
+  left: -2px;
+  bottom: -2px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--ag-run-status-success);
+  border: 2px solid var(--ag-surface-section-content);
+}
+.ag-settings-name-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+.ag-settings-name-row small {
+  color: var(--muted-foreground);
+  font-size: 11px;
+  white-space: nowrap;
+}
+.ag-settings-preview {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ag-settings-select {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border: 1px solid var(--ag-colorBorder);
+  border-radius: 8px;
+  padding: 8px 12px;
+  background: var(--ag-surface-section-content);
+  color: var(--foreground);
+  font-size: 13px;
+}
+.ag-settings-select svg {
+  color: var(--muted-foreground);
+}
+.ag-settings-add {
+  display: inline-flex;
+  padding: 2px;
+  color: var(--muted-foreground);
+}
+.ag-settings-header-end {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+.ag-settings-tag {
+  flex-shrink: 0;
+  font-style: normal;
+  font-size: 10px;
+  line-height: 1.6;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0 5px;
+  color: var(--muted-foreground);
+}
+.ag-settings-item-meta {
+  flex-shrink: 0;
+  color: var(--muted-foreground);
+  font-size: 11px;
+  white-space: nowrap;
 }

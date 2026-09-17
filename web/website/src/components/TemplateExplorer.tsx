@@ -223,19 +223,17 @@ export default function TemplateExplorer() {
               height: 36,
               padding: "0 16px",
               borderRadius: 8,
-              border: "1px solid transparent",
-              background: "transparent",
+              border:
+                i === sel
+                  ? "1px solid var(--tplx-tab-on-border)"
+                  : "1px solid transparent",
+              background: i === sel ? "var(--tplx-tab-on-bg)" : "transparent",
+              boxShadow: i === sel ? "var(--tplx-tab-on-shadow)" : "none",
+              color:
+                i === sel ? "var(--tplx-tab-on-text)" : "var(--tplx-tab-text)",
               cursor: "pointer",
               font: "var(--text-label)",
               whiteSpace: "nowrap",
-              ...(i === sel
-                ? {
-                    background: "var(--tplx-tab-on-bg)",
-                    borderColor: "var(--tplx-tab-on-border)",
-                    boxShadow: "var(--tplx-tab-on-shadow)",
-                    color: "var(--tplx-tab-on-text)",
-                  }
-                : { color: "var(--tplx-tab-text)" }),
             }}
           >
             {t.area}

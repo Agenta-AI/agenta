@@ -72,6 +72,7 @@ const rules = [
       "styles/theme.css",
       // A chip inside the mocked app screen, styled like the app, not a site button.
       "components/HowItWorks.tsx",
+      "components/HowItWorks.astro",
     ],
   },
 ];
