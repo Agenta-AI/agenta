@@ -57,9 +57,29 @@ const jsonViewOptions = [
 ]
 
 /** antd `Typography.Text` stand-ins — the token classes, no component needed. */
-const FieldLabel = ({children}: {children: React.ReactNode}) => (
-    <span className="font-medium text-colorText">{children}</span>
-)
+const FieldLabel = ({htmlFor, children}: {htmlFor?: string; children: React.ReactNode}) => {
+    // A `<span>` labels nothing. Given a control to name, this becomes a real label, which is
+    // what tells a screen reader which field it is reading.
+    const Tag = htmlFor ? "label" : "span"
+    return (
+        <Tag className="font-medium text-colorText" htmlFor={htmlFor}>
+            {children}
+        </Tag>
+    )
+}
+
+/**
+ * The control that takes the credential, named.
+ *
+ * Every other input on this form carries a placeholder, so assistive technology had something
+ * to read out; this one carries none, and its absence was in fact how a QA harness identified
+ * it. The one field in the flow that must not be typed into by mistake was the one a screen
+ * reader could not announce (round 6c, D-R6C-3).
+ *
+ * The name is the label already on screen, which changes with the format and with whether a
+ * value is being replaced, so there is one string rather than two that can drift.
+ */
+const SECRET_VALUE_ID = "secret-form-value"
 
 const HintText = ({children}: {children: React.ReactNode}) => (
     <span className="text-xs text-colorTextSecondary">{children}</span>
@@ -95,6 +115,13 @@ export function SecretForm({controller, textOnly = false, popupZIndex}: SecretFo
         onSwitchToGrid,
         setJsonText,
     } = controller
+
+    /** The one string the label shows and the control is named by, so the two cannot drift. */
+    const valueLabel = valueHidden
+        ? "Replace content"
+        : format === CustomSecretFormat.Text
+          ? "Value"
+          : "Content"
 
     return (
         <div className="flex flex-col gap-4 ph-no-capture">
@@ -145,12 +172,12 @@ export function SecretForm({controller, textOnly = false, popupZIndex}: SecretFo
             <div className="flex flex-col gap-1">
                 <div className="flex items-center justify-between">
                     <div className="flex items-baseline gap-2">
-                        <FieldLabel>
-                            {valueHidden
-                                ? "Replace content"
-                                : format === CustomSecretFormat.Text
-                                  ? "Value"
-                                  : "Content"}
+                        <FieldLabel
+                            htmlFor={
+                                format === CustomSecretFormat.Text ? SECRET_VALUE_ID : undefined
+                            }
+                        >
+                            {valueLabel}
                         </FieldLabel>
                         {duplicateKeyError && (
                             <span className="text-xs text-error">
@@ -179,8 +206,10 @@ export function SecretForm({controller, textOnly = false, popupZIndex}: SecretFo
                 {format === CustomSecretFormat.Text ? (
                     <div className="flex flex-col gap-4">
                         <Textarea
+                            id={SECRET_VALUE_ID}
                             rows={4}
                             className="font-mono"
+                            aria-label={valueLabel}
                             value={textValue}
                             onChange={(e) => setTextValue(e.target.value)}
                         />
