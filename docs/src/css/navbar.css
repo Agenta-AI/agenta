@@ -359,3 +359,69 @@
 .navbar-sidebar__item:has(.mobileSidebarFooter) .menu__list .menu__link {
   margin: 1px 8px 1px 0;
 }
+
+/* --- Panels: the same gutters as the page, and the secondary panel's
+   "Back" as a quiet row instead of a full-width band --- */
+.navbar-sidebar__items {
+  padding: 0;
+}
+
+.navbar-sidebar__item {
+  padding: 8px 16px 16px;
+}
+
+.navbar-sidebar__back {
+  display: flex;
+  align-items: center;
+  width: auto;
+  margin: 4px -8px 12px;
+  padding: 0 8px;
+  height: 36px;
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: var(--ifm-font-weight-normal);
+  color: var(--contentsecondary);
+  background: none;
+  border: 0;
+  border-radius: var(--radius-md);
+  text-align: left;
+}
+
+.navbar-sidebar__back:hover {
+  color: var(--contentprimary);
+  background-color: var(--bgelevated1);
+}
+
+/* Secondary panel: group titles like the desktop sidebar, rows with the
+   sidebar's inset. */
+.navbar-sidebar li.sidebar-section-title > .menu__list-item-collapsible {
+  padding: 0 0 4px;
+}
+
+.navbar-sidebar li.sidebar-section-title:not(:first-child) > .menu__list-item-collapsible {
+  margin-top: 16px;
+}
+
+.navbar-sidebar li.sidebar-section-title > .menu__list-item-collapsible > .menu__link {
+  min-height: 0;
+  padding: 0;
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.navbar-sidebar .theme-doc-sidebar-menu .menu__list .menu__list {
+  padding-left: 0;
+}
+
+.navbar-sidebar .theme-doc-sidebar-menu .menu__list-item:not(:first-child) {
+  margin-top: 1px;
+}
+
+.navbar-sidebar .theme-doc-sidebar-menu .menu__link {
+  padding: 8px 10px;
+  margin: 0 -10px;
+}
+
+.navbar-sidebar .theme-doc-sidebar-menu .menu__link--active {
+  background-color: var(--bgelevated1);
+}
