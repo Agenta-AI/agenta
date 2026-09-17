@@ -107,19 +107,31 @@
   flex-shrink: 0;
 }
 
-/* Skeleton while a Stream's player boots. streamSkeleton.ts flips the wrapper
-   to "loaded" on the iframe's load event, which drops the shimmer. */
+/* Placeholder while a Stream's player boots: the design's media box, a flat
+   elevated panel with a play button that breathes. streamSkeleton.ts flips
+   the wrapper to "loaded" once the player has its first frame. */
 [data-stream-state="loading"] {
+  position: relative;
   border-radius: var(--radius-lg);
   background-color: var(--bgelevated1);
-  background-image: linear-gradient(
-    90deg,
-    transparent 0%,
-    var(--bgelevated2) 50%,
-    transparent 100%
-  );
-  background-size: 200% 100%;
-  animation: ag-stream-skeleton 1.4s ease-in-out infinite;
+  /* An inset shadow, not a border, so nothing shifts when the state flips. */
+  box-shadow: inset 0 0 0 1px var(--borderdefault);
+}
+
+[data-stream-state="loading"]::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 52px;
+  height: 52px;
+  transform: translate(-50%, -50%);
+  background-color: var(--bginverse);
+  -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 52 52'><path fill-rule='evenodd' d='M26 0a26 26 0 1 0 0 52a26 26 0 1 0 0-52zM21 17v18l14-9z'/></svg>")
+    center / contain no-repeat;
+  mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 52 52'><path fill-rule='evenodd' d='M26 0a26 26 0 1 0 0 52a26 26 0 1 0 0-52zM21 17v18l14-9z'/></svg>")
+    center / contain no-repeat;
+  animation: ag-stream-breathe 1.6s ease-in-out infinite;
 }
 
 /* Hold the iframe back until it reports in, then fade it over the shimmer.
@@ -132,18 +144,20 @@
   opacity: 0;
 }
 
-@keyframes ag-stream-skeleton {
-  from {
-    background-position: 200% 0;
+@keyframes ag-stream-breathe {
+  0%,
+  100% {
+    opacity: 0.55;
   }
-  to {
-    background-position: -200% 0;
+  50% {
+    opacity: 1;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  [data-stream-state="loading"] {
+  [data-stream-state="loading"]::after {
     animation: none;
+    opacity: 0.8;
   }
 
   [data-stream-state] > iframe {
