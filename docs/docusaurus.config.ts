@@ -66,7 +66,7 @@ const config: Config = {
           path: "docs",
           routeBasePath: "/",
           sidebarPath: "./sidebars.ts",
-          editUrl: "https://github.com/Agenta-AI/agenta/tree/main/docs",
+          // No editUrl: the page footer's "Edit this page" link is not shown.
           docItemComponent: "@theme/ApiItem",
           breadcrumbs: false,
           // The current docs (the agent product) are the default and keep the
@@ -106,7 +106,6 @@ const config: Config = {
           // The sidebar lists the latest releases under the section rail.
           blogSidebarCount: 20,
           blogSidebarTitle: "Releases",
-          editUrl: "https://github.com/Agenta-AI/agenta/tree/main/docs",
           onInlineTags: "ignore",
           // Short entries are shown in full on the list page; only long
           // entries carry a {/* truncate */} marker.
