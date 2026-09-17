@@ -89,7 +89,9 @@ const config: Config = {
           feedOptions: {
             type: ["rss", "atom"],
           },
-          blogSidebarCount: 0,
+          // The sidebar lists the latest releases under the section rail.
+          blogSidebarCount: 20,
+          blogSidebarTitle: "Releases",
           editUrl: "https://github.com/Agenta-AI/agenta/tree/main/docs",
           onInlineTags: "ignore",
           // Short entries are shown in full on the list page; only long
@@ -111,6 +113,10 @@ const config: Config = {
         autoCollapseCategories: false,
       },
     },
+    blog: {
+      // A flat list of releases, not one heading per year.
+      sidebar: { groupByYear: false },
+    },
     navbar: {
       logo: {
         alt: "agenta-ai",
@@ -127,7 +133,6 @@ const config: Config = {
         },
         {
           type: "doc",
-          sidebarId: "docsSidebar",
           docId: "getting-started/introduction",
           position: "left",
           label: "Docs",
@@ -154,6 +159,7 @@ const config: Config = {
           // Plain link: the REST reference is not versioned, it only exists in
           // the current version.
           to: "/reference/api-guide/overview",
+          activeBasePath: "/reference",
           position: "left",
           label: "Reference",
           customProps: {
@@ -198,6 +204,7 @@ const config: Config = {
         {
           // Plain link: self-hosting is not versioned.
           to: "/self-host/overview",
+          activeBasePath: "/self-host",
           position: "left",
           label: "Self-host",
           customProps: {
@@ -209,6 +216,7 @@ const config: Config = {
         {
           // Plain link: the enterprise pages are not versioned.
           to: "/administration/security/overview",
+          activeBasePath: "/administration",
           position: "left",
           label: "Enterprise",
           customProps: {

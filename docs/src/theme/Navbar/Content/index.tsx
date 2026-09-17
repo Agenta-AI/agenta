@@ -38,83 +38,57 @@ ${JSON.stringify(item, null, 2)}`,
   );
 }
 
-function NavbarContentLayout({
-  left,
-  right,
-  versionSelector,
-  mobileSidebarToggle,
-}: {
-  left: React.ReactNode;
-  right: React.ReactNode;
-  versionSelector: React.ReactNode;
-  mobileSidebarToggle: React.ReactNode;
-}) {
+/**
+ * One header row: logo and version on the left, search and actions on the
+ * right. The section links (position: "left") are not rendered here; the
+ * sidebar rail shows them on desktop and the hamburger menu on mobile.
+ */
+export default function NavbarContent(): JSX.Element {
+  const mobileSidebar = useNavbarMobileSidebar();
+
+  const items = useNavbarItems();
+  const versionItems = items.filter(
+    (item) => item.type === 'docsVersionDropdown',
+  );
+  const [, rightItems] = splitNavbarItems(
+    items.filter((item) => item.type !== 'docsVersionDropdown'),
+  );
+  // Search is placed explicitly, before the action buttons.
+  const actionItems = rightItems.filter((item) => item.type !== 'search');
+
   return (
     <div className="navbar__inner">
-      {/* First Row: Logo, Search, Actions */}
-      <div className={styles.navbarTopRow}>
-        <div className={styles.navbarLeft}>
-          {mobileSidebarToggle}
-          <NavbarLogo />
-          {versionSelector && (
-            <div className={styles.versionSelector}>{versionSelector}</div>
-          )}
-        </div>
-        <div className={styles.navbarCenter}>
-          <NavbarSearch>
-            <SearchBar />
-          </NavbarSearch>
-        </div>
-        <div className={styles.navbarRight}>{right}</div>
+      <div className={styles.left}>
+        {!mobileSidebar.disabled && <NavbarMobileSidebarToggle />}
+        <NavbarLogo />
+        {versionItems.length > 0 && (
+          <div className={styles.versionSelector}>
+            <NavbarItems items={versionItems} />
+          </div>
+        )}
       </div>
-
-      {/* Second Row: Navigation Links */}
-      <div className={styles.navbarBottomRow}>
-        <div className={styles.navbarLinks}>{left}</div>
+      <div className={styles.right}>
+        <NavbarSearch className={styles.search}>
+          <SearchBar />
+        </NavbarSearch>
+        <div className={styles.icons}>
+          <NavbarItems items={actionItems.filter(isIconItem)} />
+          <NavbarColorModeToggle className={styles.colorModeToggle} />
+        </div>
+        <div className={styles.actions}>
+          <NavbarItems items={actionItems.filter((item) => !isIconItem(item))} />
+        </div>
       </div>
     </div>
   );
 }
 
-export default function NavbarContent(): JSX.Element {
-  const mobileSidebar = useNavbarMobileSidebar();
-
-  const items = useNavbarItems();
-  // The docs version selector sits next to the logo, not in the link rows.
-  const versionItems = items.filter(
-    (item) => item.type === 'docsVersionDropdown',
-  );
-  const [leftItems, rightItems] = splitNavbarItems(
-    items.filter((item) => item.type !== 'docsVersionDropdown'),
-  );
-
-  // Filter out search from right items as we're placing it in center
-  const filteredRightItems = rightItems.filter(
-    (item) => item.type !== 'search',
-  );
-
-  // All left items go to bottom row (Docs, Tutorials, Reference, etc.)
-  const navLinks = leftItems;
-
+// The GitHub and Slack links carry an inline SVG marked with these classes in
+// docusaurus.config.ts; the CTA buttons do not.
+function isIconItem(item: NavbarItemConfig): boolean {
+  const html = (item as {html?: unknown}).html;
   return (
-    <NavbarContentLayout
-      mobileSidebarToggle={
-        !mobileSidebar.disabled ? <NavbarMobileSidebarToggle /> : null
-      }
-      versionSelector={
-        versionItems.length ? <NavbarItems items={versionItems} /> : null
-      }
-      left={
-        <>
-          <NavbarItems items={navLinks} />
-        </>
-      }
-      right={
-        <>
-          <NavbarItems items={filteredRightItems} />
-          <NavbarColorModeToggle className={styles.colorModeToggle} />
-        </>
-      }
-    />
+    typeof html === 'string' &&
+    (html.includes('nav_github_icons') || html.includes('nav_slack_icons'))
   );
 }
