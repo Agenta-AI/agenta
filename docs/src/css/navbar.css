@@ -160,15 +160,64 @@
     height: 22px;
   }
 
+  /* Hamburger: two short bars and a "Menu" label (src/theme/Icon/Menu). */
   .navbar__toggle {
-    width: 24px;
-    height: 24px;
-    margin-right: 8px;
+    display: inline-flex;
+    align-items: center;
+    width: auto;
+    height: 32px;
+    margin-right: 10px;
+    padding: 0;
+    color: var(--contentprimary);
   }
 
-  .navbar__toggle svg {
-    width: 24px;
-    height: 24px;
+  .menuToggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .menuToggleBars {
+    position: relative;
+    display: block;
+    width: 16px;
+    height: 16px;
+  }
+
+  .menuToggleBars span {
+    position: absolute;
+    left: 0;
+    display: block;
+    width: 16px;
+    height: 2px;
+    border-radius: 1px;
+    background-color: currentColor;
+    transition: transform var(--ifm-transition-fast) ease, top var(--ifm-transition-fast) ease;
+  }
+
+  .menuToggleBars span:first-child {
+    top: 4px;
+  }
+
+  .menuToggleBars span:last-child {
+    top: 10px;
+  }
+
+  /* Open state: the bars form an X. */
+  .navbar__toggle[aria-expanded="true"] .menuToggleBars span:first-child {
+    top: 7px;
+    transform: rotate(45deg);
+  }
+
+  .navbar__toggle[aria-expanded="true"] .menuToggleBars span:last-child {
+    top: 7px;
+    transform: rotate(-45deg);
+  }
+
+  .menuToggleLabel {
+    font-size: 14px;
+    line-height: 20px;
+    font-weight: var(--ifm-font-weight-semibold);
   }
 
   .navbar .DocSearch-Button {
