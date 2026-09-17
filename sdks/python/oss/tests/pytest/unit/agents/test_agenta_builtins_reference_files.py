@@ -29,7 +29,7 @@ from agenta.sdk.utils.types import AgentTemplateSchema
 
 # Repo-root-relative path to the frontend template registry. Walked up from this test file so it
 # does not depend on where the SDK checkout lives relative to the monorepo root.
-_FRONTEND_TEMPLATES_PATH = "web/oss/src/components/pages/agent-home/assets/templates.ts"
+_FRONTEND_TEMPLATES_PATH = "web/packages/agenta-entities/src/workflow/agentTemplates.ts"
 
 
 def _file(path: str) -> SkillFile:
