@@ -151,35 +151,48 @@ details:not([class*="openapi"]) {
   --docusaurus-details-decoration-color: var(--contenttertiary) !important;
 }
 
-/* ---- Prev / next pagination: the "Next" card ---- */
-/* Flex instead of the stock grid so a lone "Next" card spans the column. */
+/* ---- Prev / next pagination: two compact secondary buttons ---- */
+/* Flex instead of the stock grid so a lone "Next" stays on the right. */
 .pagination-nav {
   display: flex;
+  align-items: center;
+  justify-content: space-between;
   margin-top: 48px;
-  gap: 12px;
+  gap: 8px;
 }
 
 .pagination-nav__link {
-  flex: 1 1 0;
-  border: 1px solid var(--borderdefault);
-  border-radius: var(--radius-lg);
-  padding: 14px 18px;
-  transition: border-color var(--ifm-transition-fast) ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+  max-width: 48%;
+  height: 32px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: var(--radius-md);
+  background-color: var(--bgelevated1);
+  color: var(--contentprimary);
+  transition: background-color var(--ifm-transition-fast) ease;
+}
+
+.pagination-nav__link--next {
+  margin-left: auto;
 }
 
 .pagination-nav__link:hover {
-  border-color: var(--borderdark);
+  background-color: var(--bgelevated2);
+  color: var(--contentprimary);
 }
 
 .pagination-nav__sublabel {
-  font-size: 12px;
-  line-height: 16px;
-  font-weight: var(--ifm-font-weight-normal);
-  color: var(--contentsecondary);
-  margin-bottom: 2px;
+  display: none;
 }
 
 .pagination-nav__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: 14px;
   line-height: 20px;
   font-weight: var(--ifm-font-weight-semibold);
@@ -187,14 +200,32 @@ details:not([class*="openapi"]) {
   letter-spacing: 0;
 }
 
-.pagination-nav__link--next .pagination-nav__label::after {
-  content: " →";
-  color: var(--contentsecondary);
+/* Arrows: the same outlined glyph as the copy icon, in the text colour. */
+.pagination-nav__link::before,
+.pagination-nav__link::after {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  background-color: currentColor;
+  -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M5 12h14'/><path d='M13 18l6-6'/><path d='M13 6l6 6'/></svg>")
+    center / contain no-repeat;
+  mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M5 12h14'/><path d='M13 18l6-6'/><path d='M13 6l6 6'/></svg>")
+    center / contain no-repeat;
 }
 
-.pagination-nav__link--prev .pagination-nav__label::before {
-  content: "← ";
-  color: var(--contentsecondary);
+.pagination-nav__link--prev::before {
+  content: "";
+  transform: scaleX(-1);
+}
+
+.pagination-nav__link--next::after {
+  content: "";
+}
+
+/* Infima puts « » on the labels; the arrows above replace them. */
+.pagination-nav__link--prev .pagination-nav__label::before,
+.pagination-nav__link--next .pagination-nav__label::after {
+  content: none;
 }
 
 /* ---- Doc cards ---- */
