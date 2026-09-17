@@ -68,8 +68,11 @@
   padding: 0 14px;
 }
 
+/* When the class sits on an <a> (roadmap, hamburger), Infima's a:hover
+   would recolour the label to the link colour, which is the button's fill. */
 .nav_primary_button:hover {
   opacity: 0.88;
+  color: var(--contentinverse);
 }
 
 .nav_secondary_button {
@@ -80,6 +83,7 @@
 
 .nav_secondary_button:hover {
   background-color: var(--bgelevated1);
+  color: var(--contentprimary);
 }
 
 /* Search button in the header: a 260px field with a bordered ⌘K key chip. */
