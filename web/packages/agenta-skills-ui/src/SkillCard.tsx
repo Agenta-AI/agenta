@@ -24,12 +24,22 @@ export const skillAvatarText = (slug: string): string => {
     return (parts[0] ?? "sk").slice(0, 2).toLowerCase()
 }
 
-export function SkillAvatar({origin, slug}: {origin: SkillListItem["origin"]; slug?: string}) {
+export function SkillAvatar({
+    origin,
+    slug,
+    className,
+}: {
+    origin: SkillListItem["origin"]
+    slug?: string
+    /** Overrides the 28px box — a list row's 34px tile, say. */
+    className?: string
+}) {
     return (
         <span
             className={cn(
                 "flex size-7 shrink-0 items-center justify-center rounded-md font-mono text-[11px] font-semibold",
                 AGENT_ICON_CHIP_CLASS,
+                className,
             )}
             style={agentIconChipStyle(COLOR_BY_ORIGIN[origin])}
         >
