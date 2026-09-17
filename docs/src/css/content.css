@@ -228,6 +228,20 @@ details:not([class*="openapi"]) {
   content: none;
 }
 
+/* ---- Blockquotes ---- */
+/* Infima's hardcoded greys swapped for tokens so dark mode follows. */
+.markdown blockquote {
+  margin: 0 0 14px;
+  padding: 2px 0 2px 16px;
+  border: 0;
+  border-left: 2px solid var(--borderdark);
+  color: var(--contentsecondary);
+}
+
+.markdown blockquote > p:last-child {
+  margin-bottom: 0;
+}
+
 /* ---- Tables ---- */
 /* Flat: a quiet header strip, one hairline between rows, no zebra stripes
    or column rules. Infima renders <table> as an inline table, so the width
