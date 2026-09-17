@@ -11,15 +11,18 @@ the SDK's half: the floor ``resolved_new_tool_permission`` returns, and the ``po
 ``services/runner/tests/unit/mcp-permission-intake.test.ts`` resolves the same cases from it,
 so the two halves chain rather than merely resembling one another.
 
-Skipped, not failed, when the fixture cannot be found: an SDK-only distribution ships no
-``services/`` tree.
+A missing fixture fails this suite. It used to skip, on the ground that an SDK-only
+distribution ships no ``services/`` tree — but that distribution ships no tests either, so the
+only reader that ever reached the skip was a monorepo checkout in which the file had moved, and
+there the skip retired the cross-language guard without failing anything (D129). The refusal
+names the path it resolved, because the reader of it is someone who moved the file.
 """
 
 from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 import pytest
 
@@ -28,30 +31,48 @@ from agenta.sdk.agents.mcp.models import MCPPolicy, ResolvedMCPServer
 _FIXTURE = "services/runner/tests/fixtures/mcp-policy-ladder.json"
 
 
-def _repo_root() -> "Path | None":
+def _repo_root() -> Optional[Path]:
     for parent in Path(__file__).resolve().parents:
         if (parent / ".git").exists() and (parent / "services").is_dir():
             return parent
     return None
 
 
-def _ladder() -> Dict[str, Any]:
+def _fixture_path() -> Path:
+    """The shared ladder, or a failure naming the path this reader resolved."""
     root = _repo_root()
     if root is None:
-        pytest.skip(
-            "monorepo root not found; the shared ladder fixture ships with services/"
+        raise AssertionError(
+            "The shared per-tool permission ladder fixture cannot be resolved: no parent of "
+            f"{Path(__file__).resolve()} holds both a .git and a services/ directory, so "
+            f"there is no root to join {_FIXTURE} to. This fixture is the only thing keeping "
+            "the SDK, the runner and the editor on one rule (D88), so its absence fails."
         )
+
     path = root / _FIXTURE
     if not path.exists():
-        pytest.skip(f"{_FIXTURE} is not in this checkout")
-    return json.loads(path.read_text())
+        raise AssertionError(
+            f"The shared per-tool permission ladder fixture is not at {path}. It is the only "
+            "thing keeping the SDK, the runner and the editor on one rule (D88), so its "
+            "absence fails rather than skips (D129). Moving it means moving all three "
+            "readers: this one, services/runner/tests/unit/mcp-permission-intake.test.ts and "
+            "web/packages/agenta-entities/tests/unit/mcp-policy-ladder.test.ts."
+        )
+
+    return path
+
+
+def _ladder() -> Dict[str, Any]:
+    return json.loads(_fixture_path().read_text())
 
 
 def _cases() -> List[Dict[str, Any]]:
-    root = _repo_root()
-    if root is None or not (root / _FIXTURE).exists():
-        return []
-    return json.loads((root / _FIXTURE).read_text())["cases"]
+    """Read at collection, so a missing fixture is an error on this module and not zero cases.
+
+    Returning an empty list here parametrized the suite with nothing, which reported as a
+    green run of a guard that did not exist.
+    """
+    return _ladder()["cases"]
 
 
 def test_the_fixture_has_the_cases_the_ladder_is_defined_by():
@@ -60,8 +81,8 @@ def test_the_fixture_has_the_cases_the_ladder_is_defined_by():
 
 @pytest.mark.parametrize(
     "ladder_case",
-    _cases() or [pytest.param(None, marks=pytest.mark.skip(reason="fixture absent"))],
-    ids=lambda case: case["name"] if case else "absent-fixture",
+    _cases(),
+    ids=lambda case: case["name"],
 )
 def test_the_sdk_reads_the_shared_ladder(ladder_case):
     policy = MCPPolicy(**ladder_case["policy"])

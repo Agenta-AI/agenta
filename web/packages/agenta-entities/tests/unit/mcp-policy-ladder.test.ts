@@ -11,8 +11,10 @@
  * through: `effectiveToolPermission` for one tool's decision, and `policyAdapter`'s
  * `toGatewayPermissions`, which is what the shared drawer draws its default from.
  *
- * Skipped, not failed, when the fixture cannot be found, so a package extracted from the
- * monorepo still runs its own suite.
+ * A missing fixture fails this suite. It used to be skipped when the file could not be found,
+ * so that a package extracted from the monorepo still ran its own suite — but the effect of
+ * that allowance is that moving the file retires the cross-language guard without failing
+ * anything (D129). An extraction has to carry the fixture or carry its own copy of the rule.
  */
 import {existsSync, readFileSync} from "node:fs"
 import path from "node:path"
@@ -51,22 +53,45 @@ const repoRoot = (): string | null => {
     return null
 }
 
-const root = repoRoot()
-const fixturePath = root ? path.join(root, FIXTURE) : null
-const ladder: {unnamedTool: string; cases: LadderCase[]} | null =
-    fixturePath && existsSync(fixturePath) ? JSON.parse(readFileSync(fixturePath, "utf8")) : null
+// Resolved at module scope, so a missing fixture fails this file before any case claims to
+// have checked the ladder. The message names the path, because the reader of it is someone
+// who moved the file, and the other two readers that move with it.
+const fixturePath = (): string => {
+    const root = repoRoot()
+    if (!root) {
+        throw new Error(
+            `The shared per-tool permission ladder fixture cannot be resolved: no parent of ${__dirname} ` +
+                `holds both a .git and a services/ directory, so there is no root to join ${FIXTURE} to.`,
+        )
+    }
+    const resolved = path.join(root, FIXTURE)
+    if (!existsSync(resolved)) {
+        throw new Error(
+            `The shared per-tool permission ladder fixture is not at ${resolved}. It is the only thing ` +
+                `keeping the SDK, the runner and the editor on one rule (D88), so its absence fails rather ` +
+                `than skips (D129). Moving it means moving all three readers: this one, ` +
+                `sdks/python/oss/tests/pytest/unit/agents/mcp/test_mcp_policy_ladder_fixture.py and ` +
+                `services/runner/tests/unit/mcp-permission-intake.test.ts.`,
+        )
+    }
+    return resolved
+}
 
-describe.skipIf(!ladder)("the shared per-tool permission ladder fixture", () => {
+const ladder: {unnamedTool: string; cases: LadderCase[]} = JSON.parse(
+    readFileSync(fixturePath(), "utf8"),
+)
+
+describe("the shared per-tool permission ladder fixture", () => {
     it("has the cases the ladder is defined by", () => {
-        expect(ladder!.cases.length).toBeGreaterThanOrEqual(7)
+        expect(ladder.cases.length).toBeGreaterThanOrEqual(7)
     })
 
-    it.each(ladder?.cases ?? [])("reads $name the way every reader must", (ladderCase) => {
+    it.each(ladder.cases)("reads $name the way every reader must", (ladderCase) => {
         const {policy, expected} = ladderCase
 
         expect(resolvedNewToolPermission(policy)).toBe(expected.newToolPermission)
 
-        expect(effectiveToolPermission(policy, ladder!.unnamedTool).permission).toBe(
+        expect(effectiveToolPermission(policy, ladder.unnamedTool).permission).toBe(
             expected.unnamedToolPermission,
         )
 
@@ -79,7 +104,7 @@ describe.skipIf(!ladder)("the shared per-tool permission ladder fixture", () => 
         }
     })
 
-    it.each(ladder?.cases ?? [])(
+    it.each(ladder.cases)(
         "draws $name in the shared drawer as the decision an unnamed tool gets",
         (ladderCase) => {
             const {policy, expected} = ladderCase
