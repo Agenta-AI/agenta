@@ -59,7 +59,7 @@ function Checkbox({className, ...props}: CheckboxProps) {
                     `calc(checkboxSize/4 - lineWidth)` = 16/4-1; `left-1/4` resolves against the
                     14px padding box (3.5px) and shifted the tick half a pixel right of antd's.
                     colorTextDisabled when disabled. */}
-                <span className="absolute left-[3px] top-1/2 box-border hidden h-[9.14px] w-[5.71px] border-2 border-l-0 border-t-0 border-solid border-colorWhite [transform:rotate(45deg)_translate(-50%,-50%)] group-disabled:border-colorTextDisabled group-data-[state=checked]:block" />
+                <span className="absolute left-[3px] top-1/2 box-border hidden h-[9.14px] w-[5.71px] border-2 border-l-0 border-t-0 border-solid border-btn-primary-fg [transform:rotate(45deg)_translate(-50%,-50%)] group-disabled:border-colorTextDisabled group-data-[state=checked]:block" />
                 {/* INDETERMINATE: centred colorPrimary square (antd v6 mark), 7px = control-check-dash. */}
                 <span className="absolute left-1/2 top-1/2 hidden size-control-check-dash -translate-x-1/2 -translate-y-1/2 bg-primary group-data-[state=indeterminate]:block" />
             </CheckboxPrimitive.Indicator>

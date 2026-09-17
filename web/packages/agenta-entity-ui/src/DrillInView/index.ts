@@ -318,6 +318,7 @@ export {
     describeMcp,
     describeSkill,
     describeTool,
+    skillCommandName,
     staticEmbedSlug,
     toolName,
     HARNESS_META,

@@ -3,8 +3,9 @@
  * pick → import → summary. Connected on purpose: scan/import/invalidation live here once
  * instead of in every host; the hosts pass only `projectId` and open/close.
  */
-import {useCallback, useMemo, useState} from "react"
+import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
+import {extractApiErrorMessage} from "@agenta/shared/utils"
 import {
     importSkillSource,
     scanSkillSource,
@@ -13,8 +14,23 @@ import {
 } from "@agenta/skills"
 import {invalidateSkillsListCache} from "@agenta/skills/state"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
-import {Button, Checkbox, Input, Spinner} from "@agenta/ui/ui"
-import {ArrowLeft, CheckCircle, GitBranch, WarningCircle} from "@phosphor-icons/react"
+import {Alert, Button, Checkbox, Input, SkeletonBlock, Spinner} from "@agenta/ui/ui"
+import {CheckCircle, GitBranch, WarningCircle} from "@phosphor-icons/react"
+
+/**
+ * The server's own sentence for a failed scan — `body.detail.message`, then its next step —
+ * rather than the Fern error's message, which is the status code and the raw JSON body.
+ */
+const scanFailure = (err: unknown): string | null => {
+    const body = (err as {body?: unknown})?.body
+    const message = body ? extractApiErrorMessage(body) : null
+    const nextStep =
+        body && typeof body === "object" && "detail" in body
+            ? (body as {detail?: {next_step?: unknown}}).detail?.next_step
+            : undefined
+    if (message) return typeof nextStep === "string" ? `${message} ${nextStep}` : message
+    return err instanceof Error && err.message ? err.message : null
+}
 
 export interface SkillImportDrawerProps {
     open: boolean
@@ -41,10 +57,17 @@ export function SkillImportDrawer({
     width = 480,
 }: SkillImportDrawerProps) {
     const [step, setStep] = useState<Step>("url")
+    // The URL field takes the caret a frame after the drawer opens: the sheet's own focus lands
+    // on its content wrapper first, which beats the input's `autoFocus`.
+    const urlInput = useRef<HTMLInputElement>(null)
+    useEffect(() => {
+        if (!open || step !== "url") return
+        const frame = requestAnimationFrame(() => urlInput.current?.focus())
+        return () => cancelAnimationFrame(frame)
+    }, [open, step])
     const [repoUrl, setRepoUrl] = useState("")
     const [busy, setBusy] = useState(false)
     const [error, setError] = useState<string | null>(null)
-    const [commitSha, setCommitSha] = useState<string | null>(null)
     const [candidates, setCandidates] = useState<ScanCandidate[]>([])
     const [alreadyImported, setAlreadyImported] = useState<Set<string>>(new Set())
     const [selected, setSelected] = useState<Set<string>>(new Set())
@@ -55,7 +78,6 @@ export function SkillImportDrawer({
         setRepoUrl("")
         setBusy(false)
         setError(null)
-        setCommitSha(null)
         setCandidates([])
         setAlreadyImported(new Set())
         setSelected(new Set())
@@ -79,7 +101,6 @@ export function SkillImportDrawer({
                 setError("No skills found in this repository.")
                 return
             }
-            setCommitSha(response.commit_sha ?? null)
             setCandidates(found)
             const already = new Set(response.already_imported_paths ?? [])
             setAlreadyImported(already)
@@ -94,9 +115,7 @@ export function SkillImportDrawer({
             setStep("select")
         } catch (err) {
             setError(
-                err instanceof Error && err.message
-                    ? `Scan failed: ${err.message}`
-                    : "Scan failed. Check the URL and that the repository is public.",
+                scanFailure(err) ?? "Scan failed. Check the URL and that the repository is public.",
             )
         } finally {
             setBusy(false)
@@ -159,14 +178,7 @@ export function SkillImportDrawer({
             placement="right"
             width={width}
             destroyOnClose
-            title={
-                <div className="flex flex-col gap-0.5">
-                    <span className="text-sm font-medium">Import skills from a repo</span>
-                    <span className="text-xs font-normal text-[var(--ag-colorTextSecondary)]">
-                        Scan a public GitHub repository for SKILL.md folders.
-                    </span>
-                </div>
-            }
+            title={<span className="text-sm font-medium">Import skills from a repo</span>}
             styles={{
                 body: {padding: 0, display: "flex", flexDirection: "column", overflow: "hidden"},
             }}
@@ -182,10 +194,9 @@ export function SkillImportDrawer({
                         </Button>
                     </div>
                 ) : step === "select" ? (
-                    <div className="flex items-center justify-between gap-2">
-                        <Button variant="outline" onClick={() => setStep("url")} disabled={busy}>
-                            <ArrowLeft size={14} />
-                            Back
+                    <div className="flex items-center justify-end gap-2">
+                        <Button variant="outline" onClick={close} disabled={busy}>
+                            Cancel
                         </Button>
                         <Button onClick={runImport} disabled={busy || selected.size === 0}>
                             {busy ? <Spinner size="small" /> : null}
@@ -200,13 +211,18 @@ export function SkillImportDrawer({
             }
         >
             <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4">
-                {step === "url" ? (
+                {/* The field stays on top once the repo is scanned: what was found sits under
+                    it, and editing the URL is how you scan another. */}
+                {step !== "done" ? (
                     <label className="flex flex-col gap-1.5 text-xs">
                         <span className="font-medium">Repository URL</span>
                         <Input
-                            autoFocus
+                            ref={urlInput}
                             value={repoUrl}
-                            onChange={(e) => setRepoUrl(e.target.value)}
+                            onChange={(e) => {
+                                setRepoUrl(e.target.value)
+                                if (step === "select") setStep("url")
+                            }}
                             onKeyDown={(e) => {
                                 if (e.key === "Enter" && repoUrl.trim() && !busy) void scan()
                             }}
@@ -214,74 +230,83 @@ export function SkillImportDrawer({
                             disabled={busy}
                         />
                         <span className="text-[var(--ag-colorTextTertiary)]">
-                            Marketplace, single-skill and multi-skill layouts are detected
-                            automatically.
+                            Scan a public GitHub repository for SKILL.md folders.
                         </span>
                     </label>
                 ) : null}
 
+                {/* The scan's rows arrive into the slots the skeleton was already holding. */}
+                {step === "url" && busy ? (
+                    <div aria-hidden className="flex flex-col gap-1.5 text-xs">
+                        <SkeletonBlock active className="h-4 w-24 rounded" />
+                        <div className="flex flex-col gap-1">
+                            {[0, 1, 2].map((row) => (
+                                <div
+                                    key={row}
+                                    className="box-border flex items-start gap-2.5 rounded-md border border-solid border-[var(--ag-colorBorderSecondary)] p-2.5"
+                                >
+                                    <SkeletonBlock active className="mt-0.5 size-4 rounded" />
+                                    <span className="flex min-w-0 flex-1 flex-col gap-1.5">
+                                        <SkeletonBlock active className="h-3.5 w-2/5 rounded" />
+                                        <SkeletonBlock active className="h-3.5 w-4/5 rounded" />
+                                    </span>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                ) : null}
+
                 {step === "select" ? (
                     <>
-                        <div className="flex items-center gap-2 text-xs text-[var(--ag-colorTextSecondary)]">
-                            <span className="min-w-0 flex-1 truncate font-mono">{repoUrl}</span>
-                            {commitSha ? (
-                                <span className="shrink-0 rounded border border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorFillQuaternary)] px-1 font-mono text-[10px]">
-                                    {commitSha}
-                                </span>
-                            ) : null}
-                        </div>
-
-                        <div className="flex flex-col gap-1">
-                            {candidates.map((candidate) => {
-                                const path = candidate.path_in_repo
-                                const name = candidate.skill?.name ?? path
-                                const imported = alreadyImported.has(path)
-                                return (
-                                    <label
-                                        key={path}
-                                        className={`box-border flex items-start gap-2.5 rounded-md border border-solid border-[var(--ag-colorBorderSecondary)] p-2.5 ${
-                                            candidate.valid && !imported
-                                                ? "cursor-pointer hover:border-[var(--ag-colorBorder)]"
-                                                : "opacity-60"
-                                        }`}
-                                    >
-                                        <Checkbox
-                                            className="mt-0.5"
-                                            checked={selected.has(path)}
-                                            disabled={!candidate.valid || imported || busy}
-                                            onCheckedChange={() => toggle(path)}
-                                        />
-                                        <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                                            <span className="flex min-w-0 items-center gap-1.5">
-                                                <span className="min-w-0 truncate font-mono text-xs font-medium">
-                                                    {name}
+                        {/* Labelled the way the field above is, so the two read as one form. */}
+                        <div className="flex flex-col gap-1.5 text-xs">
+                            <span className="font-medium">Skills found · {candidates.length}</span>
+                            <div className="flex flex-col gap-1">
+                                {candidates.map((candidate) => {
+                                    const path = candidate.path_in_repo
+                                    const name = candidate.skill?.name ?? path
+                                    const imported = alreadyImported.has(path)
+                                    return (
+                                        <label
+                                            key={path}
+                                            className={`box-border flex items-start gap-2.5 rounded-md border border-solid border-[var(--ag-colorBorderSecondary)] p-2.5 ${
+                                                candidate.valid && !imported
+                                                    ? "cursor-pointer hover:border-[var(--ag-colorBorder)]"
+                                                    : "opacity-60"
+                                            }`}
+                                        >
+                                            <Checkbox
+                                                // A 16px box at /m's control radius reads as a
+                                                // circle, and a circle says "pick one".
+                                                className="mt-0.5 rounded"
+                                                checked={selected.has(path)}
+                                                disabled={!candidate.valid || imported || busy}
+                                                onCheckedChange={() => toggle(path)}
+                                            />
+                                            <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                                                <span className="flex min-w-0 items-center gap-1.5">
+                                                    <span className="min-w-0 truncate font-mono text-xs font-medium">
+                                                        {name}
+                                                    </span>
+                                                    {imported ? (
+                                                        <span className="shrink-0 rounded bg-[var(--ag-colorFillTertiary)] px-1.5 py-px text-[10px] text-[var(--ag-colorTextTertiary)]">
+                                                            Already imported
+                                                        </span>
+                                                    ) : null}
                                                 </span>
-                                                {imported ? (
-                                                    <span className="shrink-0 rounded bg-[var(--ag-colorFillTertiary)] px-1.5 py-px text-[10px] text-[var(--ag-colorTextTertiary)]">
-                                                        Already imported
-                                                    </span>
-                                                ) : null}
-                                                {candidate.valid ? (
-                                                    <span className="shrink-0 rounded bg-[var(--ag-colorFillTertiary)] px-1.5 py-px font-mono text-[10px] text-[var(--ag-colorTextTertiary)]">
-                                                        SKILL.md
-                                                        {candidate.skill?.files?.length
-                                                            ? ` +${candidate.skill.files.length}`
-                                                            : ""}
-                                                    </span>
-                                                ) : null}
+                                                <span className="line-clamp-1 text-xs text-[var(--ag-colorTextSecondary)]">
+                                                    {imported
+                                                        ? "Already in this project — check for updates to pick up upstream changes."
+                                                        : candidate.valid
+                                                          ? (candidate.skill?.description ??
+                                                            "No description.")
+                                                          : issueText(candidate.issues)}
+                                                </span>
                                             </span>
-                                            <span className="line-clamp-1 text-xs text-[var(--ag-colorTextSecondary)]">
-                                                {imported
-                                                    ? "Already in this project — check for updates to pick up upstream changes."
-                                                    : candidate.valid
-                                                      ? (candidate.skill?.description ??
-                                                        "No description.")
-                                                      : issueText(candidate.issues)}
-                                            </span>
-                                        </span>
-                                    </label>
-                                )
-                            })}
+                                        </label>
+                                    )
+                                })}
+                            </div>
                         </div>
 
                         {validCandidates.length === 0 ? (
@@ -337,10 +362,13 @@ export function SkillImportDrawer({
                 ) : null}
 
                 {error ? (
-                    <span className="flex items-start gap-1.5 text-xs text-[var(--ag-colorError)]">
-                        <WarningCircle size={14} className="mt-px shrink-0" />
-                        {error}
-                    </span>
+                    <Alert
+                        type="error"
+                        showIcon
+                        message={error}
+                        // The icon says it failed; the sentence reads in body ink, as a sentence.
+                        className="text-foreground [&_[data-slot=alert-title]]:font-normal"
+                    />
                 ) : null}
             </div>
         </EnhancedDrawer>

@@ -243,6 +243,7 @@ class SkillsService:
                     message=revision.message,
                     created_at=revision.created_at,
                     updated_at=revision.updated_at or revision.created_at,
+                    created_by_id=workflow.created_by_id if workflow else None,
                     is_static=False,
                     archived=bool(workflow and workflow.deleted_at),
                     skill_name=payload.get("name"),

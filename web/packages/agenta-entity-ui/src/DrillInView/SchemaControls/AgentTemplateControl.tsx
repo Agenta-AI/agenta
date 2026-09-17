@@ -37,7 +37,14 @@ import {stripAgentaMetadataDeep} from "@agenta/shared/utils"
 import {useRecentFlag, type SectionIndicatorTone} from "@agenta/ui/components/presentational"
 import {useDrillInUI} from "@agenta/ui/drill-in"
 import {cn} from "@agenta/ui/styles"
-import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "@agenta/ui/ui"
+import {
+    Button,
+    Spinner,
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from "@agenta/ui/ui"
 import {
     Cpu,
     FileText,
@@ -867,13 +874,15 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
     const [publishingSkillIndex, setPublishingSkillIndex] = useState<number | null>(null)
     const [publishSkillError, setPublishSkillError] = useState<string | null>(null)
     const publishInlineSkill = useCallback(
-        async (item: unknown, index: number) => {
+        // `item` is the row's identity in the config; `content` is what goes to the registry —
+        // the drawer's draft, so an edit made before publishing is what gets published.
+        async (item: unknown, index: number, content: unknown = item) => {
             const publish = skillsBridge?.publishInlineSkill
             if (!publish || publishingSkillIndex !== null) return
             setPublishingSkillIndex(index)
             setPublishSkillError(null)
             try {
-                const outcome = await publish(item as Record<string, unknown>)
+                const outcome = await publish(content as Record<string, unknown>)
                 if ("error" in outcome) {
                     setPublishSkillError(outcome.error)
                     return
@@ -901,40 +910,6 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         },
         [closeEditor, config, configRef, onChange, publishingSkillIndex, skills, skillsBridge],
     )
-    const skillExtraFor = useCallback(
-        (item: unknown, index: number) => {
-            if (!skillsBridge?.publishInlineSkill || isEmbedRefSkill(item)) return undefined
-            if (ITEM_KINDS.skill.draftInvalid(item as Record<string, unknown>)) return undefined
-            const busyRow = publishingSkillIndex === index
-            return (
-                <TooltipProvider>
-                    <Tooltip>
-                        <TooltipTrigger asChild>
-                            <button
-                                type="button"
-                                aria-label="Publish to registry"
-                                disabled={publishingSkillIndex !== null}
-                                onClick={(e) => {
-                                    e.stopPropagation()
-                                    void publishInlineSkill(item, index)
-                                }}
-                                className="flex cursor-pointer items-center gap-1 rounded border border-solid border-[var(--ag-colorBorderSecondary)] bg-transparent px-1.5 py-0.5 text-[11px] text-[var(--ag-colorTextSecondary)] hover:border-[var(--ag-colorBorder)] hover:text-[var(--ag-colorText)] disabled:cursor-not-allowed disabled:opacity-50"
-                            >
-                                <UploadSimple size={11} />
-                                {busyRow ? "Publishing…" : "Publish"}
-                            </button>
-                        </TooltipTrigger>
-                        <TooltipContent side="top">
-                            Move this inline skill to the registry; the agent will reference it
-                            (following the latest version).
-                        </TooltipContent>
-                    </Tooltip>
-                </TooltipProvider>
-            )
-        },
-        [publishInlineSkill, publishingSkillIndex, skillsBridge],
-    )
-
     const skillStatusFor = useMemo(() => {
         const base = statusForKind("skill")
         return (item: unknown, index: number) => {
@@ -1220,7 +1195,6 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                         kind="skill"
                         items={skills}
                         openEdit={openSkillItem}
-                        extraFor={skillExtraFor}
                         removeItem={removeItem}
                         closeEditor={closeEditor}
                         disabled={disabled}
@@ -1306,9 +1280,58 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                       const readOnly = disabled || def.isReadOnly(draft)
                       const Form = def.FormView
                       const itemKey = `${shownEditing.kind}-${shownEditing.mode}-${shownEditing.index}`
-                      // Skills state their identity in their own form; the drawer drops its chrome.
-                      const bareChrome = shownEditing.kind === "skill"
+                      // Skills state their identity in their own form, and an MCP server's title
+                      // already says what it is; both drawers drop the badge and subtitle.
+                      const bareChrome =
+                          shownEditing.kind === "skill" || shownEditing.kind === "mcp"
                       const isSubagent = Boolean(def.statesOwnIdentity?.(draft))
+                      // An inline skill's way into the registry, from the drawer's footer: the
+                      // draft is what gets published, and the row it came from is what gets
+                      // swapped for the reference.
+                      const inlineSkillItem =
+                          shownEditing.kind === "skill" && shownEditing.mode === "edit"
+                              ? skills[shownEditing.index]
+                              : undefined
+                      const canPublish =
+                          inlineSkillItem !== undefined &&
+                          Boolean(skillsBridge?.publishInlineSkill) &&
+                          !isEmbedRefSkill(inlineSkillItem) &&
+                          !readOnly &&
+                          !draftInvalid
+                      const publishing = publishingSkillIndex !== null
+                      // The publish sends the draft as it was pressed; an edit made meanwhile
+                      // would be thrown away when the row is swapped for the reference.
+                      const editorDisabled = readOnly || publishing
+                      const publishAction = canPublish ? (
+                          <TooltipProvider>
+                              <Tooltip>
+                                  <TooltipTrigger asChild>
+                                      <Button
+                                          variant="outline"
+                                          disabled={publishing}
+                                          onClick={() =>
+                                              void publishInlineSkill(
+                                                  inlineSkillItem,
+                                                  shownEditing.index,
+                                                  draft,
+                                              )
+                                          }
+                                      >
+                                          {publishing ? (
+                                              <Spinner size="small" />
+                                          ) : (
+                                              <UploadSimple size={14} />
+                                          )}
+                                          {publishing ? "Publishing…" : "Publish to registry"}
+                                      </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent side="top">
+                                      Move this inline skill to the registry; the agent will
+                                      reference it (following the latest version).
+                                  </TooltipContent>
+                              </Tooltip>
+                          </TooltipProvider>
+                      ) : undefined
                       return (
                           <ConfigItemDrawer
                               open={!!editing}
@@ -1332,11 +1355,14 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                               subtitle={
                                   bareChrome ? undefined : isSubagent ? "Subagent" : desc.subtitle
                               }
-                              // Skills carry their own footer; every other kind keeps the note.
+                              // A skill's footer-left is its Publish action; the MCP drawer has
+                              // no note; every other kind keeps it.
                               footerNote={
                                   shownEditing.kind === "skill"
-                                      ? undefined
-                                      : "Changes apply to this agent configuration"
+                                      ? publishAction
+                                      : shownEditing.kind === "mcp"
+                                        ? undefined
+                                        : "Changes apply to this agent configuration"
                               }
                               width={def.drawerWidth?.(draft)}
                               contentFlush={Boolean(def.formFlush?.(draft))}
@@ -1349,13 +1375,17 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                               }
                               jsonOnly={def.jsonOnly(draft)}
                               headerExtra={isSubagent ? subagentHeaderAction : undefined}
-                              disabled={readOnly}
+                              disabled={editorDisabled}
                               form={
                                   <Form
                                       key={`form-${itemKey}`}
                                       value={draft}
                                       onChange={(v) => setDraft(v)}
-                                      disabled={readOnly}
+                                      disabled={editorDisabled}
+                                      // Save is inert while the draft is invalid, so there is
+                                      // no press to wait for: an edited draft that is missing
+                                      // a required field says so in the fields.
+                                      showMissing={!draftUnchanged && draftInvalid}
                                   />
                               }
                               json={
@@ -1364,7 +1394,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                                       value={draft}
                                       onChange={(v) => setDraft(v as Record<string, unknown>)}
                                       onValidityChange={(valid) => setJsonInvalid(!valid)}
-                                      disabled={readOnly}
+                                      disabled={editorDisabled}
                                   />
                               }
                           />

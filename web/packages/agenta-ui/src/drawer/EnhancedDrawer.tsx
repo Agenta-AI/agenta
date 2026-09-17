@@ -108,6 +108,8 @@ interface DrawerProps {
 
 export interface EnhancedDrawerProps extends DrawerProps {
     children?: React.ReactNode
+    /** The panel element — what a confirm scoped to the drawer portals into. */
+    panelRef?: React.Ref<HTMLDivElement>
 }
 
 interface DrawerStyles {
@@ -121,6 +123,7 @@ interface DrawerStyles {
 export function EnhancedDrawer(props: EnhancedDrawerProps) {
     const {
         children,
+        panelRef,
         open,
         onClose,
         title,
@@ -133,6 +136,7 @@ export function EnhancedDrawer(props: EnhancedDrawerProps) {
         closable = true,
         maskClosable = true,
         keyboard = true,
+        autoFocus = true,
         zIndex,
         getContainer,
         styles: customStyles,
@@ -216,10 +220,17 @@ export function EnhancedDrawer(props: EnhancedDrawerProps) {
     return (
         <Sheet open={open} onOpenChange={handleOpenChange}>
             <SheetContent
+                ref={panelRef}
                 side={side}
                 container={container}
                 className={cn(rootClassName, className, slotClassNames?.content)}
                 style={{...sizeStyle, ...(zIndex != null ? {zIndex} : {}), ...styles?.content}}
+                onOpenAutoFocus={(e) => {
+                    // A control that focused itself on mount (`autoFocus`) keeps focus; Radix
+                    // would otherwise move it to the first tabbable, usually the close button.
+                    const panel = e.currentTarget as HTMLElement | null
+                    if (!autoFocus || panel?.contains(document.activeElement)) e.preventDefault()
+                }}
                 onEscapeKeyDown={(e) => {
                     if (!keyboard) e.preventDefault()
                 }}

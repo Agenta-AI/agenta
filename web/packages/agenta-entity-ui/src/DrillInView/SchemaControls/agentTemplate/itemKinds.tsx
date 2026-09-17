@@ -32,6 +32,8 @@ type ItemFormView = ComponentType<{
     value: Record<string, unknown>
     onChange: (next: Record<string, unknown>) => void
     disabled?: boolean
+    /** Paint the empty required fields. Only the skill form reads it; the others ignore it. */
+    showMissing?: boolean
 }>
 
 export interface ItemKindDef {
