@@ -106,6 +106,15 @@ const URL_PROBLEM_ID = "mcp-url-problem"
 const HEADER_HELP_ID = "mcp-header-help"
 
 /**
+ * The box that says why a key was refused, which both refused fields point at.
+ *
+ * `Field` announces an error it was given, and this one is given to neither field: it is a box
+ * below them, because one refusal covers the pair. So the pairing has to be made by hand, and
+ * it was not — both controls said they were invalid and neither said why (round 4, D106).
+ */
+const KEY_PROBLEM_ID = "mcp-key-problem"
+
+/**
  * The prefix help text the server form already carries, reused rather than rewritten: it is
  * the same rule being explained, and two wordings for one rule is how they drift.
  */
@@ -704,7 +713,14 @@ export function McpConnectSheet({
                                         value={headerName}
                                         aria-label="Header"
                                         aria-describedby={
-                                            challengeScheme ? HEADER_HELP_ID : undefined
+                                            [
+                                                challengeScheme ? HEADER_HELP_ID : null,
+                                                state.status === "verify_failed"
+                                                    ? KEY_PROBLEM_ID
+                                                    : null,
+                                            ]
+                                                .filter(Boolean)
+                                                .join(" ") || undefined
                                         }
                                         onChange={(event) =>
                                             setHeaderName(event.target.value.trim())
@@ -721,6 +737,11 @@ export function McpConnectSheet({
                                         onChange={setSecretSlug}
                                         secrets={namedSecrets}
                                         invalid={state.status === "verify_failed"}
+                                        aria-describedby={
+                                            state.status === "verify_failed"
+                                                ? KEY_PROBLEM_ID
+                                                : undefined
+                                        }
                                         canCreate={!!headerName}
                                         onCreate={() => {
                                             setSecretDrawerMounted(true)
@@ -736,7 +757,11 @@ export function McpConnectSheet({
                     ) : null}
 
                     {screen === "api_key" && state.status === "verify_failed" ? (
-                        <InlineError headline={KEY_REJECTED_HEADLINE} className="-mt-2">
+                        <InlineError
+                            id={KEY_PROBLEM_ID}
+                            headline={KEY_REJECTED_HEADLINE}
+                            className="-mt-2"
+                        >
                             {state.error} {keyRejectedAdviceFor(challengeScheme)}
                         </InlineError>
                     ) : null}

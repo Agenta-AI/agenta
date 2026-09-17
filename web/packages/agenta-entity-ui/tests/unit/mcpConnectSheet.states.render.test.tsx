@@ -553,6 +553,19 @@ describe("C6, the key was refused", () => {
         expect(button("Try again")).toBeDefined()
     })
 
+    it("tells both refused fields where the reason is", async () => {
+        await open(rejected)
+
+        // `Field` announces an error it was handed, and this one is a box below the pair
+        // rather than either field's own, so nothing paired them: two controls saying they
+        // were invalid and neither saying why (round 4, D106).
+        for (const label of ["Header", "Project secret"]) {
+            const described = describedText(control(label))
+            expect(described).toContain("The server rejected this key.")
+            expect(described).toContain("The server rejected the credential (401).")
+        }
+    })
+
     it("names what the server expects when the challenge said so", async () => {
         await open({...rejected, probe: KEY_PROBE_WITH_SCHEME})
 
