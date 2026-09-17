@@ -163,3 +163,31 @@ describe("a policy that arrives in the other convention", () => {
         })
     }
 })
+
+/**
+ * Absence is a valid state, not an unrecognised one (decision 29).
+ *
+ * The refusal above keys on a per-tool field being PRESENT under the wire's name. An absent
+ * `permission`, an absent table and an absent floor each keep the meaning they have always had,
+ * which for the drawer is `inherit` at the server level and "inherits" per tool.
+ */
+describe("a policy that declares nothing is not invalid", () => {
+    it("draws the server permission as the default when no table was declared", () => {
+        expect(toGatewayPermissions({permission: "allow"})).toEqual({
+            default: "allow",
+            tools: {},
+        })
+        expect(effectiveToolPermission({permission: "allow"}, "any_tool_at_all")).toEqual({
+            permission: "allow",
+            source: "server",
+        })
+    })
+
+    it("draws inherit when the policy is empty", () => {
+        expect(toGatewayPermissions({})).toEqual({default: "inherit", tools: {}})
+        expect(effectiveToolPermission({}, "any_tool_at_all")).toEqual({
+            permission: null,
+            source: "default",
+        })
+    })
+})
