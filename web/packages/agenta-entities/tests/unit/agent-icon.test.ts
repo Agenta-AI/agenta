@@ -118,6 +118,17 @@ describe("agentIconAtomFamily", () => {
         })
     })
 
+    it("falls back to the default glyph, not an error, when the catalog fails to load", async () => {
+        const catalog = await import("@agenta/ui/agent-icon")
+        const spy = vi.spyOn(catalog, "loadAgentIconCatalog").mockRejectedValue(new Error("404"))
+        try {
+            const {store} = makeStore([toWorkflowListRef(workflow("wf-1", {"@ag": {icon: robot}}))])
+            expect(await readIcon(store, "wf-1")).toBeNull()
+        } finally {
+            spy.mockRestore()
+        }
+    })
+
     it("is null for an agent without an icon, and for a name the catalog lacks", async () => {
         const {store} = makeStore([
             toWorkflowListRef(workflow("plain")),

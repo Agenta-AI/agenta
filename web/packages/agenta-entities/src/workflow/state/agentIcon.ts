@@ -87,7 +87,9 @@ const NO_GLYPHS: ReadonlyMap<string, string> = new Map()
 /** Name → inner SVG. Unwrapped so a read never suspends; read only once a custom icon is on screen. */
 const glyphsAtom = unwrap(
     atom(async (): Promise<ReadonlyMap<string, string>> => {
-        const catalog = await loadAgentIconCatalog()
+        // A chunk that fails to load leaves every agent on its fallback glyph, not in an error
+        // boundary. The loader drops a rejection, so the picker still retries on its own.
+        const catalog = await loadAgentIconCatalog().catch(() => [])
         return new Map(catalog.map((entry) => [entry.name, entry.path] as const))
     }),
     () => NO_GLYPHS,
