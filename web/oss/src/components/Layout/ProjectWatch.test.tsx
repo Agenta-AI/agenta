@@ -24,6 +24,7 @@ vi.mock("@agenta/entities/session", () => ({
 }))
 
 vi.mock("@agenta/entities/workflow", () => ({
+    invalidateAgentCommittedRevisionCache: vi.fn(),
     invalidateWorkflowsListCache: mocks.invalidateWorkflowsListCache,
 }))
 

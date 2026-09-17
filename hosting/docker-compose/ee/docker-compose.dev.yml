@@ -411,8 +411,10 @@ services:
                 "*.pyc",
                 "--reload-exclude",
                 "__pycache__",
-                "--root-path",
-                "/services",
+                # No --root-path: traefik strips /services, and the app strips it again itself
+                # (ServicesPrefixStripMiddleware). Setting it too made every mounted sub-app 404 —
+                # /agent/v0/* answered "Not Found" for authenticated requests while
+                # /services/health still worked.
                 "--loop",
                 "uvloop",
                 "--http",

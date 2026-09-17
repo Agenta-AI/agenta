@@ -57,6 +57,12 @@ export interface PendingTaskGate {
     modelKeyWaitedMs: number
     /** The connect-model gate is up (`useAgentModelKeyStatus().gateActive`). */
     modelBlocked: boolean
+    /**
+     * The template's connect step is up, or still deciding whether to be
+     * (`useSessionSetupStep().blocking`). Visible and user-released once the card is showing,
+     * and bounded by the hook while it is still deciding.
+     */
+    setupBlocking: boolean
 }
 
 export const pendingTaskDecision = ({
@@ -66,9 +72,14 @@ export const pendingTaskDecision = ({
     modelKeyLoading,
     modelKeyWaitedMs,
     modelBlocked,
+    setupBlocking,
 }: PendingTaskGate): PendingTaskDecision => {
     if (sentFor === sessionId) return "hold"
     if (hydrating) return "hold"
+    // Before the vault: a template's accounts are asked for on arrival, and the card is what the
+    // user is looking at. Checking the key gate first would park the same message behind an
+    // invisible wait while a visible card sat on top of it saying something else.
+    if (setupBlocking) return "hold"
     if (modelKeyLoading) {
         return modelKeyWaitedMs >= MODEL_KEY_WAIT_LIMIT_MS ? "abandon" : "hold"
     }
