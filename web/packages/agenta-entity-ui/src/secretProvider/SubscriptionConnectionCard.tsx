@@ -1,6 +1,6 @@
 // The ChatGPT subscription card: a connection whose credential is a sign-in, so one verb per state
 // and no form. Design: docs/design/hosted-subscription-connections/implementation-contract.md §4.
-import {useCallback, useEffect, useMemo, useState} from "react"
+import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {
     cancelSubscriptionLoginAtom,
@@ -17,7 +17,7 @@ import {
     type ProviderConnection,
 } from "@agenta/entities/secret"
 import {extractApiErrorMessage} from "@agenta/shared/utils"
-import {Button} from "@agenta/ui/ui"
+import {Button, Spinner} from "@agenta/ui/ui"
 import {ArrowSquareOut, Check, Copy, WarningCircle} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
 
@@ -28,6 +28,8 @@ export interface SubscriptionConnectionCardProps {
     connection?: ProviderConnection | null
     /** Remove the connection. Absent hides the verb rather than letting it go dead. */
     onRemove?: (connection: ProviderConnection) => void
+    /** Start the sign-in on mount when there is none — for surfaces whose opener IS the verb. */
+    autoStart?: boolean
 }
 
 /** The in-flight device login the card is showing. */
@@ -82,6 +84,7 @@ const SubscriptionConnectionCard = ({
     provider = "chatgpt",
     connection = null,
     onRemove,
+    autoStart = false,
 }: SubscriptionConnectionCardProps) => {
     const createConnection = useSetAtom(createSubscriptionConnectionAtom)
     const startLogin = useSetAtom(startSubscriptionLoginAtom)
@@ -210,6 +213,14 @@ const SubscriptionConnectionCard = ({
         closeAttempt(pending)
     }, [cancelLogin, closeAttempt, pending])
 
+    // One start per mount: re-running on state churn would cancel a login mid-flight.
+    const autoStarted = useRef(false)
+    useEffect(() => {
+        if (!autoStart || autoStarted.current || isReady || pending || starting) return
+        autoStarted.current = true
+        void connect()
+    }, [autoStart, connect, isReady, pending, starting])
+
     const statusLine = useMemo(
         () =>
             pending
@@ -227,7 +238,7 @@ const SubscriptionConnectionCard = ({
                         className={
                             isReady && !pending
                                 ? "flex items-center gap-1.5 text-colorSuccess"
-                                : "text-colorTextSecondary"
+                                : "flex items-center gap-1.5 text-colorTextSecondary"
                         }
                     >
                         {isReady && !pending ? (
@@ -236,7 +247,10 @@ const SubscriptionConnectionCard = ({
                                 className="size-1.5 shrink-0 rounded-full bg-colorSuccess"
                             />
                         ) : null}
-                        {statusLine || "Sign in with your ChatGPT subscription to run agents."}
+                        {pending ? <Spinner className="size-3 shrink-0" /> : null}
+                        <span className={pending ? "animate-pulse" : undefined}>
+                            {statusLine || "Sign in with your ChatGPT subscription to run agents."}
+                        </span>
                     </span>
                 </div>
 

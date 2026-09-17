@@ -11,7 +11,7 @@ import {
 } from "react"
 
 import {sessionStatusAtomFamily} from "@agenta/chat/state"
-import {createEphemeralAppFromTemplate} from "@agenta/entities/workflow"
+import {createEphemeralAppFromTemplate, agentIconAtomFamily} from "@agenta/entities/workflow"
 import {
     hasPendingHydrationAtomFamily,
     isAgentModeAtomFamily,
@@ -19,7 +19,7 @@ import {
 } from "@agenta/playground"
 import {extractApiErrorMessage} from "@agenta/shared/utils"
 import {App} from "antd"
-import {useAtomValue, useSetAtom} from "jotai"
+import {useAtomValue, useSetAtom, useStore} from "jotai"
 
 import {ONBOARDING_SCOPE_KEY} from "@/oss/components/AgentChatSlice/state/scope"
 import {
@@ -85,6 +85,7 @@ export function useAgentOnboarding(active: boolean): AgentOnboardingResult {
     const [chromeRevealed, setChromeRevealed] = useState(false)
     const [error, setError] = useState(false)
     const startedRef = useRef(false)
+    const commitInFlightRef = useRef(false)
 
     // Publish the onboarding lifecycle to a globally-readable atom so surfaces outside the playground
     // subtree (the sidebar, the layout) can adjust without the playground-scoped OnboardingContext.
@@ -192,9 +193,11 @@ export function useAgentOnboarding(active: boolean): AgentOnboardingResult {
     // ephemeral + an `onCommitted` callback (no redirect): swap the entity, flip to the live chat, and
     // reflect the app in the URL via `history.replaceState` (a real nav to the app route is a different
     // Next page → would remount; a reload then lands on the app playground).
+    const iconStore = useStore()
     const commit = useCallback(
         (seedMessage: string, name?: string) => {
-            if (!entityId || committing || realEntityId) return
+            if (!entityId || commitInFlightRef.current || realEntityId) return
+            commitInFlightRef.current = true
             setCommitting(true)
             // Surface the seed so the chat can render it as an optimistic user turn during commit.
             setCommittingSeed(seedMessage.trim() || null)
@@ -207,6 +210,8 @@ export function useAgentOnboarding(active: boolean): AgentOnboardingResult {
                 // once the model is ready (no extra Start click), keeping the transition seamless.
                 autoSendSeed: true,
                 onCommitted: ({appId, revisionId}) => {
+                    const icon = iconStore.get(agentIconAtomFamily(entityId))
+                    if (icon) iconStore.set(agentIconAtomFamily(appId), icon)
                     committed = true
                     // Adopt the founding conversation into the new app's chat scope, in the SAME
                     // batched update as the `chatScopeKey` flip below (`setRealAppId`): the mounted
@@ -234,6 +239,7 @@ export function useAgentOnboarding(active: boolean): AgentOnboardingResult {
                     }
                 },
             }).finally(() => {
+                commitInFlightRef.current = false
                 setCommitting(false)
                 // On a failed commit (createAgent resolves without onCommitted), drop the optimistic
                 // seed so no stale "sent" turn can be re-surfaced by a later render.
@@ -242,6 +248,7 @@ export function useAgentOnboarding(active: boolean): AgentOnboardingResult {
         },
         [
             entityId,
+            iconStore,
             committing,
             realEntityId,
             createAgent,
