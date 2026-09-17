@@ -201,6 +201,30 @@ describe("Checking URL", () => {
         expect(failed.probe).toBeNull()
     })
 
+    it("forgets the row it made once the address changes", () => {
+        // The identity survived here, and the next submit continues from whatever row the
+        // journey is already holding. So a person who connected one address, went back and
+        // typed another was connected to the FIRST one under the second one's name: the row
+        // they were told about pointed somewhere they had left behind (round 4, D111).
+        const moved = run(...upToCreated("oauth"), {
+            type: "url_changed",
+            url: "https://other.test/",
+        })
+
+        expect(moved.endpointId).toBeNull()
+        expect(moved.slug).toBeNull()
+        expect(moved.createdHere).toBe(false)
+    })
+
+    it("keeps it when the address is re-entered unchanged", () => {
+        // Pressing Change and typing nothing is not leaving the address, and the row that
+        // belongs to it is still the right one.
+        const same = run(...upToCreated("oauth"), {type: "url_changed", url: URL})
+
+        expect(same.endpointId).toBe("mcp-1")
+        expect(same.createdHere).toBe(true)
+    })
+
     it("forgets what the probe said once the address changes", () => {
         const state = run(...beforeCreate("oauth").slice(0, 3), {
             type: "url_changed",

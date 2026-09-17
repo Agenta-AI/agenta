@@ -46,7 +46,12 @@ import {
 } from "../core/connectJourney"
 import {buildTrustedOrigins} from "../core/connectMessage"
 import {watchOauthConsent} from "../core/connectWatch"
-import {gatewayRefusalMessage, isNameTakenRefusal} from "../core/refusal"
+import {
+    gatewayRefusalMessage,
+    gatewayRefusalStatus,
+    isCredentialRefusal,
+    isNameTakenRefusal,
+} from "../core/refusal"
 import {rememberMcpReturnPath} from "../core/returnPath"
 import type {MCPAuthMode, MCPEndpoint} from "../core/types"
 import {refreshMcpEndpointsAtom} from "../state/atoms"
@@ -101,6 +106,18 @@ const AUTH_MODE_FOR_PROBE: Record<string, MCPAuthMode> = {
  * that cannot be read answers "nothing to adopt", which leaves the person with the refusal
  * they already had rather than a second failure on top of it.
  */
+/**
+ * One stored connection, read back whole.
+ *
+ * The edit route replaces the document rather than merging it, so anything writing to a row
+ * has to send back everything the row already had. There is no route for a single endpoint,
+ * so the project's list is read and the row picked out of it.
+ */
+const storedEndpointFrom = async (id: string, projectId?: string): Promise<MCPEndpoint | null> => {
+    const response = await queryMcpEndpoints(projectId)
+    return (response.endpoints ?? []).find((row) => row.id === id) ?? null
+}
+
 const findAdoptableEndpoint = async ({
     name,
     url,
@@ -154,19 +171,28 @@ export function useMcpConnectJourney({
         reconnect ? {id: reconnect.id, slug: reconnect.slug} : null,
     )
     /**
-     * Whether a create in THIS journey may already have written a row nobody heard about.
+     * What a create in THIS journey may already have written, when it may have written
+     * anything: the name and address it carried, or null.
      *
-     * It is what separates "the name is taken by my own lost save" from "the name is taken
-     * by somebody else's connection", and the two have opposite answers: the first has to
-     * continue from that row, the second has to be refused. A create whose answer was lost
-     * fails on the transport rather than with a conflict, so it is the failure BEFORE a
-     * conflict that makes the conflict possibly ours. A conflict with nothing behind it is
-     * another connection's, whatever address it points at.
+     * It separates "the name is taken by my own lost save" from "the name is taken by
+     * somebody else's connection", and the two have opposite answers: the first continues
+     * from that row, the second is refused. A create whose answer was lost fails without
+     * one, so it is a failure with no answer behind it that makes a later conflict possibly
+     * ours; a conflict with nothing behind it is another connection's, whatever address it
+     * points at (round 6, D-R6-3).
      *
-     * Without it, a person who typed a name the project already used for the same server
-     * was handed that connection and told it was connected (round 6, D-R6-3).
+     * The name and the address rather than a flag, because a flag outlives what set it. A
+     * lost save, then an edit to the name, then a conflict on the NEW name was adopted as
+     * though it were the lost row: a connection somebody else owns, which the credential
+     * submit then wrote over (round 4, D170). What was attempted is the only thing a later
+     * conflict can be compared against, and editing either field abandons it.
      */
-    const createMayHaveLandedRef = useRef(false)
+    const attemptedCreateRef = useRef<{name: string; url: string} | null>(null)
+
+    /** Whatever was attempted is no longer what is being asked for. */
+    const forgetAttemptedCreate = useCallback(() => {
+        attemptedCreateRef.current = null
+    }, [])
 
     const stopWatch = useCallback(() => {
         stopWatchRef.current?.()
@@ -188,8 +214,30 @@ export function useMcpConnectJourney({
      */
     const isCurrent = useCallback((attempt: number) => attemptRef.current === attempt, [])
 
-    const setUrl = useCallback((url: string) => dispatch({type: "url_changed", url}), [])
-    const setName = useCallback((name: string) => dispatch({type: "name_changed", name}), [])
+    const setUrl = useCallback(
+        (url: string) => {
+            forgetAttemptedCreate()
+            // A row was made for the address being left. Leaving it behind is what let the
+            // next connect continue from it; deleting it is what `cancel` already does for a
+            // pending row this journey created, and for the same reason (round 4, D111).
+            if (url.trim() !== state.url.trim()) {
+                const abandoned = endpointRef.current
+                if (cancelDeletesEndpoint(state) && abandoned) {
+                    endpointRef.current = null
+                    void deleteMcpEndpoint(abandoned.id, projectId).catch(() => undefined)
+                }
+            }
+            dispatch({type: "url_changed", url})
+        },
+        [forgetAttemptedCreate, projectId, state],
+    )
+    const setName = useCallback(
+        (name: string) => {
+            forgetAttemptedCreate()
+            dispatch({type: "name_changed", name})
+        },
+        [forgetAttemptedCreate],
+    )
 
     const submitUrl = useCallback(
         async (url: string) => {
@@ -382,11 +430,16 @@ export function useMcpConnectJourney({
         } catch (error) {
             if (!isCurrent(attempt)) return
 
+            const attempted = {name: state.name.trim(), url: state.url.trim()}
             if (!isNameTakenRefusal(error)) {
-                // This create may have landed and lost only its answer, so a conflict on the
-                // next attempt could be the row it made.
-                createMayHaveLandedRef.current = true
-            } else if (createMayHaveLandedRef.current) {
+                // Only a failure nothing answered leaves the question open. A status is the
+                // server's answer that it did NOT write the row, so a later conflict cannot
+                // be this attempt's (round 4, D170).
+                attemptedCreateRef.current = gatewayRefusalStatus(error) === null ? attempted : null
+            } else if (
+                attemptedCreateRef.current?.name === attempted.name &&
+                attemptedCreateRef.current?.url === attempted.url
+            ) {
                 // A create whose response was lost still landed. The retry creates again, the
                 // API refuses the name, and the person is told to rename a connection they
                 // already have while the half-finished row sits behind the dialog (round 4,
@@ -448,6 +501,11 @@ export function useMcpConnectJourney({
         if (endpointId) await discoverScopes(endpointId)
     }, [discoverScopes])
 
+    const storedEndpoint = useCallback(
+        (id: string) => storedEndpointFrom(id, projectId),
+        [projectId],
+    )
+
     /** The manual fallback: attach a project secret as a header, then verify. */
     const submitManualCredential = useCallback(
         async ({headerName, secretId}: {headerName: string; secretId: string}) => {
@@ -456,14 +514,29 @@ export function useMcpConnectJourney({
             const attempt = attemptRef.current
             dispatch({type: "verify_started"})
             try {
+                // The edit route writes what it is given rather than merging, so the whole
+                // document goes back with only the credential changed. Sending the four
+                // fields this step knows about dropped everything else the row carried, and
+                // one of those is the per-connection tool filter, which is the gateway's only
+                // enforcement point: a reconnect quietly widened what the server may run
+                // (round 4, D114). `McpConnectionDetail`'s rename already honours this.
+                const stored = await storedEndpoint(endpoint.id)
+                if (!stored) {
+                    throw new Error(
+                        "This connection could not be read back, so nothing was changed. Try again.",
+                    )
+                }
                 await editMcpEndpoint(
                     {
+                        ...stored,
                         id: endpoint.id,
                         name: state.name.trim(),
                         auth_mode: "api_key",
                         secret_id: secretId,
                         data: {
+                            ...stored.data,
                             route: {
+                                ...stored.data?.route,
                                 base_url: state.url.trim(),
                                 credential_header: headerName || undefined,
                             },
@@ -484,15 +557,26 @@ export function useMcpConnectJourney({
                 dispatch({type: "verify_succeeded"})
             } catch (error) {
                 if (!isCurrent(attempt)) return
+                const stated = gatewayRefusalMessage(error)
+                if (!isCredentialRefusal(error)) {
+                    // Nothing answered about the credential, so nothing may say it was
+                    // rejected. This is the check failing, which is the screen the design
+                    // draws for a server that did not answer (round 4, D133 reopened).
+                    dispatch({
+                        type: "probe_failed",
+                        probe: state.probe,
+                        error: stated || "The server could not be reached to check that key.",
+                    })
+                    return
+                }
                 dispatch({
                     type: "verify_failed",
-                    error:
-                        gatewayRefusalMessage(error) ||
-                        "The server did not accept that credential.",
+                    status: gatewayRefusalStatus(error),
+                    error: stated || "The server did not accept that credential.",
                 })
             }
         },
-        [isCurrent, projectId, state.name, state.url],
+        [isCurrent, projectId, state.name, state.probe, state.url, storedEndpoint],
     )
 
     /** Connect a server that turned out to need nothing. */

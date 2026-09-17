@@ -16,6 +16,12 @@ import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
 vi.mock("@agenta/shared/api", () => ({getAgentaApiUrl: () => "https://api.example.test"}))
 
+// The editor is Lexical, which does not settle under jsdom and is not what this file is
+// about: the name lives on the group around it, which is this component's own markup.
+vi.mock("@agenta/ui/shared-editor", () => ({
+    SharedEditor: () => createElement("div", {"data-testid": "shared-editor"}),
+}))
+
 vi.mock("jotai", async (importOriginal) => ({
     ...(await importOriginal<typeof import("jotai")>()),
     useAtomValue: () => [],
@@ -106,6 +112,26 @@ describe("the same field in the formats it also takes", () => {
             })
         }
     }
+
+    it("names the editor by the label on screen, not by a copy of its words", async () => {
+        // A copied string is a second place for the wording to live, and a name that has
+        // drifted from the visible label is the mismatch WCAG 2.5.3 is about (round 5).
+        await render({textOnly: false})
+        await chooseJsonFormat()
+        // The grid is the default view of that format; the editor is the other one.
+        await act(async () => {
+            controls.onSwitchToJson()
+        })
+        await act(async () => {
+            await Promise.resolve()
+        })
+
+        const group = host.querySelector('[role="group"][aria-labelledby]')
+        expect(group).not.toBeNull()
+        const label = document.getElementById(group!.getAttribute("aria-labelledby")!)
+        expect(label).not.toBeNull()
+        expect(label?.textContent?.trim()).toBe("Content")
+    })
 
     it("names the grid's value control by the key it belongs to", async () => {
         // "Value" repeated down a column says which column a reader is in, not which row,

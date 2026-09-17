@@ -11,7 +11,7 @@ import {
     McpProtocolError,
     readToolPage,
 } from "../core/mcpRpc"
-import {gatewayRefusalCode, gatewayRefusalMessage} from "../core/refusal"
+import {gatewayRefusalCode, gatewayRefusalMessage, gatewayRefusalStatus} from "../core/refusal"
 import type {
     MCPConnectResponse,
     MCPEndpointCreate,
@@ -149,9 +149,12 @@ const MAX_TOOL_PAGES = 20
 /**
  * The reason a data-plane call failed, in the words of whoever refused it.
  *
- * The gateway's cause travels with it. Everything about the response is lost at the throw, and
- * a caller that wants to OFFER something needs to know which refusal this was: a connection
- * nobody has authorized wants a Connect button rather than a Retry that will fail again (D50).
+ * The gateway's cause travels with it, and so does the status. Everything about the response is
+ * lost at the throw, and a caller that wants to OFFER something needs to know which refusal this
+ * was: a connection nobody has authorized wants a Connect button rather than a Retry that will
+ * fail again (D50). The status answers the neighbouring question, whether the server answered at
+ * all: 401 and 403 are its verdict on the credential it was given, and a timeout is no verdict
+ * (round 4, D133 reopened).
  */
 const relayFailure = (error: unknown, method: string): McpProtocolError => {
     if (error instanceof McpProtocolError) return error
@@ -160,6 +163,7 @@ const relayFailure = (error: unknown, method: string): McpProtocolError => {
     return new McpProtocolError(
         stated ?? `The server did not answer ${method}.`,
         gatewayRefusalCode(error),
+        gatewayRefusalStatus(error),
     )
 }
 

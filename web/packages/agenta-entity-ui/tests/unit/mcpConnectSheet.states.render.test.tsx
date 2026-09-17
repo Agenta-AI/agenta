@@ -98,6 +98,7 @@ const state = (over: Partial<McpJourneyState> & {status: McpJourneyStatus}): Mcp
     endpointId: null,
     slug: null,
     createdHere: true,
+    failureStatus: null,
     error: null,
     ...over,
 })
@@ -717,6 +718,29 @@ describe("C5, the server wants a key", () => {
         expect((control("Header") as HTMLInputElement).value).toBe("x-api-key")
     })
 
+    it("keeps what was typed, whatever the probe says next", async () => {
+        // The field shows "what was typed, or the prefill". Only the prefill half is obvious
+        // from a render, so a change making the value probe-derived passes the package while
+        // silently overwriting a person's typing the moment a probe answers (round 5).
+        await open({...keyScreen, probe: KEY_PROBE_NO_SCHEME})
+        expect((control("Header") as HTMLInputElement).value).toBe("x-api-key")
+
+        const field = control("Header") as HTMLInputElement
+        const setter = Object.getOwnPropertyDescriptor(
+            Object.getPrototypeOf(field) as object,
+            "value",
+        )?.set
+        await act(async () => {
+            setter?.call(field, "X-Acme-Token")
+            field.dispatchEvent(new Event("input", {bubbles: true}))
+        })
+
+        // The same sheet, re-rendered with a probe whose prefill is the other one.
+        await open({...keyScreen, probe: KEY_PROBE_BEARER})
+
+        expect((control("Header") as HTMLInputElement).value).toBe("X-Acme-Token")
+    })
+
     it("keeps Authorization on a reconnect, which never probed", async () => {
         await open(
             state({
@@ -785,7 +809,10 @@ describe("C6, the key was refused", () => {
         probe: KEY_PROBE,
         endpointId: "mcp-1",
         slug: "axiom",
-        error: "The server rejected the credential (401).",
+        // The status of the request that carried the key, which is the one this sentence is
+        // about; the anonymous probe's challenge is a different request (round 4, D133).
+        failureStatus: 403,
+        error: "The server rejected the credential.",
     })
 
     it("flags both credential fields and relabels the action", async () => {
@@ -794,11 +821,9 @@ describe("C6, the key was refused", () => {
         expect(control("Header")?.getAttribute("aria-invalid")).toBe("true")
         expect(control("Project secret")?.getAttribute("aria-invalid")).toBe("true")
         expect(text()).toContain(
-            "The server rejected this key. Check the header the server expects, or pick another secret.",
+            "The server rejected this key (403). The server rejected the credential. " +
+                "Check the header the server expects, or pick another secret.",
         )
-        // Our own client's "did not answer initialize" no longer stands in for the status
-        // code (round 6c, D-R6C-1).
-        expect(text()).not.toContain("The server rejected the credential (401).")
         expect(button("Try again")).toBeDefined()
     })
 
@@ -810,25 +835,38 @@ describe("C6, the key was refused", () => {
         // were invalid and neither saying why (round 4, D106).
         for (const label of ["Header", "Project secret"]) {
             const described = describedText(control(label))
-            expect(described).toContain("The server rejected this key.")
+            expect(described).toContain("The server rejected this key (403).")
             expect(described).toContain("Check the header the server expects")
         }
     })
 
-    it("names the status the server refused with, as the spec writes it", async () => {
-        await open({...rejected, probe: KEY_PROBE_BEARER})
+    it("names the status the credentialed request was refused with", async () => {
+        // The control that tells the two requests apart: the anonymous challenge says 401 and
+        // the credentialed refusal says 403, and the sentence is about the second (D133).
+        await open({...rejected, probe: KEY_PROBE_BEARER, failureStatus: 403})
 
-        // The spec's sentence is "The server rejected this key (401)." The number is the one
-        // part of this screen a person can act on or paste to a provider's support desk.
-        expect(text()).toContain("The server rejected this key (401).")
+        expect(text()).toContain("The server rejected this key (403).")
+        expect(text()).not.toContain("The server rejected this key (401).")
     })
 
-    it("drops the status where nothing challenged, rather than guessing one", async () => {
-        // A reconnect never probes, so there is no challenge and no number to name.
-        await open({...rejected, probe: null})
+    it("names it on a reconnect too, which probes nothing and still gets an answer", async () => {
+        // Decision 56 said this screen could not show a code on a reconnect. That held only
+        // while the number came from the probe; sourced from the credentialed request, a
+        // reconnect has one like any other attempt.
+        await open(
+            {...rejected, probe: null, failureStatus: 401},
+            {
+                reconnect: {
+                    id: "mcp-1",
+                    slug: "axiom",
+                    name: "Axiom",
+                    url: "https://mcp.axiom.co/mcp",
+                    authMode: "api_key" as const,
+                },
+            },
+        )
 
-        expect(text()).toContain("The server rejected this key.")
-        expect(text()).not.toMatch(/rejected this key \(/)
+        expect(text()).toContain("The server rejected this key (401).")
     })
 
     it("names what the server expects when the challenge said so", async () => {
@@ -838,7 +876,7 @@ describe("C6, the key was refused", () => {
         // to put in it. Decision 27 replaces the spec's em dashes with a colon, and keeps
         // the clause.
         expect(text()).toContain(
-            "The server rejected this key (401). " +
+            "The server rejected this key (403). The server rejected the credential. " +
                 "Check the header the server expects: DSN or pick another secret.",
         )
     })
