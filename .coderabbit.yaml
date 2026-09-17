@@ -52,7 +52,7 @@ reviews:
   # whole pull request. The MCP redesign then added 60 files to the pass-1 set and took it to
   # 342, over the cap, so the remaining passes are split by area instead of by kind.
   #
-  #   pass 3 (this file):  web/**, minus Storybook           140 files
+  #   pass 3 (this file):  web/**, minus Storybook           164 files
   #   pass 4 (swap in):    api/**, sdks/**, services/**      182 files
   #
   # Pass 4's list is kept ready at ~/agenta-mcp-release/reviews/coderabbit-pass4.yaml; the
