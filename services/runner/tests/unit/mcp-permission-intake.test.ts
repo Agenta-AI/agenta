@@ -382,6 +382,13 @@ const LADDER = JSON.parse(readLadder()) as {
       unnamedToolPermission: string | null;
     };
   }[];
+  sendersThatMisCaseTheirFields: {
+    name: string;
+    foreignTo: string[];
+    wire?: unknown;
+    policy?: unknown;
+    expected: { mustNotResolveTo: string; tools: string[] };
+  }[];
 };
 
 describe("the shared per-tool permission ladder fixture", () => {
@@ -434,6 +441,44 @@ describe("the shared per-tool permission ladder fixture", () => {
         mcpToolPermission(entry, omitted.expected.namedTool.tool) ?? null,
         omitted.expected.namedTool.permission,
       );
+    });
+  }
+});
+
+
+/**
+ * A policy whose per-tool table this reader cannot see must not answer with the server
+ * permission (issue 6917). The wire policy is typed as a free-form mapping, so a policy in the
+ * model's own convention reaches the normalizer with `tool_permissions` where it reads
+ * `toolPermissions`, and the table the author wrote disappears.
+ *
+ * The expectation is the invariant rather than a value: refusing the shape keeps it, and so
+ * does reading both conventions. Answering `allow` for a tool the table denied does not.
+ */
+describe("a policy that arrives in the other convention", () => {
+  for (const sender of LADDER.sendersThatMisCaseTheirFields.filter((entry) =>
+    entry.foreignTo.includes("runner"),
+  )) {
+    // `it.fails` rather than `it`: this reader does NOT keep the invariant today, and issue
+    // 6917 is where that is tracked. The case is here so the shape is pinned and so the day
+    // the reader is fixed this turns red and someone makes it an ordinary `it`.
+    it.fails(`never resolves ${sender.name} to ${sender.expected.mustNotResolveTo}`, () => {
+      let entry: ReturnType<typeof normalizeMcpServerPermissions> | undefined;
+      try {
+        entry = normalizeMcpServerPermissions(sender.wire);
+      } catch {
+        // Refusing the shape is one of the two ways to keep the invariant.
+        return;
+      }
+
+      for (const tool of sender.expected.tools) {
+        assert.notEqual(
+          mcpToolPermission(entry, tool),
+          sender.expected.mustNotResolveTo,
+          `${tool} resolved to ${sender.expected.mustNotResolveTo} from a policy whose ` +
+            `per-tool table this reader could not see`,
+        );
+      }
     });
   }
 });

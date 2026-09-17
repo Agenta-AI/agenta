@@ -104,3 +104,54 @@ def test_the_sdk_reads_the_shared_ladder(ladder_case):
     named = expected["namedTool"]
     if named is not None:
         assert policy.tool_permissions[named["tool"]] == named["permission"]
+
+
+def _senders_that_mis_case_their_fields() -> List[Dict[str, Any]]:
+    return [
+        sender
+        for sender in _ladder().get("sendersThatMisCaseTheirFields", [])
+        if "sdk" in sender["foreignTo"]
+    ]
+
+
+def _decision(policy: MCPPolicy, tool: str):
+    """The ladder for one advertised tool, as this model states it.
+
+    Its own entry, then the floor the model resolves, then the whole-server permission, which
+    governs only while nobody opted into a table.
+    """
+    if tool in policy.tool_permissions:
+        return policy.tool_permissions[tool]
+    floor = policy.resolved_new_tool_permission()
+    return floor if floor is not None else policy.permission
+
+
+@pytest.mark.parametrize(
+    "sender",
+    _senders_that_mis_case_their_fields(),
+    ids=lambda sender: sender["name"],
+)
+def test_a_policy_in_the_other_convention_never_resolves_to_allow(sender):
+    """Issue 6917, this model's side of it.
+
+    This model names its fields ``tool_permissions`` and ``new_tool_permission``; the wire
+    names them ``toolPermissions`` and ``newToolPermission``. A policy in the wire convention
+    reaching this model carries a per-tool table it cannot see, and what is left reads as a
+    legitimate "server allow, no table" policy, so every tool the table denied would run
+    unapproved.
+
+    The expectation is the invariant rather than a value, because two different fixes keep it:
+    refusing the shape, which is what ``extra="forbid"`` does here, or reading both
+    conventions.
+    """
+    try:
+        policy = MCPPolicy(**(sender.get("policy") or sender.get("wire")))
+    except Exception:
+        # Refusing the shape is one of the two ways to keep the invariant.
+        return
+
+    for tool in sender["expected"]["tools"]:
+        assert _decision(policy, tool) != sender["expected"]["mustNotResolveTo"], (
+            f"{tool} resolved to {sender['expected']['mustNotResolveTo']} from a policy whose "
+            "per-tool table this reader could not see"
+        )

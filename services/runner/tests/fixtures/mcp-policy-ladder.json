@@ -26,7 +26,14 @@
     "`sendersThatOmitTheFloor` is the runner's alone. The SDK resolves the floor before it emits,",
     "so every `wire` above carries `newToolPermission` and the runner's own fallback branch is",
     "unreachable from this SDK. A hand-written sender and an older one do reach it, and it is the",
-    "branch D88 lived in, so the shapes they send are stated here too."
+    "branch D88 lived in, so the shapes they send are stated here too.",
+    "",
+    "sendersThatMisCaseTheirFields states the invariant a reader fed the OTHER convention has",
+    "to keep: whatever it does with a policy whose per-tool table it cannot see, it must not",
+    "answer allow. Refusing the shape keeps the invariant, and so does reading both",
+    "conventions. Resolving to the server permission does not, and that is issue 6917.",
+    "Each entry names the readers the spelling is foreign to; a reader takes the entries that",
+    "name it."
   ],
   "unnamedTool": "a_tool_nobody_has_listed",
   "cases": [
@@ -236,6 +243,46 @@
           "permission": "allow"
         },
         "unnamedToolPermission": "ask"
+      }
+    }
+  ],
+  "sendersThatMisCaseTheirFields": [
+    {
+      "name": "the wire convention, read by a reader that speaks the model convention",
+      "foreignTo": ["sdk", "web"],
+      "why": "The SDK model and the editor both name these fields tool_permissions and new_tool_permission; the wire names them toolPermissions and newToolPermission. A policy in the wire convention reaching either of them carries a per-tool table neither can see, and what they see instead is a legitimate policy: server allow, no table. So the table's deny disappears and every tool runs unapproved.",
+      "policy": {
+        "tools": {
+          "mode": "all"
+        },
+        "permission": "allow",
+        "toolPermissions": {
+          "delete_repository": "deny"
+        },
+        "newToolPermission": "deny"
+      },
+      "expected": {
+        "mustNotResolveTo": "allow",
+        "tools": ["delete_repository", "a_tool_nobody_has_listed"]
+      }
+    },
+    {
+      "name": "the model convention, read by the runner, which speaks the wire convention",
+      "foreignTo": ["runner"],
+      "why": "The same door from the other side, and the one issue 6917 is filed on: the wire policy is typed as a free-form mapping, so nothing rejects a policy whose keys are in the model convention. The runner's normalizer reads toolPermissions, sees nothing, concludes the author opted out, and hands back the server permission for every tool including the one the table denied.",
+      "wire": {
+        "tools": {
+          "mode": "all"
+        },
+        "permission": "allow",
+        "tool_permissions": {
+          "delete_repository": "deny"
+        },
+        "new_tool_permission": "deny"
+      },
+      "expected": {
+        "mustNotResolveTo": "allow",
+        "tools": ["delete_repository", "a_tool_nobody_has_listed"]
       }
     }
   ]
