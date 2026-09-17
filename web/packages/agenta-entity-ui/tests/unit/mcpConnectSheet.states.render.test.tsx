@@ -460,6 +460,57 @@ describe("C4, the provider's window", () => {
     })
 })
 
+describe("the reconnect entry, which opens on a screen nobody has pressed", () => {
+    const RECONNECT = {
+        id: "mcp-9",
+        slug: "linear-7mx",
+        name: "Linear",
+        url: "https://mcp.linear.app/mcp",
+    }
+
+    it("offers both actions on the OAuth entry, where nothing is running yet", async () => {
+        // `discovering_scopes` is where a reconnect starts, because the window the press
+        // opens can only be opened inside the press. Reading it as busy disabled Connect and
+        // Cancel together, and the press that would have resolved it was the one disabled
+        // (round 6c, D-R6C-4).
+        await open(
+            state({
+                status: "discovering_scopes",
+                url: RECONNECT.url,
+                name: RECONNECT.name,
+                endpointId: RECONNECT.id,
+                slug: RECONNECT.slug,
+                createdHere: false,
+            }),
+            {reconnect: {...RECONNECT, authMode: "oauth"}},
+        )
+
+        expect(text()).toContain("Reconnect MCP server")
+        expect(button("Connect")?.disabled).toBe(false)
+        expect(button("Cancel")?.disabled).toBe(false)
+    })
+
+    it("leaves the key entry as it always was, which is the contrast", async () => {
+        // A key connection reconnects through `manual_auth`, which is not a busy status, so
+        // this sheet never stalled. Only the OAuth entry sat in a busy status with nothing
+        // in flight, which is what locates the defect in the status rather than the screen.
+        await open(
+            state({
+                status: "manual_auth",
+                url: RECONNECT.url,
+                name: RECONNECT.name,
+                endpointId: RECONNECT.id,
+                slug: RECONNECT.slug,
+                createdHere: false,
+            }),
+            {reconnect: {...RECONNECT, authMode: "api_key"}},
+        )
+
+        expect(text()).toContain("Reconnect MCP server")
+        expect(button("Cancel")?.disabled).toBe(false)
+    })
+})
+
 describe("C5, the server wants a key", () => {
     const keyScreen = state({
         status: "naming",
