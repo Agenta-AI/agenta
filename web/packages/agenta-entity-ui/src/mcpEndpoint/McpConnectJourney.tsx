@@ -43,6 +43,7 @@ import {
 import {
     connectionNameProblem,
     isBusy,
+    mcpChallengeSchemeToShow,
     readMcpProbeResponse,
     toolPrefixFromName,
     useMcpConnectJourney,
@@ -97,6 +98,22 @@ const RECONNECT_TITLE = "Reconnect MCP server"
 const URL_HELP =
     "The server's HTTP endpoint. Agenta checks it and detects whether it needs OAuth, an API key, or nothing."
 
+/** The two nodes the address field can be described by, exactly one of which is rendered. */
+const URL_HELP_ID = "mcp-url-help"
+const URL_PROBLEM_ID = "mcp-url-problem"
+
+/** The scheme line under the Header field, where the challenge named one. */
+const HEADER_HELP_ID = "mcp-header-help"
+
+/**
+ * The box that says why a key was refused, which both refused fields point at.
+ *
+ * `Field` announces an error it was given, and this one is given to neither field: it is a box
+ * below them, because one refusal covers the pair. So the pairing has to be made by hand, and
+ * it was not — both controls said they were invalid and neither said why (round 4, D106).
+ */
+const KEY_PROBLEM_ID = "mcp-key-problem"
+
 /**
  * The prefix help text the server form already carries, reused rather than rewritten: it is
  * the same rule being explained, and two wordings for one rule is how they drift.
@@ -105,6 +122,18 @@ const NAME_HELP =
     "What the model sees on this server's tools. Frozen when the connection was chosen, so renaming the connection does not rename tools here."
 
 const HEADER_HELP = "The HTTP header this server expects, for example x-api-key"
+
+/**
+ * What this particular server asked for, under the Header field.
+ *
+ * A help line rather than a change of value, because a scheme is not a header name: `Bearer`
+ * means `Authorization: Bearer <token>`, which is what an endpoint with no registered header
+ * already sends. So the challenge cannot fill the field, and the reader is the only one who
+ * can say which header this server wants the scheme's value in. Rendered only where there is
+ * something to say (`mcpChallengeSchemeToShow`), so the pair of fields keeps its shape on
+ * every other server.
+ */
+const headerSchemeHint = (scheme: string): string => `This server asked for the ${scheme} scheme.`
 
 const SECRET_HELP =
     "Pick a project secret or create one. The value is sent as this header when the agent runs and is never shown again."
@@ -117,6 +146,17 @@ const UNREACHABLE_ADVICE =
 
 const KEY_REJECTED_HEADLINE = "The server rejected this key."
 const KEY_REJECTED_ADVICE = "Check the header the server expects, or pick another secret."
+/**
+ * The same advice, naming what the server expects where it said so.
+ *
+ * The spec's sentence had this clause and the implementation dropped it, because the probe
+ * returned nothing to put in it. It returns the challenge now. Decision 27 asks for the
+ * spec's em dashes to become a period or a colon, not for the clause to go.
+ */
+const keyRejectedAdviceFor = (scheme: string | null): string =>
+    scheme
+        ? `Check the header the server expects: ${scheme} or pick another secret.`
+        : KEY_REJECTED_ADVICE
 
 const WAITING_BODY =
     "Finish signing in in the window that opened. This closes on its own when you're done."
@@ -520,6 +560,9 @@ export function McpConnectSheet({
     const secretChosen = screen === "api_key" && !!selectedSecretId()
     const host = hostOf(state.url)
     const probeResponse = readMcpProbeResponse(state.probe?.problem)
+    // What the server named when it refused the anonymous handshake, where that is anything
+    // the Authorization default does not already cover.
+    const challengeScheme = mcpChallengeSchemeToShow(state.probe)
 
     /** The one error that belongs to a field rather than to the screen. */
     const nameError = state.status === "naming" ? (nameProblem ?? state.error) : null
@@ -552,7 +595,7 @@ export function McpConnectSheet({
                             // wrong with this address, and the line explaining what the
                             // field is for is no longer the thing to read.
                             hint={screen === "url" ? URL_HELP : null}
-                            hintId="mcp-url-help"
+                            hintId={URL_HELP_ID}
                         >
                             <Input
                                 autoFocus
@@ -561,7 +604,14 @@ export function McpConnectSheet({
                                 value={state.url}
                                 disabled={busy}
                                 aria-label="Server URL"
-                                aria-describedby="mcp-url-help"
+                                // Whichever of the two is on screen. The help line goes away
+                                // when the check fails and the failure box takes its place,
+                                // so a fixed id left the refused field describing nothing
+                                // (round 4, P2) — which is the one state where a reader most
+                                // needs the description read to them.
+                                aria-describedby={
+                                    screen === "url_failed" ? URL_PROBLEM_ID : URL_HELP_ID
+                                }
                                 aria-invalid={screen === "url_failed" || undefined}
                                 onChange={(event) => journey.setUrl(event.target.value)}
                             />
@@ -570,6 +620,7 @@ export function McpConnectSheet({
 
                     {screen === "url_failed" ? (
                         <InlineError
+                            id={URL_PROBLEM_ID}
                             headline={
                                 state.probe?.problem?.cause === "not_an_mcp_server"
                                     ? NOT_AN_MCP_SERVER_HEADLINE
@@ -642,7 +693,7 @@ export function McpConnectSheet({
                     {screen === "api_key" ? (
                         <>
                             <div className="grid grid-cols-[1fr_1.4fr] gap-3">
-                                <Field
+                                <HintedField
                                     label="Header"
                                     // Dropped once the server has refused a key: the glyph
                                     // explains what a header is, and by now the question is
@@ -651,17 +702,31 @@ export function McpConnectSheet({
                                         state.status === "verify_failed" ? undefined : HEADER_HELP
                                     }
                                     invalid={state.status === "verify_failed"}
+                                    hint={
+                                        challengeScheme ? headerSchemeHint(challengeScheme) : null
+                                    }
+                                    hintId={HEADER_HELP_ID}
                                 >
                                     <Input
                                         className="font-mono text-[13px]"
                                         placeholder="Authorization"
                                         value={headerName}
                                         aria-label="Header"
+                                        aria-describedby={
+                                            [
+                                                challengeScheme ? HEADER_HELP_ID : null,
+                                                state.status === "verify_failed"
+                                                    ? KEY_PROBLEM_ID
+                                                    : null,
+                                            ]
+                                                .filter(Boolean)
+                                                .join(" ") || undefined
+                                        }
                                         onChange={(event) =>
                                             setHeaderName(event.target.value.trim())
                                         }
                                     />
-                                </Field>
+                                </HintedField>
                                 <Field
                                     label="Project secret"
                                     required
@@ -672,6 +737,11 @@ export function McpConnectSheet({
                                         onChange={setSecretSlug}
                                         secrets={namedSecrets}
                                         invalid={state.status === "verify_failed"}
+                                        aria-describedby={
+                                            state.status === "verify_failed"
+                                                ? KEY_PROBLEM_ID
+                                                : undefined
+                                        }
                                         canCreate={!!headerName}
                                         onCreate={() => {
                                             setSecretDrawerMounted(true)
@@ -687,8 +757,12 @@ export function McpConnectSheet({
                     ) : null}
 
                     {screen === "api_key" && state.status === "verify_failed" ? (
-                        <InlineError headline={KEY_REJECTED_HEADLINE} className="-mt-2">
-                            {state.error} {KEY_REJECTED_ADVICE}
+                        <InlineError
+                            id={KEY_PROBLEM_ID}
+                            headline={KEY_REJECTED_HEADLINE}
+                            className="-mt-2"
+                        >
+                            {state.error} {keyRejectedAdviceFor(challengeScheme)}
                         </InlineError>
                     ) : null}
 
@@ -846,6 +920,7 @@ const HintedField = ({
     required?: boolean
     tooltip?: string
     error?: string
+    invalid?: boolean
     hint?: ReactNode
     hintId: string
     children: ReactElement
@@ -872,12 +947,16 @@ const InlineError = ({
     headline,
     children,
     className,
+    id,
 }: {
     headline: string | null
     children: React.ReactNode
     className?: string
+    /** Set where a field points `aria-describedby` at this box. */
+    id?: string
 }) => (
     <Alert
+        id={id}
         type="error"
         showIcon
         icon={<WarningCircle size={15} weight="regular" />}
@@ -926,6 +1005,8 @@ const SecretSelect = ({
     invalid,
     canCreate,
     onCreate,
+    id,
+    "aria-describedby": describedBy,
 }: {
     value: string
     onChange: (slug: string) => void
@@ -933,6 +1014,14 @@ const SecretSelect = ({
     invalid?: boolean
     canCreate: boolean
     onCreate: () => void
+    /**
+     * Injected by `Field`, which generates one when the child has none and points its
+     * label's `htmlFor` at it. A child that drops it leaves the label associated with
+     * nothing, which is the association `Field` exists to guarantee (round 4, D104).
+     */
+    id?: string
+    /** Injected the same way, and by the screens that name an error box of their own. */
+    "aria-describedby"?: string
 }) => {
     const [selectOpen, setSelectOpen] = useState(false)
     const options = secrets.filter((secret) => !!secret.slug)
@@ -945,8 +1034,10 @@ const SecretSelect = ({
             onOpenChange={setSelectOpen}
         >
             <SelectTrigger
+                id={id}
                 className="w-full"
                 aria-label="Project secret"
+                aria-describedby={describedBy}
                 aria-invalid={invalid || undefined}
             >
                 <SelectValue placeholder="Select a project secret" />

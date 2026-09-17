@@ -13,7 +13,7 @@
  * - The mock upstream only exists while `AGENTA_GATEWAYS_MOCKS_ENABLED` is on.
  */
 import {expect} from "@agenta/web-tests/utils"
-import type {Page} from "@playwright/test"
+import type {Locator, Page} from "@playwright/test"
 
 /**
  * The mock as it is reachable inside the compose network, which is the last resort.
@@ -69,6 +69,15 @@ export const publishedMockMcpUrl = (
 
 /** Its OAuth-protected surface. `/` stays open so the no-auth cases have something to use. */
 export const mcpOauthPath = process.env.AGENTA_MCP_OAUTH_ACCEPTANCE_PATH || "/oauth/mcp"
+
+/**
+ * The mock's header-authenticated surface, which challenges with a scheme and no metadata.
+ *
+ * Used here only as a second address on the same container, for the cases that need a
+ * connection pointing somewhere other than the open surface. It is also the only surface
+ * that reaches the API-key screen.
+ */
+export const mcpKeyPath = process.env.AGENTA_MCP_KEY_ACCEPTANCE_PATH || "/key/mcp"
 
 /** How long a probe of a server the API has to dial may take. */
 export const PROBE_MS = 45_000
@@ -235,6 +244,16 @@ export const createMcpConnectionViaApi = async (
     page: Page,
     basePath: string,
     name: string,
+    /**
+     * The address to register it at. Defaults to the mock's open surface, which is the one
+     * every journey in these suites points at.
+     *
+     * Worth setting for one question only: whether a name refusal is this journey's own row
+     * coming back. The journey continues from a refusing row when its name AND its address
+     * match what is being connected, so a fixture at a DIFFERENT address is how a case gets
+     * the refusal rather than the recovery (decision 44).
+     */
+    url: string = `${mockMcpBase()}/`,
 ): Promise<{id: string; slug: string}> => {
     const response = await page.request.post(
         `${apiBaseUrl()}/gateways/mcps/endpoints/?project_id=${projectIdFrom(basePath)}`,
@@ -243,7 +262,7 @@ export const createMcpConnectionViaApi = async (
                 endpoint: {
                     name,
                     auth_mode: "none",
-                    data: {route: {base_url: `${mockMcpBase()}/`}},
+                    data: {route: {base_url: url}},
                 },
             },
         },
@@ -284,13 +303,50 @@ export const fillJourneyUrlAndName = async (page: Page, url: string, name: strin
 }
 
 /**
- * Wait for a journey that reached its connected state to take itself off the screen.
+ * Wait for a journey that connected to take itself off the screen, and for what replaced it.
  *
  * Nothing is pressed. Success is the new row and nothing else (decision 26), so the sheet
  * closes as soon as the grant is stored and the list has been refreshed. It used to end on a
- * "Connected" screen with a Done button, and the wait is kept because whatever the test does
- * next is behind the sheet either way.
+ * "Connected" screen whose sentence was the success assertion; with that screen gone, a bare
+ * wait for the sheet to disappear would pass for a sheet that was cancelled, closed or
+ * crashed, so `connected` is what the caller expects to find behind it and is required.
  */
-export const finishJourney = async (page: Page): Promise<void> => {
+export const finishJourney = async (
+    page: Page,
+    /** The success this journey was for, as the surface that opened it shows it. */
+    connected: Locator,
+): Promise<void> => {
     await expect(journeyDialog(page)).toHaveCount(0, {timeout: 60000})
+    await expect(connected).toBeVisible({timeout: 30000})
 }
+
+/**
+ * Capture the consent completions the opener receives, from before the window is opened.
+ *
+ * The provider's window posts one message back and its callback page then closes itself on a
+ * three-second timer, which the mock round trip beats, so anything read off that page is a
+ * race. The message is not: it lands in the opener and stays in this array whatever the
+ * window does next, and it is the actual mechanism the journey waits on.
+ */
+export const captureConsentMessages = async (page: Page): Promise<void> => {
+    await page.evaluate(() => {
+        const seen: {origin: string; type?: unknown; success?: unknown}[] = []
+        ;(window as unknown as {__mcpConsent: typeof seen}).__mcpConsent = seen
+        window.addEventListener("message", (event: MessageEvent) => {
+            const data = event.data as {type?: unknown; success?: unknown} | null
+            if (!data || typeof data !== "object") return
+            seen.push({origin: event.origin, type: data.type, success: data.success})
+        })
+    })
+}
+
+/** The completions captured so far, newest last. */
+export const consentMessages = (page: Page) =>
+    page.evaluate(
+        () =>
+            (
+                window as unknown as {
+                    __mcpConsent?: {origin: string; type?: unknown; success?: unknown}[]
+                }
+            ).__mcpConsent ?? [],
+    )

@@ -112,6 +112,20 @@ export interface MCPProbeAuth {
     authorization_server?: string | null
     scopes_offered?: string[]
     registration?: MCPProbeRegistration | null
+    /**
+     * The status a server refused the anonymous handshake with, when it refused one.
+     *
+     * Evidence rather than advice, and the same for `challenge_schemes`: the key screen asks
+     * for a header name and this challenge is the only thing the probe ever saw about it.
+     */
+    challenge_status?: number | null
+    /**
+     * The authentication schemes the refusal's `WWW-Authenticate` named, in the order sent.
+     *
+     * Scheme tokens only, case as sent, because they are shown rather than compared. A
+     * challenge that named none reports none; nothing here is guessed.
+     */
+    challenge_schemes?: string[]
 }
 
 export interface MCPServerProbe {

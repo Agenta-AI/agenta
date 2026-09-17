@@ -234,6 +234,22 @@ export const ApiKeyDetected: Story = sheet(
     }),
 )
 
+/**
+ * C5 with a challenge worth repeating — the server named a scheme `Authorization` does not
+ * carry, so the field keeps its default and a line under it says what to place where.
+ */
+export const ApiKeyDetectedWithScheme: Story = sheet(
+    state({
+        status: "naming",
+        url: "https://mcp.axiom.co/mcp",
+        name: "Axiom",
+        probe: {
+            ...KEY_PROBE,
+            auth: {...KEY_PROBE.auth, challenge_status: 401, challenge_schemes: ["DSN"]},
+        },
+    }),
+)
+
 /** C6 — the key was refused. Both credential fields are flagged; nothing was saved. */
 export const ApiKeyRejected: Story = sheet(
     state({
@@ -241,6 +257,22 @@ export const ApiKeyRejected: Story = sheet(
         url: "https://mcp.axiom.co/mcp",
         name: "Axiom",
         probe: KEY_PROBE,
+        endpointId: "mcp-1",
+        slug: "axiom",
+        error: "The server rejected the credential (401).",
+    }),
+)
+
+/** C6 with the clause restored — the server named a scheme, so the advice names it back. */
+export const ApiKeyRejectedWithScheme: Story = sheet(
+    state({
+        status: "verify_failed",
+        url: "https://mcp.axiom.co/mcp",
+        name: "Axiom",
+        probe: {
+            ...KEY_PROBE,
+            auth: {...KEY_PROBE.auth, challenge_status: 401, challenge_schemes: ["DSN"]},
+        },
         endpointId: "mcp-1",
         slug: "axiom",
         error: "The server rejected the credential (401).",

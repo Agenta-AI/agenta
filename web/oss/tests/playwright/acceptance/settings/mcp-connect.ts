@@ -30,14 +30,19 @@ import type {Page} from "@playwright/test"
 
 import {expectAuthenticatedSession} from "../utils/auth"
 import {
+    apiBaseUrl,
+    captureConsentMessages,
+    consentMessages,
     createMcpConnectionViaApi,
     fillJourneyUrlAndName,
     finishJourney,
     journeyDialog,
+    mcpKeyPath,
     mcpOauthPath,
     mockMcpBase,
     mockNeedsHostMapping,
     navigate,
+    projectIdFrom,
     PROBE_MS,
     requireMockMcpUpstream,
     ROUTE_WARMUP_MS,
@@ -120,7 +125,10 @@ export const mcpConnectAcceptanceTests = (license: TestLicenseType) => () => {
                 // so before asking for anything else.
                 await expect(dialog.getByText("Reachable · no sign-in needed")).toBeVisible()
                 await dialog.getByRole("button", {name: "Connect", exact: true}).click()
-                await finishJourney(page)
+                await finishJourney(
+                    page,
+                    connectionRow(page, name).getByText("Connected", {exact: true}),
+                )
             })
 
             await scenarios.then("the connection is listed as ready", async () => {
@@ -169,10 +177,20 @@ export const mcpConnectAcceptanceTests = (license: TestLicenseType) => () => {
                 await openSettings(page, basePath)
             })
 
-            await scenarios.and("another connection takes it", async () => {
+            await scenarios.and("another connection to another server takes it", async () => {
                 // Out of band on purpose: a page that already knows about the collision
                 // refuses the name from its own list and never asks the server.
-                await createMcpConnectionViaApi(page, basePath, name)
+                //
+                // At a DIFFERENT address on purpose too. A refusing row whose address also
+                // matches is taken to be this journey's own lost save and continued from
+                // (decision 44), which is the next case. Two connections to two servers
+                // cannot share one label, and that is the refusal this one is about.
+                await createMcpConnectionViaApi(
+                    page,
+                    basePath,
+                    name,
+                    `${mockMcpBase()}${mcpKeyPath}`,
+                )
             })
 
             await scenarios.when("the user submits that name", async () => {
@@ -180,10 +198,9 @@ export const mcpConnectAcceptanceTests = (license: TestLicenseType) => () => {
 
                 // The SERVER's refusal is what this case exists to exercise, and both checks
                 // now say the same sentence (decision 15), so the copy alone cannot tell
-                // whether the request was ever made. The response is what can: a create that
-                // reaches the API and comes back 409 is the refusal, and a journey that
-                // reports success afterwards has taken over somebody else's connection
-                // instead of refusing it (round 6, D-R6-3).
+                // whether the request was ever made. The response is what can: the create
+                // has to reach the API and come back 409 for the sentence below to be the
+                // server's (D51).
                 const refused = page.waitForResponse(
                     (response) =>
                         response.request().method() === "POST" &&
@@ -201,8 +218,6 @@ export const mcpConnectAcceptanceTests = (license: TestLicenseType) => () => {
                 // Said once rather than twice: the field error and a generic paragraph both
                 // rendering it is what D39 was about.
                 await expect(dialog.getByText("already uses this name")).toHaveCount(1)
-                // Nothing was connected: a success screen here is the defect this case caught.
-                await expect(dialog.getByText("is connected.")).toHaveCount(0)
             })
 
             await scenarios.then("the journey stays on the name step", async () => {
@@ -210,6 +225,70 @@ export const mcpConnectAcceptanceTests = (license: TestLicenseType) => () => {
                 await expect(dialog.getByLabel("Name", {exact: true})).toBeVisible()
                 await expect(dialog.getByLabel("Name", {exact: true})).toHaveValue(name)
                 await dialog.getByRole("button", {name: "Cancel"}).click()
+            })
+        },
+    )
+
+    test(
+        "refuses a taken name even where the address is the same",
+        {tag: tags},
+        async ({page, apiHelpers}) => {
+            const name = uniqueName("Same Address MCP")
+            const basePath = apiHelpers.getProjectScopedBasePath()
+            let existingSlug = ""
+
+            await scenarios.given("the page is open before the connection exists", async () => {
+                await openSettings(page, basePath)
+            })
+
+            await scenarios.and("that name and that address are already a connection", async () => {
+                // Out of band, so the page refuses nothing from its own list and the server
+                // is the one that answers.
+                const endpoint = await createMcpConnectionViaApi(page, basePath, name)
+                existingSlug = endpoint.slug
+            })
+
+            await scenarios.when("the user connects that server under that name", async () => {
+                const dialog = await startJourney(page, `${mockMcpBase()}/`, name)
+
+                // The journey does continue from a row a refusal turns out to be, but only
+                // where its own create could have made it: a create whose answer was lost
+                // fails on the transport, not with a conflict (decision 44, revised). This
+                // journey's first create met the conflict, so there is nothing of its own
+                // behind it and the row is somebody else's, address or no address.
+                const refused = page.waitForResponse(
+                    (response) =>
+                        response.request().method() === "POST" &&
+                        new URL(response.url()).pathname.endsWith("/gateways/mcps/endpoints/") &&
+                        response.status() === 409,
+                    {timeout: PROBE_MS},
+                )
+                await dialog.getByRole("button", {name: "Connect", exact: true}).click()
+                await refused
+
+                await expect(
+                    dialog.getByText(
+                        "Give this connection a name no other one in the project uses.",
+                    ),
+                ).toBeVisible({timeout: PROBE_MS})
+            })
+
+            await scenarios.then("nothing was taken over and nothing was made", async () => {
+                const response = await page.request.post(
+                    `${apiBaseUrl()}/gateways/mcps/endpoints/query?project_id=${projectIdFrom(basePath)}`,
+                    {data: {}},
+                )
+                expect(response.ok(), await response.text()).toBe(true)
+                const body = (await response.json()) as {
+                    endpoints: {name?: string; slug?: string}[]
+                }
+                const matching = body.endpoints.filter((row) => row.name === name)
+                // Still the one row somebody else made, untouched. A journey that had adopted
+                // it would have authorized against a connection this person never chose.
+                expect(matching).toHaveLength(1)
+                expect(matching[0].slug).toBe(existingSlug)
+
+                await journeyDialog(page).getByRole("button", {name: "Cancel"}).click()
             })
         },
     )
@@ -227,8 +306,7 @@ export const mcpConnectAcceptanceTests = (license: TestLicenseType) => () => {
             for (const name of [first, second]) {
                 const dialog = await startJourney(page, `${mockMcpBase()}/`, name)
                 await dialog.getByRole("button", {name: "Connect", exact: true}).click()
-                await finishJourney(page)
-                await expect(connectionRow(page, name)).toBeVisible({timeout: 30000})
+                await finishJourney(page, connectionRow(page, name))
             }
         })
 
@@ -248,7 +326,10 @@ export const mcpConnectAcceptanceTests = (license: TestLicenseType) => () => {
             await openSettings(page, basePath)
             const dialog = await startJourney(page, `${mockMcpBase()}/`, name)
             await dialog.getByRole("button", {name: "Connect", exact: true}).click()
-            await finishJourney(page)
+            await finishJourney(
+                page,
+                connectionRow(page, name).getByText("Connected", {exact: true}),
+            )
             await expect(
                 connectionRow(page, name).getByText("Connected", {exact: true}),
             ).toBeVisible({
@@ -277,9 +358,8 @@ export const mcpConnectAcceptanceTests = (license: TestLicenseType) => () => {
             const other = uniqueName("No auth MCP")
             const dialog = await startJourney(page, `${mockMcpBase()}/`, other)
             await dialog.getByRole("button", {name: "Connect", exact: true}).click()
-            await finishJourney(page)
             const row = connectionRow(page, other)
-            await expect(row.getByText("Connected", {exact: true})).toBeVisible({timeout: 30000})
+            await finishJourney(page, row.getByText("Connected", {exact: true}))
             await row.getByRole("button").last().click()
             await expect(page.getByRole("menuitem", {name: "Disconnect"})).toHaveCount(0)
             await page.keyboard.press("Escape")
@@ -294,7 +374,10 @@ export const mcpConnectAcceptanceTests = (license: TestLicenseType) => () => {
             await openSettings(page, basePath)
             const dialog = await startJourney(page, `${mockMcpBase()}/`, name)
             await dialog.getByRole("button", {name: "Connect", exact: true}).click()
-            await finishJourney(page)
+            await finishJourney(
+                page,
+                connectionRow(page, name).getByText("Connected", {exact: true}),
+            )
             await expect(
                 connectionRow(page, name).getByText("Connected", {exact: true}),
             ).toBeVisible({
@@ -347,6 +430,10 @@ export const mcpConnectAcceptanceTests = (license: TestLicenseType) => () => {
         let popupPromise: Promise<Page>
 
         await scenarios.when("the user connects the protected surface", async () => {
+            // Armed before anything opens a window. The completion the provider's window
+            // posts back is the one durable trace of the round trip: it lands here and stays
+            // here, where the page it was posted from closes itself seconds later.
+            await captureConsentMessages(page)
             const dialog = await startJourney(page, `${mockMcpBase()}${mcpOauthPath}`, name)
             // The check read the challenge, so the sheet knows it is OAuth before the person
             // commits to anything.
@@ -365,15 +452,33 @@ export const mcpConnectAcceptanceTests = (license: TestLicenseType) => () => {
             })
 
             // The window opened inside the tap is the half of this flow only a browser can
-            // prove, so it is awaited. What it says is not read: the callback page reports
+            // prove, so it is awaited. What it SAYS is not read: the callback page reports
             // the connection and then closes itself on a three-second timer, while the mock
             // round trip takes about one, so the sentence is usually gone before a query
             // reaches it and the case died on a race it was never about (round 6).
             const popup = await popupPromise
-            await popup.waitForEvent("close", {timeout: 60000}).catch(() => undefined)
 
-            // The outcome is the opener's: the grant reached it and the sheet closed on it.
-            await finishJourney(page)
+            // What the round trip left behind instead, asserted rather than waited out: the
+            // completion arrived, it came from the API's own origin, which is the only one
+            // the journey trusts, and it reported success.
+            await expect
+                .poll(async () => (await consentMessages(page)).length, {timeout: 60000})
+                .toBeGreaterThan(0)
+            const completions = await consentMessages(page)
+            expect(completions.at(-1)).toMatchObject({
+                origin: new URL(apiBaseUrl()).origin,
+                type: "mcp:oauth:connected",
+                success: true,
+            })
+
+            // And the window that carried it is gone, which is the callback page's own doing.
+            await expect.poll(() => popup.isClosed(), {timeout: 60000}).toBe(true)
+
+            // The outcome is the opener's: the sheet closed on it and the row says so.
+            await finishJourney(
+                page,
+                connectionRow(page, name).getByText("Connected", {exact: true}),
+            )
         })
 
         await scenarios.then("the connection is listed as ready", async () => {

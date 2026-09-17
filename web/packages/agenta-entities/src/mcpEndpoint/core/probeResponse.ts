@@ -14,7 +14,7 @@
  * function reads them and the control appears with no other change. Tracked as the API gap filed for
  * decision 31.
  */
-import type {MCPProbeProblem} from "./types"
+import type {MCPProbeProblem, MCPServerProbe} from "./types"
 
 /** The longest body a panel shows. Beyond this a person is reading a page, not a diagnosis. */
 export const PROBE_RESPONSE_BODY_LIMIT = 300
@@ -37,4 +37,37 @@ export function readMcpProbeResponse(
         status: status.trim(),
         body: typeof body === "string" ? body.slice(0, PROBE_RESPONSE_BODY_LIMIT) : "",
     }
+}
+
+/**
+ * The scheme a server named when it refused the anonymous handshake, or null.
+ *
+ * The key screen used to prefill `Authorization` and say nothing about why, because the
+ * probe discarded the challenge it read (WP2's third unmet criterion). It carries it now.
+ *
+ * The first scheme only. RFC 9110 s11.6.1 lets a server send several and orders them by its
+ * own preference, so the first is the one it would rather have. The rest are visible in the
+ * probe for anything that wants them.
+ */
+export function mcpChallengeScheme(probe: MCPServerProbe | null | undefined): string | null {
+    const named = probe?.auth?.challenge_schemes?.find((scheme) => !!scheme?.trim())
+    return named ? named.trim() : null
+}
+
+/**
+ * The scheme token HTTP already carries in `Authorization`.
+ *
+ * A scheme is not a header name: `Bearer` means `Authorization: Bearer <token>`, which is
+ * what this product sends when an endpoint registers no header of its own. So a Bearer
+ * challenge is the default already answered, and there is nothing to tell anyone. Any other
+ * scheme is worth naming, because the reader is the only one who can say which header this
+ * particular server wants it in.
+ */
+export const MCP_DEFAULT_CHALLENGE_SCHEME = "Bearer"
+
+/** The scheme worth telling the reader about, which is any the default does not cover. */
+export function mcpChallengeSchemeToShow(probe: MCPServerProbe | null | undefined): string | null {
+    const scheme = mcpChallengeScheme(probe)
+    if (!scheme) return null
+    return scheme.toLowerCase() === MCP_DEFAULT_CHALLENGE_SCHEME.toLowerCase() ? null : scheme
 }
