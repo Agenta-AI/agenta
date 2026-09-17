@@ -70,46 +70,6 @@
   margin-bottom: 0 !important;
 }
 
-/* <Video> (src/components/Video): frame + caption strip. The frame is
-   restated here so the component works for any host, not only the two the
-   raw-iframe rules above match. */
-.mediaFigure {
-  margin: 0 0 24px;
-}
-
-.mediaFigure iframe {
-  display: block;
-  width: 100%;
-  aspect-ratio: 16 / 9;
-  margin-bottom: 0 !important;
-  border: 1px solid var(--borderdefault);
-  border-radius: var(--radius-lg);
-  background-color: var(--bgelevated1);
-}
-
-.mediaFigure--captioned iframe {
-  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
-}
-
-.mediaCaption {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 14px;
-  border: 1px solid var(--borderdefault);
-  border-top: 0;
-  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
-  font-size: 13px;
-  line-height: 18px;
-  color: var(--contentsecondary);
-}
-
-.mediaCaption svg {
-  width: 14px;
-  height: 14px;
-  flex-shrink: 0;
-}
-
 /* Placeholder while a Stream's player boots: the design's media box, a flat
    elevated panel with a play button that breathes. streamSkeleton.ts flips
    the wrapper to "loaded" once the player has its first frame. */
