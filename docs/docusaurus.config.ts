@@ -106,6 +106,9 @@ const config: Config = {
           // The sidebar lists the latest releases under the section rail.
           blogSidebarCount: 20,
           blogSidebarTitle: "Releases",
+          // No /changelog/archive page: nothing links to it, and the list plus
+          // the Releases sidebar already cover it.
+          archiveBasePath: null,
           onInlineTags: "ignore",
           // Short entries are shown in full on the list page; only long
           // entries carry a {/* truncate */} marker.
