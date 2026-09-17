@@ -293,30 +293,38 @@ def confirm_deployment_under_test(uri: str) -> None:
     )
 
 
-def require_core_uri() -> str:
-    """The resolved URI of the deployment under test, or a failure that says what to do.
+def unreachable(database: str = "core") -> AssertionError:
+    """The failure for a database this layer cannot reach, naming what to change.
 
-    The integration layer exists to run against a deployment's database. A layer that skips
+    An integration layer exists to run against a deployment's database. A layer that skips
     when it cannot find one reports a green run in which almost nothing executed: against the
     stack this was written for, 93 of 101 cases skipped and the process exited 0 (D97). A
     release gate reading the exit code, or the last line, is then told the suite passed.
 
-    So the absence of a database is a failure here, and so is the presence of the wrong one
-    (D128). Both sentences name the variables that fix them rather than the fact that
-    something went wrong.
+    So this is a failure rather than a skip wherever the layer can say so, and the sentence
+    names the variables that fix it rather than the fact that something went wrong.
+    """
+    configured = getattr(env.postgres, f"uri_{database}")
+    port = published_port()
+    return AssertionError(
+        f"The integration layer could not reach this deployment's {database} database. It "
+        f"tried {_redacted(configured)} and {_redacted(_on_loopback(configured))}. "
+        f"Point it at the stack under test: POSTGRES_URI_{database.upper()} for the database, "
+        "or POSTGRES_PORT for the host port compose published "
+        f"(read {'as ' + str(port) if port is not None else 'nowhere'}). "
+        "Both are in the stack's env file; `load-env <env-file>` exports them."
+    )
+
+
+def require_core_uri() -> str:
+    """The resolved core URI of the deployment under test, or a failure saying what to do.
+
+    The absence of a database is a failure here, and so is the presence of the wrong one
+    (D128, D141).
     """
     resolved = use_reachable_core_uri()
     if resolved is None:
-        configured = env.postgres.uri_core
-        port = published_port()
-        raise AssertionError(
-            "The integration layer could not reach this deployment's Postgres. It tried "
-            f"{_redacted(configured)} and {_redacted(_on_loopback(configured))}. "
-            "Point it at the stack under test: POSTGRES_URI_CORE for the database, or "
-            "POSTGRES_PORT for the host port compose published "
-            f"(read {'as ' + str(port) if port is not None else 'nowhere'}). "
-            "Both are in the stack's env file; `load-env <env-file>` exports them."
-        )
+        raise unreachable("core")
 
     confirm_deployment_under_test(resolved)
     return resolved
