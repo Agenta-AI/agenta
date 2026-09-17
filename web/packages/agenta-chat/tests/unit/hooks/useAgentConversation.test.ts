@@ -9,6 +9,7 @@
 import {createElement, type ReactNode} from "react"
 
 import {
+    ApprovalNotPendingError,
     fetchSessionSnapshot,
     querySessionTranscript,
     sessionLivePreviewAtomFamily,
@@ -1360,4 +1361,58 @@ describe("server-owned client-tool answers", () => {
             expect(fetchMock).not.toHaveBeenCalled()
         },
     )
+
+    // Reloading a transcript after an approved gate replays its tool output, and the gate the
+    // first submit settled is not pending any more. Nothing caught the rejection: dev showed the
+    // Next error overlay reading "This approval is no longer pending. Refresh and retry." and
+    // production got a silently dead approval. The mobile dock has always read it as settled.
+    it("treats an answer for an already-settled gate as settled, not as a failure", async () => {
+        durableApprovalCapability.mockResolvedValue(true)
+        respondAnswer.mockRejectedValue(new ApprovalNotPendingError())
+        const store = createStore()
+        const sessionId = nextSessionId()
+        markSessionFresh(sessionId)
+        const {result} = mount(store, "rev-1", sessionId)
+
+        await act(async () => {
+            await expect(
+                result.current.sendToolOutput({
+                    toolName: "request_input",
+                    toolCallId: "questionnaire",
+                    output: {action: "accept", content: {goal: "Correctness"}},
+                }),
+            ).resolves.toBeUndefined()
+        })
+
+        expect(result.current.error).toBeUndefined()
+        expect(result.current.turns.at(-1)?.status.showError).not.toBe(true)
+        expect(result.current.runStatus).not.toBe("error")
+    })
+
+    it("puts a real submission failure on the transcript instead of nowhere", async () => {
+        // The other half of the same missing handler: a refusal that is not "already answered"
+        // has to reach the reader, and the run-failure callout is where this conversation says so.
+        durableApprovalCapability.mockResolvedValue(true)
+        respondAnswer.mockRejectedValue(new Error("Approval could not be submitted."))
+        const store = createStore()
+        const sessionId = nextSessionId()
+        markSessionFresh(sessionId)
+        const {result} = mount(store, "rev-1", sessionId)
+
+        await act(async () => {
+            await expect(
+                result.current.sendToolOutput({
+                    toolName: "request_input",
+                    toolCallId: "questionnaire",
+                    output: {action: "accept", content: {goal: "Correctness"}},
+                }),
+            ).resolves.toBeUndefined()
+        })
+
+        await waitFor(() => {
+            const last = result.current.turns.at(-1)
+            expect(last?.status.showError).toBe(true)
+            expect(last?.status.errorText).toContain("Approval could not be submitted.")
+        })
+    })
 })
