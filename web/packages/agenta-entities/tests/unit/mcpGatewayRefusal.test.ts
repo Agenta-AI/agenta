@@ -5,6 +5,8 @@ import {
     gatewayRefusalCode,
     gatewayRefusalMessage,
     isNameTakenRefusal,
+    credentialRefusalStatus,
+    isCredentialRefusal,
 } from "../../src/mcpEndpoint/core/refusal"
 
 describe("gatewayRefusalMessage", () => {
@@ -194,5 +196,49 @@ describe("the harness code marker", () => {
             "Refused ⟦agenta_code:⟧",
         )
         expect(gatewayRefusalCode(refusal("Refused ⟦agenta_code:⟧"))).toBeNull()
+    })
+})
+
+describe("which failures are the chosen server refusing a credential", () => {
+    /** The relay's shape for an upstream refusal: 424, with the cause in the error data. */
+    const relayed = (status: number) => ({
+        response: {
+            status,
+            data: {
+                jsonrpc: "2.0",
+                id: null,
+                error: {
+                    code: -32000,
+                    message: "Upstream custom/axiom failed (401)",
+                    data: {cause: "upstream_error", target: "custom/axiom"},
+                },
+            },
+        },
+    })
+
+    it("reads the cause, because the relay never answers with the upstream's status", () => {
+        // `_map_gateway_exception` turns an upstream refusal into 424, or 502 for a server
+        // error, so deciding on status alone could never see one (round 4, D182).
+        expect(isCredentialRefusal(relayed(424))).toBe(true)
+        expect(isCredentialRefusal(relayed(502))).toBe(true)
+    })
+
+    it("is not a failure with no cause behind it", () => {
+        // A timeout is not a verdict on the credential, and the screen that says the key was
+        // rejected must not claim one.
+        expect(isCredentialRefusal(new Error("socket hang up"))).toBe(false)
+        expect(isCredentialRefusal({response: {status: 424, data: {}}})).toBe(false)
+    })
+
+    it("names no status for a refusal the relay reported as its own", () => {
+        // 424 says the upstream refused and says nothing about how. Printing it would put a
+        // platform number where the spec asks for the server's, which is what D133 was
+        // reopened for; the upstream's own status is not carried yet (issue 6926).
+        expect(credentialRefusalStatus(relayed(424))).toBeNull()
+    })
+
+    it("names one where a route did relay the server's own status", () => {
+        expect(credentialRefusalStatus({response: {status: 401, data: {}}})).toBe(401)
+        expect(isCredentialRefusal({response: {status: 401, data: {}}})).toBe(true)
     })
 })

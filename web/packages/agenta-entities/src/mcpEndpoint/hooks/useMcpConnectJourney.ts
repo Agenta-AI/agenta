@@ -47,6 +47,7 @@ import {
 import {buildTrustedOrigins} from "../core/connectMessage"
 import {watchOauthConsent} from "../core/connectWatch"
 import {
+    credentialRefusalStatus,
     gatewayRefusalMessage,
     gatewayRefusalStatus,
     isCredentialRefusal,
@@ -542,6 +543,11 @@ export function useMcpConnectJourney({
                 // enforcement point: a reconnect quietly widened what the server may run
                 // (round 4, D114). `McpConnectionDetail`'s rename already honours this.
                 const stored = await storedEndpoint(endpoint.id)
+                // Read BEFORE the write, not only after the verification. This read is a
+                // round trip, and a reconnect abandoned while it was in flight went on to
+                // write a credential and verify it against a connection nobody was looking
+                // at any more (round 4, D181).
+                if (!isCurrent(attempt)) return
                 if (!stored) {
                     throw new Error(
                         "This connection could not be read back, so nothing was changed. Try again.",
@@ -554,6 +560,13 @@ export function useMcpConnectJourney({
                         name: state.name.trim(),
                         auth_mode: "api_key",
                         secret_id: secretId,
+                        // The stored flag describes the secret being replaced, so carrying
+                        // it back marked a repaired connection as still needing input: the
+                        // row went on reading "Login expired" after a successful swap
+                        // (round 4, D180). The backend marks it false again by itself if
+                        // the new secret fails, and the verification below is the call that
+                        // would do it.
+                        flags: {...stored.flags, is_valid: true},
                         data: {
                             ...stored.data,
                             route: {
@@ -604,7 +617,7 @@ export function useMcpConnectJourney({
                 }
                 dispatch({
                     type: "verify_failed",
-                    status: gatewayRefusalStatus(error),
+                    status: credentialRefusalStatus(error),
                     error: stated || "The server did not accept that credential.",
                     discardedRow,
                 })
