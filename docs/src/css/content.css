@@ -78,69 +78,107 @@ h1[class*="title_"] {
   display: none;
 }
 
-/* ---- Admonitions: flat, bordered, no accent bar ---- */
-.theme-admonition,
-div[class*="admonition"] {
-  box-shadow: none !important;
-  border-left: none !important;
+/* ---- Admonitions ---- */
+/* The same flat panel as code blocks: elevated surface, no border, no
+   accent bar. The type shows in the title (and its icon) only; tip, warning
+   and danger tint that, the surface stays neutral so it reads as one
+   family. Infima's alert colours are overridden through its own vars. */
+.theme-admonition {
+  --admonition-accent: var(--contentprimary);
+  --ifm-alert-background-color: var(--bgelevated1);
+  --ifm-alert-border-color: transparent;
+  --ifm-alert-foreground-color: var(--contentprimary);
+  --ifm-alert-shadow: none;
+  margin: 0 0 24px;
+  padding: 14px 16px;
+  border: 0;
   border-radius: var(--radius-lg);
+  box-shadow: none;
+  background-color: var(--bgelevated1);
+  color: var(--contentprimary);
 }
 
-.theme-admonition.alert--secondary,
-.theme-admonition-note {
-  border: 1px solid rgba(84, 104, 255, 0.4) !important;
+/* Docusaurus emits the default label lowercase and Infima shouts it. Title
+   case via ::first-letter instead; that only applies to a block whose first
+   inline content is text, so the icon sits out of flow on the left. */
+.theme-admonition [class*="admonitionHeading"] {
+  display: block;
+  position: relative;
+  margin-bottom: 6px;
+  padding-left: 23px;
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: var(--ifm-font-weight-bold);
+  text-transform: none;
+  color: var(--admonition-accent);
 }
 
-[data-theme="dark"] .theme-admonition.alert--secondary,
-[data-theme="dark"] .theme-admonition-note {
-  border: 1px solid rgba(84, 104, 255, 0.5) !important;
-  background: rgba(84, 104, 255, 0.1) !important;
+.theme-admonition [class*="admonitionHeading"]::first-letter {
+  text-transform: uppercase;
 }
 
-.theme-admonition.alert--info,
-.theme-admonition-info {
-  border: 1px solid rgba(84, 199, 236, 0.5) !important;
+.theme-admonition [class*="admonitionIcon"] {
+  position: absolute;
+  left: 0;
+  top: 1.5px;
+  display: inline-flex;
+  margin: 0;
 }
 
-[data-theme="dark"] .theme-admonition.alert--info,
-[data-theme="dark"] .theme-admonition-info {
-  border: 1px solid rgba(84, 199, 236, 0.6) !important;
-  background: rgba(84, 199, 236, 0.1) !important;
+.theme-admonition [class*="admonitionIcon"] svg {
+  width: 15px;
+  height: 15px;
+  fill: currentColor;
 }
 
-.theme-admonition.alert--success,
+.theme-admonition [class*="admonitionContent"] {
+  font-size: 14px;
+  line-height: 22px;
+  color: var(--contentprimary);
+}
+
+.theme-admonition [class*="admonitionContent"] > :last-child {
+  margin-bottom: 0;
+}
+
+.theme-admonition [class*="admonitionContent"] > p {
+  margin-bottom: 10px;
+}
+
+.theme-admonition code:not(pre code) {
+  background-color: var(--bgelevated2);
+}
+
+/* A code block inside the panel sits on the page surface so it stays visible. */
+.theme-admonition .theme-code-block {
+  background-color: var(--bgdefault) !important;
+  margin-bottom: 10px;
+}
+
 .theme-admonition-tip {
-  border: 1px solid rgba(0, 184, 148, 0.5) !important;
+  --admonition-accent: #0f8a5f;
 }
 
-[data-theme="dark"] .theme-admonition.alert--success,
-[data-theme="dark"] .theme-admonition-tip {
-  border: 1px solid rgba(0, 184, 148, 0.6) !important;
-  background: rgba(0, 184, 148, 0.1) !important;
+.theme-admonition-warning,
+.theme-admonition-caution {
+  --admonition-accent: #b45309;
 }
 
-.theme-admonition.alert--warning,
-.theme-admonition-caution,
-.theme-admonition-warning {
-  border: 1px solid rgba(255, 165, 0, 0.6) !important;
-}
-
-[data-theme="dark"] .theme-admonition.alert--warning,
-[data-theme="dark"] .theme-admonition-caution,
-[data-theme="dark"] .theme-admonition-warning {
-  border: 1px solid rgba(255, 165, 0, 0.7) !important;
-  background: rgba(255, 165, 0, 0.1) !important;
-}
-
-.theme-admonition.alert--danger,
 .theme-admonition-danger {
-  border: 1px solid rgba(220, 38, 38, 0.6) !important;
+  --admonition-accent: #c2410c;
 }
 
-[data-theme="dark"] .theme-admonition.alert--danger,
+[data-theme="dark"] .theme-admonition-tip {
+  --admonition-accent: #4ade80;
+}
+
+[data-theme="dark"] .theme-admonition-warning,
+[data-theme="dark"] .theme-admonition-caution {
+  --admonition-accent: #fbbf24;
+}
+
 [data-theme="dark"] .theme-admonition-danger {
-  border: 1px solid rgba(239, 68, 68, 0.7) !important;
-  background: rgba(239, 68, 68, 0.1) !important;
+  --admonition-accent: #f87171;
 }
 
 /* ---- Details ---- */
