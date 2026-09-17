@@ -52,8 +52,8 @@ reviews:
   # whole pull request. The MCP redesign then added 60 files to the pass-1 set and took it to
   # 342, over the cap, so the remaining passes are split by area instead of by kind.
   #
-  #   pass 3 (this file):  web/**, minus Storybook           164 files
-  #   pass 4 (swap in):    api/**, sdks/**, services/**      182 files
+  #   pass 3 (this file):  web/**, minus Storybook           160 files
+  #   pass 4 (swap in):    api/**, sdks/**, services/**      181 files
   #
   # Pass 4's list is kept ready at ~/agenta-mcp-release/reviews/coderabbit-pass4.yaml; the
   # swap is a copy of that file's path_filters block over this one.
@@ -63,12 +63,15 @@ reviews:
   # them. Neither pass covers the design-doc markdown under docs/design/**, which is this
   # team's working notes rather than shipped code and is reviewed by the people writing it.
   #
-  # Re-measure after any rebase or merge; the counts move with the base:
+  # Re-measure after any merge. Measure against the BASE BRANCH with three dots, which is the
+  # diff CodeRabbit is given: a fixed old SHA stops being the merge base the moment main is
+  # merged in, and then counts main's commits as ours. Measured that way this branch read 300,
+  # one file from a silently skipped review; measured correctly it is 160.
   #   pass 3:
-  #     git diff --name-only e5643f00f5..HEAD | grep -E '^web/' \
+  #     git diff --name-only origin/main...HEAD | grep -E '^web/' \
   #       | grep -vE '^web/storybook/|\.lock$|\.generated\.|/generated/|(^|/)tests?/|\.(test|spec)\.tsx?$' | wc -l
   #   pass 4:
-  #     git diff --name-only e5643f00f5..HEAD | grep -E '^(api|sdks|services)/' \
+  #     git diff --name-only origin/main...HEAD | grep -E '^(api|sdks|services)/' \
   #       | grep -vE '\.lock$|\.generated\.|/generated/|^docs/designs?/|(^|/)tests?/|(^|/)test_[^/]*\.py$|(^|/)pytest\.ini$|(^|/)run-tests\.py$' | wc -l
   path_filters:
     # Repeated from the Organization UI configuration, which this list replaces rather than
