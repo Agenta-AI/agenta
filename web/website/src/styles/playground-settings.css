@@ -3,11 +3,15 @@
   flex-direction: column;
   min-height: 0;
   overflow-y: auto;
+  scrollbar-width: none;
   border-right: 1px solid var(--ag-shell-line);
   background: var(--ag-surface-raised);
   color: var(--foreground);
   font-size: 14px;
   line-height: 1.5;
+}
+.ag-demo-config::-webkit-scrollbar {
+  display: none;
 }
 .ag-settings-header {
   display: flex;

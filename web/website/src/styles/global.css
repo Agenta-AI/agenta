@@ -1102,18 +1102,8 @@ html,
   }
 }
 
-/* Continuous inner rails from the coworkers design, aligned with the panel grid. */
+/* The controls grid keeps only its own border; no full-section vertical rails. */
 .ag-controls { position: relative; }
-.ag-controls::before {
-  content: "";
-  position: absolute;
-  inset-block: 0;
-  left: 50%;
-  width: min(1072px, calc(100% - 48px));
-  transform: translateX(-50%);
-  border-inline: 1px solid var(--th-darksec-border);
-  pointer-events: none;
-}
 /* Preserve readable list columns instead of clipping skill names on phones. */
 @media (max-width: 560px) {
   .ag-controls-diagram { grid-template-columns: minmax(0, 1fr) 64px minmax(0, 1fr) !important; }

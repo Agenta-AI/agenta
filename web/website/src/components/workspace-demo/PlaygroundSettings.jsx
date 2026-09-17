@@ -79,8 +79,8 @@ export default function PlaygroundSettings({ agent, onHide }) {
     {
       title: "Model",
       icon: Cpu,
-      summary: `Claude Code · ${agent.model}`,
-      open: true,
+      summary: `Pi · ${agent.model}`,
+      open: false,
       content: (
         <div className="ag-settings-select" role="presentation">
           <span>{agent.model}</span>
@@ -274,12 +274,14 @@ export default function PlaygroundSettings({ agent, onHide }) {
             summary={section.summary}
             extra={section.extra}
             open={
-              ["Permissions", "Advanced"].includes(section.title)
+              ["Model", "Permissions", "Advanced"].includes(section.title)
                 ? false
                 : undefined
             }
             onOpenChange={() => {}}
             defaultOpen={section.open || false}
+            locked={section.title === "Model"}
+            lockedReason="Model selection is fixed in this demo."
             headerBand="-mx-4 px-4"
             bodyClassName="ag-settings-body"
           >
