@@ -396,6 +396,12 @@ export function McpConnectSheet({
     const [consentRequested, setConsentRequested] = useState(false)
     const consentPopupRef = useRef<Window | null>(null)
     /**
+     * Which steps of the consent chain this press has already started.
+     *
+     * Reset by `requestConsent`, which is the one thing every press and every retry calls.
+     */
+    const consentSteps = useRef({discovery: false, scopes: false})
+    /**
      * What the key screen's press asked for, to be done once the row exists.
      *
      * The row has to be created before a credential can be attached to it, so one press is
@@ -440,6 +446,7 @@ export function McpConnectSheet({
      */
     const requestConsent = useCallback(() => {
         consentPopupRef.current = window.open("", journey.popupName, CONSENT_POPUP_FEATURES)
+        consentSteps.current = {discovery: false, scopes: false}
         setConsentRequested(true)
     }, [journey.popupName])
 
@@ -477,16 +484,25 @@ export function McpConnectSheet({
     // The chain from one press to the provider: read what the server offers, then ask for
     // all of it. Both steps are the component's because the window they end at was opened by
     // a gesture the component owns, and neither runs until that gesture has happened.
+    //
+    // Each runs ONCE per press. These effects depend on `journey`, whose identity changes
+    // with every state change, so while a step was in flight any re-render re-entered it: a
+    // single press was seen minting three authorization round trips against a real provider,
+    // each with its own `state`, where the person asked for one (round 6d, live). A latch is
+    // the smallest guard that survives a re-render, and every press and every retry goes
+    // through `requestConsent`, which clears it.
     useEffect(() => {
-        if (state.status === "discovering_scopes" && consentRequested) {
-            void journey.startScopeDiscovery()
-        }
+        if (state.status !== "discovering_scopes" || !consentRequested) return
+        if (consentSteps.current.discovery) return
+        consentSteps.current.discovery = true
+        void journey.startScopeDiscovery()
     }, [consentRequested, journey, state.status])
 
     useEffect(() => {
-        if (state.status === "choosing_scopes" && consentRequested) {
-            void journey.submitScopes(consentPopupRef.current)
-        }
+        if (state.status !== "choosing_scopes" || !consentRequested) return
+        if (consentSteps.current.scopes) return
+        consentSteps.current.scopes = true
+        void journey.submitScopes(consentPopupRef.current)
     }, [consentRequested, journey, state.status])
 
     // The second half of the key screen's one press, once the row it needs exists.

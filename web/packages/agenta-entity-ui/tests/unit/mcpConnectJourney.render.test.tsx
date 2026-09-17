@@ -287,6 +287,40 @@ describe("the rendered journey", () => {
         expect(discoverMcpConnect).toHaveBeenCalledWith("mcp-9", "project-1")
     })
 
+    it("starts the work once per press, whatever re-renders in between", async () => {
+        // These effects depend on the journey object, whose identity changes with every state
+        // change, so while a step was in flight any re-render re-entered it. A single press
+        // was seen minting three authorization round trips against a real provider, each with
+        // its own `state`, where the person asked for one (round 6d, live).
+        let release: (value: unknown) => void = () => undefined
+        discoverMcpConnect.mockReturnValue(
+            new Promise((resolve) => {
+                release = resolve
+            }),
+        )
+
+        await openReconnect()
+        await press(button("Connect"))
+
+        // Re-renders while discovery is in flight, which is when the defect fired.
+        for (let i = 0; i < 3; i++) {
+            await act(async () => {
+                root.render(createElement(ReconnectHost))
+            })
+            await settle()
+        }
+
+        expect(discoverMcpConnect).toHaveBeenCalledTimes(1)
+
+        await act(async () => {
+            release({count: 1, scopes_offered: ["tools:list"]})
+        })
+        await settle()
+
+        // And one authorization, not one per render.
+        expect(beginMcpConnect).toHaveBeenCalledTimes(1)
+    })
+
     it("asks for a URL again after closing and reopening", async () => {
         await openJourney()
 
