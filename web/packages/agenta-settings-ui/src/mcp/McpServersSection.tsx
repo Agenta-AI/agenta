@@ -33,7 +33,15 @@ import {
 } from "@agenta/entity-ui/mcpEndpoint"
 import {message} from "@agenta/ui/app-message"
 import {StatusIndicator} from "@agenta/ui/components/presentational"
-import {Button, DataTable, EmptyState, IconTile, type DataTableColumn} from "@agenta/ui/ui"
+import {
+    Button,
+    cn,
+    DataTable,
+    EmptyState,
+    IconTile,
+    touchTargetExpansion,
+    type DataTableColumn,
+} from "@agenta/ui/ui"
 import {Plugs, Plus} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
 
@@ -319,7 +327,9 @@ export default function McpServersSection({
                                     size="xs"
                                     // No `h-auto`: the size's own height is the app's control
                                     // scale, and overriding it left a 20px tap target on a phone.
-                                    className="p-0 text-xs"
+                                    // The scale's 24px is still under the 44px touch minimum, so
+                                    // the invisible expansion carries the rest.
+                                    className={cn("p-0 text-xs", touchTargetExpansion(24))}
                                     onClick={(event) => {
                                         // The row opens the connection on click; this is a
                                         // different intent and must not also do that.

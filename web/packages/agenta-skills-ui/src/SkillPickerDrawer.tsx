@@ -67,7 +67,7 @@ function SkillRow({
                         </span>
                     ) : null}
                     {option.added ? (
-                        <span className="flex items-center gap-1 text-xs font-normal text-[var(--ag-colorSuccessText)]">
+                        <span className="flex items-center gap-1 text-xs font-normal text-colorSuccess">
                             <Check size={11} weight="bold" />
                             {option.pinnedVersion ? `Pinned v${option.pinnedVersion}` : "Added"}
                         </span>

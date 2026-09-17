@@ -14,6 +14,7 @@ import {describe, expect, it} from "vitest"
 import {PENDING_SEND_FAILED_NOTE} from "../../../src/assets/pendingSendEchoes"
 import {
     describeRefusedSend,
+    refusedSendRejections,
     readSendRefusal,
     REFUSED_SEND_REASON,
     refusedSendReason,
@@ -119,6 +120,30 @@ describe("describeRefusedSend", () => {
     it("keeps the failed-row note word for word in step with it", () => {
         expect(PENDING_SEND_FAILED_NOTE).toBe("Message wasn't sent — try again.")
         expect(PENDING_SEND_FAILED_NOTE).toBe(`Message ${REFUSED_SEND_REASON}`)
+    })
+})
+
+describe("refusedSendRejections", () => {
+    // Round-4 D98: both apps put `describeRefusedSend` on the rejection in their composer's
+    // catch, and only the mobile call site had a case, so hardcoding the reason on classic left
+    // every suite green. The row is built in one place now, and this is the case over it.
+    it("carries the refusal's own reason onto the chip's row", () => {
+        expect(
+            refusedSendRejections(
+                readSendRefusal(422, sdkEnvelope("No model provider is configured.")),
+            ),
+        ).toEqual([{name: "Message", reason: "wasn't sent — No model provider is configured."}])
+    })
+
+    it("keeps the standing wording when the refusal stated nothing", () => {
+        expect(refusedSendRejections(new Error("boom"))).toEqual([
+            {name: "Message", reason: REFUSED_SEND_REASON},
+        ])
+    })
+
+    it("names the message, not a file, as the subject", () => {
+        // The chip is the attachment strip's row type, and every other row in it is a file.
+        expect(refusedSendRejections(new Error("boom"))[0].name).toBe("Message")
     })
 })
 

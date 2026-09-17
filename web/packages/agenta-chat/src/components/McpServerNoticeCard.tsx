@@ -17,7 +17,7 @@ import {
     refreshMcpEndpointsAtom,
 } from "@agenta/entities/mcpEndpoint"
 import {McpConnectJourney} from "@agenta/entity-ui/mcpEndpoint"
-import {Alert, Button, cn} from "@agenta/ui/ui"
+import {Alert, Button, cn, touchTargetExpansion} from "@agenta/ui/ui"
 import {ArrowClockwise, WarningCircle} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
 
@@ -63,6 +63,9 @@ export const McpServerNoticeCard = ({notice, className}: McpServerNoticeCardProp
                             size="sm"
                             onClick={() => setConnecting(true)}
                             aria-label={`Reconnect ${connectionName}`}
+                            // The banner's one action, in a transcript a phone scrolls: 28px of
+                            // chrome, 44px to land a finger on.
+                            className={touchTargetExpansion(28)}
                         >
                             <ArrowClockwise />
                             Reconnect

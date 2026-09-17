@@ -132,6 +132,10 @@ export default function McpConnectionDetail({
             open={!!endpoint}
             onClose={onClose}
             title={endpoint?.name || endpoint?.slug || "Connection"}
+            // A bottom sheet below `lg` and the right-edge drawer above it, the way every
+            // sibling MCP panel arrives. The default `right` slid a 520px panel in from the
+            // edge of a phone. The width still applies from `lg` up.
+            placement="responsive"
             width={520}
             destroyOnClose
         >

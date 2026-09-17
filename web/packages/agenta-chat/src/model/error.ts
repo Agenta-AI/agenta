@@ -1,5 +1,7 @@
 import {gatewayRefusalCode, gatewayRefusalMessage} from "@agenta/entities/mcpEndpoint/refusal"
 
+import type {AttachmentRejection} from "../assets/attachmentRules"
+
 export interface ParsedRunError {
     message: string
     /** An HTTP-ish status from a JSON error envelope, or a stable runner failure class string. */
@@ -158,6 +160,21 @@ export const describeRefusedSend = (error: unknown): string => {
     const stated = refusedSendReason(error)
     return stated ? `wasn't sent — ${stated}` : REFUSED_SEND_REASON
 }
+
+/** The subject of the refusal chip's row. The message, not a file, is what was rejected. */
+const REFUSED_SEND_SUBJECT = "Message"
+
+/**
+ * The composer's rejection rows for a send that never left, ready for `setRejections`.
+ *
+ * One place because there were three: the classic conversation's two catches and the mobile
+ * composer's, each building the row by hand, and only the mobile one had a case over it. That
+ * asymmetry is round-4 D98 — replacing the reason with a hardcoded string on classic left every
+ * suite green. There is no per-app wording left to diverge now.
+ */
+export const refusedSendRejections = (error: unknown): AttachmentRejection[] => [
+    {name: REFUSED_SEND_SUBJECT, reason: describeRefusedSend(error)},
+]
 
 // Keep byte parity with the desktop parser until its duplicate is removed.
 /**

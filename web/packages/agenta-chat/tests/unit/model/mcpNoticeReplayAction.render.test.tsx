@@ -37,6 +37,8 @@ vi.mock("@agenta/entities/mcpEndpoint", async (importOriginal) => {
     }
 })
 
+import {TOUCH_TARGET_MINIMUM_PX, touchTargetHeight} from "@agenta/ui/ui"
+
 import {McpServerNoticeCard} from "../../../src/components/McpServerNoticeCard"
 import {readMcpServerNotice} from "../../../src/model/mcpServerNotice"
 
@@ -87,6 +89,19 @@ describe("a replayed MCP reconnect notice", () => {
         ).toBeTruthy()
         // The marker is addressed to the runner and never reaches a screen.
         expect(document.body.textContent).not.toContain("agenta_code")
+    })
+
+    it("gives Reconnect a 44px hit area at the banner's own 28px height", () => {
+        // The banner rides in a transcript a phone scrolls, so its one action has to be
+        // catchable with a thumb. 28px is the spec's height and the app's control scale; the
+        // reach beyond it is an invisible box, which is why the banner still measures 108 x 28.
+        const notice = readMcpServerNotice(REPLAYED_NOTICE)
+
+        render(<McpServerNoticeCard notice={notice!} />)
+
+        const reconnect = screen.getByRole("button", {name: "Reconnect Mock MCP"})
+        expect(reconnect.className).toContain("h-control-sm")
+        expect(touchTargetHeight(reconnect.className)).toBe(TOUCH_TARGET_MINIMUM_PX)
     })
 
     it("announces itself after the reader's own work, not over it", () => {

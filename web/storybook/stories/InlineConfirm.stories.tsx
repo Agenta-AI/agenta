@@ -14,7 +14,7 @@ const meta = {
         docs: {
             description: {
                 component:
-                    "A confirm step rendered in place, for a destructive action whose consequence fits in one sentence. Escape cancels, and focus opens on Cancel so a keyboard user who arrived by pressing Enter does not confirm with a second Enter.\n\n**Used in:** the MCP permission drawer's `Remove from agent`.",
+                    "A confirm step rendered in place, for a destructive action whose consequence fits in one sentence. Escape cancels, and focus opens on Cancel so a keyboard user who arrived by pressing Enter does not confirm with a second Enter. The sentence is an alert and describes both buttons, so it is read out on insertion and again wherever focus is; closing returns focus to the control that opened it.\n\n**Used in:** the MCP permission drawer's `Remove from agent`.",
             },
         },
     },

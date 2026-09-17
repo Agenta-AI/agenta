@@ -29,7 +29,7 @@ import {
 } from "@agenta/chat/hooks"
 import {type SessionRunStatus} from "@agenta/chat/model"
 import {
-    describeRefusedSend,
+    refusedSendRejections,
     ignoreStreamRejection,
     isEmptyAssistantTurn,
     isSessionBusyRefusal,
@@ -695,7 +695,7 @@ const AgentConversation = ({
             )
             .catch((error: unknown) => {
                 richInputRef.current?.setMarkdown(pendingRun.text)
-                attachments.setRejections([{name: "Message", reason: describeRefusedSend(error)}])
+                attachments.setRejections(refusedSendRejections(error))
             })
     }, [pendingRun, activeSessionId, sessionId, submit, setPendingRun])
 
@@ -854,7 +854,7 @@ const AgentConversation = ({
             // send, so the words AND everything it consumed come back (idempotently).
             void richInputRef.current?.setMarkdown(text)
             restoreAttachments(outbound)
-            attachments.setRejections([{name: "Message", reason: describeRefusedSend(error)}])
+            attachments.setRejections(refusedSendRejections(error))
         })
     }
 
