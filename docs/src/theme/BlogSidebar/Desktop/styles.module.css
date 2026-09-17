@@ -1,0 +1,18 @@
+.link {
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.date {
+  flex-shrink: 0;
+  font-size: 11px;
+  line-height: 16px;
+  color: var(--contenttertiary);
+}

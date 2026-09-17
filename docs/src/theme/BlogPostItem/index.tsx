@@ -47,7 +47,18 @@ function ChangelogItem({children}: {children: ReactNode}): ReactNode {
             to={permalink}
             className={styles.readMore}
             aria-label={`Read more about ${title}`}>
-            Read more →
+            <span>Read more</span>
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true">
+              <line x1="4" y1="12" x2="19" y2="12" />
+              <polyline points="13 6 19 12 13 18" />
+            </svg>
           </Link>
         )}
       </div>
