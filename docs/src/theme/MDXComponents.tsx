@@ -17,8 +17,22 @@ function Summary({children}: {children: ReactNode}): ReactNode {
   return isBlogPostPage ? null : <>{children}</>;
 }
 
+/**
+ * Markdown tables in a scroll container: the table itself spans the reading
+ * column (content.css), and one that is wider than the column scrolls
+ * sideways instead of running under the "On this page" column.
+ */
+function Table(props: React.ComponentProps<"table">): ReactNode {
+  return (
+    <div className="tableScroll">
+      <table {...props} />
+    </div>
+  );
+}
+
 export default {
   ...MDXComponents,
   Summary,
   Video,
+  table: Table,
 };

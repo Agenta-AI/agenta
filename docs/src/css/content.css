@@ -302,12 +302,17 @@ details:not([class*="openapi"]) {
 
 /* ---- Tables ---- */
 /* Flat: a quiet header strip, one hairline between rows, no zebra stripes
-   or column rules. Infima renders <table> as an inline table, so the width
-   is set here to span the column. */
+   or column rules. MDXComponents wraps every table in .tableScroll; the
+   table spans the column and a wide one scrolls inside the wrapper. */
+.tableScroll {
+  overflow-x: auto;
+  margin: 0 0 24px;
+}
+
 .markdown table {
   display: table;
   width: 100%;
-  margin: 0 0 24px;
+  margin: 0;
   border: 0;
   border-collapse: separate;
   border-spacing: 0;
@@ -347,10 +352,6 @@ details:not([class*="openapi"]) {
 .markdown table td {
   color: var(--contentprimary);
   border-bottom: 1px solid var(--borderdefault);
-}
-
-.markdown table code {
-  white-space: nowrap;
 }
 
 /* ---- Doc cards ---- */
