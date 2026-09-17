@@ -942,6 +942,18 @@ class MockGatewaysConfig(BaseModel):
     upstream_token: str = os.getenv(
         "AGENTA_GATEWAYS_MOCKS_UPSTREAM_TOKEN", "agenta-gateway-mock-token"
     )
+    # The header-authenticated mock MCP surface, which is the only one a person can drive
+    # from a browser to reach the connect journey's API-key screen. The bearer profile on
+    # `/` is selected by a request header nothing but a test sends, and `/oauth/mcp`
+    # publishes OAuth metadata, so neither produces the 401-without-metadata a key server
+    # answers with.
+    #
+    # Both halves are configurable so a stack can move them, and both have defaults so the
+    # QA runbook can name one pair. The name is what an endpoint registers as its
+    # `credential_header`; an endpoint that registers none sends the same value as
+    # `Authorization: Bearer <value>`, and the surface accepts that form too.
+    mcp_key_header: str = os.getenv("AGENTA_MOCK_MCP_GATEWAY_KEY_HEADER", "X-Api-Key")
+    mcp_key_value: str = os.getenv("AGENTA_MOCK_MCP_GATEWAY_KEY", "agenta-mock-mcp-key")
 
     model_config = ConfigDict(extra="ignore")
 

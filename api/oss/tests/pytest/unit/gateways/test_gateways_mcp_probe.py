@@ -283,6 +283,88 @@ async def test_an_undiscoverable_challenge_is_unknown_rather_than_an_api_key():
     assert "authorization" in result.problem.message.lower()
 
 
+def _key_server(*, challenge: str | None = 'Bearer realm="acme"'):
+    """A server that wants a header: it refuses the handshake and publishes no OAuth
+    metadata at all. This is the shape `mcps/providers/mock/app.py` serves at `/key/mcp`."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if ".well-known" in request.url.path:
+            return httpx.Response(404, text="not found")
+        headers = {"WWW-Authenticate": challenge} if challenge else {}
+        return httpx.Response(401, json={"error": "invalid_token"}, headers=headers)
+
+    return handler
+
+
+@pytest.mark.asyncio
+async def test_an_undiscoverable_challenge_carries_what_the_server_asked_for():
+    """`unknown` is what the connect journey turns into its API-key screen, and that
+    screen asks for a header name. The challenge is the only thing the probe ever saw
+    that says anything about which header, so it travels with the answer."""
+    result = await _probe(_key_server()).probe(server_url=_SERVER_URL)
+
+    assert result.auth.mode is MCPProbeAuthMode.UNKNOWN
+    assert result.auth.challenge_status == 401
+    assert result.auth.challenge_schemes == ["Bearer"]
+
+
+@pytest.mark.asyncio
+async def test_a_challenge_naming_several_schemes_reports_them_in_order():
+    """RFC 9110 s11.6.1 makes the header a list. Only the scheme tokens are read; a
+    challenge's parameters are its own vocabulary and are not schemes."""
+    result = await _probe(
+        _key_server(challenge='Bearer realm="acme", Basic realm="acme"')
+    ).probe(server_url=_SERVER_URL)
+
+    assert result.auth.challenge_schemes == ["Bearer", "Basic"]
+
+
+@pytest.mark.asyncio
+async def test_a_challenge_naming_no_scheme_reports_none():
+    """Nothing is guessed from a bare 401. A screen with no prefill is honest; a screen
+    prefilled with a header the server never named is not."""
+    result = await _probe(_key_server(challenge=None)).probe(server_url=_SERVER_URL)
+
+    assert result.auth.mode is MCPProbeAuthMode.UNKNOWN
+    assert result.auth.challenge_status == 401
+    assert result.auth.challenge_schemes == []
+
+
+@pytest.mark.asyncio
+async def test_a_403_is_reported_as_the_status_it_was():
+    def handler(request: httpx.Request) -> httpx.Response:
+        if ".well-known" in request.url.path:
+            return httpx.Response(404, text="not found")
+        return httpx.Response(
+            403, json={"error": "forbidden"}, headers={"WWW-Authenticate": "ApiKey"}
+        )
+
+    result = await _probe(handler).probe(server_url=_SERVER_URL)
+
+    assert result.auth.challenge_status == 403
+    assert result.auth.challenge_schemes == ["ApiKey"]
+
+
+@pytest.mark.asyncio
+async def test_a_server_that_answers_the_handshake_carries_no_challenge():
+    """Nothing refused anything, so there is no challenge to report."""
+    result = await _probe(_open_server()).probe(server_url=_SERVER_URL)
+
+    assert result.auth.mode is MCPProbeAuthMode.NONE
+    assert result.auth.challenge_status is None
+    assert result.auth.challenge_schemes == []
+
+
+@pytest.mark.asyncio
+async def test_a_discoverable_challenge_stays_the_oauth_answer():
+    """The evidence is carried for the inconclusive answer, not as a second way to read
+    the conclusive one."""
+    result = await _probe(_protected_server()).probe(server_url=_SERVER_URL)
+
+    assert result.auth.mode is MCPProbeAuthMode.OAUTH
+    assert result.auth.challenge_status is None
+
+
 @pytest.mark.asyncio
 async def test_an_address_that_answers_something_else_is_not_an_mcp_server():
     def handler(_request: httpx.Request) -> httpx.Response:

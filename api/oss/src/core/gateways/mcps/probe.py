@@ -109,6 +109,17 @@ class MCPProbeAuth(BaseModel):
     authorization_server: Optional[str] = None
     scopes_offered: List[str] = []
     registration: Optional[MCPProbeRegistration] = None
+    # What the server said when it refused the anonymous handshake, carried only on the
+    # `UNKNOWN` answer that a challenge produced.
+    #
+    # `UNKNOWN` reaches the connect journey as the API-key screen, which asks for a header
+    # name. Everything the probe knew about which header that is used to be discarded here,
+    # so the screen could only offer its placeholder and a person had to guess from a
+    # sentence. These two fields are evidence, not advice: the status the server answered
+    # with, and the authentication schemes it named in `WWW-Authenticate`. A challenge that
+    # named no scheme reports none rather than a guessed one.
+    challenge_status: Optional[int] = None
+    challenge_schemes: List[str] = []
 
 
 class MCPServerProbeResult(BaseModel):
@@ -194,6 +205,28 @@ def _initialize_result(response: httpx.Response) -> Optional[Dict[str, Any]]:
         return None
     result = payload.get("result")
     return result if isinstance(result, dict) else None
+
+
+def _challenge_schemes(response: httpx.Response) -> List[str]:
+    """The authentication schemes a `WWW-Authenticate` header names, in the order given.
+
+    RFC 9110 s11.6.1 makes the header a list of challenges, each a scheme token followed
+    by parameters, and a server may send several. Only the scheme tokens are read: the
+    parameters are the challenge's own vocabulary and mean different things per scheme,
+    while the token is the one part every challenge has.
+
+    Case is preserved as sent, because this is shown to a person rather than compared.
+    """
+    header = response.headers.get("WWW-Authenticate") or ""
+    schemes: List[str] = []
+    for challenge in header.split(","):
+        token = challenge.strip().split(" ", 1)[0].strip()
+        # A continuation of the previous challenge's parameters, not a new scheme.
+        if not token or "=" in token:
+            continue
+        if token not in schemes:
+            schemes.append(token)
+    return schemes
 
 
 class MCPServerProbe:
@@ -342,7 +375,7 @@ class MCPServerProbe:
 
         # The server answered something, so it exists. What it answered decides the rest.
         if response.status_code in (401, 403):
-            return await self._challenged(server_url=server_url)
+            return await self._challenged(server_url=server_url, response=response)
 
         result = _initialize_result(response)
         if result is None:
@@ -368,8 +401,15 @@ class MCPServerProbe:
             auth=MCPProbeAuth(mode=MCPProbeAuthMode.NONE),
         )
 
-    async def _challenged(self, *, server_url: str) -> MCPServerProbeResult:
+    async def _challenged(
+        self, *, server_url: str, response: httpx.Response
+    ) -> MCPServerProbeResult:
         """A server that refused the anonymous handshake. Ask it how to authorize."""
+        challenged = MCPProbeAuth(
+            mode=MCPProbeAuthMode.UNKNOWN,
+            challenge_status=response.status_code,
+            challenge_schemes=_challenge_schemes(response),
+        )
         try:
             # The same elapsed bound the handshake has. Discovery walks several
             # candidate URLs, each with its own inactivity timeout, so without this the
@@ -379,6 +419,7 @@ class MCPServerProbe:
         except TimeoutError:
             return MCPServerProbeResult(
                 reachable=True,
+                auth=challenged,
                 problem=MCPProbeProblem(
                     cause="auth_undiscoverable",
                     message=(
@@ -393,6 +434,7 @@ class MCPServerProbe:
             # fallback with this sentence rather than a credential field by default.
             return MCPServerProbeResult(
                 reachable=True,
+                auth=challenged,
                 problem=MCPProbeProblem(
                     cause="auth_undiscoverable",
                     message=(

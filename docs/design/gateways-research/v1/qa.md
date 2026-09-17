@@ -138,6 +138,37 @@ API-only request: those prove the proxy, not the product path.
    deployment where the API, the mocks and the test runner share one address space, so none of
    the above applies there.
 
+7. **The three mock MCP surfaces, and which screen each one reaches.** The connect journey
+   picks its screen from what the probe reports, so the surface you point it at decides
+   which screen you are testing. All three are on the same mock container.
+
+   | Surface | What it answers an anonymous handshake with | Probe reports | Connect screen |
+   | --- | --- | --- | --- |
+   | `/` | the handshake | `none` | no authentication |
+   | `/oauth/mcp` | 401 naming its protected-resource document | `oauth` | consent |
+   | `/key/mcp` | 401 naming a scheme and no metadata | `unknown` | API key |
+
+   `/key/mcp` exists because nothing else produced the third answer. The bearer profile on
+   `/` is selected by an `X-Agenta-Mock-Profile` request header that only a test sends, so
+   a browser could never reach the API-key screen by hand.
+
+   To drive it, connect the server URL and fill the API-key screen with:
+
+   | Field | Value |
+   | --- | --- |
+   | Server URL | `<the stack's public address>/mock-mcp/key/mcp` |
+   | Header | `X-Api-Key` |
+   | Project secret | a secret whose value is `agenta-mock-mcp-key` |
+
+   Leaving **Header** blank also works: an endpoint that registers no header name sends the
+   same value as `Authorization: Bearer agenta-mock-mcp-key`, and the surface accepts both
+   forms. Filling it in is the better cell, because it is the only one that proves the
+   endpoint's `credential_header` reaches the upstream.
+
+   Both halves move with the stack if it needs them to:
+   `AGENTA_MOCK_MCP_GATEWAY_KEY_HEADER` and `AGENTA_MOCK_MCP_GATEWAY_KEY`. A stack that sets
+   neither serves the pair above.
+
 ## Real providers: Linear and Axiom
 
 Status: **read-only evidence captured. The write cell is not run, and the reason is a product
