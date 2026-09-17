@@ -30,14 +30,17 @@ import type {Page} from "@playwright/test"
 
 import {expectAuthenticatedSession} from "../utils/auth"
 import {
+    apiBaseUrl,
     createMcpConnectionViaApi,
     fillJourneyUrlAndName,
     finishJourney,
     journeyDialog,
+    mcpKeyPath,
     mcpOauthPath,
     mockMcpBase,
     mockNeedsHostMapping,
     navigate,
+    projectIdFrom,
     PROBE_MS,
     requireMockMcpUpstream,
     ROUTE_WARMUP_MS,
@@ -169,10 +172,20 @@ export const mcpConnectAcceptanceTests = (license: TestLicenseType) => () => {
                 await openSettings(page, basePath)
             })
 
-            await scenarios.and("another connection takes it", async () => {
+            await scenarios.and("another connection to another server takes it", async () => {
                 // Out of band on purpose: a page that already knows about the collision
                 // refuses the name from its own list and never asks the server.
-                await createMcpConnectionViaApi(page, basePath, name)
+                //
+                // At a DIFFERENT address on purpose too. A refusing row whose address also
+                // matches is taken to be this journey's own lost save and continued from
+                // (decision 44), which is the next case. Two connections to two servers
+                // cannot share one label, and that is the refusal this one is about.
+                await createMcpConnectionViaApi(
+                    page,
+                    basePath,
+                    name,
+                    `${mockMcpBase()}${mcpKeyPath}`,
+                )
             })
 
             await scenarios.when("the user submits that name", async () => {
@@ -180,10 +193,9 @@ export const mcpConnectAcceptanceTests = (license: TestLicenseType) => () => {
 
                 // The SERVER's refusal is what this case exists to exercise, and both checks
                 // now say the same sentence (decision 15), so the copy alone cannot tell
-                // whether the request was ever made. The response is what can: a create that
-                // reaches the API and comes back 409 is the refusal, and a journey that
-                // reports success afterwards has taken over somebody else's connection
-                // instead of refusing it (round 6, D-R6-3).
+                // whether the request was ever made. The response is what can: the create
+                // has to reach the API and come back 409 for the sentence below to be the
+                // server's (D51).
                 const refused = page.waitForResponse(
                     (response) =>
                         response.request().method() === "POST" &&
@@ -201,8 +213,6 @@ export const mcpConnectAcceptanceTests = (license: TestLicenseType) => () => {
                 // Said once rather than twice: the field error and a generic paragraph both
                 // rendering it is what D39 was about.
                 await expect(dialog.getByText("already uses this name")).toHaveCount(1)
-                // Nothing was connected: a success screen here is the defect this case caught.
-                await expect(dialog.getByText("is connected.")).toHaveCount(0)
             })
 
             await scenarios.then("the journey stays on the name step", async () => {
@@ -210,6 +220,56 @@ export const mcpConnectAcceptanceTests = (license: TestLicenseType) => () => {
                 await expect(dialog.getByLabel("Name", {exact: true})).toBeVisible()
                 await expect(dialog.getByLabel("Name", {exact: true})).toHaveValue(name)
                 await dialog.getByRole("button", {name: "Cancel"}).click()
+            })
+        },
+    )
+
+    test(
+        "continues from the connection a refused name turns out to be",
+        {tag: tags},
+        async ({page, apiHelpers}) => {
+            const name = uniqueName("Adopted MCP")
+            const basePath = apiHelpers.getProjectScopedBasePath()
+            let existingSlug = ""
+
+            await scenarios.given("the page is open before the connection exists", async () => {
+                await openSettings(page, basePath)
+            })
+
+            await scenarios.and("that name and that address are already a connection", async () => {
+                // This is what a create whose answer was lost leaves behind: the row is
+                // there and the page never heard about it. Made out of band because that is
+                // the only way to reproduce a page that does not know.
+                const endpoint = await createMcpConnectionViaApi(page, basePath, name)
+                existingSlug = endpoint.slug
+            })
+
+            await scenarios.when("the user connects that server under that name", async () => {
+                const dialog = await startJourney(page, `${mockMcpBase()}/`, name)
+                await dialog.getByRole("button", {name: "Connect", exact: true}).click()
+
+                // No refusal, and no second row. Telling someone to invent a second name for
+                // the connection they already have is the dead end decision 44 keeps this
+                // recovery for; the journey takes the row and carries on with it.
+                await finishJourney(page)
+            })
+
+            await scenarios.then("it is the one connection, under its original slug", async () => {
+                await expect(connectionRow(page, name)).toBeVisible({timeout: 30000})
+
+                const response = await page.request.post(
+                    `${apiBaseUrl()}/gateways/mcps/endpoints/query?project_id=${projectIdFrom(basePath)}`,
+                    {data: {}},
+                )
+                expect(response.ok(), await response.text()).toBe(true)
+                const body = (await response.json()) as {
+                    endpoints: {name?: string; slug?: string}[]
+                }
+                const matching = body.endpoints.filter((row) => row.name === name)
+                expect(matching).toHaveLength(1)
+                // The identity agents reference. A journey that had made a second row, or
+                // replaced this one, would answer with a slug nobody had saved against.
+                expect(matching[0].slug).toBe(existingSlug)
             })
         },
     )

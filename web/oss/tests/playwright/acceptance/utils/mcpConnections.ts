@@ -70,6 +70,15 @@ export const publishedMockMcpUrl = (
 /** Its OAuth-protected surface. `/` stays open so the no-auth cases have something to use. */
 export const mcpOauthPath = process.env.AGENTA_MCP_OAUTH_ACCEPTANCE_PATH || "/oauth/mcp"
 
+/**
+ * The mock's header-authenticated surface, which challenges with a scheme and no metadata.
+ *
+ * Used here only as a second address on the same container, for the cases that need a
+ * connection pointing somewhere other than the open surface. It is also the only surface
+ * that reaches the API-key screen.
+ */
+export const mcpKeyPath = process.env.AGENTA_MCP_KEY_ACCEPTANCE_PATH || "/key/mcp"
+
 /** How long a probe of a server the API has to dial may take. */
 export const PROBE_MS = 45_000
 
@@ -235,6 +244,16 @@ export const createMcpConnectionViaApi = async (
     page: Page,
     basePath: string,
     name: string,
+    /**
+     * The address to register it at. Defaults to the mock's open surface, which is the one
+     * every journey in these suites points at.
+     *
+     * Worth setting for one question only: whether a name refusal is this journey's own row
+     * coming back. The journey continues from a refusing row when its name AND its address
+     * match what is being connected, so a fixture at a DIFFERENT address is how a case gets
+     * the refusal rather than the recovery (decision 44).
+     */
+    url: string = `${mockMcpBase()}/`,
 ): Promise<{id: string; slug: string}> => {
     const response = await page.request.post(
         `${apiBaseUrl()}/gateways/mcps/endpoints/?project_id=${projectIdFrom(basePath)}`,
@@ -243,7 +262,7 @@ export const createMcpConnectionViaApi = async (
                 endpoint: {
                     name,
                     auth_mode: "none",
-                    data: {route: {base_url: `${mockMcpBase()}/`}},
+                    data: {route: {base_url: url}},
                 },
             },
         },
