@@ -172,9 +172,7 @@ describe("a replayed MCP reconnect notice", () => {
 
         render(<McpServerNoticeCard notice={notice!} />)
 
-        const measured = reachOf(
-            screen.getByRole("button", {name: "Reconnect Mock MCP"}).className,
-        )
+        const measured = reachOf(screen.getByRole("button", {name: "Reconnect Mock MCP"}).className)
         expect(measured.size, "not the 28px control this case is about").toBe(28)
         expect(measured.border, "not the bordered Button this case is about").toBe(1)
         expect(measured.reach).toBe(44)

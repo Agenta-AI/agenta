@@ -49,9 +49,9 @@ describe("touchTargetExpansion", () => {
 
     it("reaches the minimum on the raw height steps too", () => {
         // The row-actions kebab is a bare button at `h-6`, not a Button at a scale name.
-        expect(touchTargetHeight(`h-6 border-0 ${touchTargetExpansion({height: 24, border: 0})}`)).toBe(
-            TOUCH_TARGET_MINIMUM_PX,
-        )
+        expect(
+            touchTargetHeight(`h-6 border-0 ${touchTargetExpansion({height: 24, border: 0})}`),
+        ).toBe(TOUCH_TARGET_MINIMUM_PX)
         expect(touchTargetHeight(`h-7 border ${touchTargetExpansion(28)}`)).toBe(
             TOUCH_TARGET_MINIMUM_PX,
         )
@@ -111,9 +111,11 @@ describe("touchTargetHitArea", () => {
     it("charges the border the inset is measured from inside of", () => {
         // The pseudo-element's containing block is the padding box. Reporting 44 for a bordered
         // control on an 8px inset is exactly the lie that let six controls ship at 42.
-        const bordered = "size-control-sm border relative after:absolute after:-inset-2 after:content-['']"
+        const bordered =
+            "size-control-sm border relative after:absolute after:-inset-2 after:content-['']"
         expect(touchTargetHitArea(bordered)).toEqual({width: 42, height: 42})
-        const bare = "size-control-sm border-0 relative after:absolute after:-inset-2 after:content-['']"
+        const bare =
+            "size-control-sm border-0 relative after:absolute after:-inset-2 after:content-['']"
         expect(touchTargetHitArea(bare)).toEqual({width: 44, height: 44})
     })
 
@@ -144,9 +146,11 @@ describe("touchTargetHitArea", () => {
     it("keeps each axis to its own inset", () => {
         // `-inset-x-2` on a control expanded for width only must not be credited with 16px of
         // height, which would report 44 for a control a finger still misses vertically.
-        const widthOnly = "size-control-sm border-0 relative after:absolute after:-inset-x-2 after:content-['']"
+        const widthOnly =
+            "size-control-sm border-0 relative after:absolute after:-inset-x-2 after:content-['']"
         expect(touchTargetHitArea(widthOnly)).toEqual({width: 44, height: 28})
-        const heightOnly = "size-control-sm border-0 relative after:absolute after:-inset-y-2 after:content-['']"
+        const heightOnly =
+            "size-control-sm border-0 relative after:absolute after:-inset-y-2 after:content-['']"
         expect(touchTargetHitArea(heightOnly)).toEqual({width: 28, height: 44})
     })
 
@@ -162,7 +166,9 @@ describe("touchTargetHitArea", () => {
         expect(
             touchTargetHeight("h-6 border-0 after:absolute after:-inset-y-2.5 after:content-['']"),
         ).toBe(24)
-        expect(touchTargetHeight("h-6 border-0 relative after:absolute after:-inset-y-2.5")).toBe(24)
+        expect(touchTargetHeight("h-6 border-0 relative after:absolute after:-inset-y-2.5")).toBe(
+            24,
+        )
     })
 
     it("has no answer for an axis whose size it cannot read", () => {
@@ -172,7 +178,9 @@ describe("touchTargetHitArea", () => {
 
     it("takes the widest inset when a call site sets more than one", () => {
         expect(
-            touchTargetHeight("h-6 border-0 relative after:absolute after:-inset-1 after:content-['']"),
+            touchTargetHeight(
+                "h-6 border-0 relative after:absolute after:-inset-1 after:content-['']",
+            ),
         ).toBe(32)
     })
 })
