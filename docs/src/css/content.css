@@ -446,51 +446,53 @@ details:not([class*="openapi"]) {
   display: none;
 }
 
-/* ---- FAQ page ---- */
-.faq-list {
-  margin-top: 1.5rem;
-}
-
-.faq-list h2 {
-  margin-top: 2rem;
-  margin-bottom: 1rem;
-  font-size: 20px;
-}
-
+/* ---- FAQ index (docs/misc/faq/index.mdx) ---- */
+/* Hand-written cards on the same metrics as DocCard. */
 .faq-cards {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 24px;
 }
 
 .faq-card {
-  display: block;
-  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px 14px;
   border: 1px solid var(--borderdefault);
   border-radius: var(--radius-lg);
+  background-color: var(--bgdefault);
   text-decoration: none !important;
-  transition: border-color var(--ifm-transition-fast) ease;
+  transition:
+    border-color var(--ifm-transition-fast) ease,
+    background-color var(--ifm-transition-fast) ease;
 }
 
 .faq-card:hover {
   border-color: var(--borderdark);
-  text-decoration: none !important;
+  background-color: var(--bgelevated1);
 }
 
 .faq-card-title {
-  display: block;
-  font-size: 15px;
-  font-weight: var(--ifm-font-weight-bold);
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: var(--ifm-font-weight-semibold);
   color: var(--contentprimary);
-  margin-bottom: 4px;
 }
 
 .faq-card-desc {
-  display: block;
   font-size: 13px;
+  line-height: 18px;
   color: var(--contentsecondary);
 }
 
 .faq-tip-spacer {
   height: 2rem;
+}
+
+@media (max-width: 600px) {
+  .faq-cards {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
