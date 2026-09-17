@@ -56,11 +56,11 @@ button.menu__link {
 }
 
 .menu__list-item:not(:first-child) {
-  margin-top: 1px;
+  margin-top: 2px;
 }
 
 .menu__list .menu__list {
-  margin-top: 1px;
+  margin-top: 2px;
   padding-left: 10px;
 }
 
