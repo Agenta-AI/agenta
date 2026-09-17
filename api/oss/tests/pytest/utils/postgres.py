@@ -38,6 +38,7 @@ from urllib.parse import urlparse, urlunparse
 from uuid import UUID, uuid4
 
 import httpx
+import pytest
 
 from oss.src.utils.env import env
 
@@ -515,6 +516,37 @@ def confirm_same_server(identified: str, other: str, *, database: str) -> None:
     )
 
 
+def declares_no_database() -> bool:
+    """Whether the environment has declared that this deployment publishes no database.
+
+    A statement of fact about where the tests are running, not a preference. Some deployments
+    are reached only over HTTP and have no route to their Postgres at all: the Railway job in
+    `44-railway-tests.yml` is one. Before this the layer refused, which is right wherever the
+    absence is an accident and wrong where it is the shape of the environment.
+
+    Anything other than an explicitly false-looking value counts as set, because a variable
+    present and empty is the usual way a workflow turns one off.
+    """
+    raw = (os.getenv("AGENTA_TEST_NO_DATABASE") or "").strip().lower()
+    return raw not in ("", "0", "false", "no")
+
+
+DECLARED_ABSENCE_REASON = "the deployment under test declares no database access"
+
+
+def skip_for_declared_absence() -> None:
+    """Skip the calling case, naming the declaration so it is visible in the run's output.
+
+    The reason is a shared constant because the terminal summary counts these by matching it:
+    two spellings would make the count silently wrong, which is the thing the summary exists
+    to prevent.
+    """
+    pytest.skip(
+        f"{DECLARED_ABSENCE_REASON} "
+        "(AGENTA_TEST_NO_DATABASE); every database-bound case in this layer is skipped"
+    )
+
+
 def unreachable(database: str = "core") -> AssertionError:
     """The failure for a database this layer cannot reach, naming what to change.
 
@@ -544,6 +576,11 @@ def require_core_uri() -> str:
     The absence of a database is a failure here, and so is the presence of the wrong one
     (D128, D141).
     """
+    # The other way into "this case needs the database", used by files that ask directly
+    # rather than through the autouse guard. The declaration has to be honoured at both.
+    if declares_no_database():
+        skip_for_declared_absence()
+
     resolved = use_reachable_core_uri()
     if resolved is None:
         raise unreachable("core")

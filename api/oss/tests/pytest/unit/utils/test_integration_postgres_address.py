@@ -129,6 +129,48 @@ def test_an_unreachable_database_fails_the_run(monkeypatch):
     assert "password" not in message
 
 
+def test_an_unreachable_database_still_fails_when_nothing_declared_its_absence(
+    monkeypatch,
+):
+    """The declaration has to be made, not inferred. Absent it, the refusal stands."""
+    monkeypatch.delenv("AGENTA_TEST_NO_DATABASE", raising=False)
+    monkeypatch.setattr(helper, "_connectable", lambda _uri: False)
+
+    assert deployment.declares_no_database() is False
+    with pytest.raises(AssertionError):
+        deployment.guard_the_deployment_under_test(databases=("core",))
+
+
+@pytest.mark.parametrize("declared", ["1", "true", "yes", "anything"])
+def test_a_declared_absence_skips_by_name_rather_than_failing(monkeypatch, declared):
+    """A deployment that publishes no database says so, and the skip names the declaration.
+
+    The Railway job tests a deployed stack over HTTP and has no route to its Postgres. Before
+    this the layer refused, which is right wherever the absence is an accident; there it is a
+    fact about the environment. The reason is spelled out so the skip is visible in the run's
+    own output rather than being a silent green (D97, and the reason that rule exists).
+    """
+    monkeypatch.setenv("AGENTA_TEST_NO_DATABASE", declared)
+    monkeypatch.setattr(helper, "_connectable", lambda _uri: False)
+
+    assert deployment.declares_no_database() is True
+    # `pytest.skip` raises through `BaseException`, so a plain `Exception` never catches it
+    # and the skip would land on this case instead of being asserted about.
+    with pytest.raises(pytest.skip.Exception) as outcome:
+        deployment.guard_the_deployment_under_test(databases=("core",))
+
+    assert "declares no database access" in str(outcome.value)
+    assert "AGENTA_TEST_NO_DATABASE" in str(outcome.value)
+
+
+@pytest.mark.parametrize("off", ["", "0", "false", "no"])
+def test_a_variable_turned_off_is_not_a_declaration(monkeypatch, off):
+    """Set-and-empty is how a workflow turns one of these off, so it must not read as set."""
+    monkeypatch.setenv("AGENTA_TEST_NO_DATABASE", off)
+
+    assert deployment.declares_no_database() is False
+
+
 def test_a_reachable_database_is_returned_and_installed(monkeypatch, marker_row):
     """Confirmed, and the marker account is taken back out whatever the verdict.
 

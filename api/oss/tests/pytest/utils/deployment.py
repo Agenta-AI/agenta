@@ -19,6 +19,16 @@ skips what it cannot reach reports a green run of nothing, which is what D97 was
 sessions layer still did until D148: 18 skipped, exit 0, against a deployment it never
 touched.
 
+There is one declared exception, and it is a statement of fact rather than a knob:
+`AGENTA_TEST_NO_DATABASE`. Some deployments publish no database at all to the runner of these
+tests — the Railway job in `44-railway-tests.yml` tests a remote deployment over HTTP and has
+no route to its Postgres. Before D97 those cases skipped silently and the job read green,
+which is exactly the failure D97 closed. Setting the variable makes that environment say so:
+every database-bound case then skips with a reason naming the declaration, so the skip is
+visible in the run's own output. Absent the declaration an unreachable database still fails
+hard. The difference is whether the environment declared it, not whether the database
+answered.
+
 Identity is always settled on the core database, whichever addresses a layer lists, and always
 before the layer's other addresses are resolved. The marker row it reads is a `users` row, so
 it can speak for the core database and for the server carrying it, and for no other database
@@ -36,6 +46,8 @@ from oss.tests.pytest.utils.postgres import (
     confirm_the_deployment_names_its_databases,
     resolve_core_uri,
     resolve_tracing_uri,
+    declares_no_database,
+    skip_for_declared_absence,
     unreachable,
     use_reachable_core_uri,
     use_reachable_tracing_uri,
@@ -110,6 +122,9 @@ def guard_the_deployment_under_test(*, databases) -> None:
     A plain function, because the ordering above is the whole point of it and a fixture is
     hard to hold still long enough to check that.
     """
+    if declares_no_database():
+        skip_for_declared_absence()
+
     confirm_the_deployment_names_its_databases()
 
     core = _RESOLVERS["core"]()
