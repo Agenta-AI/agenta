@@ -6,7 +6,9 @@
 
 /* ---- Frame ---- */
 @media (min-width: 997px) {
-  .theme-doc-sidebar-container {
+  /* The element selector outranks the theme's module rule, which draws this
+     in --ifm-toc-border-color (a lighter grey in dark mode). */
+  aside.theme-doc-sidebar-container {
     border-right: 1px solid var(--borderdefault);
   }
 
