@@ -151,6 +151,9 @@
 .container:has([class*="searchQueryInput"]) > form.row {
   flex-wrap: nowrap;
   gap: 8px;
+  /* Infima rows hang 15px past their container for the cols' gutters; the
+     cols here have none, so the fields align with the text. */
+  margin: 0;
 }
 
 .container [class*="searchQueryColumn"] {
@@ -205,11 +208,15 @@
   background-size: 14px;
 }
 
-/* Count + "Powered by": one muted meta row. */
-.container:has([class*="searchQueryInput"]) > .row:nth-of-type(2) {
+/* Count + "Powered by": one muted meta row, flush with the text column. */
+.container:has([class*="searchQueryInput"]) > div.row {
   align-items: center;
-  margin-top: 12px;
-  margin-bottom: 8px;
+  margin: 12px 0 8px;
+}
+
+.container:has([class*="searchQueryInput"]) > div.row > .col {
+  padding-left: 0;
+  padding-right: 0;
 }
 
 [class*="searchResultsColumn"] {
