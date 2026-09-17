@@ -221,6 +221,23 @@ describe("McpConnectionDetail: finding one tool among many", () => {
         expect(text()).not.toContain("This server exposes no tools yet")
     })
 
+    it("clears the query when another connection is opened", async () => {
+        // The box is only offered above eight tools, so a query carried into a shorter
+        // catalogue applies with nothing on screen to undo it: the second connection then
+        // reports fewer tools than it has, or none at all.
+        listMcpTools.mockResolvedValueOnce(many)
+        listMcpTools.mockResolvedValueOnce([{name: "deploy"}])
+
+        await open(connected())
+        await typeFilter("issue")
+        expect(toolNames()).toEqual(["tool_7"])
+
+        await open(connected({id: "mcp-2", slug: "beta", name: "Beta"}))
+
+        expect(document.querySelector('[aria-label="Filter tools"]')).toBeNull()
+        expect(toolNames()).toEqual(["deploy"])
+    })
+
     it("restores the whole list when the query is cleared", async () => {
         listMcpTools.mockResolvedValue(many)
         await open(connected())

@@ -65,6 +65,10 @@ export default function McpConnectionDetail({
 
     useEffect(() => {
         setName(endpoint?.name || endpoint?.slug || "")
+        // And the filter, which belongs to the list it was typed over. Below eight tools the
+        // box is not rendered, so a filter carried into a short connection hides tools with
+        // nothing on screen to clear it.
+        setFilter("")
     }, [endpoint])
 
     // Which connection the visible list belongs to. A tool list is fetched per connection and
