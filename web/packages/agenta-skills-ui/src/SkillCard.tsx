@@ -1,27 +1,42 @@
 /**
- * One registry card: `sk` square avatar tinted by origin (olive = project, gray = imported,
+ * One registry card: `sk` square avatar tinted by origin (olive = project, slate = imported,
  * ink + lightning = Agenta built-in), mono name, 2-line description, meta line.
  */
+import {
+    AGENT_ICON_CHIP_CLASS,
+    agentIconChipStyle,
+    SKILL_MARK_COLOR,
+    skillMarkText,
+} from "@agenta/ui/agent-icon"
 import {cn} from "@agenta/ui/styles"
 import {Lightning} from "@phosphor-icons/react"
 
 import type {SkillListItem} from "./types"
 
-const AVATAR_BY_ORIGIN: Record<SkillListItem["origin"], string> = {
-    project: "bg-[#6b7d3f] text-white",
-    imported: "bg-[var(--ag-colorFillSecondary)] text-[var(--ag-colorTextSecondary)]",
-    builtin: "bg-[#1c2c3d] text-white",
-}
-
-export function SkillAvatar({origin}: {origin: SkillListItem["origin"]}) {
+export function SkillAvatar({
+    origin,
+    slug,
+    className,
+}: {
+    origin: SkillListItem["origin"]
+    slug?: string
+    /** Overrides the 28px box — a list row's 34px tile, say. */
+    className?: string
+}) {
     return (
         <span
             className={cn(
                 "flex size-7 shrink-0 items-center justify-center rounded-md font-mono text-[11px] font-semibold",
-                AVATAR_BY_ORIGIN[origin],
+                AGENT_ICON_CHIP_CLASS,
+                className,
             )}
+            style={agentIconChipStyle(SKILL_MARK_COLOR[origin])}
         >
-            {origin === "builtin" ? <Lightning size={13} weight="fill" /> : "sk"}
+            {origin === "builtin" ? (
+                <Lightning size={13} weight="fill" />
+            ) : (
+                skillMarkText(slug ?? "")
+            )}
         </span>
     )
 }
@@ -54,7 +69,7 @@ export function SkillCard({skill, onOpen}: SkillCardProps) {
             )}
         >
             <span className="flex min-w-0 items-center gap-2">
-                <SkillAvatar origin={skill.origin} />
+                <SkillAvatar origin={skill.origin} slug={skill.slug} />
                 <span className="min-w-0 flex-1 truncate font-mono text-xs font-medium">
                     {skill.slug}
                 </span>
