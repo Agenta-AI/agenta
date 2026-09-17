@@ -72,6 +72,10 @@ h4:not([class*="openapi"]) {
   background-color: var(--bgelevated1);
   color: var(--contentsecondary);
   text-decoration: none !important;
+  /* The link's only text is a zero-width space; collapsing it keeps the
+     icon centred. */
+  font-size: 0;
+  line-height: 0;
   transition:
     opacity var(--ifm-transition-fast) ease,
     border-color var(--ifm-transition-fast) ease,
@@ -80,6 +84,7 @@ h4:not([class*="openapi"]) {
 
 .hash-link::before {
   content: "";
+  flex-shrink: 0;
   width: 12px;
   height: 12px;
   background-color: currentColor;
