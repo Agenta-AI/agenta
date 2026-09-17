@@ -97,7 +97,7 @@ export const ConfigPane = ({
                                         onClick={() => setConfigCollapsed(true)}
                                         className="h-7 w-7 shrink-0 p-0"
                                     >
-                                        <Sidebar size={16} />
+                                        <Sidebar size={16} weight="fill" />
                                     </Button>
                                 </SimpleTooltip>
                             }
