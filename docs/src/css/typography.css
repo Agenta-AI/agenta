@@ -106,17 +106,6 @@ code {
   font-family: var(--ifm-font-family-monospace);
 }
 
-pre {
-  font-size: 14px;
-  line-height: 1.7;
-  padding: 1.25rem;
-}
-
-pre code {
-  font-size: 14px;
-  letter-spacing: -0.01em;
-}
-
 code:not(pre code) {
   font-size: 0.9em;
   font-weight: 500;
@@ -127,14 +116,86 @@ code:not(pre code) {
   border-radius: 4px;
 }
 
-/* Flat code blocks: a border instead of a shadow. */
-pre,
-div[class*="codeBlock"],
-div[class*="prism"] {
+/* Code blocks: a soft, generously padded panel with the copy icon always
+   visible in the corner. The container carries the surface; the inner
+   pre/code stay transparent so nothing doubles up. */
+.theme-code-block {
+  /* The theme's module reads this for the container and the pre. */
+  --ifm-code-border-radius: 14px;
   box-shadow: none !important;
-  border: 1px solid var(--borderdefault);
-  border-radius: var(--radius-md);
+  border: 1px solid var(--borderlight);
+  border-radius: 14px;
   background-color: var(--bgelevated1) !important;
+  margin-bottom: 24px;
+}
+
+.theme-code-block pre,
+.theme-code-block pre code {
+  background-color: transparent !important;
+  border: 0;
+  box-shadow: none;
+}
+
+.theme-code-block pre {
+  font-size: 14px;
+  line-height: 1.8;
+  padding: 22px 28px;
+  margin: 0;
+}
+
+.theme-code-block pre code {
+  font-size: 14px;
+  letter-spacing: -0.01em;
+}
+
+/* Title bar (```lang title="...") */
+.theme-code-block > div:first-child:not([class*="codeBlockContent"]) {
+  padding: 10px 28px;
+  border-bottom: 1px solid var(--borderlight);
+  font-size: 13px;
+  color: var(--contentsecondary);
+  background-color: transparent;
+}
+
+/* Copy button: bare icon in the top-right corner, always visible. */
+.theme-code-block [class*="buttonGroup"] {
+  top: 12px;
+  right: 12px;
+  opacity: 1;
+}
+
+.theme-code-block [class*="buttonGroup"] button {
+  width: 30px;
+  height: 30px;
+  padding: 6px;
+  border: 0;
+  border-radius: var(--radius-md);
+  background-color: transparent;
+  color: var(--contentprimary);
+  opacity: 1;
+  transition: background-color var(--ifm-transition-fast) ease;
+}
+
+.theme-code-block [class*="buttonGroup"] button:hover {
+  background-color: var(--bgelevated2);
+}
+
+.theme-code-block button[aria-label="Toggle word wrap"] {
+  display: none;
+}
+
+/* The ejected copy icon is stroke-based; the theme's rule fills it. */
+.theme-code-block [class*="copyButtonIcon"] {
+  fill: none;
+}
+
+/* Highlighted lines and the error-line marker */
+.code-block-error-line {
+  background-color: #ff000020;
+  display: block;
+  margin: 0 calc(-1 * var(--ifm-pre-padding));
+  padding: 0 var(--ifm-pre-padding);
+  border-left: 3px solid #ff000080;
 }
 
 /* Links inside articles: underlined, offset, and neutral. */
@@ -265,13 +326,4 @@ article a:not([class*="card"]):not(.hash-link):not(.table-of-contents__link):not
 [data-theme="dark"] .token.important,
 [data-theme="dark"] .token.variable {
   color: #ffa657;
-}
-
-/* highlight error code */
-.code-block-error-line {
-  background-color: #ff000020;
-  display: block;
-  margin: 0 calc(-1 * var(--ifm-pre-padding));
-  padding: 0 var(--ifm-pre-padding);
-  border-left: 3px solid #ff000080;
 }
