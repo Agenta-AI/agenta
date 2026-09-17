@@ -496,6 +496,43 @@ describe("Ask for write and delete — the preset that writes what it says", () 
         })
     })
 
+    it("shows the grant on the rows it just named, not an inherited value", async () => {
+        // The preset's whole claim is per tool, so the rows have to carry it: a read-only row
+        // still reading "Inherits ask" after the pick would say the opposite of what was picked.
+        const onChange = await render({policy: {permission: "allow"}})
+
+        await choose(labelled("Default permission"), "Ask for write and delete")
+        await render({policy: onChange.mock.calls[0][0] as McpServerPolicy})
+
+        for (const tool of ["get_current_user", "get_issue", "list_issues", "list_comments"]) {
+            expect(labelled(`Permission for ${tool}`)?.textContent).toContain("Allow")
+            expect(labelled(`Permission for ${tool}`)?.textContent).not.toContain("Inherits")
+        }
+    })
+
+    it("leaves the write rows inheriting the ask the preset wrote as the floor", async () => {
+        const onChange = await render({policy: {permission: "allow"}})
+
+        await choose(labelled("Default permission"), "Ask for write and delete")
+        await render({policy: onChange.mock.calls[0][0] as McpServerPolicy})
+
+        for (const tool of ["create_issue", "delete_issue"]) {
+            expect(labelled(`Permission for ${tool}`)?.textContent).toContain("Inherits ask")
+        }
+    })
+
+    it("summarises the reads as running automatically and the writes as asking", async () => {
+        const onChange = await render({policy: {permission: "allow"}})
+
+        await choose(labelled("Default permission"), "Ask for write and delete")
+        await render({policy: onChange.mock.calls[0][0] as McpServerPolicy})
+
+        // The promise, visible in the two group headers.
+        expect(text()).toContain("runs automatically")
+        expect(text()).toContain("asks first")
+        expect(text()).not.toContain("mixed")
+    })
+
     it("is not offered until the tool list has arrived", async () => {
         // Picking it without the list would write no tool names at all, which is the absent policy
         // wearing this preset's words. The list area beside it is showing its own loading rows.
