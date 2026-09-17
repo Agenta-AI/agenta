@@ -147,8 +147,15 @@ code:not(pre code) {
 .theme-code-block pre {
   font-size: 14px;
   line-height: 1.65;
-  padding: 12px;
+  padding: 0;
   margin: 0;
+}
+
+/* The theme pads the inner <code> with --ifm-pre-padding (1rem) as well;
+   one padding, on the element that scrolls, so highlighted lines can bleed
+   to the panel edges. */
+.theme-code-block {
+  --ifm-pre-padding: 25px;
 }
 
 .theme-code-block pre code {
