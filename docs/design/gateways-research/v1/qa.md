@@ -130,6 +130,13 @@ API-only request: those prove the proxy, not the product path.
    is its own: which of the deployment's databases its cases read, whether an unreachable one
    fails or skips, and which of its cases touch the deployment at all.
 
+   The guard costs one ephemeral account per run, and gives it back. The verdict is reached once
+   and published to the run's other workers through a file, so twenty workers mint nothing
+   between them; the marker is deleted through the same admin endpoint as soon as the verdict is
+   in, whether it confirmed or refused; and a run with no database to reach ends before the
+   check asks the deployment for anything. Measured on one gateway run: the deployment's user
+   count is the same before and after, and its log carries one account create and one delete.
+
    The two mock-upstream variables matter for more than `test_mock_upstreams.py`. The OAuth
    endpoint-write and recovery suites relay through the mock MCP server too, and they fail
    without it.

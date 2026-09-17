@@ -24,10 +24,16 @@ not execute (D97).
 """
 
 import asyncio
+import json
 import os
+import tempfile
+import time
+import warnings
 from concurrent.futures import ThreadPoolExecutor
 from functools import lru_cache
-from typing import Awaitable, Callable, Optional, Tuple, TypeVar
+from hashlib import sha256
+from pathlib import Path
+from typing import Awaitable, Callable, Dict, Optional, Tuple, TypeVar
 from urllib.parse import urlparse, urlunparse
 from uuid import UUID, uuid4
 
@@ -47,6 +53,12 @@ _CONNECT_TIMEOUT = 2.0
 # check exists to prevent.
 _ACCOUNTS_PATH = "/admin/simple/accounts/"
 _ACCOUNTS_TIMEOUT = 30.0
+
+# How long a worker waits for whichever worker holds the lock to publish the verdict. Long
+# enough for an account round trip on a slow deployment, short enough to say so rather than
+# hang a suite behind a worker that died holding it.
+_VERDICT_WAIT = 60.0
+_VERDICT_POLL = 0.1
 
 _Result = TypeVar("_Result")
 
@@ -192,16 +204,19 @@ def api_under_test() -> Tuple[str, str]:
     return api_url, auth_key
 
 
-@lru_cache(maxsize=1)
-def deployment_marker() -> Tuple[str, UUID]:
-    """A row the API under test has just written into its own database, and that API's address.
+def mint_deployment_marker(api_url: str, auth_key: str) -> UUID:
+    """A row the API under test writes into its own database, and hands back the id of.
 
-    One ephemeral account per session, created through the sanctioned admin endpoint, the
-    same way every other layer mints accounts. What makes it a marker is that no other
-    deployment on the box can have it: the identifier is minted by the API under test, in
-    the database the API under test uses.
+    Identity, not reachability: an address that opens a connection proves a server is
+    listening, and the database name proves only a licence (D97, D128). Every EE stack on
+    this box publishes `agenta_ee_core` on a port of its own, so a stale POSTGRES_PORT
+    reaches a real database with the right name and the wrong owner. What no other
+    deployment has is a row this API wrote a moment ago.
+
+    One ephemeral account, created through the sanctioned admin endpoint the way every other
+    layer mints accounts, and removed again by :func:`remove_deployment_marker` as soon as the
+    verdict is in.
     """
-    api_url, auth_key = api_under_test()
     email = f"integration-identity-{uuid4().hex[:12]}@test.agenta.ai"
 
     try:
@@ -210,7 +225,7 @@ def deployment_marker() -> Tuple[str, UUID]:
             headers={"Authorization": f"Access {auth_key}"},
             json={
                 "accounts": {
-                    "user": {
+                    "marker": {
                         "user": {"email": email},
                         "options": {"create_api_keys": False, "seed_defaults": False},
                     }
@@ -241,7 +256,39 @@ def deployment_marker() -> Tuple[str, UUID]:
             "id, so there is no row to identify its database by."
         )
 
-    return api_url, UUID(str(identifier))
+    return UUID(str(identifier))
+
+
+def remove_deployment_marker(api_url: str, auth_key: str, identifier: UUID) -> None:
+    """Take the marker account back out, through the same API that created it.
+
+    Called whatever the verdict was, including a refusal: the account is in the deployment
+    under test either way, and a check that leaves rows behind is a check nobody runs twice.
+    A failure to remove it is a warning rather than an error — the suite's answer is already
+    decided, and failing a run over its own housekeeping helps nobody.
+    """
+    try:
+        response = httpx.request(
+            "DELETE",
+            f"{api_url}{_ACCOUNTS_PATH}",
+            headers={"Authorization": f"Access {auth_key}"},
+            json={"accounts": {"marker": {"user": {"id": str(identifier)}}}},
+            timeout=_ACCOUNTS_TIMEOUT,
+        )
+    except httpx.HTTPError as failure:
+        warnings.warn(
+            f"The identity marker {identifier} could not be removed from {api_url}: "
+            f"{failure.__class__.__name__}. It is an empty ephemeral account.",
+            stacklevel=2,
+        )
+        return
+
+    if response.status_code != 204:
+        warnings.warn(
+            f"The identity marker {identifier} was not removed from {api_url}: "
+            f"{response.status_code}. It is an empty ephemeral account.",
+            stacklevel=2,
+        )
 
 
 async def _carries_user(dsn: str, identifier: UUID) -> bool:
@@ -257,6 +304,113 @@ async def _carries_user(dsn: str, identifier: UUID) -> bool:
     return found is not None
 
 
+def _run_id() -> str:
+    """One name for this pytest run, shared by its workers.
+
+    pytest-xdist puts the run's own id in every worker's environment, which is what makes a
+    verdict reached in one worker readable by the other nineteen. A serial run has one
+    process and can key on it.
+    """
+    return os.getenv("PYTEST_XDIST_TESTRUNUID") or f"pid-{os.getpid()}"
+
+
+def _verdict_path(api_url: str, uri: str) -> Path:
+    """Where this run records what it decided about one API and one database address."""
+    subject = sha256(f"{api_url}|{uri}".encode()).hexdigest()[:12]
+    return Path(tempfile.gettempdir()) / f"agenta-deployment-{_run_id()}-{subject}.json"
+
+
+def _read_verdict(path: Path) -> Optional[Dict[str, object]]:
+    try:
+        return json.loads(path.read_text())
+    except (OSError, ValueError):
+        return None
+
+
+def _write_verdict(path: Path, verdict: Dict[str, object]) -> None:
+    # Written beside the target and renamed, because a reader polling for the file must never
+    # see half of it.
+    interim = path.with_suffix(f".{os.getpid()}.partial")
+    interim.write_text(json.dumps(verdict))
+    interim.replace(path)
+
+
+def _decide(uri: str, api_url: str, auth_key: str) -> Dict[str, object]:
+    """Mint one marker, look for it, take it back out, and say what that proved."""
+    identifier = mint_deployment_marker(api_url, auth_key)
+
+    detail = ""
+    try:
+        try:
+            present = _blocking(lambda: _carries_user(_dsn(uri), identifier))
+        except Exception as failure:
+            # Any failure to read the marker leaves the owner unproven, which is the same
+            # answer as a missing row. A database with no `users` table arrives here.
+            present = False
+            detail = f" Reading it back failed: {failure.__class__.__name__}."
+    finally:
+        remove_deployment_marker(api_url, auth_key, identifier)
+
+    if present:
+        return {"confirmed": True}
+
+    port = published_port()
+    return {
+        "confirmed": False,
+        "message": (
+            "The integration layer reached a Postgres that is not the deployment under "
+            f"test. The API at {api_url} wrote user {identifier} into its own database, and "
+            f"{_redacted(uri)} does not have that row, so it serves another deployment."
+            f"{detail} Seeding would write this release's cases into somebody else's "
+            "database. POSTGRES_PORT was read as "
+            f"{port if port is not None else 'nowhere'}: point it at the stack under test, "
+            "or point AGENTA_API_URL at the deployment this database belongs to."
+        ),
+    }
+
+
+def _verdict_for(uri: str, api_url: str, auth_key: str) -> Dict[str, object]:
+    """This run's verdict, decided once however many workers ask for it.
+
+    The check writes to the deployment, so it is worth exactly one account per run rather
+    than one per worker. The first worker to claim the lock decides and publishes; the rest
+    read what it published. The lock is an exclusive create, which is atomic on every
+    filesystem this runs on, and its name carries the run id so a lock left by a dead run
+    never blocks a live one.
+    """
+    path = _verdict_path(api_url, uri)
+    published = _read_verdict(path)
+    if published is not None:
+        return published
+
+    lock = path.with_suffix(".lock")
+    deadline = time.monotonic() + _VERDICT_WAIT
+    while True:
+        try:
+            handle = os.open(str(lock), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+        except FileExistsError:
+            published = _read_verdict(path)
+            if published is not None:
+                return published
+            if time.monotonic() > deadline:
+                raise AssertionError(
+                    "The integration layer waited for another worker to identify the "
+                    f"deployment under test and it never did. Remove {lock} and run again."
+                ) from None
+            time.sleep(_VERDICT_POLL)
+            continue
+
+        try:
+            published = _read_verdict(path)
+            if published is None:
+                published = _decide(uri, api_url, auth_key)
+                _write_verdict(path, published)
+            return published
+        finally:
+            os.close(handle)
+            lock.unlink(missing_ok=True)
+
+
 @lru_cache(maxsize=1)
 def confirm_deployment_under_test(uri: str) -> None:
     """Refuse an address that answers but belongs to somebody else.
@@ -266,31 +420,16 @@ def confirm_deployment_under_test(uri: str) -> None:
     which on this box means another stack's database with the same name, reached through a
     port that moved. The cases downstream seed projects, so the refusal has to come before
     them and has to name both sides: the API that was asked, and the address that answered.
+
+    The API is read from the environment first, so a run that cannot say which deployment it
+    is testing ends before anything is written anywhere.
     """
-    api_url, identifier = deployment_marker()
-
-    detail = ""
-    try:
-        present = _blocking(lambda: _carries_user(_dsn(uri), identifier))
-    except Exception as failure:
-        # Any failure to read the marker leaves the owner unproven, which is the same
-        # answer as a missing row. A database with no `users` table arrives here.
-        present = False
-        detail = f" Reading it back failed: {failure.__class__.__name__}."
-
-    if present:
+    api_url, auth_key = api_under_test()
+    verdict = _verdict_for(uri, api_url, auth_key)
+    if verdict.get("confirmed"):
         return
 
-    port = published_port()
-    raise AssertionError(
-        "The integration layer reached a Postgres that is not the deployment under test. "
-        f"The API at {api_url} wrote user {identifier} into its own database, and "
-        f"{_redacted(uri)} does not have that row, so it serves another deployment.{detail} "
-        "Seeding would write this release's cases into somebody else's database. "
-        f"POSTGRES_PORT was read as {port if port is not None else 'nowhere'}: point it at "
-        "the stack under test, or point AGENTA_API_URL at the deployment this database "
-        "belongs to."
-    )
+    raise AssertionError(str(verdict.get("message")))
 
 
 def unreachable(database: str = "core") -> AssertionError:

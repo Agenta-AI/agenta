@@ -34,7 +34,6 @@ _API = "https://api.under.test/api"
 _CACHED = (
     helper.resolve_core_uri,
     helper.resolve_tracing_uri,
-    helper.deployment_marker,
     helper.confirm_deployment_under_test,
 )
 
@@ -50,9 +49,33 @@ def _forget_the_cached_answers():
 
 
 @pytest.fixture
-def marker_row(monkeypatch):
-    """The marker as if the API under test had minted it, without a deployment to mint it."""
-    monkeypatch.setattr(helper, "deployment_marker", lambda: (_API, _MARKER))
+def marker_row(monkeypatch, tmp_path):
+    """The marker as if the API under test had minted it, without a deployment to mint it.
+
+    The removal is recorded rather than performed, because a case about what the check
+    decides is also a case about the check taking its own row back out.
+    """
+    monkeypatch.setenv("AGENTA_API_URL", _API)
+    monkeypatch.setenv("AGENTA_AUTH_KEY", "the-key")
+    monkeypatch.setattr(helper, "tempfile", _TempDir(tmp_path))
+    monkeypatch.setattr(helper, "mint_deployment_marker", lambda _api, _key: _MARKER)
+    monkeypatch.setattr(
+        helper,
+        "remove_deployment_marker",
+        lambda api_url, _key, identifier: removed.append((api_url, identifier)),
+    )
+    removed: list = []
+    return removed
+
+
+class _TempDir:
+    """Stands in for the `tempfile` module, so a verdict file lands in this case's own dir."""
+
+    def __init__(self, path):
+        self._path = path
+
+    def gettempdir(self):
+        return str(self._path)
 
 
 def _answers_with(carried: set[UUID]):
@@ -107,6 +130,7 @@ def test_an_unreachable_database_fails_the_run(monkeypatch):
 
 
 def test_a_reachable_database_is_returned_and_installed(monkeypatch, marker_row):
+    """Confirmed, and the marker account is taken back out whatever the verdict."""
     monkeypatch.setattr(helper, "_connectable", lambda uri: "127.0.0.1" in uri)
     monkeypatch.setattr(helper, "_carries_user", _answers_with({_MARKER}))
     monkeypatch.setenv("POSTGRES_PORT", "5452")
@@ -117,6 +141,7 @@ def test_a_reachable_database_is_returned_and_installed(monkeypatch, marker_row)
     assert resolved.endswith("@127.0.0.1:5452/agenta_ee_core")
     # Installed on the shared `env`, so an engine built later dials the same server.
     assert helper.env.postgres.uri_core == resolved
+    assert marker_row == [(_API, _MARKER)]
 
 
 def test_another_deployments_database_fails_before_anything_is_seeded(
@@ -130,6 +155,9 @@ def test_another_deployments_database_fails_before_anything_is_seeded(
 
     with pytest.raises(AssertionError) as refusal:
         helper.require_core_uri()
+
+    # A refusing run leaves nothing behind either: the row goes out before the refusal.
+    assert marker_row == [(_API, _MARKER)]
 
     message = str(refusal.value)
     # Both sides, because the reader has to see which two things disagree.
@@ -186,16 +214,40 @@ def test_the_marker_is_minted_by_the_api_under_test(monkeypatch):
         sent["headers"] = kwargs["headers"]
         return _Answer()
 
-    monkeypatch.setenv("AGENTA_API_URL", _API + "/")
-    monkeypatch.setenv("AGENTA_AUTH_KEY", "the-key")
     monkeypatch.setattr(helper.httpx, "post", _post)
 
-    api_url, identifier = helper.deployment_marker()
+    identifier = helper.mint_deployment_marker(_API, "the-key")
 
-    assert api_url == _API
     assert identifier == _MARKER
     assert sent["url"] == f"{_API}/admin/simple/accounts/"
     assert sent["headers"]["Authorization"] == "Access the-key"
+
+
+def test_one_marker_is_minted_however_many_workers_ask(monkeypatch, tmp_path):
+    """The check writes to the deployment, so it is worth one account per run, not per worker.
+
+    Twenty workers of one run read the same verdict file, and only the first to claim the
+    lock mints anything. Standing in for the workers with repeated calls is enough: what is
+    being pinned is that the decision is published and reused, not that processes race.
+    """
+    minted: list = []
+    monkeypatch.setenv("AGENTA_API_URL", _API)
+    monkeypatch.setenv("AGENTA_AUTH_KEY", "the-key")
+    monkeypatch.setenv("PYTEST_XDIST_TESTRUNUID", "one-run")
+    monkeypatch.setattr(helper, "tempfile", _TempDir(tmp_path))
+    monkeypatch.setattr(
+        helper,
+        "mint_deployment_marker",
+        lambda _api, _key: (minted.append(_MARKER) or _MARKER),
+    )
+    monkeypatch.setattr(helper, "remove_deployment_marker", lambda *_args: None)
+    monkeypatch.setattr(helper, "_carries_user", _answers_with({_MARKER}))
+
+    for _ in range(20):
+        helper.confirm_deployment_under_test.cache_clear()
+        helper.confirm_deployment_under_test(_LOOPBACK)
+
+    assert len(minted) == 1
 
 
 def test_the_tracing_database_is_resolved_on_its_own(monkeypatch):
