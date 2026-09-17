@@ -1163,6 +1163,115 @@ def test_a_duplicate_display_name_is_refused_as_a_conflict(client, service, allo
     assert "already uses this name" in detail["message"]
 
 
+def _real_service_client(dao):
+    """The create and rename routes over the REAL `MCPGatewayService`.
+
+    Every other case in this file stubs the service, which proves how a refusal is
+    rendered and nothing about whether the route ever asks for one. The duplicate-name
+    refusal was reported as missing from the create path on that evidence alone, so the
+    wiring gets a case of its own: router, service and the name check, with only
+    persistence replaced.
+    """
+    from unittest.mock import AsyncMock
+
+    from oss.src.core.gateways.mcps.registry import MCPUpstreamRegistry
+    from oss.src.core.gateways.mcps.service import MCPGatewayService
+    from oss.src.core.gateways.policy.service import GatewayPolicyService
+    from oss.tests.pytest.unit.gateways.test_gateways_mcp_service import (
+        MockConnectionsService,
+    )
+
+    service = MCPGatewayService(
+        mcp_endpoints_dao=dao,
+        policy=GatewayPolicyService(resolver=AsyncMock()),
+        resolver=AsyncMock(),
+        upstream_registry=MCPUpstreamRegistry(adapters={}),
+        connections_service=MockConnectionsService(),
+    )
+    router = MCPGatewayRouter(
+        mcp_gateway_service=service,
+        oauth_connect_service=MockMCPOAuthConnectService(),
+        server_probe=None,
+    )
+    app = FastAPI()
+    app.include_router(router.router)
+    return TestClient(app, raise_server_exceptions=False)
+
+
+def _post_connection(client, name):
+    return client.post(
+        "/endpoints/",
+        json={
+            "endpoint": {
+                "name": name,
+                "auth_mode": "none",
+                "data": {"route": {"base_url": _SERVER_URL}},
+            }
+        },
+    )
+
+
+def test_the_create_route_reaches_the_name_check(allow):
+    """Both spellings of a taken name, refused by the route a connection is made through.
+
+    "Acme-Notion" is the case the comparison exists for: a different string, and the
+    same `mcp__Acme_Notion__<tool>` in front of the model.
+    """
+    from oss.tests.pytest.unit.gateways.test_gateways_mcp_service import (
+        MockMCPEndpointsDAO,
+    )
+
+    dao = MockMCPEndpointsDAO()
+    client = _real_service_client(dao)
+
+    first = _post_connection(client, "Acme Notion")
+    assert first.status_code == 200, first.text
+
+    for taken in ("Acme Notion", "Acme-Notion", "  Acme Notion  "):
+        refused = _post_connection(client, taken)
+        assert refused.status_code == 409, f"{taken}: {refused.text}"
+        assert refused.json()["detail"]["code"] == "mcp_connection_name_taken"
+
+    # The connection that held the name is the one still holding it, unedited.
+    assert [row.name for row in dao._by_id.values()] == ["Acme Notion"]
+
+
+def test_the_rename_route_reaches_the_name_check(allow):
+    """A rename is where a name can stop being free, so the route that performs one
+    asks the same question the create route asks."""
+    from oss.tests.pytest.unit.gateways.test_gateways_mcp_service import (
+        MockMCPEndpointsDAO,
+    )
+
+    dao = MockMCPEndpointsDAO()
+    client = _real_service_client(dao)
+
+    assert _post_connection(client, "Acme Notion").status_code == 200
+    second = _post_connection(client, "Acme Linear")
+    assert second.status_code == 200, second.text
+    second_id = second.json()["endpoint"]["id"]
+
+    for taken in ("Acme Notion", "Acme-Notion"):
+        refused = client.put(
+            f"/endpoints/{second_id}",
+            json={
+                "endpoint": {
+                    "id": second_id,
+                    "name": taken,
+                    "auth_mode": "none",
+                    "data": {"route": {"base_url": _SERVER_URL}},
+                }
+            },
+        )
+        assert refused.status_code == 409, f"{taken}: {refused.text}"
+        assert refused.json()["detail"]["code"] == "mcp_connection_name_taken"
+
+    assert sorted(row.name for row in dao._by_id.values()) == [
+        "Acme Linear",
+        "Acme Notion",
+    ]
+
+
 # URL inspection, before any row exists
 # ---------------------------------------------------------------------------
 
