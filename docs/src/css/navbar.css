@@ -197,7 +197,7 @@
   height: 2.5rem !important;
   right: var(--doc-main-padding-x) !important;
   bottom: 24px !important;
-  border-radius: var(--radius-md) !important;
+  border-radius: var(--radius-lg) !important;
   background-color: var(--bgdefault) !important;
   border: 1px solid var(--borderdefault) !important;
 }
