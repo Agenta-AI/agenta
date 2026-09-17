@@ -96,7 +96,7 @@ export function ExpandableDescription({
                     // without giving an inline toggle any chrome, and the invisible expansion
                     // carries that 24px floor to the 44px touch minimum. Height only: the label is
                     // already wider than the minimum.
-                    className={`mt-1 inline-flex min-h-control-xs w-fit cursor-pointer items-center border-0 bg-transparent p-0 text-xs text-colorInfo ${touchTargetExpansion(24)}`}
+                    className={`mt-1 inline-flex min-h-control-xs w-fit cursor-pointer items-center border-0 bg-transparent p-0 text-xs text-colorInfo ${touchTargetExpansion({height: 24, border: 0})}`}
                 >
                     {expanded ? "Show less" : "Show more"}
                 </button>
