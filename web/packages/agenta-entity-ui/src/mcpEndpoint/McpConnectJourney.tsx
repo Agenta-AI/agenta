@@ -777,6 +777,7 @@ export function McpConnectSheet({
                                         className="font-mono text-[13px]"
                                         placeholder="Authorization"
                                         value={headerValue}
+                                        disabled={busy}
                                         aria-label="Header"
                                         aria-describedby={
                                             state.status === "verify_failed"
@@ -797,6 +798,7 @@ export function McpConnectSheet({
                                         value={secretSlug}
                                         onChange={setSecretSlug}
                                         secrets={namedSecrets}
+                                        disabled={busy}
                                         invalid={state.status === "verify_failed"}
                                         aria-describedby={
                                             state.status === "verify_failed"
@@ -1072,6 +1074,7 @@ const SecretSelect = ({
     onChange,
     secrets,
     invalid,
+    disabled,
     canCreate,
     onCreate,
     id,
@@ -1081,6 +1084,8 @@ const SecretSelect = ({
     onChange: (slug: string) => void
     secrets: {id?: string | null; slug?: string | null; name?: string | null}[]
     invalid?: boolean
+    /** Held while a check is in flight, like every other control on this screen. */
+    disabled?: boolean
     canCreate: boolean
     onCreate: () => void
     /**
@@ -1105,6 +1110,7 @@ const SecretSelect = ({
             <SelectTrigger
                 id={id}
                 className="w-full"
+                disabled={disabled}
                 aria-label="Project secret"
                 aria-describedby={describedBy}
                 aria-invalid={invalid || undefined}
@@ -1126,7 +1132,7 @@ const SecretSelect = ({
                 <SelectSeparator />
                 <Button
                     variant="ghost"
-                    disabled={!canCreate}
+                    disabled={!canCreate || disabled}
                     onClick={() => {
                         setSelectOpen(false)
                         onCreate()

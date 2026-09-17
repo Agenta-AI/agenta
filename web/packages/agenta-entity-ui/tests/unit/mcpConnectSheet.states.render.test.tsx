@@ -709,6 +709,16 @@ describe("C5, the server wants a key", () => {
         expect(button("Connect")?.disabled).toBe(true)
     })
 
+    it("holds both credential controls while the key is being checked", async () => {
+        await open({...keyScreen, status: "verifying"})
+
+        // Every other control on this screen is held while something is in flight: the
+        // address, the name, and both buttons. These two were not, so the check could be
+        // running against one header and secret while the reader edited them to another.
+        expect((control("Header") as HTMLInputElement).disabled).toBe(true)
+        expect((control("Project secret") as HTMLButtonElement).disabled).toBe(true)
+    })
+
     it("prefills x-api-key when the challenge named no scheme", async () => {
         // The spec's C5 note: the scheme picks "Authorization" and otherwise "x-api-key".
         // The field was seeded "Authorization" whatever the server said, which is a claim
