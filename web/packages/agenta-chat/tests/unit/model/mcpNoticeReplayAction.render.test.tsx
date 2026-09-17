@@ -12,7 +12,7 @@
 // One case per state the spec draws for this banner, which are also its three stories:
 // NeedsAuthorization, OtherFailure, UnresolvedConnection.
 import {findCustomMcpEndpoint, type MCPEndpoint} from "@agenta/entities/mcpEndpoint"
-import {cleanup, render, screen} from "@testing-library/react"
+import {cleanup, fireEvent, render, screen} from "@testing-library/react"
 import {afterEach, describe, expect, it, vi} from "vitest"
 
 /** The project's settings row for that server. The card looks it up by slug. */
@@ -24,6 +24,25 @@ const {CONNECTED_ROW} = vi.hoisted(() => ({
         namespace: "custom",
         auth_mode: "oauth",
         data: {route: {base_url: "https://mcp.mock.test"}},
+    },
+}))
+
+/** Every reconnect this card has handed the sheet, newest last. */
+const {opened} = vi.hoisted(() => ({opened: [] as ({slug?: string; name?: string} | null)[]}))
+
+// The sheet stands in for itself and records what it is given. A journey opened without a
+// reconnect starts at address entry, which repairs nothing and invites a second connection;
+// that is what one of the other mounts was doing (D132, and D131's remainder).
+vi.mock("@agenta/entity-ui/mcpEndpoint", () => ({
+    McpConnectJourney: ({
+        open,
+        reconnect,
+    }: {
+        open: boolean
+        reconnect?: {slug?: string; name?: string} | null
+    }) => {
+        if (open) opened.push(reconnect ?? null)
+        return open ? <div data-testid="mcp-connect-journey" /> : null
     },
 }))
 
@@ -40,6 +59,7 @@ vi.mock("@agenta/entities/mcpEndpoint", async (importOriginal) => {
 import {TOUCH_TARGET_MINIMUM_PX, touchTargetHeight} from "@agenta/ui/ui"
 
 import {McpServerNoticeCard} from "../../../src/components/McpServerNoticeCard"
+
 import {readMcpServerNotice} from "../../../src/model/mcpServerNotice"
 
 /** The runner event as the durable transcript replays it, marker and all. */
@@ -160,5 +180,21 @@ describe("a replayed MCP reconnect notice", () => {
         // Without a row there is no display name, so the notice names the server as the agent does.
         expect(screen.getByText("mock-mcp needs a new sign-in.")).toBeTruthy()
         expect(screen.queryByRole("button", {name: /^Reconnect/})).toBeNull()
+    })
+})
+
+describe("what Reconnect opens", () => {
+    afterEach(() => {
+        opened.length = 0
+    })
+
+    it("hands the sheet the connection the notice resolved", () => {
+        const notice = readMcpServerNotice(REPLAYED_NOTICE)
+        render(<McpServerNoticeCard notice={notice!} />)
+
+        fireEvent.click(screen.getByRole("button", {name: "Reconnect Mock MCP"}))
+
+        expect(screen.getByTestId("mcp-connect-journey")).toBeTruthy()
+        expect(opened.at(-1)).toMatchObject({slug: "mock-mcp-slug", name: "Mock MCP"})
     })
 })

@@ -81,6 +81,16 @@ const FieldLabel = ({htmlFor, children}: {htmlFor?: string; children: React.Reac
  */
 const SECRET_VALUE_ID = "secret-form-value"
 
+/**
+ * The name one row's value control carries in the key-value grid.
+ *
+ * Named by its key, because "Value" repeated down a column tells a reader which column they
+ * are in and not which row. A row whose key is still empty falls back to its position, so
+ * every control has a name from the moment it appears.
+ */
+const rowValueLabel = (key: string, index: number): string =>
+    key.trim() ? `Value for ${key.trim()}` : `Value ${index + 1}`
+
 const HintText = ({children}: {children: React.ReactNode}) => (
     <span className="text-xs text-colorTextSecondary">{children}</span>
 )
@@ -236,7 +246,11 @@ export function SecretForm({controller, textOnly = false, popupZIndex}: SecretFo
                         </div>
                     </div>
                 ) : jsonView === "json" ? (
-                    <div className="flex flex-col gap-1">
+                    // The editor is a contenteditable rather than a form control, so the
+                    // group around it carries the name the label shows. Without it this
+                    // format announced nothing at all, the same gap the text format had
+                    // (round 6c, D143).
+                    <div className="flex flex-col gap-1" role="group" aria-label={valueLabel}>
                         <SharedEditor
                             initialValue={jsonText}
                             value={jsonText}
@@ -268,6 +282,7 @@ export function SecretForm({controller, textOnly = false, popupZIndex}: SecretFo
                                     <Input
                                         className="font-mono"
                                         placeholder="key"
+                                        aria-label={`Key ${idx + 1}`}
                                         aria-invalid={
                                             duplicateKeys.has(row.key.trim()) || undefined
                                         }
@@ -275,7 +290,12 @@ export function SecretForm({controller, textOnly = false, popupZIndex}: SecretFo
                                         onChange={(e) => updateRow(idx, {key: e.target.value})}
                                     />
                                     {type === "null" ? (
-                                        <Input disabled className="font-mono" value="null" />
+                                        <Input
+                                            disabled
+                                            className="font-mono"
+                                            aria-label={rowValueLabel(row.key, idx)}
+                                            value="null"
+                                        />
                                     ) : type === "boolean" ? (
                                         <Select
                                             value={String(row.value)}
@@ -283,7 +303,10 @@ export function SecretForm({controller, textOnly = false, popupZIndex}: SecretFo
                                                 updateRow(idx, {value: textToValue(v, "boolean")})
                                             }
                                         >
-                                            <SelectTrigger className="font-mono" aria-label="Value">
+                                            <SelectTrigger
+                                                className="font-mono"
+                                                aria-label={rowValueLabel(row.key, idx)}
+                                            >
                                                 <SelectValue />
                                             </SelectTrigger>
                                             <SelectContent style={popupStyle}>
@@ -295,6 +318,7 @@ export function SecretForm({controller, textOnly = false, popupZIndex}: SecretFo
                                         <Input
                                             className="font-mono"
                                             placeholder="value"
+                                            aria-label={rowValueLabel(row.key, idx)}
                                             type={type === "number" ? "number" : "text"}
                                             value={valueToText(row.value)}
                                             onChange={(e) =>

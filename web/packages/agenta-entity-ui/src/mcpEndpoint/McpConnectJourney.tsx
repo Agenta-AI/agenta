@@ -47,6 +47,7 @@ import {
     isBusy,
     mcpChallengeSchemeToShow,
     mcpChallengeStatus,
+    mcpDefaultKeyHeader,
     readMcpProbeResponse,
     toolPrefixFromName,
     useMcpConnectJourney,
@@ -359,7 +360,22 @@ export function McpConnectSheet({
     const {state} = journey
     const namedSecrets = useAtomValue(customNamedSecretsAtom)
 
-    const [headerName, setHeaderName] = useState("Authorization")
+    /**
+     * What the person typed in Header, or null while they have typed nothing.
+     *
+     * Null rather than a seeded string, because the probe answers after this mounts and the
+     * prefill depends on what it found. Seeding at mount would have to be corrected later,
+     * which means deciding whether a correction is allowed to overwrite a typed value; not
+     * seeding at all makes that question disappear.
+     */
+    const [headerName, setHeaderName] = useState<string | null>(null)
+    /**
+     * The header the screen shows: what was typed, or the spec's C5 prefill.
+     *
+     * The scheme the challenge named picks `Authorization`, because a scheme travels in that
+     * header; a challenge that named none picks `x-api-key`. Editable either way.
+     */
+    const headerValue = headerName ?? mcpDefaultKeyHeader(state.probe)
     const [secretSlug, setSecretSlug] = useState("")
     const [creatingSecret, setCreatingSecret] = useState(false)
     // Latches on first open so the create drawer's hooks stay unmounted until needed.
@@ -473,8 +489,8 @@ export function McpConnectSheet({
         if (state.status !== "manual_auth" || !afterCreate) return
         const secretId = namedSecrets.find((secret) => secret.slug === secretSlug)?.id
         if (!secretId) return
-        void journey.submitManualCredential({headerName, secretId})
-    }, [afterCreate, headerName, journey, namedSecrets, secretSlug, state.status])
+        void journey.submitManualCredential({headerName: headerValue, secretId})
+    }, [afterCreate, headerValue, journey, namedSecrets, secretSlug, state.status])
 
     const nameProblem =
         state.status === "naming"
@@ -509,8 +525,8 @@ export function McpConnectSheet({
     const submitCredential = useCallback(() => {
         const secretId = selectedSecretId()
         if (!secretId) return
-        void journey.submitManualCredential({headerName, secretId})
-    }, [headerName, journey, selectedSecretId])
+        void journey.submitManualCredential({headerName: headerValue, secretId})
+    }, [headerValue, journey, selectedSecretId])
 
     const confirm = useCallback(() => {
         switch (state.status) {
@@ -715,7 +731,7 @@ export function McpConnectSheet({
                                     <Input
                                         className="font-mono text-[13px]"
                                         placeholder="Authorization"
-                                        value={headerName}
+                                        value={headerValue}
                                         aria-label="Header"
                                         aria-describedby={
                                             state.status === "verify_failed"
@@ -742,7 +758,7 @@ export function McpConnectSheet({
                                                 ? KEY_PROBLEM_ID
                                                 : undefined
                                         }
-                                        canCreate={!!headerName}
+                                        canCreate={!!headerValue}
                                         onCreate={() => {
                                             setSecretDrawerMounted(true)
                                             setCreatingSecret(true)
@@ -820,7 +836,7 @@ export function McpConnectSheet({
                         <CreateSecretDrawer
                             open={creatingSecret}
                             onClose={() => setCreatingSecret(false)}
-                            headerName={headerName}
+                            headerName={headerValue}
                             serverName={state.name}
                             onCreated={(row) => setSecretSlug(row.slug)}
                         />
