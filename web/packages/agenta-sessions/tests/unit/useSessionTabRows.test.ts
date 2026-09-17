@@ -1,6 +1,10 @@
 import {describe, expect, it} from "vitest"
 
-import {sessionTabListArgs, sessionTabRowsPending} from "../../src/state/useSessionTabRows"
+import {
+    requestedSessionRows,
+    sessionTabListArgs,
+    sessionTabRowsPending,
+} from "../../src/state/useSessionTabRows"
 
 describe("sessionTabListArgs", () => {
     // An open tab is an explicit choice: the surface's origin filter must not hide it, and an
@@ -36,5 +40,15 @@ describe("sessionTabRowsPending", () => {
     // A disabled query reports `pending` forever; an agent with no sessions is not loading.
     it("never waits on an empty set", () => {
         expect(sessionTabRowsPending(0, true)).toBe(false)
+    })
+})
+
+describe("requestedSessionRows", () => {
+    it("drops rows the previous set fetched but this set does not ask for", () => {
+        const rows = [{session_id: "a"}, {session_id: "closed"}, {session_id: "b"}]
+        expect(requestedSessionRows(rows, new Set(["a", "b"]))).toEqual([
+            {session_id: "a"},
+            {session_id: "b"},
+        ])
     })
 })

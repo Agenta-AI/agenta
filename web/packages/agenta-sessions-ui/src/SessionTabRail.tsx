@@ -465,21 +465,27 @@ export const SessionTabRail = ({
             return next.length === prev.length ? prev : next
         })
     }, [fetchedIds, openIds])
+    // The effect above trims state a commit late; the commit a row lands in must not draw the
+    // chip twice, so what renders is derived here, synchronously.
+    const visibleUnlisted = useMemo(
+        () => unlisted.filter((tab) => !fetchedIds.includes(tab.id)),
+        [unlisted, fetchedIds],
+    )
     const orderedIds = useMemo(() => rows.map((vm) => vm.id), [rows])
     // Everything on the strip, in rendered order — unlisted chips trail the rows. This is the
     // order a close reads its survivor from, so closing an unlisted chip lands somewhere too.
     const renderedIds = useMemo(
-        () => [...orderedIds, ...unlisted.map((tab) => tab.id)],
-        [orderedIds, unlisted],
+        () => [...orderedIds, ...visibleUnlisted.map((tab) => tab.id)],
+        [orderedIds, visibleUnlisted],
     )
     // Published so a keyboard surface outside the rail can address "the Nth tab".
     usePublishRenderedSessionTabs(orderScope, renderedIds)
     const closeTabs = useMemo(
         () => [
             ...rows.map((vm) => ({id: vm.id, pinned: vm.isPinned})),
-            ...unlisted.map((tab) => ({id: tab.id, pinned: false})),
+            ...visibleUnlisted.map((tab) => ({id: tab.id, pinned: false})),
         ],
-        [rows, unlisted],
+        [rows, visibleUnlisted],
     )
     // The last chip stays: closing it would leave the surface with nothing to show.
     const closable = renderedIds.length > 1
@@ -557,7 +563,7 @@ export const SessionTabRail = ({
                   ))}
             {tabs.isPending
                 ? null
-                : unlisted.map((tab, index) => (
+                : visibleUnlisted.map((tab, index) => (
                       <UnlistedTab
                           key={tab.id}
                           id={tab.id}

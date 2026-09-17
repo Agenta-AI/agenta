@@ -58,6 +58,15 @@ export interface SessionTabRows {
     isPending: boolean
 }
 
+/**
+ * Only the rows the current set asked for. `keepPreviousData` holds the last set's pages while
+ * a new set loads, so a tab closed a moment ago is still in them.
+ */
+export const requestedSessionRows = <T extends {session_id: string}>(
+    rows: readonly T[],
+    requested: ReadonlySet<string>,
+): T[] => rows.filter((row) => requested.has(row.session_id))
+
 export const useSessionTabRows = ({
     policy,
     agentId,
@@ -70,7 +79,7 @@ export const useSessionTabRows = ({
 }): SessionTabRows => {
     const projectId = useAtomValue(projectIdAtom) ?? ""
     const pinnedIds = useAtomValue(pinnedSessionIdsAtom)
-    const requested = ids ?? []
+    const requested = useMemo(() => ids ?? [], [ids])
 
     // Same poll the lists read, so a chip's "waiting" dot agrees with the sidebar's row.
     const interactions = useActionableInteractions(projectId)
@@ -81,15 +90,16 @@ export const useSessionTabRows = ({
     const query = useSessionList(sessionTabListArgs(policy, agentId, requested))
 
     const pinnedSet = useMemo(() => new Set(pinnedIds), [pinnedIds])
+    const requestedSet = useMemo(() => new Set(requested), [requested])
     const rows = useMemo(
         () =>
-            rowsFromPages(query.data?.pages).map((row) =>
+            requestedSessionRows(rowsFromPages(query.data?.pages), requestedSet).map((row) =>
                 sessionRowVm(row, {
                     pinned: pinnedSet.has(row.session_id),
                     pending: pendingBySession?.get(row.session_id),
                 }),
             ),
-        [query.data?.pages, pinnedSet, pendingBySession],
+        [query.data?.pages, requestedSet, pinnedSet, pendingBySession],
     )
 
     return {rows, isPending: sessionTabRowsPending(requested.length, query.isPending)}
