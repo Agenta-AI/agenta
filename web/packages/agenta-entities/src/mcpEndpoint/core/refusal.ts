@@ -166,17 +166,41 @@ export const gatewayRefusalStatus = (error: unknown): number | null => {
     return typeof status === "number" && status > 0 ? status : null
 }
 
-/** The two statuses that are a server's answer about the credential it was given. */
+/** The cause the relay gives a refusal that came from the server the person chose. */
+const UPSTREAM_REFUSED = "upstream_error"
+
+/** The statuses a route may relay verbatim, where one does. */
 const CREDENTIAL_REFUSED = new Set([401, 403])
 
 /**
- * Whether this failure is the server refusing the credential, rather than not answering.
+ * Whether this failure is the chosen server refusing the credential, rather than our own
+ * side refusing the request or nothing answering at all.
  *
- * The specification routes exactly these to the rejected-key screen. Everything else — a
- * timeout, a 502, a refusal from our own side — is a failure to check the key, not a verdict
- * on it, and the screen that says the key was rejected must not claim one (round 4, D133).
+ * Read from the cause, not the status. The relay never answers with the upstream's status:
+ * `_map_gateway_exception` turns an upstream refusal into 424, or 502 for a server error,
+ * and puts `upstream_error` in the JSON-RPC error data. So every 401 and 403 this route can
+ * produce is our own — a session, a policy, an entitlement — and deciding on status alone
+ * meant the rejected-key screen was reachable only by the failures it is not for (round 4,
+ * D182). A timeout carries no cause and is a failure to check the key, not a verdict on it.
  */
 export const isCredentialRefusal = (error: unknown): boolean => {
+    if (gatewayRefusalCode(error) === UPSTREAM_REFUSED) return true
+    // A route that does relay the status verbatim is still answering about the credential.
+    // None does today; keeping it costs nothing and stops this reading as status-blind.
     const status = gatewayRefusalStatus(error)
     return status !== null && CREDENTIAL_REFUSED.has(status)
+}
+
+/**
+ * The status to show beside "the server rejected this key", or null.
+ *
+ * Only a status the chosen server actually answered with. The relay's own 424 says the
+ * upstream refused and says nothing about how, so printing it would put a platform number
+ * where the specification asks for the server's, which is the mistake D133 was reopened
+ * for. The upstream's status is not carried structurally today; issue 6926 is where that
+ * shape is tracked, and until then this screen names no code on the relay's own refusals.
+ */
+export const credentialRefusalStatus = (error: unknown): number | null => {
+    const status = gatewayRefusalStatus(error)
+    return status !== null && CREDENTIAL_REFUSED.has(status) ? status : null
 }

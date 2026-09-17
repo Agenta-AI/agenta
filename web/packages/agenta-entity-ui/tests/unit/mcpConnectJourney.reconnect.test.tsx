@@ -309,3 +309,65 @@ describe("what a key reconnect sends back", () => {
         expect(journey.state.status).not.toBe("saving")
     })
 })
+
+describe("a reconnect abandoned while the row is being read", () => {
+    it("writes nothing and verifies nothing", async () => {
+        // Reading the row back is a round trip, and the guard ran only after the write and
+        // the verification resolved, so a reconnect closed during that read went on to write
+        // a credential and check it against a connection nobody was looking at (round 4,
+        // D181).
+        let release: (value: unknown) => void = () => undefined
+        queryMcpEndpoints.mockReturnValue(
+            new Promise((resolve) => {
+                release = resolve
+            }),
+        )
+
+        await mountJourney(KEY_AUTHENTICATED)
+        let submitted: Promise<void>
+        await act(async () => {
+            submitted = journey.submitManualCredential({
+                headerName: "X-Api-Key",
+                secretId: "sec-1",
+            })
+        })
+
+        await act(async () => journey.abandonAttempt())
+        await act(async () => {
+            release({count: 1, endpoints: [{id: "mcp-9", slug: "acme-prod", data: {route: {}}}]})
+            await submitted
+        })
+
+        expect(editMcpEndpoint).not.toHaveBeenCalled()
+        expect(listMcpTools).not.toHaveBeenCalled()
+    })
+})
+
+describe("a credential swap that worked", () => {
+    it("clears the stale validity flag, so the row stops asking to be repaired", async () => {
+        // The flag describes the secret being replaced, so carrying it back marked a
+        // repaired connection as still needing input and the row went on reading "Login
+        // expired" after a successful swap (round 4, D180).
+        queryMcpEndpoints.mockResolvedValue({
+            count: 1,
+            endpoints: [
+                {
+                    id: "mcp-9",
+                    slug: "acme-prod",
+                    name: "Acme (prod)",
+                    auth_mode: "api_key",
+                    secret_id: "sec-old",
+                    flags: {is_valid: false},
+                    data: {route: {base_url: "https://mcp.acme.test/"}},
+                },
+            ],
+        })
+
+        await mountJourney(KEY_AUTHENTICATED)
+        await act(async () => {
+            await journey.submitManualCredential({headerName: "X-Api-Key", secretId: "sec-new"})
+        })
+
+        expect(editMcpEndpoint.mock.calls.at(-1)?.[0].flags).toEqual({is_valid: true})
+    })
+})

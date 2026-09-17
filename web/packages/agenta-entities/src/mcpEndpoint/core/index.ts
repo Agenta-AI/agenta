@@ -56,6 +56,7 @@ export {
     gatewayRefusalCode,
     gatewayRefusalMessage,
     gatewayRefusalStatus,
+    credentialRefusalStatus,
     isCredentialRefusal,
     isNameTakenRefusal,
 } from "./refusal"
