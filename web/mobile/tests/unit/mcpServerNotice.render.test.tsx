@@ -26,7 +26,12 @@ vi.mock("next/router", () => import("../support/nextRouter").then((m) => m.nextR
 
 // The project's MCP connections, which the card needs before it may offer Reconnect: the action
 // carries the row's id and slug. Stubbed at the module the card reads it from, with the one row
-// the notice names, so a case can see the action and not only the sentence.
+// the notice names.
+//
+// SEED THIS IN ANY NEW NOTICE CASE. Without it `findCustomMcpEndpoint` resolves nothing,
+// `canConnect` is false, and the card renders its sentence with no action — so a case that
+// asserts only the copy passes whether or not the reader has a way back, which is the half of
+// this card that does anything. Every case here did exactly that until round 6e.
 vi.mock("@agenta/entities/mcpEndpoint", async (importOriginal) => {
     const {atom} = await import("jotai")
     const original = await importOriginal<typeof import("@agenta/entities/mcpEndpoint")>()
