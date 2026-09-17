@@ -31,7 +31,7 @@ vi.mock("next/router", () => import("../support/nextRouter").then((m) => m.nextR
 // SEED THIS IN ANY NEW NOTICE CASE. Without it `findCustomMcpEndpoint` resolves nothing,
 // `canConnect` is false, and the card renders its sentence with no action — so a case that
 // asserts only the copy passes whether or not the reader has a way back, which is the half of
-// this card that does anything. Every case here did exactly that until round 6e.
+// this card that does anything. Every case here did exactly that until this one.
 vi.mock("@agenta/entities/mcpEndpoint", async (importOriginal) => {
     const {atom} = await import("jotai")
     const original = await importOriginal<typeof import("@agenta/entities/mcpEndpoint")>()
@@ -150,10 +150,15 @@ describe("mobile TurnRow: an MCP server that did not join the run", () => {
     })
 
     it("shows the failed call when no notice on the turn accounts for it", () => {
-        // The state round 6e hit: a disconnected connection, a call that could not run, and no
-        // notice part on the turn. The timeline hides a failed call by product rule, so hiding
-        // this one too left the turn saying nothing at all — no card, no row, no error text. A
-        // failure nothing else explains is the one a reader has to see.
+        // A call that could not run, and no notice on the turn to account for it. The timeline
+        // hides a failed call by product rule, so hiding this one too leaves the turn saying
+        // nothing at all: no card, no row, no error text.
+        //
+        // No live path is known to reach that state. A finding once read as this one was
+        // retracted: the model had declined the call, so there was no failure to report and no
+        // notice was warranted. The guarantee is the point rather than a repair — silence is the
+        // one outcome a reader can neither act on nor ask about, and nothing in the timeline's
+        // rules was keeping a turn out of it.
         const html = renderTurn([failedToolPart("mcp__mock-mcp__echo")])
 
         expect(html).not.toContain("data-mcp-server-notice")
