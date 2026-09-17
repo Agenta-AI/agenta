@@ -13,6 +13,15 @@
   /* The theme's sticky viewport is contained by the doc root, so it scrolls
      away once the footer comes into view. Fixed keeps the sidebar in place;
      the container still reserves the column width. */
+  /* The theme also clips the container (clip-path: inset(0), for its
+     hideable-sidebar animation, which is off here); that clip applies to
+     fixed descendants too and would cut the sidebar at the container's
+     bottom edge. The element selector outranks the theme's module rule. */
+  aside.theme-doc-sidebar-container {
+    clip-path: none;
+    will-change: auto;
+  }
+
   .theme-doc-sidebar-container [class*="sidebarViewport"] {
     position: fixed;
     top: 0;
