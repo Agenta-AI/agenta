@@ -134,6 +134,17 @@ const UNREACHABLE_ADVICE =
 
 const KEY_REJECTED_HEADLINE = "The server rejected this key."
 const KEY_REJECTED_ADVICE = "Check the header the server expects, or pick another secret."
+/**
+ * The same advice, naming what the server expects where it said so.
+ *
+ * The spec's sentence had this clause and the implementation dropped it, because the probe
+ * returned nothing to put in it. It returns the challenge now. Decision 27 asks for the
+ * spec's em dashes to become a period or a colon, not for the clause to go.
+ */
+const keyRejectedAdviceFor = (scheme: string | null): string =>
+    scheme
+        ? `Check the header the server expects: ${scheme} or pick another secret.`
+        : KEY_REJECTED_ADVICE
 
 const WAITING_BODY =
     "Finish signing in in the window that opened. This closes on its own when you're done."
@@ -723,7 +734,7 @@ export function McpConnectSheet({
 
                     {screen === "api_key" && state.status === "verify_failed" ? (
                         <InlineError headline={KEY_REJECTED_HEADLINE} className="-mt-2">
-                            {state.error} {KEY_REJECTED_ADVICE}
+                            {state.error} {keyRejectedAdviceFor(challengeScheme)}
                         </InlineError>
                     ) : null}
 

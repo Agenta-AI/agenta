@@ -529,6 +529,18 @@ describe("C6, the key was refused", () => {
         expect(button("Try again")).toBeDefined()
     })
 
+    it("names what the server expects when the challenge said so", async () => {
+        await open({...rejected, probe: KEY_PROBE_WITH_SCHEME})
+
+        // The spec's sentence carried this clause and it was dropped for want of anything
+        // to put in it. Decision 27 replaces the spec's em dashes with a colon, and keeps
+        // the clause.
+        expect(text()).toContain(
+            "The server rejected this key. The server rejected the credential (401). " +
+                "Check the header the server expects: DSN or pick another secret.",
+        )
+    })
+
     it("is the same sheet a key connection reconnects through, with nothing re-decided", async () => {
         await open(
             state({

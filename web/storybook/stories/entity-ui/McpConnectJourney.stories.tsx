@@ -263,6 +263,22 @@ export const ApiKeyRejected: Story = sheet(
     }),
 )
 
+/** C6 with the clause restored — the server named a scheme, so the advice names it back. */
+export const ApiKeyRejectedWithScheme: Story = sheet(
+    state({
+        status: "verify_failed",
+        url: "https://mcp.axiom.co/mcp",
+        name: "Axiom",
+        probe: {
+            ...KEY_PROBE,
+            auth: {...KEY_PROBE.auth, challenge_status: 401, challenge_schemes: ["DSN"]},
+        },
+        endpointId: "mcp-1",
+        slug: "axiom",
+        error: "The server rejected the credential (401).",
+    }),
+)
+
 /** C5's other half — a server that asked for nothing shows only the card and the name. */
 export const NoAuth: Story = sheet(
     state({
