@@ -31,6 +31,9 @@ const rules = [
       // Page-local dividers that are not a band border. Keep this list short.
       "pages/contact.astro",
       "pages/imprint.astro",
+      // The bento grid ring inside the Stay in control section reuses the
+      // token for its 1px cell gaps; it is not the band border.
+      "components/StayInControl.astro",
     ],
   },
   {
@@ -57,8 +60,8 @@ const rules = [
       // own components, not section eyebrows.
       "components/PostCard.astro",
       "components/PlanCard.astro",
-      // A data chip inside the mocked evaluation chart.
-      "components/Reliability.astro",
+      // The "On" pill inside the mocked automation card.
+      "components/StayInControl.astro",
     ],
   },
   {
@@ -69,6 +72,7 @@ const rules = [
       "styles/theme.css",
       // A chip inside the mocked app screen, styled like the app, not a site button.
       "components/HowItWorks.tsx",
+      "components/HowItWorks.astro",
     ],
   },
 ];

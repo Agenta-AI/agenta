@@ -3,6 +3,8 @@ import { defineConfig } from "astro/config";
 import react from "@astrojs/react";
 import mdx from "@astrojs/mdx";
 import sitemap from "@astrojs/sitemap";
+import tailwindcss from "tailwindcss";
+import { fileURLToPath } from "node:url";
 
 // Static-first (pure SSG). This is deliberate — see
 // docs/design/marketing-website/plan.md.
@@ -20,6 +22,7 @@ import sitemap from "@astrojs/sitemap";
 //                      already points crawlers at /sitemap-index.xml. The 404 and
 //                      any noindex page are excluded via `filter` below.
 export default defineConfig({
+  devToolbar: { enabled: false },
   output: "static",
   site: "https://agenta.ai",
   integrations: [
@@ -41,6 +44,17 @@ export default defineConfig({
     }),
   ],
   vite: {
+    css: {
+      postcss: {
+        plugins: [
+          tailwindcss({
+            config: fileURLToPath(
+              new URL("./tailwind.demo.config.ts", import.meta.url),
+            ),
+          }),
+        ],
+      },
+    },
     // Pin the dev dependency optimizer to development. If the dev server inherits
     // NODE_ENV=production from the shell, esbuild pre-bundles React's *production*
     // jsx-dev-runtime (where jsxDEV is a no-op), which throws "jsxDEV is not a
