@@ -43,9 +43,8 @@ export const FOCUS_RING =
  * (there's no baseline-aligned flex item), which floated the whole thing above the line. `[font:inherit]`
  * makes it take the copy's font (preflight is off → a raw `<button>` would otherwise fall back to the
  * UA default, Arial 13.3px vs the copy's Inter 12px). Only the ICON is nudged (`-0.15em`) to sit on the
- * text's optical centre. Warning tone (`colorWarning`, correct light AND dark) so it reads as the
- * action for a "couldn't load" state and sits as ONE unit with the amber warning glyph beside it —
- * not a competing blue link; hover underlines. Busy swaps the glyph for a spinner and reads "Loading…",
+ * text's optical centre. Takes the copy's colour too, so it reads as part of the sentence rather than
+ * a competing link; hover underlines. Busy swaps the glyph for a spinner and reads "Loading…",
  * disabled so it can't double-fire.
  */
 export const DriveRetryButton = ({onRetry, busy}: {onRetry: () => void; busy?: boolean}) => (
@@ -55,7 +54,7 @@ export const DriveRetryButton = ({onRetry, busy}: {onRetry: () => void; busy?: b
         disabled={busy}
         aria-busy={busy || undefined}
         aria-label="Try loading files again"
-        className={`inline cursor-pointer whitespace-nowrap rounded-sm border-0 bg-transparent p-0 [font:inherit] text-colorWarning transition-colors hover:underline disabled:cursor-default disabled:no-underline disabled:opacity-70 ${FOCUS_RING}`}
+        className={`inline cursor-pointer whitespace-nowrap rounded-sm border-0 bg-transparent p-0 [font:inherit] text-current transition-colors hover:underline disabled:cursor-default disabled:no-underline disabled:opacity-70 ${FOCUS_RING}`}
     >
         {busy ? (
             <CircleNotch size={13} className="mr-1 inline animate-spin align-[-0.15em]" />

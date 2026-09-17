@@ -153,6 +153,8 @@ export default function StorageSection({
             <AnimatePresence mode="popLayout" initial={false}>
                 <motion.div
                     key={phase}
+                    // The rows' own border + padding cancel the bleed; plain text needs it back.
+                    className={phase === "list" ? undefined : "pl-2"}
                     initial={{opacity: 0}}
                     animate={{opacity: 1}}
                     exit={{opacity: 0}}
@@ -222,23 +224,12 @@ export default function StorageSection({
                             ) : null}
                         </div>
                     ) : phase === "error" ? (
-                        <div className="flex flex-col gap-1">
-                            <Text type="secondary" className="!text-xs">
-                                Couldn&rsquo;t reach the file store.{" "}
-                                {drive.retry ? (
-                                    <DriveRetryButton
-                                        onRetry={drive.retry}
-                                        busy={drive.isFetching}
-                                    />
-                                ) : null}
-                            </Text>
-                            {/* The diagnostic is now secondary + conditional — a retry may well fix a
-                                transient failure; the "not configured" hint only matters if it keeps
-                                failing (self-hosted deploys without an object store). */}
-                            <Text type="secondary" className="!text-xs !text-colorTextTertiary">
-                                Still failing? This deployment may have no file store configured.
-                            </Text>
-                        </div>
+                        <Text type="secondary" className="!text-xs">
+                            Couldn&rsquo;t reach the file store.{" "}
+                            {drive.retry ? (
+                                <DriveRetryButton onRetry={drive.retry} busy={drive.isFetching} />
+                            ) : null}
+                        </Text>
                     ) : phase === "no-session" ? (
                         <Text type="secondary" className="!text-xs">
                             No conversation open yet — the agent&rsquo;s working files appear here
