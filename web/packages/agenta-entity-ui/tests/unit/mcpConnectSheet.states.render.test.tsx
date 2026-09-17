@@ -460,6 +460,99 @@ describe("C4, the provider's window", () => {
     })
 })
 
+describe("every description a field points at is on screen", () => {
+    /**
+     * D127. The hint ids were written by hand at the call sites and set on the control
+     * whatever the screen, so any screen that drew no hint left the control naming an element
+     * that was not in the document. Four screens did that on the name field alone, and a
+     * description that points at nothing reads to assistive technology as no description,
+     * silently.
+     */
+    const dangling = (label: string): string[] =>
+        (control(label)?.getAttribute("aria-describedby") ?? "")
+            .split(/\s+/)
+            .filter(Boolean)
+            .filter((id) => !document.getElementById(id))
+
+    const screens: [string, McpJourneyState, Partial<McpConnectJourneyProps> | undefined][] = [
+        ["C1, the address", state({status: "url_entry"}), undefined],
+        [
+            "C3, the OAuth name step",
+            state({
+                status: "naming",
+                url: "https://mcp.linear.app/mcp",
+                name: "Linear",
+                probe: OAUTH_PROBE,
+            }),
+            undefined,
+        ],
+        [
+            "C5, the key step, which draws no hint under the name",
+            state({
+                status: "naming",
+                url: "https://mcp.axiom.co/mcp",
+                name: "Axiom",
+                probe: KEY_PROBE,
+            }),
+            undefined,
+        ],
+        [
+            "C5's no-auth half, which draws none either",
+            state({
+                status: "naming",
+                url: "https://mcp.acme.test/mcp",
+                name: "Acme",
+                probe: NO_AUTH_PROBE,
+            }),
+            undefined,
+        ],
+        [
+            "C6, where an error box is the description",
+            state({
+                status: "verify_failed",
+                url: "https://mcp.axiom.co/mcp",
+                name: "Axiom",
+                probe: KEY_PROBE,
+                endpointId: "mcp-1",
+                slug: "axiom",
+                error: "The server rejected the credential.",
+            }),
+            undefined,
+        ],
+        [
+            "the reconnect entry, where the name is locked",
+            state({
+                status: "discovering_scopes",
+                url: "https://mcp.linear.app/mcp",
+                name: "Linear",
+                endpointId: "mcp-9",
+                slug: "linear-7mx",
+                createdHere: false,
+            }),
+            {
+                reconnect: {
+                    id: "mcp-9",
+                    slug: "linear-7mx",
+                    name: "Linear",
+                    url: "https://mcp.linear.app/mcp",
+                    authMode: "oauth" as const,
+                },
+            },
+        ],
+    ]
+
+    for (const [name, current, props] of screens) {
+        it(`resolves every reference on ${name}`, async () => {
+            await open(current, props)
+
+            for (const label of ["Server URL", "Name", "Header", "Project secret"]) {
+                if (!control(label)) continue
+                expect({[label]: dangling(label)}).toEqual({[label]: []})
+            }
+        })
+    }
+})
+
 describe("the reconnect entry, which opens on a screen nobody has pressed", () => {
     const RECONNECT = {
         id: "mcp-9",
