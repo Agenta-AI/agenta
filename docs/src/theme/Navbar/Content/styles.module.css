@@ -63,6 +63,11 @@
   background-color: var(--bgelevated1);
 }
 
+.colorModeToggle:focus-visible {
+  outline: 2px solid var(--contentprimary);
+  outline-offset: 2px;
+}
+
 /* Version pill next to the logo */
 .versionSelector {
   display: flex;
