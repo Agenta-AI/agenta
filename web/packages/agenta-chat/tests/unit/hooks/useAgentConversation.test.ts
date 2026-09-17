@@ -573,6 +573,40 @@ describe("useAgentConversation", () => {
         expect(getSessionTurnId(sessionId)).toBeUndefined()
     })
 
+    it("reports an already-answered gate on the dock, not on the transcript", async () => {
+        // The other path into the same refusal. `sendToolOutput` had no handler at all, so a
+        // replayed client-tool answer threw into nothing; the dock's `settle` awaits through
+        // `Promise.allSettled` and puts the reason on its own card, which is where a reader is
+        // looking when they press Approve. Two surfaces, one refusal, and the transcript stays out
+        // of it: the run has not failed.
+        durableApprovalCapability.mockResolvedValue(true)
+        respondAnswer.mockRejectedValue(new ApprovalNotPendingError())
+        fetchMock.mockResolvedValueOnce(approvalResponse())
+        const store = createStore()
+        const sessionId = nextSessionId()
+        markSessionFresh(sessionId)
+        const {result} = mount(store, "rev-1", sessionId)
+
+        await act(async () => {
+            await result.current.send({text: "needs approval"})
+        })
+        await waitFor(() => expect(result.current.approvals.open).toBe(true), {timeout: 5000})
+
+        await act(async () => result.current.approvals.respond(true))
+
+        await waitFor(() =>
+            expect(result.current.approvals.errorText).toBe(
+                "This approval is no longer pending. Refresh and retry.",
+            ),
+        )
+        expect(result.current.approvals.answered).toBe(false)
+        // Re-armed, so the reader can act again after refreshing.
+        expect(result.current.approvals.responding).toBe(false)
+        expect(result.current.error).toBeUndefined()
+        expect(result.current.turns.at(-1)?.status.showError).not.toBe(true)
+        expect(result.current.runStatus).not.toBe("error")
+    })
+
     it("voids an approval resume before its delayed interaction write releases", async () => {
         approvalRecord.defer = true
         fetchMock
