@@ -662,6 +662,7 @@ export function useModelHarness({
             localDraftDirty={credentialOperationsBlocked}
             canEditSecrets={permissions?.canEditSecrets ?? false}
             onRevisionCommitted={handleCredentialRevisionCommitted}
+            attachContainer={secretsHeaderSlot}
         />
     )
 
@@ -727,15 +728,6 @@ export function useModelHarness({
                 },
                 body: executionBody,
             },
-            hasBuildKitOverlay && {
-                item: {
-                    value: "build-kit",
-                    label: "Build kit",
-                    icon: <Wrench size={14} />,
-                },
-                // The block carries its own title + enable switch, so it needs no panel header.
-                body: buildKitSection,
-            },
             // Unlike the others this is not schema-gated: the vault is a property of the agent, not
             // of its config schema, so the panel is always offered — it is the only way to reach
             // the secrets from Advanced, which is where they have always lived.
@@ -747,9 +739,19 @@ export function useModelHarness({
                 },
                 header: {
                     title: "Custom secrets",
-                    caption: `Credentials this agent may read at run time. ${secretsSummary}.`,
+                    caption: `Credentials this agent can use while it works. ${secretsSummary}.`,
+                    extra: <span ref={setSecretsHeaderSlot} className="flex shrink-0" />,
                 },
                 body: secretsBody,
+            },
+            hasBuildKitOverlay && {
+                item: {
+                    value: "build-kit",
+                    label: "Build kit",
+                    icon: <Wrench size={14} />,
+                },
+                // The block carries its own title + enable switch, so it needs no panel header.
+                body: buildKitSection,
             },
         ] as (AdvancedPanel | false)[]
     ).filter((panel): panel is AdvancedPanel => Boolean(panel))
@@ -835,7 +837,7 @@ export function useModelHarness({
         runnerPermissionSummary,
         advancedSummary,
         advancedDrawerBody,
-        // Rail + one panel at a time: no wider than the Model drawer.
-        advancedDrawerWidth: 560,
+        // Rail + one panel at a time; 50px over the Model drawer so the build-kit rows breathe.
+        advancedDrawerWidth: 610,
     }
 }

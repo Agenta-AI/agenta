@@ -16,6 +16,7 @@ import {
 } from "@agenta/ui/ui"
 import {Key, PencilSimple, Plus, Trash} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
+import {createPortal} from "react-dom"
 
 import {AgentSecretAttachmentDrawer} from "../../../secret"
 
@@ -26,6 +27,8 @@ export interface AgentSecretsSectionProps {
     localDraftDirty?: boolean
     canEditSecrets?: boolean
     onRevisionCommitted?: (revisionId: string) => void
+    /** Portal the Attach button into a host-owned element (e.g. a panel header) instead of the body. */
+    attachContainer?: HTMLElement | null
 }
 
 export function AgentSecretsSection({
@@ -35,11 +38,11 @@ export function AgentSecretsSection({
     localDraftDirty = false,
     canEditSecrets = true,
     onRevisionCommitted,
+    attachContainer,
 }: AgentSecretsSectionProps) {
     const {namedSecrets, loading} = useVaultSecret()
     const commitCredentials = useSetAtom(commitAgentCredentialsAtom)
     const artifactName = useAtomValue(workflowMolecule.selectors.artifactName(revisionId ?? ""))
-    const variantLabel = useAtomValue(workflowMolecule.selectors.variantLabel(revisionId ?? ""))
     const workflowDirty = useAtomValue(workflowMolecule.selectors.isDirty(revisionId ?? ""))
     const dirty = workflowDirty || localDraftDirty
     const [drawerOpen, setDrawerOpen] = useState(false)
@@ -57,7 +60,8 @@ export function AgentSecretsSection({
             ),
         [namedSecrets],
     )
-    const targetLabel = [artifactName, variantLabel].filter(Boolean).join(" / ") || "Agent"
+    // The agent's name alone: "default" told the reader nothing about which agent this is.
+    const targetLabel = artifactName || "Agent"
     const committedRevision = Boolean(revisionId && !revisionId.startsWith("local-"))
     const canAttach = committedRevision && !disabled && canEditSecrets && !dirty
 
@@ -100,24 +104,27 @@ export function AgentSecretsSection({
         }
     }
 
+    const attachButton = (
+        <Button
+            size="sm"
+            variant="outline"
+            disabled={!canAttach}
+            onClick={() => {
+                setEditingIndex(null)
+                setDrawerOpen(true)
+            }}
+        >
+            <Plus size={13} /> Attach
+        </Button>
+    )
+
     return (
         <div className="flex flex-col gap-3">
-            <div className="flex items-start justify-between gap-3">
-                <div className="text-xs leading-snug text-colorTextDescription">
-                    Attach project vault secrets as environment variables for this agent.
-                </div>
-                <Button
-                    size="sm"
-                    variant="outline"
-                    disabled={!canAttach}
-                    onClick={() => {
-                        setEditingIndex(null)
-                        setDrawerOpen(true)
-                    }}
-                >
-                    <Plus size={13} /> Attach
-                </Button>
-            </div>
+            {attachContainer === undefined ? (
+                <div className="flex items-center justify-end">{attachButton}</div>
+            ) : attachContainer ? (
+                createPortal(attachButton, attachContainer)
+            ) : null}
 
             {!canEditSecrets ? (
                 <div className="rounded-lg border border-colorBorderSecondary p-3 text-xs text-colorTextSecondary">
@@ -142,47 +149,54 @@ export function AgentSecretsSection({
                     No custom secrets attached.
                 </div>
             ) : (
-                <div className="overflow-hidden rounded-lg border border-colorBorderSecondary">
+                // The subagent drawer's rows: a 34px tile, the name over its secret, the actions
+                // trailing. No bordered box around the list.
+                <div className="-ml-2 flex flex-col gap-0.5">
                     {bindings.map((binding, index) => {
                         const secretName = namesBySlug.get(binding.secret.slug)
                         return (
                             <div
                                 key={`${binding.secret.slug}-${binding.binding.name}`}
-                                className="flex items-center gap-3 border-b border-colorBorderSecondary px-3 py-2.5 last:border-b-0"
+                                className="flex items-center gap-3.5 rounded-[10px] py-2 pl-2"
                             >
-                                <Key size={16} className="shrink-0 text-colorTextSecondary" />
-                                <div className="min-w-0 flex-1">
-                                    <div className="truncate text-sm font-medium text-colorText">
+                                <span className="flex size-[34px] shrink-0 items-center justify-center rounded-control-sm bg-colorFillSecondary text-muted-foreground">
+                                    <Key aria-hidden size={16} />
+                                </span>
+                                <span className="flex min-w-0 flex-1 flex-col gap-px">
+                                    <span className="truncate text-sm leading-[1.45] text-foreground">
                                         {binding.binding.name}
-                                    </div>
-                                    <div className="truncate text-xs text-colorTextSecondary">
+                                    </span>
+                                    <span className="truncate text-[13px] leading-[1.45] text-muted-foreground">
                                         {secretName ?? `${binding.secret.slug} (unavailable)`}
-                                    </div>
-                                </div>
-                                <Button
-                                    variant="ghost"
-                                    size="icon-sm"
-                                    aria-label={`Edit ${binding.binding.name}`}
-                                    disabled={disabled || !canEditSecrets || dirty}
-                                    onClick={() => {
-                                        setEditingIndex(index)
-                                        setDrawerOpen(true)
-                                    }}
-                                >
-                                    <PencilSimple size={14} />
-                                </Button>
-                                <Button
-                                    variant="ghost"
-                                    size="icon-sm"
-                                    aria-label={`Remove ${binding.binding.name}`}
-                                    disabled={disabled || !canEditSecrets || dirty}
-                                    onClick={() => {
-                                        setRemoveError(null)
-                                        setRemoveIndex(index)
-                                    }}
-                                >
-                                    <Trash size={14} />
-                                </Button>
+                                    </span>
+                                </span>
+                                <span className="flex shrink-0 items-center gap-0.5">
+                                    <Button
+                                        variant="ghost"
+                                        size="icon-sm"
+                                        aria-label={`Edit ${binding.binding.name}`}
+                                        disabled={disabled || !canEditSecrets || dirty}
+                                        onClick={() => {
+                                            setEditingIndex(index)
+                                            setDrawerOpen(true)
+                                        }}
+                                    >
+                                        <PencilSimple size={14} />
+                                    </Button>
+                                    <Button
+                                        variant="ghost"
+                                        size="icon-sm"
+                                        className="hover:bg-[color-mix(in_srgb,var(--ag-colorError)_10%,transparent)] hover:text-error"
+                                        aria-label={`Remove ${binding.binding.name}`}
+                                        disabled={disabled || !canEditSecrets || dirty}
+                                        onClick={() => {
+                                            setRemoveError(null)
+                                            setRemoveIndex(index)
+                                        }}
+                                    >
+                                        <Trash size={14} />
+                                    </Button>
+                                </span>
                             </div>
                         )
                     })}

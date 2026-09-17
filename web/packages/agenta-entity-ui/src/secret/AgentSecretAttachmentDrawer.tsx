@@ -245,21 +245,29 @@ export function AgentSecretAttachmentDrawer({
             open={open}
             onClose={onClose}
             placement="right"
-            width={600}
+            // Matches the Advanced drawer it opens over.
+            width={610}
             zIndex={zIndex}
             closable={false}
             destroyOnClose
             title={
                 <div className="flex min-w-0 items-center gap-2">
-                    <Button variant="ghost" size="icon-sm" aria-label="Back" onClick={onClose}>
+                    {/* -my-0.5, like the sheet's own close button: the 28px control otherwise
+                        adds 4px to the header over the other drawers'. */}
+                    <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        className="-my-0.5"
+                        aria-label="Back"
+                        onClick={onClose}
+                    >
                         <ArrowLeft size={14} />
                     </Button>
-                    <div className="min-w-0">
-                        <div className="truncate text-sm font-medium">{title}</div>
-                        <div className="truncate text-xs font-normal text-colorTextSecondary">
-                            {target.label}
-                        </div>
-                    </div>
+                    {/* One line, like the config drawers: title · target. */}
+                    <span className="shrink-0 text-sm font-medium">{title}</span>
+                    <span className="min-w-0 truncate text-xs font-normal text-colorTextSecondary">
+                        · {target.label}
+                    </span>
                 </div>
             }
             footer={
