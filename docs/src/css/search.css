@@ -1,0 +1,211 @@
+/* DocSearch modal and the /search results page. The header button lives in navbar.css. */
+
+/* Frosted-glass modal: a mostly-opaque translucent panel with a backdrop
+   blur. The opacity is high enough that busy page content stays obscured and
+   doesn't clash with the muted text. */
+.DocSearch-Modal {
+  border-radius: var(--radius-lg) !important;
+  /* 92% of the theme background so busy page content stays obscured behind the
+     muted text; color-mix keeps it linked to the palette in both themes. */
+  background-color: color-mix(
+    in srgb,
+    var(--bgdefault) 92%,
+    transparent
+  ) !important;
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  backdrop-filter: blur(24px) saturate(180%);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+[data-theme="dark"] .DocSearch-Modal {
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+.DocSearch-SearchBar,
+.DocSearch-Form,
+.DocSearch-Footer {
+  background: transparent !important;
+  box-shadow: none !important;
+  border: none !important;
+}
+
+/* Neutralize DocSearch's blue/lavender accents and use the doc palette.
+   These variables drive the placeholder, the "Clear the query"/"Ask AI"
+   accents, the matched-text highlight, focus, and the selected result. All
+   values are theme-aware, so light and dark are both handled. */
+:root,
+[data-theme="dark"] {
+  /* !important because Docusaurus's Algolia CSS sets these on :root after us */
+  --docsearch-muted-color: var(--contenttertiary) !important;
+  --docsearch-primary-color: var(--contentsecondary) !important;
+  --docsearch-highlight-color: var(--contentprimary) !important;
+  --docsearch-focus-color: var(--contentsecondary) !important;
+  /* Lavender tint used for action-button (Close/Clear) hover backgrounds. */
+  --docsearch-soft-primary-color: rgba(0, 0, 0, 0.05) !important;
+  /* Neutral overlay scrim (was a lavender rgba(101,108,133,.8)). */
+  --docsearch-container-background: rgba(20, 20, 22, 0.5) !important;
+  /* Results/searchbox/footer sit directly on the frosted modal panel. */
+  --docsearch-hit-background: transparent !important;
+  --docsearch-searchbox-background: transparent !important;
+  --docsearch-footer-background: transparent !important;
+}
+
+/* Keep the modal-background transparent so surfaces that use it (e.g. the
+   sticky section headers) blend with the frosted modal instead of showing a
+   lighter band. Floating popovers that need a solid surface are handled
+   directly (see .DocSearch-Menu-content). */
+:root,
+[data-theme="dark"] {
+  --docsearch-modal-background: transparent !important;
+}
+
+[data-theme="dark"] {
+  --docsearch-soft-primary-color: rgba(255, 255, 255, 0.07) !important;
+}
+
+/* Sticky section headers: transparent so they show the modal's frosted panel
+   exactly (no lighter/white band). */
+.DocSearch-Hit-source {
+  background-color: transparent !important;
+}
+
+/* Selected/hovered result: a subtle neutral-grey highlight with normal text,
+   instead of a solid blue fill with white text. A translucent grey reads as
+   neutral (the --bgelevated* greys are warm-tinted and look muddy here). */
+.DocSearch-Hit[aria-selected="true"] a {
+  background-color: rgba(0, 0, 0, 0.05) !important;
+}
+
+[data-theme="dark"] .DocSearch-Hit[aria-selected="true"] a {
+  background-color: rgba(255, 255, 255, 0.07) !important;
+}
+
+.DocSearch-Hit[aria-selected="true"] .DocSearch-Hit-title,
+.DocSearch-Hit[aria-selected="true"] .DocSearch-Hit-path,
+.DocSearch-Hit[aria-selected="true"] mark {
+  color: var(--contentprimary) !important;
+}
+
+.DocSearch-Hit[aria-selected="true"] .DocSearch-Hit-icon,
+.DocSearch-Hit[aria-selected="true"] .DocSearch-Hit-action {
+  color: var(--contenttertiary) !important;
+}
+
+/* Matched keyword: emphasize with a semibold weight (in the normal content
+   color) instead of a colored highlight. */
+.DocSearch-Hit mark,
+.DocSearch-Hit-title mark,
+.DocSearch-Hit-path mark {
+  font-weight: 600 !important;
+  color: var(--contentprimary) !important;
+  background: transparent !important;
+}
+
+/* "Ask AI" suggestion row: neutral grey tint instead of the hardcoded
+   Algolia blue (rgba(0, 61, 255, 0.1)). */
+.DocSearch-Hit--AskAI {
+  background-color: rgba(0, 0, 0, 0.05) !important;
+}
+
+[data-theme="dark"] .DocSearch-Hit--AskAI {
+  background-color: rgba(255, 255, 255, 0.07) !important;
+}
+
+/* No-results / screen icons have a hardcoded lavender stroke (#5a5e9a);
+   neutralize them to a muted grey (the paths inherit the svg's stroke). */
+.DocSearch-Screen-Icon svg,
+.DocSearch-Screen-Icon svg * {
+  stroke: var(--contenttertiary) !important;
+}
+
+/* The "Ask AI" conversation menu popover floats outside the modal and was
+   fully transparent, so page content bled through its items. Give it a solid
+   opaque surface. */
+.DocSearch-Menu-content {
+  background-color: var(--bgdefault) !important;
+  border: 1px solid var(--borderdefault) !important;
+  border-radius: var(--radius-md) !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18) !important;
+}
+
+/*********************** Search results page (/search) ***********************/
+/* "Search results for ..." heading → h3 size instead of the full h1. */
+.container:has([class*="searchQueryInput"]) > h1 {
+  font-size: var(--ifm-heading-h3-font-size) !important;
+  font-weight: var(--ifm-h3-font-weight) !important;
+  line-height: 1.35;
+}
+
+/* Refined, smaller result titles without the article underline. The extra
+   :not()s match the global h2 rule's specificity so this size wins. */
+h2[class*="searchResultItemHeading"]:not([class*="openapi"]):not(
+    [class*="cardTitle"]
+  ) {
+  font-size: 16px !important;
+  font-weight: var(--ifm-font-weight-semibold) !important;
+  line-height: 1.45 !important;
+  margin-bottom: 4px;
+}
+
+[class*="searchResultItemHeading"] a {
+  color: var(--contentprimary) !important;
+  text-decoration: none !important;
+}
+
+[class*="searchResultItemHeading"] a:hover {
+  text-decoration: underline !important;
+  text-decoration-color: var(--contentprimary) !important;
+  text-underline-offset: 3px !important;
+}
+
+/* Matched keyword: semibold neutral, no yellow highlight (matches the modal). */
+.search-result-match {
+  background-color: transparent !important;
+  color: var(--contentprimary) !important;
+  font-weight: 600 !important;
+}
+
+/* "N documents found" → muted, normal weight. */
+[class*="searchResultsColumn"] {
+  color: var(--contenttertiary) !important;
+  font-weight: var(--ifm-font-weight-normal) !important;
+  font-size: 14px !important;
+}
+
+/* Tighter vertical rhythm between results (was 16px top/bottom). */
+[class*="searchResultItem_"] {
+  padding: 9px 0 !important;
+}
+
+/* Source/breadcrumb path: muted (it renders white in dark by default). */
+[class*="searchResultItemPath"],
+[class*="searchResultItemPath"] .breadcrumbs__item,
+[class*="searchResultItemPath"] .search-result-match {
+  color: var(--contenttertiary) !important;
+}
+
+/* Let the query input span the container. The theme's CSS module caps the
+   column at max-width: 60% !important above 576px; the extra .container in the
+   selector outranks that hashed class so the input goes edge-to-edge. */
+.container [class*="searchQueryColumn"] {
+  max-width: 100% !important;
+}
+
+/* Recolor the native type="search" clear button. Left alone it renders in the
+   OS accent (blue); swap it for a neutral X drawn in the doc palette. */
+[class*="searchQueryInput"]::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  cursor: pointer;
+  background-color: var(--contenttertiary);
+  -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path fill='black' d='M18.3 5.71a1 1 0 0 0-1.41 0L12 10.59 7.11 5.7A1 1 0 0 0 5.7 7.11L10.59 12 5.7 16.89a1 1 0 1 0 1.41 1.41L12 13.41l4.89 4.89a1 1 0 0 0 1.41-1.41L13.41 12l4.89-4.89a1 1 0 0 0 0-1.4z'/></svg>")
+    center / contain no-repeat;
+  mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path fill='black' d='M18.3 5.71a1 1 0 0 0-1.41 0L12 10.59 7.11 5.7A1 1 0 0 0 5.7 7.11L10.59 12 5.7 16.89a1 1 0 1 0 1.41 1.41L12 13.41l4.89 4.89a1 1 0 0 0 1.41-1.41L13.41 12l4.89-4.89a1 1 0 0 0 0-1.4z'/></svg>")
+    center / contain no-repeat;
+}
+
+[class*="searchQueryInput"]::-webkit-search-cancel-button:hover {
+  background-color: var(--contentsecondary);
+}

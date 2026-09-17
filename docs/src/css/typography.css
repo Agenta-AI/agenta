@@ -1,0 +1,232 @@
+body {
+  color: var(--ifm-font-color-base);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Lighter bold text weight for better readability */
+strong,
+b {
+  font-weight: var(--ifm-font-weight-bold);
+}
+
+/* Headings. The :not() guards keep the OpenAPI reference's own heading
+   sizes; card titles have their own rule in content.css. */
+h1:not([class*="openapi"]) {
+  font-size: var(--ifm-heading-h1-font-size);
+  line-height: 38px;
+  font-weight: var(--ifm-h1-font-weight);
+  letter-spacing: -0.02em;
+}
+
+h2:not([class*="openapi"]):not([class*="cardTitle"]) {
+  font-size: var(--ifm-heading-h2-font-size);
+  line-height: 28px;
+  font-weight: var(--ifm-h2-font-weight);
+  letter-spacing: -0.01em;
+}
+
+h3:not([class*="openapi"]) {
+  font-size: var(--ifm-heading-h3-font-size);
+  line-height: 24px;
+  font-weight: var(--ifm-h3-font-weight);
+}
+
+h4:not([class*="openapi"]) {
+  font-size: var(--ifm-heading-h4-font-size);
+  line-height: 22px;
+  font-weight: var(--ifm-h4-font-weight);
+}
+
+/* The first paragraph under a page title reads as its lead: larger, muted. */
+.theme-doc-markdown > header + p,
+.theme-doc-markdown > header + .row > .col > p:first-child {
+  font-size: 17px;
+  line-height: 28px;
+  color: var(--contentsecondary);
+  margin-top: -8px;
+}
+
+.markdown h2 {
+  margin-top: 44px;
+}
+
+.markdown > h2:first-child,
+.markdown > header + h2 {
+  margin-top: 0;
+}
+
+/* Code */
+pre,
+code {
+  font-family: var(--ifm-font-family-monospace);
+}
+
+pre {
+  font-size: 14px;
+  line-height: 1.7;
+  padding: 1.25rem;
+}
+
+pre code {
+  font-size: 14px;
+  letter-spacing: -0.01em;
+}
+
+code:not(pre code) {
+  font-size: 0.9em;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  padding: 0.2em 0.4em;
+  background-color: var(--bgelevated1);
+  border: 1px solid var(--borderlight);
+  border-radius: 4px;
+}
+
+/* Flat code blocks: a border instead of a shadow. */
+pre,
+div[class*="codeBlock"],
+div[class*="prism"] {
+  box-shadow: none !important;
+  border: 1px solid var(--borderdefault);
+  border-radius: var(--radius-md);
+  background-color: var(--bgelevated1) !important;
+}
+
+/* Links inside articles: underlined, offset, and neutral. */
+article a:not([class*="card"]):not(.hash-link):not(.table-of-contents__link):not(.pagination-nav__link) {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-thickness: 1px;
+  text-decoration-color: var(--borderdark);
+  transition:
+    text-decoration-color 200ms ease,
+    text-underline-offset 200ms ease;
+}
+
+article a:not([class*="card"]):not(.hash-link):not(.table-of-contents__link):not(.pagination-nav__link):hover {
+  text-decoration-color: var(--contentprimary);
+  text-underline-offset: 4px;
+}
+
+/* Syntax highlighting: light */
+[data-theme="light"] .token.comment,
+[data-theme="light"] .token.prolog,
+[data-theme="light"] .token.doctype,
+[data-theme="light"] .token.cdata {
+  color: #6a737d;
+  font-style: italic;
+}
+
+[data-theme="light"] .token.punctuation {
+  color: #5e6687;
+}
+
+[data-theme="light"] .token.property,
+[data-theme="light"] .token.tag,
+[data-theme="light"] .token.boolean,
+[data-theme="light"] .token.number,
+[data-theme="light"] .token.constant,
+[data-theme="light"] .token.symbol,
+[data-theme="light"] .token.deleted {
+  color: #0184bc;
+}
+
+[data-theme="light"] .token.selector,
+[data-theme="light"] .token.attr-name,
+[data-theme="light"] .token.string,
+[data-theme="light"] .token.char,
+[data-theme="light"] .token.builtin,
+[data-theme="light"] .token.inserted {
+  color: #0c7c59;
+}
+
+[data-theme="light"] .token.operator,
+[data-theme="light"] .token.entity,
+[data-theme="light"] .token.url,
+[data-theme="light"] .language-css .token.string,
+[data-theme="light"] .style .token.string {
+  color: #a626a4;
+}
+
+[data-theme="light"] .token.atrule,
+[data-theme="light"] .token.attr-value,
+[data-theme="light"] .token.keyword {
+  color: #d73a49;
+}
+
+[data-theme="light"] .token.function,
+[data-theme="light"] .token.class-name {
+  color: #6f42c1;
+}
+
+[data-theme="light"] .token.regex,
+[data-theme="light"] .token.important,
+[data-theme="light"] .token.variable {
+  color: #e36209;
+}
+
+/* Syntax highlighting: dark */
+[data-theme="dark"] .token.comment,
+[data-theme="dark"] .token.prolog,
+[data-theme="dark"] .token.doctype,
+[data-theme="dark"] .token.cdata {
+  color: #8b949e;
+  font-style: italic;
+}
+
+[data-theme="dark"] .token.punctuation {
+  color: #c9d1d9;
+}
+
+[data-theme="dark"] .token.property,
+[data-theme="dark"] .token.tag,
+[data-theme="dark"] .token.boolean,
+[data-theme="dark"] .token.number,
+[data-theme="dark"] .token.constant,
+[data-theme="dark"] .token.symbol,
+[data-theme="dark"] .token.deleted {
+  color: #79c0ff;
+}
+
+[data-theme="dark"] .token.selector,
+[data-theme="dark"] .token.attr-name,
+[data-theme="dark"] .token.string,
+[data-theme="dark"] .token.char,
+[data-theme="dark"] .token.builtin,
+[data-theme="dark"] .token.inserted {
+  color: #7ee787;
+}
+
+[data-theme="dark"] .token.operator,
+[data-theme="dark"] .token.entity,
+[data-theme="dark"] .token.url,
+[data-theme="dark"] .language-css .token.string,
+[data-theme="dark"] .style .token.string {
+  color: #d2a8ff;
+}
+
+[data-theme="dark"] .token.atrule,
+[data-theme="dark"] .token.attr-value,
+[data-theme="dark"] .token.keyword {
+  color: #ff7b72;
+}
+
+[data-theme="dark"] .token.function,
+[data-theme="dark"] .token.class-name {
+  color: #d2a8ff;
+}
+
+[data-theme="dark"] .token.regex,
+[data-theme="dark"] .token.important,
+[data-theme="dark"] .token.variable {
+  color: #ffa657;
+}
+
+/* highlight error code */
+.code-block-error-line {
+  background-color: #ff000020;
+  display: block;
+  margin: 0 calc(-1 * var(--ifm-pre-padding));
+  padding: 0 var(--ifm-pre-padding);
+  border-left: 3px solid #ff000080;
+}

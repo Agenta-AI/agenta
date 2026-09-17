@@ -1,0 +1,247 @@
+/* Left sidebar (section rail + page menu) and the right "On this page" column.
+   The rail markup comes from src/components/SectionRail; the page menu is the
+   stock Docusaurus menu. Rows hang 10px past the sidebar padding on each side
+   (padding 0 10px, margin 0 -10px) so the text aligns with the group labels
+   while the hover/active fill has room around it. */
+
+/* ---- Frame ---- */
+@media (min-width: 997px) {
+  .theme-doc-sidebar-container {
+    border-right: 1px solid var(--borderdefault);
+  }
+}
+
+.theme-doc-sidebar-container .menu,
+.sidebarShellMenu {
+  padding: 20px 24px 48px 32px;
+}
+
+/* ---- Rows shared by the rail and the page menu ---- */
+.menu__link {
+  display: flex;
+  align-items: center;
+  height: 28px;
+  padding: 0 10px;
+  margin: 0 -10px;
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: var(--ifm-font-weight-normal);
+  color: var(--sidebar-link-color);
+  transition:
+    background-color var(--ifm-transition-fast) ease,
+    color var(--ifm-transition-fast) ease;
+}
+
+/* The roadmap's category filters are buttons in the same rows. */
+button.menu__link {
+  appearance: none;
+  background: none;
+  border: 0;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.menu__link:hover {
+  color: var(--contentprimary);
+  background-color: var(--bgelevated1);
+}
+
+.menu__link--active,
+.menu__link--active:hover {
+  font-weight: var(--ifm-font-weight-semibold);
+  color: var(--sidebar-link-active-color);
+  background-color: var(--bgelevated1);
+}
+
+.menu__list-item:not(:first-child) {
+  margin-top: 1px;
+}
+
+.menu__list .menu__list {
+  margin-top: 1px;
+  padding-left: 10px;
+}
+
+/* ---- Section rail ---- */
+.sectionRail .menu__link {
+  height: 32px;
+  gap: 10px;
+}
+
+.sectionRail .menu__link--active,
+.sectionRail .menu__link--active:hover {
+  background-color: var(--bgelevated2);
+}
+
+.sectionRail svg {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+}
+
+.sectionRailDivider {
+  height: 1px;
+  margin: 20px -24px 20px -32px;
+  background-color: var(--borderdefault);
+}
+
+/* ---- Group labels ---- */
+li.sidebar-section-title > .menu__list-item-collapsible,
+.sidebarGroupTitle {
+  display: flex;
+  align-items: center;
+  margin: 0;
+  padding: 0 0 6px;
+  border-radius: 0;
+}
+
+li.sidebar-section-title:not(:first-child) > .menu__list-item-collapsible,
+.sidebarGroup + .sidebarGroup {
+  margin-top: 20px;
+}
+
+li.sidebar-section-title > .menu__list-item-collapsible:hover {
+  background-color: transparent;
+}
+
+li.sidebar-section-title > .menu__list-item-collapsible > .menu__link,
+.sidebarGroupTitle {
+  flex: 1;
+  min-width: 0;
+  height: auto;
+  margin: 0;
+  padding: 0;
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: var(--ifm-font-weight-bold);
+  color: var(--contentprimary);
+  background: none;
+  cursor: default;
+}
+
+li.sidebar-section-title > .menu__list-item-collapsible > .menu__link:hover {
+  background: none;
+}
+
+/* Collapsible groups (Contributing, Misc) keep a caret on the right. */
+li.sidebar-section-title > .menu__list-item-collapsible > .menu__link--sublist-caret,
+li.sidebar-section-title > .menu__list-item-collapsible > .menu__caret {
+  cursor: pointer;
+}
+
+li.sidebar-section-title > .menu__list-item-collapsible > .menu__caret {
+  margin-left: auto;
+  padding: 0;
+  flex-shrink: 0;
+}
+
+.menu__link--sublist-caret:after,
+.menu__caret:before {
+  margin-left: auto;
+  background: var(--ifm-menu-link-sublist-icon) 50% / 1.25rem 1.25rem;
+  height: 10px;
+  opacity: 0.6;
+  flex-shrink: 0;
+}
+
+/* Nested categories inside a group (regular Docusaurus categories) */
+.menu__list-item-collapsible {
+  display: flex;
+  align-items: center;
+  border-radius: var(--radius-md);
+}
+
+.menu__list-item-collapsible > .menu__link {
+  flex: 1;
+  min-width: 0;
+}
+
+.menu__list-item-collapsible:hover {
+  background-color: transparent;
+}
+
+/* ---- "On this page" ---- */
+.tocTitle {
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: var(--ifm-font-weight-bold);
+  color: var(--contentprimary);
+  margin-bottom: 8px;
+}
+
+.table-of-contents {
+  padding: 0;
+  font-size: 13px;
+}
+
+.table-of-contents li {
+  margin: 0;
+}
+
+.table-of-contents ul {
+  padding-left: 14px;
+}
+
+.table-of-contents__link {
+  display: block;
+  padding: 5px 0;
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: var(--ifm-font-weight-normal);
+  color: var(--toc-link-color);
+}
+
+.table-of-contents__link:hover,
+.table-of-contents__link--active {
+  color: var(--contentprimary);
+}
+
+.table-of-contents__link--active {
+  font-weight: var(--ifm-font-weight-semibold);
+}
+
+.table-of-contents__left-border {
+  border: none;
+}
+
+@media (max-width: 996px) {
+  .tocCollapsibleButton,
+  [class*="tocCollapsibleButton"] {
+    color: var(--contentprimary);
+  }
+}
+
+/* ---- Scrollbars ---- */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+  background-color: transparent;
+}
+
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-track-piece,
+::-webkit-scrollbar-corner,
+::-webkit-scrollbar-button {
+  background-color: transparent;
+  border: none;
+  box-shadow: none;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: var(--borderdark);
+  border-radius: 3px;
+  border: none;
+  box-shadow: none;
+}
+
+.thin-scrollbar,
+.menu__list,
+.theme-doc-sidebar-menu,
+div[class*="docSidebarContainer"],
+div[class*="sidebar"],
+div[class*="scrollbar"] {
+  scrollbar-width: thin;
+  scrollbar-color: var(--borderdark) transparent;
+}

@@ -1,0 +1,150 @@
+/* One frame for every embedded video and screenshot: 16:9, rounded, bordered,
+   on the elevated surface. Applies to docs pages and changelog entries alike
+   (both render inside .markdown). */
+
+.markdown iframe[src*="youtube"],
+.markdown iframe[src*="youtu.be"],
+.markdown iframe[src*="cloudflarestream"] {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  /* Entries hardcode height="400|500"; the ratio decides the height instead. */
+  height: auto !important;
+  aspect-ratio: 16 / 9;
+  margin: 0 0 24px;
+  border: 1px solid var(--borderdefault);
+  border-radius: var(--radius-lg);
+  background-color: var(--bgelevated1);
+}
+
+/* Changelog entries wrap their iframes in inline-styled flex <div>s with their
+   own margins; those wrappers become plain blocks and the frame carries the
+   spacing. !important because the styles are inline. */
+.markdown div:has(> iframe[src*="youtube"]),
+.markdown div:has(> iframe[src*="youtu.be"]),
+.markdown div:has(> iframe[src*="cloudflarestream"]) {
+  display: block !important;
+  margin: 0 0 24px !important;
+  padding: 0 !important;
+}
+
+.markdown div:has(> iframe) > iframe {
+  margin-bottom: 0;
+}
+
+/* Screenshots (IdealImage swaps an <svg> placeholder for the <img>). */
+.markdown img {
+  border-radius: var(--radius-lg);
+  margin-bottom: 24px;
+}
+
+.markdown img.medium-zoom-image,
+.markdown img[src*="/assets/ideal-img/"],
+.markdown div[style*="background-size"] > svg {
+  border: 1px solid var(--borderdefault);
+  border-radius: var(--radius-lg);
+}
+
+.markdown div[style*="background-size"] {
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  margin-bottom: 24px !important;
+}
+
+.markdown div:has(> img.medium-zoom-image) {
+  margin-bottom: 24px;
+}
+
+.markdown img.medium-zoom-image {
+  margin-bottom: 0 !important;
+}
+
+/* <Video> (src/components/Video): frame + caption strip */
+.mediaFigure {
+  margin: 0 0 24px;
+}
+
+.mediaFigure iframe {
+  margin-bottom: 0 !important;
+}
+
+.mediaFigure--captioned iframe {
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+}
+
+.mediaCaption {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border: 1px solid var(--borderdefault);
+  border-top: 0;
+  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--contentsecondary);
+}
+
+.mediaCaption svg {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+
+/* Skeleton while a Stream's player boots. streamSkeleton.ts flips the wrapper
+   to "loaded" on the iframe's load event, which drops the shimmer. */
+[data-stream-state="loading"] {
+  border-radius: var(--radius-lg);
+  background-color: var(--bgelevated1);
+  background-image: linear-gradient(
+    90deg,
+    transparent 0%,
+    var(--bgelevated2) 50%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: ag-stream-skeleton 1.4s ease-in-out infinite;
+}
+
+/* Hold the iframe back until it reports in, then fade it over the shimmer.
+   Keyed off the attribute, so with no JS the iframe is never hidden. */
+[data-stream-state] > iframe {
+  transition: opacity 200ms ease-out;
+}
+
+[data-stream-state="loading"] > iframe {
+  opacity: 0;
+}
+
+@keyframes ag-stream-skeleton {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-stream-state="loading"] {
+    animation: none;
+  }
+
+  [data-stream-state] > iframe {
+    transition: none;
+  }
+}
+
+/* Image zoom overlay */
+.medium-zoom-overlay {
+  background-color: rgba(0, 0, 0, 0.62) !important;
+}
+
+[data-theme="dark"] .medium-zoom-overlay {
+  background-color: rgba(0, 0, 0, 0.7) !important;
+}
+
+.medium-zoom-image--opened,
+.medium-zoom-overlay {
+  z-index: 9999999;
+}

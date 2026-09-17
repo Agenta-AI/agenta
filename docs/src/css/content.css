@@ -1,0 +1,339 @@
+/* The reading column: page frame, admonitions, cards, pagination, details. */
+
+/* ---- Frame: main column beside the sidebar ---- */
+@media (min-width: 997px) {
+  /* !important: the doc container carries Infima's padding-top--md /
+     padding-bottom--lg utilities, which are !important themselves. */
+  [class*="docMainContainer"] > .container,
+  .sidebarShellMain > .container {
+    max-width: none;
+    margin: 0;
+    padding: var(--doc-main-padding-top) calc(var(--doc-main-padding-x) - var(--ifm-spacing-horizontal))
+      var(--doc-main-padding-bottom) !important;
+  }
+
+  /* Reading column grows; the TOC column is a fixed 240px on the right.
+     The OpenAPI theme caps its column at 75%; the frame sets the widths instead. */
+  [class*="docMainContainer"] .row > .col:first-child {
+    flex: 1 1 0%;
+    min-width: 0;
+    max-width: none !important;
+  }
+
+  [class*="docMainContainer"] .row > .col.col--3 {
+    flex: 0 0 var(--doc-toc-width);
+    max-width: var(--doc-toc-width);
+    padding-left: 24px;
+  }
+}
+
+/* Prose is capped at the reading width. OpenAPI operation pages lay out
+   request and response side by side and keep the full width. */
+.theme-doc-markdown:not(:has(.theme-api-markdown)),
+.pagination-nav,
+.theme-doc-footer {
+  max-width: var(--doc-content-width);
+}
+
+.theme-doc-markdown h1:first-child,
+.theme-doc-markdown header > h1 {
+  margin-top: 0;
+}
+
+/* The OpenAPI doc item wraps plain pages in a row/col pair, which would
+   indent the body 15px past the title. */
+.theme-doc-markdown > .row:not(.theme-api-markdown) {
+  margin: 0;
+}
+
+.theme-doc-markdown > .row:not(.theme-api-markdown) > .col--12 {
+  padding: 0;
+}
+
+/* Generated index page title - match regular h1 size */
+h1[class*="title_"] {
+  font-size: var(--ifm-heading-h1-font-size);
+  --ifm-h1-font-size: var(--ifm-heading-h1-font-size);
+}
+
+/* The version selector next to the logo already says which version this is. */
+.theme-doc-version-badge {
+  display: none;
+}
+
+/* ---- Admonitions: flat, bordered, no accent bar ---- */
+.theme-admonition,
+div[class*="admonition"] {
+  box-shadow: none !important;
+  border-left: none !important;
+  border-radius: var(--radius-lg);
+}
+
+.theme-admonition.alert--secondary,
+.theme-admonition-note {
+  border: 1px solid rgba(84, 104, 255, 0.4) !important;
+}
+
+[data-theme="dark"] .theme-admonition.alert--secondary,
+[data-theme="dark"] .theme-admonition-note {
+  border: 1px solid rgba(84, 104, 255, 0.5) !important;
+  background: rgba(84, 104, 255, 0.1) !important;
+}
+
+.theme-admonition.alert--info,
+.theme-admonition-info {
+  border: 1px solid rgba(84, 199, 236, 0.5) !important;
+}
+
+[data-theme="dark"] .theme-admonition.alert--info,
+[data-theme="dark"] .theme-admonition-info {
+  border: 1px solid rgba(84, 199, 236, 0.6) !important;
+  background: rgba(84, 199, 236, 0.1) !important;
+}
+
+.theme-admonition.alert--success,
+.theme-admonition-tip {
+  border: 1px solid rgba(0, 184, 148, 0.5) !important;
+}
+
+[data-theme="dark"] .theme-admonition.alert--success,
+[data-theme="dark"] .theme-admonition-tip {
+  border: 1px solid rgba(0, 184, 148, 0.6) !important;
+  background: rgba(0, 184, 148, 0.1) !important;
+}
+
+.theme-admonition.alert--warning,
+.theme-admonition-caution,
+.theme-admonition-warning {
+  border: 1px solid rgba(255, 165, 0, 0.6) !important;
+}
+
+[data-theme="dark"] .theme-admonition.alert--warning,
+[data-theme="dark"] .theme-admonition-caution,
+[data-theme="dark"] .theme-admonition-warning {
+  border: 1px solid rgba(255, 165, 0, 0.7) !important;
+  background: rgba(255, 165, 0, 0.1) !important;
+}
+
+.theme-admonition.alert--danger,
+.theme-admonition-danger {
+  border: 1px solid rgba(220, 38, 38, 0.6) !important;
+}
+
+[data-theme="dark"] .theme-admonition.alert--danger,
+[data-theme="dark"] .theme-admonition-danger {
+  border: 1px solid rgba(239, 68, 68, 0.7) !important;
+  background: rgba(239, 68, 68, 0.1) !important;
+}
+
+/* ---- Details ---- */
+details:not([class*="openapi"]) {
+  background-color: var(--bgdefault) !important;
+  border: 1px solid var(--borderdefault) !important;
+  border-radius: var(--radius-lg);
+  --docusaurus-details-decoration-color: var(--contenttertiary) !important;
+}
+
+/* ---- Prev / next pagination: the "Next" card ---- */
+.pagination-nav {
+  margin-top: 48px;
+  gap: 12px;
+}
+
+.pagination-nav__link {
+  border: 1px solid var(--borderdefault);
+  border-radius: var(--radius-lg);
+  padding: 14px 18px;
+  transition: border-color var(--ifm-transition-fast) ease;
+}
+
+.pagination-nav__link:hover {
+  border-color: var(--borderdark);
+}
+
+.pagination-nav__sublabel {
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: var(--ifm-font-weight-normal);
+  color: var(--contentsecondary);
+  margin-bottom: 2px;
+}
+
+.pagination-nav__label {
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: var(--ifm-font-weight-semibold);
+  color: var(--contentprimary);
+  letter-spacing: 0;
+}
+
+.pagination-nav__link--next .pagination-nav__label::after {
+  content: " →";
+  color: var(--contentsecondary);
+}
+
+.pagination-nav__link--prev .pagination-nav__label::before {
+  content: "← ";
+  color: var(--contentsecondary);
+}
+
+/* ---- Doc cards ---- */
+a[class*="cardContainer"] {
+  --ifm-link-hover-decoration: none;
+  box-shadow: none;
+  border: 1px solid var(--borderdefault);
+  border-radius: var(--radius-lg);
+  padding: 18px;
+  font-variant-emoji: no-emoji;
+  position: relative;
+  transition: border-color var(--ifm-transition-fast) ease;
+}
+
+a[class*="cardContainer"]:hover {
+  border-color: var(--borderdark);
+  box-shadow: none;
+}
+
+.card.padding--lg[class*="cardContainer"] {
+  padding: 18px !important;
+}
+
+[class*="cardTitle"] {
+  font-size: 15px !important;
+  line-height: 22px !important;
+  font-weight: var(--ifm-font-weight-bold) !important;
+  margin-bottom: 4px;
+}
+
+/* Hide the default emoji icon on doc cards */
+[class*="cardTitle"]::before {
+  display: none !important;
+}
+
+[class*="cardDescription"] {
+  font-size: 14px !important;
+  line-height: 20px;
+  color: var(--contentsecondary);
+}
+
+/* Custom icon support for cards using CSS custom properties.
+   Usage: <CustomDocCard item={{...}} icon="🚀" /> or noIcon={true}. */
+.custom-icon [class*="cardTitle"],
+.no-icon [class*="cardTitle"],
+.icon-img [class*="cardTitle"] {
+  font-size: 0 !important;
+}
+
+.custom-icon [class*="cardTitle"]::after,
+.no-icon [class*="cardTitle"]::after,
+.icon-img [class*="cardTitle"]::after {
+  content: attr(title) !important;
+  font-size: 15px !important;
+  display: inline !important;
+}
+
+.custom-icon [class*="cardTitle"]::before {
+  content: var(--card-icon) !important;
+  font-size: 18px !important;
+  margin-right: 8px !important;
+  display: inline-block !important;
+  line-height: 1 !important;
+  flex-shrink: 0 !important;
+  vertical-align: text-bottom !important;
+  position: relative !important;
+  top: 2px !important;
+}
+
+.no-icon [class*="cardTitle"]::before {
+  content: "" !important;
+  display: none !important;
+}
+
+.icon-img [class*="cardTitle"]::before {
+  content: "" !important;
+  width: 18px !important;
+  height: 18px !important;
+  margin-right: 8px !important;
+  display: inline-block !important;
+  background-size: contain !important;
+  background-repeat: no-repeat !important;
+  background-position: center !important;
+  background-image: var(--card-icon-bg) !important;
+  flex-shrink: 0 !important;
+  vertical-align: text-bottom !important;
+  position: relative !important;
+  top: 2px !important;
+}
+
+/* DocCardList: full-width cards (FAQ category pages, API reference pages) */
+[class*="docCardListItem"] {
+  --ifm-col-width: 100% !important;
+  max-width: 100% !important;
+  flex-basis: 100% !important;
+  width: 100% !important;
+}
+
+section.row > article.col.col--6,
+section.row > .col.col--6,
+section.row > .col--6 {
+  --ifm-col-width: 100% !important;
+  max-width: 100% !important;
+  flex: 0 0 100% !important;
+  width: 100% !important;
+}
+
+/* The generated API index page: hide its lead paragraph and first card. */
+[href="/reference/api/agenta-backend"],
+[class*="generatedIndexPage"] header p,
+[class*="generatedIndexPage"] [class*="list_"] article:first-child {
+  display: none;
+}
+
+/* ---- FAQ page ---- */
+.faq-list {
+  margin-top: 1.5rem;
+}
+
+.faq-list h2 {
+  margin-top: 2rem;
+  margin-bottom: 1rem;
+  font-size: 20px;
+}
+
+.faq-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.faq-card {
+  display: block;
+  padding: 16px 18px;
+  border: 1px solid var(--borderdefault);
+  border-radius: var(--radius-lg);
+  text-decoration: none !important;
+  transition: border-color var(--ifm-transition-fast) ease;
+}
+
+.faq-card:hover {
+  border-color: var(--borderdark);
+  text-decoration: none !important;
+}
+
+.faq-card-title {
+  display: block;
+  font-size: 15px;
+  font-weight: var(--ifm-font-weight-bold);
+  color: var(--contentprimary);
+  margin-bottom: 4px;
+}
+
+.faq-card-desc {
+  display: block;
+  font-size: 13px;
+  color: var(--contentsecondary);
+}
+
+.faq-tip-spacer {
+  height: 2rem;
+}
