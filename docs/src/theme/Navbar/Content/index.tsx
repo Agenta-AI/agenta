@@ -41,7 +41,7 @@ ${JSON.stringify(item, null, 2)}`,
   );
 }
 
-/** Light/dark toggle between the CTAs; the footer has the three-way switch. */
+/** Light/dark toggle between search and the CTAs; the footer has the three-way switch. */
 function ColorModeToggle(): ReactNode {
   const {colorMode, setColorMode} = useColorMode();
   const next = colorMode === 'dark' ? 'light' : 'dark';
@@ -62,7 +62,7 @@ function ColorModeToggle(): ReactNode {
 
 /**
  * One header row: logo and version on the left, search and the CTAs on the
- * right, with the light/dark toggle between the CTAs. The section links
+ * right, with the light/dark toggle ahead of the CTAs. The section links
  * (position: "left") are not rendered here; the sidebar rail shows them on
  * desktop and the hamburger menu on mobile. Social links live in the footer.
  */
@@ -77,7 +77,7 @@ export default function NavbarContent(): JSX.Element {
     items.filter((item) => item.type !== 'docsVersionDropdown'),
   );
   // Search is placed explicitly, before the action buttons. The primary CTA
-  // (the filled button) goes last, after the theme toggle.
+  // (the filled button) goes last.
   const actionItems = rightItems.filter((item) => item.type !== 'search');
   const isPrimary = (item: NavbarItemConfig) =>
     typeof item.html === 'string' && item.html.includes('nav_primary_button');
@@ -100,10 +100,10 @@ export default function NavbarContent(): JSX.Element {
           <SearchBar />
         </NavbarSearch>
         <div className={styles.actions}>
-          <NavbarItems items={secondaryItems} />
           <span className={styles.divider} role="presentation" />
           <ColorModeToggle />
           <span className={styles.divider} role="presentation" />
+          <NavbarItems items={secondaryItems} />
           <NavbarItems items={primaryItems} />
         </div>
       </div>

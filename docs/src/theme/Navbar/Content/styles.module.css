@@ -36,7 +36,7 @@
   padding: 0;
 }
 
-/* Theme toggle between the CTAs, set off by two hairlines. */
+/* Theme toggle between search and the CTAs, set off by hairlines. */
 .divider {
   width: 1px;
   height: 20px;
