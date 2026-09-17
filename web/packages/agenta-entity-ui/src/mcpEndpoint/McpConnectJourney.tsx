@@ -43,6 +43,7 @@ import {
 import {
     connectionNameProblem,
     isBusy,
+    mcpChallengeSchemeToShow,
     readMcpProbeResponse,
     toolPrefixFromName,
     useMcpConnectJourney,
@@ -105,6 +106,18 @@ const NAME_HELP =
     "What the model sees on this server's tools. Frozen when the connection was chosen, so renaming the connection does not rename tools here."
 
 const HEADER_HELP = "The HTTP header this server expects, for example x-api-key"
+
+/**
+ * What this particular server asked for, under the Header field.
+ *
+ * A help line rather than a change of value, because a scheme is not a header name: `Bearer`
+ * means `Authorization: Bearer <token>`, which is what an endpoint with no registered header
+ * already sends. So the challenge cannot fill the field, and the reader is the only one who
+ * can say which header this server wants the scheme's value in. Rendered only where there is
+ * something to say (`mcpChallengeSchemeToShow`), so the pair of fields keeps its shape on
+ * every other server.
+ */
+const headerSchemeHint = (scheme: string): string => `This server asked for the ${scheme} scheme.`
 
 const SECRET_HELP =
     "Pick a project secret or create one. The value is sent as this header when the agent runs and is never shown again."
@@ -520,6 +533,9 @@ export function McpConnectSheet({
     const secretChosen = screen === "api_key" && !!selectedSecretId()
     const host = hostOf(state.url)
     const probeResponse = readMcpProbeResponse(state.probe?.problem)
+    // What the server named when it refused the anonymous handshake, where that is anything
+    // the Authorization default does not already cover.
+    const challengeScheme = mcpChallengeSchemeToShow(state.probe)
 
     /** The one error that belongs to a field rather than to the screen. */
     const nameError = state.status === "naming" ? (nameProblem ?? state.error) : null
@@ -642,7 +658,7 @@ export function McpConnectSheet({
                     {screen === "api_key" ? (
                         <>
                             <div className="grid grid-cols-[1fr_1.4fr] gap-3">
-                                <Field
+                                <HintedField
                                     label="Header"
                                     // Dropped once the server has refused a key: the glyph
                                     // explains what a header is, and by now the question is
@@ -651,17 +667,24 @@ export function McpConnectSheet({
                                         state.status === "verify_failed" ? undefined : HEADER_HELP
                                     }
                                     invalid={state.status === "verify_failed"}
+                                    hint={
+                                        challengeScheme ? headerSchemeHint(challengeScheme) : null
+                                    }
+                                    hintId="mcp-header-help"
                                 >
                                     <Input
                                         className="font-mono text-[13px]"
                                         placeholder="Authorization"
                                         value={headerName}
                                         aria-label="Header"
+                                        aria-describedby={
+                                            challengeScheme ? "mcp-header-help" : undefined
+                                        }
                                         onChange={(event) =>
                                             setHeaderName(event.target.value.trim())
                                         }
                                     />
-                                </Field>
+                                </HintedField>
                                 <Field
                                     label="Project secret"
                                     required
@@ -846,6 +869,7 @@ const HintedField = ({
     required?: boolean
     tooltip?: string
     error?: string
+    invalid?: boolean
     hint?: ReactNode
     hintId: string
     children: ReactElement

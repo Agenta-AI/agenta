@@ -234,6 +234,22 @@ export const ApiKeyDetected: Story = sheet(
     }),
 )
 
+/**
+ * C5 with a challenge worth repeating — the server named a scheme `Authorization` does not
+ * carry, so the field keeps its default and a line under it says what to place where.
+ */
+export const ApiKeyDetectedWithScheme: Story = sheet(
+    state({
+        status: "naming",
+        url: "https://mcp.axiom.co/mcp",
+        name: "Axiom",
+        probe: {
+            ...KEY_PROBE,
+            auth: {...KEY_PROBE.auth, challenge_status: 401, challenge_schemes: ["DSN"]},
+        },
+    }),
+)
+
 /** C6 — the key was refused. Both credential fields are flagged; nothing was saved. */
 export const ApiKeyRejected: Story = sheet(
     state({

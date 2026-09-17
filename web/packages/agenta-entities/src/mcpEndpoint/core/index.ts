@@ -20,7 +20,13 @@ export {
     readMcpToolCount,
 } from "./connectionStatus"
 export type {McpConnectionHealth, McpConnectionStatus} from "./connectionStatus"
-export {PROBE_RESPONSE_BODY_LIMIT, readMcpProbeResponse} from "./probeResponse"
+export {
+    MCP_DEFAULT_CHALLENGE_SCHEME,
+    mcpChallengeScheme,
+    mcpChallengeSchemeToShow,
+    PROBE_RESPONSE_BODY_LIMIT,
+    readMcpProbeResponse,
+} from "./probeResponse"
 export type {McpProbeResponse} from "./probeResponse"
 export type {
     MCPAuthMode,

@@ -64,6 +64,18 @@ const KEY_PROBE = {
     auth: {mode: "unknown" as const, scopes_offered: []},
 }
 
+/** The same answer, from a server whose challenge named a scheme Authorization does not carry. */
+const KEY_PROBE_WITH_SCHEME = {
+    ...KEY_PROBE,
+    auth: {...KEY_PROBE.auth, challenge_status: 401, challenge_schemes: ["DSN"]},
+}
+
+/** And one that named Bearer, which is the value this product already sends. */
+const KEY_PROBE_BEARER = {
+    ...KEY_PROBE,
+    auth: {...KEY_PROBE.auth, challenge_status: 401, challenge_schemes: ["Bearer"]},
+}
+
 const NO_AUTH_PROBE = {
     reachable: true,
     server_name: "Acme",
@@ -124,6 +136,14 @@ const open = async (current: McpJourneyState, props: Partial<McpConnectJourneyPr
 
 /** Everything the dialog says, with the whitespace JSX leaves behind normalized away. */
 const text = () => (document.body.textContent ?? "").replace(/\s+/g, " ").trim()
+
+/** The text of whatever a control points `aria-describedby` at. */
+const describedText = (element: HTMLElement | null): string =>
+    (element?.getAttribute("aria-describedby") ?? "")
+        .split(/\s+/)
+        .filter(Boolean)
+        .map((id) => document.getElementById(id)?.textContent ?? "")
+        .join(" ")
 
 const control = (label: string) =>
     document.querySelector(`[aria-label="${label}"]`) as HTMLElement | null
@@ -402,6 +422,26 @@ describe("C5, the server wants a key", () => {
         await open(keyScreen)
 
         expect(button("Connect")?.disabled).toBe(true)
+    })
+
+    it("names the scheme the server asked for, where it asked for one", async () => {
+        await open({...keyScreen, probe: KEY_PROBE_WITH_SCHEME})
+
+        // The field cannot be filled from a scheme, because a scheme is not a header name.
+        // What the challenge can do is tell the reader what this server wants in it, and the
+        // line saying so has to reach the field's own announcement.
+        expect((control("Header") as HTMLInputElement).value).toBe("Authorization")
+        expect(text()).toContain("This server asked for the DSN scheme.")
+        expect(describedText(control("Header"))).toContain("DSN")
+    })
+
+    it("says nothing about a Bearer challenge, which Authorization already answers", async () => {
+        await open({...keyScreen, probe: KEY_PROBE_BEARER})
+
+        // `Authorization: Bearer <token>` is what an endpoint with no registered header
+        // already sends, so naming it would tell a reader to do what is being done for them.
+        expect(text()).not.toContain("scheme.")
+        expect(control("Header")?.getAttribute("aria-describedby")).toBeNull()
     })
 
     it("shows a server that wants nothing only the card and the name", async () => {
