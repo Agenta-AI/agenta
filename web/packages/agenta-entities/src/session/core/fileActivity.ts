@@ -150,19 +150,23 @@ function sandboxRootEnd(segments: readonly string[]): number {
  * Turn a TOOL path into a path a drive can resolve.
  *
  * Tool paths come off the record log exactly as the harness received them: cwd-relative
- * (`notes/a.md`) or sandbox-ABSOLUTE (`/tmp/agenta/mounts/<project_id>/<mount_id>/notes/a.md`).
+ * (`notes/a.md`) or sandbox-ABSOLUTE (`/var/lib/agenta/mounts/<project_id>/<mount_id>/notes/a.md`).
  * Only the relative form is a drive path. Presenting the absolute one verbatim shows the sandbox's
  * plumbing, exempts runner-internal files from the `agents/` filter, and — because a drive treats
- * it as mount-relative — browses to `<mount>/tmp/agenta/mounts/…`: an empty directory that never
+ * it as mount-relative — browses to `<mount>/var/lib/agenta/mounts/…`: an empty directory that never
  * existed, named with the ids of whichever run happened to write the file (#6270).
  *
- * The roots stripped here are the four the runner builds (`services/runner`, `environment-setup.ts`
+ * The roots stripped here are the ones the runner builds (`services/runner`, `environment-setup.ts`
  * and `run-plan.ts`):
  *
- *     durable   local     /tmp/agenta/mounts/<project_id>/<mount_id>
+ *     durable   local     /var/lib/agenta/mounts/<project_id>/<mount_id>
  *     durable   daytona   /home/sandbox/agenta/mounts/<project_id>/<mount_id>
  *     ephemeral local     /tmp/agenta-sandbox-agent-<rand>
  *     ephemeral daytona   /home/sandbox/agenta-<hex>
+ *
+ * The local durable root was `/tmp/agenta/mounts/…` before 2026-09. Sessions recorded then keep
+ * those paths in the database forever, so the match below stays leading-directory-agnostic on
+ * purpose rather than pinning either root.
  *
  * The agent's durable mount is always the SIBLING `<cwd>-agent`, so a path under it belongs to the
  * agent mount rather than the cwd — hence {@link DriveToolPath.origin} rather than a bare string.

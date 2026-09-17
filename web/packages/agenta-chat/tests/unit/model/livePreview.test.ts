@@ -161,7 +161,7 @@ describe("session live preview reducer", () => {
         expect(state.byExecution["turn-1"].lastFrameIndex).toBe(2)
         expect(state.byExecution["turn-1"].entityOrder).toEqual(["text-1"])
         expect(sessionLivePreviewMessages(state)[0].parts).toEqual([
-            {type: "text", text: "hello world"},
+            {type: "text", state: "streaming", text: "hello world"},
         ])
     })
 
@@ -171,7 +171,9 @@ describe("session live preview reducer", () => {
         const twice = reduceSessionLivePreview(once, frame(0, "text-delta", {delta: "once"}))
 
         expect(twice).toBe(once)
-        expect(sessionLivePreviewMessages(twice)[0].parts).toEqual([{type: "text", text: "once"}])
+        expect(sessionLivePreviewMessages(twice)[0].parts).toEqual([
+            {type: "text", state: "streaming", text: "once"},
+        ])
     })
 
     it("ignores a stale frame index without retaining a dedupe history", () => {
@@ -183,7 +185,9 @@ describe("session live preview reducer", () => {
         const stale = reduceSessionLivePreview(current, frame(0, "text-delta", {delta: "old"}))
 
         expect(stale).toBe(current)
-        expect(sessionLivePreviewMessages(stale)[0].parts).toEqual([{type: "text", text: "newer"}])
+        expect(sessionLivePreviewMessages(stale)[0].parts).toEqual([
+            {type: "text", state: "streaming", text: "newer"},
+        ])
     })
 
     it("accepts a late join cursor without rendering a missing text prefix", () => {
@@ -261,7 +265,7 @@ describe("session live preview reducer", () => {
         expect(execution.entityOrder).toEqual(["text-1"])
         expect(Object.keys(execution.byEntity)).toEqual(["text-1"])
         expect(sessionLivePreviewMessages(state)[0].parts).toEqual([
-            {type: "text", text: "x".repeat(5_000)},
+            {type: "text", state: "streaming", text: "x".repeat(5_000)},
         ])
     })
 })
@@ -345,12 +349,12 @@ describe("durable preview handoff", () => {
             created_at: "2026-09-06T00:00:00Z",
         })
         expect(sessionLivePreviewMessages(state)[0].parts).toEqual([
-            {type: "text", text: "Still writing"},
+            {type: "text", state: "streaming", text: "Still writing"},
         ])
         state = reduceSessionLivePreview(state, frame(3, "text-delta", {delta: " more"}))
         expect(state.gapDetected).toBe(false)
         expect(sessionLivePreviewMessages(state)[0].parts).toEqual([
-            {type: "text", text: "Still writing more"},
+            {type: "text", state: "streaming", text: "Still writing more"},
         ])
         state = reduceSessionLivePreview(
             state,
@@ -377,7 +381,7 @@ describe("durable preview handoff", () => {
             created_at: "2026-09-06T00:00:01Z",
         })
         expect(sessionLivePreviewMessages(state)[0].parts).toEqual([
-            {type: "text", text: "Resumed"},
+            {type: "text", state: "streaming", text: "Resumed"},
         ])
     })
 
@@ -426,7 +430,7 @@ describe("durable preview handoff", () => {
             created_at: "2026-09-06T00:00:01Z",
         })
         expect(sessionLivePreviewMessages(state)[0].parts).toEqual([
-            {type: "text", text: "Resumed successfully"},
+            {type: "text", state: "streaming", text: "Resumed successfully"},
         ])
         expect(state.gapDetected).toBe(false)
     })
@@ -522,8 +526,8 @@ describe("durable preview handoff", () => {
             frame(6, "text-delta", {delta: "New complete message"}, "new-text"),
         )
         expect(sessionLivePreviewMessages(state)[0].parts).toEqual([
-            {type: "text", text: "Prefix"},
-            {type: "text", text: "New complete message"},
+            {type: "text", state: "streaming", text: "Prefix"},
+            {type: "text", state: "streaming", text: "New complete message"},
         ])
     })
 
@@ -549,7 +553,7 @@ describe("durable preview handoff", () => {
             created_at: "2026-09-06T00:00:00Z",
         })
         expect(sessionLivePreviewMessages(state).map((message) => message.parts)).toEqual([
-            [{type: "text", text: "Next turn"}],
+            [{type: "text", state: "streaming", text: "Next turn"}],
         ])
         const late = reduceSessionLivePreview(state, frame(1, "text-delta", {delta: "late"}))
         expect(sessionLivePreviewMessages(late)).toEqual(sessionLivePreviewMessages(state))
@@ -564,7 +568,7 @@ describe("durable preview handoff", () => {
         state = reduceSessionLivePreview(state, frame(3, "text-delta", {delta: "after gap"}))
         expect(state.gapDetected).toBe(true)
         expect(sessionLivePreviewMessages(state)[0].parts).toEqual([
-            {type: "text", text: "Visible prefix"},
+            {type: "text", state: "streaming", text: "Visible prefix"},
         ])
     })
 })
