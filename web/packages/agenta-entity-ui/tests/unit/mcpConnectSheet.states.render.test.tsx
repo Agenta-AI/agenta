@@ -479,6 +479,17 @@ describe("C5, the server wants a key", () => {
         )
     })
 
+    it("offers only the two actions the spec draws", async () => {
+        await open(keyScreen)
+
+        // "Connect without authentication" used to sit here. This screen is only ever
+        // reached by a server that refused the anonymous handshake, so connecting without a
+        // credential would make a connection the server has already said no to (decision 53).
+        expect(text()).not.toContain("Connect without authentication")
+        expect(button("Cancel")).toBeDefined()
+        expect(button("Connect")).toBeDefined()
+    })
+
     it("attaches the secret label to the control it names", async () => {
         await open(keyScreen)
 

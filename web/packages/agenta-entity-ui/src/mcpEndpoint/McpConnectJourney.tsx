@@ -383,7 +383,7 @@ export function McpConnectSheet({
      * two steps. A reconnect opens ON this screen with nothing pressed and nothing typed,
      * which is why the screen submits nothing until this says someone asked.
      */
-    const [afterCreate, setAfterCreate] = useState<"credential" | "skip" | null>(null)
+    const [afterCreate, setAfterCreate] = useState<"credential" | null>(null)
 
     const path = authPathFor(state, reconnect)
     const screen = screenFor(state, path, consentRequested)
@@ -473,10 +473,6 @@ export function McpConnectSheet({
     // The second half of the key screen's one press, once the row it needs exists.
     useEffect(() => {
         if (state.status !== "manual_auth" || !afterCreate) return
-        if (afterCreate === "skip") {
-            journey.skipAuthentication()
-            return
-        }
         const secretId = namedSecrets.find((secret) => secret.slug === secretSlug)?.id
         if (!secretId) return
         void journey.submitManualCredential({headerName, secretId})
@@ -511,22 +507,6 @@ export function McpConnectSheet({
         requestConsent()
         journey.retry()
     }, [journey, requestConsent])
-
-    /**
-     * Connect a server that turned out to want nothing.
-     *
-     * Offered because the probe said "could not tell", not "needs a key". Dropping it would
-     * turn an inconclusive answer into a refusal for every server that authenticates in a
-     * way discovery cannot see, including the ones that do not authenticate at all.
-     */
-    const skipAuthentication = useCallback(() => {
-        if (state.status === "naming") {
-            setAfterCreate("skip")
-            void journey.submitName()
-            return
-        }
-        journey.skipAuthentication()
-    }, [journey, state.status])
 
     const submitCredential = useCallback(() => {
         const secretId = selectedSecretId()
@@ -863,20 +843,6 @@ export function McpConnectSheet({
                     <>
                         <Divider className="my-0 border-colorBorderSecondary" />
                         <div className="flex items-center justify-end gap-2">
-                            {screen === "api_key" && !reconnect ? (
-                                // The probe could not say what this server wants. A server
-                                // that wants nothing has to have a way through, or an
-                                // inconclusive answer becomes a refusal.
-                                <Button
-                                    variant="link"
-                                    size="xs"
-                                    className="mr-auto px-0 text-xs"
-                                    disabled={busy || !state.name.trim()}
-                                    onClick={skipAuthentication}
-                                >
-                                    Connect without authentication
-                                </Button>
-                            ) : null}
                             <Button variant="outline" onClick={handleClose} disabled={busy}>
                                 Cancel
                             </Button>
