@@ -228,6 +228,59 @@ details:not([class*="openapi"]) {
   content: none;
 }
 
+/* ---- Tables ---- */
+/* Flat: a quiet header strip, one hairline between rows, no zebra stripes
+   or column rules. Infima renders <table> as an inline table, so the width
+   is set here to span the column. */
+.markdown table {
+  display: table;
+  width: 100%;
+  margin: 0 0 24px;
+  border: 0;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 14px;
+  line-height: 22px;
+}
+
+.markdown table thead tr,
+.markdown table tr:nth-child(2n) {
+  background-color: transparent;
+}
+
+.markdown table th,
+.markdown table td {
+  padding: 10px 14px;
+  border: 0;
+  text-align: left;
+  vertical-align: top;
+}
+
+.markdown table th {
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: var(--ifm-font-weight-semibold);
+  color: var(--contentsecondary);
+  background-color: var(--bgelevated1);
+}
+
+.markdown table th:first-child {
+  border-radius: var(--radius-md) 0 0 var(--radius-md);
+}
+
+.markdown table th:last-child {
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+}
+
+.markdown table td {
+  color: var(--contentprimary);
+  border-bottom: 1px solid var(--borderdefault);
+}
+
+.markdown table code {
+  white-space: nowrap;
+}
+
 /* ---- Doc cards ---- */
 a[class*="cardContainer"] {
   --ifm-link-hover-decoration: none;
