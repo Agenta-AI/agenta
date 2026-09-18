@@ -32,6 +32,16 @@ from agenta.sdk.engines.tracing.propagation import inject
 from agenta.sdk.models.workflows import WorkflowServiceStatus
 
 from oss.src.core.access.permissions.types import Permission
+from oss.src.core.apps.handlers import (
+    CREATE_APP_CALL_REF,
+    CREATE_APP_DEFAULT_TIMEOUT_MS,
+    CREATE_APP_TOOL_DEFINITION,
+    LIST_STARTERS_CALL_REF,
+    LIST_STARTERS_DEFAULT_TIMEOUT_MS,
+    LIST_STARTERS_TOOL_DEFINITION,
+    handle_create_app,
+    handle_list_starters,
+)
 from oss.src.core.shared.dtos import Reference, Windowing
 from oss.src.core.tools.dtos import (
     TestRunExpectations,
@@ -975,6 +985,27 @@ PLATFORM_TOOL_HANDLERS: Dict[str, PlatformToolHandlerRegistration] = {
         handler=handle_commit_revision,
         elevated_permission=Permission.EDIT_WORKFLOWS,
     ),
+    # Agent HTML apps. Both write to / read from the session's own drive, which RUN_TOOLS
+    # already covers (the mount endpoints ask for nothing more), so neither is elevated.
+    CREATE_APP_CALL_REF: PlatformToolHandlerRegistration(
+        call_ref=CREATE_APP_CALL_REF,
+        timeout_ms=CREATE_APP_DEFAULT_TIMEOUT_MS,
+        handler=handle_create_app,
+    ),
+    LIST_STARTERS_CALL_REF: PlatformToolHandlerRegistration(
+        call_ref=LIST_STARTERS_CALL_REF,
+        timeout_ms=LIST_STARTERS_DEFAULT_TIMEOUT_MS,
+        handler=handle_list_starters,
+    ),
+}
+
+# Model-facing definitions (name, description, JSON schema, context bindings, read_only) for
+# the handlers whose op catalog entry is authored here rather than in the SDK. The SDK's
+# ``PLATFORM_OPS`` entry for each must be a copy of this dict; ``read_only`` follows the
+# catalog's convention (a read hint for the runner's ``allow_reads`` policy).
+PLATFORM_TOOL_DEFINITIONS: Dict[str, Dict[str, Any]] = {
+    CREATE_APP_CALL_REF: CREATE_APP_TOOL_DEFINITION,
+    LIST_STARTERS_CALL_REF: LIST_STARTERS_TOOL_DEFINITION,
 }
 
 
