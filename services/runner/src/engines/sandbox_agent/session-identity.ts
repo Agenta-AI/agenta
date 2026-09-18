@@ -12,7 +12,7 @@ import {
   userTurnCarriesContent,
 } from "../../protocol.ts";
 import { approvalDecisionOf } from "../../responder.ts";
-import { harnessKindOf, normalizedHarnessMode } from "../../harness-kind.ts";
+import { normalizedHarnessMode } from "../../harness-kind.ts";
 import type { TeardownReason } from "./teardown.ts";
 import { loadRunnerConfig } from "../../config/runner-config.ts";
 
@@ -728,28 +728,6 @@ export function computeCredentialEpoch(
   });
   // The half no live delivery can reach. See `CredentialEpoch.direct`: these values are read
   // locally by the provider SDK, so they are baked into the daemon environment at create.
-  //
-  // Pi's MCP credentials are here for the SAME reason, though they are `opaque_http` and a
-  // Daytona Secret is allocated for them. Pi does not read that Secret: `buildPiExtensionEnv`
-  // serializes the credential's own value into the create-time environment, and that map is
-  // fixed once the sandbox exists. Rotating the Secret therefore updates a record this run
-  // never consults, and reusing the session would keep Pi on the credential it started with —
-  // which expires, because a gateway credential lives fifteen minutes. Declaring it
-  // non-deliverable makes the route refuse and the sandbox rebuild, which is the only thing
-  // that actually replaces the value.
-  //
-  // Only Pi, and that is the whole point: the ACP harnesses receive the placeholder in their
-  // session config, so for them the Secret IS the credential and rotating it in place works.
-  const piBakedMcpCredentials =
-    harnessKindOf(request.harness) === "pi"
-      ? (request.mcpServers ?? []).flatMap((server) =>
-          (server.connection?.credentials ?? []).map((credential) => ({
-            server: server.name,
-            binding: credential.binding,
-            value: credential.value,
-          })),
-        )
-      : [];
   const directMaterial = canonicalJson({
     modelEnvironment: request.modelConnection?.environment ?? {},
     sandboxCredentials: (request.sandboxCredentials ?? []).map((credential) => ({
@@ -762,7 +740,6 @@ export function computeCredentialEpoch(
         binding: credential.binding,
         value: credential.value,
       })),
-    piBakedMcpCredentials,
   });
   return {
     secrets: new CredentialMaterial(material),
