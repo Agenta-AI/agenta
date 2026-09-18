@@ -33,8 +33,10 @@ const config: Config = {
     locales: ["en"],
   },
 
-  // Rendered by src/theme/Footer; the footer config schema has no slot for them.
-  customFields: {
+    customFields: {
+    // Header GitHub link: the star count is fetched from the GitHub API at runtime.
+    githubRepo: "Agenta-AI/agenta",
+    // Rendered by src/theme/Footer; the footer config schema has no slot for them.
     footerSocials: [
       { label: "X", href: "https://x.com/agenta_ai", icon: "x" },
       { label: "LinkedIn", href: "https://www.linkedin.com/company/agenta-ai", icon: "linkedin" },

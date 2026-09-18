@@ -40,7 +40,7 @@
 .divider {
   width: 1px;
   height: 20px;
-  margin: 0 2px;
+  margin: 0;
   background-color: var(--borderdark);
 }
 
@@ -66,6 +66,36 @@
 .colorModeToggle:focus-visible {
   outline: 2px solid var(--contentprimary);
   outline-offset: 2px;
+}
+
+/* GitHub link with the star count, the same 32px control as the toggle. */
+.github {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 6px;
+  border-radius: var(--radius-lg);
+  color: var(--contentprimary);
+  transition: background-color var(--ifm-transition-fast) ease;
+}
+
+.github:hover {
+  background-color: var(--bgelevated1);
+  color: var(--contentprimary);
+  text-decoration: none;
+}
+
+.github:focus-visible {
+  outline: 2px solid var(--contentprimary);
+  outline-offset: 2px;
+}
+
+.githubCount {
+  font-size: 13px;
+  line-height: 18px;
+  font-variant-numeric: tabular-nums;
+  color: var(--contentsecondary);
 }
 
 /* Version pill next to the logo */

@@ -93,14 +93,14 @@
   color: var(--contentprimary);
 }
 
-/* Search button in the header: a 260px field with a bordered ⌘K key chip. */
+/* Search button in the header: a 240px field with a bordered ⌘K key chip. */
 .navbar [class*="navbarSearchContainer"] {
   padding: 0;
 }
 
 .navbar .DocSearch-Button {
   box-sizing: border-box;
-  width: 260px;
+  width: 240px;
   height: 32px;
   margin: 0;
   padding: 0 10px;

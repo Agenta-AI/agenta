@@ -14,6 +14,7 @@ import NavbarMobileSidebarToggle from '@theme/Navbar/MobileSidebar/Toggle';
 import NavbarLogo from '@theme/Navbar/Logo';
 import NavbarSearch from '@theme/Navbar/Search';
 import {CTA_CLASSES, hasCtaClass} from '@site/src/utils/navbarCtas';
+import GitHubStars from './GitHubStars';
 
 import styles from './styles.module.css';
 
@@ -63,7 +64,8 @@ function ColorModeToggle(): ReactNode {
 
 /**
  * One header row: logo and version on the left, search and the CTAs on the
- * right, with the light/dark toggle ahead of the CTAs. The section links
+ * right, with the GitHub link and the light/dark toggle ahead of the CTAs.
+ * The section links
  * (position: "left") are not rendered here; the sidebar rail shows them on
  * desktop and the hamburger menu on mobile. Social links live in the footer.
  */
@@ -100,6 +102,8 @@ export default function NavbarContent(): ReactNode {
           <SearchBar />
         </NavbarSearch>
         <div className={styles.actions}>
+          <span className={styles.divider} role="presentation" />
+          <GitHubStars />
           <span className={styles.divider} role="presentation" />
           <ColorModeToggle />
           <span className={styles.divider} role="presentation" />
