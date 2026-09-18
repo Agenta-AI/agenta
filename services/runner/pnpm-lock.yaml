@@ -21,7 +21,7 @@ patchedDependencies:
     hash: a673c410af2021d9bb5f05c899522b66e6bcbe67134a92f506f0aef23fcf090d
     path: patches/acp-http-client@0.4.2.patch
   pi-acp@0.0.29:
-    hash: 6f83f132d50693c34d9ee6550cd7ef8de7aa072e3983ad61232797a1d4c07936
+    hash: 538022141d65b5c140169cec54bc064c5f3249f2aa9a05f0f445def152bbc907
     path: patches/pi-acp@0.0.29.patch
   sandbox-agent@0.4.2:
     hash: 91ccdae91dc68390329197a105ecd8cf394f680dd3be2a26731ebe1c2bd58c3f
@@ -75,7 +75,7 @@ importers:
         version: 0.4.2(patch_hash=a673c410af2021d9bb5f05c899522b66e6bcbe67134a92f506f0aef23fcf090d)(zod@4.4.3)
       pi-acp:
         specifier: 0.0.29
-        version: 0.0.29(patch_hash=6f83f132d50693c34d9ee6550cd7ef8de7aa072e3983ad61232797a1d4c07936)
+        version: 0.0.29(patch_hash=538022141d65b5c140169cec54bc064c5f3249f2aa9a05f0f445def152bbc907)
       proper-lockfile:
         specifier: 4.1.2
         version: 4.1.2
@@ -4924,7 +4924,7 @@ snapshots:
 
   pathe@2.0.3: {}
 
-  pi-acp@0.0.29(patch_hash=6f83f132d50693c34d9ee6550cd7ef8de7aa072e3983ad61232797a1d4c07936):
+  pi-acp@0.0.29(patch_hash=538022141d65b5c140169cec54bc064c5f3249f2aa9a05f0f445def152bbc907):
     dependencies:
       '@agentclientprotocol/sdk': 0.26.0(zod@3.25.76)
       zod: 3.25.76

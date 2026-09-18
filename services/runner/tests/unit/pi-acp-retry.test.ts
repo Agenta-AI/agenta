@@ -5,6 +5,9 @@ import { describe, expect, it, vi } from "vitest";
 // Exercise the installed, pnpm-patched adapter rather than a copy of its event handler.
 // The package is a CLI with no class export; isolate its session class from the entrypoint.
 const require = createRequire(import.meta.url);
+const adapterRequire = createRequire(require.resolve("pi-acp"));
+const { RequestError, AgentSideConnection, ClientSideConnection } =
+  adapterRequire("@agentclientprotocol/sdk");
 const source = readFileSync(require.resolve("pi-acp"), "utf8");
 const start = source.indexOf("var PiAcpSession = class {");
 const end = source.indexOf("\nfunction extensionUiToolCall", start);
@@ -13,10 +16,12 @@ if (start < 0 || end < 0)
 const Session = new Function(
   "expandSlashCommand",
   "maybeAuthRequiredError",
+  "RequestError",
   `${source.slice(start, end)}; return PiAcpSession;`,
 )(
   (message: string) => message,
   () => undefined,
+  RequestError,
 );
 
 function fixture() {
@@ -115,7 +120,7 @@ describe("Pi adapter retry lifecycle", () => {
     expect(failed).not.toHaveBeenCalled();
     f.emit({ type: "agent_settled" });
     await result;
-    expect(failed.mock.calls[0]?.[0].message).toBe("WebSocket error");
+    expect(failed.mock.calls[0]?.[0].message).toContain("WebSocket error");
     expect(
       f.updates.some((u) => u.sessionUpdate === "agent_message_chunk"),
     ).toBe(false);
@@ -159,4 +164,27 @@ describe("Pi adapter retry lifecycle", () => {
     f.emit({ type: "agent_settled" });
     await expect(second).resolves.toBe("end_turn");
   });
+});
+
+it("preserves the failure across the actual ACP JSON-RPC boundary", async () => {
+  const f = fixture();
+  const toAgent = new TransformStream();
+  const toClient = new TransformStream();
+  new AgentSideConnection(() => ({ prompt: () => f.session.prompt("work") }), {
+    readable: toAgent.readable,
+    writable: toClient.writable,
+  });
+  const client = new ClientSideConnection(() => ({}), {
+    readable: toClient.readable,
+    writable: toAgent.writable,
+  });
+  const result = client.prompt({
+    sessionId: "test",
+    prompt: [{ type: "text", text: "work" }],
+  });
+  const rejection = expect(result).rejects.toThrow("WebSocket error");
+  await f.drain();
+  f.message("error", "WebSocket error");
+  f.emit({ type: "agent_settled" });
+  await rejection;
 });

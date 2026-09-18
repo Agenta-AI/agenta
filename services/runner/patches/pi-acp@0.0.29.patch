@@ -76,7 +76,7 @@ diff --git a/dist/index.js b/dist/index.js
            const reason = this.cancelRequested ? "cancelled" : "end_turn";
 -          this.pendingTurn?.resolve(reason);
 +          if (this.lastAssistantError && !this.cancelRequested) {
-+            this.pendingTurn?.reject(new Error(this.lastAssistantError));
++            this.pendingTurn?.reject(RequestError.internalError(undefined, this.lastAssistantError));
 +          } else {
 +            this.pendingTurn?.resolve(reason);
 +          }
