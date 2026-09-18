@@ -261,6 +261,14 @@ export function buildRuntimeEnvironment(
   // Daytona daemon environment is fixed at sandbox creation and is built from `piExtEnv`, so a
   // value decided after the sandbox exists never reaches the harness.
   configureDaytonaSubscriptionEnv(input.plan, piExtEnv);
+  // And the gateway credential, for the same reason as the two above. The Daytona daemon
+  // environment is built from `piExtEnv` plus the model environment; `env` is not one of its
+  // inputs. Set on `env` alone the credential exists only on a local daemon, and a Daytona
+  // harness expands the `$AGENTA_GATEWAY_CREDENTIALS_VALUE` its own config file references to
+  // nothing, so every call it makes reaches the gateway unauthenticated.
+  if (gatewayCredentials?.value) {
+    piExtEnv[GATEWAY_CREDENTIALS_VALUE_ENV] = gatewayCredentials.value;
+  }
   assignSandboxEnvironment([env, piExtEnv], p.credentials.sandboxEnvironment);
   // LAST, deliberately: the local daemon inherits the extension env, and Daytona gets the same
   // values through `envVars`. Assigning earlier would drop every key added above.
