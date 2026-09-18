@@ -39,13 +39,14 @@ export default function NavbarMobilePrimaryMenu(): ReactNode {
   const secondary = items.find((i) => hasCtaClass(i, CTA_CLASSES.secondary)) as CtaItem | undefined;
   const primary = items.find((i) => hasCtaClass(i, CTA_CLASSES.primary)) as CtaItem | undefined;
 
-  // Everything that isn't the search box, the version selector, or a CTA
-  // button is a normal navigation link shown in the scrolling list.
-  // The version selector is rendered next to the logo by Navbar/Content at
-  // every width, so repeating it here would show the same control twice.
-  const navItems = items.filter(
+  // Everything that isn't the search box or a CTA button is a navigation
+  // link in the scrolling list; the version selector goes last. On phones the
+  // header hides the pill next to the logo, so this is where versions are
+  // switched; on tablets, where the pill shows, navbar.css hides this copy.
+  const links = items.filter(
     (i) => i.type !== "search" && i.type !== "docsVersionDropdown" && !isCta(i),
   );
+  const navItems = [...links, ...items.filter((i) => i.type === "docsVersionDropdown")];
 
   return (
     <>

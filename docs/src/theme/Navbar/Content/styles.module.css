@@ -180,11 +180,13 @@
   }
 }
 
-/* Phones: search (as an icon) and the primary CTA only. */
+/* Phones: search (as an icon) and the primary CTA only. The version pill
+   moves into the hamburger menu (Navbar/MobileSidebar/PrimaryMenu). */
 @media (max-width: 599px) {
   .divider,
   .github,
-  .colorModeToggle {
+  .colorModeToggle,
+  .versionSelector {
     display: none;
   }
 }

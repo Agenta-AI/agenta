@@ -260,10 +260,17 @@
   }
 }
 
-/* Tablets: header gutters match the content gutters. */
+/* Tablets: header gutters match the content gutters. The version pill is in
+   the header here, so the hamburger's copy of the selector is hidden. */
 @media (min-width: 600px) and (max-width: 996px) {
   .navbar {
     --ifm-navbar-padding-horizontal: 32px;
+  }
+
+  .navbar-sidebar__item:has(.mobileSidebarFooter)
+    > .menu__list
+    > .menu__list-item:has(> .menu__list-item-collapsible) {
+    display: none;
   }
 }
 
