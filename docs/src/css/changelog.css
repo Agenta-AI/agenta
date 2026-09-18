@@ -1,0 +1,59 @@
+/* Changelog (the blog plugin). The list rows and the page header are CSS
+   modules next to their components (src/theme/BlogPostItem, BlogListPage);
+   this file styles the stock markup of a single entry page. */
+
+.blog-post-page article {
+  max-width: var(--doc-content-width);
+}
+
+.blog-post-page article > header h1 {
+  margin: 0 0 8px;
+}
+
+.blog-post-page article > header [class*="blogPostItemInfo"],
+.blog-post-page article > header time {
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--contentsecondary);
+}
+
+.blog-post-page article > header {
+  margin-bottom: 24px;
+}
+
+/* Tag row under an entry: the version, as a quiet chip. */
+.blog-post-page article > footer {
+  margin-top: 32px;
+}
+
+.blog-post-page article > footer b {
+  font-size: 13px;
+  font-weight: var(--ifm-font-weight-normal);
+  color: var(--contentsecondary);
+}
+
+/* Version chip: on the list rows (BlogPostItem) and, via rel="tag" (the
+   theme's tag class is a CSS-module hash), the tag under an entry. */
+.versionChip,
+.blog-post-page a[rel="tag"] {
+  display: inline-block;
+  font-family: var(--ifm-font-family-monospace);
+  font-size: 11px;
+  line-height: 16px;
+  padding: 1px 6px;
+  border: 1px solid var(--borderdefault);
+  border-radius: 5px;
+  background-color: var(--bgelevated1);
+  color: var(--contentsecondary);
+  text-decoration: none;
+}
+
+.blog-post-page a[rel="tag"]:hover {
+  color: var(--contentprimary);
+  border-color: var(--borderdark);
+  text-decoration: none;
+}
+
+.blog-post-page .pagination-nav {
+  margin-top: 40px;
+}
