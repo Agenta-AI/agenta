@@ -65,6 +65,18 @@ export interface SkillFormViewProps {
     disabled?: boolean
     /** Replaces the upload drop zone at the rail bottom (e.g. a versions card in detail mode). */
     railBottomSlot?: ReactNode
+    /**
+     * The Name field takes the caret on mount — a frame late, so a drawer's own focus on its
+     * wrapper has already landed. For a form that opens empty, where the name is the first thing
+     * to type.
+     */
+    autoFocusName?: boolean
+    /**
+     * Paint the empty required fields red. Off until the host's Create or Save is pressed:
+     * a field that reddens the moment the caret leaves it scolds a reader who has not tried
+     * to submit anything yet.
+     */
+    showMissing?: boolean
 }
 
 /** Which file the right pane is editing: the pinned SKILL.md body, or a `files[]` entry by index. */
@@ -186,8 +198,21 @@ function readRailWidth(): number {
     return RAIL_DEFAULT
 }
 
-export function SkillFormView({value, onChange, disabled, railBottomSlot}: SkillFormViewProps) {
+export function SkillFormView({
+    value,
+    onChange,
+    disabled,
+    railBottomSlot,
+    autoFocusName = false,
+    showMissing = false,
+}: SkillFormViewProps) {
     const skill = (value ?? {}) as Record<string, unknown>
+    const nameInput = useRef<HTMLInputElement>(null)
+    useEffect(() => {
+        if (!autoFocusName) return
+        const frame = requestAnimationFrame(() => nameInput.current?.focus())
+        return () => cancelAnimationFrame(frame)
+    }, [autoFocusName])
     const files: SkillFileEntry[] = Array.isArray(skill.files)
         ? (skill.files as SkillFileEntry[])
         : []
@@ -200,12 +225,9 @@ export function SkillFormView({value, onChange, disabled, railBottomSlot}: Skill
         setSelected(next)
         setMobileView("detail")
     }
-    // Quiet on a pristine draft; on once the user or an upload touches the field.
+    // The name's format check is quiet on a pristine draft; on once the user or an upload
+    // touches the field. Empty-field chrome is the host's call (`showMissing`), not the caret's.
     const [nameTouched, setNameTouched] = useState(() => Boolean(String(skill.name ?? "").trim()))
-    const [descriptionTouched, setDescriptionTouched] = useState(() =>
-        Boolean(String(skill.description ?? "").trim()),
-    )
-    const [bodyTouched, setBodyTouched] = useState(() => Boolean(String(skill.body ?? "").trim()))
     // Open when a flag is already off-default, so an existing skill never hides a set toggle.
     const [advancedOpen, setAdvancedOpen] = useState(
         () => Boolean(skill.disable_model_invocation) || Boolean(skill.allow_executable_files),
@@ -217,24 +239,24 @@ export function SkillFormView({value, onChange, disabled, railBottomSlot}: Skill
     const name = asText(skill.name)
     const description = asText(skill.description)
     const body = asText(skill.body)
-    // An empty value reads as red chrome (label + input border) rather than a "Required." line.
-    // A non-string value is NOT missing — it has its own NOT_TEXT message, which must still show.
-    const missing = (raw: unknown, text: string, touched: boolean) =>
-        !notText(raw) && touched && !text.trim()
+    // An empty value reads as red chrome (label + input border) rather than a "Required." line,
+    // and only once a submit was attempted. A non-string value is NOT missing — it has its own
+    // NOT_TEXT message, which must still show.
+    const missing = (raw: unknown, text: string) => !notText(raw) && showMissing && !text.trim()
 
     const rawNameError = skillNameError(skill.name, {touched: nameTouched})
-    const nameMissing = missing(skill.name, name, nameTouched)
+    const nameMissing = missing(skill.name, name)
     const nameError = nameMissing ? undefined : rawNameError
     const nameSuggestion = nameError && name.trim() ? slugifySkillName(name) : ""
     const showNameSuggestion = Boolean(nameSuggestion) && nameSuggestion !== name
-    const descriptionMissing = missing(skill.description, description, descriptionTouched)
+    const descriptionMissing = missing(skill.description, description)
     const descriptionError = notText(skill.description)
         ? NOT_TEXT
         : [...description].length > SKILL_DESCRIPTION_MAX
           ? `Max ${SKILL_DESCRIPTION_MAX} characters.`
           : undefined
     // Body gets the same treatment: without it an empty SKILL.md disables Create with no cue.
-    const bodyMissing = missing(skill.body, body, bodyTouched)
+    const bodyMissing = missing(skill.body, body)
     const bodyError = notText(skill.body)
         ? NOT_TEXT
         : [...body].length > SKILL_BODY_MAX
@@ -282,14 +304,12 @@ export function SkillFormView({value, onChange, disabled, railBottomSlot}: Skill
         const next = {...skill}
         if (parsed.name) next.name = parsed.name
         if (parsed.description) next.description = parsed.description
-        // Touched regardless of what the upload carried, so a package missing a name or
-        // description shows "Required." instead of only a dead Save button.
+        // Touched regardless of what the upload carried, so a package with a badly formed name
+        // says so at once.
         setNameTouched(true)
-        setDescriptionTouched(true)
         // body/files are always present on a parsed upload; assign unconditionally so a
         // replacement with an empty body or no bundled files clears the previous draft.
         next.body = parsed.body
-        setBodyTouched(true)
         if (parsed.files.length) next.files = parsed.files
         else delete next.files
         onChange(next)
@@ -500,12 +520,12 @@ export function SkillFormView({value, onChange, disabled, railBottomSlot}: Skill
                     }
                 >
                     <Input
+                        ref={nameInput}
                         value={name}
                         onChange={(e) => {
                             setNameTouched(true)
                             set("name", e.target.value)
                         }}
-                        onBlur={() => setNameTouched(true)}
                         maxLength={SKILL_NAME_MAX}
                         aria-invalid={nameMissing || nameError ? true : undefined}
                         placeholder="my-skill"
@@ -522,11 +542,7 @@ export function SkillFormView({value, onChange, disabled, railBottomSlot}: Skill
                 >
                     <AutosizeTextarea
                         value={description}
-                        onChange={(e) => {
-                            setDescriptionTouched(true)
-                            set("description", e.target.value)
-                        }}
-                        onBlur={() => setDescriptionTouched(true)}
+                        onChange={(e) => set("description", e.target.value)}
                         autoSize={{minRows: 2, maxRows: 4}}
                         aria-invalid={descriptionMissing || descriptionError ? true : undefined}
                         placeholder="When the agent should reach for this skill"
@@ -544,10 +560,7 @@ export function SkillFormView({value, onChange, disabled, railBottomSlot}: Skill
                     >
                         <MarkdownEditor
                             value={body}
-                            onChange={(v) => {
-                                setBodyTouched(true)
-                                set("body", v)
-                            }}
+                            onChange={(v) => set("body", v)}
                             placeholder={
                                 "# My skill\n\nStep-by-step instructions the agent follows…"
                             }

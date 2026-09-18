@@ -5,9 +5,9 @@ import {SessionTabRail, withShortcutKey} from "@agenta/sessions-ui"
 import {shortcutAria} from "@agenta/shared/utils"
 import {ShortcutKeys} from "@agenta/ui/shortcuts"
 import {Button, SimpleTooltip} from "@agenta/ui/ui"
+import {Folder, FolderOpen} from "@phosphor-icons/react"
 import {useQuery} from "@tanstack/react-query"
 import {useAtomValue} from "jotai"
-import {ChevronsLeft} from "lucide-react"
 import {useRouter} from "next/router"
 
 import {PageTitle} from "@/components/PageTitle"
@@ -56,7 +56,10 @@ export const SessionTabs = ({
     const startBlank = useStartBlankSession(base)
     const closeTabs = useSessionTabClose({agentId, sessionId, base})
     const configCollapsed = useAtomValue(configPanelCollapsedAtom)
-    const {open: filesOpen, openPane} = useSessionFilesPane(agentId ?? sessionId, sessionId)
+    const {open: filesOpen, toggle: toggleFiles} = useSessionFilesPane(
+        agentId ?? sessionId,
+        sessionId,
+    )
     // Key leads with `session-stream`: a rename patches by key PREFIX, so a nested key never
     // matches and the title lags. The singular GET redirects onto the web app, so POST it.
     const query = useQuery({
@@ -112,40 +115,45 @@ export const SessionTabs = ({
                     !chatMaximized && configCollapsed ? <ConfigRevealButton /> : undefined
                 }
                 extra={
-                    chatMaximized ? undefined : (
-                        <>
-                            <InspectSessionButton sessionId={sessionId} />
-                            {/* Same slot and order as the desktop bar: inspector, history, then
-                                the files opener at the right edge the pane expands from. */}
-                            <SessionHistoryMenu
-                                agentId={agentId}
-                                base={base}
-                                activeSessionId={sessionId}
-                            />
-                            {filesOpen ? null : (
-                                <SimpleTooltip
-                                    title={
-                                        <span className="flex items-center gap-1.5">
-                                            Show files{" "}
-                                            <ShortcutKeys id="panel.files" tone="inverse" />
-                                        </span>
-                                    }
-                                    side="left"
-                                >
-                                    <Button
-                                        variant="ghost"
-                                        size="icon-sm"
-                                        aria-label="Show files pane"
-                                        aria-keyshortcuts={shortcutAria("panel.files")}
-                                        onClick={openPane}
-                                        className="h-7 w-7 shrink-0 p-0"
-                                    >
-                                        <ChevronsLeft size={14} />
-                                    </Button>
-                                </SimpleTooltip>
-                            )}
-                        </>
-                    )
+                    <>
+                        {chatMaximized ? null : (
+                            <>
+                                <InspectSessionButton sessionId={sessionId} />
+                                <SessionHistoryMenu
+                                    agentId={agentId}
+                                    base={base}
+                                    activeSessionId={sessionId}
+                                />
+                            </>
+                        )}
+                        {/* Shows the state and flips it; hidden below md, where the pane never mounts. */}
+                        <SimpleTooltip
+                            title={
+                                <span className="flex items-center gap-1.5">
+                                    {filesOpen ? "Hide files" : "Show files"}{" "}
+                                    <ShortcutKeys id="panel.files" tone="inverse" />
+                                </span>
+                            }
+                        >
+                            <Button
+                                variant="ghost"
+                                size="icon-sm"
+                                aria-label={filesOpen ? "Hide files pane" : "Show files pane"}
+                                aria-pressed={filesOpen}
+                                aria-keyshortcuts={shortcutAria("panel.files")}
+                                onClick={toggleFiles}
+                                // The glyph's weight carries the state; no colour shift on top.
+                                className="h-7 w-7 shrink-0 p-0"
+                            >
+                                {/* A folder says "files" where a panel glyph wouldn't; open = pane shown. */}
+                                {filesOpen ? (
+                                    <FolderOpen size={14} weight="fill" />
+                                ) : (
+                                    <Folder size={14} />
+                                )}
+                            </Button>
+                        </SimpleTooltip>
+                    </>
                 }
             />
         </>

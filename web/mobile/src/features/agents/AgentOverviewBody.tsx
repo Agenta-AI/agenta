@@ -130,7 +130,7 @@ export const AgentOverviewBody = ({
                 // configuration (see [[AgentOverviewTitle]]).
                 <div className="hidden w-full flex-col gap-3.5 lg:flex">
                     <AgentConfigCard agentId={agentId} onEdit={onEditConfig} />
-                    <AgentDriveCard agentId={agentId} />
+                    <AgentDriveCard agentId={agentId} base={base} />
                     <AgentAutomationsCard agentId={agentId} agentNames={agentNames} base={base} />
                 </div>
             }

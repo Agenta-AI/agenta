@@ -1,5 +1,11 @@
 [
     {
+        "id": "changelog-2026-08-28-recognize-agents-at-a-glance",
+        "title": "Agent icons and colors",
+        "description": "Choose an icon and color for each agent so you can tell them apart in the sidebar and chat.",
+        "link": "https://agenta.ai/docs/changelog/recognize-agents-at-a-glance"
+    },
+    {
         "id": "changelog-2026-08-22-agenta-on-mobile",
         "title": "Agenta on Mobile",
         "description": "Chat with agents, follow live runs, and approve tool calls from your phone.",

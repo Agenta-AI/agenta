@@ -4,16 +4,12 @@ import {useEffect, useMemo, useState} from "react"
 import {agentIconChrome, type AgentIconSelection} from "@agenta/ui/agent-icon"
 import {LogoMarks} from "@agenta/ui/components/presentational"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
-import {getProviderIcon} from "@agenta/ui/select-llm-provider"
+import {ListTableToolbar} from "@agenta/ui/list-table"
 import {cn} from "@agenta/ui/styles"
-import {Button, EmptyState, SearchInput, SkeletonBlock} from "@agenta/ui/ui"
-import {Check, Cube, Robot, Warning} from "@phosphor-icons/react"
+import {Button, EmptyState, SkeletonBlock} from "@agenta/ui/ui"
+import {Check, Robot, Warning} from "@phosphor-icons/react"
 
-import {SubSectionHeader} from "../sectionGroups"
-
-import {CatalogListRow} from "./CatalogListRow"
 import {INTEGRATION_DRAWER_WIDTH} from "./drawerWidths"
-import {ExpandableDescription} from "./ExpandableDescription"
 
 /** One connected app on an agent. */
 export interface SubagentIntegration {
@@ -54,26 +50,34 @@ export interface AddSubagentDrawerProps {
     onRemove: (options: SubagentOption[]) => void | Promise<void>
 }
 
-const ICON_BOX = "flex size-7 items-center justify-center rounded-md"
+/** The home list's row and focus recipe, so this list and that one read as the same agents. */
+const FOCUS_RING = "focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+const ROW =
+    "box-border flex w-full cursor-pointer appearance-none items-center gap-3.5 rounded-[10px] border-0 bg-transparent px-3.5 py-2 text-left font-[inherit] outline-none transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-60 " +
+    FOCUS_RING
 
-/** The model an agent runs on, marked with its provider's logo. */
-function ModelChip({model, provider}: {model: string; provider?: string}) {
-    const ProviderIcon = provider ? getProviderIcon(provider) : null
+/** The home tile: 34px box, 16px glyph, a neutral fill when the author never picked an icon. */
+function SubagentTile({icon}: {icon?: AgentIconSelection | null}) {
+    const chrome = agentIconChrome(icon, {
+        size: 16,
+        fallbackGlyph: <Robot aria-hidden size={16} />,
+        fallbackClassName: "bg-colorFillSecondary text-muted-foreground",
+    })
     return (
-        <span className="flex min-w-0 items-center gap-[5px] text-xs text-[var(--ag-colorTextSecondary)]">
-            <span className="flex size-[13px] shrink-0 items-center justify-center rounded-[3px] bg-[var(--ag-colorFillTertiary)]">
-                {ProviderIcon ? <ProviderIcon className="size-[9px]" /> : <Cube size={9} />}
-            </span>
-            <span className="truncate tabular-nums">{model}</span>
+        <span
+            className={cn(
+                "flex size-[34px] shrink-0 items-center justify-center rounded-control-sm",
+                chrome.className,
+            )}
+            style={chrome.style}
+        >
+            {chrome.glyph}
         </span>
     )
 }
 
-/** Separates the model from the connected apps. A gap alone let the two runs read as one list. */
-const MetaDot = () => (
-    <span className="size-[2px] shrink-0 rounded-full bg-[var(--ag-colorTextQuaternary)]" />
-)
-
+/** One row toggles its agent: click adds it, click again removes it. Added rows carry the home
+ *  list's tint and check. */
 function SubagentRow({
     option,
     busy,
@@ -85,99 +89,54 @@ function SubagentRow({
     onAdd: () => void
     onRemove: () => void
 }) {
-    const [expanded, setExpanded] = useState(false)
-    const chrome = agentIconChrome(option.icon, {
-        size: 14,
-        fallbackGlyph: <Robot size={14} />,
-        fallbackClassName: "bg-[var(--ag-colorFillSecondary)] text-[var(--ag-colorTextSecondary)]",
-    })
     const integrations = option.integrations ?? []
-
     return (
-        <CatalogListRow
-            highlighted={expanded}
-            leading={
-                <span className={cn(ICON_BOX, chrome.className)} style={chrome.style}>
-                    {chrome.glyph}
-                </span>
-            }
-            title={option.name}
-            titleSuffix={
-                option.added ? (
-                    <span className="flex shrink-0 items-center gap-1 text-xs font-normal text-colorSuccess">
-                        <Check size={11} weight="bold" />
-                        Added
-                    </span>
-                ) : null
-            }
-            action={
-                option.added ? (
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={busy}
-                        onClick={onRemove}
-                        aria-label={`Remove ${option.name} as a subagent`}
-                    >
-                        Remove
-                    </Button>
-                ) : (
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={busy}
-                        onClick={onAdd}
-                        aria-label={`Add ${option.name} as a subagent`}
-                    >
-                        Add
-                    </Button>
-                )
-            }
+        <button
+            type="button"
+            disabled={busy}
+            onClick={option.added ? onRemove : onAdd}
+            aria-pressed={Boolean(option.added)}
+            aria-label={`${option.added ? "Remove" : "Add"} ${option.name} as a subagent`}
+            className={cn(ROW, option.added && "bg-accent")}
         >
-            <ExpandableDescription
-                description={option.description}
-                lines={2}
-                label={option.name}
-                onExpandedChange={setExpanded}
-            />
-            {/* Model and connected apps are desktop-only: on a phone they crowded out the name
-                and description the row is picked by. */}
-            <span className="mt-1.5 hidden min-w-0 items-center gap-2 sm:flex">
-                {option.model ? (
-                    <ModelChip model={option.model} provider={option.provider} />
-                ) : null}
-                {option.model ? <MetaDot /> : null}
-                <LogoMarks
-                    items={integrations}
-                    size={14}
-                    max={5}
-                    label={`Apps connected to ${option.name}`}
-                    empty={
-                        // One line: the model slug beside it truncates, this wrapped to three.
-                        <span className="shrink-0 whitespace-nowrap text-xs text-[var(--ag-colorTextTertiary)]">
-                            No connected apps
-                        </span>
-                    }
-                />
+            <SubagentTile icon={option.icon} />
+            {/* The description line renders even when empty so rows keep one height. */}
+            <span className="flex min-w-0 flex-1 flex-col gap-px">
+                <span className="truncate text-sm leading-[1.45] text-foreground">
+                    {option.name}
+                </span>
+                <span className="truncate text-[13px] leading-[1.45] text-muted-foreground">
+                    {option.description?.trim() || "No description"}
+                </span>
             </span>
-        </CatalogListRow>
+            {integrations.length > 0 ? (
+                <span className="hidden shrink-0 items-center pl-2 sm:flex">
+                    <LogoMarks
+                        items={integrations}
+                        size={14}
+                        max={5}
+                        label={`Apps connected to ${option.name}`}
+                    />
+                </span>
+            ) : null}
+            {option.added ? (
+                <Check aria-hidden size={14} className="ml-2 shrink-0 text-foreground" />
+            ) : (
+                <span className="ml-2 shrink-0 text-[13px] text-muted-foreground">Add</span>
+            )}
+        </button>
     )
 }
 
-/** A loading row. SkeletonBlock, never Skeleton: the latter is the antd composite and draws four
- *  overlapping bars in a box meant for one. CatalogListRow truncates its title, which collapses a bar. */
+/** A loading row in the row's own geometry, so the list replaces it without shifting. */
 function RowSkeleton({widths}: {widths: [string, string]}) {
     return (
-        <div className="flex items-start gap-2.5 border-0 border-t border-solid border-[var(--ag-colorSplit)] px-3 py-2.5 first:border-t-0">
-            <SkeletonBlock className="mt-px size-7 shrink-0 rounded-md" />
+        <div className="flex items-center gap-3.5 px-3.5 py-2">
+            <SkeletonBlock className="size-[34px] shrink-0 rounded-control-sm" />
             <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-                <div className="flex min-h-6 items-center">
-                    <SkeletonBlock className={`h-3.5 ${widths[0]}`} />
-                </div>
+                <SkeletonBlock className={`h-3.5 ${widths[0]}`} />
                 <SkeletonBlock className={`h-3 ${widths[1]}`} />
-                <SkeletonBlock className="h-3 w-28" />
             </div>
-            <SkeletonBlock className="h-6 w-14 shrink-0 rounded-md" />
         </div>
     )
 }
@@ -226,9 +185,6 @@ export function AddSubagentDrawer({
         )
     }, [options, search])
 
-    // Add all acts on what the search shows, never on hidden rows.
-    const addable = useMemo(() => visible.filter((o) => !o.added), [visible])
-
     const handleClose = () => {
         setSearch("")
         onClose()
@@ -262,16 +218,17 @@ export function AddSubagentDrawer({
                 </div>
             }
         >
-            <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4">
-                <SearchInput
-                    placeholder="Search agents..."
-                    aria-label="Search agents"
-                    value={search}
-                    onValueChange={setSearch}
-                />
+            {/* The Agents page's search bar, so the drawer and the page it mirrors match. */}
+            <ListTableToolbar
+                className="mb-0 shrink-0 px-4 pt-4 [&>[data-slot=input-group]]:max-w-none"
+                search={search}
+                onSearchChange={setSearch}
+                searchPlaceholder="Search agents by name…"
+            />
 
+            <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-2">
                 {failedCount > 0 ? (
-                    <div className="flex items-center gap-2 rounded-md border border-solid border-[var(--ag-colorWarningBorder)] bg-[var(--ag-colorWarningBg)] px-3 py-2 text-xs text-[var(--ag-colorWarningText)]">
+                    <div className="mx-1.5 flex items-center gap-2 rounded-md border border-solid border-[var(--ag-colorWarningBorder)] bg-[var(--ag-colorWarningBg)] px-3 py-2 text-xs text-[var(--ag-colorWarningText)]">
                         <Warning size={14} className="shrink-0" />
                         <span className="min-w-0 flex-1">
                             {failedCount} {failedCount === 1 ? "agent" : "agents"} could not be
@@ -286,7 +243,7 @@ export function AddSubagentDrawer({
                 ) : null}
 
                 {loading ? (
-                    <div className="flex flex-col overflow-hidden rounded-md border border-solid border-[var(--ag-colorBorderSecondary)]">
+                    <div className="flex flex-col gap-0.5">
                         {SKELETON_WIDTHS.map((widths, index) => (
                             <RowSkeleton key={index} widths={widths} />
                         ))}
@@ -301,34 +258,16 @@ export function AddSubagentDrawer({
                         }
                     />
                 ) : (
-                    <div className="flex flex-col gap-2">
-                        <SubSectionHeader
-                            label="Agents"
-                            count={visible.length}
-                            action={
-                                addable.length > 1 ? (
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        disabled={busy}
-                                        onClick={() => void run(() => onAdd(addable))}
-                                    >
-                                        Add all
-                                    </Button>
-                                ) : undefined
-                            }
-                        />
-                        <div className="flex flex-col overflow-hidden rounded-md border border-solid border-[var(--ag-colorBorderSecondary)]">
-                            {visible.map((option) => (
-                                <SubagentRow
-                                    key={option.id}
-                                    option={option}
-                                    busy={busy}
-                                    onAdd={() => void run(() => onAdd([option]))}
-                                    onRemove={() => void run(() => onRemove([option]))}
-                                />
-                            ))}
-                        </div>
+                    <div className="flex flex-col gap-0.5">
+                        {visible.map((option) => (
+                            <SubagentRow
+                                key={option.id}
+                                option={option}
+                                busy={busy}
+                                onAdd={() => void run(() => onAdd([option]))}
+                                onRemove={() => void run(() => onRemove([option]))}
+                            />
+                        ))}
                     </div>
                 )}
             </div>

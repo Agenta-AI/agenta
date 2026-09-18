@@ -4,8 +4,16 @@
  * predicates they rely on (`isFunctionTool`, `isStaticSkill`) so registry, rows, and drawers agree.
  */
 import {humanizeActionKey} from "@agenta/shared/utils"
+import {
+    AGENT_ICON_CHIP_CLASS,
+    agentIconChipStyle,
+    SKILL_MARK_COLOR,
+    skillMarkText,
+    type SkillMarkOrigin,
+} from "@agenta/ui/agent-icon"
 import {FileText, GraphIcon, Plugs, Robot} from "@phosphor-icons/react"
 
+import {SKILL_NAME_PATTERN} from "../skillName"
 import {parseGatewayEntry, type ToolObj} from "../toolUtils"
 
 /** How a config-item row presents itself: avatar, name + description, and type tags. */
@@ -27,7 +35,7 @@ export interface ItemDescriptor {
     /** Custom properties the chip classes read (the light and dark tint and ink). */
     avatarStyle?: React.CSSProperties
     /** Type tags shown on the right of a row (e.g. "built-in", "definition", "gmail").
-     * An object form carries a semantic tone (e.g. green for "Latest"). */
+     * An object form carries a semantic tone (e.g. a status hue). */
     tags: (string | {label: string; tone?: "success" | "warning" | "default"})[]
     /** Type label for the drawer header badge (e.g. "definition", "MCP server"). */
     typeLabel: string
@@ -287,6 +295,25 @@ export function staticEmbedName(skill: Record<string, unknown>): string | undefi
     return typeof wfName === "string" && wfName ? wfName : undefined
 }
 
+/**
+ * The name a skill is invoked by: the SKILL.md `name` the runner materializes it under, NOT the
+ * registry slug. A registry skill's slug carries a random suffix (`review-pr-3f2a`) that only
+ * keeps the workflow unique; its embed's sibling `name` is the skill's own name.
+ *
+ * An embed with no usable name falls back to its slug only when that slug is itself shaped like a
+ * skill name. Agenta's built-in slugs (`__ag__…`, the older `_agenta.…`) never are, and the only
+ * built-in entries saved without a name point at the retired getting-started stub, so those get
+ * no command at all rather than a slug nobody should type.
+ */
+export function skillCommandName(skill: unknown): string | undefined {
+    const s = asObj(skill)
+    if (!s) return undefined
+    const name = isEmbedRefSkill(s) ? staticEmbedName(s) : s.name
+    if (typeof name === "string" && SKILL_NAME_PATTERN.test(name)) return name
+    const slug = isEmbedRefSkill(s) ? staticEmbedSlug(s) : undefined
+    return slug && SKILL_NAME_PATTERN.test(slug) ? slug : undefined
+}
+
 /** A pinned revision's version, when the embed references a `workflow_revision`. */
 export function embedRevisionVersion(skill: Record<string, unknown>): string | undefined {
     const refs = asObj(asObj(skill["@ag.embed"])?.["@ag.references"])
@@ -307,15 +334,23 @@ export function isStaticSkill(skill: unknown): boolean {
     return asObj(s.flags)?.is_static === true
 }
 
+/** The registry's skill mark on a config row: the chip's chrome, the origin's tint, initials. */
+const skillMark = (name: string, origin: SkillMarkOrigin) => ({
+    mono: skillMarkText(name),
+    color: SKILL_MARK_COLOR[origin],
+    avatarClassName: `${AGENT_ICON_CHIP_CLASS} font-mono`,
+    avatarStyle: agentIconChipStyle(SKILL_MARK_COLOR[origin]),
+})
+
 /** Classify a skill into its row avatar / name / description / type tags. */
 export function describeSkill(skill: unknown): ItemDescriptor {
     const s = (skill ?? {}) as Record<string, unknown>
     if (isStaticSkill(s)) {
         const slug = staticEmbedSlug(s)
+        const name = staticEmbedName(s) ?? slug ?? "Static skill"
         return {
-            name: staticEmbedName(s) ?? slug ?? "Static skill",
-            mono: "sk",
-            color: "#6b7280",
+            name,
+            ...skillMark(name, "builtin"),
             tags: ["static"],
             typeLabel: "static skill",
             subtitle: "Provided by Agenta — read-only",
@@ -323,14 +358,14 @@ export function describeSkill(skill: unknown): ItemDescriptor {
     }
     if (isEmbedRefSkill(s)) {
         // Registry-by-default: the raw "@ag.embed" marker is plumbing, not information.
-        // The row says what the author chose: follow the head, or stay pinned.
+        // Following the head is the default and says nothing; only a pin is worth a tag.
         const pinned = embedRevisionVersion(s)
+        const name = staticEmbedName(s) ?? staticEmbedSlug(s) ?? "Skill reference"
         return {
-            name: staticEmbedName(s) ?? staticEmbedSlug(s) ?? "Skill reference",
+            name,
             description: typeof s.description === "string" ? (s.description as string) : undefined,
-            mono: "sk",
-            color: "#b45309",
-            tags: pinned ? [{label: "Pinned"}] : [{label: "Latest", tone: "success"}],
+            ...skillMark(name, "project"),
+            tags: pinned ? [{label: "Pinned"}] : [],
             typeLabel: "registry skill",
             typeColor: "gold",
             subtitle: pinned
@@ -338,11 +373,11 @@ export function describeSkill(skill: unknown): ItemDescriptor {
                 : "Registry skill — follows the latest version",
         }
     }
+    const name = typeof s.name === "string" && s.name ? (s.name as string) : "Skill"
     return {
-        name: typeof s.name === "string" && s.name ? (s.name as string) : "Skill",
+        name,
         description: typeof s.description === "string" ? (s.description as string) : undefined,
-        mono: "sk",
-        color: "#b45309",
+        ...skillMark(name, "project"),
         // No "skill" tag: the section it sits in is already Skills. The other branches tag what a
         // reader cannot otherwise tell — that it is static, or an @ag.embed reference.
         tags: [],

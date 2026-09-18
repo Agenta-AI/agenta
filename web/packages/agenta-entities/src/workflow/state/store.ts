@@ -435,6 +435,8 @@ export interface WorkflowListRef {
     slug: string | null
     description: string | null
     flags: Workflow["flags"]
+    /** Artifact tags — `@ag.icon` is where an agent's chosen icon lives. */
+    tags: Workflow["tags"]
     deleted_at: string | null
     created_at: string | null
     updated_at: string | null
@@ -460,6 +462,7 @@ export function toWorkflowListRef(w: Workflow): WorkflowListRef {
         slug: w.slug ?? null,
         description: w.description ?? null,
         flags: w.flags,
+        tags: w.tags ?? null,
         deleted_at: w.deleted_at ?? null,
         created_at: w.created_at ?? null,
         updated_at: w.updated_at ?? null,
@@ -1231,6 +1234,33 @@ export function primeWorkflowArtifactCacheImperative(
         }
     } catch {
         // queryClientAtom may not be initialized yet (rare)
+    }
+}
+
+/**
+ * Apply a metadata edit to every cache that holds the artifact — the apps list ref, the artifact
+ * and the detail entries. No refetch: the server's `workflow-changed` watch event already
+ * invalidates these, and the patch only covers the gap until that lands.
+ */
+export function patchWorkflowArtifactCaches(
+    queryClient: QueryClient,
+    projectId: string,
+    workflowId: string,
+    patch: <T extends {id?: string | null}>(workflow: T) => T,
+): void {
+    const listKey = ["workflows", "apps", "list", projectId]
+    const entryKeys = [
+        ["workflows", "artifact", workflowId, projectId],
+        ["workflows", "detail", projectId, workflowId],
+    ]
+    const apply = <T extends {id?: string | null}>(workflow: T): T =>
+        workflow.id === workflowId ? patch(workflow) : workflow
+
+    const list = queryClient.getQueryData<WorkflowListRefsResponse>(listKey)
+    if (list) queryClient.setQueryData(listKey, {...list, refs: list.refs.map(apply)})
+    for (const key of entryKeys) {
+        const workflow = queryClient.getQueryData<Workflow | null>(key)
+        if (workflow) queryClient.setQueryData(key, apply(workflow))
     }
 }
 
@@ -2894,6 +2924,8 @@ export function seedCreatedWorkflowCache(
         slug: revision.slug ?? null,
         description: revision.description ?? null,
         flags: revision.flags,
+        // Artifact tags, not the revision's: a just-created app has none.
+        tags: null,
         deleted_at: revision.deleted_at ?? null,
         created_at: revision.created_at ?? null,
         updated_at: revision.updated_at ?? null,

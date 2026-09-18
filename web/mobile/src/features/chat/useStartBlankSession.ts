@@ -36,7 +36,9 @@ export const useStartBlankSession = (base: string) => {
     const pending = useRef<string | null>(null)
     return useCallback(
         (agentId: string) => {
-            if (pending.current) return
+            // A second tap is the same intent, so it gets the session already opening rather
+            // than nothing: a caller that seeds state by id then seeds the one that mounts.
+            if (pending.current) return pending.current
             const sessionId = newId()
             pending.current = sessionId
             // Brand-new, never-run: the backend has no records for it yet. Without this the
@@ -52,6 +54,7 @@ export const useStartBlankSession = (base: string) => {
                 .finally(() => {
                     if (pending.current === sessionId) pending.current = null
                 })
+            return sessionId
         },
         [base, router],
     )

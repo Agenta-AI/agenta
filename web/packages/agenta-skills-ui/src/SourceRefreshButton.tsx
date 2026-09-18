@@ -8,7 +8,7 @@
 import {useCallback, useState} from "react"
 
 import {projectIdAtom} from "@agenta/shared/state"
-import {applySkillUpdate, checkSkillUpdate} from "@agenta/skills"
+import {applySkillUpdates, checkSkillUpdates} from "@agenta/skills"
 import {invalidateSkillsListCache} from "@agenta/skills/state"
 import {Button, Spinner} from "@agenta/ui/ui"
 import {ArrowsClockwise} from "@phosphor-icons/react"
@@ -24,67 +24,40 @@ export function SourceRefreshButton({skillIds}: {skillIds: string[]}) {
         setBusy(true)
         setSummary(null)
         setPending([])
-        try {
-            const statuses = await Promise.all(
-                skillIds.map(async (workflowId) => ({
-                    workflowId,
-                    status:
-                        (await checkSkillUpdate({projectId, workflowId}))?.status ?? "check_failed",
-                })),
-            )
-            const count = (status: string) => statuses.filter((s) => s.status === status).length
-            const available = statuses
-                .filter((s) => s.status === "update_available")
-                .map((s) => s.workflowId)
-            const parts = [
-                available.length &&
-                    `${available.length} update${available.length === 1 ? "" : "s"} available`,
-                count("detached") && `${count("detached")} modified locally`,
-                count("missing_in_source") && `${count("missing_in_source")} gone upstream`,
-                count("check_failed") && `${count("check_failed")} failed`,
-            ].filter(Boolean) as string[]
-            setSummary(parts.length ? parts.join(" · ") : "up to date")
-            setPending(available)
-            // Detachment is derived server-side; a check can still change what the
-            // gallery shows (e.g. a fresh detach), so refresh the list either way.
-            invalidateSkillsListCache()
-        } catch {
-            setSummary("check failed")
-        } finally {
-            setBusy(false)
-        }
+        const statuses = await checkSkillUpdates({projectId, workflowIds: skillIds})
+        const count = (status: string) => statuses.filter((s) => s.status === status).length
+        const available = statuses
+            .filter((s) => s.status === "update_available")
+            .map((s) => s.workflowId)
+        const parts = [
+            available.length &&
+                `${available.length} update${available.length === 1 ? "" : "s"} available`,
+            count("detached") && `${count("detached")} modified locally`,
+            count("missing_in_source") && `${count("missing_in_source")} gone upstream`,
+            count("invalid_in_source") && `${count("invalid_in_source")} invalid upstream`,
+            count("check_failed") && `${count("check_failed")} failed`,
+        ].filter(Boolean) as string[]
+        setSummary(parts.length ? parts.join(" · ") : "up to date")
+        setPending(available)
+        // Detachment is derived server-side; a check can still change what the
+        // gallery shows (e.g. a fresh detach), so refresh the list either way.
+        invalidateSkillsListCache()
+        setBusy(false)
     }, [projectId, skillIds])
 
     const apply = useCallback(async () => {
         setBusy(true)
-        // allSettled, not all: one rejection must not discard the successes, or the
-        // applied skills stay queued and a second click re-applies them.
-        const outcomes = await Promise.allSettled(
-            pending.map(async (workflowId) => ({
-                workflowId,
-                status: (await applySkillUpdate({projectId, workflowId}))?.status ?? "",
-            })),
-        )
-        const applied: string[] = []
-        const retryable: string[] = []
-        for (const [index, outcome] of outcomes.entries()) {
-            const workflowId = pending[index]
-            if (outcome.status === "fulfilled" && outcome.value.status === "updated") {
-                applied.push(workflowId)
-            } else {
-                retryable.push(workflowId)
-            }
-        }
+        const {applied, failed} = await applySkillUpdates({projectId, workflowIds: pending})
         setSummary(
             [
                 applied.length && `${applied.length} updated`,
-                retryable.length && `${retryable.length} failed`,
+                failed.length && `${failed.length} failed`,
             ]
                 .filter(Boolean)
                 .join(" · ") || "nothing applied",
         )
         // Only what did NOT apply stays queued for a retry.
-        setPending(retryable)
+        setPending(failed)
         if (applied.length) invalidateSkillsListCache()
         setBusy(false)
     }, [pending, projectId])

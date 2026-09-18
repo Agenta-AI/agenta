@@ -1,20 +1,11 @@
-// Add-skills picker (AddSubagentDrawer anatomy); split Add|▾ = follow-latest vs pinned.
+// Add-skills picker: the home page's agent rows, each a toggle that follows the latest version.
 import {useEffect, useMemo, useState} from "react"
 
-import {CatalogListRow, SubSectionHeader} from "@agenta/entity-ui/drill-in"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
-import {
-    Button,
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuTrigger,
-    EmptyState,
-    SearchInput,
-} from "@agenta/ui/ui"
-import {CaretDown, Check, Lightning} from "@phosphor-icons/react"
+import {cn} from "@agenta/ui/styles"
+import {Button, EmptyState, SearchInput} from "@agenta/ui/ui"
+import {Check, Lightning, Plus} from "@phosphor-icons/react"
 
-import {NewSkillMenuButton, type NewSkillMenuButtonProps} from "./NewSkillMenuButton"
 import {SkillAvatar} from "./SkillCard"
 import type {SkillListItem} from "./types"
 
@@ -32,11 +23,22 @@ export interface SkillPickerDrawerProps {
     /** One write per author action. May be async; rows disable until it settles. */
     onAdd: (choices: SkillAddChoice[]) => void | Promise<void>
     onRemove: (skills: SkillListItem[]) => void | Promise<void>
-    /** The `+ New skill ▾` paths; created skills land in the registry AND on this agent. */
-    createActions: Pick<NewSkillMenuButtonProps, "onWrite" | "onUpload" | "onImport">
+    /**
+     * Opens the create drawer; a created skill lands in the registry AND on this agent. The
+     * picker closes first — one drawer at a time.
+     */
+    onNewSkill: () => void
     width?: number
 }
 
+/** The home page's agent row, restated for a skill: a tile, the name over its description. */
+const ROW =
+    "box-border flex w-full cursor-pointer appearance-none items-center gap-3.5 rounded-[10px] border-0 bg-transparent px-3.5 py-2 text-left font-[inherit] outline-none transition-colors hover:bg-accent focus-visible:bg-accent disabled:cursor-default disabled:opacity-60"
+
+/**
+ * One row is one toggle: a click adds the skill (following the latest version), a click on an
+ * added row takes it back off. The tint and the check say which rows are on the agent.
+ */
 function SkillRow({
     option,
     busy,
@@ -45,91 +47,48 @@ function SkillRow({
 }: {
     option: SkillListItem
     busy?: boolean
-    onAdd: (mode: "latest" | "pinned") => void
+    onAdd: () => void
     onRemove: () => void
 }) {
     return (
-        <CatalogListRow
-            // Membership tint: an added row reads as "on the agent" without moving anything.
-            className={option.added ? "bg-[var(--ag-colorSuccessBg)]" : undefined}
-            leading={<SkillAvatar origin={option.origin} />}
-            title={<span className="font-mono">{option.name || option.slug}</span>}
-            titleSuffix={
-                <span className="flex shrink-0 items-center gap-1.5">
-                    {option.origin === "builtin" ? (
-                        <span className="flex items-center gap-0.5 text-[10px] text-[var(--ag-colorTextTertiary)]">
-                            <Lightning size={10} weight="fill" />
-                            Agenta
-                        </span>
-                    ) : option.source ? (
-                        <span className="max-w-40 truncate rounded bg-[var(--ag-colorFillTertiary)] px-1.5 py-px font-mono text-[10px] text-[var(--ag-colorTextTertiary)]">
-                            {option.source.label}
-                        </span>
-                    ) : null}
-                    {option.added ? (
-                        <span className="flex items-center gap-1 text-xs font-normal text-colorSuccess">
-                            <Check size={11} weight="bold" />
-                            {option.pinnedVersion ? `Pinned v${option.pinnedVersion}` : "Added"}
-                        </span>
-                    ) : null}
-                </span>
-            }
-            action={
-                option.added ? (
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={busy}
-                        onClick={onRemove}
-                        aria-label={`Remove ${option.slug}`}
-                    >
-                        Remove
-                    </Button>
-                ) : (
-                    // The split action: plain Add is one-click follow-latest; the caret is the
-                    // progressive-disclosure home of version choice (never a visible option row).
-                    <span className="flex items-center">
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            disabled={busy}
-                            onClick={() => onAdd("latest")}
-                            aria-label={`Add ${option.slug} following latest`}
-                            className="rounded-r-none"
-                        >
-                            Add
-                        </Button>
-                        <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    disabled={busy}
-                                    aria-label={`Add ${option.slug} with version options`}
-                                    className="rounded-l-none border-l-0 px-1.5"
-                                >
-                                    <CaretDown size={12} />
-                                </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                                <DropdownMenuItem onSelect={() => onAdd("latest")}>
-                                    Add — follow latest
-                                </DropdownMenuItem>
-                                {option.version ? (
-                                    <DropdownMenuItem onSelect={() => onAdd("pinned")}>
-                                        Add pinned to the current version
-                                    </DropdownMenuItem>
-                                ) : null}
-                            </DropdownMenuContent>
-                        </DropdownMenu>
-                    </span>
-                )
-            }
+        <button
+            type="button"
+            disabled={busy}
+            onClick={option.added ? onRemove : onAdd}
+            aria-pressed={Boolean(option.added)}
+            aria-label={`${option.added ? "Remove" : "Add"} ${option.slug}`}
+            className={cn(ROW, option.added && "bg-accent")}
         >
-            <span className="line-clamp-2 text-xs text-[var(--ag-colorTextSecondary)]">
-                {option.description || "No description."}
+            <SkillAvatar
+                origin={option.origin}
+                slug={option.slug}
+                className="size-[34px] rounded-[10px] text-[13px]"
+            />
+            {/* The description line renders even when empty, so rows keep one height. */}
+            <span className="flex min-w-0 flex-1 flex-col gap-px">
+                <span className="truncate font-mono text-sm leading-[1.45] text-foreground">
+                    {option.name || option.slug}
+                </span>
+                <span className="truncate text-[13px] leading-[1.45] text-muted-foreground">
+                    {option.description?.trim() || "No description"}
+                </span>
             </span>
-        </CatalogListRow>
+            {option.origin === "builtin" ? (
+                <span className="flex shrink-0 items-center gap-0.5 pl-2 text-[10px] text-muted-foreground">
+                    <Lightning size={10} weight="fill" />
+                    Agenta
+                </span>
+            ) : option.source ? (
+                <span className="max-w-32 shrink-0 truncate rounded bg-muted px-1.5 py-px font-mono text-[10px] text-muted-foreground">
+                    {option.source.label}
+                </span>
+            ) : null}
+            {option.added ? (
+                <Check aria-hidden size={14} className="ml-2 shrink-0 text-foreground" />
+            ) : (
+                <span className="ml-2 shrink-0 text-[13px] text-muted-foreground">Add</span>
+            )}
+        </button>
     )
 }
 
@@ -140,23 +99,29 @@ export function SkillPickerDrawer({
     loading,
     onAdd,
     onRemove,
-    createActions,
+    onNewSkill,
     width = 480,
 }: SkillPickerDrawerProps) {
     const [search, setSearch] = useState("")
     const [busy, setBusy] = useState(false)
+    // Done is inert until a tap has changed the agent: with nothing done, it is only Close.
+    const [changed, setChanged] = useState(false)
     const run = async (write: () => void | Promise<void>) => {
         if (busy) return
         setBusy(true)
         try {
             await write()
+            setChanged(true)
         } finally {
             setBusy(false)
         }
     }
 
     useEffect(() => {
-        if (!open) setSearch("")
+        if (!open) {
+            setSearch("")
+            setChanged(false)
+        }
     }, [open])
 
     const visible = useMemo(() => {
@@ -169,9 +134,6 @@ export function SkillPickerDrawer({
                 (o.description ?? "").toLowerCase().includes(q),
         )
     }, [options, search])
-
-    // Add all acts on what the search shows, never on hidden rows.
-    const addable = useMemo(() => visible.filter((o) => !o.added), [visible])
 
     return (
         <EnhancedDrawer
@@ -193,21 +155,34 @@ export function SkillPickerDrawer({
                 body: {padding: 0, display: "flex", flexDirection: "column", overflow: "hidden"},
             }}
             footer={
-                <div className="flex items-center justify-between">
-                    <NewSkillMenuButton {...createActions} variant="outline" disabled={busy} />
-                    <Button variant="default" onClick={onClose}>
-                        Done
-                    </Button>
-                </div>
+                <Button variant="default" onClick={onClose} disabled={!changed || busy}>
+                    Done
+                </Button>
             }
         >
             <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4">
-                <SearchInput
-                    placeholder="Search skills..."
-                    aria-label="Search skills"
-                    value={search}
-                    onValueChange={setSearch}
-                />
+                {/* Search and New skill share a row: finding one and making one are the two
+                    ways in, side by side. */}
+                <div className="flex items-center gap-2">
+                    <SearchInput
+                        placeholder="Search skills..."
+                        aria-label="Search skills"
+                        value={search}
+                        onValueChange={setSearch}
+                    />
+                    <Button
+                        variant="outline"
+                        disabled={busy}
+                        onClick={() => {
+                            onClose()
+                            onNewSkill()
+                        }}
+                        className="shrink-0 gap-1.5"
+                    >
+                        <Plus size={14} />
+                        New skill
+                    </Button>
+                </div>
 
                 {!loading && visible.length === 0 ? (
                     // The @agenta/ui/ui EmptyState has no title prop; both lines go in description.
@@ -230,38 +205,15 @@ export function SkillPickerDrawer({
                     />
                 ) : (
                     <div className="flex flex-col gap-2">
-                        <SubSectionHeader
-                            label="Skills"
-                            count={visible.length}
-                            action={
-                                addable.length > 1 ? (
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        disabled={busy}
-                                        onClick={() =>
-                                            void run(() =>
-                                                onAdd(
-                                                    addable.map((skill) => ({
-                                                        skill,
-                                                        mode: "latest" as const,
-                                                    })),
-                                                ),
-                                            )
-                                        }
-                                    >
-                                        Add all
-                                    </Button>
-                                ) : undefined
-                            }
-                        />
-                        <div className="flex flex-col overflow-hidden rounded-md border border-solid border-[var(--ag-colorBorderSecondary)]">
+                        <div className="-mx-2 flex flex-col gap-0.5">
                             {visible.map((option) => (
                                 <SkillRow
                                     key={option.id}
                                     option={option}
                                     busy={busy}
-                                    onAdd={(mode) => void run(() => onAdd([{skill: option, mode}]))}
+                                    onAdd={() =>
+                                        void run(() => onAdd([{skill: option, mode: "latest"}]))
+                                    }
                                     onRemove={() => void run(() => onRemove([option]))}
                                 />
                             ))}

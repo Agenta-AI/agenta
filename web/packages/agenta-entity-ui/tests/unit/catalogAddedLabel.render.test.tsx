@@ -1,14 +1,17 @@
 /**
- * The "Added" label on the two catalog drawers beside the MCP one, and the token it is painted
- * with.
+ * The "Added" label on the integrations catalog, and the token it is painted with.
  *
- * Both read `text-[var(--ag-colorSuccessText)]`, and `--ag-colorSuccessText` is declared in no
+ * It read `text-[var(--ag-colorSuccessText)]`, and `--ag-colorSuccessText` is declared in no
  * stylesheet in either app. A custom property that nothing declares produces an invalid
  * declaration rather than a wrong colour, so the label inherited the row's text colour and
  * nothing looked broken enough to notice: the MCP row's own success state rendered green
- * beside two that did not. This is the `--ag-colorLink` bug WP6 found on the tool row, in two
- * more places, and the class form is the fix because a class that resolves to nothing at least
- * emits no rule anyone can mistake for one.
+ * beside one that did not. This is the `--ag-colorLink` bug WP6 found on the tool row, and the
+ * class form is the fix because a class that resolves to nothing at least emits no rule anyone
+ * can mistake for one.
+ *
+ * It covered the subagent and skill pickers too, until main replaced both rows with a
+ * whole-row toggle that tints the row instead of labelling it. Those two cases went with the
+ * label they pinned; this is the one catalog that still has one.
  */
 import {act, createElement} from "react"
 
@@ -44,7 +47,6 @@ vi.mock("@agenta/entities/gatewayTool", async (importOriginal) => ({
     useToolIntegrationDetail: () => ({integration: {name: "GitHub", categories: []}}),
 }))
 
-import {AddSubagentDrawer} from "../../src/DrillInView/SchemaControls/agentTemplate/AddSubagentDrawer"
 import {AgentIntegrationDrawer} from "../../src/DrillInView/SchemaControls/agentTemplate/AgentIntegrationDrawer"
 
 let host: HTMLDivElement
@@ -84,20 +86,6 @@ afterEach(async () => {
 })
 
 describe("the Added label on the catalog drawers", () => {
-    it("is painted with a declared token on the subagent picker", async () => {
-        await mount(
-            createElement(AddSubagentDrawer, {
-                open: true,
-                onClose: vi.fn(),
-                options: [{id: "agent-1", name: "Triage", added: true}],
-                onAdd: vi.fn(),
-                onRemove: vi.fn(),
-            }),
-        )
-
-        expectDeclaredToken(addedLabel(), "the subagent picker")
-    })
-
     it("is painted with a declared token on the integrations catalog", async () => {
         await mount(
             createElement(AgentIntegrationDrawer, {
