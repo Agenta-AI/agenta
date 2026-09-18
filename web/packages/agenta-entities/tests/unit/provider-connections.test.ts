@@ -225,6 +225,25 @@ describe("toProviderConnections", () => {
         expect(rows).toHaveLength(1)
         expect(rows[0].title).toBe("Azure OpenAI")
     })
+
+    it("ignores an MCP plane credential, which names no LLM provider", () => {
+        // Driven from the wire shape, because the vault row is what both halves of this share: the
+        // MCP settings surface finds its record by env name, so the row must stay a row, and only
+        // the connection derived from it may drop.
+        const composioSecret = {
+            id: "mcp-1",
+            slug: "composio",
+            kind: SecretKind.ProviderKey,
+            header: {name: "Composio"},
+            value_status: {configured: true},
+            data: {kind: "composio", provider: {key: "comp-abcdef"}},
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        } as any
+        const vaultRows = transformSecret([composioSecret])
+
+        expect(vaultRows.map((row) => row.name)).toEqual(["COMPOSIO_API_KEY"])
+        expect(toProviderConnections(vaultRows)).toEqual([])
+    })
 })
 
 describe("credentialValuesFor", () => {

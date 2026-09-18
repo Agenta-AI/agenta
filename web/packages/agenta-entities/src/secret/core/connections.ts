@@ -30,6 +30,7 @@ import {
 } from "./subscriptionConnections"
 import {
     LlmEndpointProtocol,
+    McpStandardProviderKind,
     PROVIDER_KINDS,
     SECRET_VALUE_FIELDS,
     SecretKind,
@@ -87,6 +88,13 @@ export interface ProviderConnection {
 export const isSubscriptionConnection = (connection: ProviderConnection): boolean =>
     !!connection.subscription
 
+/**
+ * The MCP plane keeps its project credentials in the same vault, under the same `provider_key`
+ * kind, so a stored Composio key reaches this derivation looking like any other standard row.
+ * It names no LLM provider, and everything downstream of a connection assumes one.
+ */
+const MCP_STANDARD_PROVIDER_KINDS = new Set<string>(Object.values(McpStandardProviderKind))
+
 /** Normalize a stored provider label (kind, env name, or title) to a canonical vault kind. */
 const canonicalKind = (value: string | undefined): string => {
     if (!value) return ""
@@ -132,6 +140,9 @@ export const toProviderConnections = (rows: ProviderVaultRow[]): ProviderConnect
         const kind = canonicalKind(
             row.type === SecretKind.ProviderKey ? row.title : (row.provider ?? ""),
         )
+        if (row.type === SecretKind.ProviderKey && MCP_STANDARD_PROVIDER_KINDS.has(kind)) {
+            return acc
+        }
         const title = providerTitleForKind(kind)
 
         acc.push({
