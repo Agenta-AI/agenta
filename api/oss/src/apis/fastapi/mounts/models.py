@@ -97,11 +97,13 @@ class MountFileListResponse(BaseModel):
 class MountFileContentResponse(BaseModel):
     path: str
     content: str
+    etag: Optional[str] = None
 
 
 class MountFileWrittenResponse(BaseModel):
     path: str
     size: int = 0
+    etag: Optional[str] = None
 
 
 class MountFolderCreatedResponse(BaseModel):

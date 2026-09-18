@@ -4,6 +4,7 @@ from uuid import UUID
 
 from fastapi import (
     APIRouter,
+    Header,
     HTTPException,
     Query,
     Request,
@@ -31,6 +32,7 @@ from oss.src.core.mounts.types import (
     MountNotFound,
     MountProtected,
     MountPathInvalid,
+    MountPreconditionFailed,
     MountSlugConflict,
     MountSlugReserved,
     MountStorageUnavailable,
@@ -123,6 +125,11 @@ def handle_mount_exceptions():
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail=e.message,
                 ) from e
+            except MountPreconditionFailed as e:
+                raise HTTPException(
+                    status_code=status.HTTP_412_PRECONDITION_FAILED,
+                    detail={"code": "conflict", "etag": e.etag},
+                ) from e
             except MountStorageUnavailable as e:
                 raise HTTPException(
                     status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -132,6 +139,18 @@ def handle_mount_exceptions():
         return wrapper
 
     return decorator
+
+
+def _if_none_match_any(value: Optional[str]) -> bool:
+    """Only `If-None-Match: *` (create-only) is supported; an etag list is rejected."""
+    if value is None:
+        return False
+    if value.strip() == "*":
+        return True
+    raise HTTPException(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        detail="If-None-Match only supports '*' on this endpoint.",
+    )
 
 
 class MountsRouter:
@@ -545,6 +564,7 @@ class MountsRouter:
             return MountFileContentResponse(
                 path=content.path,
                 content=content.content,
+                etag=content.etag,
             )
 
         listing = await self.mounts_service.list_files(
@@ -573,9 +593,12 @@ class MountsRouter:
         mount_id: UUID,
         *,
         path: str = Query(...),
+        if_match: Optional[str] = Header(default=None),
+        if_none_match: Optional[str] = Header(default=None),
     ) -> MountFileWrittenResponse:
         await self._check(request, Permission.EDIT_MOUNTS)
 
+        if_none_match_any = _if_none_match_any(if_none_match)
         content = await request.body()
 
         written = await self.mounts_service.write_file(
@@ -583,8 +606,12 @@ class MountsRouter:
             mount_id=mount_id,
             path=path,
             content=content,
+            if_match=if_match,
+            if_none_match_any=if_none_match_any,
         )
-        return MountFileWrittenResponse(path=written.path, size=written.size)
+        return MountFileWrittenResponse(
+            path=written.path, size=written.size, etag=written.etag
+        )
 
     @intercept_exceptions()
     @handle_mount_exceptions()
@@ -623,7 +650,9 @@ class MountsRouter:
             file=file,
             path=path,
         )
-        return MountFileWrittenResponse(path=written.path, size=written.size)
+        return MountFileWrittenResponse(
+            path=written.path, size=written.size, etag=written.etag
+        )
 
     @intercept_exceptions()
     @handle_mount_exceptions()
@@ -675,6 +704,7 @@ class MountsRouter:
         mount_id: UUID,
         *,
         path: str = Query(...),
+        if_match: Optional[str] = Header(default=None),
     ) -> MountFileDeletedResponse:
         await self._check(request, Permission.EDIT_MOUNTS)
 
@@ -682,5 +712,6 @@ class MountsRouter:
             project_id=UUID(request.state.project_id),
             mount_id=mount_id,
             path=path,
+            if_match=if_match,
         )
         return MountFileDeletedResponse(deleted=deleted.deleted, count=deleted.count)

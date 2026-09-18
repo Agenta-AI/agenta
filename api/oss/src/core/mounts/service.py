@@ -28,6 +28,7 @@ from oss.src.core.mounts.dtos import (
 from oss.src.core.mounts.interfaces import MountsDAOInterface
 from oss.src.core.store.dtos import StoreObject
 from oss.src.core.store.storage import ObjectStore
+from oss.src.core.store.types import StorePreconditionFailed
 from oss.src.core.mounts.types import (
     ATTACHMENTS_MOUNT_NAME,
     ATTACHMENTS_MOUNT_PURPOSE,
@@ -40,6 +41,7 @@ from oss.src.core.mounts.types import (
     MountNameInvalid,
     MountNotFound,
     MountPathInvalid,
+    MountPreconditionFailed,
     MountProtected,
     MountSlugReserved,
     MountStorageUnavailable,
@@ -1142,7 +1144,9 @@ class MountsService:
                 if not rel or not _keep(rel, False):
                     continue
                 seen.add(rel)
-                shallow.append(MountFile(path=rel, size=obj.size, mtime=obj.mtime))
+                shallow.append(
+                    MountFile(path=rel, size=obj.size, mtime=obj.mtime, etag=obj.etag)
+                )
             subdir_rels: List[str] = []
             for sub_key in level_subdirs:
                 rel = (
@@ -1260,6 +1264,7 @@ class MountsService:
                     ),
                     size=o.size,
                     mtime=o.mtime,
+                    etag=o.etag,
                 )
                 for o in store_files
             ]
@@ -1312,7 +1317,9 @@ class MountsService:
                 if folder_rel:
                     folders.add(folder_rel)
                 continue
-            browse_files.append(MountFile(path=rel, size=obj.size, mtime=obj.mtime))
+            browse_files.append(
+                MountFile(path=rel, size=obj.size, mtime=obj.mtime, etag=obj.etag)
+            )
             if rel == ".gitignore" or rel.endswith("/.gitignore"):
                 dir_rel = "" if rel == ".gitignore" else rel[: -len("/.gitignore")]
                 gitignore_keys.append((dir_rel, key))
@@ -1465,12 +1472,17 @@ class MountsService:
         mount_id: UUID,
         path: str,
     ) -> MountFileContent:
-        body = await self.read_file_bytes(
-            project_id=project_id, mount_id=mount_id, path=path
+        validate_file_path(path)
+        mount = await self._resolve_mount(project_id=project_id, mount_id=mount_id)
+
+        key = self._storage_key(project_id=project_id, mount=mount, path=path)
+        body, etag = await self.mounts_store.get_object_with_etag(
+            bucket=self._bucket(), key=key
         )
         return MountFileContent(
             path=path,
             content=body.decode("utf-8", "replace"),
+            etag=etag,
         )
 
     async def write_file(
@@ -1480,17 +1492,27 @@ class MountsService:
         mount_id: UUID,
         path: str,
         content: bytes,
+        if_match: Optional[str] = None,
+        if_none_match_any: bool = False,
     ) -> MountFileWritten:
+        """Write `content` to `path`. `if_match` writes only over the given etag,
+        `if_none_match_any` only creates; a failed condition raises `MountPreconditionFailed`
+        with the current etag (None when the file is absent). Neither set: unconditional."""
         validate_file_path(path)
         mount = await self._resolve_mount(project_id=project_id, mount_id=mount_id)
 
         key = self._storage_key(project_id=project_id, mount=mount, path=path)
-        size = await self.mounts_store.put_object(
-            bucket=self._bucket(),
-            key=key,
-            body=content,
-        )
-        return MountFileWritten(path=path, size=size)
+        try:
+            result = await self.mounts_store.put_object(
+                bucket=self._bucket(),
+                key=key,
+                body=content,
+                if_match=if_match,
+                if_none_match_any=if_none_match_any,
+            )
+        except StorePreconditionFailed as e:
+            raise MountPreconditionFailed(etag=e.current_etag) from e
+        return MountFileWritten(path=path, size=result.size, etag=result.etag)
 
     async def create_folder(
         self,
@@ -1519,7 +1541,12 @@ class MountsService:
         project_id: UUID,
         mount_id: UUID,
         path: str,
+        if_match: Optional[str] = None,
     ) -> MountFileDeleted:
+        """Delete the file at `path`, or a folder and everything under it. With `if_match` only
+        the exact file object is deleted, and only while its etag still equals `if_match`;
+        otherwise `MountPreconditionFailed` carries the current etag (None when absent — a
+        missing file or a folder, which has no etag)."""
         validate_file_path(path)
         mount = await self._resolve_mount(project_id=project_id, mount_id=mount_id)
 
@@ -1530,6 +1557,15 @@ class MountsService:
         )
         folder_prefix = exact_key + "/"
         bucket = self._bucket()
+
+        if if_match is not None:
+            try:
+                count = await self.mounts_store.delete_object_if_match(
+                    bucket=bucket, key=exact_key, if_match=if_match
+                )
+            except StorePreconditionFailed as e:
+                raise MountPreconditionFailed(etag=e.current_etag) from e
+            return MountFileDeleted(deleted=path, count=count)
 
         objects = await self.mounts_store.list_objects_v2(
             bucket=bucket,
