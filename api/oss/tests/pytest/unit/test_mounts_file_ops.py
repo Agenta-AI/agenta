@@ -14,7 +14,7 @@ stack.
 
 import io
 import zipfile
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 from uuid import UUID, uuid4
 
 import pytest
@@ -33,6 +33,8 @@ from oss.src.core.mounts.service import (
 )
 from oss.src.core.store.dtos import StoreObject
 from oss.src.core.mounts.types import (
+    MountError,
+    MountFileConflict,
     MountFileNotFound,
     MountNotFound,
     MountPathInvalid,
@@ -237,21 +239,23 @@ class FakeMountStorage:
         # INCLUDING the queried prefix's own marker (`key == prefix`), which the descent must not
         # re-list (regression guard for the infinite-loop hang).
         b = self._store.get(bucket, {})
+        mtimes = self._mtimes.get(bucket, {})
         files: List[StoreObject] = []
-        subdirs: set[str] = set()
+        subdirs: dict[str, Optional[int]] = {}
         for k, v in b.items():
             if not k.startswith(prefix):
                 continue
             rest = k[len(prefix) :]
             if "/" in rest:
-                subdirs.add(prefix + rest.split("/", 1)[0] + "/")
+                subdirs.setdefault(prefix + rest.split("/", 1)[0] + "/", None)
             elif k.endswith("/"):
-                subdirs.add(
-                    k
-                )  # an empty-folder marker at this level (may equal `prefix`)
+                # An empty-folder marker at this level (may equal `prefix`): it carries a time.
+                subdirs[k] = mtimes.get(k)
             else:
-                files.append(StoreObject(key=k, size=len(v)))
-        return files, sorted(subdirs)
+                files.append(StoreObject(key=k, size=len(v), mtime=mtimes.get(k)))
+        return files, [
+            StoreObject(key=k, size=0, mtime=subdirs[k]) for k in sorted(subdirs)
+        ]
 
     async def get_object(self, *, bucket: str, key: str) -> bytes:
         b = self._store.get(bucket, {})
@@ -263,15 +267,18 @@ class FakeMountStorage:
         self._store.setdefault(bucket, {})[key] = body
         return len(body)
 
-    async def delete_keys(self, *, bucket: str, keys: List[str]) -> int:
+    async def copy_object(self, *, bucket: str, source_key: str, dest_key: str) -> None:
         b = self._store.get(bucket, {})
-        n = 0
+        if source_key not in b:
+            raise MountFileNotFound()
+        b[dest_key] = b[source_key]
+
+    async def delete_keys(self, *, bucket: str, keys: List[str]) -> List[str]:
+        b = self._store.get(bucket, {})
         for k in keys:
-            if k in b:
-                del b[k]
-                self._mtimes.get(bucket, {}).pop(k, None)
-                n += 1
-        return n
+            b.pop(k, None)
+            self._mtimes.get(bucket, {}).pop(k, None)
+        return []
 
     async def delete_prefix(self, *, bucket: str, prefix: str) -> int:
         objects = await self.list_objects_v2(bucket=bucket, prefix=prefix)
@@ -867,6 +874,27 @@ class TestMountFileOpsRoundtrip:
         assert by_path["a"].item_count == 3  # one.txt, two.txt, nested/ (not .git)
         assert by_path["b"].item_count == 1
 
+    async def test_shallow_folder_time_is_marker_or_newest_child(self):
+        # A folder's mtime: its marker's when empty, else the newest immediate child's — so a
+        # just-created folder sorts as new, and a folder someone wrote into recently stays near.
+        mount = _make_mount()
+        service, pid, mid = _make_service(mount)
+        store = service.mounts_store
+        base = service._storage_key(project_id=pid, mount=mount)
+        await service.create_folder(project_id=pid, mount_id=mid, path="fresh")
+        store.set_mtime(_BUCKET, f"{base}fresh/", 500)
+        for path, mtime in [("old/a.txt", 100), ("old/b.txt", 300)]:
+            await service.write_file(
+                project_id=pid, mount_id=mid, path=path, content=b"x"
+            )
+            store.set_mtime(_BUCKET, f"{base}{path}", mtime)
+        listing = await service.list_files(
+            project_id=pid, mount_id=mid, depth=1, with_counts=True
+        )
+        by_path = {f.path: f for f in listing.files}
+        assert by_path["fresh"].mtime == 500
+        assert by_path["old"].mtime == 300
+
     async def test_key_is_namespaced_under_mount_prefix(self):
         mount = _make_mount()
         service, pid, mid = _make_service(mount)
@@ -959,3 +987,162 @@ class TestMountFileOpsRoundtrip:
             )
         with pytest.raises(MountPathInvalid):
             await service.delete_path(project_id=pid, mount_id=mid, path="/abs")
+        with pytest.raises(MountPathInvalid):
+            await service.move_path(
+                project_id=pid, mount_id=mid, path="a.txt", to="../escape"
+            )
+
+    async def test_move_renames_file(self):
+        mount = _make_mount()
+        service, pid, mid = _make_service(mount)
+        await service.write_file(
+            project_id=pid, mount_id=mid, path="notes.md", content=b"hello"
+        )
+
+        moved = await service.move_path(
+            project_id=pid, mount_id=mid, path="notes.md", to="docs/notes.md"
+        )
+        assert (moved.source, moved.destination, moved.count) == (
+            "notes.md",
+            "docs/notes.md",
+            1,
+        )
+        content = await service.read_file(
+            project_id=pid, mount_id=mid, path="docs/notes.md"
+        )
+        assert content.content == "hello"
+        with pytest.raises(MountFileNotFound):
+            await service.read_file(project_id=pid, mount_id=mid, path="notes.md")
+
+    async def test_move_folder_carries_marker_and_descendants(self):
+        mount = _make_mount()
+        service, pid, mid = _make_service(mount)
+        await service.create_folder(project_id=pid, mount_id=mid, path="src")
+        await service.write_file(
+            project_id=pid, mount_id=mid, path="src/a.py", content=b"a"
+        )
+        await service.write_file(
+            project_id=pid, mount_id=mid, path="src/lib/b.py", content=b"b"
+        )
+        # A sibling sharing the prefix must stay put.
+        await service.write_file(
+            project_id=pid, mount_id=mid, path="srcs/c.py", content=b"c"
+        )
+
+        moved = await service.move_path(
+            project_id=pid, mount_id=mid, path="src", to="app"
+        )
+        assert moved.count == 3
+
+        listing = await service.list_files(project_id=pid, mount_id=mid)
+        assert {f.path for f in listing.files if not f.is_folder} == {
+            "app/a.py",
+            "app/lib/b.py",
+            "srcs/c.py",
+        }
+        assert any(f.path == "app" and f.is_folder for f in listing.files)
+        assert not any(f.path.startswith("src/") for f in listing.files)
+
+    async def test_move_refuses_missing_occupied_and_self(self):
+        mount = _make_mount()
+        service, pid, mid = _make_service(mount)
+        await service.write_file(
+            project_id=pid, mount_id=mid, path="a.md", content=b"a"
+        )
+        await service.write_file(
+            project_id=pid, mount_id=mid, path="b.md", content=b"b"
+        )
+        await service.create_folder(project_id=pid, mount_id=mid, path="dir")
+
+        with pytest.raises(MountFileNotFound):
+            await service.move_path(
+                project_id=pid, mount_id=mid, path="nope.md", to="c.md"
+            )
+        with pytest.raises(MountFileConflict):
+            await service.move_path(
+                project_id=pid, mount_id=mid, path="a.md", to="b.md"
+            )
+        with pytest.raises(MountPathInvalid):
+            await service.move_path(
+                project_id=pid, mount_id=mid, path="a.md", to="a.md"
+            )
+        with pytest.raises(MountPathInvalid):
+            await service.move_path(
+                project_id=pid, mount_id=mid, path="dir", to="dir/inner"
+            )
+        # Nothing moved on any refusal.
+        listing = await service.list_files(project_id=pid, mount_id=mid)
+        assert {f.path for f in listing.files if not f.is_folder} == {"a.md", "b.md"}
+
+    async def test_move_ignores_prefix_siblings(self):
+        mount = _make_mount()
+        service, pid, mid = _make_service(mount)
+        await service.write_file(
+            project_id=pid, mount_id=mid, path="src/a.py", content=b"a"
+        )
+        # `src-old/` sorts between `src` and `src/`; neither side may mistake it for `src`.
+        await service.write_file(
+            project_id=pid, mount_id=mid, path="src-old/z.py", content=b"z"
+        )
+        await service.write_file(
+            project_id=pid, mount_id=mid, path="app-old/z.py", content=b"z"
+        )
+
+        moved = await service.move_path(
+            project_id=pid, mount_id=mid, path="src", to="app"
+        )
+        assert moved.count == 1
+
+        listing = await service.list_files(project_id=pid, mount_id=mid)
+        assert {f.path for f in listing.files if not f.is_folder} == {
+            "app/a.py",
+            "src-old/z.py",
+            "app-old/z.py",
+        }
+
+    async def test_move_reports_a_source_the_store_failed_to_remove(self):
+        mount = _make_mount()
+        service, pid, mid = _make_service(mount)
+        await service.write_file(
+            project_id=pid, mount_id=mid, path="a.md", content=b"a"
+        )
+        store = service.mounts_store
+
+        async def _keep_everything(*, bucket: str, keys: List[str]) -> List[str]:
+            return keys
+
+        store.delete_keys = _keep_everything
+        with pytest.raises(MountError):
+            await service.move_path(
+                project_id=pid, mount_id=mid, path="a.md", to="b.md"
+            )
+        # The copy is complete, so it stays; only the stale source is reported.
+        listing = await service.list_files(project_id=pid, mount_id=mid)
+        assert {f.path for f in listing.files} == {"a.md", "b.md"}
+
+    async def test_move_rolls_back_a_partial_copy(self):
+        mount = _make_mount()
+        service, pid, mid = _make_service(mount)
+        for name in ("a", "b", "c"):
+            await service.write_file(
+                project_id=pid, mount_id=mid, path=f"src/{name}.py", content=b"x"
+            )
+        store = service.mounts_store
+        real_copy = store.copy_object
+
+        async def _fail_on_b(*, bucket: str, source_key: str, dest_key: str) -> None:
+            if source_key.endswith("/b.py"):
+                raise RuntimeError("store hiccup")
+            await real_copy(bucket=bucket, source_key=source_key, dest_key=dest_key)
+
+        store.copy_object = _fail_on_b
+        with pytest.raises(RuntimeError):
+            await service.move_path(project_id=pid, mount_id=mid, path="src", to="app")
+
+        listing = await service.list_files(project_id=pid, mount_id=mid)
+        assert {f.path for f in listing.files if not f.is_folder} == {
+            "src/a.py",
+            "src/b.py",
+            "src/c.py",
+        }
+        assert not any(f.path.startswith("app") for f in listing.files)

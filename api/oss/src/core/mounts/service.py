@@ -21,6 +21,7 @@ from oss.src.core.mounts.dtos import (
     MountFileContent,
     MountFileDeleted,
     MountFileList,
+    MountFileMoved,
     MountFileWritten,
     MountFolderCreated,
     MountQuery,
@@ -35,6 +36,8 @@ from oss.src.core.mounts.types import (
     SESSION_SLUG_PREFIX,
     MountArtifactIdInvalid,
     MountArtifactNotFound,
+    MountError,
+    MountFileConflict,
     MountFileNotFound,
     MountImmutableField,
     MountNameInvalid,
@@ -1009,7 +1012,7 @@ class MountsService:
                             "" if rel == ".gitignore" else rel[: -len("/.gitignore")]
                         )
                         gitignore_reads.append((dir_rel, obj.key))
-                subdir_prefixes.extend(level_subdirs)
+                subdir_prefixes.extend(s.key for s in level_subdirs)
 
             # Bounded COUNT: enough to know it's "more than the cap" — stop before descending further.
             if cap is not None and len(kept) >= cap:
@@ -1144,7 +1147,10 @@ class MountsService:
                 seen.add(rel)
                 shallow.append(MountFile(path=rel, size=obj.size, mtime=obj.mtime))
             subdir_rels: List[str] = []
-            for sub_key in level_subdirs:
+            # A folder's time: its marker's (creation) until a counted child is newer.
+            mtimes: dict[str, int] = {}
+            for sub in level_subdirs:
+                sub_key = sub.key
                 rel = (
                     sub_key[len(mount_base) :]
                     if sub_key.startswith(mount_base)
@@ -1156,18 +1162,23 @@ class MountsService:
                     continue
                 seen.add(rel)
                 subdir_rels.append(rel)
+                if sub.mtime is not None:
+                    mtimes[rel] = sub.mtime
 
             counts: dict[str, int] = {}
             if with_counts and subdir_rels:
                 semaphore = asyncio.Semaphore(_LIST_CONCURRENCY)
 
-                async def _count_children(sub_rel: str) -> Tuple[str, int]:
+                async def _count_children(
+                    sub_rel: str,
+                ) -> Tuple[str, int, Optional[int]]:
                     async with semaphore:
                         c_files, c_subs = await self.mounts_store.list_objects_shallow(
                             bucket=bucket, prefix=f"{mount_base}{sub_rel}/"
                         )
                     child_seen: set[str] = set()
                     n = 0
+                    newest = mtimes.get(sub_rel)
                     for o in c_files:
                         r = (
                             o.key[len(mount_base) :]
@@ -1177,7 +1188,18 @@ class MountsService:
                         if r and r != sub_rel and _keep(r, False):
                             child_seen.add(r)
                             n += 1
-                    for s in c_subs:
+                            if o.mtime is not None and (
+                                newest is None or o.mtime > newest
+                            ):
+                                newest = o.mtime
+                    for sub in c_subs:
+                        s = sub.key
+                        # The folder's own marker lists here with its time (S3 rolls it up at
+                        # the parent level); a common prefix carries none.
+                        if sub.mtime is not None and (
+                            newest is None or sub.mtime > newest
+                        ):
+                            newest = sub.mtime
                         r = (
                             s[len(mount_base) :] if s.startswith(mount_base) else s
                         ).rstrip("/")
@@ -1189,17 +1211,23 @@ class MountsService:
                         ):
                             child_seen.add(r)
                             n += 1
-                    return sub_rel, n
+                    return sub_rel, n, newest
 
-                for sub_rel, n in await asyncio.gather(
+                for sub_rel, n, newest in await asyncio.gather(
                     *(_count_children(s) for s in subdir_rels)
                 ):
                     counts[sub_rel] = n
+                    if newest is not None:
+                        mtimes[sub_rel] = newest
 
             for rel in subdir_rels:
                 shallow.append(
                     MountFile(
-                        path=rel, size=0, is_folder=True, item_count=counts.get(rel)
+                        path=rel,
+                        size=0,
+                        is_folder=True,
+                        item_count=counts.get(rel),
+                        mtime=mtimes.get(rel),
                     )
                 )
             return MountFileList(files=shallow, total=len(shallow))
@@ -1523,34 +1551,129 @@ class MountsService:
         validate_file_path(path)
         mount = await self._resolve_mount(project_id=project_id, mount_id=mount_id)
 
-        # A file matches one exact key; a folder matches keys under "<path>/".
-        # List the folder prefix to avoid `foo` falsely matching `foobar`.
         exact_key = self._storage_key(
             project_id=project_id, mount=mount, path=path.rstrip("/")
         )
-        folder_prefix = exact_key + "/"
         bucket = self._bucket()
-
-        objects = await self.mounts_store.list_objects_v2(
-            bucket=bucket,
-            prefix=folder_prefix,
-        )
-        keys = [obj.key for obj in objects]
-
-        # The exact file (or the folder marker) may also exist alongside contents.
-        single = await self.mounts_store.list_objects_v2(
-            bucket=bucket,
-            prefix=exact_key,
-        )
-        if any(obj.key == exact_key for obj in single):
-            keys.append(exact_key)
-
-        unique_keys = list(dict.fromkeys(keys))
-        if not unique_keys:
+        keys = await self._path_keys(bucket=bucket, exact_key=exact_key)
+        if not keys:
             raise MountFileNotFound()
 
-        count = await self.mounts_store.delete_keys(
+        failed = await self.mounts_store.delete_keys(bucket=bucket, keys=keys)
+        return MountFileDeleted(deleted=path, count=len(keys) - len(failed))
+
+    async def _path_keys(
+        self,
+        *,
+        bucket: str,
+        exact_key: str,
+    ) -> List[str]:
+        """Every key a path stands for: a file is its exact key, a folder is the keys under
+        "<path>/" plus its marker. The folder prefix is listed with the slash so `foo` never
+        drags `foobar` along."""
+        objects = await self.mounts_store.list_objects_v2(
             bucket=bucket,
-            keys=unique_keys,
+            prefix=exact_key + "/",
         )
-        return MountFileDeleted(deleted=path, count=count)
+        keys = [obj.key for obj in objects]
+        if await self._key_exists(bucket=bucket, key=exact_key):
+            keys.append(exact_key)
+        return keys
+
+    async def _key_exists(self, *, bucket: str, key: str) -> bool:
+        # A key sorts first among everything sharing its prefix, so one page settles it.
+        objects, _ = await self.mounts_store.list_objects_page(
+            bucket=bucket, prefix=key, max_keys=1
+        )
+        return bool(objects) and objects[0].key == key
+
+    async def _discard_keys(self, *, bucket: str, keys: List[str]) -> None:
+        # Best effort: a rollback must not mask the failure that caused it.
+        try:
+            left = await self.mounts_store.delete_keys(bucket=bucket, keys=keys)
+        except Exception:
+            left = keys
+        if left:
+            log.warning("mounts.move: partial destination left behind", count=len(left))
+
+    async def _path_exists(self, *, bucket: str, exact_key: str) -> bool:
+        if await self._key_exists(bucket=bucket, key=exact_key):
+            return True
+        objects, _ = await self.mounts_store.list_objects_page(
+            bucket=bucket, prefix=exact_key + "/", max_keys=1
+        )
+        return bool(objects)
+
+    async def move_path(
+        self,
+        *,
+        project_id: UUID,
+        mount_id: UUID,
+        path: str,
+        to: str,
+    ) -> MountFileMoved:
+        validate_file_path(path)
+        validate_file_path(to)
+        source = path.strip("/")
+        destination = to.strip("/")
+        if source == destination:
+            raise MountPathInvalid("Destination is the same path.")
+        if destination.startswith(source + "/"):
+            raise MountPathInvalid("Destination cannot be inside the source path.")
+
+        mount = await self._resolve_mount(project_id=project_id, mount_id=mount_id)
+        bucket = self._bucket()
+        source_key = self._storage_key(project_id=project_id, mount=mount, path=source)
+        dest_key = self._storage_key(
+            project_id=project_id, mount=mount, path=destination
+        )
+
+        source_keys = await self._path_keys(bucket=bucket, exact_key=source_key)
+        if not source_keys:
+            raise MountFileNotFound()
+        if await self._path_exists(bucket=bucket, exact_key=dest_key):
+            raise MountFileConflict()
+
+        # Copy everything first, delete last: a failed copy leaves the source intact.
+        semaphore = asyncio.Semaphore(_LIST_CONCURRENCY)
+        targets = [dest_key + key[len(source_key) :] for key in source_keys]
+
+        async def _copy(key: str, target: str) -> None:
+            async with semaphore:
+                # SeaweedFS refuses a trailing-slash key (a folder marker) as a copy source;
+                # re-write its bytes instead, since `write_file` can put content under one.
+                if key.endswith("/"):
+                    body = await self.mounts_store.get_object(bucket=bucket, key=key)
+                    await self.mounts_store.put_object(
+                        bucket=bucket, key=target, body=body
+                    )
+                else:
+                    await self.mounts_store.copy_object(
+                        bucket=bucket, source_key=key, dest_key=target
+                    )
+
+        copies = [
+            asyncio.create_task(_copy(key, target))
+            for key, target in zip(source_keys, targets)
+        ]
+        try:
+            await asyncio.gather(*copies)
+        except BaseException:
+            # gather leaves the siblings running; stop them so nothing lands after the failure.
+            for task in copies:
+                task.cancel()
+            await asyncio.gather(*copies, return_exceptions=True)
+            await self._discard_keys(bucket=bucket, keys=targets)
+            raise
+
+        failed = await self.mounts_store.delete_keys(bucket=bucket, keys=source_keys)
+        if failed:
+            failed = await self.mounts_store.delete_keys(bucket=bucket, keys=failed)
+        if failed:
+            # The destination is complete; only stale source keys remain, so never roll back.
+            raise MountError(
+                f"Moved, but {len(failed)} stale source key(s) remain under '{source}'."
+            )
+        return MountFileMoved(
+            source=source, destination=destination, count=len(source_keys)
+        )

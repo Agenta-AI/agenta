@@ -25,6 +25,7 @@ from oss.src.core.mounts.types import (
     MountArtifactIdInvalid,
     MountArtifactNotFound,
     MountDataInvalid,
+    MountFileConflict,
     MountFileNotFound,
     MountImmutableField,
     MountNameInvalid,
@@ -45,6 +46,7 @@ from oss.src.apis.fastapi.mounts.models import (
     MountFileContentResponse,
     MountFileDeletedResponse,
     MountFileListResponse,
+    MountFileMovedResponse,
     MountFileWrittenResponse,
     MountFolderCreatedResponse,
     MountQueryRequest,
@@ -94,6 +96,11 @@ def handle_mount_exceptions():
                     detail=e.message,
                 ) from e
             except MountSlugConflict as e:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail=e.message,
+                ) from e
+            except MountFileConflict as e:
                 raise HTTPException(
                     status_code=status.HTTP_409_CONFLICT,
                     detail=e.message,
@@ -248,6 +255,15 @@ class MountsRouter:
             methods=["POST"],
             operation_id="create_mount_folder",
             response_model=MountFolderCreatedResponse,
+            response_model_exclude_none=True,
+            status_code=status.HTTP_200_OK,
+        )
+        self.router.add_api_route(
+            "/{mount_id}/files/move",
+            self.move_mount_file,
+            methods=["POST"],
+            operation_id="move_mount_file",
+            response_model=MountFileMovedResponse,
             response_model_exclude_none=True,
             status_code=status.HTTP_200_OK,
         )
@@ -603,6 +619,30 @@ class MountsRouter:
             path=path,
         )
         return MountFolderCreatedResponse(path=created.path)
+
+    @intercept_exceptions()
+    @handle_mount_exceptions()
+    async def move_mount_file(
+        self,
+        request: Request,
+        mount_id: UUID,
+        *,
+        path: str = Query(...),
+        to: str = Query(
+            ..., description="The full new path, not a folder to move into."
+        ),
+    ) -> MountFileMovedResponse:
+        await self._check(request, Permission.EDIT_MOUNTS)
+
+        moved = await self.mounts_service.move_path(
+            project_id=UUID(request.state.project_id),
+            mount_id=mount_id,
+            path=path,
+            to=to,
+        )
+        return MountFileMovedResponse(
+            source=moved.source, destination=moved.destination, count=moved.count
+        )
 
     @intercept_exceptions()
     @handle_mount_exceptions()

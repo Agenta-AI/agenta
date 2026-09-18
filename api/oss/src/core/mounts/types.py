@@ -108,6 +108,13 @@ class MountFileNotFound(MountError):
         super().__init__(message)
 
 
+class MountFileConflict(MountError):
+    def __init__(
+        self, message: str = "Something already exists at the destination path."
+    ):
+        super().__init__(message)
+
+
 class MountStorageUnavailable(MountError):
     def __init__(self, message: str = "Mount storage backend is not configured."):
         super().__init__(message)

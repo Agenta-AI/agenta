@@ -8,7 +8,7 @@ from xml.etree import ElementTree
 
 import aiohttp
 from miniopy_async import Minio
-from miniopy_async.commonconfig import ENABLED, Filter
+from miniopy_async.commonconfig import ENABLED, CopySource, Filter
 from miniopy_async.credentials import Credentials
 from miniopy_async.lifecycleconfig import (
     LifecycleConfig,
@@ -493,25 +493,26 @@ class ObjectStore:
         *,
         bucket: str,
         prefix: str,
-    ) -> "tuple[List[StoreObject], List[str]]":
+    ) -> "tuple[List[StoreObject], List[StoreObject]]":
         """One directory LEVEL under `prefix` (delimiter `/`): the immediate file objects, plus the
-        immediate subdirectory prefixes (full keys ending in `/`). Lets a caller descend the tree and
-        prune whole subtrees (a gitignored `node_modules`) WITHOUT enumerating their contents — the
-        `recursive=True` flat listing has no way to exclude a prefix, so a mount full of dependency
-        files must otherwise be scanned in its entirety."""
+        immediate subdirectory prefixes (full keys ending in `/`, size 0; `mtime` only when the entry
+        is an explicit folder marker). Lets a caller descend the tree and prune whole subtrees (a
+        gitignored `node_modules`) WITHOUT enumerating their contents — the `recursive=True` flat
+        listing has no way to exclude a prefix, so a mount full of dependency files must otherwise
+        be scanned in its entirety."""
         client = self._client()
         files: List[StoreObject] = []
-        subdirs: List[str] = []
+        subdirs: List[StoreObject] = []
         async for obj in client.list_objects(bucket, prefix=prefix, recursive=False):
             if obj is None:
                 continue
             name = obj.object_name
-            # A common-prefix (subdir) or an explicit empty-folder marker both end in `/`.
-            if getattr(obj, "is_dir", False) or name.endswith("/"):
-                subdirs.append(name)
-                continue
             last_modified = getattr(obj, "last_modified", None)
             mtime = int(last_modified.timestamp() * 1000) if last_modified else None
+            # A common-prefix (subdir) or an explicit empty-folder marker both end in `/`.
+            if getattr(obj, "is_dir", False) or name.endswith("/"):
+                subdirs.append(StoreObject(key=name, size=0, mtime=mtime))
+                continue
             files.append(StoreObject(key=name, size=obj.size or 0, mtime=mtime))
         return files, subdirs
 
@@ -547,14 +548,31 @@ class ObjectStore:
         await client.put_object(bucket, key, BytesIO(body), length=len(body))
         return len(body)
 
+    async def copy_object(
+        self,
+        *,
+        bucket: str,
+        source_key: str,
+        dest_key: str,
+    ) -> None:
+        # Server-side (a stat then a copy; the client goes multipart above 5 GiB on its own).
+        client = self._client()
+        try:
+            await client.copy_object(bucket, dest_key, CopySource(bucket, source_key))
+        except S3Error as e:
+            if e.code in ("NoSuchKey", "NoSuchObject", "NoSuchBucket"):
+                raise MountFileNotFound() from e
+            raise
+
     async def delete_keys(
         self,
         *,
         bucket: str,
         keys: List[str],
-    ) -> int:
+    ) -> List[str]:
+        """Delete `keys`; returns the ones the store refused."""
         if not keys:
-            return 0
+            return []
         client = self._client()
         # remove_objects is a coroutine returning an async iterator of FAILED deletes (1.21);
         # await it, then drain so the deletes commit.
@@ -562,9 +580,7 @@ class ObjectStore:
             bucket,
             [DeleteObject(key) for key in keys],
         )
-        async for _ in errors:
-            pass
-        return len(keys)
+        return [err.name or "" async for err in errors]
 
     async def delete_prefix(
         self,
@@ -575,4 +591,5 @@ class ObjectStore:
         """Delete every key under `prefix` (cascades a folder). Returns count."""
         objects = await self.list_objects_v2(bucket=bucket, prefix=prefix)
         keys = [obj.key for obj in objects]
-        return await self.delete_keys(bucket=bucket, keys=keys)
+        failed = await self.delete_keys(bucket=bucket, keys=keys)
+        return len(keys) - len(failed)
