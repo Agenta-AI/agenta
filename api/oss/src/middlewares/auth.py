@@ -1209,7 +1209,15 @@ async def sign_secret_token(
     gateway_tools: Optional[list[dict]] = None,
     grants: Optional[List[str]] = None,
     audience: Optional[str] = None,
+    expires_in: Optional[int] = None,
 ):
+    """Mint a secret token. `expires_in` overrides the default lifetime, in seconds.
+
+    Only the gateway credentials route passes it. Every other caller mints a token for a
+    browser or a short server-to-server hop, where 15 minutes is the point; the gateway
+    credential is held inside a sandbox for the length of a turn, and nothing re-mints it
+    there, so its lifetime is a ceiling on how long that turn may reach a gateway.
+    """
     validated_grants = _validate_secret_token_grants(grants)
     validated_audience = _validate_secret_token_audience(audience)
 
@@ -1224,7 +1232,10 @@ async def sign_secret_token(
             raise InternalServerErrorException()
 
         _issued_at = int(datetime.now(timezone.utc).timestamp())
-        _exp = _issued_at + _SECRET_EXP
+        # A non-positive override is not a shorter life, it is an already-dead token; fall
+        # back rather than mint one nothing can use.
+        _lifetime = expires_in if expires_in and expires_in > 0 else _SECRET_EXP
+        _exp = _issued_at + _lifetime
 
         auth_context = {
             "user_id": user_id,

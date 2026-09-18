@@ -998,6 +998,32 @@ class GatewayEgressConfig(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
 
+class GatewayCredentialsConfig(BaseModel):
+    """How long the sandbox-scoped gateway credential a run carries stays valid.
+
+    Its own lifetime, separate from the 15 minutes every other secret token gets, because
+    the two are bounded by different things. An ordinary secret token is handed to a browser
+    or a short server-to-server hop and a short life is the point of it. This one is minted
+    once when a run's connections resolve and is then held INSIDE a sandbox for as long as
+    the turn lasts: nothing re-mints it mid-turn and nothing delivers a new one, so its
+    lifetime is a hard ceiling on how long an agent may use a gateway MCP server or the LLM
+    gateway. At 15 minutes a single long turn lost both partway through.
+
+    43200 (12h) matches `MountsConfig.credentials_ttl_seconds`, and for the same reason: it
+    has to sit above the runner's total run deadline, or the credential dies under a turn
+    that was still allowed to be running.
+    """
+
+    ttl_seconds: int = Field(
+        default_factory=lambda: (
+            _parse_optional_positive_int_env("AGENTA_GATEWAYS_CREDENTIALS_TTL_SECONDS")
+            or 43200
+        )
+    )
+
+    model_config = ConfigDict(extra="ignore")
+
+
 class LLMGatewayConfig(BaseModel):
     """Whether this deployment serves the LLM gateway plane at all.
 
@@ -2112,6 +2138,7 @@ class EnvironSettings(BaseModel):
     crisp: CrispConfig = CrispConfig()
     daytona: DaytonaConfig = DaytonaConfig()
     docker: DockerConfig = DockerConfig()
+    gateway_credentials: GatewayCredentialsConfig = GatewayCredentialsConfig()
     gateway_egress: GatewayEgressConfig = GatewayEgressConfig()
     identity: IdentityConfig = IdentityConfig()
     llm: LLMConfig = LLMConfig()

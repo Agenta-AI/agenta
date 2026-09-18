@@ -24,6 +24,7 @@ from oss.src.core.gateways.policy.dtos import GatewayPlane
 from oss.src.core.gateways.run_claims import gateway_run_id, gateway_tools
 from oss.src.middlewares.auth import GATEWAY_TOKEN_AUDIENCE, sign_secret_token
 from oss.src.utils.context import get_auth_scope
+from oss.src.utils.env import env
 from oss.src.utils.exceptions import intercept_exceptions
 
 
@@ -97,6 +98,10 @@ class GatewayCredentialsRouter:
             gateway_run_id=gateway_run_id(request),
             gateway_tools=gateway_tools(request),
             audience=GATEWAY_TOKEN_AUDIENCE,
+            # Its own lifetime: this credential is held inside a sandbox for the length of a
+            # turn and nothing re-mints it there, so the default 15 minutes was a ceiling on
+            # how long a turn could reach a gateway rather than a bound on exposure.
+            expires_in=env.gateway_credentials.ttl_seconds,
         )
 
         return GatewayCredentialsResponse(credentials=f"Secret {token}")

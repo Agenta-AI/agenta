@@ -26,6 +26,7 @@ from oss.src.apis.fastapi.gateways import (
 )
 from oss.src.apis.fastapi.gateways.credentials_router import GatewayCredentialsRouter
 from oss.src.middlewares import auth
+from oss.src.utils.env import env
 from oss.src.utils.context import AuthScope
 from oss.src.utils.exceptions import UnauthorizedException
 
@@ -333,3 +334,48 @@ def test_the_exchange_never_asks_for_the_plaintext_vault_grant():
 
     assert "SECRET_RESOLVE_GRANT" not in source
     assert "grants=" not in source
+
+
+# --- how long it lives ------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_the_gateway_credential_lives_as_long_as_the_setting_says(exchange):
+    """A turn may run for hours; this credential must outlast it.
+
+    Nothing re-mints the credential mid-turn and nothing delivers a new one into a running
+    sandbox, so its lifetime is a hard ceiling on how long an agent may reach a gateway MCP
+    server or the LLM gateway. At the 15 minutes every other secret token gets, a single long
+    turn lost both partway through.
+    """
+    credentials = await _sandbox_credential(exchange)
+
+    claims = _claims(credentials.removeprefix("Secret "))
+
+    assert claims["exp"] - claims["iat"] == env.gateway_credentials.ttl_seconds
+
+
+@pytest.mark.asyncio
+async def test_an_ordinary_secret_token_keeps_the_short_life(exchange):
+    """The longer life belongs to this one route, not to secret tokens generally.
+
+    Every other token is handed to a browser or a short server-to-server hop, where a short
+    life is the point of it.
+    """
+    token = (await _runtime_credential()).removeprefix("Secret ")
+
+    claims = _claims(token)
+
+    assert claims["exp"] - claims["iat"] == 15 * 60
+
+
+@pytest.mark.asyncio
+async def test_an_operator_can_shorten_or_lengthen_it(exchange, monkeypatch):
+    """The setting is read per mint, so an operator's value is the one that ships."""
+    monkeypatch.setattr(env.gateway_credentials, "ttl_seconds", 1800)
+
+    credentials = await _sandbox_credential(exchange)
+
+    claims = _claims(credentials.removeprefix("Secret "))
+
+    assert claims["exp"] - claims["iat"] == 1800
