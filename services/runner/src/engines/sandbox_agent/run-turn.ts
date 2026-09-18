@@ -87,7 +87,6 @@ import { PAUSED, PendingApprovalPauseController } from "./pause.ts";
 import {
   capturePiTranscriptCursor,
   findSwallowedPiError,
-  isOnlyHarnessRetryNotices,
 } from "./pi-error.ts";
 import { buildGatewayToolGate } from "./gateway-gate.ts";
 import { buildRelayExecutionGuard } from "./relay-guard.ts";
@@ -1592,7 +1591,7 @@ export async function runTurn(
     }
     await turn.toolRelay?.stop();
     if (stopReason === "cancelled") {
-      // `agent_end` publishes Pi's partial native trace. Ask the adapter to finish that lifecycle
+      // `agent_settled` publishes Pi's partial native trace. Ask the adapter to finish that lifecycle
       // before draining; the outer environment teardown would otherwise cancel Pi only after the
       // spool had already timed out and then sweep the late batch.
       await harnessTrace.cancelBeforeDrain();
@@ -1620,17 +1619,12 @@ export async function runTurn(
     }
     const nativeTraceBatches = traceFinish?.pickedUpBatches;
 
-    // A retried turn is empty too. pi-acp streams "Retrying (attempt 1/3, waiting 2s)..." as an
-    // assistant message chunk, so a provider refusal that Pi retries leaves `output()` non-empty
-    // with chatter alone — which used to skip the recovery below and ship that chatter as the
-    // turn's answer. See `isOnlyHarnessRetryNotices`.
-    const visibleOutput = run.output().trim();
+    // A provider can fail after useful text or tools. Only the newest assistant record
+    // after this turn's cursor decides whether a completed Pi prompt actually failed.
     const swallowedPiError =
       plan.isPi &&
       stopReason === "end_turn" &&
-      piTranscriptCursor &&
-      (!visibleOutput || isOnlyHarnessRetryNotices(visibleOutput)) &&
-      !run.events().some((e) => e.type === "tool_call")
+      piTranscriptCursor
         ? // The helper derives the transcript location from
           // `piSessionWorkspaceDir(plan.workspace.cwd)`, the same shared helper
           // `configurePiSessionWorkspace` used to point Pi at it. On Daytona the
@@ -1702,7 +1696,7 @@ export async function runTurn(
 
     // Before `finish()`, which emits the terminal `done` the API reconciles gates against.
     await settleInBandInteractions?.();
-    const output = run.finish(stopReason);
+    const output = run.finish(swallowedError ? "error" : stopReason);
     await run.flush();
     const turnEndedAt = new Date().toISOString();
 
@@ -1828,7 +1822,7 @@ export async function runTurn(
     await settleInBandInteractions?.();
     // finish() must not throw uncaught — tracing must not mask the run error.
     try {
-      otel?.finish();
+      otel?.finish("error");
     } catch {}
     await otel?.flush().catch(() => {});
     return { ok: false, error };

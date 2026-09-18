@@ -76,9 +76,8 @@ describe("a Pi transcript inside a remote sandbox", () => {
     assert.equal(findSwallowedPiError(cwd, cursor), RATE_LIMIT_ERROR);
   });
 
-  it("does not disturb a Daytona turn that produced an answer", async () => {
-    // Guards the fake sandbox: a run through it must still complete normally, so a failure below
-    // means the empty turn, not a broken remote fixture.
+  it("reports a Daytona failure even after partial output", async () => {
+    // Partial output must not hide a terminal provider error in the remote transcript.
     const { result } = await runSilentTurn(
       { harness: "pi_core", sandbox: "daytona" },
       {
@@ -88,8 +87,11 @@ describe("a Pi transcript inside a remote sandbox", () => {
       },
     );
 
-    assert.equal(result.ok, true);
-    assert.equal(result.output, "The answer is 4.");
+    assert.equal(result.ok, false);
+    assert.equal(
+      result.error,
+      "Too many requests right now. Try again in a moment.",
+    );
   });
 
   it("surfaces the provider failure on an empty turn", async () => {

@@ -550,7 +550,7 @@ const factory = (pi: ExtensionAPI): void => {
   });
   otel.register(pi); // lifecycle handlers (spans + usage accumulation)
 
-  pi.on("agent_end", async () => {
+  pi.on("agent_settled", async () => {
     // Publish usage before the native trace batch. The runner treats pickup of that batch as the
     // barrier that makes this sidecar safe to read, for local and remote sandboxes alike.
     if (usageOut) {

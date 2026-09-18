@@ -548,7 +548,7 @@ async function acquireEnvironmentOnce(
       alreadyRequested: !!environment.sessionDestroyRequested,
     });
     // Pi may have retained the original prompt's telemetry channel across an approval park.
-    // The harness is now quiescent and `agent_end` has had a chance to publish its partial trace;
+    // The harness is now quiescent and `agent_settled` has had a chance to publish its partial trace;
     // drain it before the filesystem disappears. `finish` includes bounded teardown/sweeping.
     const piTraceExport = environment.piTraceExport;
     if (piTraceExport) {
