@@ -28,6 +28,8 @@ on:
     paths:
       - '.github/workflows/48-railway-clone-preview-test.yml'
       - 'hosting/railway/oss/scripts/preview-clone-create.sh'
+      - 'hosting/railway/oss/scripts/preview-clone-create.test.sh'
+      - 'hosting/docker-compose/**'
       - 'hosting/railway/oss/scripts/preview-clone-destroy.sh'
       - 'hosting/railway/oss/template/lib-graphql.sh'
   workflow_dispatch:
@@ -61,6 +63,9 @@ jobs:
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v6
+
+      - name: Run offline image patch regression
+        run: bash hosting/railway/oss/scripts/preview-clone-create.test.sh
 
       - name: Run consecutive clone cycles with the production scripts
         env:

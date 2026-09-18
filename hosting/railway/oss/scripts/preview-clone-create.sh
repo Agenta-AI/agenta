@@ -82,6 +82,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Single shared GraphQL client (WP2); do not fork another copy.
 # shellcheck source=../template/lib-graphql.sh
 source "$SCRIPT_DIR/../template/lib-graphql.sh"
+# shellcheck source=lib.sh
+source "$SCRIPT_DIR/lib.sh"
 
 VERIFY_ONLY=false
 while [ "$#" -gt 0 ]; do
@@ -121,6 +123,10 @@ WEB_REPO="${AGENTA_WEB_IMAGE_REPO:-ghcr.io/agenta-ai/agenta-web}"
 WEB_MOBILE_REPO="${AGENTA_WEB_MOBILE_IMAGE_REPO:-ghcr.io/agenta-ai/agenta-web-mobile}"
 SERVICES_REPO="${AGENTA_SERVICES_IMAGE_REPO:-ghcr.io/agenta-ai/agenta-services}"
 RUNNER_REPO="${AGENTA_RUNNER_IMAGE_REPO:-ghcr.io/agenta-ai/agenta-runner}"
+SOURCE_COMPOSE_FILE="${RAILWAY_SOURCE_COMPOSE_FILE:-$(railway_source_compose_file)}"
+POSTGRES_IMAGE="${AGENTA_POSTGRES_IMAGE:-$(require_compose_service_image "$SOURCE_COMPOSE_FILE" "postgres")}"
+REDIS_REPO="${AGENTA_REDIS_IMAGE_REPO:-ghcr.io/agenta-ai/agenta-preview-redis}"
+SEAWEEDFS_REPO="${AGENTA_SEAWEEDFS_IMAGE_REPO:-ghcr.io/agenta-ai/agenta-preview-seaweedfs}"
 
 # The nine image-patched app services; the api image backs five of them.
 APP_SERVICES=(api worker-streams worker-queues cron alembic web web-mobile services runner)
@@ -157,6 +163,9 @@ emit_output() {
 
 image_for() {
     case "$1" in
+        Postgres) printf '%s' "$POSTGRES_IMAGE" ;;
+        redis) printf '%s:%s' "$REDIS_REPO" "$IMAGE_TAG" ;;
+        seaweedfs) printf '%s:%s' "$SEAWEEDFS_REPO" "$IMAGE_TAG" ;;
         api | worker-streams | worker-queues | cron | alembic) printf '%s:%s' "$API_REPO" "$IMAGE_TAG" ;;
         web) printf '%s:%s' "$WEB_REPO" "$IMAGE_TAG" ;;
         web-mobile) printf '%s:%s' "$WEB_MOBILE_REPO" "$IMAGE_TAG" ;;
@@ -465,8 +474,10 @@ ensure_gateway_domain() {
     [ -n "$GATEWAY_DOMAIN" ]
 }
 
-# ONE environmentPatchCommit for every app service whose live image differs
-# from the target; Railway deploys each patched service immediately. Services
+# An environmentPatchCommit for every requested service whose live image
+# differs from the target; Railway deploys each patched service immediately.
+# PATCHED_SERVICES is intentionally aggregate because infra and app patches are
+# separate mutations but needs_explicit_deploy must recognize both.
 # already on the target image are recorded in UNCHANGED_SERVICES: patchCommit
 # would silently no-op for them, so the deploy phase issues explicit deploys
 # for any of them that is not already green.
@@ -475,9 +486,9 @@ UNCHANGED_SERVICES=""
 
 patch_commit_images() {
     local svc svc_id img live services_patch='{}' patched=0
-    PATCHED_SERVICES=""
-    UNCHANGED_SERVICES=""
-    for svc in "${APP_SERVICES[@]}"; do
+    local services=("$@")
+    [ "${#services[@]}" -gt 0 ] || return 2
+    for svc in "${services[@]}"; do
         svc_id="$(clone_service_id "$svc")"
         if [ -z "$svc_id" ]; then
             skip_absent_service "$svc" || return 1
@@ -491,7 +502,7 @@ patch_commit_images() {
         fi
         services_patch="$(jq -c --arg s "$svc_id" --arg img "$img" \
             '. + {($s): {source: {image: $img}}}' <<<"$services_patch")"
-        PATCHED_SERVICES="$PATCHED_SERVICES $svc"
+        PATCHED_SERVICES="${PATCHED_SERVICES:-} $svc"
         patched=$((patched + 1))
     done
     if [ "$patched" -eq 0 ]; then
@@ -526,6 +537,12 @@ needs_explicit_deploy() {
 deploy_all() {
     local svc rc
 
+    PATCHED_SERVICES=""
+    UNCHANGED_SERVICES=""
+
+    # Patch infra first so app deployments cannot race the infrastructure gate.
+    patch_commit_images "${INFRA_SERVICES[@]}" || return 1
+
     # Infra first. In an existing environment green services are left alone.
     refresh_clone_services || return 1
     for svc in "${INFRA_SERVICES[@]}"; do
@@ -534,8 +551,11 @@ deploy_all() {
             deploy_service "$svc" || return 1
         fi
     done
+    # Redis and SeaweedFS have no known first-deploy timeout exception.
+    wait_services_success "${RW_INFRA_WAIT_SECONDS:-420}" redis seaweedfs || return 1
+
     # A single Postgres first-deploy timeout in a fresh clone is transient
-    # (volume provisioning); retry the deploy once. A FAILED/CRASHED Postgres
+    # (volume provisioning); retry the deploy once. A FAILED/CRASHED service
     # already got its redeploy inside the wait, so rc=2 here is terminal.
     wait_services_success "${RW_INFRA_WAIT_SECONDS:-420}" Postgres && rc=0 || rc=$?
     if [ "$rc" -eq 1 ]; then
@@ -546,11 +566,10 @@ deploy_all() {
         return 1
     fi
 
-    # One patchCommit for every changed app image (deploys them, alembic
-    # included, in parallel — alembic's startCommand waits for Postgres and
-    # the other apps ride their restart policy until migrations land).
-    patch_commit_images || return 1
-
+    # Patch changed app images only after infra is ready. This deploys alembic
+    # and the other app images in parallel; alembic's startCommand waits for
+    # Postgres and the other apps ride their restart policy until migrations land.
+    patch_commit_images "${APP_SERVICES[@]}" || return 1
     # alembic must be green before supertokens deploys.
     refresh_clone_services || return 1
     clone_has_service alembic || { skip_absent_service alembic || return 1; }
@@ -666,4 +685,6 @@ main() {
     emit_output api_calls "$calls"
 }
 
-main
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+    main
+fi
