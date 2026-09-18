@@ -488,6 +488,12 @@ export function classifyRunError(
       code: "runner_error",
     };
   }
+  if (/\bWebSocket (?:error|closed|connect timeout|idle timeout|stream closed)\b/i.test(raw)) {
+    return {
+      message: "The agent lost its connection while working and could not recover. You can continue from here.",
+      code: "runner_error",
+    };
+  }
   return { message: msg || "agent run failed", code: "runner_error" };
 }
 

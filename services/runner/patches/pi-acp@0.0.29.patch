@@ -1,7 +1,7 @@
 diff --git a/dist/index.js b/dist/index.js
 --- a/dist/index.js
 +++ b/dist/index.js
-@@ -133,6 +133,10 @@ class PiRpcClient {
+@@ -133,6 +133,10 @@
    static async spawn(params) {
      const cmd = getPiCommand(params.piCommand);
      const args = ["--mode", "rpc", "--no-themes"];
@@ -12,7 +12,79 @@ diff --git a/dist/index.js b/dist/index.js
      if (params.sessionPath) args.push("--session", params.sessionPath);
      const child = spawn(cmd, args, {
        cwd: params.cwd,
-@@ -1206,5 +1206,9 @@ function readSessionDirFromSettings(agentDir) {
+@@ -686,13 +690,14 @@
+   cancelRequested = false;
+   // Current in-flight turn (if any). Additional prompts are queued.
+   pendingTurn = null;
++  lastAssistantError = null;
+   turnQueue = [];
+   // Track tool call statuses and ensure they are monotonic (pending -> in_progress -> completed).
+   // Some pi events can arrive out of order (e.g. late toolcall_* deltas after execution starts),
+   // and clients may hide progress if we ever downgrade back to `pending`.
+   currentToolCalls = /* @__PURE__ */ new Map();
+   // pi can emit multiple `turn_end` events for a single user prompt (e.g. after tool_use).
+-  // The overall agent loop completes when `agent_end` is emitted.
++  // Pi 0.85.1 emits agent_end per attempt; only agent_settled ends the prompt.
+   inAgentLoop = false;
+   // For ACP diff support: capture file contents before edits, then emit ToolCallContent {type:"diff"}.
+   // This is due to pi sending diff as a string as opposed to ACP expected diff format.
+@@ -783,6 +788,7 @@
+   }
+   startTurn(t) {
+     this.cancelRequested = false;
++    this.lastAssistantError = null;
+     this.inAgentLoop = false;
+     this.pendingTurn = { resolve: t.resolve, reject: t.reject };
+     this.emit({
+@@ -980,18 +986,17 @@
+         });
+         break;
+       }
+-      case "auto_retry_start": {
+-        this.emit({
+-          sessionUpdate: "agent_message_chunk",
+-          content: { type: "text", text: formatAutoRetryMessage(ev) }
+-        });
++      // Recovery is operational state, never assistant conversation text.
++      case "auto_retry_start":
++      case "auto_retry_end": {
+         break;
+       }
+-      case "auto_retry_end": {
+-        this.emit({
+-          sessionUpdate: "agent_message_chunk",
+-          content: { type: "text", text: "Retry finished, resuming." }
+-        });
++      case "message_end": {
++        if (ev.message?.role === "assistant") {
++          this.lastAssistantError = ev.message.stopReason === "error"
++            ? String(ev.message.errorMessage || "Model request failed")
++            : null;
++        }
+         break;
+       }
+       case "auto_compaction_start": {
+@@ -1022,9 +1027,17 @@
+         break;
+       }
+       case "agent_end": {
++        // Retries and compaction may still continue this prompt.
++        break;
++      }
++      case "agent_settled": {
+         void this.flushEmits().finally(() => {
+           const reason = this.cancelRequested ? "cancelled" : "end_turn";
+-          this.pendingTurn?.resolve(reason);
++          if (this.lastAssistantError && !this.cancelRequested) {
++            this.pendingTurn?.reject(new Error(this.lastAssistantError));
++          } else {
++            this.pendingTurn?.resolve(reason);
++          }
+           this.pendingTurn = null;
+           this.inAgentLoop = false;
+           const next = this.turnQueue.shift();
+@@ -1206,6 +1219,10 @@
+   }
  }
  function getPiSessionsDir() {
 +  const envSessionDir = process.env.PI_CODING_AGENT_SESSION_DIR;

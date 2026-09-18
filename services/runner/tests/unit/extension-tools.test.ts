@@ -566,7 +566,9 @@ describe("agenta extension usage publication", () => {
     await pi.handlers.agent_end[0]({
       messages: [{ role: "assistant", content: "hello" }],
     });
-    const flush = pi.handlers.agent_end[1]({});
+    assert.equal(existsSync(usagePath), false, "an attempt must not publish final usage");
+    await pi.handlers.agent_settled[0]({});
+    const flush = pi.handlers.agent_settled[1]({});
 
     assert.equal(
       existsSync(usagePath),
