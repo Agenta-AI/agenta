@@ -147,6 +147,27 @@ describe("a refusal folded into the answer fails the turn", () => {
     assert.ok(!errors[0].message.includes("agenta_code"), errors[0].message);
   });
 
+  // Pi's transcript probe runs first and claims the turn whenever it finds a failed record.
+  // A clean transcript must leave the folded-refusal check free to fail the turn on the
+  // answer's own text, or a refusal Pi never recorded ships as the answer.
+  it("pi fails on the answer's text when its transcript recorded nothing", async () => {
+    const { deps } = fakeHarness({ output: PI_BARE_BODY_REFUSAL });
+
+    const result = await runSandboxAgent(
+      {
+        harness: "pi_core",
+        messages: [{ role: "user", content: "say hello" }],
+      },
+      undefined,
+      undefined,
+      deps,
+    );
+
+    assert.equal(result.ok, false);
+    if (result.ok) return;
+    assert.equal(result.errorDetail?.code, "model_not_allowed");
+  });
+
   it("an ordinary answer is still an ordinary answer", async () => {
     const { deps } = fakeHarness({ output: "403 is a status code" });
 
