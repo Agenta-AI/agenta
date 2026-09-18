@@ -162,18 +162,29 @@
   background-color: var(--bgelevated1);
 }
 
+/* Tablets: the header keeps the GitHub link, the theme toggle and the
+   primary CTA; "Book a demo" moves to the hamburger. Infima hides
+   .navbar__item below 997px, so the items that stay are shown explicitly. */
 @media (max-width: 996px) {
   .right {
     gap: 8px;
   }
 
-  /* Infima hides navbar items on mobile; the version pill stays by the logo
-     because the hamburger menu does not repeat it. */
-  .versionSelector :global(.navbar__item) {
+  .versionSelector :global(.navbar__item),
+  .actions :global(.navbar__item) {
     display: inline-flex;
   }
 
-  .actions {
+  .actions :global(.navbar__item):has(:global(.nav_secondary_button)) {
+    display: none;
+  }
+}
+
+/* Phones: search (as an icon) and the primary CTA only. */
+@media (max-width: 599px) {
+  .divider,
+  .github,
+  .colorModeToggle {
     display: none;
   }
 }
