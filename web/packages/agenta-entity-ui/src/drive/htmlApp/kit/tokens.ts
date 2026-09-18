@@ -72,13 +72,15 @@ export function resolveKitTokens(root: Element): KitTokens {
     return out
 }
 
-const isCssSafe = (value: string) => !/[;{}<]/.test(value)
+/** Same rules as the stub's sanitiser: names `--[A-Za-z0-9_-]+`, values free of `;{}<>`. */
+const isTokenName = (name: string) => name === "color-scheme" || /^--[A-Za-z0-9_-]+$/.test(name)
+const isCssSafe = (value: string) => !/[;{}<>]/.test(value)
 
 /** `:root{--ag-bg:#fff;…;color-scheme:light}` — one declaration per entry, unsafe values dropped. */
 export function tokensToCss(tokens: Record<string, string>): string {
     const decls: string[] = []
     for (const [name, value] of Object.entries(tokens)) {
-        if (!isCssSafe(name) || !isCssSafe(value)) continue
+        if (!isTokenName(name) || !isCssSafe(value)) continue
         decls.push(`${name}:${value}`)
     }
     return `:root{${decls.join(";")}}`

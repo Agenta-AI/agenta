@@ -148,8 +148,23 @@ describe("tokensToCss", () => {
     })
 
     it("drops entries whose name or value could break out of the rule", () => {
-        const css = tokensToCss({"--ag-bg": "red}body{color:blue", "--ag-fg": "#000", "x;y": "1"})
+        const css = tokensToCss({
+            "--ag-bg": "red}body{color:blue",
+            "--ag-fg": "#000",
+            "x;y": "1",
+            "--ag-x": "a<b>c",
+            "not-a-var": "1",
+        })
         expect(css).toBe(":root{--ag-fg:#000}")
+    })
+
+    it("emits values that survive the stub's sanitiser (no ;{}<>; names --[A-Za-z0-9_-]+)", () => {
+        for (const root of [fixtureRoot({}), fixtureRoot({}, {dark: true})]) {
+            for (const [name, value] of Object.entries(resolveKitTokens(root))) {
+                expect(name).toMatch(/^(--[A-Za-z0-9_-]+|color-scheme)$/)
+                expect(value).not.toMatch(/[;{}<>]/)
+            }
+        }
     })
 })
 

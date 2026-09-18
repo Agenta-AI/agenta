@@ -47,7 +47,7 @@ function AppFrame({
     width?: number
 }) {
     const tokensCss = useKitTokensCss()
-    const srcDoc = `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="${escapeAttr(RUN_CSP)}"><meta name="viewport" content="width=device-width, initial-scale=1"><style>${tokensCss}</style><style>${KIT_CSS}</style></head><body>${markup}</body></html>`
+    const srcDoc = `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Agenta app kit sample</title><meta http-equiv="Content-Security-Policy" content="${escapeAttr(RUN_CSP)}"><meta name="viewport" content="width=device-width, initial-scale=1"><style>${tokensCss}</style><style>${KIT_CSS}</style></head><body>${markup}</body></html>`
     return (
         <iframe
             title="Agenta app kit sample"
@@ -66,7 +66,7 @@ function AppFrame({
 }
 
 const TYPE_AND_LAYOUT = `
-<div class="ag-app">
+<main class="ag-app">
   <header class="ag-toolbar">
     <h1>Type &amp; layout</h1>
     <span class="ag-badge">12px base</span>
@@ -92,10 +92,10 @@ const TYPE_AND_LAYOUT = `
       <p class="ag-muted">Columns wrap to one under 480px.</p>
     </section>
   </div>
-</div>`
+</main>`
 
 const CONTROLS = `
-<div class="ag-app">
+<main class="ag-app">
   <header class="ag-toolbar">
     <h1>Controls</h1>
     <button class="ag-btn" type="button">Default</button>
@@ -123,10 +123,10 @@ const CONTROLS = `
       <label><input class="ag-check" type="checkbox" disabled> Disabled</label>
     </div>
   </form>
-</div>`
+</main>`
 
 const SURFACES = `
-<div class="ag-app">
+<main class="ag-app">
   <header class="ag-toolbar"><h1>Surfaces</h1></header>
   <div class="ag-columns">
     <div class="ag-column">
@@ -145,10 +145,10 @@ const SURFACES = `
     </div>
   </div>
   <div class="ag-toast" role="status">Saved data/cards.json</div>
-</div>`
+</main>`
 
 const STATES = `
-<div class="ag-app">
+<main class="ag-app">
   <header class="ag-toolbar"><h1>States</h1></header>
   <div class="ag-columns">
     <div class="ag-column">
@@ -171,10 +171,10 @@ const STATES = `
       <div class="ag-card">The card above is <code>[hidden]</code></div>
     </div>
   </div>
-</div>`
+</main>`
 
 const BOARD = `
-<div class="ag-app">
+<main class="ag-app">
   <header class="ag-toolbar">
     <h1>Retro board</h1>
     <form id="add" style="display:flex;gap:6px">
@@ -210,7 +210,7 @@ const BOARD = `
     </section>
   </div>
   <div class="ag-toast" role="status" data-fade>Loaded 5 cards from data/cards.json</div>
-</div>
+</main>
 <script>
   document.getElementById("add").addEventListener("submit", function (e) {
     e.preventDefault()

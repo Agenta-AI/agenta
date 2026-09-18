@@ -63,7 +63,7 @@ textarea {
     display: none !important;
 }
 [aria-busy="true"] {
-    opacity: 0.6;
+    opacity: 0.7;
     pointer-events: none;
 }
 
@@ -256,7 +256,7 @@ textarea.ag-input {
     cursor: grab;
 }
 .ag-card[data-dragging] {
-    opacity: 0.55;
+    opacity: 0.65;
     transform: scale(0.98);
     box-shadow: none;
     cursor: grabbing;
@@ -274,17 +274,18 @@ textarea.ag-input {
     line-height: 1;
     white-space: nowrap;
 }
+/* Tone text leans 25% toward --ag-fg so it keeps 4.5:1 on its own tint in both themes. */
 .ag-badge[data-tone="ok"] {
-    color: var(--ag-ok);
-    background: color-mix(in srgb, var(--ag-ok) 12%, transparent);
+    color: color-mix(in srgb, var(--ag-ok) 75%, var(--ag-fg));
+    background: color-mix(in srgb, var(--ag-ok) 10%, transparent);
 }
 .ag-badge[data-tone="warn"] {
-    color: var(--ag-warn);
-    background: color-mix(in srgb, var(--ag-warn) 14%, transparent);
+    color: color-mix(in srgb, var(--ag-warn) 75%, var(--ag-fg));
+    background: color-mix(in srgb, var(--ag-warn) 12%, transparent);
 }
 .ag-badge[data-tone="crit"] {
-    color: var(--ag-crit);
-    background: color-mix(in srgb, var(--ag-crit) 12%, transparent);
+    color: color-mix(in srgb, var(--ag-crit) 75%, var(--ag-fg));
+    background: color-mix(in srgb, var(--ag-crit) 10%, transparent);
 }
 .ag-empty {
     padding: 24px 12px;
