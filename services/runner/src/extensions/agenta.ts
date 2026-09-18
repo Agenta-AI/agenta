@@ -61,6 +61,10 @@ import {
   decodePiModelProviderOverride,
   PI_MODEL_PROVIDER_OVERRIDE_ENV,
 } from "./model-provider-override.ts";
+import {
+  PI_GATEWAY_MCP_SERVERS_ENV,
+  registerPiGatewayMcpTools,
+} from "./pi-mcp.ts";
 
 /** Read and delete one runner-authored turn control. Invalid bytes never poison a warm turn. */
 export function readPiTurnTraceControl(
@@ -140,6 +144,7 @@ async function piDialogAllows(
   toolName: string,
   toolCallId: string,
   input: unknown,
+  mcpIdentity?: { mcpServer: string; mcpTool: string },
 ): Promise<{ allowed: boolean; reason?: string }> {
   const ui = ctx?.ui;
   const confirm = ui?.confirm;
@@ -152,7 +157,13 @@ async function piDialogAllows(
       ),
     };
   }
-  const message = buildPiGateEnvelope({ gate, toolName, toolCallId, input });
+  const message = buildPiGateEnvelope({
+    gate,
+    toolName,
+    toolCallId,
+    input,
+    ...(mcpIdentity ?? {}),
+  });
   try {
     const confirmed = await confirm.call(ui, PI_GATE_DIALOG_TITLE, message);
     // A confirm resolves to a BOOLEAN, so every refusal arrives here identical: a policy deny, a
@@ -271,7 +282,7 @@ function promptGuidelines(spec: ResolvedToolSpec): string[] {
   }
   if (spec.name === "request_connection") {
     guidelines.push(
-      "When calling request_connection, set integration to the lowercase provider key such as slack or github; use mode oauth unless the user explicitly asks for an API key.",
+      "When calling request_connection for an external integration, set integration to the lowercase provider key such as slack or github; use mode oauth unless the user explicitly asks for an API key. When a model or MCP call was refused because the target is not registered, call it instead with target: {plane: 'llm'|'mcp', name: <provider or server>} and omit integration/mode.",
     );
   }
   if (spec.name === "commit_revision") {
@@ -434,6 +445,7 @@ const factory = (pi: ExtensionAPI): void => {
   const hasBuiltinGating = isTruthyFlag(
     process.env.AGENTA_AGENT_BUILTIN_GATING,
   );
+  const gatewayMcpServers = process.env[PI_GATEWAY_MCP_SERVERS_ENV];
   const usageOut = process.env.AGENTA_AGENT_USAGE_CAPTURE_PATH;
   if (
     !modelProviderOverride &&
@@ -441,19 +453,59 @@ const factory = (pi: ExtensionAPI): void => {
     !hasTools &&
     !hasBuiltinActivation &&
     !hasBuiltinGating &&
+    !gatewayMcpServers &&
     !usageOut
   )
     return;
 
-  // Extension factories complete before Pi selects the configured model. Registering only a
-  // baseUrl here overrides the built-in provider without replacing its model catalog or auth.
+  // Extension factories complete before Pi selects the configured model. Registering the baseUrl
+  // here (plus, on a gateway route, the credential header and a placeholder key) overrides the
+  // built-in provider without replacing its model catalog.
   if (modelProviderOverride) {
     pi.registerProvider(modelProviderOverride.provider, {
       baseUrl: modelProviderOverride.baseUrl,
+      ...(modelProviderOverride.headers
+        ? { headers: modelProviderOverride.headers }
+        : {}),
+      ...(modelProviderOverride.apiKey
+        ? { apiKey: modelProviderOverride.apiKey }
+        : {}),
     });
   }
 
   if (hasTools) registerTools(pi);
+  if (gatewayMcpServers) {
+    pi.on("before_agent_start", async () => {
+      try {
+        await registerPiGatewayMcpTools(
+          pi,
+          gatewayMcpServers,
+          log,
+          async ({ ctx, toolName, toolCallId, input, mcpServer, mcpTool }) => {
+            const { allowed, reason } = await piDialogAllows(
+              ctx as ExtensionContext | undefined,
+              "pi-mcp-tool",
+              toolName,
+              toolCallId,
+              input,
+              { mcpServer, mcpTool },
+            );
+            return { allowed, reason: reason ?? refusedAtGateText(toolName) };
+          },
+        );
+      } catch (error) {
+        // OR59. A registration failure used to leave `before_agent_start` as a bare rejection:
+        // the turn either died with a generic error or ran on with no tools and no line saying
+        // why. Registration already logged the offending tool; this is the one sentence that
+        // says the registration as a whole failed. The turn survives, as it does for a server
+        // that fails its handshake (OR32) — the tools that did register still work.
+        log(
+          `[mcp] error: gateway MCP tool registration failed: ` +
+            `${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+    });
+  }
   if (hasBuiltinActivation) registerBuiltinActivation(pi);
   if (hasBuiltinGating) registerBuiltinGating(pi);
   // Pi records the native span tree and publishes raw OTLP bytes into its telemetry spool.

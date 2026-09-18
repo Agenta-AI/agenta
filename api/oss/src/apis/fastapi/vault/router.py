@@ -284,6 +284,7 @@ class VaultRouter:
             vault_secret = await self.service.create_secret(
                 project_id=UUID(request.state.project_id),
                 create_secret_dto=body,
+                user_id=UUID(request.state.user_id),
             )
         except SubscriptionProviderConflict as e:
             raise HTTPException(

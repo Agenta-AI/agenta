@@ -15,6 +15,7 @@ import {useAtomValue, useSetAtom} from "jotai"
 import {attachmentIdForPart} from "../assets/files"
 import {reduceSessionPendingInputs, type SessionPendingInputView} from "../assets/pendingInputs"
 import {startupLabelFromDataPart} from "../assets/startupPhases"
+import {readSendRefusal} from "../model/error"
 
 import type {QueuedMessage} from "./useAgentChatQueue"
 import {useMountGeneration} from "./useMountGeneration"
@@ -352,8 +353,11 @@ export const useServerSessionInputs = ({
                 body: JSON.stringify({...request.requestBody, on_busy: policy}),
             })
             if (!response.ok) {
-                await response.body?.cancel()
-                throw new Error(`The input was not accepted (${response.status}).`)
+                // Read the body rather than cancelling it: a typed refusal states its reason
+                // there, and discarding it left the composer able to say only that the message
+                // had not gone — never why, and never what would fix it.
+                const body = await response.text().catch(() => "")
+                throw readSendRefusal(response.status, body)
             }
 
             if (response.status === 202) {

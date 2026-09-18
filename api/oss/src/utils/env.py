@@ -756,6 +756,18 @@ class AgentaConfig(BaseModel):
     services_url: str = os.getenv("AGENTA_SERVICES_URL") or "http://localhost/services"
     api_url: str = os.getenv("AGENTA_API_URL") or "http://localhost/api"
     api_internal_url: str | None = os.getenv("AGENTA_API_INTERNAL_URL")
+    # Every origin this deployment's app is served from, beyond `web_url`.
+    #
+    # The OAuth callback page posts the consent result to its opener and is refused
+    # unless it names that window's exact origin, so a deployment reachable at more than
+    # one address had the completion delivered nowhere for everyone not using the one
+    # configured address: the dialog waited out its timeout on a connection that was
+    # already authorized. One value cannot describe a deployment behind both a tunnel and
+    # a local address, which is the ordinary shape of a test or preview stack (D71).
+    #
+    # Declared rather than inferred: the page could read the address the browser used to
+    # reach it, but that comes from the Host header, which the caller sets.
+    app_origins: list[str] = _load_csv_env_list("AGENTA_APP_ORIGINS")
 
     auth_key: str = os.getenv("AGENTA_AUTH_KEY") or "replace-me"
     crypt_key: str = os.getenv("AGENTA_CRYPT_KEY") or "replace-me"
@@ -866,13 +878,22 @@ class CloudflareConfig(BaseModel):
 # ---------------------------------------------------------------------------
 
 
+# The REST scope discovery and execution have to agree on (#5174). Named, because it is the
+# value the code ships and a deployment may override, and a test that reads the field default
+# instead reads whatever COMPOSIO_API_URL says in the shell it runs in (D95).
+COMPOSIO_DEFAULT_API_URL = "https://backend.composio.dev/api/v3.1"
+
+
+def composio_api_url() -> str:
+    """The Composio REST scope: the deployment's override, else the shipped default."""
+    return os.getenv("COMPOSIO_API_URL") or COMPOSIO_DEFAULT_API_URL
+
+
 class ComposioConfig(BaseModel):
     """Composio integration configuration"""
 
     api_key: str | None = os.getenv("COMPOSIO_API_KEY")
-    api_url: str = os.getenv(
-        "COMPOSIO_API_URL", "https://backend.composio.dev/api/v3.1"
-    )
+    api_url: str = composio_api_url()
     # Dev: when set, unknown-trigger drops log at WARNING instead of INFO.
     webhook_target: str | None = os.getenv("COMPOSIO_WEBHOOK_TARGET")
     # Override the registered webhook URL. Composio requires public HTTPS; in dev
@@ -897,6 +918,147 @@ class ComposioConfig(BaseModel):
     def enabled(self) -> bool:
         """Composio enabled if API key is present"""
         return bool(self.api_key)
+
+    model_config = ConfigDict(extra="ignore")
+
+
+# ---------------------------------------------------------------------------
+# Gateway mocks
+# ---------------------------------------------------------------------------
+
+
+class MockGatewaysConfig(BaseModel):
+    """Development-only gateway mock configuration.
+
+    The URLs have safe defaults so the compose services can share one image, but generated
+    gateway entries are opt-in.  A production process must therefore not accidentally expose
+    an endpoint merely because a Docker DNS name happens to resolve.
+    """
+
+    enabled: bool = _parse_bool_env("AGENTA_GATEWAYS_MOCKS_ENABLED", default=False)
+
+    llm_url: str = os.getenv(
+        "AGENTA_MOCK_LLM_GATEWAY_URL", "http://mock-llm-gateway:9091"
+    )
+    mcp_url: str = os.getenv(
+        "AGENTA_MOCK_MCP_GATEWAY_URL", "http://mock-mcp-gateway:9092"
+    )
+    # The address the mock OAuth issuer publishes itself under, for the case where that has
+    # to differ from the Docker address above: a browser completing the consent flow cannot
+    # resolve a container name, so a tunnelled stack points this at its public HTTPS address.
+    # Empty means "the address the gateway dials", which is every stack with no browser leg.
+    mcp_public_url: str = os.getenv("AGENTA_MOCK_MCP_GATEWAY_PUBLIC_URL", "")
+    upstream_token: str = os.getenv(
+        "AGENTA_GATEWAYS_MOCKS_UPSTREAM_TOKEN", "agenta-gateway-mock-token"
+    )
+    # The header-authenticated mock MCP surface, which is the only one a person can drive
+    # from a browser to reach the connect journey's API-key screen. The bearer profile on
+    # `/` is selected by a request header nothing but a test sends, and `/oauth/mcp`
+    # publishes OAuth metadata, so neither produces the 401-without-metadata a key server
+    # answers with.
+    #
+    # Both halves are configurable so a stack can move them, and both have defaults so the
+    # QA runbook can name one pair. The name is what an endpoint registers as its
+    # `credential_header`; an endpoint that registers none sends the same value as
+    # `Authorization: Bearer <value>`, and the surface accepts that form too.
+    mcp_key_header: str = os.getenv("AGENTA_MOCK_MCP_GATEWAY_KEY_HEADER", "X-Api-Key")
+    mcp_key_value: str = os.getenv("AGENTA_MOCK_MCP_GATEWAY_KEY", "agenta-mock-mcp-key")
+
+    model_config = ConfigDict(extra="ignore")
+
+
+# ---------------------------------------------------------------------------
+# MCP adapter
+# ---------------------------------------------------------------------------
+
+
+class GatewayEgressConfig(BaseModel):
+    """Whether the gateway's outbound boundary (`core/gateways/egress.py`) enforces.
+
+    Separate from `AGENTA_INSECURE_EGRESS_ALLOWED`, which governs webhook delivery, OIDC
+    issuer probes and provider-endpoint checks and defaults to permissive so a zero-config
+    self-host works. The gateway cannot inherit that default: its targets are tenant data
+    and upstream-supplied URLs reached with a provider credential attached, so the range
+    check and the https requirement are on unless an operator turns them off deliberately.
+
+    Also distinct from `AGENTA_GATEWAYS_INSECURE_HTTP_ALLOWED`, which is read only by the
+    SDK and the runner (`sdks/python/agenta/sdk/agents/connections/models.py`,
+    `services/runner/src/engines/sandbox_agent/run-plan.ts`) and governs the hop *into*
+    Agenta rather than egress out of it.
+
+    Turning this on does not open every internal address by accident on a dev stack: the
+    narrower escape hatches are `AGENTA_MCP_GATEWAY_HOST_ALLOWLIST` and the mock upstreams
+    admitted while `AGENTA_GATEWAYS_MOCKS_ENABLED` is on.
+    """
+
+    insecure_allowed: bool = _parse_bool_env(
+        "AGENTA_GATEWAYS_INSECURE_EGRESS_ALLOWED", default=False
+    )
+
+    model_config = ConfigDict(extra="ignore")
+
+
+class GatewayCredentialsConfig(BaseModel):
+    """How long the sandbox-scoped gateway credential a run carries stays valid.
+
+    Its own lifetime, separate from the 15 minutes every other secret token gets, because
+    the two are bounded by different things. An ordinary secret token is handed to a browser
+    or a short server-to-server hop and a short life is the point of it. This one is minted
+    once when a run's connections resolve and is then held INSIDE a sandbox for as long as
+    the turn lasts: nothing re-mints it mid-turn and nothing delivers a new one, so its
+    lifetime is a hard ceiling on how long an agent may use a gateway MCP server or the LLM
+    gateway. At 15 minutes a single long turn lost both partway through.
+
+    43200 (12h) matches `MountsConfig.credentials_ttl_seconds`, and for the same reason: it
+    has to sit above the runner's total run deadline, or the credential dies under a turn
+    that was still allowed to be running.
+    """
+
+    ttl_seconds: int = Field(
+        default_factory=lambda: (
+            _parse_optional_positive_int_env("AGENTA_GATEWAYS_CREDENTIALS_TTL_SECONDS")
+            or 43200
+        )
+    )
+
+    model_config = ConfigDict(extra="ignore")
+
+
+class LLMGatewayConfig(BaseModel):
+    """Whether this deployment serves the LLM gateway plane at all.
+
+    The product switch, not a security or mock escape hatch: with it off the API refuses
+    every LLM gateway route and the agent SDK resolves a model the way it did before the
+    gateway existed, by reading the project's vault key and injecting it into the sandbox.
+    Default off, because that legacy path is what every existing deployment runs today and
+    a routing change is not something an upgrade should make on an operator's behalf.
+
+    The API is the authority. The SDK carries no matching flag of its own: it learns the
+    plane is off from the refusal this flag produces (`llm_gateway_disabled`), so one
+    deployment cannot end up with a runtime routing through a gateway the API has closed.
+    """
+
+    enabled: bool = _parse_bool_env("AGENTA_LLM_GATEWAY_ENABLED", default=False)
+
+    model_config = ConfigDict(extra="ignore")
+
+
+class MCPGatewayConfig(BaseModel):
+    """The MCP gateway plane: whether it serves, and its outbound-guard escape hatch.
+
+    `enabled` is the operator's kill switch, default on, because the MCP gateway is the
+    feature this release ships. Off, the API refuses every MCP gateway route, the settings
+    navigation hides the MCP endpoints tab, and an agent run dials its declared MCP servers
+    directly with the named secrets the runtime already injects — the pre-gateway behavior.
+
+    `host_allowlist` mirrors the runner's `AGENTA_AGENT_MCPS_HOST_ALLOWLIST`: a `custom` MCP
+    server whose host is listed here skips the SSRF guard (`core/webhooks/utils.py`)
+    entirely, so a self-hoster can reach one known internal server without disabling the
+    guard globally via AGENTA_INSECURE_EGRESS_ALLOWED."""
+
+    enabled: bool = _parse_bool_env("AGENTA_MCP_GATEWAY_ENABLED", default=True)
+
+    host_allowlist: list[str] = _load_csv_env_list("AGENTA_MCP_GATEWAY_HOST_ALLOWLIST")
 
     model_config = ConfigDict(extra="ignore")
 
@@ -1976,9 +2138,14 @@ class EnvironSettings(BaseModel):
     crisp: CrispConfig = CrispConfig()
     daytona: DaytonaConfig = DaytonaConfig()
     docker: DockerConfig = DockerConfig()
+    gateway_credentials: GatewayCredentialsConfig = GatewayCredentialsConfig()
+    gateway_egress: GatewayEgressConfig = GatewayEgressConfig()
     identity: IdentityConfig = IdentityConfig()
     llm: LLMConfig = LLMConfig()
+    llm_gateway: LLMGatewayConfig = LLMGatewayConfig()
     loops: LoopsConfig = LoopsConfig()
+    mcp_gateway: MCPGatewayConfig = MCPGatewayConfig()
+    mock_gateways: MockGatewaysConfig = MockGatewaysConfig()
     mounts: MountsConfig = MountsConfig()
     newrelic: NewRelicConfig = NewRelicConfig()
     postgres: PostgresConfig = PostgresConfig()

@@ -14,9 +14,11 @@ import {buildTurnViewModels, createExecutedToolIdentityCache} from "@agenta/chat
 import type {UIMessage} from "ai"
 import {createStore, Provider} from "jotai"
 import {createRoot, type Root} from "react-dom/client"
-import {afterEach, describe, expect, it} from "vitest"
+import {afterEach, describe, expect, it, vi} from "vitest"
 
 import {TurnRow} from "@/features/chat/TurnRow"
+
+vi.mock("next/router", () => import("../support/nextRouter").then((m) => m.nextRouterModule))
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT: boolean}).IS_REACT_ACT_ENVIRONMENT =
     true
 
