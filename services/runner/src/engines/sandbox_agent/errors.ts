@@ -1,5 +1,22 @@
 import { SubstitutionStuckError } from "./credential-preflight.ts";
 
+/**
+ * The harness never answered while its ACP session was being opened.
+ *
+ * DECLARED HERE, not beside the code that throws it, so `classifyRunError` can recognize it by
+ * CLASS without importing the environment lifecycle (which imports this module).
+ *
+ * Its message is already the line the person in the chat reads: the harness by name and the
+ * budget that elapsed. Everything the operator needs to act on — which mode, which agent, how
+ * long — goes in the runner log at the throw site, not into the user's chat.
+ */
+export class HarnessInitTimeoutError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "HarnessInitTimeoutError";
+  }
+}
+
 /** Map a provider family to its human-facing vault key label, for the credit/auth hint. */
 const PROVIDER_KEY_LABELS: Record<string, string> = {
   openai: "OpenAI",
@@ -82,6 +99,10 @@ export type RunErrorCode =
   | "starter_credits_unavailable"
   | "credential_delivery_failed"
   | "rate_limited"
+  // The harness did not answer while the run was opening its ACP session, so nothing ran. A
+  // wedged or cold-installing adapter, not a fault of the model or the key: clients render it as
+  // a retry, never as an "add a key" prompt. Produced by `harness-session-lifecycle.ts`.
+  | "harness_init_timeout"
   // Not a failure: the turn was REFUSED before it started because another turn already owns
   // this session. Nothing ran, nothing was destroyed, and the user's message was never sent.
   // Clients render it as a "not sent, try again" state and keep the text, never as a run error.
@@ -373,6 +394,12 @@ export function classifyRunError(
       message: CREDENTIAL_DELIVERY_FAILED_MESSAGE,
       code: "credential_delivery_failed",
     };
+  }
+  // Also matched on the CLASS. The message was written for the reader and names the harness that
+  // stalled, so it passes through whole — no text branch below may reinterpret it (a wedged
+  // adapter is not an auth failure and must never print the add-a-key advice).
+  if (err instanceof HarnessInitTimeoutError) {
+    return { message: msg, code: "harness_init_timeout" };
   }
   // First, and self-evidencing: this marker is produced by our own liveness probe and by
   // nothing else, so it needs no corroboration and must not be re-read as a provider fault.

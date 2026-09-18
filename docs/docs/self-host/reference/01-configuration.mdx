@@ -461,6 +461,32 @@ An invalid value (not a number, or negative) falls back to the default for that 
 the runner's own deadlines and are unrelated to `AGENTA_RUNNER_TIMEOUT_SECONDS`, which is the
 caller's idle timeout on the streaming transport.
 
+### Harness startup
+
+Before a run's first message, the runner opens a session against the harness. One deadline bounds
+that handshake.
+
+| Variable | Role | Default | Secret | Helm |
+|---|---|---|---|---|
+| `AGENTA_RUNNER_ACP_INIT_TIMEOUT_MS` | Longest wait for the harness to answer when a run opens its session | `120000` (2 minutes) | no | `agentRunner.env.AGENTA_RUNNER_ACP_INIT_TIMEOUT_MS` |
+
+When the deadline passes, the run fails with `<harness> harness did not initialize within 120s` and
+releases its sandbox. This is not the model's time budget: it covers only the handshake before the
+first message, and the four run limits above cover everything after it. An invalid value falls back
+to the default.
+
+The runner image ships a pinned Codex adapter. At startup the runner copies it into the data
+directory the harness daemon reads (`$XDG_DATA_HOME`, or `$HOME/.local/share`), so a container
+started with a different `HOME` uses the pinned adapter instead of downloading one on the first
+Codex run. It logs one line for what it did:
+
+```text
+[adapter-seed] seeded the pinned Codex adapter into the daemon data dir: /home/node/.local/share/sandbox-agent/bin/agent_processes -> /tmp/.local/share/sandbox-agent (2895ms)
+[adapter-seed] skipped: the daemon data dir is the baked pin (/home/node/.local/share/sandbox-agent)
+```
+
+An adapter already present in the data directory is never overwritten.
+
 ### Callback API
 
 Set both on the `runner` service. The runner calls the API back for session heartbeats,
@@ -492,7 +518,7 @@ credentials aimed at a third-party collector are no longer kept out of platform 
 
 ### Internal settings
 
-The runner reads two more variables that exist for debugging and for custom sandbox images. They
+The runner reads three more variables that exist for debugging and for custom sandbox images. They
 are not part of the supported configuration surface and may change without notice. Leave them unset
 on a normal deployment.
 
@@ -501,6 +527,10 @@ on a normal deployment.
 - `AGENTA_AGENT_SANDBOX_PI_DIR`: where the Pi agent directory lives *inside* a Daytona sandbox,
   defaulting to `/home/sandbox/.pi/agent`. This describes the sandbox image's own layout, not the
   deployment. Change it only if you build a custom snapshot that puts Pi somewhere else.
+- `AGENTA_RUNNER_BAKED_AGENT_DATA_DIR`: where the runner image baked its pinned harness adapters,
+  defaulting to `/home/node/.local/share/sandbox-agent` (`/root/.local/share/sandbox-agent` on the
+  development image). This describes the runner image's own layout, not the deployment. Change it
+  only if you build a custom runner image that pins its adapters somewhere else.
 
 ### Startup validation
 
@@ -602,6 +632,16 @@ runner.
 not point at it.
 
 **Solution:** See [Use your own subscription](/self-host/use-your-own-subscription).
+
+#### A run fails with `<harness> harness did not initialize within 120s`
+
+**Cause:** The harness did not answer while the run was opening its session. On a runner that
+cannot read its own baked adapters, the daemon installs one at first use and can stall there; the
+runner logs `[adapter-seed] WARNING` at startup when that is the case.
+
+**Solution:** Update the runner image, which ships the adapters readable by any uid and seeds them
+at startup. Run the turn again. To allow a longer handshake, raise
+`AGENTA_RUNNER_ACP_INIT_TIMEOUT_MS`.
 
 #### A self-managed run that requested Daytona fails
 

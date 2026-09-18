@@ -100,6 +100,12 @@ RUN node_modules/.bin/tsx scripts/patch-codex-acp-approvals.ts
 # unactionable message. Retires when upstream Pi names the key itself.
 RUN node_modules/.bin/tsx scripts/patch-pi-validation-message.ts
 
+# Same reason as Dockerfile.gh: a run as a foreign uid must be able to read the pin so the runner's
+# boot-time seed can copy it into that uid's data dir. This image pins as root, so the tree is under
+# /root, and /root itself is 0700 — hence the extra `a+x` on the home directory, which grants
+# TRAVERSAL only (a foreign uid still cannot list root's home, only walk through it to the pin).
+RUN chmod -R a+rX /root/.local && chmod a+x /root
+
 # No USER node here (unlike Dockerfile.gh): dev rebuilds dist/ under /app and mkdir's /pi-agent
 # at container start, both root-owned paths — not a FUSE constraint (fusermount works non-root).
 

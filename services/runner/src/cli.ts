@@ -17,6 +17,7 @@ import type {
   EmitEvent,
 } from "./protocol.ts";
 import { runSandboxAgent } from "./engines/sandbox_agent.ts";
+import { seedPinnedAgentProcesses } from "./engines/sandbox_agent/adapter-seed.ts";
 import { isEntrypoint } from "./entry.ts";
 
 /** Run one request through an engine. Tests inject a fake to avoid a live harness. */
@@ -93,6 +94,10 @@ async function readStdin(): Promise<string> {
 }
 
 async function main(): Promise<void> {
+  // Before the engine, because the engine starts the daemon and the daemon reads the data dir
+  // this fills. See `adapter-seed.ts`: under a HOME override the pinned Codex adapter is not
+  // where the daemon looks, and the cold install it falls back to can hang the handshake.
+  seedPinnedAgentProcesses();
   const stream = process.argv.includes("--stream");
   const raw = await readStdin();
   const code = await runCli(raw, stream);
