@@ -119,10 +119,7 @@
      sidebar, the header row, the footer) shifts by. Declared here, not on
      :root, so the sidebar width above is the one it reads (the theme sets
      its own on :root). */
-  --doc-frame-max: calc(
-    var(--doc-sidebar-width) + var(--doc-content-width) + var(--doc-toc-width) + 30px +
-      2 * var(--doc-main-padding-x)
-  );
+  --doc-frame-max: calc(var(--doc-sidebar-width) + var(--doc-content-width) + var(--doc-toc-width) + 30px + 2 * var(--doc-main-padding-x));
   --doc-frame-offset: 0px;
 }
 
