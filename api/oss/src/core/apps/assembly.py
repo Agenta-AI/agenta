@@ -43,7 +43,7 @@ AGENTA_APPS_DESCRIPTION = (
 
 # The instruction text (everything but the generated table) stays small: it is read on every
 # app request, next to the person's own instructions.
-BODY_BUDGET_BYTES = 3 * 1024
+BODY_BUDGET_BYTES = 4608
 TOTAL_BUDGET_BYTES = 6 * 1024
 
 

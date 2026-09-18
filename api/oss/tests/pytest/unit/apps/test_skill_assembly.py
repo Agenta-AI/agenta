@@ -47,10 +47,11 @@ def test_sections_concatenate_in_filename_order():
         "## Custom app rules",
         "## Starters",
         "## After",
+        "## Agent-level layout",
     ]
     positions = [body.index(h) for h in headings]
     assert positions == sorted(positions)
-    assert "owned by lane F" in body
+    assert "<!--" not in body
 
 
 def test_size_budget():
