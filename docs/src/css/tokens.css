@@ -1,6 +1,6 @@
-/* Design tokens. The neutral palette comes from the docs redesign
-   (docs/design/docs-redesign/plan.md); the dark values are derived from it.
-   Every other stylesheet reads these names, so a colour change lands here only. */
+/* Design tokens. The neutral palette comes from the docs redesign; the dark
+   values are derived from it. Every other stylesheet reads these names, so a
+   colour change lands here only. */
 
 :root {
   /* Surfaces */
