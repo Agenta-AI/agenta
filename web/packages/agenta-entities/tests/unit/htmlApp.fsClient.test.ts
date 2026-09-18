@@ -1,0 +1,269 @@
+/**
+ * The eight fs operations against a mocked transport: Fern mounts client for read/list/delete,
+ * the shared axios instance for the raw-body write. Asserts URLs, query params, headers (If-Match
+ * present/absent), body content type, result mapping and the HTTP → bridge error mapping.
+ */
+import {beforeEach, describe, expect, it, vi} from "vitest"
+
+const fern = vi.hoisted(() => ({getMountFiles: vi.fn(), deleteMountFile: vi.fn()}))
+const http = vi.hoisted(() => ({put: vi.fn()}))
+
+vi.mock("@agenta/sdk/resources", () => ({
+    getMountsClient: () => fern,
+}))
+
+vi.mock("@agenta/shared/api", () => ({
+    axios: {put: http.put},
+    getAgentaApiUrl: () => "https://api.test",
+}))
+
+vi.mock("@agenta/entities/session", () => ({
+    projectScopedRequest: (projectId: string) => ({queryParams: {project_id: projectId}}),
+}))
+
+import {createFsClient, FsClientError, toFsClientError} from "../../src/drive/htmlApp/fsClient"
+import {READ_CAP, WRITE_CAP} from "../../src/drive/htmlApp/protocol"
+
+const client = () => createFsClient({mountId: "m1", projectId: "p1"})
+
+/** What Fern throws on a non-2xx: an `AgentaApiError` with `statusCode` and the parsed `body`. */
+const fernError = (statusCode: number, body?: unknown) =>
+    Object.assign(new Error(`Status code: ${statusCode}`), {statusCode, body})
+
+/** What axios throws: an error carrying `response.status` and `response.data`. */
+const axiosError = (status: number, data?: unknown) =>
+    Object.assign(new Error(`Request failed with status code ${status}`), {
+        response: {status, data},
+    })
+
+const expectCode = async (promise: Promise<unknown>, code: string): Promise<FsClientError> => {
+    let caught: unknown
+    try {
+        await promise
+    } catch (error) {
+        caught = error
+    }
+    expect(caught).toBeInstanceOf(FsClientError)
+    expect((caught as FsClientError).code).toBe(code)
+    return caught as FsClientError
+}
+
+beforeEach(() => {
+    fern.getMountFiles.mockReset()
+    fern.deleteMountFile.mockReset()
+    http.put.mockReset()
+})
+
+describe("read / readJSON", () => {
+    it("reads through Fern with ?read=<path> and returns content + etag", async () => {
+        fern.getMountFiles.mockResolvedValueOnce({
+            path: "apps/b/data.json",
+            content: '{"a":1}',
+            etag: "e1",
+        })
+        const res = await client().read("apps/b/data.json")
+        expect(res).toEqual({result: '{"a":1}', etag: "e1"})
+        expect(fern.getMountFiles).toHaveBeenCalledWith(
+            {mount_id: "m1", read: "apps/b/data.json"},
+            {queryParams: {project_id: "p1"}},
+        )
+    })
+
+    it("etag is null when the server does not send one yet", async () => {
+        fern.getMountFiles.mockResolvedValueOnce({path: "x", content: "hi"})
+        expect(await client().read("x")).toEqual({result: "hi", etag: null})
+    })
+
+    it("readJSON parses, and rejects a non-JSON file with bad_request", async () => {
+        fern.getMountFiles.mockResolvedValueOnce({content: '[{"id":1}]', etag: "e"})
+        expect(await client().readJSON("x")).toEqual({result: [{id: 1}], etag: "e"})
+        fern.getMountFiles.mockResolvedValueOnce({content: "<h1>", etag: "e"})
+        await expectCode(client().readJSON("x"), "bad_request")
+    })
+
+    it("refuses a read whose content exceeds READ_CAP", async () => {
+        fern.getMountFiles.mockResolvedValueOnce({content: "x".repeat(READ_CAP + 1)})
+        await expectCode(client().read("big"), "too_large")
+    })
+
+    it("an unexpected response shape is unavailable, not a crash", async () => {
+        fern.getMountFiles.mockResolvedValueOnce({nope: true})
+        await expectCode(client().read("x"), "unavailable")
+    })
+})
+
+describe("list / exists / stat", () => {
+    const listing = {
+        files: [
+            {path: "apps/b/app.json", size: 12, is_folder: false, mtime: 1700, etag: "ea"},
+            {path: "apps/b/data/", size: 0, is_folder: true, mtime: null, etag: null},
+            {path: "apps/b/index.html", size: 5, is_folder: false, mtime: 1701, etag: "ei"},
+        ],
+    }
+
+    it("lists one level (depth 1) and maps entries to FileEntry", async () => {
+        fern.getMountFiles.mockResolvedValueOnce(listing)
+        const res = await client().list("apps/b")
+        expect(fern.getMountFiles).toHaveBeenCalledWith(
+            {mount_id: "m1", path: "apps/b", depth: 1},
+            {queryParams: {project_id: "p1"}},
+        )
+        expect(res.result).toEqual([
+            {path: "apps/b/app.json", size: 12, mtime: 1700, etag: "ea", isFolder: false},
+            {path: "apps/b/data", size: 0, mtime: null, etag: null, isFolder: true},
+            {path: "apps/b/index.html", size: 5, mtime: 1701, etag: "ei", isFolder: false},
+        ])
+    })
+
+    it("lists the mount root with no path param, and a missing folder as empty", async () => {
+        fern.getMountFiles.mockResolvedValueOnce({files: []})
+        await client().list("")
+        expect(fern.getMountFiles.mock.calls[0][0]).toEqual({
+            mount_id: "m1",
+            path: undefined,
+            depth: 1,
+        })
+        fern.getMountFiles.mockRejectedValueOnce(fernError(404))
+        expect((await client().list("apps/nothing")).result).toEqual([])
+    })
+
+    it("exists lists the parent and covers files and folders", async () => {
+        fern.getMountFiles.mockResolvedValue(listing)
+        expect((await client().exists("apps/b/index.html")).result).toBe(true)
+        expect((await client().exists("apps/b/data")).result).toBe(true)
+        expect((await client().exists("apps/b/zzz")).result).toBe(false)
+        expect(fern.getMountFiles).toHaveBeenLastCalledWith(
+            {mount_id: "m1", path: "apps/b", depth: 1},
+            expect.anything(),
+        )
+    })
+
+    it("stat returns the file's FileStat + etag; folders and missing files are not_found", async () => {
+        fern.getMountFiles.mockResolvedValue(listing)
+        expect(await client().stat("apps/b/app.json")).toEqual({
+            result: {path: "apps/b/app.json", size: 12, mtime: 1700, etag: "ea"},
+            etag: "ea",
+        })
+        await expectCode(client().stat("apps/b/data"), "not_found")
+        await expectCode(client().stat("apps/b/nope"), "not_found")
+    })
+})
+
+describe("write / writeJSON", () => {
+    it("PUTs a raw text body through axios with the encoded path and no If-Match by default", async () => {
+        http.put.mockResolvedValueOnce({data: {path: "apps/b/a b.txt", size: 6, etag: "e2"}})
+        const res = await client().write("apps/b/a b.txt", "héllo")
+        expect(http.put).toHaveBeenCalledTimes(1)
+        const [url, body, config] = http.put.mock.calls[0]
+        expect(url).toBe("https://api.test/mounts/m1/files?path=apps%2Fb%2Fa%20b.txt")
+        expect(body).toBe("héllo")
+        expect(config.params).toEqual({project_id: "p1"})
+        expect(config.headers).toEqual({"Content-Type": "text/plain; charset=utf-8"})
+        expect(res).toEqual({result: {path: "apps/b/a b.txt", size: 6, etag: "e2"}, etag: "e2"})
+    })
+
+    it("sends If-Match when the host resolved one", async () => {
+        http.put.mockResolvedValueOnce({data: {path: "x", size: 1, etag: "e3"}})
+        await client().write("x", "a", {ifMatch: "e1"})
+        expect(http.put.mock.calls[0][2].headers).toEqual({
+            "Content-Type": "text/plain; charset=utf-8",
+            "If-Match": "e1",
+        })
+    })
+
+    it("fills in path/size locally when the server omits them (pre-lane-B)", async () => {
+        http.put.mockResolvedValueOnce({data: {}})
+        expect(await client().write("x", "héllo")).toEqual({
+            result: {path: "x", size: 6, etag: null},
+            etag: null,
+        })
+    })
+
+    it("refuses a body over WRITE_CAP before any request", async () => {
+        await expectCode(client().write("x", "x".repeat(WRITE_CAP + 1)), "too_large")
+        expect(http.put).not.toHaveBeenCalled()
+    })
+
+    it("writeJSON validates the body before sending", async () => {
+        await expectCode(client().writeJSON("x", "{oops"), "bad_request")
+        expect(http.put).not.toHaveBeenCalled()
+        http.put.mockResolvedValueOnce({data: {path: "x", size: 7, etag: "e"}})
+        await client().writeJSON("x", '{"a":1}', {ifMatch: "old"})
+        expect(http.put.mock.calls[0][1]).toBe('{"a":1}')
+        expect(http.put.mock.calls[0][2].headers["If-Match"]).toBe("old")
+    })
+
+    it("maps a 412 from axios to conflict with the server's etag", async () => {
+        http.put.mockRejectedValueOnce(
+            axiosError(412, {detail: {code: "conflict", etag: "server-etag"}}),
+        )
+        const err = await expectCode(client().write("x", "a", {ifMatch: "stale"}), "conflict")
+        expect(err.etag).toBe("server-etag")
+        expect(err.status).toBe(412)
+    })
+})
+
+describe("remove", () => {
+    it("deletes through Fern with If-Match in requestOptions.headers", async () => {
+        fern.deleteMountFile.mockResolvedValueOnce({deleted: true})
+        const res = await client().remove("apps/b/x.txt", {ifMatch: "e1"})
+        expect(res).toEqual({result: {deleted: true}})
+        expect(fern.deleteMountFile).toHaveBeenCalledWith(
+            {mount_id: "m1", path: "apps/b/x.txt"},
+            {queryParams: {project_id: "p1"}, headers: {"If-Match": "e1"}},
+        )
+    })
+
+    it("sends no If-Match header when none was resolved (force / never read)", async () => {
+        fern.deleteMountFile.mockResolvedValueOnce({deleted: true})
+        await client().remove("x")
+        expect(fern.deleteMountFile.mock.calls[0][1]).toEqual({
+            queryParams: {project_id: "p1"},
+            headers: {},
+        })
+    })
+
+    it("maps a 412 on delete to conflict with etag null when the file is gone", async () => {
+        fern.deleteMountFile.mockRejectedValueOnce(
+            fernError(412, {detail: {code: "conflict", etag: null}}),
+        )
+        const err = await expectCode(client().remove("x", {ifMatch: "e1"}), "conflict")
+        expect(err.etag).toBeNull()
+    })
+})
+
+describe("error mapping", () => {
+    it.each([
+        [404, "not_found"],
+        [412, "conflict"],
+        [413, "too_large"],
+        [403, "read_only"],
+        [500, "unavailable"],
+        [401, "unavailable"],
+    ])("HTTP %s → %s for Fern and axios errors alike", async (status, code) => {
+        expect(toFsClientError(fernError(status)).code).toBe(code)
+        expect(toFsClientError(axiosError(status)).code).toBe(code)
+        fern.getMountFiles.mockRejectedValueOnce(fernError(status))
+        await expectCode(client().read("x"), code)
+        http.put.mockRejectedValueOnce(axiosError(status))
+        await expectCode(client().write("x", "a"), code)
+    })
+
+    it("a network failure with no status is unavailable and keeps the message", () => {
+        const err = toFsClientError(new Error("Network Error"))
+        expect(err.code).toBe("unavailable")
+        expect(err.message).toBe("Network Error")
+        expect(err.status).toBeUndefined()
+    })
+
+    it("a 412 without a detail body still reports conflict with etag null", () => {
+        const err = toFsClientError(fernError(412, "Precondition Failed"))
+        expect(err.code).toBe("conflict")
+        expect(err.etag).toBeNull()
+    })
+
+    it("an FsClientError passes through unchanged", () => {
+        const original = new FsClientError("too_large", "cap")
+        expect(toFsClientError(original)).toBe(original)
+    })
+})
