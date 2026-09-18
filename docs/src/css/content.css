@@ -11,6 +11,16 @@
     padding: var(--doc-main-padding-top) var(--doc-main-padding-x) var(--doc-main-padding-bottom) !important;
   }
 
+  /* Wide screens: the sidebar stays on the left edge and the TOC on the
+     right; the reading column is centred in the space between them. Pages
+     without a TOC (changelog, roadmap, 404) centre their list column the
+     same way. Below the frame width the auto margins are 0 and nothing
+     moves. */
+  .sidebarShellMain > .container {
+    max-width: calc(var(--doc-list-width) + 2 * var(--doc-main-padding-x));
+    margin: 0 auto;
+  }
+
   /* Reading column grows; the TOC column is a fixed 240px on the right.
      The OpenAPI theme caps its column at 75%; the frame sets the widths instead. */
   [class*="docMainContainer"] > .container > .row > .col:first-child {
@@ -50,6 +60,8 @@
 .pagination-nav,
 .theme-doc-footer {
   max-width: var(--doc-content-width);
+  margin-left: auto;
+  margin-right: auto;
 }
 
 .theme-doc-markdown h1:first-child,
