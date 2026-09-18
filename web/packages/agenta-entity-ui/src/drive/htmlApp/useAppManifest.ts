@@ -6,7 +6,7 @@ import {useEffect, useState} from "react"
 
 import {APP_MANIFEST_FILENAME, parseManifest, type AppManifest} from "@agenta/entities/drive"
 
-import {joinPath, type AssembleIo} from "./assemble"
+import {joinAppPath, type AssembleIo} from "./assemble"
 
 export interface AppManifestState {
     manifest: AppManifest | null
@@ -24,7 +24,7 @@ export function useAppManifest(io: AssembleIo | null, dir: string): AppManifestS
         }
         let alive = true
         setState({manifest: null, loaded: false})
-        io.fetchText(joinPath(dir, APP_MANIFEST_FILENAME))
+        io.fetchText(joinAppPath(dir, APP_MANIFEST_FILENAME))
             .then((text) => {
                 if (!alive) return
                 setState({manifest: text == null ? null : parseManifest(text), loaded: true})

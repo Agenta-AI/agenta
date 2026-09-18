@@ -37,7 +37,7 @@ export const dirOf = (path: string): string =>
     path.includes("/") ? path.split("/").slice(0, -1).join("/") : ""
 
 /** `dir/name`, or just `name` at the root. */
-export const joinPath = (dir: string, name: string): string => (dir ? `${dir}/${name}` : name)
+export const joinAppPath = (dir: string, name: string): string => (dir ? `${dir}/${name}` : name)
 
 /** True when `path` is `dir` itself or sits below it (`dir === ""` is the mount root: everything). */
 export const withinDir = (dir: string, path: string): boolean =>
