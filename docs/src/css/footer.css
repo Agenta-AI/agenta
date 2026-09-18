@@ -8,8 +8,15 @@
 
 @media (min-width: 997px) {
   html:is(.docs-wrapper, .blog-wrapper, .roadmap-page, .not-found-page) .footer {
+    margin-left: calc(var(--doc-sidebar-width) - 1px);
+    border-left: 1px solid var(--borderdefault);
+  }
+}
+
+/* Wide screens: follows the capped, centred frame (content.css). */
+@media (min-width: 1600px) {
+  html:is(.docs-wrapper, .blog-wrapper, .roadmap-page, .not-found-page) .footer {
     max-width: calc(var(--doc-frame-max) - var(--doc-sidebar-width) + 1px);
     margin-left: calc(var(--doc-frame-offset) + var(--doc-sidebar-width) - 1px);
-    border-left: 1px solid var(--borderdefault);
   }
 }

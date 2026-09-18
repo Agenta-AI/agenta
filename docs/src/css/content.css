@@ -4,16 +4,6 @@
 @media (min-width: 997px) {
   /* !important: the doc container carries Infima's padding-top--md /
      padding-bottom--lg utilities, which are !important themselves. */
-  /* Wide screens: the frame (sidebar + reading column + TOC) is capped and
-     centred as one block. The docs plugin's root and SidebarShell's root get
-     the same treatment; the fixed sidebar, the header row and the footer
-     shift by the same offset (sidebar.css, navbar.css, footer.css). */
-  [class*="docRoot_"],
-  .sidebarShell {
-    max-width: var(--doc-frame-max);
-    margin-left: var(--doc-frame-offset);
-  }
-
   [class*="docMainContainer"] > .container,
   .sidebarShellMain > .container {
     max-width: none;
@@ -43,6 +33,19 @@
     flex: 0 0 var(--doc-toc-width);
     max-width: var(--doc-toc-width);
     padding-left: 24px;
+  }
+}
+
+/* Wide screens (the threshold matches --doc-frame-offset in tokens.css): the
+   frame (sidebar + reading column + TOC) is capped and centred as one block.
+   The docs plugin's root and SidebarShell's root get the same treatment; the
+   fixed sidebar, the header row and the footer shift by the same offset
+   (sidebar.css, navbar.css, footer.css). */
+@media (min-width: 1600px) {
+  [class*="docRoot_"],
+  .sidebarShell {
+    max-width: var(--doc-frame-max);
+    margin-left: var(--doc-frame-offset);
   }
 }
 
