@@ -160,7 +160,7 @@ tools, `tesseract`, and `sqlite3`. Run `which <tool>` before you install anythin
 is missing, download it from its official source and run it yourself. If the source publishes
 a checksum or a signature, check it before you run the file. There is no Docker and no GPU.
 
-Keep every tool you add under `agent-files/.tools/`. That folder is hidden from the person and
+Keep every tool you add under `agent-files/.tools/`. That folder is dimmed for the person and
 survives across sessions. Before each session starts, the platform copies
 `agent-files/.tools/bin/` to `.tools/bin/` in your working directory, marks the files
 executable, and runs `agent-files/.tools/setup.sh` if it exists, with a two-minute limit.
