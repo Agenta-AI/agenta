@@ -42,8 +42,11 @@ const scopedKey = (userId: string, key: string) => `agenta:settings:${userId}:${
  *
  * Reads `false` and writes nothing while the user is unknown: a preference written under no
  * user would be inherited by the next person to sign in on this browser.
+ *
+ * Exported for packages that own a flag's key (e.g. `AGENT_APPS_FLAG` in `@agenta/entities`):
+ * call it ONCE at module level — every call builds its own atom family.
  */
-const userScopedFlagAtom = (key: string) => {
+export const userScopedFlagAtom = (key: string) => {
     const family = atomFamily((userId: string) =>
         atomWithStorage<boolean>(scopedKey(userId, key), false),
     )

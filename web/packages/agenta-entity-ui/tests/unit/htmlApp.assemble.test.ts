@@ -11,10 +11,15 @@
  */
 import {beforeAll, describe, expect, it} from "vitest"
 
+import {RUN_CSP} from "@agenta/entities/drive"
+
 import {
     assemblePreview,
+    assembleRunDocument,
     blobToDataUri,
     HTML_NAV_INTERCEPTOR,
+    PLACEHOLDER_BRIDGE_STUB,
+    tokensToCss,
     type AssembleIo,
 } from "../../src/drive/htmlApp/assemble"
 
@@ -245,5 +250,106 @@ describe("assemblePreview is byte-identical to the pre-move inlineHtmlAssets", (
         const out = await assemblePreview(ASSETS, {dir: "site", io: null})
         expect(out).toBe(await legacyInlineHtmlAssets(ASSETS, null, "site", null))
         expect(out).toContain('href="./styles/app.css"')
+    })
+})
+
+// ---------------------------------------------------------------------------------------------
+// Run (agent HTML apps)
+// ---------------------------------------------------------------------------------------------
+
+const APP_FILES: Record<string, string> = {
+    "app/app.js": 'console.log("app"); var s = "</script>";',
+    "app/site.css": ".ag-app{padding:8px}",
+}
+const appIo: AssembleIo = {
+    fetchText: async (path) => APP_FILES[path] ?? null,
+    fetchDataUri: async () => null,
+}
+const APP = `<html>
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="site.css">
+<script src="app.js"></script>
+<script src="https://cdn.example.com/lib.js"></script>
+<script src="missing.js"></script>
+</head>
+<body onload="boot()"><a href="guide.html">guide</a><script>window.inline = 1</script></body>
+</html>`
+const TOKENS = {"--ag-bg": "#fff", "--ag-fg": "#111", "--ag-not-a-token": "x"}
+
+describe("assembleRunDocument", () => {
+    it("keeps author scripts and handlers, inlines same-folder script src, drops external", async () => {
+        const {html, errors} = await assembleRunDocument(APP, {
+            dir: "app",
+            io: appIo,
+            tokens: TOKENS,
+            kitCss: ".ag-btn{}",
+        })
+        expect(html).toContain('<body onload="boot()">')
+        expect(html).toContain("<script>window.inline = 1</script>")
+        // Inlined, with its own terminator neutralised.
+        expect(html).toContain('console.log("app"); var s = "<\\/script>";')
+        expect(html).not.toContain('src="app.js"')
+        expect(html).not.toContain("cdn.example.com")
+        expect(html).not.toContain("missing.js")
+        expect(errors).toEqual([
+            "External script dropped by the sandbox: https://cdn.example.com/lib.js",
+            "Script not found in the app folder: missing.js",
+        ])
+        // No Preview interceptor in Run.
+        expect(html).not.toContain(HTML_NAV_INTERCEPTOR)
+        expect(html).toContain("<style>.ag-app{padding:8px}</style>")
+    })
+
+    it("injects CSP, tokens, kit and the stub at the top of head, in that order", async () => {
+        const {html} = await assembleRunDocument(APP, {
+            dir: "app",
+            io: appIo,
+            tokens: TOKENS,
+            kitCss: ".ag-btn{}",
+        })
+        const head = html.slice(html.indexOf("<head>") + 6)
+        const csp = head.indexOf(`<meta http-equiv="Content-Security-Policy" content="${RUN_CSP}">`)
+        const tokens = head.indexOf(
+            '<style id="agenta-tokens">:root{--ag-bg:#fff;--ag-fg:#111}</style>',
+        )
+        const kit = head.indexOf('<style id="agenta-kit">.ag-btn{}</style>')
+        const stub = head.indexOf(`<script>${PLACEHOLDER_BRIDGE_STUB}</script>`)
+        const charset = head.indexOf('<meta charset="utf-8">')
+        expect(csp).toBe(0)
+        expect(tokens).toBeGreaterThan(csp)
+        expect(kit).toBeGreaterThan(tokens)
+        expect(stub).toBeGreaterThan(kit)
+        expect(charset).toBeGreaterThan(stub)
+    })
+
+    it("omits the kit block when kitCss is null and accepts a custom stub", async () => {
+        const {html} = await assembleRunDocument(APP, {
+            dir: "app",
+            io: appIo,
+            tokens: {},
+            kitCss: null,
+            bridgeStub: "window.__stub=1",
+        })
+        expect(html).not.toContain('id="agenta-kit"')
+        expect(html).toContain('<style id="agenta-tokens">:root{}</style>')
+        expect(html).toContain("<script>window.__stub=1</script>")
+        expect(html).not.toContain(PLACEHOLDER_BRIDGE_STUB)
+    })
+
+    it("without io: every script src is dropped with a note, the document still assembles", async () => {
+        const {html, errors} = await assembleRunDocument(APP, {
+            dir: "app",
+            io: null,
+            tokens: {},
+            kitCss: "",
+        })
+        expect(errors).toHaveLength(3)
+        expect(html).toContain('id="agenta-kit"')
+        expect(html).toContain('href="site.css"')
+    })
+
+    it("tokensToCss only emits kit token names", () => {
+        expect(tokensToCss(TOKENS)).toBe(":root{--ag-bg:#fff;--ag-fg:#111}")
     })
 })
