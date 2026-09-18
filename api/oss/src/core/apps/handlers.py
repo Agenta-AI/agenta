@@ -4,7 +4,8 @@ Both are registered in ``core/tools/platform_handlers.py`` and reached through
 ``POST /tools/call``. The model-facing tool definitions (``*_TOOL_DEFINITION``) mirror the SDK's
 ``PlatformOp`` fields so the SDK op catalog entry is a copy, not a rewrite.
 
-Mount resolution: the handler receives no mount. It receives ``session_id`` (bound from
+Mount resolution: dispatch hands the handler the router's ``MountsService``; no mount id
+travels in the call. It receives ``session_id`` (bound from
 ``$ctx.session.id``, stripped from the model-visible schema) and resolves the session's cwd
 mount through ``MountsService.get_or_create_session_mount``; ``list_starters`` also takes
 ``artifact_id`` (``$ctx.workflow.artifact.id``) to reach the agent mount. Both fail closed the
@@ -20,7 +21,10 @@ from uuid import UUID
 from oss.src.core.apps.service import AGENT_STARTERS_DIR, AppsError, AppsService
 from oss.src.core.mounts.types import MountError
 from oss.src.core.tools.dtos import AgentError, PlatformHandlerResult
-from oss.src.core.tools.exceptions import PlatformToolHandlerRefused
+from oss.src.core.tools.exceptions import (
+    PlatformToolHandlerRefused,
+    PlatformToolHandlerUnavailable,
+)
 
 CREATE_APP_CALL_REF = "tools.agenta.create_app"
 LIST_STARTERS_CALL_REF = "tools.agenta.list_starters"
@@ -100,39 +104,13 @@ LIST_STARTERS_TOOL_DEFINITION: Dict[str, Any] = {
 # Context
 # ---------------------------------------------------------------------------
 
-_default_mounts_service: Any = None
 
-
-def default_mounts_service() -> Any:
-    """The process-wide ``MountsService`` for handlers that are dispatched without one.
-
-    Interim seam: ``dispatch_platform_tool_handler`` passes only the workflows and tracing
-    services, so this builds a ``MountsService`` from the same primitives the entrypoint uses
-    (the shared transactions engine and the env-configured object store). Passing the router's
-    instance through dispatch replaces this without touching the handlers.
-    """
-    global _default_mounts_service
-    if _default_mounts_service is None:
-        from oss.src.core.mounts.service import MountsService
-        from oss.src.core.store.storage import ObjectStore
-        from oss.src.dbs.postgres.mounts.dao import MountsDAO
-        from oss.src.dbs.postgres.shared.engine import get_transactions_engine
-        from oss.src.utils.env import env
-
-        _default_mounts_service = MountsService(
-            mounts_dao=MountsDAO(engine=get_transactions_engine()),
-            mounts_store=ObjectStore(
-                endpoint_url=env.store.endpoint_url,
-                access_key=env.store.access_key,
-                secret_key=env.store.secret_key,
-                region=env.store.region,
-                sts_endpoint_url=env.store.sts_endpoint_url,
-                signing_key=env.store.signing_key,
-            ),
-            bucket=env.store.bucket,
-            namespace=env.store.namespace,
+def _require_mounts(mounts_service: Any, *, op: str) -> Any:
+    if mounts_service is None:
+        raise PlatformToolHandlerUnavailable(
+            f"{op} is not enabled on this deployment: mounts service is missing."
         )
-    return _default_mounts_service
+    return mounts_service
 
 
 def _parse(arguments: Any) -> Dict[str, Any]:
@@ -188,7 +166,7 @@ async def handle_create_app(
     except AppsError as e:
         return _failure(e)
     session_id = _bound_session_id(parsed)
-    mounts = mounts_service or default_mounts_service()
+    mounts = _require_mounts(mounts_service, op="create_app")
     apps = AppsService(mounts_service=mounts)
 
     try:
@@ -230,7 +208,7 @@ async def handle_list_starters(
         parsed = _parse(arguments) if arguments not in (None, "") else {}
     except AppsError as e:
         return _failure(e)
-    mounts = mounts_service or default_mounts_service()
+    mounts = _require_mounts(mounts_service, op="list_starters")
     apps = AppsService(mounts_service=mounts)
 
     agent_mount_id: Optional[UUID] = None

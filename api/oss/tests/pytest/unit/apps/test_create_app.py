@@ -8,11 +8,16 @@ from uuid import uuid4
 import pytest
 
 from oss.src.core.apps.handlers import (
+    CREATE_APP_CALL_REF,
     CREATE_APP_TOOL_DEFINITION,
     handle_create_app,
 )
 from oss.src.core.apps.service import AppsError, AppsService
-from oss.src.core.tools.exceptions import PlatformToolHandlerRefused
+from oss.src.core.tools.exceptions import (
+    PlatformToolHandlerRefused,
+    PlatformToolHandlerUnavailable,
+)
+from oss.src.core.tools.platform_handlers import dispatch_platform_tool_handler
 
 PROJECT = uuid4()
 MOUNT = uuid4()
@@ -172,3 +177,36 @@ def test_tool_definition_hides_the_bound_field_from_the_model():
         "session_id": "$ctx.session.id"
     }
     assert CREATE_APP_TOOL_DEFINITION["read_only"] is False
+
+
+# --- dispatch --------------------------------------------------------------------
+
+
+async def test_dispatch_hands_the_handler_the_routers_mounts_service(fake_mounts):
+    result = await dispatch_platform_tool_handler(
+        call_ref=CREATE_APP_CALL_REF,
+        arguments={"starter": "board", "dir": "apps/sprint", "session_id": "sess-1"},
+        headers=None,
+        project_id=PROJECT,
+        user_id=uuid4(),
+        workflows_service=None,
+        tracing_service=None,
+        mounts_service=fake_mounts,
+    )
+    assert result.ok is True
+    assert fake_mounts.session_calls == [
+        {"project_id": PROJECT, "session_id": "sess-1"}
+    ]
+
+
+async def test_dispatch_without_a_mounts_service_is_unavailable():
+    with pytest.raises(PlatformToolHandlerUnavailable):
+        await dispatch_platform_tool_handler(
+            call_ref=CREATE_APP_CALL_REF,
+            arguments={"starter": "board", "dir": "apps/x", "session_id": "sess-1"},
+            headers=None,
+            project_id=PROJECT,
+            user_id=uuid4(),
+            workflows_service=None,
+            tracing_service=None,
+        )

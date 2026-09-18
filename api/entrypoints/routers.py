@@ -1134,6 +1134,7 @@ tools = ToolsRouter(
     tools_service=tools_service,
     workflows_service=workflows_service,
     tracing_service=tracing_service,
+    mounts_service=mounts_service,
 )
 
 triggers = TriggersRouter(
