@@ -67,3 +67,6 @@ export const userScopedFlagAtom = (key: string) => {
 
 /** Experimental switch for the Playground's session/turn inspector controls. */
 export const playgroundInspectorEnabledAtom = userScopedFlagAtom("playground-inspector")
+
+/** Experimental switch for Run on HTML files in the drive; key mirrors `AGENT_APPS_FLAG`. */
+export const agentAppsEnabledAtom = userScopedFlagAtom("agent-apps")

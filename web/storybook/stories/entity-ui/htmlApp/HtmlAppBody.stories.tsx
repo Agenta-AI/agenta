@@ -47,7 +47,10 @@ const BodyStory = ({
     latencyMs,
     canEditMounts = true,
     preGrant,
+    controlledView,
 }: {
+    /** The Files pane owns the tabs: the body follows this view and renders no tab row. */
+    controlledView?: "preview" | "run"
     enabled: boolean
     mount?: typeof STORY_MOUNT | null
     /** Slow io: the assembling skeleton stays visible. */
@@ -90,6 +93,7 @@ const BodyStory = ({
                     displayPath={`${APP_DIR}/index.html`}
                     content={BOARD_APP["index.html"]}
                     onNavigate={() => undefined}
+                    controlledView={controlledView}
                 />
             </Frame>
         </HtmlAppEnvContext.Provider>
@@ -109,6 +113,12 @@ export const FlagOn: Story = {
 /** Flag ON with the grant already stored — Run mounts straight away (what a second visit sees). */
 export const FlagOnGranted: Story = {
     render: () => <BodyStory enabled preGrant="read-write" />,
+}
+
+/** The Files pane path: the toolbar above owns Source | Preview | Run, so the body shows no tabs
+ * and goes straight to Run (through the grant sheet when nothing is stored). */
+export const HostOwnedTabsRun: Story = {
+    render: () => <BodyStory enabled preGrant="read-write" controlledView="run" />,
 }
 
 /** Acceptance: loading — slow mount io keeps the assembling skeleton up (Preview and Run). */

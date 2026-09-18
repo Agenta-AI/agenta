@@ -282,6 +282,8 @@ const HtmlBody = ({
     displayPath,
     onNavigate,
     previewOnly = false,
+    controlledView,
+    onViewChange,
 }: {
     mount: Mount | null
     path: string
@@ -292,6 +294,9 @@ const HtmlBody = ({
     onNavigate?: (path: string) => void
     /** Just the rendered document; the host offers the source itself. */
     previewOnly?: boolean
+    /** Host-owned tabs: the rendered document or the running app, no tab row. */
+    controlledView?: "preview" | "run"
+    onViewChange?: (view: "preview" | "run") => void
 }) => {
     const contentQuery = useDriveFileText(mount, path)
     const content = contentQuery.data
@@ -319,6 +324,8 @@ const HtmlBody = ({
                 displayPath={displayPath}
                 onNavigate={onNavigate}
                 previewOnly={previewOnly}
+                controlledView={controlledView}
+                onViewChange={onViewChange}
             />
         </Inset>
     )
@@ -331,6 +338,19 @@ export const DriveHtmlPreview = (props: {
     displayPath?: string
     onNavigate?: (path: string) => void
 }) => <HtmlBody {...props} previewOnly />
+
+/** Preview or Run under the Files pane's own Source | Preview | Run toolbar. */
+export const DriveHtmlApp = (props: {
+    mount: Mount | null
+    path: string
+    displayPath?: string
+    onNavigate?: (path: string) => void
+    view: "preview" | "run"
+    onViewChange: (view: "preview" | "run") => void
+}) => {
+    const {view, ...rest} = props
+    return <HtmlBody {...rest} controlledView={view} />
+}
 
 // ---- Media bodies (bytes endpoint → cached blob → object URL) --------------------------------
 

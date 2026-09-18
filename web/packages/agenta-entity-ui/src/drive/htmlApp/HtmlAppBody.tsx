@@ -12,16 +12,17 @@
 import {createContext, useCallback, useContext, useEffect, useMemo, useRef, useState} from "react"
 
 import {
-    AGENT_APPS_FLAG,
     createHtmlAppHost,
     fetchMountFileBlob,
+    getGrant,
     isAgentFileUploadsEnabled,
+    setGrant as storeGrant,
     type GrantLevel,
     type HtmlAppHost,
     type HtmlAppHostOptions,
 } from "@agenta/entities/drive"
 import {type Mount} from "@agenta/entities/session"
-import {projectIdAtom, userScopedFlagAtom} from "@agenta/shared/state"
+import {agentAppsEnabledAtom, projectIdAtom} from "@agenta/shared/state"
 import {Segmented, Skeleton} from "@agenta/ui/ui"
 import {useAtomValue} from "jotai"
 
@@ -36,8 +37,8 @@ import {useChangedHint} from "./useChangedHint"
 
 export {dirOf}
 
-/** The feature flag: Settings › Preferences › Experiments writes it, the viewer reads it. */
-export const agentAppsEnabledAtom = userScopedFlagAtom(AGENT_APPS_FLAG)
+/** The feature flag: Settings › Preferences writes it, the viewer reads the same atom. */
+export {agentAppsEnabledAtom}
 
 // ---------------------------------------------------------------------------------------------
 // Environment (what a host or a story injects)
@@ -50,7 +51,7 @@ export interface GrantStore {
 
 const grantKey = (mountId: string, dir: string) => `${mountId}::${dir}`
 
-/** Session-lived grants (a reload asks again — deliberate for v1). */
+/** An isolated in-memory store (stories, tests). */
 export const createGrantStore = (): GrantStore => {
     const grants = new Map<string, GrantLevel>()
     return {
@@ -61,7 +62,8 @@ export const createGrantStore = (): GrantStore => {
     }
 }
 
-const defaultGrants = createGrantStore()
+/** Tab-lived grants (sessionStorage): a reload keeps the answer, a new browser session asks. */
+const defaultGrants: GrantStore = {get: getGrant, set: storeGrant}
 
 export interface HtmlAppEnv {
     /** Override the flag (stories); default reads {@link agentAppsEnabledAtom}. */
@@ -125,6 +127,10 @@ export interface HtmlAppBodyProps {
     previewOnly?: boolean
     /** The pane is on screen (a hidden tab pauses the app via `host.setVisible`). */
     visible?: boolean
+    /** The host owns the tabs (the Files pane toolbar): follow this view, render no tabs. */
+    controlledView?: "preview" | "run"
+    /** With `controlledView`: the body had to leave Run (the grant sheet was cancelled). */
+    onViewChange?: (view: "preview" | "run") => void
 }
 
 export type HtmlAppView = "preview" | "source" | "run"
@@ -137,6 +143,8 @@ export function HtmlAppBody({
     onNavigate,
     previewOnly = false,
     visible = true,
+    controlledView,
+    onViewChange,
 }: HtmlAppBodyProps) {
     const env = useContext(HtmlAppEnvContext)
     const projectId = useAtomValue(projectIdAtom)
@@ -262,7 +270,14 @@ export function HtmlAppBody({
     const cancelGrant = useCallback(() => {
         setSheetOpen(false)
         setView("preview")
-    }, [])
+        onViewChange?.("preview")
+    }, [onViewChange])
+
+    // Host-owned tabs: follow the host's view; Run still goes through the grant.
+    useEffect(() => {
+        if (!controlledView) return
+        pickView(controlledView === "run" && runnable ? "run" : "preview")
+    }, [controlledView, runnable, pickView])
 
     // `onNavigate` speaks presented paths; RunView resolves mount-relative ones.
     const toDisplayPath = useCallback(
@@ -285,7 +300,7 @@ export function HtmlAppBody({
 
     return (
         <>
-            {previewOnly ? null : (
+            {previewOnly || controlledView ? null : (
                 <div className="flex shrink-0 items-center border-0 border-b border-solid border-colorBorderSecondary p-1.5">
                     <Segmented
                         size="sm"
