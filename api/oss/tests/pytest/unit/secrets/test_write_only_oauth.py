@@ -228,3 +228,149 @@ async def test_a_row_written_before_the_fix_is_still_redacted(service):
     assert CLIENT_SECRET not in _rendered(public)
     # The non-credential registration metadata survives the scrub.
     assert public.data.provider.extra["client_info"]["client_id"] == "client-123"
+
+
+# --- the mark is the server's to set, not the caller's -------------------------------- #
+
+
+def _grant_dto(slug: str, **overrides) -> CreateSecretDTO:
+    return CreateSecretDTO(
+        slug=slug,
+        header={"name": "OAuth grant"},
+        secret={
+            "kind": "oauth_grant",
+            "data": {
+                "grant": {
+                    "server": SERVER_URL,
+                    "access_token": ACCESS_TOKEN,
+                    "refresh_token": REFRESH_TOKEN,
+                    "scopes": ["read"],
+                }
+            },
+        },
+        **overrides,
+    )
+
+
+@pytest.mark.asyncio
+async def test_a_caller_cannot_ask_for_a_readable_grant(service):
+    """`write_only=False` on a grant is overruled, not obeyed.
+
+    The field is the creator's choice for a key someone pasted in. A grant is minted by the
+    provider for this installation and its refresh token buys new access tokens for as long
+    as the grant lives, so the answer is the server's.
+    """
+    asked = _grant_dto("oauth-grant-asked-readable", write_only=False)
+    # Asserted on the REQUEST, because the stored row would read as write-only anyway: the
+    # response model forces it too, and a case that only looked there would pass with this
+    # boundary removed.
+    assert asked.write_only is True
+
+    created = await service.create_secret(
+        project_id=PROJECT_ID,
+        create_secret_dto=asked,
+    )
+
+    assert created.write_only is True
+
+    public = redact_secret_response(created)
+    assert public.data.grant.access_token is None
+    assert public.data.grant.refresh_token is None
+    assert ACCESS_TOKEN not in _rendered(public)
+    assert REFRESH_TOKEN not in _rendered(public)
+
+
+def test_a_stored_row_with_no_mark_is_read_as_write_only():
+    """The fail-closed default, and why no data migration is needed.
+
+    `write_only` rides inside the encrypted JSON, so a grant stored before the mark existed
+    carries none at all and used to read back as `False`. It is decided from the KIND on the
+    way out now, so an already-stored row is redacted where it stands.
+    """
+    stored = SecretResponseDTO(
+        id=uuid4(),
+        slug="oauth-grant-unmarked",
+        kind="oauth_grant",
+        data={
+            "grant": {
+                "server": SERVER_URL,
+                "access_token": ACCESS_TOKEN,
+                "refresh_token": REFRESH_TOKEN,
+                "scopes": ["read"],
+            }
+        },
+        header={"name": "OAuth grant"},
+        # No write_only at all: exactly what a row written before the rule reads back as.
+    )
+
+    assert stored.write_only is True
+
+    public = redact_secret_response(stored)
+    assert ACCESS_TOKEN not in _rendered(public)
+    assert REFRESH_TOKEN not in _rendered(public)
+
+
+def test_an_update_cannot_carry_an_old_readable_mark_forward():
+    """The same rule where a row is rewritten, so the stored mark stops being wrong.
+
+    The update mapping carries the stored mark over, which is right for every other kind and
+    would keep an unmarked grant unmarked for good. The kind comes off the ROW, so no request
+    body can move a secret into or out of the rule.
+    """
+    from oss.src.dbs.postgres.secrets.dbes import SecretsDBE
+    from oss.src.dbs.postgres.secrets.mappings import map_secrets_dto_to_dbe_update
+    from oss.src.core.secrets.dtos import UpdateSecretDTO
+
+    dbe = SecretsDBE(
+        id=uuid4(),
+        slug="oauth-grant-unmarked",
+        name="OAuth grant",
+        kind="oauth_grant",
+        # Stored without the mark, as a pre-rule row is.
+        data=json.dumps({"grant": {"server": SERVER_URL, "scopes": ["read"]}}),
+    )
+
+    map_secrets_dto_to_dbe_update(
+        dbe,
+        UpdateSecretDTO(
+            header={"name": "OAuth grant"},
+            secret={
+                "kind": "oauth_grant",
+                "data": {
+                    "grant": {
+                        "server": SERVER_URL,
+                        "access_token": ACCESS_TOKEN,
+                        "refresh_token": REFRESH_TOKEN,
+                        "scopes": ["read"],
+                    }
+                },
+            },
+        ),
+    )
+
+    assert json.loads(dbe.data).get("write_only") is True
+
+
+@pytest.mark.asyncio
+async def test_the_broker_still_reads_the_real_grant(service):
+    """The one caller that needs the value keeps it.
+
+    The gateway exchanges and refreshes tokens server-side. Forcing the mark decides what a
+    REDACTED projection carries; it must not touch the in-process read, nor the projection a
+    caller holding the resolve grant is given.
+    """
+    from oss.src.core.secrets.redaction import project_secret_response
+
+    created = await service.create_secret(
+        project_id=PROJECT_ID,
+        create_secret_dto=_grant_dto("oauth-grant-broker"),
+    )
+
+    # In-process, below the response boundary: the broker's own path.
+    assert created.data.grant.access_token == ACCESS_TOKEN
+    assert created.data.grant.refresh_token == REFRESH_TOKEN
+
+    # And through the projection a runtime caller with the resolve grant receives.
+    revealed = project_secret_response(created, reveal_write_only=True)
+    assert revealed.data.grant.access_token == ACCESS_TOKEN
+    assert revealed.data.grant.refresh_token == REFRESH_TOKEN

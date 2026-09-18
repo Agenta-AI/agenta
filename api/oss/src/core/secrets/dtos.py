@@ -11,6 +11,7 @@ from oss.src.core.secrets.managed import (
 
 from oss.src.core.secrets.enums import (
     SecretKind,
+    is_always_write_only,
     LLMEndpointProtocol,
     LLMStandardProviderKind,
     MCPStandardProviderKind,
@@ -513,6 +514,15 @@ class CreateSecretDTO(Slug, BaseModel):
     secret: SecretDTO
     write_only: bool = True
 
+    @model_validator(mode="after")
+    def force_write_only_on_unreadable_kinds(self):
+        # Not a rejection: the field is optional and an old client sends nothing, so refusing
+        # `False` outright would fail requests that never meant to ask for a readable grant.
+        # The server decides instead, which is the only reading that cannot be bypassed.
+        if is_always_write_only(self.secret.kind):
+            self.write_only = True
+        return self
+
     @model_validator(mode="before")
     def ensure_header_exists(cls, values):
         # Only a provider_key may arrive header-less: it is named after its provider on create
@@ -630,6 +640,18 @@ class _SecretResponseBaseDTO(Identifier, Slug, BaseModel):
     @classmethod
     def validate_secret_data_based_on_kind(cls, values: Dict[str, Any]):
         return _validate_secret_data_based_on_kind(values, value_required=False)
+
+    @model_validator(mode="after")
+    def force_write_only_on_unreadable_kinds(self):
+        # THE FAIL-CLOSED DEFAULT. `write_only` rides inside the encrypted JSON, and a row
+        # written before the mark existed, or one created with an explicit `False`, reads back
+        # as `False` and would be returned unredacted to anyone holding only VIEW_SECRET.
+        # Deciding it from the KIND here means no stored row can be readable when it should
+        # not be, which is why the fix needs no data migration. Every construction path runs
+        # through this model, the cache rehydration included.
+        if is_always_write_only(self.kind):
+            self.write_only = True
+        return self
 
     @model_validator(mode="after")
     def build_up_model_keys(self):

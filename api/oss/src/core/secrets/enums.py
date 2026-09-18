@@ -12,6 +12,40 @@ class SecretKind(str, Enum):
     OAUTH_GRANT = "oauth_grant"
 
 
+# Kinds whose credential material may NEVER be read back through a response, whatever a
+# caller asked for on create and whatever a stored row happens to say.
+#
+# `write_only` is otherwise the creator's choice, and for most kinds that is right: a
+# provider key someone pasted in is theirs to read back. An OAuth grant is not. Nobody typed
+# it, its access and refresh tokens are minted by the provider for this installation, and the
+# refresh token in particular buys new access tokens for as long as the grant lives. So the
+# one caller that legitimately needs the real value is the broker, which reads it server-side
+# and never through the redacted projection.
+#
+# Enforced in three places, because each answers a different question: `CreateSecretDTO`
+# refuses the caller's `False`, the update mapping refuses to carry an old `False` forward,
+# and `_SecretResponseBaseDTO` forces it on the way out so a row stored before this rule —
+# or any row whose mark went missing — is still redacted. The last one is what makes the
+# default fail CLOSED and is why no data migration is needed.
+ALWAYS_WRITE_ONLY_KINDS = frozenset({SecretKind.OAUTH_GRANT})
+
+
+def is_always_write_only(kind) -> bool:
+    """Is this kind one whose credential material is never readable back?
+
+    Takes the enum or its wire string, because the three call sites hold it differently: a
+    DTO validator sees whatever the caller sent, and the update mapping reads it off a
+    database row as a plain string.
+    """
+    if isinstance(kind, SecretKind):
+        return kind in ALWAYS_WRITE_ONLY_KINDS
+    try:
+        return SecretKind(kind) in ALWAYS_WRITE_ONLY_KINDS
+    except ValueError:
+        # An unknown kind is not one of ours to force. It cannot be an OAuth grant.
+        return False
+
+
 class SubscriptionProviderKind(str, Enum):
     """The product family behind a hosted subscription connection."""
 
