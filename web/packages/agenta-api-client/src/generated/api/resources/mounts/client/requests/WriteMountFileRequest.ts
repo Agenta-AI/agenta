@@ -10,4 +10,6 @@
 export interface WriteMountFileRequest {
     mount_id: string;
     path: string;
+    "if-match"?: string | null;
+    "if-none-match"?: string | null;
 }

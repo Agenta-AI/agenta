@@ -1073,7 +1073,7 @@ export class MountsClient {
         request: AgentaApi.WriteMountFileRequest,
         requestOptions?: MountsClient.RequestOptions,
     ): Promise<core.WithRawResponse<AgentaApi.MountFileWrittenResponse>> {
-        const { mount_id: mountId, path } = request;
+        const { mount_id: mountId, path, "if-match": ifMatch, "if-none-match": ifNoneMatch } = request;
         const _queryParams: Record<string, unknown> = {
             path,
         };
@@ -1081,6 +1081,7 @@ export class MountsClient {
         const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
             _authRequest.headers,
             this._options?.headers,
+            mergeOnlyDefinedHeaders({ "if-match": ifMatch ?? undefined, "if-none-match": ifNoneMatch ?? undefined }),
             requestOptions?.headers,
         );
         const _response = await core.fetcher({
@@ -1146,7 +1147,7 @@ export class MountsClient {
         request: AgentaApi.DeleteMountFileRequest,
         requestOptions?: MountsClient.RequestOptions,
     ): Promise<core.WithRawResponse<AgentaApi.MountFileDeletedResponse>> {
-        const { mount_id: mountId, path } = request;
+        const { mount_id: mountId, path, "if-match": ifMatch } = request;
         const _queryParams: Record<string, unknown> = {
             path,
         };
@@ -1154,6 +1155,7 @@ export class MountsClient {
         const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
             _authRequest.headers,
             this._options?.headers,
+            mergeOnlyDefinedHeaders({ "if-match": ifMatch ?? undefined }),
             requestOptions?.headers,
         );
         const _response = await core.fetcher({

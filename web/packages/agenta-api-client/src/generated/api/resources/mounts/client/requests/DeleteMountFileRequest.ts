@@ -10,4 +10,5 @@
 export interface DeleteMountFileRequest {
     mount_id: string;
     path: string;
+    "if-match"?: string | null;
 }
