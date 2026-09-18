@@ -17,11 +17,10 @@ import {
 } from "../../../fixtures/boardStarter"
 
 // The board starter (api/oss/src/core/apps/starters/board@1) running against the mock host in
-// a sandboxed iframe. Lane C's RunView is not in this branch, so the harness below is the
-// minimal iframe host: it builds the srcDoc (CSP + story kit + story stub + index.html),
-// attaches the mock on load, and offers the two agent edits a reviewer cannot otherwise
-// trigger: an announced one (`externalWrite`, which also sends `changed`) and a silent one
-// (`files.set`, which leaves the app's cached etag stale so its next write conflicts).
+// a sandboxed iframe. The harness is a minimal iframe host: it builds the srcDoc (CSP + kit +
+// bridge stub + index.html), attaches the mock on load, and offers the two agent edits a
+// reviewer cannot otherwise trigger: an announced `externalWrite` (sends `changed`) and a
+// silent one (no `changed`; the stale cached etag makes the app's next write conflict).
 
 type AgentEdit = "announced" | "silent"
 
@@ -64,7 +63,7 @@ function BoardHarness({files, grant, dark, autoEdit, autoEditDelayMs = 1500}: Ha
             host.externalWrite("board.json", next)
             note("agent wrote board.json and the app was told (changed)")
         } else {
-            host.files.set("board.json", next)
+            host.externalWrite("board.json", next, {silent: true})
             note("agent wrote board.json silently: the app's next save will conflict")
         }
     }

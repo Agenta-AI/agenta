@@ -8,13 +8,13 @@
  * Per request, in this order: validate the shape → resolve scope (before any network) → enforce
  * the grant on write methods → body checks → the API call with the implicit `If-Match` from the
  * etag cache (skipped on `force`). Every result refreshes the cache; a successful write/remove
- * calls `onWrite` so the drive can revalidate. Behaviour matches `createMockHtmlAppHost` rule for
+ * calls `onWrite` so the drive can revalidate. `notifyChanged` leaves the cache alone: a write the
+ * app has not merged must conflict, not overwrite the agent's edit. Behaviour matches `createMockHtmlAppHost` rule for
  * rule — the mock's test table runs against this host with a fake client.
  */
 
 import {createEtagCache, type EtagCache} from "./etags"
 import {createFsClient, isFsClientError, type FsClient} from "./fsClient"
-import {normalizeAppPath} from "./mockHost"
 import {
     isFsRequest,
     isIframeToParent,
@@ -69,6 +69,7 @@ export function createHtmlAppHost(
 
     const errorCbs = new Set<(e: HtmlAppHostError) => void>()
     const navCbs = new Set<(href: string) => void>()
+    const changedCbs = new Set<(paths: string[]) => void>()
 
     let channel: MessageChannel | null = null
     /** `changed` paths queued while no iframe is attached; flushed right after `hello`. */
@@ -81,9 +82,6 @@ export function createHtmlAppHost(
     const post = (msg: ParentToIframe) => {
         channel?.port1.postMessage(msg)
     }
-
-    /** Cache key for an app-relative path (normalised so `a/` and `a` share one entry). */
-    const cacheKey = (path: string): string => normalizeAppPath(path) ?? path
 
     const relativeOf = (fullPath: string): string => toAppRelative(dir, fullPath) ?? fullPath
 
@@ -230,9 +228,7 @@ export function createHtmlAppHost(
 
     const notifyChanged = (paths: string[]) => {
         if (paths.length === 0) return
-        // The agent (or an upload) replaced these underneath the app: whatever etag we handed out
-        // is stale, so the next write goes through instead of conflicting on our own cache.
-        etags.invalidate(paths.map(cacheKey))
+        for (const cb of changedCbs) cb(paths)
         if (!channel) {
             pendingChanged.push(...paths)
             return
@@ -270,6 +266,12 @@ export function createHtmlAppHost(
             navCbs.add(cb)
             return () => {
                 navCbs.delete(cb)
+            }
+        },
+        onChanged(cb) {
+            changedCbs.add(cb)
+            return () => {
+                changedCbs.delete(cb)
             }
         },
     }

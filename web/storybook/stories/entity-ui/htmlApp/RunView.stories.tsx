@@ -1,4 +1,4 @@
-import {useMemo, useState} from "react"
+import {useEffect, useMemo, useState} from "react"
 
 import {type FsRequest, type GrantLevel, type MockHtmlAppHostOptions} from "@agenta/entities/drive"
 import {KIT_CSS, RunView} from "@agenta/entity-ui/drive"
@@ -49,8 +49,6 @@ const req = (method: FsRequest["method"], path: string, body?: string, force?: b
 interface DriverAction {
     label: string
     run: (host: StoryHost) => void | Promise<unknown>
-    /** Paths this action changed underneath the app (what `useChangedHint` would report). */
-    changed?: string[]
 }
 
 /** A RunView on a fresh story host, with buttons that stand in for the stub. */
@@ -83,13 +81,14 @@ const RunStory = ({
     const io = useMemo(() => fixtureIo(host, dir), [host, dir])
     const [log, setLog] = useState<string[]>([])
     const [changed, setChanged] = useState<string[]>([])
+    // What `useChangedHint` does in the drive: the host's `changed` paths feed the pill.
+    useEffect(() => host.onChanged?.(setChanged), [host])
 
     const run = async (action: DriverAction) => {
         const before = host.log.length
         await action.run(host)
         const lines = host.log.slice(before).map((r) => `${r.method} ${r.path}`)
         setLog((prev) => [...prev, `▸ ${action.label}`, ...lines].slice(-8))
-        if (action.changed) setChanged(action.changed)
     }
 
     return (
@@ -211,7 +210,6 @@ export const ConflictRetried: Story = {
                 {
                     label: "Agent writes board.json underneath",
                     run: (h) => h.externalWrite("board.json", '{"columns":[],"cards":[]}'),
-                    changed: ["board.json"],
                 },
                 {
                     label: "2. App writes (conflict)",
@@ -245,7 +243,6 @@ export const ChangedHintPending: Story = {
                                 cards: [{id: "n1", column: "new", title: "Fresh card"}],
                             }),
                         ),
-                    changed: ["board.json"],
                 },
             ]}
         />

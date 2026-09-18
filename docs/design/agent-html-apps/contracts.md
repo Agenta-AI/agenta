@@ -76,7 +76,29 @@ the cached etag) and retry. `force: true` on the request skips the header and ov
 the app has never read is written unconditionally. `externalWrite` on the mock is how a test or
 story simulates the agent editing a file underneath the app: the stored content changes, the
 cached etag does not, and a `changed` message is queued (delivered immediately when attached,
-flushed right after `hello` otherwise).
+flushed right after `hello` otherwise). `externalWrite(path, text, {silent: true})` skips the
+`changed` message and is otherwise identical: it is the "agent wrote and the app has not heard
+yet" state, where the app's next write conflicts.
+
+### `changed`
+
+`changed` paths are app-relative, like every other path on the bridge; the host maps the drive's
+mount-relative paths before it sends them. `changed` is a hint and nothing more: neither host
+touches the If-Match cache when it sends one. An app that re-reads on `changed` refreshes its etag
+as a side effect of the read; an app that does not gets `conflict` on its next write, re-reads,
+merges and retries. Dropping the cached etag on `changed` would turn that write into an
+unconditional overwrite of the agent's edit, which is the one outcome the etag exists to prevent.
+
+Both hosts expose the same paths to the UI through the optional `onChanged(cb)` on `HtmlAppHost`
+(the Run strip's "Files changed" pill). The mock adds `emitNav(href)` and `emitError(e)` so a story
+or test can raise what only the iframe normally posts.
+
+### Theme tokens in the stub
+
+The stub rewrites `<style id="agenta-tokens">` on `hello` and on every `theme` message. It accepts
+only names matching `--[A-Za-z0-9_-]+`, plus `color-scheme`, and strips `;{}<>` from values, so a
+token can never close the rule or open a tag. `tokensToCss` in the kit applies the same rule to the
+block the assembler writes before the stub runs.
 
 Paths are relative to the app dir, `/`-separated, no leading slash. `list("")` lists the app dir
 itself; every other method rejects the empty path with `scope`.
@@ -126,8 +148,8 @@ All under the existing mount files endpoints; nothing new is mounted.
 Frontend transport note: the generated Fern `writeMountFile` sends no body, so the host writes
 through the existing axios raw-body path with `Content-Type: text/plain; charset=utf-8` and an
 `If-Match` header. Reads, list and delete go through the Fern client; delete passes `If-Match`
-via `requestOptions.headers` if the generated method accepts it, otherwise it falls back to axios
-too. Either way the 412 body above is what the host maps to `conflict`.
+as the generated request's typed `if-match` field. Either way the 412 body above is what the host
+maps to `conflict`.
 
 ## Platform ops (lane D)
 

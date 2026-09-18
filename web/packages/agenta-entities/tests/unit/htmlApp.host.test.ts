@@ -597,14 +597,22 @@ describe("createHtmlAppHost.handle (transport contract)", () => {
         expect(onWrite).toHaveBeenCalledTimes(3)
     })
 
-    it("notifyChanged invalidates the cached etags so the next write is unconditional", async () => {
+    it("notifyChanged keeps the cached etag, so an un-merged write conflicts", async () => {
         const {host, fake, full} = rw()
         expectOk(await host.handle(req({method: "read", path: "data/notes.txt"})))
         fake.externalWrite(full("data/notes.txt"), "agent")
+        const seen: string[][] = []
+        const off = host.onChanged?.((paths) => seen.push(paths))
         host.notifyChanged(["data/notes.txt"])
-        expect(host.etags.get("data/notes.txt")).toBeUndefined()
-        expectOk(await host.handle(req({method: "write", path: "data/notes.txt", body: "mine"})))
-        expect(fake.calls.at(-1)?.ifMatch).toBeUndefined()
+        off?.()
+        host.notifyChanged(["data/notes.txt"])
+        expect(seen).toEqual([["data/notes.txt"]])
+        expect(host.etags.get("data/notes.txt")).toBeDefined()
+        expectFailure(
+            await host.handle(req({method: "write", path: "data/notes.txt", body: "mine"})),
+            "conflict",
+        )
+        expect(fake.calls.at(-1)?.ifMatch).toBeDefined()
     })
 })
 

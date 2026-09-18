@@ -1,7 +1,6 @@
 import {
     createMockHtmlAppHost,
     type AssembleIo,
-    type HtmlAppHostError,
     type MockHtmlAppHost,
     type MockHtmlAppHostOptions,
 } from "@agenta/entities/drive"
@@ -21,9 +20,9 @@ import {type Mount} from "@agenta/entities/session"
  *   what the Run tab's back stack is for.
  * - `BROKEN_APP` — throws on load and references a CDN script the sandbox drops.
  *
- * `createStoryHost` wraps the mock so a story can raise the two things only the iframe normally
- * sends over the port (a nav href, a script error) from a button. `fixtureIo` serves the host's
- * live `files` map to the assembler, so an `externalWrite` shows up on "Reload files".
+ * `createStoryHost` is the mock seeded in the story app dir; its `emitNav` / `emitError` raise what
+ * only the iframe normally sends over the port. `fixtureIo` serves the host's live `files` map to
+ * the assembler, so an `externalWrite` shows up on "Reload files".
  */
 
 export const STORY_MOUNT: Mount = {id: "mount-story", name: "agent drive", slug: "agent-drive"}
@@ -202,43 +201,13 @@ export const BROKEN_APP: Record<string, string> = {
 // Host + io helpers
 // ---------------------------------------------------------------------------------------------
 
-export interface StoryHost extends MockHtmlAppHost {
-    /** What the stub would post when the app clicks a link. */
-    emitNav: (href: string) => void
-    /** What the stub would post on an uncaught error inside the iframe. */
-    emitError: (e: HtmlAppHostError) => void
-}
+export type StoryHost = MockHtmlAppHost
 
-/** The mock host, plus the two port-only signals a story needs to raise from a button. */
-export function createStoryHost(
+/** The mock host, seeded in the story app dir. */
+export const createStoryHost = (
     files: Record<string, string>,
     opts: MockHtmlAppHostOptions = {},
-): StoryHost {
-    const mock = createMockHtmlAppHost(files, {dir: APP_DIR, ...opts})
-    const navCbs = new Set<(href: string) => void>()
-    const errorCbs = new Set<(e: HtmlAppHostError) => void>()
-    return {
-        ...mock,
-        onNav(cb) {
-            navCbs.add(cb)
-            const off = mock.onNav(cb)
-            return () => {
-                navCbs.delete(cb)
-                off()
-            }
-        },
-        onError(cb) {
-            errorCbs.add(cb)
-            const off = mock.onError(cb)
-            return () => {
-                errorCbs.delete(cb)
-                off()
-            }
-        },
-        emitNav: (href) => navCbs.forEach((cb) => cb(href)),
-        emitError: (e) => errorCbs.forEach((cb) => cb(e)),
-    }
-}
+): StoryHost => createMockHtmlAppHost(files, {dir: APP_DIR, ...opts})
 
 /** Serve the host's live files to the assembler (mount-relative paths → dir-relative keys). */
 export function fixtureIo(host: MockHtmlAppHost, dir: string): AssembleIo {

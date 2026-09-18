@@ -188,6 +188,43 @@ describe("createMockHtmlAppHost.handle", () => {
         expect(host.files.get("index.html")).toBe("v2")
     })
 
+    it("externalWrite reports changed unless silent; both leave the cached etag alone", async () => {
+        const host = rw()
+        expectOk(await host.handle(req({method: "read", path: "data/notes.txt"})))
+        const seen: string[][] = []
+        const off = host.onChanged?.((paths) => seen.push(paths))
+
+        host.externalWrite("data/notes.txt", "announced")
+        host.externalWrite("data/notes.txt", "quiet", {silent: true})
+        expect(seen).toEqual([["data/notes.txt"]])
+        expect(host.files.get("data/notes.txt")).toBe("quiet")
+        expect(host.etags.get("data/notes.txt")).toBe(computeEtag("n"))
+        expectFailure(
+            await host.handle(req({method: "write", path: "data/notes.txt", body: "mine"})),
+            "conflict",
+        )
+
+        off?.()
+        host.externalWrite("data/notes.txt", "after off")
+        expect(seen).toHaveLength(1)
+    })
+
+    it("emitNav and emitError reach the subscribers the port would", () => {
+        const host = rw()
+        const navs: string[] = []
+        const errors: string[] = []
+        const offNav = host.onNav((href) => navs.push(href))
+        host.onError((e) => errors.push(`${e.kind}:${e.message}`))
+
+        host.emitNav("guide.html")
+        host.emitError({kind: "script", message: "boom", line: 3})
+        offNav()
+        host.emitNav("ignored.html")
+
+        expect(navs).toEqual(["guide.html"])
+        expect(errors).toEqual(["script:boom"])
+    })
+
     it("externalWrite after a read makes the next write conflict; force bypasses", async () => {
         const host = rw()
         expectOk(await host.handle(req({method: "read", path: "data/notes.txt"})))

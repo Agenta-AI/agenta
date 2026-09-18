@@ -57,10 +57,14 @@ export interface MockHtmlAppHost extends HtmlAppHost {
     /** Drive the host without an iframe: what the stub would send. */
     handle(req: FsRequest): Promise<FsResponse | FsFailure>
     /**
-     * Simulate an out-of-band write (e.g. the agent) so the next If-Match mismatches and
-     * `changed` fires.
+     * Simulate an out-of-band write (e.g. the agent): the content changes, the cached etag does
+     * not, so the next If-Match mismatches. `changed` fires unless `silent`.
      */
-    externalWrite(path: string, text: string): void
+    externalWrite(path: string, text: string, opts?: {silent?: boolean}): void
+    /** What the stub posts when the app clicks a link. */
+    emitNav(href: string): void
+    /** What the stub posts on an uncaught error (or any host error a story needs to show). */
+    emitError(e: HtmlAppHostError): void
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -157,6 +161,7 @@ export function createMockHtmlAppHost(
 
     const errorCbs = new Set<(e: HtmlAppHostError) => void>()
     const navCbs = new Set<(href: string) => void>()
+    const changedCbs = new Set<(paths: string[]) => void>()
 
     let channel: MessageChannel | null = null
     /** `changed` paths queued while no iframe is attached; flushed right after `hello`. */
@@ -378,6 +383,7 @@ export function createMockHtmlAppHost(
 
     const notifyChanged = (paths: string[]) => {
         if (paths.length === 0) return
+        for (const cb of changedCbs) cb(paths)
         if (!channel) {
             pendingChanged.push(...paths)
             return
@@ -391,15 +397,19 @@ export function createMockHtmlAppHost(
         etags,
         log,
         handle,
-        externalWrite(rawPath, text) {
+        externalWrite(rawPath, text, writeOpts) {
             const path = normalizeAppPath(rawPath)
             if (path === null) throw new Error(`externalWrite: bad path "${rawPath}"`)
             files.set(path, text)
             mtimes.set(path, Date.now())
             // The app's cached etag is left alone on purpose: that is what makes the next
             // write/remove conflict.
-            notifyChanged([path])
+            if (!writeOpts?.silent) notifyChanged([path])
         },
+        emitNav(href) {
+            for (const cb of navCbs) cb(href)
+        },
+        emitError,
         attach,
         detach,
         setVisible(next) {
@@ -423,6 +433,12 @@ export function createMockHtmlAppHost(
             navCbs.add(cb)
             return () => {
                 navCbs.delete(cb)
+            }
+        },
+        onChanged(cb) {
+            changedCbs.add(cb)
+            return () => {
+                changedCbs.delete(cb)
             }
         },
     }

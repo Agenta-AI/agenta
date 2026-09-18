@@ -257,6 +257,8 @@ export interface HtmlAppHost {
     onError(cb: (e: HtmlAppHostError) => void): () => void
     /** Subscribe to navigation requests; returns the unsubscribe. */
     onNav(cb: (href: string) => void): () => void
+    /** Subscribe to `changed` paths (app-relative) as the host sends them; returns the unsubscribe. */
+    onChanged?(cb: (paths: string[]) => void): () => void
 }
 
 export interface HtmlAppHostOptions {
