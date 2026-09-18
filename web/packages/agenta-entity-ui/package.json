@@ -11,7 +11,8 @@
         "lint": "eslint --config ./eslint.config.mjs src/",
         "test": "vitest run",
         "test:unit": "vitest run",
-        "test:watch": "vitest"
+        "test:watch": "vitest",
+        "kit:sync": "node scripts/sync-kit-css.mjs"
     },
     "exports": {
         ".": "./src/index.ts",
@@ -35,7 +36,8 @@
         "./workflow": "./src/workflow/index.ts",
         "./drive": "./src/drive/index.ts",
         "./tool-permission": "./src/DrillInView/SchemaControls/toolPermission.ts",
-        "./clientTools": "./src/clientTools/index.ts"
+        "./clientTools": "./src/clientTools/index.ts",
+        "./drive/htmlApp/kit": "./src/drive/htmlApp/kit/index.ts"
     },
     "dependencies": {
         "@agenta/entities": "workspace:../agenta-entities",
