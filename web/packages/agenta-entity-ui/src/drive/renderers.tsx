@@ -9,13 +9,11 @@
  * context — the sandbox the spec asks for); audio/video/PDF bytes come as cached blobs (see
  * driveMedia.ts for the signed-URL deviation).
  */
-import {useEffect, useMemo, useRef, useState} from "react"
+import {useMemo, useState} from "react"
 
 import {driveCodeLanguage, resolveDriveFileKind, type DriveFileKind} from "@agenta/entities/drive"
-import {fetchMountFileBlob} from "@agenta/entities/drive"
 import {humanSize} from "@agenta/entities/drive"
 import {type Mount} from "@agenta/entities/session"
-import {projectIdAtom} from "@agenta/shared/state"
 import {
     Button,
     Empty,
@@ -23,11 +21,9 @@ import {
     EmptyHeader,
     EmptyMedia,
     EmptyTitle,
-    Segmented,
     Skeleton,
 } from "@agenta/ui/ui"
 import {DownloadSimple, FileDashed} from "@phosphor-icons/react"
-import {useAtomValue} from "jotai"
 
 import {
     useDriveDownload,
@@ -36,6 +32,7 @@ import {
     useDriveObjectUrl,
 } from "./driveFileSource"
 import {DriveCodeBlock, DriveMarkdown} from "./driveMarkdown"
+import {HtmlAppBody} from "./htmlApp"
 
 // The host's code viewer (see `registerDriveCodeBlock`). The desktop registers a Lexical +
 // lazy-Shiki block — an ~8.7 MB chunk it keeps out of first load — so the indirection is also
@@ -279,126 +276,6 @@ const CsvBody = ({mount, path}: {mount: Mount | null; path: string}) => {
     )
 }
 
-// A URL the iframe would resolve against ITS OWN origin (external / absolute / anchor / data) — we
-// leave those alone. Only same-mount relative paths get inlined.
-const isExternalUrl = (u: string): boolean =>
-    /^[a-z][a-z0-9+.-]*:/i.test(u) || u.startsWith("//") || u.startsWith("#")
-
-/** Resolve a relative href against the HTML file's folder (handles `./` and `../`). */
-const resolveRel = (dir: string, rel: string): string => {
-    const out: string[] = []
-    for (const seg of (dir ? dir.split("/") : []).concat(rel.split("/"))) {
-        if (seg === "" || seg === ".") continue
-        if (seg === "..") out.pop()
-        else out.push(seg)
-    }
-    return out.join("/")
-}
-
-const INLINE_ASSET_CAP = 8 * 1024 * 1024
-
-async function fetchMountText(
-    mountId: string,
-    projectId: string,
-    path: string,
-): Promise<string | null> {
-    const blob = await fetchMountFileBlob({mountId, projectId, path})
-    return blob ? blob.text() : null
-}
-
-async function fetchMountDataUri(
-    mountId: string,
-    projectId: string,
-    path: string,
-): Promise<string | null> {
-    const blob = await fetchMountFileBlob({mountId, projectId, path})
-    if (!blob || blob.size > INLINE_ASSET_CAP) return null
-    return new Promise((resolve) => {
-        const reader = new FileReader()
-        reader.onload = () => resolve(typeof reader.result === "string" ? reader.result : null)
-        reader.onerror = () => resolve(null)
-        reader.readAsDataURL(blob)
-    })
-}
-
-// The ONLY script that runs in the preview (the agent's are stripped): it turns an internal
-// relative link click into a `postMessage` the parent uses to open that file in the drive. Anchors
-// (#…) and external links fall through to the browser.
-const HTML_NAV_INTERCEPTOR =
-    '(function(){document.addEventListener("click",function(e){var el=e.target;while(el&&el.tagName!=="A")el=el.parentElement;if(!el)return;var href=el.getAttribute("href");if(!href||href.charAt(0)==="#")return;if(/^[a-z][a-z0-9+.-]*:/i.test(href)||href.indexOf("//")===0)return;e.preventDefault();parent.postMessage({type:"ag-html-nav",href:href},"*")},true)})()'
-
-/**
- * Fold a multi-file site into ONE self-contained document the sandboxed iframe can render: linked
- * stylesheets become inline `<style>`, images become data URIs — all fetched from the SAME mount,
- * resolved against the HTML file's folder. Best-effort: external URLs are left alone, and CSS's own
- * `url(...)`/`@import` chains aren't followed (v1).
- *
- * Then hardened for `sandbox="allow-scripts"`: the agent's `<script>`s, inline `on*` handlers, and
- * `javascript:` URLs are stripped so ONLY {@link HTML_NAV_INTERCEPTOR} runs; external links open in a
- * new tab; internal links are intercepted and routed to the drive.
- */
-async function inlineHtmlAssets(
-    html: string,
-    mountId: string | null,
-    dir: string,
-    projectId: string | null,
-): Promise<string> {
-    try {
-        const doc = new DOMParser().parseFromString(html, "text/html")
-
-        // Inline relative stylesheets/images from the mount. Skipped for a LOCAL preview (a composer
-        // attachment has no mount) — the sanitize + interceptor pipeline below still runs, so the
-        // Preview tab assembles instead of loading forever.
-        if (mountId && projectId) {
-            await Promise.all(
-                Array.from(
-                    doc.querySelectorAll<HTMLLinkElement>('link[rel~="stylesheet"][href]'),
-                ).map(async (link) => {
-                    const href = link.getAttribute("href") ?? ""
-                    if (!href || isExternalUrl(href)) return
-                    const css = await fetchMountText(mountId, projectId, resolveRel(dir, href))
-                    if (css == null) return
-                    const style = doc.createElement("style")
-                    style.textContent = css
-                    link.replaceWith(style)
-                }),
-            )
-
-            await Promise.all(
-                Array.from(doc.querySelectorAll<HTMLImageElement>("img[src]")).map(async (img) => {
-                    const src = img.getAttribute("src") ?? ""
-                    if (!src || isExternalUrl(src) || src.startsWith("data:")) return
-                    const uri = await fetchMountDataUri(mountId, projectId, resolveRel(dir, src))
-                    if (uri) img.setAttribute("src", uri)
-                }),
-            )
-        }
-
-        // Strip every agent-authored script vector so allow-scripts only runs our interceptor.
-        doc.querySelectorAll("script").forEach((s) => s.remove())
-        doc.querySelectorAll("iframe[srcdoc]").forEach((f) => f.removeAttribute("srcdoc"))
-        doc.querySelectorAll("*").forEach((el) => {
-            for (const attr of Array.from(el.attributes)) {
-                if (/^on/i.test(attr.name)) el.removeAttribute(attr.name)
-                else if (/^\s*javascript:/i.test(attr.value)) el.setAttribute(attr.name, "#")
-            }
-        })
-        doc.querySelectorAll("a[href]").forEach((a) => {
-            if (isExternalUrl(a.getAttribute("href") ?? "")) {
-                a.setAttribute("target", "_blank")
-                a.setAttribute("rel", "noopener noreferrer")
-            }
-        })
-        const interceptor = doc.createElement("script")
-        interceptor.textContent = HTML_NAV_INTERCEPTOR
-        ;(doc.body ?? doc.documentElement).appendChild(interceptor)
-
-        return `<!DOCTYPE html>\n${doc.documentElement.outerHTML}`
-    } catch {
-        return html
-    }
-}
-
 const HtmlBody = ({
     mount,
     path,
@@ -416,45 +293,8 @@ const HtmlBody = ({
     /** Just the rendered document; the host offers the source itself. */
     previewOnly?: boolean
 }) => {
-    const projectId = useAtomValue(projectIdAtom)
     const contentQuery = useDriveFileText(mount, path)
     const content = contentQuery.data
-    const [view, setView] = useState<"preview" | "source">("preview")
-    const [assembled, setAssembled] = useState<string | null>(null)
-    const frameRef = useRef<HTMLIFrameElement>(null)
-
-    // Assemble the self-contained preview document once the source lands. Works for a local composer
-    // attachment too (mount === null): inlineHtmlAssets skips mount-asset fetches but still sanitizes
-    // + injects the interceptor, so the Preview tab assembles instead of loading forever.
-    useEffect(() => {
-        setAssembled(null)
-        if (typeof content !== "string") return
-        let alive = true
-        const dir = path.includes("/") ? path.split("/").slice(0, -1).join("/") : ""
-        void inlineHtmlAssets(content, mount?.id ?? null, dir, projectId || null).then((html) => {
-            if (alive) setAssembled(html)
-        })
-        return () => {
-            alive = false
-        }
-    }, [content, mount?.id, projectId, path])
-
-    // Internal link clicks (from the injected interceptor) → open that file in the drive. Resolved
-    // against the presented folder; only messages from THIS iframe are trusted.
-    useEffect(() => {
-        if (!onNavigate) return
-        const base = displayPath ?? path
-        const dir = base.includes("/") ? base.split("/").slice(0, -1).join("/") : ""
-        const onMessage = (e: MessageEvent) => {
-            if (e.source !== frameRef.current?.contentWindow) return
-            const data = e.data as {type?: string; href?: string} | null
-            if (!data || data.type !== "ag-html-nav" || typeof data.href !== "string") return
-            const clean = data.href.split(/[?#]/)[0]
-            if (clean) onNavigate(resolveRel(dir, clean))
-        }
-        window.addEventListener("message", onMessage)
-        return () => window.removeEventListener("message", onMessage)
-    }, [onNavigate, displayPath, path])
 
     if (contentQuery.isPending)
         return (
@@ -469,47 +309,17 @@ const HtmlBody = ({
     if (typeof content !== "string")
         return <DownloadCard mount={mount} path={path} title="Couldn't load this file's content" />
 
+    // The Preview | Source body (and the assembler behind it) lives in ./htmlApp.
     return (
         <Inset flush>
-            {previewOnly ? null : (
-                <div className="flex shrink-0 items-center border-0 border-b border-solid border-colorBorderSecondary p-1.5">
-                    <Segmented
-                        size="sm"
-                        value={view}
-                        onChange={(next) => setView(next as "preview" | "source")}
-                        options={[
-                            {value: "preview", label: "Preview"},
-                            {value: "source", label: "Source"},
-                        ]}
-                    />
-                </div>
-            )}
-            {previewOnly || view === "preview" ? (
-                assembled == null ? (
-                    <div className="min-h-0 flex-1 p-3">
-                        <div className="flex flex-col gap-2">
-                            {Array.from({length: 6}).map((_, i) => (
-                                <Skeleton key={i} className="h-4 w-full" />
-                            ))}
-                        </div>
-                    </div>
-                ) : (
-                    // allow-scripts runs ONLY our interceptor (agent scripts were stripped); still no
-                    // same-origin, so it can't touch the parent. allow-popups(-escape) lets external
-                    // links open a normal tab. Linked CSS + images were inlined; bg-white — docs assume it.
-                    <iframe
-                        ref={frameRef}
-                        srcDoc={assembled}
-                        sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox"
-                        title="HTML preview"
-                        className="min-h-0 w-full flex-1 border-0 bg-white"
-                    />
-                )
-            ) : (
-                <div className="min-h-0 flex-1 overflow-auto p-2 text-xs [&_.agenta-dynamic-code-block]:whitespace-pre">
-                    <LazyCodeBlock language="html" value={content} />
-                </div>
-            )}
+            <HtmlAppBody
+                mount={mount}
+                path={path}
+                content={content}
+                displayPath={displayPath}
+                onNavigate={onNavigate}
+                previewOnly={previewOnly}
+            />
         </Inset>
     )
 }
