@@ -29,6 +29,8 @@
 
   /* Frame measurements */
   --doc-content-width: 720px;
+  /* Pages without a TOC column (changelog list, roadmap) use a wider column. */
+  --doc-list-width: 900px;
   --doc-toc-width: 240px;
   --doc-main-padding-x: 56px;
   /* Lines the page title up with the first rail row (sidebar padding 20). */
