@@ -178,7 +178,31 @@ class PlatformConnection:
         The gateways mount inside the API app under ``/gateways/...``, so this IS the API
         base. It stays a named accessor rather than a concatenation at each call site: a
         gateway hosted separately would change this body and nothing else.
+
+        The PUBLIC base, and that is the whole difference from :meth:`base_url`. Every caller
+        of this composes an address that is written INTO a sandbox: the MCP relay URL and the
+        LLM gateway endpoint. ``base_url`` prefers ``AGENTA_API_INTERNAL_URL`` because the
+        calls THIS process makes (the credential exchange, the vault) want the in-network hop,
+        and a remote sandbox has no route to ``http://api:8000`` at all. Handed one anyway, a
+        Daytona run refuses before it starts, on the runner's HTTPS check.
+
+        Read through the SDK's own ``parse_url``, the same reader the trace endpoint a
+        dispatched run carries already goes through, so a self-hoster's ``localhost`` public
+        base becomes ``host.docker.internal`` here exactly as it does there. With no public
+        base configured this falls back to :meth:`base_url`, which is the offline and
+        standalone case and is unchanged.
         """
+        if self._base_url:
+            return self._base_url
+
+        public = (os.getenv("AGENTA_API_URL") or "").strip()
+        if public:
+            # Lazily, like the rest of this module: importing it at module scope would run
+            # ``agenta``'s own import before the singleton exists.
+            from agenta.sdk.utils.helpers import parse_url
+
+            return parse_url(url=public).rstrip("/")
+
         return self.base_url()
 
     def authorization(self) -> Optional[str]:

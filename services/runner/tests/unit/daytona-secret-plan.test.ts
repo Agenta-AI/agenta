@@ -340,6 +340,62 @@ describe("Daytona Secret planning", () => {
   });
 });
 
+/**
+ * The relay URL is composed by the SDK and lands here as `mcpServers[].connection.url`. The
+ * SDK derives its API base from `AGENTA_API_INTERNAL_URL` when one is set, which is the
+ * in-network hop: not HTTPS and not routable from a Daytona sandbox. This is where that
+ * reaches a person, as "Couldn't start the run", before any agent starts.
+ */
+describe("the gateway relay URL a Daytona run is handed", () => {
+  /** One MCP server routed through the gateway at `base`, credential attached. */
+  const relayed = (base: string): McpServerConfig =>
+    ({
+      name: "linear",
+      connection: {
+        type: "http",
+        url: `${base}/gateways/mcps/custom/linear`,
+        credentials: [
+          {
+            binding: { kind: "header", name: "Authorization" },
+            value: "opaque-gateway-value",
+            usage: "opaque_http",
+          },
+        ],
+      },
+      policy: { tools: { mode: "all" } },
+    }) as unknown as McpServerConfig;
+
+  it("accepts the public https base and restricts the secret to that host", () => {
+    const plan = buildDaytonaSecretPlan({
+      mcpServers: [relayed("https://agenta.example/api")],
+    });
+
+    assert.deepEqual(
+      plan.candidates.map((candidate) => candidate.allowedHost),
+      ["agenta.example"],
+    );
+  });
+
+  it("refuses the internal http base, which is the defect this guards", () => {
+    assert.throws(
+      () =>
+        buildDaytonaSecretPlan({
+          mcpServers: [relayed("http://api:8000/api")],
+        }),
+      /credential endpoint must use HTTPS/,
+    );
+  });
+
+  it("refuses the same base over https, because the host is unreachable anyway", () => {
+    // Scheme alone is not the property. An in-network name has no public route from a
+    // sandbox, so dressing it in https must not buy passage.
+    assert.throws(
+      () => buildDaytonaSecretPlan({ mcpServers: [relayed("https://api:8000/api")] }),
+      /ports are not supported/,
+    );
+  });
+});
+
 describe("Daytona Secret plan for a gateway connection (WP13 Phase 3)", () => {
   it("is empty: no provider credentials to hide, since none were sent", () => {
     const plan = buildDaytonaSecretPlan({
