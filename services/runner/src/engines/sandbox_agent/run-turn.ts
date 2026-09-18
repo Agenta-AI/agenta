@@ -1644,6 +1644,12 @@ export async function runTurn(
     // harnesses: Pi and Claude at least fail. The marker the gateway stamps into every typed
     // refusal is what identifies it; a plain 403 with no marker is left alone, because only the
     // marker distinguishes our refusal from a model quoting one.
+    //
+    // The accumulated assistant text is the only place that refusal exists, and it has to be
+    // read here: the decision feeds the stop reason `finish()` is called with, so it cannot
+    // wait for `finish()`'s return value. Harness recovery chatter never reaches this text —
+    // the adapters keep retries off the assistant channel — so anything here is the answer.
+    const visibleOutput = run.output().trim();
     const swallowedGatewayRefusal =
       !swallowedPiError &&
       stopReason !== "paused" &&
