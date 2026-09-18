@@ -9,7 +9,7 @@
  *   413 or a local cap breach → too_large · 403 → read_only · anything else → unavailable.
  *
  * Transport: reads, listings and deletes go through the Fern mounts client (`deleteMountFile`
- * accepts `requestOptions.headers`, so `If-Match` rides there). The generated `writeMountFile`
+ * takes `If-Match` as its typed `if-match` request field). The generated `writeMountFile`
  * sends NO body, so `write` uses the shared axios instance with a raw `text/plain` body — the same
  * path `driveMedia` uses for bytes.
  */
@@ -91,7 +91,7 @@ export const isFsClientError = (x: unknown): x is FsClientError =>
     (typeof x === "object" && x !== null && (x as FsClientError).name === "FsClientError")
 
 // ---------------------------------------------------------------------------------------------
-// Boundary schemas (etag is optional until lane B lands)
+// Boundary schemas (etag stays optional: folders and older objects carry none)
 // ---------------------------------------------------------------------------------------------
 
 const etagSchema = z.string().nullish()
@@ -324,8 +324,12 @@ export function createFsClient({mountId, projectId}: FsClientOptions): FsClient 
     const remove: FsClient["remove"] = (path, opts) =>
         guarded(async () => {
             await getMountsClient().deleteMountFile(
-                {mount_id: mountId, path},
-                {...projectScopedRequest(projectId), headers: ifMatchHeaders(opts)},
+                {
+                    mount_id: mountId,
+                    path,
+                    ...(typeof opts?.ifMatch === "string" ? {"if-match": opts.ifMatch} : {}),
+                },
+                projectScopedRequest(projectId),
             )
             return {result: {deleted: true}}
         })

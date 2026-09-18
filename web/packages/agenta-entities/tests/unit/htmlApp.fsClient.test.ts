@@ -204,23 +204,21 @@ describe("write / writeJSON", () => {
 })
 
 describe("remove", () => {
-    it("deletes through Fern with If-Match in requestOptions.headers", async () => {
+    it("deletes through Fern with If-Match as the typed request field", async () => {
         fern.deleteMountFile.mockResolvedValueOnce({deleted: true})
         const res = await client().remove("apps/b/x.txt", {ifMatch: "e1"})
         expect(res).toEqual({result: {deleted: true}})
         expect(fern.deleteMountFile).toHaveBeenCalledWith(
-            {mount_id: "m1", path: "apps/b/x.txt"},
-            {queryParams: {project_id: "p1"}, headers: {"If-Match": "e1"}},
+            {mount_id: "m1", path: "apps/b/x.txt", "if-match": "e1"},
+            {queryParams: {project_id: "p1"}},
         )
     })
 
     it("sends no If-Match header when none was resolved (force / never read)", async () => {
         fern.deleteMountFile.mockResolvedValueOnce({deleted: true})
         await client().remove("x")
-        expect(fern.deleteMountFile.mock.calls[0][1]).toEqual({
-            queryParams: {project_id: "p1"},
-            headers: {},
-        })
+        expect(fern.deleteMountFile.mock.calls[0][0]).toEqual({mount_id: "m1", path: "x"})
+        expect(fern.deleteMountFile.mock.calls[0][1]).toEqual({queryParams: {project_id: "p1"}})
     })
 
     it("maps a 412 on delete to conflict with etag null when the file is gone", async () => {
