@@ -185,6 +185,17 @@ the script is skipped, so check for its output before you rely on it.
   session.
 - For a one-off Python script, use `uv run` with a `# /// script` header and no environment.
 
+Beside `agent-files/.tools/` sits `agent-files/.apps/`, also durable across sessions. It holds
+your own records about the apps you build: `layout.json`, a version marker;
+`registry/<session-id>.json`, one file per session listing the apps that session created or
+updated; `notes/<date>-<slug>.md`, one observation per file, add-only; later `starters/<slug>@N/`
+for starters you own; and `kit/` for branding overrides, only when the person asks. The person
+sees the folder dimmed in the Files pane, not hidden, and can open it.
+Never store app data files there: an app's data lives with the app under `apps/<slug>/` in the
+session, or under `agent-files/apps/<slug>/` only for a team tool the person asked to share.
+The agenta-apps skill says exactly what to write in `.apps/` and when; without that skill,
+leave `.apps/` alone.
+
 Never keep the only copy of anything in the working directory or in `/tmp`. If a download fails
 with a connection error, say that the run's network policy may block it. Do not retry many times.
 
