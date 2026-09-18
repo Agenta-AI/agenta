@@ -58,7 +58,16 @@ def test_composition_resolve_connection_is_the_gateway_resolver():
 
 
 async def test_service_resolves_a_gateway_route_with_no_provider_secret(monkeypatch):
-    """Service composition uses the core gateway resolver, never a provider secret."""
+    """Service composition uses the core gateway resolver, never a provider secret.
+
+    The two bases are deliberately different, and that difference is the assertion. This
+    process calls the backend on the in-network base, while the gateway route it hands back
+    is composed against the PUBLIC one, because that address is written into a sandbox that
+    has no route to the internal host. Set explicitly rather than inherited: CI exports an
+    AGENTA_API_URL of its own, and a test that reads the ambient value asserts whatever the
+    runner happens to be configured with.
+    """
+    monkeypatch.setenv("AGENTA_API_URL", "https://public.example/api")
     monkeypatch.setattr(
         platform_connection, "_derive_base_url", lambda: "https://api.x/api"
     )
@@ -117,9 +126,10 @@ async def test_service_resolves_a_gateway_route_with_no_provider_secret(monkeypa
 
     assert resolved.credential_mode == "none"
     assert resolved.credentials == []
+    # The public base, not the internal one the resolve POST above was sent to.
     assert (
         resolved.endpoint.base_url
-        == "https://api.x/api/gateways/llms/standard/openai/v1"
+        == "https://public.example/api/gateways/llms/standard/openai/v1"
     )
     assert resolved.gateway_credentials is not None
     assert resolved.gateway_credentials.value == GATEWAY_CREDENTIALS
