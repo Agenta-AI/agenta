@@ -1,0 +1,14 @@
+/* The footer belongs to the reading column: beside the sidebar, not under
+   it. On pages with a sidebar it is offset by the sidebar width and carries
+   the sidebar's right rule so the two read as one column. */
+
+.footer {
+  border-top: 1px solid var(--borderdefault);
+}
+
+@media (min-width: 997px) {
+  html:is(.docs-wrapper, .blog-wrapper, .roadmap-page, .not-found-page) .footer {
+    margin-left: calc(var(--doc-sidebar-width) - 1px);
+    border-left: 1px solid var(--borderdefault);
+  }
+}

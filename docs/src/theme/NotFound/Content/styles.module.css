@@ -1,0 +1,41 @@
+/* 404 message in the reading column. */
+
+.notFound {
+  max-width: var(--doc-content-width);
+  padding-top: 48px;
+}
+
+.code {
+  margin: 0 0 12px;
+  font-family: var(--ifm-font-family-monospace);
+  font-size: 13px;
+  line-height: 18px;
+  letter-spacing: 0.04em;
+  color: var(--contenttertiary);
+}
+
+.title {
+  margin: 0;
+}
+
+.lead {
+  margin: 10px 0 0;
+  font-size: 17px;
+  line-height: 28px;
+  color: var(--contentsecondary);
+  text-wrap: pretty;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 24px;
+}
+
+.hint {
+  margin: 32px 0 0;
+  font-size: 14px;
+  line-height: 22px;
+  color: var(--contentsecondary);
+}

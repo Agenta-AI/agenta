@@ -1,0 +1,183 @@
+/* Site footer. On desktop it sits in the main column beside the sidebar
+   (offset and left rule in src/css/footer.css). */
+
+.footer {
+  padding: 64px var(--doc-main-padding-x) 48px;
+  background: var(--bgdefault);
+  color: var(--contentsecondary);
+}
+
+.inner {
+  display: flex;
+  gap: 40px;
+  max-width: 1100px;
+}
+
+.brand {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 40px;
+  flex: 0 0 200px;
+}
+
+.logoLink {
+  display: inline-flex;
+  align-self: flex-start;
+}
+
+.logo {
+  height: 24px;
+  width: auto;
+}
+
+.socials {
+  display: flex;
+  gap: 16px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.social {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  color: var(--contenttertiary);
+  transition: color var(--ifm-transition-fast) ease;
+}
+
+.social:hover {
+  color: var(--contentprimary);
+}
+
+.social svg {
+  width: 18px;
+  height: 18px;
+}
+
+.columns {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 24px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.columnTitle {
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: var(--ifm-font-weight-bold);
+  color: var(--contentprimary);
+  margin-bottom: 16px;
+}
+
+.columnList {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.link {
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--contentsecondary);
+  text-decoration: none;
+  transition: color var(--ifm-transition-fast) ease;
+}
+
+.link:hover {
+  color: var(--contentprimary);
+  text-decoration: none;
+}
+
+.bottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  max-width: 1100px;
+  margin-top: 48px;
+  padding-top: 24px;
+  border-top: 1px solid var(--borderdefault);
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--contenttertiary);
+}
+
+/* System / light / dark switch */
+.modes {
+  display: flex;
+  gap: 4px;
+}
+
+.mode {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: none;
+  color: var(--contenttertiary);
+  cursor: pointer;
+  transition:
+    background-color var(--ifm-transition-fast) ease,
+    color var(--ifm-transition-fast) ease;
+}
+
+.mode:hover {
+  color: var(--contentprimary);
+}
+
+.modeActive {
+  background-color: var(--bgelevated2);
+  color: var(--contentprimary);
+}
+
+.mode svg {
+  width: 16px;
+  height: 16px;
+}
+
+@media (max-width: 996px) {
+  .footer {
+    padding: 40px 16px 32px;
+  }
+
+  .inner {
+    flex-direction: column;
+    gap: 32px;
+  }
+
+  .brand {
+    flex: 0 0 auto;
+    gap: 20px;
+  }
+
+  .columns {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 28px 16px;
+  }
+
+  .bottom {
+    margin-top: 32px;
+  }
+}
+
+@media (min-width: 600px) and (max-width: 996px) {
+  .footer {
+    padding: 48px 32px 32px;
+  }
+
+  .columns {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}

@@ -1,0 +1,338 @@
+/* Left sidebar (section rail + page menu) and the right "On this page" column.
+   The rail markup comes from src/components/SectionRail; the page menu is the
+   stock Docusaurus menu. Rows hang 10px past the sidebar padding on each side
+   (padding 0 10px, margin 0 -10px) so the text aligns with the group labels
+   while the hover/active fill has room around it. */
+
+/* ---- Frame ---- */
+@media (min-width: 997px) {
+  /* The element selector outranks the theme's module rule, which draws this
+     in --ifm-toc-border-color (a lighter grey in dark mode). */
+  aside.theme-doc-sidebar-container {
+    border-right: 1px solid var(--borderdefault);
+  }
+
+  /* The theme's sticky viewport is contained by the doc root, so it scrolls
+     away once the footer comes into view. Fixed keeps the sidebar in place;
+     the container still reserves the column width. */
+  /* The theme also clips the container (clip-path: inset(0), for its
+     hideable-sidebar animation, which is off here); that clip applies to
+     fixed descendants too and would cut the sidebar at the container's
+     bottom edge. The element selector outranks the theme's module rule. */
+  aside.theme-doc-sidebar-container {
+    clip-path: none;
+    will-change: auto;
+  }
+
+  .theme-doc-sidebar-container [class*="sidebarViewport"] {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: calc(var(--doc-sidebar-width) - 1px);
+    height: 100vh;
+    max-height: 100vh;
+  }
+}
+
+.theme-doc-sidebar-container .menu,
+.sidebarShellMenu {
+  /* No top padding: the rail below carries it. */
+  padding: 0 24px 48px 32px;
+}
+
+/* ---- Rows shared by the rail and the page menu ---- */
+.menu__link {
+  display: flex;
+  align-items: center;
+  /* 28px for one line; a label that wraps grows instead of overflowing. */
+  min-height: 28px;
+  padding: 4px 10px;
+  margin: 0 -10px;
+  border-radius: var(--radius-md);
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: var(--ifm-font-weight-normal);
+  color: var(--sidebar-link-color);
+  transition:
+    background-color var(--ifm-transition-fast) ease,
+    color var(--ifm-transition-fast) ease;
+}
+
+/* The roadmap's category filters are buttons in the same rows. */
+button.menu__link {
+  appearance: none;
+  background: none;
+  border: 0;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.menu__link:hover {
+  color: var(--contentprimary);
+  background-color: var(--bgelevated1);
+}
+
+.menu__link--active,
+.menu__link--active:hover {
+  font-weight: var(--ifm-font-weight-semibold);
+  color: var(--sidebar-link-active-color);
+  background-color: var(--bgelevated1);
+}
+
+.menu__list-item:not(:first-child) {
+  margin-top: 3px;
+}
+
+.menu__list .menu__list {
+  margin-top: 3px;
+  padding-left: 10px;
+}
+
+/* A group's own pages sit flush with the group label; only real nested
+   categories indent. */
+li.sidebar-section-title > .menu__list {
+  padding-left: 0;
+}
+
+/* ---- Section rail ---- */
+/* Scrolls with the page menu. It bleeds to the sidebar edges so the divider
+   spans the full width. */
+.sectionRail {
+  margin: 0 -24px 20px -32px;
+  padding: 20px 24px 20px 32px;
+  border-bottom: 1px solid var(--borderdefault);
+}
+
+/* The navbar item module sets display: inline-flex; the row must fill the
+   sidebar like the page links below it. */
+.sectionRail .menu__link {
+  display: flex;
+  min-height: 32px;
+  padding-top: 6px;
+  padding-bottom: 6px;
+  gap: 10px;
+}
+
+.sectionRail .menu__link--active,
+.sectionRail .menu__link--active:hover {
+  background-color: var(--bgelevated2);
+}
+
+.sectionRail svg {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+}
+
+/* ---- Group labels ---- */
+li.sidebar-section-title > .menu__list-item-collapsible,
+.sidebarGroupTitle {
+  display: flex;
+  align-items: center;
+  margin: 0;
+  padding: 0 0 6px;
+  border-radius: 0;
+}
+
+li.sidebar-section-title:not(:first-child) > .menu__list-item-collapsible,
+.sidebarGroup + .sidebarGroup {
+  margin-top: 20px;
+}
+
+li.sidebar-section-title > .menu__list-item-collapsible:hover {
+  background-color: transparent;
+}
+
+li.sidebar-section-title > .menu__list-item-collapsible > .menu__link,
+.sidebarGroupTitle {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  height: auto;
+  margin: 0;
+  padding: 0;
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: var(--ifm-font-weight-bold);
+  color: var(--contentprimary);
+  background: none;
+  cursor: default;
+}
+
+li.sidebar-section-title > .menu__list-item-collapsible > .menu__link:hover {
+  background: none;
+}
+
+/* Collapsible groups (Contributing, Misc) keep a caret on the right. */
+li.sidebar-section-title > .menu__list-item-collapsible > .menu__link--sublist-caret,
+li.sidebar-section-title > .menu__list-item-collapsible > .menu__caret {
+  cursor: pointer;
+}
+
+li.sidebar-section-title > .menu__list-item-collapsible > .menu__caret {
+  margin-left: auto;
+  padding: 0;
+  flex-shrink: 0;
+}
+
+.menu__link--sublist-caret:after,
+.menu__caret:before {
+  margin-left: auto;
+  background: var(--ifm-menu-link-sublist-icon) 50% / 1.25rem 1.25rem;
+  height: 10px;
+  opacity: 0.6;
+  flex-shrink: 0;
+}
+
+/* Nested categories inside a group (regular Docusaurus categories) */
+.menu__list-item-collapsible {
+  display: flex;
+  align-items: center;
+  border-radius: var(--radius-md);
+}
+
+.menu__list-item-collapsible > .menu__link {
+  flex: 1;
+  min-width: 0;
+}
+
+.menu__list-item-collapsible:hover {
+  background-color: transparent;
+}
+
+/* ---- "On this page" ---- */
+.tocTitle {
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: var(--ifm-font-weight-bold);
+  color: var(--contentsecondary);
+  margin-bottom: 8px;
+}
+
+.table-of-contents {
+  padding: 0;
+  font-size: 13px;
+}
+
+.table-of-contents li {
+  margin: 0;
+}
+
+.table-of-contents ul {
+  padding-left: 14px;
+}
+
+.table-of-contents__link {
+  display: block;
+  padding: 5px 0;
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: var(--ifm-font-weight-normal);
+  color: var(--toc-link-color);
+}
+
+.table-of-contents__link:hover,
+.table-of-contents__link--active {
+  color: var(--contentprimary);
+}
+
+.table-of-contents__link--active {
+  font-weight: var(--ifm-font-weight-semibold);
+}
+
+.table-of-contents__left-border {
+  border: none;
+}
+
+/* Mobile "On this page": a bordered panel with a muted label and a small
+   chevron; the list inside uses the desktop TOC's type. */
+@media (max-width: 996px) {
+  .theme-doc-toc-mobile {
+    margin: 0 0 20px;
+    border: 1px solid var(--borderdefault);
+    border-radius: var(--radius-lg);
+    background-color: var(--bgdefault);
+  }
+
+  [class*="tocCollapsibleButton"] {
+    height: 40px;
+    padding: 0 12px 0 14px;
+    font-size: 13px;
+    line-height: 18px;
+    font-weight: var(--ifm-font-weight-semibold);
+    color: var(--contentsecondary);
+  }
+
+  /* .theme-doc-toc-mobile in the selector outranks the theme's module rule. */
+  .theme-doc-toc-mobile [class*="tocCollapsibleButton"]::after {
+    width: 16px;
+    height: 16px;
+    background: var(--contenttertiary);
+    filter: none;
+    -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M6 9l6 6 6-6'/></svg>")
+      center / contain no-repeat;
+    mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M6 9l6 6 6-6'/></svg>")
+      center / contain no-repeat;
+    transform: none;
+  }
+
+  .theme-doc-toc-mobile [class*="tocCollapsibleButtonExpanded"]::after {
+    transform: rotate(180deg);
+  }
+
+  [class*="tocCollapsibleContent"] > ul {
+    margin: 0;
+    padding: 6px 14px 10px;
+    border-top: 1px solid var(--borderdefault);
+    font-size: 13px;
+  }
+
+  [class*="tocCollapsibleContent"] ul li {
+    margin: 0;
+  }
+
+  [class*="tocCollapsibleContent"] ul ul {
+    padding-left: 14px;
+  }
+
+  [class*="tocCollapsibleContent"] .table-of-contents__link {
+    padding: 5px 0;
+    font-size: 13px;
+    line-height: 18px;
+    color: var(--toc-link-color);
+  }
+}
+
+/* ---- Scrollbars ---- */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+  background-color: transparent;
+}
+
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-track-piece,
+::-webkit-scrollbar-corner,
+::-webkit-scrollbar-button {
+  background-color: transparent;
+  border: none;
+  box-shadow: none;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: var(--borderdark);
+  border-radius: 3px;
+  border: none;
+  box-shadow: none;
+}
+
+.thin-scrollbar,
+.menu__list,
+.theme-doc-sidebar-menu,
+div[class*="docSidebarContainer"],
+div[class*="sidebar"],
+div[class*="scrollbar"] {
+  scrollbar-width: thin;
+  scrollbar-color: var(--borderdark) transparent;
+}
