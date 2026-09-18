@@ -28,9 +28,10 @@ const tokenForToolCall = (
 
 const rowForToolCall = (states: SessionInteractionRowStates, toolCallId: string) => {
     for (const state of states.values()) {
-        if (state.toolCallId === toolCallId) return state
+        if (state.toolCallId === toolCallId && state.status === "pending") return state
     }
-    return states.get(toolCallId) ?? null
+    const row = states.get(toolCallId)
+    return row?.status === "pending" ? row : null
 }
 
 /**
