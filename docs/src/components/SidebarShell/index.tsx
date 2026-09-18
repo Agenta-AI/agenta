@@ -18,7 +18,7 @@ type ShellProps = {
  */
 export default function SidebarShell({ sidebar, children }: ShellProps): ReactNode {
   return (
-    <div className={styles.shell}>
+    <div className={clsx("sidebarShell", styles.shell)}>
       <aside className={styles.sidebar}>
         <div className={clsx("sidebarShellMenu thin-scrollbar", styles.menu)}>
           <SectionRail />

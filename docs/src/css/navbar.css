@@ -9,10 +9,18 @@
 }
 
 /* The right group ends on the reading column's right edge (main padding),
-   the logo on the sidebar's text edge (sidebar padding). */
+   the logo on the sidebar's text edge (sidebar padding). On wide screens the
+   frame is capped and centred (content.css); the header row follows it. */
 @media (min-width: 997px) {
   .navbar {
     padding-right: var(--doc-main-padding-x);
+  }
+
+  .navbar__inner {
+    max-width: calc(
+      var(--doc-frame-max) - var(--ifm-navbar-padding-horizontal) - var(--doc-main-padding-x)
+    );
+    margin: 0 auto;
   }
 }
 

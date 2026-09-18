@@ -114,6 +114,16 @@
    (outside .main-wrapper) reads it too. */
 #__docusaurus {
   --doc-sidebar-width: 272px;
+  /* The whole frame (sidebar, reading column, TOC) is capped and centred on
+     wide screens. The offset is what everything fixed or full-width (the
+     sidebar, the header row, the footer) shifts by; it is 0 until the window
+     is wider than the frame. Declared here, not on :root, so the sidebar
+     width above is the one it reads (the theme sets its own on :root). */
+  --doc-frame-max: calc(
+    var(--doc-sidebar-width) + var(--doc-content-width) + var(--doc-toc-width) + 30px +
+      2 * var(--doc-main-padding-x)
+  );
+  --doc-frame-offset: max(0px, calc(50% - var(--doc-frame-max) / 2));
 }
 
 /* Small laptops: narrower sidebar, TOC and gutters so the reading column
