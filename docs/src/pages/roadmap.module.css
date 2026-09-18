@@ -2,7 +2,7 @@
    this module styles the sections and cards. */
 
 .container {
-    max-width: 900px;
+    max-width: var(--doc-list-width);
 }
 
 .pageHeader {

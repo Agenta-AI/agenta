@@ -2,6 +2,7 @@
 
 .notFound {
   max-width: var(--doc-content-width);
+  margin: 0 auto;
   padding-top: 48px;
 }
 

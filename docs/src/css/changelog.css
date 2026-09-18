@@ -2,8 +2,10 @@
    modules next to their components (src/theme/BlogPostItem, BlogListPage);
    this file styles the stock markup of a single entry page. */
 
+/* Centred in the list column on wide screens, like the docs reading column. */
 .blog-post-page article {
   max-width: var(--doc-content-width);
+  margin: 0 auto;
 }
 
 .blog-post-page article > header h1 {
