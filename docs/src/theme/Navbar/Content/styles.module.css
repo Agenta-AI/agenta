@@ -44,30 +44,6 @@
   background-color: var(--borderdark);
 }
 
-.colorModeToggle {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  padding: 0;
-  border: 0;
-  border-radius: var(--radius-lg);
-  background: none;
-  color: var(--contentprimary);
-  cursor: pointer;
-  transition: background-color var(--ifm-transition-fast) ease;
-}
-
-.colorModeToggle:hover {
-  background-color: var(--bgelevated1);
-}
-
-.colorModeToggle:focus-visible {
-  outline: 2px solid var(--contentprimary);
-  outline-offset: 2px;
-}
-
 /* GitHub link with the star count, the same 32px control as the toggle. */
 .github {
   display: inline-flex;
@@ -185,7 +161,7 @@
 @media (max-width: 599px) {
   .divider,
   .github,
-  .colorModeToggle,
+  .toggle,
   .versionSelector {
     display: none;
   }

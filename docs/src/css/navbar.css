@@ -260,17 +260,10 @@
   }
 }
 
-/* Tablets: header gutters match the content gutters. The version pill is in
-   the header here, so the hamburger's copy of the selector is hidden. */
+/* Tablets: header gutters match the content gutters. */
 @media (min-width: 600px) and (max-width: 996px) {
   .navbar {
     --ifm-navbar-padding-horizontal: 32px;
-  }
-
-  .navbar-sidebar__item:has(.mobileSidebarFooter)
-    > .menu__list
-    > .menu__list-item:has(> .menu__list-item-collapsible) {
-    display: none;
   }
 }
 
@@ -280,47 +273,43 @@
   background-color: var(--bgdefault);
 }
 
-/* --- Header: compact controls grouped on the right --- */
-.navbar-sidebar__brand > .margin-right--md {
-  margin-left: auto;
-  margin-right: 6px !important;
+/* --- Header (src/theme/Navbar/MobileSidebar/Header): theme toggle and
+   close as the same 32px ghost icon buttons the site header uses --- */
+.navbar-sidebar__brand {
+  padding: 0 16px;
+  gap: 4px;
 }
 
-.navbar-sidebar__brand > .margin-right--md > button,
+.navbar-sidebar__brand .navbar__brand {
+  margin-right: auto;
+}
+
 .navbar-sidebar__close {
-  display: flex !important;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 30px;
-  height: 30px;
+  width: 32px;
+  height: 32px;
+  margin: 0;
   padding: 0;
-  border-radius: var(--radius-md);
-}
-
-.navbar-sidebar__brand > .margin-right--md > button {
-  border: none;
-}
-
-.navbar-sidebar__brand > .margin-right--md > button svg {
-  width: 17px;
-  height: 17px;
-}
-
-.navbar-sidebar__close {
-  border: 1px solid var(--borderdefault);
-  margin-left: 0;
-  transition:
-    background-color var(--ifm-transition-fast) ease,
-    border-color var(--ifm-transition-fast) ease;
+  border: 0;
+  border-radius: var(--radius-lg);
+  color: var(--contentprimary);
+  transition: background-color var(--ifm-transition-fast) ease;
 }
 
 .navbar-sidebar__close:hover {
-  background-color: var(--bgelevated2);
+  background-color: var(--bgelevated1);
+}
+
+.navbar-sidebar__close:focus-visible {
+  outline: 2px solid var(--contentprimary);
+  outline-offset: 2px;
 }
 
 .navbar-sidebar__close svg {
-  width: 15px;
-  height: 15px;
+  width: 16px;
+  height: 16px;
 }
 
 /* --- Body: pin the footer to the bottom of the primary panel only --- */
@@ -360,7 +349,7 @@
 }
 
 /* Hamburger rows (both panels): taller than the desktop sidebar rows so they
-   work as touch targets. */
+   work as touch targets, and full width. */
 .navbar-sidebar .menu__link {
   height: auto;
   min-height: 40px;
@@ -371,7 +360,7 @@
 }
 
 .navbar-sidebar__item:has(.mobileSidebarFooter) .menu__list .menu__link {
-  margin: 1px 8px 1px 0;
+  margin: 1px 0;
 }
 
 /* --- Panels: the same gutters as the page, and the secondary panel's

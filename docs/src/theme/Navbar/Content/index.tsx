@@ -1,9 +1,5 @@
 import React, {type ReactNode} from 'react';
-import {
-  useThemeConfig,
-  useColorMode,
-  ErrorCauseBoundary,
-} from '@docusaurus/theme-common';
+import {useThemeConfig, ErrorCauseBoundary} from '@docusaurus/theme-common';
 import {
   splitNavbarItems,
   useNavbarMobileSidebar,
@@ -13,6 +9,7 @@ import SearchBar from '@theme/SearchBar';
 import NavbarMobileSidebarToggle from '@theme/Navbar/MobileSidebar/Toggle';
 import NavbarLogo from '@theme/Navbar/Logo';
 import NavbarSearch from '@theme/Navbar/Search';
+import NavbarColorModeToggle from '@theme/Navbar/ColorModeToggle';
 import {CTA_CLASSES, hasCtaClass} from '@site/src/utils/navbarCtas';
 import GitHubStars from './GitHubStars';
 
@@ -40,25 +37,6 @@ ${JSON.stringify(item, null, 2)}`,
         </ErrorCauseBoundary>
       ))}
     </>
-  );
-}
-
-/** Light/dark toggle between search and the CTAs; the footer has the three-way switch. */
-function ColorModeToggle(): ReactNode {
-  const {colorMode, setColorMode} = useColorMode();
-  const next = colorMode === 'dark' ? 'light' : 'dark';
-  return (
-    <button
-      type="button"
-      className={styles.colorModeToggle}
-      onClick={() => setColorMode(next)}
-      aria-label={`Switch to ${next} mode`}
-      title={`Switch to ${next} mode`}>
-      <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
-        <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" strokeWidth="2" />
-        <path d="M12 3a9 9 0 0 1 0 18z" fill="currentColor" />
-      </svg>
-    </button>
   );
 }
 
@@ -105,7 +83,7 @@ export default function NavbarContent(): ReactNode {
           <span className={styles.divider} role="presentation" />
           <GitHubStars />
           <span className={styles.divider} role="presentation" />
-          <ColorModeToggle />
+          <NavbarColorModeToggle className={styles.toggle} />
           <span className={styles.divider} role="presentation" />
           <NavbarItems items={secondaryItems} />
           <NavbarItems items={primaryItems} />
