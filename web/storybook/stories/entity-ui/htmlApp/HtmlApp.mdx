@@ -47,16 +47,13 @@ the Preview | Source it was (locked by `tests/unit/htmlApp.assemble.test.ts`).
 | **RunView / NotFoundData**            | Missing `board.json` ⇒ the app's own empty state + the read reported in the strip.                            |
 | **RunView / TooLarge**                | Read over 4 MB ⇒ `too_large`.                                                                                 |
 
-## What is a placeholder
+## What runs for real
 
-Lane A's bridge stub has not landed in this branch. The Run document carries
-`PLACEHOLDER_BRIDGE_STUB` (`assemble.ts`, marked `TODO(lane A)`): it defines `window.agenta` with a
-`ready` that rejects (`code: "unavailable"`), so a starter written against the contract shows its
-own "bridge unavailable" state instead of throwing on an undefined global. The iframe therefore
-cannot itself call `fs` yet; each RunView story's driver buttons send exactly what the stub would
-(`host.handle(FsRequest)`, a nav href, a script error) and the strip reacts as it will in the drive.
-The default host in `HtmlAppBody` is the in-memory mock (`defaultCreateHost`, also `TODO(lane A)`);
-the kit CSS is a story stand-in until lane E's file is injected through `HtmlAppEnv.kitCss`.
+The Run document carries the real `BRIDGE_STUB` and `KIT_CSS`, so the app in the iframe talks to
+the host over the port exactly as it does in the drive. Stories swap only the host: `HtmlAppEnv.createHost`
+injects `createMockHtmlAppHost` in place of `createHtmlAppHost`, and `io` serves the mock's files.
+The RunView driver buttons send what the stub would (`host.handle(FsRequest)`, a nav href, a
+script error) so each strip state is one click away.
 
 Every story renders under the Theme toolbar in light and dark: the strip uses semantic token
 classes, and the app document receives the kit tokens resolved from the root's `--ag-*` variables.

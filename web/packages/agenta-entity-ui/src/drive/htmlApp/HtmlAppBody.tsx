@@ -7,13 +7,13 @@
  * confirming stores the grant (in memory, per mount + dir), creates the host and mounts
  * {@link RunView}. Everything a host needs — the bridge host factory, mount io, the kit CSS, the
  * token resolver, the grant store — arrives through {@link HtmlAppEnvContext}, with defaults that
- * are the real drive (mount io) and, until lane A lands, the in-memory mock host.
+ * are the real drive: mount io, `createHtmlAppHost`, `BRIDGE_STUB` and `KIT_CSS`.
  */
 import {createContext, useCallback, useContext, useEffect, useMemo, useRef, useState} from "react"
 
 import {
     AGENT_APPS_FLAG,
-    createMockHtmlAppHost,
+    createHtmlAppHost,
     fetchMountFileBlob,
     isAgentFileUploadsEnabled,
     type GrantLevel,
@@ -29,7 +29,8 @@ import {DriveCodeBlock} from "../driveMarkdown"
 
 import {assemblePreview, blobToDataUri, dirOf, resolveRel, type AssembleIo} from "./assemble"
 import {GrantSheet} from "./GrantSheet"
-import {RunView, resolveKitTokens} from "./RunView"
+import {KIT_CSS} from "./kit"
+import {RunView, resolveHostKitTokens} from "./RunView"
 import {useAppManifest} from "./useAppManifest"
 import {useChangedHint} from "./useChangedHint"
 
@@ -62,26 +63,18 @@ export const createGrantStore = (): GrantStore => {
 
 const defaultGrants = createGrantStore()
 
-/**
- * TODO(lane A): the default host becomes `createHtmlAppHost(opts)` from `@agenta/entities/drive`.
- * Until it lands the drive runs on the in-memory mock with no files — the UI is complete, fs calls
- * answer `not_found`.
- */
-const defaultCreateHost = (opts: HtmlAppHostOptions): HtmlAppHost =>
-    createMockHtmlAppHost({}, {grant: opts.grant, dir: opts.dir, tokens: opts.tokens})
-
 export interface HtmlAppEnv {
     /** Override the flag (stories); default reads {@link agentAppsEnabledAtom}. */
     enabled?: boolean
-    /** Bridge host factory; default: lane A's seam above. */
+    /** Bridge host factory; default `createHtmlAppHost` (stories inject the mock). */
     createHost?: (opts: HtmlAppHostOptions) => HtmlAppHost
     /** Mount io override (stories serve the mock's files); default: the real mount. */
     io?: AssembleIo | null
     /** Whether "Read and write files" is offered; default: the drive's upload gate. */
     canEditMounts?: boolean
-    /** Kit stylesheet (lane E); default `""`. */
+    /** Kit stylesheet; default `KIT_CSS`. */
     kitCss?: string
-    /** Bridge stub source (lane A); default: the placeholder in `assemble.ts`. */
+    /** Bridge stub source; default `BRIDGE_STUB`. */
     bridgeStub?: string
     resolveTokens?: () => Record<string, string>
     grants?: GrantStore
@@ -220,13 +213,13 @@ export function HtmlAppBody({
             setHost(null)
             return
         }
-        const createHost = env.createHost ?? defaultCreateHost
+        const createHost = env.createHost ?? createHtmlAppHost
         const next = createHost({
             mountId,
             projectId: projectId || "",
             dir,
             grant,
-            tokens: (env.resolveTokens ?? resolveKitTokens)(),
+            tokens: (env.resolveTokens ?? resolveHostKitTokens)(),
             visible,
             onWrite: () => onWriteRef.current(),
         })
@@ -311,7 +304,7 @@ export function HtmlAppBody({
                     entryContent={content}
                     grant={grant}
                     io={io}
-                    kitCss={manifest?.kit === false ? null : (env.kitCss ?? "")}
+                    kitCss={manifest?.kit === false ? null : (env.kitCss ?? KIT_CSS)}
                     bridgeStub={env.bridgeStub}
                     title={appName}
                     resolveTokens={env.resolveTokens}

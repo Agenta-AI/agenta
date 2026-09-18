@@ -1,7 +1,7 @@
 import {useMemo, useState} from "react"
 
 import {type FsRequest, type GrantLevel, type MockHtmlAppHostOptions} from "@agenta/entities/drive"
-import {RunView} from "@agenta/entity-ui/drive"
+import {KIT_CSS, RunView} from "@agenta/entity-ui/drive"
 import type {Meta, StoryObj} from "@storybook/nextjs"
 
 import {
@@ -11,7 +11,6 @@ import {
     BROKEN_APP,
     SITE,
     SITE_DIR,
-    STORY_KIT_CSS,
     createStoryHost,
     fixtureIo,
     type StoryHost,
@@ -23,9 +22,9 @@ import {
  * retried, the agent editing a file underneath the app, a sibling-page navigation with the back
  * stack, `not_found` data, `too_large`.
  *
- * Lane A's stub has not landed, so the iframe cannot itself call `window.agenta.fs`; each story's
- * driver buttons send exactly what the stub would (`host.handle(FsRequest)`, a nav href, a script
- * error), and the strip reacts as it will in the drive.
+ * The app in the iframe runs on the real stub against the mock host. The driver buttons send what
+ * the stub would (`host.handle(FsRequest)`, a nav href, a script error) so each state is one click
+ * away, and the strip reacts as it does in the drive.
  */
 const meta = {
     title: "@agenta/entity-ui/Drive/HtmlApp/RunView",
@@ -103,7 +102,7 @@ const RunStory = ({
                     entryContent={files[entry] ?? ""}
                     grant={grant}
                     io={io}
-                    kitCss={STORY_KIT_CSS}
+                    kitCss={KIT_CSS}
                     changedPaths={changed}
                     onReload={() => setChanged([])}
                     onNavigate={(p) => setLog((prev) => [...prev, `→ drive: ${p}`].slice(-8))}

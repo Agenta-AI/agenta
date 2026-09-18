@@ -127,7 +127,7 @@ function bridgeStub(): void {
             var names = Object.keys(tokens as Record<string, unknown>)
             for (var i = 0; i < names.length; i++) {
                 var name = names[i]
-                if (!/^--[A-Za-z0-9_-]+$/.test(name)) continue
+                if (name !== "color-scheme" && !/^--[A-Za-z0-9_-]+$/.test(name)) continue
                 css += name + ":" + cssSafe((tokens as Record<string, unknown>)[name]) + ";"
             }
         }

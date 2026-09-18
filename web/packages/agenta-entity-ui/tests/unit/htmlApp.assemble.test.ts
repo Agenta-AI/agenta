@@ -11,15 +11,13 @@
  */
 import {beforeAll, describe, expect, it} from "vitest"
 
-import {RUN_CSP} from "@agenta/entities/drive"
+import {BRIDGE_STUB, RUN_CSP} from "@agenta/entities/drive"
 
 import {
     assemblePreview,
     assembleRunDocument,
     blobToDataUri,
     HTML_NAV_INTERCEPTOR,
-    PLACEHOLDER_BRIDGE_STUB,
-    tokensToCss,
     type AssembleIo,
 } from "../../src/drive/htmlApp/assemble"
 
@@ -275,7 +273,7 @@ const APP = `<html>
 </head>
 <body onload="boot()"><a href="guide.html">guide</a><script>window.inline = 1</script></body>
 </html>`
-const TOKENS = {"--ag-bg": "#fff", "--ag-fg": "#111", "--ag-not-a-token": "x"}
+const TOKENS = {"--ag-bg": "#fff", "--ag-fg": "#111", "--ag-accent": "red;}<style>"}
 
 describe("assembleRunDocument", () => {
     it("keeps author scripts and handlers, inlines same-folder script src, drops external", async () => {
@@ -314,7 +312,7 @@ describe("assembleRunDocument", () => {
             '<style id="agenta-tokens">:root{--ag-bg:#fff;--ag-fg:#111}</style>',
         )
         const kit = head.indexOf('<style id="agenta-kit">.ag-btn{}</style>')
-        const stub = head.indexOf(`<script>${PLACEHOLDER_BRIDGE_STUB}</script>`)
+        const stub = head.indexOf(`<script>${BRIDGE_STUB}</script>`)
         const charset = head.indexOf('<meta charset="utf-8">')
         expect(csp).toBe(0)
         expect(tokens).toBeGreaterThan(csp)
@@ -334,7 +332,7 @@ describe("assembleRunDocument", () => {
         expect(html).not.toContain('id="agenta-kit"')
         expect(html).toContain('<style id="agenta-tokens">:root{}</style>')
         expect(html).toContain("<script>window.__stub=1</script>")
-        expect(html).not.toContain(PLACEHOLDER_BRIDGE_STUB)
+        expect(html).not.toContain(BRIDGE_STUB)
     })
 
     it("without io: every script src is dropped with a note, the document still assembles", async () => {
@@ -373,7 +371,14 @@ describe("assembleRunDocument", () => {
         )
     })
 
-    it("tokensToCss only emits kit token names", () => {
-        expect(tokensToCss(TOKENS)).toBe(":root{--ag-bg:#fff;--ag-fg:#111}")
+    it("defaults to the real bridge stub", async () => {
+        const {html} = await assembleRunDocument(APP, {
+            dir: "app",
+            io: null,
+            tokens: {},
+            kitCss: null,
+        })
+        expect(BRIDGE_STUB.length).toBeGreaterThan(0)
+        expect(html).toContain(`<script>${BRIDGE_STUB}</script>`)
     })
 })

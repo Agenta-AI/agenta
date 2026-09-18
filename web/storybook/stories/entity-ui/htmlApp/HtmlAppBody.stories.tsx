@@ -4,6 +4,7 @@ import {type HtmlAppHostOptions} from "@agenta/entities/drive"
 import {
     HtmlAppBody,
     HtmlAppEnvContext,
+    KIT_CSS,
     createGrantStore,
     type HtmlAppEnv,
 } from "@agenta/entity-ui/drive"
@@ -12,7 +13,6 @@ import type {Meta, StoryObj} from "@storybook/nextjs"
 import {
     APP_DIR,
     BOARD_APP,
-    STORY_KIT_CSS,
     STORY_MOUNT,
     createStoryHost,
     fixtureIo,
@@ -74,7 +74,7 @@ const BodyStory = ({
             enabled,
             io,
             canEditMounts,
-            kitCss: STORY_KIT_CSS,
+            kitCss: KIT_CSS,
             grants,
             createHost: (opts: HtmlAppHostOptions) =>
                 createStoryHost(BOARD_APP, {grant: opts.grant, dir: opts.dir, tokens: opts.tokens}),

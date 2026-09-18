@@ -7,6 +7,7 @@
 export * from "./assemble"
 export * from "./GrantSheet"
 export * from "./HtmlAppBody"
+export * from "./kit"
 export * from "./RunView"
 export * from "./useAppManifest"
 export * from "./useChangedHint"

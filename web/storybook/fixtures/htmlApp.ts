@@ -15,8 +15,8 @@ import {type Mount} from "@agenta/entities/session"
  *
  * - `BOARD_APP` — a retro board written against the kit classes (`.ag-app`, `.ag-toolbar`,
  *   `.ag-columns`, `.ag-card`, …) with an `app.json` asking for read-write and a `board.json`.
- *   It awaits `agenta.ready` and reads `board.json`; when the bridge is unavailable (the lane A
- *   placeholder stub rejects `ready`) it shows that in its own `.ag-empty` state instead of dying.
+ *   It awaits `agenta.ready` and reads `board.json`; a failed read shows in its own `.ag-empty`
+ *   state instead of dying.
  * - `SITE` — two pages sharing `app.js` and `site.css`; `index.html` links `guide.html`, which is
  *   what the Run tab's back stack is for.
  * - `BROKEN_APP` — throws on load and references a CDN script the sandbox drops.
@@ -249,19 +249,3 @@ export function fixtureIo(host: MockHtmlAppHost, dir: string): AssembleIo {
         fetchDataUri: async () => null,
     }
 }
-
-/** A tiny kit stand-in so the board reads as an app until lane E's CSS lands. */
-export const STORY_KIT_CSS = `
-.ag-app{font:12px/1.5 var(--ag-font);color:var(--ag-fg);background:var(--ag-bg);margin:0;padding:12px}
-.ag-toolbar{display:flex;align-items:center;gap:8px;padding-bottom:8px;border-bottom:1px solid var(--ag-line);margin-bottom:12px}
-.ag-toolbar .ag-btn{margin-left:auto}
-.ag-btn{font:inherit;padding:4px 10px;border:1px solid var(--ag-line);border-radius:var(--ag-radius);background:var(--ag-bg);color:var(--ag-fg);cursor:pointer}
-.ag-btn:disabled{opacity:.5;cursor:default}
-.ag-btn-primary{background:var(--ag-accent);color:var(--ag-bg);border-color:var(--ag-accent)}
-.ag-badge{font-size:11px;padding:1px 6px;border-radius:999px;background:var(--ag-accent-soft);color:var(--ag-muted)}
-.ag-columns{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px}
-.ag-column h3{margin:0 0 8px;font-size:12px;color:var(--ag-muted);text-transform:uppercase;letter-spacing:.04em}
-.ag-list{display:flex;flex-direction:column;gap:8px}
-.ag-card{padding:8px 10px;border:1px solid var(--ag-line);border-radius:var(--ag-radius);background:var(--ag-bg)}
-.ag-empty{grid-column:1/-1;padding:24px;text-align:center;color:var(--ag-muted);border:1px dashed var(--ag-line);border-radius:var(--ag-radius)}
-`

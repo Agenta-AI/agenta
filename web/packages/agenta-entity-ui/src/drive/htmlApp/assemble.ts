@@ -14,7 +14,9 @@
  *
  * Both are pure — mount access arrives through {@link AssembleIo}.
  */
-import {KIT_TOKENS, RUN_CSP} from "@agenta/entities/drive"
+import {BRIDGE_STUB, RUN_CSP} from "@agenta/entities/drive"
+
+import {tokensToCss} from "./kit"
 
 /** A URL the iframe would resolve against ITS OWN origin (external / absolute / anchor / data) —
  * we leave those alone. Only same-mount relative paths get inlined. */
@@ -160,24 +162,6 @@ export async function assemblePreview(html: string, {dir, io}: PreviewContext): 
 // Run
 // ---------------------------------------------------------------------------------------------
 
-/**
- * TODO(lane A): replace with `BRIDGE_STUB` from `@agenta/entities/drive` once the real stub lands.
- * Until then the app finds `window.agenta` with a `ready` that rejects (`code: "unavailable"`), so
- * a starter written against the contract shows its own "bridge unavailable" state instead of
- * throwing on an undefined global.
- */
-export const PLACEHOLDER_BRIDGE_STUB =
-    '(function(){var reject;var ready=new Promise(function(_,r){reject=r});ready.catch(function(){});window.agenta={version:1,ready:ready,canWrite:false,dir:"",visible:true};var e=new Error("agenta bridge stub not installed");e.code="unavailable";reject(e)})()'
-
-/** `:root{--ag-bg:…;…}` for the `<style id="agenta-tokens">` block. Only kit token names pass. */
-export const tokensToCss = (tokens: Record<string, string>): string => {
-    const names = new Set<string>(KIT_TOKENS)
-    const decls = Object.entries(tokens)
-        .filter(([name, value]) => names.has(name) && value !== "")
-        .map(([name, value]) => `${name}:${value}`)
-    return `:root{${decls.join(";")}}`
-}
-
 export interface RunContext {
     /** App dir, mount-relative (`""` for the root). Scripts and assets resolve against it. */
     dir: string
@@ -185,9 +169,9 @@ export interface RunContext {
     io: AssembleIo | null
     /** Kit theme tokens (`--ag-*` → value) for the `agenta-tokens` block. */
     tokens: Record<string, string>
-    /** Kit stylesheet; null disables the kit (`manifest.kit === false`). May be `""` until lane E. */
+    /** Kit stylesheet; null disables the kit (`manifest.kit === false`). */
     kitCss: string | null
-    /** The bridge stub source; defaults to the lane A placeholder. */
+    /** The bridge stub source; defaults to `BRIDGE_STUB` (tests and stories may inject another). */
     bridgeStub?: string
     /** Document title when the app has none (the manifest name, else the file name) — axe flags a
      * missing `<title>`, and so does a missing `lang`; both are stamped only when absent. */
@@ -253,7 +237,7 @@ export async function assembleRunDocument(html: string, ctx: RunContext): Promis
         tokens.textContent = tokensToCss(ctx.tokens)
 
         const stub = doc.createElement("script")
-        stub.textContent = ctx.bridgeStub ?? PLACEHOLDER_BRIDGE_STUB
+        stub.textContent = ctx.bridgeStub ?? BRIDGE_STUB
 
         const injected: Node[] = [csp, tokens]
         if (ctx.kitCss !== null) {

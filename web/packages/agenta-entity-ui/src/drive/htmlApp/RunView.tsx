@@ -15,7 +15,6 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {
-    KIT_TOKENS,
     SANDBOX_FLAGS,
     type GrantLevel,
     type HtmlAppHost,
@@ -40,46 +39,11 @@ import {
     withinDir,
     type AssembleIo,
 } from "./assemble"
+import {resolveKitTokens} from "./kit"
 
-// ---------------------------------------------------------------------------------------------
-// Tokens
-// ---------------------------------------------------------------------------------------------
-
-/** Kit token → (the app's semantic variable it mirrors, a last-resort value). */
-const TOKEN_SOURCES: Record<(typeof KIT_TOKENS)[number], [string, string]> = {
-    "--ag-bg": ["--ag-colorBgContainer", "#ffffff"],
-    "--ag-fg": ["--ag-colorText", "#242424"],
-    "--ag-muted": ["--ag-colorTextSecondary", "#676770"],
-    "--ag-line": ["--ag-colorBorderSecondary", "#e5e5e3"],
-    "--ag-accent": ["--ag-colorPrimary", "#242424"],
-    "--ag-accent-soft": ["--ag-colorFillSecondary", "rgba(36, 36, 36, 0.06)"],
-    "--ag-ok": ["--ag-colorSuccess", "#2e7d3a"],
-    "--ag-warn": ["--ag-colorWarning", "#8a6400"],
-    "--ag-crit": ["--ag-colorError", "#b42318"],
-    "--ag-font": [
-        "--ag-fontFamily",
-        'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-    ],
-    "--ag-radius": ["--ag-borderRadius", "6px"],
-}
-
-/**
- * The built-in token resolver: for each kit token read the token itself off the root (lane E may
- * define them), else the semantic variable it mirrors, else the fallback. Lane E replaces this
- * through the `resolveTokens` prop.
- */
-export const resolveKitTokens = (): Record<string, string> => {
-    const out: Record<string, string> = {}
-    const style =
-        typeof document !== "undefined" ? getComputedStyle(document.documentElement) : null
-    for (const name of KIT_TOKENS) {
-        const [semantic, fallback] = TOKEN_SOURCES[name]
-        const own = style?.getPropertyValue(name).trim()
-        const mirrored = style?.getPropertyValue(semantic).trim()
-        out[name] = own || mirrored || fallback
-    }
-    return out
-}
+/** Kit tokens read off the host document's root (lane E's resolver); `{}` without a DOM. */
+export const resolveHostKitTokens = (): Record<string, string> =>
+    typeof document === "undefined" ? {} : resolveKitTokens(document.documentElement)
 
 /** Re-run `cb` when the root theme changes. The host stamps the theme as the `.dark` CLASS on
  * `<html>` (`useThemeMode` in `@agenta/ui/theme`), so `class` is the primary attribute watched;
@@ -123,7 +87,7 @@ export interface RunViewProps {
     bridgeStub?: string
     /** Fallback document title (manifest name, else the file name) when the page has none. */
     title?: string
-    /** Lane E's resolver; defaults to {@link resolveKitTokens}. */
+    /** Token resolver; defaults to {@link resolveHostKitTokens}. */
     resolveTokens?: () => Record<string, string>
     /** Tab shown/hidden → `host.setVisible`. */
     visible?: boolean
@@ -156,7 +120,7 @@ export function RunView({
     kitCss,
     bridgeStub,
     title,
-    resolveTokens = resolveKitTokens,
+    resolveTokens = resolveHostKitTokens,
     visible = true,
     changedPaths = [],
     onReload,
