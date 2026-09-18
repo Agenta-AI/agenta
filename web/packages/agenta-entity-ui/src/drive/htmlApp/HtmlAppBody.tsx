@@ -313,6 +313,7 @@ export function HtmlAppBody({
                     io={io}
                     kitCss={manifest?.kit === false ? null : (env.kitCss ?? "")}
                     bridgeStub={env.bridgeStub}
+                    title={appName}
                     resolveTokens={env.resolveTokens}
                     visible={visible}
                     changedPaths={hint.changedPaths}

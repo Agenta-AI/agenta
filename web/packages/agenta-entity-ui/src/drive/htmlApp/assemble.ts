@@ -189,6 +189,9 @@ export interface RunContext {
     kitCss: string | null
     /** The bridge stub source; defaults to the lane A placeholder. */
     bridgeStub?: string
+    /** Document title when the app has none (the manifest name, else the file name) — axe flags a
+     * missing `<title>`, and so does a missing `lang`; both are stamped only when absent. */
+    title?: string
 }
 
 export interface RunDocument {
@@ -261,6 +264,15 @@ export async function assembleRunDocument(html: string, ctx: RunContext): Promis
         }
         injected.push(stub)
         head.prepend(...injected)
+
+        // Accessibility floor the author may have skipped: a document language and a title.
+        if (!doc.documentElement.getAttribute("lang"))
+            doc.documentElement.setAttribute("lang", "en")
+        if (!head.querySelector("title") && ctx.title) {
+            const title = doc.createElement("title")
+            title.textContent = ctx.title
+            head.appendChild(title)
+        }
 
         return {html: `<!DOCTYPE html>\n${doc.documentElement.outerHTML}`, errors}
     } catch (error) {

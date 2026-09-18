@@ -81,7 +81,9 @@ export const resolveKitTokens = (): Record<string, string> => {
     return out
 }
 
-/** Re-run `cb` when the root theme changes: `.dark` / `data-theme` on `<html>` or the OS scheme. */
+/** Re-run `cb` when the root theme changes. The host stamps the theme as the `.dark` CLASS on
+ * `<html>` (`useThemeMode` in `@agenta/ui/theme`), so `class` is the primary attribute watched;
+ * `data-theme` and `style` (color-scheme) ride along, and the OS query covers "system". */
 const useRootThemeChange = (cb: () => void) => {
     const latest = useRef(cb)
     latest.current = cb
@@ -119,6 +121,8 @@ export interface RunViewProps {
     /** Kit stylesheet; null when the manifest disables the kit. */
     kitCss: string | null
     bridgeStub?: string
+    /** Fallback document title (manifest name, else the file name) when the page has none. */
+    title?: string
     /** Lane E's resolver; defaults to {@link resolveKitTokens}. */
     resolveTokens?: () => Record<string, string>
     /** Tab shown/hidden → `host.setVisible`. */
@@ -151,6 +155,7 @@ export function RunView({
     io,
     kitCss,
     bridgeStub,
+    title,
     resolveTokens = resolveKitTokens,
     visible = true,
     changedPaths = [],
@@ -197,6 +202,7 @@ export function RunView({
                 tokens: resolveTokens(),
                 kitCss,
                 bridgeStub,
+                title,
             })
             if (!alive) return
             result.errors.forEach(pushError)
@@ -206,7 +212,18 @@ export function RunView({
             alive = false
         }
         // resolveTokens is read at assemble time only; theme changes go through setTheme below.
-    }, [currentPath, entryPath, entryContent, io, dir, kitCss, bridgeStub, frameKey, pushError])
+    }, [
+        currentPath,
+        entryPath,
+        entryContent,
+        io,
+        dir,
+        kitCss,
+        bridgeStub,
+        title,
+        frameKey,
+        pushError,
+    ])
 
     // Attach on iframe load; detach when the view goes away.
     useEffect(() => () => host.detach(), [host])

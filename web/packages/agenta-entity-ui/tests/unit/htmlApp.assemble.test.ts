@@ -349,6 +349,30 @@ describe("assembleRunDocument", () => {
         expect(html).toContain('href="site.css"')
     })
 
+    it("stamps lang and a title only when the author left them out", async () => {
+        const bare = await assembleRunDocument("<html><head></head><body>x</body></html>", {
+            dir: "app",
+            io: null,
+            tokens: {},
+            kitCss: null,
+            title: "Retro board",
+        })
+        expect(bare.html).toContain('<html lang="en">')
+        expect(bare.html).toContain("<title>Retro board</title>")
+
+        const authored = await assembleRunDocument(
+            '<html lang="de"><head><title>Meins</title></head><body>x</body></html>',
+            {dir: "app", io: null, tokens: {}, kitCss: null, title: "Retro board"},
+        )
+        expect(authored.html).toContain('<html lang="de">')
+        expect(authored.html).toContain("<title>Meins</title>")
+        expect(authored.html).not.toContain("Retro board")
+        // The injected block still leads the head; the title lands after it.
+        expect(authored.html.indexOf("<title>")).toBeGreaterThan(
+            authored.html.indexOf("agenta-tokens"),
+        )
+    })
+
     it("tokensToCss only emits kit token names", () => {
         expect(tokensToCss(TOKENS)).toBe(":root{--ag-bg:#fff;--ag-fg:#111}")
     })
