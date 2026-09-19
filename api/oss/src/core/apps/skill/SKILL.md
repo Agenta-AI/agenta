@@ -78,8 +78,10 @@ Do these in order; each rule is a checklist item.
    sessions, add `agent-files/.apps/notes/<YYYY-MM-DD>-<slug>.md` with one paragraph and the
    session ids. Never edit or delete an existing note.
 5. **Scheduled data:** if an app's data is produced on a schedule (a dashboard, a weekly
-   sweep), propose a schedule in Triggers when you have `create_schedule`, and ask whether the
-   app should live at agent level (`agent-files/apps/<slug>/`), because a scheduled run writes
-   into its own session, not the person's. Default is session level.
+   sweep), propose a schedule in Triggers when you have `create_schedule`. Say plainly that a
+   scheduled run writes into its own session, not this one, so the app will not refresh itself
+   here: the person reopens it after a run, or asks you to copy the new data across. Apps live
+   in the session drive; `create_app` cannot write to `agent-files/`, so do not offer to put one
+   there.
 6. **Never** put app data files under `.apps/`. **Never** touch `.apps/kit/` unless the person
    asks for branding.
