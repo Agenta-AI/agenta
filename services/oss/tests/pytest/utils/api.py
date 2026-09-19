@@ -14,12 +14,36 @@ _GATEWAY_RETRY_ATTEMPTS = 4
 _GATEWAY_RETRY_DELAY = 2  # seconds
 
 
+def _answered_by_another_app(response) -> bool:
+    """Whether this 404 came from something other than the services app.
+
+    The same cutover the 5xx retry above is for can also route a request away from the
+    services app entirely: on a shared host the web app owns every path the services app
+    does not claim at that moment, so the request is answered with an HTML page and a 404
+    rather than a gateway error. Seven cases failed that way on one stage while the same
+    commit passed on another, and every route involved answered normally minutes later.
+
+    Narrow on purpose. The services app is JSON end to end, including its own 404s, so an
+    HTML body is proof the request never reached it. A route that genuinely does not exist
+    still fails on the first try, which is the failure worth keeping.
+    """
+    if response.status_code != 404:
+        return False
+    content_type = (response.headers.get("content-type") or "").lower()
+    if "html" in content_type:
+        return True
+    # A proxy that sends an HTML error page without a usable content type is the same
+    # event, so fall back to the body rather than trusting the header alone.
+    return (response.text or "").lstrip()[:15].lower().startswith("<!doctype html")
+
+
 def _request_with_gateway_retry(request_fn, *, method: str, url: str, **kwargs):
     response = None
     for attempt in range(_GATEWAY_RETRY_ATTEMPTS):
         response = request_fn(method=method, url=url, **kwargs)
         if response.status_code not in _GATEWAY_RETRY_STATUSES:
-            return response
+            if not _answered_by_another_app(response):
+                return response
         if attempt < _GATEWAY_RETRY_ATTEMPTS - 1:
             time.sleep(_GATEWAY_RETRY_DELAY)
     return response
