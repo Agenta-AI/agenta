@@ -2,17 +2,45 @@
  * Agent HTML apps — path scoping (lane A).
  *
  * Every path the app hands the bridge is relative to its own folder. The host turns it into the
- * mount-relative path the API wants, and refuses anything that could leave the folder. The rules
- * are exactly `normalizeAppPath` from the mock host (absolute, `..`, `.`, backslashes, control
- * characters, percent-encoded dots, empty segments); this module only adds the join with `dir`
- * and the inverse mapping for paths the API returns.
+ * mount-relative path the API wants, and refuses anything that could leave the folder.
+ *
+ * {@link normalizeAppPath} is the rule, and it lives here rather than in the mock host because it
+ * is the check that keeps an app inside its folder: production must not import it from a test
+ * double. The mock imports it from this module so both sides are provably the same rule.
  */
-
-import {normalizeAppPath} from "./mockHost"
 
 export interface ScopeFailure {
     code: "scope"
     message: string
+}
+
+// eslint-disable-next-line no-control-regex
+const CONTROL_CHARS = /[\x00-\x1f\x7f]/
+
+/**
+ * Normalise an app-relative path. Returns null when the path is out of scope: absolute, empty,
+ * backslashes, control characters, `.`/`..` segments (also percent-encoded), empty segments.
+ * `list` alone may pass `""` to mean the app dir itself.
+ */
+export function normalizeAppPath(raw: string, opts?: {allowRoot?: boolean}): string | null {
+    if (typeof raw !== "string") return null
+    let decoded: string
+    try {
+        decoded = decodeURIComponent(raw)
+    } catch {
+        return null
+    }
+    if (decoded === "") return opts?.allowRoot ? "" : null
+    if (decoded.startsWith("/")) return null
+    if (decoded.includes("\\")) return null
+    if (CONTROL_CHARS.test(decoded)) return null
+    const trimmed = decoded.endsWith("/") ? decoded.slice(0, -1) : decoded
+    if (trimmed === "") return null
+    const segments = trimmed.split("/")
+    for (const segment of segments) {
+        if (segment === "" || segment === "." || segment === "..") return null
+    }
+    return segments.join("/")
 }
 
 export const SCOPE_MESSAGE = "path is outside the app directory"

@@ -37,6 +37,8 @@ import {
     type ThemeMsg,
     type VisibilityMsg,
 } from "./protocol"
+// The scope rule is production's; the mock shares it so both enforce exactly the same paths.
+import {normalizeAppPath} from "./scope"
 
 export interface MockHtmlAppHostOptions {
     grant?: GrantLevel
@@ -82,35 +84,6 @@ export function computeEtag(text: string): string {
 }
 
 const byteLength = (text: string): number => new TextEncoder().encode(text).length
-
-// eslint-disable-next-line no-control-regex
-const CONTROL_CHARS = /[\x00-\x1f\x7f]/
-
-/**
- * Normalise an app-relative path. Returns null when the path is out of scope: absolute, empty,
- * backslashes, control characters, `.`/`..` segments (also percent-encoded), empty segments.
- * `list` alone may pass `""` to mean the app dir itself.
- */
-export function normalizeAppPath(raw: string, opts?: {allowRoot?: boolean}): string | null {
-    if (typeof raw !== "string") return null
-    let decoded: string
-    try {
-        decoded = decodeURIComponent(raw)
-    } catch {
-        return null
-    }
-    if (decoded === "") return opts?.allowRoot ? "" : null
-    if (decoded.startsWith("/")) return null
-    if (decoded.includes("\\")) return null
-    if (CONTROL_CHARS.test(decoded)) return null
-    const trimmed = decoded.endsWith("/") ? decoded.slice(0, -1) : decoded
-    if (trimmed === "") return null
-    const segments = trimmed.split("/")
-    for (const segment of segments) {
-        if (segment === "" || segment === "." || segment === "..") return null
-    }
-    return segments.join("/")
-}
 
 const failure = (id: number, error: BridgeError): FsFailure => ({v: 1, id, ok: false, error})
 
