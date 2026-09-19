@@ -63,6 +63,7 @@ import {TreeRow} from "./DriveTreeRow"
 import {FolderView} from "./FolderView"
 import {DriveHtmlApp} from "./renderers"
 import {useDriveDownloadAll} from "./useDriveDownloadAll"
+import {useDrivePasteUpload} from "./useDrivePasteUpload"
 import {useDriveTreeData} from "./useDriveTreeData"
 import {useDriveWrites} from "./useDriveWrites"
 import {useSelectionReveal} from "./useSelectionReveal"
@@ -291,6 +292,12 @@ export function DriveExplorer({
     // The pane's own box: confirms render inside it, not over the whole window.
     const paneRef = useRef<HTMLDivElement>(null)
     const getPane = useCallback(() => paneRef.current, [])
+    // ⌘V with the pane current: the clipboard's files land in the folder being viewed.
+    const onPasteFiles = useCallback(
+        (files: DroppedFile[]) => uploadIntoFolder(files, currentFolder),
+        [uploadIntoFolder, currentFolder],
+    )
+    useDrivePasteUpload({paneRef, enabled: chrome && canUpload, onFiles: onPasteFiles})
     const writes = useDriveWrites(drive, getPane)
     const siblingsOf = useCallback(
         (folder: string) =>
