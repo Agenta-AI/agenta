@@ -1,5 +1,11 @@
 [
     {
+        "id": "changelog-2026-09-05-agent-configuration-history",
+        "title": "Agent version history",
+        "description": "Compare an earlier agent configuration with the current one and restore it as a new version without deleting history.",
+        "link": "https://agenta.ai/docs/changelog/agent-configuration-history"
+    },
+    {
         "id": "changelog-2026-08-28-recognize-agents-at-a-glance",
         "title": "Agent icons and colors",
         "description": "Choose an icon and color for each agent so you can tell them apart in the sidebar and chat.",
