@@ -11,9 +11,11 @@ not exist. The services app speaks JSON throughout, including in its own 404s, s
 settles it: HTML means the request never arrived, JSON means it did and the answer is no.
 """
 
+import warnings
+
 import pytest
 
-from utils.api import _request_with_gateway_retry
+from utils.api import MisroutedRequestWarning, _request_with_gateway_retry
 
 
 class _Response:
@@ -50,7 +52,10 @@ def test_an_html_404_is_retried_until_the_services_app_answers():
         ok,
     )
 
-    response = _request_with_gateway_retry(request_fn, method="POST", url="/inspect")
+    with pytest.warns(MisroutedRequestWarning):
+        response = _request_with_gateway_retry(
+            request_fn, method="POST", url="/inspect"
+        )
 
     assert response is ok
     assert len(calls) == 2
@@ -60,7 +65,10 @@ def test_an_html_404_without_a_content_type_is_read_from_its_body():
     ok = _Response(200, content_type="application/json", text="{}")
     request_fn, calls = _answering(_Response(404, text=_NEXT_PAGE), ok)
 
-    response = _request_with_gateway_retry(request_fn, method="POST", url="/inspect")
+    with pytest.warns(MisroutedRequestWarning):
+        response = _request_with_gateway_retry(
+            request_fn, method="POST", url="/inspect"
+        )
 
     assert response is ok
     assert len(calls) == 2
@@ -82,7 +90,10 @@ def test_an_html_404_that_never_clears_is_returned_rather_than_retried_forever()
     page = _Response(404, content_type="text/html", text=_NEXT_PAGE)
     request_fn, calls = _answering(page)
 
-    response = _request_with_gateway_retry(request_fn, method="POST", url="/inspect")
+    with pytest.warns(MisroutedRequestWarning):
+        response = _request_with_gateway_retry(
+            request_fn, method="POST", url="/inspect"
+        )
 
     assert response is page
     assert len(calls) == 4
@@ -106,3 +117,43 @@ def test_a_successful_call_is_made_once():
 
     assert response is ok
     assert len(calls) == 1
+
+
+def test_each_retry_warns_and_names_the_path_without_the_host():
+    ok = _Response(200, content_type="application/json", text="{}")
+    request_fn, _calls = _answering(
+        _Response(404, content_type="text/html", text=_NEXT_PAGE), ok
+    )
+
+    with pytest.warns(MisroutedRequestWarning) as recorded:
+        _request_with_gateway_retry(
+            request_fn,
+            method="POST",
+            url="https://a-deployment.example/services/code/v0/invoke",
+        )
+
+    assert len(recorded) == 1
+    message = str(recorded[0].message)
+    assert "POST /services/code/v0/invoke was answered" in message
+    assert "a-deployment.example" not in message
+
+
+def test_a_run_that_never_recovers_warns_on_every_attempt():
+    page = _Response(404, content_type="text/html", text=_NEXT_PAGE)
+    request_fn, _calls = _answering(page)
+
+    with pytest.warns(MisroutedRequestWarning) as recorded:
+        _request_with_gateway_retry(request_fn, method="POST", url="/inspect")
+
+    assert len(recorded) == 4
+
+
+def test_a_json_404_warns_about_nothing():
+    refusal = _Response(404, content_type="application/json", text='{"detail":"x"}')
+    request_fn, _calls = _answering(refusal)
+
+    with warnings.catch_warnings(record=True) as recorded:
+        warnings.simplefilter("always")
+        _request_with_gateway_retry(request_fn, method="POST", url="/nope")
+
+    assert recorded == []
