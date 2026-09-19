@@ -8,14 +8,16 @@
  *   404 → not_found · 412 → conflict (with the server's current etag from `detail.etag`) ·
  *   413 or a local cap breach → too_large · 403 → read_only · anything else → unavailable.
  *
- * Transport: reads, listings and deletes go through the Fern mounts client (`deleteMountFile`
- * takes `If-Match` as its typed `if-match` request field). The generated `writeMountFile`
- * sends NO body, so `write` uses the shared axios instance with a raw `text/plain` body — the same
- * path `driveMedia` uses for bytes.
+ * Transport: every call goes through the generated Fern mounts client. `write` used to be the
+ * exception — the generated `writeMountFile` sent no body, because the endpoint reads its body
+ * with `await request.body()` and FastAPI cannot see that, so the spec described a PUT with
+ * nothing in it. The route now declares the body for OpenAPI only (`openapi_extra`), the runtime
+ * read is untouched, and the generated method carries it. `If-Match` stays a typed field on
+ * `deleteMountFile`; on `write` it travels in `requestOptions.headers`, because Fern drops
+ * declared header params from an endpoint that takes a binary body.
  */
 
 import {getMountsClient} from "@agenta/sdk/resources"
-import {axios, getAgentaApiUrl} from "@agenta/shared/api"
 import {z} from "zod"
 
 import {projectScopedRequest} from "@agenta/entities/session"
@@ -227,10 +229,14 @@ const ifMatchHeaders = (opts?: FsWriteOptions): Record<string, string> =>
 
 export function createFsClient({mountId, projectId, scopeToken}: FsClientOptions): FsClient {
     /** Fern `requestOptions` for this call, carrying the scope token when there is one. */
-    const scoped = async () => {
+    const scoped = async (): Promise<
+        ReturnType<typeof projectScopedRequest> & {headers: Record<string, string>}
+    > => {
         const base = projectScopedRequest(projectId)
         const token = scopeToken ? await scopeToken() : null
-        return token ? {...base, headers: scopeHeaders(token)} : base
+        // Always a `headers` object, even when empty: callers merge into it, and a union of
+        // "sometimes has headers" is a type error waiting at every call site.
+        return {...base, headers: scopeHeaders(token)}
     }
     const guarded = async <T>(fn: () => Promise<T>): Promise<T> => {
         try {
@@ -305,21 +311,21 @@ export function createFsClient({mountId, projectId, scopeToken}: FsClientOptions
         guarded(async () => {
             const size = byteLength(body)
             if (size > WRITE_CAP) throw new FsClientError("too_large", MESSAGES.too_large)
-            const url = `${getAgentaApiUrl()}/mounts/${mountId}/files?path=${encodeURIComponent(path)}`
-            const token = scopeToken ? await scopeToken() : null
-            const response = await axios.put(url, body, {
-                params: {project_id: projectId},
-                headers: {
-                    "Content-Type": "text/plain; charset=utf-8",
-                    ...ifMatchHeaders(opts),
-                    ...scopeHeaders(token),
+            // Through the generated client: the endpoint declares its body in the spec now, so
+            // there is no hand-built URL here and an API change surfaces in `tsc`. `If-Match` and
+            // the scope token ride in `requestOptions.headers` — Fern drops declared header
+            // params when an endpoint takes a binary body, so they are untyped for this one call.
+            const base = await scoped()
+            const data = await getMountsClient().writeMountFile(
+                new Blob([body], {type: "text/plain; charset=utf-8"}),
+                mountId,
+                {path},
+                {
+                    ...base,
+                    headers: {...base.headers, ...ifMatchHeaders(opts)},
                 },
-            })
-            const parsed = safeParseWithLogging(
-                writeResponseSchema,
-                response.data,
-                "[htmlApp.fs.write]",
             )
+            const parsed = safeParseWithLogging(writeResponseSchema, data, "[htmlApp.fs.write]")
             const etag = parsed?.etag ?? null
             return {
                 result: {path: parsed?.path ?? path, size: parsed?.size ?? size, etag},

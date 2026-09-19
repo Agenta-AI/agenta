@@ -1,23 +1,23 @@
 /**
- * The eight fs operations against a mocked transport: Fern mounts client for read/list/delete,
- * the shared axios instance for the raw-body write. Asserts URLs, query params, headers (If-Match
- * present/absent), body content type, result mapping and the HTTP → bridge error mapping.
+ * The eight fs operations against a mocked transport. Every call now goes through the Fern mounts
+ * client, write included: the endpoint declares its body in the spec, so there is no hand-built
+ * URL left here. Asserts the arguments each generated method receives, If-Match present/absent,
+ * result mapping and the HTTP → bridge error mapping.
  */
 import {beforeEach, describe, expect, it, vi} from "vitest"
 
-const fern = vi.hoisted(() => ({getMountFiles: vi.fn(), deleteMountFile: vi.fn()}))
-const http = vi.hoisted(() => ({put: vi.fn()}))
+const fern = vi.hoisted(() => ({
+    getMountFiles: vi.fn(),
+    deleteMountFile: vi.fn(),
+    writeMountFile: vi.fn(),
+}))
 
 vi.mock("@agenta/sdk/resources", () => ({
     getMountsClient: () => fern,
 }))
 
-vi.mock("@agenta/shared/api", () => ({
-    axios: {put: http.put},
-    getAgentaApiUrl: () => "https://api.test",
-}))
-
 vi.mock("@agenta/entities/session", () => ({
+    getMountsClient: () => fern,
     projectScopedRequest: (projectId: string) => ({queryParams: {project_id: projectId}}),
 }))
 
@@ -51,7 +51,7 @@ const expectCode = async (promise: Promise<unknown>, code: string): Promise<FsCl
 beforeEach(() => {
     fern.getMountFiles.mockReset()
     fern.deleteMountFile.mockReset()
-    http.put.mockReset()
+    fern.writeMountFile.mockReset()
 })
 
 describe("read / readJSON", () => {
@@ -65,7 +65,7 @@ describe("read / readJSON", () => {
         expect(res).toEqual({result: '{"a":1}', etag: "e1"})
         expect(fern.getMountFiles).toHaveBeenCalledWith(
             {mount_id: "m1", read: "apps/b/data.json"},
-            {queryParams: {project_id: "p1"}},
+            {queryParams: {project_id: "p1"}, headers: {}},
         )
     })
 
@@ -106,7 +106,7 @@ describe("list / exists / stat", () => {
         const res = await client().list("apps/b")
         expect(fern.getMountFiles).toHaveBeenCalledWith(
             {mount_id: "m1", path: "apps/b", depth: 1},
-            {queryParams: {project_id: "p1"}},
+            {queryParams: {project_id: "p1"}, headers: {}},
         )
         expect(res.result).toEqual([
             {path: "apps/b/app.json", size: 12, mtime: 1700, etag: "ea", isFolder: false},
@@ -150,29 +150,35 @@ describe("list / exists / stat", () => {
 })
 
 describe("write / writeJSON", () => {
-    it("PUTs a raw text body through axios with the encoded path and no If-Match by default", async () => {
-        http.put.mockResolvedValueOnce({data: {path: "apps/b/a b.txt", size: 6, etag: "e2"}})
+    it("writes through the generated client, path unencoded in the typed field", async () => {
+        // The path is a typed request field now: no hand-built URL, so no manual encoding to get
+        // wrong — the generated client owns it.
+        fern.writeMountFile.mockResolvedValueOnce({path: "apps/b/a b.txt", size: 6, etag: "e2"})
         const res = await client().write("apps/b/a b.txt", "héllo")
-        expect(http.put).toHaveBeenCalledTimes(1)
-        const [url, body, config] = http.put.mock.calls[0]
-        expect(url).toBe("https://api.test/mounts/m1/files?path=apps%2Fb%2Fa%20b.txt")
-        expect(body).toBe("héllo")
-        expect(config.params).toEqual({project_id: "p1"})
-        expect(config.headers).toEqual({"Content-Type": "text/plain; charset=utf-8"})
+        expect(fern.writeMountFile).toHaveBeenCalledTimes(1)
+        const [uploadable, mountId, request, options] = fern.writeMountFile.mock.calls[0]
+        expect(uploadable).toBeInstanceOf(Blob)
+        expect(await (uploadable as Blob).text()).toBe("héllo")
+        expect(mountId).toBe("m1")
+        expect(request).toEqual({path: "apps/b/a b.txt"})
+        expect(options.queryParams).toEqual({project_id: "p1"})
         expect(res).toEqual({result: {path: "apps/b/a b.txt", size: 6, etag: "e2"}, etag: "e2"})
     })
 
     it("sends If-Match when the host resolved one", async () => {
-        http.put.mockResolvedValueOnce({data: {path: "x", size: 1, etag: "e3"}})
+        fern.writeMountFile.mockResolvedValueOnce({path: "x", size: 1, etag: "e3"})
         await client().write("x", "a", {ifMatch: "e1"})
-        expect(http.put.mock.calls[0][2].headers).toEqual({
-            "Content-Type": "text/plain; charset=utf-8",
-            "If-Match": "e1",
-        })
+        expect(fern.writeMountFile.mock.calls[0][3].headers).toEqual({"If-Match": "e1"})
+    })
+
+    it("sends no If-Match when the host has none", async () => {
+        fern.writeMountFile.mockResolvedValueOnce({path: "x", size: 1, etag: "e3"})
+        await client().write("x", "a")
+        expect(fern.writeMountFile.mock.calls[0][3].headers).toEqual({})
     })
 
     it("fills in path/size locally when the server omits them (pre-lane-B)", async () => {
-        http.put.mockResolvedValueOnce({data: {}})
+        fern.writeMountFile.mockResolvedValueOnce({})
         expect(await client().write("x", "héllo")).toEqual({
             result: {path: "x", size: 6, etag: null},
             etag: null,
@@ -181,21 +187,21 @@ describe("write / writeJSON", () => {
 
     it("refuses a body over WRITE_CAP before any request", async () => {
         await expectCode(client().write("x", "x".repeat(WRITE_CAP + 1)), "too_large")
-        expect(http.put).not.toHaveBeenCalled()
+        expect(fern.writeMountFile).not.toHaveBeenCalled()
     })
 
     it("writeJSON validates the body before sending", async () => {
         await expectCode(client().writeJSON("x", "{oops"), "bad_request")
-        expect(http.put).not.toHaveBeenCalled()
-        http.put.mockResolvedValueOnce({data: {path: "x", size: 7, etag: "e"}})
+        expect(fern.writeMountFile).not.toHaveBeenCalled()
+        fern.writeMountFile.mockResolvedValueOnce({path: "x", size: 7, etag: "e"})
         await client().writeJSON("x", '{"a":1}', {ifMatch: "old"})
-        expect(http.put.mock.calls[0][1]).toBe('{"a":1}')
-        expect(http.put.mock.calls[0][2].headers["If-Match"]).toBe("old")
+        expect(await (fern.writeMountFile.mock.calls[0][0] as Blob).text()).toBe('{"a":1}')
+        expect(fern.writeMountFile.mock.calls[0][3].headers["If-Match"]).toBe("old")
     })
 
-    it("maps a 412 from axios to conflict with the server's etag", async () => {
-        http.put.mockRejectedValueOnce(
-            axiosError(412, {detail: {code: "conflict", etag: "server-etag"}}),
+    it("maps a 412 to conflict with the server's etag", async () => {
+        fern.writeMountFile.mockRejectedValueOnce(
+            fernError(412, {detail: {code: "conflict", etag: "server-etag"}}),
         )
         const err = await expectCode(client().write("x", "a", {ifMatch: "stale"}), "conflict")
         expect(err.etag).toBe("server-etag")
@@ -210,7 +216,7 @@ describe("remove", () => {
         expect(res).toEqual({result: {deleted: true}})
         expect(fern.deleteMountFile).toHaveBeenCalledWith(
             {mount_id: "m1", path: "apps/b/x.txt", "if-match": "e1"},
-            {queryParams: {project_id: "p1"}},
+            {queryParams: {project_id: "p1"}, headers: {}},
         )
     })
 
@@ -218,7 +224,10 @@ describe("remove", () => {
         fern.deleteMountFile.mockResolvedValueOnce({deleted: true})
         await client().remove("x")
         expect(fern.deleteMountFile.mock.calls[0][0]).toEqual({mount_id: "m1", path: "x"})
-        expect(fern.deleteMountFile.mock.calls[0][1]).toEqual({queryParams: {project_id: "p1"}})
+        expect(fern.deleteMountFile.mock.calls[0][1]).toEqual({
+            queryParams: {project_id: "p1"},
+            headers: {},
+        })
     })
 
     it("maps a 412 on delete to conflict with etag null when the file is gone", async () => {
@@ -243,7 +252,7 @@ describe("error mapping", () => {
         expect(toFsClientError(axiosError(status)).code).toBe(code)
         fern.getMountFiles.mockRejectedValueOnce(fernError(status))
         await expectCode(client().read("x"), code)
-        http.put.mockRejectedValueOnce(axiosError(status))
+        fern.writeMountFile.mockRejectedValueOnce(fernError(status))
         await expectCode(client().write("x", "a"), code)
     })
 

@@ -16,7 +16,7 @@
  * app never has a call fail on expiry.
  */
 
-import {axios, getAgentaApiUrl} from "@agenta/shared/api"
+import {getMountsClient, projectScopedRequest} from "@agenta/entities/session"
 
 import type {GrantLevel} from "./protocol"
 
@@ -50,13 +50,10 @@ async function mint(
     level: GrantLevel,
 ): Promise<string | null> {
     try {
-        // Not on the Fern client yet: the endpoint postdates the last generation. It belongs in
-        // the same regeneration that gives `writeMountFile` a body — both are the reason this
-        // module reaches for axios at all.
-        const url = `${getAgentaApiUrl()}/mounts/${mountId}/apps/scope`
-        const response = await axios.post(url, {dir, level}, {params: {project_id: projectId}})
-        const token = response?.data?.token
-        const expiresAt = response?.data?.expires_at
+        const {token, expires_at: expiresAt} = await getMountsClient().mintAppScopeToken(
+            {mount_id: mountId, dir, level},
+            projectScopedRequest(projectId),
+        )
         if (typeof token !== "string" || typeof expiresAt !== "number") return null
         cache.set(cacheKey(mountId, dir, level), {token, expiresAt: expiresAt * 1000})
         return token

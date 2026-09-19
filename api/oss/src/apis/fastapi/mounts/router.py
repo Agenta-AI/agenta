@@ -327,6 +327,20 @@ class MountsRouter:
             response_model=MountFileWrittenResponse,
             response_model_exclude_none=True,
             status_code=status.HTTP_200_OK,
+            # The handler reads the raw body with `await request.body()`, which FastAPI cannot
+            # see, so the generated spec described a PUT with NO body — and the generated client
+            # duly sent none. Declaring it here is documentation only: the runtime read is
+            # unchanged, and the generated client gains the parameter it was missing. Without
+            # this, every caller has to hand-roll the write, which is how the bridge ended up
+            # on axios against the repo's own Fern rule.
+            openapi_extra={
+                "requestBody": {
+                    "required": True,
+                    "content": {
+                        "application/octet-stream": {"schema": {"type": "string", "format": "binary"}},
+                    },
+                }
+            },
         )
         self.router.add_api_route(
             "/{mount_id}/files",
