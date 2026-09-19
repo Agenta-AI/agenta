@@ -1,4 +1,5 @@
 from fastapi import Request, HTTPException
+from sqlalchemy.exc import NoResultFound
 from fastapi.responses import JSONResponse
 
 from oss.src.utils.caching import get_cache, set_cache, invalidate_cache
@@ -42,11 +43,11 @@ async def user_profile(request: Request):
     if user is not None:
         return user
 
-    user = await db_manager.get_user_with_id(user_id=request.state.user_id)
-
-    if user is None:
+    try:
+        user = await db_manager.get_user_with_id(user_id=request.state.user_id)
+    except NoResultFound:
         raise HTTPException(
-            status_code=400,
+            status_code=404,
             detail="User not found. Please ensure that the user_id is specified correctly.",
         )
 
@@ -172,8 +173,15 @@ async def reset_user_password(request: Request, user_id: str):
             status_code=403,
         )
 
-    user_password = await user_service.generate_user_password_reset_link(
-        user_id=user_id,
-        admin_user_id=request.state.user_id,
-    )
+    try:
+        user_password = await user_service.generate_user_password_reset_link(
+            user_id=user_id,
+            admin_user_id=request.state.user_id,
+            caller_org_id=str(request.state.organization_id),
+        )
+    except (PermissionError, NoResultFound):
+        return JSONResponse(
+            {"detail": "You do not have permission to reset this user's password."},
+            status_code=403,
+        )
     return user_password
