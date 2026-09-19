@@ -200,6 +200,7 @@ exactly what enforces it, because `default-src 'none'` is not the whole answer.
 | Remote fonts, styles, scripts        | `default-src 'none'`         |
 | `window.open("https://…?d=" + data)` | **no `allow-popups`**        |
 | `<form action="https://…">`          | **`form-action 'none'`**     |
+| `RTCPeerConnection` (ICE / STUN / TURN) | **the stub deletes the constructors** |
 | Reaching the parent page or cookies  | no `allow-same-origin`       |
 
 The last three are the ones that surprise people. **CSP's fetch directives do not govern
@@ -221,8 +222,26 @@ Two consequences worth carrying into later phases:
   load a chart library from a CDN" reopens this by adding a remote origin. The library shelf in
   the canvas doc exists precisely so that never has to happen: builds are inlined at assembly.
 
-Folder scope is worth little while an app has any way out, so this surface is the one to guard
-first. See the boundary note in the review for why the folder itself is a client-side guardrail.
+### WebRTC, and why this list is not the security model
+
+WebRTC is the row that changes how to read the rest of the table. ICE is not a fetch, so no CSP
+value governs it: measured against this exact sandbox and policy, a peer connection gathered a
+`srflx` candidate — a completed round trip to a public STUN server — and UDP reached a host and
+port of the app's choosing, while every HTTP-shaped channel above was blocked. `webrtc 'block'`
+in a `<meta>` policy had no effect. It is closed in the bridge stub, which runs before any app
+script, and the usual recovery (a clean constructor off a nested `about:blank` frame) fails
+because the sandbox has no `allow-same-origin`.
+
+Two exits were found this way: popups, then WebRTC. Each was found by thinking of one more.
+**Enumerating exits against a browser does not terminate** — the surface grows every release, and
+a blocklist is only as good as the last person who went looking. Treat this table as a record of
+what is closed, never as a proof that nothing is open.
+
+That is why the folder rule is enforced on the server as well, and why that is the layer to trust:
+an app that cannot obtain bytes outside its folder makes the exit list stop being load-bearing.
+See `core/apps/scope_token.py`. The table above still matters, because an app can always leak the
+folder you granted it — but with the prefix check the damage is bounded by what the person chose
+to show it, rather than by whether this page got every path right.
 
 ## Stub globals (lane E)
 
