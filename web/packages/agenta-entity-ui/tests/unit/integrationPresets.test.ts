@@ -14,6 +14,9 @@ import {
     mergeToolPermission,
     presetPermissions,
     readIntegrationPreset,
+    rollupEffectiveGroupPermission,
+    rollupLabel,
+    resolveEffectivePermission,
     type IntegrationPreset,
 } from "../../src/DrillInView/SchemaControls/integrationPolicy"
 import type {GatewayConnectionPermissions} from "../../src/DrillInView/SchemaControls/toolUtils"
@@ -95,6 +98,49 @@ describe("reading a preset back", () => {
         expect(integrationPermissionSummary({default: "inherit", tools: {}}).label).toBe(
             "Allow reads",
         )
+    })
+})
+
+describe("effective inherited permissions", () => {
+    it("resolves allow_reads by tool access", () => {
+        expect(resolveEffectivePermission("inherit", "allow_reads", true)).toBe("allow")
+        expect(resolveEffectivePermission("inherit", "allow_reads", false)).toBe("ask")
+        expect(resolveEffectivePermission("inherit", "allow_reads", undefined)).toBe("ask")
+    })
+
+    it("resolves inherited permissions for every agent policy", () => {
+        for (const policy of ["allow", "ask", "deny"] as const) {
+            expect(resolveEffectivePermission("inherit", policy, true)).toBe(policy)
+            expect(resolveEffectivePermission("inherit", policy, false)).toBe(policy)
+        }
+    })
+
+    it("leaves explicit integration permissions unchanged", () => {
+        for (const permission of ["allow", "ask", "deny"] as const) {
+            expect(resolveEffectivePermission(permission, "allow_reads", true)).toBe(permission)
+        }
+    })
+
+    it("shows the allow-reads split in group rollups", () => {
+        const permissions: GatewayConnectionPermissions = {default: "inherit", tools: {}}
+        expect(
+            rollupLabel(
+                rollupEffectiveGroupPermission(
+                    [{key: "READ", readOnly: true}],
+                    permissions,
+                    "allow_reads",
+                ),
+            ),
+        ).toBe("runs automatically")
+        expect(
+            rollupLabel(
+                rollupEffectiveGroupPermission(
+                    [{key: "WRITE", readOnly: false}],
+                    permissions,
+                    "allow_reads",
+                ),
+            ),
+        ).toBe("asks first")
     })
 })
 
