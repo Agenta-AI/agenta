@@ -1,6 +1,10 @@
 from typing import Dict, Optional, Tuple
 
-from litellm import cost_calculator
+try:
+    from litellm import cost_calculator
+except Exception:
+    cost_calculator = None
+
 
 
 supported_llm_models = {
