@@ -258,6 +258,10 @@ describe("assemblePreview is byte-identical to the pre-move inlineHtmlAssets", (
 const APP_FILES: Record<string, string> = {
     "app/app.js": 'console.log("app"); var s = "</script>";',
     "app/site.css": ".ag-app{padding:8px}",
+    // Outside the app dir: nothing the Run assembler may touch, everything a climbing
+    // reference would want.
+    "secrets.json": '{"token":"SUPER-SECRET"}',
+    "other-app/steal.js": "window.stolen = 1",
 }
 const appIo: AssembleIo = {
     fetchText: async (path) => APP_FILES[path] ?? null,
@@ -297,6 +301,45 @@ describe("assembleRunDocument", () => {
         // No Preview interceptor in Run.
         expect(html).not.toContain(HTML_NAV_INTERCEPTOR)
         expect(html).toContain("<style>.ag-app{padding:8px}</style>")
+    })
+
+    // The `fs` bridge has always refused `../..`; markup used to go around it. A grant is for
+    // ONE folder, so a reference that climbs out is dropped before it is fetched — otherwise an
+    // app could pull any text file in the mount into a <style> and write back what it read.
+    it("refuses references that climb out of the app folder", async () => {
+        const climbing = `<html><head>
+<link rel="stylesheet" href="../secrets.json">
+<script src="../other-app/steal.js"></script>
+</head><body><img src="../secrets.json"></body></html>`
+
+        const {html, errors} = await assembleRunDocument(climbing, {
+            dir: "app",
+            io: appIo,
+            tokens: TOKENS,
+            kitCss: ".ag-btn{}",
+        })
+
+        expect(html).not.toContain("SUPER-SECRET")
+        expect(html).not.toContain("window.stolen")
+        expect(errors).toEqual(
+            expect.arrayContaining([
+                "Stylesheet outside the app folder was not loaded: ../secrets.json",
+                "Script outside the app folder was not loaded: ../other-app/steal.js",
+                "Image outside the app folder was not loaded: ../secrets.json",
+            ]),
+        )
+    })
+
+    it("still inlines references that stay inside the folder", async () => {
+        const nested = `<html><head><link rel="stylesheet" href="./site.css"></head><body></body></html>`
+        const {html, errors} = await assembleRunDocument(nested, {
+            dir: "app",
+            io: appIo,
+            tokens: TOKENS,
+            kitCss: ".ag-btn{}",
+        })
+        expect(html).toContain("<style>.ag-app{padding:8px}</style>")
+        expect(errors).toEqual([])
     })
 
     it("injects CSP, tokens, kit and the stub at the top of head, in that order", async () => {

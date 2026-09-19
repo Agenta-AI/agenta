@@ -71,14 +71,54 @@ export const blobToDataUri = (blob: Blob | null): Promise<string | null> => {
     })
 }
 
+/**
+ * Options for {@link inlineAssets}.
+ *
+ * `confine` is what separates Run from Preview. Preview renders ANY html file in the drive, where
+ * `../assets/site.css` is an ordinary thing to write and the reader could open that file directly
+ * anyway, so it resolves freely. Run happens under a grant the person gave for ONE folder, so a
+ * reference that climbs out of it is refused: `resolveRel` pops `..` with no floor, and without
+ * this an app could pull any text file in the mount into a `<style>` (or execute it as a script)
+ * and then write what it read back into its own folder. The `fs` bridge has always refused those
+ * paths; markup went around it.
+ */
+interface InlineOptions {
+    /** App dir every reference must stay inside. Omitted: resolve anywhere in the mount. */
+    confine?: string
+    /** Sink for references dropped by `confine`, surfaced in the Run tab's error strip. */
+    errors?: string[]
+}
+
 /** Inline relative stylesheets/images from the mount into `doc`. Shared by Preview and Run. */
-async function inlineAssets(doc: Document, dir: string, io: AssembleIo): Promise<void> {
+async function inlineAssets(
+    doc: Document,
+    dir: string,
+    io: AssembleIo,
+    opts: InlineOptions = {},
+): Promise<void> {
+    const {confine, errors} = opts
+
+    /** Mount-relative target, or null when it leaves `confine`. */
+    const target = (ref: string, kind: string): string | null => {
+        const path = resolveRel(dir, ref)
+        if (confine !== undefined && !withinDir(confine, path)) {
+            errors?.push(`${kind} outside the app folder was not loaded: ${ref}`)
+            return null
+        }
+        return path
+    }
+
     await Promise.all(
         Array.from(doc.querySelectorAll<HTMLLinkElement>('link[rel~="stylesheet"][href]')).map(
             async (link) => {
                 const href = link.getAttribute("href") ?? ""
                 if (!href || isExternalUrl(href)) return
-                const css = await io.fetchText(resolveRel(dir, href))
+                const path = target(href, "Stylesheet")
+                if (path === null) {
+                    link.remove()
+                    return
+                }
+                const css = await io.fetchText(path)
                 if (css == null) return
                 const style = doc.createElement("style")
                 style.textContent = css
@@ -91,7 +131,12 @@ async function inlineAssets(doc: Document, dir: string, io: AssembleIo): Promise
         Array.from(doc.querySelectorAll<HTMLImageElement>("img[src]")).map(async (img) => {
             const src = img.getAttribute("src") ?? ""
             if (!src || isExternalUrl(src) || src.startsWith("data:")) return
-            const uri = await io.fetchDataUri(resolveRel(dir, src))
+            const path = target(src, "Image")
+            if (path === null) {
+                img.removeAttribute("src")
+                return
+            }
+            const uri = await io.fetchDataUri(path)
             if (uri) img.setAttribute("src", uri)
         }),
     )
@@ -199,7 +244,7 @@ export async function assembleRunDocument(html: string, ctx: RunContext): Promis
         const doc = new DOMParser().parseFromString(html, "text/html")
         const {dir, io} = ctx
 
-        if (io) await inlineAssets(doc, dir, io)
+        if (io) await inlineAssets(doc, dir, io, {confine: dir, errors})
 
         await Promise.all(
             Array.from(doc.querySelectorAll<HTMLScriptElement>("script[src]")).map(
@@ -213,6 +258,13 @@ export async function assembleRunDocument(html: string, ctx: RunContext): Promis
                         return
                     }
                     const path = resolveRel(dir, src)
+                    // The grant is for this folder: a script that climbs out of it is refused
+                    // before it is fetched, never mind executed.
+                    if (!withinDir(dir, path)) {
+                        errors.push(`Script outside the app folder was not loaded: ${src}`)
+                        script.remove()
+                        return
+                    }
                     const text = io ? await io.fetchText(path) : null
                     if (text == null) {
                         errors.push(`Script not found in the app folder: ${src}`)
