@@ -36,6 +36,7 @@ This key has no env-var or `env.py` equivalent.
 |---|---|---|
 | `AGENTA_LICENSE` | `agenta.license` | `agenta.license` |
 | `AGENTA_WEB_URL` | `agenta.web_url` | `agenta.webUrl` |
+| `AGENTA_APP_ORIGINS` | `agenta.app_origins` | n/a |
 | `AGENTA_SERVICES_URL` | `agenta.services_url` | `agenta.servicesUrl` |
 | `AGENTA_API_URL` | `agenta.api_url` | `agenta.apiUrl` |
 | `AGENTA_API_INTERNAL_URL` | `agenta.api_internal_url` | `agenta.apiInternalUrl` |
@@ -47,6 +48,28 @@ This key has no env-var or `env.py` equivalent.
 `AGENTA_AUTH_KEY`, `AGENTA_CRYPT_KEY`, `AGENTA_SERVICES_INTERNAL_KEY`, and `AGENTA_RUNNER_TOKEN`
 are required secrets: the examples ship them as `replace-me` and you must set a real value for
 each. See [Agent runner](#routing-and-authentication) for the runner token.
+
+`AGENTA_APP_ORIGINS` lists every other address your deployment's app answers on, comma separated.
+Set it only when there is more than one. A deployment reachable at a single address needs nothing
+here, and `AGENTA_WEB_URL` is always used first whether or not you set this.
+
+It matters for the MCP consent flow. When someone authorizes an MCP server, the page the provider
+returns to has to hand the result back to the window that opened it, and it can only do that by
+naming that window's address exactly. A deployment reachable at a tunnel and at a local address is
+two addresses, so listing only one means everyone using the other watches the `Connect` dialog wait
+out its three-minute timeout, even though the server was authorized and the connection is sitting
+there ready behind the dialog. Listing both addresses fixes that.
+
+Give origins only, with no path:
+
+```bash
+AGENTA_APP_ORIGINS=https://agenta.example.com,http://localhost:8680
+```
+
+Anything without a scheme and a host is ignored, and a repeat of `AGENTA_WEB_URL` is dropped rather
+than listed twice. Addresses have to be declared here rather than worked out from the request,
+because the address a browser used to reach the page is something the caller can set. The API's own
+address is never used, so a deployment that publishes no app address sends the result nowhere.
 
 `AGENTA_SERVICES_INTERNAL_KEY` proves to the API that a caller **is** the platform runtime (the
 Services container), as opposed to a browser or an ApiKey holder reaching the same public route.
@@ -164,6 +187,25 @@ never by guessing at shape or entropy.
   flags but that also happen to sit in a secret-suffixed env var.
 - Safe default is unset. Leaving all four unset keeps prefix empty, suffix/blocklist/allowlist
   at their built-in defaults.
+
+## Agenta SDK errors
+
+| Env var | env.py path | values.yaml path |
+|---|---|---|
+| `AGENTA_SDK_ERRORS_INCLUDE_STACKTRACE` | n/a (read directly by the SDK) | n/a |
+
+An invoke that fails answers with the failure's type, message and code, and the Python
+traceback goes to the service log. Set `AGENTA_SDK_ERRORS_INCLUDE_STACKTRACE=true` to put the
+traceback in the response body as well, which is worth doing while you are running the service
+yourself and reading failures in your own browser instead of in the log. It defaults to `false`
+and is read on each call, so changing it needs no restart.
+
+:::warning
+The traceback exposes the service's internals to whoever called the route: absolute module
+paths, the service's own layout, and the source line of every frame between the route and the
+handler. The playground calls this route from a browser. Leave this off on any deployment other
+people can reach.
+:::
 
 ## Agenta services
 
@@ -770,9 +812,83 @@ If you're running a shared or multi-tenant deployment, set it to `false`. Agenta
 blocks any such request that resolves to a private, loopback, or reserved IP address,
 regardless of who configured the URL. Public URLs are never affected either way.
 
+Every deployment configuration in this repo that produces a reachable, sign-ups-open
+instance — the docker-compose `.gh` env files and the Kubernetes `values.*.example.yaml`
+overlays — sets this to `false` already. Only the local dev docker-compose files
+(`.env.oss.dev`, `.env.ee.dev`, single developer, not exposed) keep the permissive
+default.
+
 The old per-surface names (`AGENTA_WEBHOOKS_ALLOW_INSECURE`, `AGENTA_WEBHOOK_ALLOW_INSECURE`,
 `AGENTA_SERVICES_HOOK_ALLOW_INSECURE`, `AGENTA_CUSTOM_PROVIDER_ALLOW_INSECURE`) are
 deprecated aliases and still work, but new configuration should use the canonical name.
+:::
+
+## Agenta gateways
+
+| Env var | env.py path | values.yaml path |
+|---|---|---|
+| `AGENTA_LLM_GATEWAY_ENABLED` | `llm_gateway.enabled` | `llmGateway.enabled` |
+| `AGENTA_MCP_GATEWAY_ENABLED` | `mcp_gateway.enabled` | `mcpGateway.enabled` |
+| `AGENTA_MCP_GATEWAY_HOST_ALLOWLIST` | `mcp_gateway.host_allowlist` | `mcpGateway.hostAllowlist` |
+| `AGENTA_GATEWAYS_INSECURE_EGRESS_ALLOWED` | `gateway_egress.insecure_allowed` | `gatewayEgress.insecureAllowed` |
+| `AGENTA_GATEWAYS_INSECURE_HTTP_ALLOWED` | n/a (read directly by the SDK and the runner) | n/a |
+| `AGENTA_GATEWAYS_CREDENTIALS_TTL_SECONDS` | `gateway_credentials.ttl_seconds` | `gatewayCredentials.ttlSeconds` |
+
+:::note Which gateways your deployment serves
+Agenta has two gateways, and each has its own switch.
+
+The **MCP gateway** lets an agent reach an MCP server through Agenta, so the server's
+credential stays on your deployment instead of travelling into the sandbox. It is on by
+default. `AGENTA_MCP_GATEWAY_ENABLED=false` turns it off: the API refuses every MCP gateway
+route, the MCP settings tab disappears, and an agent dials its declared MCP servers directly,
+the way it did before the gateway existed.
+
+The **LLM gateway** does the same for model calls, keeping your provider key out of the
+sandbox. It is **off** by default, because turning it on changes how every model call in the
+project is routed, and that is not a change an upgrade should make for you. While it is off,
+a model call resolves the project's stored provider key and injects it into the run, exactly
+as before. Set `AGENTA_LLM_GATEWAY_ENABLED=true` to route model calls through the gateway.
+
+Both are read by the API, which is the authority. The agent SDK carries no switch of its own:
+it asks the API and takes the older path when the API says that gateway is not serving. The
+web container reads `AGENTA_MCP_GATEWAY_ENABLED` from the same env file to decide whether to
+show the MCP settings tab, so set these in the file every container loads and recreate them.
+:::
+
+:::note How long a run may keep reaching a gateway
+When a run starts, Agenta issues it a credential that works only on the gateway routes, and
+hands that credential to the sandbox the agent runs in. The credential is issued once, at the
+start of the run. Nothing replaces it while the run is going, so its lifetime is also the
+longest a single turn can keep using an MCP server or a model through a gateway.
+
+`AGENTA_GATEWAYS_CREDENTIALS_TTL_SECONDS` sets that lifetime in seconds. The default is
+`43200` (12 hours), chosen to sit above the longest run Agenta will let finish, so a turn
+never loses its gateway access partway through. Lower it if you want a shorter-lived
+credential, and keep it above the longest turn you expect: a turn still running when the
+credential expires starts failing its gateway calls.
+:::
+
+:::note Serving the gateway over plain HTTP
+An agent that reaches a model or an MCP server through an Agenta gateway authenticates to
+that gateway with a bearer credential. Agenta sends one only over HTTPS, or over plain HTTP
+to a loopback address, which never leaves the machine. Both defaults are on, and
+`AGENTA_GATEWAYS_INSECURE_HTTP_ALLOWED` defaults to `false`.
+
+This matters if you reach your deployment at a plain-HTTP address that is not loopback, such
+as `http://192.0.2.10:8680` or `http://agenta.internal`. Agenta refuses to send the
+credential, so every gateway-routed run fails with the error code
+`gateway_insecure_endpoint` and a message naming this variable.
+
+Two ways to fix it. Put the deployment behind HTTPS, which is the right answer for anything
+other people can reach. Or, if it is a single-tenant deployment on a network you control, set
+`AGENTA_GATEWAYS_INSECURE_HTTP_ALLOWED=true` and accept that the credential travels in clear
+text on that network.
+
+Setting it to `true` changes exactly one answer. A provider's own API key is still never sent
+over plain HTTP to a non-loopback host, and a remote sandbox still requires an HTTPS endpoint
+with a public DNS name, because a cloud sandbox dials your deployment across the internet.
+The variable is read by the API, the agent service, and the runner, so set it in the env file
+all three load and recreate those containers.
 :::
 
 ## alembic

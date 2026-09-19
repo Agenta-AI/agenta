@@ -116,6 +116,7 @@ function fakeSource(suspendsPolling: boolean): {
   expire: () => void;
   demote: () => void;
   waitTimeouts: number[];
+  waitSignals: (AbortSignal | undefined)[];
   missCount: () => number;
 } {
   let waiter: ((o: "activity" | "timeout" | "closed") => void) | undefined;
@@ -123,6 +124,7 @@ function fakeSource(suspendsPolling: boolean): {
   let closed = false;
   let misses = 0;
   const waitTimeouts: number[] = [];
+  const waitSignals: (AbortSignal | undefined)[] = [];
   const settle = (outcome: "activity" | "timeout" | "closed"): void => {
     const resolve = waiter;
     waiter = undefined;
@@ -135,8 +137,9 @@ function fakeSource(suspendsPolling: boolean): {
       noteMiss: () => {
         misses += 1;
       },
-      wait: ({ timeoutMs }) => {
+      wait: ({ timeoutMs, signal }) => {
         waitTimeouts.push(timeoutMs);
+        waitSignals.push(signal);
         if (closed) return Promise.resolve("closed");
         return new Promise((resolve) => {
           waiter = resolve;
@@ -153,6 +156,7 @@ function fakeSource(suspendsPolling: boolean): {
       healthy = false;
     },
     waitTimeouts,
+    waitSignals,
     missCount: () => misses,
   };
 }
@@ -190,6 +194,42 @@ describe("startToolRelay with an activity source", () => {
       fake.waitTimeouts.every((t) => t === RELAY_SAFETY_POLL_MS),
       `suspended waits pinned to RELAY_SAFETY_POLL_MS, got ${fake.waitTimeouts}`,
     );
+
+    await relay.stop();
+  });
+
+  it("forwards the turn's abort signal into every wait (M11)", async () => {
+    // The gap the reviewer kept open: `RelayActivitySource.wait` has always declared `signal`,
+    // and fixing the local source to honour it changed nothing observable while its only caller
+    // passed none. This asserts through the caller, so deleting the `signal` at the
+    // `startToolRelay` call site fails here rather than passing quietly.
+    const fake = fakeSource(true);
+    const { host } = fakeHost(fake.source);
+    const controller = new AbortController();
+    const relay = startToolRelay(host, DIR, [], undefined, undefined, undefined, undefined, {
+      signal: controller.signal,
+    });
+
+    await until(() => fake.waitSignals.length === 1, "the first wait");
+    assert.equal(fake.waitSignals[0], controller.signal);
+
+    fake.expire();
+    await until(() => fake.waitSignals.length === 2, "the loop re-parked");
+    assert.ok(
+      fake.waitSignals.every((signal) => signal === controller.signal),
+      "every wait carries it, not just the first",
+    );
+
+    await relay.stop();
+  });
+
+  it("passes undefined when the caller has no signal, rather than inventing one", async () => {
+    const fake = fakeSource(true);
+    const { host } = fakeHost(fake.source);
+    const relay = startToolRelay(host, DIR, [], undefined);
+
+    await until(() => fake.waitSignals.length === 1, "the first wait");
+    assert.equal(fake.waitSignals[0], undefined);
 
     await relay.stop();
   });

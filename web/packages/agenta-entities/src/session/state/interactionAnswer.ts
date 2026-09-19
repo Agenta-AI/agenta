@@ -15,6 +15,30 @@ import {
     type SessionInteractionRowStates,
 } from "./interactionStatus"
 
+/**
+ * The gate this answer belongs to is not pending any more.
+ *
+ * Carried as a code rather than left to the sentence, because the one caller that has to tell this
+ * failure apart is in another package and would otherwise match on prose. It is not always a
+ * failure: a transcript reloaded after an approved gate replays its tool output, and the second
+ * submit is redundant rather than wrong.
+ */
+export const APPROVAL_NOT_PENDING = "approval_not_pending"
+
+export class ApprovalNotPendingError extends Error {
+    readonly code = APPROVAL_NOT_PENDING
+
+    constructor(message = "This approval is no longer pending. Refresh and retry.") {
+        super(message)
+        this.name = "ApprovalNotPendingError"
+    }
+}
+
+export const isApprovalNotPendingError = (error: unknown): boolean =>
+    typeof error === "object" &&
+    error !== null &&
+    (error as {code?: unknown}).code === APPROVAL_NOT_PENDING
+
 /** New rows join through the stamped tool-call id; legacy rows join through token equality. */
 const tokenForToolCall = (
     states: SessionInteractionRowStates,
@@ -89,7 +113,7 @@ export const respondInteractionAnswerAtom = atom(
             states = await set(fetchSessionInteractionStatesAtom, sessionId)
             row = rowForToolCall(states, toolCallId)
         }
-        if (!row?.id) throw new Error("This approval is no longer pending. Refresh and retry.")
+        if (!row?.id) throw new ApprovalNotPendingError()
 
         const result = await respondInteraction({
             interactionId: row.id,

@@ -46,6 +46,12 @@ export interface PermissionPolicySelectProps {
     triggerClassName?: string
     /** Menu width override. The panel is pinned to the trigger, which wraps a compact chip's rows. */
     contentClassName?: string
+    /**
+     * What the TRIGGER says, where that differs from what the menu calls the selected value. An
+     * MCP tool row names the value in the menu ("Follow agent policy") and says what the run will
+     * do with it at rest ("Inherits ask"), so a row never shows a bare value with no provenance.
+     */
+    triggerTitle?: string
     size?: "sm" | "default"
 }
 
@@ -60,6 +66,7 @@ export function PermissionPolicySelect({
     container,
     triggerClassName = "w-full",
     contentClassName,
+    triggerTitle,
     size,
 }: PermissionPolicySelectProps) {
     const selected = options.find((option) => option.value === value)
@@ -75,7 +82,7 @@ export function PermissionPolicySelect({
                 <SelectValue>
                     <span className="flex min-w-0 items-center gap-2">
                         {selected?.icon}
-                        <span className="truncate">{selected?.title}</span>
+                        <span className="truncate">{triggerTitle ?? selected?.title}</span>
                     </span>
                 </SelectValue>
             </SelectTrigger>
