@@ -20,6 +20,8 @@ import {z} from "zod"
 
 import {projectScopedRequest} from "@agenta/entities/session"
 
+import {scopeHeaders} from "./scopeToken"
+
 import {safeParseWithLogging} from "../../shared/utils/zodSchema"
 
 import {
@@ -38,6 +40,12 @@ import {
 export interface FsClientOptions {
     mountId: string
     projectId: string
+    /**
+     * Supplies the folder-scoped token for this app, so the SERVER can refuse a path outside the
+     * folder rather than trusting this file's path handling. Resolves null when the deployment
+     * cannot issue one, in which case calls go unscoped — the behaviour before the token existed.
+     */
+    scopeToken?: () => Promise<string | null>
 }
 
 /** Per-call options for write/remove: the implicit If-Match the host resolved. */
@@ -217,7 +225,13 @@ const ifMatchHeaders = (opts?: FsWriteOptions): Record<string, string> =>
 // Factory
 // ---------------------------------------------------------------------------------------------
 
-export function createFsClient({mountId, projectId}: FsClientOptions): FsClient {
+export function createFsClient({mountId, projectId, scopeToken}: FsClientOptions): FsClient {
+    /** Fern `requestOptions` for this call, carrying the scope token when there is one. */
+    const scoped = async () => {
+        const base = projectScopedRequest(projectId)
+        const token = scopeToken ? await scopeToken() : null
+        return token ? {...base, headers: scopeHeaders(token)} : base
+    }
     const guarded = async <T>(fn: () => Promise<T>): Promise<T> => {
         try {
             return await fn()
@@ -230,7 +244,7 @@ export function createFsClient({mountId, projectId}: FsClientOptions): FsClient 
         guarded(async () => {
             const data = await getMountsClient().getMountFiles(
                 {mount_id: mountId, read: path},
-                projectScopedRequest(projectId),
+                await scoped(),
             )
             const parsed = safeParseWithLogging(readResponseSchema, data, "[htmlApp.fs.read]")
             if (!parsed) throw new FsClientError("unavailable", "unexpected read response")
@@ -255,7 +269,7 @@ export function createFsClient({mountId, projectId}: FsClientOptions): FsClient 
             try {
                 data = await getMountsClient().getMountFiles(
                     {mount_id: mountId, path: folder === "" ? undefined : folder, depth: 1},
-                    projectScopedRequest(projectId),
+                    await scoped(),
                 )
             } catch (error) {
                 // A folder that does not exist lists as empty (mock parity), not as an error.
@@ -292,11 +306,13 @@ export function createFsClient({mountId, projectId}: FsClientOptions): FsClient 
             const size = byteLength(body)
             if (size > WRITE_CAP) throw new FsClientError("too_large", MESSAGES.too_large)
             const url = `${getAgentaApiUrl()}/mounts/${mountId}/files?path=${encodeURIComponent(path)}`
+            const token = scopeToken ? await scopeToken() : null
             const response = await axios.put(url, body, {
                 params: {project_id: projectId},
                 headers: {
                     "Content-Type": "text/plain; charset=utf-8",
                     ...ifMatchHeaders(opts),
+                    ...scopeHeaders(token),
                 },
             })
             const parsed = safeParseWithLogging(
@@ -329,7 +345,7 @@ export function createFsClient({mountId, projectId}: FsClientOptions): FsClient 
                     path,
                     ...(typeof opts?.ifMatch === "string" ? {"if-match": opts.ifMatch} : {}),
                 },
-                projectScopedRequest(projectId),
+                await scoped(),
             )
             return {result: {deleted: true}}
         })

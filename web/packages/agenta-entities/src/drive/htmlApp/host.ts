@@ -36,6 +36,7 @@ import {
     type VisibilityMsg,
 } from "./protocol"
 import {isScopeFailure, resolveScoped, SCOPE_MESSAGE, toAppRelative} from "./scope"
+import {getScopeToken} from "./scopeToken"
 
 export interface HtmlAppHostDeps {
     /** Transport override (tests, Storybook). Defaults to the real mounts client. */
@@ -61,7 +62,15 @@ export function createHtmlAppHost(
     deps: HtmlAppHostDeps = {},
 ): HtmlAppBridgeHost {
     const {mountId, projectId, dir, grant} = opts
-    const client: FsClient = deps.client ?? createFsClient({mountId, projectId})
+    // The token the API uses to enforce the app dir server-side. This file resolves the path and
+    // checks the grant; the token means a mistake in either is refused rather than served.
+    const client: FsClient =
+        deps.client ??
+        createFsClient({
+            mountId,
+            projectId,
+            scopeToken: () => getScopeToken(mountId, projectId, dir, grant),
+        })
     const etags = createEtagCache()
 
     let visible = opts.visible ?? true
