@@ -180,12 +180,49 @@ would block them anyway, and the kit must render identically in Storybook and in
 
 ## Sandbox, CSP and feature flag
 
-- `sandbox="allow-scripts allow-forms allow-popups"` (`SANDBOX_FLAGS`). No `allow-same-origin`:
-  the app is an opaque origin and only ever reaches the drive through the port.
+- `sandbox="allow-scripts allow-forms"` (`SANDBOX_FLAGS`). No `allow-same-origin`: the app is an
+  opaque origin and only ever reaches the drive through the port. No `allow-popups` either — see
+  the egress surface below, which is the reason.
 - CSP (`RUN_CSP`), injected as a `<meta http-equiv>` at the top of the document:
-  `default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:`.
+  `default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; form-action 'none'`.
 - Feature flag: `userScopedFlagAtom` with key `agent-apps` (`AGENT_APPS_FLAG`). Off means the
   drive shows the folder as plain files.
+
+## The egress surface
+
+"The app cannot reach the network" is the claim the whole design rests on, so it is worth stating
+exactly what enforces it, because `default-src 'none'` is not the whole answer.
+
+| Channel                              | Stopped by                   |
+| ------------------------------------ | ---------------------------- |
+| `fetch`, XHR, WebSocket, EventSource | `default-src 'none'`         |
+| Image beacon (`new Image().src`)     | `img-src data: blob:`        |
+| Remote fonts, styles, scripts        | `default-src 'none'`         |
+| `window.open("https://…?d=" + data)` | **no `allow-popups`**        |
+| `<form action="https://…">`          | **`form-action 'none'`**     |
+| Reaching the parent page or cookies  | no `allow-same-origin`       |
+
+The last three are the ones that surprise people. **CSP's fetch directives do not govern
+navigation**, and `navigate-to` never shipped in any browser, so no CSP value blocks a popup —
+only the sandbox attribute does. `form-action` likewise does not inherit from `default-src`; it
+has to be named or form submission is unrestricted.
+
+This was live: with `allow-popups`, an app could call `window.open` synchronously inside any click
+it already handled, ship the data in the query string, and `close()` the window immediately. It
+was verified against the real assembled document — with the flag the listening server logged the
+request and the stolen bytes, without it nothing arrived. `htmlApp.egress.test.ts` pins both
+constants so restoring either fails a test.
+
+Two consequences worth carrying into later phases:
+
+- **An app that needs an external link does not get a popup.** The click arrives at the host as a
+  `nav` message and the host decides, which also means the person sees the destination.
+- **Any future relaxation of the CSP is an egress decision, not a convenience one.** "Let apps
+  load a chart library from a CDN" reopens this by adding a remote origin. The library shelf in
+  the canvas doc exists precisely so that never has to happen: builds are inlined at assembly.
+
+Folder scope is worth little while an app has any way out, so this surface is the one to guard
+first. See the boundary note in the review for why the folder itself is a client-side guardrail.
 
 ## Stub globals (lane E)
 
