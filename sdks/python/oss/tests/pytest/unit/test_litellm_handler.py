@@ -197,3 +197,30 @@ async def test_async_log_failure_event_missing_exception_key():
         end_time=0,
     )
     assert call_id not in handler.span
+
+
+def test_log_pre_api_call_falsy_prompt_preserved():
+    handler = litellm_handler()
+    call_id = "call-falsy-prompt"
+    kwargs = {
+        "litellm_call_id": call_id,
+        "call_type": "completion",
+        "model": "gpt-4o",
+        "prompt": "",
+    }
+    handler.log_pre_api_call(model="gpt-4o", messages=None, kwargs=kwargs)
+    span = handler.span[call_id]
+    assert span._span.attributes.get("ag.data.inputs.prompt") == ""
+
+
+def test_log_pre_api_call_empty_messages_preserved():
+    handler = litellm_handler()
+    call_id = "call-empty-messages"
+    kwargs = {
+        "litellm_call_id": call_id,
+        "call_type": "completion",
+        "model": "gpt-4o",
+        "messages": [],
+    }
+    handler.log_pre_api_call(model="gpt-4o", messages=None, kwargs=kwargs)
+    assert call_id in handler.span

@@ -86,11 +86,18 @@ def litellm_handler():
                 namespace="type",
             )
 
-            prompt_input = (
-                kwargs.get("messages")
-                or messages
-                or kwargs.get("prompt")
-                or kwargs.get("input")
+            prompt_input = next(
+                (
+                    value
+                    for value in (
+                        kwargs.get("messages"),
+                        messages,
+                        kwargs.get("prompt"),
+                        kwargs.get("input"),
+                    )
+                    if value is not None
+                ),
+                None,
             )
 
             span.set_attributes(
