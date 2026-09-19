@@ -47,6 +47,7 @@ import {DriveEditorSkeleton} from "./DriveEditorFrame"
 import {DriveExplorerSkeleton} from "./DriveExplorerSkeleton"
 import {DriveEmptyState, DriveErrorState} from "./DriveExplorerStates"
 import {DriveFilePreview} from "./DriveFilePreview"
+import {type DriveFolderMenuProps} from "./DriveFolderMenu"
 import {DriveHeader} from "./DriveHeader"
 import {
     type DriveItemWriteActions,
@@ -509,6 +510,24 @@ export function DriveExplorer({
     } else if (drive.fileCount === 0) {
         body = <DriveEmptyState scope={scope} />
     } else {
+        // The folder's verbs — row 2's ⋯ and the blank-space right-click menu share them.
+        const folderMenu: DriveFolderMenuProps | undefined =
+            chrome && selectedIsFolder
+                ? {
+                      actions: canWrite
+                          ? {
+                                onNewFolder: () => void startNew("folder", selectedPath ?? ""),
+                                onNewFile: () => void startNew("file", selectedPath ?? ""),
+                                onUpload: staged.length ? commitStaged : openUploadPicker,
+                                stagedCount: staged.length,
+                            }
+                          : undefined,
+                      onCopyPath: onCopyCurrentPath,
+                      onDownloadAll: onDownloadCurrent,
+                      downloadingAll,
+                  }
+                : undefined
+
         // Row 2 follows the selection.
         const contentHeader = !chrome ? null : selectedIsFolder ? (
             <DriveToolbar
@@ -517,19 +536,7 @@ export function DriveExplorer({
                 setView={setView}
                 sort={sort}
                 setSort={setSort}
-                actions={
-                    canWrite
-                        ? {
-                              onNewFolder: () => void startNew("folder", selectedPath ?? ""),
-                              onNewFile: () => void startNew("file", selectedPath ?? ""),
-                              onUpload: staged.length ? commitStaged : openUploadPicker,
-                              stagedCount: staged.length,
-                          }
-                        : undefined
-                }
-                onCopyPath={onCopyCurrentPath}
-                onDownloadAll={onDownloadCurrent}
-                downloadingAll={downloadingAll}
+                {...folderMenu}
             />
         ) : editableMarkdown ? (
             <DriveToolbar
@@ -610,6 +617,7 @@ export function DriveExplorer({
                     sort={sort}
                     selectedPath={selectedPath}
                     writes={itemWrites}
+                    folderMenu={folderMenu}
                     editing={nameEditView}
                     loading={
                         selectedPath !== "" &&
