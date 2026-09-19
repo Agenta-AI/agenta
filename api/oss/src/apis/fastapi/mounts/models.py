@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Literal, Optional
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -124,3 +124,19 @@ class MountCredentialsResponse(BaseModel):
     count: int = 0
     mount: Optional[Mount] = None
     credentials: Optional[MountCredentials] = None
+
+
+class AppScopeRequest(BaseModel):
+    """Ask for a folder-scoped token for one app. `dir` is mount-relative."""
+
+    dir: str
+    level: Literal["read", "read-write"] = "read"
+
+
+class AppScopeResponse(BaseModel):
+    """The token the browser attaches to every bridge call, and when it stops working."""
+
+    token: str
+    expires_at: int
+    dir: str
+    level: str
