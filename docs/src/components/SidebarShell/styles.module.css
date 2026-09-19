@@ -26,7 +26,7 @@
   .menu {
     position: fixed;
     top: var(--ifm-navbar-height);
-    left: 0;
+    left: var(--doc-frame-offset);
     width: calc(var(--doc-sidebar-width) - 1px);
     height: calc(100vh - var(--ifm-navbar-height));
     overflow-y: auto;
