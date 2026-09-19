@@ -59,6 +59,43 @@ function bridgeStub(): void {
     var STYLE_ID = "agenta-tokens"
     var MAX_BUFFERED_ERRORS = 20
 
+    // WebRTC is the one network API the CSP does not reach. `default-src 'none'` governs fetch,
+    // XHR, WebSocket, beacons and every resource load, but ICE is not a fetch: an app can point
+    // `RTCPeerConnection` at a host and port of its choosing and the packets leave. Measured
+    // against this exact sandbox and policy, a peer connection gathered a `srflx` candidate (a
+    // completed round trip to a public STUN server) and UDP reached a chosen local port. The
+    // `webrtc 'block'` CSP directive had no effect in a `<meta>` policy.
+    //
+    // The stub runs before any app script, so the constructors are gone before the app can hold
+    // a reference. The usual recovery — read a clean copy off a nested `about:blank` frame —
+    // fails here because the sandbox has no `allow-same-origin`, so the app cannot reach into
+    // its own child frames either (verified: `SecurityError`).
+    //
+    // This is a blocklist entry and should be read as one. It closes a channel that was open; it
+    // does not make the folder rule safe, because that still depends on this page getting every
+    // path check right. The server-side prefix check is what makes the exit list stop mattering.
+    var RTC_GLOBALS = [
+        "RTCPeerConnection",
+        "webkitRTCPeerConnection",
+        "mozRTCPeerConnection",
+        "RTCDataChannel",
+    ]
+    for (var r = 0; r < RTC_GLOBALS.length; r++) {
+        try {
+            Object.defineProperty(window, RTC_GLOBALS[r], {
+                value: undefined,
+                configurable: false,
+                writable: false,
+            })
+        } catch (err) {
+            try {
+                delete (window as unknown as Record<string, unknown>)[RTC_GLOBALS[r]]
+            } catch (err2) {
+                // Nothing else to try; the channel stays open and the server check is the answer.
+            }
+        }
+    }
+
     var port: MessagePort | null = null
     var nextId = 0
     var pending: Record<number, StubPending> = {}

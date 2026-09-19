@@ -19,6 +19,7 @@
 
 import {describe, expect, it} from "vitest"
 
+import {BRIDGE_STUB} from "../../src/drive/htmlApp/stub"
 import {RUN_CSP, SANDBOX_FLAGS} from "../../src/drive/htmlApp/protocol"
 
 describe("run sandbox flags", () => {
@@ -52,5 +53,29 @@ describe("run CSP", () => {
     it("keeps inline script and style, which the assembler depends on", () => {
         expect(RUN_CSP).toContain("script-src 'unsafe-inline'")
         expect(RUN_CSP).toContain("style-src 'unsafe-inline'")
+    })
+})
+
+describe("WebRTC", () => {
+    // The one network API the CSP does not reach: ICE is not a fetch, so `default-src 'none'`
+    // does not apply. Measured open against this exact sandbox and policy — a peer connection
+    // reached a public STUN server — and `webrtc 'block'` in a <meta> policy did not close it.
+    // The stub runs before app code, so the constructors go before the app can hold one.
+    it("removes every peer-connection constructor in the stub", () => {
+        for (const name of [
+            "RTCPeerConnection",
+            "webkitRTCPeerConnection",
+            "mozRTCPeerConnection",
+            "RTCDataChannel",
+        ]) {
+            expect(BRIDGE_STUB).toContain(name)
+        }
+    })
+
+    it("removes them before anything else runs", () => {
+        const removal = BRIDGE_STUB.indexOf("RTCPeerConnection")
+        const firstListener = BRIDGE_STUB.indexOf("addEventListener")
+        expect(removal).toBeGreaterThan(-1)
+        expect(removal).toBeLessThan(firstListener)
     })
 })
