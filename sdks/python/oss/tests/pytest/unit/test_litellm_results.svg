@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 850 420" width="850" height="420">
+  <rect width="850" height="420" rx="10" fill="#1e1e2e"/>
+  
+  <!-- Window Controls -->
+  <circle cx="25" cy="22" r="6" fill="#f38ba8"/>
+  <circle cx="45" cy="22" r="6" fill="#f9e2af"/>
+  <circle cx="65" cy="22" r="6" fill="#a6e3a1"/>
+  <text x="425" y="26" text-anchor="middle" fill="#cdd6f4" font-family="monospace" font-size="13" font-weight="bold">agenta-sdk — pytest test_litellm_handler.py</text>
+  <line x1="0" y1="42" x2="850" y2="42" stroke="#313244" stroke-width="1"/>
+
+  <!-- Terminal Output -->
+  <g font-family="Consolas, Monaco, 'Courier New', monospace" font-size="12" fill="#cdd6f4">
+    <text x="25" y="70" fill="#89b4fa">$ python -m pytest sdks/python/oss/tests/pytest/unit/test_litellm_handler.py -v</text>
+    <text x="25" y="95" fill="#a6adc8">============================= test session starts ==============================</text>
+    <text x="25" y="115" fill="#a6adc8">platform win32 -- Python 3.13.15, pytest-9.1.1, pluggy-1.6.0</text>
+    <text x="25" y="135" fill="#a6adc8">rootdir: agenta\sdks\python</text>
+    <text x="25" y="155" fill="#a6adc8">collected 10 items</text>
+
+    <text x="25" y="185">test_litellm_handler.py::<tspan fill="#89dceb">test_log_pre_api_call_with_optional_params_none</tspan> <tspan fill="#a6e3a1" font-weight="bold">PASSED</tspan> <tspan fill="#6c7086">[ 10%]</tspan></text>
+    <text x="25" y="205">test_litellm_handler.py::<tspan fill="#89dceb">test_log_pre_api_call_without_optional_params</tspan> <tspan fill="#a6e3a1" font-weight="bold">PASSED</tspan> <tspan fill="#6c7086">[ 20%]</tspan></text>
+    <text x="25" y="225">test_litellm_handler.py::<tspan fill="#89dceb">test_log_pre_api_call_embedding_without_messages</tspan> <tspan fill="#a6e3a1" font-weight="bold">PASSED</tspan> <tspan fill="#6c7086">[ 30%]</tspan></text>
+    <text x="25" y="245">test_litellm_handler.py::<tspan fill="#89dceb">test_log_pre_api_call_with_positional_messages_only</tspan> <tspan fill="#a6e3a1" font-weight="bold">PASSED</tspan> <tspan fill="#6c7086">[ 40%]</tspan></text>
+    <text x="25" y="265">test_litellm_handler.py::<tspan fill="#89dceb">test_log_success_event_unknown_call_id</tspan> <tspan fill="#a6e3a1" font-weight="bold">PASSED</tspan> <tspan fill="#6c7086">[ 50%]</tspan></text>
+    <text x="25" y="285">test_litellm_handler.py::<tspan fill="#89dceb">test_log_failure_event_unknown_call_id</tspan> <tspan fill="#a6e3a1" font-weight="bold">PASSED</tspan> <tspan fill="#6c7086">[ 60%]</tspan></text>
+    <text x="25" y="305">test_litellm_handler.py::<tspan fill="#89dceb">test_log_failure_event_missing_exception_key</tspan> <tspan fill="#a6e3a1" font-weight="bold">PASSED</tspan> <tspan fill="#6c7086">[ 70%]</tspan></text>
+    <text x="25" y="325">test_litellm_handler.py::<tspan fill="#89dceb">test_async_log_success_event_unknown_call_id</tspan> <tspan fill="#a6e3a1" font-weight="bold">PASSED</tspan> <tspan fill="#6c7086">[ 80%]</tspan></text>
+    <text x="25" y="345">test_litellm_handler.py::<tspan fill="#89dceb">test_async_log_failure_event_unknown_call_id</tspan> <tspan fill="#a6e3a1" font-weight="bold">PASSED</tspan> <tspan fill="#6c7086">[ 90%]</tspan></text>
+    <text x="25" y="365">test_litellm_handler.py::<tspan fill="#89dceb">test_async_log_failure_event_missing_exception_key</tspan> <tspan fill="#a6e3a1" font-weight="bold">PASSED</tspan> <tspan fill="#6c7086">[100%]</tspan></text>
+
+    <text x="25" y="395" fill="#a6e3a1" font-weight="bold">============================== 10 passed in 1.75s ==============================</text>
+  </g>
+</svg>

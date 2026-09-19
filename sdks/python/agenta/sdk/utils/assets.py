@@ -6,7 +6,6 @@ except Exception:
     cost_calculator = None
 
 
-
 supported_llm_models = {
     "anthropic": [
         "anthropic/claude-opus-4-7",
