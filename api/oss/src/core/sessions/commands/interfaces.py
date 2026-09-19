@@ -19,6 +19,10 @@ from oss.src.core.sessions.commands.dtos import (
     SessionCommandSettle,
 )
 
+# Oldest-first batch the abandoned-command sweep reads per query. The service paginates
+# past this window so parked undeliverable cancels cannot starve newer work.
+ABANDONED_COMMAND_BATCH = 200
+
 
 class SessionScope(BaseModel):
     """One session a runner holds warm. The routing input of a claim."""
@@ -229,5 +233,12 @@ class SessionCommandsDAOInterface(ABC):
         now: datetime,
         max_deliveries: int,
         pending_before: Optional[datetime] = None,
+        after_sort_at: Optional[datetime] = None,
+        after_id: Optional[UUID] = None,
+        limit: int = ABANDONED_COMMAND_BATCH,
     ) -> List[SessionCommand]:
-        """Pending or claimed commands old enough for recovery."""
+        """Pending or claimed commands old enough for recovery.
+
+        Oldest first, keyset-paginated. `after_sort_at`/`after_id` are the last row of the
+        previous page so a sweep can advance past parked cancels in the same pass.
+        """
