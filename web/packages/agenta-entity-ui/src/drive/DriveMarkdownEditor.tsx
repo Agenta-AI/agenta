@@ -7,6 +7,7 @@ import {type Mount} from "@agenta/entities/session"
 import {MarkdownEditor} from "../DrillInView/SchemaControls/MarkdownEditor"
 
 import {DriveEditorPlaceholder, DriveEditorSkeleton, useDriveSaveKey} from "./DriveEditorFrame"
+import {useDriveLinkClick} from "./useDriveLinkClick"
 
 interface DriveMarkdownEditorProps {
     mount: Mount | null
@@ -17,6 +18,10 @@ interface DriveMarkdownEditorProps {
     loading: boolean
     failed: boolean
     onSave: () => void
+    /** The presented path (agent-files/ prefix) a link inside resolves against. Defaults to `path`. */
+    displayPath?: string
+    /** Open a drive file a link names; absent → every link is the browser's. */
+    onNavigate?: (path: string) => void
 }
 
 export function DriveMarkdownEditor({
@@ -27,9 +32,13 @@ export function DriveMarkdownEditor({
     loading,
     failed,
     onSave,
+    displayPath,
+    onNavigate,
 }: DriveMarkdownEditorProps) {
     const {value, onChange} = useDriveFileDraft(mount, path)
     const onKeyDown = useDriveSaveKey(onSave)
+    // A link to a neighbouring file opens it here; a web URL stays Lexical's (a new tab).
+    const onLinkClick = useDriveLinkClick(displayPath ?? path, onNavigate)
     // Lexical paints its default view before the requested one lands; keep the skeleton up until then.
     const [ready, setReady] = useState(false)
     const onViewApplied = useCallback(() => setReady(true), [])
@@ -54,6 +63,7 @@ export function DriveMarkdownEditor({
                     hideHeader
                     bordered={false}
                     grow
+                    onLinkClick={onLinkClick}
                 />
             </div>
         </>

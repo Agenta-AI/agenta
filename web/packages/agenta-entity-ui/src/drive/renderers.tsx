@@ -13,6 +13,7 @@ import {useMemo, useState} from "react"
 
 import {driveCodeLanguage, resolveDriveFileKind, type DriveFileKind} from "@agenta/entities/drive"
 import {humanSize} from "@agenta/entities/drive"
+import {isExternalDriveHref, resolveDriveLink, resolveRelativePath} from "@agenta/entities/drive"
 import {type Mount} from "@agenta/entities/session"
 import {
     Button,
@@ -33,6 +34,7 @@ import {
 } from "./driveFileSource"
 import {DriveCodeBlock, DriveMarkdown} from "./driveMarkdown"
 import {HtmlAppBody} from "./htmlApp"
+import {useDriveAnchorClickCapture} from "./useDriveLinkClick"
 
 // The host's code viewer (see `registerDriveCodeBlock`). The desktop registers a Lexical +
 // lazy-Shiki block — an ~8.7 MB chunk it keeps out of first load — so the indirection is also
@@ -125,13 +127,19 @@ const TextBody = ({
     mount,
     path,
     kind,
+    displayPath,
+    onNavigate,
 }: {
     mount: Mount | null
     path: string
     kind: DriveFileKind
+    displayPath?: string
+    onNavigate?: (path: string) => void
 }) => {
     const contentQuery = useDriveFileText(mount, path)
     const content = contentQuery.data
+    // A link to a neighbouring file opens it here; the host's renderer keeps web links.
+    const onClickCapture = useDriveAnchorClickCapture(displayPath ?? path, onNavigate)
 
     if (contentQuery.isPending)
         return (
@@ -152,7 +160,7 @@ const TextBody = ({
     if (kind === "markdown")
         return (
             <Inset flush>
-                <div className="min-h-0 flex-1 overflow-y-auto p-3">
+                <div className="min-h-0 flex-1 overflow-y-auto p-3" onClickCapture={onClickCapture}>
                     <DriveMarkdown content={content} className="!text-xs" />
                 </div>
             </Inset>
@@ -498,7 +506,15 @@ export function DriveFileBody({
     switch (kind) {
         case "markdown":
         case "text":
-            return <TextBody mount={mount} path={path} kind={kind} />
+            return (
+                <TextBody
+                    mount={mount}
+                    path={path}
+                    kind={kind}
+                    displayPath={displayPath}
+                    onNavigate={onNavigate}
+                />
+            )
         case "code":
         case "json":
             return <CodeBody mount={mount} path={path} />

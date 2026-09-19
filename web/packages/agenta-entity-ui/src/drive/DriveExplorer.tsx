@@ -656,6 +656,8 @@ export function DriveExplorer({
                     loading={editor.loading}
                     failed={editor.failed}
                     onSave={onSave}
+                    displayPath={selectedPath}
+                    onNavigate={select}
                 />
             ) : htmlPreview ? (
                 <DriveHtmlApp
