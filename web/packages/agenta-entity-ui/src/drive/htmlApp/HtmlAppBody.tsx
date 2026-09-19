@@ -13,11 +13,13 @@ import {createContext, useCallback, useContext, useEffect, useMemo, useRef, useS
 
 import {
     createHtmlAppHost,
+    exceedsGrant,
     fetchMountFileBlob,
     getGrant,
     isAgentFileUploadsEnabled,
     setGrant as storeGrant,
     type GrantLevel,
+    type GrantRecord,
     type HtmlAppHost,
     type HtmlAppHostOptions,
 } from "@agenta/entities/drive"
@@ -45,19 +47,19 @@ export {agentAppsEnabledAtom}
 // ---------------------------------------------------------------------------------------------
 
 export interface GrantStore {
-    get: (mountId: string, dir: string) => GrantLevel | null
-    set: (mountId: string, dir: string, level: GrantLevel) => void
+    get: (mountId: string, dir: string) => GrantRecord | null
+    set: (mountId: string, dir: string, level: GrantLevel, asked?: GrantLevel) => void
 }
 
 const grantKey = (mountId: string, dir: string) => `${mountId}::${dir}`
 
 /** An isolated in-memory store (stories, tests). */
 export const createGrantStore = (): GrantStore => {
-    const grants = new Map<string, GrantLevel>()
+    const grants = new Map<string, GrantRecord>()
     return {
         get: (mountId, dir) => grants.get(grantKey(mountId, dir)) ?? null,
-        set: (mountId, dir, level) => {
-            grants.set(grantKey(mountId, dir), level)
+        set: (mountId, dir, level, asked = level) => {
+            grants.set(grantKey(mountId, dir), {level, asked})
         },
     }
 }
@@ -162,14 +164,16 @@ export function HtmlAppBody({
     const [view, setView] = useState<HtmlAppView>("preview")
     const [assembled, setAssembled] = useState<string | null>(null)
     const [sheetOpen, setSheetOpen] = useState(false)
-    const [grant, setGrant] = useState<GrantLevel | null>(() =>
-        mountId ? grants.get(mountId, dir) : null,
+    const [grant, setGrant] = useState<GrantLevel | null>(
+        () => (mountId ? grants.get(mountId, dir)?.level : null) ?? null,
     )
     const frameRef = useRef<HTMLIFrameElement>(null)
 
     const {manifest} = useAppManifest(runnable ? io : null, dir)
     const appName = manifest?.name ?? (dir ? (dir.split("/").pop() ?? dir) : path)
     const canEditMounts = env.canEditMounts ?? (isAgentFileUploadsEnabled() && !!mountId)
+    /** What the app asks for. The sheet preselects it; the grant store records it. */
+    const requestedAccess: GrantLevel = manifest?.access ?? "read"
 
     // Assemble the self-contained preview document once the source lands. Works for a local composer
     // attachment too (io === null): the assembler skips mount-asset fetches but still sanitizes +
@@ -247,24 +251,29 @@ export function HtmlAppBody({
             }
             if (!mountId) return
             const existing = grants.get(mountId, dir)
-            if (existing) {
-                setGrant(existing)
+            // The grant survives edits to the app, but not a NEW request for more access: an app
+            // whose manifest grew from `read` to `read-write` asks once more. `asked` is what the
+            // app wanted last time the user answered, so deliberately choosing read over an offered
+            // read-write is remembered and never re-asked. Without `canEditMounts` the sheet has no
+            // write option to offer, so re-prompting would only loop.
+            if (existing && !(canEditMounts && exceedsGrant(existing.asked, requestedAccess))) {
+                setGrant(existing.level)
                 setView("run")
             } else {
                 setSheetOpen(true)
             }
         },
-        [mountId, dir, grants],
+        [mountId, dir, grants, canEditMounts, requestedAccess],
     )
 
     const confirmGrant = useCallback(
         (level: GrantLevel) => {
-            if (mountId) grants.set(mountId, dir, level)
+            if (mountId) grants.set(mountId, dir, level, requestedAccess)
             setGrant(level)
             setSheetOpen(false)
             setView("run")
         },
-        [mountId, dir, grants],
+        [mountId, dir, grants, requestedAccess],
     )
 
     const cancelGrant = useCallback(() => {
@@ -355,7 +364,7 @@ export function HtmlAppBody({
                     open={sheetOpen}
                     appName={appName}
                     dir={dirOf(displayPath ?? path)}
-                    requested={manifest?.access ?? "read"}
+                    requested={requestedAccess}
                     canWrite={canEditMounts}
                     onCancel={cancelGrant}
                     onConfirm={confirmGrant}
