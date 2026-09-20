@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "entry": "support-reply-drafter",
+  "agents": {
+    "support-reply-drafter": {
+      "name": "Support reply drafter",
+      "description": "Drafts a reply to every new support ticket, using answers pulled from your docs.",
+      "instructions": "./ai.agenta/agents/support-reply-drafter/AGENTS.md",
+      "setup": "./ai.agenta/agents/support-reply-drafter/SETUP.md",
+      "connections": [
+        {
+          "key": "read-the-tickets",
+          "required": true,
+          "purpose": "Read the tickets",
+          "options": [
+            {
+              "kind": "gateway",
+              "provider": "composio",
+              "integration": "zendesk"
+            },
+            {
+              "kind": "gateway",
+              "provider": "composio",
+              "integration": "intercom"
+            }
+          ],
+          "setup_notes": "Read tickets, post draft replies"
+        },
+        {
+          "key": "read-a-knowledge-source",
+          "required": false,
+          "purpose": "Read a knowledge source",
+          "options": [
+            {
+              "kind": "gateway",
+              "provider": "composio",
+              "integration": "notion"
+            },
+            {
+              "kind": "gateway",
+              "provider": "composio",
+              "integration": "confluence"
+            },
+            {
+              "kind": "gateway",
+              "provider": "composio",
+              "integration": "googledrive"
+            }
+          ],
+          "setup_notes": "Read a knowledge source"
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "entry": "changelog-writer",
+  "agents": {
+    "changelog-writer": {
+      "name": "Changelog writer",
+      "description": "Turns merged pull requests into clean release notes and publishes them.",
+      "instructions": "./ai.agenta/agents/changelog-writer/AGENTS.md",
+      "setup": "./ai.agenta/agents/changelog-writer/SETUP.md",
+      "connections": [
+        {
+          "key": "read-merged-pull-requests",
+          "required": true,
+          "purpose": "Read merged pull requests",
+          "options": [
+            {
+              "kind": "gateway",
+              "provider": "composio",
+              "integration": "github"
+            },
+            {
+              "kind": "gateway",
+              "provider": "composio",
+              "integration": "gitlab"
+            }
+          ],
+          "setup_notes": "Read merged PRs, publish releases"
+        },
+        {
+          "key": "publish-the-changelog",
+          "required": true,
+          "purpose": "Publish the changelog",
+          "options": [
+            {
+              "kind": "gateway",
+              "provider": "composio",
+              "integration": "notion"
+            },
+            {
+              "kind": "gateway",
+              "provider": "composio",
+              "integration": "linear"
+            }
+          ],
+          "setup_notes": "Publish the changelog"
+        }
+      ]
+    }
+  }
+}
