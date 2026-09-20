@@ -434,7 +434,7 @@ td.num{font-variant-numeric:tabular-nums;white-space:nowrap}
   <h2>Still open</h2>
   <ul>
     <li>Whether <code>agent-files/</code> travels when an agent is duplicated, and what happens to the agent mount on delete. Platform decisions outside apps; the skill copes either way.</li>
-    <li>Whether the bundled store's native conditional put is available, or the service falls back to stat-compare-put. Decided at implementation, documented either way.</li>
+    <li><s>Whether the bundled store's native conditional put is available.</s> <b>Settled.</b> It is: <code>put_object</code> sends a real <code>If-Match</code> and the service raises on a failed precondition, so the stat-compare-put fallback was never built. <code>DELETE</code> is the exception and is emulated, with a one-round-trip window the store module documents.</li>
     <li>Performance budgets for two streaming sessions plus an app iframe. Measured in 2.6 before phase 4 is scheduled.</li>
     <li>Agent-file history: SeaweedFS versioning exists with retention; exposing list-versions and restore is "when it bites".</li>
   </ul>
