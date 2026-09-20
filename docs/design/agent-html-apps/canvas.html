@@ -208,7 +208,7 @@ td.c{text-align:center;font-weight:600}
     </div>
   </div>
 
-  <h4>End to end</h4>
+  <h3>End to end</h3>
   <ul class="ops">
     <li><span class="k">1</span><span class="op w">write</span><span><span class="tag agent">agent</span> <code>create_app("whiteboard", …)</code>, then <code>config.json</code> with three regions and <code>board.json</code> with five notes placed inside "Today" and "This week", using the starter's placement rule: next free slot in the region's grid</span></li>
     <li><span class="k">2</span><span class="op r">readJSON ×2</span><span><span class="tag app">app</span> on load: both files; <code>strokes.json</code> is <code>not_found</code> and treated as empty</span></li>
@@ -437,7 +437,8 @@ view.paused                     // true when the host says the tab is hidden</co
 <section id="a11y">
   <h2>What canvas cannot do</h2>
   <ul>
-    <li><b>Be read by a screen reader.</b> Pixels are not text. The whiteboard starter keeps a DOM list of notes under the canvas, visually hidden, generated from the same objects. The same list is what a phone shows below <code>md</code> where a pan-and-zoom surface is miserable. Cost: none, the data is already there.</li>
+    <li><b>Be read by a screen reader.</b> Pixels are not text. The whiteboard starter keeps a DOM list of notes under the canvas, visually hidden, generated from the same objects. The same list is what a phone shows below <code>md</code> where a pan-and-zoom surface is miserable. Cost: none, the data is already there.
+      <p style="margin:6px 0 0">That list is the keyboard surface, not just a readout, so every state a pointer can reach has a control in it. Each note is a list item holding a real <code>&lt;input type="checkbox"&gt;</code> labelled with the note text, so <kbd>Space</kbd> toggles <code>done</code>; a <b>Connect to…</b> button opens a listbox of the other notes and choosing one writes the connector; a connector row carries its own <b>Remove</b> button. All four go through the same object mutation, the same <code>updated_at</code> stamp and the same <code>If-Match</code> write as the pointer path, so there is one write path and not two. An <code>aria-live="polite"</code> region announces the result (<i>marked done</i>, <i>connected Draft announcement to Record demo</i>, and any save failure), because the visual feedback a canvas gives is exactly what a keyboard user does not get. The move-items menu the starter already specifies stays as it is; this covers the two actions it does not reach.</p></li>
     <li><b>Use the kit's classes.</b> Buttons and inputs still do; the drawing does not. The helper reads the kit's tokens for grid, selection and text colours so the surface matches the theme, and re-reads them on the theme message.</li>
     <li><b>Load an image by path.</b> Until binary reads exist, a starter that needs images declares them in the manifest and the assembler preloads them as data URLs into <code>agenta.assets</code>. That covers icons and a logo; it does not cover a user dropping a photo onto the board, which needs binary write as well.</li>
     <li><b>Export a PNG.</b> SVG export works today and is the better artefact for a whiteboard anyway: the agent can read it, and it scales. PNG waits for binary write.</li>
