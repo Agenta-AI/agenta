@@ -10,9 +10,11 @@ context: |
   Mahmoud confirmed that the channels stack has not shipped to production.
   Do not require backward compatibility, legacy modes, or migration of pre-release
   installations. Keep security, tenancy, and Slack API constraints.
-  The Slack change targets one workspace installation in one Agenta project.
-  Preserve other channel adapters. Do not implement or archive this change until
-  Mahmoud approves the design and explicitly requests implementation.
+  The native Slack handle change targets one workspace installation in one Agenta
+  project. The channel agent tools change covers optional platform tools for Slack
+  and Telegram destination discovery, search, delivery, and scheduling. Preserve
+  other channel adapters. Do not implement or archive either change until Mahmoud
+  approves its design and explicitly requests implementation.
 
 rules:
   proposal:
