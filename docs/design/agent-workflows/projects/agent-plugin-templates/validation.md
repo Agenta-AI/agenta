@@ -4,19 +4,19 @@ The canonical requirements and WHEN/THEN scenarios are in [the OpenSpec change](
 
 ## Product acceptance
 
-| Area                    | Expected result                                                                                         | Evidence required from implementation                                                         |
-| ----------------------- | ------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
-| Template entry          | Existing cards, controls, navigation, and connection-step placement remain unchanged.                   | Browser recording of /m on desktop and phone viewports and the older web host.                |
-| Source                  | Existing key resolves to the internal source; source/version/digest are retained.                       | Source fixture and saved provenance read-back.                                                |
-| Agent                   | One agent receives the declared name, description, and instructions.                                    | Configuration read-back, not only a successful response.                                      |
-| Model                   | Same selection rules as ordinary creation.                                                              | Parity tests for the same user/project, including unavailable credentials.                    |
-| Skills/files            | Declared resources exist before first-message delivery.                                                 | Skill reference and mount read-back; failure/retry case.                                      |
-| Connections             | Existing choices survive. Missing choices are setup needs, not invalid native configuration.            | Native-schema validation, selected-provider test, and first-message inspection.               |
-| MCP                     | Existing gateway and auth flows handle supported endpoints; unsupported transports have precise errors. | OAuth/API-key/no-auth cases, missing endpoint, and transport rejection cases.                 |
-| First message           | Setup instructions and pending recipes appear once in the normal message.                               | Persisted transcript/input read-back for idle, concurrent, refresh, and timeout delivery.     |
-| Responsibility boundary | Loading succeeds at message acceptance without a setup status or readiness gate.                        | Inspect API models and direct-run behavior; no installation resource or template setup tools. |
-| Automation              | Loading activates no schedule or subscription.                                                          | Trigger read-back before handoff; ordinary approval behavior in a subsequent smoke run.       |
-| Multi-agent             | Explicitly unsupported in version one.                                                                  | Report NOT IMPLEMENTED and test rejection before writes.                                      |
+| Area                    | Expected result                                                                                         | Evidence required from implementation                                                                                              |
+| ----------------------- | ------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| Template entry          | Existing cards, controls, navigation, and connection-step placement remain unchanged.                   | Browser recording of /m on desktop and phone viewports and the older web host.                                                     |
+| Source                  | Existing key resolves to the internal source; source/version/digest are retained.                       | Source fixture and saved provenance read-back.                                                                                     |
+| Agent                   | One agent receives the declared name, description, and instructions.                                    | Configuration read-back, not only a successful response.                                                                           |
+| Model                   | Same selection rules as ordinary creation.                                                              | Parity tests for the same user/project, including unavailable credentials.                                                         |
+| Skills/files            | Declared resources exist before first-message delivery.                                                 | Skill reference and mount read-back; failure/retry case.                                                                           |
+| Connections             | Existing choices survive. Missing choices are setup needs, not invalid native configuration.            | Native-schema validation, selected-provider test, and first-message inspection.                                                    |
+| MCP                     | Existing gateway and auth flows handle supported endpoints; unsupported transports have precise errors. | OAuth/API-key/no-auth cases, missing endpoint, and transport rejection cases.                                                      |
+| First message           | Setup instructions and pending recipes appear once in the normal message.                               | Input fingerprint, durable execution, and transcript read-back for idle, concurrent, refresh, changed-message, and timeout replay. |
+| Responsibility boundary | Loading succeeds at message acceptance without a setup status or readiness gate.                        | Inspect API models and direct-run behavior; no installation resource or template setup tools.                                      |
+| Automation              | Loading activates no schedule or subscription.                                                          | Trigger read-back before handoff; ordinary approval behavior in a subsequent smoke run.                                            |
+| Multi-agent             | Explicitly unsupported in version one.                                                                  | Report NOT IMPLEMENTED and test rejection before writes.                                                                           |
 
 ## Code invariants
 
@@ -26,7 +26,7 @@ The canonical requirements and WHEN/THEN scenarios are in [the OpenSpec change](
 - Use ordinary creation defaults, not a second template model resolver.
 - Keep MCP options to kind and key. Native services own endpoint/authentication details. Omitted permission overrides preserve current defaults.
 - Copy workspace entries in backend code. All setup notes are optional, with file-related guidance only in SETUP.md.
-- Atomically deduplicate create and session-input requests; same-key changed-payload requests conflict. A frontend latch alone is insufficient.
+- Atomically deduplicate create requests and first-session starts; same-key changed-payload requests conflict. A frontend latch alone is insufficient.
 - Preserve user-edited files on retry. Do not replay the whole load after a partial copy error.
 - Do not expose credentials in package content, metadata, setup messages, logs, or traces.
 - Keep subsequent self-configuration on the existing build kit. Add a general capability only for a demonstrated gap; do not add template-specific tools.

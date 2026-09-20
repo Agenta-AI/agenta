@@ -1,27 +1,45 @@
 # Implementation tasks
 
-All tasks are unimplemented. PR #6944 contains specifications only.
+All runtime tasks are unimplemented. The test-first steps, exact files, interfaces, commands, and commit boundaries are in the [implementation plan](../../../docs/superpowers/plans/2026-09-20-load-single-agent-templates.md).
 
-## 1. Source and format
+## 1. Source and package validation
 
-- [ ] 1.1 Implement the internal source resolver and provenance mapping; verify default-key resolution, unknown-source rejection, and immutable provenance tests.
-- [ ] 1.2 Implement single-agent manifest validation against the example and minimal fixture; verify optional notes/policies and reject multi-agent input before writes.
-- [ ] 1.3 Map MCP references through current gateway/configuration services; verify OAuth/API-key/no-auth fixtures and precise unsupported-transport errors.
+- [ ] 1.1 Add typed internal source references, a versioned internal catalog, bounded package reads, canonical SHA-256 digests, and pinned retry resolution.
+- [ ] 1.2 Validate local Agent Plugins 1.0 schemas and the `ai.agenta` extension. Parse exactly one agent, native skills, declared workspace entries, MCP declarations, and inactive automation recipes.
+- [ ] 1.3 Reject multiple agents, `subagents`, path escapes, symlinks, reserved startup destinations, undeclared files, and unsupported MCP transports before any write.
 
-## 2. Load resources
+## 2. Pure binding and compilation
 
-- [ ] 2.1 Compose package fields with existing agent model/harness/sandbox defaults; verify parity with ordinary creation for the same project and user.
-- [ ] 2.2 Create instructions, skills, and copied workspace resources through existing services; verify saved resource read-back and partial-copy recovery.
-- [ ] 2.3 Enforce caller/project authorization and request deduplication at existing service boundaries; verify cross-project rejection, concurrent create, and payload conflicts.
+- [ ] 2.1 Re-read target-project gateway connections and MCP endpoints. Bind only active, valid matches and convert missing matches into unresolved first-message needs.
+- [ ] 2.2 Derive deterministic skill references without writing, then compile package instructions, tools, and MCP entries into native agent configuration while preserving ordinary `llm`, harness, runner, and sandbox settings.
+- [ ] 2.3 Compose one normal first message from the current seed, optional setup guidance, retained choices, unresolved needs, and inactive automation recipes. Keep package text labeled and exclude credentials.
+- [ ] 2.4 Build protected `_ag.template_origin` metadata with source kind, key, resolved version, and digest. Do not reuse skill provenance.
 
-## 3. Handoff
+## 3. Resource ownership and retries
 
-- [ ] 3.1 Assemble one normal first message from optional setup guidance, choices, and pending recipes; verify no hidden context contract, no secrets, and no loader-created triggers.
-- [ ] 3.2 Extend general session-input deduplication where required for the idle path; verify atomic same-key acceptance, two-tab delivery, timeout replay, and payload conflict tests.
-- [ ] 3.3 Replace the existing template loading call while retaining its controls and navigation; verify /m at desktop/phone sizes and the older host.
+- [ ] 3.1 Add general project-scoped idempotent workflow creation with deterministic identities, protected request fingerprints, partial-create reconciliation, and same-key conflict detection.
+- [ ] 3.2 Expose the same idempotent creation primitive through `SkillsService` and create one reusable skill workflow per declared package skill.
+- [ ] 3.3 Add general mount materialization that creates missing declared directories and files and never overwrites an existing destination.
+- [ ] 3.4 Add a general session-input claim that stores the original payload fingerprint and binds it to a deterministic execution id. Add a session start service with strict detached-start handling, durable execution read-back, and timeout replay.
 
-## 4. Acceptance
+## 4. Loader and API
 
-- [ ] 4.1 Execute every scenario in this change with commit-specific evidence and saved-resource read-back; mark unrun cases explicitly.
-- [ ] 4.2 Run one ordinary build-kit setup smoke conversation after handoff; verify it can request a connection and propose an automation without any template-specific tool.
-- [ ] 4.3 Confirm subagent creation remains unsupported and report the separate multi-agent proposal as NOT IMPLEMENTED.
+- [ ] 4.1 Implement `AgentTemplateLoader` in this order: authorize, recover a stored source pin, resolve, parse, resolve bindings, plan skill references, compile, create the provenance-bearing agent, create skills, copy workspace, and start the first message.
+- [ ] 4.2 Add `POST /agent-templates/load`. Require `Idempotency-Key`, `EDIT_WORKFLOWS`, and `RUN_SESSIONS`. Check both permissions before source or project-resource reads.
+- [ ] 4.3 Wire the loader to existing workflow, skill, mount, connection, MCP gateway, and session services in `api/entrypoints/routers.py`. Add no installation table or status.
+
+## 5. Internal catalog and frontend hosts
+
+- [ ] 5.1 Convert all 28 current starter cards into versioned internal packages without inventing skills, files, or capabilities. Add a card-to-catalog parity test.
+- [ ] 5.2 Reuse the ordinary ephemeral creation payload as `base_revision`, add typed frontend transport/state, and use one stable request key for every retry of one action.
+- [ ] 5.3 Replace the older web host's template action. Keep its setup drawer and navigation, open the returned server session, and do not enqueue a browser seed.
+- [ ] 5.4 Replace `/m` template handoff. Keep the connection card inside the session, load after Continue/Create, adopt the returned server session, and do not stash a second seed.
+- [ ] 5.5 Keep blank and free-text creation on the existing ordinary path.
+
+## 6. Acceptance
+
+- [ ] 6.1 Run source, parser, compiler, provenance, idempotent workflow/skill, mount, durable session start, loader, route, frontend, and type-check suites.
+- [ ] 6.2 Read back the created workflow/revision, skill embeds, mount entries, protected provenance, execution row, and absence of schedules/subscriptions.
+- [ ] 6.3 Run browser scenarios on the older host and `/m` at desktop and phone widths. Cover reload, timeout replay, two concurrent same-key requests, and ordinary blank creation.
+- [ ] 6.4 Run one ordinary build-kit smoke conversation for a missing connection and an inactive automation recipe. Loading must stop at durable first-message acceptance.
+- [ ] 6.5 Record commit-specific evidence. Mark unrun cases `NOT RUN`. Report all multi-agent scenarios as **NOT IMPLEMENTED**.

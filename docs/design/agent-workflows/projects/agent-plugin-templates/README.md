@@ -21,7 +21,7 @@ This PR contains specifications only. The first version has no installation life
 - [Loading flow](installation-flow.md) and [onboarding integration](onboarding-integration.md) explain the existing interface and backend handoff.
 - [Build-kit audit](build-kit-audit.md) checks each setup action against v0.119 code.
 - [Research](research.md) links the exact code baseline.
-- [Plan](plan.md) and [validation](validation.md) define implementation work and acceptance.
+- [Plan](plan.md), [detailed implementation plan](../../../../superpowers/plans/2026-09-20-load-single-agent-templates.md), and [validation](validation.md) define implementation work and acceptance.
 - [Review responses](review-responses.md) map PR comments to changes.
 - [Status](status.md) separates document validation from runtime implementation.
 

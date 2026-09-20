@@ -1,13 +1,16 @@
-# Implementation plan
+# Single-agent loading plan
 
-This is a plan only. The [OpenSpec tasks](../../../../../openspec/changes/load-single-agent-templates/tasks.md) are the actionable checklist; all remain unchecked.
+This is a plan only. Runtime behavior remains **NOT IMPLEMENTED**.
 
-1. Resolve the internal template source and validate a single-agent package, including descriptions, optional notes/policies, MCP references, and safe paths.
-2. Compose its content with ordinary creation defaults. Use existing workflow, skill, and mount services to create the agent and copy known resources.
-3. Preserve the current connection controls. Reuse gateway services and the existing connection tools for unresolved needs.
-4. Deliver one normal first message containing setup guidance and remaining recipes. Close general request/session deduplication gaps if needed.
-5. Verify unchanged template entry behavior, correct saved resources, and first-message acceptance. Stop the feature's responsibility there.
+The complete test-first plan is [Single-Agent Template Loading Implementation Plan](../../../../superpowers/plans/2026-09-20-load-single-agent-templates.md). It defines the service contracts, files, dependency order, tests, commands, and commit boundaries. The [OpenSpec task list](../../../../../openspec/changes/load-single-agent-templates/tasks.md) is the shorter progress checklist. All tasks remain unchecked.
 
-Do not implement child agents, new setup-specific tools, installation status, backend readiness gates, or a new template UI. The [future subagent tasks](../../../../../openspec/changes/support-template-subagents/tasks.md) are separate and NOT IMPLEMENTED.
+The implementation has six stages:
 
-There is no saved-agent migration. Replacing built-in template content does not rewrite existing user agents. Reverting the loading handler changes future template creates only.
+1. Resolve a versioned internal source and validate one bounded Agent Plugin package before writes.
+2. Re-read target-project connections, compile native agent configuration, and compose the first message without side effects.
+3. Add general idempotent workflow/skill creation, preserve-existing mount materialization, and durable session starts.
+4. Orchestrate those services behind one authorized `POST /agent-templates/load` operation.
+5. Convert every current card to an internal package and replace only the existing template load action in both hosts.
+6. Verify saved resources, retry behavior, unchanged interface behavior, and durable first-message acceptance.
+
+Do not implement child agents, new setup-specific tools, installation status, backend readiness gates, or a new template UI. The [future subagent tasks](../../../../../openspec/changes/support-template-subagents/tasks.md) are separate and **NOT IMPLEMENTED**.

@@ -25,7 +25,7 @@ Checked against release/v0.119.0 at `ebb825d1da345e7bf9741e832d7664a972e6f72e`. 
 
 ## Backend gaps, not new agent tools
 
-The source-aware loader itself is new backend work. Create-request deduplication must be enforced by existing resource services. Durable first-message deduplication must cover idle sessions as well as queued inputs; the idle branch currently returns `execute` before a pending-input claim. If existing persistence cannot enforce that contract, extend general create/session-input behavior. Neither gap requires an installation lifecycle or a model-visible operation.
+The source-aware loader itself is new backend work. Existing resource services must enforce create-request deduplication. The queued-input idle branch returns `execute` before a pending-input claim, so the implementation must not use that return as durable acceptance. Add a general session-input method that stores the original payload fingerprint and binds it to a deterministic execution id. Add a session start service that starts the exact revision once and confirms the durable execution row before success. Neither gap requires an installation lifecycle or a model-visible operation. See the [implementation plan](../../../../../docs/superpowers/plans/2026-09-20-load-single-agent-templates.md).
 
 ## Code references
 

@@ -16,9 +16,63 @@ There is no template installation resource with installing/setup/ready states, n
 
 ### A source belongs to the loading service
 
-Use a typed source reference such as `{"kind":"internal","key":"outbound-prospecting"}`. Existing card keys resolve to this source by default. An internal source resolver returns a bounded package directory, version, and content digest. It accepts registry keys, not arbitrary filesystem paths. The package loader consumes resolved content regardless of source.
+The loading service resolves a template key to a verified package. It returns the package files, version, and content digest. The loader then creates the agent from the resolved package. Agenta records this source information on the created workflow and initial revision. The first version supports only templates from Agenta's internal registry. Existing agents do not require changes.
 
-Reuse the skill import pattern of a source-fetching interface and resource provenance. Store the template's source, resolved version, and digest as namespaced origin/provenance metadata on the workflow/revision. The exact new metadata discriminator is a template source, not a forged skill origin. Existing agents require no conversion. Git repository and archive adapters are future source implementations, not first-version UI or import features.
+A card supplies a typed registry reference:
+
+```json
+{ "kind": "internal", "key": "outbound-prospecting" }
+```
+
+The resolver accepts that key, not a filesystem path. A retry can also supply the stored version and digest to reopen the same package snapshot after the catalog changes. The package loader consumes the resolved content and does not depend on how the resolver found it.
+
+Store the source under the protected platform metadata namespace:
+
+```json
+{
+  "_ag": {
+    "template_origin": {
+      "kind": "internal",
+      "key": "outbound-prospecting",
+      "version": "1.0.0",
+      "digest": "sha256:..."
+    }
+  }
+}
+```
+
+This follows the skill import pattern of separate source resolution and trusted provenance. It uses a template-specific discriminator. It does not claim to be skill provenance. Git repository and archive resolvers are future adapters, not first-version UI or import features.
+
+### Backend service contracts
+
+Keep transport, pure transformation, and resource writes separate.
+
+| Service                   | Input                                                                                      | Output                                                                         | Side effects                                                       |
+| ------------------------- | ------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------ | ------------------------------------------------------------------ |
+| `TemplateSourceResolver`  | Typed source and optional stored pin.                                                      | Bounded package root, version, and digest.                                     | Reads the internal catalog only.                                   |
+| `TemplatePackageParser`   | Resolved package.                                                                          | One validated agent, skills, workspace entries, MCP declarations, and recipes. | None.                                                              |
+| `TemplateBindingResolver` | Parsed requirements, user choices, and project id.                                         | Native tool/MCP entries and unresolved needs.                                  | Reads project connections and endpoints.                           |
+| `TemplateCompiler`        | Base revision, package, planned deterministic skill references, and bindings.              | Native workflow revision data.                                                 | None.                                                              |
+| `AgentTemplateLoader`     | Authorized project/user context, request key, source, base revision, message, and choices. | Workflow, revision, input, session, and execution ids.                         | Calls the owning services in order.                                |
+| `SessionInputsService`    | Full invocation payload, stable key, and deterministic execution id.                       | One promoted input with a stable payload fingerprint.                          | Atomically claims the original input in the existing inputs table. |
+| `SessionStartsService`    | Exact revision, first message, and stable request key.                                     | Confirmed input and session execution identities.                              | Starts one detached run and confirms its durable row.              |
+
+The public request supplies the source reference, the same base revision data used by ordinary creation, the current initial message, connection choices, and an `Idempotency-Key` header. It cannot supply source provenance, workflow ids, session ids, execution ids, resolved connection slugs, trusted metadata, or credentials.
+
+The loader performs this sequence:
+
+1. The router checks `EDIT_WORKFLOWS` and `RUN_SESSIONS` before source or project-resource reads.
+2. The loader checks the deterministic target workflow and request fingerprint. A replay reads its stored source pin.
+3. The resolver and parser validate the complete package before writes.
+4. The binding resolver re-reads active, valid target-project connections and MCP endpoints.
+5. The skills service derives deterministic skill references without writing. The compiler uses them to produce and validate native agent configuration from the package and ordinary creation defaults.
+6. After preflight passes, the workflow service creates or resumes the agent with protected template provenance. This first durable write pins recovery to the resolved package.
+7. The loader creates or resumes the declared skill workflows and verifies their deterministic references.
+8. The mount service creates missing declared paths without replacing existing paths.
+9. The session input service atomically claims and fingerprints the full first-message invocation. The session start service binds it to deterministic session and execution ids, starts the exact revision, and confirms the durable execution row.
+10. The route returns the same identifiers on a same-key replay.
+
+The detailed file-by-file and test-first sequence is in [the implementation plan](../../../docs/superpowers/plans/2026-09-20-load-single-agent-templates.md).
 
 ### Keep one agent in the current package contract
 
@@ -48,9 +102,11 @@ No schedule or subscription is created merely by loading the package. Recipes ar
 
 A create request has a stable project-scoped request key and normalized payload fingerprint. Replays return the existing agent/session identifiers; different content under the same key conflicts. Reserve the target workflow identity before writes and reconcile via that identity on retry. Use existing resource identity/provenance facilities; if they cannot atomically claim the request, add a general create-request deduplication primitive in the owning service, not a template installation domain.
 
-The first message uses a deterministic key derived from the created workflow/session and template digest. Its persisted payload and fingerprint must be stable even if the account list later changes. The session input service must atomically claim that key and append or enqueue one input. Concurrent, refreshed, or timed-out calls return the existing input/result. A conflicting payload is rejected. A deduplication receipt is request bookkeeping, not model-visible setup status.
+The first message uses deterministic session and execution ids derived from the project and request key. Before invocation, the general session input service claims the complete request payload in the existing `session_inputs` table, stores its fingerprint, and promotes it to the deterministic execution id. A replay returns that input. Different content under the same key conflicts.
 
-The current queued-input service has key/fingerprint checks, but its idle execute path returns before creating a pending-input record. Full first-message deduplication is therefore a general session-input gap to close and test, not an existing guarantee. Do not claim success based on a browser latch.
+The general session start service then checks the execution row, starts the exact workflow revision in detached mode only when the row is absent, and returns only after the row is durable. Concurrent, refreshed, or timed-out calls return the existing input and execution. This request bookkeeping is not model-visible setup status.
+
+The current queued-input idle path returns `execute` before creating a pending-input record. The implementation therefore does not use that path as durable acceptance. It adds the general claim method to the same owning input service and tests both the input fingerprint and execution identity. A browser latch remains only a user-interface guard.
 
 ### Preserve the interface
 
@@ -58,16 +114,16 @@ Replace the data-loading call under the existing template action. Keep cards, na
 
 ## Ownership and code checks
 
-| Owner                          | Responsibility                                                         | Validation                                                                      |
-| ------------------------------ | ---------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
-| Source resolver                | Resolve bounded package content and provenance.                        | Unknown keys and path escapes fail before writes.                               |
-| Loader/compiler                | Validate one-agent content and generate native configuration.          | Pure deterministic tests; no provider calls inside compiler.                    |
-| Workflow/skills/mount services | Create resources with project authorization and retry identity.        | Real service tests and resource read-back. No foreign-domain table writes.      |
-| Existing creation logic        | Choose runnable model/harness/sandbox.                                 | Package and blank creation resolve the same defaults for the same user/project. |
-| MCP gateway                    | Endpoint identity, authentication, network policy, native permissions. | Validate configuration against v0.119 types; reject foreign-project references. |
-| Session service                | Persist first message and deduplicate delivery.                        | Concurrent and idle-session replay tests with stable input identifiers.         |
-| Existing build kit             | Continue ordinary agent setup after handoff.                           | Tool audit and a smoke run; no new template-specific operations.                |
-| Frontend host                  | Existing controls and navigation.                                      | Browser regression on both hosts and viewport sizes.                            |
+| Owner                          | Responsibility                                                                         | Validation                                                                                       |
+| ------------------------------ | -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| Source resolver                | Resolve bounded package content and provenance.                                        | Unknown keys and path escapes fail before writes.                                                |
+| Loader/compiler                | Validate one-agent content and generate native configuration.                          | Pure deterministic tests; no provider calls inside compiler.                                     |
+| Workflow/skills/mount services | Create resources with project authorization and retry identity.                        | Real service tests and resource read-back. No foreign-domain table writes.                       |
+| Existing creation logic        | Choose runnable model/harness/sandbox.                                                 | Package and blank creation resolve the same defaults for the same user/project.                  |
+| MCP gateway                    | Endpoint identity, authentication, network policy, native permissions.                 | Validate configuration against v0.119 types; reject foreign-project references.                  |
+| Session input/start services   | Claim one fingerprinted message, start it once, and confirm its durable execution row. | Concurrent, changed-message, timeout, and idle replay tests with stable input and execution ids. |
+| Existing build kit             | Continue ordinary agent setup after handoff.                                           | Tool audit and a smoke run; no new template-specific operations.                                 |
+| Frontend host                  | Existing controls and navigation.                                                      | Browser regression on both hosts and viewport sizes.                                             |
 
 Authenticate the caller and authorize project and target resources before resolving bindings or writing resources. Backend-derived context never substitutes for authorization. Secret values must not appear in package content, metadata, first messages, logs, or traces.
 
