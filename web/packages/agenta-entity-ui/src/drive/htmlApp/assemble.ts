@@ -14,7 +14,7 @@
  *
  * Both are pure — mount access arrives through {@link AssembleIo}.
  */
-import {BRIDGE_STUB, RUN_CSP} from "@agenta/entities/drive"
+import {BRIDGE_STUB, PREVIEW_CSP, RUN_CSP} from "@agenta/entities/drive"
 
 import {tokensToCss} from "./kit"
 
@@ -193,6 +193,19 @@ export async function assemblePreview(html: string, {dir, io}: PreviewContext): 
                 a.setAttribute("rel", "noopener noreferrer")
             }
         })
+        // First child of <head>, because a policy only governs what the parser meets after it —
+        // a nested browsing context declared earlier in the document would load unpoliced.
+        const csp = doc.createElement("meta")
+        csp.setAttribute("http-equiv", "Content-Security-Policy")
+        csp.setAttribute("content", PREVIEW_CSP)
+        const head =
+            doc.head ??
+            doc.documentElement.insertBefore(
+                doc.createElement("head"),
+                doc.documentElement.firstChild,
+            )
+        head.insertBefore(csp, head.firstChild)
+
         const interceptor = doc.createElement("script")
         interceptor.textContent = HTML_NAV_INTERCEPTOR
         ;(doc.body ?? doc.documentElement).appendChild(interceptor)

@@ -1,9 +1,16 @@
 /**
  * Lock on the HTML Preview assembler after its move out of `renderers.tsx` (agent HTML apps,
- * lane C). `assemblePreview` must produce BYTE-IDENTICAL output to the pre-move
- * `inlineHtmlAssets`, on three fixtures that together cover every branch: plain page, page with
- * linked CSS + images (the mount-asset inlining), and page with every script vector the sandbox
- * strips (scripts, inline handlers, `javascript:` URLs, nested `srcdoc`).
+ * lane C). `assemblePreview` must produce byte-identical output to the pre-move
+ * `inlineHtmlAssets` APART FROM THE INJECTED CSP, on three fixtures that together cover every
+ * branch: plain page, page with linked CSS + images (the mount-asset inlining), and page with
+ * every script vector the sandbox strips (scripts, inline handlers, `javascript:` URLs, nested
+ * `srcdoc`).
+ *
+ * The one deliberate difference is {@link PREVIEW_CSP}. Preview used to ship no policy at all,
+ * which let `<iframe src="data:text/html,…">` — a vector the stripper never covered, since it
+ * only clears `srcdoc` — run a script in a nested context and `fetch` anywhere. So each fixture
+ * is compared through {@link withoutCsp}, which keeps the move-lock honest about the inlining
+ * while the policy itself is asserted separately below.
  *
  * Two locks per fixture: the literal string captured by RUNNING the pre-move code under this same
  * jsdom (recorded in the move commit), and a verbatim copy of that code kept below — so a jsdom
@@ -11,7 +18,7 @@
  */
 import {beforeAll, describe, expect, it} from "vitest"
 
-import {BRIDGE_STUB, RUN_CSP} from "@agenta/entities/drive"
+import {BRIDGE_STUB, PREVIEW_CSP, RUN_CSP} from "@agenta/entities/drive"
 
 import {
     assemblePreview,
@@ -216,6 +223,10 @@ const EXPECTED_SCRIPTS =
 
 // ---------------------------------------------------------------------------------------------
 
+/** The assembled document minus the injected policy, for comparison against the pre-move output. */
+const withoutCsp = (out: string): string =>
+    out.replace(`<meta http-equiv="Content-Security-Policy" content="${PREVIEW_CSP}">`, "")
+
 describe("assemblePreview is byte-identical to the pre-move inlineHtmlAssets", () => {
     it("keeps the nav interceptor verbatim", () => {
         expect(HTML_NAV_INTERCEPTOR).toBe(LEGACY_HTML_NAV_INTERCEPTOR)
@@ -223,14 +234,14 @@ describe("assemblePreview is byte-identical to the pre-move inlineHtmlAssets", (
 
     it("plain page (no mount)", async () => {
         const out = await assemblePreview(PLAIN, {dir: "", io: null})
-        expect(out).toBe(EXPECTED_PLAIN)
-        expect(out).toBe(await legacyInlineHtmlAssets(PLAIN, null, "", null))
+        expect(withoutCsp(out)).toBe(EXPECTED_PLAIN)
+        expect(withoutCsp(out)).toBe(await legacyInlineHtmlAssets(PLAIN, null, "", null))
     })
 
     it("linked css + img: same-mount assets inline, external and data: left alone", async () => {
         const out = await assemblePreview(ASSETS, {dir: "site", io})
-        expect(out).toBe(EXPECTED_ASSETS)
-        expect(out).toBe(await legacyInlineHtmlAssets(ASSETS, "m1", "site", "p1"))
+        expect(withoutCsp(out)).toBe(EXPECTED_ASSETS)
+        expect(withoutCsp(out)).toBe(await legacyInlineHtmlAssets(ASSETS, "m1", "site", "p1"))
         // Proof the inlining ran (the pre-move code fell back to the raw html on any throw).
         expect(out).toContain("<style>body{color:red}")
         expect(out).toContain("data:image/png;base64,UE5HLUJZVEVT")
@@ -238,16 +249,58 @@ describe("assemblePreview is byte-identical to the pre-move inlineHtmlAssets", (
 
     it("scripts, inline handlers, javascript: urls, nested srcdoc — all stripped", async () => {
         const out = await assemblePreview(SCRIPTS, {dir: "docs", io: null})
-        expect(out).toBe(EXPECTED_SCRIPTS)
-        expect(out).toBe(await legacyInlineHtmlAssets(SCRIPTS, null, "docs", null))
+        expect(withoutCsp(out)).toBe(EXPECTED_SCRIPTS)
+        expect(withoutCsp(out)).toBe(await legacyInlineHtmlAssets(SCRIPTS, null, "docs", null))
         expect(out).not.toMatch(/alert\(1\)|onload|onclick|onmouseover|onerror|evil\(\)|srcdoc/i)
     })
 
     it("a document without a mount still assembles when the mount branch would be skipped", async () => {
         // Mount id present but no io == the local composer attachment path.
         const out = await assemblePreview(ASSETS, {dir: "site", io: null})
-        expect(out).toBe(await legacyInlineHtmlAssets(ASSETS, null, "site", null))
+        expect(withoutCsp(out)).toBe(await legacyInlineHtmlAssets(ASSETS, null, "site", null))
         expect(out).toContain('href="./styles/app.css"')
+    })
+})
+
+describe("assemblePreview carries a policy the stripper cannot substitute for", () => {
+    /**
+     * The hole this closes: `assemblePreview` removes `iframe[srcdoc]` but leaves
+     * `iframe[src="data:text/html,…"]` alone. The nested context inherits `allow-scripts` from
+     * the preview sandbox, so its script runs even though every script in the OUTER document was
+     * stripped — and with no policy in the document it reached a listening server by `fetch`.
+     * Asserted here as a constant so the vector cannot quietly reopen.
+     */
+    it("injects the CSP as the FIRST child of head, before any nested context can load", async () => {
+        const out = await assemblePreview(PLAIN, {dir: "", io: null})
+        expect(out).toContain(
+            `<head><meta http-equiv="Content-Security-Policy" content="${PREVIEW_CSP}">`,
+        )
+    })
+
+    it("denies the nested browsing contexts and the connect channel", () => {
+        // `<object data="data:text/html,…">` and `<embed>` execute the same way an iframe does,
+        // so naming only frame-src would move the vector rather than close it.
+        expect(PREVIEW_CSP).toContain("frame-src 'none'")
+        expect(PREVIEW_CSP).toContain("object-src 'none'")
+        // connect-src has no directive of its own here: it falls back to default-src.
+        expect(PREVIEW_CSP).toContain("default-src 'none'")
+        expect(PREVIEW_CSP).not.toContain("connect-src")
+    })
+
+    it("still allows the remote stylesheet, image and font that ordinary drive HTML renders today", () => {
+        // `inlineAssets` folds in same-mount assets only and leaves external URLs alone, so these
+        // are live today; a policy that broke them would regress every such page.
+        expect(PREVIEW_CSP).toContain("style-src 'unsafe-inline' https:")
+        expect(PREVIEW_CSP).toContain("img-src data: blob: https:")
+        expect(PREVIEW_CSP).toContain("font-src data: https:")
+    })
+
+    it("a data: iframe survives the stripper — which is why the policy, not the strip list, is the fix", async () => {
+        const out = await assemblePreview(
+            '<html><body><iframe src="data:text/html,%3Cscript%3Efetch(1)%3C/script%3E"></iframe></body></html>',
+            {dir: "", io: null},
+        )
+        expect(out).toContain('<iframe src="data:text/html,')
     })
 })
 

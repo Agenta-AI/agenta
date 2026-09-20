@@ -208,6 +208,29 @@ export const SANDBOX_FLAGS = "allow-scripts allow-forms"
 export const RUN_CSP =
     "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; form-action 'none'"
 
+/**
+ * CSP injected into the PREVIEW document (ordinary drive HTML, not an app).
+ *
+ * Preview strips every agent script and renders with `allow-popups`, and for a while the first
+ * half was taken as the reason the second half was safe. It is not. The stripper clears
+ * `iframe[srcdoc]` but nothing stopped `<iframe src="data:text/html,…">`: the nested context
+ * inherits `allow-scripts`, its script runs, and with no policy in the document it could `fetch`
+ * anywhere. Verified against these exact flags — the request arrived at a listening server with
+ * its query string intact.
+ *
+ * So the fix is a policy rather than another element on a strip list. `object-src`/`frame-src`
+ * close the nested contexts (`<object data="data:…">` and `<embed>` execute the same way), and
+ * `default-src 'none'` covers `connect-src`, so even a context that somehow runs has no way out.
+ * Enumerating vectors does not terminate; denying the capability does.
+ *
+ * Wider than {@link RUN_CSP} in one respect, deliberately: preview leaves external URLs alone
+ * (`inlineAssets` only folds in same-mount assets), so ordinary drive HTML that links a remote
+ * stylesheet, image or font renders today and must keep rendering. Those are fetches the policy
+ * still confines to their element type; `connect-src` stays denied.
+ */
+export const PREVIEW_CSP =
+    "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline' https:; img-src data: blob: https:; font-src data: https:; form-action 'none'; frame-src 'none'; object-src 'none'"
+
 /** Theme tokens the kit CSS consumes; the host fills them from its palette. */
 export const KIT_TOKENS = [
     "--ag-bg",
