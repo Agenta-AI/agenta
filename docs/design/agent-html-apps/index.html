@@ -1,0 +1,459 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Agent Apps, One Page</title>
+<style>img{max-width:100%}[hidden]{display:none!important}</style>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  --ground:#F4F5F7; --surface:#FFFFFF; --sunken:#ECEEF2; --ink:#16181D; --muted:#5B6270; --line:#D9DCE3; --line-strong:#B8BEC9;
+  --accent:#0F766E; --accent-soft:#D9F0EC; --accent-ink:#0B5A54;
+  --warn:#B45309; --warn-soft:#FBEBD5; --crit:#B91C1C; --crit-soft:#F8DEDE; --ok:#15803D; --ok-soft:#DCF1E3;
+  --code-bg:#EEF0F4;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --ground:#121417; --surface:#1A1D22; --sunken:#15181D; --ink:#E8EAEE; --muted:#9AA2B1; --line:#2A2F38; --line-strong:#3C4350;
+  --accent:#34C4B0; --accent-soft:#12312D; --accent-ink:#7EE0D2;
+  --warn:#F0A34A; --warn-soft:#3A2A14; --crit:#F07070; --crit-soft:#3C1C1C; --ok:#5FCF83; --ok-soft:#173523;
+  --code-bg:#22262D;
+}}
+:root[data-theme="dark"]{
+  --ground:#121417; --surface:#1A1D22; --sunken:#15181D; --ink:#E8EAEE; --muted:#9AA2B1; --line:#2A2F38; --line-strong:#3C4350;
+  --accent:#34C4B0; --accent-soft:#12312D; --accent-ink:#7EE0D2;
+  --warn:#F0A34A; --warn-soft:#3A2A14; --crit:#F07070; --crit-soft:#3C1C1C; --ok:#5FCF83; --ok-soft:#173523;
+  --code-bg:#22262D;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--ground);color:var(--ink);font-family:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;font-size:14px;line-height:1.5;padding-inline:20px;padding-block:0 72px;-webkit-font-smoothing:antialiased}
+a{color:var(--accent-ink);text-decoration:none;border-bottom:1px solid var(--line-strong)}
+a:hover{border-bottom-color:var(--accent)}
+a:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+code{font-family:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.88em;background:var(--code-bg);padding:.1em .35em;border-radius:4px}
+h1,h2,h3{font-family:"Bricolage Grotesque","IBM Plex Sans",system-ui,sans-serif;text-wrap:balance;line-height:1.15;margin:0}
+h1{font-size:clamp(28px,4vw,40px);font-weight:700;letter-spacing:-.01em}
+h2{font-size:15px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);margin:0 0 10px}
+h3{font-size:15px;font-weight:600;margin:0 0 4px}
+p{margin:8px 0;max-width:72ch}
+ul{margin:6px 0;padding-left:18px;max-width:72ch}
+li{margin:3px 0}
+.wrap{max-width:1080px;margin:0 auto}
+header{padding-block:44px 8px}
+.eyebrow{font-size:11px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);font-weight:500;margin-bottom:10px}
+.lede{font-size:16px;color:var(--muted);max-width:70ch;margin-top:10px}
+section{margin-top:30px;padding-top:18px;border-top:1px solid var(--line)}
+.cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:12px 14px}
+.card.hi{border-top:3px solid var(--accent)}
+.card .k{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:500}
+.card ul{font-size:13.5px}
+figure{margin:14px 0 0;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:12px 12px 8px}
+figure svg{display:block;max-width:100%;height:auto;color:var(--ink);font-family:"IBM Plex Sans",system-ui,sans-serif}
+figcaption{font-size:12.5px;color:var(--muted);margin-top:8px}
+.tbl{overflow-x:auto;margin:10px 0 0}
+table{border-collapse:collapse;width:100%;font-size:13px;background:var(--surface);border:1px solid var(--line);border-radius:8px;overflow:hidden}
+th,td{text-align:left;padding:7px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:500;background:var(--sunken)}
+tr:last-child td{border-bottom:0}
+td.mono{font-family:"IBM Plex Mono",monospace;font-size:12px;white-space:nowrap}
+td.num{font-variant-numeric:tabular-nums;white-space:nowrap}
+.ok{color:var(--ok)}.wn{color:var(--warn)}.cr{color:var(--crit)}
+.contract{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;margin-top:10px}
+.contract .c{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:10px 12px;font-size:13px}
+.contract .c b{display:block;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-bottom:4px;font-weight:500}
+.contract .c code{font-size:12px}
+.decs{columns:2;column-gap:24px;max-width:none;font-size:13.5px}
+@media (max-width:700px){.decs{columns:1}}
+.decs li{break-inside:avoid;margin:4px 0}
+.decs b{font-weight:600}
+.docs{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:10px;margin-top:10px}
+.doc{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:10px 12px;font-size:13px}
+.doc a{font-weight:600;border:0}
+.doc p{margin:3px 0 0;font-size:12.5px;color:var(--muted)}
+.small{font-size:12.5px;color:var(--muted)}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+<header>
+  <div class="eyebrow">Agenta · agent HTML apps · summary of eight documents · 18 Sep 2026</div>
+  <h1>Agent apps, one page</h1>
+  <p class="lede">An agent writes a small HTML app into its session's drive. The user runs it beside the conversation. The app reads and writes files in its own folder through a narrow bridge, and the agent reads those same files on its next turn. Everything below is the plan for making that loop real, consistent, and safe.</p>
+</header>
+
+<section>
+  <h2>What an App is</h2>
+  <div class="cols">
+    <div class="card hi">
+      <h3>A folder of files the agent wrote, opened as a program</h3>
+      <p>An App is an ordinary HTML file that the agent wrote into the session's drive, plus the data files beside it, opened in a mode where its own JavaScript is allowed to run. Nothing is uploaded, deployed or hosted. The file sits next to the agent's other files; the "app" is what the user sees when Agenta executes it beside the conversation instead of showing it as a static page.</p>
+      <p>A folder is an app because it contains an <code>app.json</code> manifest. Not a file extension, not a guess from the HTML. The explorer shows such a folder as an App tile with an Open action; the Run tab reads the manifest to know the entry file and the access to ask for; the agent reads it on later turns to recognize what it already built.</p>
+    </div>
+    <div class="card">
+      <div class="k">Three ways to open an HTML file</div>
+      <ul>
+        <li><b>Preview</b>, the default. Scripts stripped. Safe and inert, exactly as today.</li>
+        <li><b>Source</b>. The code.</li>
+        <li><b>Run</b>. Executes the file in the same sandboxed iframe and injects <code>window.agenta</code>, a bridge with eight file methods scoped to the app's folder. The user chooses Run and picks read or read-and-write.</li>
+      </ul>
+      <div class="k" style="margin-top:10px">The running example</div>
+      <p>The agent writes <code>apps/launch-board/index.html</code> and <code>board.json</code>. The user drags a card; the app saves the new layout to <code>board.json</code>. Next turn the agent reads that file and sees what the user did. Files are the shared state; the App is a UI the agent made for editing them.</p>
+    </div>
+  </div>
+
+  <figure>
+    <svg viewBox="0 0 960 300" role="img" aria-label="The playground with an app running. Left pane: the chat, where the user asked for a launch board and the agent replied with two file cards. Right pane: a tab named Launch board in Run mode, status Running, read and write, showing three columns with cards; the user is dragging Write changelog into Doing; a toast says Saved board.json.">
+      <rect x="0" y="0" width="960" height="300" rx="8" fill="var(--sunken)"/>
+      <rect x="0" y="0" width="960" height="26" rx="8" fill="currentColor" opacity=".05"/>
+      <g font-size="11" fill="currentColor">
+        <text x="14" y="17" font-weight="600">Launch assistant</text><rect x="130" y="4" width="110" height="18" rx="4" fill="var(--accent)" opacity=".2"/><text x="185" y="17" text-anchor="middle">v0.119 launch</text>
+        <!-- pane A -->
+        <rect x="10" y="36" width="380" height="254" rx="6" fill="var(--surface)" stroke="var(--line)"/>
+        <rect x="140" y="48" width="240" height="40" rx="8" fill="var(--accent)" opacity=".14"/><text x="152" y="64">Help me plan the v0.119 launch.</text><text x="152" y="80">I want a board I can move cards on.</text>
+        <text x="22" y="110" opacity=".6" font-size="10">⚙ create_app("board") · wrote 2 files</text>
+        <text x="22" y="132">Created a launch board with 5 tasks.</text><text x="22" y="148">Open it beside the chat and choose Run.</text>
+        <rect x="22" y="160" width="170" height="36" rx="6" fill="none" stroke="var(--accent)"/><rect x="30" y="167" width="22" height="22" rx="4" fill="var(--accent)" opacity=".25"/><text x="60" y="176" font-weight="500">Launch board</text><text x="60" y="190" opacity=".6" font-size="10">App · Open</text>
+        <rect x="200" y="160" width="170" height="36" rx="6" fill="none" stroke="var(--line-strong)"/><rect x="208" y="167" width="22" height="22" rx="4" fill="currentColor" opacity=".08"/><text x="238" y="176" font-weight="500" font-family="IBM Plex Mono, monospace" font-size="10">board.json</text><text x="238" y="190" opacity=".6" font-size="10">412 B</text>
+        <rect x="22" y="254" width="356" height="26" rx="6" fill="none" stroke="var(--line)"/><text x="32" y="271" opacity=".5">Message Launch assistant…</text>
+        <!-- pane B -->
+        <rect x="400" y="36" width="550" height="254" rx="6" fill="var(--surface)" stroke="var(--line)"/>
+        <rect x="400" y="36" width="550" height="24" fill="currentColor" opacity=".04"/>
+        <rect x="408" y="40" width="90" height="16" rx="4" fill="currentColor" opacity=".1"/><text x="453" y="52" text-anchor="middle" font-size="10">Launch board</text>
+        <rect x="504" y="40" width="40" height="16" rx="4" fill="none" stroke="var(--line)"/><text x="524" y="52" text-anchor="middle" font-size="10" opacity=".7">Files</text>
+        <rect x="410" y="68" width="150" height="20" rx="4" fill="none" stroke="var(--line)"/><text x="436" y="82" text-anchor="middle" font-size="10" opacity=".7">Preview</text><text x="486" y="82" text-anchor="middle" font-size="10" opacity=".7">Source</text><rect x="510" y="70" width="48" height="16" rx="3" fill="var(--accent)" opacity=".25"/><text x="534" y="82" text-anchor="middle" font-size="10" font-weight="600">Run</text>
+        <circle cx="580" cy="78" r="3.5" fill="var(--ok)"/><text x="588" y="82" font-size="10">Running · read + write · apps/launch-board/</text>
+        <rect x="880" y="68" width="62" height="20" rx="4" fill="none" stroke="var(--line-strong)"/><text x="911" y="82" text-anchor="middle" font-size="10">↻ Refresh ▾</text>
+        <rect x="410" y="100" width="170" height="180" rx="6" fill="currentColor" opacity=".05"/><rect x="590" y="100" width="170" height="180" rx="6" fill="currentColor" opacity=".05"/><rect x="770" y="100" width="170" height="180" rx="6" fill="currentColor" opacity=".05"/>
+        <text x="495" y="118" text-anchor="middle" font-weight="600" font-size="10">To do · 3</text><text x="675" y="118" text-anchor="middle" font-weight="600" font-size="10">Doing · 2</text><text x="855" y="118" text-anchor="middle" font-weight="600" font-size="10">Done · 0</text>
+        <g font-size="10">
+          <rect x="418" y="128" width="154" height="26" rx="4" fill="var(--surface)" stroke="var(--line)"/><text x="426" y="145">Record demo</text>
+          <rect x="418" y="160" width="154" height="26" rx="4" fill="var(--surface)" stroke="var(--line)"/><text x="426" y="177">Draft announcement</text>
+          <rect x="418" y="192" width="154" height="26" rx="4" fill="var(--surface)" stroke="var(--line)"/><text x="426" y="209">Update docs</text>
+          <rect x="598" y="128" width="154" height="26" rx="4" fill="var(--surface)" stroke="var(--line)"/><text x="606" y="145">Cut release branch</text>
+          <rect x="598" y="160" width="154" height="26" rx="4" fill="var(--accent)" opacity=".2"/><rect x="598" y="160" width="154" height="26" rx="4" fill="none" stroke="var(--accent)" stroke-width="1.5"/><text x="606" y="177" font-weight="500">Write changelog</text>
+        </g>
+        <path d="M 500 230 C 540 230, 560 173, 596 173" fill="none" stroke="var(--accent)" stroke-width="1.5" stroke-dasharray="4 3"/>
+        <rect x="800" y="252" width="130" height="22" rx="5" fill="var(--ok)" opacity=".15"/><text x="865" y="267" text-anchor="middle" font-size="10">Saved board.json</text>
+      </g>
+    </svg>
+    <figcaption>The whole feature in one screen: chat on the left, the agent's app on the right, the same file underneath both. The drop is one write of <code>board.json</code>; the toast fires when the server has it.</figcaption>
+  </figure>
+  <figure>
+    <svg viewBox="0 0 960 120" role="img" aria-label="Three ways to open the same HTML file. Preview: scripts stripped, safe, default; the board shows empty columns and Loading. Source: the code. Run: scripts execute inside the sandbox with the bridge injected; the board fills. An arrow from Preview to Run is labelled user chooses Run and picks read or read and write.">
+      <defs><marker id="v" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker></defs>
+      <g font-size="11" fill="currentColor">
+        <rect x="16" y="16" width="280" height="88" rx="6" fill="none" stroke="currentColor"/><text x="32" y="38" font-weight="600">Preview · default</text><text x="32" y="56" opacity=".8">scripts stripped, inert, exactly today's behaviour</text>
+        <rect x="32" y="66" width="60" height="26" rx="3" fill="currentColor" opacity=".06"/><rect x="98" y="66" width="60" height="26" rx="3" fill="currentColor" opacity=".06"/><rect x="164" y="66" width="60" height="26" rx="3" fill="currentColor" opacity=".06"/><text x="128" y="84" text-anchor="middle" opacity=".5" font-size="10">Loading board…</text>
+        <rect x="340" y="16" width="280" height="88" rx="6" fill="none" stroke="currentColor"/><text x="356" y="38" font-weight="600">Source</text><text x="356" y="56" opacity=".8">the code, as today</text>
+        <text x="356" y="78" font-family="IBM Plex Mono, monospace" font-size="10" opacity=".7">&lt;script&gt; await agenta.ready …</text><text x="356" y="92" font-family="IBM Plex Mono, monospace" font-size="10" opacity=".7">board = await agenta.fs.readJSON(FILE)</text>
+        <rect x="664" y="16" width="280" height="88" rx="6" fill="var(--accent)" opacity=".12"/><rect x="664" y="16" width="280" height="88" rx="6" fill="none" stroke="var(--accent)" stroke-width="1.5"/><text x="680" y="38" font-weight="600">Run · new</text><text x="680" y="56" opacity=".8">same sandbox, scripts on, bridge injected first</text>
+        <rect x="680" y="66" width="60" height="26" rx="3" fill="currentColor" opacity=".06"/><rect x="746" y="66" width="60" height="26" rx="3" fill="currentColor" opacity=".06"/><rect x="812" y="66" width="60" height="26" rx="3" fill="currentColor" opacity=".06"/>
+        <rect x="684" y="70" width="52" height="8" rx="2" fill="var(--accent)" opacity=".5"/><rect x="684" y="81" width="52" height="8" rx="2" fill="var(--accent)" opacity=".5"/><rect x="750" y="70" width="52" height="8" rx="2" fill="var(--accent)" opacity=".5"/>
+      </g>
+      <path d="M296 60 C 320 60, 320 8, 480 8 C 640 8, 640 60, 664 60" fill="none" stroke="currentColor" marker-end="url(#v)"/>
+      <text x="480" y="112" font-size="10" text-anchor="middle" fill="currentColor" opacity=".7">user chooses Run and picks read, or read and write, for the app's folder</text>
+    </svg>
+  </figure>
+  <div class="cols" style="margin-top:14px">
+    <div class="card"><div class="k">One folder per app</div>
+<pre style="background:var(--code-bg);padding:10px 12px;border-radius:6px;font-size:12px;line-height:1.5;margin:6px 0 0;overflow-x:auto"><code>apps/launch-board/
+  app.json      the manifest: this folder is an app
+  index.html    the entry, starter copy or custom
+  config.json   title, columns; agent writes
+  board.json    data; app writes, agent reads</code></pre></div>
+    <div class="card"><div class="k">What the app can and cannot do</div><ul><li>Can: read, write, list, stat and remove files in its own folder; draw anything, DOM or canvas; know when the folder changed and when its tab is hidden.</li><li>Cannot: reach the network, call any API, see a token, touch another folder, read the transcript, send a message, or store anything outside its files.</li><li>Everything it cannot do, the agent does for it by writing a file.</li></ul></div>
+    <div class="card"><div class="k">Six shapes it covers</div><ul><li>Board, checklist, sheet, form: edit structured state beside the chat.</li><li>Review queue: many files, decisions in one JSON.</li><li>Dashboard: read-only view of data the agent produces on a schedule.</li><li>Wizard: structured input the agent needs, handed back via a composer draft.</li><li>Whiteboard and charts: canvas, same bridge, merge-by-id data.</li><li>Team tools: the one shape that lives with the agent, not a session.</li></ul></div>
+  </div>
+  <figure>
+    <svg viewBox="0 0 960 200" role="img" aria-label="Three parties reach one file. The agent, in its sandbox, has the drive mounted and uses file tools. The app, in its iframe, goes through the bridge and the parent page to the mounts API. The user goes through the Files pane to the same API. All three arrows end at board.json in the session drive.">
+      <defs><marker id="t" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker></defs>
+      <g font-size="11" fill="currentColor">
+        <rect x="16" y="20" width="170" height="44" rx="5" fill="none" stroke="currentColor"/><text x="101" y="38" text-anchor="middle" font-weight="600">Agent</text><text x="101" y="54" text-anchor="middle" opacity=".7" font-size="10">sandbox, drive mounted, file tools</text>
+        <rect x="16" y="78" width="170" height="44" rx="5" fill="var(--accent)" opacity=".15"/><rect x="16" y="78" width="170" height="44" rx="5" fill="none" stroke="var(--accent)"/><text x="101" y="96" text-anchor="middle" font-weight="600">App</text><text x="101" y="112" text-anchor="middle" opacity=".7" font-size="10">iframe → bridge → parent → API</text>
+        <rect x="16" y="136" width="170" height="44" rx="5" fill="none" stroke="currentColor"/><text x="101" y="154" text-anchor="middle" font-weight="600">User</text><text x="101" y="170" text-anchor="middle" opacity=".7" font-size="10">Files pane → API</text>
+        <rect x="380" y="78" width="160" height="44" rx="5" fill="none" stroke="currentColor" stroke-dasharray="5 4"/><text x="460" y="96" text-anchor="middle" font-weight="600">Agenta frontend</text><text x="460" y="112" text-anchor="middle" opacity=".7" font-size="10">grant · folder · If-Match</text>
+        <rect x="600" y="78" width="120" height="44" rx="5" fill="none" stroke="currentColor"/><text x="660" y="96" text-anchor="middle" font-weight="600">Mounts API</text><text x="660" y="112" text-anchor="middle" opacity=".7" font-size="10">VIEW / EDIT</text>
+        <rect x="790" y="40" width="154" height="120" rx="6" fill="currentColor" opacity=".05"/><rect x="790" y="40" width="154" height="120" rx="6" fill="none" stroke="currentColor"/><text x="867" y="62" text-anchor="middle" font-weight="600">Session drive</text>
+        <rect x="804" y="76" width="126" height="24" rx="4" fill="currentColor" opacity=".08"/><text x="867" y="92" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="10">index.html</text>
+        <rect x="804" y="108" width="126" height="24" rx="4" fill="var(--accent)" opacity=".25"/><text x="867" y="124" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="10">board.json</text>
+      </g>
+      <g stroke="currentColor" fill="none">
+        <path d="M186 42 C 500 42, 700 50, 804 88" marker-end="url(#t)"/>
+        <line x1="186" y1="100" x2="380" y2="100" stroke="var(--accent)" stroke-width="1.5" marker-end="url(#t)"/><line x1="540" y1="100" x2="600" y2="100" stroke="var(--accent)" stroke-width="1.5" marker-end="url(#t)"/><line x1="720" y1="100" x2="804" y2="120" marker-end="url(#t)"/>
+        <path d="M186 158 C 400 158, 560 140, 600 116" marker-end="url(#t)"/>
+      </g>
+      <text x="480" y="192" font-size="10" text-anchor="middle" fill="currentColor" opacity=".7">Three paths in, one file. Whoever wrote last is what everyone reads next; If-Match stops the app from erasing the agent's write.</text>
+    </svg>
+  </figure>
+</section>
+
+<section>
+  <h2>How an App gets created</h2>
+  <p>Only one way in: an agent, during a turn, using its file tools. There is no app builder and no upload path. The user asks for something; the agent decides it is an app; a folder appears with a file card in the reply. What keeps two sessions from producing two different "boards" is that the agent does not write the common apps at all.</p>
+  <figure>
+    <svg viewBox="0 0 960 170" role="img" aria-label="Creation flow: the user asks; the agenta-apps skill checks whether an app.json already exists in the target folder and updates it if so; otherwise it checks the starter catalogue and calls create_app to copy a versioned starter byte for byte, then writes config and data; only if nothing fits does the agent write a custom index.html on the design kit. All paths end in a file card the user opens as an app and runs after a grant.">
+      <defs><marker id="c" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker></defs>
+      <g font-size="11" fill="currentColor">
+        <rect x="16" y="56" width="110" height="44" rx="5" fill="none" stroke="currentColor"/><text x="71" y="82" text-anchor="middle" font-weight="600">the ask</text>
+        <rect x="160" y="40" width="150" height="76" rx="5" fill="none" stroke="currentColor"/><text x="235" y="62" text-anchor="middle" font-weight="600">agenta-apps skill</text><text x="235" y="80" text-anchor="middle" opacity=".8">exists already? update it</text><text x="235" y="96" text-anchor="middle" opacity=".8">starter matches? custom?</text>
+        <rect x="350" y="20" width="220" height="50" rx="5" fill="var(--accent)" opacity=".15"/><rect x="350" y="20" width="220" height="50" rx="5" fill="none" stroke="var(--accent)" stroke-width="1.5"/><text x="460" y="40" text-anchor="middle" font-weight="600" font-family="IBM Plex Mono, monospace">create_app("board", dir)</text><text x="460" y="58" text-anchor="middle" opacity=".8">platform copies the same bytes every time</text>
+        <rect x="350" y="88" width="220" height="50" rx="5" fill="none" stroke="currentColor"/><text x="460" y="108" text-anchor="middle" font-weight="600">custom index.html on the kit</text><text x="460" y="126" text-anchor="middle" opacity=".8">tokens + house style; no CDN; manifest</text>
+        <rect x="610" y="56" width="150" height="44" rx="5" fill="none" stroke="currentColor"/><text x="685" y="76" text-anchor="middle" font-weight="600">config + data files</text><text x="685" y="92" text-anchor="middle" opacity=".8">the agent's creative act</text>
+        <rect x="800" y="56" width="144" height="44" rx="5" fill="var(--surface)" stroke="var(--line-strong)"/><rect x="808" y="64" width="22" height="22" rx="4" fill="var(--accent)" opacity=".25"/><text x="838" y="74" font-weight="500">Launch board</text><text x="838" y="90" opacity=".6" font-size="10">App · Open · Run</text>
+      </g>
+      <g stroke="currentColor" fill="none">
+        <line x1="126" y1="78" x2="160" y2="78" marker-end="url(#c)"/>
+        <path d="M310 66 C 330 66, 330 45, 350 45" marker-end="url(#c)"/><path d="M310 90 C 330 90, 330 113, 350 113" marker-end="url(#c)"/>
+        <path d="M570 45 C 590 45, 590 78, 610 78" marker-end="url(#c)"/><path d="M570 113 C 590 113, 590 78, 610 78" marker-end="url(#c)"/>
+        <line x1="760" y1="78" x2="800" y2="78" marker-end="url(#c)"/>
+      </g>
+      <text x="480" y="160" font-size="10" text-anchor="middle" fill="currentColor" opacity=".7">Starter first, custom as the fallback. Either way the agent replies with the file card, says what access the app needs, and tells the user to choose Run.</text>
+    </svg>
+  </figure>
+
+  <figure>
+    <svg viewBox="0 0 960 150" role="img" aria-label="Why starters. Left, written from scratch: two sessions asking for a board get two visibly different apps. Right, starter first: both requests resolve to board version 1 and get identical apps.">
+      <defs><marker id="d" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker></defs>
+      <g font-size="11" fill="currentColor">
+        <text x="16" y="18" font-size="10" font-weight="600" letter-spacing=".06em" opacity=".6">WRITTEN FROM SCRATCH</text>
+        <rect x="16" y="30" width="110" height="30" rx="4" fill="none" stroke="currentColor"/><text x="71" y="49" text-anchor="middle" font-size="10">Session 1: "a board"</text>
+        <rect x="16" y="100" width="110" height="30" rx="4" fill="none" stroke="currentColor"/><text x="71" y="119" text-anchor="middle" font-size="10">Session 2: "a board"</text>
+        <rect x="170" y="26" width="90" height="40" rx="4" fill="var(--surface)" stroke="currentColor"/><rect x="176" y="32" width="24" height="28" rx="2" fill="currentColor" opacity=".08"/><rect x="204" y="32" width="24" height="28" rx="2" fill="currentColor" opacity=".08"/><rect x="232" y="32" width="22" height="28" rx="2" fill="currentColor" opacity=".08"/><rect x="179" y="36" width="18" height="6" rx="1" fill="var(--accent)" opacity=".5"/>
+        <rect x="170" y="96" width="90" height="40" rx="4" fill="var(--surface)" stroke="currentColor"/><rect x="176" y="102" width="78" height="7" rx="1" fill="var(--warn)" opacity=".4"/><rect x="176" y="112" width="78" height="7" rx="1" fill="var(--warn)" opacity=".4"/><rect x="176" y="123" width="30" height="8" rx="2" fill="currentColor" opacity=".25"/>
+        <text x="300" y="49" opacity=".7" font-size="10">columns, drag, autosave</text><text x="300" y="119" opacity=".7" font-size="10">a list, a dropdown, a Save button</text>
+        <line x1="480" y1="14" x2="480" y2="140" stroke="currentColor" opacity=".2"/>
+        <text x="500" y="18" font-size="10" font-weight="600" letter-spacing=".06em" fill="var(--accent-ink)">STARTER FIRST</text>
+        <rect x="500" y="30" width="110" height="30" rx="4" fill="none" stroke="currentColor"/><text x="555" y="49" text-anchor="middle" font-size="10">Session 1: "a board"</text>
+        <rect x="500" y="100" width="110" height="30" rx="4" fill="none" stroke="currentColor"/><text x="555" y="119" text-anchor="middle" font-size="10">Session 2: "a board"</text>
+        <rect x="650" y="60" width="110" height="40" rx="4" fill="var(--accent)" opacity=".15"/><rect x="650" y="60" width="110" height="40" rx="4" fill="none" stroke="var(--accent)" stroke-width="1.5"/><text x="705" y="77" text-anchor="middle" font-size="10" font-weight="600">create_app</text><text x="705" y="92" text-anchor="middle" font-size="10" font-family="IBM Plex Mono, monospace">board@1</text>
+        <rect x="800" y="26" width="90" height="40" rx="4" fill="var(--surface)" stroke="var(--accent)"/><rect x="806" y="32" width="24" height="28" rx="2" fill="currentColor" opacity=".08"/><rect x="834" y="32" width="24" height="28" rx="2" fill="currentColor" opacity=".08"/><rect x="862" y="32" width="22" height="28" rx="2" fill="currentColor" opacity=".08"/><rect x="809" y="36" width="18" height="6" rx="1" fill="var(--accent)" opacity=".5"/>
+        <rect x="800" y="96" width="90" height="40" rx="4" fill="var(--surface)" stroke="var(--accent)"/><rect x="806" y="102" width="24" height="28" rx="2" fill="currentColor" opacity=".08"/><rect x="834" y="102" width="24" height="28" rx="2" fill="currentColor" opacity=".08"/><rect x="862" y="102" width="22" height="28" rx="2" fill="currentColor" opacity=".08"/><rect x="809" y="106" width="18" height="6" rx="1" fill="var(--accent)" opacity=".5"/>
+        <text x="900" y="49" font-size="10" fill="var(--accent-ink)">same</text><text x="900" y="119" font-size="10" fill="var(--accent-ink)">bytes</text>
+      </g>
+      <g stroke="currentColor" fill="none">
+        <line x1="126" y1="45" x2="170" y2="45" marker-end="url(#d)"/><line x1="126" y1="115" x2="170" y2="115" marker-end="url(#d)"/>
+        <path d="M610 45 C 630 45, 630 75, 650 75" marker-end="url(#d)"/><path d="M610 115 C 630 115, 630 85, 650 85" marker-end="url(#d)"/>
+        <path d="M760 75 C 780 75, 780 45, 800 45" stroke="var(--accent)" stroke-width="1.5" marker-end="url(#d)"/><path d="M760 85 C 780 85, 780 115, 800 115" stroke="var(--accent)" stroke-width="1.5" marker-end="url(#d)"/>
+      </g>
+    </svg>
+    <figcaption>Consistency does not come from asking the model to be consistent. It comes from not generating the common apps at all, and from a shared kit when it must.</figcaption>
+  </figure>
+  <div class="cols" style="margin-top:14px">
+    <div class="card"><div class="k">How the agent knows any of this</div><p>One first-party skill, <b>agenta-apps</b>, attached by default to any agent with a drive and detachable. It carries the folder shape, the bridge contract, the starter catalogue, the custom-app rules, and the agent-level rules: check the registry before creating, write one registry file per session, add a note when feedback repeats.</p></div>
+    <div class="card"><div class="k">Starters</div><p>Real HTML files in a platform bundle, versioned as <code>board@1</code>, copied server-side so no tokens are spent and nothing drifts. Board ships first; checklist, review-queue, form, sheet and dashboard follow, then whiteboard, chart and diagram on canvas. An agent can later promote a settled custom app into its own starter, on the user's word, with data stripped.</p></div>
+    <div class="card"><div class="k">The iteration loop</div><p>The agent cannot run the app; it has no browser. The Run tab relays bridge rejections and script errors, and one click drafts them into the composer so the agent can fix a folder name it never saw. The grant is keyed by folder, so the agent's edits during creation never re-prompt the user.</p></div>
+  </div>
+
+  <figure>
+    <svg viewBox="0 0 960 170" role="img" aria-label="Two levels. Agent level, left: Build panel configuration (skills, schedules, tool connections) and the durable folder agent-files with .apps registry, notes, starters, kit, and a visible apps folder for team tools. Session level, right: three sessions each with their own apps folder and instance, plus a scheduled run that writes data with no browser. Arrows: skill and starters feed each session's create_app; each session writes one registry file back.">
+      <defs><marker id="l" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker></defs>
+      <g font-size="10" fill="currentColor">
+        <text x="16" y="16" font-weight="600" letter-spacing=".06em" opacity=".6">AGENT LEVEL · once per agent</text>
+        <rect x="16" y="26" width="200" height="56" rx="5" fill="none" stroke="currentColor"/><text x="28" y="44" font-weight="600" font-size="11">Build panel</text><text x="28" y="60">Skills: agenta-apps, starters</text><text x="28" y="74">Schedules · Tool connections</text>
+        <rect x="16" y="94" width="200" height="66" rx="5" fill="currentColor" opacity=".05"/><rect x="16" y="94" width="200" height="66" rx="5" fill="none" stroke="currentColor"/><text x="28" y="112" font-weight="600" font-size="11">agent-files/</text><text x="28" y="128" font-family="IBM Plex Mono, monospace">.apps/ registry · notes · starters · kit</text><text x="28" y="144" font-family="IBM Plex Mono, monospace">apps/  team tools only, off by default</text>
+        <text x="420" y="16" font-weight="600" letter-spacing=".06em" opacity=".6">SESSION LEVEL · one per conversation</text>
+        <rect x="420" y="26" width="200" height="34" rx="5" fill="var(--accent)" opacity=".12"/><rect x="420" y="26" width="200" height="34" rx="5" fill="none" stroke="var(--accent)"/><text x="520" y="41" text-anchor="middle" font-weight="600" font-size="11">Session A</text><text x="520" y="54" text-anchor="middle" font-family="IBM Plex Mono, monospace">apps/launch-board · board@1</text>
+        <rect x="420" y="68" width="200" height="34" rx="5" fill="var(--accent)" opacity=".12"/><rect x="420" y="68" width="200" height="34" rx="5" fill="none" stroke="var(--accent)"/><text x="520" y="83" text-anchor="middle" font-weight="600" font-size="11">Session B</text><text x="520" y="96" text-anchor="middle" font-family="IBM Plex Mono, monospace">apps/retro · agent:retro-board@2</text>
+        <rect x="420" y="110" width="200" height="34" rx="5" fill="none" stroke="currentColor" stroke-dasharray="5 4"/><text x="520" y="125" text-anchor="middle" font-weight="600" font-size="11">Scheduled run · Mon 09:00</text><text x="520" y="138" text-anchor="middle" font-family="IBM Plex Mono, monospace">writes data.csv · no browser</text>
+        <rect x="700" y="40" width="244" height="90" rx="5" fill="none" stroke="currentColor" stroke-dasharray="5 4"/><text x="822" y="62" text-anchor="middle" font-weight="600" font-size="11">The placement question</text><text x="822" y="82" text-anchor="middle">"Would a second session asking</text><text x="822" y="96" text-anchor="middle">the same thing need this?"</text><text x="822" y="116" text-anchor="middle"><tspan fill="var(--accent-ink)" font-weight="600">yes → agent</tspan>   <tspan fill="var(--warn)" font-weight="600">no → session</tspan></text>
+      </g>
+      <g stroke="currentColor" fill="none">
+        <path d="M216 50 C 320 50, 340 43, 420 43" marker-end="url(#l)"/><path d="M216 130 C 320 130, 340 85, 420 85" marker-end="url(#l)"/><path d="M216 60 C 320 60, 360 127, 420 127" marker-end="url(#l)"/>
+        <path d="M420 52 C 340 52, 330 118, 216 118" stroke-dasharray="4 3" marker-end="url(#l)"/>
+      </g>
+      <g font-size="9" fill="currentColor"><text x="300" y="44">skill + create_app</text><text x="300" y="108">agent starter</text><text x="330" y="126">schedule + tools</text><text x="300" y="82" opacity=".7">registry entry back</text></g>
+    </svg>
+  </figure>
+  <div class="cols" style="margin-top:14px">
+    <div class="card"><div class="k">Session level</div><p>The app instance: its folder, its data, its grant. One per conversation. Where almost every app lives.</p></div>
+    <div class="card"><div class="k">Agent level</div><p>What every session should find the same: the skill, starters, schedules and tool connections in the Build panel, and <code>agent-files/.apps/</code> with a registry, notes and kit overrides. Team tools that must outlive a session go in <code>agent-files/apps/</code>, off by default.</p></div>
+    <div class="card"><div class="k">The placement question</div><p>"Would a second session asking the same thing need this?" Yes: agent level. No: session level. Data is always session level, except for team tools.</p></div>
+  </div>
+</section>
+
+<section>
+  <h2>The loop and the boundary</h2>
+  <figure>
+    <svg viewBox="0 0 960 210" role="img" aria-label="Left to right: the agent writes app and data files into the session drive; the user opens the app in a Run tab beside the chat; the app calls agenta.fs inside a sandboxed iframe; the bridge stub posts over a MessageChannel port to the Agenta frontend, which checks the grant, folder and permission and calls the mounts API as the user; the file changes; the agent reads it next turn. A red dashed line marks the iframe boundary that no token crosses.">
+      <defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker></defs>
+      <g font-size="11" fill="currentColor">
+        <rect x="16" y="60" width="120" height="60" rx="6" fill="none" stroke="currentColor"/><text x="76" y="86" text-anchor="middle" font-weight="600">Agent</text><text x="76" y="104" text-anchor="middle" opacity=".7">file tools, mount</text>
+        <rect x="190" y="40" width="150" height="100" rx="6" fill="currentColor" opacity=".05"/><rect x="190" y="40" width="150" height="100" rx="6" fill="none" stroke="currentColor"/>
+        <text x="265" y="62" text-anchor="middle" font-weight="600">Session drive</text>
+        <text x="265" y="84" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="10">apps/launch-board/</text>
+        <text x="265" y="100" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="10">app.json · index.html</text>
+        <text x="265" y="116" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="10">board.json</text>
+        <rect x="400" y="30" width="200" height="120" rx="6" fill="none" stroke="var(--crit)" stroke-dasharray="6 4"/>
+        <text x="500" y="50" text-anchor="middle" font-weight="600">App · sandboxed iframe</text>
+        <text x="500" y="70" text-anchor="middle" opacity=".7">opaque origin · CSP · no token</text>
+        <rect x="416" y="84" width="168" height="50" rx="4" fill="var(--accent)" opacity=".15"/>
+        <text x="500" y="104" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="10">agenta.fs.writeJSON(…)</text>
+        <text x="500" y="122" text-anchor="middle" opacity=".7" font-size="10">stub → port, id-matched</text>
+        <rect x="660" y="40" width="150" height="100" rx="6" fill="var(--accent)" opacity=".12"/><rect x="660" y="40" width="150" height="100" rx="6" fill="none" stroke="var(--accent)" stroke-width="1.5"/>
+        <text x="735" y="62" text-anchor="middle" font-weight="600">Agenta frontend</text>
+        <text x="735" y="82" text-anchor="middle" opacity=".8">port ok · grant · folder</text>
+        <text x="735" y="98" text-anchor="middle" opacity=".8">size · If-Match</text>
+        <text x="735" y="118" text-anchor="middle" opacity=".8">calls the API as the user</text>
+        <rect x="860" y="60" width="90" height="60" rx="6" fill="none" stroke="currentColor"/><text x="905" y="86" text-anchor="middle" font-weight="600">Mounts API</text><text x="905" y="104" text-anchor="middle" opacity=".7" font-size="10">VIEW / EDIT</text>
+      </g>
+      <g stroke="currentColor" fill="none">
+        <line x1="136" y1="80" x2="190" y2="80" marker-end="url(#a)"/>
+        <line x1="340" y1="90" x2="400" y2="90" marker-end="url(#a)"/>
+        <line x1="600" y1="109" x2="660" y2="109" stroke="var(--accent)" stroke-width="1.5" marker-end="url(#a)"/>
+        <line x1="810" y1="90" x2="860" y2="90" marker-end="url(#a)"/>
+        <path d="M860 110 C 700 190, 300 190, 265 140" stroke-dasharray="4 3" marker-end="url(#a)"/>
+        <path d="M190 100 C 170 130, 120 130, 96 120" stroke-dasharray="4 3" marker-end="url(#a)"/>
+      </g>
+      <g font-size="10" fill="currentColor"><text x="163" y="72" text-anchor="middle">writes</text><text x="370" y="82" text-anchor="middle">user opens · Run</text><text x="630" y="101" text-anchor="middle" fill="var(--accent)">port</text><text x="500" y="196" text-anchor="middle" opacity=".7">write lands in the drive · agent reads it next turn</text></g>
+    </svg>
+    <figcaption>The proxy design is Mahmoud's, from PR #6529. The review kept it and tightened the edges: a MessageChannel port, a CSP, folder-keyed grants, conflict detection.</figcaption>
+  </figure>
+  <div class="cols" style="margin-top:14px">
+    <div class="card"><div class="k">What makes it safe</div><ul><li>The iframe holds no cookie, token or HTTP client. It can only message the page that contains it.</li><li>It has no way out: <code>default-src 'none'</code> stops fetch and beacons, and dropping <code>allow-popups</code> stops <code>window.open</code>, which no CSP directive governs. Verified, not assumed.</li><li>The frontend forwards eight file operations, nothing else, only inside the app's folder, only under a grant the user chose.</li><li>The server bounds the mount: permission, project, no <code>..</code>. The folder is bounded too, by a prefix-scoped token the API checks on every call — it was a frontend guardrail until three egress holes showed that enumerating exits is not a security model.</li><li>Preview is a different document: it keeps <code>allow-popups</code> for ordinary external links and has no bridge, so it carries its own policy. Stripping scripts was not enough — a <code>data:</code> iframe ran one anyway.</li></ul></div>
+    <div class="card"><div class="k">What makes it consistent</div><ul><li>Common apps are copied from versioned starters by a platform op, not generated. Two sessions get the same bytes.</li><li>Custom apps are built on an injected design kit with the host's theme tokens.</li><li>A folder is an app because of an <code>app.json</code> manifest. One folder per app, data as sibling JSON, one writer per file.</li></ul></div>
+    <div class="card"><div class="k">What makes it stick</div><ul><li>The agent learns all of it from one first-party skill, agenta-apps, attached to agents with a drive.</li><li>The agent's own folder, <code>agent-files/.apps/</code>, records what it built and can hold promoted starters.</li><li>Errors inside the iframe are relayed to the Run tab and, on the user's click, into the composer.</li></ul></div>
+  </div>
+</section>
+
+<section>
+  <h2>Bridge contract v1</h2>
+  <div class="contract">
+    <div class="c"><b>Global</b><code>window.agenta</code> · <code>version: 1</code> · <code>ready</code> · <code>canWrite</code> · <code>dir</code> · <code>visible</code></div>
+    <div class="c"><b>Files, folder-scoped, relative to the entry</b><code>fs.read · readJSON · write · writeJSON · list · exists · stat · remove</code></div>
+    <div class="c"><b>Events, posted by the parent</b><code>visibilitychange</code> when the tab hides or shows · <code>changed</code> with paths when the folder changed</div>
+    <div class="c"><b>Errors</b><code>scope · read_only · not_found · conflict · too_large · unavailable</code></div>
+    <div class="c"><b>Writes</b>whole file, UTF-8, <code>If-Match</code> from the last read sent automatically; <code>{force: true}</code> to override</div>
+    <div class="c"><b>Caps and sandbox</b>4 MB read, 1 MB write · <code>allow-scripts allow-forms</code> · CSP: no external scripts</div>
+    <div class="c"><b>Grant</b>read or read-write, keyed by mount + folder + level, remembered per browser session, survives edits, never in the persisted layout</div>
+    <div class="c"><b>v1.1 additions</b><code>user {id, name}</code> · <code>location {path, query}</code> · <code>chat.draft(text)</code> · <code>assets</code> preloaded from the manifest</div>
+  </div>
+
+  <div class="cols" style="margin-top:14px">
+    <figure style="margin:0">
+      <svg viewBox="0 0 560 200" role="img" aria-label="Three nested zones. Outer, out of reach: network, Agenta API, other folders, transcript, sending a message, browser storage, external scripts. Middle, via the bridge: the eight file methods on the app's folder, ready, canWrite, visible, the visibility and changed events; v1.1 adds user, draft, location, assets. Inner, owned outright: its DOM, its code, inlined libraries, in-memory state while open.">
+        <g font-size="10" fill="currentColor">
+          <rect x="8" y="8" width="544" height="184" rx="8" fill="var(--crit)" opacity=".06"/><rect x="8" y="8" width="544" height="184" rx="8" fill="none" stroke="var(--crit)" stroke-dasharray="6 4"/>
+          <text x="20" y="26" font-weight="600" fill="var(--crit)" letter-spacing=".06em">OUT OF REACH</text>
+          <text x="20" y="42">network · Agenta API · other folders · transcript · sending · storage · external scripts</text>
+          <rect x="60" y="56" width="440" height="126" rx="6" fill="var(--accent)" opacity=".1"/><rect x="60" y="56" width="440" height="126" rx="6" fill="none" stroke="var(--accent)"/>
+          <text x="72" y="74" font-weight="600" fill="var(--accent-ink)" letter-spacing=".06em">VIA THE BRIDGE</text>
+          <text x="72" y="90" font-family="IBM Plex Mono, monospace" font-size="9">fs.read readJSON write writeJSON list exists stat remove</text>
+          <text x="72" y="104" font-family="IBM Plex Mono, monospace" font-size="9">ready canWrite dir visible · events: visibilitychange changed</text>
+          <text x="72" y="118" font-family="IBM Plex Mono, monospace" font-size="9" fill="var(--warn)">v1.1: user · location · chat.draft · assets</text>
+          <rect x="150" y="130" width="260" height="42" rx="5" fill="var(--surface)" stroke="currentColor"/>
+          <text x="162" y="147" font-weight="600" letter-spacing=".06em">OWNED OUTRIGHT</text><text x="162" y="162">its DOM · its code · inlined libs · memory while open</text>
+        </g>
+      </svg>
+      <figcaption>Everything the six shapes needed sits in the inner two zones.</figcaption>
+    </figure>
+    <figure style="margin:0">
+      <svg viewBox="0 0 560 200" role="img" aria-label="The grant prompt: Run Launch board? This app can use files in apps/launch-board/. Two radio options, Read files and Read and write files, the second selected. A note: the app never receives your login; Agenta makes the file calls for it. A greyed third section, reserved: read from connected tools as you. Cancel and Run buttons.">
+        <g font-size="10" fill="currentColor">
+          <rect x="60" y="8" width="440" height="184" rx="8" fill="var(--surface)" stroke="var(--line-strong)"/>
+          <text x="80" y="34" font-weight="600" font-size="13">Run Launch board?</text>
+          <text x="80" y="52" opacity=".75">This app can use files in</text><text x="212" y="52" font-family="IBM Plex Mono, monospace" font-size="9">apps/launch-board/</text>
+          <circle cx="90" cy="76" r="5" fill="none" stroke="currentColor"/><text x="104" y="80" font-weight="500">Read files</text>
+          <circle cx="90" cy="100" r="5" fill="none" stroke="var(--accent)" stroke-width="1.5"/><circle cx="90" cy="100" r="2.5" fill="var(--accent)"/><text x="104" y="104" font-weight="500">Read and write files</text>
+          <text x="80" y="124" opacity=".7" font-size="9">The app never receives your login. Agenta makes the file calls for it.</text>
+          <line x1="80" y1="134" x2="480" y2="134" stroke="var(--line)"/>
+          <g opacity=".4"><rect x="84" y="142" width="10" height="10" rx="2" fill="none" stroke="currentColor"/><text x="104" y="151" font-weight="500">Read from connected tools as you</text><text x="104" y="162" font-size="9">reserved section · tier 2, read-only actions only</text></g>
+          <rect x="380" y="164" width="46" height="20" rx="4" fill="none" stroke="var(--line-strong)"/><text x="403" y="178" text-anchor="middle">Cancel</text>
+          <rect x="434" y="164" width="46" height="20" rx="4" fill="var(--accent)"/><text x="457" y="178" text-anchor="middle" fill="#fff" font-weight="500">Run</text>
+        </g>
+      </svg>
+      <figcaption>The one moment of consent. Keyed by folder and level; survives the agent's edits; asked again only for more access, another folder, or a new browser session.</figcaption>
+    </figure>
+  </div>
+  <p class="small">Reserved from day one, acted on later: manifest <code>refresh.prompt</code> and <code>tools</code>, a third section in the grant prompt, and Refresh as a menu. Proxied read-only tool calls are designed, not scheduled; model calls from an app are planning only.</p>
+</section>
+
+<section>
+  <h2>The plan</h2>
+  <figure>
+    <svg viewBox="0 0 960 150" role="img" aria-label="Timeline: phase 0 decide and merge the docs, one day; phase 1 Run mode plus creation basics, two engineers in parallel for about two weeks; phase 2 workspace with a non-session second pane, two weeks, runs in parallel with phase 1; v1.1 follow-ups, one week; phase 3 app tab, remaining starters, canvas, error relay, about three weeks; phase 4 sessions in either pane, two to three weeks after measurement.">
+      <defs><marker id="b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker></defs>
+      <line x1="20" y1="100" x2="945" y2="100" stroke="currentColor" opacity=".3" marker-end="url(#b)"/>
+      <g font-size="11" fill="currentColor">
+        <rect x="20" y="30" width="50" height="34" rx="4" fill="none" stroke="currentColor"/><text x="45" y="51" text-anchor="middle" font-weight="600">P0</text>
+        <rect x="80" y="30" width="230" height="34" rx="4" fill="var(--accent)" opacity=".18"/><rect x="80" y="30" width="230" height="34" rx="4" fill="none" stroke="var(--accent)" stroke-width="1.5"/><text x="195" y="51" text-anchor="middle" font-weight="600">P1 · Run mode + creation basics</text>
+        <rect x="80" y="70" width="230" height="24" rx="4" fill="var(--accent)" opacity=".18"/><rect x="80" y="70" width="230" height="24" rx="4" fill="none" stroke="var(--accent)" stroke-width="1.5"/><text x="195" y="86" text-anchor="middle" font-weight="600">P2 · Workspace, pane B</text>
+        <rect x="320" y="30" width="110" height="34" rx="4" fill="none" stroke="currentColor"/><text x="375" y="51" text-anchor="middle" font-weight="600">v1.1</text>
+        <rect x="440" y="30" width="300" height="34" rx="4" fill="none" stroke="currentColor"/><text x="590" y="51" text-anchor="middle" font-weight="600">P3 · App tab, starters, canvas, relay</text>
+        <rect x="750" y="30" width="190" height="34" rx="4" fill="none" stroke="currentColor" stroke-dasharray="5 4"/><text x="845" y="51" text-anchor="middle" font-weight="600">P4 · Sessions in B</text>
+        <text x="45" y="122" text-anchor="middle" opacity=".7">1 d</text><text x="195" y="122" text-anchor="middle" opacity=".7">~2 wk, two engineers</text><text x="375" y="122" text-anchor="middle" opacity=".7">~1 wk</text><text x="590" y="122" text-anchor="middle" opacity=".7">~3 wk</text><text x="845" y="122" text-anchor="middle" opacity=".7">2 to 3 wk, measure first</text>
+        <text x="480" y="142" text-anchor="middle" opacity=".6" font-size="10">P1 and P2 are independent. P3 needs both. Weeks assume one engineer per lane; the two P1 lanes are the bridge and the skill/starter/kit.</text>
+      </g>
+    </svg>
+  </figure>
+  <div class="tbl"><table>
+    <thead><tr><th>Phase</th><th>Delivers</th><th>Work packages</th><th>Effort</th></tr></thead>
+    <tbody>
+      <tr><td><b>0</b> Decide</td><td>Amend and merge #6529; merge #6775's PRD and RFC without the mockup source; answer the decisions</td><td>—</td><td class="num">1 d</td></tr>
+      <tr><td><b>1</b> Run mode</td><td>Preview | Source | Run in the file viewer on both hosts; bridge with port, CSP, grants, ETag + If-Match, visibility, change hint, stat; scripts inlined, in-folder navigation; agenta-apps skill; <code>create_app</code> with the board starter; design kit; <code>.apps/</code> layout; <code>list_starters</code></td><td>1.1 to 1.6 · C1 to C3 · L1 to L3</td><td class="num">10 + 6 + 2.5 d</td></tr>
+      <tr><td><b>2</b> Workspace</td><td><code>@agenta/workspace</code> package: two panes, movable tabs, persistence; pane B holds file and explorer tabs; hosted by desktop <code>AgentChatPanel</code> and mobile <code>SessionWorkspace</code></td><td>2.1 to 2.6</td><td class="num">10 d</td></tr>
+      <tr><td><b>v1.1</b></td><td><code>user</code>, <code>location</code>, <code>chat.draft</code>, Refresh menu with "Ask agent", schedule readout, asset preload, one-click error send</td><td>1.7 to 1.11</td><td class="num">4 d</td></tr>
+      <tr><td><b>3</b> App tab</td><td>Manifest folders as App tiles and Run tabs in pane B; error relay; remaining five starters; canvas: library shelf, helper, whiteboard, chart, diagram; kit overrides</td><td>App tab · C4 to C6 · L4, L5 · canvas</td><td class="num">3 + 8 + 7 d</td></tr>
+      <tr><td><b>4</b> Sessions in either pane</td><td>Selected-per-pane, focused pane, visible and running sets replace the single active session; shortcuts, hydration, URL sync follow focus</td><td>—</td><td class="num">8 to 12 d</td></tr>
+      <tr><td>Exploration</td><td>Agent-owned starters via <code>promote_app</code>, skill-backed; Build panel Apps section</td><td>L6, L7</td><td class="num">5 d</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section>
+  <h2>Decisions taken</h2>
+  <ul class="decs">
+    <li><b>Ship read and write together</b>, behind one grant prompt. Read-only is a grant level, not a release.</li>
+    <li><b>Name</b> <code>window.agenta</code>, versioned; error codes frozen.</li>
+    <li><b>MessageChannel port</b>, not <code>postMessage("*")</code>.</li>
+    <li><b>Sandbox</b> <code>allow-scripts allow-forms</code>; CSP blocks external scripts; workers and WASM only per shelf entry.</li>
+    <li><b>Server bounds the mount and the folder</b>. The folder was a frontend guardrail until two egress holes showed that enumerating exits is not a security model; it is now a prefix-scoped token the API checks on every file call.</li>
+    <li><b>Grant keyed by folder and level</b>, survives edits, per browser session.</li>
+    <li><b>Conflict detection</b> in phase 1: ETag on reads, If-Match on writes, automatic in the stub. Agent tools stay unconditional; skill says read-before-write.</li>
+    <li><b>Caps</b> 4 MB read, 1 MB write.</li>
+    <li><b>Workspace v1</b>: pane B holds non-session tabs only. Two panes is the limit. No Dockview.</li>
+    <li><b>Package-first</b>: both hosts mount the same workspace; /m is the target app.</li>
+    <li><b>Close a running session tab still stops it</b>, until a session can have two views.</li>
+    <li><b>Explorer tabs pin to a drive</b>; follow-focus is a later toggle.</li>
+    <li><b>Apps are created by the agent only</b>. No upload story.</li>
+    <li><b>A folder is an app because of <code>app.json</code></b>. No heuristics on HTML.</li>
+    <li><b>Starters copied by a platform op</b>, board first; five more plus three canvas starters in phase 3.</li>
+    <li><b>agenta-apps skill auto-attached</b> to agents with a drive; detachable.</li>
+    <li><b>Design kit</b>: tokens plus a house style under 6 KB; per-agent overrides tokens-only, on request.</li>
+    <li><b>Agent layout</b> under <code>agent-files/.apps/</code>, dimmed like <code>.tools/</code>; registry and notes as folders, one writer per file; one mount, not two.</li>
+    <li><b>Cross-session apps off by default</b>; scheduled apps live at agent level.</li>
+    <li><b>Refresh</b>: change hint and stat in phase 1; "Ask agent" and schedule readout in v1.1; proxied read-only tool calls designed only; model calls planning only.</li>
+    <li><b>Library shelf</b>, seven entries, one heavy, inlined at assembly; no CDN.</li>
+    <li><b>Agent-owned starters</b>: explore after phase 3, skill-backed, user-initiated, data stripped.</li>
+  </ul>
+</section>
+
+<section>
+  <h2>Still open</h2>
+  <ul>
+    <li>Whether <code>agent-files/</code> travels when an agent is duplicated, and what happens to the agent mount on delete. Platform decisions outside apps; the skill copes either way.</li>
+    <li>Whether the bundled store's native conditional put is available, or the service falls back to stat-compare-put. Decided at implementation, documented either way.</li>
+    <li>Performance budgets for two streaming sessions plus an app iframe. Measured in 2.6 before phase 4 is scheduled.</li>
+    <li>Agent-file history: SeaweedFS versioning exists with retention; exposing list-versions and restore is "when it bites".</li>
+  </ul>
+</section>
+
+<section>
+  <h2>The documents</h2>
+  <div class="docs">
+    <div class="doc"><a href="plan.html">Agent HTML Apps Plan</a><p>Review of #6529 and #6775, architecture, phases, work packages, decisions, risks. The root document.</p></div>
+    <div class="doc"><a href="walkthrough.html">Launch Board Walkthrough</a><p>One session frame by frame, every file operation, what a write is, who defines what, the app's code.</p></div>
+    <div class="doc"><a href="six-apps.html">Six Apps, One Bridge</a><p>Six app shapes stress-tested against the bridge; capability matrix; gaps ranked; what an app can reach.</p></div>
+    <div class="doc"><a href="creation.html">Agent App Creation</a><p>Starters versus custom, the manifest, the skill, the design kit, the creation loop, agent-owned starters.</p></div>
+    <div class="doc"><a href="layout.html">Agent App Layout</a><p>What lives with the agent: the durable folder file by file, schemas, permissions, lifecycle, setup per app type.</p></div>
+    <div class="doc"><a href="phase1-run-mode.html">Run Mode Build Plan</a><p>Phase 1 cut into seven lanes with exclusive file ownership, contracts first, a merge order and an acceptance script. For the agents doing the work.</p></div>
+    <div class="doc"><a href="canvas.html">Canvas Apps</a><p>Whiteboard end to end, a merge-by-id format, the library shelf, the canvas helper, visibility, what moves in the plan.</p></div>
+  </div>
+  <p class="small" style="margin-top:12px">Local copies of all seven pages, with relative links, are under <code>docs/design/agent-html-apps/</code> in the <code>feat/playground-workspace</code> worktree, untracked.</p>
+</section>
+</div>
+
+</body>
+</html>

@@ -1,0 +1,498 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Canvas Apps</title>
+<style>img{max-width:100%}[hidden]{display:none!important}</style>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  --ground:#F4F5F7; --surface:#FFFFFF; --sunken:#ECEEF2; --ink:#16181D; --muted:#5B6270; --line:#D9DCE3; --line-strong:#B8BEC9;
+  --accent:#0F766E; --accent-soft:#D9F0EC; --accent-ink:#0B5A54;
+  --warn:#B45309; --warn-soft:#FBEBD5; --crit:#B91C1C; --crit-soft:#F8DEDE; --ok:#15803D; --ok-soft:#DCF1E3;
+  --code-bg:#EEF0F4; --note:#FDE68A; --note2:#BFDBFE; --note3:#BBF7D0;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --ground:#121417; --surface:#1A1D22; --sunken:#15181D; --ink:#E8EAEE; --muted:#9AA2B1; --line:#2A2F38; --line-strong:#3C4350;
+  --accent:#34C4B0; --accent-soft:#12312D; --accent-ink:#7EE0D2;
+  --warn:#F0A34A; --warn-soft:#3A2A14; --crit:#F07070; --crit-soft:#3C1C1C; --ok:#5FCF83; --ok-soft:#173523;
+  --code-bg:#22262D; --note:#7A6420; --note2:#2A4A7A; --note3:#22603A;
+}}
+:root[data-theme="dark"]{
+  --ground:#121417; --surface:#1A1D22; --sunken:#15181D; --ink:#E8EAEE; --muted:#9AA2B1; --line:#2A2F38; --line-strong:#3C4350;
+  --accent:#34C4B0; --accent-soft:#12312D; --accent-ink:#7EE0D2;
+  --warn:#F0A34A; --warn-soft:#3A2A14; --crit:#F07070; --crit-soft:#3C1C1C; --ok:#5FCF83; --ok-soft:#173523;
+  --code-bg:#22262D; --note:#7A6420; --note2:#2A4A7A; --note3:#22603A;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--ground);color:var(--ink);font-family:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;font-size:15px;line-height:1.55;padding-inline:20px;padding-block:0 96px;-webkit-font-smoothing:antialiased}
+a{color:var(--accent-ink);text-decoration:none;border-bottom:1px solid var(--line-strong)}
+a:hover{border-bottom-color:var(--accent)}
+a:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+code,pre{font-family:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace}
+code{font-size:.88em;background:var(--code-bg);padding:.1em .35em;border-radius:4px}
+pre{background:var(--code-bg);padding:12px 14px;border-radius:6px;overflow-x:auto;font-size:12px;line-height:1.5;margin:0}
+pre code{background:none;padding:0;font-size:inherit}
+h1,h2,h3,h4{font-family:"Bricolage Grotesque","IBM Plex Sans",system-ui,sans-serif;text-wrap:balance;line-height:1.15;margin:0}
+h1{font-size:clamp(30px,4.2vw,44px);font-weight:700;letter-spacing:-.01em}
+h2{font-size:26px;font-weight:700;margin-top:64px;padding-top:24px;border-top:1px solid var(--line)}
+h3{font-size:18px;font-weight:600;margin-top:28px}
+h4{font-size:14px;font-weight:600;margin-top:18px}
+p{margin:12px 0;max-width:72ch}
+ul,ol{max-width:72ch;padding-left:22px;margin:10px 0}
+li{margin:5px 0}
+.wrap{max-width:1080px;margin:0 auto}
+.layout{display:grid;grid-template-columns:200px minmax(0,1fr);gap:48px;align-items:start}
+@media (max-width:860px){.layout{grid-template-columns:minmax(0,1fr)}.toc{display:none}}
+.toc{position:sticky;top:24px;font-size:13px;padding-top:88px}
+.toc a{display:block;border:0;color:var(--muted);padding:4px 0}
+.toc a:hover{color:var(--ink)}
+.toc .lbl{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:8px}
+header.hero{padding-block:56px 12px}
+.eyebrow{font-size:12px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);font-weight:500;margin-bottom:14px}
+.lede{font-size:18px;color:var(--muted);max-width:64ch;margin-top:14px}
+figure{margin:20px 0;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:14px 14px 10px}
+figure svg{display:block;max-width:100%;height:auto;color:var(--ink);font-family:"IBM Plex Sans",system-ui,sans-serif}
+figcaption{font-size:13px;color:var(--muted);margin-top:10px;max-width:80ch}
+.tbl{overflow-x:auto;margin:16px 0}
+table{border-collapse:collapse;width:100%;font-size:14px;background:var(--surface);border:1px solid var(--line);border-radius:8px;overflow:hidden}
+th,td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:500;background:var(--sunken)}
+tr:last-child td{border-bottom:0}
+td.mono{font-family:"IBM Plex Mono",monospace;font-size:12px}
+td.num{font-variant-numeric:tabular-nums;white-space:nowrap}
+td.c{text-align:center;font-weight:600}
+.ok{color:var(--ok)}.wn{color:var(--warn)}.cr{color:var(--crit)}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px;margin-top:14px}
+.box{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:12px 14px}
+.box .lbl{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:500;margin-bottom:6px}
+.callout{border-left:3px solid var(--accent);background:var(--accent-soft);padding:12px 16px;border-radius:0 6px 6px 0;margin:16px 0;max-width:80ch;font-size:14px}
+.callout.warn{border-left-color:var(--warn);background:var(--warn-soft)}
+.callout.crit{border-left-color:var(--crit);background:var(--crit-soft)}
+.callout p{margin:4px 0}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0}
+.chip{font-family:"IBM Plex Mono",monospace;font-size:11px;padding:2px 8px;border-radius:999px;background:var(--accent-soft);color:var(--accent-ink)}
+.chip.gap{background:var(--crit-soft);color:var(--crit)}
+.chip.off{background:var(--sunken);color:var(--muted);text-decoration:line-through}
+.facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;margin-top:16px}
+.fact{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:12px 14px;font-size:14px}
+.fact b{display:block;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-bottom:4px;font-weight:500}
+.fact .v{font-weight:600}
+.fact .v.ok{color:var(--ok)}.fact .v.wn{color:var(--warn)}.fact .v.cr{color:var(--crit)}
+.dec{background:var(--surface);border:1px solid var(--line);border-radius:8px;margin-top:16px}
+.dec .row{display:grid;grid-template-columns:minmax(180px,.9fr) minmax(0,1.6fr);gap:16px;padding:12px 16px;border-bottom:1px solid var(--line);font-size:14px}
+.dec .row:last-child{border-bottom:0}
+.dec .q{font-weight:500}.dec .a{color:var(--muted)}.dec .a b{color:var(--ink);font-weight:600}
+@media (max-width:560px){.dec .row{grid-template-columns:minmax(0,1fr)}}
+.ops{margin:10px 0 0;padding:0;list-style:none;display:grid;gap:5px;max-width:80ch}
+.ops li{display:grid;grid-template-columns:24px 92px minmax(0,1fr);gap:10px;align-items:baseline;font-size:13.5px;padding:7px 10px;background:var(--sunken);border-radius:6px}
+.ops .k{width:18px;height:18px;border-radius:50%;font-size:11px;font-weight:600;display:grid;place-items:center;background:var(--accent-soft);color:var(--accent-ink)}
+.ops .op{font-family:"IBM Plex Mono",monospace;font-size:12px;font-weight:500}
+.ops .op.r{color:var(--accent-ink)}.ops .op.w{color:var(--warn)}
+.tag{display:inline-block;font-size:11px;font-weight:500;padding:1px 7px;border-radius:999px}
+.tag.agent{background:var(--sunken);color:var(--ink);border:1px solid var(--line)}
+.tag.app{background:var(--accent-soft);color:var(--accent-ink)}
+.tag.user{background:var(--warn-soft);color:var(--warn)}
+.small{font-size:13px;color:var(--muted)}
+</style>
+</head>
+<body>
+
+<div class="wrap"><div class="layout">
+<nav class="toc" aria-label="Sections">
+  <div class="lbl">Contents</div>
+  <a href="#works">What works in the sandbox today</a>
+  <a href="#whiteboard">The whiteboard, end to end</a>
+  <a href="#format">A data format that merges</a>
+  <a href="#shelf">Libraries without a CDN</a>
+  <a href="#helper">The canvas helper</a>
+  <a href="#viz">Data visualization</a>
+  <a href="#lifecycle">Hidden tabs and render loops</a>
+  <a href="#a11y">What canvas cannot do</a>
+  <a href="#starters">Starters</a>
+  <a href="#gaps">Plan impact</a>
+  <a href="#decisions">Decisions</a>
+</nav>
+<main>
+<header class="hero">
+  <div class="eyebrow">Agenta · agent HTML apps · app types · canvas</div>
+  <h1>Canvas apps: a todo list as a whiteboard</h1>
+  <p class="lede">Everything so far has been DOM: columns, forms, tables. A canvas app draws its own pixels: a whiteboard with sticky notes and pen strokes, a chart of a hundred thousand points, a diagram with connectors. The sandbox already allows all of it. What changes is which files an app needs, how state has to be shaped so two writers can merge, and how libraries reach the page. Companion to the <a href="plan.html">plan</a>, <a href="creation.html">creation</a> and <a href="layout.html">layout</a>.</p>
+</header>
+
+<section id="works">
+  <h2 style="margin-top:36px">What works in the sandbox today</h2>
+  <p>The Run iframe is <code>sandbox="allow-scripts allow-forms"</code> with an opaque origin and a CSP that forbids external scripts. Against that, canvas features sort into three groups.</p>
+  <div class="facts">
+    <div class="fact"><b>2D canvas</b><span class="v ok">Works</span><br>Drawing, text, images from data URLs, hit testing, HiDPI via <code>devicePixelRatio</code>. Nothing about a sandbox touches it.</div>
+    <div class="fact"><b>WebGL and WebGL2</b><span class="v ok">Works</span><br>Available in sandboxed iframes. GPU access follows the browser's policy; a headless or low-power context may fall back. Fine for viz; not needed for a whiteboard.</div>
+    <div class="fact"><b>Pointer, touch, wheel, keyboard</b><span class="v ok">Works</span><br>Events inside the iframe are the app's. Pinch-zoom on a phone works if the app handles touch itself; the host does not intercept.</div>
+    <div class="fact"><b>OffscreenCanvas and Workers</b><span class="v wn">Works with one CSP line</span><br>Workers from a blob URL run in an opaque origin, but the v1 CSP is <code>default-src 'none'</code>. Add <code>worker-src blob:</code> when a starter needs it; leave it off otherwise.</div>
+    <div class="fact"><b>WebAssembly</b><span class="v wn">Off by default</span><br>Needs <code>'wasm-unsafe-eval'</code> in <code>script-src</code>. Some viz and layout libraries ship WASM. Enable per library on the shelf, never globally.</div>
+    <div class="fact"><b>Loading an image by path</b><span class="v cr">Does not work</span><br><code>new Image().src = "photo.png"</code> has no base URL in a <code>srcdoc</code> document. The assembler inlines <code>&lt;img&gt;</code> tags today, not JS loads. Needs an asset preload or a binary read.</div>
+    <div class="fact"><b>Exporting a PNG</b><span class="v cr">Does not work</span><br><code>canvas.toBlob()</code> produces bytes; the bridge writes text only. Export as SVG works today for vector content. Binary write is a v2 method.</div>
+    <div class="fact"><b>Fonts on canvas</b><span class="v ok">Works, system fonts</span><br>Canvas text uses whatever <code>font</code> resolves to. The kit's stack is system fonts, so canvas text matches DOM text with no loading step.</div>
+    <div class="fact"><b>Persisting between renders</b><span class="v ok">Works, in files</span><br>Opaque origin means no <code>localStorage</code>. The scene lives in memory and in the data files, same as any app. That is the constraint that shapes the format below.</div>
+  </div>
+</section>
+
+<section id="whiteboard">
+  <h2>The whiteboard, end to end</h2>
+  <p>Same launch as the walkthrough, different surface. Arda asks for the launch tasks "as a whiteboard I can move around and scribble on". The agent instantiates the whiteboard starter and writes the tasks as sticky notes placed inside three regions. Arda drags notes between regions, draws an arrow, ticks one done. The agent reads region containment the same way it read columns before.</p>
+
+  <figure>
+    <svg viewBox="0 0 960 440" role="img" aria-label="Pane B mockup of the whiteboard app. A toolbar with Select, Note, Pen, Connector, Region tools and a zoom readout. A large canvas with three regions labelled Today, This week, Done. Sticky notes in the regions: Write changelog (ticked, in Done), Record demo and Draft announcement in Today, Update docs and Blog post in This week. A freehand arrow drawn from Record demo toward Draft announcement. A minimap in the corner. Status strip: Running, read and write, saved 1 second ago, 6 objects, 1 stroke.">
+      <rect x="0" y="0" width="960" height="440" rx="8" fill="var(--sunken)"/>
+      <g font-size="11" fill="currentColor">
+        <rect x="0" y="0" width="960" height="28" fill="currentColor" opacity=".05"/>
+        <rect x="8" y="4" width="110" height="20" rx="4" fill="currentColor" opacity=".1"/><text x="63" y="18" text-anchor="middle">Launch board</text>
+        <circle cx="150" cy="14" r="4" fill="var(--ok)"/><text x="160" y="18">Running · read + write · apps/launch-board/</text>
+        <rect x="880" y="3" width="70" height="22" rx="5" fill="none" stroke="var(--line-strong)"/><text x="915" y="18" text-anchor="middle">↻ Refresh</text>
+        <!-- toolbar -->
+        <rect x="12" y="40" width="936" height="30" rx="6" fill="var(--surface)" stroke="var(--line)"/>
+        <rect x="20" y="45" width="56" height="20" rx="4" fill="var(--accent)" opacity=".2"/><text x="48" y="59" text-anchor="middle" font-weight="500">Select</text>
+        <text x="106" y="59" text-anchor="middle">Note</text><text x="156" y="59" text-anchor="middle">Pen</text><text x="216" y="59" text-anchor="middle">Connector</text><text x="286" y="59" text-anchor="middle">Region</text>
+        <text x="940" y="59" text-anchor="end" opacity=".7">100% · ⌘ scroll to zoom</text>
+        <!-- canvas -->
+        <rect x="12" y="78" width="936" height="326" rx="6" fill="var(--surface)" stroke="var(--line)"/>
+        <!-- dot grid hint -->
+        <g fill="currentColor" opacity=".12">
+          <circle cx="40" cy="100" r="1"/><circle cx="80" cy="100" r="1"/><circle cx="120" cy="100" r="1"/><circle cx="160" cy="100" r="1"/><circle cx="200" cy="100" r="1"/><circle cx="240" cy="100" r="1"/><circle cx="280" cy="100" r="1"/><circle cx="320" cy="100" r="1"/><circle cx="360" cy="100" r="1"/>
+          <circle cx="40" cy="140" r="1"/><circle cx="80" cy="140" r="1"/><circle cx="120" cy="140" r="1"/><circle cx="160" cy="140" r="1"/><circle cx="200" cy="140" r="1"/><circle cx="240" cy="140" r="1"/><circle cx="280" cy="140" r="1"/><circle cx="320" cy="140" r="1"/><circle cx="360" cy="140" r="1"/>
+        </g>
+        <!-- regions -->
+        <rect x="32" y="96" width="290" height="290" rx="8" fill="currentColor" opacity=".04"/><rect x="32" y="96" width="290" height="290" rx="8" fill="none" stroke="var(--line-strong)" stroke-dasharray="6 4"/>
+        <text x="48" y="118" font-weight="600" font-size="12">Today</text>
+        <rect x="340" y="96" width="290" height="290" rx="8" fill="currentColor" opacity=".04"/><rect x="340" y="96" width="290" height="290" rx="8" fill="none" stroke="var(--line-strong)" stroke-dasharray="6 4"/>
+        <text x="356" y="118" font-weight="600" font-size="12">This week</text>
+        <rect x="648" y="96" width="280" height="290" rx="8" fill="currentColor" opacity=".04"/><rect x="648" y="96" width="280" height="290" rx="8" fill="none" stroke="var(--line-strong)" stroke-dasharray="6 4"/>
+        <text x="664" y="118" font-weight="600" font-size="12">Done</text>
+        <!-- notes -->
+        <g font-size="11">
+          <rect x="56" y="140" width="130" height="86" rx="4" fill="var(--note)" transform="rotate(-2 121 183)"/><text x="68" y="162" font-weight="500">Record demo</text><rect x="68" y="200" width="12" height="12" rx="2" fill="none" stroke="currentColor" opacity=".6"/><text x="86" y="210" opacity=".7">done</text>
+          <rect x="170" y="240" width="130" height="86" rx="4" fill="var(--note)" transform="rotate(1 235 283)"/><text x="182" y="262" font-weight="500">Draft announcement</text><rect x="182" y="300" width="12" height="12" rx="2" fill="none" stroke="currentColor" opacity=".6"/><text x="200" y="310" opacity=".7">done</text>
+          <rect x="370" y="150" width="130" height="86" rx="4" fill="var(--note2)" transform="rotate(-1 435 193)"/><text x="382" y="172" font-weight="500">Update docs</text><rect x="382" y="210" width="12" height="12" rx="2" fill="none" stroke="currentColor" opacity=".6"/><text x="400" y="220" opacity=".7">done</text>
+          <rect x="470" y="260" width="130" height="86" rx="4" fill="var(--note2)" transform="rotate(2 535 303)"/><text x="482" y="282" font-weight="500">Blog post</text><rect x="482" y="320" width="12" height="12" rx="2" fill="none" stroke="currentColor" opacity=".6"/><text x="500" y="330" opacity=".7">done</text>
+          <rect x="690" y="160" width="130" height="86" rx="4" fill="var(--note3)" transform="rotate(-1 755 203)"/><text x="702" y="182" font-weight="500" text-decoration="line-through">Write changelog</text><rect x="702" y="220" width="12" height="12" rx="2" fill="var(--ok)"/><text x="720" y="230" opacity=".7">done</text>
+        </g>
+        <!-- freehand arrow -->
+        <path d="M 150 235 C 160 260, 150 285, 178 292" fill="none" stroke="var(--crit)" stroke-width="2.5" stroke-linecap="round"/>
+        <path d="M 170 284 L 178 292 L 168 296" fill="none" stroke="var(--crit)" stroke-width="2.5" stroke-linecap="round"/>
+        <!-- selection on Record demo -->
+        <rect x="52" y="136" width="138" height="94" rx="4" fill="none" stroke="var(--accent)" stroke-width="1.5" transform="rotate(-2 121 183)"/>
+        <!-- minimap -->
+        <rect x="836" y="330" width="100" height="62" rx="4" fill="var(--surface)" stroke="var(--line)"/>
+        <rect x="842" y="336" width="26" height="50" fill="currentColor" opacity=".08"/><rect x="872" y="336" width="26" height="50" fill="currentColor" opacity=".08"/><rect x="902" y="336" width="28" height="50" fill="currentColor" opacity=".08"/>
+        <rect x="846" y="344" width="10" height="7" fill="var(--note)"/><rect x="852" y="360" width="10" height="7" fill="var(--note)"/><rect x="878" y="346" width="10" height="7" fill="var(--note2)"/><rect x="884" y="364" width="10" height="7" fill="var(--note2)"/><rect x="908" y="348" width="10" height="7" fill="var(--note3)"/>
+        <rect x="838" y="332" width="96" height="58" fill="none" stroke="var(--accent)" opacity=".8"/>
+        <!-- status -->
+        <text x="12" y="424" opacity=".7">saved 1 s ago · 5 notes · 3 regions · 1 stroke · board.json 2.1 KB · strokes.json 0.8 KB</text>
+      </g>
+    </svg>
+    <figcaption>Regions are the whiteboard's columns: a note is "in Today" when its centre is inside the Today region. The agent reads that geometry; it never sees a pixel.</figcaption>
+  </figure>
+
+  <div class="grid2">
+    <div class="box"><div class="lbl">Files</div><pre><code>apps/launch-board/
+  app.json          "template": "whiteboard@1", "libs": ["canvas"]
+  index.html        starter copy
+  config.json       title, regions, note colours
+  board.json        objects: notes, regions, connectors
+  strokes.json      pen strokes, separate file
+  export.svg        written on demand by the app</code></pre></div>
+    <div class="box"><div class="lbl">Bridge methods</div>
+      <div class="chips"><span class="chip">readJSON("board.json")</span><span class="chip">readJSON("strokes.json")</span><span class="chip">writeJSON(…) with If-Match</span><span class="chip">write("export.svg")</span><span class="chip gap">assets preload</span><span class="chip gap">agenta.visible</span><span class="chip off">writeBlob("export.png")</span></div>
+      <div class="lbl" style="margin-top:10px">Why two data files</div><div>Strokes churn on every pen stroke and grow large; notes change rarely and the agent cares about them. Splitting keeps the agent's file small and the writes cheap. One writer per file still holds: the app owns both, the agent reads <code>board.json</code> and may add to it.</div>
+    </div>
+  </div>
+
+  <h4>End to end</h4>
+  <ul class="ops">
+    <li><span class="k">1</span><span class="op w">write</span><span><span class="tag agent">agent</span> <code>create_app("whiteboard", …)</code>, then <code>config.json</code> with three regions and <code>board.json</code> with five notes placed inside "Today" and "This week", using the starter's placement rule: next free slot in the region's grid</span></li>
+    <li><span class="k">2</span><span class="op r">readJSON ×2</span><span><span class="tag app">app</span> on load: both files; <code>strokes.json</code> is <code>not_found</code> and treated as empty</span></li>
+    <li><span class="k">3</span><span class="op w">writeJSON</span><span><span class="tag user">user</span> drags "Write changelog" into Done and ticks it. One write of <code>board.json</code> on drop; the note's <code>updated_at</code> changes, and its geometry is now inside the Done region</span></li>
+    <li><span class="k">4</span><span class="op w">writeJSON ×n</span><span><span class="tag user">user</span> draws an arrow. Points accumulate in memory during the stroke; one write of <code>strokes.json</code> on pointer-up, debounced 300 ms across consecutive strokes</span></li>
+    <li><span class="k">5</span><span class="op r">read</span><span><span class="tag agent">agent</span> "What's left for today?" → reads <code>board.json</code>, computes containment of each note's centre in each region, answers "Record demo and Draft announcement". It never opens <code>strokes.json</code></span></li>
+    <li><span class="k">6</span><span class="op w">write</span><span><span class="tag agent">agent</span> "add a note for the webinar" → appends an object to <code>board.json</code> at the next free slot in Today. Meanwhile Arda is still dragging; the app's next write carries an old ETag, gets <code>conflict</code>, merges by object id, and retries. Nothing is lost</span></li>
+    <li><span class="k">7</span><span class="op w">write</span><span><span class="tag user">user</span> Export → the app serializes the scene to SVG and writes <code>export.svg</code>. A file card appears in the chat on the next turn if the user asks for it</span></li>
+  </ul>
+</section>
+
+<section id="format">
+  <h2>A data format that merges</h2>
+  <p>The board's columns were arrays, and a conflict meant "re-read, reapply my move". A whiteboard has two writers who both change geometry, and arrays cannot be merged by position. The whiteboard starter therefore uses a map of objects keyed by id, each stamped with <code>updated_at</code>, and deletions as tombstones. Merging two versions is then a union by id, latest wins per object. The agent can add a note without knowing what the user is dragging.</p>
+  <div class="grid2">
+    <div class="box"><div class="lbl">board.json</div>
+<pre><code>{
+  "version": 1,
+  "objects": {
+    "r_today":  { "type": "region", "x": 40,  "y": 40, "w": 300, "h": 300,
+                  "title": "Today", "updated_at": "…" },
+    "n_1":      { "type": "note", "x": 70, "y": 90, "w": 130, "h": 86,
+                  "text": "Record demo", "done": false, "color": "yellow",
+                  "updated_at": "2026-09-18T09:12:03Z" },
+    "n_5":      { "type": "note", "x": 700, "y": 160, "w": 130, "h": 86,
+                  "text": "Write changelog", "done": true, "color": "green",
+                  "updated_at": "2026-09-18T09:31:44Z" },
+    "c_1":      { "type": "connector", "from": "n_1", "to": "n_2",
+                  "updated_at": "…" },
+    "n_3":      { "deleted": true, "updated_at": "…" }
+  }
+}</code></pre></div>
+    <div class="box"><div class="lbl">strokes.json</div>
+<pre><code>{
+  "version": 1,
+  "strokes": {
+    "s_1": { "points": [[150,235,0.6],[152,241,0.7],…],
+             "color": "ink", "width": 2.5,
+             "updated_at": "2026-09-18T09:33:10Z" }
+  }
+}</code></pre>
+    <p class="small" style="margin:8px 0 0">Points are <code>[x, y, pressure]</code> in board coordinates, not screen pixels, so zoom and pan never rewrite them. A stroke of two hundred points is about 4 KB; a busy board's strokes file stays under the write cap for a long time.</p>
+    </div>
+  </div>
+
+  <figure>
+    <svg viewBox="0 0 960 230" role="img" aria-label="Merge by id. Left: the app's in-memory version with note n_1 moved (updated 09:33). Middle: the file on the server after the agent added n_6 (09:32). The app's write fails with conflict. Right: merged result, union by id, latest updated_at wins per object: n_1 from the app, n_6 from the agent, everything else unchanged. Then the write succeeds.">
+      <defs><marker id="mm" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker></defs>
+      <g font-size="11" fill="currentColor">
+        <rect x="20" y="30" width="260" height="150" rx="6" fill="var(--accent)" opacity=".1"/><rect x="20" y="30" width="260" height="150" rx="6" fill="none" stroke="var(--accent)"/>
+        <text x="150" y="52" text-anchor="middle" font-weight="600">App, in memory · ETag A</text>
+        <text x="36" y="78" font-family="IBM Plex Mono, monospace">n_1  moved     09:33</text>
+        <text x="36" y="96" font-family="IBM Plex Mono, monospace">n_2            09:12</text>
+        <text x="36" y="114" font-family="IBM Plex Mono, monospace">n_5  done      09:31</text>
+        <text x="36" y="132" font-family="IBM Plex Mono, monospace" opacity=".5">n_6  (absent)</text>
+        <text x="36" y="164" fill="var(--crit)">write If-Match A → 412 conflict</text>
+
+        <rect x="350" y="30" width="260" height="150" rx="6" fill="none" stroke="currentColor"/>
+        <text x="480" y="52" text-anchor="middle" font-weight="600">Server file · ETag B</text>
+        <text x="366" y="78" font-family="IBM Plex Mono, monospace">n_1            09:12</text>
+        <text x="366" y="96" font-family="IBM Plex Mono, monospace">n_2            09:12</text>
+        <text x="366" y="114" font-family="IBM Plex Mono, monospace">n_5  done      09:31</text>
+        <text x="366" y="132" font-family="IBM Plex Mono, monospace" fill="var(--accent-ink)">n_6  added     09:32  ← agent</text>
+
+        <rect x="680" y="30" width="260" height="150" rx="6" fill="var(--ok)" opacity=".1"/><rect x="680" y="30" width="260" height="150" rx="6" fill="none" stroke="var(--ok)"/>
+        <text x="810" y="52" text-anchor="middle" font-weight="600">Merged · write If-Match B → 200</text>
+        <text x="696" y="78" font-family="IBM Plex Mono, monospace">n_1  moved     09:33  app wins</text>
+        <text x="696" y="96" font-family="IBM Plex Mono, monospace">n_2            09:12</text>
+        <text x="696" y="114" font-family="IBM Plex Mono, monospace">n_5  done      09:31</text>
+        <text x="696" y="132" font-family="IBM Plex Mono, monospace">n_6  added     09:32  agent kept</text>
+      </g>
+      <g stroke="currentColor" fill="none">
+        <line x1="280" y1="105" x2="350" y2="105" marker-end="url(#mm)"/><line x1="610" y1="105" x2="680" y2="105" marker-end="url(#mm)"/>
+      </g>
+      <text x="315" y="98" font-size="10" text-anchor="middle" fill="currentColor">re-read</text>
+      <text x="645" y="98" font-size="10" text-anchor="middle" fill="currentColor">union by id</text>
+      <text x="480" y="212" font-size="11" text-anchor="middle" fill="currentColor" opacity=".7">Tombstones (<code>deleted: true</code>) survive the union, so a note the user deleted does not come back because the agent's copy still had it.</text>
+    </svg>
+    <figcaption>The format does the merging, not clever code. This is the single most important thing the whiteboard starter teaches: any canvas app with two writers wants ids, timestamps and tombstones.</figcaption>
+  </figure>
+  <p class="small">The same format is what the skill tells the agent to read. "Notes in region R" is a containment test on centres; "done" is a flag; "add a note" is one new object at a free slot. None of it needs the agent to understand drawing.</p>
+</section>
+
+<section id="shelf">
+  <h2>Libraries without a CDN</h2>
+  <p>The CSP blocks external scripts, and inlining d3 into every app's HTML costs 280 KB per app and invites the agent to paste a mangled copy. The answer is a curated shelf: Agenta ships a small set of pinned, hash-checked library builds, and the assembler inlines the ones an app declares. The app's HTML stays small, the bytes are identical everywhere, and the CSP is untouched because nothing is fetched at run time.</p>
+
+  <figure>
+    <svg viewBox="0 0 960 260" role="img" aria-label="Assembly with the shelf. Left: app.json declares libs canvas and d3@7; index.html contains a script tag with src agenta:lib/d3@7. Middle: the assembler resolves each lib against the platform shelf, a versioned bundle shipped with the frontend, and inlines the pinned build; anything not on the shelf is dropped with an error in the strip. Right: the srcdoc in order: CSP, tokens, kit CSS, canvas helper, d3 inlined, bridge stub, app script.">
+      <defs><marker id="ms" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker></defs>
+      <g font-size="11" fill="currentColor">
+        <rect x="20" y="40" width="240" height="120" rx="6" fill="none" stroke="currentColor"/>
+        <text x="140" y="62" text-anchor="middle" font-weight="600">App files</text>
+        <text x="36" y="86" font-family="IBM Plex Mono, monospace" font-size="10">app.json: "libs": ["canvas", "d3@7"]</text>
+        <text x="36" y="106" font-family="IBM Plex Mono, monospace" font-size="10">&lt;script src="agenta:lib/d3@7"&gt;</text>
+        <text x="36" y="126" font-family="IBM Plex Mono, monospace" font-size="10">&lt;script src="app.js"&gt;</text>
+        <text x="36" y="146" font-family="IBM Plex Mono, monospace" font-size="10" fill="var(--crit)">&lt;script src="https://cdn…"&gt;  ✗</text>
+
+        <rect x="340" y="20" width="280" height="160" rx="6" fill="var(--accent)" opacity=".1"/><rect x="340" y="20" width="280" height="160" rx="6" fill="none" stroke="var(--accent)" stroke-width="1.5"/>
+        <text x="480" y="44" text-anchor="middle" font-weight="600">Assembler + shelf</text>
+        <text x="356" y="68">shelf ships with @agenta/entity-ui, versioned</text>
+        <text x="356" y="86" font-family="IBM Plex Mono, monospace" font-size="10">canvas   agenta-canvas.js   8 KB</text>
+        <text x="356" y="102" font-family="IBM Plex Mono, monospace" font-size="10">d3@7     d3.min.js        280 KB</text>
+        <text x="356" y="118" font-family="IBM Plex Mono, monospace" font-size="10">uplot@1  uPlot.min.js      45 KB</text>
+        <text x="356" y="134" font-family="IBM Plex Mono, monospace" font-size="10">freehand@1 perfect-freehand  4 KB</text>
+        <text x="356" y="150" font-family="IBM Plex Mono, monospace" font-size="10">rough@4  rough.min.js      35 KB</text>
+        <text x="356" y="170" opacity=".7" font-size="10">unknown lib → dropped, error strip says so</text>
+
+        <rect x="700" y="20" width="240" height="220" rx="6" fill="none" stroke="currentColor"/>
+        <text x="820" y="44" text-anchor="middle" font-weight="600">srcdoc, in order</text>
+        <g font-family="IBM Plex Mono, monospace" font-size="10">
+          <text x="716" y="68">1 CSP meta</text>
+          <text x="716" y="86">2 theme tokens</text>
+          <text x="716" y="104">3 agenta-app.css</text>
+          <text x="716" y="122" fill="var(--accent-ink)">4 agenta-canvas.js</text>
+          <text x="716" y="140" fill="var(--accent-ink)">5 d3.min.js (inlined)</text>
+          <text x="716" y="158">6 bridge stub</text>
+          <text x="716" y="176">7 app.js (inlined)</text>
+          <text x="716" y="194">8 body</text>
+        </g>
+        <text x="820" y="226" text-anchor="middle" opacity=".7" font-size="10">libs before the stub, app after it</text>
+      </g>
+      <g stroke="currentColor" fill="none"><line x1="260" y1="100" x2="340" y2="100" marker-end="url(#ms)"/><line x1="620" y1="100" x2="700" y2="100" marker-end="url(#ms)"/></g>
+    </svg>
+    <figcaption>The <code>agenta:lib/</code> scheme is resolved at assembly and never at run time. An agent that writes a CDN tag gets a visible error, not a silently broken app.</figcaption>
+  </figure>
+
+  <div class="tbl"><table>
+    <thead><tr><th>Shelf entry</th><th>What for</th><th>Size</th><th>CSP needs</th><th>Ships in</th></tr></thead>
+    <tbody>
+      <tr><td class="mono">canvas</td><td>Agenta's own helper: HiDPI setup, pan and zoom, hit testing, scene loop, visibility pause, SVG export</td><td class="num">8 KB</td><td>none</td><td>Phase 3, with the whiteboard starter</td></tr>
+      <tr><td class="mono">freehand@1</td><td>Pressure-aware pen strokes as polygons (perfect-freehand)</td><td class="num">4 KB</td><td>none</td><td>Phase 3</td></tr>
+      <tr><td class="mono">uplot@1</td><td>Fast line and area charts on canvas, hundreds of thousands of points</td><td class="num">45 KB</td><td>none</td><td>Phase 3</td></tr>
+      <tr><td class="mono">d3@7</td><td>Scales, shapes, layouts, force graphs; SVG or canvas</td><td class="num">280 KB</td><td>none</td><td>Phase 3, as the one heavy entry</td></tr>
+      <tr><td class="mono">rough@4</td><td>Hand-drawn look for whiteboard shapes</td><td class="num">35 KB</td><td>none</td><td>Later, if the whiteboard wants it</td></tr>
+      <tr><td class="mono">markdown@1</td><td>Small markdown renderer for notes and review queues</td><td class="num">12 KB</td><td>none</td><td>Phase 3</td></tr>
+      <tr><td class="mono">csv@1</td><td>CSV parser for dashboards</td><td class="num">8 KB</td><td>none</td><td>Phase 3</td></tr>
+      <tr><td colspan="5" class="small">Not on the shelf, deliberately: React, tldraw, Excalidraw, Chart.js, Three.js. Each is either a framework, a product, or large enough that a starter should own the decision. The shelf is small on purpose; adding to it is a review, not a config change.</td></tr>
+    </tbody>
+  </table></div>
+  <div class="callout">
+    <p><strong>Why not let the agent inline what it wants?</strong> It can, and custom apps may. But a pasted library is a 280 KB opportunity for a transcription error, and two apps with two slightly different d3s are the drift problem again. The shelf is the starter idea applied to code the agent did not write.</p>
+  </div>
+</section>
+
+<section id="helper">
+  <h2>The canvas helper</h2>
+  <p>Most of what makes a canvas app pleasant is the same forty lines every time: size the backing store to the device pixel ratio, resize with the pane, pan with space-drag and zoom with the wheel, convert between screen and board coordinates, hit-test objects, throttle the render loop, and pause when hidden. The helper is that code, shipped on the shelf, so a starter or a custom app calls it instead of rewriting it.</p>
+  <div class="grid2">
+    <div class="box"><div class="lbl">agenta-canvas.js · surface</div>
+<pre><code>const view = agentaCanvas.mount(el, {
+  grid: "dots",                 // or null
+  bounds: "infinite",           // or {w, h}
+  onPointer: (ev, board) =&gt; …,  // ev.kind: down/move/up; board.x, board.y
+  render: (ctx, camera) =&gt; …    // called at most once per frame
+})
+view.toBoard(sx, sy) · view.toScreen(bx, by)
+view.hit(list, bx, by)          // first object whose rect contains the point
+view.camera = {x, y, zoom}      // pan/zoom state; the app may persist it
+view.invalidate()               // request a render
+view.exportSVG(draw)            // same draw callback, SVG context
+view.paused                     // true when the host says the tab is hidden</code></pre>
+    </div>
+    <div class="box"><div class="lbl">What it does not do</div>
+      <ul style="margin:0;font-size:14px">
+        <li>No scene graph, no shapes, no undo. The starter owns its objects; the helper owns the viewport</li>
+        <li>No persistence. Files are the app's business through the bridge</li>
+        <li>No text editing. Notes edit in a DOM overlay positioned by <code>toScreen</code>, which is how every whiteboard does it and how the kit's inputs stay accessible</li>
+        <li>No collaboration. The merge-by-id format covers the two writers we have</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section id="viz">
+  <h2>Data visualization</h2>
+  <p>The dashboard starter draws SVG by hand, which is right up to a few thousand marks. Beyond that, SVG DOM cost dominates and canvas wins. The rule the skill gives is a threshold, not a preference.</p>
+  <figure>
+    <svg viewBox="0 0 960 230" role="img" aria-label="Decision chart for visualization technique by number of marks. Under about 2,000 marks: hand-written SVG, no library, accessible and inspectable. 2,000 to 50,000: canvas with the helper, or uPlot for time series. Above 50,000: canvas with uPlot or d3 canvas rendering, downsampled; WebGL only if a starter ever needs it. A separate row: interactive exploration such as brushing and linked views uses d3 on either target.">
+      <defs><marker id="mv" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker></defs>
+      <line x1="40" y1="120" x2="920" y2="120" stroke="currentColor" opacity=".4" marker-end="url(#mv)"/>
+      <g font-size="11" fill="currentColor">
+        <text x="40" y="145" opacity=".7">marks →</text>
+        <line x1="330" y1="110" x2="330" y2="130" stroke="currentColor"/><text x="330" y="148" text-anchor="middle" font-family="IBM Plex Mono, monospace">~2 000</text>
+        <line x1="640" y1="110" x2="640" y2="130" stroke="currentColor"/><text x="640" y="148" text-anchor="middle" font-family="IBM Plex Mono, monospace">~50 000</text>
+        <rect x="40" y="40" width="270" height="60" rx="6" fill="var(--accent)" opacity=".12"/><rect x="40" y="40" width="270" height="60" rx="6" fill="none" stroke="var(--accent)"/>
+        <text x="175" y="62" text-anchor="middle" font-weight="600">Hand-written SVG</text><text x="175" y="80" text-anchor="middle" opacity=".8">no library · inspectable · accessible</text><text x="175" y="94" text-anchor="middle" opacity=".6" font-size="10">the dashboard starter today</text>
+        <rect x="350" y="40" width="270" height="60" rx="6" fill="none" stroke="currentColor"/>
+        <text x="485" y="62" text-anchor="middle" font-weight="600">Canvas + helper, or uPlot</text><text x="485" y="80" text-anchor="middle" opacity=".8">time series, scatter, heatmaps</text><text x="485" y="94" text-anchor="middle" opacity=".6" font-size="10">shelf: canvas, uplot@1</text>
+        <rect x="660" y="40" width="260" height="60" rx="6" fill="none" stroke="currentColor"/>
+        <text x="790" y="62" text-anchor="middle" font-weight="600">Canvas, downsampled</text><text x="790" y="80" text-anchor="middle" opacity=".8">uPlot or d3 canvas render</text><text x="790" y="94" text-anchor="middle" opacity=".6" font-size="10">WebGL only if a starter needs it</text>
+        <rect x="40" y="170" width="880" height="44" rx="6" fill="none" stroke="currentColor" stroke-dasharray="5 4"/>
+        <text x="480" y="188" text-anchor="middle" font-weight="600">Interactive exploration: brushing, linked views, force layouts</text><text x="480" y="204" text-anchor="middle" opacity=".8">d3@7 from the shelf, on SVG or canvas by the same rule; data still arrives as a file the agent wrote</text>
+      </g>
+    </svg>
+    <figcaption>Two thresholds, one library each. The agent writes the data as CSV or JSON; the starter decides the target from the row count.</figcaption>
+  </figure>
+  <p>Two things stay true from the field test's dashboard: the app cannot fetch anything, so the data file is the boundary; and "data as of" must be visible. Canvas adds one more: a large dataset lives in its own file with its own size cap, and a starter that expects more than the read cap tells the agent to shard, not the user to wait.</p>
+</section>
+
+<section id="lifecycle">
+  <h2>Hidden tabs and render loops</h2>
+  <p>A DOM app that is in a background tab costs nothing. A canvas app with a <code>requestAnimationFrame</code> loop keeps drawing. The browser throttles rAF only when the whole page is hidden, and in the workspace a hidden tab is still on a visible page. The RFC for the workspace says iframes "need explicit suspension"; this is the concrete form.</p>
+  <figure>
+    <svg viewBox="0 0 960 200" role="img" aria-label="Sequence: the user selects another tab in pane B; the workspace marks the app tab hidden; the parent posts a visibility message with visible false over the port; the stub sets agenta.visible to false and dispatches an event; the helper pauses the render loop. The user returns; visible true; the loop resumes and renders once.">
+      <defs><marker id="mh" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker></defs>
+      <g font-size="12" fill="currentColor" font-weight="600">
+        <rect x="40" y="14" width="140" height="30" rx="4" fill="none" stroke="currentColor"/><text x="110" y="34" text-anchor="middle">Workspace</text>
+        <rect x="380" y="14" width="140" height="30" rx="4" fill="var(--accent)" opacity=".15"/><rect x="380" y="14" width="140" height="30" rx="4" fill="none" stroke="var(--accent)"/><text x="450" y="34" text-anchor="middle">Parent host</text>
+        <rect x="740" y="14" width="160" height="30" rx="4" fill="none" stroke="currentColor"/><text x="820" y="34" text-anchor="middle">App + helper</text>
+      </g>
+      <g stroke="currentColor" stroke-dasharray="3 4" opacity=".45"><line x1="110" y1="44" x2="110" y2="190"/><line x1="450" y1="44" x2="450" y2="190"/><line x1="820" y1="44" x2="820" y2="190"/></g>
+      <g font-size="11" fill="currentColor">
+        <line x1="110" y1="72" x2="450" y2="72" stroke="currentColor" marker-end="url(#mh)"/><text x="280" y="65" text-anchor="middle">tab deselected → visible: false</text>
+        <line x1="450" y1="98" x2="820" y2="98" stroke="var(--accent)" stroke-width="1.5" marker-end="url(#mh)"/><text x="635" y="91" text-anchor="middle" font-family="IBM Plex Mono, monospace">port: {type:"visibility", visible:false}</text>
+        <text x="820" y="122" text-anchor="middle" opacity=".8">agenta.visible = false · helper pauses rAF</text>
+        <line x1="110" y1="148" x2="450" y2="148" stroke="currentColor" marker-end="url(#mh)"/><text x="280" y="141" text-anchor="middle">tab selected → visible: true</text>
+        <line x1="450" y1="172" x2="820" y2="172" stroke="var(--accent)" stroke-width="1.5" marker-end="url(#mh)"/><text x="635" y="165" text-anchor="middle" font-family="IBM Plex Mono, monospace">{type:"visibility", visible:true} → one render</text>
+      </g>
+    </svg>
+    <figcaption>One message, one flag. DOM apps ignore it. The helper honours it by default, and a custom canvas app is told to by the skill.</figcaption>
+  </figure>
+  <p><code>agenta.visible</code> and a <code>visibilitychange</code> event on the stub are one field and one message. They belong in the v1 contract because the workspace's hidden-tab policy needs them the moment a second tab exists, canvas or not: a DOM app polling a timer should stop too.</p>
+</section>
+
+<section id="a11y">
+  <h2>What canvas cannot do</h2>
+  <ul>
+    <li><b>Be read by a screen reader.</b> Pixels are not text. The whiteboard starter keeps a DOM list of notes under the canvas, visually hidden, generated from the same objects. The same list is what a phone shows below <code>md</code> where a pan-and-zoom surface is miserable. Cost: none, the data is already there.</li>
+    <li><b>Use the kit's classes.</b> Buttons and inputs still do; the drawing does not. The helper reads the kit's tokens for grid, selection and text colours so the surface matches the theme, and re-reads them on the theme message.</li>
+    <li><b>Load an image by path.</b> Until binary reads exist, a starter that needs images declares them in the manifest and the assembler preloads them as data URLs into <code>agenta.assets</code>. That covers icons and a logo; it does not cover a user dropping a photo onto the board, which needs binary write as well.</li>
+    <li><b>Export a PNG.</b> SVG export works today and is the better artefact for a whiteboard anyway: the agent can read it, and it scales. PNG waits for binary write.</li>
+    <li><b>Keep state between reloads.</b> No storage in an opaque origin. The camera position is worth persisting, so the starter writes it into <code>config.json</code> under <code>view</code>, debounced, and restores it on load.</li>
+  </ul>
+</section>
+
+<section id="starters">
+  <h2>Starters</h2>
+  <div class="tbl"><table>
+    <thead><tr><th>Starter</th><th>Config</th><th>Data</th><th>Libs</th><th>Access</th><th>Agent reads</th></tr></thead>
+    <tbody>
+      <tr><td><b>whiteboard@1</b></td><td>title, regions, colours, view</td><td class="mono">board.json · strokes.json</td><td>canvas, freehand@1</td><td>read-write</td><td>Notes by region containment; <code>done</code>; connectors as "depends on"</td></tr>
+      <tr><td><b>chart@1</b></td><td>title, series, kind, thresholds</td><td class="mono">data.csv or data.json</td><td>canvas, uplot@1</td><td>read</td><td>Nothing; the agent wrote the data</td></tr>
+      <tr><td><b>diagram@1</b></td><td>title, layout: dagre or manual</td><td class="mono">graph.json</td><td>canvas, d3@7</td><td>read-write</td><td>Nodes and edges; labels; groups</td></tr>
+      <tr><td colspan="6" class="small">The whiteboard is the todo list as a whiteboard: same five tasks, same agent questions, a different surface. It is the one to build first, because it exercises every new piece: the helper, a shelf library, merge-by-id, visibility, SVG export, the DOM mirror.</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section id="gaps">
+  <h2>Plan impact</h2>
+  <p>Canvas needs no new capability class. It moves four items earlier and adds three pieces of infrastructure.</p>
+  <div class="tbl"><table>
+    <thead><tr><th>#</th><th>Item</th><th>Was</th><th>Now</th><th>Lands in</th></tr></thead>
+    <tbody>
+      <tr><td class="num">1</td><td><code>agenta.visible</code> + <code>visibilitychange</code> over the port</td><td>Not listed</td><td class="cr">v1 contract</td><td>Bridge stub + parent host, WP 1.1 / 1.3; the workspace posts it on tab select in phase 2</td></tr>
+      <tr><td class="num">2</td><td>Asset preload: manifest <code>assets</code> → <code>agenta.assets</code> as data URLs</td><td>Binary read, v2</td><td class="wn">v1.1</td><td>Assembler; same code path that inlines <code>&lt;img&gt;</code> today</td></tr>
+      <tr><td class="num">3</td><td>Library shelf and the <code>agenta:lib/</code> scheme</td><td>Not listed</td><td class="wn">Phase 3</td><td><code>@agenta/entity-ui</code>, a <code>shelf/</code> folder with pinned builds and hashes; assembler resolves and inlines</td></tr>
+      <tr><td class="num">4</td><td><code>agenta-canvas.js</code> helper</td><td>Not listed</td><td class="wn">Phase 3</td><td>First shelf entry; written with the whiteboard starter; a <code>WhiteboardStarter</code> story on the mock host covers empty board, notes in regions, a stroke, read-only, a merge conflict, hidden-tab pause, both themes</td></tr>
+      <tr><td class="num">5</td><td>Merge-by-id data format guidance</td><td>Not listed</td><td class="wn">Phase 1 skill text, phase 3 starter</td><td>agenta-apps skill: "two writers on one file → map of ids, timestamps, tombstones"; whiteboard starter implements it</td></tr>
+      <tr><td class="num">6</td><td>CSP: <code>worker-src blob:</code>, <code>'wasm-unsafe-eval'</code></td><td>Not listed</td><td class="ok">Per shelf entry, off by default</td><td>Assembler adds directives only when a declared lib needs them</td></tr>
+      <tr><td class="num">7</td><td>Binary write for PNG export and dropped images</td><td>v2</td><td class="ok">Stays v2</td><td>SVG export covers the whiteboard</td></tr>
+      <tr><td class="num">8</td><td>DOM mirror for accessibility and phones</td><td>Not listed</td><td class="wn">Starter rule</td><td>Whiteboard starter; skill line for custom canvas apps</td></tr>
+    </tbody>
+  </table></div>
+  <div class="callout">
+    <p><strong>What did not change.</strong> The bridge's eight methods, the sandbox flags, the grant model, the folder scope, the conflict detection. A canvas app is a DOM app that happens to draw. Everything above is about making it easy to write one that behaves.</p>
+  </div>
+</section>
+
+<section id="decisions">
+  <h2>Decisions</h2>
+  <div class="dec">
+    <div class="row"><div class="q">Ship a library shelf at all?</div><div class="a"><b>Yes, small.</b> Seven entries, one heavy. Additions are reviewed, not configured.</div></div>
+    <div class="row"><div class="q">Which canvas starter first?</div><div class="a"><b>whiteboard@1.</b> It is the todo list on a new surface and exercises every new piece.</div></div>
+    <div class="row"><div class="q">Visibility signal in v1?</div><div class="a"><b>Yes.</b> One field, one message; the workspace needs it for DOM apps too.</div></div>
+    <div class="row"><div class="q">Asset preload or binary read first?</div><div class="a"><b>Preload.</b> It is the assembler's existing inlining, declared in the manifest. Binary read stays v2.</div></div>
+    <div class="row"><div class="q">Helper as a shelf lib or part of the kit?</div><div class="a"><b>Shelf.</b> Declared with <code>"libs": ["canvas"]</code>; DOM apps never pay for it.</div></div>
+    <div class="row"><div class="q">WebGL?</div><div class="a"><b>Allowed, not supported.</b> Nothing on the shelf uses it; a custom app may.</div></div>
+    <div class="row"><div class="q">Strokes in a separate file?</div><div class="a"><b>Yes.</b> Churn and size differ from notes by an order of magnitude, and the agent never reads strokes.</div></div>
+  </div>
+</section>
+</main>
+</div></div>
+
+</body>
+</html>

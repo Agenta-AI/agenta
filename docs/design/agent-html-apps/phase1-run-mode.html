@@ -1,0 +1,615 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Run Mode Build Plan</title>
+<style>img{max-width:100%}[hidden]{display:none!important}</style>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  --ground:#F4F5F7; --surface:#FFFFFF; --sunken:#ECEEF2; --ink:#16181D; --muted:#5B6270; --line:#D9DCE3; --line-strong:#B8BEC9;
+  --accent:#0F766E; --accent-soft:#D9F0EC; --accent-ink:#0B5A54;
+  --warn:#B45309; --warn-soft:#FBEBD5; --crit:#B91C1C; --crit-soft:#F8DEDE; --ok:#15803D; --ok-soft:#DCF1E3;
+  --code-bg:#EEF0F4;
+  --lA:#0F766E; --lB:#1D4ED8; --lC:#7C3AED; --lD:#B45309; --lE:#BE185D; --lF:#4D7C0F; --lG:#475569;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --ground:#121417; --surface:#1A1D22; --sunken:#15181D; --ink:#E8EAEE; --muted:#9AA2B1; --line:#2A2F38; --line-strong:#3C4350;
+  --accent:#34C4B0; --accent-soft:#12312D; --accent-ink:#7EE0D2;
+  --warn:#F0A34A; --warn-soft:#3A2A14; --crit:#F07070; --crit-soft:#3C1C1C; --ok:#5FCF83; --ok-soft:#173523;
+  --code-bg:#22262D;
+  --lA:#34C4B0; --lB:#7AA2F7; --lC:#B48CFF; --lD:#F0A34A; --lE:#F472B6; --lF:#A3E635; --lG:#94A3B8;
+}}
+:root[data-theme="dark"]{
+  --ground:#121417; --surface:#1A1D22; --sunken:#15181D; --ink:#E8EAEE; --muted:#9AA2B1; --line:#2A2F38; --line-strong:#3C4350;
+  --accent:#34C4B0; --accent-soft:#12312D; --accent-ink:#7EE0D2;
+  --warn:#F0A34A; --warn-soft:#3A2A14; --crit:#F07070; --crit-soft:#3C1C1C; --ok:#5FCF83; --ok-soft:#173523;
+  --code-bg:#22262D;
+  --lA:#34C4B0; --lB:#7AA2F7; --lC:#B48CFF; --lD:#F0A34A; --lE:#F472B6; --lF:#A3E635; --lG:#94A3B8;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--ground);color:var(--ink);font-family:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;font-size:14.5px;line-height:1.5;padding-inline:20px;padding-block:0 96px;-webkit-font-smoothing:antialiased}
+a{color:var(--accent-ink);text-decoration:none;border-bottom:1px solid var(--line-strong)}
+a:hover{border-bottom-color:var(--accent)}
+a:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+code,pre{font-family:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace}
+code{font-size:.88em;background:var(--code-bg);padding:.1em .35em;border-radius:4px}
+pre{background:var(--code-bg);padding:12px 14px;border-radius:6px;overflow-x:auto;font-size:12px;line-height:1.5;margin:0}
+pre code{background:none;padding:0;font-size:inherit}
+h1,h2,h3,h4{font-family:"Bricolage Grotesque","IBM Plex Sans",system-ui,sans-serif;text-wrap:balance;line-height:1.15;margin:0}
+h1{font-size:clamp(30px,4.2vw,44px);font-weight:700;letter-spacing:-.01em}
+h2{font-size:24px;font-weight:700;margin-top:56px;padding-top:22px;border-top:1px solid var(--line)}
+h3{font-size:17px;font-weight:600;margin-top:24px}
+h4{font-size:13px;font-weight:600;margin-top:14px;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}
+p{margin:10px 0;max-width:76ch}
+ul,ol{max-width:80ch;padding-left:22px;margin:8px 0}
+li{margin:4px 0}
+.wrap{max-width:1080px;margin:0 auto}
+.layout{display:grid;grid-template-columns:200px minmax(0,1fr);gap:48px;align-items:start}
+@media (max-width:860px){.layout{grid-template-columns:minmax(0,1fr)}.toc{display:none}}
+.toc{position:sticky;top:24px;font-size:13px;padding-top:88px}
+.toc a{display:block;border:0;color:var(--muted);padding:3px 0}
+.toc a:hover{color:var(--ink)}
+.toc .lbl{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:8px}
+header.hero{padding-block:56px 12px}
+.eyebrow{font-size:12px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);font-weight:500;margin-bottom:14px}
+.lede{font-size:17px;color:var(--muted);max-width:66ch;margin-top:14px}
+figure{margin:18px 0;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:14px 14px 10px}
+figure svg{display:block;max-width:100%;height:auto;color:var(--ink);font-family:"IBM Plex Sans",system-ui,sans-serif}
+figcaption{font-size:13px;color:var(--muted);margin-top:8px;max-width:80ch}
+.tbl{overflow-x:auto;margin:14px 0}
+table{border-collapse:collapse;width:100%;font-size:13.5px;background:var(--surface);border:1px solid var(--line);border-radius:8px;overflow:hidden}
+th,td{text-align:left;padding:8px 11px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:500;background:var(--sunken)}
+tr:last-child td{border-bottom:0}
+td.mono{font-family:"IBM Plex Mono",monospace;font-size:12px}
+td.num{font-variant-numeric:tabular-nums;white-space:nowrap}
+.lane{margin-top:44px;border:1px solid var(--line);border-radius:10px;background:var(--surface);padding:18px 20px;border-left:5px solid var(--line-strong)}
+.lane.A{border-left-color:var(--lA)}.lane.B{border-left-color:var(--lB)}.lane.C{border-left-color:var(--lC)}.lane.D{border-left-color:var(--lD)}.lane.E{border-left-color:var(--lE)}.lane.F{border-left-color:var(--lF)}.lane.G{border-left-color:var(--lG)}.lane.Z{border-left-color:var(--ink)}
+.lane h3{margin-top:0;font-size:19px}
+.lane .meta{display:flex;flex-wrap:wrap;gap:8px 18px;font-size:12.5px;color:var(--muted);margin:6px 0 12px}
+.lane .meta b{color:var(--ink);font-weight:500}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px;margin-top:10px}
+.box{background:var(--sunken);border-radius:8px;padding:10px 12px;font-size:13.5px}
+.box .lbl{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:500;margin-bottom:5px}
+.box ul{margin:0;padding-left:18px}
+.box pre{font-size:11.5px;background:var(--code-bg)}
+.steps{list-style:none;padding:0;margin:8px 0;display:grid;gap:5px;max-width:none}
+.steps li{display:grid;grid-template-columns:26px minmax(0,1fr);gap:10px;align-items:baseline;font-size:13.5px;padding:7px 10px;background:var(--sunken);border-radius:6px}
+.steps .k{width:20px;height:20px;border-radius:50%;font-size:11px;font-weight:600;display:grid;place-items:center;background:var(--accent-soft);color:var(--accent-ink)}
+.chip{display:inline-block;font-family:"IBM Plex Mono",monospace;font-size:11px;padding:1px 7px;border-radius:999px;background:var(--accent-soft);color:var(--accent-ink);white-space:nowrap}
+.chip.warn{background:var(--warn-soft);color:var(--warn)}
+.callout{border-left:3px solid var(--accent);background:var(--accent-soft);padding:11px 15px;border-radius:0 6px 6px 0;margin:14px 0;max-width:80ch;font-size:13.5px}
+.callout.warn{border-left-color:var(--warn);background:var(--warn-soft)}
+.callout.crit{border-left-color:var(--crit);background:var(--crit-soft)}
+.callout p{margin:3px 0}
+.small{font-size:12.5px;color:var(--muted)}
+.check{list-style:none;padding:0;margin:8px 0;display:grid;gap:5px;max-width:none}
+.check li{display:grid;grid-template-columns:20px minmax(0,1fr);gap:10px;font-size:13.5px;padding:7px 10px;background:var(--sunken);border-radius:6px}
+.check .b{width:14px;height:14px;border-radius:3px;border:1.5px solid var(--accent);margin-top:3px}
+</style>
+</head>
+<body>
+
+<div class="wrap"><div class="layout">
+<nav class="toc" aria-label="Sections">
+  <div class="lbl">Contents</div>
+  <a href="#goal">Goal and done</a>
+  <a href="#facts">Verified facts</a>
+  <a href="#lanes">Lane map</a>
+  <a href="#contracts">Lane 0 · Contracts</a>
+  <a href="#laneA">Lane A · Bridge</a>
+  <a href="#laneB">Lane B · API</a>
+  <a href="#laneC">Lane C · Renderer</a>
+  <a href="#laneD">Lane D · Skill + starter</a>
+  <a href="#laneE">Lane E · Kit</a>
+  <a href="#laneF">Lane F · Layout</a>
+  <a href="#laneG">Lane G · Integration</a>
+  <a href="#branching">Branches and merge order</a>
+  <a href="#rules">Rules for every agent</a>
+  <a href="#qa">Acceptance script</a>
+</nav>
+<main>
+<header class="hero">
+  <div class="eyebrow">Agenta · agent HTML apps · phase 1 · implementation plan</div>
+  <h1>Run mode: a plan seven agents can work at once</h1>
+  <p class="lede">Phase 1 of the <a href="plan.html">apps plan</a>, cut into lanes with no shared files. One short lane fixes the contracts everyone codes against; six lanes then run in parallel; one integrates. Each lane says which files it owns, what it consumes, what it provides, how it is tested, and when it is done.</p>
+</header>
+
+<section id="goal">
+  <h2>Goal and definition of done</h2>
+  <p>An agent asked for a board writes <code>apps/&lt;slug&gt;/</code> with a manifest; the user opens the entry file, chooses Run, grants read-write, moves a card; <code>board.json</code> changes on the server; the agent reads it next turn. Both hosts, desktop and <code>/m</code>, behind a feature flag that defaults off.</p>
+  <div class="grid2">
+    <div class="box"><div class="lbl">In scope</div><ul>
+      <li>Bridge contract v1: eight file methods, <code>visible</code>, <code>changed</code>, <code>stat</code>, error codes, automatic <code>If-Match</code></li>
+      <li>Run segment, grant prompt, status strip, Refresh menu with one item, error strip with copy</li>
+      <li>Assembler: CSP, tokens, kit, same-folder scripts inlined, in-folder navigation in place</li>
+      <li>API: ETag on read and list, <code>If-Match</code> on PUT and DELETE, 412 on mismatch</li>
+      <li>agenta-apps skill, <code>create_app</code>, <code>list_starters</code>, the board starter</li>
+      <li>Design kit tokens and <code>agenta-app.css</code></li>
+      <li><code>agent-files/.apps/</code> in the platform instructions and the skill</li>
+    </ul></div>
+    <div class="box"><div class="lbl">Out of scope, on purpose</div><ul>
+      <li>The workspace and pane B (phase 2). Run mode lives in today's Files pane and file cards</li>
+      <li>App tiles for manifest folders, error relay to the composer, more starters, canvas, shelf (phase 3)</li>
+      <li><code>user</code>, <code>location</code>, <code>chat.draft</code>, assets, "Ask agent to refresh" (v1.1)</li>
+      <li>Conditional writes for the agent's own tools</li>
+      <li>Agent-owned starters, <code>promote_app</code></li>
+    </ul></div>
+  </div>
+  <h4>Done when all of these are true</h4>
+  <ul class="check">
+    <li><span class="b"></span><span>Acceptance script below passes on desktop and <code>/m</code>, light and dark, flag on; with the flag off nothing about HTML preview changed.</span></li>
+    <li><span class="b"></span><span>Unit tests: bridge protocol, path scope, grant store, ETag cache, assembler; API conditional writes both branches; platform ops; instructions.</span></li>
+    <li><span class="b"></span><span>An agent with the skill attached, asked for a board in a fresh session, produces <code>apps/&lt;slug&gt;/app.json</code> via <code>create_app</code> and no hand-written HTML.</span></li>
+    <li><span class="b"></span><span>A concurrent agent write during a user drag ends with both changes in <code>board.json</code>.</span></li>
+    <li><span class="b"></span><span>Lint, tsc and prettier clean on touched files; <code>ruff format</code> and <code>ruff check</code> clean in <code>api</code> and <code>sdks/python</code>.</span></li>
+  </ul>
+</section>
+
+<section id="facts">
+  <h2>Verified facts the lanes rely on</h2>
+  <div class="tbl"><table>
+    <thead><tr><th>Fact</th><th>Where</th><th>Consequence</th></tr></thead>
+    <tbody>
+      <tr><td>The generated Fern <code>writeMountFile</code> sends query params and no body</td><td class="mono">agenta-api-client/…/mounts/client/Client.ts</td><td>Lane A writes through the existing axios raw-body path (as <code>driveMedia.ts</code> does for upload), with an <code>If-Match</code> header. Read, list and delete use Fern</td></tr>
+      <tr><td><code>GET files?read=</code> returns <code>{path, content}</code>; list entries carry <code>path, size, is_folder, mtime</code></td><td class="mono">api/…/mounts/models.py · core/mounts/dtos.py</td><td>Lane B adds <code>etag</code> to both; lane A treats it as optional until B lands</td></tr>
+      <tr><td><code>put_object</code> is unconditional and returns only a length; the store is a miniopy-async adapter</td><td class="mono">core/store/storage.py</td><td>Lane B's first task is a spike on conditional headers; the fallback is stat-compare-put</td></tr>
+      <tr><td>File text is fetched by <code>useDriveFileText</code>; the HTML sanitizer and iframe live in one component</td><td class="mono">entity-ui/src/drive/driveFileSource.tsx · renderers.tsx</td><td>Lane C splits <code>HtmlBody</code> into its own folder and owns those files</td></tr>
+      <tr><td>Drive generation is a hook in <code>FilesDrawer.tsx</code> keyed by mount, used to remount the explorer</td><td class="mono">entity-ui/src/drive/FilesDrawer.tsx</td><td>Lane A's <code>changed</code> hint subscribes to it; lane C bumps it after app writes</td></tr>
+      <tr><td>User-scoped feature flags exist: <code>userScopedFlagAtom("…")</code></td><td class="mono">agenta-shared/src/state/featureFlags.ts</td><td>Flag <code>agent-apps</code>, default off</td></tr>
+      <tr><td>First-party skills are static catalogue entries with <code>is_skill</code>; platform tools dispatch from <code>PLATFORM_TOOL_HANDLERS</code> by call ref</td><td class="mono">core/workflows/static_catalog.py · core/tools/platform_handlers.py</td><td>Lane D adds one catalogue entry and two handlers; no registry import</td></tr>
+      <tr><td>Dot folders are dimmed in the Files pane; <code>.agenta-*</code> is hidden</td><td class="mono">entities/src/drive/driveTree.ts</td><td>Lane F uses <code>.apps/</code>, dimmed</td></tr>
+      <tr><td>Storybook picks up <code>web/storybook/stories/**</code> and <code>packages/*/src/**/*.stories.tsx</code>; entity-ui surfaces go under <code>stories/entity-ui/</code>; a theme global switches light and dark; <code>withAgentaData</code> mounts the real providers; nothing type-checks the package in CI except a build</td><td class="mono">web/storybook/.storybook/main.ts · preview.tsx · web/AGENTS.md</td><td>Every UI lane ships stories, runs <code>pnpm --filter @agenta/storybook lint</code> and builds once; states a reviewer cannot click into are stories</td></tr>
+      <tr><td>Both hosts render drive files through the same <code>DriveFileBody</code></td><td class="mono">entity-ui/src/drive/DriveFileContentViewer.tsx · mobile SessionWorkspace</td><td>No host work in phase 1; lane G tests both</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section id="lanes">
+  <h2>Lane map</h2>
+  <figure>
+    <svg viewBox="0 0 960 330" role="img" aria-label="Lane 0 Contracts at the top, half a day, feeding six parallel lanes: A Bridge, B API, C Renderer, D Skill and starter, E Kit, F Layout. C consumes A's host interface; A consumes B's etag field; D consumes E's class names. All six feed G Integration at the bottom. A two-week bar shows lane 0 on day one, A to F across days one to eight, G on days nine and ten.">
+      <defs><marker id="lm" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker></defs>
+      <g font-size="11" fill="currentColor">
+        <rect x="380" y="14" width="200" height="40" rx="6" fill="currentColor" opacity=".08"/><rect x="380" y="14" width="200" height="40" rx="6" fill="none" stroke="currentColor" stroke-width="1.5"/><text x="480" y="33" text-anchor="middle" font-weight="600">Lane 0 · Contracts</text><text x="480" y="47" text-anchor="middle" opacity=".7" font-size="10">half a day, one agent, blocks everyone</text>
+        <g>
+          <rect x="20" y="100" width="140" height="56" rx="6" fill="none" stroke="var(--lA)" stroke-width="2"/><text x="90" y="122" text-anchor="middle" font-weight="600">A · Bridge</text><text x="90" y="140" text-anchor="middle" opacity=".7" font-size="10">stub + host · 2.5 d</text>
+          <rect x="175" y="100" width="140" height="56" rx="6" fill="none" stroke="var(--lB)" stroke-width="2"/><text x="245" y="122" text-anchor="middle" font-weight="600">B · API</text><text x="245" y="140" text-anchor="middle" opacity=".7" font-size="10">ETag + If-Match · 2 d</text>
+          <rect x="330" y="100" width="140" height="56" rx="6" fill="none" stroke="var(--lC)" stroke-width="2"/><text x="400" y="122" text-anchor="middle" font-weight="600">C · Renderer</text><text x="400" y="140" text-anchor="middle" opacity=".7" font-size="10">Run UI + assembler · 3 d</text>
+          <rect x="485" y="100" width="140" height="56" rx="6" fill="none" stroke="var(--lD)" stroke-width="2"/><text x="555" y="122" text-anchor="middle" font-weight="600">D · Skill + starter</text><text x="555" y="140" text-anchor="middle" opacity=".7" font-size="10">catalogue + ops · 3 d</text>
+          <rect x="640" y="100" width="140" height="56" rx="6" fill="none" stroke="var(--lE)" stroke-width="2"/><text x="710" y="122" text-anchor="middle" font-weight="600">E · Kit</text><text x="710" y="140" text-anchor="middle" opacity=".7" font-size="10">tokens + css · 1.5 d</text>
+          <rect x="795" y="100" width="140" height="56" rx="6" fill="none" stroke="var(--lF)" stroke-width="2"/><text x="865" y="122" text-anchor="middle" font-weight="600">F · Layout</text><text x="865" y="140" text-anchor="middle" opacity=".7" font-size="10">instructions · 1 d</text>
+        </g>
+        <rect x="380" y="200" width="200" height="40" rx="6" fill="none" stroke="var(--lG)" stroke-width="2"/><text x="480" y="219" text-anchor="middle" font-weight="600">G · Integration + QA</text><text x="480" y="233" text-anchor="middle" opacity=".7" font-size="10">1.5 d, after A B C D merge</text>
+      </g>
+      <g stroke="currentColor" fill="none" opacity=".6">
+        <path d="M430 54 C 400 70, 120 70, 90 100" marker-end="url(#lm)"/><path d="M450 54 C 430 70, 260 70, 245 100" marker-end="url(#lm)"/><line x1="470" y1="54" x2="410" y2="100" marker-end="url(#lm)"/><line x1="500" y1="54" x2="545" y2="100" marker-end="url(#lm)"/><path d="M520 54 C 540 70, 690 70, 710 100" marker-end="url(#lm)"/><path d="M540 54 C 560 70, 840 70, 865 100" marker-end="url(#lm)"/>
+      </g>
+      <g stroke="currentColor" fill="none">
+        <path d="M160 128 L 175 128" marker-end="url(#lm)" stroke="var(--lB)"/><path d="M315 128 L 330 128" marker-end="url(#lm)" stroke="var(--lA)"/><path d="M625 128 L 640 128" marker-start="url(#lm)" stroke="var(--lE)"/>
+      </g>
+      <g font-size="9" fill="currentColor"><text x="168" y="120" text-anchor="middle">etag</text><text x="323" y="120" text-anchor="middle">host</text><text x="633" y="120" text-anchor="middle">classes</text></g>
+      <g stroke="currentColor" fill="none" opacity=".6">
+        <path d="M90 156 C 90 185, 400 185, 420 200" marker-end="url(#lm)"/><path d="M245 156 C 245 185, 420 185, 440 200" marker-end="url(#lm)"/><line x1="400" y1="156" x2="460" y2="200" marker-end="url(#lm)"/><line x1="555" y1="156" x2="500" y2="200" marker-end="url(#lm)"/><path d="M710 156 C 710 185, 540 185, 520 200" marker-end="url(#lm)"/><path d="M865 156 C 865 185, 560 185, 540 200" marker-end="url(#lm)"/>
+      </g>
+      <!-- schedule bar -->
+      <g font-size="10" fill="currentColor">
+        <line x1="20" y1="280" x2="940" y2="280" stroke="currentColor" opacity=".25"/>
+        <text x="20" y="272" opacity=".6">day 1</text><text x="480" y="272" text-anchor="middle" opacity=".6">day 5</text><text x="940" y="272" text-anchor="end" opacity=".6">day 10</text>
+        <rect x="20" y="286" width="46" height="8" rx="2" fill="currentColor" opacity=".5"/><text x="70" y="294">0</text>
+        <rect x="66" y="298" width="230" height="6" rx="2" fill="var(--lA)"/><rect x="66" y="306" width="184" height="6" rx="2" fill="var(--lB)"/><rect x="66" y="314" width="276" height="6" rx="2" fill="var(--lC)"/>
+        <rect x="360" y="298" width="276" height="6" rx="2" fill="var(--lD)"/><rect x="360" y="306" width="138" height="6" rx="2" fill="var(--lE)"/><rect x="360" y="314" width="92" height="6" rx="2" fill="var(--lF)"/>
+        <rect x="756" y="298" width="184" height="22" rx="3" fill="var(--lG)" opacity=".6"/><text x="848" y="313" text-anchor="middle" fill="#fff" font-weight="600">G</text>
+        <text x="300" y="325" font-size="9" opacity=".6">A B C start day 1 · D E F may start day 1 too; drawn offset only for legibility</text>
+      </g>
+    </svg>
+    <figcaption>Three cross-lane arrows, all mitigated by the contracts: C mocks the host until A lands, A treats <code>etag</code> as optional until B lands, D codes against E's class list from day one.</figcaption>
+  </figure>
+
+  <div class="tbl"><table>
+    <thead><tr><th>Lane</th><th>Agent focus</th><th>Owns (exclusive edit rights)</th><th>Consumes</th><th>Provides</th><th>Days</th></tr></thead>
+    <tbody>
+      <tr><td><b>0</b></td><td>Contracts</td><td class="mono">docs/design/agent-html-apps/contracts.md · entities/src/drive/htmlApp/protocol.ts · manifest.ts</td><td>The plan documents</td><td>Types, schemas, API deltas, op signatures, class names, flag name</td><td class="num">0.5</td></tr>
+      <tr><td><b>A</b></td><td>TypeScript, headless</td><td class="mono">entities/src/drive/htmlApp/* (except protocol.ts, manifest.ts) · entities/tests/unit/htmlApp*</td><td>protocol.ts; B's <code>etag</code> (optional)</td><td><code>createHtmlAppHost()</code>, <code>BRIDGE_STUB</code>, grant store, path scope</td><td class="num">2.5</td></tr>
+      <tr><td><b>B</b></td><td>Python API</td><td class="mono">api/oss/src/apis/fastapi/mounts/* · core/mounts/* · core/store/storage.py · tests/pytest/unit/*mounts*</td><td>contracts.md API deltas</td><td><code>etag</code> on read/list; <code>If-Match</code>/<code>If-None-Match</code>; 412; Fern regen</td><td class="num">2</td></tr>
+      <tr><td><b>C</b></td><td>React, entity-ui</td><td class="mono">entity-ui/src/drive/htmlApp/* · renderers.tsx (HtmlBody only) · entity-ui/tests/unit/htmlApp* · storybook/stories/entity-ui/htmlApp/* · storybook/fixtures/htmlApp.ts</td><td>A's host interface; E's kit files; flag</td><td>Run UI, assembler, grant prompt, Refresh menu, error strip</td><td class="num">3</td></tr>
+      <tr><td><b>D</b></td><td>Python API + skill authoring</td><td class="mono">core/apps/** (new) · static_catalog.py (one entry) · platform_handlers.py (two entries) · tests for both · storybook/stories/entity-ui/htmlApp/BoardStarter.stories.tsx</td><td>manifest.ts schema; E's class list; F's agent-level rules text</td><td>agenta-apps skill, <code>create_app</code>, <code>list_starters</code>, <code>board@1</code></td><td class="num">3</td></tr>
+      <tr><td><b>E</b></td><td>CSS + tokens</td><td class="mono">entity-ui/src/drive/htmlApp/kit/* · tests · storybook/stories/entity-ui/htmlApp/Kit.stories.tsx</td><td>contracts.md token names</td><td><code>agenta-app.css</code>, <code>resolveKitTokens()</code>, theme message payload</td><td class="num">1.5</td></tr>
+      <tr><td><b>F</b></td><td>SDK instructions + skill text</td><td class="mono">sdks/python/agenta/sdk/agents/platform_instructions.py · its unit test · core/apps/skill/agent-level.md</td><td>Layout doc</td><td>The <code>.apps/</code> paragraph; agent-level rules D embeds</td><td class="num">1</td></tr>
+      <tr><td><b>G</b></td><td>Integration, browser QA</td><td class="mono">Nothing new; fixes go back to the owning lane</td><td>All lanes merged</td><td>Acceptance sign-off, both hosts</td><td class="num">1.5</td></tr>
+    </tbody>
+  </table></div>
+  <div class="callout warn"><p><strong>The one rule that makes this parallel.</strong> No two lanes edit the same file. Where a lane must touch a shared file, the table names the exact scope: D adds one dict entry to the static catalogue and two registrations to the handler map, nothing else in those files; C edits only the <code>HtmlBody</code> region of <code>renderers.tsx</code>, and only to delegate to its new folder.</p></div>
+</section>
+
+<!-- ============ LANE 0 ============ -->
+<section id="contracts" class="lane Z">
+  <h3>Lane 0 · Contracts</h3>
+  <div class="meta"><span><b>One agent</b> · half a day</span><span><b>Blocks</b> every other lane until merged</span><span><b>Branch</b> <code>feat/agent-apps-contracts</code></span></div>
+  <p>Writes the things every lane codes against, as code where possible so mismatches fail in tsc. Nothing here has behaviour.</p>
+  <div class="grid2">
+    <div class="box"><div class="lbl">entities/src/drive/htmlApp/protocol.ts</div>
+<pre><code>export const BRIDGE_VERSION = 1 as const
+
+export type BridgeErrorCode =
+  | "scope" | "read_only" | "not_found" | "conflict"
+  | "too_large" | "unavailable" | "bad_request"
+
+export interface BridgeError { code: BridgeErrorCode; message: string; etag?: string }
+
+export type FsMethod =
+  | "read" | "readJSON" | "write" | "writeJSON"
+  | "list" | "exists" | "stat" | "remove"
+
+// iframe → parent
+export interface HelloAck { v: 1; type: "hello-ack" }
+export interface FsRequest {
+  v: 1; id: number; method: FsMethod
+  path: string; body?: string; force?: boolean
+}
+// parent → iframe
+export interface Hello {
+  v: 1; type: "hello"; dir: string; canWrite: boolean
+  visible: boolean; tokens: Record&lt;string,string&gt;
+}
+export interface FsResponse {
+  v: 1; id: number; ok: true; result: unknown; etag?: string
+}
+export interface FsFailure { v: 1; id: number; ok: false; error: BridgeError }
+export interface VisibilityMsg { v: 1; type: "visibility"; visible: boolean }
+export interface ChangedMsg { v: 1; type: "changed"; paths: string[] }
+export interface ThemeMsg { v: 1; type: "theme"; tokens: Record&lt;string,string&gt; }
+export interface NavMsg { v: 1; type: "nav"; href: string }      // iframe → parent
+
+export interface FileStat { path: string; size: number; mtime: number | null; etag?: string }
+export interface FileEntry extends FileStat { isFolder: boolean }
+
+export const READ_CAP = 4 * 1024 * 1024
+export const WRITE_CAP = 1 * 1024 * 1024</code></pre></div>
+    <div class="box"><div class="lbl">entities/src/drive/htmlApp/manifest.ts</div>
+<pre><code>export interface AppManifest {
+  agenta_app: 1
+  name: string
+  icon?: string
+  entry: string            // "index.html"
+  template?: string        // "board@1" | "agent:retro-board@2"
+  access: "read" | "read-write"
+  data?: string[]
+  config?: string
+  kit?: boolean            // default true
+  refresh?: { prompt: string }   // parsed, unused in v1
+  tools?: string[]               // parsed, unused in v1
+}
+export function parseManifest(text: string): AppManifest | null
+// tolerant: unknown fields kept, missing entry → "index.html",
+// missing access → "read", bad JSON → null</code></pre>
+    <div class="lbl" style="margin-top:10px">entities/src/drive/htmlApp/mockHost.ts</div>
+    <pre><code>export function createMockHtmlAppHost(files: Record&lt;string,string&gt;, opts?: {
+  grant?: "read" | "read-write"; latencyMs?: number
+  failWith?: Partial&lt;Record&lt;FsMethod, BridgeErrorCode&gt;&gt;
+}): HtmlAppHost &amp; { files: Map&lt;string,string&gt;; log: FsRequest[] }
+// In-memory fs behind the real HtmlAppHost interface. Used by lane C until
+// lane A lands, by every story, and by lane A's own tests as the reference.</code></pre>
+    <div class="lbl" style="margin-top:10px">Also in contracts.md</div>
+    <ul>
+      <li><b>API deltas</b>: <code>etag: string | null</code> on <code>MountFileContentResponse</code> and every list entry; PUT and DELETE accept <code>If-Match</code>, PUT accepts <code>If-None-Match: *</code>; 412 body <code>{detail: {code: "conflict", etag}}</code></li>
+      <li><b>Platform ops</b>: <code>create_app(starter: str, dir: str, update?: bool) → {paths: string[], template: string}</code>; <code>list_starters() → [{name, version, when, config_keys, data_files, access}]</code></li>
+      <li><b>Kit</b>: token names <code>--ag-bg --ag-fg --ag-muted --ag-line --ag-accent --ag-accent-soft --ag-ok --ag-warn --ag-crit --ag-font --ag-radius</code>; class list <code>.ag-app .ag-toolbar .ag-btn .ag-btn-primary .ag-input .ag-select .ag-check .ag-card .ag-columns .ag-column .ag-list .ag-grid .ag-badge .ag-empty .ag-toast</code></li>
+      <li><b>Flag</b>: <code>userScopedFlagAtom("agent-apps")</code></li>
+      <li><b>Sandbox</b>: <code>allow-scripts allow-forms</code>; CSP <code>default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; form-action 'none'</code></li>
+      <li><b>Stub globals</b>: <code>window.agenta = {version, ready, canWrite, dir, visible, fs, addEventListener}</code></li>
+    </ul>
+    </div>
+  </div>
+  <h4>Done when</h4>
+  <ul class="check"><li><span class="b"></span><span><code>protocol.ts</code> and <code>manifest.ts</code> compile and are exported from <code>@agenta/entities/drive</code>; <code>parseManifest</code> has unit tests for the tolerant cases.</span></li><li><span class="b"></span><span><code>contracts.md</code> merged; every lane's first commit references it.</span></li><li><span class="b"></span><span><code>mockHost.ts</code> implements the host interface over a Map and is what lanes C and D build stories against; lane A replaces nothing in it, it only has to match it.</span></li></ul>
+</section>
+
+<!-- ============ LANE A ============ -->
+<section id="laneA" class="lane A">
+  <h3>Lane A · Bridge stub and host, headless</h3>
+  <div class="meta"><span><b>Days</b> 2.5</span><span><b>Branch</b> <code>feat/agent-apps-bridge</code> on contracts</span><span><b>No React, no DOM beyond MessageChannel</b></span></div>
+  <div class="grid2">
+    <div class="box"><div class="lbl">Files owned</div><pre><code>web/packages/agenta-entities/src/drive/htmlApp/
+  stub.ts          BRIDGE_STUB: string (the injected script, built from a
+                   template literal so it is testable as a function too)
+  host.ts          createHtmlAppHost(opts) → HtmlAppHost
+  grants.ts        grant store: memory + sessionStorage mirror
+  scope.ts         resolveScoped(dir, path) → string | ScopeError
+  etags.ts         per-path ETag cache
+  fsClient.ts      read/list/exists/stat/write/remove against the API
+  index.ts
+web/packages/agenta-entities/tests/unit/
+  htmlApp.stub.test.ts · htmlApp.host.test.ts · htmlApp.scope.test.ts
+  htmlApp.grants.test.ts · htmlApp.etags.test.ts · htmlApp.fsClient.test.ts</code></pre></div>
+    <div class="box"><div class="lbl">Host interface (what lane C calls)</div>
+<pre><code>interface HtmlAppHost {
+  attach(iframe: HTMLIFrameElement): void   // creates the channel, posts hello with port2
+  detach(): void                             // closes the port; further messages ignored
+  setVisible(v: boolean): void
+  setTheme(tokens: Record&lt;string,string&gt;): void
+  notifyChanged(paths: string[]): void
+  onError(cb: (e: {kind: "bridge"|"script"; message: string; method?: string; path?: string; line?: number}) =&gt; void): () =&gt; void
+}
+createHtmlAppHost({
+  mountId, projectId, dir, grant: "read" | "read-write",
+  tokens, onWrite: () =&gt; void            // C bumps drive generation here
+})</code></pre></div>
+  </div>
+  <h4>Steps</h4>
+  <ul class="steps">
+    <li><span class="k">1</span><span><b>scope.ts.</b> Normalize with a linear scan, no regex backtracking: reject absolute, empty, <code>.</code>/<code>..</code> segments, backslashes, control chars, percent-encoded dots after decoding; join with <code>dir</code>; result must start with <code>dir + "/"</code>. Tests: the field test's traversal cases plus unicode and trailing slashes.</span></li>
+    <li><span class="k">2</span><span><b>grants.ts.</b> Key <code>mountId + "|" + dir</code> → level. In-memory map mirrored to <code>sessionStorage</code> under <code>agenta:app-grants</code>; every access wrapped in try/catch. <code>get</code>, <code>set</code>, <code>clear(mountId)</code>.</span></li>
+    <li><span class="k">3</span><span><b>etags.ts.</b> Map path → etag; set on every successful read, list entry, stat, write result; cleared on remove; <code>invalidate(paths)</code> for <code>changed</code>.</span></li>
+    <li><span class="k">4</span><span><b>fsClient.ts.</b> read and list via Fern <code>getMountFiles</code> (<code>read=</code> / <code>path=</code>); exists via list of the parent filtered by name; stat via list of the parent; remove via Fern <code>deleteMountFile</code> with <code>requestOptions.headers["If-Match"]</code>; write via <code>axios.put</code> to <code>/mounts/{id}/files?path=</code> with raw text body, <code>Content-Type: text/plain; charset=utf-8</code>, and <code>If-Match</code>. Map 404 → <code>not_found</code>, 412 → <code>conflict</code> (carry the etag), 413 or local cap → <code>too_large</code>, 403 → <code>read_only</code>, else <code>unavailable</code>. Verify at step start whether Fern's <code>requestOptions</code> forwards headers; if not, delete goes through axios too.</span></li>
+    <li><span class="k">5</span><span><b>stub.ts.</b> Installs <code>window.agenta</code> before any app script. Listens for the hello, keeps <code>port2</code>, resolves <code>ready</code>. Each <code>fs.*</code> call posts an <code>FsRequest</code> with an incrementing id and parks a promise; <code>readJSON</code> and <code>writeJSON</code> wrap parse and stringify; failures reject with an <code>Error</code> carrying <code>code</code>. Applies <code>visibility</code>, <code>changed</code> and <code>theme</code> messages: sets <code>agenta.visible</code>, dispatches events on <code>agenta</code>, rewrites the <code>:root</code> token block. Forwards <code>window.error</code> and <code>unhandledrejection</code> as <code>{type: "error"}</code>. Rejects a hello whose <code>v</code> is not 1 with a visible message in the document body.</span></li>
+    <li><span class="k">6</span><span><b>host.ts.</b> <code>attach</code> creates a <code>MessageChannel</code>, posts the hello with <code>port2</code> transferred, then handles requests on <code>port1</code> only: scope, grant (write and remove need <code>read-write</code>), caps, then <code>fsClient</code>; sends the etag from the cache as <code>If-Match</code> unless <code>force</code>; updates the cache from results; calls <code>onWrite</code> after a successful write or remove. <code>detach</code> closes the port and drops all handlers. Forwards <code>nav</code> and <code>error</code> messages to callbacks.</span></li>
+    <li><span class="k">7</span><span><b>Tests.</b> Run the stub in a jsdom window against a fake port; assert request shapes, id matching, concurrent requests, rejection codes, the unknown-version path. Host tests with a mocked <code>fsClient</code>: grant enforcement, scope rejection before any call, If-Match forwarding, conflict mapping, detach ignores late messages.</span></li>
+  </ul>
+  <h4>Done when</h4>
+  <ul class="check"><li><span class="b"></span><span>All six test files green; <code>pnpm --filter @agenta/entities test:unit</code> and <code>check</code> clean.</span></li><li><span class="b"></span><span>A five-line node script can drive the host against a real local API and read then write a file with a correct <code>If-Match</code> round trip once lane B is up; documented in the PR.</span></li><li><span class="b"></span><span>No import from React, antd, or <code>@/oss</code>.</span></li></ul>
+</section>
+
+<!-- ============ LANE B ============ -->
+<section id="laneB" class="lane B">
+  <h3>Lane B · API: ETag and conditional writes</h3>
+  <div class="meta"><span><b>Days</b> 2</span><span><b>Branch</b> <code>feat/agent-apps-api-etag</code> on contracts</span><span><b>Python only, plus one Fern regen</b></span></div>
+  <div class="grid2">
+    <div class="box"><div class="lbl">Files owned</div><pre><code>api/oss/src/core/store/storage.py          stat_object, put_object(if_match, if_none_match)
+api/oss/src/core/mounts/service.py         read_file/list_files return etag; write/delete take conditions
+api/oss/src/core/mounts/dtos.py            etag on MountFile, MountFileContent, MountFileWritten
+api/oss/src/core/mounts/exceptions.py      MountPreconditionFailed(etag)
+api/oss/src/apis/fastapi/mounts/router.py  headers in, 412 out
+api/oss/src/apis/fastapi/mounts/models.py  etag fields
+api/oss/tests/pytest/unit/test_mounts_file_ops.py (extend)
+api/oss/tests/pytest/unit/mounts/test_conditional_writes.py (new)
+web/packages/agenta-api-client (regen, etag fields only)</code></pre></div>
+    <div class="box"><div class="lbl">Contract</div><ul>
+      <li><code>GET files?read=p</code> → <code>{path, content, etag}</code></li>
+      <li><code>GET files?path=d</code> → entries carry <code>etag</code> (null for folders)</li>
+      <li><code>PUT files?path=p</code> honours <code>If-Match</code> and <code>If-None-Match: *</code>; success returns <code>{path, size, etag}</code></li>
+      <li><code>DELETE files?path=p</code> honours <code>If-Match</code></li>
+      <li>Mismatch → <code>412</code>, body <code>{detail: {code: "conflict", etag: current}}</code>; missing object with <code>If-Match</code> → <code>412</code> too, etag null</li>
+      <li>No header → unconditional, as today</li>
+    </ul></div>
+  </div>
+  <h4>Steps</h4>
+  <ul class="steps">
+    <li><span class="k">1</span><span><b>Spike, two hours, first.</b> Does the miniopy-async <code>put_object</code> in the API's lock accept extra headers (<code>If-Match</code>, <code>If-None-Match</code>) and does SeaweedFS honour them? Write a throwaway script against the dev stack. Record the answer in the PR. Either way, <code>ObjectWriteResult.etag</code> and <code>stat_object</code> give ETags.</span></li>
+    <li><span class="k">2</span><span><b>storage.py.</b> Add <code>stat_object → {etag, size, last_modified}</code>; extend <code>put_object</code> with <code>if_match</code>/<code>if_none_match</code>. Native path if the spike says yes; otherwise stat, compare, put, and raise <code>PreconditionFailed</code> on mismatch. Return the new etag from put.</span></li>
+    <li><span class="k">3</span><span><b>service.py.</b> <code>read_file</code> returns etag alongside content (one <code>stat</code> or the GET response headers if miniopy exposes them; avoid two round trips where possible). <code>list_files</code> populates etag from the listing where the store provides it. <code>write_file</code> and <code>delete_path</code> take the two conditions and translate the store error into <code>MountPreconditionFailed(etag)</code>.</span></li>
+    <li><span class="k">4</span><span><b>router.py.</b> Read <code>If-Match</code> and <code>If-None-Match</code> headers; map <code>MountPreconditionFailed</code> to 412 in <code>handle_mount_exceptions</code>. Etag fields on the response models.</span></li>
+    <li><span class="k">5</span><span><b>Tests.</b> Unit: both storage branches with a fake store; service maps conditions; router returns 412 with the current etag; unconditional path unchanged. Integration, against the dev stack: write, read etag, write with stale etag → 412, write with fresh etag → 200.</span></li>
+    <li><span class="k">6</span><span><b>Fern regen</b> from the saved OpenAPI (<code>generate.sh --language typescript --file …</code>; the API is on :8081 behind traefik). Commit only the mounts resource diff.</span></li>
+  </ul>
+  <h4>Done when</h4>
+  <ul class="check"><li><span class="b"></span><span><code>cd api && py-run-tests</code> green; <code>ruff format</code> and <code>ruff check</code> clean.</span></li><li><span class="b"></span><span>The integration sequence above passes against the local stack; the spike outcome is written in the PR body.</span></li><li><span class="b"></span><span>The Files pane's existing upload and delete are unchanged with no headers.</span></li></ul>
+</section>
+
+<!-- ============ LANE C ============ -->
+<section id="laneC" class="lane C">
+  <h3>Lane C · Renderer and assembler</h3>
+  <div class="meta"><span><b>Days</b> 3</span><span><b>Branch</b> <code>feat/agent-apps-run-ui</code> on bridge</span><span><b>Ships to both hosts through <code>DriveFileBody</code></b></span></div>
+  <div class="grid2">
+    <div class="box"><div class="lbl">Files owned</div><pre><code>web/packages/agenta-entity-ui/src/drive/htmlApp/
+  HtmlAppBody.tsx      Preview | Source | Run segment host; replaces HtmlBody's body
+  RunView.tsx          iframe + status strip + Refresh menu + error strip
+  GrantSheet.tsx       read / read-write / cancel; preselects manifest.access
+  assemble.ts          assembleRunDocument(html, ctx) and assemblePreview(html, ctx)
+  useAppManifest.ts    reads app.json from the entry's folder (optional)
+  useChangedHint.ts    subscribes to drive generation; diffs listing; calls host.notifyChanged
+web/packages/agenta-entity-ui/src/drive/renderers.tsx   HtmlBody delegates to HtmlAppBody
+web/packages/agenta-entity-ui/tests/unit/htmlApp.assemble.test.ts
+web/storybook/fixtures/htmlApp.ts        board files, a multi-page site, a broken app
+web/storybook/stories/entity-ui/htmlApp/
+  HtmlApp.mdx            overview: what the pieces are, which story shows what
+  HtmlAppBody.stories.tsx · GrantSheet.stories.tsx · RunView.stories.tsx</code></pre></div>
+    <div class="box"><div class="lbl">Consumes</div><ul>
+      <li>Lane A: <code>createHtmlAppHost</code>, <code>BRIDGE_STUB</code>, grants, scope. Until A merges: a local mock with the same interface, deleted at rebase</li>
+      <li>Lane E: <code>agenta-app.css</code> text and <code>resolveKitTokens(rootEl)</code></li>
+      <li>Flag: <code>userScopedFlagAtom("agent-apps")</code>; off → today's Preview | Source only</li>
+      <li>Existing: <code>useDriveFileText</code>, <code>fetchMountText</code>, <code>useDriveGeneration</code>, the nav interceptor string</li>
+    </ul></div>
+  </div>
+  <h4>Steps</h4>
+  <ul class="steps">
+    <li><span class="k">1</span><span><b>Move, don't rewrite.</b> Lift <code>inlineHtmlAssets</code> and <code>HTML_NAV_INTERCEPTOR</code> out of <code>renderers.tsx</code> into <code>assemble.ts</code> unchanged, re-export, and make <code>HtmlBody</code> a thin call to <code>HtmlAppBody</code>. Land this as the first commit so Preview behaviour is provably identical (tests from step 6 lock it).</span></li>
+    <li><span class="k">2</span><span><b>assembleRunDocument.</b> Same asset inlining as Preview, then: keep author scripts; inline same-folder <code>&lt;script src&gt;</code> via <code>fetchMountText</code>; drop external script tags and record them as errors; insert, in order, the CSP meta, a <code>&lt;style&gt;</code> with the resolved tokens, <code>agenta-app.css</code> when <code>manifest.kit !== false</code>, the app's own CSS, the bridge stub, then the app's scripts. Replace the Preview nav interceptor with a port-based <code>nav</code> message.</span></li>
+    <li><span class="k">3</span><span><b>RunView.</b> Sandbox <code>allow-scripts allow-forms</code>, <code>srcDoc</code> from the assembler. On iframe load: <code>host.attach(iframe)</code>; on unmount: <code>detach</code>. Status strip: dot, "Running · read + write · &lt;dir&gt;", Refresh as a menu with one item, "Reload files", which re-assembles. Error strip: count, expandable list, copy button. Theme: subscribe to the host root's <code>data-theme</code> and <code>prefers-color-scheme</code>; call <code>host.setTheme</code>.</span></li>
+    <li><span class="k">4</span><span><b>GrantSheet.</b> Shown when the user picks Run and no grant exists for <code>mountId + dir</code>. Two radios, preselected from the manifest's <code>access</code>; the write option hidden when the user lacks <code>EDIT_MOUNTS</code> (read it from the existing permission source the Files pane uses for upload). The prompt layout has a third, hidden section stub with no content, so the tier-2 slot exists in the DOM structure. Cancel returns to Preview.</span></li>
+    <li><span class="k">5</span><span><b>Navigation in place.</b> A <code>nav</code> message whose target resolves inside <code>dir</code> re-assembles that file into the same iframe under the same grant, and pushes the previous path onto a small back stack shown in the strip. Outside <code>dir</code>: today's behaviour, <code>onNavigate</code> to the drive.</span></li>
+    <li><span class="k">6</span><span><b>Visibility and changed.</b> <code>RunView</code> receives a <code>visible</code> prop from its container (today: always true in the Files pane; phase 2 will pass tab state) and forwards it. <code>useChangedHint</code>: on a drive-generation change not caused by this app's own write, list <code>dir</code>, diff etags or mtimes against the host's cache, and call <code>notifyChanged</code>. The host's <code>onWrite</code> bumps drive generation.</span></li>
+    <li><span class="k">7</span><span><b>Tests.</b> <code>assemble.test.ts</code>: Preview output byte-identical to the pre-move implementation for three fixtures; Run output order of the injected blocks; external script dropped and reported; same-folder script inlined; CSP present.</span></li>
+    <li><span class="k">8</span><span><b>Stories, on the mock host, from day one.</b> Title prefix <code>@agenta/entity-ui/Drive/HtmlApp/…</code>. <b>HtmlAppBody:</b> flag off (Preview | Source), flag on (three segments), loading, content unavailable. <b>GrantSheet:</b> read preselected, read-write preselected, write hidden for a viewer, cancel. <b>RunView:</b> running read-only, running read-write, error strip with a bridge rejection and a script error, conflict retried, <code>changed</code> hint pending mid-edit, navigation back stack after an in-folder link, <code>not_found</code> data as empty state, <code>too_large</code>. Every story renders under the theme global in light and dark; the multi-page fixture proves in-place navigation without a network. The MDX page maps each story to the acceptance step it stands in for.</span></li>
+  </ul>
+  <h4>Done when</h4>
+  <ul class="check"><li><span class="b"></span><span>Flag off: the Preview tab's assembled document for the fixtures is unchanged, proven by the tests.</span></li><li><span class="b"></span><span>Flag on: the walkthrough's steps 2 to 4 work in the desktop Files pane against the dev stack with lanes A and B merged.</span></li><li><span class="b"></span><span>No antd, no <code>@/oss</code> imports; semantic tokens only, verified in dark mode.</span></li><li><span class="b"></span><span><code>pnpm --filter @agenta/storybook lint</code> clean and <code>build-storybook</code> succeeds; the a11y runner passes on the new stories; a VRT baseline is captured for RunView and GrantSheet so later lanes can see what they changed.</span></li></ul>
+</section>
+
+<!-- ============ LANE D ============ -->
+<section id="laneD" class="lane D">
+  <h3>Lane D · Skill, platform ops, board starter</h3>
+  <div class="meta"><span><b>Days</b> 3</span><span><b>Branch</b> <code>feat/agent-apps-skill</code> on contracts</span><span><b>Python plus one HTML file written against the kit</b></span></div>
+  <div class="grid2">
+    <div class="box"><div class="lbl">Files owned</div><pre><code>api/oss/src/core/apps/
+  __init__.py
+  service.py            AppsService: create_app, list_starters
+  starters/
+    board@1/
+      SKILL.md          when to use, config keys, data files
+      index.html        the app, on the kit, ~300 lines
+      app.json          template manifest (template stamped at copy)
+      config.defaults.json
+  skill/
+    SKILL.md            agenta-apps: assembled from sections
+    sections/           folder, bridge, custom-rules, starters, after,
+                        agent-level.md (owned by lane F, consumed here)
+api/oss/src/core/workflows/static_catalog.py   + one entry: agenta-apps
+api/oss/src/core/tools/platform_handlers.py    + create_app, list_starters
+api/oss/tests/pytest/unit/apps/test_create_app.py · test_list_starters.py · test_skill_assembly.py</code></pre></div>
+    <div class="box"><div class="lbl">Op semantics</div><ul>
+      <li><code>create_app(starter, dir, update=false)</code>: resolve starter from the bundle (v1: bundle only; agent starters are read from <code>agent-files/.apps/starters/</code> by <code>list_starters</code> but copying them is phase 3); refuse if <code>dir/app.json</code> exists unless <code>update</code>, which replaces non-data files only; write files through <code>MountsService.write_file</code>; stamp <code>template</code>; return paths</li>
+      <li><code>list_starters()</code>: bundle entries plus any <code>SKILL.md</code> under the agent mount's <code>.apps/starters/*/</code>; returns name, version, when, config keys, data files, access</li>
+      <li>Both run with the project and mount context the runner passes to platform handlers, like <code>read_config</code></li>
+    </ul></div>
+  </div>
+  <h4>Steps</h4>
+  <ul class="steps">
+    <li><span class="k">1</span><span><b>Read how <code>READ_CONFIG_CALL_REF</code> is registered and dispatched</b>, and how the runner passes mount context. Mirror it exactly for the two new refs. Register the tool definitions the model sees (name, description, JSON schema for arguments).</span></li>
+    <li><span class="k">2</span><span><b>Write the board starter</b> against the contract: waits for <code>ready</code>, reads <code>config.json</code> then <code>board.json</code>, <code>not_found</code> as empty, renders columns with kit classes, drag by pointer events and by keyboard menu, whole-file save on drop, <code>conflict</code> → re-read, merge by card text, one retry; respects <code>canWrite</code>; listens for <code>changed</code> and re-reads when no drag is in progress; shows a toast on save. No external resources. Keep it readable: it is also the reference custom-app example.</span></li>
+    <li><span class="k">3</span><span><b>Skill text.</b> Assemble <code>SKILL.md</code> from sections so lane F's agent-level rules drop in without conflict. Content per the creation doc: when, first-check-then-starter-then-custom, folder shape, contract summary, custom rules, starters table generated from the bundle, after-creating reply shape. Target under 2 KB of instruction plus the generated table.</span></li>
+    <li><span class="k">4</span><span><b>Catalogue entry.</b> Add <code>agenta-apps</code> to <code>_STATIC_WORKFLOWS</code> with <code>is_skill</code>, files = the assembled SKILL.md. Attach-by-default: find where drive-bearing agents get their default skills; if no such hook exists, ship the entry and note attachment as a one-line follow-up for lane G to raise.</span></li>
+    <li><span class="k">5</span><span><b>Tests.</b> <code>create_app</code> writes the expected paths with a fake mounts service, refuses an existing manifest, updates only non-data files; <code>list_starters</code> merges bundle and agent-mount entries; the skill assembles and stays under the size budget; the starter's <code>app.json</code> validates against <code>manifest.ts</code>'s rules (mirror the rules in a Python validator in <code>service.py</code>).</span></li>
+    <li><span class="k">6</span><span><b>Starter story.</b> <code>BoardStarter.stories.tsx</code> renders the real <code>board@1/index.html</code> inside lane C's <code>RunView</code> on the mock host with the fixture data: empty board, five cards, read-only grant, a conflict on drop, a <code>changed</code> arrival mid-drag, light and dark. The story imports the starter file by path so a starter edit is visible in Storybook without a copy. This is the starter's review surface and every later starter follows the same pattern.</span></li>
+  </ul>
+  <h4>Done when</h4>
+  <ul class="check"><li><span class="b"></span><span>An agent run on the dev stack with the skill attached, asked for "a board for the launch", calls <code>create_app</code> and replies with a file card; no hand-written HTML in the drive.</span></li><li><span class="b"></span><span>The starter opens in Run and passes the walkthrough's steps 2 to 6 with lane C merged.</span></li><li><span class="b"></span><span>Tests green; ruff clean.</span></li></ul>
+</section>
+
+<!-- ============ LANE E ============ -->
+<section id="laneE" class="lane E">
+  <h3>Lane E · Design kit</h3>
+  <div class="meta"><span><b>Days</b> 1.5</span><span><b>Branch</b> <code>feat/agent-apps-kit</code> on contracts</span><span><b>CSS and one small TS module</b></span></div>
+  <div class="grid2">
+    <div class="box"><div class="lbl">Files owned</div><pre><code>web/packages/agenta-entity-ui/src/drive/htmlApp/kit/
+  agenta-app.css       under 6 KB; the class list from contracts.md
+  tokens.ts            resolveKitTokens(rootEl): Record&lt;string,string&gt;
+                       tokensToCss(tokens): string
+  index.ts             exports KIT_CSS (string import) and the two functions
+web/packages/agenta-entity-ui/tests/unit/htmlApp.kit.test.ts
+web/storybook/stories/entity-ui/htmlApp/Kit.stories.tsx   every class, every state, both themes</code></pre></div>
+    <div class="box"><div class="lbl">Rules</div><ul>
+      <li>Tokens resolve from the host root's computed CSS variables, mapped from the existing theme variables (<code>theme-variables.css</code>), so both hosts and both themes produce them with no new source of truth</li>
+      <li>12 px base, the host's font stack, tabular numerals in <code>.ag-grid</code></li>
+      <li>Focus rings visible; <code>[data-dragging]</code> and <code>[aria-busy]</code> states; <code>color-scheme</code> set from the tokens so native controls match</li>
+      <li>No <code>url()</code>, no <code>@import</code>, no fonts: the CSP would block them and the assembler must never need to strip anything from the kit</li>
+    </ul></div>
+  </div>
+  <h4>Steps</h4>
+  <ul class="steps">
+    <li><span class="k">1</span><span>Map each <code>--ag-*</code> token to the host variable it derives from; write <code>resolveKitTokens</code> with a fallback table for a missing host variable.</span></li>
+    <li><span class="k">2</span><span>Write the stylesheet class by class against the contract's list; verify the size budget in the test.</span></li>
+    <li><span class="k">3</span><span>Build <code>Kit.stories.tsx</code>: one story per class family (controls, surfaces, layout, states), each rendering the kit CSS inside a sandboxed iframe exactly as the assembler injects it, with tokens resolved from the story's root so the theme global drives light and dark. Capture the VRT baseline; this is the regression fixture for every later kit change.</span></li>
+    <li><span class="k">4</span><span>Tests: token resolution for both themes from a fixture root; CSS contains every contracted class and no forbidden constructs.</span></li>
+  </ul>
+  <h4>Done when</h4>
+  <ul class="check"><li><span class="b"></span><span><code>Kit</code> stories reviewed in light and dark, VRT baseline captured; lane D's starter uses only kit classes and looks right in both.</span></li></ul>
+</section>
+
+<!-- ============ LANE F ============ -->
+<section id="laneF" class="lane F">
+  <h3>Lane F · Agent-level layout: instructions and skill rules</h3>
+  <div class="meta"><span><b>Days</b> 1</span><span><b>Branch</b> <code>feat/agent-apps-layout</code> on contracts</span><span><b>Prose with tests</b></span></div>
+  <div class="grid2">
+    <div class="box"><div class="lbl">Files owned</div><pre><code>sdks/python/agenta/sdk/agents/platform_instructions.py   one paragraph after the .tools/ block
+sdks/python/oss/tests/pytest/unit/agents/test_platform_instructions.py   assert it
+api/oss/src/core/apps/skill/sections/agent-level.md      consumed by lane D's assembly</code></pre></div>
+    <div class="box"><div class="lbl">Content</div><ul>
+      <li><b>Instructions paragraph:</b> <code>agent-files/.apps/</code> exists beside <code>.tools/</code>; it holds the agent's app records and starters; it is dimmed to the person, not hidden; never store data files there; the agenta-apps skill says what goes in it</li>
+      <li><b>agent-level.md:</b> on first <code>create_app</code>, write <code>.apps/layout.json</code>; after every app event, rewrite <code>.apps/registry/&lt;session_id&gt;.json</code> whole; before creating, read all registry files and merge by slug; add <code>.apps/notes/&lt;date&gt;-&lt;slug&gt;.md</code> when feedback repeats, never edit a note; when an app's data is periodic, propose a schedule and ask whether the app should live at agent level; never write app data under <code>.apps/</code></li>
+    </ul></div>
+  </div>
+  <h4>Done when</h4>
+  <ul class="check"><li><span class="b"></span><span>Instruction test passes; the paragraph reads in the voice of its neighbours.</span></li><li><span class="b"></span><span>Lane D's assembled skill includes the section and the registry behaviour is observed in lane G's run: a <code>.apps/registry/&lt;session&gt;.json</code> appears after the first <code>create_app</code>.</span></li></ul>
+</section>
+
+<!-- ============ LANE G ============ -->
+<section id="laneG" class="lane G">
+  <h3>Lane G · Integration and QA</h3>
+  <div class="meta"><span><b>Days</b> 1.5</span><span><b>Branch</b> <code>feat/agent-apps</code>, the integration branch</span><span><b>Starts when A, B, C, D are merged into it</b></span></div>
+  <p>Owns no product files. Runs the acceptance script on both hosts with the flag on, files findings back to the owning lane, and re-runs. Deploys the dev stack per the repo's <code>load-env</code> and <code>run.sh</code> pairing; QA in a real browser through <code>browse connect</code>, never headless.</p>
+  <ul class="steps">
+    <li><span class="k">1</span><span>Merge order: B, A, E, C, F, D into the integration branch; rebase each onto it, never merge the base into a lane.</span></li>
+    <li><span class="k">2</span><span>Flag off pass: HTML preview unchanged on both hosts, three fixture files.</span></li>
+    <li><span class="k">3</span><span>Flag on pass: the acceptance script below, desktop then <code>/m</code>, light then dark.</span></li>
+    <li><span class="k">4</span><span>Agent pass: a fresh session on an agent with the skill; "make me a board for the launch"; assert <code>create_app</code> in the tool steps, the manifest on disk, the registry file in <code>agent-files/.apps/</code>.</span></li>
+    <li><span class="k">5</span><span>Conflict pass: open the board, start a drag, have the agent add a card mid-drag, drop; assert both cards present and one <code>conflict</code> in the error strip's history.</span></li>
+    <li><span class="k">6</span><span>Storybook gate on the integration branch: <code>pnpm --filter @agenta/storybook lint</code>, <code>build-storybook</code>, the a11y runner on <code>Drive/HtmlApp/*</code>, and a VRT run against the baselines lanes C and E captured. A story that no longer matches its component fails here, not in review.</span></li>
+    <li><span class="k">7</span><span>Write the PR description per the repo's skill; base is the open release branch; attach screenshots of both hosts and the Storybook build URL.</span></li>
+  </ul>
+</section>
+
+<section id="branching">
+  <h2>Branches and merge order</h2>
+  <figure>
+    <svg viewBox="0 0 960 200" role="img" aria-label="Branch diagram: the open release branch at the bottom; feat/agent-apps-contracts on it; six lane branches on contracts, with run-ui stacked on bridge; all merge into feat/agent-apps in the order B, A, E, C, F, D; feat/agent-apps opens one PR to the release branch.">
+      <defs><marker id="br" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker></defs>
+      <g font-size="11" fill="currentColor">
+        <rect x="20" y="150" width="920" height="30" rx="5" fill="currentColor" opacity=".06"/><text x="480" y="169" text-anchor="middle" font-family="IBM Plex Mono, monospace">release/v0.118.x (the open release branch at start; verify)</text>
+        <rect x="380" y="104" width="200" height="30" rx="5" fill="none" stroke="currentColor"/><text x="480" y="123" text-anchor="middle" font-family="IBM Plex Mono, monospace">feat/agent-apps-contracts</text>
+        <g font-family="IBM Plex Mono, monospace" font-size="10">
+          <rect x="20" y="50" width="130" height="26" rx="4" fill="none" stroke="var(--lB)" stroke-width="1.5"/><text x="85" y="67" text-anchor="middle">…-api-etag</text>
+          <rect x="165" y="50" width="130" height="26" rx="4" fill="none" stroke="var(--lA)" stroke-width="1.5"/><text x="230" y="67" text-anchor="middle">…-bridge</text>
+          <rect x="165" y="14" width="130" height="26" rx="4" fill="none" stroke="var(--lC)" stroke-width="1.5"/><text x="230" y="31" text-anchor="middle">…-run-ui</text>
+          <rect x="310" y="50" width="130" height="26" rx="4" fill="none" stroke="var(--lE)" stroke-width="1.5"/><text x="375" y="67" text-anchor="middle">…-kit</text>
+          <rect x="455" y="50" width="130" height="26" rx="4" fill="none" stroke="var(--lF)" stroke-width="1.5"/><text x="520" y="67" text-anchor="middle">…-layout</text>
+          <rect x="600" y="50" width="130" height="26" rx="4" fill="none" stroke="var(--lD)" stroke-width="1.5"/><text x="665" y="67" text-anchor="middle">…-skill</text>
+          <rect x="790" y="50" width="150" height="26" rx="4" fill="var(--lG)" opacity=".25"/><rect x="790" y="50" width="150" height="26" rx="4" fill="none" stroke="var(--lG)" stroke-width="1.5"/><text x="865" y="67" text-anchor="middle">feat/agent-apps</text>
+        </g>
+      </g>
+      <g stroke="currentColor" fill="none" opacity=".6">
+        <line x1="480" y1="150" x2="480" y2="134" marker-end="url(#br)"/>
+        <path d="M400 104 C 300 104, 200 100, 85 76" marker-end="url(#br)"/><path d="M430 104 C 380 104, 300 100, 230 76" marker-end="url(#br)"/><line x1="460" y1="104" x2="375" y2="76" marker-end="url(#br)"/><line x1="500" y1="104" x2="520" y2="76" marker-end="url(#br)"/><path d="M540 104 C 600 104, 640 100, 665 76" marker-end="url(#br)"/>
+        <line x1="230" y1="50" x2="230" y2="40" marker-end="url(#br)"/>
+      </g>
+      <g stroke="var(--lG)" fill="none"><path d="M150 63 C 400 40, 700 10, 790 56" stroke-dasharray="4 3" marker-end="url(#br)"/></g>
+      <text x="480" y="12" font-size="10" fill="currentColor" opacity=".7" text-anchor="middle">lanes merge into feat/agent-apps in order B · A · E · C · F · D, then one PR to the release branch</text>
+      <text x="865" y="94" font-size="10" fill="currentColor" opacity=".7" text-anchor="middle">→ PR to release</text>
+    </svg>
+    <figcaption>One integration branch, one PR. Lane branches are reviewed as stacked PRs with <code>--base</code> set to their parent so each shows only its own diff.</figcaption>
+  </figure>
+  <ul>
+    <li>If the checkout is in GitButler workspace mode, use <code>but</code> per the repo guide and load the <code>gitbutler-stacks</code> skill before any multi-lane work. Sync a lane by rebasing on its parent, never by merging the parent in.</li>
+    <li>Stage by explicit path. Never <code>git add -A</code> in a shared worktree.</li>
+    <li>Pre-commit hooks reformat; when they do, rerun the commit.</li>
+    <li>Commit messages and PR bodies carry no tool attribution.</li>
+  </ul>
+</section>
+
+<section id="rules">
+  <h2>Rules for every agent</h2>
+  <ul class="check">
+    <li><span class="b"></span><span><b>Read the contracts first.</b> <code>contracts.md</code>, <code>protocol.ts</code>, <code>manifest.ts</code>. If a lane needs a change to them, it proposes the change in its PR and pings lane 0; it does not fork the type locally.</span></li>
+    <li><span class="b"></span><span><b>Touch only owned files.</b> A needed change outside the lane is a one-line note in the PR for the owning lane, not an edit.</span></li>
+    <li><span class="b"></span><span><b>Extract, never duplicate.</b> Assembler code moves out of <code>renderers.tsx</code>; it is not copied. Existing helpers (<code>fetchMountText</code>, <code>useDriveGeneration</code>, <code>userScopedFlagAtom</code>) are used, not re-implemented.</span></li>
+    <li><span class="b"></span><span><b>Packages stay host-free.</b> No <code>@/oss</code>, no antd, no <code>--ant-color-*</code> in anything under <code>web/packages</code>. Semantic tokens only. New web packages are not needed in phase 1.</span></li>
+    <li><span class="b"></span><span><b>Every UI component ships with stories.</b> Under <code>web/storybook/stories/entity-ui/htmlApp/</code>, titled <code>@agenta/entity-ui/Drive/HtmlApp/&lt;Component&gt;</code>, covering the states a reviewer cannot reach by clicking: empty, loading, error, read-only, conflict, hidden. Both themes through the theme global. Run <code>pnpm --filter @agenta/storybook lint</code> and build it once before the PR; nothing else type-checks that package. No <code>AntdVsAgenta</code> pair is needed: these components have no antd predecessor.</span></li>
+    <li><span class="b"></span><span><b>Gates before a PR.</b> Web: <code>pnpm lint-fix</code> in <code>web</code>, then check prettier on your own files, then the oss tsc invocation; gate on the diff, not the count. API and SDK: <code>ruff format</code>, <code>ruff check --fix</code>, tests.</span></li>
+    <li><span class="b"></span><span><b>Environment facts.</b> API on :8081 behind traefik; the dev stack's <code>node_modules</code> are baked into the image, so package edits need a container restart to show; Postgres is <code>username:password</code>.</span></li>
+    <li><span class="b"></span><span><b>Report honestly.</b> A skipped step is reported as skipped. A spike that says "no native conditional put" is a finding, not a failure.</span></li>
+  </ul>
+</section>
+
+<section id="qa">
+  <h2>Acceptance script</h2>
+  <p>Run by lane G on desktop and <code>/m</code>, light and dark, flag on. Each line is pass or fail; a fail names the owning lane.</p>
+  <div class="tbl"><table>
+    <thead><tr><th>#</th><th>Step</th><th>Expect</th><th>Lane</th></tr></thead>
+    <tbody>
+      <tr><td class="num">1</td><td>Open an HTML file from the agent's drive</td><td>Preview | Source | Run segment; Preview identical to before</td><td>C</td></tr>
+      <tr><td class="num">2</td><td>Choose Run in a folder with <code>app.json</code> saying read-write</td><td>Grant sheet, write option preselected; hidden for a viewer role</td><td>C</td></tr>
+      <tr><td class="num">3</td><td>Grant read-write</td><td>Board renders from <code>board.json</code>; strip shows Running · read + write · dir</td><td>A C D E</td></tr>
+      <tr><td class="num">4</td><td>Drag a card</td><td>Toast; <code>board.json</code> changed on the server with an <code>If-Match</code> in the network log; Files pane re-lists</td><td>A B C</td></tr>
+      <tr><td class="num">5</td><td>Reload the page, reopen the file</td><td>Run resumes without a prompt (same browser session)</td><td>A C</td></tr>
+      <tr><td class="num">6</td><td>Have the agent add a card, wait</td><td>Board updates on its own via <code>changed</code>; no click</td><td>A C D</td></tr>
+      <tr><td class="num">7</td><td>Start a drag, have the agent write, drop</td><td>Both changes present; one <code>conflict</code> retried silently</td><td>A B D</td></tr>
+      <tr><td class="num">8</td><td>Edit the app's HTML as the agent, click Reload files</td><td>New version runs; no re-prompt</td><td>A C</td></tr>
+      <tr><td class="num">9</td><td>A fixture with <code>&lt;script src="app.js"&gt;</code> and a CDN script</td><td><code>app.js</code> inlined and running; CDN tag reported in the error strip</td><td>C</td></tr>
+      <tr><td class="num">10</td><td>A fixture with a link to a sibling page and a link outside the folder</td><td>Sibling opens in the same iframe under the same grant; outside opens in the drive</td><td>C</td></tr>
+      <tr><td class="num">11</td><td>Grant read only, drag a card</td><td>Move shown as unsaved; <code>read_only</code> in the strip</td><td>A D</td></tr>
+      <tr><td class="num">12</td><td>Switch theme</td><td>App recolours without reload</td><td>C E</td></tr>
+      <tr><td class="num">13</td><td>Close the browser, reopen</td><td>Preview by default; Run asks again</td><td>A C</td></tr>
+      <tr><td class="num">14</td><td>Fresh session, "make me a board for the launch"</td><td><code>create_app</code> in the tool steps; manifest and registry file on disk; file card in the reply</td><td>D F</td></tr>
+      <tr><td class="num">15</td><td>Flag off, repeat 1</td><td>Preview | Source only; no Run</td><td>C</td></tr>
+      <tr><td class="num">16</td><td>Open Storybook, <code>Drive/HtmlApp</code></td><td>HtmlAppBody, GrantSheet, RunView, Kit and BoardStarter stories present, render in both themes, a11y clean, VRT unchanged from baseline</td><td>C D E</td></tr>
+    </tbody>
+  </table></div>
+</section>
+</main>
+</div></div>
+
+</body>
+</html>
