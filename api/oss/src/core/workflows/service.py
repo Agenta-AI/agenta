@@ -3564,6 +3564,19 @@ class SimpleWorkflowsService:
             return None
         return await self.fetch(project_id=project_id, workflow_id=workflow.id)
 
+    async def fetch_idempotent(
+        self,
+        *,
+        project_id: UUID,
+        requested_slug: Optional[str],
+        idempotency_key: str,
+    ) -> Optional[SimpleWorkflow]:
+        slug = self._idempotent_slug(
+            requested_slug=requested_slug,
+            idempotency_key=idempotency_key,
+        )
+        return await self._fetch_complete_by_slug(project_id=project_id, slug=slug)
+
     async def create_idempotent(
         self,
         *,

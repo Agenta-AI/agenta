@@ -153,6 +153,27 @@ async def test_different_keys_create_distinct_workflows():
 
 
 @pytest.mark.asyncio
+async def test_fetch_idempotent_reads_the_complete_workflow():
+    service = _MemorySimpleWorkflows(lock_engine=_MemoryLock())
+    key = "catalog:sha256:abc:prospect-research"
+    created = await service.create_idempotent(
+        project_id=PROJECT_ID,
+        user_id=USER_ID,
+        simple_workflow_create=_request(),
+        idempotency_key=key,
+    )
+
+    fetched = await service.fetch_idempotent(
+        project_id=PROJECT_ID,
+        requested_slug="prospect-research",
+        idempotency_key=key,
+    )
+
+    assert fetched.id == created.id
+    assert fetched.revision_id == created.revision_id
+
+
+@pytest.mark.asyncio
 async def test_slug_is_derived_from_the_idempotency_key():
     service = _MemorySimpleWorkflows(lock_engine=_MemoryLock())
     key = "catalog:sha256:abc:prospect-research"

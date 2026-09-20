@@ -58,6 +58,34 @@ def merge_platform_meta(
     return merged
 
 
+def read_create_request(meta: dict[str, Any] | None) -> dict[str, str] | None:
+    if meta is None:
+        return None
+    if not isinstance(meta, dict):
+        raise TemplateProvenanceInvalid()
+    agenta = meta.get(_PLATFORM_META_KEY)
+    if agenta is None:
+        return None
+    if not isinstance(agenta, dict):
+        raise TemplateProvenanceInvalid()
+    request = agenta.get("create_request")
+    if request is None:
+        return None
+    if not isinstance(request, dict):
+        raise TemplateProvenanceInvalid()
+    required = {"namespace", "key_hash", "request_fingerprint"}
+    if (
+        set(request) != required
+        or request.get("namespace") != "agent-template-load"
+        or not isinstance(request.get("key_hash"), str)
+        or not request["key_hash"]
+        or not isinstance(request.get("request_fingerprint"), str)
+        or not request["request_fingerprint"]
+    ):
+        raise TemplateProvenanceInvalid()
+    return copy.deepcopy(request)
+
+
 def read_template_origin(meta: dict[str, Any] | None) -> dict[str, Any] | None:
     if meta is None:
         return None

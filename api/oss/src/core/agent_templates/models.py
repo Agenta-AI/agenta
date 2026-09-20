@@ -5,7 +5,10 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from agenta.sdk.agents import SkillTemplate
 
-from oss.src.core.agent_templates.dtos import InternalTemplateSource
+from oss.src.core.agent_templates.dtos import (
+    InternalTemplateSource,
+    ResolvedTemplateSource,
+)
 from oss.src.core.workflows.dtos import WorkflowRevisionData
 
 
@@ -179,3 +182,14 @@ class CompiledTemplate(StrictModel):
     revision_data: WorkflowRevisionData
     workspace: ParsedWorkspace
     first_message: str
+
+
+class PreparedTemplateLoad(StrictModel):
+    workflow_id: UUID
+    workflow_slug: str
+    variant_id: UUID
+    revision_id: UUID
+    resolved_source: ResolvedTemplateSource
+    workspace: ParsedWorkspace
+    first_message: str
+    replayed: bool
