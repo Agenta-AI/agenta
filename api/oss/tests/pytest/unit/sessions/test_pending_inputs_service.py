@@ -39,6 +39,13 @@ class MemoryInputsDAO:
     async def create_input(
         self, *, user_id, pending_input, prioritize=False, **_kwargs
     ):
+        existing = await self.fetch_by_idempotency_key(
+            project_id=pending_input.project_id,
+            session_id=pending_input.session_id,
+            idempotency_key=pending_input.idempotency_key,
+        )
+        if existing is not None:
+            return existing
         item = PendingInput(
             id=uuid4(),
             created_at=datetime.now(timezone.utc),
@@ -48,6 +55,26 @@ class MemoryInputsDAO:
             **pending_input.model_dump(),
         )
         self.items.append(item)
+        return item
+
+    async def promote_next(
+        self, *, project_id, session_id, execution_id, input_id=None, **_kwargs
+    ):
+        item = next(
+            (
+                candidate
+                for candidate in self.items
+                if candidate.project_id == project_id
+                and candidate.session_id == session_id
+                and candidate.state == PendingInputState.pending
+                and (input_id is None or candidate.id == input_id)
+            ),
+            None,
+        )
+        if item is None:
+            return None
+        item.state = PendingInputState.promoted
+        item.promoted_execution_id = execution_id
         return item
 
     async def list_pending(self, *, project_id, session_id):
@@ -91,6 +118,85 @@ class Streams:
     async def fetch_header(self, **_kwargs):
         return SimpleNamespace(
             flags=SimpleNamespace(is_running=self.running), turn_id="execution-1"
+        )
+
+
+@pytest.mark.asyncio
+async def test_claim_for_execution_promotes_without_exposing_pending_input():
+    project_id = uuid4()
+    user_id = uuid4()
+    dao = MemoryInputsDAO()
+    service = SessionInputsService(inputs_dao=dao, streams_service=Streams())
+
+    claimed = await service.claim_for_execution(
+        project_id=project_id,
+        user_id=user_id,
+        session_id="session-1",
+        execution_id="execution-1",
+        content={"message": "Configure the agent."},
+        idempotency_key="load-1",
+    )
+
+    assert claimed.state == PendingInputState.promoted
+    assert claimed.promoted_execution_id == "execution-1"
+    assert (
+        await service.list_pending(project_id=project_id, session_id="session-1") == []
+    )
+
+
+@pytest.mark.asyncio
+async def test_claim_for_execution_rejects_changed_content():
+    project_id = uuid4()
+    user_id = uuid4()
+    service = SessionInputsService(
+        inputs_dao=MemoryInputsDAO(), streams_service=Streams()
+    )
+    first = await service.claim_for_execution(
+        project_id=project_id,
+        user_id=user_id,
+        session_id="session-1",
+        execution_id="execution-1",
+        content={"message": "Configure the agent."},
+        idempotency_key="load-1",
+    )
+
+    with pytest.raises(SessionInputIdempotencyConflict):
+        await service.claim_for_execution(
+            project_id=project_id,
+            user_id=user_id,
+            session_id="session-1",
+            execution_id="execution-1",
+            content={"message": "Different setup text."},
+            idempotency_key="load-1",
+        )
+
+    assert first.state == PendingInputState.promoted
+
+
+@pytest.mark.asyncio
+async def test_claim_for_execution_rejects_a_different_execution():
+    project_id = uuid4()
+    user_id = uuid4()
+    service = SessionInputsService(
+        inputs_dao=MemoryInputsDAO(), streams_service=Streams()
+    )
+    await service.claim_for_execution(
+        project_id=project_id,
+        user_id=user_id,
+        session_id="session-1",
+        execution_id="execution-1",
+        content={"message": "Configure the agent."},
+        idempotency_key="load-1",
+    )
+
+    with pytest.raises(SessionInputIdempotencyConflict):
+        await service.claim_for_execution(
+            project_id=project_id,
+            user_id=user_id,
+            session_id="session-1",
+            execution_id="execution-2",
+            content={"message": "Configure the agent."},
+            idempotency_key="load-1",
         )
 
 

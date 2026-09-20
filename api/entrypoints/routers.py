@@ -230,6 +230,7 @@ from oss.src.dbs.postgres.sessions.executions.dao import SessionExecutionsDAO
 from oss.src.dbs.postgres.sessions.inputs.dbes import SessionInputDBE  # noqa: F401
 from oss.src.dbs.postgres.sessions.inputs.dao import SessionInputsDAO
 from oss.src.core.sessions.inputs.service import SessionInputsService
+from oss.src.core.sessions.starts.service import SessionStartsService
 from oss.src.core.sessions.commands.service import SessionCommandsService
 from oss.src.dbs.http.sessions.control_delivery_direct import DirectControlDelivery
 from oss.src.tasks.asyncio.sessions.orphan_sweep import orphan_sweep_loop
@@ -1366,6 +1367,12 @@ session_inputs_service = SessionInputsService(
     streams_service=session_streams_service,
     executions_dao=session_executions_dao,
     continuation_resumer=session_commands_service.resume_recoverable_continuation,
+)
+session_starts_service = SessionStartsService(
+    inputs_service=session_inputs_service,
+    executions_dao=session_executions_dao,
+    workflows_service=workflows_service,
+    lock_engine=_lock_engine,
 )
 workflows_service.set_session_continuation_resumer(
     session_commands_service.resume_recoverable_continuation

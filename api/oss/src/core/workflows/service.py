@@ -3261,6 +3261,7 @@ class WorkflowsService:
         #
         run_id: Optional[str] = None,
         control_command_id: Optional[UUID] = None,
+        strict_start: bool = False,
     ) -> WorkflowServiceDetachedResponse:
         """Fire-and-forget invoke: stream the service and return on the started handshake.
 
@@ -3299,7 +3300,7 @@ class WorkflowsService:
                 exclude_none=True,
             ),
             run_id=run_id,
-            strict_first_record=bool(meta.get("control_command_id")),
+            strict_first_record=strict_start or bool(meta.get("control_command_id")),
         )
 
     async def inspect_workflow(
