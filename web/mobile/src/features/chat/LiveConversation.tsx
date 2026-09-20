@@ -786,10 +786,7 @@ export const LiveConversation = ({
                         {/* Docked with the other strips, directly above the composer it disables —
                         the same place the desktop banner sits. */}
                         <ContentRail>
-                            <ConnectModelStrip
-                                providerEntry={modelKey.providerEntry}
-                                gateActive={modelBlocked}
-                            />
+                            <ConnectModelStrip gateActive={modelBlocked} />
                         </ContentRail>
                         {/* Failed Home tasks retain their original text and files for retry. */}
                         {pendingTaskError ? (
