@@ -34,6 +34,42 @@ def _create_member_account(admin_api, *, email):
     return next(iter(response.json()["accounts"].values()))
 
 
+def test_admin_created_account_can_list_email_compatible_organization(admin_api):
+    email = f"dashboard-login-{uuid4().hex[:8]}@test.agenta.ai"
+    response = admin_api(
+        "POST",
+        "/admin/simple/accounts/",
+        json={
+            "accounts": {
+                "u": {
+                    "user": {"email": email},
+                    "options": {
+                        "create_api_keys": True,
+                        "return_api_keys": True,
+                        "seed_defaults": False,
+                    },
+                }
+            }
+        },
+    )
+    assert response.status_code == 200, response.text
+
+    account = response.json()["accounts"]["u"]
+    organization_id = next(iter(account["organizations"].values()))["id"]
+    api_key = account["api_keys"]["key"]
+
+    organizations = admin_api(
+        "GET",
+        "/organizations/",
+        headers={"Authorization": f"ApiKey {api_key}"},
+    )
+    assert organizations.status_code == 200, organizations.text
+    organization = next(
+        item for item in organizations.json() if item["id"] == organization_id
+    )
+    assert organization["flags"]["allow_email"] is True
+
+
 @pytest.mark.usefixtures("cls_account")
 class TestOrganizationLifecycle:
     def test_create_organization(self, authed_api):
