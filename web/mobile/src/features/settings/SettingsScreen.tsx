@@ -21,6 +21,7 @@ import {
     type AuthFlagKey,
     DomainsSection,
     GatewayToolsSection,
+    McpServersSection,
     OrganizationsPage,
     SsoProvidersSection,
     SettingsPageShell,
@@ -201,6 +202,19 @@ const TabBody = ({
             return (
                 <>
                     <GatewayToolsSection confirm={confirm} copy={INTEGRATIONS_SECTION_COPY} />
+                    {confirmModal}
+                </>
+            )
+        // Writable, like Tools: the section and its journey are shared with the desktop, so
+        // a connection added here is the same connection added there.
+        case "mcpEndpoints":
+            // Gated here too, not only in `useActiveSettingsTab`: a render boundary that
+            // trusts the router is one refactor away from rendering a surface whose every
+            // action the gateway refuses.
+            if (!access.canShowMcpEndpoints) return null
+            return (
+                <>
+                    <McpServersSection confirm={confirm} />
                     {confirmModal}
                 </>
             )

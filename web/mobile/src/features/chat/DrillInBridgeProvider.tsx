@@ -6,7 +6,6 @@ import {
     useWorkflowReferenceBridge,
     type DrillInUIComponents,
 } from "@agenta/entity-ui/drill-in"
-import {CatalogDrawer} from "@agenta/entity-ui/gatewayTool"
 import {useLLMProviderConfig} from "@agenta/entity-ui/secretProvider"
 import {openTraceDrawerAtom} from "@agenta/observability/traceDrawer"
 import {isEE} from "@agenta/shared/api"
@@ -98,8 +97,6 @@ export const DrillInBridgeProvider = ({
                 <GatewayToolsBridgeProvider>{children}</GatewayToolsBridgeProvider>
             </DrillInUIProvider>
             {llmProviderOverlay}
-            {/* The catalog hand-off only sets an atom — unmounted, that action does nothing. */}
-            <CatalogDrawer />
         </>
     )
 }

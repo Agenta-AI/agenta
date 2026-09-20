@@ -7,6 +7,7 @@ export {
     isBillingEnabled,
     isEE,
     isEmailInvitationsEnabled,
+    isMcpGatewayEnabled,
     isToolsEnabled,
     getAgentaApiUrl,
     getAgentaWebUrl,
@@ -22,7 +23,7 @@ export {
     resetAxiosConfig,
     lowPriorityWhenCached,
 } from "./axios"
-export {configureAuthToken, getAuthToken} from "./axios"
+export {configureAuthToken, getAuthToken, isMcpRelayUrl} from "./axios"
 export type {AxiosInterceptorConfig} from "./axios"
 export type {
     AxiosInstance,

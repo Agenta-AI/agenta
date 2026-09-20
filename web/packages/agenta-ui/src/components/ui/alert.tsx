@@ -55,6 +55,12 @@ export interface AlertProps
     closable?: boolean
     onClose?: React.MouseEventHandler<HTMLButtonElement>
     icon?: React.ReactNode
+    /**
+     * A trailing control on the alert's own line: the reconnect link on an expired-login banner,
+     * the retry on a failed probe. It is right aligned and never wraps, so the message reflows
+     * around it rather than pushing it onto a second line.
+     */
+    action?: React.ReactNode
 }
 
 export function Alert({
@@ -67,6 +73,7 @@ export function Alert({
     onClose,
     banner = false,
     icon,
+    action,
     ...props
 }: AlertProps) {
     const resolvedType = type ?? "info"
@@ -114,6 +121,14 @@ export function Alert({
                     </div>
                 ) : null}
             </div>
+            {action != null ? (
+                <div
+                    data-slot="alert-action"
+                    className="flex shrink-0 items-center gap-2 self-center"
+                >
+                    {action}
+                </div>
+            ) : null}
             {closable ? (
                 <button
                     type="button"

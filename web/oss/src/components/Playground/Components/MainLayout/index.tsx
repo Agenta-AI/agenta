@@ -343,7 +343,18 @@ const PlaygroundMainView = ({
                 <div className="w-full h-full overflow-y-auto overflow-x-hidden">
                     {configEntityIds.map((variantId) => (
                         <PlaygroundVariantConfig
-                            key={variantId}
+                            // The same stable key the split view below already uses, and for the
+                            // same reason: an agent self-commit switches the revision in place, so
+                            // keying this panel by the revision id would tear it down on every
+                            // commit and take its local state with it — the open item in the
+                            // section drawer included. `PlaygroundVariantConfig` reads everything
+                            // through `variantId`-keyed families, so the switch arrives as a prop
+                            // update. This branch was left behind when the split view was fixed.
+                            key={
+                                renderAgentGenerationHost
+                                    ? "agent-config-host"
+                                    : `variant-config-${variantId}`
+                            }
                             variantId={variantId}
                             embedded={embedded}
                             externalViewMode={configViewMode}

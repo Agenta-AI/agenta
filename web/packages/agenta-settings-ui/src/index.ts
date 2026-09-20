@@ -1,3 +1,4 @@
+export type {ConfirmDestructive, DestructiveConfirmProps} from "./confirm"
 export {default as SettingsPageShell, type SettingsPageShellProps} from "./SettingsPageShell"
 export {ThemePicker, type ThemePickerProps, type ThemeChoice} from "./ThemePicker"
 export {PreferencesPage, type PreferencesPageProps, type PreferenceFlag} from "./PreferencesPage"
@@ -74,6 +75,11 @@ export {
 } from "./access/entitlements"
 export {DomainsSection, type DomainsSectionProps} from "./access/DomainsSection"
 export {SsoProvidersSection, type SsoProvidersSectionProps} from "./access/SsoProvidersSection"
+export {
+    default as McpServersSection,
+    type McpServersSectionCopy,
+    type McpServersSectionProps,
+} from "./mcp/McpServersSection"
 export {
     default as GatewayToolsSection,
     type GatewayToolsSectionCopy,

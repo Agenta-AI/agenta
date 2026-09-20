@@ -23,10 +23,18 @@ import {
     AttachmentCard,
     AttachmentCardGrid,
     CollapsibleMessageBody,
+    McpServerNoticeCard,
+    RunFailureCallout,
     StartupActivity,
     TurnFooter,
 } from "@agenta/chat/components"
-import {isToolPart, SESSION_TURN_IN_USE_CODE, toolIdentity} from "@agenta/chat/model"
+import {
+    buildTurnRenderItems,
+    executedToolIdentities,
+    isReadableMcpServerNoticePart,
+    isToolPart,
+    toolPartsSignature,
+} from "@agenta/chat/model"
 import {
     errorKey,
     expandedValueAtomFamily,
@@ -52,9 +60,8 @@ import {
     turnToolbarRevealClass,
     userBubbleContentClass,
 } from "@agenta/ui/components/presentational"
-import {Button} from "@agenta/ui/ui"
-import {Brain, CaretRight, Robot, User, XCircle} from "@phosphor-icons/react"
-import type {FileUIPart, ReasoningUIPart, ToolUIPart, UIMessage} from "ai"
+import {Brain, CaretRight, Robot, User} from "@phosphor-icons/react"
+import type {FileUIPart, ReasoningUIPart, UIMessage} from "ai"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {useAttachmentMediaSrc} from "../assets/attachmentMedia"
@@ -147,133 +154,6 @@ const ReasoningPart = ({
                         />
                     </div>
                 </div>
-            </div>
-        </div>
-    )
-}
-
-/** Failure classes the user can clear themselves by adding their own provider key. */
-const STARTER_CREDIT_CODES = new Set([
-    "starter_credits_exhausted",
-    "starter_credits_program_paused",
-])
-
-/**
- * Failure classes cleared by signing in again, not by a key. The subscription's stored sign-in is
- * dead and no newer one exists, so the fix is a new device login on the AI providers page — which
- * is where the provider drawer opens.
- */
-const SUBSCRIPTION_LOGIN_CODES = new Set(["subscription_login_required"])
-
-/** Transient failure classes where the honest advice is simply to run the turn again. */
-const RETRYABLE_CODES = new Set([
-    "continuation_resumed",
-    "credential_delivery_failed",
-    "starter_credits_unavailable",
-    "rate_limited",
-    // The run never produced an outcome of its own and was closed for it — by the runner when
-    // a turn would not unwind, or by the platform's execution watchdog when the runner itself
-    // was gone. Nothing is wrong with the request, so sending it again is the whole fix.
-    "execution_lost",
-    // Another session refreshed the subscription sign-in while this turn was using the old one.
-    // The newer sign-in is already stored, so the next attempt uses it.
-    "subscription_login_refreshed",
-])
-
-// An admission refusal means the message was not sent, not that an agent run failed.
-const NOT_SENT_CODES = new Set([SESSION_TURN_IN_USE_CODE])
-
-/** The ONE rule driving both the clamp and the toggle — they can't disagree and hide text (#5350). */
-const isBigError = (text: string) => text.length > 240 || text.split("\n").length > 4
-
-/**
- * Failed-run body: the icon + "The agent run failed" + the reason. An everyday reason shows in
- * full; a big one (stacktrace) clamps behind a "Show more" that opens a scrollable block, so it
- * can't drown the chat.
- */
-export const RunErrorBody = ({
-    text,
-    stateKey,
-    code,
-    transport,
-    onRetry,
-}: {
-    text: string
-    stateKey: string
-    /** The runner's failure class, when the turn carried one (`data-agent-error`'s `code`). */
-    code?: string
-    /** The request never reached Agenta — retryable, and it has no code to match on. */
-    transport?: boolean
-    /** Re-run the failed turn; offered for transport failures and the classes in RETRYABLE_CODES. */
-    onRetry?: () => void
-}) => {
-    const stored = useAtomValue(expandedValueAtomFamily(stateKey))
-    const setExpanded = useSetAtom(setExpandedAtom)
-    const requestProviderDrawer = useSetAtom(openProviderDrawerRequestAtom)
-    const expanded = stored ?? false
-    const big = isBigError(text)
-    const offerOwnKey = code ? STARTER_CREDIT_CODES.has(code) : false
-    const offerSignIn = code ? SUBSCRIPTION_LOGIN_CODES.has(code) : false
-    const notSent = !!code && NOT_SENT_CODES.has(code)
-    const offerRetry =
-        !notSent && !!onRetry && (!!transport || (!!code && RETRYABLE_CODES.has(code)))
-
-    return (
-        <div className="flex items-start gap-2 rounded-xl bg-[var(--ant-color-error-bg)] px-4 py-3">
-            <XCircle size={16} weight="fill" className="mt-px shrink-0 text-colorError" />
-            <div className="flex min-w-0 flex-col items-start gap-0.5">
-                <span className="text-xs font-medium text-colorError">
-                    {notSent ? "Message not sent" : "The agent run failed"}
-                </span>
-                {big && expanded ? (
-                    <pre className="m-0 max-h-60 w-full overflow-auto whitespace-pre-wrap break-words bg-transparent p-0 font-mono text-xs !text-colorErrorText">
-                        {text}
-                    </pre>
-                ) : (
-                    <span
-                        className={`whitespace-pre-wrap break-words text-xs text-colorErrorText ${
-                            big ? "line-clamp-3" : ""
-                        }`}
-                        title={big ? text : undefined}
-                    >
-                        {text}
-                    </span>
-                )}
-                {big && (
-                    <button
-                        type="button"
-                        onClick={() => setExpanded({key: stateKey, value: !expanded})}
-                        aria-expanded={expanded}
-                        className="-ml-1 cursor-pointer rounded border-0 bg-transparent px-1 py-0.5 text-xs font-medium text-colorError transition-colors hover:bg-[var(--ant-color-error-bg)]"
-                    >
-                        {expanded ? "Show less" : "Show more"}
-                    </button>
-                )}
-                {offerOwnKey && (
-                    <Button
-                        size="sm"
-                        variant="outline"
-                        className="mt-1"
-                        onClick={() => requestProviderDrawer(true)}
-                    >
-                        Add your key
-                    </Button>
-                )}
-                {offerSignIn && (
-                    <Button
-                        size="sm"
-                        variant="outline"
-                        className="mt-1"
-                        onClick={() => requestProviderDrawer(true)}
-                    >
-                        Sign in again
-                    </Button>
-                )}
-                {offerRetry && (
-                    <Button size="sm" variant="outline" className="mt-1" onClick={onRetry}>
-                        Try again
-                    </Button>
-                )}
             </div>
         </div>
     )
@@ -393,6 +273,9 @@ const AgentMessage = ({
     onRetry,
 }: AgentMessageProps) => {
     const openTraceDrawer = useSetAtom(openTraceDrawerAtom)
+    // Both recovery escapes on a failed run land on the AI providers page, which is what the
+    // provider drawer opens; the shared callout only draws them because this app has one.
+    const requestProviderDrawer = useSetAtom(openProviderDrawerRequestAtom)
     const isUser = message.role === "user"
     // Build vs Chat: Build (config panel open, not maximized) shows the full step log — per-tool
     // input/output/error + expanded reasoning; Chat keeps the calm collapsed summary.
@@ -420,14 +303,16 @@ const AgentMessage = ({
         title?: string
     }[]
 
-    // "Answer" = anything the user is meant to read as a reply (text / tool / file / source).
-    // Reasoning alone is NOT an answer — a turn that only thought hasn't responded.
+    // "Answer" = anything the user is meant to read as a reply (text / tool / file / source, and
+    // the notice for a server that did not join). Reasoning alone is NOT an answer — a turn that
+    // only thought hasn't responded.
     const hasAnswer = message.parts.some(
         (p) =>
             (p.type === "text" && (p as {text?: string}).text) ||
             isToolPart(p.type) ||
             p.type === "file" ||
-            p.type === "source-url",
+            p.type === "source-url" ||
+            isReadableMcpServerNoticePart(p),
     )
     const hasReasoning = message.parts.some(
         (p) => p.type === "reasoning" && (p as {text?: string}).text,
@@ -462,24 +347,8 @@ const AgentMessage = ({
     // (id + state) that stays STABLE while text streams — so the tool-input JSON.stringify doesn't
     // re-run on every streamed token of a tool-heavy turn. Hoisted above the early returns below to
     // keep hook order stable.
-    const toolSignature = message.parts
-        .filter((p) => isToolPart(p.type))
-        .map((p) => `${(p as ToolUIPart).toolCallId ?? ""}:${(p as ToolUIPart).state ?? ""}`)
-        .join("|")
-    const executedToolIdentities = useMemo(
-        () =>
-            new Set(
-                message.parts
-                    .filter(
-                        (p) =>
-                            isToolPart(p.type) &&
-                            ((p as ToolUIPart).state === "output-available" ||
-                                (p as ToolUIPart).state === "output-error"),
-                    )
-                    .map((p) => toolIdentity(p as ToolUIPart)),
-            ),
-        [toolSignature],
-    )
+    const toolSignature = toolPartsSignature(message.parts)
+    const executed = useMemo(() => executedToolIdentities(message.parts), [toolSignature])
 
     // Message-scoped render hints (sibling `data-render` parts). Memoized so the stable reference
     // doesn't bust the memoized ClientToolPart on nowTick re-renders. Must sit with the other hooks
@@ -499,53 +368,18 @@ const AgentMessage = ({
         return <PendingTurn sessionId={sessionId} />
     }
 
-    // Tools can be interleaved with text / reasoning, so fold only *consecutive* tool parts
-    // into one ToolActivity group (a run of calls reads as a single "Used N tools" line).
-    type RenderItem =
-        | {kind: "part"; part: UIMessage["parts"][number]; index: number}
-        | {kind: "tools"; parts: ToolUIPart[]; index: number}
-        | {kind: "clientTool"; part: ToolUIPart; index: number}
-        | {kind: "files"; parts: FileUIPart[]; index: number}
-    // A HITL-approved tool's part LINGERS in `approval-responded` (a perpetual spinner, no output):
-    // the cold-replay runner re-issues the approved call under a FRESH id, so its execution output
-    // lands on a SEPARATE sibling part. Drop the answered gate once its executed sibling exists (same
-    // tool + same input), so the turn shows the single completed call with its output — not a stuck
-    // spinner beside a duplicate. Until the execution settles, the gate stays (it is genuinely
-    // in-flight).
-    const isSupersededGate = (p: ToolUIPart): boolean =>
-        p.state === "approval-responded" && executedToolIdentities.has(toolIdentity(p))
-
     // The elicitation retry cap: did an elicitation already degrade earlier this turn?
     const degradedEarlierInTurn = hasPriorElicitationDegradation(
         message.parts as {state?: string; errorText?: string}[],
     )
 
-    const renderItems: RenderItem[] = []
-    message.parts.forEach((part, i) => {
-        if (isToolPart(part.type)) {
-            // The answered gate whose execution already landed on a sibling part — drop it so the
-            // turn doesn't show a stuck approval spinner beside the real, completed call.
-            if (isSupersededGate(part as ToolUIPart)) return
-            // A browser-fulfilled client tool (#4920) renders as its own widget/chip, NOT folded
-            // into the "Used N tools" group — so it breaks any current tool run.
-            if (isClientToolPart(part as ToolUIPart, {isStreaming, isLastMessage}, renderMap)) {
-                renderItems.push({kind: "clientTool", part: part as ToolUIPart, index: i})
-                return
-            }
-            const last = renderItems[renderItems.length - 1]
-            if (last && last.kind === "tools") last.parts.push(part as ToolUIPart)
-            else renderItems.push({kind: "tools", parts: [part as ToolUIPart], index: i})
-            return
-        }
-        // Consecutive attachments share one grid, so a message's files lay out as a block
-        // instead of one full-width card per part.
-        if (part.type === "file") {
-            const last = renderItems[renderItems.length - 1]
-            if (last && last.kind === "files") last.parts.push(part as FileUIPart)
-            else renderItems.push({kind: "files", parts: [part as FileUIPart], index: i})
-            return
-        }
-        renderItems.push({kind: "part", part, index: i})
+    // The fold from parts to render items is `@agenta/chat`'s, which is also what `/m` renders
+    // from. It used to be copied into this file and kept in byte parity by hand, so a change to
+    // when the reconnect notice appears, or to which failed call it explains, could land on one
+    // app and not the other with nothing to catch it.
+    const renderItems = buildTurnRenderItems(message.parts, {
+        executed,
+        isClientToolPart: (part) => isClientToolPart(part, {isStreaming, isLastMessage}, renderMap),
     })
     const renderLeafPart = (part: UIMessage["parts"][number], i: number) => {
         // Stable, globally-unique key per rendered part. The part index alone collides
@@ -591,6 +425,14 @@ const AgentMessage = ({
         <div className="flex min-w-0 max-w-full flex-col gap-2">
             {renderItems.map((item) => {
                 if (item.kind === "files") return null
+                if (item.kind === "mcpNotice") {
+                    return (
+                        <McpServerNoticeCard
+                            key={`${message.id}-mcp-${item.index}`}
+                            notice={item.notice}
+                        />
+                    )
+                }
                 if (item.kind === "tools") {
                     return (
                         <ToolActivity
@@ -643,14 +485,16 @@ const AgentMessage = ({
     )
 
     // Failed run: the whole bubble reads as the error (red), message inline — no nested box.
-    // RunErrorBody shows an everyday reason in full; only a big one collapses behind "Show more".
+    // The callout shows an everyday reason in full; only a big one collapses behind "Show more".
     const errorBody = (
-        <RunErrorBody
+        <RunFailureCallout
             text={errorText || "The agent run failed."}
             stateKey={errorKey(message.id)}
             code={runErrorCode}
             transport={runErrorTransport}
             onRetry={onRetry ? () => onRetry(message.id) : undefined}
+            onAddKey={() => requestProviderDrawer(true)}
+            onSignIn={() => requestProviderDrawer(true)}
         />
     )
 
@@ -752,7 +596,7 @@ const AgentMessage = ({
                 avatar={<MessageAvatar isUser={isUser} />}
                 className="min-w-0 max-w-[85%]"
                 classNames={{
-                    // Error styling is a self-contained callout in RunErrorBody now, not painted on
+                    // Error styling is a self-contained callout of its own now, not painted on
                     // the (borderless) bubble content — otherwise it bleeds edge-to-edge with no pad.
                     // The user turn reads as "mine" via a soft accent-tinted card; the agent turn
                     // stays borderless on the canvas.

@@ -315,6 +315,16 @@ export interface SessionEnvironment {
   /** The current turn's executable-tool gate, read by the loopback MCP server. */
   executableToolGateRef: { current?: ExecutableToolGate };
   mcpAbort: AbortController;
+  /**
+   * The MCP servers that did not join this session, settled once at acquire.
+   *
+   * It lives on the ENVIRONMENT because the handshake happens at session creation and the
+   * session outlives its cold turn: a pooled warm turn runs without those servers too, and the
+   * person driving it never saw the acquire. `run-turn.ts` replays the list as a notice on every
+   * turn so the answer to "why did nothing use my server" does not expire with the first one.
+   * Empty (not undefined) when every configured server connected.
+   */
+  mcpHandshakeFailures: import("./mcp-handshake.ts").McpHandshakeFailure[];
   runAgentDir: string | undefined;
   /**
    * The per-run dir holding this run's Pi system-prompt files, on a local subscription run whose

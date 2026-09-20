@@ -811,6 +811,14 @@ export function startToolRelay(
     writePausedAnswer?: boolean;
     /** Runs after the guard, for every harness. See `RelayExecutionAuthorizer`. */
     authorizer?: RelayExecutionAuthorizer;
+    /**
+     * The turn's abort signal, forwarded to the wake source's `wait` (M11).
+     *
+     * `RelayActivitySource.wait` has always declared `signal`, and no caller passed one — so an
+     * aborted turn was only unblocked by the `close()` in `stop()`, and a wait parked on the 30s
+     * safety poll held on until then. Passing it lets an abort unblock the wait on its own.
+     */
+    signal?: AbortSignal;
     /** The run's private compiled gateway policy. Absent when the agent configures none. */
     gatewayPolicy?: GatewayPolicy;
     /** The pause-capable gateway gate. Absent means a gateway call fails closed. */
@@ -968,12 +976,17 @@ export function startToolRelay(
     activitySource: RelayActivitySource,
     timeoutMs: number,
   ): Promise<"activity" | "timeout" | "closed"> => {
+    // The turn's signal, not the loop's own stop: `stop()` closes the source, which every
+    // implementation already honours. This is the other way a wait should end early (M11).
     let timer: ReturnType<typeof setTimeout> | undefined;
     const bound = new Promise<"timeout">((resolve) => {
       timer = setTimeout(() => resolve("timeout"), timeoutMs + 1_000);
     });
     try {
-      return await Promise.race([activitySource.wait({ timeoutMs }), bound]);
+      return await Promise.race([
+        activitySource.wait({ timeoutMs, signal: opts?.signal }),
+        bound,
+      ]);
     } finally {
       clearTimeout(timer);
     }

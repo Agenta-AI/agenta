@@ -9,6 +9,7 @@ import {
 } from "../../src/secret/core/transforms"
 import {
     SecretKind,
+    McpStandardProviderKind,
     SecretManagementPolicy,
     StandardProviderKind,
     type SecretResponseDto,
@@ -52,6 +53,12 @@ describe("transformSecret", () => {
         const [row] = transformSecret([standardSecret({models: []})])
 
         expect(row.models).toEqual([])
+    })
+
+    it("maps a Composio project key to its vault name", () => {
+        const [row] = transformSecret([standardSecret({kind: McpStandardProviderKind.Composio})])
+
+        expect(row.name).toBe("COMPOSIO_API_KEY")
     })
 
     it("carries the harnesses of a custom-provider connection", () => {
@@ -158,6 +165,59 @@ describe("transformCustomProviderPayloadData", () => {
         expect(
             transformCustomProviderPayloadData({...values, harnesses: ["claude"]}).secret.data,
         ).toMatchObject({harnesses: ["claude"]})
+    })
+
+    // The second payload builder (the legacy custom-provider form) writes the same declaration as
+    // `buildConnectionPayload`, so a record saved from either card reads back the same way.
+    it("round-trips the declared protocol, and omits it when none was declared", () => {
+        const values = {
+            name: "my-gateway",
+            provider: "custom",
+            apiBaseUrl: "https://gw.example/v1",
+            apiKey: "sk-gw",
+            models: ["claude-fable-5"],
+        }
+
+        expect(transformCustomProviderPayloadData(values).secret.data).not.toHaveProperty(
+            "protocol",
+        )
+
+        const payload = transformCustomProviderPayloadData({
+            ...values,
+            protocol: "anthropic",
+        })
+        expect(payload.secret.data).toMatchObject({protocol: "anthropic"})
+
+        const [row] = transformSecret([
+            {
+                id: "id-3",
+                slug: "my-gateway-abcdef123456",
+                kind: SecretKind.CustomProvider,
+                header: {name: "my-gateway"},
+                data: payload.secret.data,
+                value_status: {configured: true, preview: null},
+            } as unknown as SecretResponseDto,
+        ])
+        expect(row.protocol).toBe("anthropic")
+    })
+
+    it("leaves a record written before the field declaring nothing", () => {
+        const [row] = transformSecret([
+            {
+                id: "id-4",
+                slug: "legacy-gateway-abcdef123456",
+                kind: SecretKind.CustomProvider,
+                header: {name: "legacy-gateway"},
+                data: {
+                    kind: "custom",
+                    provider: {url: "https://gw.example/v1", extras: {}},
+                    models: [],
+                },
+                value_status: {configured: true, preview: null},
+            } as unknown as SecretResponseDto,
+        ])
+
+        expect(row.protocol).toBeUndefined()
     })
 })
 

@@ -92,6 +92,32 @@ describe("buildTurnViewModels", () => {
         expect(turns[3].status.hasAnswer).toBe(true)
     })
 
+    it("never collapses a turn whose only part is an MCP server notice", () => {
+        // The collapse exists to hide a run of turns that said nothing. A notice-only turn said
+        // the one thing that matters — which server did not join, and how to fix it — and it has
+        // no text and no tool call, so every rule that decides "empty" had to learn about it.
+        // Placed AFTER an answerless turn, which is the position that hides a turn (D78).
+        const messages = [
+            user("u1", "use the echo tool"),
+            assistant("a1", []),
+            assistant("a2", []),
+            assistant("a3", [
+                {type: "data-mcp-server-failed", data: {serverName: "mock-mcp"}},
+            ] as unknown as UIMessage["parts"]),
+        ]
+        const turns = buildTurnViewModels(messages, {
+            busy: false,
+            executedFor: createExecutedToolIdentityCache(),
+        })
+
+        // a2 follows an empty turn and says nothing itself, so it collapses. a3 follows an empty
+        // turn too and must NOT, because it is the turn carrying the explanation.
+        expect(turns[2].hidden).toBe(true)
+        expect(turns[3].hidden).toBe(false)
+        expect(turns[3].status.noResponse).toBe(false)
+        expect(turns[3].items.some((item) => item.kind === "mcpNotice")).toBe(true)
+    })
+
     it("collapses a run of empty no-response turns down to the first", () => {
         const messages = [
             user("u1", "go"),

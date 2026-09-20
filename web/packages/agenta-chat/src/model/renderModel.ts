@@ -1,10 +1,18 @@
 import type {FileUIPart, ToolUIPart, UIMessage} from "ai"
 
-import {isToolPart, toolIdentity} from "./parts"
+import {
+    isExplainedByMcpNotice,
+    MCP_SERVER_NOTICE_PART,
+    mcpServerNotices,
+    readMcpServerNotice,
+    type McpServerNotice,
+} from "./mcpServerNotice"
+import {isToolPart, partToolName, toolIdentity} from "./parts"
 
-// Copied verbatim from web/oss/src/components/AgentChatSlice/components/AgentMessage.tsx
-// (2026-07-25); the OSS original remains authoritative for the desktop chat until the re-plumb
-// PR deletes it. Keep byte-parity if either side changes.
+// The one fold both apps render from: the desktop turn (AgentMessage.tsx) and the mobile turn
+// (TurnRow, through buildTurnViewModels) call into this file. It began as a hand-copied twin of
+// the desktop original, which meant a change to when the reconnect notice appears could land on
+// one app and not the other; the copy is gone.
 // Tools can be interleaved with text / reasoning, so fold only *consecutive* tool parts
 // into one ToolActivity group (a run of calls reads as a single "Used N tools" line).
 export type RenderItem =
@@ -12,11 +20,10 @@ export type RenderItem =
     | {kind: "tools"; parts: ToolUIPart[]; index: number}
     | {kind: "clientTool"; part: ToolUIPart; index: number}
     | {kind: "files"; parts: FileUIPart[]; index: number}
+    // A configured MCP server that did not join the run. It renders as its own card because the
+    // remedy (reconnecting the connection) is an action, not a line of text.
+    | {kind: "mcpNotice"; notice: McpServerNotice; index: number}
 
-// Copied verbatim from web/oss/src/components/AgentChatSlice/components/AgentMessage.tsx
-// (2026-07-25); the OSS original remains authoritative for the desktop chat until the re-plumb
-// PR deletes it. Keep byte-parity if either side changes. Adapted only to take `parts` as a
-// parameter instead of reading them off `useMemo`'s closure.
 // Dedup set of executed tool calls (by input identity), memoized on a cheap tool-parts signature
 // (id + state) that stays STABLE while text streams — so the tool-input JSON.stringify doesn't
 // re-run on every streamed token of a tool-heavy turn. Hoisted above the early returns below to
@@ -33,10 +40,6 @@ export const executedToolIdentities = (parts: UIMessage["parts"]): Set<string> =
             .map((p) => toolIdentity(p as ToolUIPart)),
     )
 
-// Copied verbatim from web/oss/src/components/AgentChatSlice/components/AgentMessage.tsx
-// (2026-07-25); the OSS original remains authoritative for the desktop chat until the re-plumb
-// PR deletes it. Keep byte-parity if either side changes. Adapted only to take the executed set
-// as a parameter instead of closing over it.
 // A HITL-approved tool's part LINGERS in `approval-responded` (a perpetual spinner, no output):
 // the cold-replay runner re-issues the approved call under a FRESH id, so its execution output
 // lands on a SEPARATE sibling part. Drop the answered gate once its executed sibling exists (same
@@ -52,20 +55,34 @@ export interface BuildTurnRenderItemsOptions {
     isClientToolPart: (part: ToolUIPart) => boolean
 }
 
-// Copied verbatim from web/oss/src/components/AgentChatSlice/components/AgentMessage.tsx
-// (2026-07-25); the OSS original remains authoritative for the desktop chat until the re-plumb
-// PR deletes it. Keep byte-parity if either side changes. Adapted to take `parts` and the
-// registry-backed client-tool predicate as parameters, so this layer stays registry-free.
+// Takes `parts` and the registry-backed client-tool predicate as parameters, so this layer stays
+// registry-free and each app supplies its own registry.
 export const buildTurnRenderItems = (
     parts: UIMessage["parts"],
     {executed, isClientToolPart}: BuildTurnRenderItemsOptions,
 ): RenderItem[] => {
     const renderItems: RenderItem[] = []
+    // Read once for the whole turn: a notice can be emitted before or after the tool call it
+    // explains, so the decision below cannot be made from the parts seen so far.
+    const notices = mcpServerNotices(parts)
     parts.forEach((part, i) => {
+        if (part.type === MCP_SERVER_NOTICE_PART) {
+            const notice = readMcpServerNotice((part as {data?: unknown}).data)
+            if (notice) renderItems.push({kind: "mcpNotice", notice, index: i})
+            return
+        }
         if (isToolPart(part.type)) {
             // The answered gate whose execution already landed on a sibling part — drop it so the
             // turn doesn't show a stuck approval spinner beside the real, completed call.
             if (isSupersededGate(part as ToolUIPart, executed)) return
+            // A call to a server the turn already says needs authorizing. It could not have run —
+            // the server never joined — and its harness error says so in the harness's own words,
+            // which contradict the notice and are louder than it (UI QA round 3, D2).
+            if (
+                (part as ToolUIPart).state === "output-error" &&
+                isExplainedByMcpNotice(partToolName(part as ToolUIPart), notices)
+            )
+                return
             // A browser-fulfilled client tool (#4920) renders as its own widget/chip, NOT folded
             // into the "Used N tools" group — so it breaks any current tool run.
             if (isClientToolPart(part as ToolUIPart)) {

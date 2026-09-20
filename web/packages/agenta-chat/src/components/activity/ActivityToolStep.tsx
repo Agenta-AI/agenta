@@ -15,6 +15,7 @@ import {ArrowSquareOut, FileText} from "@phosphor-icons/react"
 import type {ToolUIPart} from "ai"
 import {useAtomValue, useSetAtom} from "jotai"
 
+import {unwrapToolUseError} from "../../assets/toolFormat"
 import {
     approvalVerdictText,
     isNonFinalRunnerError,
@@ -282,7 +283,10 @@ const ActivityToolStepView = memo(({part, files, display, logo, appLabel, live}:
                         <>
                             {hasInput ? <ToolIOBlock label="input" value={input} /> : null}
                             {hasNote ? (
-                                <ToolIOBlock label="note" value={errorText} />
+                                // A harness wraps a tool's own message in its
+                                // `tool_use_error` envelope; the reader wants the message.
+                                // Its other call site is the desktop's ToolActivity.
+                                <ToolIOBlock label="note" value={unwrapToolUseError(errorText)} />
                             ) : hasOutput ? (
                                 <ToolIOBlock label="result" value={output} />
                             ) : null}

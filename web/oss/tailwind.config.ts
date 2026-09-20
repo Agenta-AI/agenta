@@ -125,6 +125,10 @@ const themeAwareColors = {
     // while its border and title (both listed above) resolved correctly dark.
     colorErrorBg: v("colorErrorBg"),
     colorSuccessBg: v("colorSuccessBg"),
+    // `border-colorSuccessBorder` fell through to the light-only hex dump and painted antd's
+    // light green (#b7eb8f) in dark mode. Found by compiling the config and reading the emitted
+    // rule rather than the intent.
+    colorSuccessBorder: v("colorSuccessBorder"),
     // Any name NOT listed here falls through to antd-tailwind.json, a LIGHT-ONLY hex dump,
     // and is frozen at its light value in dark. That is how the slider's dark track broke.
     colorInfo: v("colorInfo"),
@@ -134,6 +138,14 @@ const themeAwareColors = {
     controlItemBgActive: v("controlItemBgActive"),
     controlItemBgHover: v("controlItemBgHover"),
     colorWhite: v("colorWhite"),
+    // The tinted panel surface. It had a variable but no class, so package code reached for
+    // `bg-[var(--ag-surface-paper)]`, which is the dialect that freezes tokens at their light
+    // value on /m because the raw variable is not bridged there.
+    "surface-paper": v("surface-paper"),
+    // The single hero ("keycap") action per screen. Class-less until now for the same reason.
+    "hero-action": v("hero-action-bg"),
+    "hero-action-hover": v("hero-action-hover-bg"),
+    "hero-action-foreground": v("hero-action-text"),
 }
 
 export const createConfig = (content: string[] = []): Config => {
@@ -182,6 +194,7 @@ export const createConfig = (content: string[] = []): Config => {
                     // form falls through to the antd root var during coexistence; drop it once
                     // `--font-inter` is applied globally.
                     portal: ["var(--font-inter, var(--ant-font-family, system-ui, sans-serif))"],
+                    ...controlScale.fontFamily,
                 },
                 colors: {
                     ...antdTailwind,

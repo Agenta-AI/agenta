@@ -9,8 +9,8 @@ import {agentPickerIds, agentPickerQueries} from "../../fixtures/agentPicker"
  *
  * Data-connected: the picker reads `agentWorkflowsListQueryStateAtom`, which unions the apps
  * list with the agent-flags query. Both keys are seeded here (see `fixtures/agentPicker.ts`) —
- * nothing is mocked, and the flags key carries a version token derived from the apps list, so
- * the two have to agree or the second query refetches against nothing.
+ * nothing is mocked. The flags entry is keyed on the project alone and holds the
+ * classification map, so an agent shows up only if its id is in that map.
  *
  * The states worth looking at are the ones a click cannot reach: an empty project, a read-only
  * binding, and an agent with no description (the row says so rather than leaving a blank line
@@ -28,7 +28,7 @@ const meta = {
                     "competes with the search field), two densities, an optional create row.",
             },
         },
-        agentaData: {queries: agentPickerQueries},
+        agenta: {queries: agentPickerQueries},
     },
     args: {
         onChange: () => undefined,
@@ -45,7 +45,7 @@ export const Relaxed: Story = {
         searchPlaceholder: "Search agents by name or what they do",
     },
     parameters: {
-        agentaData: {
+        agenta: {
             queries: agentPickerQueries,
             args: (scope) => ({value: agentPickerIds(scope).briefingId}),
         },
@@ -59,7 +59,7 @@ export const CompactPill: Story = {
         density: "compact",
     },
     parameters: {
-        agentaData: {
+        agenta: {
             queries: agentPickerQueries,
             args: (scope) => ({value: agentPickerIds(scope).newsId}),
         },
@@ -84,7 +84,7 @@ export const Unbound: Story = {
 export const ReadOnly: Story = {
     args: {disabled: true},
     parameters: {
-        agentaData: {
+        agenta: {
             queries: agentPickerQueries,
             args: (scope) => ({value: agentPickerIds(scope).linearId}),
         },
@@ -95,6 +95,6 @@ export const ReadOnly: Story = {
 export const NoAgents: Story = {
     args: {density: "relaxed"},
     parameters: {
-        agentaData: {queries: (scope) => agentPickerQueries(scope, {empty: true})},
+        agenta: {queries: (scope) => agentPickerQueries(scope, {empty: true})},
     },
 }

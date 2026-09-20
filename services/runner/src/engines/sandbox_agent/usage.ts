@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from "node:fs";
 
 import type { AgentRunResult, AgentUsage } from "../../protocol.ts";
 
-/** Read the run-total usage Pi wrote on agent_end, from local fs or the sandbox FS API. */
+/** Read the run-total usage Pi wrote on agent_settled, from local fs or the sandbox FS API. */
 export async function readRunUsage(
   sandbox: any,
   path: string | undefined,
