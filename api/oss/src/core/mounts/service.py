@@ -1,10 +1,11 @@
 import asyncio
 from bisect import bisect_left, bisect_right
+from contextlib import asynccontextmanager
 from collections import deque
 from posixpath import basename
 from re import sub
-from typing import AsyncIterator, TYPE_CHECKING, List, Optional, Tuple
-from uuid import UUID, uuid5, NAMESPACE_DNS
+from typing import AsyncIterator, TYPE_CHECKING, List, Optional, Protocol, Tuple
+from uuid import UUID, uuid4, uuid5, NAMESPACE_DNS
 
 import pathspec
 
@@ -20,7 +21,9 @@ from oss.src.core.mounts.dtos import (
     MountFile,
     MountFileContent,
     MountFileDeleted,
+    MaterializeEntriesResult,
     MountFileList,
+    MountFileSeed,
     MountFileWritten,
     MountFolderCreated,
     MountQuery,
@@ -401,6 +404,20 @@ def _rollup_recent_entries(
     return entries
 
 
+class _MountMaterializeLock(Protocol):
+    async def set(self, *args, **kwargs): ...
+
+    async def eval(self, *args, **kwargs): ...
+
+
+_RELEASE_MATERIALIZE_LOCK = """
+if redis.call('get', KEYS[1]) == ARGV[1] then
+    return redis.call('del', KEYS[1])
+end
+return 0
+"""
+
+
 class MountsService:
     def __init__(
         self,
@@ -410,12 +427,14 @@ class MountsService:
         bucket: Optional[str] = None,
         namespace: Optional[str] = None,
         workflows_service: Optional["WorkflowsService"] = None,
+        lock_engine: Optional[_MountMaterializeLock] = None,
     ):
         self.mounts_dao = mounts_dao
         self.mounts_store = mounts_store
         self.bucket = bucket
         self.namespace = namespace
         self.workflows_service = workflows_service
+        self.lock_engine = lock_engine
 
     def _storage_key(self, *, project_id: UUID, mount: Mount, path: str = "") -> str:
         """Object-key prefix for a mount: [<namespace>/]mounts/<project_id>/<mount_id>/<path>.
@@ -559,6 +578,177 @@ class MountsService:
             user_id=user_id,
             mount_create=mount_create,
         )
+
+    @asynccontextmanager
+    async def _materialize_lock(
+        self,
+        *,
+        project_id: UUID,
+        workflow_id: UUID,
+    ) -> AsyncIterator[None]:
+        if self.lock_engine is None:
+            yield
+            return
+
+        key = f"agenta:mount:materialize:{project_id}:{workflow_id}"
+        token = uuid4().hex
+        acquired = False
+        try:
+            for _ in range(100):
+                acquired = bool(await self.lock_engine.set(key, token, nx=True, ex=30))
+                if acquired:
+                    break
+                await asyncio.sleep(0.05)
+        except Exception as exc:
+            log.warning(
+                "mount materialization lock unavailable; refusing an unsafe write",
+                exc_info=True,
+            )
+            raise MountStorageUnavailable() from exc
+        if not acquired:
+            raise MountStorageUnavailable()
+
+        try:
+            yield
+        finally:
+            if acquired:
+                try:
+                    await self.lock_engine.eval(
+                        _RELEASE_MATERIALIZE_LOCK,
+                        1,
+                        key,
+                        token,
+                    )
+                except Exception:
+                    log.warning(
+                        "mount materialization lock release failed; waiting for TTL",
+                        exc_info=True,
+                    )
+
+    async def materialize_entries_if_absent(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        workflow_id: UUID,
+        directories: List[str],
+        files: List[MountFileSeed],
+    ) -> MaterializeEntriesResult:
+        """Create declared agent files once without replacing any existing path.
+
+        A retry re-lists the mount under the same distributed lock. Objects from
+        a partial prior attempt and files edited by the user are preserved.
+        """
+        normalized_directories = sorted(
+            {path.strip("/") for path in directories},
+            key=lambda path: (path.count("/"), path),
+        )
+        normalized_files = sorted(files, key=lambda item: item.path)
+
+        for path in normalized_directories:
+            validate_file_path(path)
+        for item in normalized_files:
+            validate_file_path(item.path)
+            if item.path != item.path.strip("/"):
+                raise MountPathInvalid(
+                    "Workspace file paths must not end with a slash."
+                )
+
+        directory_set = set(normalized_directories)
+        file_paths = [item.path for item in normalized_files]
+        if len(file_paths) != len(set(file_paths)):
+            raise MountPathInvalid("Workspace file paths must be unique.")
+        if directory_set.intersection(file_paths):
+            raise MountPathInvalid(
+                "A workspace path cannot be both a file and a folder."
+            )
+
+        declared_files = set(file_paths)
+        for path in [*normalized_directories, *file_paths]:
+            segments = path.split("/")
+            for index in range(1, len(segments)):
+                parent = "/".join(segments[:index])
+                if parent in declared_files:
+                    raise MountPathInvalid(
+                        "A workspace file cannot contain another declared path."
+                    )
+
+        if self.mounts_store is None:
+            raise MountStorageUnavailable()
+
+        async with self._materialize_lock(
+            project_id=project_id,
+            workflow_id=workflow_id,
+        ):
+            mount = await self.get_or_create_agent_mount(
+                project_id=project_id,
+                user_id=user_id,
+                artifact_id=str(workflow_id),
+            )
+            base = self._storage_key(project_id=project_id, mount=mount)
+            objects = await self.mounts_store.list_objects_v2(
+                bucket=self._bucket(),
+                prefix=base,
+            )
+            existing = {
+                item.key[len(base) :]
+                for item in objects
+                if item.key.startswith(base) and item.key != base
+            }
+
+            def path_exists(path: str) -> bool:
+                prefix = path.rstrip("/") + "/"
+                return (
+                    path in existing
+                    or prefix in existing
+                    or any(key.startswith(prefix) for key in existing)
+                )
+
+            created: List[str] = []
+            preserved: List[str] = []
+            for path in normalized_directories:
+                display = path + "/"
+                if path_exists(path):
+                    preserved.append(display)
+                    continue
+                key = (
+                    self._storage_key(
+                        project_id=project_id,
+                        mount=mount,
+                        path=path,
+                    )
+                    + "/"
+                )
+                await self.mounts_store.put_object(
+                    bucket=self._bucket(),
+                    key=key,
+                    body=b"",
+                )
+                existing.add(display)
+                created.append(display)
+
+            for item in normalized_files:
+                if path_exists(item.path):
+                    preserved.append(item.path)
+                    continue
+                key = self._storage_key(
+                    project_id=project_id,
+                    mount=mount,
+                    path=item.path,
+                )
+                await self.mounts_store.put_object(
+                    bucket=self._bucket(),
+                    key=key,
+                    body=item.content,
+                )
+                existing.add(item.path)
+                created.append(item.path)
+
+            return MaterializeEntriesResult(
+                mount_id=mount.id,
+                created=created,
+                preserved=preserved,
+            )
 
     async def get_or_create_session_cwd(
         self,

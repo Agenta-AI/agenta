@@ -1023,6 +1023,7 @@ mounts_service = MountsService(
     bucket=env.store.bucket,
     namespace=env.store.namespace,
     workflows_service=workflows_service,
+    lock_engine=_lock_engine,
 )
 
 session_mounts_service = SessionMountsService(
