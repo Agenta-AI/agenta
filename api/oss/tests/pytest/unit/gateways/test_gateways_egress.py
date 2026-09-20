@@ -10,11 +10,13 @@ upstream itself supplies in a `WWW-Authenticate` challenge, which reached
 passes against `core/gateways/egress.py`.
 
 Nothing running: `httpx.MockTransport` intercepts every request and the resolver is stubbed
-(`conftest.py`), so no DNS query and no socket. The guard is live in all of them without any
-fixture arranging it: the gateway owns `AGENTA_GATEWAYS_INSECURE_EGRESS_ALLOWED` and it
-defaults to enforcing, which the last three cases assert directly so nobody can quietly
-relax it. Webhook delivery keeps its own permissive default, and the gateway no longer reads
-it.
+(`conftest.py`), so no DNS query and no socket. The guard is enforcing in all of them: the
+gateway owns `AGENTA_GATEWAYS_INSECURE_EGRESS_ALLOWED`, it defaults to enforcing, and the
+autouse pin in `tests/pytest/utils/egress.py` holds it there, so a developer who loaded a
+self-host env file into their shell still tests the guard everyone else tests. Three cases
+below assert the declared default and both directions of the flag directly, so nobody can
+quietly relax it. Webhook delivery keeps its own permissive default, and the gateway no
+longer reads it.
 """
 
 import asyncio
@@ -474,23 +476,36 @@ async def test_open_egress_separates_an_unresolvable_name_from_a_refusal(monkeyp
 # ---------------------------------------------------------------------------
 
 
-def test_gateway_egress_guard_is_enforcing_by_default():
+def test_gateway_egress_guard_is_enforcing_by_default(monkeypatch):
     """A check that is off by default is not a check.
 
     `AGENTA_INSECURE_EGRESS_ALLOWED` defaults to permissive so a zero-config self-host can
-    post a webhook to a box on its own LAN. The gateway does not inherit that answer. This
-    reads the declared default off the config class rather than a module constant some
-    fixture pinned, so relaxing it in `utils/env.py` fails here. (It also fails if the test
-    process itself exports the opt-out, which is the honest answer: the guard would not be
-    enforcing in that process either.)
+    post a webhook to a box on its own LAN. The gateway does not inherit that answer.
+
+    The subject is the default `utils/env.py` declares, because that is the default a
+    multi-tenant deployment runs on. It is deliberately not the value this process resolved:
+    the self-host env templates set the variable permissive, so a developer who loaded one
+    into their shell would otherwise be told the product had regressed. Clearing the variable
+    and re-executing the config module under a throwaway name reads the declared default back
+    without disturbing the live `env` every other module already holds. Relaxing the default
+    in `utils/env.py` still fails here.
     """
-    import os
+    monkeypatch.delenv("AGENTA_GATEWAYS_INSECURE_EGRESS_ALLOWED", raising=False)
 
-    from oss.src.utils.env import GatewayEgressConfig
+    import importlib.util
 
-    assert os.getenv("AGENTA_GATEWAYS_INSECURE_EGRESS_ALLOWED") is None
-    assert GatewayEgressConfig.model_fields["insecure_allowed"].default is False
-    assert GatewayEgressConfig().insecure_allowed is False
+    import oss.src.utils.env as live_env
+
+    spec = importlib.util.spec_from_file_location(
+        "_gateway_egress_declared_defaults", live_env.__file__
+    )
+    declared = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(declared)
+
+    assert (
+        declared.GatewayEgressConfig.model_fields["insecure_allowed"].default is False
+    )
+    assert declared.GatewayEgressConfig().insecure_allowed is False
 
 
 @pytest.mark.asyncio
