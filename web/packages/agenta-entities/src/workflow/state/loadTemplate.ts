@@ -1,4 +1,5 @@
 import {projectIdAtom} from "@agenta/shared/state"
+import {generateId} from "@agenta/shared/utils"
 import type {AgentaApi} from "@agentaai/api-client"
 import {atom} from "jotai"
 
@@ -54,7 +55,7 @@ export const templateConnectionChoices = (
 }
 
 const createIdempotencyKey = (): string =>
-    `agent-template:${Date.now().toString(36)}:${globalThis.crypto.randomUUID()}`
+    `agent-template:${Date.now().toString(36)}:${generateId()}`
 
 const inflightLoads = new Map<string, Promise<AgentTemplateLoadResult>>()
 
