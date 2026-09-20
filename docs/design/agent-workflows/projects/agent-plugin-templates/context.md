@@ -2,9 +2,9 @@
 
 ## What users experience today
 
-The home page has a static `AgentStarterTemplate` registry. A card contains display copy, connection slots, an example, and a builder message. Selecting a card creates one ordinary agent, stores the builder message in frontend state, opens the playground, and sends that message to the builder agent.
+The home page has a static `AgentStarterTemplate` registry with display copy, connection slots, an example, and a builder message. [PR #6395](https://github.com/Agenta-AI/agenta/pull/6395) adds account selection to this flow. Desktop asks before Create. Mobile creates the agent and session first, then holds the first message behind an in-session connection card when a required account is missing or a provider choice exists.
 
-The build-an-agent skill then matches the request to a bundled playbook. The agent discovers tools, asks for missing details, and commits its own configuration. The pre-create setup card can connect required and optional accounts, but it passes those choices to the builder as prose appended to the visible user message.
+The build-an-agent skill then matches the request to a bundled playbook. The agent discovers tools, asks for missing details, and commits its own configuration. Connection choices reach the builder as prose appended to the visible user message. They are not persisted package bindings. [Integration with the existing connection step](onboarding-integration.md) specifies what to reuse and what package installation must replace.
 
 This flow shipped the first useful template catalog. It has three limits for the next use case:
 

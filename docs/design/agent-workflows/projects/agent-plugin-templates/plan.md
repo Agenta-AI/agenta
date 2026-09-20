@@ -118,12 +118,15 @@ Support mutual links safely.
 
 ## Frontend adoption
 
-Replace template-specific builder seeds one package at a time.
+Replace template-specific builder seeds one package at a time. Follow [onboarding integration](onboarding-integration.md) to reuse PR #6395 without duplicating account-selection or host logic.
 
 ### Scope
 
 - Add package catalog summary and installation API clients to shared entities.
 - Generate the card detail data from package summaries while preserving current analytics keys.
+- Adapt validated package requirements to the existing shared connection card, preserving agent/slot identity and adding concrete account and MCP selection.
+- Preserve desktop pre-create and mobile in-session connection gates. Persist selections and disclosed optional skips through the installation API.
+- Remove package dependence on provider-slug satisfaction, prose preambles, and in-memory pending tasks.
 - Show connection slots with gateway and MCP choices.
 - Call the installation endpoint from web and mobile template creation.
 - Open the returned setup session and render installation progress.
@@ -165,6 +168,8 @@ Add distribution after the bundled path is stable.
 - Exports omit credentials, project connection identifiers, sessions, and unselected user files.
 
 ## Test strategy
+
+[Validation and acceptance](validation.md) is the release checklist: P01-P18 define observable product behavior; I01-I15 define backend and code invariants. Each implementation PR must identify the rows it covers and attach exact-commit evidence. Uncovered rows remain outstanding before enabling the first package.
 
 ### Schema and loader tests
 

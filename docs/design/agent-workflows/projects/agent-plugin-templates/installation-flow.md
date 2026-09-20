@@ -3,10 +3,12 @@
 ## User flow
 
 1. The user opens a package detail view and sees its agents, connection choices, skills, MCP servers, files, and automation recipes.
-2. The user selects any obvious existing accounts and presses Create.
+2. Desktop asks for required connections before Create. Mobile starts installation on Create and asks in the returned session before Continue. Both save verified account choices and disclosed optional skips through the backend.
 3. Agenta installs the declared local resources and opens the entry agent's setup session.
-4. The entry agent asks only for unresolved choices and user-specific facts.
+4. After the connection gate, the entry agent asks only for unresolved choices and user-specific facts.
 5. Agenta verifies the declared requirements and marks the installation ready.
+
+See [onboarding integration](onboarding-integration.md) for card reuse, account identity, and the distinction between connection gates and installation readiness. [Validation and acceptance](validation.md) defines the product and code-level checks.
 
 Create means “install this package snapshot.” It does not grant every external permission requested by the package. Credential collection, external writes, and automation activation keep their current approval boundaries.
 

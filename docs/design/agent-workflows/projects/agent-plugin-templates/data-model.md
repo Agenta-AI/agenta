@@ -138,6 +138,8 @@ The option types have different meanings:
 
 The installer must confirm that each required declaration has at least one option Agenta supports. It must not claim that two options have equivalent tools merely because the package groups them.
 
+For frontend mapping, canonical option identity, concrete account selection, and skip persistence, see [onboarding integration](onboarding-integration.md). Connected provider slugs alone do not satisfy the package binding contract.
+
 ## Subagent link
 
 A subagent declaration becomes a current workflow reference tool:

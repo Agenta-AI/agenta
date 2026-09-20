@@ -12,10 +12,12 @@ This workspace is a design and implementation plan. The proposed format is not a
 2. [Decisions](decisions.md) records the choices already made in this design.
 3. [Data model](data-model.md) defines the Agent Plugins extension and its relationship to current Agenta configuration.
 4. [Installation and setup](installation-flow.md) assigns work to the frontend, API, existing services, and setup agent.
-5. [Implementation plan](plan.md) lists the delivery slices, files, and acceptance criteria.
-6. [Research](research.md) links the proposal to the current code and the published Agent Plugins specification.
-7. [Status](status.md) is the source of truth for progress and unresolved work.
-8. [Example package](example/plugin.json) shows one package with two mutually linked agents, alternative connection providers, a skill, files, and an optional schedule.
+5. [Existing onboarding integration](onboarding-integration.md) explains reuse of PR #6395, host-specific gates, binding semantics, and ownership.
+6. [Validation and acceptance](validation.md) defines product scenarios, invariants, test evidence, and rollout gates.
+7. [Implementation plan](plan.md) lists the delivery slices, files, and acceptance criteria.
+8. [Research](research.md) links the proposal to the current code and the published Agent Plugins specification.
+9. [Status](status.md) is the source of truth for progress and unresolved work.
+10. [Example package](example/plugin.json) shows one package with two mutually linked agents, alternative connection providers, a skill, files, and an optional schedule.
 
 ## Terms
 

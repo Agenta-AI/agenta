@@ -4,7 +4,7 @@ Source of truth for this project.
 
 ## Current state
 
-Date: 2026-09-17
+Date: 2026-09-20
 
 The design and implementation plan are ready for review. No runtime, API, database, frontend, or deployment behavior changes in this planning change.
 
@@ -47,3 +47,7 @@ The design and implementation plan are ready for review. No runtime, API, databa
 ## Next action
 
 After approval, start with the loader and compiler against the example package. Do not begin marketplace or update behavior in the first implementation slice.
+
+## Documentation update
+
+The plan now explicitly builds on merged PR #6395. It records desktop/mobile differences, required connection gates, concrete persisted bindings, optional skip semantics, and replacement of the package pending-message handoff. New product scenarios and code invariants define acceptance and implementation evidence. These remain proposed requirements pending design approval; runtime validation and the product pilot have not run in this documentation PR.

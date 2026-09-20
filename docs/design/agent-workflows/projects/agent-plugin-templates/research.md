@@ -20,6 +20,14 @@ Research was verified on 2026-09-17 against Agenta main at `3f73fee73cc89a31b9a4
 - [Setup selection logic](https://github.com/Agenta-AI/agenta/blob/3f73fee73cc89a31b9a49eec15fb87b19e6cee40/web/packages/agenta-entities/src/workflow/agentSetup.ts) treats alternatives as one satisfiable slot and appends connected-account facts in the user's voice because the current seed has no separate setup context.
 - [Template selection](https://github.com/Agenta-AI/agenta/blob/3f73fee73cc89a31b9a49eec15fb87b19e6cee40/web/oss/src/components/pages/agent-home/hooks/useCreateAgentFromTemplate.ts) creates the agent first and sends the builder message. No backend package installer runs.
 
+## Merged connection-step integration
+
+[PR #6395](https://github.com/Agenta-AI/agenta/pull/6395) merged as `3d304770949d1c10b9b66e33092db11b7d1a6dd3`. Its final behavior distinguishes desktop pre-create selection from mobile in-session selection. The package plan reuses this experience as specified in [onboarding integration](onboarding-integration.md).
+
+- [Shared setup hook](https://github.com/Agenta-AI/agenta/blob/3d304770949d1c10b9b66e33092db11b7d1a6dd3/web/packages/agenta-entity-ui/src/onboarding/useAgentSetupStep.ts) opens for outstanding required accounts or template provider alternatives. It can bypass optional-only needs.
+- [Mobile setup hook](https://github.com/Agenta-AI/agenta/blob/3d304770949d1c10b9b66e33092db11b7d1a6dd3/web/mobile/src/features/chat/useSessionSetupStep.ts) reads the pending template task from browser state and holds the first turn. The package path needs durable installation state instead.
+- [Connection selection rules](https://github.com/Agenta-AI/agenta/blob/3d304770949d1c10b9b66e33092db11b7d1a6dd3/web/packages/agenta-entities/src/workflow/agentSetup.ts) use provider slugs and visible prose. Package bindings require concrete account references scoped to an agent and slot.
+
 ## Current runtime configuration
 
 - [AgentTemplateSchema](https://github.com/Agenta-AI/agenta/blob/3f73fee73cc89a31b9a49eec15fb87b19e6cee40/sdks/python/agenta/sdk/utils/types.py) is the strict saved `parameters.agent` shape. It already holds permanent instructions, model selection, tools, MCP servers, skills, harness, runner, and sandbox settings.
