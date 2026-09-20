@@ -241,7 +241,14 @@ export async function createEphemeralAppFromTemplate({
             userId,
             pairModelSelection: store.get(subscriptionPairModelsAtom),
         })
-        if (signal?.aborted || candidateState.status !== "ready") return null
+        if (signal?.aborted) return null
+        if (candidateState.status !== "ready") {
+            console.error("[agent-create] Agent model sources did not resolve", {
+                projectId,
+                error: candidateState.error,
+            })
+            return null
+        }
         const selected = resolveAgentModelSelection({
             candidates: candidateState.candidates,
             last: selectionFromAgentCreationPrefs(store.get(agentCreationPrefsAtom)),
