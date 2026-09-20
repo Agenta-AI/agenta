@@ -178,3 +178,65 @@ async def test_http_stream_passes_timeout_to_httpx_client(monkeypatch):
     assert records == [{"kind": "result", "result": {"ok": True}}]
     # The idle bound is handed to httpx, which applies it per-read on the stream.
     assert captured["timeout"] == 7.5
+
+
+async def test_http_stream_names_a_read_timeout(monkeypatch):
+    import httpx
+
+    monkeypatch.setenv("AGENTA_RUNNER_TOKEN", "test-token")
+
+    class _Stream:
+        status_code = 200
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            return False
+
+        async def aiter_lines(self):
+            # httpx raises ReadTimeout with an empty message.
+            raise httpx.ReadTimeout("")
+            yield ""  # pragma: no cover - makes this an async generator
+
+    class _Client:
+        def __init__(self, *args, **kwargs) -> None:
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            return False
+
+        def stream(self, method, url, json=None, headers=None):
+            return _Stream()
+
+    monkeypatch.setattr(httpx, "AsyncClient", _Client)
+
+    with pytest.raises(RuntimeError, match=r"stalled: no record for 7\.5s"):
+        async for _ in ts_runner.deliver_http_stream(
+            "http://runner:8765", {"harness": "pi_core"}, timeout=7.5
+        ):
+            pass
+
+
+# --- the adapter default must not drift from the shared constant -------------------
+
+
+def test_sandbox_agent_backend_default_timeout_is_the_shared_constant():
+    import inspect
+
+    from agenta.sdk.agents.adapters.sandbox_agent import SandboxAgentBackend
+
+    default = (
+        inspect.signature(SandboxAgentBackend.__init__).parameters["timeout"].default
+    )
+
+    assert default == ts_runner.AGENT_DEFAULT_TIMEOUT
+
+
+def test_default_timeout_is_wider_than_the_runner_idle_limit():
+    # run-limits.ts DEFAULT_IDLE_TIMEOUT_MS and DEFAULT_TOOL_CALL_TIMEOUT_MS are 30 minutes; the
+    # runner must trip first so its terminal record reaches the caller.
+    assert ts_runner.AGENT_DEFAULT_TIMEOUT > 30 * 60

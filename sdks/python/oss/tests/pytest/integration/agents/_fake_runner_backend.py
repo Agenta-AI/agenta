@@ -10,7 +10,6 @@ serialization it covers is the one production uses.
 
 from __future__ import annotations
 
-import os
 from typing import Any, AsyncIterator, Dict, List, Mapping, Optional, Sequence
 
 from agenta.sdk.agents.dtos import (
@@ -26,6 +25,7 @@ from agenta.sdk.agents.interfaces import Backend, Sandbox, Session
 from agenta.sdk.agents.streaming import AgentStream
 from agenta.sdk.agents.tools.models import ResolvedGatewayPolicy
 from agenta.sdk.agents.utils import (
+    AGENT_DEFAULT_TIMEOUT,
     deliver_http_result,
     deliver_http_stream,
     deliver_subprocess_result,
@@ -145,7 +145,7 @@ class FakeRunnerBackend(Backend):
         url: Optional[str] = None,
         command: Optional[Sequence[str]] = None,
         cwd: Optional[str] = None,
-        timeout: float = float(os.getenv("AGENTA_RUNNER_TIMEOUT_SECONDS", "180")),
+        timeout: float = AGENT_DEFAULT_TIMEOUT,
     ) -> None:
         self._url = url
         self._command: List[str] = resolve_runner_command(

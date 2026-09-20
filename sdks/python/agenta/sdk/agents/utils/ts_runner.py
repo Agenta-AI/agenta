@@ -21,8 +21,8 @@ from agenta.sdk.utils.logging import get_module_logger
 # (idle); the subprocess transport resets its deadline on each received line to match. On the
 # one-shot (dev-only) result transports there is a single request, so idle and total coincide.
 # Must stay strictly wider than the runner's own idle timeout (run-limits.ts DEFAULT_IDLE_TIMEOUT_MS,
-# 300s) so the runner — the authority — always trips first and its terminal record reaches us.
-_DEFAULT_TIMEOUT = float(os.getenv("AGENTA_RUNNER_TIMEOUT_SECONDS", "360"))
+# 30 minutes) so the runner — the authority — always trips first and its terminal record reaches us.
+AGENT_DEFAULT_TIMEOUT = float(os.getenv("AGENTA_RUNNER_TIMEOUT_SECONDS", "1920"))
 
 log = get_module_logger(__name__)
 
@@ -71,7 +71,7 @@ async def deliver_http_result(
     base_url: str,
     payload: Dict[str, Any],
     *,
-    timeout: float = _DEFAULT_TIMEOUT,
+    timeout: float = AGENT_DEFAULT_TIMEOUT,
 ) -> Dict[str, Any]:
     """POST ``/run`` to a running runner and return the parsed JSON body. DEV-ONLY (unused)."""
     import httpx  # local import: only the HTTP transport needs it
@@ -123,7 +123,7 @@ async def deliver_subprocess_result(
     *,
     cwd: Optional[str] = None,
     env: Optional[Dict[str, str]] = None,
-    timeout: float = _DEFAULT_TIMEOUT,
+    timeout: float = AGENT_DEFAULT_TIMEOUT,
 ) -> Dict[str, Any]:
     """Spawn the runner CLI, feed the request on stdin, parse JSON on stdout. DEV-ONLY (unused)."""
     proc = await asyncio.create_subprocess_exec(
@@ -176,7 +176,7 @@ async def deliver_http_stream(
     base_url: str,
     payload: Dict[str, Any],
     *,
-    timeout: float = _DEFAULT_TIMEOUT,
+    timeout: float = AGENT_DEFAULT_TIMEOUT,
 ) -> AsyncIterator[Dict[str, Any]]:
     """POST ``/run`` asking for NDJSON and yield each parsed record as it arrives.
 
@@ -191,23 +191,30 @@ async def deliver_http_stream(
     saw_result = False
     # httpx applies `timeout` as a per-read timeout on a stream — i.e. an idle (between-record)
     # bound, not a total wall-clock cap — matching the subprocess transport's per-line reset.
-    async with httpx.AsyncClient(timeout=timeout) as client:
-        async with client.stream(
-            "POST", url, json=payload, headers=headers
-        ) as response:
-            if response.status_code >= 400:
-                body = await response.aread()
-                raise _transport_error(
-                    f"Agent runner HTTP {response.status_code}",
-                    detail=repr(body[:1000]),
-                )
-            async for line in response.aiter_lines():
-                line = line.strip()
-                if line:
-                    record = json.loads(line)
-                    if record.get("kind") == "result":
-                        saw_result = True
-                    yield record
+    try:
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            async with client.stream(
+                "POST", url, json=payload, headers=headers
+            ) as response:
+                if response.status_code >= 400:
+                    body = await response.aread()
+                    raise _transport_error(
+                        f"Agent runner HTTP {response.status_code}",
+                        detail=repr(body[:1000]),
+                    )
+                async for line in response.aiter_lines():
+                    line = line.strip()
+                    if line:
+                        record = json.loads(line)
+                        if record.get("kind") == "result":
+                            saw_result = True
+                        yield record
+    except httpx.ReadTimeout as exc:
+        # httpx's ReadTimeout has an empty message, which the wire layer would otherwise
+        # collapse to a bare "agent run failed".
+        raise RuntimeError(
+            f"Agent runner stream stalled: no record for {timeout}s: {url}"
+        ) from exc
     if not saw_result:
         raise RuntimeError("Agent runner stream ended without a terminal result record")
 
@@ -231,7 +238,7 @@ async def deliver_subprocess_stream(
     *,
     cwd: Optional[str] = None,
     env: Optional[Dict[str, str]] = None,
-    timeout: float = _DEFAULT_TIMEOUT,
+    timeout: float = AGENT_DEFAULT_TIMEOUT,
 ) -> AsyncIterator[Dict[str, Any]]:
     """Spawn the runner CLI in ``--stream`` mode and yield each NDJSON record from stdout.
 
