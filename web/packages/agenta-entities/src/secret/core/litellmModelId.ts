@@ -52,6 +52,9 @@ export const LITELLM_MODEL_PREFIXES: Readonly<Record<StandardProviderKind, strin
     // false claim. The keys stay so both halves cover the same set of kinds.
     anyscale: null,
     alephalpha: null,
+    // The gateway's test double. litellm has no `mock` provider, so a prefix
+    // would be a false claim for the same reason as the two kinds above.
+    mock: null,
 }
 
 /**

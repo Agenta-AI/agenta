@@ -4,6 +4,4 @@ export const McpStandardProviderKind = {
     Mock: "mock",
     Composio: "composio",
 } as const;
-
-export type McpStandardProviderKind =
-    (typeof McpStandardProviderKind)[keyof typeof McpStandardProviderKind];
+export type McpStandardProviderKind = (typeof McpStandardProviderKind)[keyof typeof McpStandardProviderKind];

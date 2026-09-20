@@ -7,5 +7,5 @@ import type * as AgentaApi from "../index.js";
  * field on purpose, so a later policy of a different kind has a place to go.
  */
 export interface GatewayConnectionPolicy {
-    permissions: AgentaApi.GatewayPermissions;
+    permissions?: AgentaApi.GatewayPermissions | undefined;
 }

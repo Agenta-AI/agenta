@@ -114,14 +114,18 @@ export interface NamedSecretRow extends LlmProvider {
 export const SecretKind = AgentaApi.SecretKind
 export type SecretKind = AgentaApi.SecretKind
 
-export const StandardProviderKind = AgentaApi.StandardProviderKind
-export type StandardProviderKind = AgentaApi.StandardProviderKind
+// The wire names gained an `Llm` prefix when the gateway split LLM and MCP
+// providers into separate enums. The local names stay unprefixed — they are
+// this package's public API and ~30 call sites across three packages import
+// them from here — so grep the wire spelling when tracing back to Fern.
+export const StandardProviderKind = AgentaApi.LlmStandardProviderKind
+export type StandardProviderKind = AgentaApi.LlmStandardProviderKind
 
 export const McpStandardProviderKind = AgentaApi.McpStandardProviderKind
 export type McpStandardProviderKind = AgentaApi.McpStandardProviderKind
 
-export const CustomProviderKind = AgentaApi.CustomProviderKind
-export type CustomProviderKind = AgentaApi.CustomProviderKind
+export const CustomProviderKind = AgentaApi.LlmCustomProviderKind
+export type CustomProviderKind = AgentaApi.LlmCustomProviderKind
 
 // ---------------------------------------------------------------------------
 // App-level catalog (no wire equivalent)
@@ -170,10 +174,17 @@ export const PROVIDER_KINDS: Record<string, string> = {
  * Fern includes both `"mistral"` and `"mistralai"` in `StandardProviderKind`
  * for backwards compatibility, but the OSS LLM picker only shows the canonical
  * `"mistral"` entry — filter the alias out here.
+ *
+ * `"mock"` is filtered for a different reason: it is the gateway's test double,
+ * not a provider anyone can hold credentials for, so it has no place in a
+ * user-facing picker. It is a wire kind, so it stays in the enum and in
+ * `LITELLM_MODEL_PREFIXES`; it is only hidden from this list.
  */
 export const STANDARD_PROVIDER_KINDS: StandardProviderKind[] = (
     Object.values(StandardProviderKind) as StandardProviderKind[]
-).filter((kind) => kind !== StandardProviderKind.Mistralai)
+).filter(
+    (kind) => kind !== StandardProviderKind.Mistralai && kind !== StandardProviderKind.Mock,
+)
 
 /**
  * Truthy, obviously-not-a-key sentinel the vault persister writes to disk in place of secret

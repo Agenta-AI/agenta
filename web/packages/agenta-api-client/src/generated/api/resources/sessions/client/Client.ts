@@ -457,6 +457,25 @@ export class SessionsClient {
     }
 
     /**
+     * Rename a session.
+     *
+     * `name_source` says where the name came from: `manual` (the default) is a person
+     * typing one, and `automatic` is a program proposing one — the agent's
+     * `rename_session`, or the browser's auto-title. An `automatic` edit is refused with
+     * 409 when it would change a name a person controls, unless the body names the exact
+     * name and revision it replaces.
+     *
+     * It is a query parameter rather than a body field on purpose. The `rename_session`
+     * catalog entry fixes `name_source=automatic` inside its path and the model fills only
+     * the body, so an agent cannot claim a person chose its name.
+     *
+     * `author` is the transitional spelling, hidden from the schema. A warm agent session
+     * holds the tool descriptors it opened with, so a sandbox that started under an
+     * earlier build of this change can still execute `?author=auto` after the service has
+     * moved on. Reading it costs one branch and keeps that call on the guarded path; the
+     * alternative is a rename that silently claims a person made it. Delete this parameter
+     * once no such session can still be alive.
+     *
      * @param {AgentaApi.SetSessionStreamHeaderRequest} request
      * @param {SessionsClient.RequestOptions} requestOptions - Request-specific configuration.
      *
@@ -479,9 +498,10 @@ export class SessionsClient {
         request: AgentaApi.SetSessionStreamHeaderRequest,
         requestOptions?: SessionsClient.RequestOptions,
     ): Promise<core.WithRawResponse<AgentaApi.SessionStreamResponse>> {
-        const { session_id: sessionId, body: _body } = request;
+        const { session_id: sessionId, name_source: nameSource, body: _body } = request;
         const _queryParams: Record<string, unknown> = {
             session_id: sessionId,
+            name_source: nameSource !== undefined ? nameSource : undefined,
         };
         const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
         const _headers: core.Fetcher.Args["headers"] = mergeHeaders(

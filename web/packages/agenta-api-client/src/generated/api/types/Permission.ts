@@ -65,5 +65,11 @@ export const Permission = {
     ViewMounts: "view_mounts",
     EditMounts: "edit_mounts",
     UseMounts: "use_mounts",
+    ViewLlmEndpoints: "view_llm_endpoints",
+    EditLlmEndpoints: "edit_llm_endpoints",
+    UseLlmEndpoints: "use_llm_endpoints",
+    ViewMcpEndpoints: "view_mcp_endpoints",
+    EditMcpEndpoints: "edit_mcp_endpoints",
+    UseMcpEndpoints: "use_mcp_endpoints",
 } as const;
 export type Permission = (typeof Permission)[keyof typeof Permission];

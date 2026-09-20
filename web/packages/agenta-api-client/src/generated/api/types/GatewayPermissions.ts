@@ -4,7 +4,7 @@
  * What the agent may do through one connection, per tool key.
  */
 export interface GatewayPermissions {
-    default: GatewayPermissions.Default;
+    default?: GatewayPermissions.Default | undefined;
     tools?: Record<string, GatewayPermissions.Tools.Value> | undefined;
 }
 

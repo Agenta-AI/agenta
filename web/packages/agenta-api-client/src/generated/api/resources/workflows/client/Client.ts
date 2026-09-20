@@ -2290,17 +2290,19 @@ export class WorkflowsClient {
      * @throws {@link AgentaApi.UnprocessableEntityError}
      *
      * @example
-     *     await client.workflows.queryWorkflowRevisions()
+     *     await client.workflows.queryWorkflowRevisions({
+     *         body: {}
+     *     })
      */
     public queryWorkflowRevisions(
-        request: AgentaApi.QueryWorkflowRevisionsRequest = {},
+        request: AgentaApi.QueryWorkflowRevisionsRequest,
         requestOptions?: WorkflowsClient.RequestOptions,
     ): core.HttpResponsePromise<AgentaApi.WorkflowRevisionsResponse> {
         return core.HttpResponsePromise.fromPromise(this.__queryWorkflowRevisions(request, requestOptions));
     }
 
     private async __queryWorkflowRevisions(
-        request: AgentaApi.QueryWorkflowRevisionsRequest = {},
+        request: AgentaApi.QueryWorkflowRevisionsRequest,
         requestOptions?: WorkflowsClient.RequestOptions,
     ): Promise<core.WithRawResponse<AgentaApi.WorkflowRevisionsResponse>> {
         const {
@@ -2329,6 +2331,7 @@ export class WorkflowsClient {
             oldest,
             limit,
             order,
+            body: _body,
         } = request;
         const _queryParams: Record<string, unknown> = {
             workflow_id: workflowId,
@@ -2373,7 +2376,10 @@ export class WorkflowsClient {
             ),
             method: "POST",
             headers: _headers,
+            contentType: "application/json",
             queryParameters: { ..._queryParams, ...requestOptions?.queryParams },
+            requestType: "json",
+            body: _body,
             timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 30) * 1000,
             maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
             withCredentials: true,
