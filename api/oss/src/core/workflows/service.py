@@ -1,5 +1,19 @@
+import asyncio
+import hashlib
 import json
-from typing import Any, Awaitable, Callable, Dict, Optional, List, Union, TYPE_CHECKING
+from contextlib import asynccontextmanager
+from typing import (
+    Any,
+    AsyncIterator,
+    Awaitable,
+    Callable,
+    Dict,
+    Optional,
+    List,
+    Protocol,
+    Union,
+    TYPE_CHECKING,
+)
 from oss.src.core.git.dtos import RevisionGrouping
 from uuid import UUID, uuid4
 
@@ -29,6 +43,7 @@ from agenta.sdk.agents import HarnessKind, InvalidHarnessKindError
 from oss.src.core.git.interfaces import GitDAOInterface
 from oss.src.core.sessions.watch.interfaces import SessionsWatchPublisherInterface
 from oss.src.core.shared.dtos import Reference, Windowing
+from oss.src.core.shared.exceptions import EntityCreationConflict
 from oss.src.core.git.dtos import (
     ArtifactCreate,
     ArtifactEdit,
@@ -3460,13 +3475,157 @@ def _build_simple_workflow_data(
     return SimpleWorkflowData(**data_dict)
 
 
+class _WorkflowCreateLock(Protocol):
+    async def set(self, *args, **kwargs): ...
+
+    async def eval(self, *args, **kwargs): ...
+
+
+_RELEASE_WORKFLOW_CREATE_LOCK = """
+if redis.call('get', KEYS[1]) == ARGV[1] then
+    return redis.call('del', KEYS[1])
+end
+return 0
+"""
+
+
 class SimpleWorkflowsService:
     def __init__(
         self,
         *,
         workflows_service: WorkflowsService,
+        lock_engine: Optional[_WorkflowCreateLock] = None,
     ):
         self.workflows_service = workflows_service
+        self.lock_engine = lock_engine
+
+    @staticmethod
+    def _idempotent_slug(*, requested_slug: Optional[str], idempotency_key: str) -> str:
+        digest = hashlib.sha256(idempotency_key.encode("utf-8")).hexdigest()
+        prefix = (requested_slug or "workflow").strip("-")[:48] or "workflow"
+        return f"{prefix}-{digest[:12]}"
+
+    @asynccontextmanager
+    async def _create_lock(
+        self,
+        *,
+        project_id: UUID,
+        idempotency_key: str,
+    ) -> AsyncIterator[None]:
+        if self.lock_engine is None:
+            yield
+            return
+
+        digest = hashlib.sha256(idempotency_key.encode("utf-8")).hexdigest()
+        key = f"agenta:workflow:create:{project_id}:{digest}"
+        token = uuid4().hex
+        acquired = False
+
+        try:
+            for _ in range(100):
+                acquired = bool(await self.lock_engine.set(key, token, nx=True, ex=30))
+                if acquired:
+                    break
+                await asyncio.sleep(0.05)
+        except Exception:
+            log.warning(
+                "workflow create lock unavailable; relying on database uniqueness",
+                exc_info=True,
+            )
+
+        try:
+            yield
+        finally:
+            if acquired:
+                try:
+                    await self.lock_engine.eval(
+                        _RELEASE_WORKFLOW_CREATE_LOCK,
+                        1,
+                        key,
+                        token,
+                    )
+                except Exception:
+                    log.warning(
+                        "workflow create lock release failed; waiting for TTL",
+                        exc_info=True,
+                    )
+
+    async def _fetch_complete_by_slug(
+        self,
+        *,
+        project_id: UUID,
+        slug: str,
+    ) -> Optional[SimpleWorkflow]:
+        workflow = await self.workflows_service.fetch_workflow(
+            project_id=project_id,
+            workflow_ref=Reference(slug=slug),
+        )
+        if workflow is None or workflow.id is None:
+            return None
+        return await self.fetch(project_id=project_id, workflow_id=workflow.id)
+
+    async def create_idempotent(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        simple_workflow_create: SimpleWorkflowCreate,
+        idempotency_key: str,
+        platform_meta: bool = False,
+    ) -> Optional[SimpleWorkflow]:
+        """Create one complete workflow for an idempotency key.
+
+        The distributed lock reduces duplicate work. The deterministic slug and
+        database uniqueness remain authoritative when Redis is unavailable or a
+        lock expires during a slow create.
+        """
+        if not idempotency_key.strip():
+            raise ValueError("idempotency_key must not be empty")
+
+        slug = self._idempotent_slug(
+            requested_slug=simple_workflow_create.slug,
+            idempotency_key=idempotency_key,
+        )
+        request = simple_workflow_create.model_copy(update={"slug": slug})
+
+        existing = await self._fetch_complete_by_slug(
+            project_id=project_id,
+            slug=slug,
+        )
+        if existing is not None:
+            return existing
+
+        async with self._create_lock(
+            project_id=project_id,
+            idempotency_key=idempotency_key,
+        ):
+            existing = await self._fetch_complete_by_slug(
+                project_id=project_id,
+                slug=slug,
+            )
+            if existing is not None:
+                return existing
+
+            try:
+                return await self.create(
+                    project_id=project_id,
+                    user_id=user_id,
+                    simple_workflow_create=request,
+                    platform_meta=platform_meta,
+                )
+            except EntityCreationConflict as conflict:
+                # A concurrent creator may have won the unique-slug insert but
+                # not yet committed its first complete revision. Re-read for a
+                # short bounded interval, then preserve the database conflict.
+                for _ in range(100):
+                    existing = await self._fetch_complete_by_slug(
+                        project_id=project_id,
+                        slug=slug,
+                    )
+                    if existing is not None:
+                        return existing
+                    await asyncio.sleep(0.05)
+                raise conflict
 
     @staticmethod
     def _matches_requested_simple_workflow_flags(

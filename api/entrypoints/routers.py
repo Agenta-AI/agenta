@@ -808,6 +808,7 @@ simple_traces_service = SimpleTracesService(
 
 simple_workflows_service = SimpleWorkflowsService(
     workflows_service=workflows_service,
+    lock_engine=_lock_engine,
 )
 
 simple_environments_service = SimpleEnvironmentsService(
