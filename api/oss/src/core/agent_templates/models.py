@@ -1,10 +1,12 @@
 from typing import Annotated, Any, Literal
+from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from agenta.sdk.agents import SkillTemplate
 
 from oss.src.core.agent_templates.dtos import InternalTemplateSource
+from oss.src.core.workflows.dtos import WorkflowRevisionData
 
 
 class StrictModel(BaseModel):
@@ -150,3 +152,30 @@ class ParsedTemplatePackage(StrictModel):
     skills: list[SkillTemplate] = Field(default_factory=list)
     workspace: ParsedWorkspace = Field(default_factory=ParsedWorkspace)
     mcp_servers: dict[str, ParsedMCPServer] = Field(default_factory=dict)
+
+
+class UnresolvedTemplateBinding(StrictModel):
+    connection_key: str
+    purpose: str
+    setup_notes: str | None = None
+    selected_option: dict[str, Any] | None = None
+
+
+class TemplateBindingPlan(StrictModel):
+    tools: list[dict[str, Any]] = Field(default_factory=list)
+    mcps: list[dict[str, Any]] = Field(default_factory=list)
+    unresolved: list[UnresolvedTemplateBinding] = Field(default_factory=list)
+
+
+class InstalledSkillRef(StrictModel):
+    name: str
+    workflow_id: UUID
+    workflow_slug: str
+
+
+class CompiledTemplate(StrictModel):
+    workflow_name: str
+    workflow_description: str
+    revision_data: WorkflowRevisionData
+    workspace: ParsedWorkspace
+    first_message: str

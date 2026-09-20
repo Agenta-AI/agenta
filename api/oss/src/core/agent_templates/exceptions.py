@@ -38,3 +38,10 @@ class TemplatePackageInvalid(AgentTemplateError):
     def __init__(self, code: str, message: str, *, details: dict | None = None) -> None:
         self.code = code
         super().__init__(message, details=details)
+
+
+class TemplateProvenanceInvalid(AgentTemplateError):
+    code = "template_provenance_invalid"
+
+    def __init__(self) -> None:
+        super().__init__("Stored template provenance has an invalid shape.")
