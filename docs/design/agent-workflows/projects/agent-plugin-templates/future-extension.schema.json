@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://agenta.ai/schemas/agent-plugin-extension/1/agents.schema.json",
-  "title": "Agenta Agent Plugin extension",
-  "description": "Proposed single-agent template contract. Runtime loading is not implemented.",
+  "$id": "https://agenta.ai/schemas/agent-plugin-extension/future/agents.schema.json",
+  "title": "Future multi-agent extension (NOT IMPLEMENTED)",
+  "description": "Deferred multi-agent design fixture. Not supported by the first-version loader.",
   "type": "object",
   "properties": {
     "schema_version": {
@@ -19,8 +19,7 @@
       },
       "additionalProperties": {
         "$ref": "#/$defs/agent"
-      },
-      "maxProperties": 1
+      }
     }
   },
   "required": ["schema_version", "entry", "agents"],
@@ -285,9 +284,38 @@
         "description": {
           "type": "string",
           "minLength": 1
+        },
+        "subagents": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/subagent"
+          }
         }
       },
       "required": ["name", "description", "instructions"],
+      "additionalProperties": false
+    },
+    "subagent": {
+      "type": "object",
+      "properties": {
+        "agent": {
+          "$ref": "#/$defs/key"
+        },
+        "permission": {
+          "enum": ["allow", "ask", "deny"]
+        },
+        "input_schema": {
+          "type": "object"
+        },
+        "setup_notes": {
+          "type": "string"
+        },
+        "tool_description": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": ["agent"],
       "additionalProperties": false
     }
   }

@@ -27,6 +27,13 @@
           "setup_notes": "Ask whether mailbox access is useful. Let the user choose Gmail or the declared MCP server. If skipped, save Markdown drafts."
         }
       ],
+      "subagents": [
+        {
+          "agent": "researcher",
+          "setup_notes": "Verify one read-only company research example after the target profile is known.",
+          "tool_description": "Research prospective companies and return source-backed facts."
+        }
+      ],
       "automations": [
         {
           "key": "weekday-prospects",
@@ -57,6 +64,44 @@
           {
             "type": "directory",
             "path": "reports"
+          }
+        ]
+      }
+    },
+    "researcher": {
+      "name": "Prospect Researcher",
+      "description": "Research companies and return source-backed facts.",
+      "instructions": "./ai.agenta/agents/researcher/AGENTS.md",
+      "setup": "./ai.agenta/agents/researcher/SETUP.md",
+      "skills": ["prospect-research"],
+      "connections": [
+        {
+          "key": "web-search",
+          "required": true,
+          "purpose": "Find public company information and source URLs.",
+          "options": [
+            {
+              "kind": "gateway",
+              "provider": "composio",
+              "integration": "composio_search"
+            }
+          ],
+          "setup_notes": "Bind an existing search connection when available and verify a source-backed result."
+        }
+      ],
+      "subagents": [
+        {
+          "agent": "outbound",
+          "setup_notes": "This mutual link is valid. A synchronous outbound to researcher to outbound call must be rejected by the runtime cycle guard.",
+          "tool_description": "Hand a completed research brief back to the outbound coordinator when Researcher starts an independent task."
+        }
+      ],
+      "automations": [],
+      "workspace": {
+        "entries": [
+          {
+            "type": "directory",
+            "path": "research"
           }
         ]
       }

@@ -1,7 +1,5 @@
-# Outbound Prospecting example
+# Single-agent example
 
-This directory demonstrates the proposed package shape. Current Agenta APIs do not install it.
+This is the current first-version fixture. It declares one Outbound Prospecting agent, its description, permanent instructions, optional setup guidance, a skill, mailbox alternatives, copied workspace entries, and an automation recipe. Loading the recipe does not activate it.
 
-The package conforms to the published Agent Plugins 1.0 core schemas. `ai.agenta/agents.json` conforms to the proposed schema in the parent design workspace.
-
-`https://mcp.example.com/mail` is an illustrative endpoint. It is not expected to connect. The example exists to test package structure, references, and compilation rules rather than provider availability.
+Validate against [the extension schema](../extension.schema.json), plus the Agent Plugins 1.0 plugin and MCP schemas. This fixture is proposed content, not an implemented runtime feature. The [minimal example](../minimal-example/README.md) omits every optional setup and policy field.

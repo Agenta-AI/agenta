@@ -1,53 +1,20 @@
 # Status
 
-Source of truth for this project.
+## Current scope
 
-## Current state
+PR #6944 contains proposed specifications and examples only. The first version loads one agent from an internal source through the existing interface, then sends setup context in the first message. It reuses ordinary creation defaults and the existing build kit. Runtime implementation is NOT IMPLEMENTED.
 
-Date: 2026-09-20
+## Review decisions
 
-The design and implementation plan are ready for review. No runtime, API, database, frontend, or deployment behavior changes in this planning change.
+The PR review narrows the earlier multi-agent installation design. The current documents replace its lifecycle, custom setup tools, hidden context, new screens, and readiness gates. `/m` means the new default app on both desktop and mobile. MCP references and setup behavior now use the v0.119 baseline.
 
-## Decisions recorded
+The old two-agent example is preserved as [a future fixture](future-example/README.md). Its behavior is NOT IMPLEMENTED. The current [example](example/README.md) contains one agent.
 
-- Use the published Agent Plugins 1.0 format.
-- Put Agenta-specific data under the `ai.agenta` extension.
-- Keep each agent's permanent instructions in a separate `AGENTS.md` file.
-- Keep temporary setup guidance in `SETUP.md` and resource `setup_notes` fields.
-- Define agents once in a flat map and link them by package key.
-- Allow mutual links at install time and reject synchronous runtime call cycles.
-- Model optional connection needs and gateway or MCP alternatives in one connection slot.
-- Extend the current trusted `SessionContext` and `turnContext` path for setup guidance.
-- Install declared resources in backend code. Let the entry agent resolve conversational choices.
-- Pin installed content to a package digest.
+## Specification status
 
-## Verified artifacts
+- Single-agent source/loading/first-message/interface specifications: drafted in OpenSpec; implementation tasks remain unchecked.
+- Multi-agent specification: deferred, NOT IMPLEMENTED; not a version-one release requirement.
+- Build-kit audit: completed against release/v0.119.0 at `ebb825d1da345e7bf9741e832d7664a972e6f72e`.
+- Runtime and browser acceptance: NOT RUN in this docs-only change.
 
-- The example `plugin.json` and `mcp.json` validate against the published Agent Plugins 1.0 schemas.
-- The example `ai.agenta/agents.json` validates against the proposed local extension schema.
-- Every declared package path and cross-reference in the example resolves inside the package.
-- The planning Markdown contains no em dash characters.
-
-## Implementation order
-
-1. Package loader and compiler.
-2. Idempotent installation.
-3. Setup session and scoped operations.
-4. Runtime recursion protection.
-5. One-package frontend adoption.
-6. Repository and archive sources.
-
-## Review focus
-
-- Is `ai.agenta` the namespace Agenta wants to keep long term?
-- Is the first release boundary correct: standard skills plus Streamable HTTP MCP, but no stdio or legacy SSE?
-- Are the six installation-scoped setup operations narrow enough for the first delivery?
-- Should package setup block all ordinary runs until readiness, or only show an incomplete warning? This plan recommends blocking them.
-
-## Next action
-
-After approval, start with the loader and compiler against the example package. Do not begin marketplace or update behavior in the first implementation slice.
-
-## Documentation update
-
-The plan now explicitly builds on merged PR #6395. It records desktop/mobile differences, required connection gates, concrete persisted bindings, optional skip semantics, and replacement of the package pending-message handoff. New product scenarios and code invariants define acceptance and implementation evidence. These remain proposed requirements pending design approval; runtime validation and the product pilot have not run in this documentation PR.
+[Review responses](review-responses.md) record how every comment was handled. Validation command results are recorded there after checks run.

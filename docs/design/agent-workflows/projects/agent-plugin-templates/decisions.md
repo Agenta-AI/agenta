@@ -1,94 +1,33 @@
 # Decisions
 
-## Use Agent Plugins 1.0 as the package base
+## Load one agent
 
-Agent Plugins 1.0 is the current published release. It defines package identity, filesystem containment, standard skill discovery, standard MCP server discovery, and client extension namespaces.
+Version one accepts one agent definition. It loads known content in backend code and hands remaining work to that agent. Multi-agent packages and reference tools stay in a separate future specification.
 
-Agenta will validate the published core contract without changing it. The package will declare Agenta-owned fields under `extensions.ai.agenta` and store Agenta-owned files under `ai.agenta/`.
+## Preserve the interface
 
-Agent Plugins does not make the full Agenta package portable. Other clients can load its standard skills and supported MCP servers, but they may ignore its agents, files, setup guidance, and automation recipes.
+Keep existing cards, template-opening controls, connection-card placement, and navigation. `/m` is the new default app for all screen sizes. The older web host remains a distinct implementation, not the definition of desktop.
 
-## Keep the extension manifest in its namespace directory
+## Resolve a source
 
-`plugin.json` stays small:
+The service accepts a typed template source and defaults existing card keys to the internal catalog. Follow the skill-import pattern of source resolution and provenance. This is a content-loading change, not a migration of saved agents.
 
-```json
-{
-  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
-  "name": "outbound-prospecting",
-  "extensions": {
-    "ai.agenta": {
-      "manifest": "./ai.agenta/agents.json"
-    }
-  }
-}
-```
+## Reuse current creation settings
 
-The extension value points to `./ai.agenta/agents.json`. Agenta owns the path field and therefore defines its validation and failure behavior. The path must begin with `./`, resolve inside the package root, and point into `ai.agenta/`.
+Use the same model, harness, and sandbox selection as ordinary agent creation. Do not put a separate model-selection rule in templates. Version-one packages do not override `llm`.
 
-## Define agents once and link them by key
+## Keep references small
 
-Agents live in one map. A link names another key from that map. This supports shared children and mutual links without nesting or copying definitions.
+An MCP option contains only `kind` and `server`. MCP configuration and authentication belong to existing server declarations and gateway services. Permission policy is optional. An agent owns its description; a future subagent reference has an optional `tool_description` for when to call it.
 
-```json
-{
-  "entry": "outbound",
-  "agents": {
-    "outbound": {
-      "subagents": [{ "agent": "researcher" }]
-    },
-    "researcher": {
-      "subagents": [{ "agent": "outbound" }]
-    }
-  }
-}
-```
+## Copy workspace content in the backend
 
-The installer creates every workflow first and writes reference tools in a second pass. Package cycles are valid. Runtime call cycles are not. A workflow callback must carry its active call chain, reject a target already in that chain, and enforce a maximum depth. This lets either agent call the other from an independent task while stopping synchronous `A -> B -> A` recursion.
+Files and folders are copy declarations. They do not need resource-level setup notes. Put any later user-specific file changes in the optional agent `SETUP.md`. All remaining setup notes are optional.
 
-## Keep instructions and setup guidance in files
+## End at the first message
 
-Each agent points to an `AGENTS.md` file. The installer reads it into the current `parameters.agent.instructions.agents_md` field.
+Provide setup context in the normal first message. Reuse the existing build kit for the subsequent conversation. Do not introduce installation status, an installation-read operation, template-specific edit operations, or a template readiness gate.
 
-Each agent may also point to `SETUP.md`. This file applies only while the installation is incomplete. It does not become permanent agent instructions.
+## Keep request retries separate from conversational setup
 
-Resource declarations may add `setup_notes`. These notes explain how the setup agent should resolve that resource. They are data for the setup conversation. They never grant permission or prove that a setup action succeeded.
-
-## Model connection needs as slots with choices
-
-A connection declaration says what the agent needs, whether it is required, and which options can satisfy it. An option may be an Agenta gateway integration or a named server from standard `mcp.json`.
-
-```json
-{
-  "key": "mailbox",
-  "required": false,
-  "purpose": "Prepare drafts in the selected mailbox.",
-  "options": [
-    { "kind": "gateway", "provider": "composio", "integration": "gmail" },
-    { "kind": "mcp", "server": "mail-drafts" }
-  ],
-  "setup_notes": "Ask whether the user wants mailbox access. If skipped, save Markdown drafts."
-}
-```
-
-The package never names a project connection slug or secret slug. The installation stores the selected option and the verified project binding.
-
-Tool policy belongs to the agent's connection declaration because it controls what that agent may do. Credentials belong to the installation because they exist in the target project. Source metadata belongs to the package snapshot. These fields must not share one untyped metadata object.
-
-## Extend the current per-turn context for setup
-
-The current SDK already resolves `SessionContext` from the backend and renders it into `turnContext`. Extend that path with an optional setup section for an active installation session.
-
-The setup section contains the agent's `SETUP.md`, resource setup notes, selected bindings, and unresolved requirements. The backend derives it from the session and installation. The browser cannot submit it as trusted request metadata.
-
-This design needs no hidden chat-message type and no separate setup-context service. The normal transcript stores only the visible greeting and subsequent conversation. The setup section stops rendering when the installation becomes ready or cancelled.
-
-## Let the backend install declarations and the agent resolve choices
-
-The backend creates workflows, skills, files, and reference tools because the package already defines them. The setup agent handles choices that require user input, including account selection, user-specific values, and activation approval.
-
-The setup agent receives narrow operations scoped to one installation. It does not receive project-wide authority to edit arbitrary workflows.
-
-## Pin installed content
-
-An installation records a content digest and copies the package definitions into project resources. A later repository or marketplace update does not change installed agents automatically. Update review and conflict handling are separate work after the first installer ships.
+Prevent duplicate create requests and duplicate first messages through the owning resource/session services. Request keys and fingerprints do not create a new conversational lifecycle. See [the loading flow](installation-flow.md) for the remaining general session-input gap.

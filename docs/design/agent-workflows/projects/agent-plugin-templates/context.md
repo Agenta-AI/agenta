@@ -1,73 +1,23 @@
 # Context
 
-## What users experience today
+## Current experience
 
-The home page has a static `AgentStarterTemplate` registry with display copy, connection slots, an example, and a builder message. [PR #6395](https://github.com/Agenta-AI/agenta/pull/6395) adds account selection to this flow. Desktop asks before Create. Mobile creates the agent and session first, then holds the first message behind an in-session connection card when a required account is missing or a provider choice exists.
+The existing template action creates an agent and starts a builder conversation using a template playbook. PR #6395 added required connections and alternative providers. `/m` is the new default application on both desktop and phone screens. Its connection card appears inside the session. The older web application has a separate pre-create flow.
 
-The build-an-agent skill then matches the request to a bundled playbook. The agent discovers tools, asks for missing details, and commits its own configuration. Connection choices reach the builder as prose appended to the visible user message. They are not persisted package bindings. [Integration with the existing connection step](onboarding-integration.md) specifies what to reuse and what package installation must replace.
+Keep these screens and interactions unchanged. The problem to solve is how the template content loads, not how the user opens a template.
 
-This flow shipped the first useful template catalog. It has three limits for the next use case:
+## First version
 
-1. A card describes one agent. It cannot define several agents and links between them.
-2. The package content is split between frontend card data and Python playbooks. It cannot be imported from a repository or shared archive as one unit.
-3. Skills, starter files, MCP servers, and automation recipes are instructions for a model to recreate. They are not declared resources that the backend installs.
+The loading service resolves an internal template source by default. It reads one agent's name, description, permanent instructions, skills, files, and connection declarations from an Agent Plugin package. It creates ordinary resources through existing services and uses the current model-selection logic.
 
-## What this project adds
+The first message includes setup instructions and remaining work, such as connecting a missing account or configuring an automation. The agent already has access to its saved configuration and build-kit tools. It continues setup in the normal conversation.
 
-A template becomes a versioned Agent Plugin directory. The package declares:
+The loading feature ends when that first message is accepted. It does not track whether the agent has finished all setup, introduce a new readiness status, or block future runs through a template lifecycle.
 
-- one or more named agents;
-- one entry agent that opens after Create;
-- a separate `AGENTS.md` and optional `SETUP.md` for each agent;
-- standard Agent Skills under `skills/`;
-- standard MCP servers in `mcp.json`;
-- Agenta gateway connection options;
-- links between agents;
-- starter files and folders;
-- automation recipes;
-- setup notes attached to the resources the setup agent must configure.
+## Deferred work
 
-The API validates and snapshots the package, creates the declared resources, and opens one setup conversation with the entry agent. The entry agent receives setup guidance as model context, not as a transcript bubble. It uses installation-scoped operations to finish missing connection bindings, child configuration, files, and automations.
+Multi-agent loading is specified separately and marked NOT IMPLEMENTED. A future general tool for creating and editing agents can let an entry agent configure children. Repository/archive source adapters, marketplace UI, automatic updates, and new template-opening screens are also outside the first version.
 
-## Example outcome
+## MCP baseline
 
-A user selects **Outbound Prospecting** and presses Create.
-
-Agenta creates:
-
-- an Outbound Prospecting agent;
-- a Prospect Researcher agent;
-- links in both directions because each agent declares the other as a callable child;
-- the shared prospect-research skill;
-- starter profile and outreach files;
-- an optional weekday schedule recipe.
-
-Agenta then opens the Outbound Prospecting setup session with this visible message:
-
-> Hi Outbound Prospecting. Please setup yourself
-
-The model also receives `SETUP.md`, resource setup notes, selected account bindings, and unresolved requirements through the existing per-turn context path. These items do not appear as user messages.
-
-## Goals
-
-- Use the published Agent Plugins format as the package base.
-- Keep Agenta-specific behavior inside the `ai.agenta` extension.
-- Create each declared agent once, then resolve links by stable package key.
-- Allow optional connection requirements and alternative implementations such as Composio or MCP.
-- Keep permanent instructions in `AGENTS.md` and temporary guidance in `SETUP.md`.
-- Install known resources in backend code instead of asking a model to reproduce them.
-- Preserve explicit approval for credentials, external writes, and recurring actions.
-- Make retries safe after refreshes, timeouts, and partial failures.
-
-## Non-goals for the first delivery
-
-- Standardizing agents or automations in the Agent Plugins core specification.
-- Supporting Agent Plugins stdio or legacy SSE MCP servers. Agenta will support the published Streamable HTTP form first and report the other forms as unsupported.
-- Automatically applying publisher updates to installed agents.
-- Installing executable startup hooks into an agent workspace.
-- Allowing a package to carry raw credentials, project connection identifiers, active trigger identifiers, or private sessions.
-- Building a marketplace before the package loader and installer work for a bundled package.
-
-## Success criteria
-
-A bundled package can create its agents, skills, files, links, and inactive automation recipes with one user action. A retry does not duplicate resources. The entry agent can finish setup through one conversation. The same validated package snapshot can later arrive from a repository or archive without changing installation semantics.
+Use the v0.119 MCP gateway and its existing HTTP/gateway configuration and OAuth/API-key/no-auth flows. The earlier plan's direct-HTTP/header-only model was incomplete. Verified transport support and authentication support are separate concerns; see [research](research.md) for precise limits.
