@@ -138,6 +138,41 @@ export const Sides: Story = {
     ),
 }
 
+// The fifth side. It is a VIEWPORT rule, not a container one, so this story portals to the
+// viewport and changes shape with the Storybook viewport toolbar: a bottom sheet at phone widths,
+// the right-edge drawer from 1024px up. Rendering it in a boxed column like `Sides` would show
+// the desktop half at every width, which is exactly the mistake the variant exists to prevent.
+export const Responsive: Story = {
+    parameters: {
+        docs: {
+            description: {
+                story: '`side="responsive"` — a bottom sheet below `lg` and the app\'s right-edge drawer from `lg` up. Resize the preview or use the viewport toolbar to see both halves. `EnhancedDrawer` exposes it as `placement="responsive"`, and a `width` there applies to the drawer half only.',
+            },
+        },
+    },
+    render: () => (
+        <div className="p-8">
+            <Sheet>
+                <SheetTrigger asChild>
+                    <ShadButton variant="outline">Open responsive panel</ShadButton>
+                </SheetTrigger>
+                <SheetContent side="responsive">
+                    <SheetHeader>
+                        <SheetTitle>Add MCP server</SheetTitle>
+                    </SheetHeader>
+                    <div className="flex-1 overflow-auto px-6 py-6 text-field-md text-colorText">
+                        {BODY}
+                    </div>
+                    <SheetFooter>
+                        <ShadButton variant="outline">Cancel</ShadButton>
+                        <ShadButton>Add</ShadButton>
+                    </SheetFooter>
+                </SheetContent>
+            </Sheet>
+        </div>
+    ),
+}
+
 // Reference: real trigger-driven Sheet vs antd Drawer (click to open), portaled to the viewport.
 export const AntdVsAgenta: Story = {
     render: () => (

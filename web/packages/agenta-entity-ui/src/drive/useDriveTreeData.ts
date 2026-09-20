@@ -18,8 +18,11 @@ import {
     collectFolderPaths,
     flattenTree,
     looksLikeFilePath,
+    driveHasMixedOrigins,
+    fileOrigin,
+    type FileOrigin,
+    type SessionDriveData,
 } from "@agenta/entities/drive"
-import {fileOrigin, type FileOrigin, type SessionDriveData} from "@agenta/entities/drive"
 import {type MountFile} from "@agenta/entities/session"
 
 import {useLazyDriveTree} from "./useLazyDriveTree"
@@ -32,7 +35,7 @@ export function useDriveTreeData({
     selectedPath,
     searchActive,
     deferredSearch,
-    originFilter,
+    showTemporary,
     showHidden,
     showGitignored,
 }: {
@@ -45,7 +48,8 @@ export function useDriveTreeData({
     selectedPath: string | null
     searchActive: boolean
     deferredSearch: string
-    originFilter: "all" | FileOrigin
+    /** "Show temporary files" — the session-scoped files beside the `agent-files/` mount. */
+    showTemporary: boolean
     showHidden: boolean
     showGitignored: boolean
 }) {
@@ -90,6 +94,13 @@ export function useDriveTreeData({
             return name === ".gitignore" && ancestors.has(dir)
         })
     }, [lazyTree.files, selectedPath])
+    // Read off the loaded listing, not the recents; a single-origin drive never filters.
+    const showOrigin = useMemo(
+        () => driveHasMixedOrigins(explicitFiles ?? lazyTree.files),
+        [explicitFiles, lazyTree.files],
+    )
+    // "Show temporary files" is the origin filter: session-scoped files are the temporary ones.
+    const originFilter: "all" | FileOrigin = showOrigin && !showTemporary ? "agent" : "all"
     const originFiltered = useMemo(() => {
         // Local-file mode: the explicit list is the whole tree; the mount's lazy files are ignored.
         let files = explicitFiles ?? lazyTree.files
@@ -97,6 +108,8 @@ export function useDriveTreeData({
         if (!showHidden) files = files.filter((f) => !isHiddenPath(f.path))
         return files
     }, [explicitFiles, lazyTree.files, originFilter, showHidden])
+    // Listed files first: an upload whose file has landed yields to the real entry (one path, one
+    // node — the tile keeps its slot).
     const tree = useMemo(
         () =>
             buildDriveTree(
@@ -193,8 +206,12 @@ export function useDriveTreeData({
     }
     return {
         lazyTree,
+        /** The drive holds both agent and session files. */
+        showOrigin,
         inGitScope,
         tree,
+        /** The tree narrowed to the search. */
+        shownTree,
         shownExpanded,
         isDirLoading,
         flatRows,

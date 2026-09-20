@@ -7,9 +7,15 @@ import {
     isProtocolRelativeHref,
     withExplicitRelativeLinks,
 } from "@agenta/entity-ui/drive"
-import {code} from "@streamdown/code"
+import {createCodePlugin, type CodeHighlighterPlugin} from "@streamdown/code"
 import {math} from "@streamdown/math"
-import {defaultRehypePlugins, Streamdown, type Components, type ThemeInput} from "streamdown"
+import {
+    defaultRehypePlugins,
+    Streamdown,
+    type Components,
+    type IconMap,
+    type ThemeInput,
+} from "streamdown"
 
 /** Host-supplied renderer for a code span / relative href that may name an agent file. */
 export interface ChatMarkdownLinkResolver {
@@ -135,14 +141,44 @@ export const chatMarkdownComponents: Components = {
 /** Streamdown's own list, plus one plugin BEFORE its harden gate; the prop replaces the defaults. */
 export const MD_REHYPE_PLUGINS = withExplicitRelativeLinks(defaultRehypePlugins)
 
+/** Light/dark pair — Shiki dual themes track the app theme. */
+const SHIKI_THEMES: [ThemeInput, ThemeInput] = ["one-light", "one-dark-pro"]
+
+/**
+ * Fence languages the model writes that Shiki knows under another id. `bundledLanguagesInfo`
+ * carries Shiki's own aliases (`sh` → `bash`), but not these, and an unknown id highlights as
+ * plain text — an `env` fence rendered every line in one colour.
+ */
+const LANGUAGE_ALIASES: Record<string, string> = {
+    env: "dotenv",
+    ".env": "dotenv",
+    shell: "bash",
+    zsh: "bash",
+    console: "bash",
+    yml: "yaml",
+    jsonc: "json",
+}
+const aliasLanguage = <T extends string>(language: T): T =>
+    (LANGUAGE_ALIASES[language.trim().toLowerCase()] ?? language) as T
+
+/**
+ * Shiki fences, themed here rather than through Streamdown's `shikiTheme`: the plugin's own
+ * themes win over that prop, so the pre-built `code` export silently kept GitHub's palette.
+ * Wrapped so our aliases apply before the plugin decides whether it can highlight at all.
+ */
+const shiki = createCodePlugin({themes: SHIKI_THEMES})
+const code: CodeHighlighterPlugin = {
+    ...shiki,
+    supportsLanguage: (language) => shiki.supportsLanguage(aliasLanguage(language)),
+    highlight: (options, callback) =>
+        shiki.highlight({...options, language: aliasLanguage(options.language)}, callback),
+}
+
 /** KaTeX math ($…$ / $$…$$) + Shiki-highlighted fences; both tree-shaken plugin packages. */
 const MD_PLUGINS = {math, code}
 
 /** Copy button on fences; no per-table/mermaid chrome. */
 const MD_CONTROLS = {code: {copy: true, download: false}, mermaid: false, table: false} as const
-
-/** Light/dark pair — Shiki dual themes track the app theme. */
-const SHIKI_THEMES: [ThemeInput, ThemeInput] = ["one-light", "one-dark-pro"]
 
 export interface ChatMarkdownProps {
     content: string
@@ -154,6 +190,8 @@ export interface ChatMarkdownProps {
     streaming?: boolean
     /** Without it, code spans and relative links render plain. */
     useLinkResolver?: UseChatMarkdownLinkResolver
+    /** Streamdown's control glyphs (the fence's copy / copied pair); keep at module scope on the host. */
+    icons?: Partial<IconMap>
 }
 
 /**
@@ -172,6 +210,7 @@ const ChatMarkdown = ({
     className,
     streaming = false,
     useLinkResolver,
+    icons,
 }: ChatMarkdownProps) => (
     <LinkResolverContext.Provider value={useLinkResolver ?? null}>
         <Streamdown
@@ -182,6 +221,7 @@ const ChatMarkdown = ({
             rehypePlugins={MD_REHYPE_PLUGINS}
             plugins={MD_PLUGINS}
             controls={MD_CONTROLS}
+            icons={icons}
             shikiTheme={SHIKI_THEMES}
             lineNumbers={false}
             mode={streaming ? "streaming" : "static"}

@@ -1,5 +1,7 @@
 import type {ToolUIPart, UIMessage} from "ai"
 
+import {isReadableMcpServerNoticePart} from "./mcpServerNotice"
+
 // Copied verbatim from web/oss/src/components/AgentChatSlice/components/AgentMessage.tsx
 // (2026-07-25); the OSS original remains authoritative for the desktop chat until the
 // re-plumb PR deletes it. Keep byte-parity if either side changes.
@@ -22,12 +24,14 @@ export const toolIdentity = (p: ToolUIPart): string => {
 // Copied verbatim from web/oss/src/components/AgentChatSlice/AgentConversation.tsx
 // (2026-07-25); the OSS original remains authoritative for the desktop chat until the
 // re-plumb PR deletes it. Keep byte-parity if either side changes.
-/** A part the transcript actually renders — non-empty text/reasoning, files, sources, tools. */
+/** A part the transcript actually renders — non-empty text/reasoning, files, sources, tools,
+ * and the notice card for a server that did not join. */
 export const isVisiblePart = (p: UIMessage["parts"][number]): boolean =>
     (p.type === "text" && Boolean((p as {text?: string}).text?.trim())) ||
     (p.type === "reasoning" && Boolean((p as {text?: string}).text?.trim())) ||
     p.type === "file" ||
     p.type === "source-url" ||
+    isReadableMcpServerNoticePart(p) ||
     p.type.startsWith("tool-") ||
     p.type === "dynamic-tool"
 

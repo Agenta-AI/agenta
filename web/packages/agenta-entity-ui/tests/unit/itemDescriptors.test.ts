@@ -10,7 +10,10 @@
  */
 import {describe, expect, it} from "vitest"
 
-import {describeTool} from "../../src/DrillInView/SchemaControls/agentTemplate/itemDescriptors"
+import {
+    describeTool,
+    skillCommandName,
+} from "../../src/DrillInView/SchemaControls/agentTemplate/itemDescriptors"
 import {isHarnessBuiltinTool} from "../../src/DrillInView/SchemaControls/toolUtils"
 
 describe("isHarnessBuiltinTool", () => {
@@ -45,5 +48,54 @@ describe("describeTool (built-in tools)", () => {
         const descriptor = describeTool({type: "function", function: {name: "get_weather"}})
         expect(descriptor.name).toBe("get_weather")
         expect(descriptor.typeLabel).toBe("definition")
+    })
+})
+
+describe("skillCommandName", () => {
+    const embed = (refs: Record<string, unknown>, extra: Record<string, unknown> = {}) => ({
+        "@ag.embed": {"@ag.references": refs, "@ag.selector": {path: "parameters.skill"}},
+        ...extra,
+    })
+
+    it("uses a registry skill's name, not its suffixed slug", () => {
+        const skill = embed({workflow: {slug: "skill-name-23ad", id: "wf"}}, {name: "skill-name"})
+        expect(skillCommandName(skill)).toBe("skill-name")
+    })
+
+    it("uses the name for a pinned registry skill too", () => {
+        const skill = embed(
+            {workflow_revision: {slug: "skill-name-23ad", version: "3"}},
+            {name: "skill-name"},
+        )
+        expect(skillCommandName(skill)).toBe("skill-name")
+    })
+
+    it("falls back to the slug when the embed has no usable name", () => {
+        expect(skillCommandName(embed({workflow: {slug: "skill-name-23ad"}}))).toBe(
+            "skill-name-23ad",
+        )
+        expect(
+            skillCommandName(embed({workflow: {slug: "skill-name-23ad"}}, {name: "Skill Name"})),
+        ).toBe("skill-name-23ad")
+    })
+
+    it("gives a nameless built-in skill no command", () => {
+        expect(
+            skillCommandName(embed({workflow: {slug: "__ag__getting_started_with_agenta"}})),
+        ).toBeUndefined()
+        expect(
+            skillCommandName(embed({workflow: {slug: "_agenta.agenta-getting-started"}})),
+        ).toBeUndefined()
+    })
+
+    it("keeps a named built-in skill", () => {
+        const skill = embed({workflow: {slug: "__ag__build_an_agent"}}, {name: "build-an-agent"})
+        expect(skillCommandName(skill)).toBe("build-an-agent")
+    })
+
+    it("uses an inline skill's name", () => {
+        expect(skillCommandName({name: "weather", description: "d", body: "b"})).toBe("weather")
+        expect(skillCommandName({name: "not valid"})).toBeUndefined()
+        expect(skillCommandName(null)).toBeUndefined()
     })
 })

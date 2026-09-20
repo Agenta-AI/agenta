@@ -1,13 +1,15 @@
 """Shared SSRF guard for outbound URLs configured by tenants (custom-provider endpoints, etc).
 
-Mirrors api/oss/src/core/webhooks/utils.py and engines/running/handlers.py's
-_validate_webhook_url; unify these three if a clean shared package ever spans API + SDK.
+Mirrors api/oss/src/core/webhooks/utils.py's range logic; the SDK ships to users so it
+cannot import the API package, hence this separate copy. engines/running/handlers.py
+delegates its webhook guard here rather than duplicating the checks.
 """
 
 import ipaddress
 import os
 import socket
-from urllib.parse import urlparse
+from typing import Optional, Tuple
+from urllib.parse import urlparse, urlunparse
 
 from agenta.sdk.utils.constants import TRUTHY
 from agenta.sdk.utils.logging import get_module_logger
@@ -31,8 +33,37 @@ if not _ALLOW_INSECURE:
     )
 
 
-def _is_blocked_ip(ip: ipaddress._BaseAddress) -> bool:
-    if _ALLOW_INSECURE:
+# RFC 6598 shared address space, the one range this guard blocks that Python does not.
+#
+# `ipaddress` answers False to every predicate below for an address in this range and does
+# not carry it in its private-networks table, so a target resolving into it read as public
+# and was dialled with the caller's credential attached. The range is in everyday use for
+# cloud pod and service networks and for some mesh VPNs, and a gateway endpoint URL is
+# supplied by the tenant, so reaching one of those is the feature rather than an
+# administrator's misconfiguration (P10).
+#
+# The same range is added to every other copy of this predicate and to the generated table
+# the runner loads. They are held together by the vector fixture in
+# `sdks/python/oss/tests/pytest/unit/golden/ssrf_guard_vectors.json`, which every one of
+# them is asserted against, so a copy that misses it fails rather than diverges quietly.
+_SHARED_ADDRESS_SPACE = ipaddress.ip_network("100.64.0.0/10")
+
+
+def _in_shared_address_space(ip: ipaddress._BaseAddress) -> bool:
+    """Whether an address is RFC 6598 space, IPv4-mapped IPv6 included.
+
+    Unwrapped the way `ipaddress` unwraps for its own predicates, so `::ffff:100.64.0.1` is
+    judged as the IPv4 address it carries.
+    """
+    embedded = getattr(ip, "ipv4_mapped", None)
+    candidate = embedded if embedded is not None else ip
+    return candidate.version == 4 and candidate in _SHARED_ADDRESS_SPACE
+
+
+def _is_blocked_ip(
+    ip: ipaddress._BaseAddress, *, allow_insecure: Optional[bool] = None
+) -> bool:
+    if _ALLOW_INSECURE if allow_insecure is None else allow_insecure:
         return False
     return (
         ip.is_private
@@ -41,6 +72,7 @@ def _is_blocked_ip(ip: ipaddress._BaseAddress) -> bool:
         or ip.is_reserved
         or ip.is_multicast
         or ip.is_unspecified
+        or _in_shared_address_space(ip)
     )
 
 
@@ -57,7 +89,7 @@ def assert_endpoint_url_allowed(url: str) -> None:
     validate_endpoint_url(url)
 
 
-def validate_endpoint_url(url: str) -> str:
+def validate_endpoint_url(url: str, *, allow_insecure: Optional[bool] = None) -> str:
     """Validate `url` and resolve it to a blocked-range-checked literal IP.
 
     For tenant-configured endpoints this process connects to directly: the caller MUST connect
@@ -65,7 +97,12 @@ def validate_endpoint_url(url: str) -> str:
     and send cannot reach an internal host. Raises ValueError on anything private/loopback/
     reserved by default. For a validate-only config gate (no in-process connect), use
     `assert_endpoint_url_allowed` instead.
+
+    `allow_insecure` defaults to this module's own env-resolved flag; pass it explicitly to
+    reuse this guard under a caller's own policy (e.g. a different env-var precedence).
     """
+    insecure = _ALLOW_INSECURE if allow_insecure is None else allow_insecure
+
     if not url:
         raise ValueError("URL is required.")
 
@@ -73,7 +110,7 @@ def validate_endpoint_url(url: str) -> str:
     scheme = parsed.scheme.lower()
     if scheme not in {"http", "https"}:
         raise ValueError("URL must use http or https.")
-    if scheme == "http" and not _ALLOW_INSECURE:
+    if scheme == "http" and not insecure:
         raise ValueError("URL must use https.")
     if not parsed.netloc:
         raise ValueError("URL must include a host.")
@@ -83,7 +120,7 @@ def validate_endpoint_url(url: str) -> str:
     hostname = (parsed.hostname or "").lower()
     if not hostname:
         raise ValueError("URL must include a valid hostname.")
-    if hostname in {"localhost", "localhost.localdomain"} and not _ALLOW_INSECURE:
+    if hostname in {"localhost", "localhost.localdomain"} and not insecure:
         raise ValueError("URL hostname is not allowed.")
 
     try:
@@ -92,7 +129,7 @@ def validate_endpoint_url(url: str) -> str:
         ip = None
 
     if ip is not None:
-        if _is_blocked_ip(ip):
+        if _is_blocked_ip(ip, allow_insecure=insecure):
             raise ValueError("URL resolves to a blocked IP range.")
         return str(ip)
 
@@ -104,7 +141,17 @@ def validate_endpoint_url(url: str) -> str:
     except socket.gaierror as exc:
         raise ValueError("URL hostname could not be resolved.") from exc
 
-    if not addresses or any(_is_blocked_ip(addr) for addr in addresses):
+    if not addresses or any(
+        _is_blocked_ip(addr, allow_insecure=insecure) for addr in addresses
+    ):
         raise ValueError("URL resolves to a blocked IP range.")
 
     return str(addresses[0])
+
+
+def pin_url_to_ip(url: str, resolved_ip: str) -> Tuple[str, str]:
+    """Swap the URL's host for the literal validated IP; keep hostname for Host/SNI."""
+    parsed = urlparse(url)
+    host_literal = f"[{resolved_ip}]" if ":" in resolved_ip else resolved_ip
+    pinned_netloc = f"{host_literal}:{parsed.port}" if parsed.port else host_literal
+    return urlunparse(parsed._replace(netloc=pinned_netloc)), parsed.hostname or ""

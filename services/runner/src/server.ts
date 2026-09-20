@@ -53,6 +53,7 @@ import {
   type ParkedApproval,
   type SessionEnvironment,
 } from "./engines/sandbox_agent.ts";
+import { withGatewayErrorDetail } from "./engines/sandbox_agent/engine.ts";
 import {
   cancelHarnessTurn,
   resolveCancelSettleMs,
@@ -492,7 +493,18 @@ async function runAndStreamWithApiBaseResolved(
 
   const writeRecord = (record: StreamRecord): void => {
     if (res.writableEnded) return;
-    res.write(JSON.stringify(record) + "\n");
+    // EVERY result leaves through here, whichever engine path produced it. `engine.ts` recovers
+    // the gateway envelope on its own one-shot path, but the session path builds its result in
+    // `session-coordinator` and never passes through that call — so a pooled run, which is every
+    // playground run, used to reach the SDK with `failure_code: agent_run_failed` and the real
+    // `model_not_allowed` readable only as prose (OR28). Recovering at the transport boundary is
+    // what makes the two paths answer alike. Idempotent: a result that already carries a detail
+    // is returned untouched.
+    const settled: StreamRecord =
+      record.kind === "result"
+        ? { kind: "result", result: withGatewayErrorDetail(record.result) }
+        : record;
+    res.write(JSON.stringify(settled) + "\n");
   };
   const liveEmit: EmitEvent = (event) => writeRecord({ kind: "event", event });
   const turn = currentUserTurn(request);
@@ -788,31 +800,30 @@ async function runAndStreamWithApiBaseResolved(
   };
   let flushPersist: (() => Promise<void>) | undefined;
   let persistError:
-    | ((message: string, code?: RunErrorCode) => void)
-    | undefined;
+    ((message: string, code?: RunErrorCode) => void) | undefined;
   let persistTerminal: ((stopReason?: string) => void) | undefined;
   let terminalRecordEmitted = false;
 
   try {
     if (sessionOwned) {
-    // The request's api base (if any) is already scoped for this call via
-    // runWithRequestApiBase in the outer runAndStream — apiBase() below sees it.
-    // The runner authenticates session calls AS the invoke caller (the run credential),
-    // refreshing it for the turn's lifetime — never the admin key. Project scope is
-    // resolved server-side from the credential, so no project_id rides the request.
-    //
-    // onInterrupted (W7.4): a cancel/steer/kill against this session (via
-    // `POST /sessions/streams/` or the runner's own `/kill`) drops this turn's alive lock.
-    // The next heartbeat surfaces that as `is_current_turn: false`; wiring it to
-    // `controller.abort()` is what makes the control-plane signal actually reach this
-    // in-flight run — before this, a session-owned run's controller was never aborted.
-    // Awaited (WP3) so the first heartbeat's stream_id is ready before the turn starts.
-    //
-    // The beat also proposes the two things a headless session otherwise never gets: a name
-    // (no browser ever renders it, and the browser is the only other title writer) and the
-    // run's workflow references (they ride only a fire-and-forget turn append today, so a
-    // dropped append leaves a row the UI cannot open). Both are fill-once server-side.
-    const watchdog = aliveWatchdog!;
+      // The request's api base (if any) is already scoped for this call via
+      // runWithRequestApiBase in the outer runAndStream — apiBase() below sees it.
+      // The runner authenticates session calls AS the invoke caller (the run credential),
+      // refreshing it for the turn's lifetime — never the admin key. Project scope is
+      // resolved server-side from the credential, so no project_id rides the request.
+      //
+      // onInterrupted (W7.4): a cancel/steer/kill against this session (via
+      // `POST /sessions/streams/` or the runner's own `/kill`) drops this turn's alive lock.
+      // The next heartbeat surfaces that as `is_current_turn: false`; wiring it to
+      // `controller.abort()` is what makes the control-plane signal actually reach this
+      // in-flight run — before this, a session-owned run's controller was never aborted.
+      // Awaited (WP3) so the first heartbeat's stream_id is ready before the turn starts.
+      //
+      // The beat also proposes the two things a headless session otherwise never gets: a name
+      // (no browser ever renders it, and the browser is the only other title writer) and the
+      // run's workflow references (they ride only a fire-and-forget turn append today, so a
+      // dropped append leaves a row the UI cannot open). Both are fill-once server-side.
+      const watchdog = aliveWatchdog!;
       aliveWatchdog = watchdog;
       // The heartbeat response already carries the session_streams row id — free, no extra
       // round-trip. Thread it onto the request so the engine's turn-append write has it.
@@ -1017,7 +1028,9 @@ async function runAndStreamWithApiBaseResolved(
     // event — persist it here as the backstop.
     if (persistError) persistError(message);
     if (!terminalRecordEmitted && persistTerminal) {
-      persistTerminal(isUserStopAbort(controller.signal) ? "cancelled" : undefined);
+      persistTerminal(
+        isUserStopAbort(controller.signal) ? "cancelled" : undefined,
+      );
     }
     if (flushPersist) await flushPersist().catch(() => {});
     result = { ok: false, error: message };
@@ -1119,7 +1132,9 @@ const SUBSCRIPTION_LOGIN_BODY_MAX_BYTES = 4 * 1024;
  * segment, and rejected when it is not a single segment — an id is a uuid this runner minted, and
  * anything with a slash in it is a caller probing for a different route.
  */
-function subscriptionLoginAttemptId(url: string | undefined): string | undefined {
+function subscriptionLoginAttemptId(
+  url: string | undefined,
+): string | undefined {
   const path = (url ?? "").split("?")[0];
   if (!path.startsWith(`${SUBSCRIPTION_LOGIN_ROUTE}/`)) return undefined;
   const rest = path.slice(SUBSCRIPTION_LOGIN_ROUTE.length + 1);

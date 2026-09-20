@@ -1,13 +1,12 @@
 /**
  * FileThumb — the grid-tile preview. Picks the cheapest faithful thumbnail per kind and stays
- * optimized: image/pdf tiles are downscaled/rendered to a SMALL data-URL on the client
+ * optimized: image tiles are downscaled to a SMALL data-URL on the client
  * ({@link mountFileThumbnailQueryFamily}) and only that tiny string is cached — never the full-size
  * original — so browsing thousands of media files keeps memory bounded and scroll-back is instant.
  * Each strategy is size-capped; any failure falls back to the type icon — a tile never blocks.
  *
  *   image → downscaled to a ~256px webp data URL (full bytes fetched, converted, dropped)
  *   video → first frame via a metadata-only <video> seeked to 0.1s (browser partial-fetches)
- *   pdf   → first page rendered to a small PNG data URL via lazy pdfjs (see pdfThumb)
  *   text  → first lines of the content (same shared query the preview uses)
  *   else  → the kind icon
  *
@@ -28,15 +27,14 @@ import {useAtomValue} from "jotai"
 import {driveFileIcon} from "./driveIcons"
 
 const IMG_CAP = 8 * 1024 * 1024
-const PDF_CAP = 4 * 1024 * 1024
 const TEXT_CAP = 256 * 1024
 const TEXT_KINDS = new Set<DriveFileKind>(["markdown", "text", "code", "json", "csv", "html"])
 
-/** Small thumbnail data-URL (downscaled image or rendered PDF page), cached as a lightweight string
- * so the grid never pins full-size originals in memory. Disabled (no fetch) unless `enabled`. */
-function useThumbnail(mount: Mount | null, path: string, mode: "image" | "pdf", enabled: boolean) {
+/** Small thumbnail data-URL (a downscaled image), cached as a lightweight string so the grid never
+ * pins full-size originals in memory. Disabled (no fetch) unless `enabled`. */
+function useThumbnail(mount: Mount | null, path: string, enabled: boolean) {
     const query = useAtomValue(
-        mountFileThumbnailQueryFamily({mountId: enabled ? (mount?.id ?? "") : "", path, mode}),
+        mountFileThumbnailQueryFamily({mountId: enabled ? (mount?.id ?? "") : "", path}),
     )
     return enabled ? (query.data ?? null) : null
 }
@@ -71,12 +69,10 @@ function FileThumbImpl({
 
     const isImage = kind === "image" && size <= IMG_CAP
     const isVideo = kind === "video"
-    const isPdf = kind === "pdf" && size > 0 && size <= PDF_CAP
     const isText = TEXT_KINDS.has(kind) && size > 0 && size <= TEXT_CAP
 
     const directUrl = mountFileDownloadUrl(mount, file.path, projectId)
-    const imgUrl = useThumbnail(mount, file.path, "image", isImage && !failed && wantThumb)
-    const pdfUrl = useThumbnail(mount, file.path, "pdf", isPdf && !failed && wantThumb)
+    const imgUrl = useThumbnail(mount, file.path, isImage && !failed && wantThumb)
     const snippet = useTextSnippet(mount, file.path, isText && wantThumb)
 
     // A consistent 4:3 preview so tiles line up and nothing letterboxes oddly; visual kinds fill
@@ -118,21 +114,6 @@ function FileThumbImpl({
         )
     }
 
-    // PDF — first page rendered to a PNG (lazy pdfjs); icon until it resolves.
-    if (isPdf && pdfUrl && !failed) {
-        return (
-            <div className={box}>
-                {/* object-top so the tile shows the page's title area, not its middle. */}
-                {/* generated data URL */}
-                <img
-                    src={pdfUrl}
-                    alt=""
-                    className="h-full w-full bg-white object-cover object-top"
-                />
-            </div>
-        )
-    }
-
     // Text — a few lines, monospaced, as a document-y preview. The pre is ABSOLUTE so its content
     // can't stretch the box: a flex item's min-content height overrides `aspect-ratio`, which would
     // otherwise blow the tile up to the snippet's full height (broken grid). Absolute → out of flow.
@@ -150,9 +131,7 @@ function FileThumbImpl({
     // which would flash-swap to the thumbnail a frame later). Non-thumbnailable files show the icon
     // as their final state.
     const loadingThumb =
-        !failed &&
-        wantThumb &&
-        ((isImage && !imgUrl) || (isPdf && !pdfUrl) || (isText && snippet === null))
+        !failed && wantThumb && ((isImage && !imgUrl) || (isText && snippet === null))
     return (
         <div className={box}>
             {loadingThumb ? (
@@ -174,3 +153,64 @@ export const FileThumb = memo(
         (a.file.size ?? 0) === (b.file.size ?? 0) &&
         a.staticThumb === b.staticThumb,
 )
+
+const MEDIA_KINDS = new Set<DriveFileKind>(["image", "video"])
+
+/** The grid tile's 56px preview for a media file (image / video) — the same downscaled,
+ * size-capped thumbnails as {@link FileThumb}; text and code keep their type mark (no fetch). */
+export const DriveTileThumb = memo(function DriveTileThumb({
+    mount,
+    path,
+    size,
+    fallback,
+}: {
+    mount: Mount | null
+    /** Mount-relative path. */
+    path: string
+    size: number
+    /** Drawn while nothing has resolved, or when the kind has no preview. */
+    fallback: React.ReactNode
+}) {
+    const projectId = useAtomValue(projectIdAtom)
+    const [failed, setFailed] = useState(false)
+    const kind = resolveDriveFileKind(path)
+    const isImage = kind === "image" && size <= IMG_CAP
+    const isVideo = kind === "video"
+    const imgUrl = useThumbnail(mount, path, isImage && !failed)
+    const directUrl = mountFileDownloadUrl(mount, path, projectId)
+    if (!MEDIA_KINDS.has(kind) || failed) return <>{fallback}</>
+
+    const box =
+        "flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-md bg-colorFillTertiary max-md:h-11 max-md:w-11"
+    if (isImage && imgUrl)
+        return (
+            <span className={box}>
+                <img
+                    src={imgUrl}
+                    alt=""
+                    onError={() => setFailed(true)}
+                    className="h-full w-full object-cover"
+                />
+            </span>
+        )
+    if (isVideo && directUrl)
+        return (
+            <span className={box}>
+                <video
+                    src={`${directUrl}#t=0.1`}
+                    muted
+                    playsInline
+                    preload="metadata"
+                    onError={() => setFailed(true)}
+                    className="h-full w-full object-cover"
+                />
+            </span>
+        )
+    return isImage && !imgUrl ? (
+        <span className={box}>
+            <span className="h-full w-full animate-pulse bg-colorFillSecondary" />
+        </span>
+    ) : (
+        <>{fallback}</>
+    )
+})

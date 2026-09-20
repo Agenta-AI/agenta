@@ -59,7 +59,8 @@ export const HR: ElementTransformer = {
             parentNode.insertBefore(line)
         }
 
-        line.selectNext()
+        // Only a typed rule moves the caret; an import must leave the selection alone.
+        if (!isImport) line.selectNext()
     },
     type: "element",
 }
@@ -109,7 +110,7 @@ export const TABLE: ElementTransformer = {
         return output.join("\n")
     },
     regExp: TABLE_ROW_REG_EXP,
-    replace: (parentNode, _1, match) => {
+    replace: (parentNode, _1, match, isImport) => {
         // Header row
         if (TABLE_ROW_DIVIDER_REG_EXP.test(match[0])) {
             const table = parentNode.getPreviousSibling()
@@ -201,7 +202,7 @@ export const TABLE: ElementTransformer = {
             parentNode.replace(table)
         }
 
-        table.selectEnd()
+        if (!isImport) table.selectEnd()
     },
     type: "element",
 }

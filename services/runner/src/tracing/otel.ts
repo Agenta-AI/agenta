@@ -1006,6 +1006,41 @@ function applyAssistant(
       span.setAttribute("gen_ai.usage.cost", u.cost.total);
   }
 
+  // Pi keeps transport details outside errorMessage. Preserve a bounded allowlist,
+  // never provider payloads or headers, even when conversation capture is disabled.
+  for (const diagnostic of (Array.isArray(msg.diagnostics)
+    ? msg.diagnostics
+    : []
+  ).slice(-8)) {
+    if (diagnostic?.type !== "provider_transport_failure") continue;
+    const attributes: Record<string, string | number | boolean> = {};
+    for (const [prefix, source, keys] of [
+      ["error", diagnostic.error, ["name", "message", "code"]],
+      [
+        "transport",
+        diagnostic.details,
+        [
+          "configuredTransport",
+          "fallbackTransport",
+          "eventsEmitted",
+          "phase",
+          "requestBytes",
+        ],
+      ],
+    ] as const) {
+      for (const key of keys) {
+        const value = source?.[key];
+        if (typeof value === "string")
+          attributes[`${prefix}.${key}`] = value.slice(0, 2000);
+        else if (
+          typeof value === "boolean" ||
+          (typeof value === "number" && Number.isFinite(value))
+        )
+          attributes[`${prefix}.${key}`] = value;
+      }
+    }
+    span.addEvent("provider_transport_failure", attributes);
+  }
   emitMessages(span, "llm.output_messages", [msg], capture);
   if (msg.stopReason === "error" || msg.errorMessage) {
     span.setStatus({ code: SpanStatusCode.ERROR, message: msg.errorMessage });
@@ -1068,6 +1103,7 @@ export function createAgentaOtel(
   let currentTurn: { span: Span; ctx: Context; index?: number } | undefined;
   let llmSpan: Span | undefined;
   let lastContextMessages: any[] | undefined;
+  let lastAgentMessages: any[] | undefined;
   const toolSpans = new Map<string, Span>();
   // Run totals, summed across every assistant turn. Stamped on the agent span and
   // returned so the caller can roll them up onto the workflow span in its own process
@@ -1102,6 +1138,7 @@ export function createAgentaOtel(
     config.skillsDropped = next.skillsDropped;
     config.redactor = next.redactor;
     config.traceId = undefined;
+    lastAgentMessages = undefined;
     runUsage.input = 0;
     runUsage.output = 0;
     runUsage.total = 0;
@@ -1114,7 +1151,8 @@ export function createAgentaOtel(
     });
 
     pi.on("agent_start", async () => {
-      if (config.enabled === false) return;
+      // Retries and compaction start another attempt within the same user turn.
+      if (config.enabled === false || agentSpan) return;
       // Nest under the caller's workflow span when a traceparent was supplied,
       // so the whole run joins the /invoke trace; otherwise start a fresh root.
       // Tag the run id onto the start context BEFORE creating the root span, so onStart
@@ -1274,6 +1312,10 @@ export function createAgentaOtel(
     });
 
     pi.on("agent_end", async (event: any) => {
+      lastAgentMessages = event?.messages;
+    });
+
+    pi.on("agent_settled", async () => {
       if (!agentSpan) return;
       // Cancellation may skip message_end, tool_execution_end, and turn_end. Close every child
       // before the agent root so the one native batch contains all partial work Pi still holds.
@@ -1289,9 +1331,18 @@ export function createAgentaOtel(
       }
       setOutput(
         agentSpan,
-        lastAssistantText(event?.messages),
+        lastAssistantText(lastAgentMessages),
         config.captureContent,
       );
+      const finalAssistant = lastAgentMessages?.findLast(
+        (message: any) => message?.role === "assistant",
+      );
+      if (finalAssistant?.stopReason === "error") {
+        agentSpan.setStatus({
+          code: SpanStatusCode.ERROR,
+          message: finalAssistant.errorMessage,
+        });
+      }
       // Stamp the run total on the agent span so it shows the agent's tokens/cost even
       // though Agenta cannot roll the per-turn LLM spans up across batches.
       if (runUsage.total > 0) {

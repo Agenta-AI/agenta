@@ -18,10 +18,12 @@ import {ProviderKeySheet} from "../settings/ProviderKeySheet"
  * raw backend reason and nothing to click. The vault lived only in Settings, which a new user has
  * no reason to open.
  *
- * The button opens THIS app's provider-key sheet — the same one Settings → LLM providers opens —
- * scoped to the agent's own provider (`providerEntry`). Desktop instead opens a drawer listing
- * every provider, and then repoints the agent's model at whatever was connected. Asking for the
- * one key the agent already needs reaches the same end state in one field, with no config write.
+ * The button opens THIS app's provider-key sheet, scoped to the agent's own provider
+ * (`providerEntry`), and this strip is its only mount. Settings → LLM providers renders the shared
+ * `AIProvidersPage` on both hosts, and that page — like the desktop banner — opens the providers
+ * drawer listing every provider, after which desktop repoints the agent's model at whatever was
+ * connected. Asking for the one key the agent already needs reaches the same end state in one
+ * field, with no config write.
  *
  * Always mounted so it can animate IN (gate activates) and OUT (key saved) through `RevealCollapse`
  * — the shared composer-chrome idiom this app already uses for the mic notice — instead of

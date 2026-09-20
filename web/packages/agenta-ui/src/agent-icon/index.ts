@@ -7,6 +7,7 @@ export {
 } from "./AgentIcon"
 export type {AgentIconChrome, AgentIconChromeOptions, AgentIconSelection} from "./AgentIcon"
 export {AgentIconPicker} from "./AgentIconPicker"
+export {SKILL_MARK_COLOR, skillMarkText, type SkillMarkOrigin} from "./skillMark"
 export {loadAgentIconCatalog, type PhosphorCatalogEntry} from "./catalog"
 export {
     AGENT_ICON_COLORS,

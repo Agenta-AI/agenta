@@ -347,6 +347,12 @@ services:
             AGENTA_RUNNER_DAYTONA_AUTODELETE_MINUTES: ${AGENTA_RUNNER_DAYTONA_AUTODELETE_MINUTES:-}
             AGENTA_RUNNER_DAYTONA_OPAQUE_SECRETS: ${AGENTA_RUNNER_DAYTONA_OPAQUE_SECRETS:-}
             AGENTA_RUNNER_LIVE_FRAMES: ${AGENTA_RUNNER_LIVE_FRAMES:-true}
+            # Also unreachable without an explicit entry (no env_file), and the runner is
+            # the leg that refuses a gateway-routed run: it re-validates the transport rule
+            # the SDK applied, so a value set for the api and services but not here would
+            # admit the run and then strand it inside the sandbox. Default off; see
+            # docs/docs/self-host/reference/01-configuration.mdx.
+            AGENTA_GATEWAYS_INSECURE_HTTP_ALLOWED: ${AGENTA_GATEWAYS_INSECURE_HTTP_ALLOWED:-}
         # === NETWORK ============================================== #
         networks:
             - agenta-oss-gh-network

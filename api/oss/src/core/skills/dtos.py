@@ -32,6 +32,8 @@ class SkillRegistryItem(BaseModel):
 
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
+    # Who authored the skill workflow — what a list groups or labels by.
+    created_by_id: Optional[UUID] = None
 
     is_static: bool = False
     # The workflow is archived (only listed when include_archived was requested).

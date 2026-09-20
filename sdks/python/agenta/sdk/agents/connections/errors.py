@@ -9,7 +9,7 @@ them.
 
 from __future__ import annotations
 
-from typing import Optional
+from typing import Any, Optional
 
 
 class AgentConnectionError(Exception):
@@ -163,6 +163,156 @@ class InvalidConnectionConfigurationError(AgentConnectionError):
 
     # The invoke remap reads `status_code` off the exception; without it this fell through to 500.
     status_code = 422
+
+
+class GatewayInsecureEndpointError(ConnectionResolutionError):
+    """Raised when gateway credentials would cross plain http to a routable host.
+
+    D37's rule, unchanged: a bearer credential travels over https, or over a loopback hop
+    that has no remote to leak it to. What this class adds is the ANSWER to the operator who
+    hits it. The refusal used to surface as a pydantic ``ValidationError`` escaping the
+    connection model, which the running normalizer could only report as an unhandled 500 with
+    a traceback, so a self-hosted deployment served over plain http at an IP saw a server
+    fault where it should have seen its own configuration and the one flag that changes it.
+
+    ``next_step`` names that flag (``AGENTA_GATEWAYS_INSECURE_HTTP_ALLOWED``), and
+    ``error_detail`` carries the agent-actionable envelope
+    (``{code, message, retryable, next_step, details}``) the runner recovers for a gateway
+    data-plane refusal, so a caller reads one shape whichever side refused.
+    """
+
+    # A deployment whose own base URL cannot carry a bearer is a configuration situation.
+    status_code = 422
+    failure_code = "gateway_insecure_endpoint"
+
+    MESSAGE = (
+        "Gateway credentials require an effective HTTPS endpoint. This deployment's gateway "
+        "base URL is plain http to a host that is not loopback, so a bearer credential would "
+        "cross the network in clear text."
+    )
+    NEXT_STEP = (
+        "Serve the deployment over HTTPS, or set "
+        "AGENTA_GATEWAYS_INSECURE_HTTP_ALLOWED=true if it is a trusted single-tenant "
+        "deployment on a network you control."
+    )
+
+    def __init__(self, *, base_url: Optional[str] = None) -> None:
+        super().__init__(self.MESSAGE)
+        self.base_url = base_url
+        # Non-secret: this is the deployment's own gateway address, never a credential. It is
+        # the one fact the operator needs to recognize which URL the refusal is about.
+        details = {"flag": "AGENTA_GATEWAYS_INSECURE_HTTP_ALLOWED"}
+        if base_url:
+            details["base_url"] = base_url
+        self.error_detail = {
+            "code": self.failure_code,
+            "message": self.MESSAGE,
+            # Nothing about repeating the same request changes the deployment's scheme.
+            "retryable": False,
+            "next_step": self.NEXT_STEP,
+            "details": details,
+        }
+
+
+class GatewayConnectionRefusedError(ConnectionResolutionError):
+    """Raised when the gateway control plane refuses to resolve a connection.
+
+    ``POST /gateways/llms/resolve`` answers a refusal with the shared envelope
+    (``{code, message, retryable, next_step, details}``), the same shape the data plane
+    produces and :class:`GatewayInsecureEndpointError` carries. This class exists so that
+    envelope survives the HTTP hop: the resolver used to read only ``response.status_code``
+    and raise a bare :class:`ConnectionResolutionError`, so an endpoint that simply did not
+    exist reached the person running the agent as an unknown-invoke-error 500 with no code and
+    no message they could act on.
+
+    ``failure_code`` becomes the gateway's own ``code`` (``endpoint_not_found``,
+    ``endpoint_inactive``, and so on) whenever the envelope names one, so a client branches on
+    the real cause rather than on this class.
+    """
+
+    # A refusal from our own control plane is a configuration situation, not a server fault.
+    # A control plane that actually failed keeps 5xx, because that one IS a server fault.
+    status_code = 422
+    failure_code = "gateway_connection_refused"
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        status_code: Optional[int] = None,
+        gateway_status: Optional[int] = None,
+        failure_code: Optional[str] = None,
+        error_detail: Optional[dict] = None,
+    ) -> None:
+        super().__init__(message)
+        if status_code is not None:
+            self.status_code = status_code
+        if failure_code:
+            self.failure_code = failure_code
+        self.gateway_status = gateway_status
+        self.error_detail = error_detail
+
+    @classmethod
+    def from_response(
+        cls,
+        *,
+        status_code: int,
+        body: Any = None,
+    ) -> "GatewayConnectionRefusedError":
+        """Build the refusal from the response the gateway actually sent.
+
+        Tolerant by construction, because every one of these shapes is reachable: the shared
+        envelope under ``detail``, a bare string ``detail`` (a route that has not adopted the
+        envelope), FastAPI's validation-error list, the generic
+        ``{"message": ..., "operation_id": ...}`` an intercepted server fault sends, and a body
+        that is not JSON at all. A shape that names no code still yields this class's own
+        ``failure_code`` and the best message available, which is strictly more than the status
+        number the caller used to get.
+        """
+        detail = body.get("detail") if isinstance(body, dict) else None
+
+        code = None
+        message = None
+        retryable = False
+        next_step = None
+        details = None
+        if isinstance(detail, dict):
+            code = _stripped_str(detail.get("code"))
+            message = _stripped_str(detail.get("message"))
+            retryable = bool(detail.get("retryable", False))
+            next_step = _stripped_str(detail.get("next_step"))
+            raw_details = detail.get("details")
+            details = raw_details if isinstance(raw_details, dict) else None
+        elif isinstance(detail, str):
+            message = _stripped_str(detail)
+
+        if not message:
+            message = f"connection resolution failed (HTTP {status_code})"
+
+        error_detail = {
+            "code": code or cls.failure_code,
+            "message": message,
+            "retryable": retryable,
+        }
+        if next_step:
+            error_detail["next_step"] = next_step
+        if details:
+            error_detail["details"] = details
+
+        return cls(
+            message,
+            # A 5xx means the control plane itself failed; anything else is the deployment's
+            # own configuration answering, which every other resolution failure reports as 422.
+            status_code=502 if status_code >= 500 else 422,
+            gateway_status=status_code,
+            failure_code=code,
+            error_detail=error_detail,
+        )
+
+
+def _stripped_str(value: Any) -> Optional[str]:
+    """``value`` as a non-empty stripped string, or ``None``."""
+    return value.strip() if isinstance(value, str) and value.strip() else None
 
 
 class ConnectionNotFoundError(ConnectionResolutionError):

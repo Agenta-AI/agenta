@@ -74,7 +74,11 @@ interface DrawerProps {
     title?: React.ReactNode
     footer?: React.ReactNode
     extra?: React.ReactNode
-    placement?: "top" | "right" | "bottom" | "left"
+    /**
+     * antd's four edges, plus `responsive`: a bottom sheet below `lg` and the right-edge drawer
+     * from `lg` up, which is the one prop that makes a configuration panel correct in both apps.
+     */
+    placement?: "top" | "right" | "bottom" | "left" | "responsive"
     width?: string | number
     height?: string | number
     size?: "default" | "large" | string | number
@@ -108,6 +112,8 @@ interface DrawerProps {
 
 export interface EnhancedDrawerProps extends DrawerProps {
     children?: React.ReactNode
+    /** The panel element — what a confirm scoped to the drawer portals into. */
+    panelRef?: React.Ref<HTMLDivElement>
 }
 
 interface DrawerStyles {
@@ -121,6 +127,7 @@ interface DrawerStyles {
 export function EnhancedDrawer(props: EnhancedDrawerProps) {
     const {
         children,
+        panelRef,
         open,
         onClose,
         title,
@@ -133,6 +140,7 @@ export function EnhancedDrawer(props: EnhancedDrawerProps) {
         closable = true,
         maskClosable = true,
         keyboard = true,
+        autoFocus = true,
         zIndex,
         getContainer,
         styles: customStyles,
@@ -194,7 +202,8 @@ export function EnhancedDrawer(props: EnhancedDrawerProps) {
 
     if (!shouldRender) return null
 
-    const side = placement as "top" | "right" | "bottom" | "left"
+    const side = placement
+    const isResponsive = side === "responsive"
     // antd semantics: `maskClosable` (default true) alone governs outside-click dismissal.
     const dismissOnOutside = maskClosable
     const isHorizontal = side === "left" || side === "right"
@@ -203,23 +212,40 @@ export function EnhancedDrawer(props: EnhancedDrawerProps) {
     // Explicit width/height always wins; without this mapping `size` was silently ignored.
     const sizeToPx =
         typeof size === "number" ? size : size === "large" ? 736 : size === "default" ? 378 : null
-    const effWidth = width ?? (isHorizontal ? sizeToPx : null)
+    const effWidth = width ?? (isHorizontal || isResponsive ? sizeToPx : null)
     const effHeight = height ?? (!isHorizontal ? sizeToPx : null)
-    const sizeStyle: React.CSSProperties = isHorizontal
+    // `responsive` skips the axis clamp: its own class list carries the geometry, because the
+    // panel is full width on a phone and a fixed drawer from `lg` up, and an inline width would
+    // apply at both. The requested width reaches the `lg` half through a custom property.
+    const sizeStyle: React.CSSProperties = isResponsive
         ? effWidth != null
-            ? {width: effWidth, maxWidth: "100%"}
+            ? ({
+                  "--ag-sheet-responsive-width":
+                      typeof effWidth === "number" ? `${effWidth}px` : effWidth,
+              } as React.CSSProperties)
             : {}
-        : effHeight != null
-          ? {height: effHeight, maxHeight: "100%"}
-          : {}
+        : isHorizontal
+          ? effWidth != null
+              ? {width: effWidth, maxWidth: "100%"}
+              : {}
+          : effHeight != null
+            ? {height: effHeight, maxHeight: "100%"}
+            : {}
 
     return (
         <Sheet open={open} onOpenChange={handleOpenChange}>
             <SheetContent
+                ref={panelRef}
                 side={side}
                 container={container}
                 className={cn(rootClassName, className, slotClassNames?.content)}
                 style={{...sizeStyle, ...(zIndex != null ? {zIndex} : {}), ...styles?.content}}
+                onOpenAutoFocus={(e) => {
+                    // A control that focused itself on mount (`autoFocus`) keeps focus; Radix
+                    // would otherwise move it to the first tabbable, usually the close button.
+                    const panel = e.currentTarget as HTMLElement | null
+                    if (!autoFocus || panel?.contains(document.activeElement)) e.preventDefault()
+                }}
                 onEscapeKeyDown={(e) => {
                     if (!keyboard) e.preventDefault()
                 }}

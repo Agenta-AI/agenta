@@ -46,6 +46,8 @@
         "./gatewayTool": "./src/gatewayTool/index.ts",
         "./gatewayTrigger": "./src/gatewayTrigger/index.ts",
         "./loadable": "./src/loadable/index.ts",
+        "./mcpEndpoint": "./src/mcpEndpoint/index.ts",
+        "./mcpEndpoint/refusal": "./src/mcpEndpoint/core/refusal.ts",
         "./profile": "./src/profile/index.ts",
         "./project": "./src/project/index.ts",
         "./organization": "./src/organization/index.ts",
@@ -84,7 +86,6 @@
         "lodash": "^4.17.23",
         "motion": "^12.0.0",
         "openapi-json-schema": "^2.0.0",
-        "pdfjs-dist": "^4.10.38",
         "stable-hash": "^0.0.6",
         "uuid": "^11.1.1",
         "zod": "^4.3.6"
