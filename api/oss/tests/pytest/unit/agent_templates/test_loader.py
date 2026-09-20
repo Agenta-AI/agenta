@@ -24,6 +24,8 @@ from oss.src.core.agent_templates.loader import (
 from oss.src.core.agent_templates.models import (
     ParsedTemplateAgent,
     ParsedTemplatePackage,
+    ParsedWorkspace,
+    ParsedWorkspaceFile,
     TemplateBindingPlan,
 )
 from oss.src.core.agent_templates.provenance import (
@@ -32,6 +34,7 @@ from oss.src.core.agent_templates.provenance import (
     read_create_request,
     read_template_origin,
 )
+from oss.src.core.sessions.starts.dtos import SessionStartResult
 from oss.src.core.shared.idempotency import resource_identity, request_key_hash
 from oss.src.core.skills.dtos import InstalledSkillRef, SkillCreated
 from oss.src.core.workflows.dtos import (
@@ -100,6 +103,16 @@ def _package() -> ParsedTemplatePackage:
                 body="Find public evidence and cite it.",
             )
         ],
+        workspace=ParsedWorkspace(
+            directories=["reports"],
+            files=[
+                ParsedWorkspaceFile(
+                    source="files/target-profile.md",
+                    path="target-profile.md",
+                    content=b"# Target profile\n",
+                )
+            ],
+        ),
     )
 
 
@@ -248,11 +261,59 @@ class _SimpleWorkflows:
         )
 
 
-def _loader(*, parser_error=None, binding_error=None, skill_fail=False):
+class _Mounts:
+    def __init__(self, events, *, fail_once=False):
+        self.events = events
+        self.fail_once = fail_once
+        self.calls = []
+
+    async def materialize_entries_if_absent(self, **kwargs):
+        self.events.append("workspace")
+        self.calls.append(kwargs)
+        if self.fail_once:
+            self.fail_once = False
+            raise RuntimeError("injected workspace failure")
+
+
+class _Starts:
+    def __init__(self, events, *, fail_once=False):
+        self.events = events
+        self.fail_once = fail_once
+        self.calls = []
+        self.result = None
+
+    async def start_once(self, **kwargs):
+        self.events.append("session")
+        self.calls.append(kwargs)
+        if self.fail_once:
+            self.fail_once = False
+            raise RuntimeError("injected session failure")
+        if self.result is None:
+            self.result = SessionStartResult(
+                session_id=str(uuid4()),
+                execution_id=str(uuid4()),
+                input_id=uuid4(),
+                replayed=False,
+            )
+        else:
+            self.result = self.result.model_copy(update={"replayed": True})
+        return self.result
+
+
+def _loader(
+    *,
+    parser_error=None,
+    binding_error=None,
+    skill_fail=False,
+    mount_fail_once=False,
+    start_fail_once=False,
+):
     events = []
     skills = _Skills(events, fail=skill_fail)
     workflows = _SimpleWorkflows(events)
     resolver = _Resolver(events)
+    mounts = _Mounts(events, fail_once=mount_fail_once)
+    starts = _Starts(events, fail_once=start_fail_once)
     loader = AgentTemplateLoader(
         source_resolver=resolver,
         package_parser=_Parser(events, error=parser_error),
@@ -260,13 +321,15 @@ def _loader(*, parser_error=None, binding_error=None, skill_fail=False):
         compiler=TemplateCompiler(),
         skills_service=skills,
         simple_workflows_service=workflows,
+        mounts_service=mounts,
+        session_starts_service=starts,
     )
-    return loader, events, skills, workflows, resolver
+    return loader, events, skills, workflows, resolver, mounts, starts
 
 
 @pytest.mark.asyncio
 async def test_prepare_finishes_preflight_then_creates_agent_before_skills():
-    loader, events, skills, workflows, _ = _loader()
+    loader, events, skills, workflows, _, _, _ = _loader()
 
     result = await loader.prepare(
         project_id=PROJECT_ID,
@@ -301,7 +364,7 @@ async def test_prepare_finishes_preflight_then_creates_agent_before_skills():
 @pytest.mark.asyncio
 async def test_source_or_package_failure_leaves_no_resources():
     error = TemplatePackageInvalid("bad_package", "bad package")
-    loader, events, skills, workflows, _ = _loader(parser_error=error)
+    loader, events, skills, workflows, _, _, _ = _loader(parser_error=error)
 
     with pytest.raises(TemplatePackageInvalid):
         await loader.prepare(
@@ -318,7 +381,7 @@ async def test_source_or_package_failure_leaves_no_resources():
 @pytest.mark.asyncio
 async def test_binding_validation_failure_happens_before_skill_or_agent_writes():
     error = TemplatePackageInvalid("bad_choice", "bad choice")
-    loader, events, skills, workflows, _ = _loader(binding_error=error)
+    loader, events, skills, workflows, _, _, _ = _loader(binding_error=error)
 
     with pytest.raises(TemplatePackageInvalid):
         await loader.prepare(
@@ -334,7 +397,7 @@ async def test_binding_validation_failure_happens_before_skill_or_agent_writes()
 
 @pytest.mark.asyncio
 async def test_native_configuration_validation_happens_before_resource_writes():
-    loader, events, skills, workflows, _ = _loader()
+    loader, events, skills, workflows, _, _, _ = _loader()
     command = _command().model_copy(
         update={"base_revision": WorkflowRevisionData(parameters={})}
     )
@@ -353,7 +416,7 @@ async def test_native_configuration_validation_happens_before_resource_writes():
 
 @pytest.mark.asyncio
 async def test_skill_failure_leaves_only_the_recoverable_agent_root():
-    loader, events, _, workflows, _ = _loader(skill_fail=True)
+    loader, events, _, workflows, _, _, _ = _loader(skill_fail=True)
 
     with pytest.raises(TemplateSkillCreationFailed):
         await loader.prepare(
@@ -375,7 +438,7 @@ async def test_skill_failure_leaves_only_the_recoverable_agent_root():
 
 @pytest.mark.asyncio
 async def test_same_key_replay_uses_stored_source_pin_without_duplicates():
-    loader, _, skills, workflows, resolver = _loader()
+    loader, _, skills, workflows, resolver, _, _ = _loader()
     command = _command()
 
     first = await loader.prepare(
@@ -406,7 +469,7 @@ async def test_same_key_replay_uses_stored_source_pin_without_duplicates():
 
 @pytest.mark.asyncio
 async def test_same_key_with_changed_payload_conflicts_before_new_writes():
-    loader, _, skills, workflows, resolver = _loader()
+    loader, _, skills, workflows, resolver, _, _ = _loader()
 
     await loader.prepare(
         project_id=PROJECT_ID,
@@ -428,7 +491,7 @@ async def test_same_key_with_changed_payload_conflicts_before_new_writes():
 
 @pytest.mark.asyncio
 async def test_different_request_keys_create_distinct_agents():
-    loader, _, skills, workflows, _ = _loader()
+    loader, _, skills, workflows, _, _, _ = _loader()
 
     first = await loader.prepare(
         project_id=PROJECT_ID,
@@ -444,6 +507,112 @@ async def test_different_request_keys_create_distinct_agents():
     assert first.workflow_id != second.workflow_id
     assert len(workflows.records) == 2
     assert len(skills.records) == 2
+
+
+@pytest.mark.asyncio
+async def test_load_materializes_workspace_before_starting_the_session():
+    loader, events, _, _, _, mounts, starts = _loader()
+
+    result = await loader.load(
+        project_id=PROJECT_ID,
+        user_id=USER_ID,
+        command=_command(),
+    )
+
+    assert events == [
+        "source",
+        "parse",
+        "bindings",
+        "plan-skill",
+        "workflow",
+        "skill",
+        "workspace",
+        "session",
+    ]
+    assert mounts.calls[0]["directories"] == ["reports"]
+    assert mounts.calls[0]["files"][0].path == "target-profile.md"
+    assert mounts.calls[0]["files"][0].content == b"# Target profile\n"
+    assert starts.calls[0]["workflow_id"] == result.workflow_id
+    assert starts.calls[0]["revision_id"] == result.revision_id
+    assert starts.calls[0]["request_key"].endswith(":first-message:sha256:" + "1" * 64)
+    assert result.replayed is False
+
+
+@pytest.mark.asyncio
+async def test_workspace_failure_prevents_handoff_and_retry_recovers():
+    loader, _, skills, workflows, _, mounts, starts = _loader(mount_fail_once=True)
+
+    with pytest.raises(RuntimeError, match="workspace failure"):
+        await loader.load(
+            project_id=PROJECT_ID,
+            user_id=USER_ID,
+            command=_command(),
+        )
+    assert starts.calls == []
+
+    result = await loader.load(
+        project_id=PROJECT_ID,
+        user_id=USER_ID,
+        command=_command(),
+    )
+
+    assert result.replayed is True
+    assert len(workflows.records) == 1
+    assert len(skills.records) == 1
+    assert len(mounts.calls) == 2
+    assert len(starts.calls) == 1
+
+
+@pytest.mark.asyncio
+async def test_session_failure_retries_after_all_resources_without_duplicates():
+    loader, _, skills, workflows, _, mounts, starts = _loader(start_fail_once=True)
+
+    with pytest.raises(RuntimeError, match="session failure"):
+        await loader.load(
+            project_id=PROJECT_ID,
+            user_id=USER_ID,
+            command=_command(),
+        )
+    result = await loader.load(
+        project_id=PROJECT_ID,
+        user_id=USER_ID,
+        command=_command(),
+    )
+
+    assert result.replayed is True
+    assert len(workflows.records) == 1
+    assert len(skills.records) == 1
+    assert len(mounts.calls) == 2
+    assert len(starts.calls) == 2
+
+
+@pytest.mark.asyncio
+async def test_load_replay_pins_source_and_returns_same_public_ids():
+    loader, _, _, _, resolver, _, _ = _loader()
+    command = _command()
+
+    first = await loader.load(
+        project_id=PROJECT_ID,
+        user_id=USER_ID,
+        command=command,
+    )
+    resolver.current = ResolvedTemplateSource(
+        source=InternalTemplateSource(key="sample"),
+        root=Path("/tmp/sample-v2"),
+        version="2.0.0",
+        digest="sha256:" + "2" * 64,
+    )
+    replay = await loader.load(
+        project_id=PROJECT_ID,
+        user_id=USER_ID,
+        command=command,
+    )
+
+    assert replay.replayed is True
+    assert replay.model_dump(exclude={"replayed"}) == first.model_dump(
+        exclude={"replayed"}
+    )
+    assert resolver.pins[-1].digest == "sha256:" + "1" * 64
 
 
 def test_request_fingerprint_normalizes_choice_order():

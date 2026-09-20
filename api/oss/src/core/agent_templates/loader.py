@@ -11,13 +11,16 @@ from oss.src.core.agent_templates.exceptions import (
 )
 from oss.src.core.agent_templates.interfaces import TemplateSourceResolver
 from oss.src.core.agent_templates.message import compose_first_message
-from oss.src.core.agent_templates.models import PreparedTemplateLoad
+from oss.src.core.agent_templates.models import PreparedTemplateLoad, TemplateLoadResult
 from oss.src.core.agent_templates.parser import TemplatePackageParser
 from oss.src.core.agent_templates.provenance import (
     read_create_request,
     read_template_origin,
     template_origin_meta,
 )
+from oss.src.core.mounts.dtos import MountFileSeed
+from oss.src.core.mounts.service import MountsService
+from oss.src.core.sessions.starts.service import SessionStartsService
 from oss.src.core.shared.exceptions import EntityCreationIdempotencyConflict
 from oss.src.core.shared.idempotency import request_fingerprint, request_key_hash
 from oss.src.core.skills.dtos import InstalledSkillRef
@@ -76,6 +79,8 @@ class AgentTemplateLoader:
         compiler: TemplateCompiler,
         skills_service: SkillsService,
         simple_workflows_service: SimpleWorkflowsService,
+        mounts_service: MountsService | None = None,
+        session_starts_service: SessionStartsService | None = None,
     ) -> None:
         self._source_resolver = source_resolver
         self._package_parser = package_parser
@@ -83,6 +88,8 @@ class AgentTemplateLoader:
         self._compiler = compiler
         self._skills_service = skills_service
         self._simple_workflows_service = simple_workflows_service
+        self._mounts_service = mounts_service
+        self._session_starts_service = session_starts_service
 
     @staticmethod
     def _request_key(command: TemplateLoadCommand) -> str:
@@ -279,4 +286,52 @@ class AgentTemplateLoader:
             workspace=compiled.workspace,
             first_message=compiled.first_message,
             replayed=outcome.replayed,
+        )
+
+    async def load(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        command: TemplateLoadCommand,
+    ) -> TemplateLoadResult:
+        """Create every declared resource before handing off the first turn."""
+        if self._mounts_service is None or self._session_starts_service is None:
+            raise RuntimeError("Template loader runtime services are not configured.")
+
+        prepared = await self.prepare(
+            project_id=project_id,
+            user_id=user_id,
+            command=command,
+        )
+        await self._mounts_service.materialize_entries_if_absent(
+            project_id=project_id,
+            user_id=user_id,
+            workflow_id=prepared.workflow_id,
+            directories=prepared.workspace.directories,
+            files=[
+                MountFileSeed(path=item.path, content=item.content)
+                for item in prepared.workspace.files
+            ],
+        )
+        start = await self._session_starts_service.start_once(
+            project_id=project_id,
+            user_id=user_id,
+            workflow_id=prepared.workflow_id,
+            revision_id=prepared.revision_id,
+            message=prepared.first_message,
+            request_key=(
+                f"{self._request_key(command)}:first-message:"
+                f"{prepared.resolved_source.digest}"
+            ),
+        )
+        return TemplateLoadResult(
+            workflow_id=prepared.workflow_id,
+            workflow_slug=prepared.workflow_slug,
+            variant_id=prepared.variant_id,
+            revision_id=prepared.revision_id,
+            session_id=start.session_id,
+            execution_id=start.execution_id,
+            input_id=start.input_id,
+            replayed=prepared.replayed or start.replayed,
         )

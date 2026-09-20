@@ -187,3 +187,14 @@ class PreparedTemplateLoad(StrictModel):
     workspace: ParsedWorkspace
     first_message: str
     replayed: bool
+
+
+class TemplateLoadResult(StrictModel):
+    workflow_id: UUID
+    workflow_slug: str
+    variant_id: UUID
+    revision_id: UUID
+    session_id: str
+    execution_id: str
+    input_id: UUID
+    replayed: bool
