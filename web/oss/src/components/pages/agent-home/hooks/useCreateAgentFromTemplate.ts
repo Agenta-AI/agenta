@@ -1,16 +1,12 @@
 import {useCallback, useState} from "react"
 
-import {
-    templateBuilderMessage,
-    type AgentSetupSelection,
-    type AgentStarterTemplate,
-} from "@agenta/entities/workflow"
-
-import {usePostHogAg} from "@/oss/lib/helpers/analytics/hooks/usePostHogAg"
+import {type AgentSetupSelection, type AgentStarterTemplate} from "@agenta/entities/workflow"
 
 import {captureFirstAgentIntent} from "../assets/onboardingAnalytics"
 
 import {useCreateAgent} from "./useCreateAgent"
+
+import {usePostHogAg} from "@/oss/lib/helpers/analytics/hooks/usePostHogAg"
 
 /**
  * Picking a template IS creating the agent: mint it from the template and land in its playground,
@@ -43,8 +39,7 @@ export function useCreateAgentFromTemplate(surface: "gallery" | "template_detail
             })
             const ok = await createAgent({
                 name: template.name,
-                seedMessage: templateBuilderMessage(template),
-                autoSendSeed: true,
+                template,
                 setup,
             })
             if (!ok) setPendingKey(null)

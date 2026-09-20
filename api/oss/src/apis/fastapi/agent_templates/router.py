@@ -10,6 +10,7 @@ from oss.src.apis.fastapi.agent_templates.models import TemplateLoadRequest
 from oss.src.apis.fastapi.shared.exceptions import FORBIDDEN_EXCEPTION
 from oss.src.core.access.permissions.service import check_action_access
 from oss.src.core.access.permissions.types import Permission
+from oss.src.core.agent_templates.dtos import TemplateLoadResult
 from oss.src.core.agent_templates.loader import AgentTemplateLoader
 from oss.src.core.shared.idempotency import request_key_hash
 from oss.src.utils.exceptions import intercept_exceptions
@@ -30,6 +31,7 @@ class AgentTemplatesRouter:
             methods=["POST"],
             operation_id="load_agent_template",
             status_code=status.HTTP_201_CREATED,
+            response_model=TemplateLoadResult,
             responses={
                 200: {"description": "Idempotent replay"},
                 400: {"description": "Idempotency key required"},
@@ -61,6 +63,7 @@ class AgentTemplatesRouter:
     async def load_template(
         self,
         request: Request,
+        project_id: UUID,
         *,
         payload: TemplateLoadRequest,
     ) -> JSONResponse:
@@ -84,7 +87,9 @@ class AgentTemplatesRouter:
                 message="Idempotency-Key is too long.",
             )
 
-        project_id = UUID(str(request.state.project_id))
+        authorized_project_id = UUID(str(request.state.project_id))
+        if project_id != authorized_project_id:
+            raise FORBIDDEN_EXCEPTION  # type: ignore
         user_id = UUID(str(request.state.user_id))
         try:
             result = await self._loader.load(

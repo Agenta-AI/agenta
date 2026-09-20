@@ -338,6 +338,11 @@ export {
     // Create from Ephemeral
     createWorkflowFromEphemeralAtom,
     type WorkflowCreateFromEphemeralParams,
+    loadAgentTemplateFromEphemeralAtom,
+    templateConnectionChoices,
+    type LoadAgentTemplateFromEphemeralParams,
+    buildCreatePayloadFromEphemeral,
+    type EphemeralCreatePayload,
     archiveWorkflowRevisionAtom,
     type WorkflowArchiveParams,
     type WorkflowArchiveResult,

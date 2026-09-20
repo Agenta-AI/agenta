@@ -4,6 +4,9 @@ import {
     createEphemeralAppFromTemplate,
     createWorkflowFromEphemeralAtom,
     generateSlug,
+    loadAgentTemplateFromEphemeralAtom,
+    type AgentSetupSelection,
+    type AgentStarterTemplate,
 } from "@agenta/entities/workflow"
 import {extractApiErrorMessage} from "@agenta/shared/utils"
 import {useSetAtom} from "jotai"
@@ -14,6 +17,10 @@ export interface CreatedAgent {
     name: string
     createdAt?: string | null
     createdById?: string | null
+    sessionId?: string
+    executionId?: string
+    inputId?: string
+    replayed?: boolean
 }
 
 export interface CreateAgentParams {
@@ -24,6 +31,10 @@ export interface CreateAgentParams {
      * playground-native onboarding, which already minted the ephemeral to render the shell.
      */
     entityId?: string
+    /** Starter cards load their package and begin the durable first session in one request. */
+    template?: AgentStarterTemplate
+    /** Account choices made in the starter setup step. */
+    setup?: AgentSetupSelection
 }
 
 export interface UseCreateAgentOptions {
@@ -48,9 +59,15 @@ let creating = false
 
 export const useCreateAgent = ({onError}: UseCreateAgentOptions = {}) => {
     const commitFromEphemeral = useSetAtom(createWorkflowFromEphemeralAtom)
+    const loadTemplateFromEphemeral = useSetAtom(loadAgentTemplateFromEphemeralAtom)
 
     return useCallback(
-        async ({name, entityId}: CreateAgentParams = {}): Promise<CreatedAgent | null> => {
+        async ({
+            name,
+            entityId,
+            template,
+            setup,
+        }: CreateAgentParams = {}): Promise<CreatedAgent | null> => {
             if (creating) return null
             creating = true
             try {
@@ -64,6 +81,23 @@ export const useCreateAgent = ({onError}: UseCreateAgentOptions = {}) => {
                 if (!ephemeralId) {
                     onError?.("Couldn't start agent creation — please retry")
                     return null
+                }
+
+                if (template) {
+                    const result = await loadTemplateFromEphemeral({
+                        revisionId: ephemeralId,
+                        template,
+                        setup,
+                    })
+                    return {
+                        appId: result.workflow_id,
+                        revisionId: result.revision_id,
+                        name: agentName,
+                        sessionId: result.session_id,
+                        executionId: result.execution_id,
+                        inputId: result.input_id,
+                        replayed: result.replayed,
+                    }
                 }
 
                 // Slug must be unique per project — the default slug ("agent") collides on every
@@ -104,6 +138,6 @@ export const useCreateAgent = ({onError}: UseCreateAgentOptions = {}) => {
                 creating = false
             }
         },
-        [commitFromEphemeral, onError],
+        [commitFromEphemeral, loadTemplateFromEphemeral, onError],
     )
 }

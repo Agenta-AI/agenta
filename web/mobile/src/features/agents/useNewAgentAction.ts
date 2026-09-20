@@ -3,7 +3,6 @@ import {useCallback, useState} from "react"
 import {markSessionFresh} from "@agenta/chat/state"
 import {
     agentTemplateByKey,
-    agentTemplateSeed,
     appendSetupPreamble,
     invalidateWorkflowsListCache,
     type AgentSetupSelection,
@@ -13,11 +12,11 @@ import type {FileUIPart} from "ai"
 import {useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 
-import {newId} from "@/lib/ids"
-
 import {stashPendingTaskAtom, takePendingTaskAtom} from "../home/pendingTask"
 
 import {agentHandoffPath, isSeededCreate} from "./agentHandoff"
+
+import {newId} from "@/lib/ids"
 
 /**
  * Create an agent from this app, over the SHARED mint+commit core — blank, seeded from a starter
@@ -65,7 +64,15 @@ export const useNewAgentAction = (base: string) => {
             if (creating) return false
             setCreating(true)
             setError(null)
-            const created = await createAgent({name: params?.name, entityId: params?.entityId})
+            const template = params?.templateKey
+                ? agentTemplateByKey(params.templateKey)
+                : undefined
+            const created = await createAgent({
+                name: params?.name,
+                entityId: params?.entityId,
+                template,
+                setup: params?.setup,
+            })
             if (!created) {
                 setCreating(false)
                 return false
@@ -75,8 +82,8 @@ export const useNewAgentAction = (base: string) => {
             const seed = params?.setup ? appendSetupPreamble(typed, params.setup) : typed
             const seedParts = params?.seedParts
             const seeded = isSeededCreate({seed, partCount: seedParts?.length ?? 0})
-            const sessionId = seeded ? (params?.sessionId ?? newId()) : null
-            if (sessionId) {
+            const sessionId = created.sessionId ?? (seeded ? (params?.sessionId ?? newId()) : null)
+            if (sessionId && !created.sessionId) {
                 // The session does not exist server-side until its first turn — mint the id, stash
                 // the instruction, and let the chat screen's engine send it once. Fresh-marked
                 // (idempotent for a caller-minted id): without it the chat treats the id as an
@@ -127,7 +134,7 @@ export const useNewAgentAction = (base: string) => {
         (templateKey: string) => {
             const template = agentTemplateByKey(templateKey)
             if (!template) return
-            void run({...agentTemplateSeed(template), templateKey})
+            void run({name: template.name, templateKey})
         },
         [run],
     )

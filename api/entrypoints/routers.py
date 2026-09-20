@@ -1692,7 +1692,7 @@ app.include_router(
 app.include_router(
     router=agent_templates.router,
     prefix="/agent-templates",
-    tags=["Agent Templates"],
+    tags=["Workflows"],
 )
 
 app.include_router(

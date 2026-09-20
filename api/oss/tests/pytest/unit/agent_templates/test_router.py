@@ -230,6 +230,9 @@ def test_openapi_contains_one_load_operation():
 
     operation = schema["paths"]["/api/agent-templates/load"]["post"]
     assert operation["operationId"] == "load_agent_template"
+    assert {item["name"]: item["in"] for item in operation["parameters"]} == {
+        "project_id": "query"
+    }
     assert (
         sum(
             1
