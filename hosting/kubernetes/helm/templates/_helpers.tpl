@@ -893,6 +893,38 @@ imagePullSecrets:
       key: CLOUDFLARE_TURNSTILE_SECRET_KEY
       optional: true
 {{- end }}
+{{- /* The web container reads AGENTA_MCP_GATEWAY_ENABLED itself: entrypoint.sh normalizes it
+     and writes NEXT_PUBLIC_AGENTA_MCP_GATEWAY_ENABLED into the runtime env, which is what
+     hides the MCP endpoints tab on a deployment whose API refuses every MCP gateway route.
+     Without it here the browser bundle falls back to "on" and offers a tab that leads to a
+     refusal. Same value as commonEnv renders for the API, from the same key, so the two
+     cannot disagree. */}}
+{{- $mcpGateway := default dict .Values.mcpGateway -}}
+{{- if hasKey $mcpGateway "enabled" }}
+- name: AGENTA_MCP_GATEWAY_ENABLED
+  value: {{ $mcpGateway.enabled | quote }}
+{{- end }}
+{{- end }}
+
+{{/* ================================================================
+   AGENTA_GATEWAYS_INSECURE_HTTP_ALLOWED — whether a gateway credential
+   may cross a plain-http hop to a routable host.
+
+   Read by the agenta SDK inside the services container
+   (sdks/python/agenta/sdk/agents/connections/models.py) and by the
+   runner (services/runner/src/engines/sandbox_agent/run-plan.ts), and
+   by nothing in the API image. Those two legs re-validate the same
+   rule, so a value set on one but not the other admits a run and then
+   strands it inside the sandbox. Kept out of commonEnv for that
+   reason: commonEnv would put it on the API, workers, cron and
+   alembic, none of which read it, and still miss the runner.
+   ================================================================ */}}
+{{- define "agenta.gatewayInsecureHttpEnv" -}}
+{{- $gatewayEgress := default dict .Values.gatewayEgress -}}
+{{- if hasKey $gatewayEgress "insecureHttpAllowed" }}
+- name: AGENTA_GATEWAYS_INSECURE_HTTP_ALLOWED
+  value: {{ $gatewayEgress.insecureHttpAllowed | quote }}
+{{- end }}
 {{- end }}
 
 {{/* ================================================================
@@ -1215,6 +1247,50 @@ imagePullSecrets:
 {{- else if hasKey $svcHook "allowInsecure" }}
 - name: AGENTA_INSECURE_EGRESS_ALLOWED
   value: {{ $svcHook.allowInsecure | quote }}
+{{- end }}
+{{- /* Agenta gateways — the four switches api/oss/src/utils/env.py resolves. They belong in
+     commonEnv because that is this chart's equivalent of the one env file compose hands to
+     api, workers and cron: the settings object is a module-level singleton in the API image,
+     so a worker or the cron container that resolved a different value than the API would be
+     the bug. AGENTA_GATEWAYS_INSECURE_HTTP_ALLOWED is deliberately NOT here — no API code
+     reads it, and it has its own helper below.
+     Until this block existed the documented keys were accepted and ignored: the schema's root
+     is additionalProperties:true, so `mcpGateway: {enabled: false}` installed cleanly and
+     changed nothing. */}}
+{{- $llmGateway := default dict .Values.llmGateway -}}
+{{- $mcpGateway := default dict .Values.mcpGateway -}}
+{{- $gatewayEgress := default dict .Values.gatewayEgress -}}
+{{- $gatewayCredentials := default dict .Values.gatewayCredentials -}}
+{{- if hasKey $llmGateway "enabled" }}
+- name: AGENTA_LLM_GATEWAY_ENABLED
+  value: {{ $llmGateway.enabled | quote }}
+{{- end }}
+{{- if hasKey $mcpGateway "enabled" }}
+- name: AGENTA_MCP_GATEWAY_ENABLED
+  value: {{ $mcpGateway.enabled | quote }}
+{{- end }}
+{{- /* A YAML list, joined here, the way agentRunner.providers.enabled already is: the
+     application parses one comma-separated string, and a list is what an operator can extend
+     from a second values file without re-typing the whole line. A plain string is accepted
+     too, so a value pasted straight out of the compose env file still works. */}}
+{{- if $mcpGateway.hostAllowlist }}
+- name: AGENTA_MCP_GATEWAY_HOST_ALLOWLIST
+  {{- if kindIs "string" $mcpGateway.hostAllowlist }}
+  value: {{ $mcpGateway.hostAllowlist | quote }}
+  {{- else }}
+  value: {{ join "," $mcpGateway.hostAllowlist | quote }}
+  {{- end }}
+{{- end }}
+{{- if hasKey $gatewayEgress "insecureAllowed" }}
+- name: AGENTA_GATEWAYS_INSECURE_EGRESS_ALLOWED
+  value: {{ $gatewayEgress.insecureAllowed | quote }}
+{{- end }}
+{{- /* Unset by default, so the application's own 43200s default applies. Rendering an empty
+     string here instead would be read as "no TTL configured" by nobody: the parser sees a
+     value and has to reject it. */}}
+{{- if $gatewayCredentials.ttlSeconds }}
+- name: AGENTA_GATEWAYS_CREDENTIALS_TTL_SECONDS
+  value: {{ $gatewayCredentials.ttlSeconds | quote }}
 {{- end }}
 {{- /* agenta.services.code — SDK sandbox runner selector */}}
 {{- if $svcCode.sandboxRunner }}
