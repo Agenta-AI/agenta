@@ -27,12 +27,16 @@ from oss.src.core.agent_templates.models import (
     TemplateBindingPlan,
 )
 from oss.src.core.agent_templates.provenance import (
+    create_request_meta,
+    merge_platform_meta,
     read_create_request,
     read_template_origin,
 )
-from oss.src.core.skills.dtos import SkillCreated
+from oss.src.core.shared.idempotency import resource_identity, request_key_hash
+from oss.src.core.skills.dtos import InstalledSkillRef, SkillCreated
 from oss.src.core.workflows.dtos import (
     SimpleWorkflow,
+    SimpleWorkflowCreateResult,
     WorkflowRevisionData,
 )
 
@@ -146,15 +150,45 @@ class _Skills:
         self.fail = fail
         self.records = {}
 
-    async def create_skill(self, *, project_id, user_id, skill, idempotency_key=None):
+    def plan_idempotent_skill_ref(
+        self, *, project_id, namespace, request_key, skill_name
+    ):
+        self.events.append("plan-skill")
+        workflow_id = resource_identity(
+            project_id, namespace, request_key, f"skill:{skill_name}"
+        )
+        return InstalledSkillRef(
+            name=skill_name,
+            workflow_id=workflow_id,
+            workflow_slug=f"{skill_name}-{workflow_id.hex[:8]}",
+        )
+
+    async def create_skill_idempotent(
+        self,
+        *,
+        project_id,
+        user_id,
+        namespace,
+        request_key,
+        request_fingerprint,
+        skill,
+    ):
         self.events.append("skill")
         if self.fail:
             return SkillCreated()
-        key = (project_id, idempotency_key, skill["name"])
+        workflow_id = resource_identity(
+            project_id, namespace, request_key, f"skill:{skill['name']}"
+        )
+        planned = InstalledSkillRef(
+            name=skill["name"],
+            workflow_id=workflow_id,
+            workflow_slug=f"{skill['name']}-{workflow_id.hex[:8]}",
+        )
+        key = (project_id, namespace, request_key, skill["name"])
         if key not in self.records:
             self.records[key] = SkillCreated(
-                workflow_id=str(uuid4()),
-                slug=f"{skill['name']}-stable",
+                workflow_id=str(planned.workflow_id),
+                slug=planned.workflow_slug,
                 revision_id=str(uuid4()),
             )
         return self.records[key]
@@ -166,34 +200,52 @@ class _SimpleWorkflows:
         self.records = {}
         self.create_calls = 0
 
-    async def fetch_idempotent(self, *, project_id, requested_slug, idempotency_key):
-        return self.records.get((project_id, requested_slug, idempotency_key))
+    async def fetch_idempotent_root(
+        self, *, project_id, namespace, request_key, component
+    ):
+        workflow_id = resource_identity(project_id, namespace, request_key, component)
+        return self.records.get(workflow_id)
 
     async def create_idempotent(
         self,
         *,
         project_id,
         user_id,
+        namespace,
+        request_key,
+        request_fingerprint,
+        component,
         simple_workflow_create,
-        idempotency_key,
-        platform_meta=False,
+        trusted_meta=None,
     ):
         self.events.append("workflow")
         self.create_calls += 1
-        key = (project_id, simple_workflow_create.slug, idempotency_key)
-        if key not in self.records:
-            self.records[key] = SimpleWorkflow(
-                id=uuid4(),
-                slug="sample-stable",
+        workflow_id = resource_identity(project_id, namespace, request_key, component)
+        replayed = workflow_id in self.records
+        if not replayed:
+            metadata = merge_platform_meta(
+                None,
+                trusted_meta,
+                create_request_meta(
+                    key_hash=request_key_hash(request_key),
+                    request_fingerprint=request_fingerprint,
+                ),
+            )
+            self.records[workflow_id] = SimpleWorkflow(
+                id=workflow_id,
+                slug=f"{simple_workflow_create.slug}-{workflow_id.hex[:8]}",
                 name=simple_workflow_create.name,
                 description=simple_workflow_create.description,
                 flags=simple_workflow_create.flags,
-                meta=simple_workflow_create.meta,
+                meta=metadata,
                 data=simple_workflow_create.data,
                 variant_id=uuid4(),
                 revision_id=uuid4(),
             )
-        return self.records[key]
+        return SimpleWorkflowCreateResult(
+            workflow=self.records[workflow_id],
+            replayed=replayed,
+        )
 
 
 def _loader(*, parser_error=None, binding_error=None, skill_fail=False):
@@ -213,7 +265,7 @@ def _loader(*, parser_error=None, binding_error=None, skill_fail=False):
 
 
 @pytest.mark.asyncio
-async def test_prepare_validates_before_writes_and_creates_the_agent_last():
+async def test_prepare_finishes_preflight_then_creates_agent_before_skills():
     loader, events, skills, workflows, _ = _loader()
 
     result = await loader.prepare(
@@ -222,7 +274,14 @@ async def test_prepare_validates_before_writes_and_creates_the_agent_last():
         command=_command(),
     )
 
-    assert events == ["source", "parse", "bindings", "skill", "workflow"]
+    assert events == [
+        "source",
+        "parse",
+        "bindings",
+        "plan-skill",
+        "workflow",
+        "skill",
+    ]
     assert result.workflow_id
     assert result.variant_id
     assert result.revision_id
@@ -287,13 +346,13 @@ async def test_native_configuration_validation_happens_before_resource_writes():
             command=command,
         )
 
-    assert events == ["source", "parse", "bindings"]
+    assert events == ["source", "parse", "bindings", "plan-skill"]
     assert not skills.records
     assert not workflows.records
 
 
 @pytest.mark.asyncio
-async def test_skill_failure_does_not_create_an_agent():
+async def test_skill_failure_leaves_only_the_recoverable_agent_root():
     loader, events, _, workflows, _ = _loader(skill_fail=True)
 
     with pytest.raises(TemplateSkillCreationFailed):
@@ -303,8 +362,15 @@ async def test_skill_failure_does_not_create_an_agent():
             command=_command(),
         )
 
-    assert events == ["source", "parse", "bindings", "skill"]
-    assert not workflows.records
+    assert events == [
+        "source",
+        "parse",
+        "bindings",
+        "plan-skill",
+        "workflow",
+        "skill",
+    ]
+    assert len(workflows.records) == 1
 
 
 @pytest.mark.asyncio
@@ -335,7 +401,7 @@ async def test_same_key_replay_uses_stored_source_pin_without_duplicates():
     assert resolver.pins[-1].digest == "sha256:" + "1" * 64
     assert len(skills.records) == 1
     assert len(workflows.records) == 1
-    assert workflows.create_calls == 1
+    assert workflows.create_calls == 2
 
 
 @pytest.mark.asyncio
@@ -377,7 +443,7 @@ async def test_different_request_keys_create_distinct_agents():
 
     assert first.workflow_id != second.workflow_id
     assert len(workflows.records) == 2
-    assert len(skills.records) == 1
+    assert len(skills.records) == 2
 
 
 def test_request_fingerprint_normalizes_choice_order():
@@ -391,3 +457,7 @@ def test_request_fingerprint_normalizes_choice_order():
     )
 
     assert template_request_fingerprint(left) == template_request_fingerprint(right)
+    padded = _command(initial_message="  Please set yourself up.  ")
+    assert template_request_fingerprint(padded) == template_request_fingerprint(
+        _command()
+    )

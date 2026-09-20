@@ -56,7 +56,6 @@ class _StubSimpleWorkflowsService:
     def __init__(self, *, reject_creates: int = 0):
         self.workflows_service = _StubWorkflowsService()
         self.created = []
-        self.idempotent_creates = []
         self._reject = reject_creates
         self.head = SimpleNamespace(
             variant_id=uuid4(),
@@ -76,20 +75,6 @@ class _StubSimpleWorkflowsService:
         self.created.append(simple_workflow_create)
         return SimpleNamespace(
             id=uuid4(), slug=simple_workflow_create.slug, revision_id=uuid4()
-        )
-
-    async def create_idempotent(
-        self,
-        *,
-        project_id,
-        user_id,
-        simple_workflow_create,
-        idempotency_key,
-        platform_meta=False,
-    ):
-        self.idempotent_creates.append((idempotency_key, simple_workflow_create))
-        return SimpleNamespace(
-            id=uuid4(), slug="weather-report-stable", revision_id=uuid4()
         )
 
     async def fetch(self, *, project_id, workflow_id):
@@ -124,25 +109,6 @@ async def test_create_stamps_invariants_and_generates_the_slug():
     assert call.data.parameters["skill"]["name"] == "weather-report"
     assert created.slug == call.slug
     assert created.workflow_id
-
-
-@pytest.mark.asyncio
-async def test_create_uses_the_supplied_idempotency_key():
-    service, simple = _service()
-
-    created = await service.create_skill(
-        project_id=PROJECT_ID,
-        user_id=USER_ID,
-        skill=SKILL,
-        idempotency_key="catalog:abc123",
-    )
-
-    key, request = simple.idempotent_creates[0]
-    assert key == "skill:catalog:abc123:weather-report"
-    assert request.slug == "weather-report"
-    assert request.flags.is_skill and request.flags.is_snippet
-    assert created.slug == "weather-report-stable"
-    assert not simple.created
 
 
 @pytest.mark.asyncio

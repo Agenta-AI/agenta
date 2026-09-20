@@ -170,12 +170,6 @@ class TemplateBindingPlan(StrictModel):
     unresolved: list[UnresolvedTemplateBinding] = Field(default_factory=list)
 
 
-class InstalledSkillRef(StrictModel):
-    name: str
-    workflow_id: UUID
-    workflow_slug: str
-
-
 class CompiledTemplate(StrictModel):
     workflow_name: str
     workflow_description: str

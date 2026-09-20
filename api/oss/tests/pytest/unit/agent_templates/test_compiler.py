@@ -5,11 +5,11 @@ import pytest
 from oss.src.core.agent_templates.compiler import TemplateCompiler, skill_embed
 from oss.src.core.agent_templates.exceptions import TemplatePackageInvalid
 from oss.src.core.agent_templates.models import (
-    InstalledSkillRef,
     ParsedTemplateAgent,
     ParsedTemplatePackage,
     TemplateBindingPlan,
 )
+from oss.src.core.skills.dtos import InstalledSkillRef
 from oss.src.core.workflows.dtos import WorkflowRevisionData
 
 

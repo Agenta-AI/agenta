@@ -1,7 +1,5 @@
-import hashlib
-import json
 from typing import Any
-from uuid import NAMESPACE_URL, UUID, uuid5
+from uuid import UUID
 
 from oss.src.core.agent_templates.bindings import TemplateBindingResolver
 from oss.src.core.agent_templates.compiler import TemplateCompiler
@@ -13,42 +11,29 @@ from oss.src.core.agent_templates.exceptions import (
 )
 from oss.src.core.agent_templates.interfaces import TemplateSourceResolver
 from oss.src.core.agent_templates.message import compose_first_message
-from oss.src.core.agent_templates.models import (
-    InstalledSkillRef,
-    PreparedTemplateLoad,
-)
+from oss.src.core.agent_templates.models import PreparedTemplateLoad
 from oss.src.core.agent_templates.parser import TemplatePackageParser
 from oss.src.core.agent_templates.provenance import (
-    create_request_meta,
-    merge_platform_meta,
     read_create_request,
     read_template_origin,
     template_origin_meta,
 )
+from oss.src.core.shared.exceptions import EntityCreationIdempotencyConflict
+from oss.src.core.shared.idempotency import request_fingerprint, request_key_hash
+from oss.src.core.skills.dtos import InstalledSkillRef
 from oss.src.core.skills.service import SkillsService
 from oss.src.core.workflows.dtos import (
     SimpleWorkflow,
     SimpleWorkflowCreate,
     SimpleWorkflowData,
     SimpleWorkflowFlags,
+    Workflow,
 )
 from oss.src.core.workflows.service import SimpleWorkflowsService
 
 
-_AGENT_CREATE_KEY_PREFIX = "agent-template:"
-
-
-def _sha256_text(value: str) -> str:
-    return "sha256:" + hashlib.sha256(value.encode("utf-8")).hexdigest()
-
-
-def _canonical_json(value: Any) -> str:
-    return json.dumps(
-        value,
-        ensure_ascii=False,
-        separators=(",", ":"),
-        sort_keys=True,
-    )
+_TEMPLATE_LOAD_NAMESPACE = "agent-template-load"
+_AGENT_COMPONENT = "agent"
 
 
 def template_request_fingerprint(command: TemplateLoadCommand) -> str:
@@ -60,26 +45,26 @@ def template_request_fingerprint(command: TemplateLoadCommand) -> str:
         key=lambda choice: (
             choice.get("connection_key", ""),
             choice.get("kind", ""),
-            _canonical_json(choice),
         ),
     )
-    payload = {
-        "source": command.source.model_dump(mode="json", exclude_none=True),
-        "base_revision": command.base_revision.model_dump(
-            mode="json", exclude_none=True
-        ),
-        "initial_message": command.initial_message,
-        "connection_choices": choices,
-    }
-    return _sha256_text(_canonical_json(payload))
+    return request_fingerprint(
+        {
+            "source": command.source.model_dump(mode="json", exclude_none=True),
+            "base_revision": command.base_revision.model_dump(
+                mode="json", exclude_none=True
+            ),
+            "initial_message": command.initial_message.strip(),
+            "connection_choices": choices,
+        }
+    )
 
 
 class AgentTemplateLoader:
-    """Validate and compile one package, then create one ordinary agent.
+    """Preflight and create one ordinary agent from one verified package.
 
-    This phase deliberately stops before workspace copying and session handoff.
-    Those steps extend the same service without changing source, binding, skill,
-    or workflow ownership.
+    Workspace materialization and the durable session handoff extend this service
+    in later phases. The deterministic agent is the recovery root for every
+    resource written after preflight.
     """
 
     def __init__(
@@ -100,24 +85,25 @@ class AgentTemplateLoader:
         self._simple_workflows_service = simple_workflows_service
 
     @staticmethod
-    def _create_key(command: TemplateLoadCommand) -> str:
-        if not command.request_key.strip():
+    def _request_key(command: TemplateLoadCommand) -> str:
+        request_key = command.request_key.strip()
+        if not request_key:
             raise ValueError("request_key must not be empty")
-        return _AGENT_CREATE_KEY_PREFIX + command.request_key
+        return request_key
 
     @staticmethod
     def _stored_origin_for_replay(
         *,
-        workflow: SimpleWorkflow,
+        workflow: Workflow | SimpleWorkflow,
         command: TemplateLoadCommand,
-        key_hash: str,
+        request_key: str,
         request_fingerprint: str,
     ) -> dict[str, Any]:
         create_request = read_create_request(workflow.meta)
         origin = read_template_origin(workflow.meta)
         if (
             create_request is None
-            or create_request["key_hash"] != key_hash
+            or create_request["key_hash"] != request_key_hash(request_key)
             or create_request["request_fingerprint"] != request_fingerprint
             or origin is None
             or origin["kind"] != command.source.kind
@@ -171,23 +157,22 @@ class AgentTemplateLoader:
         user_id: UUID,
         command: TemplateLoadCommand,
     ) -> PreparedTemplateLoad:
-        create_key = self._create_key(command)
-        key_hash = _sha256_text(create_key)
-        request_fingerprint = template_request_fingerprint(command)
+        request_key = self._request_key(command)
+        fingerprint = template_request_fingerprint(command)
 
-        requested_slug = command.source.key
-        existing = await self._simple_workflows_service.fetch_idempotent(
+        root = await self._simple_workflows_service.fetch_idempotent_root(
             project_id=project_id,
-            requested_slug=requested_slug,
-            idempotency_key=create_key,
+            namespace=_TEMPLATE_LOAD_NAMESPACE,
+            request_key=request_key,
+            component=_AGENT_COMPONENT,
         )
         pin = None
-        if existing is not None:
+        if root is not None:
             stored_origin = self._stored_origin_for_replay(
-                workflow=existing,
+                workflow=root,
                 command=command,
-                key_hash=key_hash,
-                request_fingerprint=request_fingerprint,
+                request_key=request_key,
+                request_fingerprint=fingerprint,
             )
             pin = TemplateSourcePin(
                 version=stored_origin["version"],
@@ -210,113 +195,88 @@ class AgentTemplateLoader:
             bindings=bindings,
             choices=command.connection_choices,
         )
-        origin_meta = template_origin_meta(resolved)
-        expected_origin = origin_meta["_ag"]["template_origin"]
 
-        if existing is not None:
-            self._verify_origin(
-                workflow=existing,
-                expected_origin=expected_origin,
-            )
-            return self._prepared(
-                workflow=existing,
-                resolved=resolved,
-                workspace=package.workspace,
-                first_message=first_message,
-                replayed=True,
-            )
-
-        skill_key_prefix = (
-            f"{resolved.source.kind}:{resolved.source.key}:"
-            f"{resolved.version}:{resolved.digest}"
-        )
-        # Validate the complete native configuration before any resource write.
-        # The planned references have the same native shape as installed ones;
-        # the final compile below substitutes the service-owned identities.
         planned_skills = [
-            InstalledSkillRef(
-                name=skill.name,
-                workflow_id=uuid5(
-                    NAMESPACE_URL,
-                    f"{skill_key_prefix}:{skill.name}",
-                ),
-                workflow_slug=f"{skill.name}-planned",
+            self._skills_service.plan_idempotent_skill_ref(
+                project_id=project_id,
+                namespace=_TEMPLATE_LOAD_NAMESPACE,
+                request_key=request_key,
+                skill_name=skill.name,
             )
             for skill in package.skills
         ]
-        self._compiler.compile(
+        compiled = self._compiler.compile(
             package=package,
             base_revision=command.base_revision,
             bindings=bindings,
             installed_skills=planned_skills,
             first_message=first_message,
         )
+        origin_meta = template_origin_meta(resolved)
+        expected_origin = origin_meta["_ag"]["template_origin"]
 
-        installed_skills: list[InstalledSkillRef] = []
-        for skill in package.skills:
-            created = await self._skills_service.create_skill(
+        try:
+            outcome = await self._simple_workflows_service.create_idempotent(
                 project_id=project_id,
                 user_id=user_id,
-                skill=skill.model_dump(mode="json", exclude_none=True),
-                idempotency_key=skill_key_prefix,
-            )
-            if not created.workflow_id or not created.slug:
-                raise TemplateSkillCreationFailed(skill.name)
-            installed_skills.append(
-                InstalledSkillRef(
-                    name=skill.name,
-                    workflow_id=UUID(created.workflow_id),
-                    workflow_slug=created.slug,
-                )
-            )
-
-        compiled = self._compiler.compile(
-            package=package,
-            base_revision=command.base_revision,
-            bindings=bindings,
-            installed_skills=installed_skills,
-            first_message=first_message,
-        )
-        metadata = merge_platform_meta(
-            None,
-            origin_meta,
-            create_request_meta(
-                key_hash=key_hash,
-                request_fingerprint=request_fingerprint,
-            ),
-        )
-        workflow = await self._simple_workflows_service.create_idempotent(
-            project_id=project_id,
-            user_id=user_id,
-            simple_workflow_create=SimpleWorkflowCreate(
-                slug=requested_slug,
-                name=compiled.workflow_name,
-                description=compiled.workflow_description,
-                flags=SimpleWorkflowFlags(is_agent=True),
-                meta=metadata,
-                data=SimpleWorkflowData(
-                    **compiled.revision_data.model_dump(mode="json", exclude_none=True)
+                namespace=_TEMPLATE_LOAD_NAMESPACE,
+                request_key=request_key,
+                request_fingerprint=fingerprint,
+                component=_AGENT_COMPONENT,
+                simple_workflow_create=SimpleWorkflowCreate(
+                    slug=command.source.key,
+                    name=compiled.workflow_name,
+                    description=compiled.workflow_description,
+                    flags=SimpleWorkflowFlags(is_agent=True),
+                    data=SimpleWorkflowData(
+                        **compiled.revision_data.model_dump(
+                            mode="json", exclude_none=True
+                        )
+                    ),
                 ),
-            ),
-            idempotency_key=create_key,
-            platform_meta=True,
-        )
-        if workflow is None:
-            raise TemplateWorkflowCreationFailed()
+                trusted_meta=origin_meta,
+            )
+        except EntityCreationIdempotencyConflict as exc:
+            raise TemplateCreateConflict() from exc
+
+        workflow = outcome.workflow
         self._stored_origin_for_replay(
             workflow=workflow,
             command=command,
-            key_hash=key_hash,
-            request_fingerprint=request_fingerprint,
+            request_key=request_key,
+            request_fingerprint=fingerprint,
         )
         self._verify_origin(
             workflow=workflow,
             expected_origin=expected_origin,
         )
+
+        planned_by_name = {skill.name: skill for skill in planned_skills}
+        for skill in sorted(package.skills, key=lambda item: item.name):
+            try:
+                created = await self._skills_service.create_skill_idempotent(
+                    project_id=project_id,
+                    user_id=user_id,
+                    namespace=_TEMPLATE_LOAD_NAMESPACE,
+                    request_key=request_key,
+                    request_fingerprint=fingerprint,
+                    skill=skill.model_dump(mode="json", exclude_none=True),
+                )
+            except EntityCreationIdempotencyConflict as exc:
+                raise TemplateCreateConflict() from exc
+            planned: InstalledSkillRef = planned_by_name[skill.name]
+            if (
+                not created.workflow_id
+                or not created.slug
+                or UUID(created.workflow_id) != planned.workflow_id
+                or created.slug != planned.workflow_slug
+            ):
+                raise TemplateSkillCreationFailed(skill.name)
+
         return self._prepared(
             workflow=workflow,
             resolved=resolved,
             workspace=compiled.workspace,
             first_message=compiled.first_message,
-            replayed=False,
+            replayed=outcome.replayed,
         )

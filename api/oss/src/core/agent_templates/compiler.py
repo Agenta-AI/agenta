@@ -9,10 +9,10 @@ from agenta.sdk.utils.types import AgentTemplateSchema
 from oss.src.core.agent_templates.exceptions import TemplatePackageInvalid
 from oss.src.core.agent_templates.models import (
     CompiledTemplate,
-    InstalledSkillRef,
     ParsedTemplatePackage,
     TemplateBindingPlan,
 )
+from oss.src.core.skills.dtos import InstalledSkillRef
 from oss.src.core.workflows.dtos import WorkflowRevisionData
 
 
