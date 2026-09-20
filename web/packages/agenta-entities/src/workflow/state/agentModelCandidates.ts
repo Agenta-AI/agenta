@@ -140,6 +140,7 @@ export const agentModelCandidatesAtomFamily = atomFamily((showSubscriptions: boo
 
 const AGENT_CREATION_SOURCE_RETRY_DELAY_MS = 250
 
+/** Retry one failed source read and log the underlying error for diagnosis. */
 const retryAgentCreationSource =
     (source: "provider connections" | "harness catalog") =>
     (failureCount: number, error: unknown): boolean => {
