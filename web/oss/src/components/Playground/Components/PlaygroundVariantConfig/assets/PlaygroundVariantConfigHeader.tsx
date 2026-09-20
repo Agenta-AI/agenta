@@ -17,8 +17,9 @@ import {Tag} from "@agenta/ui/components"
 import {EnhancedButton} from "@agenta/ui/components/presentational"
 import {ShortcutKeys} from "@agenta/ui/shortcuts"
 import {SimpleTooltip} from "@agenta/ui/ui"
-import {CaretDoubleLeft, DotsThree, Trash} from "@phosphor-icons/react"
+import {DotsThree, Trash} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
+import {ChevronsLeft} from "lucide-react"
 import dynamic from "next/dynamic"
 
 import {routerAppIdAtom} from "@/oss/state/app/atoms/fetcher"
@@ -221,7 +222,7 @@ const PlaygroundVariantConfigHeader = ({
                             size="small"
                             aria-keyshortcuts={shortcutAria("panel.config")}
                             aria-label="Hide configuration"
-                            icon={<CaretDoubleLeft size={14} />}
+                            icon={<ChevronsLeft size={14} />}
                             onClick={handleCollapseConfigPanel}
                             // Square 24px, like prod's icon-only antd button — the kit's `small`
                             // keeps its 7px side padding, which made this one 30px wide.
