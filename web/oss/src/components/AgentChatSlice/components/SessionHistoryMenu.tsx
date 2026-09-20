@@ -12,13 +12,7 @@ import {
     PopoverTrigger,
     SimpleTooltip,
 } from "@agenta/ui/ui"
-import {
-    Archive,
-    ArrowCounterClockwise,
-    CaretRight,
-    Power,
-    Trash,
-} from "@phosphor-icons/react"
+import {Archive, ArrowCounterClockwise, CaretRight, Power, Trash} from "@phosphor-icons/react"
 import {useQueryClient} from "@tanstack/react-query"
 import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
