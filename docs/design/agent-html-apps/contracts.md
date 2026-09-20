@@ -141,15 +141,20 @@ All under the existing mount files endpoints; nothing new is mounted.
 - List entries gain `etag` (a string for files, `null` for folders).
 - `PUT /mounts/{id}/files?path=p` with a raw text body honours `If-Match: <etag>` and
   `If-None-Match: *` (create only). Returns `{path, size, etag}`.
-- `DELETE /mounts/{id}/files?path=p` honours `If-Match`.
+- `DELETE /mounts/{id}/files?path=p` honours `If-Match`, with one caveat worth knowing:
+  conditional `DeleteObject` is not portable across S3-compatible stores, so the store
+  emulates it as stat-compare-delete. A write landing between the stat and the delete is
+  not caught. `PUT` has no such gap: it sends a real conditional put. The window is one
+  round trip and the caller already holds the etag it wants gone, so the worst case is
+  deleting a version it never saw. Stated at the function in `core/store/storage.py`.
 - Precondition mismatch → `412` with body `{"detail": {"code": "conflict", "etag": <current or null>}}`.
 - No precondition header → unconditional, exactly as today. Existing callers do not change.
 
-Frontend transport note: the generated Fern `writeMountFile` sends no body, so the host writes
-through the existing axios raw-body path with `Content-Type: text/plain; charset=utf-8` and an
-`If-Match` header. Reads, list and delete go through the Fern client; delete passes `If-Match`
-as the generated request's typed `if-match` field. Either way the 412 body above is what the host
-maps to `conflict`.
+Frontend transport note: every method goes through the Fern client, write included. The endpoint
+declares its raw body with FastAPI's `openapi_extra`, so the generated `writeMountFile` takes a
+`Blob` typed `text/plain; charset=utf-8`; the axios raw-body workaround this note used to
+describe was removed once the client was regenerated. Delete passes `If-Match` as the generated
+request's typed `if-match` field. The 412 body above is what the host maps to `conflict`.
 
 ## Platform ops (lane D)
 
