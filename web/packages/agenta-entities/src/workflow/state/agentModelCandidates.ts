@@ -151,6 +151,22 @@ export const agentModelCandidatesAtomFamily = atomFamily((showSubscriptions: boo
     }),
 )
 
+const AGENT_CREATION_SOURCE_RETRY_DELAY_MS = 250
+
+/** Retry one failed source read and log the underlying error for diagnosis. */
+const retryAgentCreationSource =
+    (source: "provider connections" | "harness catalog") =>
+    (failureCount: number, error: unknown): boolean => {
+        const willRetry = failureCount < 1
+        if (willRetry) {
+            console.error(`[agent-create] Retrying ${source} after failure`, {
+                attempt: failureCount + 1,
+                error,
+            })
+        }
+        return willRetry
+    }
+
 const sourceOutcome = (result: {data: unknown; error: unknown}): AgentModelSourceOutcome => {
     if (result.error !== undefined) return "error"
     return result.data === undefined ? "unsettled" : "ok"
@@ -182,7 +198,8 @@ export async function loadAgentModelCandidates({
         queryKey: ["vault", "secrets", userId, projectId],
         queryFn: () => fetchVaultSecret({projectId}),
         staleTime: 5 * 60_000,
-        retry: false,
+        retry: retryAgentCreationSource("provider connections"),
+        retryDelay: AGENT_CREATION_SOURCE_RETRY_DELAY_MS,
     } as const
     const [vault, capabilities, subscription] = await Promise.all([
         (refreshVault
@@ -197,7 +214,8 @@ export async function loadAgentModelCandidates({
                 queryFn: async () =>
                     (await fetchHarnessCapabilities()) as unknown as HarnessCapabilitiesMap,
                 staleTime: 5 * 60_000,
-                retry: false,
+                retry: retryAgentCreationSource("harness catalog"),
+                retryDelay: AGENT_CREATION_SOURCE_RETRY_DELAY_MS,
             })
             .then((data) => ({data, error: undefined}))
             .catch((error: unknown) => ({data: undefined, error})),
