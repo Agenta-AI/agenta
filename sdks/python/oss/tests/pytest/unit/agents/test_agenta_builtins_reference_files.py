@@ -68,7 +68,7 @@ def _frontend_template_keys() -> "set[str] | None":
             "cannot locate the template registry"
         )
     array_content = _array_body_after(content, marker_pos, marker)
-    return set(re.findall(r'key:\s*"([^"]+)"', array_content))
+    return set(re.findall(r'^ {8}key:\s*"([^"]+)"', array_content, re.MULTILINE))
 
 
 def _array_body_after(content: str, marker_pos: int, marker: str) -> str:

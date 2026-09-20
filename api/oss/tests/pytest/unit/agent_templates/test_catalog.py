@@ -8,7 +8,9 @@ from oss.src.core.agent_templates.parser import TemplatePackageParser
 from oss.src.core.agent_templates.sources import InternalTemplateSourceResolver
 
 
-REPO_ROOT = next(parent for parent in Path(__file__).parents if (parent / "web").is_dir())
+REPO_ROOT = next(
+    parent for parent in Path(__file__).parents if (parent / "web").is_dir()
+)
 CATALOG = (
     REPO_ROOT / "api" / "oss" / "src" / "resources" / "agent_templates" / "catalog.json"
 )

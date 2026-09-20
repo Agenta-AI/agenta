@@ -2,11 +2,11 @@ import {useCallback, useState} from "react"
 
 import {type AgentSetupSelection, type AgentStarterTemplate} from "@agenta/entities/workflow"
 
+import {usePostHogAg} from "@/oss/lib/helpers/analytics/hooks/usePostHogAg"
+
 import {captureFirstAgentIntent} from "../assets/onboardingAnalytics"
 
 import {useCreateAgent} from "./useCreateAgent"
-
-import {usePostHogAg} from "@/oss/lib/helpers/analytics/hooks/usePostHogAg"
 
 /**
  * Picking a template IS creating the agent: mint it from the template and land in its playground,
