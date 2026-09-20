@@ -30,13 +30,13 @@ import {expectAuthenticatedSession} from "../utils/auth"
 import {
     apiBaseUrl,
     createMcpConnectionViaApi,
+    ensureMockMcpUpstream,
     fillJourneyUrlAndName,
     journeyDialog,
     mockMcpBase,
     navigate,
     PROBE_MS,
     projectIdFrom,
-    requireMockMcpUpstream,
     ROUTE_WARMUP_MS,
     uniqueName,
 } from "../utils/mcpConnections"
@@ -340,9 +340,15 @@ const savedMcpItems = async (
 export const mcpAgentConfigAcceptanceTests = (license: TestLicenseType) => () => {
     const tags = createTags(license)
 
-    test.beforeAll(requireMockMcpUpstream)
-
     test.beforeEach(async ({page, apiHelpers}) => {
+        // One reachability check, cached across the suite, so a stack without the mock upstream
+        // skips these cases with a sentence naming what to start rather than failing. The hosted
+        // preview is the only web-acceptance environment and never runs the gateway mocks, so a
+        // hard failure there was red on every unrelated pull request; a compose or local stack
+        // that does run them still executes the whole journey.
+        const {reachable, reason} = await ensureMockMcpUpstream()
+        test.skip(!reachable, reason)
+
         // Each case makes an agent app through the UI and then waits on a round trip to an MCP
         // server, which together do not fit the suite-wide minute meant for a page of clicks.
         test.setTimeout(600_000)

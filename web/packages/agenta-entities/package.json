@@ -71,6 +71,7 @@
         "./trace/etl": "./src/trace/etl/index.ts",
         "./webhook": "./src/webhook/index.ts",
         "./workflow": "./src/workflow/index.ts",
+        "./workflow/agentCreationTelemetry": "./src/workflow/state/agentCreationTelemetry.ts",
         "./workflow/commitDiff": "./src/workflow/commitDiff/index.ts",
         "./workflow/snapshotAdapter": "./src/workflow/snapshotAdapter.ts",
         "./workflow/state": "./src/workflow/state/index.ts"
