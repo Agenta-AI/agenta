@@ -204,7 +204,7 @@ td.c{text-align:center;font-weight:600}
   export.svg        written on demand by the app</code></pre></div>
     <div class="box"><div class="lbl">Bridge methods</div>
       <div class="chips"><span class="chip">readJSON("board.json")</span><span class="chip">readJSON("strokes.json")</span><span class="chip">writeJSON(…) with If-Match</span><span class="chip">write("export.svg")</span><span class="chip gap">assets preload</span><span class="chip gap">agenta.visible</span><span class="chip off">writeBlob("export.png")</span></div>
-      <div class="lbl" style="margin-top:10px">Why two data files</div><div>Strokes churn on every pen stroke and grow large; notes change rarely and the agent cares about them. Splitting keeps the agent's file small and the writes cheap. One writer per file still holds: the app owns both, the agent reads <code>board.json</code> and may add to it.</div>
+      <div class="lbl" style="margin-top:10px">Why two data files</div><div>Strokes churn on every pen stroke and grow large; notes change rarely and the agent cares about them. Splitting keeps the agent's file small and the writes cheap. Each file still has one <em>primary</em> writer: the app owns both while it is open. That is not exclusivity. The agent reads <code>board.json</code> and may add to it, which is the whole reason for the merge format below; it never touches <code>strokes.json</code>, because pen strokes are not something an agent has an opinion about.</div>
     </div>
   </div>
 

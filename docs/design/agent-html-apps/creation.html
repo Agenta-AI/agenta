@@ -346,7 +346,7 @@ a table, a dashboard.
 ## Folder
 `apps/&lt;slug&gt;/` with `app.json`, `index.html`, data
 files beside them. One folder per app. Data in
-small JSON files, one writer per file.
+small JSON files, each with one primary writer.
 
 ## Bridge contract v1
 `agenta.ready`, `agenta.canWrite`, `agenta.visible`,
@@ -511,7 +511,7 @@ open it and choose Run. Say what access it needs.</code></pre>
     <li><span class="b"></span><span><code>"kit": true</code>. Use kit classes and tokens; no hard-coded colours or fonts.</span></li>
     <li><span class="b"></span><span>No <code>&lt;script src&gt;</code> or <code>&lt;link&gt;</code> to the internet. Libraries are inlined or avoided; charts are SVG.</span></li>
     <li><span class="b"></span><span>Wait for <code>agenta.ready</code>. Respect <code>agenta.canWrite</code>; disable or label write actions when false.</span></li>
-    <li><span class="b"></span><span>Small JSON data files, one writer per file. Whole-file writes, debounced. Handle <code>conflict</code> by re-reading and reapplying, once. The agent itself reads a data file immediately before writing it, because its own writes are unconditional.</span></li>
+    <li><span class="b"></span><span>Small JSON data files, each with one <em>primary</em> writer: the app, while it is open. The agent may write the same file, and for several starters it is meant to. What keeps that safe is reconciliation, not exclusivity. Whole-file writes, debounced. The app handles <code>conflict</code> by re-reading and reapplying, once, on an <code>If-Match</code> the stub sends for it. The agent reads a data file immediately before writing it, because its own writes are unconditional and it has no ETag to carry.</span></li>
     <li><span class="b"></span><span>Show "data as of" for anything the agent produces on a schedule. Handle <code>not_found</code> as empty state, not as a crash.</span></li>
     <li><span class="b"></span><span>After creating, reply with the file card, say what access the app needs, and tell the user to choose Run.</span></li>
   </ul>
