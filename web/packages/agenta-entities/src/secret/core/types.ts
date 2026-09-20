@@ -182,9 +182,7 @@ export const PROVIDER_KINDS: Record<string, string> = {
  */
 export const STANDARD_PROVIDER_KINDS: StandardProviderKind[] = (
     Object.values(StandardProviderKind) as StandardProviderKind[]
-).filter(
-    (kind) => kind !== StandardProviderKind.Mistralai && kind !== StandardProviderKind.Mock,
-)
+).filter((kind) => kind !== StandardProviderKind.Mistralai && kind !== StandardProviderKind.Mock)
 
 /**
  * Truthy, obviously-not-a-key sentinel the vault persister writes to disk in place of secret
