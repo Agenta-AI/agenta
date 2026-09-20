@@ -17,8 +17,24 @@ vi.mock("@agenta/entities/secret", () => ({
 vi.mock("jotai", () => ({useAtomValue: () => []}))
 
 vi.mock("@agenta/entity-ui/secretProvider", () => ({
-    ProviderDrawer: ({open}: {open: boolean}) =>
-        open ? <div role="dialog">Model providers</div> : null,
+    ProviderDrawer: ({
+        open,
+        context,
+        connection,
+    }: {
+        open: boolean
+        context?: "playground" | "settings"
+        connection?: unknown
+    }) =>
+        open ? (
+            <div role="dialog">
+                {connection
+                    ? "OpenAI API key"
+                    : context === "playground"
+                      ? "Model providers"
+                      : "Add a provider"}
+            </div>
+        ) : null,
 }))
 
 vi.mock("@agenta/ui/ui", () => ({
@@ -53,6 +69,7 @@ describe("ConnectModelStrip", () => {
 
         const button = host.querySelector("button")
         expect(button?.textContent).toContain("Set up model providers")
+        expect(host.querySelector('[role="dialog"]')).toBeNull()
 
         await act(async () => {
             button?.dispatchEvent(new MouseEvent("click", {bubbles: true}))
