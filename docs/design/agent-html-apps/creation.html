@@ -590,7 +590,7 @@ open it and choose Run. Say what access it needs.</code></pre>
         <text x="36" y="128" opacity=".7">exists in the Build panel today</text>
         <rect x="20" y="164" width="200" height="116" rx="6" fill="currentColor" opacity=".05"/><rect x="20" y="164" width="200" height="116" rx="6" fill="none" stroke="currentColor"/>
         <text x="36" y="184" font-weight="600">agent-files/</text>
-        <text x="36" y="204" font-family="IBM Plex Mono, monospace">.apps/registry.json</text>
+        <text x="36" y="204" font-family="IBM Plex Mono, monospace">.apps/registry/&lt;session-id&gt;.json</text>
         <text x="36" y="220" font-family="IBM Plex Mono, monospace">.apps/starters/*</text>
         <text x="36" y="236" font-family="IBM Plex Mono, monospace">.apps/kit/*</text>
         <text x="36" y="256" font-family="IBM Plex Mono, monospace">apps/standup/  ← visible</text>
@@ -747,7 +747,7 @@ open it and choose Run. Say what access it needs.</code></pre>
       <tr><td class="num">C3</td><td>Kit: tokens + <code>agenta-app.css</code> in the assembler</td><td><code>@agenta/entity-ui/drive</code>, with WP 1.4</td><td>Injected when <code>kit: true</code>; theme switch re-sends tokens; a starter renders correctly in light and dark on both hosts</td><td>1</td><td class="num">2 d</td></tr>
       <tr><td class="num">C4</td><td>Manifest-aware drive UI</td><td><code>@agenta/entity-ui/drive</code></td><td>A folder with <code>app.json</code> shows as an App tile with Open; file cards for the entry say App; Run preselects <code>access</code>; stories for the App tile, the App file card, a shared (agent-drive) tile, and a folder with a malformed manifest</td><td>3</td><td class="num">2 d</td></tr>
       <tr><td class="num">C5</td><td>Error relay + Send to agent</td><td>stub, <code>HtmlBody</code>, composer draft</td><td>Bridge rejections and script errors appear in the Run tab strip; copy in v1, one-click draft once <code>chat.draft</code> lands; stories: one error, many errors collapsed, the send-to-agent state with and without a session</td><td>3</td><td class="num">2 d</td></tr>
-      <tr><td class="num">C7</td><td>Agent-level layout in the platform instructions + skill</td><td><code>platform_instructions.py</code>, agenta-apps skill</td><td>One paragraph introducing <code>agent-files/.apps/</code> beside <code>.tools/</code>; the skill creates <code>registry.json</code> on first <code>create_app</code> and reads it before creating; hidden from the Files pane like <code>.tools/</code></td><td>1</td><td class="num">0.5 d</td></tr>
+      <tr><td class="num">C7</td><td>Agent-level layout in the platform instructions + skill</td><td><code>platform_instructions.py</code>, agenta-apps skill</td><td>One paragraph introducing <code>agent-files/.apps/</code> beside <code>.tools/</code>; the skill creates <code>agent-files/.apps/layout.json</code> on the first <code>create_app</code>, then writes only <b>this session's</b> <code>.apps/registry/&lt;session-id&gt;.json</code> and never another session's, and before creating reads every file under <code>.apps/registry/</code> and merges them by slug; hidden from the Files pane like <code>.tools/</code></td><td>1</td><td class="num">0.5 d</td></tr>
       <tr><td class="num">C6</td><td>Remaining five starters</td><td>Starter bundle</td><td>checklist, review-queue, form, sheet, dashboard; each passes its field-test case on the kit</td><td>3</td><td class="num">4 d</td></tr>
     </tbody>
   </table></div>

@@ -223,6 +223,8 @@ td.c{text-align:center;font-weight:600}
 <section id="format">
   <h2>A data format that merges</h2>
   <p>The board's columns were arrays, and a conflict meant "re-read, reapply my move". A whiteboard has two writers who both change geometry, and arrays cannot be merged by position. The whiteboard starter therefore uses a map of objects keyed by id, each stamped with <code>updated_at</code>, and deletions as tombstones. Merging two versions is then a union by id, latest wins per object. The agent can add a note without knowing what the user is dragging.</p>
+  <p>"Latest wins" is only a rule if it is a <em>total</em> order, so the format fixes the comparison rather than leaving it to whoever implements the starter. <code>updated_at</code> is RFC 3339 in UTC with millisecond precision (<code>2026-09-18T09:31:44.218Z</code>), and each object carries <code>by</code>, either <code>"app"</code> or <code>"agent"</code>. Compare <code>updated_at</code> first; on an exact tie the <code>app</code> value wins, because a tie means the person moved that object and is looking at it while the agent wrote blind. Two writes from the same side cannot tie on the same object: they are serialised by <code>If-Match</code> on the file, and the loser re-reads before retrying.
+  <br>Worth being clear about what this is not. It settles which value a reader keeps; it is not a claim about ordering two edits in real time, because the two clocks are not the same clock. <code>If-Match</code> is still what stops a whole-file clobber. The tiebreak only decides the case that ETags cannot see, which is two different values for one object with the same stamp.</p>
   <div class="grid2">
     <div class="box"><div class="lbl">board.json</div>
 <pre><code>{
@@ -232,10 +234,10 @@ td.c{text-align:center;font-weight:600}
                   "title": "Today", "updated_at": "…" },
     "n_1":      { "type": "note", "x": 70, "y": 90, "w": 130, "h": 86,
                   "text": "Record demo", "done": false, "color": "yellow",
-                  "updated_at": "2026-09-18T09:12:03Z" },
+                  "updated_at": "2026-09-18T09:12:03.004Z", "by": "agent" },
     "n_5":      { "type": "note", "x": 700, "y": 160, "w": 130, "h": 86,
                   "text": "Write changelog", "done": true, "color": "green",
-                  "updated_at": "2026-09-18T09:31:44Z" },
+                  "updated_at": "2026-09-18T09:31:44.218Z", "by": "app" },
     "c_1":      { "type": "connector", "from": "n_1", "to": "n_2",
                   "updated_at": "…" },
     "n_3":      { "deleted": true, "updated_at": "…" }
@@ -247,7 +249,7 @@ td.c{text-align:center;font-weight:600}
   "strokes": {
     "s_1": { "points": [[150,235,0.6],[152,241,0.7],…],
              "color": "ink", "width": 2.5,
-             "updated_at": "2026-09-18T09:33:10Z" }
+             "updated_at": "2026-09-18T09:33:10.771Z", "by": "app" }
   }
 }</code></pre>
     <p class="small" style="margin:8px 0 0">Points are <code>[x, y, pressure]</code> in board coordinates, not screen pixels, so zoom and pan never rewrite them. A stroke of two hundred points is about 4 KB; a busy board's strokes file stays under the write cap for a long time.</p>
