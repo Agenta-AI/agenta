@@ -1,6 +1,7 @@
 from contextlib import asynccontextmanager
 import asyncio
 import time
+from pathlib import Path
 from uuid import UUID
 
 import agenta as ag
@@ -129,6 +130,7 @@ from oss.src.apis.fastapi.applications.router import ApplicationsRouter
 from oss.src.apis.fastapi.applications.router import SimpleApplicationsRouter
 from oss.src.apis.fastapi.folders.router import FoldersRouter
 from oss.src.apis.fastapi.workflows.router import WorkflowsRouter
+from oss.src.apis.fastapi.agent_templates.router import AgentTemplatesRouter
 from oss.src.apis.fastapi.skills.router import SkillsRouter
 from oss.src.core.skills.service import SkillsService
 from oss.src.core.skills.import_service import SkillImportService
@@ -231,6 +233,11 @@ from oss.src.dbs.postgres.sessions.inputs.dbes import SessionInputDBE  # noqa: F
 from oss.src.dbs.postgres.sessions.inputs.dao import SessionInputsDAO
 from oss.src.core.sessions.inputs.service import SessionInputsService
 from oss.src.core.sessions.starts.service import SessionStartsService
+from oss.src.core.agent_templates.bindings import TemplateBindingResolver
+from oss.src.core.agent_templates.compiler import TemplateCompiler
+from oss.src.core.agent_templates.loader import AgentTemplateLoader
+from oss.src.core.agent_templates.parser import TemplatePackageParser
+from oss.src.core.agent_templates.sources import InternalTemplateSourceResolver
 from oss.src.core.sessions.commands.service import SessionCommandsService
 from oss.src.dbs.http.sessions.control_delivery_direct import DirectControlDelivery
 from oss.src.tasks.asyncio.sessions.orphan_sweep import orphan_sweep_loop
@@ -1374,6 +1381,29 @@ session_starts_service = SessionStartsService(
     workflows_service=workflows_service,
     lock_engine=_lock_engine,
 )
+agent_template_loader = AgentTemplateLoader(
+    source_resolver=InternalTemplateSourceResolver(
+        catalog_path=(
+            Path(__file__).resolve().parents[1]
+            / "oss"
+            / "src"
+            / "resources"
+            / "agent_templates"
+            / "catalog.json"
+        )
+    ),
+    package_parser=TemplatePackageParser(),
+    binding_resolver=TemplateBindingResolver(
+        connections_service=connections_service,
+        mcp_service=mcp_gateway_service,
+    ),
+    compiler=TemplateCompiler(),
+    skills_service=skills_service,
+    simple_workflows_service=simple_workflows_service,
+    mounts_service=mounts_service,
+    session_starts_service=session_starts_service,
+)
+agent_templates = AgentTemplatesRouter(loader=agent_template_loader)
 workflows_service.set_session_continuation_resumer(
     session_commands_service.resume_recoverable_continuation
 )
@@ -1657,6 +1687,12 @@ app.include_router(
     router=workflows.router,
     prefix="/workflows",
     tags=["Workflows"],
+)
+
+app.include_router(
+    router=agent_templates.router,
+    prefix="/agent-templates",
+    tags=["Agent Templates"],
 )
 
 app.include_router(

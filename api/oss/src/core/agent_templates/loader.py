@@ -3,7 +3,11 @@ from uuid import UUID
 
 from oss.src.core.agent_templates.bindings import TemplateBindingResolver
 from oss.src.core.agent_templates.compiler import TemplateCompiler
-from oss.src.core.agent_templates.dtos import TemplateLoadCommand, TemplateSourcePin
+from oss.src.core.agent_templates.dtos import (
+    TemplateLoadCommand,
+    TemplateLoadResult,
+    TemplateSourcePin,
+)
 from oss.src.core.agent_templates.exceptions import (
     TemplateCreateConflict,
     TemplateSkillCreationFailed,
@@ -11,7 +15,7 @@ from oss.src.core.agent_templates.exceptions import (
 )
 from oss.src.core.agent_templates.interfaces import TemplateSourceResolver
 from oss.src.core.agent_templates.message import compose_first_message
-from oss.src.core.agent_templates.models import PreparedTemplateLoad, TemplateLoadResult
+from oss.src.core.agent_templates.models import PreparedTemplateLoad
 from oss.src.core.agent_templates.parser import TemplatePackageParser
 from oss.src.core.agent_templates.provenance import (
     read_create_request,
