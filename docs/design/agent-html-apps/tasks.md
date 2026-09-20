@@ -61,6 +61,17 @@ phase 1** are current deltas, not future roadmap ideas.
       `X-Agenta-App-Scope` and neither `path` nor `read` currently passes `path=None` through
       `enforce_app_scope` and lists the mount root. Resolve the token prefix as the effective list
       path. Add a route test that proves a scoped caller cannot list sibling folders.
+- [ ] **Fail closed when the folder token is unavailable.** `getScopeToken` currently returns
+      `null` after a missing endpoint, malformed response, or transient mint failure. The file
+      client then sends an ordinary unscoped drive request. Run must stop with a visible error
+      until it has a valid token.
+- [ ] **Preserve the server's `scope` error.** The API returns a structured `403` with
+      `detail.code: "scope"`, but `fsClient` maps every `403` to `read_only`. Inspect the detail
+      before applying the generic status mapping and add a focused test for both error codes.
+- [ ] **Use create-only writes when no ETag is cached.** A non-forced first write currently sends
+      neither `If-Match` nor `If-None-Match`, so two sessions can create the same path and the
+      later writer silently wins. Send `If-None-Match: *`; keep `{force: true}` as the explicit
+      unconditional overwrite.
 - [ ] **Use valid JSON in agent instructions.** Quote keys and use valid placeholder values in
       `skill/sections/08-agent-level.md`, the assembled skill, and `board@1/SKILL.md`. Agents can
       copy these examples into persisted files.

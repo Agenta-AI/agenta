@@ -109,7 +109,9 @@ call. The server also enforces the folder boundary with a signed, short-lived sc
 The token binds the project, mount, folder prefix, grant level, and expiry. Every bridge file
 call sends it in `X-Agenta-App-Scope`. The mount route first applies the person's normal project
 permission and then narrows that permission to the token's mount, prefix, and level. A token can
-never widen access. Ordinary drive calls without a token keep their existing behavior.
+never widen access. Ordinary drive calls without a token keep their existing behavior. Run must
+fail closed when it cannot mint or refresh a scope token. It must not retry the bridge call as an
+ordinary unscoped drive request.
 
 The server must apply the prefix to reads, writes, deletes, stats, and listings. A scoped listing
 with no explicit path must list the token prefix, not the mount root. The current implementation
@@ -122,9 +124,9 @@ Files are UTF-8 text. Reads are limited to 4 MB and writes to 1 MB. Larger opera
 
 The host remembers the ETag returned by a read, list, stat, or successful write. The next write
 or remove for that path sends the remembered value as `If-Match`. A `412` response becomes a
-`conflict` bridge error. Re-reading refreshes the cached ETag. `{force: true}` deliberately skips
-`If-Match` and overwrites the current value. A file the application has not read is written
-without a precondition.
+`conflict` bridge error. Re-reading refreshes the cached ETag. A non-forced write with no cached
+ETag sends `If-None-Match: *`, so it succeeds only when it creates a new file. `{force: true}`
+deliberately skips both preconditions and overwrites the current value.
 
 The mount API performs a native conditional put for writes. Conditional delete is implemented as
 stat, compare, then delete because the supported object stores do not share a portable
