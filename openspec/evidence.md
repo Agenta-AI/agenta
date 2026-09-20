@@ -6,7 +6,7 @@ Captured on 2026-09-20. This document supports the baseline and proposed change.
 
 The baseline describes [PR #6737](https://github.com/Agenta-AI/agenta/pull/6737), branch `channels/telegram-ui`, at `658d6f5edae34d861d141a38604ef7a12a7b69c8`. Its base is `channels/telegram-hosted`. The foundational [PR #6644](https://github.com/Agenta-AI/agenta/pull/6644), branch `feat/channels`, remains at `f725917965766dafb50e78eca55ce35e6e751122`.
 
-The docs are added at the effective stack tip because they describe its shared agent-page UI as well as the underlying backend. They do not assert that this stack is merged or released. No application files changed in the specification commit.
+The docs are added at the effective stack tip because they describe its shared agent-page UI as well as the underlying backend. Mahmoud confirmed that the channels stack has not shipped to production. The baseline records pre-release code; it does not establish backward-compatibility obligations. No application files changed in the specification commits.
 
 ## Baseline traceability
 

@@ -3,15 +3,15 @@
 ## MODIFIED Requirements
 
 ### Requirement: Outbound sender identity
-For an authorized reply to user input from a deployed agent, Agenta SHALL use the agent's configured display name and validated avatar when `chat:write.customize` is granted. It SHALL keep the installed app as the underlying sender and pass the profile on every initial Slack post and chunk. It SHALL use the normal installed-bot identity for legacy deployments or when customization is unavailable. Model output and inbound message text SHALL NOT control sender fields.
+For an authorized reply to user input from a deployed agent, Agenta SHALL use the agent's configured display name and validated avatar. It SHALL keep the installed app as the underlying sender and pass the profile on every initial Slack post and chunk. Required profile and customization permissions SHALL be validated before deployment. A delivery blocked by missing permissions SHALL expose an operator error rather than silently switch to an old identity mode. Model output and inbound message text SHALL NOT control sender fields.
 
 #### Scenario: Two agents answer through one installation
 - **WHEN** two native deployments answer through the same eligible connection
 - **THEN** their posts SHALL show their respective configured names and avatars while using the same installed app and token.
 
-#### Scenario: Missing customization permission
-- **WHEN** a legacy connection or an already deployed connection no longer has customization permission
-- **THEN** replies SHALL use the installed-bot identity and Agenta SHALL expose the degraded identity state to its operator.
+#### Scenario: Customization permission is revoked
+- **WHEN** an active deployment loses customization permission
+- **THEN** Agenta SHALL report a blocked delivery and the required authorization fix without claiming that the reply was sent or silently substituting a different identity.
 
 #### Scenario: Untrusted sender override
 - **WHEN** inbound content or model output asks to set a human's name or an arbitrary avatar URL

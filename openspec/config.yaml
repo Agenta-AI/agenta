@@ -7,6 +7,9 @@ context: |
   Current behavior is pinned to channels/telegram-ui at
   658d6f5edae34d861d141a38604ef7a12a7b69c8 (PR #6737).
   Baseline specs describe observed behavior. Change specs describe proposals.
+  Mahmoud confirmed that the channels stack has not shipped to production.
+  Do not require backward compatibility, legacy modes, or migration of pre-release
+  installations. Keep security, tenancy, and Slack API constraints.
   The Slack change targets one workspace installation in one Agenta project.
   Preserve other channel adapters. Do not implement or archive this change until
   Mahmoud approves the design and explicitly requests implementation.
@@ -16,7 +19,7 @@ rules:
     - Separate current behavior from proposed behavior and state non-goals.
   specs:
     - Use SHALL requirements and WHEN/THEN scenarios.
-    - Include failure, tenant-isolation, and compatibility scenarios.
+    - Include failure, tenant-isolation, and first-installation scenarios.
   design:
     - Cite implementation sources and identify untested Slack assumptions.
   tasks:

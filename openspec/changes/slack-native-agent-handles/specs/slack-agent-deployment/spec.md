@@ -30,7 +30,7 @@ Desktop and mobile SHALL use the same deployment behavior. The agent page SHALL 
 
 #### Scenario: Provisioning fails
 - **WHEN** Slack reports a handle collision, missing scope, unsupported plan, or denied permission
-- **THEN** the interface SHALL show the specific blocker and a retry or reauthorization action without claiming that the handle is active.
+- **THEN** the interface SHALL show the specific blocker and a retry or authorization action without claiming that the handle is active.
 
 ### Requirement: Agent-page permission controls
 The agent-page direct-message and group controls SHALL read and modify grants for the current application's deployment. Connection-level allowed users SHALL remain connection-wide and SHALL be labeled as affecting all agents on that installation.
