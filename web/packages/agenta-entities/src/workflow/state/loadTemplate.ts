@@ -20,6 +20,8 @@ import {consumeWorkflowDraftAtom, invalidateWorkflowsListCache} from "./store"
 export interface LoadAgentTemplateFromEphemeralParams {
     revisionId: string
     template: AgentStarterTemplate
+    /** Preserve the host's editable template prompt when it differs from the card default. */
+    initialMessage?: string
     setup?: AgentSetupSelection
 }
 
@@ -61,7 +63,7 @@ export const loadAgentTemplateFromEphemeralAtom = atom(
     async (
         get,
         set,
-        {revisionId, template, setup}: LoadAgentTemplateFromEphemeralParams,
+        {revisionId, template, initialMessage, setup}: LoadAgentTemplateFromEphemeralParams,
     ): Promise<AgentTemplateLoadResult> => {
         const projectId = get(projectIdAtom)
         if (!projectId) throw new Error("No project ID available")
@@ -72,14 +74,13 @@ export const loadAgentTemplateFromEphemeralAtom = atom(
 
         const pending = (async () => {
             const {data} = buildCreatePayloadFromEphemeral(get, revisionId)
-            const initialMessage = setup
-                ? appendSetupPreamble(templateBuilderMessage(template), setup)
-                : templateBuilderMessage(template)
+            const seedMessage = initialMessage?.trim() || templateBuilderMessage(template)
+            const firstMessage = setup ? appendSetupPreamble(seedMessage, setup) : seedMessage
             const result = await loadAgentTemplate(
                 {
                     source: template.source,
                     base_revision: (data ?? {}) as AgentaApi.WorkflowRevisionDataInput,
-                    initial_message: initialMessage,
+                    initial_message: firstMessage,
                     connection_choices: templateConnectionChoices(template, setup),
                 },
                 createIdempotencyKey(),

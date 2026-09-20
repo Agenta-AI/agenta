@@ -18,6 +18,7 @@ vi.mock("../../src/workflow/api/agentTemplates", () => ({
     loadAgentTemplate: loadAgentTemplateMock,
 }))
 
+import {appendSetupPreamble} from "../../src/workflow/agentSetup"
 import {AGENT_TEMPLATES, templateBuilderMessage} from "../../src/workflow/agentTemplates"
 import type {AgentTemplateLoadResult} from "../../src/workflow/api/agentTemplates"
 import {buildCreatePayloadFromEphemeral} from "../../src/workflow/state/createPayload"
@@ -111,6 +112,28 @@ describe("template package loading", () => {
             provider: "composio",
             integration: "gitlab",
         })
+    })
+
+    it("preserves the host's edited template prompt", async () => {
+        const template = AGENT_TEMPLATES.find((item) => item.key === "pr-reviewer")!
+        const setup = {accounts: [], connectedSlugs: ["github"]}
+        const initialMessage = "Review only security-sensitive pull requests."
+
+        await store.set(loadAgentTemplateFromEphemeralAtom, {
+            revisionId: REVISION_ID,
+            template,
+            initialMessage,
+            setup,
+        })
+
+        expect(loadAgentTemplateMock).toHaveBeenCalledWith(
+            expect.objectContaining({
+                source: template.source,
+                initial_message: appendSetupPreamble(initialMessage, setup),
+            }),
+            expect.stringMatching(/^agent-template:/),
+            "project-1",
+        )
     })
 
     it("reuses one in-flight request for rapid duplicate activation", async () => {

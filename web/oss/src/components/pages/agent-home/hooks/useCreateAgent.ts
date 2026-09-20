@@ -69,7 +69,13 @@ export function useCreateAgent() {
             setup,
             template,
         }: CreateAgentParams = {}) => {
-            const created = await createAgent({name, entityId, template, setup})
+            const created = await createAgent({
+                name,
+                entityId,
+                template,
+                initialMessage: seedMessage,
+                setup,
+            })
             if (!created) return false
 
             const {appId, revisionId} = created

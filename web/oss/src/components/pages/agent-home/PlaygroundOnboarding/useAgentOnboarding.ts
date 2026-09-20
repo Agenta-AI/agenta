@@ -11,7 +11,11 @@ import {
 } from "react"
 
 import {sessionStatusAtomFamily} from "@agenta/chat/state"
-import {createEphemeralAppFromTemplate, type AgentSetupSelection} from "@agenta/entities/workflow"
+import {
+    createEphemeralAppFromTemplate,
+    type AgentSetupSelection,
+    type AgentStarterTemplate,
+} from "@agenta/entities/workflow"
 import {useAgentSetupStep} from "@agenta/entity-ui/onboarding"
 import {
     hasPendingHydrationAtomFamily,
@@ -198,7 +202,12 @@ export function useAgentOnboarding(active: boolean): AgentOnboardingResult {
     const setupStep = useAgentSetupStep()
 
     const runCommit = useCallback(
-        (seedMessage: string, name?: string, setup?: AgentSetupSelection) => {
+        (
+            seedMessage: string,
+            name?: string,
+            setup?: AgentSetupSelection,
+            template?: AgentStarterTemplate,
+        ) => {
             if (!entityId || committing || realEntityId) return
             setCommitting(true)
             // Surface the seed so the chat can render it as an optimistic user turn during commit.
@@ -212,6 +221,7 @@ export function useAgentOnboarding(active: boolean): AgentOnboardingResult {
                 // once the model is ready (no extra Start click), keeping the transition seamless.
                 autoSendSeed: true,
                 setup,
+                template,
                 onCommitted: ({appId, revisionId}) => {
                     committed = true
                     // Adopt the founding conversation into the new app's chat scope, in the SAME
@@ -260,12 +270,12 @@ export function useAgentOnboarding(active: boolean): AgentOnboardingResult {
     // "Create agent" now opens the connect step rather than committing: the accounts this agent
     // will need get connected while it is still a draft, instead of being asked for mid-run.
     const commit = useCallback(
-        (seedMessage: string, name?: string) => {
+        (seedMessage: string, name?: string, template?: AgentStarterTemplate) => {
             if (!entityId || committing || realEntityId) return
             // The step earns its interruption only when it has an account to ask about; with
             // nothing detected it would block on a card that says "Nothing required."
-            if (CONNECT_STEP_MODE && setupStep.open({seedMessage, name})) return
-            runCommit(seedMessage, name)
+            if (CONNECT_STEP_MODE && setupStep.open({seedMessage, name, template})) return
+            runCommit(seedMessage, name, undefined, template)
         },
         [entityId, committing, realEntityId, runCommit, setupStep.open],
     )
@@ -280,6 +290,7 @@ export function useAgentOnboarding(active: boolean): AgentOnboardingResult {
                 draftOverride?.seedMessage ?? draft.seedMessage,
                 draftOverride ? draftOverride.name : draft.name,
                 selection,
+                draft.template,
             )
         },
         [setupStep.draft, runCommit],

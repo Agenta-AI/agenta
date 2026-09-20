@@ -71,6 +71,7 @@ export const useNewAgentAction = (base: string) => {
                 name: params?.name,
                 entityId: params?.entityId,
                 template,
+                initialMessage: params?.seedMessage,
                 setup: params?.setup,
             })
             if (!created) {

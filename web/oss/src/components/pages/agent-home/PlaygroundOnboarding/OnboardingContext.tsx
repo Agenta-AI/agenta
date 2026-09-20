@@ -1,6 +1,6 @@
 import {createContext, useContext} from "react"
 
-import type {AgentSetupSelection} from "@agenta/entities/workflow"
+import type {AgentSetupSelection, AgentStarterTemplate} from "@agenta/entities/workflow"
 import type {AgentSetupStep} from "@agenta/entity-ui/onboarding"
 
 /**
@@ -29,7 +29,7 @@ export interface OnboardingContextValue {
      * With the connect step on (#6043) this OPENS the step instead — `setup.draft` goes non-null
      * and the commit happens on `commitWithSetup`.
      */
-    commit: (seedMessage: string, name?: string) => void
+    commit: (seedMessage: string, name?: string, template?: AgentStarterTemplate) => void
     /**
      * The pre-create connect step's state, or null when the step is off. `setup.draft` non-null
      * means the card is showing in place of the composer's create action.
