@@ -129,17 +129,19 @@ const TextBody = ({
     kind,
     displayPath,
     onNavigate,
+    linkExists,
 }: {
     mount: Mount | null
     path: string
     kind: DriveFileKind
     displayPath?: string
     onNavigate?: (path: string) => void
+    linkExists?: (path: string) => boolean
 }) => {
     const contentQuery = useDriveFileText(mount, path)
     const content = contentQuery.data
     // A link to a neighbouring file opens it here; the host's renderer keeps web links.
-    const onClickCapture = useDriveAnchorClickCapture(displayPath ?? path, onNavigate)
+    const onClickCapture = useDriveAnchorClickCapture(displayPath ?? path, onNavigate, linkExists)
 
     if (contentQuery.isPending)
         return (
@@ -289,6 +291,7 @@ const HtmlBody = ({
     path,
     displayPath,
     onNavigate,
+    linkExists,
     previewOnly = false,
     controlledView,
     onViewChange,
@@ -300,6 +303,8 @@ const HtmlBody = ({
     displayPath?: string
     /** Open another drive file (an internal link click resolves to its path). */
     onNavigate?: (path: string) => void
+    /** Is this presented path in the tree already loaded? Picks between a link's readings. */
+    linkExists?: (path: string) => boolean
     /** Just the rendered document; the host offers the source itself. */
     previewOnly?: boolean
     /** Host-owned tabs: the rendered document or the running app, no tab row. */
@@ -345,6 +350,7 @@ export const DriveHtmlPreview = (props: {
     path: string
     displayPath?: string
     onNavigate?: (path: string) => void
+    linkExists?: (path: string) => boolean
 }) => <HtmlBody {...props} previewOnly />
 
 /** Preview or Run under the Files pane's own Source | Preview | Run toolbar. */
@@ -473,14 +479,17 @@ export function DriveFileBody({
     size,
     displayPath,
     onNavigate,
+    linkExists,
 }: {
     mount: Mount | null
     path: string
     size?: number | null
-    /** Presented path + a navigate callback — used by the HTML preview to route internal links to
-     * other drive files. */
+    /** Presented path + a navigate callback — used by the markdown and HTML previews to route
+     * internal links to other drive files. */
     displayPath?: string
     onNavigate?: (path: string) => void
+    /** Is this presented path in the tree already loaded? Picks between a link's readings. */
+    linkExists?: (path: string) => boolean
 }) {
     const kind = resolveDriveFileKind(path)
 
@@ -513,6 +522,7 @@ export function DriveFileBody({
                     kind={kind}
                     displayPath={displayPath}
                     onNavigate={onNavigate}
+                    linkExists={linkExists}
                 />
             )
         case "code":
@@ -527,6 +537,7 @@ export function DriveFileBody({
                     path={path}
                     displayPath={displayPath}
                     onNavigate={onNavigate}
+                    linkExists={linkExists}
                 />
             )
         case "image":

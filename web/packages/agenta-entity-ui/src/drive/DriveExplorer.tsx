@@ -267,6 +267,8 @@ export function DriveExplorer({
         setShowGitignored,
     })
     const selectedNode = selectedPath != null ? nodeByPath.get(selectedPath) : undefined
+    // A link inside a file picks its reading against the tree already in memory — never a fetch.
+    const linkExists = useCallback((path: string) => nodeByPath.has(path), [nodeByPath])
     // The root and any node flagged a folder render the grid; everything else the preview. In lazy
     // mode a not-yet-loaded selection is treated as a FILE (the preview reads by path), so an initial
     // file target shows its preview immediately instead of a wrong "empty folder" flash.
@@ -658,6 +660,7 @@ export function DriveExplorer({
                     onSave={onSave}
                     displayPath={selectedPath}
                     onNavigate={select}
+                    linkExists={linkExists}
                 />
             ) : htmlPreview ? (
                 <DriveHtmlApp
@@ -667,6 +670,7 @@ export function DriveExplorer({
                     onNavigate={select}
                     view={htmlBodyView}
                     onViewChange={setHtmlView}
+                    linkExists={linkExists}
                 />
             ) : editableCode ? (
                 <DriveCodeEditor
@@ -689,6 +693,7 @@ export function DriveExplorer({
                     size={selected?.size ?? undefined}
                     hideHeader={chrome}
                     onSelect={select}
+                    linkExists={linkExists}
                 />
             )
         body = (

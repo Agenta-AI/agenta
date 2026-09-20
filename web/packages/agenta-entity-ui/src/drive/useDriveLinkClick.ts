@@ -1,7 +1,7 @@
 /**
  * A click on a link inside a rendered drive file: a path opens that file in the pane; a web URL is
- * left to whatever renders the anchor (a new tab). The decision is the href's shape alone
- * ({@link resolveDriveLink}), no lookup.
+ * left to whatever renders the anchor (a new tab). The decision is the href's shape
+ * ({@link resolveDriveLink}), disambiguated against the tree already in memory — never a fetch.
  */
 import {type MouseEvent as ReactMouseEvent, useCallback} from "react"
 
@@ -20,16 +20,17 @@ const isPlainClick = (e: {
 export function useDriveLinkClick(
     fromPath: string,
     onNavigate?: (path: string) => void,
+    exists?: (path: string) => boolean,
 ): (url: string, event: MouseEvent) => boolean {
     return useCallback(
         (url: string, event: MouseEvent) => {
             if (!onNavigate || !isPlainClick(event)) return false
-            const target = resolveDriveLink(url, fromPath)
+            const target = resolveDriveLink(url, fromPath, exists)
             if (!target) return false
             onNavigate(target)
             return true
         },
-        [fromPath, onNavigate],
+        [fromPath, onNavigate, exists],
     )
 }
 
@@ -38,17 +39,20 @@ export function useDriveLinkClick(
 export function useDriveAnchorClickCapture(
     fromPath: string,
     onNavigate?: (path: string) => void,
+    exists?: (path: string) => boolean,
 ): (e: ReactMouseEvent<HTMLElement>) => void {
     return useCallback(
         (e: ReactMouseEvent<HTMLElement>) => {
             if (!onNavigate || !isPlainClick(e)) return
             const anchor = (e.target as Element | null)?.closest?.("a[href]")
-            const target = anchor ? resolveDriveLink(anchor.getAttribute("href"), fromPath) : null
+            const target = anchor
+                ? resolveDriveLink(anchor.getAttribute("href"), fromPath, exists)
+                : null
             if (!target) return
             e.preventDefault()
             e.stopPropagation()
             onNavigate(target)
         },
-        [fromPath, onNavigate],
+        [fromPath, onNavigate, exists],
     )
 }

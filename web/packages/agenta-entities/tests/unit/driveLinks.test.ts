@@ -39,3 +39,41 @@ describe("resolveDriveLink", () => {
         expect(resolveDriveLink("other.md", "README.md")).toBe("other.md")
     })
 })
+
+describe("resolveDriveLink with the tree in hand", () => {
+    const tree = new Set([
+        "agent-files",
+        "agent-files/notes.md",
+        "agent-files/guide.md",
+        "attachments",
+        "CLAUDE.md",
+    ])
+    const exists = (p: string) => tree.has(p)
+    const from = "agent-files/guide.md"
+
+    it("reads a bare path the agent wrote from its cwd when the file's folder has no such thing", () => {
+        expect(resolveDriveLink("attachments/abc/photo.png", from, exists)).toBe(
+            "attachments/abc/photo.png",
+        )
+        expect(resolveDriveLink("CLAUDE.md", from, exists)).toBe("CLAUDE.md")
+    })
+
+    it("still prefers the sibling markdown means when it exists", () => {
+        expect(resolveDriveLink("notes.md", from, exists)).toBe("agent-files/notes.md")
+    })
+
+    it("keeps an explicit ./ or ../ file-relative even if the root has a match", () => {
+        expect(resolveDriveLink("./CLAUDE.md", from, exists)).toBe("agent-files/CLAUDE.md")
+        expect(resolveDriveLink("../CLAUDE.md", from, exists)).toBe("CLAUDE.md")
+    })
+
+    it("falls back to file-relative when neither reading is known", () => {
+        expect(resolveDriveLink("missing/x.md", from, exists)).toBe("agent-files/missing/x.md")
+    })
+
+    it("has one reading at the root, so nothing to disambiguate", () => {
+        expect(resolveDriveLink("attachments/abc/photo.png", "CLAUDE.md", exists)).toBe(
+            "attachments/abc/photo.png",
+        )
+    })
+})
