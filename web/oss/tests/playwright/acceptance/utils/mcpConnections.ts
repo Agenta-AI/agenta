@@ -25,8 +25,11 @@ import type {Locator, Page} from "@playwright/test"
  */
 const composeMockBase = "http://mock-mcp-gateway:9092"
 
-/** Discovered once per worker by `requireMockMcpUpstream`. */
+/** Discovered once per worker by `ensureMockMcpUpstream`. */
 let publishedBase: string | null = null
+
+/** The probe answer, cached per worker so each case does not re-dial the upstream. */
+let upstreamReachable: boolean | null = null
 
 /**
  * The address to register connections at, and the one a browser has to reach.
@@ -90,32 +93,44 @@ export const uniqueName = (prefix: string) =>
     `${prefix} ${Date.now()}${Math.floor(Math.random() * 1000)}`
 
 /**
- * Fail once, with a sentence naming what to start, if the mock upstream is not there.
- *
- * Called from `beforeAll` so a stack without it reports one actionable failure rather than a
- * sixty-second timeout per case.
+ * The sentence a skipped case carries, naming what to start so the skip is not a mystery.
  */
-export const requireMockMcpUpstream = async (): Promise<void> => {
-    let reachable = false
-    try {
-        const response = await fetch(publishedMockMcpUrl, {
-            method: "POST",
-            headers: {"content-type": "application/json"},
-            body: JSON.stringify({jsonrpc: "2.0", id: 1, method: "ping", params: {}}),
-            signal: AbortSignal.timeout(5000),
-        })
-        reachable = response.status < 500
-    } catch {
-        reachable = false
+export const missingMockMcpUpstreamReason =
+    `The MCP mock upstream did not answer at ${publishedMockMcpUrl}. This suite needs a ` +
+    "stack running the gateway mocks: bring one up with AGENTA_GATEWAYS_MOCKS_ENABLED=true, " +
+    "and set AGENTA_MOCK_MCP_GATEWAY_PUBLISHED_URL if it is published somewhere else."
+
+/**
+ * Probe the mock upstream once per worker, and report whether the journey can run.
+ *
+ * These suites drive a browser, and the only environment that runs web acceptance is the hosted
+ * preview, which does not stand up the gateway mocks. A hard failure there turned the check red
+ * on every unrelated pull request, so the caller skips instead when this returns unreachable
+ * (D25 revisited): a stack that DOES run the mocks — a compose or local stack — still reaches
+ * this and runs the whole journey, so the coverage is not lost, only moved off the one
+ * environment that could never provide it. The probe is cached so seven cases share one dial.
+ *
+ * Called from `beforeEach` with `test.skip(!reachable, reason)`; kept idempotent so the extra
+ * calls after the first are free.
+ */
+export const ensureMockMcpUpstream = async (): Promise<{reachable: boolean; reason: string}> => {
+    if (upstreamReachable === null) {
+        let reachable = false
+        try {
+            const response = await fetch(publishedMockMcpUrl, {
+                method: "POST",
+                headers: {"content-type": "application/json"},
+                body: JSON.stringify({jsonrpc: "2.0", id: 1, method: "ping", params: {}}),
+                signal: AbortSignal.timeout(5000),
+            })
+            reachable = response.status < 500
+        } catch {
+            reachable = false
+        }
+        upstreamReachable = reachable
+        if (reachable) publishedBase = await readPublishedBase()
     }
-    if (!reachable) {
-        throw new Error(
-            `The MCP mock upstream did not answer at ${publishedMockMcpUrl}. This suite needs a ` +
-                "stack running the gateway mocks: bring one up with AGENTA_GATEWAYS_MOCKS_ENABLED=true, " +
-                "and set AGENTA_MOCK_MCP_GATEWAY_PUBLISHED_URL if it is published somewhere else.",
-        )
-    }
-    publishedBase = await readPublishedBase()
+    return {reachable: upstreamReachable, reason: missingMockMcpUpstreamReason}
 }
 
 /**
