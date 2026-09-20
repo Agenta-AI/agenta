@@ -193,15 +193,15 @@ would block them anyway, and the kit must render identically in Storybook and in
 "The app cannot reach the network" is the claim the whole design rests on, so it is worth stating
 exactly what enforces it, because `default-src 'none'` is not the whole answer.
 
-| Channel                              | Stopped by                   |
-| ------------------------------------ | ---------------------------- |
-| `fetch`, XHR, WebSocket, EventSource | `default-src 'none'`         |
-| Image beacon (`new Image().src`)     | `img-src data: blob:`        |
-| Remote fonts, styles, scripts        | `default-src 'none'`         |
-| `window.open("https://…?d=" + data)` | **no `allow-popups`**        |
-| `<form action="https://…">`          | **`form-action 'none'`**     |
+| Channel                                 | Stopped by                            |
+| --------------------------------------- | ------------------------------------- |
+| `fetch`, XHR, WebSocket, EventSource    | `default-src 'none'`                  |
+| Image beacon (`new Image().src`)        | `img-src data: blob:`                 |
+| Remote fonts, styles, scripts           | `default-src 'none'`                  |
+| `window.open("https://…?d=" + data)`    | **no `allow-popups`**                 |
+| `<form action="https://…">`             | **`form-action 'none'`**              |
 | `RTCPeerConnection` (ICE / STUN / TURN) | **the stub deletes the constructors** |
-| Reaching the parent page or cookies  | no `allow-same-origin`       |
+| Reaching the parent page or cookies     | no `allow-same-origin`                |
 
 The last three are the ones that surprise people. **CSP's fetch directives do not govern
 navigation**, and `navigate-to` never shipped in any browser, so no CSP value blocks a popup —
@@ -236,6 +236,36 @@ Two exits were found this way: popups, then WebRTC. Each was found by thinking o
 **Enumerating exits against a browser does not terminate** — the surface grows every release, and
 a blocklist is only as good as the last person who went looking. Treat this table as a record of
 what is closed, never as a proof that nothing is open.
+
+### Preview is a different document, with different flags
+
+Everything above describes **Run**. The Preview tab renders ordinary drive HTML and does not
+share those flags: it keeps `allow-popups allow-popups-to-escape-sandbox`, because an external
+link opening in a new tab is what people expect of a rendered document, and it has no bridge, so
+there is no `window.agenta` to steal from.
+
+What it does instead is strip every agent script — `<script>`, `on*` handlers, `javascript:`
+URLs, `iframe[srcdoc]` — so the only code that runs is the nav interceptor. For a while that
+stripping was taken as the reason the popup flags were harmless. It was not. The strip list never
+covered `<iframe src="data:text/html,…">`: the nested context inherits `allow-scripts` from the
+preview sandbox, so its script runs even though the outer document has none left. Preview shipped
+no CSP at all, so that script could simply `fetch` anywhere. Measured the same way as the rows
+above — the request arrived at a listening server with its query string intact.
+
+`<object data="data:text/html,…">` and `<embed>` open the same door, which is the point:
+lengthening the strip list would have moved the vector, not closed it. `PREVIEW_CSP` denies the
+capability instead. `frame-src 'none'` and `object-src 'none'` stop the nested contexts, and
+`default-src 'none'` covers `connect-src`, so a context that somehow loads still has nowhere to
+send anything. Re-run with the policy in place: nothing ran, nothing arrived.
+
+It is deliberately wider than `RUN_CSP` in one respect. `inlineAssets` folds in same-mount assets
+only and leaves external URLs alone, so drive HTML that links a remote stylesheet, image or font
+renders today; `style-src`, `img-src` and `font-src` keep `https:` so it keeps rendering.
+`connect-src` stays denied, which is the channel that mattered.
+
+The cost is that a page embedding a legitimate `<iframe>` (a video, a third-party widget) no
+longer renders that frame in Preview. Nothing in the drive templates does this today. If that
+becomes a real need, it is an egress decision like any other on this page, not a convenience one.
 
 That is why the folder rule is enforced on the server as well, and why that is the layer to trust:
 an app that cannot obtain bytes outside its folder makes the exit list stop being load-bearing.
