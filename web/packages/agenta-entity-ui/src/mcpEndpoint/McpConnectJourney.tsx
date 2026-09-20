@@ -54,6 +54,7 @@ import {
     type McpJourneyState,
 } from "@agenta/entities/mcpEndpoint"
 import {customNamedSecretsAtom} from "@agenta/entities/secret"
+import {getAgentaApiUrl} from "@agenta/shared/api"
 import {EnhancedModal, ModalContent} from "@agenta/ui"
 import {
     Alert,
@@ -393,6 +394,8 @@ export function McpConnectSheet({
     const headerValue =
         headerName ?? reconnect?.credentialHeader?.trim() ?? mcpDefaultKeyHeader(state.probe)
     const [secretSlug, setSecretSlug] = useState("")
+    const [oauthClientId, setOauthClientId] = useState("")
+    const [oauthClientSecret, setOauthClientSecret] = useState("")
     const [creatingSecret, setCreatingSecret] = useState(false)
     // Latches on first open so the create drawer's hooks stay unmounted until needed.
     const [secretDrawerMounted, setSecretDrawerMounted] = useState(false)
@@ -423,6 +426,11 @@ export function McpConnectSheet({
 
     const path = authPathFor(state, reconnect)
     const screen = screenFor(state, path, consentRequested)
+    const unsupportedOAuth = state.probe?.auth.registration === "unsupported"
+    const clientSecretRequired = state.probe?.auth.client_secret_required === true
+    const registeredClientReady =
+        !!oauthClientId.trim() && unsupportedOAuth && (!clientSecretRequired || !!oauthClientSecret)
+    const oauthCallbackUrl = `${getAgentaApiUrl().replace(/\/$/, "")}/gateways/mcps/connect/callback`
     /**
      * Whether something is in flight: the machine's answer, corrected for the one status that
      * covers two situations.
@@ -513,8 +521,22 @@ export function McpConnectSheet({
         if (state.status !== "choosing_scopes" || !consentRequested) return
         if (consentSteps.current.scopes) return
         consentSteps.current.scopes = true
-        void journey.submitScopes(consentPopupRef.current)
-    }, [consentRequested, journey, state.status])
+        const oauthClient = registeredClientReady
+            ? {
+                  client_id: oauthClientId.trim(),
+                  ...(oauthClientSecret ? {client_secret: oauthClientSecret} : {}),
+              }
+            : undefined
+        if (oauthClientSecret) setOauthClientSecret("")
+        void journey.submitScopes(consentPopupRef.current, oauthClient)
+    }, [
+        consentRequested,
+        journey,
+        oauthClientId,
+        oauthClientSecret,
+        registeredClientReady,
+        state.status,
+    ])
 
     // The second half of the key screen's one press, once the row it needs exists.
     useEffect(() => {
@@ -748,7 +770,66 @@ export function McpConnectSheet({
                         </HintedField>
                     ) : null}
 
-                    {screen === "oauth" ? (
+                    {screen === "oauth" && unsupportedOAuth ? (
+                        <>
+                            <NoticeBox>
+                                This provider requires an OAuth application registered with it.
+                                Register one with the callback URL below, then enter its client
+                                credentials. They are stored for this project and are never shown
+                                again.
+                            </NoticeBox>
+                            <HintedField
+                                label="Callback URL"
+                                hint="Add this exact URL to the OAuth application's allowed callback URLs."
+                            >
+                                <Input
+                                    className="font-mono text-[13px]"
+                                    value={oauthCallbackUrl}
+                                    readOnly
+                                    aria-label="OAuth callback URL"
+                                />
+                            </HintedField>
+                            <div className="grid grid-cols-2 gap-3">
+                                <HintedField label="Client ID" required>
+                                    <Input
+                                        value={oauthClientId}
+                                        disabled={busy}
+                                        aria-label="OAuth client ID"
+                                        onChange={(event) => setOauthClientId(event.target.value)}
+                                    />
+                                </HintedField>
+                                <HintedField
+                                    label="Client secret"
+                                    required={clientSecretRequired}
+                                    hint={
+                                        clientSecretRequired
+                                            ? "This provider requires a client secret."
+                                            : "Optional for public OAuth clients."
+                                    }
+                                >
+                                    <Input
+                                        type="password"
+                                        autoComplete="new-password"
+                                        value={oauthClientSecret}
+                                        disabled={busy}
+                                        aria-label="OAuth client secret"
+                                        onChange={(event) =>
+                                            setOauthClientSecret(event.target.value)
+                                        }
+                                    />
+                                </HintedField>
+                            </div>
+                            <Button
+                                variant="link"
+                                size="xs"
+                                className="w-fit px-0 text-xs"
+                                disabled={busy}
+                                onClick={journey.chooseManualAuth}
+                            >
+                                Use a token instead
+                            </Button>
+                        </>
+                    ) : screen === "oauth" ? (
                         <NoticeBox>
                             Connect opens {state.name || "the server"}&apos;s authorization page in
                             a new window; {state.name || "the server"} asks which permissions to
@@ -914,6 +995,7 @@ export function McpConnectSheet({
                                         state,
                                         nameProblem,
                                         secretChosen,
+                                        registeredClientReady,
                                         busy,
                                     })
                                 }
@@ -949,18 +1031,23 @@ const canConfirm = ({
     state,
     nameProblem,
     secretChosen,
+    registeredClientReady,
     busy,
 }: {
     screen: Screen
     state: McpJourneyState
     nameProblem: string | null
     secretChosen: boolean
+    registeredClientReady: boolean
     busy: boolean
 }): boolean => {
     if (busy && screen !== "waiting") return false
     if (screen === "url" || screen === "url_failed") return isProbeableUrl(state.url)
     if (nameProblem) return false
     if (screen === "api_key") return !!state.name.trim() && secretChosen
+    if (screen === "oauth" && state.probe?.auth.registration === "unsupported") {
+        return !!state.name.trim() && registeredClientReady
+    }
     return !!state.name.trim()
 }
 

@@ -37,6 +37,7 @@ from oss.src.core.gateways.egress import (
     open_egress,
 )
 from oss.src.core.gateways.mcps.oauth.client import MCPOAuthClient
+from oss.src.core.gateways.mcps.oauth.dtos import MCPOAuthDiscovery
 from oss.src.core.gateways.mcps.oauth.registration import (
     is_publicly_resolvable_async,
 )
@@ -85,6 +86,7 @@ class MCPProbeRegistration(str, Enum):
 
     DYNAMIC = "dynamic"
     METADATA = "metadata"
+    UNSUPPORTED = "unsupported"
     UNAVAILABLE = "unavailable"
 
 
@@ -109,6 +111,7 @@ class MCPProbeAuth(BaseModel):
     authorization_server: Optional[str] = None
     scopes_offered: List[str] = []
     registration: Optional[MCPProbeRegistration] = None
+    client_secret_required: bool = False
     # What the server said when it refused the anonymous handshake, carried only on the
     # `UNKNOWN` answer that a challenge produced.
     #
@@ -444,27 +447,27 @@ class MCPServerProbe:
                 ),
             )
 
+        registration = await self._registration(discovery)
         return MCPServerProbeResult(
             reachable=True,
             auth=MCPProbeAuth(
                 mode=MCPProbeAuthMode.OAUTH,
                 authorization_server=discovery.authorization_server,
                 scopes_offered=discovery.scopes_offered,
-                registration=await self._registration(discovery.registration_endpoint),
+                registration=registration,
+                client_secret_required=(
+                    registration is MCPProbeRegistration.UNSUPPORTED
+                    and "none" not in discovery.token_endpoint_auth_methods_supported
+                ),
             ),
         )
 
-    async def _registration(
-        self, registration_endpoint: Optional[str]
-    ) -> MCPProbeRegistration:
-        """Which client-identity strategy this deployment would use.
-
-        Mirrors `MCPOAuthConnectService._resolve_client_info`, so a person is told before
-        consent what that method would discover at the point of no return: an issuer with
-        no dynamic registration is unusable from a deployment the issuer cannot reach.
-        """
-        if registration_endpoint:
+    async def _registration(self, discovery: MCPOAuthDiscovery) -> MCPProbeRegistration:
+        """Which client-identity strategy this deployment would use."""
+        if discovery.registration_endpoint:
             return MCPProbeRegistration.DYNAMIC
+        if not discovery.client_id_metadata_document_supported:
+            return MCPProbeRegistration.UNSUPPORTED
         if await is_publicly_resolvable_async(self.api_url):
             return MCPProbeRegistration.METADATA
         return MCPProbeRegistration.UNAVAILABLE

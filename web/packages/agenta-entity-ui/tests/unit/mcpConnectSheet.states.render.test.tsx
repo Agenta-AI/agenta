@@ -58,6 +58,17 @@ const OAUTH_PROBE = {
     auth: {mode: "oauth" as const, scopes_offered: ["read", "write"]},
 }
 
+const UNSUPPORTED_OAUTH_PROBE = {
+    reachable: true,
+    server_name: "GitHub",
+    auth: {
+        mode: "oauth" as const,
+        registration: "unsupported" as const,
+        client_secret_required: true,
+        scopes_offered: [],
+    },
+}
+
 const KEY_PROBE = {
     reachable: true,
     server_name: "Axiom",
@@ -110,6 +121,7 @@ const open = async (current: McpJourneyState, props: Partial<McpConnectJourneyPr
     asked = {
         setUrl: vi.fn(),
         cancelConsent: vi.fn(),
+        chooseManualAuth: vi.fn(),
         onClose: vi.fn(),
     }
     useMcpConnectJourney.mockReturnValue({
@@ -129,6 +141,7 @@ const open = async (current: McpJourneyState, props: Partial<McpConnectJourneyPr
         cancel: vi.fn(),
         cancelConsent: asked.cancelConsent,
         retry: vi.fn(),
+        chooseManualAuth: asked.chooseManualAuth,
         abandonAttempt: vi.fn(),
     })
     await act(async () => {
@@ -378,6 +391,47 @@ describe("C3, the server signs in with OAuth", () => {
             "Connect opens Linear's authorization page in a new window; Linear asks which permissions to grant (usually read and write). The login is stored for this project only.",
         )
         expect(button("Connect")).toBeDefined()
+    })
+
+    it("asks for a registered OAuth client before connecting an unsupported provider", async () => {
+        await open(
+            state({
+                status: "naming",
+                url: "https://api.githubcopilot.com/mcp",
+                name: "GitHub",
+                probe: UNSUPPORTED_OAUTH_PROBE,
+            }),
+        )
+
+        expect(text()).toContain("This provider requires an OAuth application registered with it.")
+        expect((control("OAuth callback URL") as HTMLInputElement).value).toBe(
+            "https://api.example.test/gateways/mcps/connect/callback",
+        )
+        expect(control("OAuth client ID")).toBeTruthy()
+        expect((control("OAuth client secret") as HTMLInputElement).type).toBe("password")
+        expect(button("Connect")?.disabled).toBe(true)
+        expect(button("Use a token instead")).toBeDefined()
+        await press(button("Use a token instead"))
+        expect(asked.chooseManualAuth).toHaveBeenCalledTimes(1)
+    })
+
+    it("marks the client secret optional when the provider accepts public clients", async () => {
+        await open(
+            state({
+                status: "naming",
+                url: "https://mcp.public.example/mcp",
+                name: "Public provider",
+                probe: {
+                    ...UNSUPPORTED_OAUTH_PROBE,
+                    auth: {
+                        ...UNSUPPORTED_OAUTH_PROBE.auth,
+                        client_secret_required: false,
+                    },
+                },
+            }),
+        )
+
+        expect(text()).toContain("Optional for public OAuth clients.")
     })
 
     it("sends Change back to the address with it kept", async () => {

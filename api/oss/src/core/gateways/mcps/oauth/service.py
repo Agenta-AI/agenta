@@ -25,6 +25,7 @@ from oss.src.core.gateways.mcps.oauth.registration import (
     Resolver,
     identity_document_client_info,
     is_publicly_resolvable_async,
+    provided_client_info,
     registration_covers,
 )
 from oss.src.core.gateways.mcps.oauth.state import STATE_TTL_SECONDS, new_state
@@ -33,14 +34,16 @@ from oss.src.core.gateways.mcps.oauth.storage import (
     grant_settings_expired,
 )
 from oss.src.core.gateways.mcps.oauth.types import (
+    MCPOAuthRegistrationUnavailableError,
+    MCPOAuthRegistrationUnsupportedError,
     MCPOAuthCallerMismatchError,
     MCPOAuthClientNotRegisteredError,
+    MCPOAuthClientSecretRequiredError,
     MCPOAuthIssuerChangedError,
     MCPOAuthRefreshFailedError,
     MCPOAuthStateExpiredError,
     MCPOAuthStateInvalidError,
     MCPOAuthTokenExchangeError,
-    MCPOAuthRegistrationUnavailableError,
 )
 from oss.src.core.secrets.dtos import OAuthGrantSettingsDTO
 from oss.src.core.secrets.services import VaultService
@@ -131,6 +134,10 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
         # registration endpoint cannot be registered with, and then a public identity
         # document is the only way to name ourselves.
         if not discovery.registration_endpoint:
+            if not discovery.client_id_metadata_document_supported:
+                raise MCPOAuthRegistrationUnsupportedError(
+                    authorization_server=discovery.authorization_server
+                )
             if await is_publicly_resolvable_async(self.api_url, **self._resolve_kwargs):
                 return (
                     identity_document_client_info(
@@ -159,6 +166,8 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
         endpoint_id: UUID,
         server_url: str,
         scopes: List[str],
+        client_id: str | None = None,
+        client_secret: str | None = None,
     ) -> MCPOAuthAuthorizationStart:
         discovery = await self.client.discover(server_url=server_url)
         redirect_uri = callback_redirect_uri(api_url=self.api_url)
@@ -171,6 +180,28 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
             authorization_server=discovery.authorization_server,
             redirect_uri=redirect_uri,
         )
+
+        if client_id is not None:
+            if (
+                client_secret is None
+                and "none" not in discovery.token_endpoint_auth_methods_supported
+            ):
+                raise MCPOAuthClientSecretRequiredError(
+                    authorization_server=discovery.authorization_server
+                )
+            await storage.set_client_info(
+                provided_client_info(
+                    client_id=client_id,
+                    client_secret=client_secret,
+                    redirect_uri=redirect_uri,
+                    scopes=scopes,
+                    issuer=discovery.authorization_server,
+                    token_endpoint_auth_methods_supported=(
+                        discovery.token_endpoint_auth_methods_supported
+                    ),
+                ),
+                endpoint_specific=True,
+            )
 
         client_info, strategy = await self._resolve_client_info(
             storage=storage,

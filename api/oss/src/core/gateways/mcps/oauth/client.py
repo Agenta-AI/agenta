@@ -356,6 +356,12 @@ class MCPOAuthClient:
                 if metadata.registration_endpoint
                 else None
             ),
+            client_id_metadata_document_supported=(
+                metadata.client_id_metadata_document_supported is True
+            ),
+            token_endpoint_auth_methods_supported=(
+                metadata.token_endpoint_auth_methods_supported or []
+            ),
         )
 
     async def _discover_protected_resource(

@@ -259,6 +259,47 @@ describe("the rendered journey", () => {
         expect(button("Done")).toBeUndefined()
     })
 
+    it("passes a registered client to OAuth only after the person enters it", async () => {
+        probeMcpUrl.mockResolvedValue({
+            count: 1,
+            probe: {
+                reachable: true,
+                server_name: "GitHub",
+                auth: {
+                    mode: "oauth",
+                    registration: "unsupported",
+                    client_secret_required: true,
+                    scopes_offered: [],
+                },
+            },
+        })
+        createMcpEndpoint.mockResolvedValue({
+            count: 1,
+            endpoint: {
+                id: "mcp-github",
+                slug: "github-mcp",
+                name: "GitHub",
+                auth_mode: "oauth",
+            },
+        })
+
+        await openJourney()
+        await typeInto(field("Server URL")!, "https://api.githubcopilot.com/mcp")
+        await press(button("Continue"))
+
+        expect(button("Connect")?.disabled).toBe(true)
+        await typeInto(field("OAuth client ID")!, "registered-client")
+        await typeInto(field("OAuth client secret")!, "registered-secret")
+        expect(button("Connect")?.disabled).toBe(false)
+        await press(button("Connect"))
+        await waitFor(() => beginMcpConnect.mock.calls.length === 1, "OAuth begin")
+
+        expect(beginMcpConnect).toHaveBeenCalledWith("mcp-github", ["tools:list"], "project-1", {
+            client_id: "registered-client",
+            client_secret: "registered-secret",
+        })
+    })
+
     it("opens a reconnect with both actions live, waiting on the press", async () => {
         await openReconnect()
 

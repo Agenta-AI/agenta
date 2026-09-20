@@ -977,6 +977,7 @@ def _public_resolve(_hostname: str) -> List[str]:
 def _handler_without_registration():
     """An authorization server that advertises no registration endpoint."""
     metadata = {k: v for k, v in _AS_METADATA.items() if k != "registration_endpoint"}
+    metadata["client_id_metadata_document_supported"] = True
 
     def handler(request: httpx.Request) -> httpx.Response:
         path = request.url.path

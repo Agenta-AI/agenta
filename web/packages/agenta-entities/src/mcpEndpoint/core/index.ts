@@ -49,6 +49,7 @@ export type {
     MCPProbeAuthMode,
     MCPProbeProblem,
     MCPProbeRegistration,
+    MCPRegisteredOAuthClient,
     MCPServerProbe,
     MCPToolFilter,
 } from "./types"

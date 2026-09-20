@@ -54,7 +54,7 @@ import {
     isNameTakenRefusal,
 } from "../core/refusal"
 import {rememberMcpReturnPath} from "../core/returnPath"
-import type {MCPAuthMode, MCPEndpoint} from "../core/types"
+import type {MCPAuthMode, MCPEndpoint, MCPRegisteredOAuthClient} from "../core/types"
 import {refreshMcpEndpointsAtom} from "../state/atoms"
 
 export interface McpConnectJourneyOptions {
@@ -339,9 +339,14 @@ export function useMcpConnectJourney({
 
     /** Point an already-open popup at the provider, or report that it was blocked. */
     const driveConsent = useCallback(
-        async (popup: Window | null, endpointId: string, scopes: string[]) => {
+        async (
+            popup: Window | null,
+            endpointId: string,
+            scopes: string[],
+            oauthClient?: MCPRegisteredOAuthClient,
+        ) => {
             const attempt = attemptRef.current
-            const result = await beginMcpConnect(endpointId, scopes, projectId)
+            const result = await beginMcpConnect(endpointId, scopes, projectId, oauthClient)
 
             if (!isCurrent(attempt)) {
                 // The dialog closed while the authorization URL was being minted. Installing
@@ -497,13 +502,13 @@ export function useMcpConnectJourney({
      * `popup` must be opened by the caller, synchronously in the tap that called this.
      */
     const submitScopes = useCallback(
-        async (popup: Window | null) => {
+        async (popup: Window | null, oauthClient?: MCPRegisteredOAuthClient) => {
             const endpointId = endpointRef.current?.id
             if (!endpointId) return
             dispatch({type: "submit_scopes"})
             const attempt = attemptRef.current
             try {
-                await driveConsent(popup, endpointId, state.scopesSelected)
+                await driveConsent(popup, endpointId, state.scopesSelected, oauthClient)
             } catch (error) {
                 popup?.close()
                 if (!isCurrent(attempt)) return
@@ -698,6 +703,7 @@ export function useMcpConnectJourney({
     }, [abandonAttempt])
 
     const retry = useCallback(() => dispatch({type: "retry"}), [])
+    const chooseManualAuth = useCallback(() => dispatch({type: "choose_manual_auth"}), [])
 
     const popupName = popupNameRef.current
     const expectsConsent = state.probe?.auth.mode === "oauth"
@@ -721,12 +727,14 @@ export function useMcpConnectJourney({
             cancel,
             cancelConsent,
             retry,
+            chooseManualAuth,
             abandonAttempt,
         }),
         [
             abandonAttempt,
             cancel,
             cancelConsent,
+            chooseManualAuth,
             expectsConsent,
             finish,
             popupName,

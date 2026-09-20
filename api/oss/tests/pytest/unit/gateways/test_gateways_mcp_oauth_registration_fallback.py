@@ -18,8 +18,10 @@ from oss.src.core.gateways.mcps.oauth.client import MCPOAuthClient
 from oss.src.core.gateways.mcps.oauth.registration import client_metadata_url
 from oss.src.core.gateways.mcps.oauth.service import MCPOAuthConnectService
 from oss.src.core.gateways.mcps.oauth.types import (
+    MCPOAuthClientSecretRequiredError,
     MCPOAuthRefreshFailedError,
     MCPOAuthRegistrationUnresolvablePinError,
+    MCPOAuthRegistrationUnsupportedError,
 )
 from oss.src.core.gateways.mcps.oauth.storage import (
     SecretsTokenStorage,
@@ -108,7 +110,13 @@ class _FakeSecretsDAO:
         ]
 
 
-def _mock_as_handler(*, register_called: list, advertise_registration: bool = True):
+def _mock_as_handler(
+    *,
+    register_called: list,
+    advertise_registration: bool = True,
+    advertise_metadata_document: bool = True,
+    token_auth_methods: list[str] | None = None,
+):
     """A mock authorization server, optionally one that accepts no registrations.
 
     `advertise_registration=False` drops `registration_endpoint` from the metadata,
@@ -116,11 +124,13 @@ def _mock_as_handler(*, register_called: list, advertise_registration: bool = Tr
     document is correct. `/register` stays wired up either way so that a test can prove
     nothing reached it.
     """
-    metadata = (
-        _AS_METADATA
-        if advertise_registration
-        else {k: v for k, v in _AS_METADATA.items() if k != "registration_endpoint"}
-    )
+    metadata = dict(_AS_METADATA)
+    if token_auth_methods is not None:
+        metadata["token_endpoint_auth_methods_supported"] = token_auth_methods
+    if not advertise_registration:
+        metadata.pop("registration_endpoint", None)
+        if advertise_metadata_document:
+            metadata["client_id_metadata_document_supported"] = True
 
     def handler(request: httpx.Request) -> httpx.Response:
         path = request.url.path
@@ -160,6 +170,8 @@ def _service(
     resolve,
     register_called=None,
     advertise_registration: bool = True,
+    advertise_metadata_document: bool = True,
+    token_auth_methods: list[str] | None = None,
     api_url: str = _API_URL,
     dao=None,
     handler=None,
@@ -174,6 +186,8 @@ def _service(
             or _mock_as_handler(
                 register_called=register_called,
                 advertise_registration=advertise_registration,
+                advertise_metadata_document=advertise_metadata_document,
+                token_auth_methods=token_auth_methods,
             )
         )
     )
@@ -218,6 +232,114 @@ async def test_begin_uses_the_identity_document_when_no_registration_is_advertis
     assert not [r for _, r in dao.records if r.kind.value == "oauth_provider"]
 
     assert attempts.attempts[start.state].strategy == "document"
+
+
+@pytest.mark.asyncio
+async def test_begin_refuses_an_issuer_that_supports_no_automatic_client_identity():
+    service, dao, attempts = _service(
+        resolve=lambda _h: ["1.1.1.1"],
+        advertise_registration=False,
+        advertise_metadata_document=False,
+    )
+
+    with pytest.raises(MCPOAuthRegistrationUnsupportedError):
+        await service.begin(
+            project_id=uuid4(),
+            user_id=uuid4(),
+            endpoint_id=uuid4(),
+            server_url=_SERVER_URL,
+            scopes=["read"],
+        )
+
+    assert dao.records == []
+    assert attempts.attempts == {}
+
+
+@pytest.mark.asyncio
+async def test_begin_refuses_a_public_client_when_the_issuer_requires_a_secret():
+    service, dao, attempts = _service(
+        resolve=lambda _h: ["1.1.1.1"],
+        advertise_registration=False,
+        advertise_metadata_document=False,
+    )
+
+    with pytest.raises(MCPOAuthClientSecretRequiredError):
+        await service.begin(
+            project_id=uuid4(),
+            user_id=uuid4(),
+            endpoint_id=uuid4(),
+            server_url=_SERVER_URL,
+            scopes=["read"],
+            client_id="registered-client",
+        )
+
+    assert dao.records == []
+    assert attempts.attempts == {}
+
+
+@pytest.mark.asyncio
+async def test_begin_accepts_a_public_registered_client_when_the_issuer_allows_it():
+    service, _dao, _attempts = _service(
+        resolve=lambda _h: ["1.1.1.1"],
+        advertise_registration=False,
+        advertise_metadata_document=False,
+        token_auth_methods=["none"],
+    )
+
+    start = await service.begin(
+        project_id=uuid4(),
+        user_id=uuid4(),
+        endpoint_id=uuid4(),
+        server_url=_SERVER_URL,
+        scopes=["read"],
+        client_id="public-client",
+    )
+
+    params = parse_qs(urlparse(start.authorization_url).query)
+    assert params["client_id"] == ["public-client"]
+
+
+@pytest.mark.asyncio
+async def test_begin_uses_a_user_registered_client_when_automatic_identity_is_unsupported():
+    service, dao, attempts = _service(
+        resolve=lambda _h: ["1.1.1.1"],
+        advertise_registration=False,
+        advertise_metadata_document=False,
+    )
+    project_id, user_id, endpoint_id = uuid4(), uuid4(), uuid4()
+
+    start = await service.begin(
+        project_id=project_id,
+        user_id=user_id,
+        endpoint_id=endpoint_id,
+        server_url=_SERVER_URL,
+        scopes=["read"],
+        client_id="registered-client",
+        client_secret="registered-secret",
+    )
+
+    params = parse_qs(urlparse(start.authorization_url).query)
+    assert params["client_id"] == ["registered-client"]
+    providers = [r for _, r in dao.records if r.kind.value == "oauth_provider"]
+    assert len(providers) == 1
+    assert providers[0].data.provider.client_secret == "registered-secret"
+    assert providers[0].data.provider.extra["client_info"].get("client_secret") is None
+    assert (
+        providers[0].data.provider.extra["client_info"]["token_endpoint_auth_method"]
+        == "client_secret_post"
+    )
+    assert attempts.attempts[start.state].strategy == "outbound"
+
+    reconnect = await service.begin(
+        project_id=project_id,
+        user_id=user_id,
+        endpoint_id=endpoint_id,
+        server_url=_SERVER_URL,
+        scopes=["read"],
+    )
+    reconnect_params = parse_qs(urlparse(reconnect.authorization_url).query)
+    assert reconnect_params["client_id"] == ["registered-client"]
+    assert len([r for _, r in dao.records if r.kind.value == "oauth_provider"]) == 1
 
 
 @pytest.mark.asyncio
