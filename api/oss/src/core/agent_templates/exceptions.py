@@ -32,3 +32,9 @@ class TemplateSourceInvalid(AgentTemplateError):
     def __init__(self, code: str, message: str, *, details: dict | None = None) -> None:
         self.code = code
         super().__init__(message, details=details)
+
+
+class TemplatePackageInvalid(AgentTemplateError):
+    def __init__(self, code: str, message: str, *, details: dict | None = None) -> None:
+        self.code = code
+        super().__init__(message, details=details)
