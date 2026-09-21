@@ -40,8 +40,8 @@ The runtime and revised display-content contract are implemented. The current im
 
 - [x] 6.1 Run source, parser, compiler, provenance, idempotent workflow/skill, mount, durable session start, loader, route, frontend, and type-check suites.
 - [x] 6.2 Read back the created workflow/revision, skill embeds, mount entries, protected provenance, execution row, and absence of schedules/subscriptions.
-- [ ] 6.3 Run browser scenarios on the older host and `/m` at desktop and phone widths. Cover reload, timeout replay, two concurrent same-key requests, and ordinary blank creation.
-- [ ] 6.4 Run one ordinary build-kit smoke conversation for a missing connection and an inactive automation recipe. Loading must stop at durable first-message acceptance.
+- [x] 6.3 Run browser scenarios on the older host and `/m` at desktop and phone widths. Cover reload, timeout replay, two concurrent same-key requests, and ordinary blank creation.
+- [x] 6.4 Run one ordinary build-kit smoke conversation for a missing connection and an inactive automation recipe. Loading must stop at durable first-message acceptance.
 - [x] 6.5 Record commit-specific evidence. Mark unrun cases `NOT RUN`. Report all multi-agent scenarios as **NOT IMPLEMENTED**.
 
 ## 7. Revised UI runtime and first-message contract (2026-09-21)
@@ -78,3 +78,7 @@ Checks: 97 backend template/session tests; 111 SDK message/wire tests; 104 runne
 ### Review follow-up
 
 Workspace seeds use conditional object creation, not a read-then-overwrite sequence. Session start commits a durable one-shot dispatch claim before crossing the invoke boundary (migration oss000000033). Ambiguous timeout retries only read back acceptance. A crash before dispatch needs operator recovery after ruling out a remote run. The temporary QA catalog sources have been removed; the production gallery has 28 entries. Existing created agents and conversations remain intact.
+
+## Final acceptance follow-up
+
+Tasks 6.3 and 6.4 passed. See the [commit-specific acceptance report](../../../docs/design/agent-workflows/projects/agent-plugin-templates/final-acceptance.md) for the host/viewport matrix, lost-response retries, two-tab same-key races, blank creation, corrected in-place handoff, and connection/automation conversation. The earlier NOT RUN list above is historical. Merge and archive remain blocked by the CI mock dependency described in that report.

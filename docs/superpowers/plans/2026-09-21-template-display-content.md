@@ -65,3 +65,7 @@ Include the earlier preview fixes in the same existing PR after review and check
 The review follow-up passed 1,673 backend tests (142 skipped), 19 frontend registry/loading tests, and 25 SDK reference tests. Both frontend hosts pass TypeScript checks. Both OpenSpec changes pass strict validation. A live SeaweedFS conditional-create check preserved an existing object; a PostgreSQL concurrent claim and fresh-DAO replay check allowed one dispatch. The preview migration was applied before API restart. A browser-created PR reviewer received its staged attachment, read its verification code, and reopened the same server session after refresh. The gallery shows 28 production cards.
 
 The legacy in-place handoff has a corrected callback, active-session adoption, and URL, but its final live creation check remains unverified. The full viewport/two-tab/forced-timeout matrix and missing-connection/inactive-recipe conversation remain open under OpenSpec tasks 6.3 and 6.4. These results do not replace those acceptance tasks.
+
+## Final verification state
+
+OpenSpec 6.3/6.4 and the corrected direct-playground handoff have passed. See the [final acceptance report](../../design/agent-workflows/projects/agent-plugin-templates/final-acceptance.md) for exact commits and scenario evidence. The completion gate is still blocked by the Railway MCP mock dependency; user merge authorization does not replace passing verification. No merge or archive has been performed.
