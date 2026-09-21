@@ -35,6 +35,7 @@ const PROJECT_ID = "proj-1"
 
 /** Trace ids as the stream's `done` record carries them: 32 hex characters, no dashes. */
 const MID_FLIGHT_TRACE = "342e31eddc4be65c6111a88dfa061932"
+const UNWATCHED_TRACE = "99998888777766665555444433332222"
 const DASHED_CASE_TRACE = "11112222333344445555666677778888"
 const SETTLED_TRACE = "aaaabbbbccccddddeeeeffff00001111"
 const UNRELATED_TRACE = "d7fce9bb14c7ceaa0fc7c1afbfe90a60"
@@ -111,6 +112,38 @@ describe("trace summary across a run settling", () => {
             expect(summaryOf(MID_FLIGHT_TRACE).rootSpan?.span_name).toBe("_agent")
         } finally {
             unsub()
+        }
+    })
+
+    it("leaves no failed read behind on a turn nobody is watching", async () => {
+        // The turn scrolled out of view, or the reader moved on, before the run ended. Settling a
+        // run only refetches queries something still watches, which is enough ONLY while an
+        // unwatched query keeps no error to get stuck on: a query that errored with no data does
+        // not fetch on its next mount either, because `retryOnMount: false` blocks that. So this
+        // pins the assumption. If it ever fails, settling has to clear the error, not mark it
+        // stale, and `dropPreSettleTraceAnswer` needs `resetQueries` instead.
+        fetchAllPreviewTracesMock.mockResolvedValue(noSpansYet)
+        const queryClient = store.get(queryClientAtom)
+        const key = ["trace-summary", PROJECT_ID, UNWATCHED_TRACE]
+
+        const unsub = store.sub(traceDataSummaryAtomFamily(UNWATCHED_TRACE), () => {})
+        await waitForAssertion(() => {
+            expect(summaryOf(UNWATCHED_TRACE).isPending).toBe(false)
+        })
+        expect(queryClient.getQueryState(key)?.status).toBe("error")
+        unsub()
+
+        expect(queryClient.getQueryState(key)?.status).not.toBe("error")
+
+        // And coming back to the turn asks again rather than re-showing the pre-run answer.
+        fetchAllPreviewTracesMock.mockResolvedValue(settled(UNWATCHED_TRACE))
+        const remount = store.sub(traceDataSummaryAtomFamily(UNWATCHED_TRACE), () => {})
+        try {
+            await waitForAssertion(() => {
+                expect(summaryOf(UNWATCHED_TRACE).metrics.durationMs).toBe(DURATION_MS)
+            })
+        } finally {
+            remount()
         }
     })
 

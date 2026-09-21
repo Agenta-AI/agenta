@@ -81,6 +81,11 @@ const canonicalTraceKey = (traceId: string) => traceId.replace(/-/g, "")
 const dropPreSettleTraceAnswer = (traceId: string) => {
     const key = canonicalTraceKey(traceId)
     const queryClient = getDefaultStore().get(queryClientAtom)
+    // Invalidating refetches only what is still being watched, which is enough: a turn nobody
+    // watches carries no failed read, because the query loses its state when its last observer
+    // goes. `trace-summary-settle.test.ts` pins that. If it ever stopped holding, this would have
+    // to CLEAR the error rather than mark it stale, since a query that errored with no data does
+    // not fetch on its next mount either (`retryOnMount: false` blocks exactly that).
     void queryClient.invalidateQueries({
         predicate: (query) => {
             const [kind, , id] = query.queryKey
