@@ -6,6 +6,7 @@ from sqlalchemy.exc import DataError, IntegrityError
 
 from oss.src.core.sessions.interactions.service import SessionInteractionsService
 from oss.src.core.sessions.records.dtos import SessionRecord, TERMINAL_RECORD_TYPE
+from oss.src.tasks.asyncio.sessions.streaming import publish_turn_ended
 from oss.src.core.sessions.records.service import RecordsService
 from oss.src.core.sessions.records.events import durable_events_from_records
 from oss.src.core.sessions.records.streaming import (
@@ -29,6 +30,29 @@ if is_ee():
 # for a pause and omitted on every other stop reason).
 PAUSED_STOP_REASON = "paused"
 ROW_REJECTION_ERRORS = (DataError, IntegrityError)
+
+
+def terminal_turns_in_batch(events: List[Any]) -> List[Tuple[str, str]]:
+    """`(session_id, turn_id)` for every turn that reached a terminal `done` in
+    this batch, PAUSED ones included, each pair once, in batch order. Keyed by
+    the pair and not the session: one committed batch can hold the terminal
+    records of two turns of one session (a park and its continuation), and a
+    dict on session_id would keep only the later one, so the earlier turn's
+    outbox result would never render. The channels outbox folds and renders a
+    turn only on a turn-ended signal; `complete_turn` emits one for a turn the
+    desktop completes, but a PARKED turn (never completes) and an approval
+    CONTINUATION (a detached run) both miss it, so the channels card would
+    never draw. Publishing from here is post-commit, so the record is durable
+    before the outbox reads it; `streams:sessions` is consumed only by the
+    channels outbox, which dedups by (turn_id, index), so a turn that also ends
+    through `complete_turn` just edits the same message."""
+    terminal: List[Tuple[str, str]] = []
+    for record in events:
+        if record.record_type == TERMINAL_RECORD_TYPE and record.turn_id:
+            pair = (str(record.session_id), str(record.turn_id))
+            if pair not in terminal:
+                terminal.append(pair)
+    return terminal
 
 
 def finished_turns_in_batch(events: List[Any]) -> Dict[str, str]:
@@ -423,6 +447,35 @@ class RecordsWorker(StreamConsumer):
                 project_id=project_batch["project_id"],
                 events=committed_events,
             )
+            # Post-commit: tell the channels outbox which turns settled, so it
+            # folds and renders them (a parked turn's approval card, or an
+            # approval continuation's answer). Built from the committed
+            # SessionRecords, not the raw stream messages. See
+            # terminal_turns_in_batch.
+            unpublished = 0
+            for session_id, turn_id in terminal_turns_in_batch(
+                [r for r in results if isinstance(r, SessionRecord)]
+            ):
+                published = await publish_turn_ended(
+                    project_id=UUID(str(project_batch["project_id"])),
+                    session_id=session_id,
+                    turn_id=turn_id,
+                )
+                if not published:
+                    unpublished += 1
+            if unpublished:
+                # The rows are committed, but the only signal that renders a
+                # parked turn's card (or a continuation's answer) did not go
+                # out. Leave this project batch unacknowledged: the append is
+                # an upsert, so the redelivery re-publishes and writes nothing
+                # new.
+                held = set(committed_ids)
+                acked_ids = [msg_id for msg_id in acked_ids if msg_id not in held]
+                log.warning(
+                    "[RECORDS] turn_ended publish failed; batch left unacknowledged",
+                    project_id=str(project_batch["project_id"]),
+                    unpublished=unpublished,
+                )
 
             # Relay tee (M3): strictly post-append so a notified client that
             # revalidates always sees the new rows. One publish per distinct

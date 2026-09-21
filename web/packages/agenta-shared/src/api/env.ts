@@ -30,6 +30,7 @@ export const processEnv = {
     NEXT_PUBLIC_AGENTA_LICENSE: process.env.NEXT_PUBLIC_AGENTA_LICENSE,
     NEXT_PUBLIC_AGENTA_BILLING_ENABLED: process.env.NEXT_PUBLIC_AGENTA_BILLING_ENABLED,
     NEXT_PUBLIC_AGENTA_TOOLS_ENABLED: process.env.NEXT_PUBLIC_AGENTA_TOOLS_ENABLED,
+    NEXT_PUBLIC_AGENTA_CHANNELS_ENABLED: process.env.NEXT_PUBLIC_AGENTA_CHANNELS_ENABLED,
     NEXT_PUBLIC_AGENTA_EMAIL_DELIVERY_ENABLED:
         process.env.NEXT_PUBLIC_AGENTA_EMAIL_DELIVERY_ENABLED,
     NEXT_PUBLIC_AGENTA_WEB_URL: process.env.NEXT_PUBLIC_AGENTA_WEB_URL,
@@ -129,6 +130,10 @@ export const isEE = (): boolean => {
 
 /** Gates BOTH the Tools and Triggers settings tabs. */
 export const isToolsEnabled = (): boolean => getEnv("NEXT_PUBLIC_AGENTA_TOOLS_ENABLED") === "true"
+
+/** Gates the Channels settings tab (with the per-user switch on top). */
+export const isChannelsEnabled = (): boolean =>
+    getEnv("NEXT_PUBLIC_AGENTA_CHANNELS_ENABLED") === "true"
 
 export const isBillingEnabled = (): boolean =>
     getEnv("NEXT_PUBLIC_AGENTA_BILLING_ENABLED") === "true"

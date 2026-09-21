@@ -147,13 +147,19 @@ _worker_heartbeat_task: "asyncio.Task | None" = None
 def _selected_queues() -> List[str]:
     selected = env.agenta.workers.queues
     if not selected:
-        return list(ALL_QUEUES)
+        selected = list(ALL_QUEUES)
     unknown = set(selected) - set(ALL_QUEUES)
     if unknown:
         raise ValueError(
             f"AGENTA_WORKER_QUEUES has unknown entries: {sorted(unknown)}; "
             f"expected a subset of {ALL_QUEUES}"
         )
+    # The deployment flag gates the feature end to end: with channels off the
+    # API stops enqueueing, and this consumer must stop draining what is queued,
+    # or a disabled deployment keeps invoking agents from its backlog.
+    if "channels-inbox" in selected and not env.channels.enabled:
+        log.info("[QUEUES] channels disabled; not consuming queues:channels-inbox")
+        selected = [name for name in selected if name != "channels-inbox"]
     return selected
 
 
