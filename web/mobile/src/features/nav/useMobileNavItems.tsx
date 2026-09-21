@@ -18,8 +18,10 @@ import {
     type SidebarConfig,
     type SidebarEntityRef,
 } from "@agenta/navigation"
-import {buildReleaseNavItems, SessionFilterMenu} from "@agenta/navigation-ui"
+import {buildReleaseNavItems, SessionFilterMenu, SessionSearchButton} from "@agenta/navigation-ui"
 import {SessionRowActions, useSessionActions, useSessionRowChrome} from "@agenta/sessions-ui"
+import {getShortcut, shortcutAria, shortcutFaces} from "@agenta/shared/utils"
+import {useIsMacPlatform} from "@agenta/ui/shortcuts"
 import {Spinner} from "@agenta/ui/ui"
 import {
     ChartLineUpIcon,
@@ -43,6 +45,8 @@ import {startBlankSession} from "@/features/chat/useStartBlankSession"
 
 /** The drawer's scope id — its open-groups persistence bucket. */
 export const MOBILE_NAV_SCOPE_ID = "mobile-main"
+/** The registry entry for ⌘K / Ctrl+K, which `MobileCommandPalette` binds. */
+const PALETTE_SHORTCUT_ID = "palette.open"
 
 /**
  * Mobile's registration over the SHARED machinery: same gated sessions source, same
@@ -52,7 +56,7 @@ export const MOBILE_NAV_SCOPE_ID = "mobile-main"
 /** Flip to show the Observability rail entry again — the screen and its route are untouched. */
 const SHOW_OBSERVABILITY = false
 
-const mobileSessionsEntity = defineSidebarEntity<SessionSidebarRef>(
+export const mobileSessionsEntity = defineSidebarEntity<SessionSidebarRef>(
     MOBILE_NAV_SCOPE_ID,
     SESSIONS_SIDEBAR_KEY,
     {
@@ -134,6 +138,14 @@ export const useMobileNavItems = (projectURL: string): SidebarConfig[] => {
     const source = useMemo(() => withEntityGroups(rawSource, groups), [rawSource, groups])
     // Resolved ONCE for the rail, not once per row: the verbs do not differ by session.
     const chrome = useSessionRowChrome(useSessionActions())
+    // Platform read in an effect: the server has none, and a guess mismatches on hydration.
+    const mac = useIsMacPlatform()
+    const paletteShortcut = useMemo(() => {
+        const shortcut = getShortcut(PALETTE_SHORTCUT_ID)
+        return shortcut
+            ? {faces: shortcutFaces(shortcut, mac), aria: shortcutAria(PALETTE_SHORTCUT_ID)}
+            : undefined
+    }, [mac])
     const wrapSessionRow = useCallback(
         (ref: SidebarEntityRef, node: ReactNode) =>
             createElement(SessionRowActions, {
@@ -184,9 +196,17 @@ export const useMobileNavItems = (projectURL: string): SidebarConfig[] => {
                 // without bound, so Observability (and whatever lands after it) stays on screen.
                 scrollChildren: true,
                 onReachEnd: loadMoreSessions,
-                groupAction: createElement(SessionFilterMenu, {
-                    scopeId: MOBILE_NAV_SCOPE_ID,
-                }),
+                // Search reaches past what the rail lists; the filter narrows it. Same pair,
+                // same order, as the desktop rail.
+                groupAction: createElement(
+                    "span",
+                    {className: "flex items-center gap-0.5"},
+                    createElement(SessionSearchButton, {
+                        label: "Search",
+                        shortcut: paletteShortcut,
+                    }),
+                    createElement(SessionFilterMenu, {scopeId: MOBILE_NAV_SCOPE_ID}),
+                ),
                 submenu: resolveChildren(
                     mobileSessionsEntity,
                     source,
@@ -208,7 +228,7 @@ export const useMobileNavItems = (projectURL: string): SidebarConfig[] => {
                   ]
                 : []),
         ],
-        [loadMoreSessions, source, projectURL, wrapSessionRow],
+        [loadMoreSessions, source, projectURL, wrapSessionRow, paletteShortcut],
     )
 }
 

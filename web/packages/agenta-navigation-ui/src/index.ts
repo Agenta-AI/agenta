@@ -10,6 +10,12 @@ export {default as SidebarIconMenu} from "./SidebarIconMenu"
 export {buildReleaseNavItems} from "./releaseItems"
 export {default as SessionSearchButton} from "./SessionSearchButton"
 export {default as SessionSearchPalette} from "./SessionSearchPalette"
+export {
+    default as CommandPalette,
+    type CommandPaletteEntry,
+    type CommandPaletteGroup,
+    type CommandPaletteProps,
+} from "./CommandPalette"
 export {SidebarSelectionButton, type SidebarSelectionButtonProps} from "./SidebarSelectionButton"
 export {SidebarBackButton, type SidebarBackButtonProps} from "./SidebarBackButton"
 export {SidebarSkeletonLoader} from "./SidebarSkeletonLoader"
