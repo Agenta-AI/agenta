@@ -679,3 +679,91 @@ class TestCredentialNormalization:
         )
 
         assert "\n" in settings.content
+
+
+class TestStoredCredentialRead:
+    """A key stored before the control-character refusal existed must not fail the read of
+    every secret in the project. The refusal belongs to what a caller submits."""
+
+    @staticmethod
+    def _stored_row(key: str) -> dict:
+        return {
+            "id": str(uuid4()),
+            "slug": "stored-provider-key",
+            "kind": "provider_key",
+            "data": {"kind": "openai", "provider": {"key": key}},
+            "header": {"name": "OpenAI", "description": ""},
+        }
+
+    def test_a_stored_key_with_an_interior_control_character_still_loads(self):
+        response = SecretResponseDTO.model_validate(
+            self._stored_row("placeholder\tprovider-key")
+        )
+
+        assert response.data.provider.key == "placeholder\tprovider-key"
+
+    def test_one_bad_row_does_not_stop_the_others_loading(self):
+        rows = [
+            self._stored_row("placeholder-good-key"),
+            self._stored_row("placeholder\nbad-key"),
+            self._stored_row("placeholder-other-key"),
+        ]
+
+        loaded = [SecretResponseDTO.model_validate(row) for row in rows]
+
+        assert len(loaded) == 3
+
+    def test_a_stored_key_still_loses_its_surrounding_whitespace(self):
+        response = SecretResponseDTO.model_validate(
+            self._stored_row("  placeholder-provider-key\n")
+        )
+
+        assert response.data.provider.key == "placeholder-provider-key"
+
+    def test_a_stored_oauth_credential_with_a_control_character_still_loads(self):
+        response = SecretResponseDTO.model_validate(
+            {
+                "id": str(uuid4()),
+                "slug": "stored-oauth-grant",
+                "kind": "oauth_grant",
+                "data": {
+                    "grant": {
+                        "server": "https://mcp.example.com/",
+                        "access_token": "placeholder\taccess-token",
+                        "scopes": [],
+                    }
+                },
+                "header": {"name": "Grant", "description": ""},
+            }
+        )
+
+        assert response.data.grant.access_token == "placeholder\taccess-token"
+
+    def test_creating_a_key_with_an_interior_control_character_is_still_refused(self):
+        with pytest.raises(ValidationError):
+            CreateSecretDTO.model_validate(
+                {
+                    "header": {"name": "OpenAI", "description": ""},
+                    "secret": {
+                        "kind": "provider_key",
+                        "data": {
+                            "kind": "openai",
+                            "provider": {"key": "placeholder\nprovider-key"},
+                        },
+                    },
+                }
+            )
+
+    def test_updating_a_key_to_one_with_a_control_character_is_still_refused(self):
+        with pytest.raises(ValidationError):
+            UpdateSecretDTO.model_validate(
+                {
+                    "secret": {
+                        "kind": "provider_key",
+                        "data": {
+                            "kind": "openai",
+                            "provider": {"key": "placeholder\tprovider-key"},
+                        },
+                    },
+                }
+            )
