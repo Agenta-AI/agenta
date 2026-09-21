@@ -143,6 +143,15 @@ class SessionStartsService:
         message: str | Message,
         parameters: dict[str, Any] | None = None,
     ) -> WorkflowServiceRequest:
+        """Build the first turn's request. It must not carry `on_busy`.
+
+        Setting it turns on the workflow service's session admission, which answers a lost
+        admission response with a bare 503 carrying no `x-ag-` header, after the API may already
+        have committed the pending-input row. `detached_start_never_sent` reads exactly that
+        shape as proof the run never started, so it would release this turn's one-shot dispatch
+        claim and let a retry run the turn twice. The admission is redundant here anyway: this
+        path claims and promotes its own input before invoking.
+        """
         return WorkflowServiceRequest(
             session_id=session_id,
             references={
@@ -269,9 +278,12 @@ class SessionStartsService:
             error: Exception | None = None
             # `except Exception` deliberately lets `asyncio.CancelledError` through with the claim
             # still held. A shutdown or a client disconnect can cancel this task with the request
-            # already on the wire, which is the ambiguous case, not a never-sent one. Nothing is
-            # awaited between the claim and this call, so a cancel cannot strand the claim before
-            # the invoke begins; once it has begun, only the service knows what it accepted.
+            # already on the wire, which is the ambiguous case, not a never-sent one.
+            #
+            # Two narrow windows do strand the claim rather than decide it: a cancel delivered at
+            # the `claim_dispatch` await after its UPDATE committed, and a cancel during the
+            # readback below after a provably never-sent failure. Both need an attempt id on the
+            # row to close, which needs a migration, so they are named here and not papered over.
             try:
                 await self._workflows.invoke_workflow_detached(
                     project_id=project_id,

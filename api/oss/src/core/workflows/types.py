@@ -145,9 +145,21 @@ class WorkflowDetachedStartNeverSent(WorkflowDetachedStartFailed):
 # answer, so the run may have been accepted.
 _NEVER_DISPATCHED_STATUSES = frozenset({404, 503})
 
-# Any response the workflow service builds itself carries at least `x-ag-version`, and a run whose
-# own envelope sets a non-2xx status still goes out through that same stamping. So an `x-ag-`
-# header on a 404 or a 503 means the service did answer, and the status stops being proof.
+# The header is the second half of the proof, and it is not true that every response the service
+# builds carries it: the three 503 sites named above are bare JSONResponses with no header at all.
+# What holds is the pair.
+#
+# A failure INSIDE a run is always stamped. It leaves as a batch response whose status is >= 400,
+# which goes out through `_make_json_response`, which sets `x-ag-version`
+# (`sdks/python/agenta/sdk/decorators/routing.py`). A run that has begun streaming has already
+# committed 200, so it cannot present a failure as a status at all. Pinned on the SDK side by
+# `sdks/python/oss/tests/pytest/unit/test_invoke_error_response_headers_routing.py`, because this
+# rule fails OPEN: an unstamped in-run 503 would read as never-sent and let a retry run a turn
+# that already executed its tool calls.
+#
+# The unstamped 404 and 503 answers are the ones listed above, and every one of them sits in
+# front of the workflow. That is a property of where those sites are, which no check here can
+# hold still, so the SDK test above is what keeps the two halves from drifting into one.
 _SERVICE_HEADER_PREFIX = "x-ag-"
 
 

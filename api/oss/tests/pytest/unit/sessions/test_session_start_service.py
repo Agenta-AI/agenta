@@ -632,3 +632,28 @@ async def test_concurrent_retries_after_a_release_dispatch_exactly_once():
     assert invocations == 2
     assert {first.replayed, second.replayed} == {False, True}
     assert first.execution_id == second.execution_id
+
+
+@pytest.mark.asyncio
+async def test_the_first_turn_request_never_asks_for_session_admission():
+    """`on_busy` must stay unset on this path. See `SessionStartsService._request`.
+
+    With it set, the workflow service admits the input through the API and answers a lost
+    admission response with a bare 503, which `detached_start_never_sent` reads as proof that
+    nothing was dispatched. The API may hold a committed pending-input row at that moment, so
+    the release would be wrong and the retry would run the turn twice.
+    """
+    inputs = _ClaimFlag()
+    executions = AsyncMock()
+    executions.fetch_execution.side_effect = [None, _execution("session", "execution")]
+    workflows = AsyncMock()
+
+    await _service(
+        inputs=inputs, executions=executions, workflows=workflows
+    ).start_once(**_args())
+
+    sent = workflows.invoke_workflow_detached.await_args.kwargs["request"]
+    assert sent.on_busy is None
+    # The claim path stores the same request and replays it from the row, so the stored copy
+    # has to be clean too.
+    assert "on_busy" not in sent.model_dump(mode="json", exclude_none=True)
