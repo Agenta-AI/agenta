@@ -41,7 +41,7 @@ export interface ServerQueueAdapter {
         watcher?: {
             onAccepted?: (executionId: string) => void
             onParked?: (inputId: string) => void
-            onFailed?: () => void
+            onFailed?: (reason?: string) => void
             onSettled?: () => void
         },
     ) => Promise<"queued" | "running">
@@ -91,7 +91,7 @@ interface UseAgentChatQueueArgs {
      * May answer later than the call. A rich text editor commits a write on a following tick, so a
      * host that reads its own composer back cannot always answer in this one.
      */
-    restoreRefusedSend?: (message: QueuedMessage) => boolean | Promise<boolean>
+    restoreRefusedSend?: (message: QueuedMessage, reason?: string) => boolean | Promise<boolean>
     /** Send one released message into the conversation (wraps `useChat`'s `sendMessage`). Must be
      * referentially stable so the release effect doesn't churn on every streamed token. */
     sendQueued: (item: QueuedMessage) => void
@@ -348,7 +348,7 @@ export const useAgentChatQueue = ({
                             // it, so there is a single place the message lives and a single
                             // wording for it. The row is the fallback only when no composer can
                             // take the text.
-                            onFailed: () => {
+                            onFailed: (reason) => {
                                 // The row goes up FIRST and comes down only once the composer
                                 // confirms it took the text. It is the safe side to fail to: the
                                 // message must never be in neither place, and a host cannot always
@@ -360,7 +360,7 @@ export const useAgentChatQueue = ({
                                 // Passing the message re-creates the row when the count rule has
                                 // already retired it, so a late refusal always has somewhere to be.
                                 echoes.markFailed(message.id, message)
-                                const restoring = restoreRefusedSendRef.current?.(message)
+                                const restoring = restoreRefusedSendRef.current?.(message, reason)
                                 if (!restoring) return
                                 void Promise.resolve(restoring).then((taken) => {
                                     if (taken) echoes.drop(message.id)

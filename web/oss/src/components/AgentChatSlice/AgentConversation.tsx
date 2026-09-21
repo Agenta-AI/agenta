@@ -30,11 +30,11 @@ import {
 import {type SessionRunStatus} from "@agenta/chat/model"
 import {
     refusedSendRejections,
+    lateRefusedSendRejections,
     ignoreStreamRejection,
     isEmptyAssistantTurn,
     isSessionBusyRefusal,
     isVisiblePart,
-    REFUSED_SEND_REASON,
 } from "@agenta/chat/model"
 import {getInteractionAvailability, getLivePendingApprovals} from "@agenta/chat/model"
 import {withoutSharedSenderAcceptanceMessages} from "@agenta/chat/model"
@@ -442,7 +442,7 @@ const AgentConversation = ({
         reject: attachments.setRejections,
     })
     lateRefusalRef.current = {restore: restoreAttachments, reject: attachments.setRejections}
-    const restoreLateRefusedSend = useCallback(async (message: QueuedMessage) => {
+    const restoreLateRefusedSend = useCallback(async (message: QueuedMessage, reason?: string) => {
         const taken = await restoreRefusedSendInto(
             richInputRef.current,
             {
@@ -455,9 +455,7 @@ const AgentConversation = ({
             lateRefusalRef.current.restore,
         )
         if (taken) {
-            // A late refusal arrives through the watcher, which reports only THAT the send
-            // failed, so this one keeps the standing wording.
-            lateRefusalRef.current.reject([{name: "Message", reason: REFUSED_SEND_REASON}])
+            lateRefusalRef.current.reject(lateRefusedSendRejections(reason))
         }
         return taken
     }, [])
