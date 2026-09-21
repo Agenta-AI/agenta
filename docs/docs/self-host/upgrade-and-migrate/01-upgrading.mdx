@@ -56,7 +56,9 @@ docker compose -f hosting/docker-compose/oss/docker-compose.gh.yml \
   --profile with-web --profile with-traefik up -d
 ```
 
-For Helm, set `gatewayEgress.insecureAllowed` and `gatewayEgress.insecureHttpAllowed` in your values file. The chart renders each one into the containers that read it. See [Agenta gateways](/self-host/configuration#agenta-gateways).
+For Helm, set `gatewayEgress.insecureAllowed` and `gatewayEgress.insecureHttpAllowed` in your values file. The chart ships both commented out, so an upgrade that touches no values file keeps the code defaults and both guards stay on. The chart renders each key you do set into the containers that read it. See [Agenta gateways](/self-host/configuration#agenta-gateways).
+
+Two more things change for Helm in this release. The chart now implements all five gateway keys, so a key you added under `api.extraEnv`, `services.extraEnv` or `agentRunner.extraEnv` to work around their absence now duplicates the one the chart renders. Remove the `extraEnv` copy. And the schema now rejects an unknown key under `mcpGateway`, `llmGateway`, `gatewayEgress` or `gatewayCredentials`, where 0.119.0 accepted and ignored it, so `helm upgrade` fails on a typo it used to swallow. For the same reason a real key that used to do nothing now takes effect: if you set `mcpGateway.enabled: false` against 0.119.0 and saw no change, it now turns the MCP gateway off.
 
 ### Saving an MCP server URL on 0.119.0
 

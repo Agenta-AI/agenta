@@ -122,7 +122,12 @@ def expect_absent(
 def collect_failures() -> list[str]:
     failures: list[str] = []
 
-    # --- 1. Chart defaults, which mirror the compose self-host templates. ---
+    # --- 1. Chart defaults. ---
+    # The two `gatewayEgress` guards must render NOTHING here, so the application's own
+    # defaults stand and a `helm upgrade` with an unchanged values file cannot turn a guard
+    # off. An earlier revision of this test asserted `"true"` for the egress flag, which
+    # pinned a permissive chart default in place instead of catching it; asserting the
+    # absence is the whole point of this block.
     docs = render([])
     envs = {c: container_env(docs, c) for c in COMMON_ENV_COMPONENTS}
     envs["web"] = container_env(docs, "web")
@@ -136,12 +141,13 @@ def collect_failures() -> list[str]:
         expect(
             failures, envs[component], component, "AGENTA_LLM_GATEWAY_ENABLED", "false"
         )
-        expect(
+        # Unset in values.yaml, so env.py's own default (False) decides. Rendering "true"
+        # here would disable the guard on every upgrade that touches no values file.
+        expect_absent(
             failures,
             envs[component],
             component,
             "AGENTA_GATEWAYS_INSECURE_EGRESS_ALLOWED",
-            "true",
         )
         # Empty allowlist and unset TTL render nothing at all, so the application's own
         # parsing of "absent" applies. An empty-string entry would be a different value.
@@ -167,16 +173,47 @@ def collect_failures() -> list[str]:
             expect_absent(failures, envs[component], component, name)
         expect_absent(failures, envs[component], component, INSECURE_HTTP)
 
-    # The plain-http opt-in goes to the two legs that apply the transport rule, and nowhere
-    # else. The API in particular reads no such variable.
-    for component in ("services", "runner"):
-        expect(failures, envs[component], component, INSECURE_HTTP, "true")
-    for component in ("api", "worker-streams", "worker-queues", "cron"):
+    # The plain-http opt-in is unset by default too, so it reaches nobody at all until an
+    # operator asks for it. Which legs it reaches once asked for is case 1b below.
+    for component in (*COMMON_ENV_COMPONENTS, "runner", "web", "web-mobile"):
         expect_absent(failures, envs[component], component, INSECURE_HTTP)
 
     # The runner's environment stays narrow: none of the API-side switches reach it.
     for name in API_SIDE:
         expect_absent(failures, envs["runner"], "runner", name)
+
+    # --- 1b. Both guards opened explicitly. ---
+    # Case 1 proves the chart asks for nothing. This proves an operator who does ask still
+    # gets it, and on exactly the legs that read it, which is the coverage case 1 used to
+    # carry while the permissive value lived in values.yaml. The helpers key off `hasKey`
+    # rather than truthiness, so this and the explicit `false` in case 2 are separate paths
+    # and both need pinning.
+    opened = render(
+        [
+            "--set",
+            "gatewayEgress.insecureAllowed=true",
+            "--set",
+            "gatewayEgress.insecureHttpAllowed=true",
+        ]
+    )
+    for component in COMMON_ENV_COMPONENTS:
+        expect(
+            failures,
+            container_env(opened, component),
+            component,
+            "AGENTA_GATEWAYS_INSECURE_EGRESS_ALLOWED",
+            "true",
+        )
+    # The plain-http opt-in goes to the two legs that apply the transport rule, and nowhere
+    # else. The API in particular reads no such variable.
+    for component in ("services", "runner"):
+        expect(
+            failures, container_env(opened, component), component, INSECURE_HTTP, "true"
+        )
+    for component in ("api", "worker-streams", "worker-queues", "cron"):
+        expect_absent(
+            failures, container_env(opened, component), component, INSECURE_HTTP
+        )
 
     # --- 2. Every value set to a non-default. ---
     overrides = render(
