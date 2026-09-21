@@ -174,6 +174,12 @@ spec:
                   name: {{ include "agenta.secretName" . | quote }}
                   key: AGENTA_RUNNER_TOKEN
                   {{- end }}
+            {{- /* One non-secret config value, named explicitly rather than pulled in with a
+                   block, so the narrow-env rule above still holds. The runner is the leg that
+                   refuses a gateway-routed run: it re-validates the transport rule the SDK
+                   applied, so a value set for services but not here admits the run and then
+                   strands it inside the sandbox. */}}
+            {{- include "agenta.gatewayInsecureHttpEnv" . | nindent 12 }}
             {{- range $key, $val := $runner.env }}
             - name: {{ $key }}
               value: {{ $val | quote }}
