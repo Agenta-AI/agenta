@@ -92,6 +92,10 @@ interface UseAgentChatQueueArgs {
      * host that reads its own composer back cannot always answer in this one.
      */
     restoreRefusedSend?: (message: QueuedMessage) => boolean | Promise<boolean>
+    /** A durable send was admitted: the turn it started, or `null` for a parked input. */
+    onSendAccepted?: (message: QueuedMessage, executionId: string | null) => void
+    /** A durable send will never become a turn: rejected before it left, or refused after. */
+    onSendFailed?: (message: QueuedMessage) => void
     /** Send one released message into the conversation (wraps `useChat`'s `sendMessage`). Must be
      * referentially stable so the release effect doesn't churn on every streamed token. */
     sendQueued: (item: QueuedMessage) => void
@@ -139,6 +143,8 @@ export const useAgentChatQueue = ({
     continuationExecutionId = null,
     markRunOwned,
     restoreRefusedSend,
+    onSendAccepted,
+    onSendFailed,
     sendQueued,
     sessionId,
     server,
@@ -225,6 +231,29 @@ export const useAgentChatQueue = ({
 
     const restoreRefusedSendRef = useRef(restoreRefusedSend)
     restoreRefusedSendRef.current = restoreRefusedSend
+    const onSendAcceptedRef = useRef(onSendAccepted)
+    onSendAcceptedRef.current = onSendAccepted
+    const onSendFailedRef = useRef(onSendFailed)
+    onSendFailedRef.current = onSendFailed
+
+    /**
+     * Hand a message to the transport on the NON-durable path, and report it as admitted.
+     *
+     * The durable path has a server admission event to report; this one has none — `sendQueued`
+     * is synchronous and answers nothing. Staying silent left the send lifecycle half-driven
+     * here: a fresh session's optimistic row never left `submitting`, so the `accepted` guard
+     * that protects it could not hold, and a later message's failure deleted a row the server
+     * was going to list. Reaching the transport IS the admission this path has, and it is the
+     * same moment `markRunOwned` already claims the run.
+     */
+    const dispatchUnqueued = useCallback(
+        (message: QueuedMessage) => {
+            markRunOwned()
+            sendQueued(message)
+            onSendAcceptedRef.current?.(message, null)
+        },
+        [markRunOwned, sendQueued],
+    )
 
     // Echo rows for durable sends, which the AI SDK chat never receives. Owned by its own hook so
     // this one keeps to admission, queueing, and editing.
@@ -340,9 +369,14 @@ export const useAgentChatQueue = ({
                     echoes.add(message)
                     return server
                         .submit(message, "queue", {
-                            onAccepted: (executionId) =>
-                                echoes.markAccepted(message.id, executionId),
-                            onParked: (inputId) => echoes.markParked(message.id, inputId),
+                            onAccepted: (executionId) => {
+                                echoes.markAccepted(message.id, executionId)
+                                onSendAcceptedRef.current?.(message, executionId)
+                            },
+                            onParked: (inputId) => {
+                                echoes.markParked(message.id, inputId)
+                                onSendAcceptedRef.current?.(message, null)
+                            },
                             // One event, one recovery. A refusal that arrives after the promise
                             // resolved goes back to the composer exactly like one that rejected
                             // it, so there is a single place the message lives and a single
@@ -360,6 +394,7 @@ export const useAgentChatQueue = ({
                                 // Passing the message re-creates the row when the count rule has
                                 // already retired it, so a late refusal always has somewhere to be.
                                 echoes.markFailed(message.id, message)
+                                onSendFailedRef.current?.(message)
                                 const restoring = restoreRefusedSendRef.current?.(message)
                                 if (!restoring) return
                                 void Promise.resolve(restoring).then((taken) => {
@@ -378,6 +413,7 @@ export const useAgentChatQueue = ({
                         })
                         .then(undefined, (error: unknown) => {
                             echoes.drop(message.id)
+                            onSendFailedRef.current?.(message)
                             throw error
                         })
                 }
@@ -400,8 +436,7 @@ export const useAgentChatQueue = ({
                 ) {
                     releasingRef.current = true
                     lastSentRef.current = message
-                    markRunOwned()
-                    sendQueued(message)
+                    dispatchUnqueued(message)
                 } else {
                     setQueued((q) => [...q, message])
                 }
@@ -410,7 +445,7 @@ export const useAgentChatQueue = ({
                 ? server.resolveCapabilities().then((capabilities) => admit(capabilities.queue))
                 : admit(server?.capabilities.queue === true)
         },
-        [canReleaseNow, echoes, recoverable, retryContinuation, markRunOwned, sendQueued, server],
+        [canReleaseNow, dispatchUnqueued, echoes, recoverable, retryContinuation, server],
     )
 
     const removeQueued = useCallback(
@@ -580,14 +615,17 @@ export const useAgentChatQueue = ({
         setQueued(rest)
         // A released head also needs refusal recovery because it has left the queue.
         lastSentRef.current = head
-        markRunOwned()
-        sendQueued(head)
-    }, [settled, canReleaseNow, queued, markRunOwned, sendQueued])
+        dispatchUnqueued(head)
+    }, [settled, canReleaseNow, queued, dispatchUnqueued])
 
     return {
         queued: [...(server?.queued ?? []), ...queued],
         /** Sent-but-not-yet-saved user rows; merge with `mergePendingSendEchoRows`. */
         pendingSendRows: echoes.rows,
+        /** A send of this mount is on its way: admitted, not yet named by the runner or refused.
+         * The server-owned path never moves `useChat`'s `status` off "ready", so this is the only
+         * local evidence a turn was just submitted. */
+        sendInFlight: echoes.inFlight,
         submit,
         steer,
         removeQueued,
