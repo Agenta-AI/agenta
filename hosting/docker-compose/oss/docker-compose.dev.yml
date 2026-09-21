@@ -227,7 +227,11 @@ services:
         # === RESOURCES =========================================== #
         # Cap child PIDs so a reloader/consumer leak fails loudly instead of
         # exhausting the host (a rebase file-event burst orphaned ~219 workers).
-        pids_limit: 20
+        # 20 was below the steady-state need: measured 24 on worker-queues and 22
+        # on worker-streams while idle, so both crash-looped on "can't start new
+        # thread" and silently stopped consuming. 64 still catches the runaway
+        # this cap exists for, with room for the watchmedo reloader's threads.
+        pids_limit: 64
         # === STORAGE ============================================== #
         volumes:
             - ../../../api/ee:/app/ee
@@ -281,7 +285,11 @@ services:
         # === RESOURCES =========================================== #
         # Cap child PIDs so a reloader/consumer leak fails loudly instead of
         # exhausting the host (a rebase file-event burst orphaned ~219 workers).
-        pids_limit: 20
+        # 20 was below the steady-state need: measured 24 on worker-queues and 22
+        # on worker-streams while idle, so both crash-looped on "can't start new
+        # thread" and silently stopped consuming. 64 still catches the runaway
+        # this cap exists for, with room for the watchmedo reloader's threads.
+        pids_limit: 64
         # === STORAGE ============================================== #
         volumes:
             - ../../../api/ee:/app/ee

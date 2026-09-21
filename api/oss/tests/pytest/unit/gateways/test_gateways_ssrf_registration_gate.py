@@ -1,14 +1,24 @@
 """SSRF gate at registration (D28) — apis/fastapi/gateways/{llms,mcps}/router.py.
 
-`AGENTA_INSECURE_EGRESS_ALLOWED` defaults to `true` (`api/oss/src/utils/env.py`), so a
-test that omits it passes while proving nothing. The module-level constant that actually
-gates `validate_url_format_and_literal_ip` (`_WEBHOOK_ALLOW_INSECURE` in
-`core/webhooks/utils.py`) is resolved once at import time, so setting the env var alone
-has no effect on an already-imported process — every test here monkeypatches that
-constant directly to `False`, mirroring `test_webhooks_utils.py`'s own technique. The
-repo's autouse `secure_egress_by_default` fixture (`tests/pytest/utils/egress.py`) already
-does this for the whole suite; this file pins it explicitly and locally so the SSRF
-assertion does not depend on that other fixture being wired up.
+**The two routers read two different flags, and that is the subject of half this file.**
+The MCP router now asks the gateway's own egress policy
+(`core/gateways/egress.py::validate_egress_url_format`, so
+`AGENTA_GATEWAYS_INSECURE_EGRESS_ALLOWED` plus `exempt_hosts()`), because that is the policy
+its relay will apply to the very same URL at call time; a save the relay would refuse is not
+a save worth accepting. The LLM router still asks the webhook flag
+(`AGENTA_INSECURE_EGRESS_ALLOWED` via `validate_url_format_and_literal_ip`) and has the same
+disagreement waiting in it, deliberately left for its own change. Its cases below are
+therefore written against the webhook flag and the MCP ones against the gateway flag, and
+neither set is a template for the other.
+
+Both flags resolve once at import — `_WEBHOOK_ALLOW_INSECURE` as a module constant in
+`core/webhooks/utils.py`, and `env.gateway_egress.insecure_allowed` on the shared settings
+object — so exporting an env var has no effect on an already-imported process. Every case
+here monkeypatches the value directly, mirroring `test_webhooks_utils.py` and
+`test_gateways_egress.py`. The repo's autouse `secure_egress_by_default` fixture
+(`tests/pytest/utils/egress.py`) pins both closed for the whole suite; this file pins them
+again locally so its assertions do not depend on that other fixture being wired up, and a
+case that wants one open opens it for itself.
 
 `custom` only — every endpoint this router can create/edit is custom by construction
 (no way to express a builtin/agenta identity through these DTOs).
@@ -33,12 +43,50 @@ FIXED_SCOPE = AuthScope(
 )
 
 
+WEBHOOK_FLAG = "oss.src.core.webhooks.utils._WEBHOOK_ALLOW_INSECURE"
+GATEWAY_FLAG = "oss.src.core.gateways.egress.env.gateway_egress.insecure_allowed"
+
+
 @pytest.fixture(autouse=True)
 def _secure_egress(monkeypatch):
-    """The load-bearing flag: patched directly (not via the env var — see module
-    docstring), explicitly `False` in every test in this file."""
+    """The two load-bearing flags: patched directly (not via the env vars — see module
+    docstring), explicitly `False` for every test in this file."""
+    monkeypatch.setattr(WEBHOOK_FLAG, False, raising=False)
+    monkeypatch.setattr(GATEWAY_FLAG, False)
+
+
+@pytest.fixture(autouse=True)
+def _no_exempt_hosts(monkeypatch):
+    """No hostname is exempt from the MCP gate while these cases run.
+
+    `exempt_hosts()` reads two operator-environment sources, and a developer who has
+    exported the documented self-host values turns the refusals below green for the wrong
+    reason — the address under test would have become exempt rather than allowed (D47).
+    Cleared here so a refusal means the policy refused; the exemption gets its own case,
+    which sets the allowlist itself.
+    """
     monkeypatch.setattr(
-        "oss.src.core.webhooks.utils._WEBHOOK_ALLOW_INSECURE", False, raising=False
+        "oss.src.core.gateways.egress.env.mcp_gateway.host_allowlist", []
+    )
+    monkeypatch.setattr("oss.src.core.gateways.egress.env.mock_gateways.enabled", False)
+
+
+@pytest.fixture
+def no_dns(monkeypatch):
+    """Fail the test if anything on the save path resolves a name.
+
+    The no-DNS property is the reason registration calls
+    `validate_url_format_and_literal_ip` rather than the resolving boundary: a save-time
+    resolve would refuse a hostname that is merely unreachable while the form is being
+    submitted, and would settle nothing, since the address a name carries at save time is
+    not the address it carries at call time.
+    """
+
+    def _fail_if_resolved(*_args, **_kwargs):
+        raise AssertionError("no DNS lookup should happen on the save path")
+
+    monkeypatch.setattr(
+        "oss.src.core.webhooks.utils.socket.getaddrinfo", _fail_if_resolved
     )
 
 
@@ -107,7 +155,8 @@ def _mcp_create_body(url: str) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# MCP: create — blocked targets 400 before the mock service is ever called
+# MCP: create — blocked targets 400 before the mock service is ever called.
+# The gateway egress flag is what governs here, and it is closed by the fixture.
 # ---------------------------------------------------------------------------
 
 
@@ -128,20 +177,12 @@ def test_mcp_create_endpoint_rejects_blocked_urls(mcp_client, url):
 
 
 def test_mcp_create_endpoint_accepts_a_public_https_hostname_without_dns(
-    mcp_client, monkeypatch
+    mcp_client, no_dns
 ):
     """The whole point of the no-DNS variant: a public https hostname is accepted
     without any resolution attempt. The mock service still 500s past this point
     (it has none of the create fields the real one would validate further), but
     that failure happens AFTER the gate — proving the gate itself let it through."""
-
-    def _fail_if_resolved(*_args, **_kwargs):
-        raise AssertionError("no DNS lookup should happen in the no-DNS variant")
-
-    monkeypatch.setattr(
-        "oss.src.core.webhooks.utils.socket.getaddrinfo", _fail_if_resolved
-    )
-
     response = mcp_client.post(
         "/endpoints/", json=_mcp_create_body("https://mcp.public.example.com/notion")
     )
@@ -246,21 +287,95 @@ def test_llm_registration_enforces_cloud_deployment_url_grammar_before_service(
 
 
 # ---------------------------------------------------------------------------
-# Negative control: the same private-IP body that 400s above must NOT 400
-# when the flag is (as it defaults) permissive. Proves the rejections above
-# come from the flag being pinned False in this file, not a hardcoded 400.
+# MCP: which flag decides. One URL, both flags, all four ways round.
 # ---------------------------------------------------------------------------
 
+# Plain http AND a private literal address, so it is refused by both halves of the check
+# and neither half can carry the result on its own.
+_INSECURE_PRIVATE_URL = "http://10.0.0.1/mcp"
 
-def test_mcp_create_endpoint_accepts_the_same_private_url_when_insecure_allowed(
-    mcp_client, monkeypatch
+
+@pytest.mark.parametrize(
+    ("webhook_open", "gateway_open", "accepted"),
+    [
+        # Nothing to disagree about: both open, the save goes through.
+        (True, True, True),
+        # The behaviour change, and the posture a default multi-tenant deployment runs:
+        # the webhook flag ships permissive and the gateway flag ships closed. This URL
+        # used to be saved here and then refused by every call made to it. It is now
+        # refused at the point where someone can still do something about it.
+        (True, False, False),
+        # The self-hoster who opened the gateway flag, which is what the self-host env
+        # templates ship. Their MCP server is on their own network and the relay will
+        # dial it, so registration must not be the thing that stops them.
+        (False, True, True),
+        # Both closed: refused, and for the reason it says.
+        (False, False, False),
+    ],
+)
+def test_mcp_registration_follows_the_gateway_flag_not_the_webhook_one(
+    mcp_client, monkeypatch, no_dns, webhook_open, gateway_open, accepted
 ):
+    monkeypatch.setattr(WEBHOOK_FLAG, webhook_open, raising=False)
+    monkeypatch.setattr(GATEWAY_FLAG, gateway_open)
+
+    response = mcp_client.post(
+        "/endpoints/", json=_mcp_create_body(_INSECURE_PRIVATE_URL)
+    )
+
+    if accepted:
+        # Past the gate; the stub service raises next, which is how "accepted" reads here.
+        assert response.status_code == 500
+    else:
+        assert response.status_code == 400
+        assert "endpoint.data.route.base_url" in response.json()["detail"]
+
+
+def test_mcp_registration_admits_an_allowlisted_host_with_the_gateway_flag_closed(
+    mcp_client, monkeypatch, no_dns
+):
+    """The escape hatch the guard is meant to be used with.
+
+    An operator who has taken responsibility for one internal hostname through
+    `AGENTA_MCP_GATEWAY_HOST_ALLOWLIST` can register it without opening the flag globally,
+    and the relay exempts the same host for the same reason. Save time and call time agree
+    about the exemption too, not only about the flag.
+    """
     monkeypatch.setattr(
-        "oss.src.core.webhooks.utils._WEBHOOK_ALLOW_INSECURE", True, raising=False
+        "oss.src.core.gateways.egress.env.mcp_gateway.host_allowlist",
+        ["mcp.internal.example"],
     )
 
     response = mcp_client.post(
-        "/endpoints/", json=_mcp_create_body("http://127.0.0.1/mcp")
+        "/endpoints/", json=_mcp_create_body("http://mcp.internal.example:8080/mcp")
+    )
+
+    assert response.status_code == 500
+
+    # A host that is not on it stays refused, so the case above is the allowlist working
+    # rather than the gate having quietly stopped running.
+    other = mcp_client.post(
+        "/endpoints/", json=_mcp_create_body("http://mcp.other.example:8080/mcp")
+    )
+
+    assert other.status_code == 400
+
+
+# ---------------------------------------------------------------------------
+# Negative control for the LLM plane, which still reads the webhook flag: the
+# same private-IP body that 400s above must NOT 400 when that flag is open.
+# Proves those rejections come from the flag being pinned False in this file,
+# not from a hardcoded 400.
+# ---------------------------------------------------------------------------
+
+
+def test_llm_create_endpoint_accepts_the_same_private_url_when_insecure_allowed(
+    llm_client, monkeypatch
+):
+    monkeypatch.setattr(WEBHOOK_FLAG, True, raising=False)
+
+    response = llm_client.post(
+        "/endpoints/", json=_llm_create_body("http://10.0.0.1/v1")
     )
 
     # Gate let it through (no 400); the stub service raises next.

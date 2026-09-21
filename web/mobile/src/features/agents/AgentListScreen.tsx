@@ -9,7 +9,7 @@ import {
 import {useWaitingByAgent} from "@agenta/sessions/state"
 import {pageContentWidthClass} from "@agenta/ui/components/page-width"
 import {useFilterMenuView} from "@agenta/ui/filter-menu"
-import {ListTableToolbar} from "@agenta/ui/list-table"
+import {ListTableToolbar, ListTableViewToggle} from "@agenta/ui/list-table"
 import {useQueryClient} from "@tanstack/react-query"
 import {useAtom, useAtomValue} from "jotai"
 import {useRouter} from "next/router"
@@ -58,7 +58,7 @@ const toRow = (workflow: Workflow, ownerName: string, waiting: number): AgentLis
  *
  * The roster is the shared `ListTable` — the frame the sessions and automations lists use — with
  * this app's columns and the shared agent kebab, so a row and an agent's own header offer the
- * same verbs.
+ * same verbs. It offers the frame's card view too, switched from the toolbar as on skills.
  *
  * Search and the filter menu sit in one toolbar above the results, the same row the automations
  * list opens with.
@@ -79,12 +79,12 @@ export const AgentListScreen = ({
     const waitingByAgent = useWaitingByAgent()
     const queryClient = useQueryClient()
 
-    // Grouping is a display preference a reader sets once; the filters are a question they were
-    // asking at the time, so only the first survives a reload.
+    // Grouping and the view mode are how a reader chose to read the list; the filters are a
+    // question they were asking at the time, so only the first two survive a reload.
     const [view, setView] = useFilterMenuView<AgentListView>({
         key: "agenta:agents:view",
         fallback: DEFAULT_AGENT_LIST_VIEW,
-        persist: ["group"],
+        persist: ["group", "mode"],
     })
 
     const showArchived = view.type === "archived"
@@ -132,10 +132,14 @@ export const AgentListScreen = ({
         else void queryClient.invalidateQueries({queryKey: ["workflows"]})
     }, [queryClient, refetchArchived, showArchived])
     const resetFilters = useCallback(
-        // The grouping survives: it is how the reader chose to read the list, not what they
-        // narrowed it to.
-        () => setView({...DEFAULT_AGENT_LIST_VIEW, group: view.group}),
-        [setView, view.group],
+        // The grouping and the mode survive: they are how the reader chose to read the list,
+        // not what they narrowed it to.
+        () => setView({...DEFAULT_AGENT_LIST_VIEW, group: view.group, mode: view.mode}),
+        [setView, view.group, view.mode],
+    )
+    const setMode = useCallback(
+        (mode: AgentListView["mode"]) => setView({...view, mode}),
+        [setView, view],
     )
 
     const emptyState = isLoading ? null : projectHasAgents ? (
@@ -154,7 +158,13 @@ export const AgentListScreen = ({
         // rather than sitting under a header row that is no longer describing anything.
         <AgentsError onRetry={retry} />
     ) : (
-        <AgentListTable groups={groups} isLoading={isLoading} onOpen={openRow} empty={emptyState} />
+        <AgentListTable
+            groups={groups}
+            view={view.mode}
+            isLoading={isLoading}
+            onOpen={openRow}
+            empty={emptyState}
+        />
     )
 
     return (
@@ -189,14 +199,26 @@ export const AgentListScreen = ({
                     <div className={`min-w-0 px-4 pb-12 pt-3 ${PAGE_FRAME}`}>
                         {/* Search belongs to the list, not to the page: it sits on the results'
                             own left edge so it reads as the control that narrows what is below
-                            it. One control beside it, not three: the facets and the grouping are
-                            rows inside it, so the bar stays a search bar. */}
+                            it. The facets and the grouping ride one control beside it, so the
+                            bar stays a search bar; the view switch takes the far edge, where it
+                            changes how the results are drawn rather than which ones are. */}
                         <ListTableToolbar
                             search={search}
                             onSearchChange={setSearch}
                             searchPlaceholder="Search agents by name…"
                             actions={
-                                <AgentFilterMenu view={view} onChange={setView} owners={owners} />
+                                <>
+                                    <AgentFilterMenu
+                                        view={view}
+                                        onChange={setView}
+                                        owners={owners}
+                                    />
+                                    <ListTableViewToggle
+                                        value={view.mode}
+                                        onChange={setMode}
+                                        className="ml-auto"
+                                    />
+                                </>
                             }
                         />
                         {body}

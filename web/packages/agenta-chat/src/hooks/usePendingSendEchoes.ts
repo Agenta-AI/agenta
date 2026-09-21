@@ -8,6 +8,7 @@ import {
     durableUserTurnIds,
     nextPendingSendCoverage,
     pendingSendEchoMessages,
+    pendingSendsInFlight,
     retirePendingSendEchoes,
     type PendingSendEcho,
 } from "../assets/pendingSendEchoes"
@@ -21,6 +22,8 @@ export interface PendingSendEchoInput {
 export interface PendingSendEchoes {
     /** Disposable user rows to render between the saved transcript and the live answer. */
     rows: UIMessage[]
+    /** A send left the composer and the runner has neither named its turn's row nor refused it. */
+    inFlight: boolean
     /** Show a send immediately, before its request leaves. */
     add: (input: PendingSendEchoInput) => void
     /** The server named the turn this send started; from here it retires on that id alone. */
@@ -152,6 +155,7 @@ export const usePendingSendEchoes = ({
     }, [])
 
     const rows = useMemo(() => pendingSendEchoMessages(visible), [visible])
+    const inFlight = useMemo(() => pendingSendsInFlight(visible), [visible])
 
-    return {rows, add, markAccepted, markParked, markFailed, drop}
+    return {rows, inFlight, add, markAccepted, markParked, markFailed, drop}
 }

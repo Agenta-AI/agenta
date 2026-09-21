@@ -44,13 +44,41 @@ const retryAfterSeconds = (value: unknown): number | undefined => {
     return Number.isFinite(parsed) && parsed >= 0 ? Math.ceil(parsed) : undefined
 }
 
+/**
+ * The byte figure the server named in a 413, or undefined when it named none.
+ *
+ * The limits are per deployment (`AGENTA_ATTACHMENTS_MAX_*_BYTES`), so this client's own
+ * constants are a guess about somebody else's configuration. A deployment that lowers the
+ * document limit rejects a file the client happily accepted, and quoting the constant back
+ * tells the person a number that is not the one they were measured against: the upload looks
+ * broken rather than too big. The server says `The attachment exceeds the <n>-byte limit.`, and
+ * the detail arrives either as that string or wrapped as `{message}` by the exception middleware.
+ */
+const serverLimitBytes = (data: unknown): number | undefined => {
+    const detail = (data as {detail?: unknown} | null | undefined)?.detail
+    const text =
+        typeof detail === "string"
+            ? detail
+            : typeof (detail as {message?: unknown} | null | undefined)?.message === "string"
+              ? ((detail as {message: string}).message ?? "")
+              : ""
+    const match = /(\d+)-byte limit/.exec(text)
+    if (!match) return undefined
+    const bytes = Number(match[1])
+    return Number.isSafeInteger(bytes) && bytes > 0 ? bytes : undefined
+}
+
 const errorForResponse = (error: unknown, file: File): AttachmentUploadError => {
     if (!isAxiosError(error) || !error.response) return new AttachmentUploadError()
 
     switch (error.response.status) {
         case 413: {
             const kind = kindForType(file.type || "application/octet-stream")
-            const limit = formatBytes(DEFAULT_ATTACHMENT_LIMITS.maxBytes[kind])
+            // Prefer the limit the server actually enforced; fall back to ours only when it
+            // said nothing, so an older backend still produces a sentence rather than a blank.
+            const limit = formatBytes(
+                serverLimitBytes(error.response.data) ?? DEFAULT_ATTACHMENT_LIMITS.maxBytes[kind],
+            )
             const label = kind === "other" ? "file" : kind
             return new AttachmentUploadError(`This file exceeds the ${limit} ${label} limit.`, {
                 retryable: false,
