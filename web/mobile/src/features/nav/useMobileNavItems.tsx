@@ -39,6 +39,8 @@ import {
 import {atom, useAtomValue, useSetAtom} from "jotai"
 import {unwrap} from "jotai/utils"
 
+import {startBlankSession} from "@/features/chat/useStartBlankSession"
+
 /** The drawer's scope id — its open-groups persistence bucket. */
 export const MOBILE_NAV_SCOPE_ID = "mobile-main"
 
@@ -96,6 +98,20 @@ const mobileSessionsEntity = defineSidebarEntity<SessionSidebarRef>(
         // Grouped by owning agent, pins in their own heading on top (#6125).
         getGroupKey: sidebarSessionGroupKey,
         groupsAtom: sidebarSessionGroupsAtomFamily(MOBILE_NAV_SCOPE_ID),
+        // An agent heading's "+" opens a blank session with that agent — the same start every
+        // other "+" in the app makes. The session id is minted on the click, so the anchor's
+        // own href is the agent's page: what a long-press / open-in-new-tab lands on.
+        groupAdd: (group, projectURL) =>
+            group.agentId
+                ? {
+                      link: `${projectURL}/agents/${group.agentId}`,
+                      label: `New session with ${group.label}`,
+                      onClick: (event) => {
+                          event.preventDefault()
+                          startBlankSession(projectURL, group.agentId!)
+                      },
+                  }
+                : undefined,
         toggleGroupAtom: sidebarSessionToggledGroupsAtomFamily(MOBILE_NAV_SCOPE_ID),
         // No visible cap: the rail renders every row it fetched, so nothing is dropped between
         // the request and the render. The server window is the only bound.

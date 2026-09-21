@@ -14,9 +14,6 @@ import {ListTableToolbar} from "@agenta/ui/list-table"
 import {useAtomValue, useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 
-import {PageTitle} from "@/components/PageTitle"
-import {ScreenScaffold} from "@/components/ScreenScaffold"
-
 import {useBindProjectContext} from "../context/useBindProjectContext"
 import {AppShell} from "../nav/AppShell"
 import {NavDrawer} from "../nav/NavDrawer"
@@ -27,6 +24,10 @@ import {SessionFilterMenu} from "./SessionFilterMenu"
 import {SessionListTable} from "./SessionListTable"
 import {activityFloorIso, DEFAULT_SESSION_LIST_VIEW, type SessionListView} from "./sessionListView"
 import {useSessionRowMenu} from "./useSessionRowMenu"
+
+import {PageTitle} from "@/components/PageTitle"
+import {ScreenScaffold} from "@/components/ScreenScaffold"
+import {useStartBlankSession} from "@/features/chat/useStartBlankSession"
 
 /**
  * The sessions page — the same table, toolbar and filter menu the automations page renders, over
@@ -112,6 +113,8 @@ export const SessionListScreen = ({
     // The shared row verbs — rename, pin, archive, delete — the same ones the agent overview and
     // the desktop list bind. Without them a row here offers only the pin.
     const sessionMenu = useSessionRowMenu(`/w/${workspaceId}/p/${projectId}`)
+    // An agent heading's "+": the same blank start every other "+" in the app makes.
+    const startBlank = useStartBlankSession(`/w/${workspaceId}/p/${projectId}`)
     const verbs = useMemo(
         () => ({
             open: sessionMenu.open,
@@ -185,6 +188,7 @@ export const SessionListScreen = ({
                             agentNames={agentNames}
                             agentNamesReady={!agentsQuery.isPending}
                             verbs={verbs}
+                            onNewSession={startBlank}
                             onClearSearch={clearSearch}
                             onResetView={resetView}
                         />

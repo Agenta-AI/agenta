@@ -91,6 +91,7 @@ const groupedChildren = (
     source: SidebarEntitySource,
     refs: SidebarEntityRef[],
     toRow: (ref: SidebarEntityRef, dragZone?: string) => SidebarConfig,
+    projectURL: string,
 ): SidebarConfig[] => {
     const rowsByGroup = new Map<string, SidebarEntityRef[]>()
     for (const ref of refs) {
@@ -116,6 +117,7 @@ const groupedChildren = (
             isGroupLabel: true,
             isDynamic: true,
             isCollapsed,
+            groupAdd: entity.groupAddLink?.(group, projectURL),
             dragItem:
                 groupZone && groupId ? {kind: "group", id: groupId, zone: groupZone} : undefined,
             onClick: entity.toggleGroupAtom
@@ -252,7 +254,7 @@ export const resolveChildren = (
 
     const children: SidebarConfig[] =
         entity.getGroupKey && source?.groups?.length
-            ? groupedChildren(entity, source, visibleRefs, toRow)
+            ? groupedChildren(entity, source, visibleRefs, toRow, projectURL)
             : // An ungrouped entity arranges its whole list in one zone.
               visibleRefs.map((ref) => toRow(ref, entity.dragZone))
 
