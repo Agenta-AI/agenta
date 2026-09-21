@@ -157,6 +157,11 @@
 
   // ---- saving ----------------------------------------------------------------
 
+  /** Whether local edits should hold a reload back. Only edits something will actually write
+   *  do: a read-only board never calls save(), so `dirty` there means scratch the viewer was
+   *  told is "not saved", and holding on it froze the board at their first touch. */
+  const holdsReload = () => drag || saving || (dirty && agenta.canWrite);
+
   function scheduleSave() {
     dirty = true;
     render();
@@ -189,7 +194,7 @@
     } finally {
       saving = false;
       render();
-      if (pendingReload && !dirty) { pendingReload = false; load().catch(report); }
+      if (pendingReload && !holdsReload()) { pendingReload = false; load().catch(report); }
     }
   }
 
@@ -315,7 +320,7 @@
     const over = ev.type === "pointerup" ? columnAt(ev.clientX, ev.clientY) : null;
     for (const c of el.columns.children) c.classList.remove("drop-target");
     if (over) moveCard(cardId, fromId, over.dataset.col);
-    if (pendingReload && !dirty) { pendingReload = false; load().catch(report); }
+    if (pendingReload && !holdsReload()) { pendingReload = false; load().catch(report); }
   }
 
   // ---- bridge events -------------------------------------------------------------
@@ -324,7 +329,7 @@
     const paths = (msg && msg.paths) || [];
     if (!paths.some((p) => p === BOARD_FILE || p === CONFIG_FILE)) return;
     // Our own pending write will merge on conflict; a re-read now would drop local edits.
-    if (drag || saving || dirty) { pendingReload = true; return; }
+    if (holdsReload()) { pendingReload = true; return; }
     load().catch(report);
   }
 
