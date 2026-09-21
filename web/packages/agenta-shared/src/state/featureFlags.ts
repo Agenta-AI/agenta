@@ -40,18 +40,18 @@ const scopedKey = (userId: string, key: string) => `agenta:settings:${userId}:${
 /**
  * A boolean preference scoped to whoever is signed in.
  *
- * Reads `false` and writes nothing while the user is unknown: a preference written under no
+ * Reads the default and writes nothing while the user is unknown: a preference written under no
  * user would be inherited by the next person to sign in on this browser.
  */
-const userScopedFlagAtom = (key: string) => {
+const userScopedFlagAtom = (key: string, defaultValue = false) => {
     const family = atomFamily((userId: string) =>
-        atomWithStorage<boolean>(scopedKey(userId, key), false),
+        atomWithStorage<boolean>(scopedKey(userId, key), defaultValue),
     )
 
     return atom(
         (get) => {
             const userId = get(activeUserIdAtom)
-            if (!userId) return false
+            if (!userId) return defaultValue
             return get(family(userId))
         },
         (get, set, next: boolean) => {
@@ -67,6 +67,9 @@ export const playgroundInspectorEnabledAtom = userScopedFlagAtom("playground-ins
 
 /** Temporary channel probe page, kept separate from the permanent Channels settings tab. */
 export const agentaChannelSurfaceEnabledAtom = userScopedFlagAtom("agenta-channel-surface")
+
+/** Show Channels controls; existing connections keep running when hidden. */
+export const channelsEnabledAtom = userScopedFlagAtom("channels", true)
 
 /** Debug switch for the log and diagnostic sections of the Channels settings tab. */
 export const channelDebugEnabledAtom = userScopedFlagAtom("channel-debug")

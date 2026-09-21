@@ -10,6 +10,8 @@ from uuid import uuid4
 
 from unittest.mock import AsyncMock, MagicMock
 
+import pytest
+
 from oss.src.core.channels.dtos import (
     ChannelAgent,
     ChannelAgentData,
@@ -971,9 +973,22 @@ class TestApprovalAnswer:
             }
         )
 
-    async def test_the_answer_reaches_the_respond_path_and_opens_no_turn(self):
+    @pytest.mark.parametrize(
+        "token,approved,label",
+        [
+            ("approve", True, "Approve"),
+            ("11111111-1111-4111-8111-111111111111:approve", True, "Approve"),
+            ("deny", False, "Deny"),
+            ("11111111-1111-4111-8111-111111111111:deny", False, "Deny"),
+        ],
+    )
+    async def test_the_answer_reaches_the_respond_path_and_opens_no_turn(
+        self, token, approved, label
+    ):
         event = _make_event()
-        resolution = self._answering_resolution()
+        resolution = self._answering_resolution().model_copy(
+            update={"resolved_token": token, "resolved_choice": label}
+        )
         channels_service = _make_channels_service(resolution=resolution)
         channels_service.set_pending_choice = AsyncMock()
         invoke_fn = AsyncMock()
@@ -991,7 +1006,7 @@ class TestApprovalAnswer:
         respond_fn.assert_awaited_once()
         kwargs = respond_fn.call_args.kwargs
         assert str(kwargs["interaction_id"]) == "11111111-1111-4111-8111-111111111111"
-        assert kwargs["answer"] == {"approved": True, "message": "Approve"}
+        assert kwargs["answer"] == {"approved": approved, "message": label}
         # answered once: the pending choice is cleared so a second click is inert
         channels_service.set_pending_choice.assert_awaited_once()
         assert (

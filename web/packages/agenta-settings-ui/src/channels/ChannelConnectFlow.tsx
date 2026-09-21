@@ -136,6 +136,7 @@ export const ChannelConnectFlow = ({
 
     const alive = useRef(true)
     const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+    const feedbackTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
     // The polls below call the latest `onConnected` without restarting on every render.
     const onConnectedRef = useRef(onConnected)
     onConnectedRef.current = onConnected
@@ -144,12 +145,18 @@ export const ChannelConnectFlow = ({
         return () => {
             alive.current = false
             clearTimeout(timer.current)
+            clearTimeout(feedbackTimer.current)
         }
     }, [])
 
     const later = (fn: () => void, ms: number) => {
         clearTimeout(timer.current)
         timer.current = setTimeout(fn, ms)
+    }
+
+    const feedbackLater = (fn: () => void, ms: number) => {
+        clearTimeout(feedbackTimer.current)
+        feedbackTimer.current = setTimeout(fn, ms)
     }
 
     // Load the declared fields (and manifest) the first time the custom mode opens. The
@@ -216,7 +223,8 @@ export const ChannelConnectFlow = ({
     // Poll the bindings while the link is on screen (QR or waiting): a scan from a phone
     // never clicks the button, so the QR step must detect the /start too.
     useEffect(() => {
-        if ((tgStep !== "waiting" && tgStep !== "qr") || !tgLink) return
+        if (isSlack || mode !== "hosted" || (tgStep !== "waiting" && tgStep !== "qr") || !tgLink)
+            return
         let cancelled = false
         const deadline = tgExpiresAt
         const tick = async () => {
@@ -243,7 +251,7 @@ export const ChannelConnectFlow = ({
             cancelled = true
             clearTimeout(timer.current)
         }
-    }, [tgStep, tgLink, tgBaseline, tgExpiresAt, actions, pollIntervalMs])
+    }, [isSlack, mode, tgStep, tgLink, tgBaseline, tgExpiresAt, actions, pollIntervalMs])
 
     // --- hosted Slack: open the install, then wait for the connection --------- //
     const startSlackInstall = async () => {
@@ -271,19 +279,22 @@ export const ChannelConnectFlow = ({
     }
 
     useEffect(() => {
-        if (!authorizing || !slackInstallUrl) return
+        if (!isSlack || mode !== "hosted" || !authorizing || !slackInstallUrl) return
         let cancelled = false
         const deadline = Date.now() + SLACK_INSTALL_TIMEOUT_MS
         const tick = async () => {
             if (cancelled) return
             try {
                 const connections = await actions.reload()
+                if (cancelled) return
                 const slack = connections.slack
-                if (slack?.connectionId) {
-                    // The install created the connection; point it at this agent. This runs
-                    // even if the reload above already switched the page to the manage view
-                    // and unmounted this flow: the retarget is idempotent, and skipping it
-                    // would leave a connection that answers as no agent.
+                if (
+                    slack?.connectionId &&
+                    slack.kind === "hosted" &&
+                    slack.status === "connected"
+                ) {
+                    // The parent keeps this attempt mounted until onConnected. A cancelled
+                    // or closed attempt must never retarget the installed connection.
                     await actions.connectHere("slack", slack.connectionId)
                     await actions.reload()
                     if (cancelled) return
@@ -312,7 +323,7 @@ export const ChannelConnectFlow = ({
             cancelled = true
             clearTimeout(timer.current)
         }
-    }, [authorizing, slackInstallUrl, actions, pollIntervalMs])
+    }, [isSlack, mode, authorizing, slackInstallUrl, actions, pollIntervalMs])
 
     // --- custom: submit the declared fields ----------------------------------- //
     const fields: ChannelSetupField[] = setup?.fields ?? []
@@ -586,7 +597,7 @@ export const ChannelConnectFlow = ({
                                             const ok = await copyText(setup.manifest)
                                             setCopied(ok)
                                             if (!ok) setManifestOpen(true)
-                                            later(() => setCopied(false), 1800)
+                                            feedbackLater(() => setCopied(false), 1800)
                                         }}
                                     >
                                         {copied ? (
@@ -763,7 +774,7 @@ export const ChannelConnectFlow = ({
                                 onClick={async () => {
                                     const ok = await copyText(tgLink.url)
                                     setLinkCopied(ok)
-                                    later(() => setLinkCopied(false), 1800)
+                                    feedbackLater(() => setLinkCopied(false), 1800)
                                 }}
                             >
                                 {linkCopied ? "Link copied" : "Copy the link instead"}

@@ -191,7 +191,7 @@ Recovery recipe (to redeploy for live QA; see deploy-worktree-testing skill):
    (agenta-ee-dev-channels-*:latest), runner login mounts
    (/home/mahmoud/agenta-qa-logins/{claude,codex,pi-agent}) + CLAUDE_CONFIG_DIR/
    CODEX_HOME/PI_CODING_AGENT_DIR, and hosted env on api+worker-queues+worker-streams:
-   TELEGRAM_HOSTED_BOT_TOKEN=8950712471:AAHy_T8wxHF99NxH_isKJ9RD0CrGSAauefo,
+   TELEGRAM_HOSTED_BOT_TOKEN=<TELEGRAM_BOT_TOKEN>,
    TELEGRAM_HOSTED_WEBHOOK_SECRET=<generate a fresh one>, TELEGRAM_HOSTED_BOT_USERNAME=newagentabot.
 3. chmod o+w web/ee/public web/oss/public (uid 10001 writes __env.js).
 4. Recreate: docker compose -p agenta-ee-dev-channels --env-file .env.ee.dev.channels

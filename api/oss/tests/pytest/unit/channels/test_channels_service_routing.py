@@ -652,7 +652,8 @@ class TestActionResolution:
         assert result is None
         dao.create_thread.assert_not_called()
 
-    async def test_a_token_from_a_superseded_choice_is_ignored(self):
+    @pytest.mark.parametrize("candidate", ["approve", "old:approve", "1", "Approve"])
+    async def test_a_token_from_a_superseded_choice_is_ignored(self, candidate):
         """A newer choice already replaced the thread's pending_choice
         field wholesale -- the old token from an hour-old question is
         simply absent from it now, and this must not answer anything."""
@@ -661,7 +662,9 @@ class TestActionResolution:
         capabilities = await adapter.fetch_capabilities()
         space = _make_space(capabilities=capabilities)
         agent = _make_agent(slug="triage")
-        current_pending = _pending_choice(("Yes", "yes"), ("No", "no"))
+        current_pending = _pending_choice(
+            ("Approve", "new:approve"), ("Deny", "new:deny")
+        )
         thread = ChannelThread(
             id=uuid4(),
             space_id=space.id,
@@ -679,8 +682,8 @@ class TestActionResolution:
         dao.count_grants = AsyncMock(return_value=0)
 
         service = _make_service(dao=dao, adapter=adapter)
-        # "approve" answered the OLD (now-superseded) choice
-        event = _make_event(text="approve")
+        # ACTION callbacks cannot fall back to a label or numbered text answer.
+        event = _make_event(text=candidate)
         event.kind = ChannelEventKind.ACTION
 
         result = await service.resolve(

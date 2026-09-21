@@ -49,6 +49,8 @@ export interface ChannelsPageProps {
     connections?: ChannelConnections
     /** True while the host is loading `connections` for the first time. */
     loading?: boolean
+    loadError?: string | null
+    onRetry?: () => Promise<void>
     /** The real actions; defaults to no-op actions for previews. */
     actions?: ChannelsActions
     /** Host-provided sliding container: antd/@agenta drawer on desktop, a Sheet on /m. */
@@ -65,11 +67,14 @@ export const ChannelsPage = ({
     workspaceName = "your workspace",
     connections = EMPTY_CONNECTIONS,
     loading = false,
+    loadError = null,
+    onRetry,
     actions = NOOP_ACTIONS,
     renderPanel,
     hostedHandle = "@agenta",
 }: ChannelsPageProps) => {
     const [activePlatform, setActivePlatform] = useState<ChannelPlatform | null>(null)
+    const [retrying, setRetrying] = useState(false)
     // A connected platform normally opens the manage view. This holds the tab to open when the
     // manage view sends the user back into the connect flow: a bot of this agent's own, or a
     // second attempt at an install the platform threw away.
@@ -80,10 +85,16 @@ export const ChannelsPage = ({
         setForceConnect(null)
     }, [])
 
-    const open = useCallback((platform: ChannelPlatform) => {
-        setForceConnect(null)
-        setActivePlatform(platform)
-    }, [])
+    const open = useCallback(
+        (platform: ChannelPlatform) => {
+            const connection = connections[platform]
+            // Keep an install mounted while polling publishes the new connection.
+            // Only onConnected may switch this attempt to the manage panel.
+            setForceConnect(!connection || connection.status === "pending" ? "hosted" : null)
+            setActivePlatform(platform)
+        },
+        [connections],
+    )
 
     // A pending connection (link minted, no chat bound yet) opens the connect flow, not manage.
     const current = activePlatform ? connections[activePlatform] : null
@@ -107,7 +118,31 @@ export const ChannelsPage = ({
                     </div>
                 </div>
                 <div className="flex flex-col px-4 pb-3">
-                    {nothingConnected && !loading ? (
+                    {loadError ? (
+                        <div role="alert" className="mb-2 text-xs text-colorError">
+                            {loadError}
+                            {onRetry ? (
+                                <button
+                                    type="button"
+                                    disabled={retrying}
+                                    onClick={async () => {
+                                        setRetrying(true)
+                                        try {
+                                            await onRetry()
+                                        } catch {
+                                            // The host retains the error until a successful reload.
+                                        } finally {
+                                            setRetrying(false)
+                                        }
+                                    }}
+                                    className="ml-2 cursor-pointer border-0 bg-transparent text-colorPrimary underline"
+                                >
+                                    {retrying ? "Retrying…" : "Try again"}
+                                </button>
+                            ) : null}
+                        </div>
+                    ) : null}
+                    {nothingConnected && !loading && !loadError ? (
                         <p className="m-0 mb-1 text-xs leading-normal text-colorTextSecondary">
                             Talk to {agentName} from the chat tools your team already uses.
                         </p>
@@ -119,7 +154,7 @@ export const ChannelsPage = ({
                             <button
                                 key={platform}
                                 type="button"
-                                disabled={loading}
+                                disabled={loading || !!loadError}
                                 onClick={() => open(platform)}
                                 className="flex cursor-pointer items-center gap-2.5 border-0 bg-transparent px-0 py-2.5 text-left disabled:cursor-default"
                                 data-testid={`channels-row-${platform}`}
@@ -137,10 +172,14 @@ export const ChannelsPage = ({
                                         ) : null}
                                     </span>
                                     <span className={`truncate text-xs ${summary.subClass}`}>
-                                        {loading ? "Loading…" : summary.sub}
+                                        {loading
+                                            ? "Loading…"
+                                            : loadError
+                                              ? "Unavailable"
+                                              : summary.sub}
                                     </span>
                                 </span>
-                                {loading ? null : summary.action === "manage" ? (
+                                {loading || loadError ? null : summary.action === "manage" ? (
                                     <CaretRight
                                         size={14}
                                         className="flex-shrink-0 text-colorTextTertiary"

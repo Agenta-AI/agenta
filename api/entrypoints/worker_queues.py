@@ -154,12 +154,6 @@ def _selected_queues() -> List[str]:
             f"AGENTA_WORKER_QUEUES has unknown entries: {sorted(unknown)}; "
             f"expected a subset of {ALL_QUEUES}"
         )
-    # The deployment flag gates the feature end to end: with channels off the
-    # API stops enqueueing, and this consumer must stop draining what is queued,
-    # or a disabled deployment keeps invoking agents from its backlog.
-    if "channels-inbox" in selected and not env.channels.enabled:
-        log.info("[QUEUES] channels disabled; not consuming queues:channels-inbox")
-        selected = [name for name in selected if name != "channels-inbox"]
     return selected
 
 

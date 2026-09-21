@@ -90,8 +90,8 @@ class ChannelsOutboxWorker:
         self._progress_tasks: Dict[str, asyncio.Task] = {}
         # Resolves the real SessionInteraction row id for an approval card. The
         # fold carries the runner's ACP token, not the row id the sessions
-        # respond path answers by; None means approvals render but cannot be
-        # answered (the click is logged and dropped downstream).
+        # respond path answers by. Without this service, do not publish
+        # actionable approval cards.
         self.interactions_service = interactions_service
 
     # --- driven by the session-turn stream ---------------------------------#
@@ -413,6 +413,24 @@ class ChannelsOutboxWorker:
                     turn_id=turn_id,
                     token=item.interaction_id,
                 )
+                if interaction_id is None:
+                    log.info(
+                        "[SESSIONS-OUTBOX] no pending interaction for approval "
+                        "turn=%s session=%s; ignoring the card",
+                        turn_id,
+                        session_id,
+                    )
+                    continue
+                # Bind callbacks to the row, not the reusable approve/deny labels.
+                tokens = {
+                    option.token: f"{interaction_id}:{option.token}"
+                    for option in item.choice
+                }
+                for option in item.choice:
+                    option.token = tokens[option.token]
+                for part in item.parts:
+                    if part.type == "button" and part.value in tokens:
+                        part.value = tokens[part.value]
                 await self.channels_service.set_pending_choice(
                     project_id=project_id,
                     thread_id=thread.id,

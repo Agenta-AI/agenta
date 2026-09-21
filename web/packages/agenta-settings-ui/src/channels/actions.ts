@@ -413,13 +413,13 @@ export const buildAgentChannelsActions = ({
         await Promise.all(
             rows.map(async (connection) => {
                 if (!connection.connectionId) return
-                try {
-                    const answering = answeringAgentRow(await agentsOf(connection.connectionId))
-                    const id = answering ? referencedAppId(answering) : null
-                    connection.agent = id ? {id, name: resolveAgentName(id)} : null
-                } catch {
-                    connection.agent = undefined // unresolved: treated as "here"
-                }
+                const answering = answeringAgentRow(
+                    await agentsOf(connection.connectionId).catch(
+                        rethrow("Could not determine which agent answers on this connection."),
+                    ),
+                )
+                const id = answering ? referencedAppId(answering) : null
+                connection.agent = id ? {id, name: resolveAgentName(id)} : null
                 // The row's copy counts the places it answers in ("1 group + DMs"). One call
                 // per connection, and a failure only costs the count, not the row.
                 try {
@@ -437,12 +437,10 @@ export const buildAgentChannelsActions = ({
                     connection.kind === "hosted" &&
                     connection.status === "connected"
                 ) {
-                    try {
-                        const bound = await countHostedTelegramBindings(connection.connectionId)
-                        if (bound === 0) connection.status = "pending"
-                    } catch {
-                        /* unknown: keep "connected" rather than hide a live connection */
-                    }
+                    const bound = await countHostedTelegramBindings(connection.connectionId).catch(
+                        rethrow("Could not check whether Telegram is linked. Try again."),
+                    )
+                    if (bound === 0) connection.status = "pending"
                 }
             }),
         )

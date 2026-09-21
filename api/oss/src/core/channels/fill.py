@@ -85,6 +85,7 @@ async def run_backfill(
     events = [
         ChannelInboxEventCreate(
             connection_id=connection.id,
+            space_id=space.id,
             external_id=inbound.external_id,
             kind=inbound.kind,
             origin=ChannelEventOrigin.PULLED,

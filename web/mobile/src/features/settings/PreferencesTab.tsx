@@ -2,6 +2,7 @@ import {PreferencesPage, type ThemePickerProps} from "@agenta/settings-ui"
 import {desktopEscapeHref, writeClassicModeCookie} from "@agenta/shared/hooks"
 import {
     channelDebugEnabledAtom,
+    channelsEnabledAtom,
     classicModeEnabledAtom,
     playgroundInspectorEnabledAtom,
 } from "@agenta/shared/state"
@@ -15,6 +16,7 @@ export const PreferencesTab = ({theme}: {theme: ThemePickerProps}) => {
     const [classicMode, setClassicMode] = useAtom(classicModeEnabledAtom)
     const [inspector, setInspector] = useAtom(playgroundInspectorEnabledAtom)
     const [channelDebug, setChannelDebug] = useAtom(channelDebugEnabledAtom)
+    const [channelsEnabled, setChannelsEnabled] = useAtom(channelsEnabledAtom)
 
     const onClassicModeChange = (enabled: boolean) => {
         setClassicMode(enabled)
@@ -44,6 +46,14 @@ export const PreferencesTab = ({theme}: {theme: ThemePickerProps}) => {
                     enabled: inspector,
                     onChange: setInspector,
                     badge: "DEBUG",
+                },
+                {
+                    key: "channels",
+                    title: "Show Channels",
+                    description:
+                        "Show Channels on agent pages and in Settings. Existing connections keep replying when hidden. Disconnect a connection to stop its replies.",
+                    enabled: channelsEnabled,
+                    onChange: setChannelsEnabled,
                 },
                 {
                     key: "channel-debug",

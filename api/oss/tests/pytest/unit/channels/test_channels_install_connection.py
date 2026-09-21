@@ -6,6 +6,7 @@ test that only counted rows could not tell an upsert from an accidental
 insert-that-happened-to-work.
 """
 
+from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 from unittest.mock import AsyncMock, MagicMock
 from uuid import UUID, uuid4
@@ -238,6 +239,38 @@ async def test_reinstall_reactivates_a_connection_app_uninstalled_had_deactivate
     )
 
     assert result.flags.is_active is True
+
+
+async def test_reinstall_restores_an_archived_connection_and_its_agents():
+    project_id, user_id = uuid4(), uuid4()
+    existing = ChannelConnection(
+        id=uuid4(),
+        slug="slack-hosted",
+        channel="slack",
+        external_key=uuid4(),
+        deleted_at=datetime.now(timezone.utc),
+        data={"api_app_id": "A1", "enterprise_id": "", "team_id": "T1"},
+        flags=ChannelConnectionFlags(is_hosted=True, is_verified=True),
+    )
+    dao = _fake_dao(existing=existing, existing_project_id=project_id)
+    restored = existing.model_copy(update={"deleted_at": None})
+    dao.unarchive_connection = AsyncMock(return_value=restored)
+    service = _service(
+        dao=dao,
+        adapter=_FakeAdapter(discovered={"team_id": "T1"}),
+        vault=_FakeVaultService(),
+    )
+
+    result = await service.install_connection(
+        project_id=project_id, user_id=user_id, connection=_install_create()
+    )
+
+    assert result.deleted_at is None
+    assert result.id == existing.id
+    dao.unarchive_connection.assert_awaited_once_with(
+        project_id=project_id, user_id=user_id, connection_id=existing.id
+    )
+    dao.create_connection.assert_not_awaited()
 
 
 async def test_reinstall_rotates_the_existing_secret_rather_than_creating_a_new_one():

@@ -87,11 +87,6 @@ def _selected_streams() -> List[str]:
             f"AGENTA_WORKER_STREAMS has unknown entries: {sorted(unknown)}; "
             f"expected a subset of {ALL_STREAMS}"
         )
-    # The `sessions` loop is the channels outbox and nothing else: with the
-    # deployment flag off it must not post queued answers to any platform.
-    if "sessions" in selected and not env.channels.enabled:
-        log.info("[STREAMS] channels disabled; not consuming streams:sessions")
-        selected = [name for name in selected if name != "sessions"]
     return selected
 
 

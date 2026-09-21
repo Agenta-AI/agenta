@@ -5,7 +5,6 @@
 export {
     getEnv,
     isBillingEnabled,
-    isChannelsEnabled,
     isEE,
     isEmailInvitationsEnabled,
     isToolsEnabled,

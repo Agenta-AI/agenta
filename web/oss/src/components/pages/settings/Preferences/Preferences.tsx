@@ -2,6 +2,7 @@ import {PreferencesPage} from "@agenta/settings-ui"
 import {
     agentaChannelSurfaceEnabledAtom,
     channelDebugEnabledAtom,
+    channelsEnabledAtom,
     classicModeEnabledAtom,
     playgroundInspectorEnabledAtom,
 } from "@agenta/shared/state"
@@ -21,6 +22,7 @@ const Preferences = () => {
         agentaChannelSurfaceEnabledAtom,
     )
     const [channelDebugEnabled, setChannelDebugEnabled] = useAtom(channelDebugEnabledAtom)
+    const [channelsEnabled, setChannelsEnabled] = useAtom(channelsEnabledAtom)
 
     return (
         <PreferencesPage
@@ -53,6 +55,14 @@ const Preferences = () => {
                     enabled: agentaChannelSurfaceEnabled,
                     onChange: setAgentaChannelSurfaceEnabled,
                     badge: "DEBUG",
+                },
+                {
+                    key: "channels",
+                    title: "Show Channels",
+                    description:
+                        "Show Channels on agent pages and in Settings. Existing connections keep replying when hidden. Disconnect a connection to stop its replies.",
+                    enabled: channelsEnabled,
+                    onChange: setChannelsEnabled,
                 },
                 {
                     key: "channel-debug",

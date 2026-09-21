@@ -684,12 +684,109 @@ async def test_pending_interaction_writes_the_thread_s_pending_choice(
     stored = channels_dao.threads[thread.id]
     assert stored.data.pending_choice is not None
     tokens = {c.token for c in stored.data.pending_choice.choices}
-    assert tokens == {"approve", "deny"}
+    assert tokens == {"row-int-1:approve", "row-int-1:deny"}
     labels = {c.label for c in stored.data.pending_choice.choices}
     assert labels == {"Approve", "Deny"}
     # the parked interaction the answer must go to, so the click can resume it
     # the row id the sessions respond path answers by, resolved from the token
     assert stored.data.pending_choice.interaction_id == "row-int-1"
+
+
+@pytest.mark.asyncio
+async def test_card_without_a_pending_session_interaction_is_not_published(
+    worker, channels_dao, records_dao
+):
+    session_id = "approval-no-pending-row"
+    _, thread = await _seed_connection_and_thread(channels_dao, session_id)
+    worker.interactions_service = _FakeInteractionsService(rows=[])
+    records_dao.seed(
+        session_id=session_id,
+        turn_id="old-turn",
+        record_type="interaction_request",
+        attributes={"id": "old-token", "payload": {"toolCall": {"name": "test_tool"}}},
+    )
+    records_dao.seed(
+        session_id=session_id,
+        turn_id="old-turn",
+        record_type="done",
+        attributes={"stopReason": "paused"},
+    )
+
+    await worker.on_turn_ended(
+        project_id=PROJECT_ID,
+        thread=thread,
+        turn_id="old-turn",
+        session_id=session_id,
+    )
+
+    assert channels_dao.threads[thread.id].data.pending_choice is None
+    assert all(not row.data.external_locator for row in channels_dao.outbox.values())
+
+
+@pytest.mark.asyncio
+async def test_old_card_cannot_answer_a_new_interaction(
+    worker, channels_dao, records_dao
+):
+    from oss.src.core.channels.service import resolve_pending_choice
+
+    session_id = "approval-supersession"
+    _, thread = await _seed_connection_and_thread(channels_dao, session_id)
+    callbacks = []
+    for token in ("old-request", "new-request"):
+        row_id = str(uuid4())
+        worker.interactions_service = _FakeInteractionsService(
+            token=token, row_id=row_id
+        )
+        records_dao.seed(
+            session_id=session_id,
+            turn_id=token,
+            record_type="interaction_request",
+            attributes={"id": token, "payload": {"toolCall": {"name": "test_tool"}}},
+        )
+        records_dao.seed(
+            session_id=session_id,
+            turn_id=token,
+            record_type="done",
+            attributes={"stopReason": "paused"},
+        )
+        await worker.on_turn_ended(
+            project_id=PROJECT_ID,
+            thread=thread,
+            turn_id=token,
+            session_id=session_id,
+        )
+        row = list(channels_dao.outbox.values())[-1]
+        callback = next(
+            p["value"] for p in row.data.processed["content"] if p["type"] == "button"
+        )
+        assert callback == f"{row_id}:approve"
+        assert len(callback.encode()) <= 64
+        callbacks.append(callback)
+
+    pending = channels_dao.threads[thread.id].data.pending_choice
+    assert (
+        resolve_pending_choice(
+            pending_choice=pending, candidate=callbacks[0], allow_text=False
+        )
+        is None
+    )
+    assert (
+        resolve_pending_choice(
+            pending_choice=pending, candidate="approve", allow_text=False
+        )
+        is None
+    )
+    assert (
+        resolve_pending_choice(
+            pending_choice=pending, candidate=callbacks[1], allow_text=False
+        )
+        == callbacks[1]
+    )
+    assert resolve_pending_choice(pending_choice=pending, candidate="1") == callbacks[1]
+    assert (
+        resolve_pending_choice(pending_choice=pending, candidate="Approve")
+        == callbacks[1]
+    )
 
 
 @pytest.mark.asyncio

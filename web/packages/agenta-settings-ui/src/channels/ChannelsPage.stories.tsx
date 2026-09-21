@@ -46,6 +46,16 @@ type Story = StoryObj
 
 const setup = {setup: {slack: SLACK_SETUP, telegram: TELEGRAM_SETUP}}
 
+export const LoadFailed: Story = {
+    render: () => (
+        <ChannelsPage
+            loadError="Could not load Channels. Try again."
+            onRetry={async () => undefined}
+            renderPanel={() => null}
+        />
+    ),
+}
+
 /** Nothing connected: both rows carry the pitch and a Connect button. */
 export const NothingConnected: Story = {
     render: () => <ChannelsPageHost options={setup} />,

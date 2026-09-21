@@ -151,6 +151,7 @@ class TestBackfillFetch:
         assert len(kwargs["events"]) == 1
         assert kwargs["events"][0].origin == ChannelEventOrigin.PULLED
         assert kwargs["events"][0].connection_id == connection.id
+        assert kwargs["events"][0].space_id == space.id
         dao.mark_space_backfilled.assert_awaited_once()
 
     async def test_empty_fetch_still_sets_the_flag(self):

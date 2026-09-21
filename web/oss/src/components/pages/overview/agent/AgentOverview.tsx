@@ -2,7 +2,9 @@ import {useCallback} from "react"
 
 import {AgentOverviewBody} from "@agenta/entity-ui/agent"
 import {sessionRouteModes} from "@agenta/sessions/state"
+import {channelsEnabledAtom} from "@agenta/shared/state"
 import {RichChatInput} from "@agenta/ui/rich-chat-input"
+import {useAtomValue} from "jotai"
 
 import {useStartAgentSession} from "@/oss/components/AgentChatSlice/hooks/useStartAgentSession"
 import {useSessionCardVerbs} from "@/oss/components/pages/sessions/components/useSessionCardVerbs"
@@ -41,6 +43,7 @@ interface Props {
  */
 const AgentOverview = ({appId, agentName}: Props) => {
     const startSession = useStartAgentSession()
+    const channelsEnabled = useAtomValue(channelsEnabledAtom)
 
     // "View all" stays on this agent's rail rather than dropping you on the project list with a
     // filter you then have to trust.
@@ -71,7 +74,11 @@ const AgentOverview = ({appId, agentName}: Props) => {
     return (
         <AgentOverviewBody
             agentId={appId}
-            channels={<AgentChannelsCard appId={appId} agentName={agentName ?? undefined} />}
+            channels={
+                channelsEnabled ? (
+                    <AgentChannelsCard appId={appId} agentName={agentName ?? undefined} />
+                ) : null
+            }
             sessionsHref={sessionsHref ?? ""}
             automationSessionsHref={automationSessionsHref}
             onEditConfig={openConfig}

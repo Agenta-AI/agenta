@@ -23,6 +23,7 @@ const AgentChannelsCard = ({appId, agentName}: {appId: string; agentName?: strin
     const apps = useAtomValue(appsAtom)
     const [connections, setConnections] = useState<ChannelConnections>(EMPTY_CONNECTIONS)
     const [loading, setLoading] = useState(true)
+    const [loadError, setLoadError] = useState<string | null>(null)
     // The newest reload owns the state: a slow earlier read must not overwrite it.
     const reloadSeq = useRef(0)
 
@@ -44,9 +45,19 @@ const AgentChannelsCard = ({appId, agentName}: {appId: string; agentName?: strin
             ...built,
             reload: async () => {
                 const seq = ++reloadSeq.current
-                const next = await built.reload()
-                if (seq === reloadSeq.current) setConnections(next)
-                return next
+                try {
+                    const next = await built.reload()
+                    if (seq === reloadSeq.current) {
+                        setConnections(next)
+                        setLoadError(null)
+                    }
+                    return next
+                } catch (error) {
+                    if (seq === reloadSeq.current) {
+                        setLoadError("Could not load Channels. Try again.")
+                    }
+                    throw error
+                }
             },
         }
     }, [appId, resolveAgentName])
@@ -56,14 +67,13 @@ const AgentChannelsCard = ({appId, agentName}: {appId: string; agentName?: strin
         setLoading(true)
         actions
             .reload()
-            .catch(() => {
-                /* the rows show the last known state; a failed first load reads as empty */
-            })
+            .catch(() => undefined)
             .finally(() => {
                 if (alive) setLoading(false)
             })
         return () => {
             alive = false
+            reloadSeq.current++
         }
     }, [actions])
 
@@ -97,6 +107,8 @@ const AgentChannelsCard = ({appId, agentName}: {appId: string; agentName?: strin
             agentName={agentName}
             connections={connections}
             loading={loading}
+            loadError={loadError}
+            onRetry={() => actions.reload().then(() => undefined)}
             actions={actions}
             renderPanel={renderPanel}
         />

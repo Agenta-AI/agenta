@@ -17,8 +17,10 @@ bot of their own from [@BotFather](https://t.me/BotFather). The hosted bot only 
 
 - The deployment must be reachable from the internet over HTTPS. Telegram delivers updates to a
   public HTTPS URL and does not accept a private address.
-- Channels must be on: `AGENTA_CHANNELS_ENABLED=true` on the `api`, `worker-queues` and
-  `worker-streams` services, and `NEXT_PUBLIC_AGENTA_CHANNELS_ENABLED=true` on the web service.
+- Channels is available by default. It needs no environment feature flag.
+  **Settings > Preferences > Show Channels** controls only UI visibility for the current
+  user in this browser. Existing connections keep replying when hidden. Disconnect a
+  connection to stop its replies. **Channel debug** separately shows diagnostic records.
 - `AGENTA_API_URL` must hold the public base URL of the API, for example
   `https://agenta.example.com/api`.
 

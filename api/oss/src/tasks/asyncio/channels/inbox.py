@@ -157,7 +157,7 @@ class InboxDispatcher:
             event=event,
             resolution=resolution,
         )
-        approved = resolution.resolved_token == "approve"
+        approved = (resolution.resolved_token or "").rsplit(":", 1)[-1] == "approve"
         await self._respond_interaction_fn(
             project_id=project_id,
             user_id=user_id or resolution.agent.created_by_id,

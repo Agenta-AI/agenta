@@ -350,6 +350,15 @@ class ChannelsService:
             )
             if edited is None:
                 raise ChannelConnectionNotFound(connection_id=existing_connection.id)
+            if edited.deleted_at is not None:
+                restored = await self.unarchive_connection(
+                    project_id=project_id,
+                    user_id=user_id,
+                    connection_id=edited.id,
+                )
+                if restored is None:
+                    raise ChannelConnectionNotFound(connection_id=edited.id)
+                return restored
             return edited
 
         connection.external_key = external_key
@@ -1615,6 +1624,7 @@ class ChannelsService:
         resolved_token = resolve_pending_choice(
             pending_choice=pending_choice,
             candidate=_first_text(event.data.processed.content),
+            allow_text=event.kind is not ChannelEventKind.ACTION,
         )
 
         if event.kind is ChannelEventKind.ACTION and resolved_token is None:
@@ -1724,7 +1734,9 @@ class ChannelsService:
         if waiting is None:
             return None
         token = resolve_pending_choice(
-            pending_choice=waiting.data.pending_choice, candidate=candidate
+            pending_choice=waiting.data.pending_choice,
+            candidate=candidate,
+            allow_text=event.kind is not ChannelEventKind.ACTION,
         )
         if token is None:
             return None
@@ -2116,13 +2128,14 @@ def resolve_pending_choice(
     *,
     pending_choice: Optional[ChannelPendingChoice],
     candidate: str,
+    allow_text: bool = True,
 ) -> Optional[str]:
     """A click's token and a numbered reply's position resolve through this
     one function to the same token — that equality is the whole mechanism.
 
-    Tried in order: exact token match (a click, or Agenta's token-as-message),
-    then the label without case (a typed answer), then a 1-based index into
-    the current choice list (a numbered reply).
+    Clicks require an exact token match. With allow_text, also try the label
+    without case (a typed answer), then a 1-based index into the current
+    choice list (a numbered reply).
     `None` covers every non-answer uniformly: no pending choice at all, a
     superseded one (it was overwritten wholesale, so its tokens are simply
     gone), an unknown token, or ordinary text that never meant to answer
@@ -2139,6 +2152,9 @@ def resolve_pending_choice(
     for choice in pending_choice.choices:
         if choice.token == candidate:
             return choice.token
+
+    if not allow_text:
+        return None
 
     # a typed answer in the agent's own words ("Approve", "deny"): the label,
     # compared without case, since a person types it rather than clicks it

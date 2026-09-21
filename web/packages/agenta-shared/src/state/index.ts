@@ -9,6 +9,7 @@ export {
     activeUserIdAtom,
     agentaChannelSurfaceEnabledAtom,
     channelDebugEnabledAtom,
+    channelsEnabledAtom,
     playgroundInspectorEnabledAtom,
 } from "./featureFlags"
 export {
