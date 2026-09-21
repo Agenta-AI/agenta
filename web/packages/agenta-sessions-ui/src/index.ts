@@ -26,7 +26,6 @@ export {
 export {
     SessionListSkeleton,
     SessionListEmpty,
-    SessionListError,
     SessionListLoadMore,
     SessionGroupHeader,
 } from "./SessionListStates"

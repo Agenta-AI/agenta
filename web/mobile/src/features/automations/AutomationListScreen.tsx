@@ -5,7 +5,6 @@ import {
     AUTOMATION_STATUS_LABEL,
     AutomationLastRunCell,
     AutomationListEmpty,
-    AutomationListError,
     AutomationListNoMatch,
     automationStatus,
     type AutomationStatus,
@@ -18,6 +17,7 @@ import {
 } from "@agenta/automation-ui"
 import {AgentChip} from "@agenta/entity-ui/agent"
 import {pageContentWidthClass} from "@agenta/ui/components/page-width"
+import {LoadError} from "@agenta/ui/components/presentational"
 import {useFilterMenuView} from "@agenta/ui/filter-menu"
 import {useMediaQuery} from "@agenta/ui/hooks"
 import {ListTable, ListTableToolbar, type ListTableColumn} from "@agenta/ui/list-table"
@@ -161,7 +161,7 @@ export const AutomationListScreen = ({
     )
 
     const body = (() => {
-        if (error) return <AutomationListError onRetry={refetch} />
+        if (error) return <LoadError framed title="Could not load automations" onRetry={refetch} />
 
         return (
             <ListTable
