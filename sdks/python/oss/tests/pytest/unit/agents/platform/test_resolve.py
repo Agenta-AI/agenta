@@ -1,14 +1,24 @@
-"""The composition entrypoints: resolve_tools / resolve_mcp."""
+"""The platform composition entrypoints and their public compatibility exports."""
 
 from __future__ import annotations
 
 from typing import Mapping, Sequence
 
 import pytest
-
-from agenta.sdk.agents.platform import PlatformConnection, resolve_tools
-from agenta.sdk.agents.platform import resolve_mcp
+from agenta.sdk.agents.connections import (
+    ModelRef,
+    ResolvedConnection,
+    RuntimeAuthContext,
+)
+from agenta.sdk.agents.platform import (
+    PlatformConnection,
+    resolve_connection,
+    resolve_mcp,
+    resolve_secrets,
+    resolve_tools,
+)
 from agenta.sdk.agents.platform import connection as platform_connection
+from agenta.sdk.agents.platform.resolve import resolve_secrets as module_resolve_secrets
 
 from .conftest import GATEWAY_CREDENTIALS_VALUE
 
@@ -57,6 +67,53 @@ class _ExplodingGateway:
         raise AssertionError(
             "gateway resolver must not be called without gateway tools"
         )
+
+
+async def test_resolve_secrets_is_a_deprecated_connection_alias():
+    calls: dict[str, object] = {}
+    expected = ResolvedConnection(
+        provider="openai",
+        model="gpt-5.5",
+        credential_mode="none",
+    )
+    model = ModelRef(provider="openai", model="gpt-5.5")
+    context = RuntimeAuthContext(harness="pi_core", backend="local")
+
+    class _Resolver:
+        async def resolve(self, *, model, context):
+            calls.update(model=model, context=context)
+            return expected
+
+    assert resolve_secrets is module_resolve_secrets
+    with pytest.warns(DeprecationWarning, match="resolve_secrets.*resolve_connection"):
+        resolved = await resolve_secrets(
+            model=model,
+            context=context,
+            resolver=_Resolver(),
+        )
+
+    assert resolved is expected
+    assert calls == {"model": model, "context": context}
+
+
+async def test_resolve_connection_remains_the_canonical_entrypoint():
+    expected = ResolvedConnection(
+        provider="openai",
+        model="gpt-5.5",
+        credential_mode="none",
+    )
+
+    class _Resolver:
+        async def resolve(self, *, model, context):
+            return expected
+
+    resolved = await resolve_connection(
+        model=ModelRef(provider="openai", model="gpt-5.5"),
+        context=RuntimeAuthContext(harness="pi_core", backend="local"),
+        resolver=_Resolver(),
+    )
+
+    assert resolved is expected
 
 
 async def test_resolve_tools_skips_gateway_without_gateway_tools():
