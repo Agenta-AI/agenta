@@ -837,12 +837,12 @@ relay is configured to call it. See
 
 | Env var | env.py path | values.yaml path |
 |---|---|---|
-| `AGENTA_LLM_GATEWAY_ENABLED` | `llm_gateway.enabled` (api) | n/a (`api.extraEnv`) |
-| `AGENTA_MCP_GATEWAY_ENABLED` | `mcp_gateway.enabled` (api; the web container reads the same name) | n/a (`api.extraEnv`, `web.extraEnv`) |
-| `AGENTA_MCP_GATEWAY_HOST_ALLOWLIST` | `mcp_gateway.host_allowlist` (api) | n/a (`api.extraEnv`) |
-| `AGENTA_GATEWAYS_INSECURE_EGRESS_ALLOWED` | `gateway_egress.insecure_allowed` (api) | n/a (`api.extraEnv`) |
-| `AGENTA_GATEWAYS_INSECURE_HTTP_ALLOWED` | n/a (read by the services and runner containers, not by the api) | n/a (`services.extraEnv`, `agentRunner.extraEnv`) |
-| `AGENTA_GATEWAYS_CREDENTIALS_TTL_SECONDS` | `gateway_credentials.ttl_seconds` (api) | n/a (`api.extraEnv`) |
+| `AGENTA_LLM_GATEWAY_ENABLED` | `llm_gateway.enabled` (api) | `llmGateway.enabled` |
+| `AGENTA_MCP_GATEWAY_ENABLED` | `mcp_gateway.enabled` (api; the web container reads the same name) | `mcpGateway.enabled` |
+| `AGENTA_MCP_GATEWAY_HOST_ALLOWLIST` | `mcp_gateway.host_allowlist` (api) | `mcpGateway.hostAllowlist` |
+| `AGENTA_GATEWAYS_INSECURE_EGRESS_ALLOWED` | `gateway_egress.insecure_allowed` (api) | `gatewayEgress.insecureAllowed` |
+| `AGENTA_GATEWAYS_INSECURE_HTTP_ALLOWED` | n/a (read by the services and runner containers, not by the api) | `gatewayEgress.insecureHttpAllowed` |
+| `AGENTA_GATEWAYS_CREDENTIALS_TTL_SECONDS` | `gateway_credentials.ttl_seconds` (api) | `gatewayCredentials.ttlSeconds` |
 
 Two of these ship a value in the Docker Compose env templates that differs from the default
 the code applies when the variable is absent. An upgraded deployment keeps its existing env
@@ -858,37 +858,9 @@ file, which has none of these lines, so it runs on the code defaults until you a
 | `AGENTA_GATEWAYS_CREDENTIALS_TTL_SECONDS` | `43200` | unset | unset |
 
 :::note Kubernetes / Helm
-The chart has no dedicated values for the gateway settings. `llmGateway.enabled`,
-`mcpGateway.enabled`, `mcpGateway.hostAllowlist`, `gatewayEgress.insecureAllowed` and
-`gatewayCredentials.ttlSeconds` are not keys the chart reads. The values schema accepts
-unknown keys, so setting one of those produces no error and no effect.
-
-Set the env var on the container that reads it instead, through the `extraEnv` list that
-every Agenta workload in the chart accepts. Each entry is a Kubernetes env entry, so the
-value must be a string:
-
-```yaml
-api:
-  extraEnv:
-    - name: AGENTA_MCP_GATEWAY_ENABLED
-      value: "true"
-    - name: AGENTA_GATEWAYS_INSECURE_EGRESS_ALLOWED
-      value: "true"
-web:
-  extraEnv:
-    - name: AGENTA_MCP_GATEWAY_ENABLED
-      value: "true"
-services:
-  extraEnv:
-    - name: AGENTA_GATEWAYS_INSECURE_HTTP_ALLOWED
-      value: "true"
-agentRunner:
-  extraEnv:
-    - name: AGENTA_GATEWAYS_INSECURE_HTTP_ALLOWED
-      value: "true"
-```
-
-`agentRunner` is the values key for the runner workload.
+The chart renders every gateway value in this table into the containers that read it.
+`gatewayEgress.insecureHttpAllowed` is rendered into the services and agent runner containers;
+the API does not read that setting.
 :::
 
 :::note Which gateways your deployment serves
