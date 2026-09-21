@@ -160,20 +160,49 @@ def detached_start_never_sent(response: httpx.Response) -> bool:
     )
 
 
-# Failures where no byte of the invoke can have reached the workflow service: the request never
-# left this process (no URL, an unusable URL), never got a connection to write on (pool timeout),
+# Transport failures where no byte reached the address we aimed at: the request never left this
+# process (an unusable URL, an unknown scheme), never got a connection to write on (pool timeout),
 # or never established one (refused, unresolvable host, connect timeout — httpx reports all three
-# as ConnectError/ConnectTimeout), plus the responses that prove it above. Everything else is
-# ambiguous by construction: a read timeout, a write error part-way through the body, and every
-# other HTTP status all mean the service was reached and may have accepted the run.
-_NEVER_DISPATCHED = (
-    WorkflowServiceUrlMissing,
-    WorkflowDetachedStartNeverSent,
+# as ConnectError/ConnectTimeout). A read timeout and a write error part-way through the body are
+# absent on purpose: both mean bytes were already on the wire.
+_NEVER_SENT_TRANSPORT = (
     httpx.InvalidURL,
     httpx.UnsupportedProtocol,
     httpx.ConnectError,
     httpx.ConnectTimeout,
     httpx.PoolTimeout,
+)
+
+
+def transport_never_sent(error: Exception, *, url: str) -> bool:
+    """True when a transport failure hit the request we sent, rather than a redirect of it.
+
+    The detached invoke follows redirects, so httpx may issue up to twenty requests. A connect
+    failure on the second one says nothing about the first: an intermediary answered that, and a
+    proxy that redirects a POST may have forwarded it. Only a failure on the request we addressed
+    proves nothing was delivered, and the exception carries the address it actually attempted.
+
+    Compared as `httpx.URL`, because the raw strings differ for an explicit default port or an
+    uppercase host, and reading those as a redirect would strand the claim this exists to free.
+    """
+    if not isinstance(error, _NEVER_SENT_TRANSPORT):
+        return False
+    try:
+        attempted = error.request.url
+    except (AttributeError, RuntimeError):
+        # No request was ever bound to the error, so none was ever sent.
+        return True
+    return httpx.URL(url) == attempted
+
+
+# What the caller of a detached invoke may treat as never dispatched. Both are raised by this
+# domain, from the one scope that can prove it: the URL check before any request is built, and
+# the transport and response classification inside the detached start. A bare httpx error is
+# deliberately not here. Reaching the caller unclassified, it can only have come from a redirect
+# hop or from outside the send, and neither proves anything.
+_NEVER_DISPATCHED = (
+    WorkflowServiceUrlMissing,
+    WorkflowDetachedStartNeverSent,
 )
 
 

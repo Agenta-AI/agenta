@@ -398,7 +398,7 @@ async def test_never_sent_invoke_releases_the_claim_and_one_retry_dispatches_aga
     executions.fetch_execution.return_value = None
     workflows = AsyncMock()
     workflows.invoke_workflow_detached.side_effect = [
-        httpx.ConnectError("connection refused"),
+        WorkflowDetachedStartNeverSent("Workflow service returned HTTP 404"),
         None,
     ]
 
@@ -427,13 +427,10 @@ async def test_never_sent_invoke_releases_the_claim_and_one_retry_dispatches_aga
 @pytest.mark.parametrize(
     "start_error",
     [
+        # The two the workflows domain raises from the only scopes that can prove it: before a
+        # request is built, and from the transport and response classification inside the start.
         WorkflowServiceUrlMissing(),
         WorkflowDetachedStartNeverSent("Workflow service returned HTTP 404"),
-        httpx.InvalidURL("not a url"),
-        httpx.UnsupportedProtocol("unknown scheme"),
-        httpx.ConnectError("connection refused"),
-        httpx.ConnectTimeout("the connection was never established"),
-        httpx.PoolTimeout("no connection was ever acquired"),
     ],
 )
 async def test_every_never_sent_failure_releases_the_claim(start_error):
@@ -466,7 +463,9 @@ async def test_a_durable_run_keeps_the_claim_even_when_the_invoke_raised():
         _execution("session", "execution"),
     ]
     workflows = AsyncMock()
-    workflows.invoke_workflow_detached.side_effect = httpx.ConnectError("refused")
+    workflows.invoke_workflow_detached.side_effect = WorkflowDetachedStartNeverSent(
+        "Workflow service returned HTTP 404"
+    )
 
     result = await _service(
         inputs=inputs, executions=executions, workflows=workflows
@@ -486,7 +485,9 @@ async def test_a_failing_release_still_raises_the_start_error():
     executions = AsyncMock()
     executions.fetch_execution.return_value = None
     workflows = AsyncMock()
-    workflows.invoke_workflow_detached.side_effect = httpx.ConnectError("refused")
+    workflows.invoke_workflow_detached.side_effect = WorkflowDetachedStartNeverSent(
+        "Workflow service returned HTTP 404"
+    )
 
     with pytest.raises(SessionStartNotDurable):
         await _service(
@@ -540,6 +541,11 @@ def test_release_dispatch_has_exactly_one_call_site():
         httpx.ReadTimeout("the response was lost after the service was reached"),
         httpx.WriteError("the body was part-way sent"),
         WorkflowDetachedStartFailed("Workflow service returned HTTP 502"),
+        # A bare transport error reaching this layer is NOT proof. The detached start classifies
+        # the ones it can, so an unclassified one came from a redirect hop or from outside the
+        # send, and a redirect means an intermediary already answered the POST.
+        httpx.ConnectError("connection refused on a redirect hop"),
+        httpx.ConnectTimeout("a later hop never connected"),
     ],
 )
 async def test_ambiguous_invoke_failure_keeps_the_claim(start_error):
@@ -596,7 +602,9 @@ async def test_concurrent_retries_after_a_release_dispatch_exactly_once():
             nonlocal invocations
             invocations += 1
             if self.unreachable:
-                raise httpx.ConnectError("connection refused")
+                raise WorkflowDetachedStartNeverSent(
+                    "Workflow service returned HTTP 404"
+                )
             await asyncio.sleep(0.02)
             row["value"] = _execution(kwargs["request"].session_id, kwargs["run_id"])
 

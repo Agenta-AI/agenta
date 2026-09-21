@@ -525,3 +525,123 @@ async def test_a_never_sent_response_is_still_an_ordinary_start_failure_to_old_h
             )
 
     assert "404" in str(raised.value)
+
+
+class _RaisingAsyncClient:
+    """A client whose `stream` fails at the transport, the way a dead address does."""
+
+    def __init__(self, error):
+        self._error = error
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *args):
+        return False
+
+    def stream(self, *args, **kwargs):
+        raise self._error
+
+
+_URL = "http://svc/invoke"
+
+
+@pytest.mark.parametrize(
+    "error",
+    [
+        httpx.ConnectError("refused", request=httpx.Request("POST", _URL)),
+        httpx.ConnectTimeout("never connected", request=httpx.Request("POST", _URL)),
+        httpx.PoolTimeout("no connection", request=httpx.Request("POST", _URL)),
+        httpx.UnsupportedProtocol(
+            "unknown scheme", request=httpx.Request("POST", _URL)
+        ),
+        # httpx binds no request when it fails before building one.
+        httpx.ConnectError("refused"),
+        httpx.InvalidURL("not a url"),
+    ],
+)
+async def test_a_transport_failure_on_the_request_we_sent_is_never_sent(error):
+    with patch("httpx.AsyncClient", return_value=_RaisingAsyncClient(error)):
+        with pytest.raises(WorkflowDetachedStartNeverSent):
+            await _service()._stream_service_started(
+                url=_URL,
+                credentials="Secret tok",
+                payload={},
+                run_id="run-x",
+            )
+
+
+@pytest.mark.parametrize(
+    "attempted",
+    [
+        "http://elsewhere/invoke",
+        "https://svc/invoke",
+        "http://svc/invoke/redirected",
+    ],
+)
+async def test_a_transport_failure_on_a_redirect_hop_is_not_never_sent(attempted):
+    """`follow_redirects=True` means the failing request may not be the one we addressed.
+
+    Something answered the first hop with a 3xx, and a proxy that redirects a POST may have
+    forwarded it, so this proves nothing and the original error propagates unclassified.
+    """
+    error = httpx.ConnectError("refused", request=httpx.Request("POST", attempted))
+    with patch("httpx.AsyncClient", return_value=_RaisingAsyncClient(error)):
+        with pytest.raises(httpx.ConnectError) as raised:
+            await _service()._stream_service_started(
+                url=_URL,
+                credentials="Secret tok",
+                payload={},
+                run_id="run-x",
+            )
+
+    assert not isinstance(raised.value, WorkflowDetachedStartFailed)
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        # The same address written the way httpx normalizes it, and the way a config file does.
+        "http://svc:80/invoke",
+        "http://SVC/invoke",
+        "http://svc/services/agent/v0/invoke",
+    ],
+)
+async def test_the_hop_check_reads_an_equivalent_url_as_the_same_request(url):
+    """A default port or an uppercase host must not read as a redirect.
+
+    It would keep the claim on a plain connection refusal, which is the failure this whole
+    classification exists to release.
+    """
+    error = httpx.ConnectError("refused", request=httpx.Request("POST", url))
+    with patch("httpx.AsyncClient", return_value=_RaisingAsyncClient(error)):
+        with pytest.raises(WorkflowDetachedStartNeverSent):
+            await _service()._stream_service_started(
+                url=url,
+                credentials="Secret tok",
+                payload={},
+                run_id="run-x",
+            )
+
+
+@pytest.mark.parametrize(
+    "error",
+    [
+        httpx.ReadTimeout("the answer was lost", request=httpx.Request("POST", _URL)),
+        httpx.WriteError("part-way sent", request=httpx.Request("POST", _URL)),
+        httpx.RemoteProtocolError(
+            "closed mid-response", request=httpx.Request("POST", _URL)
+        ),
+    ],
+)
+async def test_a_transport_failure_with_bytes_on_the_wire_is_not_never_sent(error):
+    with patch("httpx.AsyncClient", return_value=_RaisingAsyncClient(error)):
+        with pytest.raises(httpx.HTTPError) as raised:
+            await _service()._stream_service_started(
+                url=_URL,
+                credentials="Secret tok",
+                payload={},
+                run_id="run-x",
+            )
+
+    assert not isinstance(raised.value, WorkflowDetachedStartNeverSent)
