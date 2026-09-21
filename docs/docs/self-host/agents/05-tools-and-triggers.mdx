@@ -84,15 +84,18 @@ AGENTA_GATEWAYS_INSECURE_EGRESS_ALLOWED=false
 AGENTA_MCP_GATEWAY_HOST_ALLOWLIST=mcp.internal
 ```
 
-The allowlist covers saving as well as calling, and it is checked first. A URL whose hostname is on
-the list is saved whatever its scheme, so both `https://mcp.internal:8443` and
-`http://mcp.internal:8080` are accepted. Every other URL follows
-`AGENTA_GATEWAYS_INSECURE_EGRESS_ALLOWED`, so with that at `false`, `https://10.0.0.5:8443` is
-refused at save time.
+The allowlist is checked first, before any scheme or address check, and it covers both steps. At
+save time, a URL whose hostname is on the list is accepted whatever its scheme, so both
+`https://mcp.internal:8443` and `http://mcp.internal:8080` are saved. At call time, the relay dials
+such a host as written, with no address check and no resolve-and-pin, so the plain-HTTP URL is
+called too. For the hosts on it, the allowlist drops the HTTPS requirement as well as the
+private-address one.
 
-The save-time check resolves no hostnames. A URL such as `https://other.internal:8443`, whose
-hostname is not on the list and is not a literal IP address, therefore saves and is refused later,
-at call time, once the name resolves to a private address.
+Every URL whose hostname is not on the list follows `AGENTA_GATEWAYS_INSECURE_EGRESS_ALLOWED`. With
+that at `false`, `https://10.0.0.5:8443` is refused at save time, as a literal private IP address.
+A hostname that is not a literal IP address, such as `https://other.internal:8443`, saves anyway,
+because the save-time check resolves no hostnames. It is refused later, at call time, once the name
+resolves to a private address.
 
 ### Errors you will see
 
