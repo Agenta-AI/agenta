@@ -211,14 +211,16 @@ export const ChannelManagePanel = ({
         setBehavior(next)
         setBehaviorSaving(key)
         setBehaviorError(null)
+        let writeError: string | null = null
         try {
             await actions.writeBehavior(connection.platform, connectionId, next)
         } catch (e) {
-            setBehaviorError(errorMessage(e, "Could not save this setting."))
+            writeError = errorMessage(e, "Could not save this setting.")
         } finally {
-            setBehaviorSaving(null)
-            // The grants are the truth, not the switch: re-read whether the write landed or not.
+            // Re-read partial writes, but do not erase the failed-save feedback.
             await loadBehavior()
+            if (writeError) setBehaviorError(writeError)
+            setBehaviorSaving(null)
         }
     }
 
@@ -232,10 +234,12 @@ export const ChannelManagePanel = ({
 
     const loadAllowed = useCallback(async () => {
         if (!connectionId) return
+        setAllowedError(null)
         try {
             setAllowed(await actions.readAllowedUsers(connectionId))
-        } catch {
-            setAllowed([])
+        } catch (e) {
+            setAllowed(null)
+            setAllowedError(errorMessage(e, "Could not read the allowed accounts."))
         }
     }, [actions, connectionId])
 
@@ -770,7 +774,9 @@ export const ChannelManagePanel = ({
                                     <>
                                         <span className="text-[13px] text-colorText">
                                             {allowed === null
-                                                ? "…"
+                                                ? allowedError
+                                                    ? "Unavailable"
+                                                    : "…"
                                                 : allowed.length === 0
                                                   ? "Everyone"
                                                   : `${allowed.length} account${
@@ -785,6 +791,7 @@ export const ChannelManagePanel = ({
                                                 setAllowedError(null)
                                                 setAllowedEditing(true)
                                             }}
+                                            disabled={allowed === null}
                                             data-testid="channels-allowed-edit"
                                         >
                                             Edit
@@ -792,6 +799,18 @@ export const ChannelManagePanel = ({
                                     </>
                                 )}
                             </div>
+                            {allowedError && !allowedEditing ? (
+                                <div className="flex flex-col gap-2">
+                                    <Alert type="error" showIcon message={allowedError} />
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => void loadAllowed()}
+                                    >
+                                        Try again
+                                    </Button>
+                                </div>
+                            ) : null}
                             {allowedEditing ? (
                                 <div className="flex flex-col gap-2">
                                     {allowedError ? (
