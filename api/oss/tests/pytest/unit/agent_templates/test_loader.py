@@ -352,6 +352,9 @@ async def test_prepare_finishes_preflight_then_creates_agent_before_skills():
     assert "Template-supplied setup guidance" in result.first_message
     assert len(skills.records) == 1
     workflow = next(iter(workflows.records.values()))
+    assert workflow.flags.is_application is True
+    assert workflow.flags.is_evaluator is False
+    assert workflow.flags.is_snippet is False
     agent = workflow.data.parameters["agent"]
     assert agent["instructions"]["agents_md"].startswith("# Sample agent")
     assert agent["skills"][0]["@ag.embed"]["@ag.references"]["workflow"]["slug"]

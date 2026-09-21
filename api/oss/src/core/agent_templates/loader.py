@@ -245,7 +245,7 @@ class AgentTemplateLoader:
                     slug=command.source.key,
                     name=compiled.workflow_name,
                     description=compiled.workflow_description,
-                    flags=SimpleWorkflowFlags(is_agent=True),
+                    flags=SimpleWorkflowFlags(is_application=True, is_agent=True),
                     data=SimpleWorkflowData(
                         **compiled.revision_data.model_dump(
                             mode="json", exclude_none=True
