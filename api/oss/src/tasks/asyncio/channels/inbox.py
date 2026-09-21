@@ -164,13 +164,13 @@ class InboxDispatcher:
             interaction_id=UUID(interaction_id),
             answer={"approved": approved, "message": resolution.resolved_choice},
         )
-        # clear the question so the common case (a later card supersedes it) has
-        # nothing stale to resolve against; this is not a concurrency guard --
-        # two clicks racing before either clears is a known follow-up (F101).
+        # Clear only the answered card; a continuation may already have parked
+        # on a newer interaction while the response admission was returning.
         await self.channels_service.set_pending_choice(
             project_id=project_id,
             thread_id=resolution.thread.id,
             pending_choice=None,
+            expected_interaction_id=interaction_id,
         )
         log.info(
             "[INBOX DISPATCHER] event=%s answered interaction=%s approved=%s",

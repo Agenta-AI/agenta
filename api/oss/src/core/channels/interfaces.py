@@ -504,6 +504,7 @@ class ChannelsDAOInterface(ABC):
         #
         thread_id: UUID,
         pending_choice: Optional[ChannelPendingChoice],
+        expected_interaction_id: Optional[str] = None,
     ) -> Optional[ChannelThread]:
         """Overwrite the thread's single pending-choice slot, in place.
 

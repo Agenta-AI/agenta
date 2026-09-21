@@ -152,15 +152,17 @@ def test_capabilities_document_shape():
     }
 
 
-def test_every_harness_publishes_user_mcp_servers():
+def test_real_harnesses_publish_user_mcp_servers():
     """Pi drives gateway MCP servers through its extension, so it must publish the capability.
 
     The frontend hides the whole "MCP servers" section when the selected harness does not
     publish ``mcp.user_servers``; Pi omitting it hid servers that in fact run.
     """
     doc = harness_capabilities_document()
-    for harness in doc:
+    for harness in ("pi_core", "claude", "codex"):
         assert doc[harness]["mcp"]["user_servers"]["connection_types"] == ["http"]
+    # The offline QA harness never connects to external MCP servers.
+    assert "mcp" not in doc["mock"]
 
 
 def test_every_harness_publishes_a_models_map():

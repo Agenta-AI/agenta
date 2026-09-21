@@ -1386,6 +1386,7 @@ class ChannelsService:
         project_id: UUID,
         thread_id: UUID,
         pending_choice: Optional[ChannelPendingChoice],
+        expected_interaction_id: Optional[str] = None,
     ) -> Optional[ChannelThread]:
         """Overwrite the thread's single pending-choice slot; None clears it.
 
@@ -1396,6 +1397,11 @@ class ChannelsService:
             project_id=project_id,
             thread_id=thread_id,
             pending_choice=pending_choice,
+            **(
+                {"expected_interaction_id": expected_interaction_id}
+                if expected_interaction_id is not None
+                else {}
+            ),
         )
 
     # --- capability + policy: adapter reads, no persistence --------------- #

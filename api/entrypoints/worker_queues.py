@@ -28,7 +28,7 @@ import signal
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
 from typing import List
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from taskiq import AsyncBroker, TaskiqEvents
 from taskiq.receiver import Receiver
@@ -50,6 +50,7 @@ from oss.src.core.evaluations.runtime.locks import run_worker_heartbeat
 from oss.src.core.evaluations.service import EvaluationsService
 from oss.src.core.evaluators.service import EvaluatorsService, SimpleEvaluatorsService
 from oss.src.core.queries.service import QueriesService
+from oss.src.core.sessions.commands.service import SessionCommandsService
 from oss.src.core.sessions.context import make_session_context_resolver
 from oss.src.core.sessions.interactions.service import SessionInteractionsService
 from oss.src.core.sessions.records.service import RecordsService
@@ -74,6 +75,9 @@ from oss.src.dbs.postgres.queries.dbes import (
 )
 from oss.src.core.secrets.services import VaultService
 from oss.src.dbs.postgres.secrets.dao import SecretsDAO
+from oss.src.dbs.postgres.sessions.commands.dao import SessionCommandsDAO
+from oss.src.dbs.postgres.sessions.executions.dao import SessionExecutionsDAO
+from oss.src.dbs.http.sessions.control_delivery_direct import DirectControlDelivery
 from oss.src.dbs.postgres.sessions.interactions.dao import SessionInteractionsDAO
 from oss.src.dbs.postgres.sessions.records.dao import RecordsDAO
 from oss.src.dbs.postgres.sessions.streams.dao import SessionStreamsDAO
@@ -307,11 +311,14 @@ def _build_channels_inbox_broker() -> tuple[AsyncBroker, int]:
     workflows_service.embeds_service = embeds_service
     environments_service.embeds_service = embeds_service
 
-    async def _dispatch_detached_run(*, project_id, user_id, request) -> str:
+    async def _dispatch_detached_run(
+        *, project_id, user_id, request, run_id=None
+    ) -> str:
         result = await workflows_service.invoke_workflow_detached(
             project_id=project_id,
             user_id=user_id,
             request=request,
+            run_id=run_id,
         )
         return result.run_id
 
@@ -339,11 +346,36 @@ def _build_channels_inbox_broker() -> tuple[AsyncBroker, int]:
         dispatch_fn=_dispatch_detached_run,
     )
 
+    commands_service = SessionCommandsService(
+        commands_dao=SessionCommandsDAO(engine=transactions_engine),
+        streams_service=interactions_dispatcher.streams_service,
+        interactions_service=interactions_dispatcher.interactions_service,
+        lock_engine=get_lock_engine(),
+        executions_dao=SessionExecutionsDAO(engine=transactions_engine),
+        delivery=DirectControlDelivery(
+            continue_interaction=lambda command: interactions_dispatcher.respond_many(
+                project_id=command.project_id,
+                user_id=command.created_by_id,
+                interaction_answers=[
+                    (UUID(item["interaction_id"]), item["answer"])
+                    for item in command.data["answers"]
+                ],
+                control_command_id=command.id,
+                continuation_execution_id=command.target_turn_id,
+            ),
+        ),
+    )
+
     async def _respond_interaction(*, project_id, user_id, interaction_id, answer):
-        await interactions_dispatcher.respond_many(
+        # Reuse the same atomic admission as the session approval endpoint.
+        # The interaction is the stable key across provider retries and two answers.
+        await commands_service.respond_interaction(
             project_id=project_id,
             user_id=user_id,
-            interaction_answers=[(interaction_id, answer)],
+            interaction_id=interaction_id,
+            answer=answer,
+            expected_execution_id=None,
+            idempotency_key=f"channels:{interaction_id}",
         )
 
     dispatcher = InboxDispatcher(

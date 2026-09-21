@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from typing import List, Optional, Tuple
 from uuid import UUID
 
-from sqlalchemy import or_, select, tuple_, update
+from sqlalchemy import func, or_, select, text, tuple_, update
 from sqlalchemy.dialects.postgresql import insert
 
 from oss.src.core.channels.dtos import (
@@ -1053,6 +1053,36 @@ class ChannelsDAO(ChannelsDAOInterface):
         )
 
         async with self.engine.session() as session:
+            # Serialize first contact for one conversation across worker processes.
+            # The latest inactive row remains history; only an active row is reused.
+            # Include the null external key explicitly for platforms without threads.
+            lock_key = f"channels-thread:{project_id}:{thread.space_id}:{thread.agent_id}:{thread.external_key}"
+            await session.execute(
+                text("SELECT pg_advisory_xact_lock(hashtextextended(:key, 0))"),
+                {"key": lock_key},
+            )
+            current = (
+                (
+                    await session.execute(
+                        select(ChannelThreadDBE)
+                        .where(
+                            ChannelThreadDBE.project_id == project_id,
+                            ChannelThreadDBE.space_id == thread.space_id,
+                            ChannelThreadDBE.agent_id == thread.agent_id,
+                            ChannelThreadDBE.external_key == thread.external_key,
+                        )
+                        .order_by(ChannelThreadDBE.created_at.desc())
+                        .limit(1)
+                    )
+                )
+                .scalars()
+                .first()
+            )
+            if current is not None and (current.flags or {}).get("is_active", True):
+                return map_thread_dbe_to_dto(thread_dbe=current)
+
+            # Timestamp creation after acquiring the lock, not transaction start.
+            thread_dbe.created_at = func.clock_timestamp()
             session.add(thread_dbe)
 
             await session.commit()
@@ -1241,11 +1271,16 @@ class ChannelsDAO(ChannelsDAOInterface):
         #
         thread_id: UUID,
         pending_choice: Optional[ChannelPendingChoice],
+        expected_interaction_id: Optional[str] = None,
     ) -> Optional[ChannelThread]:
         async with self.engine.session() as session:
-            stmt = select(ChannelThreadDBE).where(
-                ChannelThreadDBE.project_id == project_id,
-                ChannelThreadDBE.id == thread_id,
+            stmt = (
+                select(ChannelThreadDBE)
+                .where(
+                    ChannelThreadDBE.project_id == project_id,
+                    ChannelThreadDBE.id == thread_id,
+                )
+                .with_for_update()
             )
 
             result = await session.execute(stmt)
@@ -1255,6 +1290,12 @@ class ChannelsDAO(ChannelsDAOInterface):
                 return None
 
             data = dict(thread_dbe.data or {})
+            if expected_interaction_id is not None and (
+                (data.get("pending_choice") or {}).get("interaction_id")
+                != expected_interaction_id
+            ):
+                return map_thread_dbe_to_dto(thread_dbe=thread_dbe)
+
             data["pending_choice"] = (
                 pending_choice.model_dump(mode="json") if pending_choice else None
             )
