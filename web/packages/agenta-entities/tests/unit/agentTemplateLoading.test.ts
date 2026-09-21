@@ -298,3 +298,40 @@ it("abandons a saved intent whose prompt the user has since replaced", async () 
         vi.unstubAllGlobals()
     }
 })
+
+// An intent that cannot be compared must not wedge the card. It stays in storage until the
+// load succeeds, so a throw while reading it would come back on every retry.
+it("replaces a saved intent it cannot read instead of failing the load", async () => {
+    const template = AGENT_TEMPLATES.find((item) => item.key === "pr-reviewer")!
+    const storage = new Map([
+        [
+            "agent-template-intent:project-1:pr-reviewer",
+            JSON.stringify({
+                key: "agent-template:original-draft",
+                request: {
+                    source: template.source,
+                    base_revision: WORKFLOW_DATA,
+                    initial_message: "Saved before reload",
+                    connection_choices: {},
+                    ui_disabled_ops: 3,
+                },
+            }),
+        ],
+    ])
+    vi.stubGlobal("sessionStorage", {
+        getItem: (key: string) => storage.get(key) ?? null,
+        setItem: (key: string, value: string) => storage.set(key, value),
+        removeItem: (key: string) => storage.delete(key),
+    })
+    try {
+        await expect(
+            store.set(loadAgentTemplateFromEphemeralAtom, {revisionId: REVISION_ID, template}),
+        ).resolves.toMatchObject({workflow_id: "loaded-workflow"})
+        const [request, key] = loadAgentTemplateMock.mock.calls[0]
+        expect(request.initial_message).toBe(templateBuilderMessage(template))
+        expect(key).not.toBe("agent-template:original-draft")
+        expect(storage.size).toBe(0)
+    } finally {
+        vi.unstubAllGlobals()
+    }
+})

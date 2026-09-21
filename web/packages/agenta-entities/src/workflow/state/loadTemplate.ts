@@ -122,6 +122,21 @@ const fingerprintTag = (fingerprint: string): string => {
     return `${(low >>> 0).toString(36)}${(high >>> 0).toString(36)}`
 }
 
+/**
+ * A stored intent is only ever compared, never trusted. `isLoadIntent` cannot vouch for every
+ * optional field (an object where an array belongs makes `requestFingerprint` throw on the
+ * spread), and a throw here would wedge the card: the unreadable intent is still in storage, so
+ * every retry would re-read it and throw again, with only Cancel as a way out. An intent whose
+ * fingerprint will not compute is an intent we cannot match, so it is simply replaced.
+ */
+const storedFingerprint = (intent: LoadIntent): string | undefined => {
+    try {
+        return requestFingerprint(intent.request)
+    } catch {
+        return undefined
+    }
+}
+
 const isLoadIntent = (value: unknown): value is LoadIntent => {
     const intent = value as LoadIntent | null
     return (
@@ -208,7 +223,7 @@ export const loadAgentTemplateFromEphemeralAtom = atom(
             // silently build the agent from the prompt the user just replaced, and it is the one
             // case the server cannot catch, because the body it fingerprints never changed.
             const intent: LoadIntent =
-                stored && requestFingerprint(stored.request) === fingerprint
+                stored && storedFingerprint(stored) === fingerprint
                     ? stored
                     : {
                           key: `agent-template:${revisionId}:${template.source.key}:${fingerprintTag(fingerprint)}`,
