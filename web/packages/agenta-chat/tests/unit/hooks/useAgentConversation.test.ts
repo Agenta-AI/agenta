@@ -621,9 +621,12 @@ describe("server-owned client-tool answers", () => {
             body: {code, message, retryable: false},
         })
 
-    const answerOnce = async (result: {
-        current: {sendToolOutput: (input: object) => Promise<void>}
-    }) => {
+    // `landed` is what the settle reports back: true when the gate is closed (written, or already
+    // closed before us), false when the answer did not go in and the gate is still open.
+    const answerOnce = async (
+        result: {current: {sendToolOutput: (input: object) => Promise<boolean>}},
+        landed: boolean,
+    ) => {
         await act(async () => {
             await expect(
                 result.current.sendToolOutput({
@@ -631,7 +634,7 @@ describe("server-owned client-tool answers", () => {
                     toolCallId: "questionnaire",
                     output: {action: "accept", content: {goal: "Correctness"}},
                 }),
-            ).resolves.toBeUndefined()
+            ).resolves.toBe(landed)
         })
     }
 
@@ -652,7 +655,7 @@ describe("server-owned client-tool answers", () => {
         markSessionFresh(sessionId)
         const {result} = mount(store, "rev-1", sessionId)
 
-        await answerOnce(result)
+        await answerOnce(result, true)
 
         expect(result.current.error).toBeUndefined()
         expect(result.current.turns.at(-1)?.status.showError).not.toBe(true)
@@ -672,7 +675,7 @@ describe("server-owned client-tool answers", () => {
         markSessionFresh(sessionId)
         const {result} = mount(store, "rev-1", sessionId)
 
-        await answerOnce(result)
+        await answerOnce(result, false)
 
         await waitFor(() => {
             const last = result.current.turns.at(-1)
@@ -695,7 +698,7 @@ describe("server-owned client-tool answers", () => {
         markSessionFresh(sessionId)
         const {result} = mount(store, "rev-1", sessionId)
 
-        await answerOnce(result)
+        await answerOnce(result, false)
 
         await waitFor(() => expect(result.current.turns.at(-1)?.status.showError).toBe(true))
     })
@@ -718,7 +721,7 @@ describe("server-owned client-tool answers", () => {
                     toolCallId: "questionnaire",
                     output: {action: "accept", content: {goal: "Correctness"}},
                 }),
-            ).resolves.toBeUndefined()
+            ).resolves.toBe(true)
         })
 
         expect(result.current.error).toBeUndefined()
@@ -742,7 +745,7 @@ describe("server-owned client-tool answers", () => {
                     toolCallId: "questionnaire",
                     output: {action: "accept", content: {goal: "Correctness"}},
                 }),
-            ).resolves.toBeUndefined()
+            ).resolves.toBe(false)
         })
 
         await waitFor(() => {

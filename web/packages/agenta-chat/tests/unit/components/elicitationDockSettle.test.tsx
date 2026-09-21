@@ -226,6 +226,36 @@ describe("settling", () => {
         expect(onOutput).toHaveBeenCalledTimes(1)
     })
 
+    it("gives the buttons back when the host reports the write did not land", async () => {
+        const onOutput = vi.fn(() => Promise.resolve(false))
+        const meta = metaWith(TWO_QUESTIONS)
+        render(
+            <ElicitationDock
+                elicits={{
+                    open: true,
+                    front: meta,
+                    queue: [meta],
+                    shortcutsEnabled: true,
+                    dismiss: vi.fn(async () => undefined),
+                    dismissing: false,
+                }}
+                onOutput={onOutput}
+            />,
+        )
+
+        fireEvent.click(screen.getByLabelText("Dismiss this request"))
+        await waitFor(() =>
+            expect((screen.getByText("Next").closest("button") as HTMLButtonElement).disabled).toBe(
+                false,
+            ),
+        )
+        expect(screen.getByText("Could not submit your answer.")).toBeTruthy()
+
+        // The latch let go too: a retry goes out again.
+        fireEvent.click(screen.getByLabelText("Dismiss this request"))
+        expect(onOutput).toHaveBeenCalledTimes(2)
+    })
+
     it("reads a host-driven dismiss as its own ✕ having fired, and takes no answer meanwhile", () => {
         // The host settles the card when a chat message is sent over it. Between that write and
         // the transcript catching up the card is still mounted, so it must show the dismiss and

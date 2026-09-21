@@ -179,6 +179,22 @@ describe("host-driven dismiss", () => {
         expect(onOutput).toHaveBeenCalledTimes(2)
     })
 
+    it("treats a handler that reports `false` as a failed write, and re-arms", async () => {
+        // The conversation's settle swallows a refused respond (it stamps the run error itself)
+        // and resolves `false`. Read as success, the card spun forever over a question that was
+        // still live and the message steered into a run that never resumed.
+        const onOutput = vi.fn(() => Promise.resolve(false))
+        const {result} = renderHook(() =>
+            useElicitationDock({messages: turn(toolPart(), renderPart("call_1")), onOutput}),
+        )
+
+        await act(async () => {
+            await expect(result.current.dismiss()).rejects.toThrow("couldn't be dismissed")
+        })
+
+        expect(result.current.dismissing).toBe(false)
+    })
+
     it("does nothing when no question is parked", async () => {
         const {result, onOutput} = setup(
             turn(toolPart({state: "output-available", output: {action: "accept"}})),

@@ -93,10 +93,13 @@ export interface ClientToolMeta {
     part: ToolUIPart
 }
 
-/** Settle the parked part. Mirrors OSS `SettleClientTool`: exactly one of `output`/`errorText`. */
+/**
+ * Settle the parked part. Mirrors OSS `SettleClientTool`: exactly one of `output`/`errorText`.
+ * A host may resolve `false` when the write did not land and the part is still parked.
+ */
 export interface SettleClientTool {
-    (args: {output: Record<string, unknown>}): void | Promise<void>
-    (args: {errorText: string}): void | Promise<void>
+    (args: {output: Record<string, unknown>}): void | boolean | Promise<void | boolean>
+    (args: {errorText: string}): void | boolean | Promise<void | boolean>
 }
 
 /** Props every client-tool widget receives — mirrors OSS `ClientToolHandlerProps`. */

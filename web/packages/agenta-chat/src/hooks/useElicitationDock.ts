@@ -56,8 +56,9 @@ export interface ElicitationDockState {
      * Settle the front card as its own ✕ would — a cancel; the card drops its draft — from
      * outside the card. The host calls this when the user sends a chat message over a parked question: the
      * message is the better answer, so the form goes and the message follows it in. Resolves once
-     * the settle write lands; rejects (and re-arms the card) when it fails. A no-op while nothing
-     * is parked or that same call is already on its way out.
+     * the settle write lands; rejects (and re-arms the card) when it fails, whether the handler
+     * threw or reported `false`. A no-op while nothing is parked or that same call is already on
+     * its way out.
      */
     dismiss: () => Promise<void>
     /** The front card is being dismissed from outside — it must show that, and take no answer. */
@@ -129,7 +130,7 @@ export const useElicitationDock = ({
         dismissingRef.current = target.toolCallId
         setDismissingId(target.toolCallId)
         try {
-            await onOutput?.({
+            const landed = await onOutput?.({
                 toolName: target.toolName,
                 toolCallId: target.toolCallId,
                 output: buildCancelResult("Dismissed the request.") as unknown as Record<
@@ -137,6 +138,7 @@ export const useElicitationDock = ({
                     unknown
                 >,
             })
+            if (landed === false) throw new Error("The question couldn't be dismissed.")
         } catch (error) {
             // The question is still live: give the card its controls back.
             dismissingRef.current = null
