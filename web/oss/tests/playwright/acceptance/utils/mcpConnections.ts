@@ -96,7 +96,8 @@ export const uniqueName = (prefix: string) =>
  * The sentence a skipped case carries, naming what to start so the skip is not a mystery.
  */
 export const missingMockMcpUpstreamReason =
-    `The MCP mock upstream did not answer at ${publishedMockMcpUrl}. This suite needs a ` +
+    `The MCP mock upstream is unavailable at ${publishedMockMcpUrl}: unreachable, too slow, or ` +
+    "answering 5xx. This suite needs a " +
     "stack running the gateway mocks: bring one up with AGENTA_GATEWAYS_MOCKS_ENABLED=true, " +
     "and set AGENTA_MOCK_MCP_GATEWAY_PUBLISHED_URL if it is published somewhere else."
 

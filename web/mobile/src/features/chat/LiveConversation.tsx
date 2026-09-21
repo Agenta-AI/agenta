@@ -164,8 +164,8 @@ export const LiveConversation = ({
         sharedReaderRunning: running,
         sharedReaderLivenessUpdatedAt: livenessUpdatedAt,
         restoreRefusedSend,
-        onSendAccepted: () => markLocalSessionAccepted(sessionId),
-        onSendFailed: () => dropUnacceptedLocalSession(sessionId),
+        onSendAccepted: (message) => markLocalSessionAccepted({sessionId, sendId: message.id}),
+        onSendFailed: (message) => dropUnacceptedLocalSession({sessionId, sendId: message.id}),
     })
     const canEditSecrets = useProjectPermission(projectId, "edit_secret")
     const pinRevision = useSetAtom(selectedRevisionAtomFamily(sessionId))
@@ -282,7 +282,7 @@ export const LiveConversation = ({
                 await sendToConversation(input)
             } catch (error) {
                 // The durable path reports this through `onSendFailed` too; this covers the rest.
-                dropUnacceptedLocalSession(sessionId)
+                dropUnacceptedLocalSession({sessionId})
                 throw error
             }
         },

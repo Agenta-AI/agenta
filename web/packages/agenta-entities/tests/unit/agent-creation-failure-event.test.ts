@@ -246,6 +246,24 @@ describe("agent_create_failed", () => {
         })
     })
 
+    // `sourceOutcome` counts a `null` rejection as an error, so the status has to come from the
+    // first source that is not `undefined`, not the first that is truthy (#6998 review).
+    it("reports the status of the first errored source, even when it rejected with null", async () => {
+        fetchVaultSecretMock.mockRejectedValue(null)
+        fetchHarnessCapabilitiesMock.mockRejectedValue(
+            Object.assign(new Error("catalog unavailable"), {response: {status: 503}}),
+        )
+
+        expect(await createEphemeralAppFromTemplate({type: "agent"})).toBeNull()
+
+        expect(onlyPayload()).toMatchObject({
+            reason: "sources_not_ready",
+            provider_connections: "error",
+            harness_catalog: "error",
+            status: 0,
+        })
+    })
+
     it("carries the requested type for a non-agent creation", async () => {
         fetchWorkflowCatalogTemplatesMock.mockResolvedValue({count: 0, templates: []})
 

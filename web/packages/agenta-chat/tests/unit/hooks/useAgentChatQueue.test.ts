@@ -20,6 +20,10 @@ const userTurn = (id: string, text: string): UIMessage =>
 const assistantText = (id: string, text: string): UIMessage =>
     ({id, role: "assistant", parts: [{type: "text", text}]}) as UIMessage
 
+/** An assistant tail the runner has already named — `latestTurnId` reads this metadata. */
+const assistantTurn = (id: string, turnId: string): UIMessage =>
+    ({id, role: "assistant", metadata: {turnId}, parts: [{type: "text", text: "…"}]}) as UIMessage
+
 /** An assistant tail paused on a HITL tool gate (the dock-actionable state). */
 const assistantAwaitingApproval = (id: string): UIMessage =>
     ({
@@ -149,6 +153,120 @@ describe("useAgentChatQueue", () => {
         expect(sendQueued).toHaveBeenCalledTimes(1)
         expect(onSendAccepted).toHaveBeenCalledTimes(1)
         expect(onSendAccepted.mock.calls[0][0]).toMatchObject({text: "waits its turn"})
+    })
+
+    // That admission is provisional. The AI SDK never rejects a send — a refusal, a 5xx and a
+    // dropped connection all land as `status: "error"` — so without this edge a fresh session's
+    // row stayed marked accepted for a session the server will never list (#6783 review).
+    it("retracts the admission when the send errors before a turn is named", () => {
+        const onSendAccepted = vi.fn()
+        const onSendFailed = vi.fn()
+        const props: HarnessProps = {...settledEmpty, onSendAccepted, onSendFailed}
+        const {result, rerender} = setup(props)
+
+        act(() => {
+            result.current.submit({text: "never left"})
+        })
+        expect(onSendAccepted).toHaveBeenCalledTimes(1)
+        expect(onSendFailed).not.toHaveBeenCalled()
+
+        act(() => {
+            rerender({...props, status: "error", messages: [userTurn("u1", "never left")]})
+        })
+
+        expect(onSendFailed).toHaveBeenCalledTimes(1)
+        expect(onSendFailed.mock.calls[0][0]).toMatchObject({text: "never left"})
+        // The same message on both edges, so a host can tell a retraction from a later failure.
+        expect(onSendFailed.mock.calls[0][0].id).toBe(onSendAccepted.mock.calls[0][0].id)
+    })
+
+    it("retracts the admission of a released message that errors", () => {
+        const onSendFailed = vi.fn()
+        const props: HarnessProps = {
+            status: "streaming",
+            messages: [userTurn("u1", "go")],
+            stopped: false,
+            onSendFailed,
+        }
+        const {result, rerender} = setup(props)
+
+        act(() => {
+            result.current.submit({text: "waits its turn"})
+        })
+        act(() => {
+            rerender({...props, status: "ready"})
+        })
+        expect(onSendFailed).not.toHaveBeenCalled()
+
+        act(() => {
+            rerender({...props, status: "error"})
+        })
+
+        expect(onSendFailed).toHaveBeenCalledTimes(1)
+        expect(onSendFailed.mock.calls[0][0]).toMatchObject({text: "waits its turn"})
+    })
+
+    // A stream that fails after the runner named the turn is a failed TURN, which the transcript
+    // owns. Reporting it here would retire a row for a session the server does list.
+    it("leaves a send alone when the stream fails after its turn was named", () => {
+        const onSendFailed = vi.fn()
+        const props: HarnessProps = {...settledEmpty, onSendFailed}
+        const {result, rerender} = setup(props)
+
+        act(() => {
+            result.current.submit({text: "ran, then broke"})
+        })
+        const named = [userTurn("u1", "ran, then broke"), assistantTurn("a1", "turn-1")]
+        act(() => {
+            rerender({...props, status: "streaming", messages: named})
+        })
+        act(() => {
+            rerender({...props, status: "error", messages: named})
+        })
+
+        expect(onSendFailed).not.toHaveBeenCalled()
+    })
+
+    // A user stop aborts into "ready", never "error", so it is not a failed send.
+    it("does not retract on a user stop", () => {
+        const onSendFailed = vi.fn()
+        const props: HarnessProps = {...settledEmpty, onSendFailed}
+        const {result, rerender} = setup(props)
+
+        act(() => {
+            result.current.submit({text: "stopped short"})
+        })
+        act(() => {
+            rerender({...props, status: "ready", stopped: true})
+        })
+
+        expect(onSendFailed).not.toHaveBeenCalled()
+    })
+
+    // The desktop claims the same message through `takeLastSent` from an effect of its own, which
+    // runs after this hook's.
+    it("leaves the retracted message reclaimable, and retracts it only once", () => {
+        const onSendFailed = vi.fn()
+        const props: HarnessProps = {...settledEmpty, onSendFailed}
+        const {result, rerender} = setup(props)
+
+        act(() => {
+            result.current.submit({text: "refused"})
+        })
+        act(() => {
+            rerender({...props, status: "error"})
+        })
+        expect(onSendFailed).toHaveBeenCalledTimes(1)
+
+        // A failed retry errors again on the same unadmitted message; one retraction is enough.
+        act(() => {
+            rerender({...props, status: "submitted"})
+        })
+        act(() => {
+            rerender({...props, status: "error"})
+        })
+        expect(onSendFailed).toHaveBeenCalledTimes(1)
+        expect(result.current.takeLastSent()).toMatchObject({text: "refused"})
     })
 
     it("queues messages typed while a turn is streaming", () => {

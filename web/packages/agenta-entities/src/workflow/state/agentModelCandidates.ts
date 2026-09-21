@@ -260,7 +260,13 @@ export async function loadAgentModelCandidates({
             provider_connections: sourceOutcome(vault),
             harness_catalog: sourceOutcome(capabilities),
             subscription_status: sourceOutcome(subscription),
-            status: httpStatusFrom(vault.error ?? capabilities.error ?? subscription.error),
+            // `sourceOutcome` counts a `null` rejection as an error, so `??` would skip past the
+            // source the report names and quote a status belonging to a different one.
+            status: httpStatusFrom(
+                [vault.error, capabilities.error, subscription.error].find(
+                    (error) => error !== undefined,
+                ),
+            ),
         },
     }
 }

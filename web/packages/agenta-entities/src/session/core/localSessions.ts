@@ -26,6 +26,10 @@ export interface LocalSession {
     /** ms epoch, so the row can take its place in a date-ordered list. */
     createdAt: number
     state: "submitting" | "accepted"
+    /** The send that admitted it, so its own later failure is distinguishable from a newer
+     * message's. A non-durable send reports admission on reaching the transport, which an error
+     * before any turn was named then retracts. */
+    admittedBy?: string
 }
 
 export const localSessionsAtom = atom<Record<string, LocalSession>>({})
@@ -76,26 +80,39 @@ export const registerLocalSessionAtom = atom(
 )
 
 /** A send into this session was admitted: the server will list it, so the row stays until then. */
-export const markLocalSessionAcceptedAtom = atom(null, (get, set, sessionId: string) => {
-    const current = get(localSessionsAtom)
-    const existing = current[sessionId]
-    if (!existing || existing.state === "accepted") return
-    set(localSessionsAtom, {...current, [sessionId]: {...existing, state: "accepted"}})
-})
+export const markLocalSessionAcceptedAtom = atom(
+    null,
+    (get, set, input: {sessionId: string; sendId?: string}) => {
+        const current = get(localSessionsAtom)
+        const existing = current[input.sessionId]
+        if (!existing || existing.state === "accepted") return
+        set(localSessionsAtom, {
+            ...current,
+            [input.sessionId]: {...existing, state: "accepted", admittedBy: input.sendId},
+        })
+    },
+)
 
 /**
  * A send into this session failed. If nothing was ever admitted the server will never list the
  * session, so the row goes. An accepted session keeps its row: that failure belongs to a later
- * message, and the server list is what retires the copy.
+ * message, and the server list is what retires the copy — unless the failing send IS the one that
+ * admitted it, which is an admission being retracted rather than a later message failing.
  */
-export const dropUnacceptedLocalSessionAtom = atom(null, (get, set, sessionId: string) => {
-    const current = get(localSessionsAtom)
-    const existing = current[sessionId]
-    if (!existing || existing.state === "accepted") return
-    const next = {...current}
-    delete next[sessionId]
-    set(localSessionsAtom, next)
-})
+export const dropUnacceptedLocalSessionAtom = atom(
+    null,
+    (get, set, input: {sessionId: string; sendId?: string}) => {
+        const current = get(localSessionsAtom)
+        const existing = current[input.sessionId]
+        if (!existing) return
+        const retracting =
+            existing.state === "accepted" && !!input.sendId && existing.admittedBy === input.sendId
+        if (existing.state === "accepted" && !retracting) return
+        const next = {...current}
+        delete next[input.sessionId]
+        set(localSessionsAtom, next)
+    },
+)
 
 /** The server lists these now (or they were deleted): the local copies have done their job. */
 export const forgetLocalSessionsAtom = atom(null, (get, set, ids: Iterable<string>) => {

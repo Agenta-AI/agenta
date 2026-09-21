@@ -93,9 +93,14 @@ interface UseAgentChatQueueArgs {
      * host that reads its own composer back cannot always answer in this one.
      */
     restoreRefusedSend?: (message: QueuedMessage) => boolean | Promise<boolean>
-    /** A durable send was admitted: the turn it started, or `null` for a parked input. */
+    /** A send was admitted: the turn it started, or `null` for a parked input or a non-durable
+     * send, whose only admission is reaching the transport. */
     onSendAccepted?: (message: QueuedMessage, executionId: string | null) => void
-    /** A durable send will never become a turn: rejected before it left, or refused after. */
+    /**
+     * This send will never become a turn: rejected before it left, or refused after. It may follow
+     * `onSendAccepted` for the same message — the non-durable path admits on reaching the
+     * transport, so an error before any turn is named retracts an admission already reported.
+     */
     onSendFailed?: (message: QueuedMessage) => void
     /** Send one released message into the conversation (wraps `useChat`'s `sendMessage`). Must be
      * referentially stable so the release effect doesn't churn on every streamed token. */
@@ -237,6 +242,10 @@ export const useAgentChatQueue = ({
     const onSendFailedRef = useRef(onSendFailed)
     onSendFailedRef.current = onSendFailed
 
+    // Retained until admission so a refused immediate send can return to the composer, and so a
+    // failed one can be told apart from a later message's failure.
+    const lastSentRef = useRef<QueuedMessage | undefined>(undefined)
+
     /**
      * Hand a message to the transport on the NON-durable path, and report it as admitted.
      *
@@ -246,6 +255,9 @@ export const useAgentChatQueue = ({
      * that protects it could not hold, and a later message's failure deleted a row the server
      * was going to list. Reaching the transport IS the admission this path has, and it is the
      * same moment `markRunOwned` already claims the run.
+     *
+     * That admission is provisional: `lastSentRef` holds the message until a turn is named, and
+     * the error effect below retracts it if none ever is.
      */
     const dispatchUnqueued = useCallback(
         (message: QueuedMessage) => {
@@ -264,13 +276,34 @@ export const useAgentChatQueue = ({
     )
     const echoes = usePendingSendEchoes({messages, dockedInputIds})
 
-    // Retained until admission so a refused immediate send can return to the composer.
-    const lastSentRef = useRef<QueuedMessage | undefined>(undefined)
-
     const admittedTurnId = latestTurnId(messages)
     useEffect(() => {
         if (admittedTurnId) lastSentRef.current = undefined
     }, [admittedTurnId])
+
+    /**
+     * Retract the non-durable path's provisional admission when the send turned out not to be one.
+     *
+     * The AI SDK never rejects a send: `Chat.makeRequest` catches a refusal, a 5xx and a dropped
+     * connection alike and lands them as `status: "error"`, so the promise `sendQueued` throws
+     * away would have carried nothing anyway. This status IS the failure event this path has.
+     *
+     * Declared after the clear above so effect order settles the ambiguous commit: a stream that
+     * failed AFTER the runner named the turn has already dropped `lastSentRef`, and that is a
+     * failed turn the transcript owns, not a send that never left. A user stop lands on "ready",
+     * so it never reaches here.
+     *
+     * Reports without consuming `lastSentRef`: the desktop's session-busy recovery claims the same
+     * message through `takeLastSent`, and these effects run before its own.
+     */
+    const retractedSendIdRef = useRef<string | null>(null)
+    useEffect(() => {
+        if (status !== "error") return
+        const unadmitted = lastSentRef.current
+        if (!unadmitted || retractedSendIdRef.current === unadmitted.id) return
+        retractedSendIdRef.current = unadmitted.id
+        onSendFailedRef.current?.(unadmitted)
+    }, [status])
 
     /** Take back the last sent message only after an optional placement succeeds. */
     const takeLastSent = useCallback((place?: (message: QueuedMessage) => boolean) => {

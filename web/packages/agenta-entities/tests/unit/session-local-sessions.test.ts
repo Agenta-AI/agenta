@@ -75,30 +75,42 @@ describe("localSessions", () => {
     it("drops a session whose only send failed", () => {
         const store = createStore()
         store.set(registerLocalSessionAtom, {sessionId: "s1", projectId: "p1", name: "one"})
-        store.set(dropUnacceptedLocalSessionAtom, "s1")
+        store.set(dropUnacceptedLocalSessionAtom, {sessionId: "s1"})
         expect(store.get(localSessionsAtom)).toEqual({})
     })
 
     it("keeps an accepted session through a later failure, until the server lists it", () => {
         const store = createStore()
         store.set(registerLocalSessionAtom, {sessionId: "s1", projectId: "p1", name: "one"})
-        store.set(markLocalSessionAcceptedAtom, "s1")
+        store.set(markLocalSessionAcceptedAtom, {sessionId: "s1", sendId: "m1"})
         expect(store.get(localSessionsAtom).s1.state).toBe("accepted")
         const accepted = store.get(localSessionsAtom)
-        // Accepting twice, or dropping an accepted session, changes nothing.
-        store.set(markLocalSessionAcceptedAtom, "s1")
-        store.set(dropUnacceptedLocalSessionAtom, "s1")
+        // Accepting twice, or dropping on a LATER message's failure, changes nothing.
+        store.set(markLocalSessionAcceptedAtom, {sessionId: "s1", sendId: "m2"})
+        store.set(dropUnacceptedLocalSessionAtom, {sessionId: "s1", sendId: "m2"})
+        store.set(dropUnacceptedLocalSessionAtom, {sessionId: "s1"})
         expect(store.get(localSessionsAtom)).toBe(accepted)
         // Only the server list retires it.
         store.set(forgetLocalSessionsAtom, ["s1"])
         expect(store.get(localSessionsAtom)).toEqual({})
     })
 
+    // The non-durable send path admits on reaching the transport, so its admission is provisional:
+    // a rejection before any turn was named retracts it and the row goes with it (#6783 review).
+    it("drops an accepted session when the admitting send is the one that failed", () => {
+        const store = createStore()
+        store.set(registerLocalSessionAtom, {sessionId: "s1", projectId: "p1", name: "one"})
+        store.set(markLocalSessionAcceptedAtom, {sessionId: "s1", sendId: "m1"})
+        expect(store.get(localSessionsAtom).s1.admittedBy).toBe("m1")
+        store.set(dropUnacceptedLocalSessionAtom, {sessionId: "s1", sendId: "m1"})
+        expect(store.get(localSessionsAtom)).toEqual({})
+    })
+
     it("ignores lifecycle events for a session it never registered", () => {
         const store = createStore()
         const before = store.get(localSessionsAtom)
-        store.set(markLocalSessionAcceptedAtom, "missing")
-        store.set(dropUnacceptedLocalSessionAtom, "missing")
+        store.set(markLocalSessionAcceptedAtom, {sessionId: "missing", sendId: "m1"})
+        store.set(dropUnacceptedLocalSessionAtom, {sessionId: "missing", sendId: "m1"})
         expect(store.get(localSessionsAtom)).toBe(before)
     })
 

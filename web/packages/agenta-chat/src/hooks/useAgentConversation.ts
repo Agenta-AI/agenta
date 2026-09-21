@@ -173,10 +173,12 @@ export interface UseAgentConversationArgs {
     /** Hand a late-refused send back to the composer; return whether it took the text (and the
      * staged files it carried). See `restoreRefusedSend` in `@agenta/chat/assets`. */
     restoreRefusedSend?: (message: QueuedMessage) => boolean | Promise<boolean>
-    /** A durable send was admitted: the turn it started, or `null` for a parked input. */
-    onSendAccepted?: (message: {text: string}, executionId: string | null) => void
-    /** A durable send was rejected or refused; no turn will ever carry it. */
-    onSendFailed?: (message: {text: string}) => void
+    /** A send was admitted: the turn it started, or `null` for a parked input or a non-durable
+     * send, whose admission is provisional until a turn is named. */
+    onSendAccepted?: (message: {id: string; text: string}, executionId: string | null) => void
+    /** This send was rejected or refused; no turn will ever carry it. It may follow
+     * `onSendAccepted` for the same message, retracting a provisional admission. */
+    onSendFailed?: (message: {id: string; text: string}) => void
     /** Override the client-tool predicate. Defaults to the package registry's, so a host does not
      * have to opt IN to elicitation and connect widgets — /m shipped without one for months and
      * silently folded every client tool into the plain "used N tools" group, leaving the run
