@@ -430,6 +430,43 @@ describe("useAgentChatQueue", () => {
         expect(onSendAccepted).not.toHaveBeenCalled()
     })
 
+    // The retraction belongs to the non-durable path alone: `lastSentRef` is written only by the
+    // two `dispatchUnqueued` call sites, which `admit` returns before when the server advertises a
+    // durable queue. A durable send that reports its own failure must not also be retracted here,
+    // and a stale `status: "error"` from an earlier turn must not fail a healthy new send.
+    it("never retracts on the durable path, even when the chat is already in error", async () => {
+        const onSendFailed = vi.fn()
+        const server: ServerQueueAdapter = {
+            capabilities: {queue: true, steer: true},
+            busy: false,
+            queued: [],
+            submit: vi.fn().mockResolvedValue("running"),
+            remove: vi.fn().mockResolvedValue(undefined),
+        }
+        const props: HarnessProps = {...settledEmpty, server, onSendFailed}
+        const {result, rerender} = setup(props)
+
+        await act(async () => {
+            await result.current.submit({text: "durable send"})
+        })
+        act(() => {
+            rerender({...props, status: "error"})
+        })
+        expect(onSendFailed).not.toHaveBeenCalled()
+
+        // A new send while the chat is ALREADY in error, which is the shape that would fail a
+        // healthy message if the retraction could reach this path.
+        await act(async () => {
+            await result.current.submit({text: "sent while the chat reads error"})
+        })
+        act(() => {
+            rerender({...props, status: "error", messages: [userTurn("u1", "earlier turn")]})
+        })
+
+        expect(server.submit).toHaveBeenCalledTimes(2)
+        expect(onSendFailed).not.toHaveBeenCalled()
+    })
+
     it("reports a late refusal as failed and an admitted turn as accepted", async () => {
         const onSendFailed = vi.fn()
         const onSendAccepted = vi.fn()
