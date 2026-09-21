@@ -10,6 +10,7 @@ from oss.src.core.channels.dtos import (
     ChannelAgentCreate,
     ChannelAgentData,
     ChannelAgentDataEdit,
+    ChannelAgentFlags,
     ChannelAgentEdit,
     ChannelAgentQuery,
     ChannelCapabilities,
@@ -599,6 +600,85 @@ class ChannelsService:
                 ) from e
 
         return edited
+
+    async def ensure_hosted_telegram_connection(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        references: Dict[str, Any],
+    ) -> ChannelConnection:
+        """Create or reuse the one hosted Telegram connection for this project,
+        with the chosen agent as its default, and return it. Idempotent: a
+        second connect for the same project reuses the connection and leaves its
+        agent in place. The bind link is minted against the returned connection.
+        """
+
+        # Include archived rows: query_connections does not filter them, and a
+        # disconnected hosted connection still holds the project's unique
+        # external key, so creating a second one would conflict. Reuse it.
+        existing = await self.query_connections(
+            project_id=project_id,
+            connection=ChannelConnectionQuery(channel="telegram_hosted"),
+        )
+        connection = next((c for c in existing if c.channel == "telegram_hosted"), None)
+        if connection is None:
+            connection = await self.create_connection(
+                project_id=project_id,
+                user_id=user_id,
+                connection=ChannelConnectionCreate(
+                    channel="telegram_hosted",
+                    slug="agenta-telegram",
+                    name="Agenta on Telegram",
+                    flags=ChannelConnectionFlags(is_hosted=True),
+                ),
+            )
+        elif connection.deleted_at is not None:
+            # a previously disconnected hosted connection: unarchive and reuse.
+            connection = (
+                await self.unarchive_connection(
+                    project_id=project_id,
+                    user_id=user_id,
+                    connection_id=connection.id,
+                )
+                or connection
+            )
+
+        agents = await self.query_agents(
+            project_id=project_id,
+            agent=ChannelAgentQuery(connection_id=connection.id),
+        )
+        active = [a for a in agents if a.deleted_at is None]
+        if not active:
+            await self.create_agent(
+                project_id=project_id,
+                user_id=user_id,
+                agent=ChannelAgentCreate(
+                    connection_id=connection.id,
+                    slug="default",
+                    name="Default agent",
+                    data=ChannelAgentData(references=references),
+                    flags=ChannelAgentFlags(is_default=True),
+                ),
+            )
+        else:
+            # Per-project connection, retargeted by agent: the connect action
+            # points this project's Telegram at the CALLING agent. If the
+            # answering agent already matches, this is a no-op; if it is a
+            # different agent, retarget it here ("disconnect from agent X and
+            # connect here"). One shared connection, one answering agent.
+            answering = next((a for a in active if a.flags.is_default), active[0])
+            if _reference_id(references) != _reference_id(answering.data.references):
+                await self.edit_agent(
+                    project_id=project_id,
+                    user_id=user_id,
+                    agent=ChannelAgentEdit(
+                        id=answering.id,
+                        data=ChannelAgentDataEdit(references=references),
+                    ),
+                )
+
+        return connection
 
     async def archive_connection(
         self,
@@ -1387,6 +1467,12 @@ class ChannelsService:
         ):
             return None
 
+        # An allow-list on the connection ("Allowed users" on the agent page):
+        # when it names anyone, a sender outside it is dropped before any
+        # space is provisioned. Empty means everyone.
+        if not _sender_allowed(connection, event):
+            return None
+
         capabilities = await self.fetch_capabilities(
             channel=connection.channel, connection=connection
         )
@@ -1778,8 +1864,25 @@ class ChannelsService:
                 capabilities=capabilities,
             )
 
+        if capabilities is None:
+            connection = await self.channels_dao.fetch_connection(
+                project_id=project_id,
+                connection_id=resolution.space.connection_id,
+            )
+            capabilities = await self.fetch_capabilities(
+                channel=connection.channel, connection=connection
+            )
+
         content: List[dict] = []
         for stored in events:
+            # Who is speaking, as its own part before their words: the agent
+            # can address people by name and keep them apart, and the words
+            # themselves are never rewritten.
+            attribution = _attribution_part(
+                stored.data.processed.sender, channel=capabilities.channel
+            )
+            if attribution is not None:
+                content.append(attribution)
             if stored.id == event_id and resolution.resolved_choice is not None:
                 # the resolved label stands in for the raw arrival here only
                 # -- the logged row itself was never rewritten
@@ -1953,6 +2056,47 @@ def _canonical_locator(locator: Optional[dict]) -> str:
     from oss.src.core.channels.utils import canonical_json
 
     return canonical_json(locator or {})
+
+
+def _platform_label(channel: str) -> str:
+    if channel.startswith("telegram"):
+        return "Telegram"
+    if channel.startswith("slack"):
+        return "Slack"
+    return channel
+
+
+def _attribution_part(sender: Dict[str, Any], *, channel: str) -> Optional[dict]:
+    """ "From Test User (@testuser, Telegram id 1000001):" -- the name when the
+    platform sent one, else the username, else the bare id. None when the
+    event names no sender at all (an Agenta-internal event, for instance)."""
+
+    if not isinstance(sender, dict):
+        return None
+    sender_id = sender.get("id")
+    if sender_id in (None, ""):
+        return None
+    name = sender.get("name") or ""
+    username = sender.get("username") or ""
+    platform = _platform_label(channel)
+    who = name or (f"@{username}" if username else f"user {sender_id}")
+    details = []
+    if name and username:
+        details.append(f"@{username}")
+    details.append(f"{platform} id {sender_id}")
+    return {"type": "text", "text": f"From {who} ({', '.join(details)}):"}
+
+
+def _sender_allowed(connection: ChannelConnection, event: ChannelInboxEvent) -> bool:
+    data = connection.data if isinstance(connection.data, dict) else {}
+    allowed = data.get("allowed_senders")
+    if not isinstance(allowed, list) or not allowed:
+        return True
+    sender = event.data.processed.sender if event.data and event.data.processed else {}
+    sender_id = sender.get("id") if isinstance(sender, dict) else None
+    if sender_id is None:
+        return False
+    return str(sender_id) in {str(item) for item in allowed}
 
 
 def _admitting_grant(
@@ -2190,6 +2334,17 @@ def _parse_sigil(*, content: list, sigil: Optional[str]) -> Optional[str]:
             return match.group(1)
 
     return None
+
+
+def _reference_id(references) -> Optional[str]:
+    """The id of the first (and, for a hosted channel agent, only) reference,
+    handling both a plain dict and a Reference object. Used to tell whether the
+    connection's answering agent already points at the requested app."""
+    if not references:
+        return None
+    value = next(iter(references.values()))
+    raw = value.get("id") if isinstance(value, dict) else getattr(value, "id", None)
+    return str(raw) if raw is not None else None
 
 
 def _channel_defaults(capabilities: ChannelCapabilities):

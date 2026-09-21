@@ -40,12 +40,11 @@ const emptyPolicy: AgentaApi.ChannelPolicy = {}
 /**
  * A single space-level grant, create/edit — reached from the space detail
  * screen with the space fixed and an agent to pick. Kind-level grants (the
- * DM/group-chat questions) and the channel picker live in
- * `GrantKindSection`/`GrantChannelsSection` instead, never here.
+ * DM/group-chat questions) and the channel picker belong to the agent page,
+ * never here.
  *
  * No raw `is_default` toggle here — default-setting is the dedicated
- * `set_channel_grant_default` action on the roster/detail screens, never a
- * field on this form's PUT body.
+ * `set_channel_grant_default` action, never a field on this form's PUT body.
  */
 export default function GrantFormDrawer({
     open,

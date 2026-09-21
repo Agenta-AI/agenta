@@ -825,6 +825,32 @@ class ChannelsSlackConfig(BaseModel):
         return bool(self.client_id and self.client_secret and self.signing_secret)
 
 
+# ---------------------------------------------------------------------------
+# channels.telegram — the Agenta-owned Telegram bot (hosted bind), one
+# deployment's bot, shared by every project. A custom bot uses a per-project
+# token in the vault instead; these are only for the hosted bot.
+# ---------------------------------------------------------------------------
+
+
+class ChannelsTelegramConfig(BaseModel):
+    # One shared bot token for the whole deployment, never a project's.
+    bot_token: str | None = os.getenv("TELEGRAM_HOSTED_BOT_TOKEN")
+    # The @username of the hosted bot, for the deep link t.me/<username>.
+    bot_username: str | None = os.getenv("TELEGRAM_HOSTED_BOT_USERNAME")
+    # The secret token Telegram echoes on every hosted webhook call, set once
+    # per deployment at setWebhook time; the ingress verifies it before it
+    # consumes a bind token or writes anything.
+    webhook_secret: str | None = os.getenv("TELEGRAM_HOSTED_WEBHOOK_SECRET")
+
+    model_config = ConfigDict(extra="ignore")
+
+    @property
+    def enabled(self) -> bool:
+        # A username is required too: without it the deep link degrades to
+        # https://t.me/?start=... , which connects nothing.
+        return bool(self.bot_token and self.webhook_secret and self.bot_username)
+
+
 class ChannelsConfig(BaseModel):
     # The whole channels feature, off by default. When false the ingress and
     # the configuration routes 404 and the inbox worker does not consume, so a
@@ -835,6 +861,7 @@ class ChannelsConfig(BaseModel):
     ).strip().lower() in _TRUTHY
 
     slack: ChannelsSlackConfig = ChannelsSlackConfig()
+    telegram: ChannelsTelegramConfig = ChannelsTelegramConfig()
 
     model_config = ConfigDict(extra="ignore")
 

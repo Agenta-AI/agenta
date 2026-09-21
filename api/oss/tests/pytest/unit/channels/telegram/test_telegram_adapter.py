@@ -388,7 +388,7 @@ async def test_post_message_sends_html_and_returns_locator():
 
 
 @pytest.mark.asyncio
-async def test_indicator_content_shows_typing_and_posts_no_message():
+async def test_indicator_content_shows_typing_and_posts_the_placeholder():
     from oss.src.core.channels.render.render import INDICATOR_TEXT
 
     adapter, seen = _adapter_with_capture()
@@ -399,13 +399,42 @@ async def test_indicator_content_shows_typing_and_posts_no_message():
         content=[{"type": "text", "text": INDICATOR_TEXT, "indicator": True}],
         idempotency_key=uuid4(),
     )
-    # The indicator becomes a typing action; no message is posted, and the
-    # empty receipt tells the outbox to deliver the answer as a fresh message.
-    assert receipt == {}
-    assert [r.url.path for r in seen] == ["/bot123:abc/sendChatAction"]
+    # The indicator is the typing action PLUS a real "Thinking…" message the
+    # outbox edits as the answer takes shape; the receipt names that message.
+    assert receipt == {"chat_id": 999, "message_id": 7777}
+    assert [r.url.path for r in seen] == [
+        "/bot123:abc/sendChatAction",
+        "/bot123:abc/sendMessage",
+    ]
     typing = json.loads(seen[0].content.decode())
     assert typing["action"] == "typing"
     assert typing["chat_id"] == 999
+    posted = json.loads(seen[1].content.decode())
+    assert posted["text"] == INDICATOR_TEXT
+
+
+@pytest.mark.asyncio
+async def test_signal_activity_is_the_typing_action():
+    adapter, seen = _adapter_with_capture()
+    await adapter.signal_activity(connection=_connection(), locator={"chat_id": 999})
+    assert [r.url.path for r in seen] == ["/bot123:abc/sendChatAction"]
+
+
+@pytest.mark.asyncio
+async def test_html_parts_pass_through_and_plain_parts_are_escaped():
+    adapter, seen = _adapter_with_capture()
+    await adapter.post_message(
+        connection=_connection(),
+        locator={"chat_id": 999},
+        content=[
+            {"type": "text", "text": "<b>bold</b> &amp; safe", "format": "html"},
+            {"type": "text", "text": "a < b & c", "format": "plain"},
+        ],
+        idempotency_key=uuid4(),
+    )
+    sent = json.loads(seen[-1].content.decode())
+    assert sent["text"] == "<b>bold</b> &amp; safe\na &lt; b &amp; c"
+    assert sent["parse_mode"] == "HTML"
 
 
 @pytest.mark.asyncio
@@ -480,17 +509,15 @@ async def test_answer_equal_to_indicator_text_is_still_posted():
 
 
 @pytest.mark.asyncio
-async def test_long_answer_splits_without_corrupting_html():
-    import html as _html
-
+async def test_oversize_content_still_goes_out_in_more_than_one_message():
+    # The render layer sizes chunks to max_chars; the adapter's split is only
+    # the safety net for content that arrived oversize anyway.
     adapter, seen = _adapter_with_capture()
-    # A long answer with an ampersand near the split boundary. Splitting the raw
-    # text and escaping each chunk must never cut an entity.
-    raw = ("a" * 3899) + "&" + ("b" * 50)
+    raw = "a" * 5000
     await adapter.post_message(
         connection=_connection(),
         locator={"chat_id": 999},
-        content=[{"type": "text", "text": raw}],
+        content=[{"type": "text", "text": raw, "format": "html"}],
         idempotency_key=uuid4(),
     )
     sends = [
@@ -498,11 +525,8 @@ async def test_long_answer_splits_without_corrupting_html():
         for r in seen
         if r.url.path.endswith("/sendMessage")
     ]
-    assert len(sends) >= 2
-    # Each chunk is valid HTML on its own, and unescaping+concatenating restores
-    # the original text — no entity was cut.
-    joined = "".join(_html.unescape(s["text"]) for s in sends)
-    assert joined == raw
+    assert len(sends) == 2
+    assert "".join(s["text"] for s in sends) == raw
 
 
 # --- review fixes (CodeRabbit) ------------------------------------------------ #
@@ -576,3 +600,31 @@ async def test_answer_callback_query_swallows_a_transport_error():
     await adapter.answer_callback_query(
         connection=_connection(), callback_query_id="cbq-1"
     )
+
+
+@pytest.mark.asyncio
+async def test_parse_event_keeps_the_senders_name_and_username():
+    adapter, _ = _adapter_with_capture()
+    body = json.dumps(
+        {
+            "update_id": 1,
+            "message": {
+                "message_id": 5,
+                "chat": {"id": 8883745180, "type": "private"},
+                "from": {
+                    "id": 8883745180,
+                    "is_bot": False,
+                    "first_name": "Test",
+                    "last_name": "User",
+                    "username": "testuser",
+                },
+                "text": "hello",
+            },
+        }
+    ).encode()
+    event = await adapter.parse_event(connection=_connection(), body=body)
+    assert event.processed.sender == {
+        "id": 8883745180,
+        "name": "Test User",
+        "username": "testuser",
+    }
