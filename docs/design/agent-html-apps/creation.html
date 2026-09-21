@@ -578,7 +578,7 @@ open it and choose Run. Say what access it needs.</code></pre>
   </table></div>
 
   <figure>
-    <svg viewBox="0 0 960 300" role="img" aria-label="Two columns. Left, the agent level: configuration entities, skills including agenta-apps and starter skills, triggers, and tool connections, plus the durable agent folder with .apps and apps. Right, three sessions, each with its own apps folder holding instances. Arrows: skills and .apps/starters feed create_app in each session; triggers and connections feed data files; instances report back to registry.json; the visible agent apps folder is reachable from every session.">
+    <svg viewBox="0 0 960 300" role="img" aria-label="Two columns. Left, the agent level: configuration entities, skills including agenta-apps and starter skills, triggers, and tool connections, plus the durable agent folder with .apps and apps. Right, three sessions, each with its own apps folder holding instances. Arrows: skills and .apps/starters feed create_app in each session; triggers and connections feed data files; instances report back to their own session's registry file; the visible agent apps folder is reachable from every session.">
       <defs><marker id="al" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker></defs>
       <g font-size="11" fill="currentColor">
         <text x="20" y="22" font-size="12" font-weight="600" letter-spacing=".06em" opacity=".6">AGENT LEVEL · once per agent</text>
@@ -620,7 +620,7 @@ open it and choose Run. Say what access it needs.</code></pre>
         <text x="300" y="66">skill + create_app</text>
         <text x="300" y="150">agent starter</text>
         <text x="300" y="248">trigger + tools</text>
-        <text x="300" y="196" opacity=".7">registry.json ←</text>
+        <text x="300" y="196" opacity=".7">registry/&lt;session&gt;.json ←</text>
       </g>
     </svg>
     <figcaption>Agent-level things are set once and feed every session. Session-level things are the instances. The registry is the one arrow pointing back, and it is what lets the agent notice a pattern across sessions.</figcaption>
