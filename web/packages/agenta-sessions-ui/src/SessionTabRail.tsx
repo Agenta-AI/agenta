@@ -448,14 +448,19 @@ export const SessionTabRail = ({
     // longer takes the new tab with it.
     const [unlisted, setUnlisted] = useState<{id: string; title: string}[]>([])
     const closeOpenTabs = useSetAtom(closeSessionTabsAtom)
+    // Waits for the open set to hold the active id: on an agent switch the set is seeded from the
+    // list first and the active id joins a commit later, and the trim below drops a chip whose
+    // id is not open yet. Adding it before that point lost the chip for good, since nothing here
+    // re-ran once the id was added — the "New session" tab was missing after every agent switch.
+    const activeOpen = openIds === null || openIds.includes(activeSessionId)
     useEffect(() => {
-        if (tabs.isPending || hasActive || !activeSessionId) return
+        if (tabs.isPending || hasActive || !activeSessionId || !activeOpen) return
         setUnlisted((prev) =>
             prev.some((tab) => tab.id === activeSessionId)
                 ? prev
                 : [...prev, {id: activeSessionId, title: activeFallbackTitle || "New session"}],
         )
-    }, [activeFallbackTitle, activeSessionId, hasActive, tabs.isPending])
+    }, [activeFallbackTitle, activeSessionId, activeOpen, hasActive, tabs.isPending])
     // Let one go the moment its row lands, or the tab is closed.
     useEffect(() => {
         setUnlisted((prev) => {

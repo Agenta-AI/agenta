@@ -352,10 +352,20 @@ describe("createEphemeralAppFromTemplate (agent tools)", () => {
         }
     })
 
-    it("does not mint an agent when a required candidate source fails", async () => {
+    it("does not mint an agent when a required candidate source still fails after retry", async () => {
         fetchHarnessCapabilitiesMock.mockRejectedValue(new Error("catalog unavailable"))
 
         expect(await createEphemeralAppFromTemplate({type: "agent"})).toBeNull()
+        expect(fetchHarnessCapabilitiesMock).toHaveBeenCalledTimes(2)
+    })
+
+    it("creates the agent when the harness catalog succeeds on retry", async () => {
+        fetchHarnessCapabilitiesMock
+            .mockRejectedValueOnce(new Error("catalog unavailable"))
+            .mockResolvedValue(CAPABILITIES)
+
+        expect(await createEphemeralAppFromTemplate({type: "agent"})).not.toBeNull()
+        expect(fetchHarnessCapabilitiesMock).toHaveBeenCalledTimes(2)
     })
 
     it("uses vault candidates when optional subscription status fails", async () => {
@@ -371,17 +381,12 @@ describe("createEphemeralAppFromTemplate (agent tools)", () => {
         })
     })
 
-    it("does not retry a failed vault lookup during agent creation", async () => {
-        const store = getDefaultStore()
-        store.set(userAtom, USER)
-        store.set(
-            queryClientAtom,
-            new QueryClient({defaultOptions: {queries: {retry: 3, retryDelay: 0}}}),
-        )
-        fetchVaultSecretMock.mockRejectedValue(new Error("vault unavailable"))
+    it("creates the agent when the provider connections succeed on retry", async () => {
+        fetchVaultSecretMock
+            .mockRejectedValueOnce(new Error("vault unavailable"))
+            .mockResolvedValueOnce([standardConnection()])
 
-        await createEphemeralAppFromTemplate({type: "agent"})
-
-        expect(fetchVaultSecretMock).toHaveBeenCalledTimes(1)
+        expect(await createEphemeralAppFromTemplate({type: "agent"})).not.toBeNull()
+        expect(fetchVaultSecretMock).toHaveBeenCalledTimes(2)
     })
 })

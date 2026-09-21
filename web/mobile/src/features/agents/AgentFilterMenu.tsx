@@ -134,7 +134,9 @@ export const AgentFilterMenu = ({
             // The view toggle beside it is 32; a 28px funnel between them read as a mistake.
             triggerClassName="size-8"
             active={!isDefaultAgentListView(view)}
-            onReset={() => onChange(DEFAULT_AGENT_LIST_VIEW)}
+            // The mode survives a reset: it is how the reader chose to read the list, not what
+            // they narrowed it to.
+            onReset={() => onChange({...DEFAULT_AGENT_LIST_VIEW, mode: view.mode})}
             resetDisabled={isDefaultAgentListView(view)}
         />
     )

@@ -1,6 +1,6 @@
 import {useCallback, useState} from "react"
 
-import {markSessionFresh} from "@agenta/chat/state"
+import {markSessionFresh, revealConfigPaneAtom} from "@agenta/chat/state"
 import {
     agentTemplateByKey,
     appendSetupPreamble,
@@ -36,6 +36,7 @@ export const useNewAgentAction = (base: string) => {
     const stashTask = useSetAtom(stashPendingTaskAtom)
     const dropTask = useSetAtom(takePendingTaskAtom)
     const setSetupDraft = useSetAtom(templateSetupDraftAtom)
+    const revealConfigPane = useSetAtom(revealConfigPaneAtom)
 
     const run = useCallback(
         async (params?: {
@@ -107,13 +108,11 @@ export const useNewAgentAction = (base: string) => {
             const seed = params?.setup ? appendSetupPreamble(typed, params.setup) : typed
             const seedParts = params?.seedParts
             const seeded = isSeededCreate({seed, partCount: seedParts?.length ?? 0})
-            const sessionId = created.sessionId ?? (seeded ? (params?.sessionId ?? newId()) : null)
-            if (sessionId && !created.sessionId) {
-                // The session does not exist server-side until its first turn — mint the id, stash
-                // the instruction, and let the chat screen's engine send it once. Fresh-marked
-                // (idempotent for a caller-minted id): without it the chat treats the id as an
-                // EXISTING session and goes asking the server for history it doesn't have.
-                markSessionFresh(sessionId)
+            const sessionId = created.sessionId ?? params?.sessionId ?? newId()
+            // Template sessions already exist and their first turn has started on the server.
+            // Only ordinary creation needs a fresh local session and a pending first task.
+            if (!created.sessionId) markSessionFresh(sessionId)
+            if (seeded && !created.sessionId) {
                 stashTask({
                     sessionId,
                     task: {
@@ -123,6 +122,10 @@ export const useNewAgentAction = (base: string) => {
                         templateKey: params?.templateKey,
                     },
                 })
+            } else if (!created.sessionId) {
+                // Nothing to say yet: land with the configuration showing, the same reveal the
+                // overview's Edit makes, so a blank agent opens on what needs doing (#6381).
+                revealConfigPane()
             }
 
             // A cancelled navigation RESOLVES false rather than throwing, so both outcomes have to
@@ -138,14 +141,14 @@ export const useNewAgentAction = (base: string) => {
             if (!navigated) {
                 // The agent exists; only the navigation failed. Release the latch, or the button
                 // stays dead for the rest of the mount.
-                if (sessionId) dropTask(sessionId)
+                if (seeded && !created.sessionId) dropTask(sessionId)
                 setError("Agent created, but couldn't open it — find it under Agents")
                 setCreating(false)
                 return false
             }
             return true
         },
-        [base, createAgent, creating, dropTask, router, setSetupDraft, stashTask],
+        [base, createAgent, creating, dropTask, revealConfigPane, router, setSetupDraft, stashTask],
     )
 
     const create = useCallback(() => void run(), [run])

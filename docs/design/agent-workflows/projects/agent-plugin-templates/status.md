@@ -16,7 +16,7 @@ Browser creation now retains the original request across failed attempts and rel
 
 OpenSpec acceptance tasks 6.3 and 6.4 have passed. The [final acceptance report](./final-acceptance.md) records the tested commits, the in-place template handoff correction, and the remaining CI infrastructure failure.
 
-Superpowers branch completion is blocked by the Railway acceptance job's missing MCP mock. Merge authorization is already recorded, but merge requires passing verification. Archive the single-agent change only after acceptance and merge. Keep support-template-subagents deferred and unarchived.
+The Railway acceptance blocker cleared on `5bd91e6ae7`; all CI checks passed. Release integration and its verification are the final merge step. Merge authorization is already recorded, but merge requires passing verification. Archive the single-agent change only after acceptance and merge. Keep support-template-subagents deferred and unarchived.
 
 Historical deployed evidence is recorded in the display-content implementation plan and PR. Schema validation alone is not runtime acceptance.
 

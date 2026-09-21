@@ -11,7 +11,10 @@ const {push, createAgent, template} = vi.hoisted(() => ({
     template: {key: "pr-reviewer", name: "PR reviewer"},
 }))
 vi.mock("next/router", () => ({useRouter: () => ({push})}))
-vi.mock("@agenta/chat/state", () => ({markSessionFresh: vi.fn()}))
+vi.mock("@agenta/chat/state", async () => {
+    const {atom} = await import("jotai")
+    return {markSessionFresh: vi.fn(), revealConfigPaneAtom: atom(null, () => undefined)}
+})
 vi.mock("@agenta/home-ui", () => ({useCreateAgent: () => createAgent}))
 vi.mock("@agenta/entities/workflow", () => ({
     agentTemplateByKey: () => template,

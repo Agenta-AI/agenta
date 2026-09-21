@@ -46,7 +46,10 @@ from oss.src.core.gateways.dtos import (
     no_cookie_jar,
     outbound_headers,
 )
-from oss.src.core.webhooks.utils import resolve_validated_ip
+from oss.src.core.webhooks.utils import (
+    resolve_validated_ip,
+    validate_url_format_and_literal_ip,
+)
 from oss.src.utils.env import env
 from oss.src.utils.logging import get_module_logger
 
@@ -342,6 +345,40 @@ async def open_egress(
         extensions={"sni_hostname": urlparse(url).hostname},
         original_url=url,
         pinned_address=address,
+    )
+
+
+def validate_egress_url_format(url: str, *, label: str = "URL") -> None:
+    """Check a URL at save time under the policy :func:`open_egress` will enforce at call
+    time. Raises `ValueError`.
+
+    One policy, asked twice. Registration used to run this check under the webhook flag
+    while the relay ran it under the gateway one, and on the defaults the two ship with
+    (`AGENTA_INSECURE_EGRESS_ALLOWED` permissive, `AGENTA_GATEWAYS_INSECURE_EGRESS_ALLOWED`
+    closed) they disagreed about the same address: a plain-http or private URL was accepted
+    into a tenant's endpoint list and then refused by every call made to it, which is a
+    saved endpoint that cannot be used. Both questions are answered here instead, from
+    `env.gateway_egress.insecure_allowed` and :func:`exempt_hosts`, so a self-hoster who
+    opens the gateway flag gets a save and a call that agree.
+
+    No name resolution, deliberately, which is what keeps this separate from
+    :func:`open_egress` rather than a thin wrapper over it. A save-time resolve would refuse
+    a hostname that is merely unreachable for the minute the form is submitted in, and it
+    would settle nothing anyway: the address a name carries at save time is not the address
+    it carries at call time, which is the whole reason `open_egress` resolves and pins per
+    call. A hostname that is not a literal IP is therefore deferred to the boundary, exactly
+    as `validate_url_format_and_literal_ip`'s own docstring describes.
+    """
+    hostname = (urlparse(url).hostname or "").lower()
+    if hostname and hostname in exempt_hosts():
+        return
+
+    validate_url_format_and_literal_ip(
+        url,
+        # Read per call, never captured at import, so an operator's value is the one in
+        # force and a test can pin it — the same rule `open_egress` follows.
+        allow_insecure=env.gateway_egress.insecure_allowed,
+        label=label,
     )
 
 

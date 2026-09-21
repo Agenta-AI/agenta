@@ -13,13 +13,16 @@ import {
     loadMoreSidebarSessionsAtomFamily,
     SIDEBAR_UNBOUNDED,
     sidebarSessionsListAtomFamily,
+    setSidebarSessionFilterDefaults,
     withEntityGroups,
     type SessionSidebarRef,
     type SidebarConfig,
     type SidebarEntityRef,
 } from "@agenta/navigation"
-import {buildReleaseNavItems, SessionFilterMenu} from "@agenta/navigation-ui"
+import {buildReleaseNavItems, SessionFilterMenu, SessionSearchButton} from "@agenta/navigation-ui"
 import {SessionRowActions, useSessionActions, useSessionRowChrome} from "@agenta/sessions-ui"
+import {getShortcut, shortcutAria, shortcutFaces} from "@agenta/shared/utils"
+import {useIsMacPlatform} from "@agenta/ui/shortcuts"
 import {Spinner} from "@agenta/ui/ui"
 import {
     ChartLineUpIcon,
@@ -39,8 +42,17 @@ import {
 import {atom, useAtomValue, useSetAtom} from "jotai"
 import {unwrap} from "jotai/utils"
 
+import {startBlankSession} from "@/features/chat/useStartBlankSession"
+
+import {useSyncLocalSessionRefs} from "./localSessionRefs"
+
 /** The drawer's scope id — its open-groups persistence bucket. */
 export const MOBILE_NAV_SCOPE_ID = "mobile-main"
+// By agent, not the shared flat default: the rail's "+" lives on agent headings, and a heading
+// that is a date or a status names no agent to start a session with. Reset comes back here.
+setSidebarSessionFilterDefaults(MOBILE_NAV_SCOPE_ID, {groupBy: "agent"})
+/** The registry entry for ⌘K / Ctrl+K, which `MobileCommandPalette` binds. */
+const PALETTE_SHORTCUT_ID = "palette.open"
 
 /**
  * Mobile's registration over the SHARED machinery: same gated sessions source, same
@@ -50,7 +62,7 @@ export const MOBILE_NAV_SCOPE_ID = "mobile-main"
 /** Flip to show the Observability rail entry again — the screen and its route are untouched. */
 const SHOW_OBSERVABILITY = false
 
-const mobileSessionsEntity = defineSidebarEntity<SessionSidebarRef>(
+export const mobileSessionsEntity = defineSidebarEntity<SessionSidebarRef>(
     MOBILE_NAV_SCOPE_ID,
     SESSIONS_SIDEBAR_KEY,
     {
@@ -96,6 +108,20 @@ const mobileSessionsEntity = defineSidebarEntity<SessionSidebarRef>(
         // Grouped by owning agent, pins in their own heading on top (#6125).
         getGroupKey: sidebarSessionGroupKey,
         groupsAtom: sidebarSessionGroupsAtomFamily(MOBILE_NAV_SCOPE_ID),
+        // An agent heading's "+" opens a blank session with that agent — the same start every
+        // other "+" in the app makes. The session id is minted on the click, so the anchor's
+        // own href is the agent's page: what a long-press / open-in-new-tab lands on.
+        groupAdd: (group, projectURL) =>
+            group.agentId
+                ? {
+                      link: `${projectURL}/agents/${group.agentId}`,
+                      label: `New session with ${group.label}`,
+                      onClick: (event) => {
+                          event.preventDefault()
+                          startBlankSession(projectURL, group.agentId!)
+                      },
+                  }
+                : undefined,
         toggleGroupAtom: sidebarSessionToggledGroupsAtomFamily(MOBILE_NAV_SCOPE_ID),
         // No visible cap: the rail renders every row it fetched, so nothing is dropped between
         // the request and the render. The server window is the only bound.
@@ -109,6 +135,8 @@ const mobileSessionsEntity = defineSidebarEntity<SessionSidebarRef>(
  * forking a component.
  */
 export const useMobileNavItems = (projectURL: string): SidebarConfig[] => {
+    // Sessions this client created ride the shared local seam until the server lists them.
+    useSyncLocalSessionRefs(MOBILE_NAV_SCOPE_ID)
     const rawSource = useAtomValue(mobileSessionsEntity.activeSourceAtom)
     const loadMoreSessions = useSetAtom(loadMoreSidebarSessionsAtomFamily(MOBILE_NAV_SCOPE_ID))
     const groups = useAtomValue(sidebarSessionGroupsAtomFamily(MOBILE_NAV_SCOPE_ID))
@@ -118,6 +146,14 @@ export const useMobileNavItems = (projectURL: string): SidebarConfig[] => {
     const source = useMemo(() => withEntityGroups(rawSource, groups), [rawSource, groups])
     // Resolved ONCE for the rail, not once per row: the verbs do not differ by session.
     const chrome = useSessionRowChrome(useSessionActions())
+    // Platform read in an effect: the server has none, and a guess mismatches on hydration.
+    const mac = useIsMacPlatform()
+    const paletteShortcut = useMemo(() => {
+        const shortcut = getShortcut(PALETTE_SHORTCUT_ID)
+        return shortcut
+            ? {faces: shortcutFaces(shortcut, mac), aria: shortcutAria(PALETTE_SHORTCUT_ID)}
+            : undefined
+    }, [mac])
     const wrapSessionRow = useCallback(
         (ref: SidebarEntityRef, node: ReactNode) =>
             createElement(SessionRowActions, {
@@ -168,9 +204,17 @@ export const useMobileNavItems = (projectURL: string): SidebarConfig[] => {
                 // without bound, so Observability (and whatever lands after it) stays on screen.
                 scrollChildren: true,
                 onReachEnd: loadMoreSessions,
-                groupAction: createElement(SessionFilterMenu, {
-                    scopeId: MOBILE_NAV_SCOPE_ID,
-                }),
+                // Search reaches past what the rail lists; the filter narrows it. Same pair,
+                // same order, as the desktop rail.
+                groupAction: createElement(
+                    "span",
+                    {className: "flex items-center gap-0.5"},
+                    createElement(SessionSearchButton, {
+                        label: "Search",
+                        shortcut: paletteShortcut,
+                    }),
+                    createElement(SessionFilterMenu, {scopeId: MOBILE_NAV_SCOPE_ID}),
+                ),
                 submenu: resolveChildren(
                     mobileSessionsEntity,
                     source,
@@ -192,7 +236,7 @@ export const useMobileNavItems = (projectURL: string): SidebarConfig[] => {
                   ]
                 : []),
         ],
-        [loadMoreSessions, source, projectURL, wrapSessionRow],
+        [loadMoreSessions, source, projectURL, wrapSessionRow, paletteShortcut],
     )
 }
 

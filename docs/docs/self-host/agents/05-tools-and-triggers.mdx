@@ -17,17 +17,108 @@ setup. Connecting to third-party apps needs a gateway. This page explains which 
 
 ## Connect an MCP server
 
-An agent can use tools from an external MCP (Model Context Protocol) server over HTTP. You bring the
-server and configure it on the agent with its URL and any auth headers. This does not go through
-Composio.
+An agent can use tools from an external MCP (Model Context Protocol) server over HTTP. You connect
+the server to a project with its URL and, if it needs one, a credential. This does not go through
+Composio. For the steps in the app, see [Add an MCP server](/guides/add-an-mcp-server).
 
-The runner must be able to reach the server. Outbound egress is restricted by default: plain
-`http://` and private, loopback, or cloud-metadata addresses are blocked. A public `https://` server
-works as-is. To use a server on `http` or a private network, allow it:
+Since v0.119.0, the agent's sandbox does not call the MCP server itself. Every MCP call an agent
+makes goes to the api container, which relays it to the server. The server's credential stays on
+your deployment. `AGENTA_MCP_GATEWAY_ENABLED` controls this and is on by default.
+
+Two consequences for a self-hosted deployment. The api container, not the runner, is the one that
+has to reach the MCP server. And the relay applies its own outbound guard, which is a different
+setting from the one that governs webhooks.
+
+A public `https://` MCP server works with no configuration.
+
+## Use an MCP server on a private network or over plain HTTP
+
+Applies when the MCP server's URL is `http://` rather than `https://`, or when its address is on a
+private network (`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`), loopback, link-local, or in
+RFC 6598 shared address space. It does not apply to a public `https://` server.
+
+Two settings decide whether such a server works, and they answer different questions.
+
+| Setting | Read by | Question it answers |
+|---|---|---|
+| `AGENTA_INSECURE_EGRESS_ALLOWED` | api | May this URL be saved at all? |
+| `AGENTA_GATEWAYS_INSECURE_EGRESS_ALLOWED` | api | May the relay call it during a run? |
+
+Pick the posture that matches your deployment.
+
+### Posture 1: nobody untrusted can create MCP connections
+
+This is the posture the four Docker Compose env templates ship. They set
+`AGENTA_GATEWAYS_INSECURE_EGRESS_ALLOWED=true`, so the relay calls an MCP server on a private
+address or over plain HTTP.
+
+On a deployment built from a `.gh` template, that is not enough on its own in this version. Those
+templates also set `AGENTA_INSECURE_EGRESS_ALLOWED=false`, and in 0.119.0 the save-time check on an
+MCP server URL reads that older variable rather than the gateway one. Saving the server is refused
+with a `400`, before the relay is ever involved:
+
+```text
+endpoint.data.route.base_url is invalid: URL must use https.
+endpoint.data.route.base_url is invalid: URL resolves to a blocked IP range.
+endpoint.data.route.base_url is invalid: URL hostname is not allowed.
+```
+
+To save such a URL on a `.gh` deployment, set both:
 
 ```bash
 AGENTA_INSECURE_EGRESS_ALLOWED=true
+AGENTA_GATEWAYS_INSECURE_EGRESS_ALLOWED=true
 ```
+
+`AGENTA_INSECURE_EGRESS_ALLOWED=true` also widens what webhooks, workflow hooks, custom model
+provider endpoints and OIDC issuer probes may reach on your network. A later release makes the
+save-time check follow the gateway setting, and this second variable is then no longer needed for
+MCP servers.
+
+Recreate the api container so it reads the change:
+
+```bash
+docker compose -f hosting/docker-compose/oss/docker-compose.gh.yml \
+  --env-file hosting/docker-compose/oss/.env.oss.gh up -d api
+```
+
+### Posture 2: people you do not trust can create MCP connections
+
+Leave `AGENTA_GATEWAYS_INSECURE_EGRESS_ALLOWED=false`. With open egress, any project can point an
+MCP connection at an address inside the network the api container sits on, and the relay will dial
+it.
+
+Name the one server you want reachable instead. `AGENTA_MCP_GATEWAY_HOST_ALLOWLIST` takes
+comma-separated hostnames, with no scheme and no port. A hostname on that list skips the guard
+while the guard stays on for every other target:
+
+```bash
+AGENTA_GATEWAYS_INSECURE_EGRESS_ALLOWED=false
+AGENTA_MCP_GATEWAY_HOST_ALLOWLIST=mcp.internal
+```
+
+Saving the URL is still subject to `AGENTA_INSECURE_EGRESS_ALLOWED`, described above. The save-time
+check resolves no hostnames, so `https://mcp.internal:8443` can be saved without widening egress,
+while `http://mcp.internal:8080` and `https://10.0.0.5:8443` cannot.
+
+### Errors you will see
+
+**`blocked target: Upstream URL must use https.`** during a run. The relay refused an `http://`
+server. Allow it with `AGENTA_GATEWAYS_INSECURE_EGRESS_ALLOWED=true`, or put the server's hostname
+in `AGENTA_MCP_GATEWAY_HOST_ALLOWLIST`.
+
+**`blocked target: Upstream URL resolves to a blocked IP range.`** during a run. The server's
+hostname resolved to a private, loopback, link-local, reserved, multicast or RFC 6598 address. Same
+two fixes. This one fires at call time rather than at save time, so a public hostname that resolves
+to an internal address reaches it too.
+
+**`endpoint.data.route.base_url is invalid: URL must use https.`** with a `400` when saving. The
+save-time check refused the URL. Set `AGENTA_INSECURE_EGRESS_ALLOWED=true`.
+
+**`gateway_insecure_endpoint`** during a run. Unrelated to the MCP server's address. It means your
+own Agenta deployment is reached over plain HTTP at a non-loopback address, so Agenta will not send
+the run its gateway credential. See
+[Reaching the gateway over plain HTTP](/self-host/configuration#agenta-gateways).
 
 ## App tools and event triggers need Composio
 

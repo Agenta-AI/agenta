@@ -69,3 +69,5 @@ The legacy in-place handoff has a corrected callback, active-session adoption, a
 ## Final verification state
 
 OpenSpec 6.3/6.4 and the corrected direct-playground handoff have passed. See the [final acceptance report](../../design/agent-workflows/projects/agent-plugin-templates/final-acceptance.md) for exact commits and scenario evidence. The completion gate is still blocked by the Railway MCP mock dependency; user merge authorization does not replace passing verification. No merge or archive has been performed.
+
+CI follow-up: all checks on `5bd91e6ae7` passed, including Railway web acceptance. The earlier MCP mock blocker is cleared. Release integration preserves both template server-session adoption and blank-session configuration behavior, with dedicated regression coverage. See PR #6944 for final merge status.

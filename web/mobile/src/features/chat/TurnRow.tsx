@@ -200,6 +200,7 @@ const TurnRowInner = ({
                 answerStarted={activity.answer !== null}
                 waitingOnUser={turn.isLast && waitingOnUser}
                 traceId={traceId}
+                streamedHere={streamedHereRef.current}
                 firstTurn={firstTurn}
                 renderClientTool={renderClientTool}
             />

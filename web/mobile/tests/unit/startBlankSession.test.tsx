@@ -16,7 +16,7 @@ import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
 const {push} = vi.hoisted(() => ({push: vi.fn()}))
 
-vi.mock("next/router", () => ({useRouter: () => ({push})}))
+vi.mock("next/router", () => ({default: {push}, useRouter: () => ({push})}))
 vi.mock("@agenta/chat/state", () => ({markSessionFresh: vi.fn()}))
 
 import {useStartBlankSession} from "@/features/chat/useStartBlankSession"

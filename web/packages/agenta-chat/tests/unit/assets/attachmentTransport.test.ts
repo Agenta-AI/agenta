@@ -125,6 +125,51 @@ describe("uploadAttachment", () => {
         await expect(upload).rejects.toMatchObject({message, retryable: false})
     })
 
+    // The limits are per deployment (`AGENTA_ATTACHMENTS_MAX_*_BYTES`). Quoting this client's
+    // constant at someone whose server enforces a smaller one names a number they were never
+    // measured against, which reads as "uploads are broken" rather than "that file is too big".
+    it.each([
+        ["a plain string detail", {detail: "The attachment exceeds the 2097152-byte limit."}],
+        [
+            "a wrapped message detail",
+            {detail: {message: "The attachment exceeds the 2097152-byte limit."}},
+        ],
+    ])("quotes the server's own 413 limit, not ours, given %s", async (_label, data) => {
+        vi.mocked(axios.post).mockRejectedValue({
+            isAxiosError: true,
+            response: {status: 413, headers: {}, data},
+        })
+
+        const upload = uploadAttachment({
+            file: new File(["hello"], "notes.txt", {type: "text/plain"}),
+            sessionId: "session-1",
+            idempotencyKey,
+        })
+
+        await expect(upload).rejects.toMatchObject({
+            message: "This file exceeds the 2.0 MB document limit.",
+            retryable: false,
+        })
+    })
+
+    it("falls back to our own limit when the server's 413 names no number", async () => {
+        vi.mocked(axios.post).mockRejectedValue({
+            isAxiosError: true,
+            response: {status: 413, headers: {}, data: {detail: "Payload too large"}},
+        })
+
+        const upload = uploadAttachment({
+            file: new File(["hello"], "notes.txt", {type: "text/plain"}),
+            sessionId: "session-1",
+            idempotencyKey,
+        })
+
+        await expect(upload).rejects.toMatchObject({
+            message: "This file exceeds the 10.0 MB document limit.",
+            retryable: false,
+        })
+    })
+
     it("honours Retry-After for an upload already in flight", async () => {
         vi.mocked(axios.post).mockRejectedValue({
             isAxiosError: true,
