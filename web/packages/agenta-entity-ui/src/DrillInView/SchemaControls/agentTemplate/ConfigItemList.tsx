@@ -28,7 +28,10 @@ export function ConfigItemList({
     emptyAdd: ReactNode
     /** Per-row draft/validation status (unsaved edits, missing fields). */
     statusFor?: (item: unknown, index: number) => ItemRowStatus | undefined
-    /** Per-row action slot ahead of the remove button (e.g. publish-to-registry). */
+    /**
+     * Per-row slot ahead of the tags. The MCP rail renders an expired connection's
+     * "Login expired" through it; `ItemRow` has always had the slot.
+     */
     extraFor?: (item: unknown, index: number) => ReactNode
 }) {
     const def = ITEM_KINDS[kind]

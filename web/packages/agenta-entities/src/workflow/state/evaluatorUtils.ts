@@ -1071,7 +1071,7 @@ export interface UpdateHumanEvaluatorParams {
     /** Existing meta to preserve */
     meta?: Record<string, unknown>
     /** Existing tags to preserve */
-    tags?: string[]
+    tags?: Workflow["tags"]
 }
 
 /**

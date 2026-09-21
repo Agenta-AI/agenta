@@ -29,10 +29,12 @@ import {
 } from "@agenta/chat/hooks"
 import {type SessionRunStatus} from "@agenta/chat/model"
 import {
+    refusedSendRejections,
     ignoreStreamRejection,
     isEmptyAssistantTurn,
     isSessionBusyRefusal,
     isVisiblePart,
+    REFUSED_SEND_REASON,
 } from "@agenta/chat/model"
 import {getInteractionAvailability, getLivePendingApprovals} from "@agenta/chat/model"
 import {withoutSharedSenderAcceptanceMessages} from "@agenta/chat/model"
@@ -453,7 +455,9 @@ const AgentConversation = ({
             lateRefusalRef.current.restore,
         )
         if (taken) {
-            lateRefusalRef.current.reject([{name: "Message", reason: "wasn't sent — try again."}])
+            // A late refusal arrives through the watcher, which reports only THAT the send
+            // failed, so this one keeps the standing wording.
+            lateRefusalRef.current.reject([{name: "Message", reason: REFUSED_SEND_REASON}])
         }
         return taken
     }, [])
@@ -689,9 +693,9 @@ const AgentConversation = ({
             .then(() =>
                 setPendingRun((current) => (current?.nonce === pendingRun.nonce ? null : current)),
             )
-            .catch(() => {
+            .catch((error: unknown) => {
                 richInputRef.current?.setMarkdown(pendingRun.text)
-                attachments.setRejections([{name: "Message", reason: "wasn't sent — try again."}])
+                attachments.setRejections(refusedSendRejections(error))
             })
     }, [pendingRun, activeSessionId, sessionId, submit, setPendingRun])
 
@@ -845,12 +849,12 @@ const AgentConversation = ({
                 ? stagedFilesToParts(outboundFiles, sessionId)
                 : undefined
             await finishSubmit(trimmed, fileParts, stagedUids, outboundFiles, policy)
-        }).catch(() => {
+        }).catch((error: unknown) => {
             // The send rejected before the runner took it. The composer was cleared at the
             // send, so the words AND everything it consumed come back (idempotently).
             void richInputRef.current?.setMarkdown(text)
             restoreAttachments(outbound)
-            attachments.setRejections([{name: "Message", reason: "wasn't sent — try again."}])
+            attachments.setRejections(refusedSendRejections(error))
         })
     }
 

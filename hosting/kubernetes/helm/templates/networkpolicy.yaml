@@ -1,0 +1,77 @@
+{{- /* ================================================================
+   NetworkPolicy for the bundled data stores.
+
+   Off by default (`networkPolicy.enabled: false`), because a cluster whose
+   CNI does not implement NetworkPolicy ignores these objects, and a cluster
+   that does implement it may already be governed by policies the operator
+   owns.
+
+   When on, the chart renders one policy per bundled data store it deploys:
+   the volatile Redis, the durable Redis and the bundled SeaweedFS. Each
+   policy selects that store's pods and allows ingress only from pods of this
+   release, in the same namespace, on that store's port. Selecting a pod
+   turns off its default allow-everything, so the single allow rule is also
+   the deny for every other source and port.
+
+   Policies are additive, so that deny holds only while no other policy
+   selects the same pods. A namespace-wide allow policy still lets its own
+   sources in, and this policy takes nothing away from it. The README says
+   so too, under "Restricting the bundled data stores".
+
+   Egress stays unrestricted: `policyTypes` lists Ingress only. That is not
+   the same as permitting egress. A policy elsewhere that restricts egress
+   for these pods keeps doing so.
+
+   The bundled PostgreSQL has no policy here, for the same additive reason.
+   The Bitnami subchart renders its own NetworkPolicy and that one allows
+   every source by default, so a second, narrower policy from this chart
+   would not take anything away. Restrict PostgreSQL through the subchart's
+   own values instead; the README section "Restricting the bundled data
+   stores" gives the exact keys.
+   ================================================================ */}}
+{{- $values := include "agenta.values" . | fromYaml -}}
+{{- $networkPolicy := default dict $values.networkPolicy -}}
+{{- if $networkPolicy.enabled }}
+{{- $stores := list -}}
+{{- if eq (include "agenta.redisVolatile.enabled" .) "true" -}}
+{{- $stores = append $stores (dict "component" "redis-volatile" "port" (include "agenta.redisVolatile.port" .)) -}}
+{{- end -}}
+{{- if eq (include "agenta.redisDurable.enabled" .) "true" -}}
+{{- $stores = append $stores (dict "component" "redis-durable" "port" (include "agenta.redisDurable.port" .)) -}}
+{{- end -}}
+{{- if eq (include "agenta.seaweedfs.enabled" .) "true" -}}
+{{- $stores = append $stores (dict "component" "seaweedfs" "port" (include "agenta.seaweedfs.port" .)) -}}
+{{- end -}}
+{{- range $store := $stores }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "agenta.fullname" $ }}-{{ $store.component }}
+  labels:
+    {{- include "agenta.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: {{ $store.component }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "agenta.selectorLabels" $ | nindent 6 }}
+      app.kubernetes.io/component: {{ $store.component }}
+  policyTypes:
+    - Ingress
+  ingress:
+    - ports:
+        - port: {{ $store.port }}
+          protocol: TCP
+      {{- /* A podSelector with no namespaceSelector means "this namespace only".
+             Matching on the instance label alone covers every pod of the release,
+             including the PostgreSQL subchart's, which carry a different
+             app.kubernetes.io/name. */}}
+      from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/instance: {{ $.Release.Name }}
+        {{- with $networkPolicy.extraIngressFrom }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+{{- end }}
+{{- end }}

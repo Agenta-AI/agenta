@@ -35,7 +35,7 @@ Agenta ships three harnesses: Claude Code, Pi, and Codex. All three run the loop
 | Pi | Models from several providers, including OpenAI, Anthropic, Google Gemini, Mistral, Groq, MiniMax, Together AI, and OpenRouter, plus any OpenAI-compatible endpoint. |
 | Codex | Five OpenAI models: GPT-5.6 Sol, Terra, and Luna, plus GPT-5.5 and GPT-5.2. Codex reaches OpenAI directly, not through Bedrock, Vertex AI, or a gateway. |
 
-Claude Code and Codex also accept HTTP [MCP servers](/guides/add-an-mcp-server) you configure on the agent. Pi does not.
+All three also accept the [MCP servers](/guides/add-an-mcp-server) you connect to a project, so the tools an agent gets from a server do not change when you switch harness. One exception: a server that sends its tool list in pages gives a Codex agent only the first page, because Codex does not ask for the rest. Pi and Claude Code do.
 
 ## You choose the harness, the model, and the credential separately
 

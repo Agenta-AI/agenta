@@ -172,6 +172,7 @@ function ConfirmModal({record}: {record: ConfirmRecord}) {
             }}
         >
             <AlertDialogContent
+                container={config.getContainer?.() ?? undefined}
                 // antd's confirm modals are not closable by default; `closable` opts in.
                 showCloseButton={config.closable ?? false}
                 className={cn(

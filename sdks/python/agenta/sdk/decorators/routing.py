@@ -12,8 +12,10 @@ from fastapi.responses import JSONResponse, StreamingResponse, Response
 from starlette.routing import Mount
 
 from agenta.sdk.utils.exceptions import suppress
+from agenta.sdk.utils.logging import get_module_logger
 from agenta.sdk.models.workflows import (
     failure_code_of,
+    returned_stacktrace,
     WorkflowInvokeRequest,
     WorkflowInspectRequest,
     WorkflowInspectResponse,
@@ -46,6 +48,9 @@ from agenta.sdk.contexts.tracing import TracingContext, tracing_context_manager
 from agenta.sdk.decorators.running import auto_workflow, inspect_workflow, Workflow
 from agenta.sdk.engines.running.errors import ErrorStatus
 from agenta.sdk.agents.platform.connection import PlatformConnection
+
+
+log = get_module_logger(__name__)
 
 
 # ---------------------------------------------------------------------------
@@ -568,11 +573,12 @@ async def handle_invoke_failure(exception: Exception) -> Response:
     failure_code = failure_code_of(exception)
 
     if isinstance(exception, ErrorStatus):
+        raised_stacktrace = exception.stacktrace
         status = WorkflowServiceStatus(
             type=exception.type,
             code=exception.code,
             message=exception.message,
-            stacktrace=exception.stacktrace,
+            stacktrace=returned_stacktrace(exception.stacktrace),
             failure_code=failure_code,
         )
 
@@ -595,12 +601,13 @@ async def handle_invoke_failure(exception: Exception) -> Response:
             value=exception,
             tb=exception.__traceback__,
         )
+        raised_stacktrace = stacktrace
 
         status = WorkflowServiceStatus(
             type=type,
             code=code,
             message=message,
-            stacktrace=stacktrace,
+            stacktrace=returned_stacktrace(stacktrace),
             failure_code=failure_code,
         )
 
@@ -618,6 +625,19 @@ async def handle_invoke_failure(exception: Exception) -> Response:
 
     error = WorkflowBatchResponse(
         status=status,
+        trace_id=trace_id,
+        span_id=span_id,
+    )
+
+    # The traceback goes here rather than onto the response, which is what makes
+    # withholding it from the caller cost an operator nothing: one record carries the
+    # failure and the frames that produced it (D68).
+    log.warning(
+        "Workflow invocation failed",
+        status_code=status.code if status else None,
+        status_type=status.type if status else None,
+        message=status.message if status else None,
+        stacktrace=raised_stacktrace,
         trace_id=trace_id,
         span_id=span_id,
     )

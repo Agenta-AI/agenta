@@ -195,6 +195,15 @@ export {
     emptyMediaVariants,
 } from "./empty"
 export {EmptyState, type EmptyStateProps} from "./empty-state"
+export {
+    IconTile,
+    iconTileVariants,
+    type IconTileProps,
+    type IconTileSize,
+    type IconTileTone,
+} from "./icon-tile"
+export {InlineConfirm, type InlineConfirmProps} from "./inline-confirm"
+export {SkeletonRows, type SkeletonRowsProps} from "./skeleton-rows"
 export {Label} from "./label"
 export {Field, fieldLabelVariants, type FieldProps} from "./field"
 export {
@@ -210,6 +219,19 @@ export {Calendar, type CalendarProps} from "./calendar"
 export {DatePicker, type DatePickerProps} from "./date-picker"
 export {DateTimePicker, type DateTimePickerProps} from "./date-time-picker"
 export {TimePicker, type TimePickerProps} from "./time-picker"
+export {
+    touchTargetExpansion,
+    touchTargetHeight,
+    touchTargetHitArea,
+    touchTargetWidth,
+    TOUCH_TARGET_LABELLED_REACH_PX,
+    TOUCH_TARGET_MINIMUM_PX,
+    type TouchTargetControlBorder,
+    type TouchTargetControlBox,
+    type TouchTargetControlHeight,
+    type TouchTargetControlWidth,
+    type TouchTargetHitArea,
+} from "./touch-target"
 export {cn} from "./utils"
 export {
     DataTable,

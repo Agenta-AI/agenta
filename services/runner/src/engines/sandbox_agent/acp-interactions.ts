@@ -20,6 +20,11 @@ import {
 } from "./pi-gate-envelope.ts";
 import { redactContextBoundArgs } from "../../tools/relay.ts";
 import { bareToolName } from "./client-tools.ts";
+import {
+  mcpToolPermission,
+  type McpPermissionTable,
+  type McpServerPermissions,
+} from "./runtime-policy.ts";
 
 /** The parkable ACP gate types a paused turn can record. */
 export type ParkedApprovalGateType =
@@ -46,7 +51,8 @@ export interface AttachPermissionResponderInput {
   responder: Responder;
   /** The ACP adapter in this run, used only where permission frame contracts differ. */
   acpAgent?: string;
-  serverPermissions?: ReadonlyMap<string, ToolPermission>;
+  /** Per-server MCP permission tables, from `runtime-policy.ts` intake. */
+  mcpPermissions?: McpPermissionTable;
   /**
    * Called when a gate pauses the turn. The orchestration loop uses this to end the turn
    * gracefully because a paused Claude turn never resolves `session.prompt()` on its own.
@@ -204,7 +210,7 @@ export function attachPermissionResponder({
   run,
   responder,
   acpAgent,
-  serverPermissions = new Map(),
+  mcpPermissions = new Map(),
   onPause,
   log,
   onPausedToolCall,
@@ -522,13 +528,17 @@ export function attachPermissionResponder({
     availableReplies: string[],
     envelope: PiGateEnvelope,
   ): Promise<void> => {
-    const gate = buildPiGateDescriptor(envelope, piToolSpecsByName);
+    const gate = buildPiGateDescriptor(
+      envelope,
+      piToolSpecsByName,
+      mcpPermissions,
+    );
     // An unrecognized tool name (builtin OR custom) fails closed. The envelope is
     // sandbox-origin and untrusted; letting the raw name through would resolve it against the
     // run's default permission and put a fabricated tool name on the human's approval card.
     if (!gate) {
       log?.(
-        `[HITL] pi-gate unknown ${envelope.gate === "pi-builtin" ? "builtin" : "custom tool"} ` +
+        `[HITL] pi-gate unknown ${piGateSubject(envelope.gate)} ` +
           `${JSON.stringify(envelope.toolName)} id=${id}; reject (fail closed)`,
       );
       await rejectRequest(id, availableReplies);
@@ -618,14 +628,18 @@ export function attachPermissionResponder({
     // Codex sends the approval BEFORE the `tool_call` frame that carries the arguments, so the
     // gate has to let that frame land or it mints an authorization for a call it cannot see. Only
     // a frame that arrived WITHOUT arguments waits, so every other harness is untouched.
-    if (isCodex && toolCall?.rawInput === undefined && toolCall?.input === undefined) {
+    if (
+      isCodex &&
+      toolCall?.rawInput === undefined &&
+      toolCall?.input === undefined
+    ) {
       await awaitRecordedToolCallArgs(run, toolCall?.toolCallId, log);
     }
     const { gate, spec } = buildGateDescriptor(
       req,
       toolCall,
       run,
-      serverPermissions,
+      mcpPermissions,
       toolSpecsByName,
       isCodex,
     );
@@ -719,6 +733,7 @@ export function attachPermissionResponder({
 export function buildPiGateDescriptor(
   envelope: PiGateEnvelope,
   piToolSpecsByName: ReadonlyMap<string, PiToolSpecMeta> | undefined,
+  mcpPermissions: McpPermissionTable = new Map(),
 ): GateDescriptor | undefined {
   if (envelope.gate === "pi-builtin") {
     const identity = piBuiltinIdentity(envelope.toolName);
@@ -727,6 +742,23 @@ export function buildPiGateDescriptor(
       executor: "harness",
       toolName: identity.ruleName,
       readOnlyHint: identity.readOnly,
+      args: envelope.input,
+    };
+  }
+  if (envelope.gate === "pi-mcp-tool") {
+    // The envelope states IDENTITY; the policy is read here, from the run's own request. A server
+    // the run did not configure fails closed rather than falling to the default permission: the
+    // envelope is sandbox-origin, and a fabricated server name must not become an `allow_reads`
+    // decision on a tool nobody configured.
+    const entry = envelope.mcpServer
+      ? mcpPermissions.get(envelope.mcpServer)
+      : undefined;
+    if (!entry) return undefined;
+    return {
+      executor: "harness",
+      toolName: envelope.toolName,
+      // The MCP slot, same as the ACP harnesses use, so one ladder decides for every harness.
+      serverPermission: mcpToolPermission(entry, envelope.mcpTool),
       args: envelope.input,
     };
   }
@@ -847,7 +879,7 @@ export function buildGateDescriptor(
   request: any,
   toolCall: any,
   run: { events?: () => AgentEvent[] },
-  serverPermissions: ReadonlyMap<string, ToolPermission>,
+  mcpPermissions: McpPermissionTable,
   toolSpecsByName: ReadonlyMap<string, ResolvedToolSpec> | undefined,
   isCodex: boolean,
 ): { gate: GateDescriptor; spec: ResolvedToolSpec | undefined } {
@@ -890,7 +922,7 @@ export function buildGateDescriptor(
     specPermission,
     serverPermission: spec
       ? undefined
-      : serverPermissionFor(toolName, serverPermissions),
+      : mcpPermissionFor(toolName, mcpPermissions),
     readOnlyHint:
       typeof spec?.readOnly === "boolean" ? spec.readOnly : undefined,
     args,
@@ -898,22 +930,131 @@ export function buildGateDescriptor(
   return { gate, spec };
 }
 
-function serverPermissionFor(
-  toolName: string | undefined,
-  serverPermissions: ReadonlyMap<string, ToolPermission>,
-): ToolPermission | undefined {
-  // Codex uses mcp.<server>.<tool>; Claude uses mcp__<server>__<tool>.
-  if (toolName?.startsWith("mcp.")) {
-    const rest = toolName.slice("mcp.".length);
-    const separator = rest.indexOf(".");
-    if (separator <= 0) return undefined;
-    return serverPermissions.get(rest.slice(0, separator));
+/** What a failed Pi gate lookup calls the thing it could not resolve, for the operator log. */
+function piGateSubject(gate: PiGateEnvelope["gate"]): string {
+  if (gate === "pi-builtin") return "builtin";
+  if (gate === "pi-mcp-tool") return "MCP server";
+  return "custom tool";
+}
+
+/** One configured server that could own a rendered tool name, with the table entry that
+ *  decides for it — carried here because the scan already held it. */
+interface McpToolNameCandidate {
+  server: string;
+  entry: McpServerPermissions;
+  tool: string;
+}
+
+/**
+ * Every configured server whose name could be the prefix of this rendered tool name.
+ *
+ * More than one is possible, and that is the whole difficulty. A harness renders
+ * `<server><sep><tool>` with the same separator that may appear inside a server name, so
+ * `mcp__acme__prod__delete` is `acme` calling `prod__delete` AND `acme__prod` calling `delete`,
+ * and nothing in the string says which. The API does not prevent the pair either: `tool_prefix`
+ * (`api/oss/src/core/gateways/mcps/service.py`) maps each name to itself, so `acme` and
+ * `acme__prod` are distinct names and both register.
+ *
+ * This used to return the LONGEST match, on the reasoning that the longer name is the more
+ * specific one. That is a guess, and it guesses in the permissive direction: with `acme` denying
+ * `prod__delete` and `acme__prod` allowing `delete`, the longest match answers `allow` for a call
+ * the operator denied (D2). So every candidate is returned and the caller refuses to choose.
+ */
+function mcpToolNameCandidates(
+  toolName: string,
+  separator: string,
+  mcpPermissions: McpPermissionTable,
+): McpToolNameCandidate[] {
+  const candidates: McpToolNameCandidate[] = [];
+  for (const [server, entry] of mcpPermissions) {
+    const prefix = `${server}${separator}`;
+    if (!toolName.startsWith(prefix)) continue;
+    candidates.push({ server, entry, tool: toolName.slice(prefix.length) });
   }
-  if (!toolName?.startsWith("mcp__")) return undefined;
-  const rest = toolName.slice("mcp__".length);
-  const separator = rest.indexOf("__");
-  if (separator <= 0) return undefined;
-  return serverPermissions.get(rest.slice(0, separator));
+  return candidates;
+}
+
+/** Why a rendered MCP tool name did or did not resolve, so a caller can log the difference. */
+export type McpNameResolution =
+  /** Not an MCP tool name at all; the caller's other ladders decide. */
+  | { kind: "not-mcp" }
+  /** Exactly one configured server claims it. */
+  | { kind: "resolved"; server: string; tool: string; permission?: ToolPermission }
+  /** MCP-shaped, but more than one configured server claims it (D2). */
+  | { kind: "ambiguous"; servers: string[] }
+  /** MCP-shaped, and no configured server claims it (D7). */
+  | { kind: "unconfigured" };
+
+/**
+ * Resolve one harness-rendered MCP tool name against the run's configured servers.
+ *
+ * Codex renders `mcp.<server>.<tool>`; Claude renders `mcp__<server>__<tool>`. Both are the
+ * harness's own spelling of an identity the runner already holds, which is why the Pi path stopped
+ * reconstructing it and carries `mcpServer`/`mcpTool` in its gate envelope instead
+ * (`pi-gate-envelope.ts`). The ACP harnesses give us no such field, so this is a parse, and a parse
+ * that cannot be sure must say so rather than pick.
+ */
+export function resolveMcpToolName(
+  toolName: string | undefined,
+  mcpPermissions: McpPermissionTable,
+): McpNameResolution {
+  if (!toolName) return { kind: "not-mcp" };
+  const candidates = toolName.startsWith("mcp.")
+    ? mcpToolNameCandidates(toolName.slice("mcp.".length), ".", mcpPermissions)
+    : toolName.startsWith("mcp__")
+      ? mcpToolNameCandidates(toolName.slice("mcp__".length), "__", mcpPermissions)
+      : undefined;
+  if (candidates === undefined) return { kind: "not-mcp" };
+  if (candidates.length === 0) return { kind: "unconfigured" };
+  if (candidates.length > 1) {
+    return { kind: "ambiguous", servers: candidates.map((c) => c.server) };
+  }
+  const [only] = candidates;
+  return {
+    kind: "resolved",
+    server: only.server,
+    tool: only.tool,
+    permission: mcpToolPermission(only.entry, only.tool),
+  };
+}
+
+/**
+ * The MCP permission for one harness-rendered tool name, per tool where the author set one.
+ *
+ * Only reached for a tool with no resolved spec, which is exactly an external user MCP tool.
+ *
+ *  - AMBIGUOUS (D2): two configured servers both claim the name and they may disagree. Deferring
+ *    would hand the call to the run's default permission, which is `allow_reads` out of the box —
+ *    so the safe-looking "we could not tell" becomes `ask`, and under an authored `allow` becomes
+ *    execution. The operator configured a policy for both candidates; running under neither is
+ *    not an option this code gets to choose.
+ *  - UNCONFIGURED (D7): the name is MCP-shaped and no configured server claims it. The runner is
+ *    the only thing that puts `mcp__`/`mcp.` names in front of a model, so this is a tool the run
+ *    advertised and then failed to recognize — a name the harness rewrote, most likely, since
+ *    nothing constrains a display name to characters a harness leaves alone. Deferring makes that
+ *    indistinguishable from a server with no policy at all, which is a real and deliberate case,
+ *    and conflating the two is what lets an unrecognized name inherit a permissive default.
+ *
+ * `undefined` keeps exactly one meaning: this is not an MCP tool name, so the caller's existing
+ * ladder (spec permission, rules, run default) decides as it always did. A CONFIGURED server that
+ * simply has no permission set still reaches that ladder through `mcpToolPermission`, which is
+ * deliberate and unchanged: it is how every configuration written before per-tool policy existed
+ * keeps behaving as it did.
+ */
+function mcpPermissionFor(
+  toolName: string | undefined,
+  mcpPermissions: McpPermissionTable,
+): ToolPermission | undefined {
+  const resolution = resolveMcpToolName(toolName, mcpPermissions);
+  switch (resolution.kind) {
+    case "not-mcp":
+      return undefined;
+    case "ambiguous":
+    case "unconfigured":
+      return "deny";
+    case "resolved":
+      return resolution.permission;
+  }
 }
 
 function firstString(values: unknown[]): string | undefined {
@@ -970,7 +1111,9 @@ function errorMessage(err: unknown): string {
  * Recorded here rather than fixed, because deepening the listing is a bigger change than the
  * class it would serve.
  */
-export function formatResolutionDetail(detail: Record<string, unknown>): string {
+export function formatResolutionDetail(
+  detail: Record<string, unknown>,
+): string {
   const parts: string[] = [];
   if (typeof detail.code === "string") parts.push(`code=${detail.code}`);
   if (typeof detail.value_pointer === "string")

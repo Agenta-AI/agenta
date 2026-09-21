@@ -29,7 +29,7 @@ from agenta.sdk.utils.types import AgentTemplateSchema
 
 # Repo-root-relative path to the frontend template registry. Walked up from this test file so it
 # does not depend on where the SDK checkout lives relative to the monorepo root.
-_FRONTEND_TEMPLATES_PATH = "web/oss/src/components/pages/agent-home/assets/templates.ts"
+_FRONTEND_TEMPLATES_PATH = "web/packages/agenta-entities/src/workflow/agentTemplates.ts"
 
 
 def _file(path: str) -> SkillFile:
@@ -242,6 +242,32 @@ def test_config_schema_preserves_allow_all_integration_creation_guidance():
     content = _file("references/config-schema.md").content
     assert "A newly added integration always starts with every tool allowed" in content
     assert '`policy.permissions` to `{ "default": "allow", "tools": {} }`' in content
+
+
+def test_config_schema_states_the_shipped_mcp_new_tool_rule():
+    """The rule D88 settled, in the words the builder agent reads.
+
+    The reference told the agent that ``new_tool_permission`` "Defaults to `permission`", which
+    is the rule the shipped code does NOT implement: ``MCPPolicy.resolved_new_tool_permission``
+    returns ``new_tool_permission or "ask"`` once a table exists, and the runner's
+    ``mcpToolPermission`` "deliberately does NOT fall through to the whole-server permission".
+    An agent following the old sentence writes ``permission: "allow"`` beside a per-tool table
+    expecting unnamed tools to be allowed, and gets a gate on every one of them instead.
+    """
+    content = _file("references/config-schema.md").content
+
+    assert "With no value it is `ask`. It never falls back to `permission`." in content
+    assert (
+        "a tool the\ntable does not name follows `new_tool_permission`, and asks when that "
+        "field is absent." in content
+    )
+    # The whole-server permission still governs while there is no table, which is what keeps
+    # every configuration written before per-tool policy behaving as it did.
+    assert "Setting neither\nfield leaves the server exactly as it behaved" in content
+
+    # The replaced rule, in every spelling that would send an agent back to it.
+    assert "Defaults to `permission`" not in content
+    assert "and to `ask` when that is unset too" not in content
 
 
 def test_trigger_inputs_has_example_trigger_requests():

@@ -1,7 +1,7 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {agentWorkflowsListQueryStateAtom, type Workflow} from "@agenta/entities/workflow"
-import {cn, Popover, PopoverContent, PopoverTrigger, SkeletonBlock} from "@agenta/ui/ui"
+import {cn, Popover, PopoverContent, PopoverTrigger, SkeletonBlock, Spinner} from "@agenta/ui/ui"
 import {Check, MagnifyingGlass, Plus, Robot} from "@phosphor-icons/react"
 import {CaretDown} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
@@ -121,6 +121,7 @@ const AgentPickerRow = ({
     agent,
     density,
     selected,
+    trailing,
     rowRef,
     onKeyDown,
     onSelect,
@@ -128,6 +129,8 @@ const AgentPickerRow = ({
     agent: Workflow
     density: AgentPickerDensity
     selected: boolean
+    /** Drawn where the check goes — a spinner while the pick is landing. */
+    trailing?: React.ReactNode
     rowRef: (node: HTMLButtonElement | null) => void
     onKeyDown: (event: React.KeyboardEvent<HTMLButtonElement>) => void
     onSelect: () => void
@@ -174,8 +177,207 @@ const AgentPickerRow = ({
                     </span>
                 ) : null}
             </span>
-            {selected ? <Check aria-hidden size={14} className="shrink-0 text-foreground" /> : null}
+            {trailing ??
+                (selected ? (
+                    <Check aria-hidden size={14} className="shrink-0 text-foreground" />
+                ) : null)}
         </button>
+    )
+}
+
+export interface AgentPickerPanelProps {
+    /** The agents already chosen — each wears the tint and the check. */
+    selectedIds: readonly string[]
+    /** The row whose pick is still landing — it shows a spinner where its check will go. */
+    pendingId?: string | null
+    onSelect: (agentId: string) => void
+    density?: AgentPickerDensity
+    searchPlaceholder?: string
+    onCreateAgent?: () => void
+    createLabel?: string
+    /** Take the caret on mount. On by default: the panel opens to be typed into. */
+    autoFocusSearch?: boolean
+}
+
+/**
+ * The picker's panel on its own — the search, the rows, the "New agent" footer — for a host
+ * that already has a popover to put it in (a menu row's flyout, say). `AgentPicker` is this
+ * panel behind its own trigger.
+ */
+export const AgentPickerPanel = ({
+    selectedIds,
+    pendingId = null,
+    onSelect,
+    density = "compact",
+    searchPlaceholder = "Search agents",
+    onCreateAgent,
+    createLabel = "New agent",
+    autoFocusSearch = true,
+}: AgentPickerPanelProps) => {
+    const [query, setQuery] = useState("")
+    const searchRef = useRef<HTMLInputElement | null>(null)
+    const rowRefs = useRef(new Map<string, HTMLButtonElement | null>())
+
+    const agentsQuery = useAtomValue(agentWorkflowsListQueryStateAtom)
+    const agents = useMemo<Workflow[]>(() => agentsQuery.data ?? [], [agentsQuery.data])
+
+    // Name AND description: an agent is often easier to recall by what it does ("posts to
+    // #news") than by what someone called it.
+    const matched = useMemo(() => {
+        const term = query.trim().toLowerCase()
+        if (!term) return agents
+        return agents.filter((agent) =>
+            `${agentLabel(agent)} ${agentDescription(agent)}`.toLowerCase().includes(term),
+        )
+    }, [agents, query])
+
+    // A frame late, because on the opening frame a popover's content is still being positioned
+    // — and Radix's own focus lands on the content wrapper, which the host prevents.
+    useEffect(() => {
+        if (!autoFocusSearch) return
+        const frame = requestAnimationFrame(() => searchRef.current?.focus())
+        return () => cancelAnimationFrame(frame)
+    }, [autoFocusSearch])
+
+    const onSearchKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+        if (event.key !== "ArrowDown") return
+        event.preventDefault()
+        const first = matched[0]?.id
+        if (first) rowRefs.current.get(first)?.focus()
+    }
+
+    const onRowKeyDown = (index: number) => (event: React.KeyboardEvent<HTMLButtonElement>) => {
+        if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return
+        event.preventDefault()
+        const step = event.key === "ArrowDown" ? 1 : -1
+        const next = index + step
+        if (next < 0) {
+            searchRef.current?.focus()
+            return
+        }
+        const target = matched[next]?.id
+        if (target) rowRefs.current.get(target)?.focus()
+    }
+
+    return (
+        <>
+            {/* A 20px box, not the rows' 28px chip width: a 14px glass centred in 28px read
+                as a gap between icon and field, and a search field is not a row. */}
+            <label className="flex items-center gap-2 border-0 border-b border-solid border-border px-3 py-2">
+                <span className="flex w-5 shrink-0 items-center justify-center">
+                    <MagnifyingGlass size={14} aria-hidden className="text-muted-foreground" />
+                </span>
+                <input
+                    ref={searchRef}
+                    value={query}
+                    onChange={(event) => setQuery(event.target.value)}
+                    placeholder={searchPlaceholder}
+                    aria-label={searchPlaceholder}
+                    onKeyDown={onSearchKeyDown}
+                    className="box-border w-full appearance-none border-0 bg-transparent p-0 font-[inherit] text-[13px] text-foreground outline-none placeholder:text-placeholder"
+                />
+            </label>
+
+            <div
+                role="listbox"
+                aria-label={searchPlaceholder}
+                className="flex max-h-[280px] flex-col gap-px overflow-y-auto p-1"
+            >
+                {agentsQuery.isPending ? (
+                    // Row geometry, not a spinner — the list replaces this without shifting.
+                    <>
+                        <SkeletonBlock active className="h-8 w-full" />
+                        <SkeletonBlock active className="h-8 w-4/5" />
+                        <SkeletonBlock active className="h-8 w-3/5" />
+                    </>
+                ) : matched.length === 0 ? (
+                    // Two different facts: a project with no agents yet, and a search that
+                    // matched none of the ones it has. Telling a reader "no agents" while
+                    // five sit behind a typo sends them looking for a fault that is not there.
+                    agents.length === 0 ? (
+                        <AgentPickerEmpty
+                            icon={<Robot aria-hidden size={19} />}
+                            title="No agents yet"
+                            body="An agent is what does the work. Make one and it shows up here."
+                            action={
+                                onCreateAgent ? (
+                                    <button
+                                        type="button"
+                                        onClick={onCreateAgent}
+                                        className="mt-1 box-border inline-flex cursor-pointer appearance-none items-center gap-1.5 rounded-control-sm border-0 bg-muted px-2.5 py-1.5 font-[inherit] text-[12px] font-medium text-foreground outline-none transition-colors hover:bg-accent focus-visible:bg-accent"
+                                    >
+                                        <Plus aria-hidden size={13} />
+                                        {createLabel}
+                                    </button>
+                                ) : null
+                            }
+                        />
+                    ) : (
+                        <AgentPickerEmpty
+                            icon={<MagnifyingGlass aria-hidden size={19} />}
+                            title={`No agents match “${query.trim()}”`}
+                            body="The search covers each agent's name and what it does."
+                            action={
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setQuery("")
+                                        searchRef.current?.focus()
+                                    }}
+                                    className="mt-1 box-border inline-flex cursor-pointer appearance-none items-center rounded-control-sm border-0 bg-muted px-2.5 py-1.5 font-[inherit] text-[12px] font-medium text-foreground outline-none transition-colors hover:bg-accent focus-visible:bg-accent"
+                                >
+                                    Clear search
+                                </button>
+                            }
+                        />
+                    )
+                ) : (
+                    matched.map((agent, index) => {
+                        if (!agent.id) return null
+                        const id = String(agent.id)
+                        const selected = selectedIds.includes(id)
+                        return (
+                            <AgentPickerRow
+                                key={id}
+                                agent={agent}
+                                density={density}
+                                selected={selected}
+                                trailing={
+                                    pendingId === id ? (
+                                        <Spinner size="small" className="shrink-0" />
+                                    ) : undefined
+                                }
+                                rowRef={(node) => {
+                                    rowRefs.current.set(id, node)
+                                }}
+                                onKeyDown={onRowKeyDown(index)}
+                                onSelect={() => onSelect(id)}
+                            />
+                        )
+                    })
+                )}
+            </div>
+
+            {onCreateAgent ? (
+                // Its own footer padding rather than a rule: the plus and the shorter row
+                // already say this is an action, and a hairline over it read as a seam. The
+                // top padding is the separation the rule used to provide.
+                <div className="flex flex-col px-1 pb-1 pt-2">
+                    <button
+                        type="button"
+                        onClick={onCreateAgent}
+                        // Tighter than a list row: this is a footer action, not one of the
+                        // choices, and at row height it read as an eighth agent.
+                        className="box-border flex w-full cursor-pointer appearance-none items-center gap-2 rounded-control-sm border-0 bg-transparent px-2 py-1 text-left font-[inherit] text-[13px] text-foreground outline-none transition-colors hover:bg-accent focus-visible:bg-accent"
+                    >
+                        <span className="flex size-5 shrink-0 items-center justify-center">
+                            <Plus aria-hidden size={14} className="text-muted-foreground" />
+                        </span>
+                        <span className="min-w-0 truncate font-medium">{createLabel}</span>
+                    </button>
+                </div>
+            ) : null}
+        </>
     )
 }
 
@@ -213,9 +415,6 @@ export const AgentPicker = ({
     align = "start",
 }: AgentPickerProps) => {
     const [open, setOpen] = useState(false)
-    const [query, setQuery] = useState("")
-    const searchRef = useRef<HTMLInputElement | null>(null)
-    const rowRefs = useRef(new Map<string, HTMLButtonElement | null>())
 
     const agentsQuery = useAtomValue(agentWorkflowsListQueryStateAtom)
     const agents = useMemo<Workflow[]>(() => agentsQuery.data ?? [], [agentsQuery.data])
@@ -225,21 +424,7 @@ export const AgentPicker = ({
         [agents, value],
     )
     const selectedLabel = selected ? agentLabel(selected) : (fallbackName ?? null)
-
-    // Name AND description: an agent is often easier to recall by what it does ("posts to
-    // #news") than by what someone called it.
-    const matched = useMemo(() => {
-        const term = query.trim().toLowerCase()
-        if (!term) return agents
-        return agents.filter((agent) =>
-            `${agentLabel(agent)} ${agentDescription(agent)}`.toLowerCase().includes(term),
-        )
-    }, [agents, query])
-
-    // Opening on a stale search would hide the agent someone came back for.
-    useEffect(() => {
-        if (!open) setQuery("")
-    }, [open])
+    const selectedIds = useMemo(() => (value ? [value] : []), [value])
 
     const pick = useCallback(
         (agentId: string) => {
@@ -248,26 +433,10 @@ export const AgentPicker = ({
         },
         [onChange],
     )
-
-    const onSearchKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
-        if (event.key !== "ArrowDown") return
-        event.preventDefault()
-        const first = matched[0]?.id
-        if (first) rowRefs.current.get(first)?.focus()
-    }
-
-    const onRowKeyDown = (index: number) => (event: React.KeyboardEvent<HTMLButtonElement>) => {
-        if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return
-        event.preventDefault()
-        const step = event.key === "ArrowDown" ? 1 : -1
-        const next = index + step
-        if (next < 0) {
-            searchRef.current?.focus()
-            return
-        }
-        const target = matched[next]?.id
-        if (target) rowRefs.current.get(target)?.focus()
-    }
+    const create = useCallback(() => {
+        setOpen(false)
+        onCreateAgent?.()
+    }, [onCreateAgent])
 
     const triggerNode =
         trigger === "pill" ? (
@@ -348,123 +517,17 @@ export const AgentPicker = ({
                     .filter(Boolean)
                     .join(" ")}
                 // Radix focuses the content wrapper on open, which beats an input's own
-                // `autoFocus`; the entry point is chosen here instead — a frame late, because on
-                // the opening frame the content is still being positioned.
-                onOpenAutoFocus={(event) => {
-                    event.preventDefault()
-                    requestAnimationFrame(() => searchRef.current?.focus())
-                }}
+                // `autoFocus`; the panel takes the caret itself, a frame late.
+                onOpenAutoFocus={(event) => event.preventDefault()}
             >
-                {/* A 20px box, not the rows' 28px chip width: a 14px glass centred in 28px read
-                    as a gap between icon and field, and a search field is not a row. */}
-                <label className="flex items-center gap-2 border-0 border-b border-solid border-border px-3 py-2">
-                    <span className="flex w-5 shrink-0 items-center justify-center">
-                        <MagnifyingGlass size={14} aria-hidden className="text-muted-foreground" />
-                    </span>
-                    <input
-                        ref={searchRef}
-                        value={query}
-                        onChange={(event) => setQuery(event.target.value)}
-                        placeholder={searchPlaceholder}
-                        aria-label={searchPlaceholder}
-                        onKeyDown={onSearchKeyDown}
-                        className="box-border w-full appearance-none border-0 bg-transparent p-0 font-[inherit] text-[13px] text-foreground outline-none placeholder:text-placeholder"
-                    />
-                </label>
-
-                <div className="flex max-h-[280px] flex-col gap-px overflow-y-auto p-1">
-                    {agentsQuery.isPending ? (
-                        // Row geometry, not a spinner — the list replaces this without shifting.
-                        <>
-                            <SkeletonBlock active className="h-8 w-full" />
-                            <SkeletonBlock active className="h-8 w-4/5" />
-                            <SkeletonBlock active className="h-8 w-3/5" />
-                        </>
-                    ) : matched.length === 0 ? (
-                        // Two different facts: a project with no agents yet, and a search that
-                        // matched none of the ones it has. Telling a reader "no agents" while
-                        // five sit behind a typo sends them looking for a fault that is not there.
-                        agents.length === 0 ? (
-                            <AgentPickerEmpty
-                                icon={<Robot aria-hidden size={19} />}
-                                title="No agents yet"
-                                body="An agent is what does the work. Make one and it shows up here."
-                                action={
-                                    onCreateAgent ? (
-                                        <button
-                                            type="button"
-                                            onClick={() => {
-                                                setOpen(false)
-                                                onCreateAgent()
-                                            }}
-                                            className="mt-1 box-border inline-flex cursor-pointer appearance-none items-center gap-1.5 rounded-control-sm border-0 bg-muted px-2.5 py-1.5 font-[inherit] text-[12px] font-medium text-foreground outline-none transition-colors hover:bg-accent focus-visible:bg-accent"
-                                        >
-                                            <Plus aria-hidden size={13} />
-                                            {createLabel}
-                                        </button>
-                                    ) : null
-                                }
-                            />
-                        ) : (
-                            <AgentPickerEmpty
-                                icon={<MagnifyingGlass aria-hidden size={19} />}
-                                title={`No agents match “${query.trim()}”`}
-                                body="The search covers each agent's name and what it does."
-                                action={
-                                    <button
-                                        type="button"
-                                        onClick={() => {
-                                            setQuery("")
-                                            searchRef.current?.focus()
-                                        }}
-                                        className="mt-1 box-border inline-flex cursor-pointer appearance-none items-center rounded-control-sm border-0 bg-muted px-2.5 py-1.5 font-[inherit] text-[12px] font-medium text-foreground outline-none transition-colors hover:bg-accent focus-visible:bg-accent"
-                                    >
-                                        Clear search
-                                    </button>
-                                }
-                            />
-                        )
-                    ) : (
-                        matched.map((agent, index) =>
-                            agent.id ? (
-                                <AgentPickerRow
-                                    key={agent.id}
-                                    agent={agent}
-                                    density={density}
-                                    selected={agent.id === value}
-                                    rowRef={(node) => {
-                                        rowRefs.current.set(agent.id as string, node)
-                                    }}
-                                    onKeyDown={onRowKeyDown(index)}
-                                    onSelect={() => pick(agent.id as string)}
-                                />
-                            ) : null,
-                        )
-                    )}
-                </div>
-
-                {onCreateAgent ? (
-                    // Its own footer padding rather than a rule: the plus and the shorter row
-                    // already say this is an action, and a hairline over it read as a seam. The
-                    // top padding is the separation the rule used to provide.
-                    <div className="flex flex-col px-1 pb-1 pt-2">
-                        <button
-                            type="button"
-                            onClick={() => {
-                                setOpen(false)
-                                onCreateAgent()
-                            }}
-                            // Tighter than a list row: this is a footer action, not one of the
-                            // choices, and at row height it read as an eighth agent.
-                            className="box-border flex w-full cursor-pointer appearance-none items-center gap-2 rounded-control-sm border-0 bg-transparent px-2 py-1 text-left font-[inherit] text-[13px] text-foreground outline-none transition-colors hover:bg-accent focus-visible:bg-accent"
-                        >
-                            <span className="flex size-5 shrink-0 items-center justify-center">
-                                <Plus aria-hidden size={14} className="text-muted-foreground" />
-                            </span>
-                            <span className="min-w-0 truncate font-medium">{createLabel}</span>
-                        </button>
-                    </div>
-                ) : null}
+                <AgentPickerPanel
+                    selectedIds={selectedIds}
+                    onSelect={pick}
+                    density={density}
+                    searchPlaceholder={searchPlaceholder}
+                    onCreateAgent={onCreateAgent ? create : undefined}
+                    createLabel={createLabel}
+                />
             </PopoverContent>
         </Popover>
     )

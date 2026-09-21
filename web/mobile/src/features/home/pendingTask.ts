@@ -1,3 +1,4 @@
+import {refusedSendReason} from "@agenta/chat/model"
 import type {FileUIPart} from "ai"
 import {atom} from "jotai"
 
@@ -6,7 +7,17 @@ export interface PendingTask {
     agentId: string
     text: string
     parts?: FileUIPart[]
+    /**
+     * The starter template this agent was created from, when it was.
+     *
+     * The template declares the connections the agent will need, and nothing else on the session
+     * route can name it: the agent's config is written by the builder during this very turn, and
+     * the URL carries only the agent id. Without it the connect step has nothing to read.
+     */
+    templateKey?: string
     delivery?: "sending" | "failed"
+    /** The refusal's own sentence, when the send was refused with one. */
+    failureReason?: string
 }
 
 /**
@@ -64,10 +75,22 @@ export const sendPendingTaskAtom = atom(
         set(pendingTasksAtom, {...get(pendingTasksAtom), [sessionId]: sending})
         try {
             await send(sending)
-        } catch {
+        } catch (error: unknown) {
             const tasks = get(pendingTasksAtom)
             if (tasks[sessionId] === sending) {
-                set(pendingTasksAtom, {...tasks, [sessionId]: {...sending, delivery: "failed"}})
+                // Keep the refusal's own sentence with the task: the chat screen is the only
+                // surface this send has, so a reason dropped here is a reason the user never sees.
+                // Write the slot unconditionally: `sending` carries the PREVIOUS attempt's reason
+                // on a retry, and leaving it in place would caption this failure with that one.
+                const reason = refusedSendReason(error)
+                set(pendingTasksAtom, {
+                    ...tasks,
+                    [sessionId]: {
+                        ...sending,
+                        delivery: "failed",
+                        failureReason: reason ?? undefined,
+                    },
+                })
             }
             return
         }

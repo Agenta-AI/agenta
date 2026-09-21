@@ -103,6 +103,12 @@ RUN node_modules/.bin/tsx scripts/patch-pi-validation-message.ts
 # No USER node here (unlike Dockerfile.gh): dev rebuilds dist/ under /app and mkdir's /pi-agent
 # at container start, both root-owned paths — not a FUSE constraint (fusermount works non-root).
 
+# Durable session drives are geesefs-mounted at /var/lib/agenta/mounts/<project_id>/<mount_id>
+# (LOCAL_DURABLE_MOUNT_ROOT in environment-setup.ts). Dev runs as root and could create the root
+# at runtime, but the subscription self-host overrides run this image as the operator's uid, so
+# bake it with /tmp's own 1777 sticky mode for parity with Dockerfile.gh.
+RUN mkdir -p /var/lib/agenta/mounts && chmod 1777 /var/lib/agenta /var/lib/agenta/mounts
+
 # Rebuild the Pi extension from the mounted src on start (cheap, ~120ms) so a restart picks
 # up extension edits, then run the watcher. Call node + the local tsx binary directly to
 # avoid pnpm/corepack HOME writes when the container runs as a non-root host uid.

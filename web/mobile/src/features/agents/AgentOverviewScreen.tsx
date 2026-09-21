@@ -1,6 +1,6 @@
 import {useCallback, useMemo} from "react"
 
-import {chatPanelMaximizedAtom, configPanelCollapsedAtom} from "@agenta/chat/state"
+import {revealConfigPaneAtom} from "@agenta/chat/state"
 import {agentWorkflowsListQueryStateAtom, type Workflow} from "@agenta/entities/workflow"
 import {pageContentWidthClass} from "@agenta/ui/components/page-width"
 import {useAtomValue, useSetAtom} from "jotai"
@@ -55,15 +55,15 @@ export const AgentOverviewScreen = ({
 
     const startBlank = useStartBlankSession(base)
     const openChat = useCallback(() => startBlank(agentId), [agentId, startBlank])
-    // Configuration is edited in the session workspace here, so this lands on a blank session
-    // with the config pane on screen. BOTH flags are written — either alone leaves it hidden.
-    const setChatMaximized = useSetAtom(chatPanelMaximizedAtom)
-    const setConfigCollapsed = useSetAtom(configPanelCollapsedAtom)
+    // Edit opens this agent's playground with the configuration showing. `/m` has no `/playground`
+    // route — a session IS the playground here — so it opens a BLANK one: the id is client-side
+    // and nothing reaches the backend until a message lands, so reading the config costs no
+    // session. The reveal is shared with the desktop's Edit so both mean the same thing (#6381).
+    const revealConfigPane = useSetAtom(revealConfigPaneAtom)
     const onEditConfig = useCallback(() => {
-        setChatMaximized(false)
-        setConfigCollapsed(false)
+        revealConfigPane()
         startBlank(agentId)
-    }, [agentId, setChatMaximized, setConfigCollapsed, startBlank])
+    }, [agentId, revealConfigPane, startBlank])
 
     return (
         <>
@@ -86,6 +86,7 @@ export const AgentOverviewScreen = ({
                                     description={description}
                                     pending={agentsQuery.isPending && !agent}
                                     onOpenChat={openChat}
+                                    onEditConfig={onEditConfig}
                                 />
                             </div>
                         </div>

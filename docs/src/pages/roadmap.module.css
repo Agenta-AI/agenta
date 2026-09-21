@@ -1,125 +1,140 @@
+/* Roadmap page. The frame (sidebar + main column) comes from SidebarShell;
+   this module styles the sections and cards. */
+
 .container {
-    max-width: 1000px;
-    margin: 0 auto;
-    padding: 2rem 1rem 4rem;
+    max-width: var(--doc-list-width);
 }
 
 .pageHeader {
-    margin-bottom: 2rem;
-}
-
-.pageTitle {
-    font-size: 2.25rem;
-    font-weight: 700;
-    margin: 0 0 0.25rem 0;
-}
-
-.pageSubtitle {
-    color: var(--ifm-color-emphasis-600);
+    max-width: var(--doc-content-width);
     margin: 0;
 }
 
-.sectionHeader {
-    font-size: 1.75rem;
-    font-weight: 800;
-    margin: 3rem 0 1.5rem 0;
-    padding-bottom: 0.75rem;
-    border-bottom: 3px solid var(--ifm-color-primary-lightest);
-    position: relative;
+.pageTitle {
+    margin: 0;
 }
 
-.sectionHeader::before {
-    content: '';
-    position: absolute;
-    bottom: -3px;
-    left: 0;
-    width: 60px;
-    height: 3px;
-    background: var(--ifm-color-primary);
+.pageSubtitle {
+    margin: 10px 0 0;
+    font-size: 17px;
+    line-height: 28px;
+    color: var(--contentsecondary);
+    text-wrap: pretty;
+}
+
+.section {
+    margin-top: 36px;
+}
+
+.section:first-of-type {
+    margin-top: 36px;
+}
+
+.sectionHeader {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    margin: 0;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--borderdefault);
+}
+
+.sectionHeader h2 {
+    margin: 0;
+    /* Anchor jumps from the sidebar land below the fixed header. */
+    scroll-margin-top: calc(var(--ifm-navbar-height) + var(--doc-main-padding-top));
+}
+
+.sectionCount {
+    font-family: var(--ifm-font-family-monospace);
+    font-size: 11px;
+    line-height: 16px;
+    color: var(--contentsecondary);
 }
 
 .sectionList {
     display: flex;
     flex-direction: column;
-    gap: 0.75rem;
-    background: var(--ifm-background-surface-color);
-    margin-bottom: 2rem;
+    gap: 12px;
+    margin-top: 16px;
 }
 
 .featureCard {
     display: flex;
     flex-direction: column;
-    border: 1px solid var(--ifm-toc-border-color);
-    border-radius: 12px;
-    padding: 1rem 1.25rem;
-    background: var(--ifm-background-surface-color);
+    gap: 8px;
+    padding: 18px 20px;
+    border: 1px solid var(--borderdefault);
+    border-radius: var(--radius-lg);
+    background: var(--bgdefault);
     text-decoration: none !important;
-    transition: box-shadow 150ms ease, transform 150ms ease, border-color 150ms ease;
-}
-
-.featureCardLeft {
-    min-width: 0;
+    color: inherit;
+    transition: border-color var(--ifm-transition-fast) ease;
 }
 
 .featureCard:hover {
-    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.12);
-    transform: translateY(-2px);
-    border-color: var(--ifm-color-primary-lightest);
+    border-color: var(--borderdark);
+}
+
+.featureCardHidden {
+    display: none;
 }
 
 .featureTitleRow {
     display: flex;
     align-items: center;
-    gap: 0.75rem;
+    gap: 12px;
 }
 
 .featureTitleAndDate {
     display: inline-flex;
     align-items: baseline;
-    gap: 0.5rem;
+    gap: 12px;
     flex: 1 1 auto;
     min-width: 0;
 }
 
 .featureTitle {
-    font-weight: 700;
-    font-size: 1.25rem;
+    font-size: 15px;
+    line-height: 22px;
+    font-weight: var(--ifm-font-weight-bold);
+    color: var(--contentprimary);
 }
 
 .featureDescription {
-    color: var(--ifm-color-emphasis-700);
-    margin-top: 0.35rem;
-    font-size: 1.05rem;
-    line-height: 1.6;
-}
-
-.featureCardRight {
-    margin-left: 1rem;
-}
-
-.featureMetaDate {
-    color: var(--ifm-color-emphasis-600);
-    font-size: 0.95rem;
-    margin-top: 0.5rem;
+    max-width: 780px;
+    margin: 0;
+    font-size: 14px;
+    line-height: 22px;
+    color: var(--contentsecondary);
 }
 
 .featureMetaDateInline {
-    color: var(--ifm-color-emphasis-600);
-    font-size: 0.95rem;
+    font-size: 13px;
+    line-height: 20px;
+    color: var(--contentsecondary);
+    white-space: nowrap;
 }
 
 .featureTitleRight {
     margin-left: auto;
     display: inline-flex;
     justify-content: flex-end;
-    gap: 0.35rem;
+    gap: 6px;
 }
 
 @media (max-width: 600px) {
     .featureTitleRow {
         flex-direction: column;
         align-items: flex-start;
-        gap: 0.35rem;
+        gap: 4px;
+    }
+
+    /* Title and date stack instead of squeezing the title into two lines. */
+    .featureTitleAndDate {
+        flex-wrap: wrap;
+        gap: 2px 12px;
     }
 
     .featureTitleRight {
@@ -130,7 +145,11 @@
 /* removed neutral variant to allow data-defined colors */
 
 .discussionsIntro {
-    color: var(--ifm-color-emphasis-700);
+    margin: 16px 0 0;
+    max-width: 780px;
+    font-size: 14px;
+    line-height: 22px;
+    color: var(--contentsecondary);
 }
 
 .tableWrapper {
@@ -309,23 +328,26 @@
     gap: 0.35rem;
 }
 
+/* Category pill: neutral. The chip keeps the data-defined colour on the
+   GitHub discussion cards only. */
 .labelChip {
-    --chip-bg: var(--ifm-color-primary);
     display: inline-flex;
     align-items: center;
-    gap: 0.35rem;
-    font-size: 0.9rem;
-    line-height: 1;
-    border-radius: 999px;
-    padding: 0.28rem 0.6rem;
-    background-color: color-mix(in oklab, var(--chip-bg) 18%, transparent);
-    color: color-mix(in oklab, var(--chip-bg) 80%, black);
-    border: 1px solid color-mix(in oklab, var(--chip-bg) 35%, transparent);
+    font-size: 12px;
+    line-height: 16px;
+    padding: 3px 10px;
+    border-radius: var(--radius-sm);
+    background-color: var(--bgelevated1);
+    color: var(--contentsecondary);
+    border: 1px solid var(--borderdefault);
+    white-space: nowrap;
 }
 
-.labelIcon {
-    font-size: 0.85rem;
-    line-height: 1;
+.labelChipColored {
+    --chip-bg: var(--contentsecondary);
+    background-color: color-mix(in oklab, var(--chip-bg) 18%, transparent);
+    color: color-mix(in oklab, var(--chip-bg) 80%, black);
+    border-color: color-mix(in oklab, var(--chip-bg) 35%, transparent);
 }
 
 .metaSpacer {
@@ -335,7 +357,7 @@
 .actionsBar {
     display: flex;
     justify-content: flex-start;
-    margin: 0.5rem 0 1rem;
+    margin: 16px 0 0;
 }
 
 .primaryAction {

@@ -3,6 +3,7 @@
 from .errors import (
     MCPConfigurationError,
     MCPError,
+    MCPGatewayUnavailableError,
     MCPServerURLBlockedError,
     MissingMCPSecretError,
 )
@@ -10,9 +11,11 @@ from .interfaces import MCPSecretProvider
 from .models import (
     HeaderCredentialBinding,
     MCPConnection,
+    MCPGatewayConnection,
     MCPHeaderSecretRefs,
     MCPPolicy,
     MCPServerConfig,
+    MCPServerConnection,
     MCPToolPolicy,
     NoMCPCredentials,
     ResolvedMCPCredential,
@@ -25,6 +28,8 @@ from .wire import mcp_server_to_wire, mcp_servers_to_wire
 __all__ = [
     "MCPServerConfig",
     "MCPConnection",
+    "MCPGatewayConnection",
+    "MCPServerConnection",
     "MCPHeaderSecretRefs",
     "MCPPolicy",
     "MCPToolPolicy",
@@ -41,5 +46,6 @@ __all__ = [
     "MCPError",
     "MCPConfigurationError",
     "MCPServerURLBlockedError",
+    "MCPGatewayUnavailableError",
     "MissingMCPSecretError",
 ]

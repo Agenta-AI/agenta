@@ -280,11 +280,75 @@ export interface AddSkillToAgentsResult {
     failed: {workflowId: string; error: string}[]
 }
 
+export interface RemoveSkillFromAgentsParams {
+    projectId: string
+    agentWorkflowIds: string[]
+    /** The registry slug the agents' embed entries reference. */
+    slug: string
+    message?: string
+}
+
+export interface RemoveSkillFromAgentsResult {
+    removed: string[]
+    failed: {workflowId: string; error: string}[]
+}
+
 /**
- * Registry-side batch install (the pick-agents step): for each agent, read the HEAD
- * revision, append the embed entry to `parameters.agent.skills`, and commit — the same
- * whole-revision write the config panel's auto-commit performs, with the head's id as
- * `base_revision_id` so a concurrent edit conflicts instead of being clobbered.
+ * One whole-revision write of an agent's `parameters.agent.skills`: read the HEAD, hand its
+ * skills to `next`, commit what comes back — the same write the config panel's auto-commit
+ * performs, with the head's id as `base_revision_id` so a concurrent edit conflicts instead
+ * of being clobbered. `next` returning null means nothing to write: a success, not a commit.
+ */
+async function commitAgentSkills(
+    projectId: string,
+    workflowId: string,
+    message: string | undefined,
+    next: (skills: unknown[]) => unknown[] | null,
+): Promise<void> {
+    const head = (await retrieveWorkflowRevision({
+        projectId,
+        workflowRef: {id: workflowId},
+    })) as Record<string, unknown> | null
+    const data = head?.data as Record<string, unknown> | undefined
+    if (!head || !data) throw new Error("The agent's head revision could not be read.")
+
+    const parameters =
+        data.parameters && typeof data.parameters === "object"
+            ? (data.parameters as Record<string, unknown>)
+            : {}
+    const agent =
+        parameters.agent && typeof parameters.agent === "object"
+            ? (parameters.agent as Record<string, unknown>)
+            : {}
+    const skills = next(Array.isArray(agent.skills) ? agent.skills : [])
+    if (!skills) return
+
+    await getWorkflowsClient().commitWorkflowRevision(
+        {
+            workflow_revision: {
+                workflow_id: workflowId,
+                workflow_variant_id:
+                    typeof head.workflow_variant_id === "string"
+                        ? head.workflow_variant_id
+                        : undefined,
+                slug: generateId().replace(/-/g, "").slice(0, 12),
+                data: {...data, parameters: {...parameters, agent: {...agent, skills}}},
+                message: message || undefined,
+                base_revision_id: typeof head.id === "string" ? head.id : undefined,
+            } as never,
+        },
+        {queryParams: {project_id: projectId}},
+    )
+}
+
+const failure = (workflowId: string, err: unknown) => ({
+    workflowId,
+    error: err instanceof Error && err.message ? err.message : "commit failed",
+})
+
+/**
+ * Registry-side batch install (the pick-agents step): for each agent, append the embed
+ * entry to its skills and commit.
  */
 export async function addSkillToAgents({
     projectId,
@@ -293,64 +357,44 @@ export async function addSkillToAgents({
     message,
 }: AddSkillToAgentsParams): Promise<AddSkillToAgentsResult> {
     const result: AddSkillToAgentsResult = {added: [], failed: []}
+    const entrySlug = embedEntrySlug(entry)
 
     for (const workflowId of agentWorkflowIds) {
         try {
-            const head = (await retrieveWorkflowRevision({
-                projectId,
-                workflowRef: {id: workflowId},
-            })) as Record<string, unknown> | null
-            const data = head?.data as Record<string, unknown> | undefined
-            if (!head || !data) throw new Error("The agent's head revision could not be read.")
-
-            const parameters =
-                data.parameters && typeof data.parameters === "object"
-                    ? (data.parameters as Record<string, unknown>)
-                    : {}
-            const agent =
-                parameters.agent && typeof parameters.agent === "object"
-                    ? (parameters.agent as Record<string, unknown>)
-                    : {}
-            const skills = Array.isArray(agent.skills) ? agent.skills : []
-
-            // Idempotent per agent: an already-embedded slug is a success, not a
-            // duplicate entry the runner would silently drop.
-            const entrySlug = embedEntrySlug(entry)
-            if (entrySlug && skills.some((item) => embedEntrySlug(item) === entrySlug)) {
-                result.added.push(workflowId)
-                continue
-            }
-
-            const nextData = {
-                ...data,
-                parameters: {
-                    ...parameters,
-                    agent: {...agent, skills: [...skills, entry]},
-                },
-            }
-
-            await getWorkflowsClient().commitWorkflowRevision(
-                {
-                    workflow_revision: {
-                        workflow_id: workflowId,
-                        workflow_variant_id:
-                            typeof head.workflow_variant_id === "string"
-                                ? head.workflow_variant_id
-                                : undefined,
-                        slug: generateId().replace(/-/g, "").slice(0, 12),
-                        data: nextData,
-                        message: message || undefined,
-                        base_revision_id: typeof head.id === "string" ? head.id : undefined,
-                    } as never,
-                },
-                {queryParams: {project_id: projectId}},
+            await commitAgentSkills(projectId, workflowId, message, (skills) =>
+                // Idempotent per agent: an already-embedded slug is a success, not a
+                // duplicate entry the runner would silently drop.
+                entrySlug && skills.some((item) => embedEntrySlug(item) === entrySlug)
+                    ? null
+                    : [...skills, entry],
             )
             result.added.push(workflowId)
         } catch (err) {
-            result.failed.push({
-                workflowId,
-                error: err instanceof Error && err.message ? err.message : "commit failed",
+            result.failed.push(failure(workflowId, err))
+        }
+    }
+
+    return result
+}
+
+/** The install's undo: for each agent, drop the embed entries that reference `slug` and commit. */
+export async function removeSkillFromAgents({
+    projectId,
+    agentWorkflowIds,
+    slug,
+    message,
+}: RemoveSkillFromAgentsParams): Promise<RemoveSkillFromAgentsResult> {
+    const result: RemoveSkillFromAgentsResult = {removed: [], failed: []}
+
+    for (const workflowId of agentWorkflowIds) {
+        try {
+            await commitAgentSkills(projectId, workflowId, message, (skills) => {
+                const kept = skills.filter((item) => embedEntrySlug(item) !== slug)
+                return kept.length === skills.length ? null : kept
             })
+            result.removed.push(workflowId)
+        } catch (err) {
+            result.failed.push(failure(workflowId, err))
         }
     }
 
@@ -414,4 +458,55 @@ export async function applySkillUpdate({
         {queryParams: {project_id: projectId}},
     )
     return updateApplyResponseSchema.safeParse(data).data ?? null
+}
+
+/** One skill's answer from a batch check; `check_failed` stands in for a rejected request. */
+export interface SkillUpdateCheck {
+    workflowId: string
+    /** up_to_date | update_available | detached | missing_in_source | invalid_in_source | check_failed */
+    status: string
+}
+
+/** Checks each skill against its upstream; one failure leaves the others' answers intact. */
+export async function checkSkillUpdates({
+    projectId,
+    workflowIds,
+}: {
+    projectId: string
+    workflowIds: string[]
+}): Promise<SkillUpdateCheck[]> {
+    const outcomes = await Promise.allSettled(
+        workflowIds.map((workflowId) => checkSkillUpdate({projectId, workflowId})),
+    )
+    return outcomes.map((outcome, index) => ({
+        workflowId: workflowIds[index],
+        status:
+            outcome.status === "fulfilled" && outcome.value?.status
+                ? outcome.value.status
+                : "check_failed",
+    }))
+}
+
+/**
+ * Commits the upstream version of each skill. allSettled, not all: one rejection must not
+ * discard the successes, or the applied skills stay queued and a second press re-applies them.
+ */
+export async function applySkillUpdates({
+    projectId,
+    workflowIds,
+}: {
+    projectId: string
+    workflowIds: string[]
+}): Promise<{applied: string[]; failed: string[]}> {
+    const outcomes = await Promise.allSettled(
+        workflowIds.map((workflowId) => applySkillUpdate({projectId, workflowId})),
+    )
+    const applied: string[] = []
+    const failed: string[] = []
+    for (const [index, outcome] of outcomes.entries()) {
+        if (outcome.status === "fulfilled" && outcome.value?.status === "updated")
+            applied.push(workflowIds[index])
+        else failed.push(workflowIds[index])
+    }
+    return {applied, failed}
 }

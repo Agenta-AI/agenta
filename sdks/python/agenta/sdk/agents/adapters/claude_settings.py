@@ -99,36 +99,100 @@ def _rules_from_sandbox_permission(sandbox_permission: Any) -> Dict[str, List[st
     return {"deny": deny}
 
 
-def _rules_from_mcp_permissions(mcp_servers: Any) -> Dict[str, List[str]]:
-    """Derive whole-server Claude rules from each MCP server's Layer-3 ``permission`` (S3b).
+#: Claude resolves every matching rule together and takes the most restrictive, rather than the
+#: most specific. So a per-tool rule only takes effect when it is STRICTER than the server rule
+#: beside it, and this ordering is what decides which combinations can be expressed at all.
+_PERMISSION_STRICTNESS = {"allow": 0, "ask": 1, "deny": 2}
 
-    Claude addresses a whole MCP server as ``mcp__<serverName>`` (a per-tool rule is
-    ``mcp__<server>__<tool>``); the server name is the ``name`` carried to the runtime verbatim.
-    ``allow``/``ask``/``deny`` route to the matching list; a server with no permission contributes
-    nothing (falls back to the global policy). Accepts a list of
-    :class:`~agenta.sdk.agents.mcp.models.ResolvedMCPServer` or plain dicts.
+
+def _rules_from_mcp_permissions(mcp_servers: Any) -> Dict[str, List[str]]:
+    """Derive Claude rules from each MCP server's Layer-3 permissions (S3b).
+
+    Claude addresses a whole MCP server as ``mcp__<serverName>`` and one of its tools as
+    ``mcp__<server>__<tool>``. The job here is to emit rules whose outcome matches what the
+    runner's own gate will decide (``services/runner/src/mcp-permission.ts``,
+    ``mcpToolPermission``), because the two disagreeing is how an editor promises one thing and the
+    harness does another.
+
+    **Claude's precedence is most-restrictive-wins, not most-specific-wins** (D37). Emitting the
+    server's ``permission`` beside the per-tool table therefore does not layer the way it reads:
+    ``permission: deny`` with ``tool_permissions: {"echo": "allow"}`` resolved to deny and the
+    allowed tool disappeared from the catalog entirely. So the rules are built from the RESOLVED
+    decisions instead:
+
+    - With no per-tool table, ``permission`` is the whole-server rule, exactly as before.
+    - With one, the server rule carries the resolved default for tools the table does not name
+      (``new_tool_permission``, else ``ask`` — the same ladder the runner walks, which does not
+      consult ``permission`` once a table exists; D88), and each named tool gets its own rule.
+
+    One combination the rule language cannot express: a named tool LOOSER than that default, such
+    as a server defaulting to ``deny`` with one tool at ``allow``. A server-level deny would take
+    the allowed tool with it. Rather than lose the tool, the server rule is dropped and only the
+    named tools are written; tools the table does not name then fall to Claude's global policy in
+    the catalog, and the runner's gate — which is authoritative and fails closed — applies the
+    resolved default to them. Documented for readers in the MCP servers reference page.
+
+    A server or tool with no permission contributes nothing and falls back to the global policy.
+    Accepts a list of :class:`~agenta.sdk.agents.mcp.models.ResolvedMCPServer` or plain dicts.
     """
-    allow: List[str] = []
-    ask: List[str] = []
-    deny: List[str] = []
+    lists: Dict[str, List[str]] = {"allow": [], "ask": [], "deny": []}
+
+    def add(permission: Any, rule: str) -> None:
+        if permission in lists:
+            lists[permission].append(rule)
+
     for server in mcp_servers or []:
         name = _get(server, "name")
         policy = _get(server, "policy")
-        permission = _get(policy, "permission")
-        if not permission or not name:
+        if not name or policy is None:
             continue
         if name == INTERNAL_TOOL_MCP_SERVER:
             # Reserved for backend-resolved tools; a user server rule like ``mcp__agenta-tools``
             # would collide with resolved-tool rules ``mcp__agenta-tools__<tool>``.
             continue
-        rule = f"mcp__{name}"
-        if permission == "allow":
-            allow.append(rule)
-        elif permission == "ask":
-            ask.append(rule)
-        elif permission == "deny":
-            deny.append(rule)
-    return {"allow": allow, "ask": ask, "deny": deny}
+
+        permission = _get(policy, "permission")
+        new_tool_permission = _get(policy, "new_tool_permission")
+        raw_tools = _get(policy, "tool_permissions")
+        named = {
+            tool: value
+            for tool, value in (raw_tools or {}).items()
+            if isinstance(raw_tools, dict) and tool and value in _PERMISSION_STRICTNESS
+        }
+
+        if not named and new_tool_permission is None:
+            # No per-tool policy at all: unchanged, and deliberately. This is every configuration
+            # written before per-tool policy existed.
+            add(permission, f"mcp__{name}")
+            continue
+
+        # The runner's own ladder for a tool the table does not name, and it does NOT fall back
+        # to the whole-server permission (D88). `normalizeMcpServerPermissions` gives a declared
+        # table with no floor beside it `newTool = "ask"` — "a human decides for anything the
+        # table does not name" — and never consults `permission` for those tools.
+        #
+        # Reading `permission` here made the two disagree in the unsafe direction: `permission:
+        # allow` beside any per-tool table emitted a whole-server ALLOW, so a tool the author had
+        # never named, including one an MCP server adds between two runs, ran unapproved under
+        # Claude while the same configuration raised a gate under Pi.
+        default = new_tool_permission or "ask"
+        expressible = all(
+            _PERMISSION_STRICTNESS[value] >= _PERMISSION_STRICTNESS[default]
+            for value in named.values()
+        )
+
+        if expressible:
+            add(default, f"mcp__{name}")
+            for tool, value in sorted(named.items()):
+                # A rule equal to the server rule changes nothing; a stricter one is the point.
+                if value != default:
+                    add(value, f"mcp__{name}__{tool}")
+            continue
+
+        # A named tool is looser than the default, so no server rule can stand beside it.
+        for tool, value in sorted(named.items()):
+            add(value, f"mcp__{name}__{tool}")
+    return lists
 
 
 def _rules_from_tool_specs(

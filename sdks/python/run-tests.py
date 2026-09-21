@@ -21,6 +21,107 @@ TYPES = {
 }
 
 
+# pytest options whose value is the NEXT argument rather than part of it.
+#
+# A value is not a test target. `--basetemp /tmp/x` and `--ignore some/dir` both end in a
+# token containing a slash, and the target check below saw one and concluded the caller had
+# named what to run: the resolved license and layer directories were dropped, pytest fell
+# back to the `testpaths` in its own config, and the run silently covered something else
+# (P11, P12).
+#
+# Explicit rather than inferred, because pytest also has plenty of flags that take no value
+# and a positional after one of those IS a target. An option written `--opt=value` carries
+# its own value and never reaches this set.
+_VALUE_OPTIONS = frozenset(
+    {
+        "-c",
+        "-k",
+        "-m",
+        "-n",
+        "-o",
+        "-p",
+        "-r",
+        "-W",
+        "--basetemp",
+        "--capture",
+        "--color",
+        "--confcutdir",
+        "--cov",
+        "--cov-report",
+        "--deselect",
+        "--dist",
+        "--durations",
+        "--durations-min",
+        "--html",
+        "--ignore",
+        "--ignore-glob",
+        "--import-mode",
+        "--junit-xml",
+        "--junitxml",
+        "--log-cli-level",
+        "--log-file",
+        "--maxfail",
+        "--numprocesses",
+        "--override-ini",
+        "--rootdir",
+        "--tb",
+        "--timeout",
+    }
+)
+
+
+def _positional_arguments(args) -> list:
+    """The forwarded arguments that are not options and not an option's value."""
+    positionals = []
+    expecting_value = False
+    for arg in args:
+        if expecting_value:
+            expecting_value = False
+            continue
+        if arg.startswith("-"):
+            expecting_value = "=" not in arg and arg in _VALUE_OPTIONS
+            continue
+        positionals.append(arg)
+    return positionals
+
+
+def _looks_like_a_test_target(arg: str) -> bool:
+    return arg.endswith(".py") or "/" in arg or "::" in arg
+
+
+def _split_marker_expression(args):
+    """Pull the caller's own `-m` out of the forwarded arguments.
+
+    pytest honours the LAST `-m` it is given, and this wrapper appends its own after the
+    forwarded ones, so a caller asking for `-m acceptance` was silently overruled whenever a
+    selection or dimension flag was also set — and `hosting/docker-compose/test.sh` always
+    injects one. The operator got a different selection from the one they asked for, and a
+    green answer to a question they did not pose (P7, P11, P12).
+
+    Returned separately so the two expressions can be combined into the single `-m` pytest
+    will actually read.
+    """
+    remaining = []
+    expression = None
+    expecting_value = False
+    for arg in args:
+        if expecting_value:
+            expecting_value = False
+            expression = arg
+            continue
+        if arg == "-m":
+            expecting_value = True
+            continue
+        if arg.startswith("-m="):
+            expression = arg[len("-m=") :]
+            continue
+        if arg.startswith("-m") and len(arg) > 2 and not arg.startswith("--"):
+            expression = arg[2:]
+            continue
+        remaining.append(arg)
+    return remaining, expression
+
+
 def _has_pytest_option(pytest_args: Optional[tuple], option: str) -> bool:
     if not pytest_args:
         return False
@@ -164,6 +265,14 @@ def _write_empty_results(results_dir: str) -> None:
     show_default=True,
     help="Only show tests slower than this many seconds in the timing summary.",
 )
+@click.option(
+    "--fast", "run_fast", is_flag=True, help="Run only tests not marked slow."
+)
+@click.option("--slow", "run_slow", is_flag=True, help="Run only tests marked slow.")
+@click.option(
+    "--all", "run_all", is_flag=True, help="Run both fast and slow tests (default)."
+)
+@click.option("--full", "run_full", is_flag=True, help="Alias for --all.")
 @click.argument(
     "pytest_args",
     nargs=-1,
@@ -186,6 +295,10 @@ def run_tests(
     time_profile: bool = False,
     time_profile_limit: int = 25,
     time_profile_min: float = 0.0,
+    run_fast: bool = False,
+    run_slow: bool = False,
+    run_all: bool = False,
+    run_full: bool = False,
     pytest_args: Optional[tuple] = None,
 ):
     """
@@ -193,6 +306,12 @@ def run_tests(
 
     Additional args after '--' are passed directly to pytest.
     """
+    selections = sum((run_fast, run_slow, run_all or run_full))
+    if selections > 1:
+        raise click.UsageError("Use only one of --fast, --slow, or --all.")
+    # Default to everything, as this runner always did: a test marked slow must not fall
+    # out of a plain `py-run-tests` silently. `--fast` is the explicit opt-out.
+    test_selection = "slow" if run_slow else "fast" if run_fast else "all"
     marker_args = []
 
     if env_file:
@@ -243,9 +362,14 @@ def run_tests(
             click.echo(f"{name}={value}")
             marker_args.append(f"{name.lower()}_{value}")
 
-    extra_paths = [a for a in (pytest_args or []) if not a.startswith("-")]
+    forwarded_args, caller_marker_expr = _split_marker_expression(
+        list(pytest_args or ())
+    )
+    has_test_target = any(
+        _looks_like_a_test_target(arg) for arg in _positional_arguments(forwarded_args)
+    )
     test_dirs = _resolve_test_dirs(license, layer)
-    if not extra_paths and not test_dirs:
+    if not has_test_target and not test_dirs:
         layer_label = f" {layer}" if layer else ""
         click.echo(
             f"No{layer_label} tests found for AGENTA_LICENSE={license}; skipping."
@@ -253,10 +377,18 @@ def run_tests(
         _write_empty_results(results_dir)
         return
 
-    cmd = ["pytest"] + (extra_paths if extra_paths else test_dirs)
+    cmd = ["pytest"] + (
+        forwarded_args if has_test_target else test_dirs + forwarded_args
+    )
 
-    if marker_args:
-        marker_expr = " and ".join(marker_args)
+    marker_exprs = {"fast": ["not slow"], "slow": ["slow"], "all": []}[test_selection]
+    marker_exprs.extend(marker_args)
+    # The caller's own expression joins the generated ones rather than being overruled by
+    # them, and only one `-m` reaches pytest.
+    if caller_marker_expr:
+        marker_exprs.append(caller_marker_expr)
+    if marker_exprs:
+        marker_expr = " and ".join(f"({expr})" for expr in marker_exprs)
         cmd += ["-m", marker_expr]
 
     os.makedirs(results_dir, exist_ok=True)
@@ -274,13 +406,13 @@ def run_tests(
         # saturated workers a fast test reports the time it spent queued. Serialize to measure.
         cmd.append("-n0")
 
-    if pytest_args:
-        flags_only = [a for a in pytest_args if a.startswith("-")]
-        cmd += flags_only
-
     click.echo(f"Executing: {' '.join(cmd)}")
 
-    subprocess.run(cmd, check=True)
+    result = subprocess.run(cmd)
+    if result.returncode == 5 and test_selection == "slow":
+        click.echo("No slow tests selected.")
+        return
+    result.check_returncode()
 
 
 if __name__ == "__main__":

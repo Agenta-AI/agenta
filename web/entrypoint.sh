@@ -63,6 +63,25 @@ else
   export AGENTA_BILLING_ENABLED="false"
 fi
 
+# Mirror AGENTA_MCP_GATEWAY_ENABLED, the API's own switch for the MCP gateway plane, so the
+# settings navigation hides the MCP endpoints tab on a deployment whose API refuses every MCP
+# gateway route. Both containers read the same env file, so this is the same value the API
+# reads and not a second source of truth. Empty counts as on, because compose passes an unset
+# variable as "", and on is the API's default.
+#
+# The accepted spellings are the API's `_TRUTHY` set (api/oss/src/utils/env.py): anything else
+# is off. Reading only the literal "false" as off would leave an operator who wrote "0" with an
+# API that refuses every MCP route and an interface that still offers all of them.
+#
+# Trimmed, not squeezed. The API strips the value and the browser trims it, so both read
+# "y es" as a spelling they do not know and turn the plane off. Deleting every space instead
+# made this shell read it as "yes" and leave the plane on, which is the one disagreement the
+# three parsers must not have (D35 residual).
+case "$(printf '%s' "${AGENTA_MCP_GATEWAY_ENABLED}" | tr '[:upper:]' '[:lower:]' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')" in
+  "" | true | 1 | t | y | yes | on | enable | enabled) export AGENTA_MCP_GATEWAY_ENABLED="true" ;;
+  *) export AGENTA_MCP_GATEWAY_ENABLED="false" ;;
+esac
+
 # Derive the local-sandbox picker flag from the shared provider registry
 # (AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS; unset -> "local"): enabled iff "local" is listed.
 case ",$(printf '%s' "${AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS:-local}" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')," in
@@ -209,6 +228,7 @@ window.__env = {
   NEXT_PUBLIC_CLOUDFLARE_TURNSTILE_SITE_KEY: "${EFFECTIVE_TURNSTILE_SITE_KEY}",
   NEXT_PUBLIC_AGENTA_TOOLS_ENABLED: "${AGENTA_TOOLS_ENABLED}",
   NEXT_PUBLIC_AGENTA_BILLING_ENABLED: "${AGENTA_BILLING_ENABLED}",
+  NEXT_PUBLIC_AGENTA_MCP_GATEWAY_ENABLED: "${AGENTA_MCP_GATEWAY_ENABLED}",
   NEXT_PUBLIC_SUPERTOKENS_PASSWORD_POLICY: "${SUPERTOKENS_PASSWORD_POLICY}",
   NEXT_PUBLIC_SUPERTOKENS_PASSWORD_MIN_LENGTH: "${SUPERTOKENS_PASSWORD_MIN_LENGTH}",
   NEXT_PUBLIC_SUPERTOKENS_PASSWORD_MAX_LENGTH: "${SUPERTOKENS_PASSWORD_MAX_LENGTH}",

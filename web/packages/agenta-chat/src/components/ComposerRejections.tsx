@@ -1,3 +1,4 @@
+import {Button} from "@agenta/ui/ui"
 import {WarningCircle, X} from "@phosphor-icons/react"
 import {AnimatePresence, MotionConfig, motion} from "motion/react"
 
@@ -24,7 +25,7 @@ export const ComposerRejections = ({rejections, onDismiss}: ComposerRejectionsPr
     <MotionConfig transition={SESSION_SPRING}>
         {/* max-h: four rows, then it scrolls — a bad multi-select must not push the input off screen. */}
         <div
-            className="mb-2 flex max-h-[108px] flex-col gap-0.5 overflow-y-auto rounded-md border border-solid border-colorWarningBorder bg-colorWarningBg px-2 py-1.5"
+            className="mb-2 flex max-h-[134px] flex-col gap-0.5 overflow-y-auto rounded-md border border-solid border-colorWarningBorder bg-colorWarningBg px-2 py-1.5"
             role="status"
         >
             <AnimatePresence initial={false} mode="popLayout">
@@ -38,7 +39,7 @@ export const ComposerRejections = ({rejections, onDismiss}: ComposerRejectionsPr
                         className="flex min-w-0 items-center gap-2"
                     >
                         <WarningCircle
-                            size={15}
+                            size={16}
                             weight="fill"
                             className="shrink-0 text-colorWarning"
                         />
@@ -49,14 +50,16 @@ export const ComposerRejections = ({rejections, onDismiss}: ComposerRejectionsPr
                             <span className="font-medium">{rejection.name}</span>{" "}
                             <span className="opacity-80">{rejection.reason}</span>
                         </span>
-                        <button
+                        <Button
                             type="button"
+                            variant="ghost"
+                            size="icon-sm"
                             aria-label={`Dismiss ${rejection.name}`}
                             onClick={() => onDismiss(index)}
-                            className="flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center rounded [&_svg]:shrink-0 border-0 bg-transparent text-colorWarning opacity-70 transition-opacity hover:opacity-100"
+                            className="shrink-0 text-colorWarning opacity-70 transition-opacity hover:opacity-100"
                         >
-                            <X size={12} weight="bold" />
-                        </button>
+                            <X weight="bold" />
+                        </Button>
                     </motion.div>
                 ))}
             </AnimatePresence>

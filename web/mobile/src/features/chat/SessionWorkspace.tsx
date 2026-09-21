@@ -3,14 +3,19 @@ import {useCallback, useEffect, useMemo, useRef, useState, type ReactNode} from 
 import {
     chatPanelMaximizedAtom,
     configPanelCollapsedAtom,
+    configPanelCollapsedOverrideAtom,
+    configPanelCollapsedViewportPreferenceAtom,
     FILES_PANE_MAX,
     FILES_PANE_MIN,
     filesPaneWidthAtom,
+    phoneViewportAtom,
+    resolveConfigPanelCollapsed,
     RIGHT_PANEL_MAX,
     RIGHT_PANEL_MIN,
     rightPanelWidthAtom,
     useCanPanesCoexist,
 } from "@agenta/chat/state"
+import {useDriveDirtyGuard} from "@agenta/entities/drive"
 import {DriveSessionProvider, SessionFilesPane, useSessionFilesPane} from "@agenta/entity-ui/drive"
 import {SIDEBAR_DEFAULT_WIDTH} from "@agenta/navigation"
 import {registerAgentAutoCommitHandler} from "@agenta/playground/state"
@@ -26,6 +31,7 @@ import {useRouter} from "next/router"
 
 import {AppShell} from "../nav/AppShell"
 
+import {CollapsedConfigRail} from "./CollapsedConfigRail"
 import {selectedRevisionAtomFamily} from "./selectedRevision"
 import {resolveSessionPanes} from "./sessionPanes"
 import {SessionsPane} from "./SessionsPane"
@@ -41,6 +47,15 @@ import {useTriggerTestRun} from "./useTriggerTestRun"
 const ConfigPane = dynamic(() => import("./ConfigPane").then((m) => m.ConfigPane), {
     ssr: false,
 })
+
+// The tool catalog is opened by setting an atom, so whoever opens it needs this mounted or the
+// action does nothing. It sits at the workspace rather than inside the config pane, because the
+// agent's own connect widget opens it from the transcript and in chat mode the config pane does
+// not render. One mount, always present, as the desktop playground keeps one beside its panels.
+const CatalogDrawer = dynamic(
+    () => import("@agenta/entity-ui/gatewayTool").then((m) => m.CatalogDrawer),
+    {ssr: false},
+)
 
 /**
  * The playground's two-pane frame, on the SAME kit `SplitPane` the desktop drives it with and the
@@ -63,6 +78,9 @@ export const SessionWorkspace = ({
     workspaceId,
     projectId,
     chat,
+    bare = false,
+    hideSessionTabs = false,
+    collapseConfigByDefault = false,
 }: {
     /** The revision being configured. Absent = nothing to build yet (a session with no turns). */
     entityId: string | null
@@ -72,6 +90,24 @@ export const SessionWorkspace = ({
     projectId: string
     /** The conversation, rendered embedded (it brings its own header, dock and composer). */
     chat: ReactNode
+    /**
+     * Skip the surrounding `AppShell`. A host that already renders one (first run, which swaps
+     * only Home's body) would otherwise stack a second nav rail beside the first.
+     */
+    bare?: boolean
+    /**
+     * Hide the session tab strip. Before the agent is created there is exactly one draft session
+     * and no history, so the strip is a rail with nothing to switch between.
+     */
+    hideSessionTabs?: boolean
+    /**
+     * Start with the config pane collapsed, the way a phone already does. First run leads with the
+     * question and the composer; the configuration is one `»` away rather than half the screen
+     * before there is anything to configure.
+     *
+     * Only the DEFAULT — a stored preference still wins in both directions.
+     */
+    collapseConfigByDefault?: boolean
 }) => {
     const base = `/w/${workspaceId}/p/${projectId}`
     const chatMaximized = useAtomValue(chatPanelMaximizedAtom)
@@ -99,7 +135,25 @@ export const SessionWorkspace = ({
     // An automation row's "Test run" (config pane) lands in a new session with this agent.
     useTriggerTestRun({entityId, agentId, base})
 
-    const configCollapsed = useAtomValue(configPanelCollapsedAtom)
+    // Resolved from the parts rather than read off `configPanelCollapsedAtom`: that atom answers
+    // for a device, and this surface gets to answer too. A stored preference still beats both.
+    //
+    // `collapseConfigByDefault` surfaces (the create-an-agent page) LAND collapsed no matter
+    // what the session pages stored — the two surfaces must not share their landing state. The
+    // mount-scoped override does it: any user write (the `»` reveal, the pane's own collapse)
+    // clears it, so the controls work immediately and the preference resumes from that tap.
+    const setConfigOverride = useSetAtom(configPanelCollapsedOverrideAtom)
+    useEffect(() => {
+        if (!collapseConfigByDefault) return
+        setConfigOverride(true)
+        return () => setConfigOverride(null)
+    }, [collapseConfigByDefault, setConfigOverride])
+    const configOverride = useAtomValue(configPanelCollapsedOverrideAtom)
+    const configPreference = useAtomValue(configPanelCollapsedViewportPreferenceAtom)
+    const phoneViewport = useAtomValue(phoneViewportAtom)
+    const configCollapsed =
+        configOverride ??
+        resolveConfigPanelCollapsed(configPreference, phoneViewport, collapseConfigByDefault)
     // Files dock as a resizable right-edge pane, as they do on the desktop, rather than an
     // overlay drawer. Scope is the AGENT, not the session: opening files then switching session
     // must not snap the pane shut.
@@ -109,15 +163,18 @@ export const SessionWorkspace = ({
         close: closeFilesPane,
         toggle: toggleFilesPane,
     } = useSessionFilesPane(filesScope, sessionId)
+    // Drafts outlive the pane, so the unload guard lives on the host.
+    useDriveDirtyGuard()
     // Tailwind's `md`. Client-only, so the first paint is the phone layout — the right guess here.
     const twoPane = useMediaQuery("(min-width: 768px)")
     // Which half is on screen. The rule is in `sessionPanes.ts`, with its tests: on a phone the
     // pane replaces the conversation, so getting it wrong puts the composer out of reach.
-    const {showConfig, showPane} = resolveSessionPanes({
+    const {showConfig, showPane, showFiles} = resolveSessionPanes({
         chatMaximized,
         configCollapsed,
         twoPane,
         hasEntity: Boolean(entityId),
+        filesOpen,
     })
     // Live px during a drag, mirrored from the shared persisted width — which is written at
     // pointer-up, not per frame, so a drag does not hammer localStorage.
@@ -133,7 +190,7 @@ export const SessionWorkspace = ({
     // it the pane's width flipped in one frame and its content unmounted before the flip, so
     // opening and hiding either panel jumped instead of moving.
     const configSlide = usePaneSlide(showPane)
-    const filesSlide = usePaneSlide(twoPane && filesOpen)
+    const filesSlide = usePaneSlide(showFiles)
 
     // The desktop's coexistence rule: too narrow for both side panes, so they take turns.
     // Edge-triggered, so they cannot evict each other in a loop.
@@ -248,8 +305,8 @@ export const SessionWorkspace = ({
         </>
     )
 
-    return (
-        <AppShell workspaceId={workspaceId} projectId={projectId}>
+    const workspace = (
+        <>
             {/* Drive surfaces need the AGENT here, not just the session: without it the per-agent
                 mount query stays disabled and `agent-files/…` falls back to the cwd mount, 404s,
                 and the row opens nothing (#6270). Desktop mounts this; /m did not. */}
@@ -298,8 +355,16 @@ export const SessionWorkspace = ({
                                     // config split's is.
                                     fillMin={360}
                                     animate={filesSlide.animate}
+                                    // The reveal fades the content in with the width; on a phone
+                                    // the width is the screen, so there is nothing to key it on.
+                                    revealContent={twoPane}
+                                    // Phone: Files takes the conversation's place, as the config
+                                    // pane does — no divider, no drag, full width.
                                     barHidden={!twoPane || !filesOpen}
                                     resizable={twoPane && filesOpen}
+                                    paneGrow={!twoPane && showFiles}
+                                    paneClassName={!twoPane && !showFiles ? "hidden" : undefined}
+                                    fillClassName={!twoPane && showFiles ? "hidden" : undefined}
                                     // Controlled width, so the drag must write through per tick or the
                                     // pane only moves at pointer-up.
                                     onResize={(size) => setFilesPaneSize(size)}
@@ -310,24 +375,41 @@ export const SessionWorkspace = ({
                                             <SessionFilesPane
                                                 scope={filesScope}
                                                 sessionId={sessionId}
+                                                // The session bar's icon closes the pane — on a
+                                                // phone that bar is off screen with it, so the
+                                                // pane's own control does.
+                                                closeControl={twoPane ? "none" : "back"}
                                             />
                                         ) : null
                                     }
                                     fill={
-                                        <div className="ag-canvas flex h-full min-h-0 flex-col">
-                                            {/* The rail belongs to the WORKSPACE, not to one
-                                                conversation. It used to live inside the conversation's
-                                                pinned header, so keying that per session remounted the
-                                                rail too and reset its scroll to 0 — you would scroll a
-                                                long strip, pick a tab, and the strip snapped back to
-                                                the start. Up here it simply stays put. */}
-                                            <SessionTabs
-                                                sessionId={sessionId}
-                                                projectId={projectId}
-                                                workspaceId={workspaceId}
-                                                agentId={agentId}
-                                            />
-                                            <div className="min-h-0 flex-1">{chat}</div>
+                                        <div className="ag-canvas flex h-full min-h-0">
+                                            {/* Where the collapsed pane went, on a surface with no
+                                                tab rail to carry its reveal — the empty column
+                                                becomes the pane's own edge instead of dead canvas.
+                                                Needs the width for a vertical label, so `md` up. */}
+                                            {hideSessionTabs &&
+                                            twoPane &&
+                                            !chatMaximized &&
+                                            configCollapsed ? (
+                                                <CollapsedConfigRail />
+                                            ) : null}
+                                            <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+                                                {/* The rail belongs to the WORKSPACE, not to one
+                                                    conversation. It used to live inside the
+                                                    conversation's pinned header, so keying that per
+                                                    session remounted the rail too and reset its
+                                                    scroll to 0. Up here it simply stays put. */}
+                                                {hideSessionTabs ? null : (
+                                                    <SessionTabs
+                                                        sessionId={sessionId}
+                                                        projectId={projectId}
+                                                        workspaceId={workspaceId}
+                                                        agentId={agentId}
+                                                    />
+                                                )}
+                                                <div className="min-h-0 flex-1">{chat}</div>
+                                            </div>
                                         </div>
                                     }
                                 />
@@ -335,7 +417,15 @@ export const SessionWorkspace = ({
                         />
                     </div>
                 </div>
+                <CatalogDrawer />
             </DriveSessionProvider>
+        </>
+    )
+
+    if (bare) return workspace
+    return (
+        <AppShell workspaceId={workspaceId} projectId={projectId}>
+            {workspace}
         </AppShell>
     )
 }
