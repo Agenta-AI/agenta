@@ -42,7 +42,7 @@ The runtime and revised display-content contract are implemented. The current im
 - [x] 6.2 Read back the created workflow/revision, skill embeds, mount entries, protected provenance, execution row, and absence of schedules/subscriptions.
 - [ ] 6.3 Run browser scenarios on the older host and `/m` at desktop and phone widths. Cover reload, timeout replay, two concurrent same-key requests, and ordinary blank creation.
 - [ ] 6.4 Run one ordinary build-kit smoke conversation for a missing connection and an inactive automation recipe. Loading must stop at durable first-message acceptance.
-- [ ] 6.5 Record commit-specific evidence. Mark unrun cases `NOT RUN`. Report all multi-agent scenarios as **NOT IMPLEMENTED**.
+- [x] 6.5 Record commit-specific evidence. Mark unrun cases `NOT RUN`. Report all multi-agent scenarios as **NOT IMPLEMENTED**.
 
 ## 7. Revised UI runtime and first-message contract (2026-09-21)
 
@@ -52,7 +52,7 @@ The runtime and revised display-content contract are implemented. The current im
 - [x] 7.4 Add three clearly named QA templates covering a simple skill, a skill with reference/script files plus workspace files, and an inactive automation recipe.
 - [x] 7.5 Test first-turn request_input rendering and submission, actual skill/reference/file use, ordinary UI parity, disabled capabilities, and no automatic trigger creation.
 - [x] 7.6 Record mobile and desktop browser evidence after deployment. Read back saved resources and verify retry and cold-replay behavior.
-- [ ] 7.7 Commit all reviewed preview fixes and revised implementation, push PR #6944, update its description, and verify the deployed SHA and PR head.
+- [x] 7.7 Commit all reviewed preview fixes and revised implementation, push PR #6944, update its description, and verify the deployed SHA and PR head.
 
 ### Display-content implementation increment
 
@@ -62,4 +62,14 @@ The [current implementation plan](../../../docs/superpowers/plans/2026-09-21-tem
 - [x] Persist display-content field presence alongside full execution text in runner user-message records.
 - [x] Verify SDK conversion and runner HTTP persistence with shared fixtures, unit tests, and runner type checking.
 - [x] Connect template startup and frontend display/copy/edit/pending reconciliation.
-- [ ] Complete the remaining UI runtime parity and deployed acceptance tasks above.
+- [x] Complete UI runtime parity and the revised display-contract acceptance checks.
+
+### QA coverage, 2026-09-21
+
+Code commit `14838bd7312d9a0400a387ef58f9642cf76f5e10` passed the revised display-contract acceptance checks on the isolated Hetzner preview. The final documentation-only commit records these results.
+
+- Live: three fixture sources; first-turn forms and submission; skill/reference/workspace/script facts; phone and desktop display; copied text; refresh; runner-restart follow-up; one initial record; zero active schedules/subscriptions; two concurrent same-key retries returning the original session; ordinary blank creation; legacy playground display.
+- Unit: changed-payload replay conflicts, disabled operations, saved-versus-runtime configuration, absent/null/empty display transport, attachments, edit-context preservation, record reconstruction, existing pending-row identity reconciliation.
+- NOT RUN in this pass: two separate browser tabs racing the very first submission, a forced network-timeout injection, and a full missing-connection build-kit conversation. Those broader scenarios keep tasks 6.3 and 6.4 open. Multi-agent loading remains NOT IMPLEMENTED.
+
+Checks: 97 backend template/session tests; 111 SDK message/wire tests; 104 runner tests; 1,198 shared chat tests; 332 mobile tests; 5 template transport/state tests. Runner, chat, mobile, and legacy-host type checks passed. Changed Python and frontend files passed formatting/lint checks and git diff checks.
