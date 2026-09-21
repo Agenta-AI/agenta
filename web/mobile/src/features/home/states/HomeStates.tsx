@@ -1,5 +1,3 @@
-import {Button} from "@agenta/ui/ui"
-
 import {Skeleton} from "@/components/ui/skeleton"
 
 /** Row geometry, not a spinner: the real rows replace these without shifting the list. */
@@ -21,13 +19,4 @@ export const HomeListSkeleton = () => (
 // instead of floating mid-column.
 export const HomeSectionEmpty = ({text}: {text: string}) => (
     <p className="text-muted-foreground px-3.5 py-6 text-xs">{text}</p>
-)
-
-export const HomeListError = ({onRetry}: {onRetry: () => void}) => (
-    <div className="flex flex-col items-start gap-2 px-3.5 py-6">
-        <p className="text-muted-foreground m-0 text-xs">Couldn&apos;t load your agents.</p>
-        <Button type="button" variant="outline" size="sm" onClick={onRetry}>
-            Try again
-        </Button>
-    </div>
 )

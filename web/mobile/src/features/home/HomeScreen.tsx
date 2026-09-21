@@ -7,6 +7,7 @@ import {
     type Workflow,
 } from "@agenta/entities/workflow"
 import {HomeFocus, type HomeListAgent} from "@agenta/home-ui"
+import {LoadError} from "@agenta/ui/components/presentational"
 import {useAtomValue} from "jotai"
 
 import {PageTitle} from "@/components/PageTitle"
@@ -20,7 +21,7 @@ import {NavDrawer} from "../nav/NavDrawer"
 import {resolveHomeSurface} from "./homeSurface"
 import {HOME_PAGE_FRAME} from "./pageFrame"
 import {HomeSkeleton} from "./states/HomeSkeleton"
-import {HomeListError, HomeListSkeleton, HomeSectionEmpty} from "./states/HomeStates"
+import {HomeListSkeleton, HomeSectionEmpty} from "./states/HomeStates"
 import {useHomeHandoff} from "./useHomeHandoff"
 
 /**
@@ -85,7 +86,10 @@ export const HomeScreen = ({workspaceId, projectId}: {workspaceId: string; proje
             errorSlot={
                 agentsQuery.isError ? (
                     // The list atom exposes no refetch; invalidating its cache is what re-runs it.
-                    <HomeListError onRetry={() => void invalidateWorkflowsListCache()} />
+                    <LoadError
+                        title="Could not load your agents"
+                        onRetry={() => void invalidateWorkflowsListCache()}
+                    />
                 ) : undefined
             }
         />

@@ -8,6 +8,7 @@ import {
 } from "@agenta/entities/workflow"
 import {useWaitingByAgent} from "@agenta/sessions/state"
 import {pageContentWidthClass} from "@agenta/ui/components/page-width"
+import {LoadError} from "@agenta/ui/components/presentational"
 import {useFilterMenuView} from "@agenta/ui/filter-menu"
 import {ListTableToolbar, ListTableViewToggle} from "@agenta/ui/list-table"
 import {useQueryClient} from "@tanstack/react-query"
@@ -32,7 +33,6 @@ import {
 } from "./agentListView"
 import {NewAgentAction} from "./NewAgentAction"
 import {AgentsEmpty} from "./states/AgentsEmpty"
-import {AgentsError} from "./states/AgentsError"
 import {AgentsNoMatch} from "./states/AgentsNoMatch"
 import {useAgentOwners} from "./useAgentOwners"
 import {useArchivedAgents} from "./useArchivedAgents"
@@ -156,7 +156,7 @@ export const AgentListScreen = ({
     const body = failed ? (
         // A failed fetch must not read as an empty project, so the error replaces the results
         // rather than sitting under a header row that is no longer describing anything.
-        <AgentsError onRetry={retry} />
+        <LoadError framed title="Could not load agents" onRetry={retry} />
     ) : (
         <AgentListTable
             groups={groups}
