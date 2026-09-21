@@ -131,6 +131,17 @@ export {
     DialogDescription,
 } from "./dialog"
 export {
+    Command,
+    CommandDialog,
+    CommandInput,
+    CommandList,
+    CommandEmpty,
+    CommandGroup,
+    CommandItem,
+    CommandShortcut,
+    CommandSeparator,
+} from "./command"
+export {
     AlertDialog,
     AlertDialogTrigger,
     AlertDialogPortal,
