@@ -693,6 +693,8 @@ export interface ListQueryState<T> {
     error: Error | null
     /** Whether the backing query has completed at least once. */
     isFetched?: boolean
+    /** Whether a request is in flight — false for a pending query that is disabled. */
+    isFetching?: boolean
 }
 
 /**

@@ -300,8 +300,10 @@ export const EventPickerPanel = ({
                                 app={activeApp}
                                 // The check means "the event this automation has", not the one
                                 // under consideration: a row looked at and left is not chosen.
+                                // By app, not connection: the rail keeps one connection per app,
+                                // and the bound one may not be the one it kept.
                                 selectedEventKey={
-                                    automation.connectionId === activeApp.connectionId
+                                    connection?.integration_key === activeApp.integrationKey
                                         ? (automation.eventKey ?? "")
                                         : ""
                                 }

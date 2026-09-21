@@ -37,9 +37,11 @@ export const AutomationScreenHeader = ({
         {/* -ml-1.5: the glyph sits 6px inside its button, and the column edge is the glyph's. */}
         <div className="-ml-1.5 flex min-w-0 items-center gap-2 lg:hidden">
             <NavDrawer workspaceId={workspaceId} projectId={projectId} />
-            <h1 className="m-0 min-w-0 flex-1 truncate text-[16px] font-semibold leading-[1.5] text-foreground md:text-[20px] md:leading-[1.4]">
+            {/* Not an h1: the body below already carries the page's heading (the editable name,
+                or "Run history"), and a second h1 gave the page two roots. */}
+            <p className="m-0 min-w-0 flex-1 truncate text-[16px] font-semibold leading-[1.5] text-foreground md:text-[20px] md:leading-[1.4]">
                 {title}
-            </h1>
+            </p>
         </div>
         <div className="mt-4 flex lg:mt-0">
             <AutomationBackLink href={backHref} onBack={onBack} label={backLabel} />
