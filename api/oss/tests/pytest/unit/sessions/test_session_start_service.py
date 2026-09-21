@@ -543,9 +543,14 @@ def test_release_dispatch_has_exactly_one_call_site():
         WorkflowDetachedStartFailed("Workflow service returned HTTP 502"),
         # A bare transport error reaching this layer is NOT proof. The detached start classifies
         # the ones it can, so an unclassified one came from a redirect hop or from outside the
-        # send, and a redirect means an intermediary already answered the POST.
+        # send, and a redirect means an intermediary already answered the POST. Every type the
+        # transport can prove never-sent is listed, so re-broadening the caller-facing set to
+        # any of them fails here rather than shipping quietly.
         httpx.ConnectError("connection refused on a redirect hop"),
         httpx.ConnectTimeout("a later hop never connected"),
+        httpx.PoolTimeout("no connection was acquired for a later hop"),
+        httpx.UnsupportedProtocol("a later hop named an unknown scheme"),
+        httpx.InvalidURL("a later hop named an unusable url"),
     ],
 )
 async def test_ambiguous_invoke_failure_keeps_the_claim(start_error):
