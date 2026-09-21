@@ -75,7 +75,7 @@ export const AutomationActionsMenu = ({
             message.error(blocked)
             return
         }
-        // Sent on landing, like the detail screen's Test run.
+        // Sent on landing, like the detail screen's Run now.
         void startTask(automation.agentId, instruction)
     }, [automation.agentId, automation.raw.data?.inputs_fields, startTask])
 
@@ -104,7 +104,7 @@ export const AutomationActionsMenu = ({
                     <Button
                         type="button"
                         // A list row is a compact line and the kebab sits in a 24px column; on the
-                        // detail screen it stands beside Test run and has to be that button's
+                        // detail screen it stands beside Run now and has to be that button's
                         // height, or the pair reads as one control and a smaller afterthought.
                         size={surface === "list" ? "icon-xs" : "icon-sm"}
                         variant="ghost"

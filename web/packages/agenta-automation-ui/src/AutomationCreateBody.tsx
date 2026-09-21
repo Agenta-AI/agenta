@@ -33,7 +33,7 @@ export const AutomationCreateBody = ({
 
     return (
         <>
-            {/* The switch sits where the saved screen puts Test run — the title line's right
+            {/* The switch sits where the saved screen puts Run now — the title line's right
                 end — so the same corner always carries the automation's own control. */}
             <div className="flex min-w-0 items-center gap-3">
                 <div className="min-w-0 flex-1">

@@ -33,11 +33,12 @@ export const AutomationTitle = ({
     const rename = useInlineRename({
         current: name,
         // Errors are surfaced here so the hook's own fallback (which says "session") never fires.
+        // No success toast: the name is one field of the automation, and "saved" is announced by
+        // Save/Create — a toast per rename would also fire on a draft that is not persisted yet.
         onCommit: async (next) => {
             try {
                 const ok = await onRename(next)
-                if (ok) message.success("Name updated")
-                else message.error("Couldn't rename this automation")
+                if (!ok) message.error("Couldn't rename this automation")
             } catch {
                 message.error("Couldn't rename this automation")
             }
