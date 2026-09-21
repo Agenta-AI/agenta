@@ -10,6 +10,7 @@ import {
     describeAccepted,
     filesToParts,
     jumpGateOpen,
+    outboundUserParts,
     restoreHeldRefusedSend,
     restoreRefusedSend as restoreRefusedSendInto,
     sideEffectingToolsInRange,
@@ -424,10 +425,7 @@ const AgentConversation = ({
             setStopped(false)
             sendMessage({
                 role: "user",
-                parts: [
-                    {type: "text", text: item.executionText ?? item.text},
-                    ...(item.fileParts ?? []),
-                ],
+                parts: outboundUserParts(item),
                 ...(item.executionText !== undefined
                     ? {metadata: {display_content: item.text}}
                     : {}),

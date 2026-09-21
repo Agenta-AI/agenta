@@ -515,6 +515,9 @@ describe("useServerSessionInputs", () => {
             [expect.objectContaining({id: "input-1", role: "user"})],
             {sessionId: "session-1"},
         )
+        expect(buildAgentRequest.mock.calls[0][1].at(-1).parts).toEqual([
+            {type: "text", text: "run this next"},
+        ])
         expect(fetchMock).toHaveBeenCalledWith(
             "https://agent.test/invoke",
             expect.objectContaining({
@@ -527,6 +530,54 @@ describe("useServerSessionInputs", () => {
                 }),
             }),
         )
+    })
+
+    // An empty text part reaches the model as an empty text content block, which Anthropic-family
+    // models refuse (v0.119.1 risk map, entry 5).
+    it("sends an attachment-only input with no text part", async () => {
+        fetchCapabilities.mockResolvedValue({durableApprovals: true, queue: true, steer: true})
+        fetchSnapshot.mockResolvedValue({
+            session: {
+                id: "11111111-1111-4111-8111-111111111111",
+                project_id: "22222222-2222-4222-8222-222222222222",
+                session_id: "session-1",
+            },
+            execution: null,
+            execution_state: {id: "turn-1", state: "running"},
+            read: {latest_sequence: 0, history_complete: true},
+            pending: {inputs: [], interactions: []},
+            capabilities: {durable_approvals: true, queue: true, steer: true},
+        })
+        buildAgentRequest.mockResolvedValue({
+            invocationUrl: "https://agent.test/invoke",
+            headers: {Accept: "text/event-stream"},
+            requestBody: {session_id: "session-1", data: {inputs: {messages: []}}},
+        })
+        fetchMock.mockResolvedValue(new Response(null, {status: 202}))
+
+        const attachment = {
+            type: "file" as const,
+            url: "https://files.test/report.pdf",
+            mediaType: "application/pdf",
+        }
+        const {result} = renderHook(() =>
+            useServerSessionInputs({
+                entityId: "revision-1",
+                sessionId: "session-1",
+                messages: [] as UIMessage[],
+                locallyBusy: true,
+            }),
+        )
+        await waitFor(() => expect(result.current.capabilities.queue).toBe(true))
+
+        await act(async () => {
+            await result.current.submit(
+                {id: "input-2", text: "", fileParts: [attachment], source: "local"},
+                "queue",
+            )
+        })
+
+        expect(buildAgentRequest.mock.calls[0][1].at(-1).parts).toEqual([attachment])
     })
 
     it("releases admission after a fresh run's headers while its response keeps streaming", async () => {

@@ -72,6 +72,9 @@ export const TracesList = () => {
                 isRateLimited ? (
                     <LoadError
                         title={rateLimitMessage ?? "Too many requests."}
+                        // The server answered, so `LoadError`'s default "check your connection"
+                        // would contradict the title.
+                        description={null}
                         onRetry={fetchTraces}
                     />
                 ) : undefined
