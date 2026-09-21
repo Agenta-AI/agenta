@@ -183,6 +183,11 @@ from oss.src.core.channels.identity import ChannelIdentityService
 from oss.src.core.channels.service import ChannelsService
 from oss.src.apis.fastapi.channels.ingress import ChannelsIngressRouter
 from oss.src.apis.fastapi.channels.router import ChannelsRouter
+from oss.src.core.channels.telegram_binding import TelegramBindingService
+from oss.src.core.channels.adapters.telegram_hosted.capabilities import (
+    fetch_telegram_hosted_capabilities,
+)
+from oss.src.dbs.postgres.channels.telegram_bind_dao import TelegramBindingDAO
 from oss.src.tasks.asyncio.channels.inbox import InboxDispatcher
 from oss.src.tasks.taskiq.channels.inbox_worker import ChannelsInboxWorker
 
@@ -297,7 +302,8 @@ async def lifespan(*args, **kwargs):
     validate_platform_runtime_key()
 
     await _triggers_broker.startup()
-    await _channels_inbox_broker.startup()
+    if env.channels.enabled:
+        await _channels_inbox_broker.startup()
 
     # The store bucket is not lazily created; signed mounts need it to exist. Best-effort
     # so a store outage doesn't block API startup (mounts degrade, the rest runs).
@@ -352,7 +358,8 @@ async def lifespan(*args, **kwargs):
     )
 
     await _triggers_broker.shutdown()
-    await _channels_inbox_broker.shutdown()
+    if env.channels.enabled:
+        await _channels_inbox_broker.shutdown()
 
     for adapter in _composio_adapters.values():
         await adapter.close()
@@ -1157,6 +1164,18 @@ channels_identity_service = ChannelIdentityService(
     identity_dao=channels_identity_dao,
 )
 
+# The hosted (Agenta-owned) Telegram bot. Built only when the deployment has the
+# shared bot configured; otherwise the ingress and the bind endpoint fall back
+# to the custom-bot path and a 404. The binding service owns the one-time link
+# and the chat-to-project map.
+_telegram_binding_service = None
+if env.channels.telegram.enabled:
+    _telegram_binding_service = TelegramBindingService(
+        store=TelegramBindingDAO(engine=_transactions_engine),
+        bot_username=env.channels.telegram.bot_username or "",
+        capabilities=fetch_telegram_hosted_capabilities(),
+    )
+
 # Producer side of the inbound chain: the ingress route enqueues
 # `channels.inbox.dispatch` here; entrypoints/worker_queues.py consumes it.
 _channels_inbox_broker = ProducerOnlyRedisStreamBroker(
@@ -1167,8 +1186,20 @@ _channels_inbox_broker = ProducerOnlyRedisStreamBroker(
     approximate=True,
 )
 
+
+async def _respond_channel_interaction(*, project_id, user_id, interaction_id, answer):
+    """A channel's approval answer goes to the turn that parked, like a click
+    in the playground does; the continuation runs in the same session."""
+    await _interactions_dispatcher.respond_many(
+        project_id=project_id,
+        user_id=user_id,
+        interaction_answers=[(interaction_id, answer)],
+    )
+
+
 _channels_inbox_dispatcher = InboxDispatcher(
     channels_service=channels_service,
+    respond_interaction_fn=_respond_channel_interaction,
     workflows_service=workflows_service,
     identity_service=channels_identity_service,
     streams_service=session_streams_service,
@@ -1183,11 +1214,13 @@ channels_ingress = ChannelsIngressRouter(
     channels_service=channels_service,
     adapter_registry=channels_adapter_registry,
     dispatch_task=_channels_inbox_worker.dispatch_inbox_event,
+    telegram_binding_service=_telegram_binding_service,
 )
 
 channels = ChannelsRouter(
     channels_service=channels_service,
     adapter_registry=channels_adapter_registry,
+    telegram_binding_service=_telegram_binding_service,
 )
 
 simple_traces = SimpleTracesRouter(
@@ -1693,31 +1726,35 @@ app.include_router(
 # Ingress paths are literal per channel (/channels/slack/events/), never a path
 # parameter: _PUBLIC_ENDPOINTS matches by prefix. The configuration router
 # mounts under the same prefix and stays authenticated.
-app.include_router(
-    router=channels_ingress.router,
-    prefix="/channels",
-    tags=["Channels"],
-)
+#
+# The whole surface is behind AGENTA_CHANNELS_ENABLED: off by default, so a
+# deployment carries the code without exposing the ingress or the config API.
+if env.channels.enabled:
+    app.include_router(
+        router=channels_ingress.router,
+        prefix="/channels",
+        tags=["Channels"],
+    )
 
-app.include_router(
-    router=channels_ingress.router,
-    prefix="/preview/channels",
-    tags=["Channels"],
-    include_in_schema=False,
-)
+    app.include_router(
+        router=channels_ingress.router,
+        prefix="/preview/channels",
+        tags=["Channels"],
+        include_in_schema=False,
+    )
 
-app.include_router(
-    router=channels.router,
-    prefix="/channels",
-    tags=["Channels"],
-)
+    app.include_router(
+        router=channels.router,
+        prefix="/channels",
+        tags=["Channels"],
+    )
 
-app.include_router(
-    router=channels.router,
-    prefix="/preview/channels",
-    tags=["Channels"],
-    include_in_schema=False,
-)
+    app.include_router(
+        router=channels.router,
+        prefix="/preview/channels",
+        tags=["Channels"],
+        include_in_schema=False,
+    )
 
 app.include_router(
     router=triggers.admin_router,

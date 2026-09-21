@@ -115,3 +115,33 @@ class AgentaConversationItem(BaseModel):
 class AgentaConversationResponse(BaseModel):
     count: int = 0
     items: List[AgentaConversationItem] = Field(default_factory=list)
+
+
+class TelegramHostedBindLinkRequest(BaseModel):
+    # The workflow the connected chat's agent runs, by reference
+    # (workflow/variant/revision) — the agent the user picked in the UI.
+    references: Dict[str, Any]
+
+
+class TelegramHostedBindLinkResponse(BaseModel):
+    # The deep link the connect UI shows and renders as a QR code.
+    url: str
+    # How long the link stays valid, in seconds.
+    expires_in_seconds: int
+    # The project's hosted Telegram connection the link binds chats to. The
+    # UI polls this connection's bindings to learn when /start completed.
+    connection_id: UUID
+
+
+class TelegramHostedBinding(BaseModel):
+    # The Telegram chat bound to the connection (a private chat in v1).
+    chat_id: str
+    connection_id: UUID
+
+
+class TelegramHostedBindingsResponse(BaseModel):
+    # The chats a /start has bound to the connection. Empty until the first
+    # bind completes, which is how the connect UI tells "link minted" apart
+    # from "chat connected".
+    count: int
+    bindings: List[TelegramHostedBinding]

@@ -204,3 +204,21 @@ def test_edit_capability_flag_is_read_from_controls_update():
     # value the worker reads is exactly what was declared.
     assert NO_EDIT.rendering.controls.update is False
     assert BUTTONS_OK.rendering.controls.update is True
+
+
+def test_the_approval_card_names_the_interaction_it_answers():
+    from oss.src.core.channels.dtos import ChannelCapabilities
+    from oss.src.core.channels.render.render import render_turn_result
+
+    folded = {
+        "messages": [],
+        "stop_reason": "paused",
+        "pending_interaction": {"id": "int-9", "tool": "delete_file", "payload": {}},
+    }
+
+    (item,) = render_turn_result(
+        capabilities=ChannelCapabilities(channel="mock"), folded=folded
+    )
+
+    assert item.choice is not None
+    assert item.interaction_id == "int-9"

@@ -57,6 +57,9 @@ _RETRY_BACKOFF_SECONDS = 0.5
 
 InvokeFn = Callable[..., Awaitable[str]]
 
+# answers one parked session interaction: (project_id, user_id, interaction_id, answer)
+RespondInteractionFn = Callable[..., Awaitable[None]]
+
 
 class TurnRefused(Exception):
     """Raised by an `invoke_fn` when the runner refuses an overlapping turn.
@@ -81,6 +84,7 @@ class InboxDispatcher:
         identity_service: Optional[ChannelIdentityService] = None,
         streams_service: Optional[SessionStreamsService] = None,
         invoke_fn: Optional[InvokeFn] = None,
+        respond_interaction_fn: Optional[RespondInteractionFn] = None,
     ):
         self.channels_service = channels_service
         self.workflows_service = workflows_service
@@ -92,6 +96,10 @@ class InboxDispatcher:
         # `invoke_fn` overrides the default entirely (tests inject a fake
         # here); otherwise the default closes over `workflows_service`.
         self._invoke_fn = invoke_fn or self._invoke_via_workflows_service
+        # answers a parked session interaction (an approval card's click or
+        # typed reply) through the sessions respond path; None means this
+        # deployment has no wiring for it and the click is logged and dropped
+        self._respond_interaction_fn = respond_interaction_fn
 
     async def dispatch(
         self,
@@ -123,6 +131,52 @@ class InboxDispatcher:
             project_id=project_id,
             connection_id=connection_id,
             event=events[0],
+        )
+
+    async def _answer_interaction(
+        self,
+        *,
+        project_id: UUID,
+        connection_id: UUID,
+        event: ChannelInboxEvent,
+        resolution: ChannelResolution,
+    ) -> None:
+        interaction_id = resolution.answered_interaction_id
+        assert interaction_id is not None
+        if self._respond_interaction_fn is None:
+            log.error(
+                "[INBOX DISPATCHER] event=%s answered interaction=%s but no "
+                "respond path is wired -- the approval stays parked",
+                event.id,
+                interaction_id,
+            )
+            return
+        user_id = await self._invoking_user_id(
+            project_id=project_id,
+            connection_id=connection_id,
+            event=event,
+            resolution=resolution,
+        )
+        approved = resolution.resolved_token == "approve"
+        await self._respond_interaction_fn(
+            project_id=project_id,
+            user_id=user_id or resolution.agent.created_by_id,
+            interaction_id=UUID(interaction_id),
+            answer={"approved": approved, "message": resolution.resolved_choice},
+        )
+        # clear the question so the common case (a later card supersedes it) has
+        # nothing stale to resolve against; this is not a concurrency guard --
+        # two clicks racing before either clears is a known follow-up (F101).
+        await self.channels_service.set_pending_choice(
+            project_id=project_id,
+            thread_id=resolution.thread.id,
+            pending_choice=None,
+        )
+        log.info(
+            "[INBOX DISPATCHER] event=%s answered interaction=%s approved=%s",
+            event.id,
+            interaction_id,
+            approved,
         )
 
     async def _invoking_user_id(
@@ -309,6 +363,19 @@ class InboxDispatcher:
             log.info(
                 "[INBOX DISPATCHER] no resolution for event=%s — nothing beyond the log",
                 event.id,
+            )
+            return
+
+        if resolution.answered_interaction_id is not None:
+            # The message answered a parked approval. The answer belongs to the
+            # turn that parked, so it goes to the sessions respond path and no
+            # new turn opens; the continuation's own turn events reach the
+            # outbox through the thread's session as any turn does.
+            await self._answer_interaction(
+                project_id=project_id,
+                connection_id=connection_id,
+                event=event,
+                resolution=resolution,
             )
             return
 
