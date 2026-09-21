@@ -110,6 +110,7 @@ export const useAgentChatQueue = ({
 }: UseAgentChatQueueArgs) => {
     const serverBusyRef = useRef(server.busy)
     serverBusyRef.current = server.busy
+    const ownsContinuationRef = useRef(false)
 
     // ── The durable-continuation hold ─────────────────────────────────────────────────────────
     // A server-owned continuation is a TURN. The tab that answered the approval owns it until
@@ -146,6 +147,7 @@ export const useAgentChatQueue = ({
         (!!continuationExecutionId &&
             hasRunningApprovalContinuation(messages) &&
             !approvalContinuationSettled(messages, continuationExecutionId))
+    ownsContinuationRef.current = ownsContinuation
 
     // A stop voids the approval gate, so the aborted turn's lingering `approval-requested` part
     // must not read as "awaiting".
@@ -252,7 +254,11 @@ export const useAgentChatQueue = ({
             fileParts?: FileUIPart[]
             stagedFiles?: ComposerAttachment[]
         }) => {
-            if (!serverBusyRef.current) {
+            // A continuation this tab just started counts as busy. Its heartbeat is not in the
+            // snapshot yet (a parked run reads `idle` until the next poll), but the server already
+            // owns the turn and delivers a steer into it — the host's dismiss-then-steer over a
+            // parked question depends on this.
+            if (!(serverBusyRef.current || ownsContinuationRef.current)) {
                 throw new Error("The session is not ready to accept a Steer input.")
             }
             const message: QueuedMessage = {

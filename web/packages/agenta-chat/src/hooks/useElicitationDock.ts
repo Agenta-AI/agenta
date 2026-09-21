@@ -10,9 +10,13 @@
  * What IS kept from that hook is the closing latch, which is load-bearing: without it the card's
  * content vanishes the instant the call settles, and the host animates a collapse around an empty box.
  */
-import {useEffect, useMemo, useRef} from "react"
+import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
-import {buildDegradationErrorText, parseElicitationPayload} from "@agenta/shared/utils"
+import {
+    buildCancelResult,
+    buildDegradationErrorText,
+    parseElicitationPayload,
+} from "@agenta/shared/utils"
 import type {UIMessage} from "ai"
 
 import type {ClientToolOutputHandler} from "../clientTools/ClientToolPart"
@@ -48,6 +52,16 @@ export interface ElicitationDockState {
     queue: ClientToolMeta[]
     /** Whether the dock may bind its keyboard shortcuts (see `approvalsPending`). */
     shortcutsEnabled: boolean
+    /**
+     * Settle the front card as its own ✕ would — a cancel; the card drops its draft — from
+     * outside the card. The host calls this when the user sends a chat message over a parked question: the
+     * message is the better answer, so the form goes and the message follows it in. Resolves once
+     * the settle write lands; rejects (and re-arms the card) when it fails. A no-op while nothing
+     * is parked or that same call is already on its way out.
+     */
+    dismiss: () => Promise<void>
+    /** The front card is being dismissed from outside — it must show that, and take no answer. */
+    dismissing: boolean
 }
 
 /** Fully arrived. `input-streaming` and the `{}` input-refresh announce (sdk `vercel/stream.py`)
@@ -101,10 +115,42 @@ export const useElicitationDock = ({
     if (open) shownRef.current = pending
     const shown = shownRef.current
 
+    // The host-driven dismiss, keyed by the call it settled. Keyed rather than a bare flag so it
+    // survives the card's closing animation (`shown` still holds the settled call) and cannot
+    // leak onto the next question. `front` is read through a ref: the host calls this from a
+    // send handler whose closure may predate the current transcript.
+    const frontRef = useRef(front)
+    frontRef.current = front
+    const [dismissingId, setDismissingId] = useState<string | null>(null)
+    const dismissingRef = useRef<string | null>(null)
+    const dismiss = useCallback(async () => {
+        const target = frontRef.current
+        if (!target || target.settled || dismissingRef.current === target.toolCallId) return
+        dismissingRef.current = target.toolCallId
+        setDismissingId(target.toolCallId)
+        try {
+            await onOutput?.({
+                toolName: target.toolName,
+                toolCallId: target.toolCallId,
+                output: buildCancelResult("Dismissed the request.") as unknown as Record<
+                    string,
+                    unknown
+                >,
+            })
+        } catch (error) {
+            // The question is still live: give the card its controls back.
+            dismissingRef.current = null
+            setDismissingId(null)
+            throw error
+        }
+    }, [onOutput])
+
     return {
         open,
         front: shown[0] ?? null,
         queue: shown,
         shortcutsEnabled: !approvalsPending,
+        dismiss,
+        dismissing: dismissingId !== null && dismissingId === shown[0]?.toolCallId,
     }
 }

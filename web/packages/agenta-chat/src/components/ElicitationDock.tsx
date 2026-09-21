@@ -96,6 +96,7 @@ export const ElicitationDock = ({
                 touch={touch}
                 active={active}
                 shortcutsEnabled={elicits.shortcutsEnabled}
+                dismissing={elicits.dismissing}
             />
         </div>
     )
@@ -108,6 +109,7 @@ const ElicitationCard = ({
     touch,
     active,
     shortcutsEnabled,
+    dismissing,
 }: {
     meta: ClientToolMeta
     onOutput: ClientToolOutputHandler
@@ -115,6 +117,8 @@ const ElicitationCard = ({
     touch?: boolean
     active: boolean
     shortcutsEnabled: boolean
+    /** The host settled this card from outside (`ElicitationDockState.dismiss`). */
+    dismissing: boolean
 }) => {
     const parsed = useMemo(() => parseElicitationPayload(meta.input), [meta.input])
 
@@ -155,7 +159,7 @@ const ElicitationCard = ({
         return (
             <RefusalPanel
                 reason={parsed.reason}
-                submitting={submitting}
+                submitting={submitting || dismissing}
                 onSkip={() => settle(toOutput(buildCancelResult("Dismissed the request.")))}
             />
         )
@@ -171,6 +175,7 @@ const ElicitationCard = ({
             shortcutsEnabled={shortcutsEnabled}
             settle={settle}
             submitting={submitting}
+            dismissing={dismissing}
             submissionError={submissionError}
         />
     )
@@ -240,7 +245,8 @@ const LiveCard = ({
     active,
     shortcutsEnabled,
     settle,
-    submitting,
+    submitting: ownSubmitting,
+    dismissing,
     submissionError,
 }: {
     payload: ElicitationRequestPayload
@@ -252,14 +258,19 @@ const LiveCard = ({
     settle: (output: Record<string, unknown>) => void
     /** A settle is in flight: the fired button spins and the others sit out, as in ApprovalCard. */
     submitting: boolean
+    dismissing: boolean
     submissionError?: string | null
 }) => {
     const cardRef = useRef<HTMLDivElement>(null)
     const form = useMemo(() => buildElicitationSteps(payload), [payload])
     // Which button fired, so the spinner lands on it (the card only reports "submitting").
-    const [firedAction, setFiredAction] = useState<
+    const [firedOwnAction, setFiredAction] = useState<
         "primary" | "secondary" | "dismiss" | "pick" | null
     >(null)
+    // A host-driven dismiss reads exactly as the ✕ having been clicked: same spinner, same
+    // disabled controls, so the card cannot take a second answer while its cancel is in flight.
+    const submitting = ownSubmitting || dismissing
+    const firedAction = dismissing ? "dismiss" : firedOwnAction
 
     const complete = useCallback(
         (content: Record<string, unknown>) => {
@@ -291,6 +302,12 @@ const LiveCard = ({
         },
         [stepper, settle],
     )
+    // The host-driven dismiss drops the draft too, through the stepper so its pending flush
+    // cannot write the answers straight back on unmount.
+    const {discardDraft} = stepper
+    useEffect(() => {
+        if (dismissing) discardDraft()
+    }, [dismissing, discardDraft])
 
     // Every entry point checks `submitting` itself: `settle` already refuses a second answer, but
     // `settleAnd` discards the draft before it gets there, and a retry after a failed send would

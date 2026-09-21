@@ -73,7 +73,7 @@ beforeEach(() => {
     Object.defineProperty(window, "localStorage", {value: stub, configurable: true})
 })
 
-const setup = (input: unknown = TWO_QUESTIONS) => {
+const setup = (input: unknown = TWO_QUESTIONS, state: Partial<ElicitationDockState> = {}) => {
     const onOutput = vi.fn()
     const meta = metaWith(input)
     const elicits: ElicitationDockState = {
@@ -81,6 +81,9 @@ const setup = (input: unknown = TWO_QUESTIONS) => {
         front: meta,
         queue: [meta],
         shortcutsEnabled: true,
+        dismiss: vi.fn(async () => undefined),
+        dismissing: false,
+        ...state,
     }
     const view = render(<ElicitationDock elicits={elicits} onOutput={onOutput} />)
     return {...view, onOutput}
@@ -221,6 +224,56 @@ describe("settling", () => {
         fireEvent.click(screen.getByLabelText("Dismiss this request"))
 
         expect(onOutput).toHaveBeenCalledTimes(1)
+    })
+
+    it("reads a host-driven dismiss as its own ✕ having fired, and takes no answer meanwhile", () => {
+        // The host settles the card when a chat message is sent over it. Between that write and
+        // the transcript catching up the card is still mounted, so it must show the dismiss and
+        // refuse a competing answer — otherwise Send here races the cancel for the same call.
+        const {onOutput} = setup(TWO_QUESTIONS, {dismissing: true})
+
+        const dismiss = screen.getByLabelText("Dismiss this request") as HTMLButtonElement
+        expect(dismiss.disabled).toBe(false)
+        expect(dismiss.querySelector(".animate-spin")).toBeTruthy()
+        expect((screen.getByText("Next").closest("button") as HTMLButtonElement).disabled).toBe(
+            true,
+        )
+        expect((screen.getByText("Skip").closest("button") as HTMLButtonElement).disabled).toBe(
+            true,
+        )
+
+        fireEvent.change(screen.getByLabelText("Your name"), {target: {value: "Ada"}})
+        fireEvent.keyDown(screen.getByRole("group"), {key: "Enter", metaKey: true})
+        fireEvent.click(screen.getByText("Next"))
+        fireEvent.click(dismiss)
+
+        expect(onOutput).not.toHaveBeenCalled()
+    })
+
+    it("drops the saved draft on a host-driven dismiss, like the ✕ does", () => {
+        window.localStorage.setItem(
+            "agenta:elicitation-draft:call_1",
+            JSON.stringify({values: {name: "Ada"}, index: 0}),
+        )
+        const {rerender} = setup()
+        expect(screen.getByLabelText("Your name")).toHaveProperty("value", "Ada")
+
+        const meta = metaWith(TWO_QUESTIONS)
+        rerender(
+            <ElicitationDock
+                elicits={{
+                    open: true,
+                    front: meta,
+                    queue: [meta],
+                    shortcutsEnabled: true,
+                    dismiss: vi.fn(async () => undefined),
+                    dismissing: true,
+                }}
+                onOutput={vi.fn()}
+            />,
+        )
+
+        expect(window.localStorage.getItem("agenta:elicitation-draft:call_1")).toBeNull()
     })
 })
 

@@ -8,7 +8,7 @@
  * separate name-lookup bug kept the widget from mounting during `input-streaming`. Fixing that bug
  * armed this one, so these cases are the regression net.
  */
-import {renderHook} from "@testing-library/react"
+import {act, renderHook} from "@testing-library/react"
 import type {UIMessage} from "ai"
 import {describe, expect, it, vi} from "vitest"
 
@@ -121,6 +121,75 @@ describe("shortcut arbitration", () => {
 
         const gated = setup(turn(toolPart()), {approvalsPending: true})
         expect(gated.result.current.shortcutsEnabled).toBe(false)
+    })
+})
+
+describe("host-driven dismiss", () => {
+    // A chat message sent over a parked question replaces it. The host settles the card through
+    // this, exactly as the card's own ✕ would, before steering the message in.
+    it("settles the front card with a cancel, once, and reports it while the write is out", async () => {
+        let release: () => void = () => undefined
+        const onOutput = vi.fn(
+            () =>
+                new Promise<void>((resolve) => {
+                    release = resolve
+                }),
+        )
+        const {result} = renderHook(() =>
+            useElicitationDock({messages: turn(toolPart(), renderPart("call_1")), onOutput}),
+        )
+
+        let first: Promise<void> = Promise.resolve()
+        act(() => {
+            first = result.current.dismiss()
+            void result.current.dismiss()
+        })
+
+        expect(onOutput).toHaveBeenCalledTimes(1)
+        expect(onOutput.mock.calls[0][0]).toMatchObject({
+            toolCallId: "call_1",
+            output: {action: "cancel"},
+        })
+        expect(result.current.dismissing).toBe(true)
+
+        await act(async () => {
+            release()
+            await first
+        })
+        // Still marked: the card only leaves once the transcript retires it, and until then it
+        // must keep showing the dismiss rather than re-arming its buttons.
+        expect(result.current.dismissing).toBe(true)
+    })
+
+    it("re-arms the card when the settle write fails, and lets the failure through", async () => {
+        const onOutput = vi.fn(() => Promise.reject(new Error("offline")))
+        const {result} = renderHook(() =>
+            useElicitationDock({messages: turn(toolPart(), renderPart("call_1")), onOutput}),
+        )
+
+        await act(async () => {
+            await expect(result.current.dismiss()).rejects.toThrow("offline")
+        })
+
+        expect(result.current.dismissing).toBe(false)
+        // The latch let go too: the next attempt goes out again.
+        await act(async () => {
+            await result.current.dismiss().catch(() => undefined)
+        })
+        expect(onOutput).toHaveBeenCalledTimes(2)
+    })
+
+    it("does nothing when no question is parked", async () => {
+        const {result, onOutput} = setup(
+            turn(toolPart({state: "output-available", output: {action: "accept"}})),
+        )
+
+        await act(async () => {
+            await result.current.dismiss()
+        })
+
+        expect(onOutput).not.toHaveBeenCalled()
+        expect(result.current.dismissing).toBe(false)
     })
 })
 

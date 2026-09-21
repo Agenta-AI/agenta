@@ -137,6 +137,40 @@ describe("useAgentChatQueue", () => {
         expect(result.current.queued).toHaveLength(0)
     })
 
+    it("admits Steer into a continuation this tab just started, before the snapshot says busy", async () => {
+        // A question dismissed from the composer resumes the run server-side, but the parked run
+        // read `idle` and the next poll is seconds out. The respond body's execution id is the
+        // proof the turn is live, and the message steering in behind that dismiss rides on it.
+        const server: ServerQueueAdapter = {
+            busy: false,
+            queued: [],
+            submit: vi.fn().mockResolvedValue(undefined),
+            remove: vi.fn().mockResolvedValue(undefined),
+        }
+        const parked: HarnessProps = {
+            messages: [userTurn("u1", "go"), assistantAwaitingApproval("a1")],
+            stopped: false,
+            server,
+        }
+        const {result, rerender} = setup(parked)
+
+        await act(async () => {
+            await expect(result.current.steer({text: "too early"})).rejects.toThrow(
+                "not ready to accept a Steer input",
+            )
+        })
+
+        rerender({...parked, continuationExecutionId: "a1-continuation-execution"})
+        await act(async () => {
+            await result.current.steer({text: "answered in chat instead"})
+        })
+
+        expect(server.submit).toHaveBeenCalledWith(
+            expect.objectContaining({text: "answered in chat instead"}),
+            "steer",
+        )
+    })
+
     it("lets the server admit a send from an idle snapshot", async () => {
         const server: ServerQueueAdapter = {
             busy: false,

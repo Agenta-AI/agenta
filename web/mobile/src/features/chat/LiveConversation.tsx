@@ -892,6 +892,18 @@ export const LiveConversation = ({
                                 // An open edit rewrites its held message instead of sending. The
                                 // input clears on submit, so the displaced draft goes back after.
                                 if (!conversation.editingId) {
+                                    // A message typed over a parked question replaces it: the
+                                    // form is dismissed exactly as its ✕ would, then the message
+                                    // steers into the resumed run so the agent reads it next,
+                                    // not after. A dismiss that fails throws here, and the
+                                    // composer's catch puts the text back with the form intact.
+                                    // `steer` rather than `send`: the session has already run,
+                                    // so there is no fresh-session registration to do.
+                                    if (elicits.open) {
+                                        await elicits.dismiss()
+                                        await conversation.steer({text, parts, stagedFiles})
+                                        return
+                                    }
                                     await send({text, parts, stagedFiles})
                                     return
                                 }
