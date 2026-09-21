@@ -48,6 +48,29 @@ class SessionInputsDAO(SessionInputsDAOInterface):
             await session.commit()
             return claimed
 
+    async def release_dispatch(
+        self, *, project_id: UUID, session_id: str, input_id: UUID, execution_id: str
+    ) -> bool:
+        # Mirrors `claim_dispatch`, including the compare-and-set on the flag: the claim stays
+        # one-shot, so two retries racing after a release still dispatch exactly once.
+        async with self.engine.session() as session:
+            result = await session.execute(
+                sa_update(SessionInputDBE)
+                .where(
+                    SessionInputDBE.project_id == project_id,
+                    SessionInputDBE.session_id == session_id,
+                    SessionInputDBE.id == input_id,
+                    SessionInputDBE.state == "promoted",
+                    SessionInputDBE.promoted_execution_id == execution_id,
+                    SessionInputDBE.dispatch_claimed.is_(True),
+                )
+                .values(dispatch_claimed=False)
+                .returning(SessionInputDBE.id)
+            )
+            released = result.scalar_one_or_none() is not None
+            await session.commit()
+            return released
+
     def transaction(self):
         return self.engine.session()
 

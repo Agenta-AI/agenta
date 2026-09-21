@@ -47,7 +47,11 @@ from oss.src.core.shared.exceptions import (
     EntityCreationConflict,
     EntityCreationIdempotencyConflict,
 )
-from oss.src.core.shared.idempotency import resource_identity, request_key_hash
+from oss.src.core.shared.idempotency import (
+    idempotent_workflow_slug,
+    resource_identity,
+    request_key_hash,
+)
 from oss.src.core.git.dtos import (
     ArtifactCreate,
     ArtifactEdit,
@@ -3645,8 +3649,10 @@ class SimpleWorkflowsService:
             request_key,
             component,
         )
-        prefix = (simple_workflow_create.slug or "workflow").strip("-")[:48]
-        workflow_slug = f"{prefix or 'workflow'}-{workflow_id.hex[:8]}"
+        workflow_slug = idempotent_workflow_slug(
+            slug=simple_workflow_create.slug,
+            workflow_id=workflow_id,
+        )
         variant_slug = resource_identity(
             project_id, namespace, request_key, f"{component}:variant"
         ).hex[-12:]

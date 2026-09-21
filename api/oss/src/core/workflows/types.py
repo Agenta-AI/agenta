@@ -8,6 +8,8 @@ never raise ``HTTPException`` directly.
 from math import isfinite
 from typing import Any, Dict, Optional
 
+import httpx
+
 # Reserved-slug detection is canonical in the SDK (it also drives is_static inference there). The
 # API re-exports it so every write path can reject a reserved slug and every read path can
 # short-circuit it, all off one definition. Independent of any StaticWorkflowProvider so the
@@ -118,3 +120,29 @@ class WorkflowDetachedStartFailed(WorkflowError):
 
     def __init__(self, message: Optional[str] = None):
         super().__init__(message or "Detached workflow run failed to start.")
+
+
+# Failures where no byte of the invoke can have reached the workflow service: the request never
+# left this process (no URL, an unusable URL), never got a connection to write on (pool timeout),
+# or never established one (refused, unresolvable host, connect timeout — httpx reports all three
+# as ConnectError/ConnectTimeout). Everything else is ambiguous by construction: a read timeout,
+# a write error part-way through the body, and any HTTP status all mean the service was reached
+# and may have accepted the run.
+_NEVER_DISPATCHED = (
+    WorkflowServiceUrlMissing,
+    httpx.InvalidURL,
+    httpx.UnsupportedProtocol,
+    httpx.ConnectError,
+    httpx.ConnectTimeout,
+    httpx.PoolTimeout,
+)
+
+
+def invoke_never_dispatched(error: BaseException) -> bool:
+    """True only when a failed invoke provably never reached the workflow service.
+
+    A caller holding a one-shot dispatch claim uses this to decide whether releasing the claim
+    is safe. A false positive lets a retry start a turn the service already accepted, so every
+    outcome that cannot be proven never-sent answers False.
+    """
+    return isinstance(error, _NEVER_DISPATCHED)

@@ -349,3 +349,130 @@ async def test_delayed_acceptance_cannot_redispatch_even_after_service_restart()
     ).start_once(**_args())
     assert replay.replayed is True
     workflows.invoke_workflow_detached.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_never_sent_invoke_releases_the_claim_and_one_retry_dispatches_again():
+    inputs = AsyncMock()
+    inputs.claim_for_execution.side_effect = lambda **kw: _input(kw["content"])
+    inputs.claim_dispatch.side_effect = [True, True]
+    executions = AsyncMock()
+    executions.fetch_execution.return_value = None
+    workflows = AsyncMock()
+    workflows.invoke_workflow_detached.side_effect = [
+        httpx.ConnectError("connection refused"),
+        None,
+    ]
+
+    with pytest.raises(SessionStartNotDurable):
+        await _service(
+            inputs=inputs, executions=executions, workflows=workflows
+        ).start_once(**_args())
+
+    inputs.release_dispatch.assert_awaited_once()
+    assert (
+        inputs.release_dispatch.await_args.kwargs
+        == inputs.claim_dispatch.await_args_list[0].kwargs
+    )
+
+    executions.fetch_execution.side_effect = [None, _execution("session", "execution")]
+    result = await _service(
+        inputs=inputs, executions=executions, workflows=workflows
+    ).start_once(**_args())
+
+    assert result.replayed is False
+    assert workflows.invoke_workflow_detached.await_count == 2
+    inputs.release_dispatch.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "start_error",
+    [
+        httpx.ReadTimeout("the response was lost after the service was reached"),
+        httpx.WriteError("the body was part-way sent"),
+        WorkflowDetachedStartFailed("Workflow service returned HTTP 502"),
+    ],
+)
+async def test_ambiguous_invoke_failure_keeps_the_claim(start_error):
+    inputs = AsyncMock()
+    inputs.claim_for_execution.side_effect = lambda **kw: _input(kw["content"])
+    inputs.claim_dispatch.side_effect = [True]
+    executions = AsyncMock()
+    executions.fetch_execution.return_value = None
+    workflows = AsyncMock()
+    workflows.invoke_workflow_detached.side_effect = start_error
+
+    with pytest.raises(SessionStartNotDurable):
+        await _service(
+            inputs=inputs, executions=executions, workflows=workflows
+        ).start_once(**_args())
+
+    inputs.release_dispatch.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_concurrent_retries_after_a_release_dispatch_exactly_once():
+    claimed = {"value": False}
+    row = {"value": None}
+    invocations = 0
+
+    class Inputs:
+        async def claim_for_execution(self, **kwargs):
+            return _input(kwargs["content"]).model_copy(
+                update={
+                    "session_id": kwargs["session_id"],
+                    "promoted_execution_id": kwargs["execution_id"],
+                }
+            )
+
+        async def claim_dispatch(self, **kwargs):
+            if claimed["value"]:
+                return False
+            claimed["value"] = True
+            return True
+
+        async def release_dispatch(self, **kwargs):
+            claimed["value"] = False
+            return True
+
+    class Executions:
+        async def fetch_execution(self, **kwargs):
+            return row["value"]
+
+    class Workflows:
+        def __init__(self, unreachable):
+            self.unreachable = unreachable
+
+        async def invoke_workflow_detached(self, **kwargs):
+            nonlocal invocations
+            invocations += 1
+            if self.unreachable:
+                raise httpx.ConnectError("connection refused")
+            await asyncio.sleep(0.02)
+            row["value"] = _execution(kwargs["request"].session_id, kwargs["run_id"])
+
+    inputs = Inputs()
+    lock = _MemoryLock()
+
+    def _start(*, unreachable):
+        return SessionStartsService(
+            inputs_service=inputs,
+            executions_dao=Executions(),
+            workflows_service=Workflows(unreachable),
+            lock_engine=lock,
+            poll_timeout_seconds=0.2,
+        ).start_once(**_args())
+
+    with pytest.raises(SessionStartNotDurable):
+        await _start(unreachable=True)
+    assert claimed["value"] is False
+
+    first, second = await asyncio.gather(
+        _start(unreachable=False),
+        _start(unreachable=False),
+    )
+
+    assert invocations == 2
+    assert {first.replayed, second.replayed} == {False, True}
+    assert first.execution_id == second.execution_id

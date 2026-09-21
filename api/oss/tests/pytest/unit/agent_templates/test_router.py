@@ -15,6 +15,7 @@ from oss.src.core.agent_templates.exceptions import (
     TemplatePackageInvalid,
     TemplateSourceNotFound,
 )
+from oss.src.core.sessions.inputs.types import SessionInputIdempotencyConflict
 from oss.src.core.sessions.starts.types import SessionStartNotDurable
 
 
@@ -164,6 +165,7 @@ async def test_replay_returns_200_with_same_ids(monkeypatch):
     [
         (TemplateSourceNotFound("missing"), 404, "template_source_not_found"),
         (TemplateCreateConflict(), 409, "template_load_conflict"),
+        (SessionInputIdempotencyConflict(), 409, "template_load_conflict"),
         (
             TemplatePackageInvalid("bad_manifest", "Malformed package."),
             422,

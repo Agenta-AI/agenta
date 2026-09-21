@@ -85,12 +85,20 @@ async def test_resolve_secrets_is_a_deprecated_connection_alias():
             return expected
 
     assert resolve_secrets is module_resolve_secrets
-    with pytest.warns(DeprecationWarning, match="resolve_secrets.*resolve_connection"):
+    with pytest.warns(
+        DeprecationWarning, match="resolve_secrets.*resolve_connection"
+    ) as raised:
         resolved = await resolve_secrets(
             model=model,
             context=context,
             resolver=_Resolver(),
         )
+
+    # The pre-gateway `resolve_secrets` took `connection=` and returned `{ENV_VAR: key}`. A
+    # caller written against it has to change the call, so the warning must not read as a rename.
+    message = str(raised[0].message)
+    assert "connection=" in message
+    assert "ResolvedConnection" in message
 
     assert resolved is expected
     assert calls == {"model": model, "context": context}

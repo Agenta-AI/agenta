@@ -15,6 +15,11 @@ from oss.src.core.sessions.starts.types import SessionStartNotDurable
 from oss.src.core.sessions.streams.interfaces import SessionStreamsDAOInterface
 from oss.src.core.shared.idempotency import resource_identity
 from oss.src.core.workflows.service import WorkflowsService
+from oss.src.core.workflows.types import invoke_never_dispatched
+from oss.src.utils.logging import get_module_logger
+
+
+log = get_module_logger(__name__)
 
 
 _RELEASE_START_LOCK = """
@@ -156,6 +161,34 @@ class SessionStartsService:
             ),
         )
 
+    async def _release_dispatch(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        input_id: UUID,
+        execution_id: str,
+    ) -> None:
+        """Hand the one-shot dispatch claim back so one later retry can invoke again.
+
+        Only for an invoke that provably never reached the service. Without this the claim is
+        permanent, and every retry carrying the same request key raises `SessionStartNotDurable`
+        forever: the agent exists and its first turn can never start. A failed release keeps that
+        old behaviour rather than risking a second dispatch, so it is logged and swallowed.
+        """
+        try:
+            await self._inputs.release_dispatch(
+                project_id=project_id,
+                session_id=session_id,
+                input_id=input_id,
+                execution_id=execution_id,
+            )
+        except Exception as exc:  # noqa: BLE001
+            log.warning(
+                "[SESSIONS] dispatch claim release failed for "
+                f"session={session_id} execution={execution_id}: {exc}"
+            )
+
     @staticmethod
     def session_id_for(*, project_id: UUID, request_key: str) -> str:
         return str(
@@ -252,6 +285,13 @@ class SessionStartsService:
             )
             if not durable:
                 if error is not None:
+                    if invoke_never_dispatched(error):
+                        await self._release_dispatch(
+                            project_id=project_id,
+                            session_id=session_id,
+                            input_id=claimed.id,
+                            execution_id=execution_id,
+                        )
                     raise SessionStartNotDurable() from error
                 raise SessionStartNotDurable()
 

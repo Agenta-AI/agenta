@@ -179,10 +179,18 @@ async def resolve_secrets(
     ``resolve_secrets`` was part of the public platform module before connection resolution
     became the canonical API. Keep the import path available for one deprecation window while
     directing callers to the least-privilege connection resolver.
+
+    The name is all that survives. It used to call ``resolve_provider_keys``, the model-blind
+    whole-vault dump that returned ``{ENV_VAR: key}`` for a ``connection=``; the gateway work
+    deleted that function deliberately. So a caller written against the old one has to change
+    the call, not only the name, and the warning has to say so.
     """
     warnings.warn(
-        "resolve_secrets is deprecated; use resolve_connection instead. It will be removed "
-        "in a future breaking release.",
+        "resolve_secrets is deprecated and is now an alias for resolve_connection"
+        "(model=..., context=...), which resolves one least-privilege connection and returns a "
+        "ResolvedConnection. It is no longer the whole-vault provider-key dump: the old "
+        "connection= argument is gone and the old {ENV_VAR: key} return is gone with it, so "
+        "update the call and not only the name. It will be removed in a future breaking release.",
         DeprecationWarning,
         stacklevel=2,
     )
