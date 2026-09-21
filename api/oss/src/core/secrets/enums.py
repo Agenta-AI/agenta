@@ -13,6 +13,7 @@ class SecretKind(str, Enum):
 
 class ChannelSecretKind(str, Enum):
     SLACK = "slack"
+    TELEGRAM = "telegram"
     AGENTA = "agenta"
     BRIDGE = "bridge"
 

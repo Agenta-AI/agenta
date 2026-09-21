@@ -10,6 +10,7 @@ from oss.src.core.channels.dtos import (
     ChannelAgentCreate,
     ChannelAgentData,
     ChannelAgentDataEdit,
+    ChannelAgentFlags,
     ChannelAgentEdit,
     ChannelAgentQuery,
     ChannelCapabilities,
@@ -56,6 +57,7 @@ from oss.src.core.channels.types import (
     ChannelAgentNotFound,
     ChannelConnectionIdentityConflict,
     ChannelConnectionNotFound,
+    ChannelConnectionVerificationFailed,
     ChannelGrantRuleInvalid,
     ChannelsError,
     ChannelSpaceNotFound,
@@ -136,6 +138,18 @@ class ChannelsService:
                 "signing_secret": one_time_secret,
             }
 
+        # Telegram verifies each webhook by a secret token it echoes back. We
+        # mint it here, so it is vaulted with the bot token and hydrated on
+        # every ingress for verify_signature to check. A caller-supplied one
+        # (rotation, tests) is kept as given.
+        if connection.channel == "telegram" and not (connection.credentials or {}).get(
+            "webhook_secret"
+        ):
+            connection.credentials = {
+                **(connection.credentials or {}),
+                "webhook_secret": token_secrets.token_urlsafe(32),
+            }
+
         discovered = await adapter.verify_connection(
             connection=connection,
             credentials=connection.credentials or {},
@@ -171,6 +185,10 @@ class ChannelsService:
             locator_input=locator_input,
             credential_secret_id=credential_secret_id,
         )
+        # The plaintext is about to be discarded from the row; keep it in hand
+        # for the post-store activation, which is the only place a WRITE-time
+        # platform call (Telegram's setWebhook) can run against a stored row.
+        activation_credentials = dict(connection.credentials or {})
         connection.credentials = None
 
         try:
@@ -189,6 +207,41 @@ class ChannelsService:
                 )
             raise _connection_conflict(
                 channel=connection.channel, slug=connection.slug, error=e
+            ) from e
+
+        # Register the connection with the platform now that the row exists.
+        # No-op for every channel whose setup is read-only; Telegram points its
+        # webhook at our per-bot ingress here. It runs after the row is stored
+        # because the call writes on the platform's side and the first update it
+        # triggers must find a row (and its secret) to verify against.
+        #
+        # A failure here means the connection can never receive events, so it is
+        # not a live connection: roll the row and its vault secret back and fail
+        # the create, rather than leaving a connection that looks ready but is
+        # deaf. A caller retries by creating again.
+        try:
+            await adapter.activate_connection(
+                connection=created,
+                credentials=activation_credentials,
+            )
+        except Exception as e:
+            await self.channels_dao.delete_connection(
+                project_id=project_id, connection_id=created.id
+            )
+            if credential_secret_id is not None:
+                await self._discard_credential_secret(
+                    project_id=project_id, secret_id=credential_secret_id
+                )
+            log.warning(
+                "channels: activate_connection failed for channel=%s slug=%s: %s — "
+                "rolled back the connection",
+                connection.channel,
+                connection.slug,
+                e,
+            )
+            raise ChannelConnectionVerificationFailed(
+                channel=connection.channel,
+                message=f"could not register the connection with the platform: {e}",
             ) from e
 
         if one_time_secret is None:
@@ -447,6 +500,7 @@ class ChannelsService:
 
         connection = _layer_connection_edit(existing=existing, edit=connection)
 
+        rotated_credentials = bool(connection.credentials)
         if connection.credentials:
             adapter = self.adapter_registry.get(existing.channel)
             verify_target = ChannelConnectionCreate(
@@ -484,7 +538,7 @@ class ChannelsService:
         connection.credentials = None
 
         try:
-            return await self.channels_dao.edit_connection(
+            edited = await self.channels_dao.edit_connection(
                 project_id=project_id,
                 user_id=user_id,
                 #
@@ -494,6 +548,137 @@ class ChannelsService:
             raise _connection_conflict(
                 channel=existing.channel, slug=connection.slug, error=e
             ) from e
+
+        # A credential rotation re-verifies and stores the new token, but the
+        # platform still points at the old one until we re-register. Telegram's
+        # setWebhook is the only WRITE-time platform call, so a rotated bot token
+        # has no webhook and cannot deliver updates until this runs. It is gated
+        # on the telegram channel for the same reason the mint above is: no other
+        # channel has a write-time setup call, and hydrating a secret to feed a
+        # no-op would be wasted work.
+        #
+        # setWebhook is idempotent and the per-bot ingress URL never moves, so a
+        # failed call leaves the prior working webhook in place; there is no
+        # corrupt state to roll back. Surface the failure so the rotation is not
+        # silently deaf.
+        if (
+            edited is not None
+            and rotated_credentials
+            and existing.channel == "telegram"
+        ):
+            adapter = self.adapter_registry.get(existing.channel)
+            hydrated = await self._hydrate_connection(
+                project_id=project_id, connection=edited
+            )
+            hydrated_data = (
+                hydrated.data if hydrated and isinstance(hydrated.data, dict) else {}
+            )
+            activation_credentials = {
+                field: hydrated_data[field]
+                for field in ("bot_token", "webhook_secret", "signing_secret")
+                if field in hydrated_data
+            }
+            try:
+                await adapter.activate_connection(
+                    connection=hydrated,
+                    credentials=activation_credentials,
+                )
+            except Exception as e:
+                log.warning(
+                    "channels: re-activation after credential rotation failed for "
+                    "channel=%s slug=%s: %s",
+                    existing.channel,
+                    connection.slug,
+                    e,
+                )
+                raise ChannelConnectionVerificationFailed(
+                    channel=existing.channel,
+                    message=(
+                        "the credential was stored but could not be re-registered "
+                        f"with the platform: {e}"
+                    ),
+                ) from e
+
+        return edited
+
+    async def ensure_hosted_telegram_connection(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        references: Dict[str, Any],
+    ) -> ChannelConnection:
+        """Create or reuse the one hosted Telegram connection for this project,
+        with the chosen agent as its default, and return it. Idempotent: a
+        second connect for the same project reuses the connection and leaves its
+        agent in place. The bind link is minted against the returned connection.
+        """
+
+        # Include archived rows: query_connections does not filter them, and a
+        # disconnected hosted connection still holds the project's unique
+        # external key, so creating a second one would conflict. Reuse it.
+        existing = await self.query_connections(
+            project_id=project_id,
+            connection=ChannelConnectionQuery(channel="telegram_hosted"),
+        )
+        connection = next((c for c in existing if c.channel == "telegram_hosted"), None)
+        if connection is None:
+            connection = await self.create_connection(
+                project_id=project_id,
+                user_id=user_id,
+                connection=ChannelConnectionCreate(
+                    channel="telegram_hosted",
+                    slug="agenta-telegram",
+                    name="Agenta on Telegram",
+                    flags=ChannelConnectionFlags(is_hosted=True),
+                ),
+            )
+        elif connection.deleted_at is not None:
+            # a previously disconnected hosted connection: unarchive and reuse.
+            connection = (
+                await self.unarchive_connection(
+                    project_id=project_id,
+                    user_id=user_id,
+                    connection_id=connection.id,
+                )
+                or connection
+            )
+
+        agents = await self.query_agents(
+            project_id=project_id,
+            agent=ChannelAgentQuery(connection_id=connection.id),
+        )
+        active = [a for a in agents if a.deleted_at is None]
+        if not active:
+            await self.create_agent(
+                project_id=project_id,
+                user_id=user_id,
+                agent=ChannelAgentCreate(
+                    connection_id=connection.id,
+                    slug="default",
+                    name="Default agent",
+                    data=ChannelAgentData(references=references),
+                    flags=ChannelAgentFlags(is_default=True),
+                ),
+            )
+        else:
+            # Per-project connection, retargeted by agent: the connect action
+            # points this project's Telegram at the CALLING agent. If the
+            # answering agent already matches, this is a no-op; if it is a
+            # different agent, retarget it here ("disconnect from agent X and
+            # connect here"). One shared connection, one answering agent.
+            answering = next((a for a in active if a.flags.is_default), active[0])
+            if _reference_id(references) != _reference_id(answering.data.references):
+                await self.edit_agent(
+                    project_id=project_id,
+                    user_id=user_id,
+                    agent=ChannelAgentEdit(
+                        id=answering.id,
+                        data=ChannelAgentDataEdit(references=references),
+                    ),
+                )
+
+        return connection
 
     async def archive_connection(
         self,
@@ -1282,6 +1467,12 @@ class ChannelsService:
         ):
             return None
 
+        # An allow-list on the connection ("Allowed users" on the agent page):
+        # when it names anyone, a sender outside it is dropped before any
+        # space is provisioned. Empty means everyone.
+        if not _sender_allowed(connection, event):
+            return None
+
         capabilities = await self.fetch_capabilities(
             channel=connection.channel, connection=connection
         )
@@ -1673,8 +1864,25 @@ class ChannelsService:
                 capabilities=capabilities,
             )
 
+        if capabilities is None:
+            connection = await self.channels_dao.fetch_connection(
+                project_id=project_id,
+                connection_id=resolution.space.connection_id,
+            )
+            capabilities = await self.fetch_capabilities(
+                channel=connection.channel, connection=connection
+            )
+
         content: List[dict] = []
         for stored in events:
+            # Who is speaking, as its own part before their words: the agent
+            # can address people by name and keep them apart, and the words
+            # themselves are never rewritten.
+            attribution = _attribution_part(
+                stored.data.processed.sender, channel=capabilities.channel
+            )
+            if attribution is not None:
+                content.append(attribution)
             if stored.id == event_id and resolution.resolved_choice is not None:
                 # the resolved label stands in for the raw arrival here only
                 # -- the logged row itself was never rewritten
@@ -1848,6 +2056,47 @@ def _canonical_locator(locator: Optional[dict]) -> str:
     from oss.src.core.channels.utils import canonical_json
 
     return canonical_json(locator or {})
+
+
+def _platform_label(channel: str) -> str:
+    if channel.startswith("telegram"):
+        return "Telegram"
+    if channel.startswith("slack"):
+        return "Slack"
+    return channel
+
+
+def _attribution_part(sender: Dict[str, Any], *, channel: str) -> Optional[dict]:
+    """ "From Test User (@testuser, Telegram id 1000001):" -- the name when the
+    platform sent one, else the username, else the bare id. None when the
+    event names no sender at all (an Agenta-internal event, for instance)."""
+
+    if not isinstance(sender, dict):
+        return None
+    sender_id = sender.get("id")
+    if sender_id in (None, ""):
+        return None
+    name = sender.get("name") or ""
+    username = sender.get("username") or ""
+    platform = _platform_label(channel)
+    who = name or (f"@{username}" if username else f"user {sender_id}")
+    details = []
+    if name and username:
+        details.append(f"@{username}")
+    details.append(f"{platform} id {sender_id}")
+    return {"type": "text", "text": f"From {who} ({', '.join(details)}):"}
+
+
+def _sender_allowed(connection: ChannelConnection, event: ChannelInboxEvent) -> bool:
+    data = connection.data if isinstance(connection.data, dict) else {}
+    allowed = data.get("allowed_senders")
+    if not isinstance(allowed, list) or not allowed:
+        return True
+    sender = event.data.processed.sender if event.data and event.data.processed else {}
+    sender_id = sender.get("id") if isinstance(sender, dict) else None
+    if sender_id is None:
+        return False
+    return str(sender_id) in {str(item) for item in allowed}
 
 
 def _admitting_grant(
@@ -2085,6 +2334,17 @@ def _parse_sigil(*, content: list, sigil: Optional[str]) -> Optional[str]:
             return match.group(1)
 
     return None
+
+
+def _reference_id(references) -> Optional[str]:
+    """The id of the first (and, for a hosted channel agent, only) reference,
+    handling both a plain dict and a Reference object. Used to tell whether the
+    connection's answering agent already points at the requested app."""
+    if not references:
+        return None
+    value = next(iter(references.values()))
+    raw = value.get("id") if isinstance(value, dict) else getattr(value, "id", None)
+    return str(raw) if raw is not None else None
 
 
 def _channel_defaults(capabilities: ChannelCapabilities):

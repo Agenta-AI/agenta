@@ -23,6 +23,11 @@ class RenderPart(BaseModel):
     title: Optional[str] = None
     tool: Optional[str] = None
     arguments: Optional[Dict[str, Any]] = None
+    # Marks the turn-start indicator, so an adapter and the delivery guard
+    # identify it by this flag rather than by its display text. A real answer
+    # whose text happens to equal the indicator text must not be mistaken for
+    # the indicator.
+    indicator: Optional[bool] = None
 
 
 class RenderChoiceOption(BaseModel):

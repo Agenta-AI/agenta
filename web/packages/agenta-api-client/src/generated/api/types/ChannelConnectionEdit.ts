@@ -2,8 +2,15 @@
 
 import type * as AgentaApi from "../index.js";
 
+/**
+ * An edit names what changes. Every field is optional, and an omitted
+ * field keeps its stored value: the service layers the fields the caller
+ * sent over the existing row (`data` merges key by key) before the write.
+ * A plain rename once nulled the whole data blob and bricked the connection
+ * (F98).
+ */
 export interface ChannelConnectionEdit {
-    flags?: AgentaApi.ChannelConnectionFlags | undefined;
+    flags?: (AgentaApi.ChannelConnectionFlags | null) | undefined;
     tags?: (Record<string, AgentaApi.LabelJsonInput | null> | null) | undefined;
     meta?: (Record<string, AgentaApi.FullJsonInput | null> | null) | undefined;
     name?: (string | null) | undefined;

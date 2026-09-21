@@ -11,4 +11,5 @@ import type * as AgentaApi from "../index.js";
 export interface ChannelPendingChoice {
     choices: AgentaApi.ChannelPendingChoiceItem[];
     posted_at: string;
+    interaction_id?: (string | null) | undefined;
 }
