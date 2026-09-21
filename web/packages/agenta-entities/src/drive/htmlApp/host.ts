@@ -115,6 +115,11 @@ export function createHtmlAppHost(
         }
 
         const ifMatch = req.force === true ? undefined : etags.get(relative)
+        // No etag and not forcing means this app has never seen the file. Writing it
+        // unconditionally would overwrite whatever another session put there in the meantime,
+        // and report success — so the write is create-only instead, and a path that already
+        // exists comes back as `conflict` for the app to read and merge.
+        const ifNoneMatch = req.force !== true && ifMatch === undefined
 
         switch (method) {
             case "read":
@@ -129,7 +134,7 @@ export function createHtmlAppHost(
                 if (typeof body !== "string") {
                     return failure(id, {code: "bad_request", message: "write needs a body"})
                 }
-                const {result, etag} = await client[method](full, body, {ifMatch})
+                const {result, etag} = await client[method](full, body, {ifMatch, ifNoneMatch})
                 const written: FsResults["write"] = {...result, path: relative}
                 const next = etag ?? result.etag
                 etags.set(relative, next)

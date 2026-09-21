@@ -177,6 +177,20 @@ describe("write / writeJSON", () => {
         expect(fern.writeMountFile.mock.calls[0][3].headers).toEqual({})
     })
 
+    // A first write used to go out unconditional, so two Run sessions could both create the same
+    // path and the later one overwrote the earlier without a 412.
+    it("sends If-None-Match: * for a create-only write", async () => {
+        fern.writeMountFile.mockResolvedValueOnce({path: "x", size: 1, etag: "e3"})
+        await client().write("x", "a", {ifNoneMatch: true})
+        expect(fern.writeMountFile.mock.calls[0][3].headers).toEqual({"If-None-Match": "*"})
+    })
+
+    it("prefers If-Match over create-only when it holds an etag", async () => {
+        fern.writeMountFile.mockResolvedValueOnce({path: "x", size: 1, etag: "e3"})
+        await client().write("x", "a", {ifMatch: "e1", ifNoneMatch: true})
+        expect(fern.writeMountFile.mock.calls[0][3].headers).toEqual({"If-Match": "e1"})
+    })
+
     it("fills in path/size locally when the server omits them (pre-lane-B)", async () => {
         fern.writeMountFile.mockResolvedValueOnce({})
         expect(await client().write("x", "héllo")).toEqual({
@@ -240,6 +254,20 @@ describe("remove", () => {
 })
 
 describe("error mapping", () => {
+    // The server refuses a path outside the folder and a write above the level with the same
+    // status. Only the body separates them, and mapping every 403 to `read_only` named the wrong
+    // cause for the one that matters — the SERVER-side folder boundary.
+    it("tells a scope refusal apart from a read-only one, on the same status", async () => {
+        const scoped = {detail: {code: "scope", message: "path is outside the app folder"}}
+        expect(toFsClientError(fernError(403, scoped)).code).toBe("scope")
+        expect(toFsClientError(axiosError(403, scoped)).code).toBe("scope")
+        // A level refusal carries no scope code, and still reads as read-only.
+        expect(toFsClientError(fernError(403, {detail: {code: "forbidden"}})).code).toBe(
+            "read_only",
+        )
+        expect(toFsClientError(fernError(403)).code).toBe("read_only")
+    })
+
     it.each([
         [404, "not_found"],
         [412, "conflict"],

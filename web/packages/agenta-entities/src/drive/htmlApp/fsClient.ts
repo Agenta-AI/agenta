@@ -6,7 +6,8 @@
  * the etag back from every result. Failures throw {@link FsClientError} carrying the bridge code:
  *
  *   404 → not_found · 412 → conflict (with the server's current etag from `detail.etag`) ·
- *   413 or a local cap breach → too_large · 403 → read_only · anything else → unavailable.
+ *   413 or a local cap breach → too_large · 403 → read_only, or scope when the body says
+ *   so · anything else → unavailable.
  *
  * Transport: every call goes through the generated Fern mounts client. `write` used to be the
  * exception — the generated `writeMountFile` sent no body, because the endpoint reads its body
@@ -49,9 +50,16 @@ export interface FsClientOptions {
     scopeToken?: () => Promise<string | null>
 }
 
-/** Per-call options for write/remove: the implicit If-Match the host resolved. */
+/** Per-call options for write/remove: the implicit preconditions the host resolved. */
 export interface FsWriteOptions {
     ifMatch?: string | null
+    /**
+     * Create-only: refuse the write if the path already exists (`If-None-Match: *`).
+     *
+     * The host sends this instead of `If-Match` when it holds no etag, so a first write cannot
+     * silently overwrite a file another session created in the meantime. Ignored on remove.
+     */
+    ifNoneMatch?: boolean
 }
 
 /** A successful result plus the etag of the path afterwards (when the server reports one). */
@@ -164,6 +172,14 @@ const bodyOf = (error: unknown): unknown => {
     return isRecord(response) ? response.data : undefined
 }
 
+/** `{"detail": {"code": ...}}` → the server's own name for the refusal, where it gave one. */
+const detailCode = (body: unknown): string | undefined => {
+    if (!isRecord(body)) return undefined
+    const detail = body.detail
+    if (!isRecord(detail)) return undefined
+    return typeof detail.code === "string" ? detail.code : undefined
+}
+
 /** `{"detail": {"code": "conflict", "etag": <current or null>}}` → the etag, null when absent. */
 const conflictEtag = (body: unknown): string | null => {
     if (!isRecord(body)) return null
@@ -186,8 +202,15 @@ export function toFsClientError(error: unknown): FsClientError {
             })
         case 413:
             return new FsClientError("too_large", MESSAGES.too_large, {status})
-        case 403:
-            return new FsClientError("read_only", MESSAGES.read_only, {status})
+        case 403: {
+            // The server refuses a path outside the folder and a write above the level with the
+            // same status, and only the body tells them apart. Reading it is what makes the
+            // SERVER-side folder boundary say "outside the app directory": without this every
+            // scope refusal arrived as "read-only access", which names the wrong cause and
+            // disagrees with the host's own path guard about one condition.
+            const code = detailCode(bodyOf(error)) === "scope" ? "scope" : "read_only"
+            return new FsClientError(code, MESSAGES[code], {status})
+        }
         default: {
             const message =
                 error instanceof Error && error.message ? error.message : MESSAGES.unavailable
@@ -219,8 +242,12 @@ const toStat = (entry: FileEntry): FileStat => ({
     etag: entry.etag ?? null,
 })
 
-const ifMatchHeaders = (opts?: FsWriteOptions): Record<string, string> =>
-    typeof opts?.ifMatch === "string" ? {"If-Match": opts.ifMatch} : {}
+/** The write's precondition. `If-Match` wins: holding an etag is the stronger statement, and the
+ *  two together would be contradictory. */
+const preconditionHeaders = (opts?: FsWriteOptions): Record<string, string> => {
+    if (typeof opts?.ifMatch === "string") return {"If-Match": opts.ifMatch}
+    return opts?.ifNoneMatch === true ? {"If-None-Match": "*"} : {}
+}
 
 // ---------------------------------------------------------------------------------------------
 // Factory
@@ -321,7 +348,7 @@ export function createFsClient({mountId, projectId, scopeToken}: FsClientOptions
                 {path},
                 {
                     ...base,
-                    headers: {...base.headers, ...ifMatchHeaders(opts)},
+                    headers: {...base.headers, ...preconditionHeaders(opts)},
                 },
             )
             const parsed = safeParseWithLogging(writeResponseSchema, data, "[htmlApp.fs.write]")
