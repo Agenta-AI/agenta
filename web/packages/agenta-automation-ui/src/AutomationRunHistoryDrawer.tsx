@@ -82,7 +82,11 @@ const AutomationRunHistoryDrawerBody = ({
                 body: {padding: 0, display: "flex", flexDirection: "column", overflow: "hidden"},
             }}
         >
-            <AutomationRunHistoryView automation={automation} renderConversation={render} />
+            <AutomationRunHistoryView
+                automation={automation}
+                renderConversation={render}
+                frame="drawer"
+            />
         </EnhancedDrawer>
     )
 }
