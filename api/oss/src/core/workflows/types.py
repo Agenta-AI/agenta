@@ -122,14 +122,53 @@ class WorkflowDetachedStartFailed(WorkflowError):
         super().__init__(message or "Detached workflow run failed to start.")
 
 
+class WorkflowDetachedStartNeverSent(WorkflowDetachedStartFailed):
+    """A detached start whose response proves the workflow service never saw the request.
+
+    A subclass, so every existing handler of ``WorkflowDetachedStartFailed`` is unaffected and
+    only a caller asking the narrower question has to know about it.
+    """
+
+
+# The statuses that mean the run was not accepted, whoever answered.
+#
+# 404: no route matched. From a reverse proxy this is the catch-all picking up the path after the
+# service's router disappeared (a stopped container), and from the service itself it is "Workflow
+# not found", raised before anything runs.
+#
+# 503: emitted instead of forwarding. A proxy or load balancer returns it when it has no healthy
+# backend to send to, and the three places the service itself returns 503 (session admission
+# unavailable, and the auth and vault middlewares failing to reach the API) all sit in front of
+# the workflow, so none of them can follow an accepted run.
+#
+# 502 and 504 are deliberately NOT here. Both mean the gateway did forward and then gave up on the
+# answer, so the run may have been accepted.
+_NEVER_DISPATCHED_STATUSES = frozenset({404, 503})
+
+# Any response the workflow service builds itself carries at least `x-ag-version`, and a run whose
+# own envelope sets a non-2xx status still goes out through that same stamping. So an `x-ag-`
+# header on a 404 or a 503 means the service did answer, and the status stops being proof.
+_SERVICE_HEADER_PREFIX = "x-ag-"
+
+
+def detached_start_never_sent(response: httpx.Response) -> bool:
+    """True when this non-2xx response proves the workflow service never saw the request."""
+    if response.status_code not in _NEVER_DISPATCHED_STATUSES:
+        return False
+    return not any(
+        name.lower().startswith(_SERVICE_HEADER_PREFIX) for name in response.headers
+    )
+
+
 # Failures where no byte of the invoke can have reached the workflow service: the request never
 # left this process (no URL, an unusable URL), never got a connection to write on (pool timeout),
 # or never established one (refused, unresolvable host, connect timeout — httpx reports all three
-# as ConnectError/ConnectTimeout). Everything else is ambiguous by construction: a read timeout,
-# a write error part-way through the body, and any HTTP status all mean the service was reached
-# and may have accepted the run.
+# as ConnectError/ConnectTimeout), plus the responses that prove it above. Everything else is
+# ambiguous by construction: a read timeout, a write error part-way through the body, and every
+# other HTTP status all mean the service was reached and may have accepted the run.
 _NEVER_DISPATCHED = (
     WorkflowServiceUrlMissing,
+    WorkflowDetachedStartNeverSent,
     httpx.InvalidURL,
     httpx.UnsupportedProtocol,
     httpx.ConnectError,
@@ -143,6 +182,7 @@ def invoke_never_dispatched(error: BaseException) -> bool:
 
     A caller holding a one-shot dispatch claim uses this to decide whether releasing the claim
     is safe. A false positive lets a retry start a turn the service already accepted, so every
-    outcome that cannot be proven never-sent answers False.
+    outcome that cannot be proven never-sent answers False. `asyncio.CancelledError` is one of
+    those: a cancel can land with the request already on the wire.
     """
     return isinstance(error, _NEVER_DISPATCHED)

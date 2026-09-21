@@ -10,10 +10,14 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 
+import httpx
 import pytest
 
 from oss.src.core.workflows.service import WorkflowsService
-from oss.src.core.workflows.types import WorkflowDetachedStartFailed
+from oss.src.core.workflows.types import (
+    WorkflowDetachedStartFailed,
+    WorkflowDetachedStartNeverSent,
+)
 from oss.src.utils.env import env
 
 
@@ -24,10 +28,13 @@ class _FakeStreamResponse:
     actually pulled, so a test can assert the stream was NOT drained.
     """
 
-    def __init__(self, *, status_code=200, lines=None, headers=None):
+    def __init__(
+        self, *, status_code=200, lines=None, headers=None, body=b"error-body"
+    ):
         self.status_code = status_code
         self._lines = lines or []
-        self.headers = headers or {}
+        self.headers = httpx.Headers(headers or {})
+        self._body = body
         self.consumed = 0
 
     async def __aenter__(self):
@@ -37,7 +44,7 @@ class _FakeStreamResponse:
         return False
 
     async def aread(self):
-        return b"error-body"
+        return self._body
 
     async def aiter_lines(self):
         for line in self._lines:
@@ -440,3 +447,81 @@ def test_dispatch_fn_injected_into_both_consumers():
     )
     assert worker._dispatch_fn is _dispatch
     assert dispatcher._dispatch_fn is _dispatch
+
+
+# The responses a dead workflow service really produces. `AGENTA_SERVICES_URL` is a public origin
+# in front of a reverse proxy in every topology this repo ships (compose, Railway, Helm, cloud),
+# so stopping the container does not give the API a connection error. The proxy answers.
+_NEXT_JS_CATCH_ALL_404 = (
+    404,
+    {"content-type": "text/html; charset=utf-8", "x-powered-by": "Next.js"},
+    b"<!DOCTYPE html><html><head><title>404: This page could not be found",
+)
+_PROXY_NO_BACKEND_503 = (
+    503,
+    {"content-type": "text/plain; charset=utf-8"},
+    b"Service Unavailable",
+)
+
+
+@pytest.mark.parametrize(
+    ("status_code", "headers", "body"),
+    [_NEXT_JS_CATCH_ALL_404, _PROXY_NO_BACKEND_503],
+)
+async def test_a_response_that_never_reached_the_service_is_marked_never_sent(
+    status_code, headers, body
+):
+    response = _FakeStreamResponse(status_code=status_code, headers=headers, body=body)
+    with patch("httpx.AsyncClient", return_value=_FakeAsyncClient(response)):
+        with pytest.raises(WorkflowDetachedStartNeverSent):
+            await _service()._stream_service_started(
+                url="http://svc/invoke",
+                credentials="Secret tok",
+                payload={},
+                run_id="run-x",
+            )
+
+
+@pytest.mark.parametrize(
+    ("status_code", "headers"),
+    [
+        # A gateway that forwarded and then gave up on the answer. The run may have been taken.
+        (502, {"content-type": "text/html"}),
+        (504, {"content-type": "text/html"}),
+        (500, {"content-type": "application/json"}),
+        (429, {"content-type": "application/json"}),
+        # The service's own answers. Anything it builds carries `x-ag-version`, so a 404 or a
+        # 503 with that header came from the service and the status stops being proof.
+        (404, {"x-ag-version": "unknown", "content-type": "application/json"}),
+        (503, {"x-ag-version": "0.119.1", "x-ag-trace-id": "tr-1"}),
+    ],
+)
+async def test_an_ambiguous_response_stays_an_ordinary_start_failure(
+    status_code, headers
+):
+    response = _FakeStreamResponse(status_code=status_code, headers=headers)
+    with patch("httpx.AsyncClient", return_value=_FakeAsyncClient(response)):
+        with pytest.raises(WorkflowDetachedStartFailed) as raised:
+            await _service()._stream_service_started(
+                url="http://svc/invoke",
+                credentials="Secret tok",
+                payload={},
+                run_id="run-x",
+            )
+
+    assert not isinstance(raised.value, WorkflowDetachedStartNeverSent)
+
+
+async def test_a_never_sent_response_is_still_an_ordinary_start_failure_to_old_handlers():
+    status_code, headers, body = _NEXT_JS_CATCH_ALL_404
+    response = _FakeStreamResponse(status_code=status_code, headers=headers, body=body)
+    with patch("httpx.AsyncClient", return_value=_FakeAsyncClient(response)):
+        with pytest.raises(WorkflowDetachedStartFailed) as raised:
+            await _service()._stream_service_started(
+                url="http://svc/invoke",
+                credentials="Secret tok",
+                payload={},
+                run_id="run-x",
+            )
+
+    assert "404" in str(raised.value)

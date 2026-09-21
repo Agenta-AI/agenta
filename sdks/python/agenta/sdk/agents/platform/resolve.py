@@ -168,11 +168,21 @@ async def resolve_connection(
     )
 
 
+_RESOLVE_SECRETS_CHANGED = (
+    "resolve_secrets is deprecated and is now an alias for resolve_connection"
+    "(model=..., context=...), which resolves one least-privilege connection and returns a "
+    "ResolvedConnection. It is no longer the whole-vault provider-key dump: the old "
+    "connection= argument is gone and the old {ENV_VAR: key} return is gone with it, so "
+    "update the call and not only the name."
+)
+
+
 async def resolve_secrets(
     *,
-    model: ModelRef,
-    context: RuntimeAuthContext,
+    model: Optional[ModelRef] = None,
+    context: Optional[RuntimeAuthContext] = None,
     resolver: Optional[ConnectionResolver] = None,
+    **legacy: Any,
 ) -> ResolvedConnection:
     """Deprecated compatibility alias for :func:`resolve_connection`.
 
@@ -183,14 +193,17 @@ async def resolve_secrets(
     The name is all that survives. It used to call ``resolve_provider_keys``, the model-blind
     whole-vault dump that returned ``{ENV_VAR: key}`` for a ``connection=``; the gateway work
     deleted that function deliberately. So a caller written against the old one has to change
-    the call, not only the name, and the warning has to say so.
+    the call, not only the name.
+
+    That caller is also the one who cannot read a warning: ``resolve_secrets(connection=...)``
+    would die on the signature before ``warnings.warn`` ran. Hence the loose signature. The old
+    shape raises ``TypeError`` carrying the explanation, and the new shape warns.
     """
+    if legacy or model is None or context is None:
+        raise TypeError(_RESOLVE_SECRETS_CHANGED)
+
     warnings.warn(
-        "resolve_secrets is deprecated and is now an alias for resolve_connection"
-        "(model=..., context=...), which resolves one least-privilege connection and returns a "
-        "ResolvedConnection. It is no longer the whole-vault provider-key dump: the old "
-        "connection= argument is gone and the old {ENV_VAR: key} return is gone with it, so "
-        "update the call and not only the name. It will be removed in a future breaking release.",
+        f"{_RESOLVE_SECRETS_CHANGED} It will be removed in a future breaking release.",
         DeprecationWarning,
         stacklevel=2,
     )

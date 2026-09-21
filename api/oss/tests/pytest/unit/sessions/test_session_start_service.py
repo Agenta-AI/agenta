@@ -1,5 +1,6 @@
 import asyncio
 from datetime import datetime, timezone
+from pathlib import Path
 from unittest.mock import AsyncMock
 from types import SimpleNamespace
 from uuid import uuid4
@@ -14,7 +15,12 @@ from oss.src.core.sessions.executions.dtos import (
 from oss.src.core.sessions.inputs.dtos import PendingInput, PendingInputState
 from oss.src.core.sessions.starts.service import SessionStartsService
 from oss.src.core.sessions.starts.types import SessionStartNotDurable
-from oss.src.core.workflows.types import WorkflowDetachedStartFailed
+import oss.src
+from oss.src.core.workflows.types import (
+    WorkflowDetachedStartFailed,
+    WorkflowDetachedStartNeverSent,
+    WorkflowServiceUrlMissing,
+)
 
 
 PROJECT_ID = uuid4()
@@ -351,11 +357,43 @@ async def test_delayed_acceptance_cannot_redispatch_even_after_service_restart()
     workflows.invoke_workflow_detached.assert_awaited_once()
 
 
+class _ClaimFlag:
+    """The `dispatch_claimed` column as the real DAO writes it: two compare-and-set writers.
+
+    Scripted `side_effect` booleans would let a retry dispatch whether or not the release
+    happened, which is the half of this behaviour worth pinning.
+    """
+
+    def __init__(self, *, claimed: bool = False):
+        self.claimed = claimed
+        self.scopes = []
+
+    async def claim_dispatch(self, **kwargs):
+        self.scopes.append(("claim", kwargs))
+        if self.claimed:
+            return False
+        self.claimed = True
+        return True
+
+    async def release_dispatch(self, **kwargs):
+        self.scopes.append(("release", kwargs))
+        if not self.claimed:
+            return False
+        self.claimed = False
+        return True
+
+    async def claim_for_execution(self, **kwargs):
+        return _input(kwargs["content"]).model_copy(
+            update={
+                "session_id": kwargs["session_id"],
+                "promoted_execution_id": kwargs["execution_id"],
+            }
+        )
+
+
 @pytest.mark.asyncio
 async def test_never_sent_invoke_releases_the_claim_and_one_retry_dispatches_again():
-    inputs = AsyncMock()
-    inputs.claim_for_execution.side_effect = lambda **kw: _input(kw["content"])
-    inputs.claim_dispatch.side_effect = [True, True]
+    inputs = _ClaimFlag()
     executions = AsyncMock()
     executions.fetch_execution.return_value = None
     workflows = AsyncMock()
@@ -369,11 +407,11 @@ async def test_never_sent_invoke_releases_the_claim_and_one_retry_dispatches_aga
             inputs=inputs, executions=executions, workflows=workflows
         ).start_once(**_args())
 
-    inputs.release_dispatch.assert_awaited_once()
-    assert (
-        inputs.release_dispatch.await_args.kwargs
-        == inputs.claim_dispatch.await_args_list[0].kwargs
-    )
+    assert inputs.claimed is False
+    # The release names the claim it is giving back, not just any row.
+    claim_scope = next(scope for kind, scope in inputs.scopes if kind == "claim")
+    release_scope = next(scope for kind, scope in inputs.scopes if kind == "release")
+    assert release_scope == claim_scope
 
     executions.fetch_execution.side_effect = [None, _execution("session", "execution")]
     result = await _service(
@@ -382,7 +420,117 @@ async def test_never_sent_invoke_releases_the_claim_and_one_retry_dispatches_aga
 
     assert result.replayed is False
     assert workflows.invoke_workflow_detached.await_count == 2
-    inputs.release_dispatch.assert_awaited_once()
+    assert [kind for kind, _ in inputs.scopes] == ["claim", "release", "claim"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "start_error",
+    [
+        WorkflowServiceUrlMissing(),
+        WorkflowDetachedStartNeverSent("Workflow service returned HTTP 404"),
+        httpx.InvalidURL("not a url"),
+        httpx.UnsupportedProtocol("unknown scheme"),
+        httpx.ConnectError("connection refused"),
+        httpx.ConnectTimeout("the connection was never established"),
+        httpx.PoolTimeout("no connection was ever acquired"),
+    ],
+)
+async def test_every_never_sent_failure_releases_the_claim(start_error):
+    inputs = _ClaimFlag()
+    executions = AsyncMock()
+    executions.fetch_execution.return_value = None
+    workflows = AsyncMock()
+    workflows.invoke_workflow_detached.side_effect = start_error
+
+    with pytest.raises(SessionStartNotDurable):
+        await _service(
+            inputs=inputs, executions=executions, workflows=workflows
+        ).start_once(**_args())
+
+    assert inputs.claimed is False
+
+
+@pytest.mark.asyncio
+async def test_a_durable_run_keeps_the_claim_even_when_the_invoke_raised():
+    """The release must follow the durability read, not replace it.
+
+    A never-sent error and a settled execution can both be true: the service answered a retry
+    and this attempt lost the race. Releasing before reading would hand the claim back on a run
+    that is already alive.
+    """
+    inputs = _ClaimFlag()
+    executions = AsyncMock()
+    executions.fetch_execution.side_effect = [
+        None,
+        _execution("session", "execution"),
+    ]
+    workflows = AsyncMock()
+    workflows.invoke_workflow_detached.side_effect = httpx.ConnectError("refused")
+
+    result = await _service(
+        inputs=inputs, executions=executions, workflows=workflows
+    ).start_once(**_args())
+
+    assert result.replayed is False
+    assert inputs.claimed is True
+    assert [kind for kind, _ in inputs.scopes] == ["claim"]
+
+
+@pytest.mark.asyncio
+async def test_a_failing_release_still_raises_the_start_error():
+    inputs = AsyncMock()
+    inputs.claim_for_execution.side_effect = lambda **kw: _input(kw["content"])
+    inputs.claim_dispatch.return_value = True
+    inputs.release_dispatch.side_effect = RuntimeError("the database went away")
+    executions = AsyncMock()
+    executions.fetch_execution.return_value = None
+    workflows = AsyncMock()
+    workflows.invoke_workflow_detached.side_effect = httpx.ConnectError("refused")
+
+    with pytest.raises(SessionStartNotDurable):
+        await _service(
+            inputs=inputs, executions=executions, workflows=workflows
+        ).start_once(**_args())
+
+
+@pytest.mark.asyncio
+async def test_a_cancelled_invoke_keeps_the_claim():
+    """A cancel can land with the request on the wire, so it is ambiguous, never never-sent."""
+    inputs = _ClaimFlag()
+    executions = AsyncMock()
+    executions.fetch_execution.return_value = None
+    workflows = AsyncMock()
+    workflows.invoke_workflow_detached.side_effect = asyncio.CancelledError()
+
+    with pytest.raises(asyncio.CancelledError):
+        await _service(
+            inputs=inputs, executions=executions, workflows=workflows
+        ).start_once(**_args())
+
+    assert inputs.claimed is True
+    assert [kind for kind, _ in inputs.scopes] == ["claim"]
+
+
+def test_release_dispatch_has_exactly_one_call_site():
+    """At-most-once rests on one releaser that is the claim holder, which no SQL enforces.
+
+    A second call site would release a claim it does not hold. If this fails, read the
+    invariant comment on `SessionInputsDAO.release_dispatch` before adding one.
+    """
+    root = Path(oss.src.__file__).parent
+    call_sites = [
+        str(path.relative_to(root))
+        for path in sorted(root.rglob("*.py"))
+        for line in path.read_text().splitlines()
+        if ".release_dispatch(" in line
+    ]
+
+    # The service that forwards to the DAO, and the one flow that holds the claim. Nothing else.
+    assert call_sites == [
+        "core/sessions/inputs/service.py",
+        "core/sessions/starts/service.py",
+    ], call_sites
 
 
 @pytest.mark.asyncio

@@ -53,6 +53,13 @@ class SessionInputsDAO(SessionInputsDAOInterface):
     ) -> bool:
         # Mirrors `claim_dispatch`, including the compare-and-set on the flag: the claim stays
         # one-shot, so two retries racing after a release still dispatch exactly once.
+        #
+        # INVARIANT, and the SQL does not enforce it: there is exactly one caller, and it is the
+        # flow that won the claim. `dispatch_claimed.is_(True)` asks whether somebody holds the
+        # claim, never whether the caller is that somebody, because nothing here identifies an
+        # attempt. A second call site (a reaper, an admin un-claim, a cancel path) would release
+        # a claim it does not hold and break at-most-once. Fencing that needs an attempt id on
+        # the row, so until there is one, keep the single call site.
         async with self.engine.session() as session:
             result = await session.execute(
                 sa_update(SessionInputDBE)

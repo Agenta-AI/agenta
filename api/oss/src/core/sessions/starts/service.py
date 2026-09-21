@@ -267,6 +267,11 @@ class SessionStartsService:
 
             stored_request = WorkflowServiceRequest.model_validate(claimed.content)
             error: Exception | None = None
+            # `except Exception` deliberately lets `asyncio.CancelledError` through with the claim
+            # still held. A shutdown or a client disconnect can cancel this task with the request
+            # already on the wire, which is the ambiguous case, not a never-sent one. Nothing is
+            # awaited between the claim and this call, so a cancel cannot strand the claim before
+            # the invoke begins; once it has begun, only the service knows what it accepted.
             try:
                 await self._workflows.invoke_workflow_detached(
                     project_id=project_id,

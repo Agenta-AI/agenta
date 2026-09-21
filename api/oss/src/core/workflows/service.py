@@ -153,6 +153,8 @@ from oss.src.core.workflows.types import (
     StaticWorkflowSlug,
     WorkflowServiceUrlMissing,
     WorkflowDetachedStartFailed,
+    WorkflowDetachedStartNeverSent,
+    detached_start_never_sent,
     is_static_workflow_slug,
 )
 
@@ -830,10 +832,15 @@ class WorkflowsService:
             ) as response:
                 if response.status_code < 200 or response.status_code >= 300:
                     raw = await response.aread()
-                    raise WorkflowDetachedStartFailed(
+                    message = (
                         f"Workflow service returned HTTP {response.status_code} on detached start: "
                         f"{raw[:500]!r}"
                     )
+                    # A status that only an intermediary, or the service's own front door, can
+                    # produce. The run was not accepted, so a one-shot caller may start over.
+                    if detached_start_never_sent(response):
+                        raise WorkflowDetachedStartNeverSent(message)
+                    raise WorkflowDetachedStartFailed(message)
 
                 trace_id = response.headers.get("x-ag-trace-id")
                 span_id = response.headers.get("x-ag-span-id")

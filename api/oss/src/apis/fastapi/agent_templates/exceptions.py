@@ -55,12 +55,12 @@ def template_load_error_response(exc: Exception) -> JSONResponse | None:
             code="template_load_conflict",
             message=exc.message,
         )
-    # The same conflict as above, caught one layer down: the key already owns a first input
-    # whose body differs. Same code, because the caller's remedy is the same one.
+    # The same exception the sessions router already maps, so it answers with the same code
+    # rather than a second name for one condition.
     if isinstance(exc, SessionInputIdempotencyConflict):
         return _response(
             status_code=status.HTTP_409_CONFLICT,
-            code="template_load_conflict",
+            code="idempotency_key_reused",
             message=(
                 "This Idempotency-Key was already used for a different first message. "
                 "Resend the original request body, or start over with a new key."
