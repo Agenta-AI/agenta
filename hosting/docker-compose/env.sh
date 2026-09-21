@@ -10,7 +10,10 @@ EE_DIR="${SCRIPT_DIR}/ee"
 
 error() { echo "Error: $*" >&2; exit 1; }
 require_value() { [[ -n "${2:-}" ]] || error "Missing value for $1."; }
-absolute_path() { local dir; dir="$(cd "$(dirname "$1")" && pwd)"; printf '%s/%s\n' "$dir" "$(basename "$1")"; }
+# `cd "$(dirname …)"` fails on a path whose parent does not exist yet, and under `set -e` that
+# aborts before the `mkdir -p` further down would have created it. `realpath -m` resolves a path
+# whose components are still missing, which is exactly the --output case.
+absolute_path() { realpath -m -- "$1"; }
 display_path() {
     local path="$1"
     if [[ "$path" == "${SCRIPT_DIR}/"* ]]; then
@@ -114,7 +117,7 @@ prepare options:
       --postgres-port PORT     Explicit Postgres host port.
       --http-port PORT         Explicit Traefik HTTP host port.
       --traefik-ui-port PORT   Explicit Traefik dashboard host port.
-      --store-port PORT        Explicit host port for the GH-mode object store.
+      --store-port PORT        Explicit host port for the bundled object store.
       --check-ports            Fail if a selected host port already listens.
       --dry-run                Print the allocation without writing files.
   -f, --force                  Replace existing output and allocation files.
@@ -125,6 +128,10 @@ EOF
 allocate() {
     local base_env="" env_file="${EE_DIR}/.env.ee.dev" output_file="${EE_DIR}/.env.ee.worktree"
     local name="" project_name="" public_host="" public_scheme="" port_offset="" port_range="10000:19999" postgres_port="" http_port="" traefik_ui_port="" store_port=""
+    # The dev stacks publish both gateway mocks on the host so a host-side test run can reach
+    # them. They need allocating like every other published port, or a second worktree stack
+    # fails to bind them.
+    local mock_llm_port="" mock_mcp_port=""
     local with_store_port=false
     local force=false dry_run=false check_ports=false
     while [[ "$#" -gt 0 ]]; do
@@ -161,6 +168,20 @@ allocate() {
     is_port "$range_start" && is_port "$range_end" && (( range_start <= range_end )) || error "Invalid --port-range: $port_range"
     base_env="$(absolute_path "$base_env")"; output_file="$(absolute_path "$output_file")"; env_file="$(absolute_path "$env_file")"
     if [[ -e "$output_file" && "$force" != true ]]; then
+        if [[ "$with_store_port" == true && -z "$(read_env_value "$output_file" AGENTA_STORE_PORT "")" ]]; then
+            postgres_port="$(read_env_value "$output_file" POSTGRES_PORT 5432)"
+            http_port="$(read_env_value "$output_file" TRAEFIK_PORT 80)"
+            traefik_ui_port="$(read_env_value "$output_file" TRAEFIK_UI_PORT 8080)"
+            store_port="${store_port:-$(find_available_port "$range_start" "$range_end" "$postgres_port" "$http_port" "$traefik_ui_port")}"
+            is_port "$store_port" || error "Invalid store port: $store_port"
+            if [[ "$dry_run" == true ]]; then
+                printf 'Would add AGENTA_STORE_PORT=%s to allocation: %s\n' "$store_port" "$(display_path "$output_file")"
+            else
+                printf 'AGENTA_STORE_PORT=%s\n' "$store_port" >> "$output_file"
+                chmod 600 "$output_file"
+                printf 'Added AGENTA_STORE_PORT=%s to allocation: %s\n' "$store_port" "$(display_path "$output_file")"
+            fi
+        fi
         if [[ "$dry_run" == true ]]; then
             printf 'Would reuse allocation: %s\n' "$(display_path "$output_file")"
         else
@@ -173,13 +194,18 @@ allocate() {
         http_port="${http_port:-$(( $(read_env_value "$base_env" TRAEFIK_PORT 80) + port_offset ))}"
         traefik_ui_port="${traefik_ui_port:-$(( $(read_env_value "$base_env" TRAEFIK_UI_PORT 8080) + port_offset ))}"
         if [[ "$with_store_port" == true ]]; then store_port="${store_port:-$(( $(read_env_value "$base_env" AGENTA_STORE_PORT 8333) + port_offset ))}"; fi
+        mock_llm_port="${mock_llm_port:-$(( $(read_env_value "$base_env" AGENTA_MOCK_LLM_GATEWAY_PORT 9091) + port_offset ))}"
+        mock_mcp_port="${mock_mcp_port:-$(( $(read_env_value "$base_env" AGENTA_MOCK_MCP_GATEWAY_PORT 9092) + port_offset ))}"
     else
         postgres_port="${postgres_port:-$(find_available_port "$range_start" "$range_end" "$http_port" "$traefik_ui_port")}"
         http_port="${http_port:-$(find_available_port "$range_start" "$range_end" "$postgres_port" "$traefik_ui_port")}"
         traefik_ui_port="${traefik_ui_port:-$(find_available_port "$range_start" "$range_end" "$postgres_port" "$http_port")}"
         if [[ "$with_store_port" == true ]]; then store_port="${store_port:-$(find_available_port "$range_start" "$range_end" "$postgres_port" "$http_port" "$traefik_ui_port")}"; fi
+        mock_llm_port="${mock_llm_port:-$(find_available_port "$range_start" "$range_end" "$postgres_port" "$http_port" "$traefik_ui_port" "$store_port")}"
+        mock_mcp_port="${mock_mcp_port:-$(find_available_port "$range_start" "$range_end" "$postgres_port" "$http_port" "$traefik_ui_port" "$store_port" "$mock_llm_port")}"
     fi
-    for port in "$postgres_port" "$http_port" "$traefik_ui_port"; do is_port "$port" || error "Invalid port: $port"; done
+    for port in "$postgres_port" "$http_port" "$traefik_ui_port" "$mock_llm_port" "$mock_mcp_port"; do is_port "$port" || error "Invalid port: $port"; done
+    [[ "$mock_llm_port" != "$mock_mcp_port" ]] || error "Mock gateway ports must be different."
     [[ "$with_store_port" != true ]] || is_port "$store_port" || error "Invalid store port: $store_port"
     [[ "$postgres_port" != "$http_port" && "$postgres_port" != "$traefik_ui_port" && "$http_port" != "$traefik_ui_port" ]] || error "Selected ports must be different."
     [[ "$with_store_port" != true || ( "$store_port" != "$postgres_port" && "$store_port" != "$http_port" && "$store_port" != "$traefik_ui_port" ) ]] || error "Store port must be different from the other selected ports."
@@ -189,7 +215,14 @@ allocate() {
     public_scheme="${public_scheme:-$(read_env_value "$base_env" TRAEFIK_PROTOCOL http)}"
     [[ "$public_host" =~ ^[A-Za-z0-9._-]+$ ]] || error "--public-host must be a hostname without a scheme or port."
     [[ "$public_scheme" =~ ^https?$ ]] || error "--public-scheme must be http or https."
-    if [[ "$check_ports" == true ]]; then check_port_available "$postgres_port"; check_port_available "$http_port"; check_port_available "$traefik_ui_port"; fi
+    if [[ "$check_ports" == true ]]; then
+        check_port_available "$postgres_port"
+        check_port_available "$http_port"
+        check_port_available "$traefik_ui_port"
+        [[ "$with_store_port" != true ]] || check_port_available "$store_port"
+        check_port_available "$mock_llm_port"
+        check_port_available "$mock_mcp_port"
+    fi
     if [[ "$dry_run" == true ]]; then
         printf 'Would create allocation: %s\n' "$(display_path "$output_file")"
     else
@@ -199,6 +232,7 @@ allocate() {
             printf '# Generated by %s; contains no application secrets.\n' "$(basename "$0")"
             printf 'COMPOSE_PROJECT_NAME=%s\nPOSTGRES_PORT=%s\nTRAEFIK_PORT=%s\nTRAEFIK_UI_PORT=%s\n' "$project_name" "$postgres_port" "$http_port" "$traefik_ui_port"
             [[ "$with_store_port" != true ]] || printf 'AGENTA_STORE_PORT=%s\n' "$store_port"
+            printf 'AGENTA_MOCK_LLM_GATEWAY_PORT=%s\nAGENTA_MOCK_MCP_GATEWAY_PORT=%s\n' "$mock_llm_port" "$mock_mcp_port"
             printf 'AGENTA_WEB_URL=%s://%s:%s\nAGENTA_API_URL=%s://%s:%s/api\nAGENTA_SERVICES_URL=%s://%s:%s/services\nENV_FILE=%s\n' "$public_scheme" "$public_host" "$http_port" "$public_scheme" "$public_host" "$http_port" "$public_scheme" "$public_host" "$http_port" "$env_file"
         } > "$output_file"
         chmod 600 "$output_file"
@@ -206,6 +240,7 @@ allocate() {
     fi
     printf '  COMPOSE_PROJECT_NAME=%s\n  POSTGRES_PORT=%s\n  TRAEFIK_PORT=%s\n  TRAEFIK_UI_PORT=%s\n  AGENTA_WEB_URL=%s://%s:%s\n  AGENTA_API_URL=%s://%s:%s/api\n  AGENTA_SERVICES_URL=%s://%s:%s/services\n' "$project_name" "$postgres_port" "$http_port" "$traefik_ui_port" "$public_scheme" "$public_host" "$http_port" "$public_scheme" "$public_host" "$http_port" "$public_scheme" "$public_host" "$http_port"
     [[ "$with_store_port" != true ]] || printf '  AGENTA_STORE_PORT=%s\n' "$store_port"
+    printf '  AGENTA_MOCK_LLM_GATEWAY_PORT=%s\n  AGENTA_MOCK_MCP_GATEWAY_PORT=%s\n' "$mock_llm_port" "$mock_mcp_port"
 }
 
 merge() {
@@ -302,7 +337,7 @@ prepare() {
     source_file="${source_file:-$(default_source_env "$license" "$env_name" ".env.${license}.gh")}"
     [[ -f "$source_file" ]] || error "Source environment file not found: $source_file"
     allocation_args+=(--base-env "$source_file" --env-file "$output_file" --output "$overrides_file")
-    [[ "$stage" == "dev" ]] || allocation_args+=(--with-store-port)
+    allocation_args+=(--with-store-port)
     [[ "$dry_run" == true ]] && allocation_args+=(--dry-run)
     [[ "$force" == true ]] && allocation_args+=(--force)
     allocate "${allocation_args[@]}"
@@ -312,7 +347,10 @@ prepare() {
     fi
     local -a merge_args=(--base "$source_file" --overrides "$overrides_file" --output "$output_file" --force)
     merge "${merge_args[@]}"
-    printf '\nStart it with:\n  bash hosting/docker-compose/run.sh --%s --%s\n' "$license" "$image_mode"
+    # Name the file that was just written. Without it the command starts whichever env file
+    # the edition defaults to, silently ignoring a --output that pointed somewhere else.
+    printf '\nStart it with:\n  bash hosting/docker-compose/run.sh --%s --%s --env-file %s\n' \
+        "$license" "$image_mode" "$(basename "$output_file")"
 }
 
 command="prepare"

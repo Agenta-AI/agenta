@@ -21,6 +21,8 @@ import {
     invalidateSessionLivenessQueries,
     fetchSessionInteractionStatesAtom,
     interactionStatesFromWatchEvent,
+    isApprovalNotPendingError,
+    isSettledInteractionConflict,
     recordInteractionAnswerAtom,
     respondInteractionAnswerAtom,
     respondInteractionAnswersAtom,
@@ -48,20 +50,32 @@ import {useSetAtom, useStore} from "jotai"
 import {latestTurnId} from "../assets/agentTurn"
 import {buildRequestWithinDeadline} from "../assets/boundedRequest"
 import {prepareAfterContinuationPreflight} from "../assets/continuationPreflight"
+import {
+    displayMessageText,
+    editedExecutionText,
+    readDisplayEdit,
+    saveDisplayEdit,
+} from "../assets/displayContent"
 import {filesToParts} from "../assets/files"
 import {
     isSessionTranscript,
     loadSessionMessages,
+    reloadSessionMessages,
     type SessionTranscript,
 } from "../assets/loadSession"
 import {mergePendingSendEchoRows} from "../assets/pendingSendEchoes"
-import {messageText, sideEffectingToolsInRange} from "../assets/rewind"
+import {sideEffectingToolsInRange} from "../assets/rewind"
 import {submitApprovalForCapability} from "../assets/serverOwnedApproval"
 import {startupLabelFromDataPart} from "../assets/startupPhases"
 import {getMessageTraceId} from "../assets/trace"
 import {reconcileInteractionRowStates} from "../assets/transcriptToMessages"
 import {isClientToolPart as defaultIsClientToolPart} from "../clientTools"
-import {classifyAgentRunError, type ParsedRunError, type RunErrorMetadata} from "../model/error"
+import {
+    classifyAgentRunError,
+    parseAgentRunError,
+    type ParsedRunError,
+    type RunErrorMetadata,
+} from "../model/error"
 import {withoutSharedSenderAcceptanceMessages} from "../model/livePreview"
 import {deriveSessionRunStatus, type SessionRunStatus} from "../model/sessionStatus"
 import {
@@ -101,6 +115,7 @@ import {clearTurnClockAtom, startTurnClockAtom} from "../state/turnClock"
 
 import {useAgentChatQueue, type QueuedMessage} from "./useAgentChatQueue"
 import {useApprovalDock, type ApprovalDock} from "./useApprovalDock"
+import type {ComposerAttachment} from "./useComposerAttachments"
 import {useFileActivityDetector} from "./useFileActivityDetector"
 import {useMountGeneration} from "./useMountGeneration"
 import {useServerSessionInputs} from "./useServerSessionInputs"
@@ -118,6 +133,11 @@ export interface SendInput {
     files?: File[]
     /** Prebuilt file parts (server-uploaded attachment references) — appended after `files`. */
     parts?: FileUIPart[]
+    /**
+     * The composer entries behind `parts`. Carried with the send so a refusal can put them back
+     * in the tray; without them a refused send with files can only keep its transcript row.
+     */
+    stagedFiles?: ComposerAttachment[]
 }
 
 /** The pure scan result of a rewind request; the skin renders any confirm UI and then calls
@@ -150,8 +170,13 @@ export interface UseAgentConversationArgs {
     sharedReaderRunning?: boolean
     /** Timestamp of the liveness snapshot behind `sharedReaderRunning`. */
     sharedReaderLivenessUpdatedAt?: number
-    /** Hand a late-refused send back to the composer; return whether it took the text. */
-    restoreRefusedSend?: (message: {text: string}) => boolean | Promise<boolean>
+    /** Hand a late-refused send back to the composer; return whether it took the text (and the
+     * staged files it carried). See `restoreRefusedSend` in `@agenta/chat/assets`. */
+    restoreRefusedSend?: (message: QueuedMessage) => boolean | Promise<boolean>
+    /** A durable send was admitted: the turn it started, or `null` for a parked input. */
+    onSendAccepted?: (message: {text: string}, executionId: string | null) => void
+    /** A durable send was rejected or refused; no turn will ever carry it. */
+    onSendFailed?: (message: {text: string}) => void
     /** Override the client-tool predicate. Defaults to the package registry's, so a host does not
      * have to opt IN to elicitation and connect widgets — /m shipped without one for months and
      * silently folded every client tool into the plain "used N tools" group, leaving the run
@@ -174,6 +199,12 @@ export interface AgentConversation {
     turns: TurnViewModel[]
     /** Send a user message (routes through the queue: sends now, or holds while busy/paused). */
     send: (input: SendInput) => Promise<void>
+    /**
+     * A send this mount admitted is still on its way: the runner has neither named its turn nor
+     * refused it. `status` stays "ready" on the server-owned send path, so a skin that wants to
+     * show work from the moment the message leaves the composer reads this alongside it.
+     */
+    sendInFlight: boolean
     /** Prevent an approval decision still being recorded from starting its delayed resume. */
     voidPendingResume: () => void
     /** Abort the in-flight stream and tag the last assistant turn as user-stopped. */
@@ -251,6 +282,8 @@ export const useAgentConversation = ({
     sharedReaderRunning = false,
     sharedReaderLivenessUpdatedAt = 0,
     restoreRefusedSend,
+    onSendAccepted,
+    onSendFailed,
     isClientToolPart,
 }: UseAgentConversationArgs): AgentConversation => {
     // Declared FIRST, so its effect re-arms before any effect below can capture a generation.
@@ -528,7 +561,7 @@ export const useAgentConversation = ({
     // `messages`/`busy` change every commit; consumers that must stay referentially stable
     // (`rewind`, the hydration/revalidation adoption guards) read them through refs instead.
     messagesRef.current = messages
-    busyRef.current = busy || acceptedRunPending
+    // `busyRef` is assigned after the queue hook below: `sendInFlight` is part of it.
     localRenderBusyRef.current = busy && !acceptedRunPending
 
     useEffect(() => {
@@ -694,6 +727,7 @@ export const useAgentConversation = ({
 
     // Send one released queued message. Stable (only depends on `sendMessage`) so the queue's
     // release effect doesn't churn on every token.
+    const editedSourceRef = useRef<UIMessage | null>(readDisplayEdit(sessionId))
     const sendQueued = useCallback(
         (item: QueuedMessage) => {
             // A real send means this session has run — drop the never-run marker so a later
@@ -702,13 +736,16 @@ export const useAgentConversation = ({
             clearSessionTurnId(sessionId)
             // Any actual send supersedes a prior user-stop.
             setStopped(false)
-            sendMessage(
-                item.fileParts && item.fileParts.length
-                    ? item.text
-                        ? {text: item.text, files: item.fileParts}
-                        : {files: item.fileParts}
-                    : {text: item.text},
-            ).catch(ignoreStreamRejection)
+            sendMessage({
+                role: "user",
+                parts: [
+                    {type: "text", text: item.executionText ?? item.text},
+                    ...(item.fileParts ?? []),
+                ],
+                ...(item.executionText !== undefined
+                    ? {metadata: {display_content: item.text}}
+                    : {}),
+            }).catch(ignoreStreamRejection)
         },
         [sendMessage, sessionId],
     )
@@ -733,13 +770,19 @@ export const useAgentConversation = ({
         messages,
         locallyBusy: busy,
         isSharedReaderReady: () => sharedSenderReadyRef.current,
+        // A send admitted here renders from the shared reader, so `onData` never sees these.
+        onStartupPhase: (label) => setTurnStartupLabel(sessionId, label),
         onExecuted: () => {
-            // The run stream that calls this outlives its mount, and both continuations below run
-            // past an await, so both carry the generation of the mount that started the read.
+            // The run is over: its startup label must not narrate the next turn.
+            clearTurnClock(sessionId)
+            // The run stream that calls this outlives its mount, and the delivery below runs past
+            // an await, so it carries the generation of the mount that started the read. A FRESH
+            // read, not the cached one: the rows this turn just saved are what settlement waits
+            // for, and the cache answers unchanged inside its stale window.
             const generation = mount.capture()
-            void loadSessionMessages(sessionId, (transcript) =>
+            return reloadSessionMessages(sessionId, (transcript) =>
                 adoptServerTranscript(transcript, generation),
-            ).then((transcript) => adoptServerTranscript(transcript, generation))
+            )
         },
     })
 
@@ -770,6 +813,7 @@ export const useAgentConversation = ({
         cancelEdit,
         commitEdit,
         pendingSendRows,
+        sendInFlight,
     } = useAgentChatQueue({
         status,
         messages,
@@ -784,10 +828,15 @@ export const useAgentConversation = ({
         // so a late refusal keeps its flagged row instead of restoring the draft. Pass a restorer
         // in to unify it with the desktop.
         restoreRefusedSend,
+        onSendAccepted,
+        onSendFailed,
         sendQueued,
         sessionId,
         server: serverInputs,
     })
+    // A preserve check that misses `sendInFlight` lets a navigation release and stop the chat in
+    // the window between the message leaving and the turn being accepted.
+    busyRef.current = busy || acceptedRunPending || sendInFlight
 
     // The server capability chooses one owner. Feature-off servers keep the original ordered row
     // transition + AI SDK gate release; durable servers own continuation after their 202.
@@ -909,6 +958,39 @@ export const useAgentConversation = ({
         }
     }, [pendingApprovalId])
 
+    // Run failures become conversation content; an accepted transport loss stays connection state.
+    // A callback rather than effect-only code, because a failure that never reaches `useChat` has
+    // no other way onto the screen, and an approval the server refuses is one of those.
+    const stampRunError = useCallback(
+        (parsed: ParsedRunError) => {
+            const stamp: RunErrorMetadata = {runError: parsed}
+            setMessages((prev) => {
+                const last = prev.length > 0 ? prev[prev.length - 1] : undefined
+                const existing = (last?.metadata as RunErrorMetadata | undefined)?.runError
+                if (last?.role === "assistant") {
+                    if (existing?.message === parsed.message) return prev // already stamped
+                    const next = [...prev]
+                    next[next.length - 1] = {
+                        ...last,
+                        metadata: {...(last.metadata as object | undefined), ...stamp},
+                    }
+                    return next
+                }
+                // No trailing assistant turn (failed before one existed) — add a minimal carrier.
+                return [
+                    ...prev,
+                    {
+                        id: `run-error-${generateId()}`,
+                        role: "assistant",
+                        parts: [],
+                        metadata: stamp,
+                    } as (typeof prev)[number],
+                ]
+            })
+        },
+        [setMessages],
+    )
+
     // Durable gates resume on the server; legacy gates still release the local SDK.
     const sendToolOutput = useCallback(
         async ({toolName, toolCallId, output, errorText}: ToolOutputSettleInput) => {
@@ -921,50 +1003,76 @@ export const useAgentConversation = ({
                     ? {outcome: "error", error: errorText}
                     : {outcome: "completed", output: output ?? {}}),
             }
-            const outcome = await submitApprovalForCapability({
-                durableApprovals: supportsDurableApprovals(sessionId),
-                submitDurable: () => respondInteractionAnswer({sessionId, toolCallId, resolution}),
-                retireDurable: () => {
-                    liveGateInteractionRef.current = null
-                },
-                recordLegacy: () => recordInteractionAnswer({sessionId, toolCallId, resolution}),
-                releaseLegacy: () => {
-                    if (errorText !== undefined) {
-                        addToolOutput({
-                            state: "output-error",
-                            tool: toolName as never,
-                            toolCallId,
-                            errorText,
-                        }).catch(ignoreStreamRejection)
-                    } else {
-                        addToolOutput({
-                            tool: toolName as never,
-                            toolCallId,
-                            output: (output ?? {}) as never,
-                        }).catch(ignoreStreamRejection)
-                    }
-                },
-            })
-            if (approvalResponseOwnerRef.current === toolCallId) {
-                setRecoverableContinuation(outcome.recoverable)
-                setContinuationExecutionId(outcome.executionId ?? null)
+            const settle = (result: {recoverable: boolean; executionId?: string}) => {
+                if (approvalResponseOwnerRef.current !== toolCallId) return
+                setRecoverableContinuation(result.recoverable)
+                setContinuationExecutionId(result.executionId ?? null)
             }
+
+            let outcome: {recoverable: boolean; executionId?: string}
+            try {
+                outcome = await submitApprovalForCapability({
+                    durableApprovals: supportsDurableApprovals(sessionId),
+                    submitDurable: () =>
+                        respondInteractionAnswer({sessionId, toolCallId, resolution}),
+                    retireDurable: () => {
+                        liveGateInteractionRef.current = null
+                    },
+                    recordLegacy: () =>
+                        recordInteractionAnswer({sessionId, toolCallId, resolution}),
+                    releaseLegacy: () => {
+                        if (errorText !== undefined) {
+                            addToolOutput({
+                                state: "output-error",
+                                tool: toolName as never,
+                                toolCallId,
+                                errorText,
+                            }).catch(ignoreStreamRejection)
+                        } else {
+                            addToolOutput({
+                                tool: toolName as never,
+                                toolCallId,
+                                output: (output ?? {}) as never,
+                            }).catch(ignoreStreamRejection)
+                        }
+                    },
+                })
+            } catch (error) {
+                // A transcript reloaded after an approved gate replays its tool output, and the
+                // gate the first submit settled is not pending any more. The answer is already in;
+                // only this second submit is redundant. Nothing caught it before, so the rejection
+                // reached no handler at all: dev showed the Next error overlay and production got
+                // a silently dead approval. The mobile dock has always read it this way.
+                // Two ways to learn the same thing. The local guard finds no pending row; the
+                // server answers 409 when the row moved on underneath the decision, and says
+                // WHICH conflict in the body's code. Status alone would swallow
+                // `execution_mismatch`, which is the interaction belonging to a different
+                // execution, and that one the reader has to see.
+                const settled =
+                    isApprovalNotPendingError(error) || isSettledInteractionConflict(error)
+                if (!settled) stampRunError(parseAgentRunError(error))
+                settle({recoverable: false})
+                return
+            }
+            settle(outcome)
         },
         [
             addToolOutput,
             recordInteractionAnswer,
             respondInteractionAnswer,
             sessionId,
+            stampRunError,
             supportsDurableApprovals,
         ],
     )
 
     // Publish this session's run state (single source of truth for session-list status dots).
     // Precedence error > awaiting approval > running > idle.
+    // `sendInFlight` too: the dot goes live when the message leaves, not when a poll notices.
     const runStatus = deriveSessionRunStatus({
         error: !!errorBoundary.runError,
         hitlPending,
-        busy: busy || acceptedRunPending || ownsContinuation,
+        busy: busy || acceptedRunPending || ownsContinuation || sendInFlight,
     })
     useEffect(() => {
         setSessionStatus({id: sessionId, status: runStatus})
@@ -979,35 +1087,9 @@ export const useAgentConversation = ({
         [sessionId, setSessionStatus],
     )
 
-    // Run failures become conversation content; an accepted transport loss stays connection state.
     useEffect(() => {
-        const parsed = errorBoundary.runError
-        if (!parsed) return
-        const stamp: RunErrorMetadata = {runError: parsed}
-        setMessages((prev) => {
-            const last = prev.length > 0 ? prev[prev.length - 1] : undefined
-            const existing = (last?.metadata as RunErrorMetadata | undefined)?.runError
-            if (last?.role === "assistant") {
-                if (existing?.message === parsed.message) return prev // already stamped
-                const next = [...prev]
-                next[next.length - 1] = {
-                    ...last,
-                    metadata: {...(last.metadata as object | undefined), ...stamp},
-                }
-                return next
-            }
-            // No trailing assistant turn (failed before one existed) — add a minimal carrier.
-            return [
-                ...prev,
-                {
-                    id: `run-error-${generateId()}`,
-                    role: "assistant",
-                    parts: [],
-                    metadata: stamp,
-                } as (typeof prev)[number],
-            ]
-        })
-    }, [errorBoundary.runError, setMessages])
+        if (errorBoundary.runError) stampRunError(errorBoundary.runError)
+    }, [errorBoundary.runError, stampRunError])
 
     // A live turn makes the transcript no longer a copy of the server's, and we can't know how many
     // records the runner logged for it — so drop the watermark and let the next open re-sync from
@@ -1214,7 +1296,7 @@ export const useAgentConversation = ({
     }, [sessionId])
 
     const send = useCallback(
-        async ({text, files, parts}: SendInput) => {
+        async ({text, files, parts, stagedFiles}: SendInput) => {
             const trimmed = text.trim()
             const fileObjs = files ?? []
             const refParts = parts ?? []
@@ -1232,7 +1314,14 @@ export const useAgentConversation = ({
             clearSessionTurnId(sessionId)
             setStopped(false)
             // One path: `submit` sends now or queues behind held messages via the release gate.
-            await submit({text: trimmed, fileParts})
+            await submit({
+                text: trimmed,
+                executionText: editedExecutionText(editedSourceRef.current, trimmed),
+                fileParts,
+                stagedFiles,
+            })
+            editedSourceRef.current = null
+            saveDisplayEdit(sessionId, null)
             // The message left the composer — drop its persisted draft (per-session store).
             composerDraftBySession.delete(sessionId)
         },
@@ -1240,14 +1329,14 @@ export const useAgentConversation = ({
     )
 
     const steerInput = useCallback(
-        async ({text, files, parts}: SendInput) => {
+        async ({text, files, parts, stagedFiles}: SendInput) => {
             const trimmed = text.trim()
             const fileObjs = files ?? []
             const refParts = parts ?? []
             if (!trimmed && fileObjs.length === 0 && refParts.length === 0) return
             const encoded = fileObjs.length ? await filesToParts(fileObjs) : undefined
             const merged = [...(encoded?.parts ?? []), ...refParts]
-            await steer({text: trimmed, fileParts: merged.length ? merged : undefined})
+            await steer({text: trimmed, fileParts: merged.length ? merged : undefined, stagedFiles})
             composerDraftBySession.delete(sessionId)
         },
         [sessionId, steer],
@@ -1282,13 +1371,19 @@ export const useAgentConversation = ({
                     const current = messagesRef.current
                     const at = current.findIndex((m) => m.id === message.id)
                     if (at < 0) return
+                    editedSourceRef.current = current[at]
+                    saveDisplayEdit(sessionId, current[at])
                     setMessages(current.slice(0, at))
                 } else {
                     clearSessionTurnId(sessionId)
                     regenerate({messageId: message.id}).catch(ignoreStreamRejection)
                 }
             }
-            return {sideEffects, restoreText: isUser ? messageText(message) : undefined, confirm}
+            return {
+                sideEffects,
+                restoreText: isUser ? displayMessageText(msgs[idx]) : undefined,
+                confirm,
+            }
         },
         [regenerate, sessionId, setMessages],
     )
@@ -1332,6 +1427,7 @@ export const useAgentConversation = ({
         connectionWarning: errorBoundary.connectionWarning,
         turns,
         send,
+        sendInFlight,
         voidPendingResume,
         stop: handleStop,
         regenerate: regenerateTurn,

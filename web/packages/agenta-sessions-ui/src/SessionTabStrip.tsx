@@ -19,21 +19,29 @@ import {PlusIcon} from "@phosphor-icons/react"
 import clsx from "clsx"
 import {Reorder} from "motion/react"
 
-/** Slight left/right edge fade so tabs dissolve into the strip edges instead of a hard cut when
- * they overflow. Applied per-side ONLY where content is actually clipped (scrolled past) — a strip
- * that fits (e.g. a single tab) gets no fade, so its lone item isn't dimmed at the edges. */
-const EDGE_FADE_PX = 20
+/** Left/right edge fade so tabs dissolve into the strip edges instead of a hard cut when they
+ * overflow. Applied per-side ONLY where content is actually clipped (scrolled past) — a strip
+ * that fits (e.g. a single tab) gets no fade, so its lone item isn't dimmed at the edges. The
+ * lengths are the Home agents list's (26px in, 34px out), so the two scrollers read the same. */
+const EDGE_FADE_START_PX = 26
+const EDGE_FADE_END_PX = 34
 const fadeMask = (left: boolean, right: boolean): string => {
-    const start = left ? `transparent 0, #000 ${EDGE_FADE_PX}px` : "#000 0"
-    const end = right ? `#000 calc(100% - ${EDGE_FADE_PX}px), transparent 100%` : "#000 100%"
+    const start = left ? `transparent 0, #000 ${EDGE_FADE_START_PX}px` : "#000 0"
+    const end = right ? `#000 calc(100% - ${EDGE_FADE_END_PX}px), transparent 100%` : "#000 100%"
     return `linear-gradient(to right, ${start}, ${end})`
 }
 
-/** Footprint of the inline New session (+): the 28px button plus the 4px it sits off the last chip. */
-const INLINE_ADD_PX = 32
+/** Footprint of the inline New session (+): the 28px button; the last chip's own margin is the gap. */
+const INLINE_ADD_PX = 28
 
-/** Chips' own width. `scrollWidth` can't give it: the scroller is `flex-1`, so a strip with room to
- * spare reports `scrollWidth === clientWidth`, exactly like one filled to the millimetre. */
+/**
+ * The scroller's content width from LAYOUT geometry: the chips, plus the inline (+) while it is
+ * one of them. Never `scrollWidth`, for two reasons. The scroller is `flex-1`, so a strip with room
+ * to spare reports `scrollWidth === clientWidth`, exactly like one filled to the millimetre. And
+ * the chips are motion layout items: while one of their layout animations is in flight (the
+ * strip resized, a chip came or went) they sit on a translate that `scrollWidth` counts as
+ * overflow and offsets do not.
+ */
 const chipsWidth = (el: HTMLElement): number => {
     const first = el.firstElementChild as HTMLElement | null
     const last = el.lastElementChild as HTMLElement | null
@@ -73,6 +81,13 @@ export interface SessionTabStripProps {
     className?: string
 }
 
+/** The hairline the tab chips are "separated by" — see SessionTab's own note. Drawn in the gap
+ *  left of a tab, so it never touches the chip's own fill. The gap is 9px and the line sits 5px
+ *  in from this tab's edge, which clears 4px on each side of it. `colorBorder`, not the
+ *  secondary step: on the canvas the lighter hairline all but vanished. */
+export const TAB_DIVIDER =
+    "relative before:absolute before:-left-[5px] before:top-1/2 before:h-4 before:w-px before:-translate-y-1/2 before:bg-colorBorder before:content-['']"
+
 const SCROLLER_CLASS =
     "flex min-w-0 flex-1 items-center overflow-x-auto overscroll-x-contain motion-safe:scroll-smooth [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
 
@@ -99,13 +114,22 @@ export const SessionTabStrip = ({
     const measureFade = useCallback(() => {
         const el = stripElRef.current
         if (!el) return
-        const overflow = el.scrollWidth - el.clientWidth > 1
+        // ONE metric for every decision below. Reading overflow off `scrollWidth` and the un-pin
+        // slack off offsets let the two disagree whenever a chip layout animation was mid-flight:
+        // the translate made `scrollWidth` say overflow, so the (+) pinned; offsets then said
+        // there was room, so it came back inline; moving it re-projected the chips and the next
+        // measure — run synchronously from the effect below — flipped it again. Dozens of flips
+        // inside one commit chain, and React threw "Maximum update depth exceeded" (#6742).
+        const content = chipsWidth(el)
+        const overflow = content - el.clientWidth > 1
         const left = overflow && el.scrollLeft > 1
-        const right = overflow && el.scrollLeft < el.scrollWidth - el.clientWidth - 1
+        const right = overflow && el.scrollLeft < content - el.clientWidth - 1
         // Chips resize per frame while animating; bail on an unchanged mask to avoid re-rendering.
         setFade((prev) => (prev.left === left && prev.right === right ? prev : {left, right}))
-        // Pin once the chips overflow; un-pin once they leave the button's footprint spare.
-        const pin = pinAddRef.current ? el.clientWidth - chipsWidth(el) < INLINE_ADD_PX : overflow
+        // Pin once the chips overflow; un-pin once they leave the button's footprint spare. The
+        // pinned (+) sits outside the scroller, so `clientWidth` is already net of it: this is
+        // wider hysteresis than it reads, and the two states cannot each satisfy the other's rule.
+        const pin = pinAddRef.current ? el.clientWidth - content < INLINE_ADD_PX : overflow
         if (pin !== pinAddRef.current) {
             pinAddRef.current = pin
             setPinAdd(pin)
@@ -188,9 +212,10 @@ export const SessionTabStrip = ({
         </SimpleTooltip>
     ) : null
     // Scroller's last child, so it trails the last chip. Not a reorder value, so never a drag slot.
+    // It takes the same hairline the chips do, so the row ends the way every gap in it reads.
     const inlineAdd =
         canAdd && !pinAdd ? (
-            <div className="ml-1 flex shrink-0 items-center">{addButton}</div>
+            <div className={clsx("flex shrink-0 items-center", TAB_DIVIDER)}>{addButton}</div>
         ) : null
 
     return (

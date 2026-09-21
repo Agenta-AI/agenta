@@ -1,6 +1,6 @@
 import type {ReactNode} from "react"
 
-import {cn} from "../../utils/styles"
+import {Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia} from "../ui/empty"
 
 import EnhancedButton from "./EnhancedButton"
 
@@ -22,7 +22,7 @@ export interface EmptyPlaceholderProps {
 }
 
 /**
- * antd `Empty` replacement — a centred image + description with up to two CTAs.
+ * antd `Empty` replacement — the shadcn `Empty` parts with up to two CTAs.
  * The image is a slot, so callers bring their own icon set.
  */
 export const EmptyPlaceholder = ({
@@ -32,14 +32,12 @@ export const EmptyPlaceholder = ({
     secondaryCta,
     className,
 }: EmptyPlaceholderProps) => (
-    <div className={cn("flex flex-col items-center justify-center text-center", className)}>
-        {image ? (
-            <div className="mb-6 grid place-items-center text-colorTextSecondary">{image}</div>
-        ) : null}
-        {description ? (
-            <div className="mb-6 text-base text-colorTextSecondary">{description}</div>
-        ) : null}
-        <div className="flex flex-col items-center gap-2">
+    <Empty className={className}>
+        <EmptyHeader>
+            {image ? <EmptyMedia className="text-muted-foreground">{image}</EmptyMedia> : null}
+            {description ? <EmptyDescription>{description}</EmptyDescription> : null}
+        </EmptyHeader>
+        <EmptyContent className="gap-2">
             {primaryCta ? (
                 <EnhancedButton
                     size={primaryCta.size ?? "large"}
@@ -67,8 +65,8 @@ export const EmptyPlaceholder = ({
                     </EnhancedButton>
                 </>
             ) : null}
-        </div>
-    </div>
+        </EmptyContent>
+    </Empty>
 )
 
 export default EmptyPlaceholder

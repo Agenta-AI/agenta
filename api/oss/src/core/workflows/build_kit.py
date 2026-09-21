@@ -1,5 +1,6 @@
 """Playground build-kit content served through the static workflow catalogue."""
 
+from copy import deepcopy
 from typing import Any, Dict, List, Optional
 
 from agenta.sdk.agents.adapters.agenta_builtins import (
@@ -146,3 +147,62 @@ def build_agent_template_overlay() -> Dict[str, Any]:
             }
         },
     }
+
+
+def apply_ui_build_kit(
+    parameters: Dict[str, Any], disabled_ops: List[str]
+) -> Dict[str, Any]:
+    """Mirror the ordinary UI merge on a run-only copy using canonical kit definitions."""
+
+    def merge(base, overlay):
+        result = deepcopy(base)
+        for key, value in overlay.items():
+            result[key] = (
+                merge(result[key], value)
+                if isinstance(result.get(key), dict) and isinstance(value, dict)
+                else deepcopy(value)
+            )
+        return result
+
+    def identity(entry, section):
+        if not isinstance(entry, dict):
+            return None
+        if section == "tools" and entry.get("type") == "platform":
+            return "platform:" + entry["op"]
+        if section != "mcps":
+            refs = entry.get("@ag.embed", {}).get("@ag.references", {})
+            slug = refs.get("workflow", {}).get("slug") or refs.get(
+                "workflow_revision", {}
+            ).get("slug")
+            if slug:
+                return "workflow:" + slug
+        return entry.get("name") if section != "skills" else None
+
+    result = deepcopy(parameters)
+    agent = result.get("agent", result)
+    overlay = build_agent_template_overlay()
+    overlay["tools"] = [
+        tool
+        for tool in overlay["tools"]
+        if not (tool.get("type") == "platform" and tool.get("op") in disabled_ops)
+    ]
+    for section, additions in overlay.items():
+        if section in ("tools", "skills", "mcps"):
+            items = list(agent.get(section) or [])
+            positions = {
+                identity(item, section): index
+                for index, item in enumerate(items)
+                if identity(item, section) is not None
+            }
+            for item in additions:
+                key = identity(item, section)
+                if key is not None and key in positions:
+                    items[positions[key]] = item
+                else:
+                    if key is not None:
+                        positions[key] = len(items)
+                    items.append(item)
+            agent[section] = items
+        else:
+            agent[section] = merge(agent.get(section) or {}, additions)
+    return result

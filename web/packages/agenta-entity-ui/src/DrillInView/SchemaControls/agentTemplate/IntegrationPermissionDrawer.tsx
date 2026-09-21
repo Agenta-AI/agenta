@@ -1,9 +1,9 @@
 /**
  * IntegrationPermissionDrawer
  *
- * Sets the permission policy of ONE integration: a default-permission preset, and a per-tool
- * override for any tool that needs its own rule. Adding an integration adds all of its tools, so
- * this drawer is where an author decides what the agent may do with them.
+ * Sets the permission policy of ONE connected source: a default-permission preset, and a per-tool
+ * override for any tool that needs its own rule. Adding a source adds all of its tools, so this
+ * drawer is where an author decides what the agent may do with them.
  *
  * It shows what is SAVED. It never resolves `inherit` into `allow` or `ask` — that would mean a
  * second copy of the permission compiler in TypeScript, reading an agent-wide mode this drawer does
@@ -12,8 +12,14 @@
  *
  * Built for scale: a provider integration can list 50 to 200 tools, so the body carries a search
  * box, two collapsible groups (read-only and write and delete), and a per-group row cap.
+ *
+ * TWO SOURCES, ONE DRAWER. Without a `source` prop the drawer reads a Composio integration from the
+ * catalog hook, which is what it has always done. With one, the caller supplies the header, the
+ * catalog, and the footer extras, and an MCP connection renders through the same body. The seam is
+ * data, not markup: everything a source hands over is either already-resolved catalog state or a
+ * node, so neither caller can reshape the other's rows.
  */
-import {memo, useMemo, useState} from "react"
+import {memo, useMemo, useState, type ReactNode} from "react"
 
 import {
     useToolConnectionsQuery,
@@ -22,10 +28,10 @@ import {
     type ToolCatalogAction,
     type ToolCatalogActionDetails,
 } from "@agenta/entities/gatewayTool"
-import {humanizeActionKey} from "@agenta/shared/utils"
+import {formatCount, humanizeActionKey} from "@agenta/shared/utils"
 import {HeightCollapse} from "@agenta/ui"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
-import {Badge, Button, SearchInput, Spinner} from "@agenta/ui/ui"
+import {Badge, Button, SearchInput, SkeletonRows} from "@agenta/ui/ui"
 import {CaretDown, CaretRight} from "@phosphor-icons/react"
 import {useAtom} from "jotai"
 import {atomWithStorage} from "jotai/utils"
@@ -43,6 +49,7 @@ import {
     withStaleTools,
     type CatalogToolInfo,
     type IntegrationPreset,
+    type PermissionPresetValue,
 } from "../integrationPolicy"
 import {
     permissionPolicyLabel,
@@ -60,16 +67,154 @@ import type {
 import {INTEGRATION_DRAWER_WIDTH} from "./drawerWidths"
 import {ExpandableDescription} from "./ExpandableDescription"
 import {PolicyGlyph} from "./PermissionGlyph"
-import {PermissionPolicySelect} from "./PermissionPolicySelect"
+import {PermissionPolicySelect, type PermissionPolicyOption} from "./PermissionPolicySelect"
 
 /** Rows rendered per group before the "Show N more" link. */
 const GROUP_PAGE_SIZE = 25
 
-// Persisted expand state per integration and group (key = `${integrationKey}:${groupKey}`).
+/** What a row says about a saved key the source no longer lists. The Composio wording. */
+const DEFAULT_STALE_LABEL = "not in catalog"
+
+/**
+ * Whether one row survives the search. One rule, so the groups and the "nothing matched" message
+ * cannot disagree about what matched.
+ *
+ * Description included: a person hunting "the one that files an issue" knows what a tool does
+ * rather than what it is called, and every row here renders its description, so a description match
+ * always shows the text it matched on (round 4, D6).
+ */
+const toolMatchesSearch = (tool: CatalogToolInfo, search: string): boolean =>
+    !search ||
+    `${tool.key} ${tool.name ?? ""} ${tool.description ?? ""}`.toLowerCase().includes(search)
+
+// Persisted expand state per source and group (key = `${catalogKey}:${groupKey}`).
 const permissionGroupsExpandedAtom = atomWithStorage<Record<string, boolean>>(
     "agenta:tools:permission-groups-expanded",
     {},
 )
+
+/** What one row's control shows, where the saved default is not the whole answer. */
+export interface PermissionRowValue {
+    value: GatewayPermission
+    /** What the TRIGGER says, where the menu's name for that value is not the whole truth. */
+    triggerTitle?: string
+}
+
+/** One entry in the default-permission menu, before the drawer adds the glyph and the count. */
+export interface PermissionPresetOption {
+    value: PermissionPresetValue
+    label: string
+    /** The line under the label in the open menu. */
+    help: string
+    /** Shown, and shown as the current value, but not pickable: a state reached by setting per-tool
+     *  values, or one whose write needs data that has not arrived yet. */
+    disabled?: boolean
+    /** Draw a divider above this option. */
+    separatorBefore?: boolean
+}
+
+/**
+ * The default-permission presets, for a source whose presets are not the Composio five.
+ *
+ * MCP needs its own because two of them mean different things there. Its absent policy has a
+ * preset of its own, "Follow agent policy", and its "Ask for write and delete" writes an explicit
+ * shape the runner honours rather than the absence (decision 45). Reading and writing are the
+ * source's, because both need the server's tool annotations, which the drawer does not interpret.
+ */
+export interface PermissionPresetSource {
+    /** Menu order. */
+    options: PermissionPresetOption[]
+    /** The preset the saved policy reads back as. Ignored while `pending`. */
+    value: PermissionPresetValue
+    /** Per-tool rules behind it, for the Custom count. */
+    overrideCount: number
+    onPick: (preset: PermissionPresetValue) => void
+    /**
+     * The preset whose meaning is "the agent's own permission policy decides", so the note naming
+     * that policy is drawn under it. Both tables have one and they are not the same preset, which
+     * is why a source names its own.
+     */
+    agentPolicyPreset?: PermissionPresetValue
+    /**
+     * The source cannot say which preset this policy is yet, so the select gives way to the
+     * loading affordance the list area uses. Naming a preset is making its help line's promise,
+     * and a guess held until the data arrives is the promise made on a policy nobody has read.
+     */
+    pending?: boolean
+}
+
+/** The catalog a source hands the drawer, already fetched and already in the drawer's shape. */
+export interface PermissionDrawerCatalog {
+    status: "loading" | "error" | "ready"
+    tools: CatalogToolInfo[]
+    /**
+     * Whether the WHOLE catalog has been read. A saved key may only be called stale against a
+     * complete one, or every key not yet fetched would be accused of having left the server.
+     */
+    complete: boolean
+    /** Shown in place of the list while `status` is "error". The source owns the wording and the
+     *  action, because what fixes a failure differs per source. */
+    errorNode?: ReactNode
+}
+
+/**
+ * Everything a non-Composio source has to supply. Absent, the drawer reads the Composio catalog
+ * hook and renders the integration header, which is its original behaviour.
+ */
+export interface PermissionDrawerSource {
+    /** Identity for the per-group expand memory and for the group keys. */
+    catalogKey: string
+    /** The header, in place of the provider logo, name and connection badge. */
+    title: ReactNode
+    catalog: PermissionDrawerCatalog
+    /** What an empty but successfully read catalog says. */
+    emptyLabel: string
+    /** The number in the search placeholder, when the catalog on screen is not the whole truth —
+     *  a lapsed login leaves a cached count and no list to count. Defaults to the rows shown. */
+    searchCount?: number
+    /** Group headers. Defaults to the Composio wording. */
+    readOnlyLabel?: string
+    writeLabel?: string
+    /** The per-tool menu, when a source needs its own labels. Defaults to the four shared values. */
+    toolOptions?: PermissionPolicyOption[]
+    /**
+     * The default-permission menu, when the Composio five do not describe this source.
+     *
+     * A source that brings its own owns its help lines too, so the note qualifying "Ask for write
+     * and delete" against the agent's policy is not drawn for it: that note exists because the
+     * Composio preset saves `inherit` and its words are true only while the agent is on its
+     * default, which is not how an MCP server saves it any more (decision 45).
+     */
+    presets?: PermissionPresetSource
+    /**
+     * Why this tool may not be given a permission, or null when it may. A locked row shows the
+     * reason where its description would be and its control is disabled: the MCP API refuses a
+     * whole policy that names a filter-hidden tool, so offering the control would build a config
+     * that fails on every run rather than once at save (CR18).
+     */
+    lockedTool?: (toolKey: string) => string | null
+    /**
+     * What one row's control shows.
+     *
+     * An MCP tool with no entry of its own carries no value at all: the row reads `inherit` and its
+     * trigger says what the run resolves that to, so a bare permission never appears without its
+     * provenance. Absent, a row shows the saved value, which is the Composio rule.
+     */
+    rowValue?: (toolKey: string) => PermissionRowValue | undefined
+    /** Above the controls: the login-expired banner (D4). */
+    banner?: ReactNode
+    /** What a row says about a saved key the source no longer lists. An MCP server "no longer
+     *  offers" a tool, which is the spec's own phrase; a Composio catalog does not list it. */
+    staleLabel?: string
+    /** With the banner up, everything below it is readable and inert until the login is renewed. */
+    controlsDisabled?: boolean
+    /** Under the tool list: remediation a row cannot offer on its own. */
+    footNote?: ReactNode
+    /** The footer's left side, a column so an inline confirm can sit under its own link. */
+    footerStart?: ReactNode
+    /** Read-only ("View tools"): rows without selects, no footer, no destructive link. */
+    readOnly?: boolean
+}
 
 export interface IntegrationPermissionDrawerProps {
     open: boolean
@@ -87,9 +232,22 @@ export interface IntegrationPermissionDrawerProps {
     /** The agent-wide `runner.permissions.default`, for the note under the select. */
     agentPolicy?: PermissionPolicy | null
     disabled?: boolean
+    /** Renders a non-Composio source through the same body. */
+    source?: PermissionDrawerSource
 }
 
-const toolOptions = TOOL_PERMISSION_OPTIONS.map((option) => ({
+/** The Composio five, in the shape a source supplies its own presets in. */
+const defaultPresetOptions: PermissionPresetOption[] = INTEGRATION_PRESETS.map((def) => ({
+    value: def.value,
+    label: def.label,
+    help: def.help,
+    // Custom is what a non-empty per-tool map READS BACK as, never something to pick: contracts
+    // section 10 gives it no default of its own to write.
+    disabled: def.value === "custom",
+    separatorBefore: def.value === "custom",
+}))
+
+const defaultToolOptions: PermissionPolicyOption[] = TOOL_PERMISSION_OPTIONS.map((option) => ({
     value: option.value,
     title: option.label,
     help: option.help,
@@ -104,11 +262,21 @@ const ToolRow = memo(function ToolRow({
     permission,
     onChange,
     disabled,
+    options,
+    lockedReason,
+    triggerTitle,
+    readOnly,
+    staleLabel,
 }: {
     tool: CatalogToolInfo
     permission: GatewayPermission
     onChange: (toolKey: string, permission: GatewayPermission) => void
     disabled?: boolean
+    options: PermissionPolicyOption[]
+    lockedReason?: string | null
+    triggerTitle?: string
+    readOnly?: boolean
+    staleLabel: string
 }) {
     // Only the row's tint depends on this; the clamp and the toggle live in ExpandableDescription.
     const [expanded, setExpanded] = useState(false)
@@ -132,32 +300,39 @@ const ToolRow = memo(function ToolRow({
                                 variant="outlined"
                                 className="m-0 px-1.5 text-[11px] font-normal leading-4"
                             >
-                                not in catalog
+                                {staleLabel}
                             </Badge>
                         ) : null}
                     </div>
-                    <ExpandableDescription
-                        description={tool.description}
-                        label={tool.name || humanizeActionKey(tool.key)}
-                        onExpandedChange={setExpanded}
-                    />
+                    {lockedReason ? (
+                        <span className="text-xs text-colorTextTertiary">{lockedReason}</span>
+                    ) : (
+                        <ExpandableDescription
+                            description={tool.description}
+                            label={tool.name || humanizeActionKey(tool.key)}
+                            onExpandedChange={setExpanded}
+                        />
+                    )}
                 </div>
-                <PermissionPolicySelect
-                    value={permission}
-                    onChange={(value) => onChange(tool.key, value as GatewayPermission)}
-                    options={toolOptions}
-                    disabled={disabled}
-                    size="sm"
-                    aria-label={`Permission for ${tool.key}`}
-                    // Narrower and smaller-set on a phone, so the tool name beside it stays legible.
-                    triggerClassName={
-                        permission === "deny"
-                            ? "w-auto min-w-[104px] shrink-0 border-[var(--ag-colorErrorBorder)] bg-[var(--ag-colorErrorBg)] text-[var(--ag-colorErrorText)] max-sm:!text-field-sm sm:min-w-[132px]"
-                            : "w-auto min-w-[104px] shrink-0 max-sm:!text-field-sm sm:min-w-[132px]"
-                    }
-                    // The panel is pinned to the trigger; a compact chip wraps every option label.
-                    contentClassName="w-auto min-w-[220px] sm:min-w-[260px]"
-                />
+                {readOnly ? null : (
+                    <PermissionPolicySelect
+                        value={permission}
+                        onChange={(value) => onChange(tool.key, value as GatewayPermission)}
+                        options={options}
+                        disabled={disabled || Boolean(lockedReason)}
+                        size="sm"
+                        triggerTitle={triggerTitle}
+                        aria-label={`Permission for ${tool.key}`}
+                        // Narrower and smaller-set on a phone, so the tool name beside it stays legible.
+                        triggerClassName={
+                            permission === "deny"
+                                ? "w-auto min-w-[104px] shrink-0 border-[var(--ag-colorErrorBorder)] bg-[var(--ag-colorErrorBg)] text-[var(--ag-colorErrorText)] max-sm:!text-field-sm sm:min-w-[132px]"
+                                : "w-auto min-w-[104px] shrink-0 max-sm:!text-field-sm sm:min-w-[132px]"
+                        }
+                        // The panel is pinned to the trigger; a compact chip wraps every option label.
+                        contentClassName="w-auto min-w-[220px] sm:min-w-[260px]"
+                    />
+                )}
             </div>
         </div>
     )
@@ -165,31 +340,41 @@ const ToolRow = memo(function ToolRow({
 
 /**
  * One collapsible group. Its count and its rollup describe the WHOLE group, not the search result:
- * they say what the integration's read-only or write tools are set to, and a search must not change
- * that answer. Only the rows are filtered.
+ * they say what the source's read-only or write tools are set to, and a search must not change that
+ * answer. Only the rows are filtered.
  */
 function ToolGroup({
     label,
     groupKey,
-    integrationKey,
+    catalogKey,
     tools,
     search,
     permissions,
     onChangeToolPermission,
     disabled,
+    options,
+    lockedTool,
+    rowValue,
+    readOnly,
+    staleLabel,
 }: {
     label: string
     groupKey: string
-    integrationKey: string
+    catalogKey: string
     tools: CatalogToolInfo[]
     search: string
     permissions: GatewayConnectionPermissions
     onChangeToolPermission: (toolKey: string, permission: GatewayPermission) => void
     disabled?: boolean
+    options: PermissionPolicyOption[]
+    lockedTool?: (toolKey: string) => string | null
+    rowValue?: (toolKey: string) => PermissionRowValue | undefined
+    readOnly?: boolean
+    staleLabel: string
 }) {
     const [expanded, setExpanded] = useAtom(permissionGroupsExpandedAtom)
     const [shown, setShown] = useState(GROUP_PAGE_SIZE)
-    const storageKey = `${integrationKey}:${groupKey}`
+    const storageKey = `${catalogKey}:${groupKey}`
     const open = expanded[storageKey] ?? true
     const setOpen = () =>
         setExpanded((prev) => ({...prev, [storageKey]: !(prev[storageKey] ?? true)}))
@@ -201,12 +386,10 @@ function ToolGroup({
             ),
         [tools, permissions],
     )
-    const matching = useMemo(() => {
-        if (!search) return tools
-        return tools.filter((tool) =>
-            `${tool.key} ${tool.name ?? ""}`.toLowerCase().includes(search),
-        )
-    }, [tools, search])
+    const matching = useMemo(
+        () => (search ? tools.filter((tool) => toolMatchesSearch(tool, search)) : tools),
+        [tools, search],
+    )
     if (tools.length === 0) return null
     const visible = matching.slice(0, shown)
     const remaining = matching.length - visible.length
@@ -234,11 +417,15 @@ function ToolGroup({
                         className="shrink-0 text-[var(--ag-colorTextSecondary)]"
                     />
                 )}
-                <span className="flex-1 text-[12px] font-medium uppercase tracking-wide text-[var(--ag-colorTextSecondary)]">
+                {/* Sentence case, not the board's uppercase: the house style wins over the spec's
+                    typography, and "Read-only · 22" is how every other count reads in the app. */}
+                <span className="flex-1 text-[12px] font-medium tracking-wide text-[var(--ag-colorTextSecondary)]">
                     {label} · {tools.length}
                 </span>
                 <span className="flex shrink-0 items-center gap-1.5 text-xs text-[var(--ag-colorTextTertiary)]">
-                    {rollup.kind === "shared" ? (
+                    {/* Only "runs automatically" carries a glyph, as the board draws it. The other
+                        four rollups are plain text. */}
+                    {rollup.kind === "shared" && rollup.permission === "allow" ? (
                         <PolicyGlyph value={rollup.permission} size={12} />
                     ) : null}
                     {rollupLabel(rollup)}
@@ -251,20 +438,30 @@ function ToolGroup({
                             No matches in this group.
                         </span>
                     ) : null}
-                    {visible.map((tool) => (
-                        <ToolRow
-                            key={tool.key}
-                            tool={tool}
-                            permission={savedToolPermission(permissions, tool.key)}
-                            onChange={onChangeToolPermission}
-                            disabled={disabled}
-                        />
-                    ))}
+                    {visible.map((tool) => {
+                        const shownValue = rowValue?.(tool.key)
+                        return (
+                            <ToolRow
+                                key={tool.key}
+                                tool={tool}
+                                permission={
+                                    shownValue?.value ?? savedToolPermission(permissions, tool.key)
+                                }
+                                onChange={onChangeToolPermission}
+                                disabled={disabled}
+                                options={options}
+                                lockedReason={lockedTool?.(tool.key)}
+                                triggerTitle={shownValue?.triggerTitle}
+                                readOnly={readOnly}
+                                staleLabel={staleLabel}
+                            />
+                        )
+                    })}
                     {remaining > 0 ? (
                         <button
                             type="button"
                             onClick={() => setShown((value) => value + GROUP_PAGE_SIZE)}
-                            className="cursor-pointer border-0 border-t border-solid border-[var(--ag-colorBorderSecondary)] bg-transparent px-3 py-2 text-left text-xs text-[var(--ag-colorLink)]"
+                            className="cursor-pointer border-0 border-t border-solid border-[var(--ag-colorBorderSecondary)] bg-transparent px-3 py-2 text-left text-xs text-colorInfo"
                         >
                             Show {remaining} more
                         </button>
@@ -275,25 +472,254 @@ function ToolGroup({
     )
 }
 
-function DrawerBody({
-    target,
+/**
+ * The body, once somebody has produced a catalog. Pure in the catalog: it fetches nothing, so the
+ * Composio hook and an MCP tool-list request never both fire for one open drawer.
+ */
+function PermissionDrawerBody({
+    catalog,
+    catalogKey,
+    emptyLabel,
+    searchCount,
     permissions,
     onChangePermissions,
     onChangeToolPermission,
     agentPolicy,
     disabled,
-}: Omit<IntegrationPermissionDrawerProps, "open" | "onClose"> & {
+    readOnlyLabel = "Read-only",
+    writeLabel = "Write and delete",
+    staleLabel = DEFAULT_STALE_LABEL,
+    toolOptions = defaultToolOptions,
+    presets,
+    lockedTool,
+    rowValue,
+    banner,
+    controlsDisabled,
+    footNote,
+    readOnly,
+}: {
+    catalog: PermissionDrawerCatalog
+    catalogKey: string
+    emptyLabel: string
+    permissions: GatewayConnectionPermissions
+    onChangePermissions: (next: GatewayConnectionPermissions) => void
+    onChangeToolPermission: (toolKey: string, permission: GatewayPermission) => void
+    agentPolicy?: PermissionPolicy | null
+    disabled?: boolean
+} & Omit<
+    PermissionDrawerSource,
+    "catalog" | "catalogKey" | "emptyLabel" | "title" | "footerStart"
+>) {
+    const [query, setQuery] = useState("")
+
+    // A saved key is only stale once the whole catalog has been read. Against a half-loaded one
+    // every key not yet fetched would look stale.
+    const catalogTools = useMemo(
+        () => (catalog.complete ? withStaleTools(catalog.tools, permissions) : catalog.tools),
+        [catalog.tools, catalog.complete, permissions],
+    )
+
+    const {readOnly: readOnlyTools, write} = useMemo(
+        () => partitionToolsByAccess(catalogTools),
+        [catalogTools],
+    )
+    const search = query.trim().toLowerCase()
+    const saved = readIntegrationPreset(permissions)
+    // A source with its own presets reads and writes them itself: both need the server's tool
+    // annotations, which this drawer lists but does not interpret.
+    const preset = presets?.value ?? saved.preset
+    const overrideCount = presets?.overrideCount ?? saved.overrideCount
+    const presetList = presets?.options ?? defaultPresetOptions
+
+    // The count belongs on the selected option, so an author sees how many tools carry their own
+    // rule without opening the menu.
+    const presetOptions = useMemo(
+        () =>
+            presetList.map((def) => ({
+                value: def.value,
+                // Custom's help line is the table's, like every other preset's: the table already
+                // carries the spec's own sentence for it, and a second one written here said the
+                // same thing in different words.
+                title:
+                    def.value === "custom" && overrideCount > 0
+                        ? `${def.label} · ${overrideCount} ${
+                              overrideCount === 1 ? "override" : "overrides"
+                          }`
+                        : def.label,
+                help: def.help,
+                icon: <PolicyGlyph value={def.value} size={14} />,
+                separatorBefore: def.separatorBefore,
+                disabled: def.disabled,
+            })),
+        [presetList, overrideCount],
+    )
+
+    // The Composio preset saves `inherit`, which means "reads run, writes ask" only while the
+    // agent-wide mode is its default, so the note names that mode when it is not. A source with
+    // its own presets points the same sentence at a different one: MCP's "Ask for write and
+    // delete" writes what it says and needs no qualifying (decision 45), while its "Follow agent
+    // policy" leans on the ladder entirely and is the preset whose whole meaning IS the policy
+    // this sentence names.
+    const notePreset = presets ? presets.agentPolicyPreset : "ask_writes"
+    const agentPolicyNote =
+        notePreset &&
+        preset === notePreset &&
+        agentPolicy &&
+        agentPolicy !== DEFAULT_PERMISSION_POLICY
+            ? `This agent's permission policy is set to ${
+                  permissionPolicyLabel(agentPolicy)?.toLowerCase() ?? agentPolicy
+              }, so these tools follow it.`
+            : null
+
+    const inert = disabled || controlsDisabled
+    // The server has tools; this query names none of them.
+    const noMatches =
+        search.length > 0 && !catalogTools.some((tool) => toolMatchesSearch(tool, search))
+
+    return (
+        // Stable gutter: expanding a row must not summon a scrollbar that shifts every control left.
+        <div className="flex min-h-0 flex-1 flex-col gap-3.5 overflow-y-auto p-4 [scrollbar-gutter:stable]">
+            {banner}
+
+            {/* One wrapper, so "everything under the banner is inert" reads as one block rather
+                than as a dozen separately greyed controls. */}
+            <div
+                className={`flex min-h-0 flex-1 flex-col gap-3.5 ${
+                    controlsDisabled ? "opacity-45" : ""
+                }`}
+            >
+                {readOnly ? null : (
+                    <div className="flex flex-col gap-1.5">
+                        <span className="text-xs text-[var(--ag-colorTextSecondary)]">
+                            Default permission
+                        </span>
+                        {presets?.pending ? (
+                            // One bar at the select's own height, so the row keeps its shape while
+                            // the answer is on the way. Decorative, like the list's rows.
+                            <SkeletonRows count={1} rowClassName="h-9" />
+                        ) : (
+                            <PermissionPolicySelect
+                                value={preset}
+                                onChange={(value) =>
+                                    presets
+                                        ? presets.onPick(value as PermissionPresetValue)
+                                        : onChangePermissions(
+                                              presetPermissions(
+                                                  value as IntegrationPreset,
+                                                  permissions,
+                                              ),
+                                          )
+                                }
+                                options={presetOptions}
+                                disabled={inert}
+                                aria-label="Default permission"
+                            />
+                        )}
+                        {agentPolicyNote ? (
+                            <span className="text-xs text-[var(--ag-colorTextTertiary)]">
+                                {agentPolicyNote}
+                            </span>
+                        ) : null}
+                    </div>
+                )}
+
+                <SearchInput
+                    // formatCount, because a one-tool server read "Search 1 tools".
+                    placeholder={`Search ${formatCount(searchCount ?? catalogTools.length, "tool")}`}
+                    aria-label="Search tools"
+                    value={query}
+                    onValueChange={setQuery}
+                    disabled={inert}
+                />
+
+                {catalog.status === "loading" ? (
+                    // Three rows at a tool row's own height, so the list area keeps its shape
+                    // while the answer is on the way (decision 25).
+                    <SkeletonRows
+                        className="rounded border border-solid border-colorBorderSecondary p-3"
+                        rowClassName="h-9"
+                    />
+                ) : catalog.status === "error" ? (
+                    // The saved policy is still editable through the preset above; only the
+                    // per-tool list needs the catalog, so say what is missing rather than showing
+                    // an empty one.
+                    catalog.errorNode
+                ) : catalogTools.length === 0 ? (
+                    <div className="px-1 py-4 text-xs text-[var(--ag-colorTextTertiary)]">
+                        {emptyLabel}
+                    </div>
+                ) : noMatches ? (
+                    // Said in place of the groups, headers and all: two empty groups under their
+                    // own counts read as a server that stopped advertising its tools, which is a
+                    // different answer from "this query does not name any of them". Same sentence
+                    // the connection detail drawer's tool filter uses.
+                    <div className="px-1 py-4 text-xs text-[var(--ag-colorTextTertiary)]">
+                        No tool here matches that.
+                    </div>
+                ) : (
+                    <div className="flex flex-col gap-2">
+                        <ToolGroup
+                            label={readOnlyLabel}
+                            groupKey="read_only"
+                            catalogKey={catalogKey}
+                            tools={readOnlyTools}
+                            search={search}
+                            permissions={permissions}
+                            onChangeToolPermission={onChangeToolPermission}
+                            disabled={inert}
+                            options={toolOptions}
+                            lockedTool={lockedTool}
+                            rowValue={rowValue}
+                            readOnly={readOnly}
+                            staleLabel={staleLabel}
+                        />
+                        <ToolGroup
+                            label={writeLabel}
+                            groupKey="write"
+                            catalogKey={catalogKey}
+                            tools={write}
+                            search={search}
+                            permissions={permissions}
+                            onChangeToolPermission={onChangeToolPermission}
+                            disabled={inert}
+                            options={toolOptions}
+                            lockedTool={lockedTool}
+                            rowValue={rowValue}
+                            readOnly={readOnly}
+                            staleLabel={staleLabel}
+                        />
+                    </div>
+                )}
+
+                {footNote}
+
+                {readOnly ? null : (
+                    <span className="text-xs text-[var(--ag-colorTextTertiary)]">
+                        Setting a tool&apos;s permission switches the default to Custom.
+                        {preset === "custom" ? " Picking a preset resets them." : ""}
+                    </span>
+                )}
+            </div>
+        </div>
+    )
+}
+
+/** The Composio body: reads the catalog hook, then renders the shared body. */
+function IntegrationDrawerBody({
+    target,
+    permissions,
+    ...rest
+}: Omit<IntegrationPermissionDrawerProps, "open" | "onClose" | "source"> & {
     permissions: GatewayConnectionPermissions
 }) {
-    const [query, setQuery] = useState("")
     // The COMPLETE catalog, as one settled query rather than the paginated browse query: the
     // counts, the read-only partition, and the stale-key list all describe the whole integration,
     // and a partial list misreports every one of them. Search filters client-side for the same
     // reason, and this query carries no shared search atom to fight over.
     const {actions, complete, isLoading, error} = useToolIntegrationCatalog(target.integration)
 
-    // Kept separate from the stale-key pass below: this one walks the whole catalog, and it must
-    // not rerun each time a per-tool click gives `permissions` a new identity.
+    // Kept separate from the stale-key pass in the body: this one walks the whole catalog, and it
+    // must not rerun each time a per-tool click gives `permissions` a new identity.
     const fetchedTools = useMemo<CatalogToolInfo[]>(() => {
         const seen = new Set<string>()
         const tools: CatalogToolInfo[] = []
@@ -310,125 +736,29 @@ function DrawerBody({
         return tools
     }, [actions])
 
-    // A saved key is only stale once the whole catalog has been read. Against a half-loaded one
-    // every key not yet fetched would look stale.
-    const catalogTools = useMemo(
-        () => (complete ? withStaleTools(fetchedTools, permissions) : fetchedTools),
-        [fetchedTools, permissions, complete],
-    )
-
-    const {readOnly, write} = useMemo(() => partitionToolsByAccess(catalogTools), [catalogTools])
-    const search = query.trim().toLowerCase()
-    const {preset, overrideCount} = readIntegrationPreset(permissions)
-
-    // The count belongs on the selected option, so an author sees how many tools carry their own
-    // rule without opening the menu.
-    const presetOptions = useMemo(
-        () =>
-            INTEGRATION_PRESETS.map((def) => {
-                // Custom is what a non-empty per-tool map READS BACK as, never something to pick:
-                // contracts section 10 gives it no default of its own to write.
-                const isCustom = def.value === "custom"
-                return {
-                    value: def.value,
-                    title:
-                        isCustom && overrideCount > 0
-                            ? `${def.label} · ${overrideCount} overrides`
-                            : def.label,
-                    help: isCustom ? "Set below, per tool" : def.help,
-                    icon: <PolicyGlyph value={def.value} size={14} />,
-                    separatorBefore: isCustom,
-                    disabled: isCustom,
-                }
-            }),
-        [overrideCount],
-    )
-
-    // Open question 1: the preset saves `inherit`, which means "reads run, writes ask" only while
-    // the agent-wide mode is its default. Say so rather than letting the words quietly change.
-    const agentPolicyNote =
-        preset === "ask_writes" && agentPolicy && agentPolicy !== DEFAULT_PERMISSION_POLICY
-            ? `This agent's permission policy is set to ${
-                  permissionPolicyLabel(agentPolicy)?.toLowerCase() ?? agentPolicy
-              }, so these tools follow it.`
-            : null
-
-    return (
-        // Stable gutter: expanding a row must not summon a scrollbar that shifts every control left.
-        <div className="flex min-h-0 flex-1 flex-col gap-3.5 overflow-y-auto p-4 [scrollbar-gutter:stable]">
-            <div className="flex flex-col gap-1.5">
-                <span className="text-xs text-[var(--ag-colorTextSecondary)]">
-                    Default permission
-                </span>
-                <PermissionPolicySelect
-                    value={preset}
-                    onChange={(value) =>
-                        onChangePermissions(
-                            presetPermissions(value as IntegrationPreset, permissions),
-                        )
-                    }
-                    options={presetOptions}
-                    disabled={disabled}
-                    aria-label="Default permission"
-                />
-                {agentPolicyNote ? (
-                    <span className="text-xs text-[var(--ag-colorTextTertiary)]">
-                        {agentPolicyNote}
-                    </span>
-                ) : null}
-            </div>
-
-            <SearchInput
-                placeholder={`Search ${catalogTools.length} tools`}
-                value={query}
-                onValueChange={setQuery}
-            />
-
-            {isLoading ? (
-                <div className="flex justify-center py-8">
-                    <Spinner size="small" />
-                </div>
-            ) : error ? (
-                // The saved policy is still editable through the preset above; only the per-tool
-                // list needs the catalog, so say what is missing rather than showing an empty one.
+    const catalog = useMemo<PermissionDrawerCatalog>(
+        () => ({
+            status: isLoading ? "loading" : error ? "error" : "ready",
+            tools: fetchedTools,
+            complete,
+            errorNode: (
                 <div className="px-1 py-4 text-xs text-[var(--ag-colorTextTertiary)]">
                     Couldn&apos;t load {target.integration}&apos;s tools, so per-tool permissions
                     aren&apos;t listed. The default permission above still applies.
                 </div>
-            ) : catalogTools.length === 0 ? (
-                <div className="px-1 py-4 text-xs text-[var(--ag-colorTextTertiary)]">
-                    No tools listed for {target.integration}.
-                </div>
-            ) : (
-                <div className="flex flex-col gap-2">
-                    <ToolGroup
-                        label="Read-only"
-                        groupKey="read_only"
-                        integrationKey={target.integration}
-                        tools={readOnly}
-                        search={search}
-                        permissions={permissions}
-                        onChangeToolPermission={onChangeToolPermission}
-                        disabled={disabled}
-                    />
-                    <ToolGroup
-                        label="Write and delete"
-                        groupKey="write"
-                        integrationKey={target.integration}
-                        tools={write}
-                        search={search}
-                        permissions={permissions}
-                        onChangeToolPermission={onChangeToolPermission}
-                        disabled={disabled}
-                    />
-                </div>
-            )}
+            ),
+        }),
+        [complete, error, fetchedTools, isLoading, target.integration],
+    )
 
-            <span className="text-xs text-[var(--ag-colorTextTertiary)]">
-                Setting a tool&apos;s permission switches the default to Custom.
-                {preset === "custom" ? " Picking a preset resets them." : ""}
-            </span>
-        </div>
+    return (
+        <PermissionDrawerBody
+            {...rest}
+            catalog={catalog}
+            catalogKey={target.integration}
+            emptyLabel={`No tools listed for ${target.integration}.`}
+            permissions={permissions}
+        />
     )
 }
 
@@ -506,32 +836,68 @@ function DrawerTitle({
 export function IntegrationPermissionDrawer({
     open,
     onClose,
+    source,
     ...body
 }: IntegrationPermissionDrawerProps) {
+    const readOnly = source?.readOnly ?? false
+
     return (
         <EnhancedDrawer
             rootClassName="ag-drawer-elevated"
             open={open}
             onClose={onClose}
-            placement="right"
+            // A bottom sheet below lg and the app's right-edge drawer above it, which is what makes
+            // one component correct in both apps rather than a desktop panel squeezed onto a phone.
+            placement="responsive"
             width={INTEGRATION_DRAWER_WIDTH}
             destroyOnClose
-            title={<DrawerTitle target={body.target} connectionSlug={body.connectionSlug} />}
+            title={
+                source?.title ?? (
+                    <DrawerTitle target={body.target} connectionSlug={body.connectionSlug} />
+                )
+            }
             styles={{
                 body: {padding: 0, display: "flex", flexDirection: "column", overflow: "hidden"},
             }}
             footer={
-                <div className="flex items-center justify-end">
-                    <Button variant="default" onClick={onClose}>
-                        Done
-                    </Button>
-                </div>
+                readOnly ? undefined : (
+                    // items-end, not items-center: the left column grows downward when an inline
+                    // confirm opens under its link, and Done stays on the bottom line with it.
+                    <div className="flex items-end justify-between gap-2">
+                        <div className="flex min-w-0 flex-col items-start gap-2">
+                            {source?.footerStart}
+                        </div>
+                        <Button variant="default" onClick={onClose}>
+                            Done
+                        </Button>
+                    </div>
+                )
             }
         >
-            {body.permissions ? (
-                <DrawerBody {...body} permissions={body.permissions} />
-            ) : (
+            {!body.permissions ? (
                 <UnmigratedNotice target={body.target} />
+            ) : source ? (
+                <PermissionDrawerBody
+                    {...body}
+                    permissions={body.permissions}
+                    catalog={source.catalog}
+                    catalogKey={source.catalogKey}
+                    emptyLabel={source.emptyLabel}
+                    searchCount={source.searchCount}
+                    readOnlyLabel={source.readOnlyLabel}
+                    writeLabel={source.writeLabel}
+                    staleLabel={source.staleLabel}
+                    toolOptions={source.toolOptions}
+                    presets={source.presets}
+                    lockedTool={source.lockedTool}
+                    rowValue={source.rowValue}
+                    banner={source.banner}
+                    controlsDisabled={source.controlsDisabled}
+                    footNote={source.footNote}
+                    readOnly={source.readOnly}
+                />
+            ) : (
+                <IntegrationDrawerBody {...body} permissions={body.permissions} />
             )}
         </EnhancedDrawer>
     )

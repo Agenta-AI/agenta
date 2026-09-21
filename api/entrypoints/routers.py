@@ -1,6 +1,7 @@
 from contextlib import asynccontextmanager
 import asyncio
 import time
+from pathlib import Path
 from uuid import UUID
 
 import agenta as ag
@@ -129,6 +130,7 @@ from oss.src.apis.fastapi.applications.router import ApplicationsRouter
 from oss.src.apis.fastapi.applications.router import SimpleApplicationsRouter
 from oss.src.apis.fastapi.folders.router import FoldersRouter
 from oss.src.apis.fastapi.workflows.router import WorkflowsRouter
+from oss.src.apis.fastapi.agent_templates.router import AgentTemplatesRouter
 from oss.src.apis.fastapi.skills.router import SkillsRouter
 from oss.src.core.skills.service import SkillsService
 from oss.src.core.skills.import_service import SkillImportService
@@ -174,6 +176,41 @@ from oss.src.apis.fastapi.triggers.router import TriggersRouter
 from oss.src.tasks.asyncio.triggers.dispatcher import TriggersDispatcher
 from oss.src.tasks.taskiq.triggers.worker import TriggersWorker
 from oss.src.tasks.taskiq.shared.broker import ProducerOnlyRedisStreamBroker
+
+# Gateway storage, services, management routers, and data-plane proxies.
+from oss.src.dbs.postgres.gateways.llms.dao import LLMEndpointsDAO
+from oss.src.dbs.postgres.gateways.mcps.dao import MCPEndpointsDAO
+from oss.src.dbs.postgres.gateways.mcps.oauth_dao import MCPOAuthAttemptsDAO
+from oss.src.core.gateways.policy.resolution import SecretsResolver
+from oss.src.core.gateways.policy.service import GatewayPolicyService
+from oss.src.core.gateways.llms.registrar import LLMEndpointRegistrar
+from oss.src.core.gateways.llms.registry import LLMUpstreamRegistry
+from oss.src.core.gateways.llms.service import LLMGatewayService
+from oss.src.core.gateways.llms.providers.mock.adapter import MockLLMAdapter
+from oss.src.core.gateways.llms.providers.passthrough.adapter import (
+    RelayLLMAdapter,
+)
+from oss.src.core.gateways.mcps.registry import MCPUpstreamRegistry
+from oss.src.core.gateways.mcps.service import MCPGatewayService
+from oss.src.core.gateways.mcps.providers.mock.adapter import (
+    DeployableMockMCPAdapter,
+    MockMCPAdapter,
+)
+from oss.src.core.gateways.mcps.providers.composio import ComposioMCPAdapter
+from oss.src.core.gateways.mcps.providers.composio.standard import (
+    StandardComposioMCPAdapter,
+)
+from oss.src.core.gateways.mcps.providers.http.adapter import HttpMCPAdapter
+from oss.src.core.gateways.mcps.oauth.client import MCPOAuthClient
+from oss.src.core.gateways.mcps.probe import MCPServerProbe
+from oss.src.core.gateways.mcps.oauth.service import MCPOAuthConnectService
+from oss.src.apis.fastapi.gateways.credentials_router import GatewayCredentialsRouter
+from oss.src.apis.fastapi.gateways.llms.router import LLMGatewayRouter
+from oss.src.apis.fastapi.gateways.llms.proxy import LLMGatewayProxy
+from oss.src.apis.fastapi.gateways.mcps.router import MCPGatewayRouter
+from oss.src.apis.fastapi.gateways.mcps.proxy import MCPGatewayProxy
+from oss.src.apis.fastapi.gateways.mcps.oauth_router import MCPOAuthClientMetadataRouter
+
 from oss.src.apis.fastapi.shared.utils import SupportHeadersMiddleware
 
 from oss.src.dbs.postgres.channels.dao import ChannelsDAO
@@ -211,6 +248,12 @@ from oss.src.dbs.postgres.sessions.executions.dao import SessionExecutionsDAO
 from oss.src.dbs.postgres.sessions.inputs.dbes import SessionInputDBE  # noqa: F401
 from oss.src.dbs.postgres.sessions.inputs.dao import SessionInputsDAO
 from oss.src.core.sessions.inputs.service import SessionInputsService
+from oss.src.core.sessions.starts.service import SessionStartsService
+from oss.src.core.agent_templates.bindings import TemplateBindingResolver
+from oss.src.core.agent_templates.compiler import TemplateCompiler
+from oss.src.core.agent_templates.loader import AgentTemplateLoader
+from oss.src.core.agent_templates.parser import TemplatePackageParser
+from oss.src.core.agent_templates.sources import InternalTemplateSourceResolver
 from oss.src.core.sessions.commands.service import SessionCommandsService
 from oss.src.dbs.http.sessions.control_delivery_direct import DirectControlDelivery
 from oss.src.tasks.asyncio.sessions.orphan_sweep import orphan_sweep_loop
@@ -311,6 +354,21 @@ async def lifespan(*args, **kwargs):
             await store.ensure_bucket(bucket=env.store.bucket)
         except Exception as e:  # noqa: BLE001
             log.warning("Store bucket ensure failed at startup: %s", e)
+
+        # Separate from the bucket ensure above: a store that cannot do versioning must
+        # still serve mounts, so a failure here degrades recoverability, nothing else.
+        try:
+            applied = await store.ensure_version_retention(
+                bucket=env.store.bucket,
+                retention_days=env.store.version_retention_days,
+            )
+            if applied:
+                log.info(
+                    "Store bucket versioning on; noncurrent versions kept %s days.",
+                    env.store.version_retention_days,
+                )
+        except Exception as e:  # noqa: BLE001
+            log.warning("Store bucket version retention ensure failed: %s", e)
 
     # The execution watchdog. It needs the records plane to write the terminal outcome a
     # dead runner owed, and the watch publisher so an open browser sees the turn close.
@@ -564,7 +622,10 @@ app.add_middleware(
     allow_origin_regex=r"https://.*\.vercel\.app",
     allow_credentials=True,
     allow_methods=["*"],
-    allow_headers=["Content-Type"] + get_all_supertokens_cors_headers(),
+    # `Idempotency-Key` rides on durable session writes (interaction answers, queued inputs);
+    # without it every cross-origin client fails the preflight for those routes.
+    allow_headers=["Content-Type", "Idempotency-Key"]
+    + get_all_supertokens_cors_headers(),
 )
 
 
@@ -642,6 +703,11 @@ connections_dao = ConnectionsDAO(engine=_transactions_engine)
 mounts_dao = MountsDAO(engine=_transactions_engine)
 session_attachments_dao = SessionAttachmentsDAO(engine=_transactions_engine)
 
+# Built here rather than beside the other gateway wiring below: the vault holds the
+# endpoint registrar, and the gateway service holds a resolver built over the vault, so the
+# DAO has to exist before VaultService does.
+llm_endpoints_dao = LLMEndpointsDAO(engine=_transactions_engine)
+
 # SERVICES ---------------------------------------------------------------------
 
 _t_daos_done = time.perf_counter() - _t_daos
@@ -650,6 +716,9 @@ _t_services = time.perf_counter()
 
 vault_service = VaultService(
     secrets_dao=secrets_dao,
+    llm_endpoint_registrar=LLMEndpointRegistrar(
+        llm_endpoints_dao=llm_endpoints_dao,
+    ),
 )
 
 subscription_login_service = SubscriptionLoginService(
@@ -770,6 +839,7 @@ simple_traces_service = SimpleTracesService(
 
 simple_workflows_service = SimpleWorkflowsService(
     workflows_service=workflows_service,
+    lock_engine=_lock_engine,
 )
 
 simple_environments_service = SimpleEnvironmentsService(
@@ -984,6 +1054,7 @@ mounts_service = MountsService(
     bucket=env.store.bucket,
     namespace=env.store.namespace,
     workflows_service=workflows_service,
+    lock_engine=_lock_engine,
 )
 
 session_mounts_service = SessionMountsService(
@@ -1221,6 +1292,96 @@ channels = ChannelsRouter(
     telegram_binding_service=_telegram_binding_service,
 )
 
+# Gateway storage and policy services. `llm_endpoints_dao` is built earlier, beside the
+# other DAOs, because the vault's endpoint registrar takes it.
+mcp_endpoints_dao = MCPEndpointsDAO(engine=_transactions_engine)
+
+secrets_resolver = SecretsResolver(
+    vault_service=vault_service,
+)
+
+gateway_policy_service = GatewayPolicyService(resolver=secrets_resolver)
+
+llm_gateway_service = LLMGatewayService(
+    llm_endpoints_dao=llm_endpoints_dao,
+    policy=gateway_policy_service,
+    resolver=secrets_resolver,
+    upstream_registry=LLMUpstreamRegistry(
+        adapters={
+            "relay": RelayLLMAdapter(),
+            # Registered only under the development switch. Dispatch picks this adapter
+            # from an endpoint's stored deployment kind and never consults the flag, so a
+            # row persisted as `mock` would otherwise serve traffic on a process where
+            # mocks are off. With it absent, that row raises `LLMAdapterNotFoundError`.
+            **({"mock": MockLLMAdapter()} if env.mock_gateways.enabled else {}),
+        }
+    ),
+)
+
+mcp_oauth_attempts_dao = MCPOAuthAttemptsDAO(engine=_transactions_engine)
+
+mcp_oauth_connect_service = MCPOAuthConnectService(
+    vault_service=vault_service,
+    client=MCPOAuthClient(),
+    api_url=env.agenta.api_url,
+    attempts_dao=mcp_oauth_attempts_dao,
+)
+
+mcp_gateway_service = MCPGatewayService(
+    mcp_endpoints_dao=mcp_endpoints_dao,
+    policy=gateway_policy_service,
+    resolver=secrets_resolver,
+    connections_service=connections_service,
+    agenta_tools_router=tools,
+    upstream_registry=MCPUpstreamRegistry(
+        adapters={
+            "http": HttpMCPAdapter(),
+            # Same switch as the LLM plane above. The MCP service already refuses to list
+            # or resolve a mock endpoint with the flag off, so this only removes the
+            # registration that would make one dispatchable if any path reached it.
+            **(
+                {
+                    "mock": MockMCPAdapter(),
+                    "mock_http": DeployableMockMCPAdapter(),
+                }
+                if env.mock_gateways.enabled
+                else {}
+            ),
+            "composio_standard": StandardComposioMCPAdapter(
+                api_url=env.composio.api_url,
+            ),
+            **(
+                {
+                    "composio": ComposioMCPAdapter(
+                        api_key=env.composio.api_key,  # type: ignore[arg-type] # .enabled
+                        api_url=env.composio.api_url,
+                    )
+                }
+                if env.composio.enabled
+                else {}
+            ),
+        }
+    ),
+    # The stored grant is renewed on the data-plane path, and the connect service is what
+    # holds the vault and the OAuth client that can spend a refresh token (OR55).
+    oauth_refresher=mcp_oauth_connect_service,
+)
+
+gateway_credentials_router = GatewayCredentialsRouter()
+llm_gateway_router = LLMGatewayRouter(llm_gateway_service=llm_gateway_service)
+llm_gateway_proxy = LLMGatewayProxy(llm_gateway_service=llm_gateway_service)
+mcp_server_probe = MCPServerProbe(
+    oauth_client=MCPOAuthClient(),
+    api_url=env.agenta.api_url,
+)
+mcp_gateway_router = MCPGatewayRouter(
+    mcp_gateway_service=mcp_gateway_service,
+    oauth_connect_service=mcp_oauth_connect_service,
+    server_probe=mcp_server_probe,
+)
+mcp_gateway_proxy = MCPGatewayProxy(mcp_gateway_service=mcp_gateway_service)
+mcp_oauth_client_metadata_router = MCPOAuthClientMetadataRouter()
+
 simple_traces = SimpleTracesRouter(
     simple_traces_service=simple_traces_service,
 )
@@ -1312,6 +1473,37 @@ session_inputs_service = SessionInputsService(
     executions_dao=session_executions_dao,
     continuation_resumer=session_commands_service.resume_recoverable_continuation,
 )
+session_starts_service = SessionStartsService(
+    inputs_service=session_inputs_service,
+    executions_dao=session_executions_dao,
+    streams_dao=session_streams_dao,
+    workflows_service=workflows_service,
+    lock_engine=_lock_engine,
+)
+agent_template_loader = AgentTemplateLoader(
+    source_resolver=InternalTemplateSourceResolver(
+        catalog_path=(
+            Path(__file__).resolve().parents[1]
+            / "oss"
+            / "src"
+            / "resources"
+            / "agent_templates"
+            / "catalog.json"
+        )
+    ),
+    package_parser=TemplatePackageParser(),
+    binding_resolver=TemplateBindingResolver(
+        connections_service=connections_service,
+        mcp_service=mcp_gateway_service,
+    ),
+    compiler=TemplateCompiler(),
+    skills_service=skills_service,
+    simple_workflows_service=simple_workflows_service,
+    mounts_service=mounts_service,
+    session_starts_service=session_starts_service,
+    attachments_service=session_attachments_service,
+)
+agent_templates = AgentTemplatesRouter(loader=agent_template_loader)
 workflows_service.set_session_continuation_resumer(
     session_commands_service.resume_recoverable_continuation
 )
@@ -1598,6 +1790,12 @@ app.include_router(
 )
 
 app.include_router(
+    router=agent_templates.router,
+    prefix="/agent-templates",
+    tags=["Workflows"],
+)
+
+app.include_router(
     router=workflows.router,
     prefix="/preview/workflows",
     tags=["Workflows"],
@@ -1754,6 +1952,43 @@ app.include_router(
     router=triggers.admin_router,
     prefix="/admin/triggers",
     tags=["Triggers", "Admin"],
+    include_in_schema=False,
+)
+
+app.include_router(
+    router=gateway_credentials_router.router,
+    prefix="/gateways",
+    tags=["Gateway"],
+)
+app.include_router(
+    router=llm_gateway_router.router,
+    prefix="/gateways/llms",
+    tags=["Gateway: LLM"],
+)
+app.include_router(
+    router=llm_gateway_proxy.router,
+    prefix="/gateways/llms",
+    include_in_schema=False,
+)
+app.include_router(
+    router=mcp_gateway_router.router,
+    prefix="/gateways/mcps",
+    tags=["Gateway: MCP"],
+)
+app.include_router(
+    router=mcp_gateway_proxy.router,
+    prefix="/gateways/mcps",
+    include_in_schema=False,
+)
+app.include_router(
+    router=mcp_oauth_client_metadata_router.router,
+    prefix="/gateways/mcps",
+    include_in_schema=False,
+)
+app.include_router(
+    router=mcp_gateway_router.admin_router,
+    prefix="/admin/gateways",
+    tags=["Gateway: MCP", "Admin"],
     include_in_schema=False,
 )
 

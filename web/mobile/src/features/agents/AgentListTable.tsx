@@ -2,8 +2,9 @@ import {useCallback, useState} from "react"
 import type {ReactNode} from "react"
 
 import {useMediaQuery} from "@agenta/ui/hooks"
-import {ListTable, type ListTableColumn} from "@agenta/ui/list-table"
+import {ListTable, type ListTableColumn, type ListTableView} from "@agenta/ui/list-table"
 
+import {AgentCardBody} from "./AgentCardBody"
 import type {AgentListGroup, AgentListRow} from "./agentListView"
 import {AgentRowCells} from "./AgentRowCells"
 
@@ -57,8 +58,8 @@ const WIDE_MIN_WIDTH = 400
 const NARROW_MIN_WIDTH = 300
 
 /**
- * The agents roster as a table — the list half of the two views, in the same frame the sessions
- * and automations lists use.
+ * The agents roster in the shared frame — rows or cards over the same groups, in the same frame
+ * the sessions and automations lists use.
  *
  * Every row answers what it is, who made it and when it last changed, and the whole row opens the
  * overview because there is nothing else on a row to click. The kebab is the SHARED agent menu,
@@ -66,11 +67,13 @@ const NARROW_MIN_WIDTH = 300
  */
 export const AgentListTable = ({
     groups,
+    view,
     isLoading,
     onOpen,
     empty,
 }: {
     groups: AgentListGroup[]
+    view: ListTableView
     isLoading: boolean
     onOpen: (row: AgentListRow) => void
     empty: ReactNode
@@ -95,6 +98,10 @@ export const AgentListTable = ({
         <ListTable
             columns={narrow ? NARROW_COLUMNS : WIDE_COLUMNS}
             minWidth={narrow ? NARROW_MIN_WIDTH : WIDE_MIN_WIDTH}
+            view={view}
+            // A card holds three lines of description; narrower than this they wrap to four
+            // and the grid reads as a wall of text.
+            cardMinWidth={300}
             // The column names stay put while the roster scrolls, as they do on sessions.
             // Affordable for the same reason: the minima fit every width this page is read at,
             // so the frame's own horizontal scroller was never doing anything.
@@ -107,6 +114,7 @@ export const AgentListTable = ({
             onToggleGroup={toggleGroup}
             empty={empty}
             renderRow={(row) => <AgentRowCells row={row} narrow={narrow} onOpen={onOpen} />}
+            renderCard={(row) => <AgentCardBody row={row} onOpen={onOpen} />}
         />
     )
 }

@@ -558,7 +558,8 @@ function upstreamAuthority(value: string): string | null {
  * active tunnels. Returns null when no tunnel forwards to the store. The remote mount is then
  * skipped rather than failing the run, but the skip is NOT silent: the caller warns the operator
  * with the cause named, and tells the model the durable folder is unreachable this turn, because
- * a model whose history shows the folder working will otherwise report the user's work as lost.
+ * a model whose history shows the folder working will otherwise report the user's saved work as
+ * lost.
  *
  * The agent may be tunnelling something else entirely — the development compose files point it
  * at the platform's own ingress so providers can reach webhooks — so a tunnel is matched on the

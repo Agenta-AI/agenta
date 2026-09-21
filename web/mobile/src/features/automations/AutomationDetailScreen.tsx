@@ -1,7 +1,6 @@
 import {useCallback, useEffect, useRef, useState} from "react"
 
 import {
-    AutomationBackLink,
     AutomationDetailBody,
     AutomationDetailSkeleton,
     AutomationRunHistoryView,
@@ -15,11 +14,11 @@ import {ScreenScaffold} from "@/components/ScreenScaffold"
 
 import {useBindProjectContext} from "../context/useBindProjectContext"
 import {AppShell} from "../nav/AppShell"
-import {NavDrawer} from "../nav/NavDrawer"
 import {useConfirmModal} from "../settings/useConfirmModal"
 
 import {AutomationActionsMenu} from "./AutomationActionsMenu"
 import {AutomationRunConversation} from "./AutomationRunConversation"
+import {AutomationScreenHeader} from "./AutomationScreenHeader"
 import {AutomationTestRunButton} from "./AutomationTestRunButton"
 import {useUnsavedGuard} from "./useUnsavedGuard"
 
@@ -114,12 +113,12 @@ export const AutomationDetailScreen = ({
                         // The runs view carries its own back link, inside the column it centres,
                         // so the arrow lands on the same grid as "Run history" at either width.
                         showRuns ? null : (
-                            <div className="mx-auto w-full max-w-[760px] shrink-0 px-8 pb-3.5 pt-[30px]">
-                                <div className="flex min-w-0 items-center gap-2">
-                                    <NavDrawer workspaceId={workspaceId} projectId={projectId} />
-                                    <AutomationBackLink href={`${base}/automations`} />
-                                </div>
-                            </div>
+                            <AutomationScreenHeader
+                                workspaceId={workspaceId}
+                                projectId={projectId}
+                                title={automation?.name || "Automation"}
+                                backHref={`${base}/automations`}
+                            />
                         )
                     }
                 >
@@ -127,18 +126,16 @@ export const AutomationDetailScreen = ({
                         <AutomationRunHistoryView
                             automation={automation}
                             header={
-                                <div className="w-full shrink-0 pb-2 pl-[30px] pr-5 pt-5">
-                                    <div className="flex min-w-0 max-w-[240px] items-center gap-2">
-                                        <NavDrawer
-                                            workspaceId={workspaceId}
-                                            projectId={projectId}
-                                        />
-                                        <AutomationBackLink
-                                            onBack={closeRuns}
-                                            label={automation?.name || "Automation"}
-                                        />
-                                    </div>
-                                </div>
+                                <AutomationScreenHeader
+                                    workspaceId={workspaceId}
+                                    projectId={projectId}
+                                    title={automation?.name || "Automation"}
+                                    onBack={closeRuns}
+                                    backLabel={automation?.name || "Automation"}
+                                    // The view's own 30px grid, so the arrow lines up with
+                                    // "Run history" below it.
+                                    className="w-full shrink-0 pb-2 pl-[30px] pr-5 pt-3 lg:pt-5"
+                                />
                             }
                             renderConversation={renderConversation}
                         />

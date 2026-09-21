@@ -1,15 +1,11 @@
 /**
- * Create-a-skill flow, one drawer with two entry modes (the design's 1b–1e states):
- *
- * - "write" opens the editor shell (SkillFormView) empty.
- * - "upload" opens as a FULL-DRAWER dropzone (1c — nothing is created until you review).
- *   One valid skill morphs the drawer into the editor prefilled (1d, with an
- *   "N files parsed" tag); invalid or multi-skill uploads keep their errors and the
- *   recovery list IN the upload view (1e), never in the editor.
+ * Create-a-skill flow: the editor shell (SkillFormView), empty — or prefilled from an
+ * `upload`, the scan of what the host's file picker returned. A folder holding several skills
+ * becomes a pick list with a batch import instead. Nothing is created until Create / Import.
  *
  * Connected on purpose: create + invalidation live here once; hosts pass `projectId`.
  */
-import {useCallback, useState} from "react"
+import {useCallback, useEffect, useMemo, useState} from "react"
 
 import {
     SkillFormView,
@@ -19,17 +15,19 @@ import {
 import {createSkillWorkflow, skillContentSchema} from "@agenta/skills"
 import {invalidateSkillsListCache} from "@agenta/skills/state"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
-import {Button, Spinner} from "@agenta/ui/ui"
+import {Button, Checkbox, Spinner} from "@agenta/ui/ui"
 import {WarningCircle} from "@phosphor-icons/react"
-
-import {SkillUploadPanel} from "./SkillUploadPanel"
 
 export interface SkillCreateDrawerProps {
     open: boolean
     onClose: () => void
     projectId: string
-    /** "write" opens the editor; "upload" opens the full-drawer dropzone (1c). */
-    mode?: "write" | "upload"
+    /**
+     * A picked upload, still being read. The drawer opens on what it finds: one skill fills
+     * the form; several become a pick list to import together; none leaves the form empty with
+     * the reason in the footer.
+     */
+    upload?: Promise<SkillUploadScan> | null
     /** Fires once per created skill — e.g. to also add it to the agent being edited. */
     onCreated?: (created: {
         slug: string
@@ -37,21 +35,10 @@ export interface SkillCreateDrawerProps {
         name: string
         description?: string
     }) => void
-    /** Editor-stage width; the upload stage stays at `uploadWidth` and the resize animates. */
     width?: number
-    uploadWidth?: number
 }
 
 const EMPTY_SKILL: Record<string, unknown> = {name: "", description: "", body: "", files: []}
-
-/** First zod issue → one human line ("name is required"), not raw zod copy. */
-const firstIssue = (error: {issues: {path: PropertyKey[]; message: string}[]}): string => {
-    const issue = error.issues[0]
-    if (!issue) return "Invalid skill."
-    const path = issue.path.join(".")
-    const message = /Too small.*>=1/.test(issue.message) ? "is required" : issue.message
-    return path ? `${path} ${message}` : message
-}
 
 const toFormValue = (candidate: SkillScanCandidate): Record<string, unknown> => ({
     name: candidate.skill.name ?? "",
@@ -60,83 +47,109 @@ const toFormValue = (candidate: SkillScanCandidate): Record<string, unknown> => 
     files: candidate.skill.files,
 })
 
+/** What an upload of several skills shows in place of the editor: the skills, each ticked. */
+interface UploadPicks {
+    scan: SkillUploadScan
+    selected: Set<string>
+}
+
 export function SkillCreateDrawer({
     open,
     onClose,
     projectId,
-    mode = "write",
+    upload = null,
     onCreated,
     width = 960,
-    uploadWidth = 520,
 }: SkillCreateDrawerProps) {
     const [value, setValue] = useState<Record<string, unknown>>(EMPTY_SKILL)
-    // Upload mode sits in the dropzone stage until a parse succeeds; write mode never does.
-    const [stage, setStage] = useState<"upload" | "editor">(mode === "upload" ? "upload" : "editor")
-    const [parsedCount, setParsedCount] = useState<number | null>(null)
     const [busy, setBusy] = useState(false)
+    const [reading, setReading] = useState(false)
+    // The empty-field chrome waits for a Create press; a blank form is not yet a mistake.
+    const [attempted, setAttempted] = useState(false)
+    const [parsedCount, setParsedCount] = useState<number | null>(null)
+    const [picks, setPicks] = useState<UploadPicks | null>(null)
     const [error, setError] = useState<string | null>(null)
 
-    // Closing only closes: the host may clear its mode state immediately, and any reset
-    // here would restage (and resize) the drawer while its exit animation still shows it.
+    // Closing only closes: a reset here would blank the drawer while its exit animation
+    // still shows it.
     const close = useCallback(() => {
         onClose()
         setBusy(false)
     }, [onClose])
 
-    // All state reset happens on the OPEN transition, when the incoming mode is the real
-    // one — a fresh drawer per entry, and a stable frame throughout the exit animation.
+    // All state reset happens on the OPEN transition — a fresh drawer per entry, and a
+    // stable frame throughout the exit animation.
     const [wasOpen, setWasOpen] = useState(false)
     if (open !== wasOpen) {
         setWasOpen(open)
         if (open) {
             setValue(EMPTY_SKILL)
-            setStage(mode === "upload" ? "upload" : "editor")
             setParsedCount(null)
+            setPicks(null)
+            setAttempted(false)
             setError(null)
+            // A close mid-read skips the read's own reset.
+            setReading(false)
         }
     }
 
-    const handleSingleSkill = useCallback(
-        (candidate: SkillScanCandidate, scan: SkillUploadScan) => {
-            setValue(toFormValue(candidate))
-            setParsedCount(scan.fileCount)
-            setStage("editor")
-        },
-        [],
-    )
+    // The upload is read once per open. A drawer closed mid-read ignores the late answer, and
+    // so does one reopened on a different upload.
+    useEffect(() => {
+        if (!open || !upload) return
+        let live = true
+        setReading(true)
+        upload
+            .then((scan) => {
+                if (!live) return
+                const [first] = scan.candidates
+                if (!first) {
+                    setError("No SKILL.md found in the upload.")
+                    return
+                }
+                setParsedCount(scan.fileCount)
+                if (scan.candidates.length === 1) {
+                    setValue(toFormValue(first))
+                    return
+                }
+                // Everything found starts ticked; unticking is the exception.
+                setPicks({scan, selected: new Set(scan.candidates.map((c) => c.dir))})
+            })
+            .catch(() => {
+                if (live) setError("Couldn't read the upload.")
+            })
+            .finally(() => {
+                if (live) setReading(false)
+            })
+        return () => {
+            live = false
+        }
+    }, [open, upload])
 
+    /** One skill into the registry; the host hears about it. Throws on failure. */
     const createOne = useCallback(
         async (skill: Record<string, unknown>) => {
-            const parsed = skillContentSchema.safeParse(skill)
-            if (!parsed.success) throw new Error(firstIssue(parsed.error))
-            const created = await createSkillWorkflow({projectId, skill: parsed.data})
+            const parsed = skillContentSchema.parse(skill)
+            const created = await createSkillWorkflow({projectId, skill: parsed})
             onCreated?.({
                 slug: created.slug,
                 workflowId: created.workflowId,
-                name: parsed.data.name,
-                description: parsed.data.description,
+                name: parsed.name,
+                description: parsed.description,
             })
         },
         [onCreated, projectId],
     )
 
     const create = useCallback(async () => {
-        const parsed = skillContentSchema.safeParse(value)
-        if (!parsed.success) {
-            setError(firstIssue(parsed.error))
-            return
-        }
+        setAttempted(true)
+        // The fields say what is missing or malformed; the footer keeps to what the server said.
+        if (!skillContentSchema.safeParse(value).success) return
         setBusy(true)
         setError(null)
         try {
-            const created = await createSkillWorkflow({projectId, skill: parsed.data})
+            await createOne(value)
             invalidateSkillsListCache()
-            onCreated?.({
-                slug: created.slug,
-                workflowId: created.workflowId,
-                name: parsed.data.name,
-                description: parsed.data.description,
-            })
             close()
         } catch (err) {
             setError(
@@ -147,31 +160,46 @@ export function SkillCreateDrawer({
         } finally {
             setBusy(false)
         }
-    }, [close, onCreated, projectId, value])
+    }, [close, createOne, value])
 
-    // The recovery list's batch import: each selected candidate becomes its own skill.
-    const importMany = useCallback(
-        async (candidates: SkillScanCandidate[]) => {
-            setError(null)
-            let createdAny = false
-            try {
-                for (const candidate of candidates) {
-                    await createOne(toFormValue(candidate))
-                    createdAny = true
-                }
-                close()
-            } catch (err) {
-                // The panel owns the view; the footer carries the failure line.
-                setError(err instanceof Error && err.message ? err.message : "Import failed.")
-            } finally {
-                // A partial batch still created skills — the list must show them.
-                if (createdAny) invalidateSkillsListCache()
-            }
-        },
-        [close, createOne],
+    const togglePick = useCallback((dir: string) => {
+        setPicks((current) => {
+            if (!current) return current
+            const selected = new Set(current.selected)
+            if (!selected.delete(dir)) selected.add(dir)
+            return {...current, selected}
+        })
+    }, [])
+    const chosen = useMemo(
+        () => (picks ? picks.scan.candidates.filter((c) => picks.selected.has(c.dir)) : []),
+        [picks],
     )
 
-    const uploading = stage === "upload"
+    const importMany = useCallback(async () => {
+        if (!chosen.length) return
+        setBusy(true)
+        setError(null)
+        let createdAny = false
+        try {
+            for (const candidate of chosen) {
+                await createOne(toFormValue(candidate))
+                createdAny = true
+                // Off the list once it is in, so a retry after a later failure skips it.
+                togglePick(candidate.dir)
+            }
+            close()
+        } catch (err) {
+            setError(
+                err instanceof Error && err.message
+                    ? `Import failed: ${err.message}`
+                    : "Import failed.",
+            )
+        } finally {
+            // A partial batch still created skills — the list must show them.
+            if (createdAny) invalidateSkillsListCache()
+            setBusy(false)
+        }
+    }, [chosen, close, createOne, togglePick])
 
     return (
         <EnhancedDrawer
@@ -179,29 +207,19 @@ export function SkillCreateDrawer({
             open={open}
             onClose={close}
             placement="right"
-            // The drawer sizes to its stage: the dropzone/recovery view stays compact, the
-            // editor takes the wide frame, and the resize animates between them.
-            width={uploading ? uploadWidth : width}
+            width={width}
             destroyOnClose
             title={
                 <div className="flex items-center gap-2">
-                    <div className="flex min-w-0 flex-col gap-0.5">
-                        <span className="text-sm font-medium">New skill</span>
-                        <span className="text-xs font-normal text-[var(--ag-colorTextSecondary)]">
-                            {uploading
-                                ? "Upload a skill folder, .zip or .skill — review before anything is created."
-                                : "Write it here, or drop a folder, .zip or .skill into the file rail."}
-                        </span>
-                    </div>
+                    <span className="text-sm font-medium">New skill</span>
                     {parsedCount != null ? (
-                        <span className="shrink-0 rounded bg-[var(--ag-colorFillTertiary)] px-1.5 py-px text-[10px] tabular-nums text-[var(--ag-colorTextTertiary)]">
+                        <span className="shrink-0 rounded bg-[var(--ag-colorFillTertiary)] px-1.5 py-px text-[10px] font-normal tabular-nums text-[var(--ag-colorTextTertiary)]">
                             {parsedCount} {parsedCount === 1 ? "file" : "files"} parsed
                         </span>
                     ) : null}
                 </div>
             }
             styles={{
-                content: {transition: "width 0.25s ease"},
                 body: {padding: 0, display: "flex", flexDirection: "column", overflow: "hidden"},
             }}
             footer={
@@ -218,29 +236,71 @@ export function SkillCreateDrawer({
                         <Button variant="outline" onClick={close} disabled={busy}>
                             Cancel
                         </Button>
-                        {/* The upload stage's actions live in its own view (Import N skills);
-                            Create belongs to the editor alone. */}
-                        {!uploading ? (
-                            <Button onClick={create} disabled={busy}>
+                        {picks ? (
+                            <Button onClick={importMany} disabled={busy || chosen.length === 0}>
+                                {busy ? <Spinner size="small" /> : null}
+                                Import {chosen.length} {chosen.length === 1 ? "skill" : "skills"}
+                            </Button>
+                        ) : (
+                            <Button onClick={create} disabled={busy || reading}>
                                 {busy ? <Spinner size="small" /> : null}
                                 Create skill
                             </Button>
-                        ) : null}
+                        )}
                     </span>
                 </div>
             }
         >
-            {uploading ? (
-                <SkillUploadPanel
-                    onSingleSkill={handleSingleSkill}
-                    onImportMany={importMany}
-                    disabled={busy}
-                />
-            ) : (
-                <div className="min-h-0 flex-1 overflow-y-auto p-4">
-                    <SkillFormView value={value} onChange={setValue} disabled={busy} />
-                </div>
-            )}
+            <div className="min-h-0 flex-1 overflow-y-auto p-4">
+                {reading ? (
+                    <div className="flex h-full items-center justify-center">
+                        <Spinner size="small" />
+                    </div>
+                ) : picks ? (
+                    // Several skills in one upload: the editor edits one, so the drawer offers
+                    // them as a list to bring in together, each as it was uploaded.
+                    <div className="flex flex-col gap-1.5 text-xs">
+                        <span className="font-medium">
+                            Skills found · {picks.scan.candidates.length}
+                        </span>
+                        <div className="flex flex-col gap-1">
+                            {picks.scan.candidates.map((candidate) => (
+                                <label
+                                    key={candidate.dir}
+                                    className="box-border flex cursor-pointer items-start gap-2.5 rounded-md border border-solid border-[var(--ag-colorBorderSecondary)] p-2.5"
+                                >
+                                    <Checkbox
+                                        className="mt-0.5 rounded"
+                                        checked={picks.selected.has(candidate.dir)}
+                                        disabled={busy}
+                                        onCheckedChange={() => togglePick(candidate.dir)}
+                                        aria-label={`Import ${candidate.skill.name || candidate.dir}`}
+                                    />
+                                    <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                                        <span className="truncate font-mono">
+                                            {candidate.skill.name || candidate.dir || "unnamed"}
+                                        </span>
+                                        <span className="line-clamp-1 text-[var(--ag-colorTextSecondary)]">
+                                            {candidate.skill.description ||
+                                                candidate.dir ||
+                                                "No description"}
+                                        </span>
+                                    </span>
+                                </label>
+                            ))}
+                        </div>
+                    </div>
+                ) : (
+                    <SkillFormView
+                        value={value}
+                        onChange={setValue}
+                        disabled={busy}
+                        // An upload arrives named; a blank form starts at its name.
+                        autoFocusName={!upload}
+                        showMissing={attempted}
+                    />
+                )}
+            </div>
         </EnhancedDrawer>
     )
 }

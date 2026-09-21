@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "entry": "docs-qa",
+  "agents": {
+    "docs-qa": {
+      "name": "Docs Q&A",
+      "description": "Answers questions from your docs workspace with concise, cited answers \u2014 in chat or on mention.",
+      "instructions": "./ai.agenta/agents/docs-qa/AGENTS.md",
+      "setup": "./ai.agenta/agents/docs-qa/SETUP.md",
+      "connections": [
+        {
+          "key": "read-the-documentation",
+          "required": true,
+          "purpose": "Read the documentation",
+          "options": [
+            {
+              "kind": "gateway",
+              "provider": "composio",
+              "integration": "notion"
+            },
+            {
+              "kind": "gateway",
+              "provider": "composio",
+              "integration": "confluence"
+            },
+            {
+              "kind": "gateway",
+              "provider": "composio",
+              "integration": "googledrive"
+            }
+          ],
+          "setup_notes": "Read pages"
+        },
+        {
+          "key": "read-an-extra-source",
+          "required": false,
+          "purpose": "Read an extra source",
+          "options": [
+            {
+              "kind": "gateway",
+              "provider": "composio",
+              "integration": "slack"
+            }
+          ],
+          "setup_notes": "Read an extra source"
+        }
+      ]
+    }
+  }
+}

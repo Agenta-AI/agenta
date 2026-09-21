@@ -1,5 +1,19 @@
+import asyncio
+import copy
 import json
-from typing import Any, Awaitable, Callable, Dict, Optional, List, Union, TYPE_CHECKING
+from contextlib import asynccontextmanager
+from typing import (
+    Any,
+    AsyncIterator,
+    Awaitable,
+    Callable,
+    Dict,
+    Optional,
+    List,
+    Protocol,
+    Union,
+    TYPE_CHECKING,
+)
 from oss.src.core.git.dtos import RevisionGrouping
 from uuid import UUID, uuid4
 
@@ -29,6 +43,11 @@ from agenta.sdk.agents import HarnessKind, InvalidHarnessKindError
 from oss.src.core.git.interfaces import GitDAOInterface
 from oss.src.core.sessions.watch.interfaces import SessionsWatchPublisherInterface
 from oss.src.core.shared.dtos import Reference, Windowing
+from oss.src.core.shared.exceptions import (
+    EntityCreationConflict,
+    EntityCreationIdempotencyConflict,
+)
+from oss.src.core.shared.idempotency import resource_identity, request_key_hash
 from oss.src.core.git.dtos import (
     ArtifactCreate,
     ArtifactEdit,
@@ -83,6 +102,7 @@ from oss.src.core.workflows.dtos import (
     DeltaResolution,
     #
     SimpleWorkflow,
+    SimpleWorkflowCreateResult,
     SimpleWorkflowFlags,
     SimpleWorkflowQueryFlags,
     SimpleWorkflowData,
@@ -3037,6 +3057,7 @@ class WorkflowsService:
             project_id=str(project_id),
         )
 
+        gateway_run_id = uuid4().hex
         # The grant lets the run's vault reads receive write-only secret values in
         # plaintext. It normally rides the credential `/access/permissions/check` re-mints,
         # but a service running with auth middleware disabled uses this token directly.
@@ -3045,10 +3066,13 @@ class WorkflowsService:
             project_id=str(project_id),
             workspace_id=str(project.workspace_id),
             organization_id=str(project.organization_id),
+            gateway_run_id=gateway_run_id,
             grants=[SECRET_RESOLVE_GRANT],
         )
 
         credentials = f"Secret {secret_token}"
+
+        request.meta = {**(request.meta or {}), "gateway_run_id": gateway_run_id}
 
         await self._ensure_request_revision(
             project_id=project_id,
@@ -3243,6 +3267,7 @@ class WorkflowsService:
         #
         run_id: Optional[str] = None,
         control_command_id: Optional[UUID] = None,
+        strict_start: bool = False,
     ) -> WorkflowServiceDetachedResponse:
         """Fire-and-forget invoke: stream the service and return on the started handshake.
 
@@ -3281,7 +3306,7 @@ class WorkflowsService:
                 exclude_none=True,
             ),
             run_id=run_id,
-            strict_first_record=bool(meta.get("control_command_id")),
+            strict_first_record=strict_start or bool(meta.get("control_command_id")),
         )
 
     async def inspect_workflow(
@@ -3462,13 +3487,355 @@ def _build_simple_workflow_data(
     return SimpleWorkflowData(**data_dict)
 
 
+class _WorkflowCreateLock(Protocol):
+    async def set(self, *args, **kwargs): ...
+
+    async def eval(self, *args, **kwargs): ...
+
+
+_RELEASE_WORKFLOW_CREATE_LOCK = """
+if redis.call('get', KEYS[1]) == ARGV[1] then
+    return redis.call('del', KEYS[1])
+end
+return 0
+"""
+
+
 class SimpleWorkflowsService:
     def __init__(
         self,
         *,
         workflows_service: WorkflowsService,
+        lock_engine: Optional[_WorkflowCreateLock] = None,
     ):
         self.workflows_service = workflows_service
+        self.lock_engine = lock_engine
+
+    @asynccontextmanager
+    async def _create_lock(
+        self,
+        *,
+        project_id: UUID,
+        namespace: str,
+        request_key: str,
+    ) -> AsyncIterator[None]:
+        if self.lock_engine is None:
+            yield
+            return
+
+        key_hash = request_key_hash(request_key)
+        key = f"agenta:workflow:create:{project_id}:{namespace}:{key_hash}"
+        token = uuid4().hex
+        acquired = False
+
+        try:
+            for _ in range(100):
+                acquired = bool(await self.lock_engine.set(key, token, nx=True, ex=30))
+                if acquired:
+                    break
+                await asyncio.sleep(0.05)
+        except Exception:
+            log.warning(
+                "workflow create lock unavailable; relying on database uniqueness",
+                exc_info=True,
+            )
+
+        try:
+            yield
+        finally:
+            if acquired:
+                try:
+                    await self.lock_engine.eval(
+                        _RELEASE_WORKFLOW_CREATE_LOCK,
+                        1,
+                        key,
+                        token,
+                    )
+                except Exception:
+                    log.warning(
+                        "workflow create lock release failed; waiting for TTL",
+                        exc_info=True,
+                    )
+
+    @staticmethod
+    def _idempotent_meta(
+        *,
+        namespace: str,
+        request_key: str,
+        request_fingerprint: str,
+        existing: Optional[dict],
+        trusted_meta: Optional[dict],
+    ) -> dict:
+        metadata = copy.deepcopy(existing or {})
+        incoming = copy.deepcopy(trusted_meta or {})
+        incoming_ag = incoming.pop("_ag", None)
+        metadata.update(incoming)
+        agenta = metadata.get("_ag")
+        if agenta is None:
+            agenta = {}
+        if not isinstance(agenta, dict):
+            raise ValueError("metadata._ag must be an object")
+        agenta = copy.deepcopy(agenta)
+        if incoming_ag is not None:
+            if not isinstance(incoming_ag, dict):
+                raise ValueError("trusted_meta._ag must be an object")
+            agenta.update(incoming_ag)
+        agenta["create_request"] = {
+            "namespace": namespace,
+            "key_hash": request_key_hash(request_key),
+            "request_fingerprint": request_fingerprint,
+        }
+        metadata["_ag"] = agenta
+        return metadata
+
+    @staticmethod
+    def _validate_idempotent_replay(
+        *,
+        workflow: Workflow,
+        namespace: str,
+        request_key: str,
+        request_fingerprint: str,
+    ) -> None:
+        meta = workflow.meta if isinstance(workflow.meta, dict) else {}
+        agenta = meta.get("_ag") if isinstance(meta, dict) else None
+        create_request = (
+            agenta.get("create_request") if isinstance(agenta, dict) else None
+        )
+        if not isinstance(create_request, dict) or create_request != {
+            "namespace": namespace,
+            "key_hash": request_key_hash(request_key),
+            "request_fingerprint": request_fingerprint,
+        }:
+            raise EntityCreationIdempotencyConflict(namespace=namespace)
+
+    async def fetch_idempotent_root(
+        self,
+        *,
+        project_id: UUID,
+        namespace: str,
+        request_key: str,
+        component: str,
+    ) -> Optional[Workflow]:
+        workflow_id = resource_identity(
+            project_id,
+            namespace,
+            request_key,
+            component,
+        )
+        return await self.workflows_service.fetch_workflow(
+            project_id=project_id,
+            workflow_ref=Reference(id=workflow_id),
+        )
+
+    # Keep artifact/variant/revision semantics aligned with ordinary create below.
+    async def create_idempotent(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        namespace: str,
+        request_key: str,
+        request_fingerprint: str,
+        component: str,
+        simple_workflow_create: SimpleWorkflowCreate,
+        trusted_meta: Optional[dict] = None,
+    ) -> SimpleWorkflowCreateResult:
+        if not namespace.strip() or not request_key.strip() or not component.strip():
+            raise ValueError("namespace, request_key, and component must not be empty")
+        if not request_fingerprint.strip():
+            raise ValueError("request_fingerprint must not be empty")
+
+        workflow_id = resource_identity(
+            project_id,
+            namespace,
+            request_key,
+            component,
+        )
+        prefix = (simple_workflow_create.slug or "workflow").strip("-")[:48]
+        workflow_slug = f"{prefix or 'workflow'}-{workflow_id.hex[:8]}"
+        variant_slug = resource_identity(
+            project_id, namespace, request_key, f"{component}:variant"
+        ).hex[-12:]
+        blank_slug = resource_identity(
+            project_id, namespace, request_key, f"{component}:blank"
+        ).hex[-12:]
+        content_slug = resource_identity(
+            project_id, namespace, request_key, f"{component}:content"
+        ).hex[-12:]
+        metadata = self._idempotent_meta(
+            namespace=namespace,
+            request_key=request_key,
+            request_fingerprint=request_fingerprint,
+            existing=simple_workflow_create.meta,
+            trusted_meta=trusted_meta,
+        )
+        request = simple_workflow_create.model_copy(
+            update={"slug": workflow_slug, "meta": metadata}
+        )
+
+        async with self._create_lock(
+            project_id=project_id,
+            namespace=namespace,
+            request_key=request_key,
+        ):
+            workflow = await self.workflows_service.fetch_workflow(
+                project_id=project_id,
+                workflow_ref=Reference(id=workflow_id),
+            )
+            replayed = workflow is not None
+            if workflow is None:
+                workflow_flags = WorkflowFlags(
+                    **WorkflowsService._dump_flags(request.flags)
+                )
+                try:
+                    workflow = await self.workflows_service.create_workflow(
+                        project_id=project_id,
+                        user_id=user_id,
+                        workflow_create=WorkflowCreate(
+                            slug=request.slug,
+                            name=request.name,
+                            description=request.description,
+                            flags=workflow_flags,
+                            meta=request.meta,
+                            tags=request.tags,
+                        ),
+                        workflow_id=workflow_id,
+                        platform_meta=True,
+                    )
+                except EntityCreationConflict:
+                    replayed = True
+                    workflow = await self.workflows_service.fetch_workflow(
+                        project_id=project_id,
+                        workflow_ref=Reference(id=workflow_id),
+                    )
+            if workflow is None:
+                raise EntityCreationConflict("Workflow")
+            self._validate_idempotent_replay(
+                workflow=workflow,
+                namespace=namespace,
+                request_key=request_key,
+                request_fingerprint=request_fingerprint,
+            )
+
+            workflow_flags = WorkflowFlags(
+                **WorkflowsService._dump_flags(request.flags)
+            )
+            variant = await self.workflows_service.fetch_workflow_variant(
+                project_id=project_id,
+                workflow_ref=Reference(id=workflow_id),
+                workflow_variant_ref=Reference(slug=variant_slug),
+            )
+            if variant is None:
+                try:
+                    variant = await self.workflows_service.create_workflow_variant(
+                        project_id=project_id,
+                        user_id=user_id,
+                        workflow_variant_create=WorkflowVariantCreate(
+                            slug=variant_slug,
+                            name=request.name,
+                            description=request.description,
+                            flags=workflow_flags,
+                            tags=request.tags,
+                            meta=request.meta,
+                            workflow_id=workflow_id,
+                        ),
+                    )
+                except EntityCreationConflict:
+                    replayed = True
+                    variant = await self.workflows_service.fetch_workflow_variant(
+                        project_id=project_id,
+                        workflow_ref=Reference(id=workflow_id),
+                        workflow_variant_ref=Reference(slug=variant_slug),
+                    )
+            else:
+                replayed = True
+            if variant is None or variant.id is None:
+                raise EntityCreationConflict("Workflow variant")
+
+            blank = await self.workflows_service.fetch_workflow_revision(
+                project_id=project_id,
+                workflow_variant_ref=Reference(id=variant.id),
+                workflow_revision_ref=Reference(slug=blank_slug),
+            )
+            if blank is None:
+                try:
+                    blank = await self.workflows_service.commit_workflow_revision(
+                        project_id=project_id,
+                        user_id=user_id,
+                        workflow_revision_commit=WorkflowRevisionCommit(
+                            slug=blank_slug,
+                            name=request.name,
+                            description=request.description,
+                            flags=workflow_flags,
+                            tags=request.tags,
+                            meta=request.meta,
+                            data=None,
+                            message="Initial commit",
+                            workflow_id=workflow_id,
+                            workflow_variant_id=variant.id,
+                        ),
+                        platform_meta=True,
+                    )
+                except EntityCreationConflict:
+                    replayed = True
+                    blank = await self.workflows_service.fetch_workflow_revision(
+                        project_id=project_id,
+                        workflow_variant_ref=Reference(id=variant.id),
+                        workflow_revision_ref=Reference(slug=blank_slug),
+                    )
+            else:
+                replayed = True
+            if blank is None:
+                raise EntityCreationConflict("Workflow blank revision")
+
+            content = await self.workflows_service.fetch_workflow_revision(
+                project_id=project_id,
+                workflow_variant_ref=Reference(id=variant.id),
+                workflow_revision_ref=Reference(slug=content_slug),
+            )
+            if content is None:
+                try:
+                    content = await self.workflows_service.commit_workflow_revision(
+                        project_id=project_id,
+                        user_id=user_id,
+                        workflow_revision_commit=WorkflowRevisionCommit(
+                            slug=content_slug,
+                            name=request.name,
+                            description=request.description,
+                            flags=workflow_flags,
+                            tags=request.tags,
+                            meta=request.meta,
+                            data=request.data,
+                            workflow_id=workflow_id,
+                            workflow_variant_id=variant.id,
+                        ),
+                        platform_meta=True,
+                    )
+                except EntityCreationConflict:
+                    replayed = True
+                    content = await self.workflows_service.fetch_workflow_revision(
+                        project_id=project_id,
+                        workflow_variant_ref=Reference(id=variant.id),
+                        workflow_revision_ref=Reference(slug=content_slug),
+                    )
+            else:
+                replayed = True
+            if content is None:
+                raise EntityCreationConflict("Workflow content revision")
+
+            complete = SimpleWorkflow(
+                **workflow.model_dump(exclude={"flags"}),
+                flags=SimpleWorkflowFlags(
+                    **WorkflowsService._dump_flags(content.flags)
+                ),
+                variant_id=variant.id,
+                revision_id=content.id,
+                data=_build_simple_workflow_data(content.data),
+            )
+            return SimpleWorkflowCreateResult(
+                workflow=complete,
+                replayed=replayed,
+            )
 
     @staticmethod
     def _matches_requested_simple_workflow_flags(
@@ -3489,6 +3856,7 @@ class SimpleWorkflowsService:
 
     # public -------------------------------------------------------------------
 
+    # The retry-safe counterpart is create_idempotent above; keep role flags aligned.
     async def create(
         self,
         *,

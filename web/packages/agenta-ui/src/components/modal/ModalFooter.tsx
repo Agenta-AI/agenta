@@ -41,6 +41,8 @@ export interface ModalFooterProps {
     canConfirm?: boolean
     /** Whether to show the confirm button as a danger button */
     danger?: boolean
+    /** Hides the cancel button, for a step whose only remaining action is to finish. */
+    hideCancel?: boolean
     /** Additional class name for the footer container */
     className?: string
 }
@@ -65,6 +67,7 @@ export function ModalFooter({
     isLoading = false,
     canConfirm = true,
     danger = false,
+    hideCancel = false,
     className,
 }: ModalFooterProps) {
     return (
@@ -77,9 +80,11 @@ export function ModalFooter({
                 className,
             )}
         >
-            <Button variant="outline" onClick={onCancel} disabled={isLoading}>
-                {cancelLabel}
-            </Button>
+            {hideCancel ? null : (
+                <Button variant="outline" onClick={onCancel} disabled={isLoading}>
+                    {cancelLabel}
+                </Button>
+            )}
             <LoadingButton
                 variant={danger ? "destructive" : "default"}
                 onClick={onConfirm}

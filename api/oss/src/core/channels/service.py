@@ -168,6 +168,49 @@ class ChannelsService:
         connection.external_key = compose_external_key(
             capabilities, ChannelKeyGrain.CONNECTION, locator_input
         )
+
+        # Customer-owned Telegram reconnects use the ordinary create endpoint.
+        # Reuse the same project's archived bot row instead of letting the
+        # external-identity constraint turn the reconnect into a conflict.
+        if connection.channel == "telegram":
+            existing = (
+                await self.channels_dao.get_project_and_connection_by_external_key(
+                    channel=connection.channel,
+                    external_key=connection.external_key,
+                )
+            )
+            if existing is not None:
+                existing_project_id, existing_connection_id = existing
+                if existing_project_id != project_id:
+                    raise ChannelConnectionIdentityConflict(channel=connection.channel)
+                existing_connection = await self.channels_dao.fetch_connection(
+                    project_id=project_id,
+                    connection_id=existing_connection_id,
+                )
+                if existing_connection is not None:
+                    reconnected = await self.edit_connection(
+                        project_id=project_id,
+                        user_id=user_id,
+                        connection=ChannelConnectionEdit(
+                            id=existing_connection.id,
+                            credentials=connection.credentials,
+                        ),
+                    )
+                    if reconnected is None:
+                        raise ChannelConnectionNotFound(
+                            connection_id=existing_connection.id
+                        )
+                    if reconnected.deleted_at is None:
+                        return reconnected
+                    restored = await self.unarchive_connection(
+                        project_id=project_id,
+                        user_id=user_id,
+                        connection_id=reconnected.id,
+                    )
+                    if restored is None:
+                        raise ChannelConnectionNotFound(connection_id=reconnected.id)
+                    return restored
+
         _fill_connection_name_and_slug(connection, discovered=discovered)
 
         credential_secret_id = None

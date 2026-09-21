@@ -42,7 +42,11 @@ import {
   resolvePiToolSpecsDelivery,
   writePiToolSpecsFileLocal,
 } from "../engines/sandbox_agent/pi-assets.ts";
-import { applyClaudeConnectionEnv } from "../engines/sandbox_agent/runtime-policy.ts";
+import {
+  applyClaudeConnectionEnv,
+  applyCodexGatewayConnectionEnv,
+} from "../engines/sandbox_agent/runtime-policy.ts";
+import { GATEWAY_CREDENTIALS_VALUE_ENV } from "../engines/sandbox_agent/run-plan.ts";
 import type { AgentRunRequest } from "../protocol.ts";
 import { PI_TRACE_CONTROL_FILE } from "../tracing/pi-spool-protocol.ts";
 import type { RunPlan } from "../engines/sandbox_agent/run-plan.ts";
@@ -211,6 +215,16 @@ export function buildRuntimeEnvironment(
   );
   // Apply only the resolved provider keys.
   Object.assign(env, p.credentials.modelEnvironment);
+  // OUR gateway credential, not a provider secret: unlike `modelEnvironment` it never goes
+  // through Daytona Secret hiding (there is no third party to leak it to — it authenticates the
+  // harness to US), so it lands directly in the daemon env. Pi and Codex reference it by
+  // `$AGENTA_GATEWAY_CREDENTIALS_VALUE` indirection from their own config files rather than
+  // writing the raw value to disk; Claude reads it straight into ANTHROPIC_CUSTOM_HEADERS below.
+  const gatewayCredentials = r.modelConnection?.gatewayCredentials;
+  if (gatewayCredentials?.value) {
+    env[GATEWAY_CREDENTIALS_VALUE_ENV] = gatewayCredentials.value;
+  }
+  applyCodexGatewayConnectionEnv(env, input.request, p.acpAgent as never);
   applyClaudeConnectionEnv(env, input.request, p.acpAgent as never, input.log);
   const piSessionDir = configurePiSessionWorkspace(input.plan, env);
   configurePiSkillSnapshot(input.piSkillSnapshot as never, env);
@@ -247,6 +261,14 @@ export function buildRuntimeEnvironment(
   // Daytona daemon environment is fixed at sandbox creation and is built from `piExtEnv`, so a
   // value decided after the sandbox exists never reaches the harness.
   configureDaytonaSubscriptionEnv(input.plan, piExtEnv);
+  // And the gateway credential, for the same reason as the two above. The Daytona daemon
+  // environment is built from `piExtEnv` plus the model environment; `env` is not one of its
+  // inputs. Set on `env` alone the credential exists only on a local daemon, and a Daytona
+  // harness expands the `$AGENTA_GATEWAY_CREDENTIALS_VALUE` its own config file references to
+  // nothing, so every call it makes reaches the gateway unauthenticated.
+  if (gatewayCredentials?.value) {
+    piExtEnv[GATEWAY_CREDENTIALS_VALUE_ENV] = gatewayCredentials.value;
+  }
   assignSandboxEnvironment([env, piExtEnv], p.credentials.sandboxEnvironment);
   // LAST, deliberately: the local daemon inherits the extension env, and Daytona gets the same
   // values through `envVars`. Assigning earlier would drop every key added above.

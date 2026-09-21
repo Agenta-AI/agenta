@@ -1,0 +1,199 @@
+# web/website/ — Agenta marketing site (Astro)
+
+The Agenta marketing website (`agenta.ai`): Astro, static-first, deployed on
+Cloudflare. A member of the `web` pnpm workspace, deployed independently of the product and `docs/` (Docusaurus). Full project
+context, decisions, and the design source live in
+[docs/design/marketing-website/](../../docs/design/marketing-website/) — read its
+`AGENTS.md` first.
+
+## Asset hosting — proprietary and large files (IMPORTANT)
+
+**This repo is public / open source. Never commit proprietary, licensed, or large
+binary assets.** We may be licensed to *use* an asset on our site but not to
+*redistribute* its source binary, and a public repo redistributes everything in it,
+forever, in history.
+
+The rule: **proprietary/large assets live in the deployed output, never in git.**
+
+- **Licensed fonts (GT Alpina, PP Mondwest).** Gitignored (see `.gitignore`:
+  `public/fonts/GT-Alpina*`, `public/fonts/PPMondwest*`). They are injected at
+  **build time** into `public/fonts/` by `scripts/fetch-fonts.mjs`, wired as the
+  `prebuild` and `predev` npm scripts (runs before `astro build`/`astro dev`). They
+  end up served **same-origin** from our site (best performance, no CORS) but never
+  enter the repo. The script **never fails the build** — if no source is available
+  it warns and exits 0, and the CSS falls back to system serif/mono.
+  - **Resolution order** (`scripts/fetch-fonts.mjs`): (1) already in `public/fonts/`
+    → skip; (2) a local directory — env `AGENTA_FONTS_DIR` (default
+    `/home/mahmoud/code/agenta-fonts`) → copy from disk; (3) Cloudflare **R2** over
+    the S3 API → download.
+  - **R2 / CI env vars** (set these as CI secrets; never commit values):
+    - `R2_S3_ENDPOINT` — e.g. `https://<accountid>.r2.cloudflarestorage.com`
+    - `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` — R2 S3 access keys
+    - `R2_FONTS_BUCKET` — bucket name, default `agenta-brand-fonts` (private)
+  - **Local-dir shortcut:** drop the six `.woff2` in `/home/mahmoud/code/agenta-fonts`
+    (or point `AGENTA_FONTS_DIR` at them) and the prebuild copies them in without any
+    R2 credentials. Files already in `public/fonts/` are left untouched.
+  - Do not use Git LFS for these: on a public repo, LFS objects are still publicly
+    downloadable, so LFS does not protect a licensed binary.
+- **Open fonts (Inter, Geist).** Loaded from Google Fonts. Fine to reference; not
+  gitignored.
+- **Video.** Use **YouTube** embeds (the landing video, etc.). We deliberately do
+  **not** use Cloudflare Stream — one media platform is simpler, and YouTube also
+  gives reach/SEO/embeds for free. Revisit Stream only if we need private/unlisted
+  delivery, DRM, or precise first-party analytics that YouTube can't provide.
+- **Other large or proprietary media.** Put it in the R2 bucket and reference it by
+  URL (e.g. `https://assets.agenta.ai/...`), with long-cache immutable headers.
+- **Agenta's own marketing images** (logos, the migrated blog images) are not
+  proprietary, so they may live in the repo. Move them to R2 only if we later want a
+  leaner repo; that is an optimization, not a licensing requirement.
+
+## Running locally
+
+- From `web`, run `pnpm install --filter website... --frozen-lockfile`; then in `web/website`, run `pnpm dev` → http://localhost:4321/ (localhost only).
+- **Remote preview on the dev box:** bind to all interfaces —
+  `pnpm exec astro dev --host 0.0.0.0 --port 4321` — then open
+  `http://<box-ip>:4321/` (the box's port 4321 must be reachable).
+- `pnpm build` produces the static `dist/`. Deploy target is Cloudflare Workers
+  Static Assets (see `wrangler.jsonc`). `pnpm deploy:preview` deploys the shared
+  team preview manually (needs the Cloudflare creds from `~/.agenta-marketing.env`).
+  **`deploy:preview` sets `PUBLIC_NOINDEX=true` on the build** so the public
+  `workers.dev` preview ships a `noindex` meta + disallow-all `robots.txt` and can
+  never rank as duplicate content against production. Any hand-rolled preview build
+  (`pnpm build && wrangler deploy`) must prefix `PUBLIC_NOINDEX=true` for the same
+  reason. Only the production workflow (`16-website-production.yml`) leaves it unset.
+
+## CI preview deploys
+
+Every PR that touches `web/website/**` gets an automatically deployed preview, via
+`.github/workflows/15-website-preview.yml`.
+
+- **How:** the workflow builds the site and runs `wrangler versions upload
+  --preview-alias pr-<number>` against the single `agenta-website-preview` worker.
+  This publishes a new *version* with its own shareable preview URL and does **not**
+  touch the worker's production deployment, so one worker serves every PR's preview
+  (no per-PR worker sprawl, no cleanup job). The stable alias makes the URL
+  deterministic per PR: `https://pr-<number>-agenta-website-preview.<subdomain>.workers.dev`.
+- **Where the URL appears:** a single sticky PR comment (header `website-preview`)
+  that updates in place on every push, so pushes never spam new comments.
+- **Secrets (GitHub Actions, referenced by name — never commit values):**
+  `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID` for the deploy, and the four R2
+  vars (`R2_S3_ENDPOINT`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, and the
+  non-secret `R2_FONTS_BUCKET`, set inline in the workflow) so the licensed fonts are
+  fetched into the preview build. Without the R2 secrets the build still succeeds with
+  fallback fonts (see the asset-hosting section above).
+- **Fork PRs:** deployment is skipped for PRs from forks (the job guards on
+  `head.repo.full_name == github.repository`), so secrets are never exposed to
+  untrusted code. Fork PRs simply get no preview comment.
+
+## The edge worker (agent readiness)
+
+`worker/index.ts` is a thin shim in front of Cloudflare's assets binding. Astro
+still builds a fully static `dist/`; the worker only reads the request's `Accept`
+header, picks one of the **prebuilt** representations, and sets the headers a
+machine client needs. It exists because static assets alone cannot do content
+negotiation, `Vary`, a `406`, or a structured JSON error.
+
+What it does, and the invariants that keep it safe:
+
+- **Markdown twins.** Every route has a `.md` twin built by `src/pages/*.md.ts`
+  (`/pricing` → `/pricing.md`). `Accept: text/markdown` gets the twin with
+  `Vary: Accept` and `X-Robots-Tag: noindex`; the HTML page stays canonical. The
+  twin filenames are flat on purpose (`blog.md.ts`, not `blog/index.md.ts`) —
+  the worker asks the binding for `"<path>.md"`.
+- **Agent-friendly 404s.** Unknown paths reach the worker because
+  `not_found_handling` is **`"none"`** (with `"404-page"` the asset server would
+  answer them itself and no agent could ever get a machine-readable 404). JSON
+  askers and `/api/*` get a structured `{error:{code,status,hints,…}}` body;
+  markdown askers get a short markdown recovery note; **everyone else — browsers,
+  crawlers, bare `curl`, uptime monitors — keeps the designed `404.astro` page.**
+- **`run_worker_first` is an allowlist, never `/*`.** Cloudflare does not apply
+  `_headers` or `_redirects` to worker-served responses, so only the HTML routes
+  that need negotiation run the worker first. Everything else (images, fonts,
+  favicons, `/openapi.json`, `/llms.txt`, `/sitemap-*.xml`, and the four 308s in
+  `public/_redirects`) stays on the plain asset path. Responses the worker does
+  return re-apply the `/*` policy from its own `HEADERS` constant in
+  `worker/negotiate.ts` — edit that and `public/_headers` together.
+- **It can never take the site down.** The whole handler is wrapped in a
+  `try/catch` that falls back to `env.ASSETS.fetch(request)`.
+- **Cloudflare ignores `Vary` values other than `Accept-Encoding`** when caching,
+  so markdown responses are `Cache-Control: private, max-age=0` — a shared cache
+  must never be able to hand a markdown body to a browser.
+
+`/openapi.json` is published by `scripts/copy-openapi.mjs` (a `prebuild` step)
+from the committed `docs/docs/reference/openapi.json`: it rewrites the spec's
+relative `/api` server to the real `us`/`eu.cloud.agenta.ai` base URLs and drops
+the `/admin/*` surface. The output `public/openapi.json` is **gitignored** — a
+derived copy, like the licensed fonts. Both deploy workflows list the source spec
+in their `paths:` filter so a regenerated spec redeploys the site.
+
+Tests: `pnpm test` (vitest) covers the negotiation logic, the markdown builders,
+and the spec script; `pnpm build` runs `scripts/verify-build.mjs` (every twin
+emitted, spec valid, no `.md` in the sitemap); and
+`scripts/verify-deployment.sh <url>` is the post-deploy smoke test both workflows
+run against the deployed URL.
+
+## CI production deploy
+
+Every merge to `main` that touches `web/website/**` deploys production, via
+`.github/workflows/16-website-production.yml` (also `workflow_dispatch`).
+
+- **How:** builds with the same R2 font secrets, then runs `wrangler deploy
+  --config wrangler.production.jsonc` — a real deploy (not `versions upload`) to the
+  separate production worker `agenta-website` (`preview_urls: false`, no routes yet;
+  the `agenta.ai` domain is attached in the Cloudflare dashboard).
+- **Canonical URL:** after the worker deploy, `scripts/configure-canonical-redirect.mjs`
+  idempotently creates or updates one zone-level Single Redirect. It sends HTTP and
+  `www.agenta.ai` requests directly to the equivalent `https://agenta.ai` URL with a
+  308, preserving path and query string. This must remain a zone rule: it runs before
+  the site worker, static assets, and the `/docs/*` proxy, avoiding redirect chains.
+  The script also rejects Cloudflare's legacy Always Use HTTPS setting when it is on,
+  because that setting would add a redirect hop before the canonical rule. The
+  deployment token therefore needs Zone Read, Zone Settings Read, and Dynamic URL
+  Redirects Write.
+- **Guard:** runs only on `Agenta-AI/agenta`; same secrets as the preview workflow.
+
+- Static-first (`output: 'static'`); interactivity is browser-side React islands
+  (`client:visible`), never SSR. This keeps us off the `workerd` ≠ Node edge cases.
+  The one piece of request-time code is `worker/index.ts` (see "The edge worker"
+  above) — it picks between prebuilt files, it never renders.
+- Content is MDX in `src/content/` (posts, authors) + JSON singletons; the shapes
+  match `Agenta landing page pivot/handoff/CONTENT_MODEL.md`.
+- Style against the ported design tokens in `src/styles/`. Never invent a hex.
+- SEO: every page passes `title` + `description` (and `ogType`/`ogImage` for blog
+  posts) through `Site` → `Base`, which emits the meta/OG/Twitter/canonical head. The
+  sitemap is generated automatically (`@astrojs/sitemap`). Do not hand-write head meta
+  per page.
+- Shared chrome is `src/layouts/Site.astro` + `src/components/SiteNav|SiteFooter|CtaBand`.
+  Every page, the landing included, renders through `Site`. There is exactly one nav
+  and one footer component; `Site` takes `sticky` (set only by the landing page) to
+  enable the nav's scroll-pill behavior, and renders the identical static bar
+  everywhere else. Reuse them; do not re-implement nav/footer per page.
+
+## UI building blocks (one place each)
+
+Every visual regression on this site so far came from a page re-drawing a shared
+element by hand (a border string copied into a `style=`, a chip with its own height
+and case, a button with its own gradient) and then drifting when the original changed.
+The rule: **a shared element is drawn in exactly one place, and pages only use it.**
+`pnpm lint:ui` (also run by `pnpm build`) fails when a page draws one of these itself.
+
+| Element | Use | Defined in |
+| --- | --- | --- |
+| Page column (1440, flat) | `Site` layout | `.ag-wrap` in `styles/global.css` |
+| Band border (the page grid) | `<Section tone="grid" \| "dark" \| "flat">` | `components/Section.astro`, `.ag-section` |
+| Eyebrow chip ("HOW IT WORKS") | `<Badge variant=...>` | `components/Badge.astro`, `.ag-badge` |
+| Button | `<Button variant=...>` or `class="ag-btn ag-btn--<variant>"` | `components/Button.astro`, `.ag-btn` |
+| Section header (chip + title + subtitle) | `<SectionTitle>` | `components/SectionTitle.astro` |
+
+- `Section` owns `border: 1px solid var(--th-section-border)` and the `-1px` overlap.
+  `tone="dark"` is for bands that are dark in both themes (a paper line between two
+  dark bands reads as a bright seam). `tone="flat"` is for the white bodies Framer
+  draws without side lines (blog, authors, pricing). The nav shell draws the same
+  border at rest; only `.nav-scrolled` removes it.
+- Colours that change with the theme come only from `--th-*` tokens in
+  `styles/theme.css`; raw palette values live in `styles/tokens.css`. Never write a hex
+  in a component. If Framer shows a value the palette lacks, add it to `tokens.css`
+  with a comment that names where it was measured.
+- Sizes and spacing come from Framer's deployed build, measured, not from the eye.
+  When you change a shared element, check the landing, a blog post and the pricing
+  page in both themes at 1600, 1440 and 390 before you call it done.

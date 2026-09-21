@@ -22,6 +22,7 @@ export const SettingsAccessProvider = ({
 /** A host that renders no provider gets the closed set: nothing edition- or permission-gated. */
 export const CLOSED_SETTINGS_ACCESS: SettingsAccess = {
     billingEnabled: false,
+    canShowMcpEndpoints: false,
     canShowTools: false,
     canViewApiKeys: false,
     canViewEvents: false,

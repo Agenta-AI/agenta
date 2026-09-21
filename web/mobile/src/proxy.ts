@@ -28,9 +28,6 @@ export function proxy(request: NextRequest) {
         cookie: (name) => request.cookies.get(name)?.value,
         gateEnabled: resolveGateEnabled(process.env.AGENTA_MOBILE_GATE),
         reverseGateEnabled: resolveGateEnabled(process.env.AGENTA_MOBILE_REVERSE_GATE),
-        // Read here too: a Classic-mode-off user belongs in /m, so this gate must not bounce
-        // them back to the desktop that just sent them.
-        classicGateEnabled: process.env.AGENTA_CLASSIC_MODE_GATE !== "false",
     })
 
     if (decision.kind === "redirect") {

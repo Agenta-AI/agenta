@@ -131,12 +131,50 @@ export const rehypeExplicitRelativeLinks = () => (tree: HastNode) => {
     return tree
 }
 
-/** Streamdown's own rehype list with the respelling inserted before its harden gate. */
+/** Harden's own class for a blocked link — the refused image wears the same one. */
+const BLOCKED_CLASS = "text-gray-500"
+
+/**
+ * Refuse an image whose target names a host the reader cannot see (#6680).
+ *
+ * The same escape as the anchor's (#6666), on a different sink: harden parses `..//evil.com/x.png`
+ * and emits the pathname `//evil.com/x.png`, and Streamdown's image renderer then fetches it and
+ * offers a download button whose fallback is `window.open` on the raw target — a click on
+ * "download this image" that lands on another site. The anchor gate cannot help here because the
+ * image renderer is Streamdown's own, so the refusal happens in the tree, before harden and
+ * before any renderer sees the node: the image becomes the span harden itself leaves for a link
+ * it refuses, so a reader cannot tell which layer caught which.
+ *
+ * An explicit `https://` image is a different decision and stays allowed, exactly as a scheme
+ * URL does for links — `isProtocolRelativeHref` returns false for it.
+ */
+export const rehypeRefuseHostImages = () => (tree: HastNode) => {
+    const walk = (node: HastNode) => {
+        if (node.type === "element" && node.tagName === "img" && node.properties) {
+            const src = node.properties.src
+            if (typeof src === "string" && isProtocolRelativeHref(src)) {
+                const alt = typeof node.properties.alt === "string" ? node.properties.alt : ""
+                node.tagName = "span"
+                node.properties = {title: `Blocked URL: ${src}`, className: [BLOCKED_CLASS]}
+                node.children = [{type: "text", value: `${alt || "image"} [blocked]`} as HastNode]
+            }
+        }
+        const children = node.children
+        if (Array.isArray(children)) for (const child of children) if (child) walk(child)
+    }
+    walk(tree)
+    return tree
+}
+
+/** Streamdown's own rehype list with the chat's gates inserted before its harden gate: the
+ * anchor respelling, and the image refusal. */
 export const withExplicitRelativeLinks = <T>(
     defaults: Record<string, T>,
-): (T | typeof rehypeExplicitRelativeLinks)[] =>
+): (T | typeof rehypeExplicitRelativeLinks | typeof rehypeRefuseHostImages)[] =>
     Object.entries(defaults).flatMap(([name, plugin]) =>
-        name === "harden" ? [rehypeExplicitRelativeLinks, plugin] : [plugin],
+        name === "harden"
+            ? [rehypeExplicitRelativeLinks, rehypeRefuseHostImages, plugin]
+            : [plugin],
     )
 
 /** Undo the percent-encoding harden's `new URL()` round-trip adds; drive paths are raw. */

@@ -3,6 +3,8 @@ import {Fragment, useEffect, useMemo, useRef, useState, type ReactNode} from "re
 import {ArrowClockwise, DotsThreeVertical, Gear, MagnifyingGlass} from "@phosphor-icons/react"
 import clsx from "clsx"
 
+import {useMediaQuery} from "../../hooks/useMediaQuery"
+
 import {Button} from "./button"
 import {
     DropdownMenu,
@@ -16,6 +18,7 @@ import {
 import {Input} from "./input"
 import {SkeletonBlock} from "./skeleton"
 import {SimpleTooltip} from "./tooltip-composed"
+import {touchTargetExpansion} from "./touch-target"
 
 export interface DataTableColumn<T> {
     key: string
@@ -37,7 +40,57 @@ export interface DataTableColumn<T> {
      * lands on the columns whose content actually varies.
      */
     flexible?: boolean
+    /**
+     * The narrowest viewport this column belongs to. Below it the column is dropped: a phone
+     * shows what identifies and acts on the row, and the details are a wider screen's. Omit
+     * for a column every viewport shows. The same idea as antd's `responsive`, which this table
+     * replaced (#6206).
+     */
+    responsive?: DataTableBreakpoint
     render: (record: T) => ReactNode
+}
+
+/** Tailwind's breakpoints, the ones the apps' layouts already collapse on. */
+export type DataTableBreakpoint = "sm" | "md" | "lg" | "xl"
+
+export const BREAKPOINT_QUERIES: Record<DataTableBreakpoint, string> = {
+    sm: "(min-width: 640px)",
+    md: "(min-width: 768px)",
+    lg: "(min-width: 1024px)",
+    xl: "(min-width: 1280px)",
+}
+
+/** The columns a viewport shows: those with no `responsive`, and those whose breakpoint matches. */
+export const visibleAtViewport = <T,>(
+    columns: DataTableColumn<T>[],
+    matches: Record<DataTableBreakpoint, boolean>,
+): DataTableColumn<T>[] =>
+    columns.filter((column) => !column.responsive || matches[column.responsive])
+
+/** Every breakpoint at once — hooks cannot be called per column, and four listeners are cheap.
+ * Memoized on the four answers, so a re-render with the same viewport keeps the same columns. */
+const useBreakpoints = (): Record<DataTableBreakpoint, boolean> => {
+    const sm = useMediaQuery(BREAKPOINT_QUERIES.sm)
+    const md = useMediaQuery(BREAKPOINT_QUERIES.md)
+    const lg = useMediaQuery(BREAKPOINT_QUERIES.lg)
+    const xl = useMediaQuery(BREAKPOINT_QUERIES.xl)
+    return useMemo(() => ({sm, md, lg, xl}), [sm, md, lg, xl])
+}
+
+/**
+ * How far flexible columns give way before the table overflows instead: down to half their
+ * declared width. A two-column table on a phone fits by trimming a name column (a 200px Name
+ * has 116px on a 390px phone once the page's gutters are paid); a six-column one on the same
+ * phone would squeeze every column past reading, so it scrolls.
+ */
+export const FLEX_COLUMN_FLOOR = 0.5
+
+/** The scroller's edge fade: a soft cut only where columns continue past that edge. */
+export const scrollEdgeMask = (left: boolean, right: boolean): string | undefined => {
+    if (!left && !right) return undefined
+    const start = left ? "transparent 0, #000 24px" : "#000 0"
+    const end = right ? "#000 calc(100% - 24px), transparent 100%" : "#000 100%"
+    return `linear-gradient(to right, ${start}, ${end})`
 }
 
 export interface DataTableAction<T> {
@@ -157,8 +210,14 @@ export const columnWidths = <T,>(
         0,
     )
     const surplus = containerWidth - pinned
-    // Nothing to share (unmeasured, or the columns already overflow) — declared widths stand.
-    const share = containerWidth > 0 && flexTotal > 0 && surplus > flexTotal ? surplus : flexTotal
+    // Unmeasured: declared widths stand. Room to spare: the flexible columns share it. Short of
+    // room: they give way together, down to `FLEX_COLUMN_FLOOR` of what they declared — past
+    // that the declared widths stand and the table scrolls, because columns squeezed further
+    // stop being readable.
+    const share =
+        containerWidth > 0 && flexTotal > 0 && surplus >= flexTotal * FLEX_COLUMN_FLOOR
+            ? Math.max(surplus, 0)
+            : flexTotal
 
     return columns.map((column, index) => {
         if (!column.width) return undefined
@@ -219,23 +278,48 @@ export function DataTable<T>({
     // Measured, because the surplus a flexible column takes can only be stated in px.
     const scrollRef = useRef<HTMLDivElement>(null)
     const [tableWidth, setTableWidth] = useState(0)
+    // Which edges hide more columns. Read off the scroller, so the fade says exactly what a
+    // swipe would reveal — on a phone the scrollbar is invisible and a clipped table read as a
+    // table with two columns (#6206).
+    const [edges, setEdges] = useState({left: false, right: false})
 
     useEffect(() => {
         const node = scrollRef.current
         if (!node || typeof ResizeObserver === "undefined") return
-        const observer = new ResizeObserver(([entry]) => setTableWidth(entry.contentRect.width))
+        const measureEdges = () => {
+            const overflow = node.scrollWidth - node.clientWidth > 1
+            const left = overflow && node.scrollLeft > 1
+            const right = overflow && node.scrollLeft < node.scrollWidth - node.clientWidth - 1
+            setEdges((prev) => (prev.left === left && prev.right === right ? prev : {left, right}))
+        }
+        const observer = new ResizeObserver(([entry]) => {
+            setTableWidth(entry.contentRect.width)
+            measureEdges()
+        })
         observer.observe(node)
-        return () => observer.disconnect()
+        node.addEventListener("scroll", measureEdges, {passive: true})
+        measureEdges()
+        return () => {
+            observer.disconnect()
+            node.removeEventListener("scroll", measureEdges)
+        }
     }, [])
 
+    const breakpoints = useBreakpoints()
+    // Columns this viewport shows at all; the settings menu offers only these, so a phone is
+    // not asked about columns it never lays out.
+    const viewportColumns = useMemo(
+        () => visibleAtViewport(allColumns, breakpoints),
+        [allColumns, breakpoints],
+    )
     // The first column names the row, so hiding it would leave anonymous rows.
     const hideable = useMemo(
-        () => allColumns.filter((column, index) => column.hideable ?? index > 0),
-        [allColumns],
+        () => viewportColumns.filter((column, index) => column.hideable ?? index > 0),
+        [viewportColumns],
     )
     const columns = useMemo(
-        () => allColumns.filter((column) => !hiddenKeys.includes(column.key)),
-        [allColumns, hiddenKeys],
+        () => viewportColumns.filter((column) => !hiddenKeys.includes(column.key)),
+        [viewportColumns, hiddenKeys],
     )
     const showColumnSettings = columnSettings && hideable.length > 0
 
@@ -371,163 +455,186 @@ export function DataTable<T>({
                 </div>
             ) : null}
 
-            <div
-                ref={scrollRef}
-                className="overflow-x-auto rounded-lg border border-solid border-colorBorderSecondary"
-            >
-                {/* `table-fixed` honours the declared column widths. Under `auto` they are
+            {/* The border sits OUTSIDE the scroller so the edge fade dissolves the columns,
+                not the frame. */}
+            <div className="overflow-hidden rounded-lg border border-solid border-colorBorderSecondary">
+                <div
+                    ref={scrollRef}
+                    className="overflow-x-auto"
+                    style={{
+                        maskImage: scrollEdgeMask(edges.left, edges.right),
+                        WebkitMaskImage: scrollEdgeMask(edges.left, edges.right),
+                    }}
+                >
+                    {/* `table-fixed` honours the declared column widths. Under `auto` they are
                     only hints, so every column landed at a different x than the desktop app's
                     and the same table read differently on the two builds. */}
-                <table className="w-full table-fixed border-collapse text-left">
-                    <colgroup>
-                        {colWidths.map((width, index) => (
-                            <col key={columns[index].key} style={{width}} />
-                        ))}
-                        {hasGutter ? <col style={{width: ACTIONS_COL_WIDTH}} /> : null}
-                    </colgroup>
-                    <thead>
-                        <tr className="border-0 border-b border-solid border-colorBorderSecondary bg-colorFillQuaternary">
-                            {columns.map((column) => (
-                                <th
-                                    key={column.key}
-                                    scope="col"
-                                    className={clsx(
-                                        CELL,
-                                        CELL_DIVIDER,
-                                        "font-semibold text-colorText",
-                                        column.align === "right" && "text-right",
-                                        column.align === "center" && "text-center",
-                                    )}
-                                >
-                                    {column.title}
-                                </th>
+                    <table className="w-full table-fixed border-collapse text-left">
+                        <colgroup>
+                            {colWidths.map((width, index) => (
+                                <col key={columns[index].key} style={{width}} />
                             ))}
-                            {hasGutter ? (
-                                <th className={clsx(CELL, "text-right")}>
-                                    {showColumnSettings ? (
-                                        <ColumnSettings
-                                            columns={hideable}
-                                            hiddenKeys={hiddenKeys}
-                                            onToggle={(key) =>
-                                                setHiddenKeys((current) =>
-                                                    current.includes(key)
-                                                        ? current.filter((k) => k !== key)
-                                                        : [...current, key],
-                                                )
-                                            }
-                                            onSetAll={(hidden) =>
-                                                setHiddenKeys(
-                                                    hidden
-                                                        ? hideable.map((column) => column.key)
-                                                        : [],
-                                                )
-                                            }
-                                        />
-                                    ) : null}
-                                </th>
-                            ) : null}
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {showSkeleton
-                            ? Array.from({length: skeletonRows}, (_, index) => (
-                                  <tr
-                                      key={`skeleton-${index}`}
-                                      className="border-0 border-b border-solid border-colorBorderSecondary last:border-b-0"
-                                  >
-                                      {columns.map((column) => (
-                                          <td key={column.key} className={clsx(CELL, CELL_DIVIDER)}>
-                                              <SkeletonBlock active className="h-4 w-3/4" />
-                                          </td>
-                                      ))}
-                                      {hasGutter ? <td className={CELL} /> : null}
-                                  </tr>
-                              ))
-                            : rows.map((record, rowIndex) => {
-                                  const detail = expandedContent?.(record)
-                                  const items = rowActions?.[rowIndex] ?? []
-                                  return (
-                                      <Fragment key={rowKey(record)}>
-                                          <tr
-                                              onClick={
-                                                  onRowClick ? () => onRowClick(record) : undefined
-                                              }
-                                              // A clickable row is a control, so it takes focus and
-                                              // answers Enter/Space like one. Rows without
-                                              // `onRowClick` stay plain markup — they must not
-                                              // become focus stops.
-                                              role={onRowClick ? "button" : undefined}
-                                              tabIndex={onRowClick ? 0 : undefined}
-                                              onKeyDown={
-                                                  onRowClick
-                                                      ? (event) => {
-                                                            // Only the row itself: controls inside
-                                                            // a cell handle their own keys, and
-                                                            // Space on a container that does not
-                                                            // preventDefault also scrolls the page.
-                                                            if (
-                                                                event.target !== event.currentTarget
-                                                            )
-                                                                return
-                                                            if (
-                                                                event.key !== "Enter" &&
-                                                                event.key !== " "
-                                                            )
-                                                                return
-                                                            event.preventDefault()
-                                                            onRowClick(record)
-                                                        }
-                                                      : undefined
-                                              }
-                                              className={clsx(
-                                                  "border-0 border-b border-solid border-colorBorderSecondary last:border-b-0 hover:bg-colorFillQuaternary",
-                                                  onRowClick &&
-                                                      "cursor-pointer outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-focus-ring",
-                                                  // The detail row carries the boundary instead.
-                                                  detail && "border-b-0",
-                                              )}
-                                          >
-                                              {columns.map((column) => (
-                                                  <td
-                                                      key={column.key}
-                                                      className={clsx(
-                                                          CELL,
-                                                          CELL_DIVIDER,
-                                                          "text-colorText",
-                                                          column.mono && "font-mono tabular-nums",
-                                                          column.align === "right" && "text-right",
-                                                          column.align === "center" &&
-                                                              "text-center",
-                                                          column.className,
-                                                      )}
-                                                  >
-                                                      {column.render(record)}
-                                                  </td>
-                                              ))}
-                                              {hasGutter ? (
-                                                  <td
-                                                      className={clsx(CELL, "text-right")}
-                                                      onClick={(event) => event.stopPropagation()}
-                                                  >
-                                                      <RowActions items={items} record={record} />
-                                                  </td>
-                                              ) : null}
-                                          </tr>
-                                          {detail ? (
-                                              <tr className="border-0 border-b border-solid border-colorBorderSecondary last:border-b-0">
-                                                  <td
-                                                      colSpan={columns.length + (hasGutter ? 1 : 0)}
-                                                      className="px-3 pb-3 pt-0"
-                                                  >
-                                                      {detail}
-                                                  </td>
+                            {hasGutter ? <col style={{width: ACTIONS_COL_WIDTH}} /> : null}
+                        </colgroup>
+                        <thead>
+                            <tr className="border-0 border-b border-solid border-colorBorderSecondary bg-colorFillQuaternary">
+                                {columns.map((column) => (
+                                    <th
+                                        key={column.key}
+                                        scope="col"
+                                        className={clsx(
+                                            CELL,
+                                            CELL_DIVIDER,
+                                            "font-semibold text-colorText",
+                                            column.align === "right" && "text-right",
+                                            column.align === "center" && "text-center",
+                                        )}
+                                    >
+                                        {column.title}
+                                    </th>
+                                ))}
+                                {hasGutter ? (
+                                    <th className={clsx(CELL, "text-right")}>
+                                        {showColumnSettings ? (
+                                            <ColumnSettings
+                                                columns={hideable}
+                                                hiddenKeys={hiddenKeys}
+                                                onToggle={(key) =>
+                                                    setHiddenKeys((current) =>
+                                                        current.includes(key)
+                                                            ? current.filter((k) => k !== key)
+                                                            : [...current, key],
+                                                    )
+                                                }
+                                                onSetAll={(hidden) =>
+                                                    setHiddenKeys(
+                                                        hidden
+                                                            ? hideable.map((column) => column.key)
+                                                            : [],
+                                                    )
+                                                }
+                                            />
+                                        ) : null}
+                                    </th>
+                                ) : null}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {showSkeleton
+                                ? Array.from({length: skeletonRows}, (_, index) => (
+                                      <tr
+                                          key={`skeleton-${index}`}
+                                          className="border-0 border-b border-solid border-colorBorderSecondary last:border-b-0"
+                                      >
+                                          {columns.map((column) => (
+                                              <td
+                                                  key={column.key}
+                                                  className={clsx(CELL, CELL_DIVIDER)}
+                                              >
+                                                  <SkeletonBlock active className="h-4 w-3/4" />
+                                              </td>
+                                          ))}
+                                          {hasGutter ? <td className={CELL} /> : null}
+                                      </tr>
+                                  ))
+                                : rows.map((record, rowIndex) => {
+                                      const detail = expandedContent?.(record)
+                                      const items = rowActions?.[rowIndex] ?? []
+                                      return (
+                                          <Fragment key={rowKey(record)}>
+                                              <tr
+                                                  onClick={
+                                                      onRowClick
+                                                          ? () => onRowClick(record)
+                                                          : undefined
+                                                  }
+                                                  // A clickable row is a control, so it takes focus and
+                                                  // answers Enter/Space like one. Rows without
+                                                  // `onRowClick` stay plain markup — they must not
+                                                  // become focus stops.
+                                                  role={onRowClick ? "button" : undefined}
+                                                  tabIndex={onRowClick ? 0 : undefined}
+                                                  onKeyDown={
+                                                      onRowClick
+                                                          ? (event) => {
+                                                                // Only the row itself: controls inside
+                                                                // a cell handle their own keys, and
+                                                                // Space on a container that does not
+                                                                // preventDefault also scrolls the page.
+                                                                if (
+                                                                    event.target !==
+                                                                    event.currentTarget
+                                                                )
+                                                                    return
+                                                                if (
+                                                                    event.key !== "Enter" &&
+                                                                    event.key !== " "
+                                                                )
+                                                                    return
+                                                                event.preventDefault()
+                                                                onRowClick(record)
+                                                            }
+                                                          : undefined
+                                                  }
+                                                  className={clsx(
+                                                      "border-0 border-b border-solid border-colorBorderSecondary last:border-b-0 hover:bg-colorFillQuaternary",
+                                                      onRowClick &&
+                                                          "cursor-pointer outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-focus-ring",
+                                                      // The detail row carries the boundary instead.
+                                                      detail && "border-b-0",
+                                                  )}
+                                              >
+                                                  {columns.map((column) => (
+                                                      <td
+                                                          key={column.key}
+                                                          className={clsx(
+                                                              CELL,
+                                                              CELL_DIVIDER,
+                                                              "text-colorText",
+                                                              column.mono &&
+                                                                  "font-mono tabular-nums",
+                                                              column.align === "right" &&
+                                                                  "text-right",
+                                                              column.align === "center" &&
+                                                                  "text-center",
+                                                              column.className,
+                                                          )}
+                                                      >
+                                                          {column.render(record)}
+                                                      </td>
+                                                  ))}
+                                                  {hasGutter ? (
+                                                      <td
+                                                          className={clsx(CELL, "text-right")}
+                                                          onClick={(event) =>
+                                                              event.stopPropagation()
+                                                          }
+                                                      >
+                                                          <RowActions
+                                                              items={items}
+                                                              record={record}
+                                                          />
+                                                      </td>
+                                                  ) : null}
                                               </tr>
-                                          ) : null}
-                                      </Fragment>
-                                  )
-                              })}
-                    </tbody>
-                </table>
+                                              {detail ? (
+                                                  <tr className="border-0 border-b border-solid border-colorBorderSecondary last:border-b-0">
+                                                      <td
+                                                          colSpan={
+                                                              columns.length + (hasGutter ? 1 : 0)
+                                                          }
+                                                          className="px-3 pb-3 pt-0"
+                                                      >
+                                                          {detail}
+                                                      </td>
+                                                  </tr>
+                                              ) : null}
+                                          </Fragment>
+                                      )
+                                  })}
+                        </tbody>
+                    </table>
+                </div>
 
                 {showEmpty ? <div className="px-3 py-5 sm:py-8">{empty}</div> : null}
             </div>
@@ -606,7 +713,16 @@ const RowActions = <T,>({items, record}: {items: ActionItem<T>[]; record: T}) =>
                 <button
                     type="button"
                     aria-label="Row actions"
-                    className="flex h-6 w-[30px] cursor-pointer items-center justify-center rounded-md border-0 bg-transparent text-colorTextSecondary hover:bg-colorFillTertiary hover:text-colorText"
+                    // The expansion is invisible, so every table gains the 44px hit area and none
+                    // changes shape. Applied here rather than behind a prop because this menu is
+                    // the only route to a row's actions, and a per-table opt-in would have left
+                    // the tables nobody remembered to opt in as hard to hit as this one was.
+                    // Both dimensions are asked for: the trigger is narrower than the minimum too,
+                    // so a height-only expansion left it 38px wide.
+                    className={clsx(
+                        "flex h-6 w-[30px] cursor-pointer items-center justify-center rounded-md border-0 bg-transparent text-colorTextSecondary hover:bg-colorFillTertiary hover:text-colorText",
+                        touchTargetExpansion({height: 24, width: 30, border: 0}),
+                    )}
                 >
                     <DotsThreeVertical size={16} weight="bold" />
                 </button>

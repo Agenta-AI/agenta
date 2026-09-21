@@ -566,6 +566,14 @@ For SAML/OIDC providers with extra fields (Apple, Azure AD, Boxy SAML, GitLab, G
 
 ### Upgrade
 
+:::warning Upgrade the bundled store to SeaweedFS 4.42 or later first
+This applies if you set `store.seaweedfs.image.tag` yourself. The chart defaults to `4.47`.
+
+The API turns on bucket versioning on the bundled store at startup. Versioned deletes need
+SeaweedFS 4.42 or later. On an older build the delete marker does not hide the object, so a deleted
+file keeps showing up and cannot be opened.
+:::
+
 To upgrade to a newer version:
 
 ```bash

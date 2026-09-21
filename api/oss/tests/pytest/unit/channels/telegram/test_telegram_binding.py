@@ -35,6 +35,7 @@ class _FakeStore:
         self.tokens: Dict[str, BindToken] = {}
         self.bindings: Dict[Tuple[str, str], ChatBinding] = {}
         self.links = []  # (bot_id, chat_id, external_user_key) written
+        self.link_users = []  # user_id written for each hosted account link
 
     async def save_token(self, token: BindToken) -> None:
         self.tokens[token.token] = token
@@ -65,6 +66,7 @@ class _FakeStore:
         )
         self.bindings[(bot_id, chat_id)] = binding
         self.links.append((bot_id, chat_id, external_user_key))
+        self.link_users.append(token.user_id)
         return binding
 
     async def list_bindings_for_connection(self, *, project_id, connection_id):
@@ -75,11 +77,21 @@ class _FakeStore:
         ]
 
     async def delete_bindings_for_connection(self, *, connection_id) -> int:
+        self.tokens = {
+            value: token
+            for value, token in self.tokens.items()
+            if token.connection_id != connection_id or token.is_consumed()
+        }
         removed = [
             key for key, b in self.bindings.items() if b.connection_id == connection_id
         ]
         for key in removed:
             del self.bindings[key]
+        # Hosted account links are scoped to the same connection. The real DAO
+        # removes them with the binding state in one transaction.
+        if removed:
+            self.links = []
+            self.link_users = []
         return len(removed)
 
 
@@ -254,6 +266,48 @@ async def test_a_fresh_token_on_an_already_connected_chat_is_refused():
     # the fresh token is untouched and only one account link was ever written
     assert (await store.get_token(token2)).is_consumed() is False
     assert len(store.links) == 1
+
+
+async def test_disconnect_revokes_an_unused_link():
+    store = _FakeStore()
+    svc = _service(store)
+    connection_id = uuid4()
+    url = await svc.issue_bind_link(
+        project_id=uuid4(), user_id=uuid4(), connection_id=connection_id
+    )
+    token = url.rsplit("=", 1)[1]
+
+    assert await svc.release_connection_bindings(connection_id=connection_id) == 0
+    with pytest.raises(BindTokenInvalid):
+        await svc.consume_bind_token(
+            token=token, bot_id="100", chat_id="555", sender_id="777"
+        )
+
+
+async def test_disconnect_clears_account_attribution_before_a_different_user_rebinds():
+    store = _FakeStore()
+    svc = _service(store)
+    project_id, connection_id = uuid4(), uuid4()
+    first_user, second_user = uuid4(), uuid4()
+    url = await svc.issue_bind_link(
+        project_id=project_id, user_id=first_user, connection_id=connection_id
+    )
+    await svc.consume_bind_token(
+        token=url.rsplit("=", 1)[1], bot_id="100", chat_id="555", sender_id="777"
+    )
+
+    assert await svc.release_connection_bindings(connection_id=connection_id) == 1
+    replacement = await svc.issue_bind_link(
+        project_id=project_id, user_id=second_user, connection_id=connection_id
+    )
+    await svc.consume_bind_token(
+        token=replacement.rsplit("=", 1)[1],
+        bot_id="100",
+        chat_id="555",
+        sender_id="777",
+    )
+
+    assert store.link_users == [second_user]
 
 
 async def test_release_connection_bindings_frees_the_chat_to_rebind():

@@ -6,9 +6,9 @@ import {
     webhookToDeleteAtom,
 } from "@agenta/entities/webhook"
 import {WebhooksPage} from "@agenta/settings-ui"
+import {Button} from "@agenta/ui/ui"
 import {useAtom, useSetAtom} from "jotai"
 
-import {Button} from "@/components/ui/button"
 import {
     Sheet,
     SheetContent,

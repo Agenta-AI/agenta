@@ -5,7 +5,7 @@
     "description": "Storybook workbench for the antd → @agenta/ui migration. Renders real @agenta/* components behind the real app providers so antd and @agenta/ui versions can be compared side by side.",
     "scripts": {
         "storybook": "storybook dev -p 6006",
-        "build-storybook": "storybook build -o storybook-static",
+        "build-storybook": "NODE_OPTIONS=--max-old-space-size=8192 storybook build -o storybook-static",
         "lint": "eslint --config ../eslint.config.mjs stories/ .storybook/ parity/ --max-warnings 0",
         "vrt": "node parity/vrt.mjs",
         "a11y": "node parity/a11y.mjs"
@@ -17,13 +17,14 @@
         "@agenta/oss": "workspace:*",
         "@agenta/playground": "workspace:*",
         "@agenta/playground-ui": "workspace:*",
+        "@agenta/settings-ui": "workspace:*",
         "@agenta/shared": "workspace:*",
         "@agenta/skills": "workspace:*",
         "@agenta/skills-ui": "workspace:*",
         "@agenta/ui": "workspace:*",
         "@phosphor-icons/react": "^2.1.10",
         "lucide-react": "^0.479.0",
-        "next": "15.5.18"
+        "next": "15.5.24"
     },
     "devDependencies": {
         "@ant-design/icons": "^6.1.0",
@@ -40,7 +41,7 @@
         "clsx": "^2.1.1",
         "jotai": "^2.16.1",
         "jotai-tanstack-query": "^0.11.0",
-        "next": "15.5.18",
+        "next": "15.5.24",
         "pixelmatch": "5.3.0",
         "playwright": "1.60.0",
         "pngjs": "7.0.0",

@@ -93,12 +93,25 @@ class TelegramBindingDAO:
             return _to_chat_binding(dbe) if dbe is not None else None
 
     async def delete_bindings_for_connection(self, *, connection_id: UUID) -> int:
-        """Release every chat binding that points at this connection, so those
-        chats are free to reconnect (to the same or a different project). Called
-        when a hosted connection is disconnected. A no-op for a connection with
-        no bindings. Returns the number of rows removed."""
+        """Revoke the hosted state for a disconnected connection.
+
+        An unused deep link must not attach a chat after disconnect. The old
+        account link must not attribute a later bind to its former user. Keep
+        consumed tokens for their one-time replay semantics and audit trail.
+        """
 
         async with self.engine.session() as session:
+            await session.execute(
+                delete(TelegramBindTokenDBE).where(
+                    TelegramBindTokenDBE.connection_id == connection_id,
+                    TelegramBindTokenDBE.consumed_at.is_(None),
+                )
+            )
+            await session.execute(
+                delete(ChannelIdentityLinkDBE).where(
+                    ChannelIdentityLinkDBE.connection_id == connection_id
+                )
+            )
             result = await session.execute(
                 delete(TelegramChatBindingDBE).where(
                     TelegramChatBindingDBE.connection_id == connection_id

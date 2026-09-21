@@ -4,6 +4,7 @@ import {type Automation, useAutomation} from "@agenta/automation-ui"
 import {getScheduleMessagePreview} from "@agenta/entities/gatewayTrigger"
 import {message} from "@agenta/ui/app-message"
 import {
+    Button,
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
@@ -13,10 +14,10 @@ import {
 import {ClockCounterClockwise, DotsThreeVertical, Pause, Play, Trash} from "@phosphor-icons/react"
 import {useRouter} from "next/router"
 
-import {Button} from "@/components/ui/button"
-
-import {useStartBlankSession} from "../chat/useStartBlankSession"
+import {useStartTaskSession} from "../chat/useStartTaskSession"
 import {useConfirmModal} from "../settings/useConfirmModal"
+
+import {testRunBlockedReason} from "./AutomationTestRunButton"
 
 /**
  * The automation's own actions — everything that acts on the row rather than on a field.
@@ -52,7 +53,7 @@ export const AutomationActionsMenu = ({
 }) => {
     const router = useRouter()
     const {remove, setActive} = useAutomation(automation.id, automation.kind)
-    const startSession = useStartBlankSession(base)
+    const startTask = useStartTaskSession(base)
     const {confirm, modal} = useConfirmModal()
 
     const onToggle = useCallback(async () => {
@@ -66,15 +67,17 @@ export const AutomationActionsMenu = ({
     }, [automation.id, automation.isActive, setActive])
 
     const onTestRun = useCallback(() => {
-        if (!automation.agentId) {
-            message.error("Pick the agent this automation runs first")
+        const instruction = getScheduleMessagePreview(automation.raw.data?.inputs_fields).trim()
+        // A menu item has no disabled-with-tooltip state, so the detail button's reasons surface
+        // as a toast instead.
+        const blocked = testRunBlockedReason({agentId: automation.agentId, instruction})
+        if (blocked || !automation.agentId) {
+            message.error(blocked)
             return
         }
-        // Unsent, like the detail screen's Test run: a rehearsal leaves the last press to the user.
-        startSession(automation.agentId, {
-            draft: getScheduleMessagePreview(automation.raw.data?.inputs_fields),
-        })
-    }, [automation.agentId, automation.raw.data?.inputs_fields, startSession])
+        // Sent on landing, like the detail screen's Run now.
+        void startTask(automation.agentId, instruction)
+    }, [automation.agentId, automation.raw.data?.inputs_fields, startTask])
 
     const onDelete = useCallback(() => {
         confirm({
@@ -101,7 +104,7 @@ export const AutomationActionsMenu = ({
                     <Button
                         type="button"
                         // A list row is a compact line and the kebab sits in a 24px column; on the
-                        // detail screen it stands beside Test run and has to be that button's
+                        // detail screen it stands beside Run now and has to be that button's
                         // height, or the pair reads as one control and a smaller afterthought.
                         size={surface === "list" ? "icon-xs" : "icon-sm"}
                         variant="ghost"
@@ -123,7 +126,7 @@ export const AutomationActionsMenu = ({
                         <>
                             <DropdownMenuItem onSelect={onTestRun}>
                                 <Play aria-hidden size={14} />
-                                Test run in playground
+                                Run now
                             </DropdownMenuItem>
                             <DropdownMenuItem
                                 onSelect={() =>
@@ -136,7 +139,7 @@ export const AutomationActionsMenu = ({
                                 {/* The history is a view of the automation rather than a route,
                                     so the screen is asked to open on it. The row promises runs;
                                     landing on the config would make the reader find them. */}
-                                View run history
+                                Run history
                             </DropdownMenuItem>
                             <DropdownMenuItem onSelect={() => void onToggle()}>
                                 {automation.isActive ? (
@@ -144,14 +147,14 @@ export const AutomationActionsMenu = ({
                                 ) : (
                                     <Play aria-hidden size={14} />
                                 )}
-                                {automation.isActive ? "Turn off" : "Turn on"}
+                                {automation.isActive ? "Deactivate" : "Activate"}
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
                         </>
                     ) : null}
                     <DropdownMenuItem variant="destructive" onSelect={onDelete}>
                         <Trash aria-hidden size={14} />
-                        Delete automation
+                        Delete
                     </DropdownMenuItem>
                 </DropdownMenuContent>
             </DropdownMenu>

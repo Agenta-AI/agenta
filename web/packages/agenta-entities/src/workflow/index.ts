@@ -282,6 +282,7 @@ export {
     // Mutations
     updateWorkflowDraftAtom,
     discardWorkflowDraftAtom,
+    workflowDraftConsumedAtomFamily,
     registerWorkflowDraftCallbacks,
     clearWorkflowDraftCallbacks,
     // Cache invalidation
@@ -306,9 +307,12 @@ export {
     workflowAppTypeAtomFamily,
     workflowLatestRevisionQueryAtomFamily,
     agTypeSchemaAtomFamily,
-    // Agent icon (per-agent glyph + colour, persisted client-side)
+    // Agent icon (per-agent glyph + colour, stored on the artifact's tags)
     agentIconAtomFamily,
+    readAgentIconTag,
+    withAgentIconTag,
     type AgentIconRecord,
+    type AgentIconSetting,
     readPersistedAgentType,
     // Artifact (workflow-level container — entity display name)
     workflowArtifactQueryAtomFamily,
@@ -334,6 +338,12 @@ export {
     // Create from Ephemeral
     createWorkflowFromEphemeralAtom,
     type WorkflowCreateFromEphemeralParams,
+    loadAgentTemplateFromEphemeralAtom,
+    abandonAgentTemplateLoad,
+    templateConnectionChoices,
+    type LoadAgentTemplateFromEphemeralParams,
+    buildCreatePayloadFromEphemeral,
+    type EphemeralCreatePayload,
     archiveWorkflowRevisionAtom,
     type WorkflowArchiveParams,
     type WorkflowArchiveResult,
@@ -493,15 +503,37 @@ export {
     composioLogo,
     templateBuilderMessage,
     templateCategories,
+    templateConnections,
+    templatePrimaryProvider,
     templateProviderSlugs,
     templateToolCount,
 } from "./agentTemplates"
 export type {
     AgentStarterTemplate,
+    TemplateConnection,
     RequiredIntegration,
     TemplateExampleSession,
     TemplateTool,
 } from "./agentTemplates"
+
+export {
+    detectAccounts,
+    detectAccountsFromTemplate,
+    detectAccountsFromText,
+    requiredAccounts,
+    suggestionAccounts,
+} from "./detectAccounts"
+export type {DetectedAccount} from "./detectAccounts"
+
+export {
+    appendSetupPreamble,
+    buildSetupPreamble,
+    canCreateAgent,
+    isAccountSatisfied,
+    outstandingRequired,
+    setupStatus,
+} from "./agentSetup"
+export type {AgentSetupSelection, AgentSetupStatus} from "./agentSetup"
 
 export {agentRosterSearchAtom, matchesAgentQuery} from "./state/agentRoster"
 

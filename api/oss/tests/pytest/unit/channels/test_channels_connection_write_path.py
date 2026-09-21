@@ -4,6 +4,7 @@ verification writes nothing, and a secret never rides a response body. No
 DB and no vault: a fake DAO and a fake vault stand in for persistence.
 """
 
+from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 from unittest.mock import AsyncMock, MagicMock
 from uuid import UUID, uuid4
@@ -18,6 +19,7 @@ from oss.src.core.channels.dtos import (
     ChannelConnection,
     ChannelConnectionCreate,
     ChannelConnectionEdit,
+    ChannelConnectionFlags,
     ChannelConnectionResponse,
 )
 from oss.src.core.channels.service import ChannelsService
@@ -39,6 +41,12 @@ def _slack_like_capabilities():
                 "keys": {"connection": ["api_app_id", "enterprise_id", "team_id"]}
             },
         }
+    )
+
+
+def _telegram_capabilities():
+    return normalise_capabilities(
+        {"channel": "telegram", "identity": {"keys": {"connection": ["bot_id"]}}}
     )
 
 
@@ -86,6 +94,13 @@ class _FakeAdapter(ChannelAdapterInterface):
         return dict(self._discovered)
 
 
+class _FakeTelegramAdapter(_FakeAdapter):
+    channel = "telegram"
+
+    async def fetch_capabilities(self, *, connection=None):
+        return _telegram_capabilities()
+
+
 class _FakeSecret:
     def __init__(self, *, id: UUID, data: Any):
         self.id = id
@@ -119,6 +134,9 @@ class _FakeVaultService:
         self._store[secret_id] = secret
         self.update_calls.append(update_secret_dto)
         return secret
+
+    async def get_secret_by_id(self, *, secret_id, project_id):
+        return self._store.get(secret_id)
 
 
 def _service(*, dao, adapter, vault=None) -> ChannelsService:
@@ -159,6 +177,7 @@ def _fake_dao(*, existing: Optional[ChannelConnection] = None):
         ).model_copy(update={"data": kw["connection"].data})
     )
     dao.fetch_connection = AsyncMock(return_value=existing)
+    dao.get_project_and_connection_by_external_key = AsyncMock(return_value=None)
     return dao
 
 
@@ -335,6 +354,53 @@ async def test_no_response_body_contains_a_secret_value():
     payload = ChannelConnectionResponse(count=1, connection=result).model_dump_json()
     assert _CANARY_TOKEN not in payload
     assert _CANARY_SECRET not in payload
+
+
+async def test_custom_telegram_reconnect_reuses_an_archived_bot_connection():
+    project_id, user_id, secret_id = uuid4(), uuid4(), uuid4()
+    existing = ChannelConnection(
+        id=uuid4(),
+        slug="custom-bot",
+        channel="telegram",
+        external_key=uuid4(),
+        deleted_at=datetime.now(timezone.utc),
+        data={
+            "connection_locator": {"bot_id": "bot-1"},
+            "credential_secret_id": str(secret_id),
+        },
+        flags=ChannelConnectionFlags(is_verified=True),
+    )
+    dao = _fake_dao(existing=existing)
+    dao.get_project_and_connection_by_external_key.return_value = (
+        project_id,
+        existing.id,
+    )
+    restored = existing.model_copy(update={"deleted_at": None})
+    dao.unarchive_connection = AsyncMock(return_value=restored)
+    vault = _FakeVaultService()
+    vault._store[secret_id] = _FakeSecret(id=secret_id, data=None)
+    service = _service(
+        dao=dao,
+        adapter=_FakeTelegramAdapter(discovered={"bot_id": "bot-1"}),
+        vault=vault,
+    )
+
+    result = await service.create_connection(
+        project_id=project_id,
+        user_id=user_id,
+        connection=ChannelConnectionCreate(
+            channel="telegram", credentials={"bot_token": "unit-test-token"}
+        ),
+    )
+
+    assert result.id == existing.id
+    assert result.deleted_at is None
+    dao.create_connection.assert_not_awaited()
+    dao.edit_connection.assert_awaited_once()
+    dao.unarchive_connection.assert_awaited_once_with(
+        project_id=project_id, user_id=user_id, connection_id=existing.id
+    )
+    assert len(vault.update_calls) == 1
 
 
 async def test_two_projects_one_installation_collide_on_a_domain_error_not_a_500():

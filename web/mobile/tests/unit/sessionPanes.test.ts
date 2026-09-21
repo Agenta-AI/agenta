@@ -8,17 +8,28 @@ import {describe, expect, it} from "vitest"
 
 import {resolveSessionPanes} from "@/features/chat/sessionPanes"
 
-const phone = {twoPane: false, hasEntity: true, chatMaximized: false, configCollapsed: true}
+const phone = {
+    twoPane: false,
+    hasEntity: true,
+    chatMaximized: false,
+    configCollapsed: true,
+    filesOpen: false,
+}
 
 describe("resolveSessionPanes on a phone", () => {
     it("shows the conversation when the config pane is collapsed", () => {
-        expect(resolveSessionPanes(phone)).toEqual({showConfig: false, showPane: false})
+        expect(resolveSessionPanes(phone)).toEqual({
+            showConfig: false,
+            showPane: false,
+            showFiles: false,
+        })
     })
 
     it("shows the configuration once the reader asks for it", () => {
         expect(resolveSessionPanes({...phone, configCollapsed: false})).toEqual({
             showConfig: true,
             showPane: true,
+            showFiles: false,
         })
     })
 
@@ -26,6 +37,7 @@ describe("resolveSessionPanes on a phone", () => {
         expect(resolveSessionPanes({...phone, chatMaximized: true})).toEqual({
             showConfig: false,
             showPane: false,
+            showFiles: false,
         })
     })
 
@@ -33,15 +45,43 @@ describe("resolveSessionPanes on a phone", () => {
         expect(resolveSessionPanes({...phone, configCollapsed: false, hasEntity: false})).toEqual({
             showConfig: false,
             showPane: false,
+            showFiles: false,
         })
     })
 })
 
+describe("resolveSessionPanes on a phone with the Files pane open", () => {
+    it("gives Files the screen in place of the conversation", () => {
+        expect(resolveSessionPanes({...phone, filesOpen: true})).toEqual({
+            showConfig: false,
+            showPane: false,
+            showFiles: true,
+        })
+    })
+
+    it("outranks the configuration, which comes back once Files closes", () => {
+        const withConfig = {...phone, configCollapsed: false}
+        expect(resolveSessionPanes({...withConfig, filesOpen: true})).toEqual({
+            showConfig: false,
+            showPane: false,
+            showFiles: true,
+        })
+        expect(resolveSessionPanes(withConfig).showConfig).toBe(true)
+    })
+})
+
 describe("resolveSessionPanes with two panes", () => {
+    it("shows Files beside the configuration, not instead of it", () => {
+        expect(
+            resolveSessionPanes({...phone, twoPane: true, configCollapsed: false, filesOpen: true}),
+        ).toEqual({showConfig: true, showPane: true, showFiles: true})
+    })
+
     it("keeps the desktop swap: the sessions rail stands in for the config panel", () => {
         expect(resolveSessionPanes({...phone, twoPane: true, chatMaximized: true})).toEqual({
             showConfig: false,
             showPane: true,
+            showFiles: false,
         })
     })
 
@@ -49,6 +89,7 @@ describe("resolveSessionPanes with two panes", () => {
         expect(resolveSessionPanes({...phone, twoPane: true, configCollapsed: false})).toEqual({
             showConfig: true,
             showPane: true,
+            showFiles: false,
         })
     })
 })

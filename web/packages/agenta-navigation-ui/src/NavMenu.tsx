@@ -16,7 +16,7 @@ import {
     TooltipTrigger,
     cn,
 } from "@agenta/ui/ui"
-import {CaretRight} from "@phosphor-icons/react"
+import {CaretRight, Plus} from "@phosphor-icons/react"
 import clsx from "clsx"
 import Link from "next/link"
 
@@ -123,6 +123,10 @@ const Tip = ({title, children}: {title: ReactNode; children: ReactNode}) => (
 
 const isExternal = (link?: string) => Boolean(link?.startsWith("http"))
 
+/** A click the browser routes elsewhere (new tab / window) instead of following in place. */
+const isModifiedClick = (event: MouseEvent) =>
+    event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey
+
 /**
  * What clicking a nav link does. Every `<Link>` here runs this — inline rows, the collapsed
  * rail's stretched anchor, and the flyout — so an inert or controlled item behaves the same
@@ -221,7 +225,12 @@ const GroupLabelRow = memo(function GroupLabelRow({item}: {item: NavItem}) {
             // Not uppercase, unlike the static heading above: a collapsible heading labels an
             // ENTITY (an agent), and shouting a proper noun misspells it.
             className="mx-auto flex w-[calc(100%-16px)] shrink-0 cursor-pointer select-none items-center gap-1 rounded-md pb-0.5 pl-3 pr-0 pt-2 text-[12px] text-colorTextTertiary hover:text-colorText"
-            onClick={toggle}
+            onClick={(event) => {
+                // The "+" is an anchor and its click must reach the shell frame (the drawer
+                // closes itself on any anchor click), so it bubbles — and must not fold the group.
+                if ((event.target as HTMLElement).closest("a")) return
+                toggle(event)
+            }}
             onKeyDown={(event) => {
                 if (onMoveKey(event)) return
                 if (event.key !== "Enter" && event.key !== " ") return
@@ -229,12 +238,11 @@ const GroupLabelRow = memo(function GroupLabelRow({item}: {item: NavItem}) {
                 toggle(event as unknown as MouseEvent)
             }}
         >
-            <span className="min-w-0 flex-1 truncate">{item.title}</span>
-            {/* No fill on hover: the whole row already answers with a colour change, and a pill
-                behind the caret made a heading look like a button it is not. */}
+            <span className="min-w-0 truncate">{item.title}</span>
+            {/* The caret sits right after the title, so the fold reads as one control. */}
             <span
                 aria-label={`${item.isCollapsed ? "Expand" : "Collapse"} ${item.title}`}
-                className="mr-1 flex size-[22px] shrink-0 items-center justify-center"
+                className="flex shrink-0 items-center justify-center"
             >
                 <CaretRight
                     size={11}
@@ -244,6 +252,25 @@ const GroupLabelRow = memo(function GroupLabelRow({item}: {item: NavItem}) {
                     )}
                 />
             </span>
+            {/* A real link, so a long-press / middle-click can open it in another tab. */}
+            {item.groupAdd ? (
+                <Link
+                    href={item.groupAdd.link}
+                    aria-label={item.groupAdd.label}
+                    title={item.groupAdd.label}
+                    className="ml-auto mr-1 flex size-[22px] shrink-0 items-center justify-center rounded-md !text-colorTextTertiary no-underline hover:bg-colorFillTertiary hover:!text-colorText"
+                    onClick={(event) => {
+                        // A modified click opens the bare page in another tab; the click work
+                        // belongs to THIS tab only.
+                        if (isModifiedClick(event)) return
+                        item.groupAdd?.onClick?.(event)
+                    }}
+                    // Enter on the link is its own activation; the heading must not also toggle.
+                    onKeyDown={(event) => event.stopPropagation()}
+                >
+                    <Plus size={12} />
+                </Link>
+            ) : null}
         </div>
     )
 })

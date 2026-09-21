@@ -7,7 +7,7 @@ import {
     unarchiveSessionRemote,
 } from "@agenta/entities/session"
 import {shareUrl} from "@agenta/sessions/link"
-import {pinnedSessionIdsAtom, toggleSessionPinAtom} from "@agenta/sessions/state"
+import {pinnedSessionIdsAtom, toggleSessionPinAtom, unpinSessionAtom} from "@agenta/sessions/state"
 import {projectIdAtom} from "@agenta/shared/state"
 import {message, modal} from "@agenta/ui/app-message"
 import {copyToClipboard} from "@agenta/ui/utils"
@@ -47,7 +47,11 @@ export interface SessionLocalCache {
     has: (target: SessionActionTarget) => boolean
     /** Awaited before the lists revalidate: these verbs own the server call for a cached
      * session, and a refetch that overtakes it brings the old row straight back. */
-    rename: (target: SessionActionTarget, title: string) => void | Promise<unknown>
+    /**
+     * Resolve `false` when the write did not land, so the verb reports it instead of claiming a
+     * rename the next list read will undo. `void` is success: a host with no server write.
+     */
+    rename: (target: SessionActionTarget, title: string) => void | boolean | Promise<boolean | void>
     setArchived: (target: SessionActionTarget) => void | Promise<unknown>
     remove: (target: SessionActionTarget) => void | Promise<unknown>
 }
@@ -78,6 +82,7 @@ export const useSessionActions = ({localCache, sharePathFor}: UseSessionActionsO
     const projectId = useAtomValue(projectIdAtom) ?? ""
     const pinnedIds = useAtomValue(pinnedSessionIdsAtom)
     const togglePin = useSetAtom(toggleSessionPinAtom)
+    const unpin = useSetAtom(unpinSessionAtom)
 
     const revalidate = useCallback(() => {
         void queryClient.invalidateQueries({queryKey: ["sessions-page"]})
@@ -103,7 +108,11 @@ export const useSessionActions = ({localCache, sharePathFor}: UseSessionActionsO
             const name = title.trim()
             if (!name) return false
             if (isCached(target)) {
-                await localCache?.rename(target, name)
+                // The host's write can fail like the direct one below. Dropping its answer
+                // reported success, so the row kept the new name until the next list read
+                // quietly put the old one back, and the person never learned the rename was
+                // lost (#6695).
+                if ((await localCache?.rename(target, name)) === false) return false
             } else {
                 const ok = await setSessionHeader({
                     sessionId: target.sessionId,
@@ -143,9 +152,12 @@ export const useSessionActions = ({localCache, sharePathFor}: UseSessionActionsO
                     return
                 }
             }
+            // Archiving drops the pin: a pinned row leads every list, which is the opposite of
+            // what archiving asks for, and the menu will not pin it back until it is unarchived.
+            if (!target.archived) unpin(target.sessionId)
             revalidate()
         },
-        [isCached, localCache, projectId, revalidate],
+        [isCached, localCache, projectId, revalidate, unpin],
     )
 
     const remove = useCallback(
@@ -174,11 +186,12 @@ export const useSessionActions = ({localCache, sharePathFor}: UseSessionActionsO
                             return
                         }
                     }
+                    unpin(target.sessionId)
                     revalidate()
                 },
             })
         },
-        [isCached, localCache, projectId, revalidate],
+        [isCached, localCache, projectId, revalidate, unpin],
     )
 
     const copyShareLink = useCallback(

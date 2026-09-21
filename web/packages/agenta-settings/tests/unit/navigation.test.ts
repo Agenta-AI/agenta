@@ -3,6 +3,7 @@ import {describe, expect, it} from "vitest"
 import {
     getSettingsSidebarTabs,
     getSettingsTabDescription,
+    getSettingsTabLabel,
     resolveSettingsTab,
     SETTINGS_SCOPES,
     SETTINGS_TABS,
@@ -11,6 +12,7 @@ import {
 
 const baseAccess: SettingsAccess = {
     billingEnabled: true,
+    canShowMcpEndpoints: true,
     canShowTools: true,
     canShowChannels: true,
     canViewApiKeys: true,
@@ -52,6 +54,26 @@ describe("resolveSettingsTab", () => {
 
     it("gates tools", () => {
         expect(resolveSettingsTab("tools", {...baseAccess, canShowTools: false})).toBe("workspace")
+    })
+
+    it("gates MCP endpoints on the deployment serving the MCP gateway", () => {
+        // A deployment with AGENTA_MCP_GATEWAY_ENABLED=false refuses every MCP gateway route,
+        // so the tab would list endpoints nothing can reach.
+        expect(
+            resolveSettingsTab("mcpEndpoints", {...baseAccess, canShowMcpEndpoints: false}),
+        ).toBe("workspace")
+    })
+
+    it("keeps MCP endpoints listed while the gateway serves", () => {
+        expect(resolveSettingsTab("mcpEndpoints", baseAccess)).toBe("mcpEndpoints")
+    })
+
+    it("hides the MCP endpoints tab in the sidebar when the gateway is off", () => {
+        const hidden = getSettingsSidebarTabs({...baseAccess, canShowMcpEndpoints: false}).find(
+            (tab) => tab.key === "mcpEndpoints",
+        )
+
+        expect(hidden?.isHidden).toBe(true)
     })
 
     it("keeps personal preferences available in OSS", () => {
@@ -104,6 +126,7 @@ describe("settings sidebar scopes", () => {
             "tools",
             "channels",
             "webhooks",
+            "mcpEndpoints",
         ])
         expect(keysForScope("organization")).toEqual([
             "organizationGeneral",
@@ -114,5 +137,10 @@ describe("settings sidebar scopes", () => {
             "billing",
         ])
         expect(keysForScope("personal")).toEqual(["account", "preferences"])
+    })
+
+    it("exposes separate LLM and MCP pages", () => {
+        expect(getSettingsTabLabel("llms", baseAccess)).toBe("AI providers")
+        expect(getSettingsTabLabel("mcpEndpoints", baseAccess)).toBe("MCPs")
     })
 })

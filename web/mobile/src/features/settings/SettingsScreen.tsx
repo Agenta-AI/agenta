@@ -12,16 +12,16 @@ import {
 import {useProfile} from "@agenta/entities/profile"
 import {fetchAllProjects} from "@agenta/entities/project"
 import {getSettingsTabVariant, type SettingsTabKey} from "@agenta/settings"
-import {useApiKeys, type SettingsAccess} from "@agenta/settings"
+import type {SettingsAccess} from "@agenta/settings"
 import {
     AccessControlsSection,
     type AccessFeature,
     AccessUpgradeNotice,
-    ApiKeysPage,
     AuditLogPage,
     type AuthFlagKey,
     DomainsSection,
     GatewayToolsSection,
+    McpServersSection,
     OrganizationsPage,
     SsoProvidersSection,
     SettingsPageShell,
@@ -46,6 +46,7 @@ import {AppShell} from "../nav/AppShell"
 import {NavDrawer} from "../nav/NavDrawer"
 
 import {AccountTab} from "./AccountTab"
+import {ApiKeysTab} from "./ApiKeysTab"
 import {BillingTab} from "./BillingTab"
 import {LlmProvidersTab} from "./LlmProvidersTab"
 import {MembersTab} from "./MembersTab"
@@ -84,14 +85,6 @@ const TabBody = ({
     workspaceId: string
     projectId: string
 }) => {
-    const keys = useApiKeys({
-        workspaceId,
-        canView: tab === "apiKeys" && access.canViewApiKeys,
-        canEdit: false,
-        confirmDelete: async () => false,
-        onCreated: () => undefined,
-    })
-
     const projects = useQuery({
         queryKey: ["projects", workspaceId],
         queryFn: () => fetchAllProjects(workspaceId),
@@ -177,15 +170,10 @@ const TabBody = ({
             return <AccountTab user={user} />
         case "apiKeys":
             return (
-                <ApiKeysPage
-                    rows={keys.keys}
-                    listing={keys.listing}
-                    creating={false}
+                <ApiKeysTab
+                    workspaceId={workspaceId}
+                    projectId={projectId}
                     canView={access.canViewApiKeys}
-                    canEdit={false}
-                    onReload={keys.list}
-                    onCreate={() => undefined}
-                    onDelete={() => undefined}
                 />
             )
         case "llms":
@@ -214,6 +202,19 @@ const TabBody = ({
             return (
                 <>
                     <GatewayToolsSection confirm={confirm} copy={INTEGRATIONS_SECTION_COPY} />
+                    {confirmModal}
+                </>
+            )
+        // Writable, like Tools: the section and its journey are shared with the desktop, so
+        // a connection added here is the same connection added there.
+        case "mcpEndpoints":
+            // Gated here too, not only in `useActiveSettingsTab`: a render boundary that
+            // trusts the router is one refactor away from rendering a surface whose every
+            // action the gateway refuses.
+            if (!access.canShowMcpEndpoints) return null
+            return (
+                <>
+                    <McpServersSection confirm={confirm} />
                     {confirmModal}
                 </>
             )

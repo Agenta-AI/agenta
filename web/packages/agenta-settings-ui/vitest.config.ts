@@ -5,9 +5,9 @@ export default defineConfig({
     plugins: [react()],
     test: {
         include: ["tests/unit/**/*.test.{ts,tsx}", "src/channels/qr/*.test.ts"],
-        environment: "node",
+        environment: "jsdom",
         reporters: ["default", "junit"],
         outputFile: {junit: "./test-results/junit.xml"},
-        coverage: {provider: "v8", include: ["src/channels/**/*.{ts,tsx}"]},
+        coverage: {provider: "v8", include: ["src/**/*.{ts,tsx}"]},
     },
 })

@@ -7,6 +7,7 @@ export type SettingsTabKey =
     | "tools"
     | "channels"
     | "webhooks"
+    | "mcpEndpoints"
     | "workspace"
     | "projects"
     | "organizationGeneral"
@@ -20,6 +21,8 @@ export type SettingsScopeKey = "project" | "organization" | "personal"
 
 export interface SettingsAccess {
     billingEnabled: boolean
+    /** Whether this deployment serves the MCP gateway the endpoints tab manages. */
+    canShowMcpEndpoints: boolean
     canShowTools: boolean
     canViewApiKeys: boolean
     canViewEvents: boolean
@@ -85,6 +88,12 @@ export const SETTINGS_TABS: SettingsTabDefinition[] = [
         scope: "project",
         description:
             "Send workflow events to your own HTTP endpoints, with signed payloads and delivery retries.",
+    },
+    {
+        key: "mcpEndpoints",
+        scope: "project",
+        description:
+            "MCP servers connected to this project. Each agent chooses which of these to use and what it may run.",
     },
     {
         key: "organizationGeneral",
@@ -163,6 +172,7 @@ const SETTINGS_LABELS: Record<Exclude<SettingsTabKey, "billing">, string> = {
     tools: "Tools",
     channels: "Channels",
     webhooks: "Webhooks",
+    mcpEndpoints: "MCPs",
     workspace: "Members",
     projects: "Projects",
     organizationGeneral: "Organizations",
@@ -200,6 +210,9 @@ export const isSettingsTabVisible = (key: SettingsTabKey, access: SettingsAccess
             return access.canShowTools
         case "channels":
             return access.canShowChannels
+
+        case "mcpEndpoints":
+            return access.canShowMcpEndpoints
         case "organization":
             return access.isEE && access.isOwner
         case "auditLog":

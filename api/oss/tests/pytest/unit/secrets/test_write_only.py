@@ -1105,6 +1105,8 @@ def test_primary_credential_fields_cover_every_secret_kind():
         "sso_provider",
         "custom_secret",
         "channel_secret",
+        "oauth_provider",
+        "oauth_grant",
     }
     # A subscription keeps its credential on the data object, not in a nested container,
     # and it has no readable form at all: both fields are stripped whatever write_only says.

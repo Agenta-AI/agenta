@@ -242,9 +242,9 @@ class TelegramBindingService:
         )
 
     async def release_connection_bindings(self, *, connection_id: UUID) -> int:
-        """Free every chat bound to this connection, so they can reconnect.
-        Called when a hosted connection is disconnected. Safe to call for any
-        connection: one with no bindings removes nothing."""
+        """Revoke this hosted connection's pending links and account links,
+        then free its chats to reconnect. The store makes that cleanup one
+        transaction; a connection with no hosted state is a no-op."""
 
         return await self._store.delete_bindings_for_connection(
             connection_id=connection_id

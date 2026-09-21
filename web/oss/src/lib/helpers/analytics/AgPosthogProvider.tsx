@@ -8,6 +8,7 @@ import {getEnv} from "../dynamicEnv"
 import {generateOrRetrieveDistinctId, isDemo} from "../utils"
 
 import {CLOUD_CONFIG, OSS_CONFIG} from "./assets/constants"
+import {useAgentCreationFailureReporter} from "./hooks/useAgentCreationFailureReporter"
 import {posthogAtom, type PostHogConfig} from "./store/atoms"
 import {CustomPosthogProviderType} from "./types"
 
@@ -22,6 +23,8 @@ const CustomPosthogProvider: CustomPosthogProviderType = ({children}) => {
     const currentPath = router.asPath || router.pathname || ""
     const isAuthRoute = currentPath.startsWith("/auth") && !currentPath.startsWith("/auth/callback")
     const isPostSignupRoute = currentPath.startsWith("/post-signup")
+
+    useAgentCreationFailureReporter()
 
     const initPosthog = useCallback(async () => {
         if (posthogClient) return

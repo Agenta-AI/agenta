@@ -15,8 +15,9 @@ import {useNewAgentAction} from "./useNewAgentAction"
  * this app's screen shape.
  *
  * What stays here is this app's: `ScreenScaffold fill` (the view owns its scrolling), Streamdown
- * for AGENTS.md, and what "Use this template" does — the same seeded create the New agent menu
- * runs, landing in the new agent's first conversation.
+ * for AGENTS.md, and what "Use this template" does — the same create every other entry runs, so
+ * this page browses and commits without owning a create surface of its own. The accounts the
+ * template needs are asked for in the session it lands in (`useSessionSetupStep`).
  */
 export const AgentTemplateDetailScreen = ({
     workspaceId,
@@ -36,17 +37,7 @@ export const AgentTemplateDetailScreen = ({
         <>
             <PageTitle title="Templates" context={template?.name} />
             <AppShell workspaceId={workspaceId} projectId={projectId}>
-                <ScreenScaffold
-                    fill
-                    // Only while a create is failing — nothing renders at rest.
-                    header={
-                        newAgent.error ? (
-                            <div className="border-border text-destructive shrink-0 border-b px-4 py-2 text-xs">
-                                {newAgent.error}
-                            </div>
-                        ) : undefined
-                    }
-                >
+                <ScreenScaffold fill>
                     <TemplateDetail
                         template={template}
                         allTemplatesHref={`${base}/templates`}

@@ -25,9 +25,37 @@ from __future__ import annotations
 import os
 from typing import Dict, Optional
 
+import httpx
+
 from agenta.sdk.utils.logging import get_module_logger
 
 log = get_module_logger(__name__)
+
+
+class GatewayCredentialsError(RuntimeError):
+    """The backend would not issue a gateway-confined credential for this caller.
+
+    Raised rather than degraded to ``None``: falling back to the caller's own credential is
+    exactly the defect the exchange exists to remove, and a run with no credential at all
+    fails later with a message that names the wrong cause.
+
+    ``failure_code`` carries the gateway's own code when the refusal named one. One value has
+    a caller that acts on it: ``mcp_gateway_disabled`` means the deployment does not serve the
+    MCP gateway, which is a reason to dial the declared servers directly rather than to fail
+    the run. Everything else stays a failure.
+    """
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        failure_code: Optional[str] = None,
+        status_code: Optional[int] = None,
+    ) -> None:
+        super().__init__(message)
+        self.failure_code = failure_code
+        self.status_code = status_code
+
 
 # Budget for one backend round-trip (the tool catalog/connection check, the vault fetch).
 # Gateway tool resolution can call out to a provider (e.g. Composio) and exceed a few seconds,
@@ -44,6 +72,23 @@ def default_timeout() -> float:
         except ValueError:
             pass
     return DEFAULT_TOOLS_TIMEOUT
+
+
+def _refusal_code(response: httpx.Response) -> Optional[str]:
+    """The gateway's own ``code`` out of a refusal, when the body carries the shared envelope.
+
+    Tolerant on purpose: this runs on an error path, and a body that is not JSON, not a dict,
+    or not enveloped simply yields ``None``, leaving the caller with the status it already
+    had. The envelope arrives under ``detail`` because FastAPI wraps an ``HTTPException``.
+    """
+    try:
+        body = response.json()
+    except Exception:  # pylint: disable=broad-except
+        return None
+
+    detail = body.get("detail") if isinstance(body, dict) else None
+    code = detail.get("code") if isinstance(detail, dict) else None
+    return code if isinstance(code, str) and code else None
 
 
 def _derive_base_url() -> Optional[str]:
@@ -127,9 +172,104 @@ class PlatformConnection:
         """The backend base URL: explicit, else derived from SDK config/env. ``None`` if unset."""
         return self._base_url or _derive_base_url()
 
+    def gateway_base_url(self) -> Optional[str]:
+        """The base URL the gateway route is composed against (D30's ``{gateway_base}``).
+
+        The gateways mount inside the API app under ``/gateways/...``, so this IS the API
+        base. It stays a named accessor rather than a concatenation at each call site: a
+        gateway hosted separately would change this body and nothing else.
+
+        The PUBLIC base, and that is the whole difference from :meth:`base_url`. Every caller
+        of this composes an address that is written INTO a sandbox: the MCP relay URL and the
+        LLM gateway endpoint. ``base_url`` prefers ``AGENTA_API_INTERNAL_URL`` because the
+        calls THIS process makes (the credential exchange, the vault) want the in-network hop,
+        and a remote sandbox has no route to ``http://api:8000`` at all. Handed one anyway, a
+        Daytona run refuses before it starts, on the runner's HTTPS check.
+
+        Read through the SDK's own ``parse_url``, the same reader the trace endpoint a
+        dispatched run carries already goes through, so a self-hoster's ``localhost`` public
+        base becomes ``host.docker.internal`` here exactly as it does there. With no public
+        base configured this falls back to :meth:`base_url`, which is the offline and
+        standalone case and is unchanged.
+        """
+        if self._base_url:
+            return self._base_url
+
+        public = (os.getenv("AGENTA_API_URL") or "").strip()
+        if public:
+            # Lazily, like the rest of this module: importing it at module scope would run
+            # ``agenta``'s own import before the singleton exists.
+            from agenta.sdk.utils.helpers import parse_url
+
+            return parse_url(url=public).rstrip("/")
+
+        return self.base_url()
+
     def authorization(self) -> Optional[str]:
         """The caller's Authorization: explicit, else the per-request context, else env key."""
         return self._authorization or _derive_authorization()
+
+    async def gateway_authorization(
+        self, *, plane: Optional[str] = None
+    ) -> Optional[str]:
+        """The credential the SANDBOX may hold, exchanged for the one this process holds.
+
+        `authorization()` is the runtime's general-purpose credential: it reads the vault,
+        commits workflows and resolves tools, and the gateway exists precisely so nothing
+        with that reach travels into a sandbox. This asks the backend for a second value
+        with the same tenant scope and the same run, no grants, and an audience the API
+        accepts only on the gateway data plane.
+
+        ``plane`` names which gateway the credential is for, ``"llm"`` or ``"mcp"``. The
+        credential itself is the same either way; naming the plane is what lets the API say
+        that plane is switched off now, while the caller still has a pre-gateway path, rather
+        than at the first tool call, when it does not.
+
+        ``None`` when no backend or no caller credential is configured — the offline and
+        standalone cases, where there is no gateway to be confined to either.
+        """
+        api_base = self.base_url()
+        authorization = self.authorization()
+        if not api_base or not authorization:
+            return None
+
+        try:
+            async with httpx.AsyncClient(timeout=self.timeout) as client:
+                response = await client.post(
+                    f"{api_base}/gateways/credentials",
+                    headers=self.headers(authorization=authorization),
+                    json={"plane": plane} if plane else {},
+                )
+        except Exception as exc:  # pylint: disable=broad-except
+            log.warning("agent: gateway credential exchange failed", exc_info=True)
+            raise GatewayCredentialsError(
+                "gateway credential exchange request failed"
+            ) from exc
+
+        if response.status_code >= 400:
+            log.warning(
+                "agent: gateway credential exchange HTTP %s", response.status_code
+            )
+            raise GatewayCredentialsError(
+                f"gateway credential exchange refused with HTTP {response.status_code}",
+                failure_code=_refusal_code(response),
+                status_code=response.status_code,
+            )
+
+        try:
+            data = response.json() or {}
+        except Exception as exc:  # pylint: disable=broad-except
+            raise GatewayCredentialsError(
+                "gateway credential exchange returned an unreadable response"
+            ) from exc
+
+        credentials = data.get("credentials") if isinstance(data, dict) else None
+        if not isinstance(credentials, str) or not credentials:
+            raise GatewayCredentialsError(
+                "gateway credential exchange returned no credential"
+            )
+
+        return credentials
 
     def headers(
         self, *, json: bool = True, authorization: Optional[str] = None

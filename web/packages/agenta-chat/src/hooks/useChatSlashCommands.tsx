@@ -22,7 +22,7 @@ import {
     readModelId,
     readModelConnectionSlug,
     readRunnerPermission,
-    staticEmbedSlug,
+    skillCommandName,
     toolName,
     withHarnessKind,
     withModel,
@@ -46,7 +46,7 @@ export type SlashPicker = "model" | "permissions" | null
  *
  * `/model` drills into a picker whose apply writes the DRAFT agent config through
  * `updateConfiguration` — the same write-through `useAlwaysAllowTool` uses, so the change takes
- * effect on the next send with no commit. Tools and skills insert their slug as plain text: the
+ * effect on the next send with no commit. Tools and skills insert their name as plain text: the
  * request carries text and file parts only, so an inserted name is a hint the agent usually
  * follows, never a dispatch. Nothing in the UI may claim otherwise.
  */
@@ -323,22 +323,10 @@ export function useChatSlashCommands({
                 : null,
         ])
 
-        /**
-         * A skill's typeable slug. An `@ag.embed` entry keeps it under
-         * `@ag.embed.@ag.references.workflow` (or `workflow_revision` when pinned), NOT at the top
-         * level — `staticEmbedSlug` is the reader the config panel already uses for exactly that.
-         * Inline skills carry a plain top-level slug, so they fall through to `entryToken`.
-         */
-        const skillToken = (skill: unknown): string | undefined => {
-            const embedded = skill && typeof skill === "object"
-            return (
-                (embedded ? staticEmbedSlug(skill as Record<string, unknown>) : undefined) ??
-                entryToken(skill)
-            )
-        }
-
         const skillItems = compact(
-            skills.map((skill, i) => row(describeSkill(skill), skillToken(skill), i, "skill")),
+            skills.map((skill, i) =>
+                row(describeSkill(skill), skillCommandName(skill), i, "skill"),
+            ),
         )
         /**
          * Platform ops (`commit_revision`, `list_connections`, schedules) and browser-fulfilled

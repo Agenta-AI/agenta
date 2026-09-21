@@ -1,0 +1,21 @@
+[
+  {
+    "role": "user",
+    "content": "Legacy request"
+  },
+  {
+    "role": "user",
+    "content": "Request\n\nTemplate-supplied setup guidance:\nAsk for a repository.",
+    "display_content": "Request"
+  },
+  {
+    "role": "user",
+    "content": "Internal input",
+    "display_content": null
+  },
+  {
+    "role": "user",
+    "content": "Empty display override",
+    "display_content": ""
+  }
+]

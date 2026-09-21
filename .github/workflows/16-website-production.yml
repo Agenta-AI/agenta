@@ -4,8 +4,12 @@ on:
   push:
     branches: [main]
     paths:
-      - 'website/**'
-      # The site publishes /openapi.json from this spec (website/scripts/copy-openapi.mjs),
+      - 'web/website/**'
+      - 'web/packages/**'
+      - 'web/mobile/src/styles/theme.generated.css'
+      - 'web/pnpm-lock.yaml'
+      - 'web/pnpm-workspace.yaml'
+      # The site publishes /openapi.json from this spec (web/website/scripts/copy-openapi.mjs),
       # so a regenerated spec has to redeploy the site.
       - 'docs/docs/reference/openapi.json'
       - '.github/workflows/16-website-production.yml'
@@ -19,7 +23,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  # wrangler itself is a pinned devDependency in website/package.json (the worker
+  # wrangler itself is a pinned devDependency in web/website/package.json (the worker
   # bundler must match everywhere); this stays as documentation of that pin.
   WRANGLER_VERSION: "4.113.0"
   R2_FONTS_BUCKET: agenta-brand-fonts
@@ -36,22 +40,22 @@ jobs:
       - name: Install pnpm
         uses: pnpm/action-setup@v4
         with:
-          package_json_file: website/package.json
+          package_json_file: web/package.json
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 24
           cache: 'pnpm'
-          cache-dependency-path: website/pnpm-lock.yaml
+          cache-dependency-path: web/pnpm-lock.yaml
 
       - name: Install dependencies
-        run: cd website && pnpm install --frozen-lockfile
+        run: cd web/website && pnpm install --filter website... --frozen-lockfile
 
       # Gate production on the worker's unit tests: a negotiation regression
       # would be invisible in the build output.
       - name: Run unit tests
-        run: cd website && pnpm test
+        run: cd web/website && pnpm test
 
       - name: Build site
         env:
@@ -63,7 +67,7 @@ jobs:
           PUBLIC_POSTHOG_KEY: phc_cFT4a4081mXuKxYIrhIt6cmDwSjAO8zQlw9CFE05oSI
           # GA4 measurement ID: public by design, same property as the pre-pivot site.
           PUBLIC_GA_ID: G-368ZWZSH5D
-        run: cd website && pnpm run build
+        run: cd web/website && pnpm run build
 
       - name: Deploy production
         id: deploy
@@ -71,8 +75,8 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
-          cd website
-          # wrangler is a pinned devDependency (see website/package.json), so the
+          cd web/website
+          # wrangler is a pinned devDependency (see web/website/package.json), so the
           # worker bundles with the same version everywhere.
           pnpm exec wrangler deploy \
             --config wrangler.production.jsonc 2>&1 | tee /tmp/wrangler.log
@@ -88,14 +92,14 @@ jobs:
       - name: Enforce canonical host and protocol
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-        run: cd website && node scripts/configure-canonical-redirect.mjs
+        run: cd web/website && node scripts/configure-canonical-redirect.mjs
 
       # Asserts the site serves AND that the edge worker's agent-readiness
       # behavior survived: content negotiation, Vary, 406, the JSON/markdown
       # 404s, /openapi.json — plus the static behavior it must not break
       # (the _redirects 308s and trailing-slash normalization).
       - name: Verify production serves the site
-        run: cd website && bash scripts/verify-deployment.sh "${{ steps.deploy.outputs.url }}"
+        run: cd web/website && bash scripts/verify-deployment.sh "${{ steps.deploy.outputs.url }}"
 
       - name: Verify canonical host and protocol
-        run: cd website && bash scripts/verify-canonical-redirects.sh
+        run: cd web/website && bash scripts/verify-canonical-redirects.sh

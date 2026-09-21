@@ -3,7 +3,7 @@
 Lean context for the Agenta marketing website (`agenta.ai`), rebuilt off Framer as a
 git-based Astro site in this monorepo (dark "Agents" positioning pivot).
 
-**The operating manual is [`website/AGENTS.md`](../../../website/AGENTS.md)** — how to
+**The operating manual is [`web/website/AGENTS.md`](../../../web/website/AGENTS.md)** — how to
 build, run, deploy, the CI preview, fonts, asset-hosting rules, and page/chrome
 conventions live there. Read it first. This folder only holds the durable *why* and the
 two reference files the site's code points at.
@@ -23,7 +23,7 @@ two reference files the site's code points at.
 - **Core CTAs match the live site 1:1** (book-a-demo cal.com link, get-started →
   cloud.agenta.ai). The pivot changes visual treatment and some copy, not the flows.
 - **Fonts (GT Alpina, PP Mondwest) are licensed and self-hosted**, injected at build
-  time, never committed. Details in `website/AGENTS.md`.
+  time, never committed. Details in `web/website/AGENTS.md`.
 - **Analytics: PostHog**, reusing the existing proxy.
 
 ## What's here

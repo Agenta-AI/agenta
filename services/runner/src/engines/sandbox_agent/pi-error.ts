@@ -1,60 +1,20 @@
 /**
- * Recover a model-call error that Pi swallows on the sandbox-agent path.
+ * Backstop for a provider failure that an adapter reports as a successful prompt.
  *
- * When Pi's provider call fails (out-of-quota, bad key, rate limit, unknown model, ...),
- * Pi records the failed turn in its session transcript as an assistant message with
- * `stopReason: "error"` and a human-readable `errorMessage`, but its pi-acp bridge reports
- * the turn to the runner as a plain `{ stopReason: "end_turn" }` with NO content. The runner
- * then returns an `ok: true` run with empty output, and the user sees a silent "No response"
- * instead of the real failure.
+ * Before prompting, capture the transcript file and offset. After settlement, inspect
+ * the latest assistant record appended after that cursor, even if the turn already
+ * produced text or completed tools. A later successful assistant record supersedes
+ * an earlier failed attempt, so recovered retries do not become false failures.
  *
- * This reader closes that gap. Before prompting, the engine captures the current transcript's
- * file and offset. After a Pi turn that produced no output, it asks this helper for an assistant
- * `errorMessage` appended after that cursor; when present, the run is failed loud with that
- * message instead of returning an empty turn. On a local run the transcript is
- * on this filesystem; on a Daytona run it lives inside the remote sandbox and is read through
- * the sandbox's daemon file API (the same API `usage.ts` and `pi-assets.ts` read through),
- * which must happen while the sandbox is still alive — the transcript dies with it.
- *
- * It is deliberately best-effort and side-effect free, and errs toward NO recovery: any
- * filesystem/parse problem returns `undefined` so a genuinely empty (but successful) turn is
- * never turned into a false error, and only the NEWEST transcript this run owns may supply
- * the error — an older sibling must never resurrect a failure the current turn did not have.
- * The remote probe is additionally bounded (one overall deadline, bounded head/tail parsing)
- * because it runs between the prompt settling and teardown: it must never hold the turn open.
+ * On local runs the transcript lives on this filesystem. On Daytona it is read via
+ * the sandbox file API before teardown. The probe is bounded and best-effort: a read
+ * or parse failure returns undefined, and an older sibling transcript cannot supply
+ * an error for the current turn.
  */
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 
 import { piSessionWorkspaceDir } from "./pi-assets.ts";
-
-/**
- * pi-acp renders Pi's `auto_retry_start` / `auto_retry_end` harness events as ordinary assistant
- * message chunks — the same channel as real model output. A turn whose provider call is retried
- * therefore has non-empty output ("Retrying (attempt 1/3, waiting 2s)...") even when the model
- * never produced a word, which silently closes the swallowed-error recovery below: the run
- * returns `ok: true` with the retry chatter as its entire visible answer and the real refusal
- * never surfaces. Recognizing the notices lets the recovery treat such a turn as the empty turn
- * it really is. Kept as literal shapes rather than a loose /retry/i so genuine model text that
- * happens to mention retrying is never discarded.
- */
-const HARNESS_RETRY_NOTICE =
-  /^(?:Retrying(?:\s*\(attempt\s+\d+\/\d+,\s*waiting\s+[\d.]+s\))?\.\.\.|Retry finished, resuming\.)$/;
-
-/**
- * True when `output` consists of nothing but harness retry notices — i.e. the turn carries no
- * model output at all. False for empty input: an empty turn is already handled by the plain
- * emptiness check, and this predicate answers only "is this chatter and nothing else".
- */
-export function isOnlyHarnessRetryNotices(output: string): boolean {
-  const lines = output
-    .split("\n")
-    .map((line) => line.trim())
-    .filter((line) => line.length > 0);
-  return (
-    lines.length > 0 && lines.every((line) => HARNESS_RETRY_NOTICE.test(line))
-  );
-}
 
 /** Overall deadline for the whole remote probe (listing plus reads). */
 const REMOTE_PROBE_TIMEOUT_MS = 15_000;

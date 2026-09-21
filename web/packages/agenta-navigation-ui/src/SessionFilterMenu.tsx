@@ -2,7 +2,7 @@ import {useCallback, useMemo} from "react"
 
 import {
     clearSidebarManualOrderAtom,
-    DEFAULT_SIDEBAR_SESSION_FILTERS,
+    sidebarSessionFilterDefaults,
     SESSIONS_SIDEBAR_KEY,
     setSidebarFilterMenuOpenAtom,
     sidebarSessionAgentOptionsAtomFamily,
@@ -183,7 +183,7 @@ export const SessionFilterMenu = ({scopeId}: {scopeId: string}) => {
 
     // Clears the arrangement alongside the filters: both are defaults this menu set.
     const onReset = useCallback(() => {
-        setFilters(DEFAULT_SIDEBAR_SESSION_FILTERS)
+        setFilters(sidebarSessionFilterDefaults(scopeId))
         clearManualOrder()
     }, [clearManualOrder, setFilters])
 

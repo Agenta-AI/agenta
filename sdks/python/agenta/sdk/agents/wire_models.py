@@ -194,6 +194,7 @@ class WireChatMessage(_WireModel):
 
     role: str
     content: Union[str, List[WireContentBlock]] = ""
+    display_content: Optional[str] = None
 
 
 class WirePropagation(_WireModel):

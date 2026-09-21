@@ -7,6 +7,7 @@ import {queryClientAtom} from "jotai-tanstack-query"
 import {type Mount} from "@agenta/entities/session"
 
 import {uploadMountFile} from "./driveMedia"
+import {refreshMountListing} from "./driveWrites"
 import {type DroppedFile} from "./dropEntries"
 import {useImagePreviews} from "./useImagePreviews"
 
@@ -90,12 +91,10 @@ export function useMountUpload(onUploaded?: (path: string) => void): MountUpload
         setItems((prev) => prev.map((it) => (it.id === id ? {...it, ...next} : it)))
     }, [])
 
-    const refreshListing = useCallback(() => {
-        // Prefix-match every mount file-query root for the project (dir listing, root, latest, summary).
-        for (const root of ["files", "files-latest", "files-root", "files-dir"]) {
-            void queryClient.invalidateQueries({queryKey: ["mounts", root, projectId]})
-        }
-    }, [queryClient, projectId])
+    const refreshListing = useCallback(
+        () => refreshMountListing(queryClient, projectId ?? ""),
+        [queryClient, projectId],
+    )
 
     const run = useCallback(
         (id: string) => {
@@ -119,11 +118,13 @@ export function useMountUpload(onUploaded?: (path: string) => void): MountUpload
                     pumpRef.current()
                     if (controller.signal.aborted) return
                     controllers.current.delete(id)
-                    // On success the real file arrives via the listing refetch, so drop the optimistic
-                    // item — removing its file from the list also lets useImagePreviews revoke the URL.
+                    // The tile stays ("Uploaded") until the listing carries the real file, so the
+                    // grid never shows a gap between the two.
+                    patch(id, {percent: 100})
                     sources.current.delete(id)
-                    setItems((prev) => prev.filter((it) => it.id !== id))
-                    refreshListing()
+                    void refreshListing().then(() =>
+                        setItems((prev) => prev.filter((it) => it.id !== id)),
+                    )
                     const {presentedFolder} = src.target
                     onUploadedRef.current?.(
                         presentedFolder

@@ -180,6 +180,16 @@ class Permission(str, Enum):
     EDIT_CHANNELS = "edit_channels"
     RUN_CHANNELS = "run_channels"
 
+    # Gateway: LLM endpoints
+    VIEW_LLM_ENDPOINTS = "view_llm_endpoints"
+    EDIT_LLM_ENDPOINTS = "edit_llm_endpoints"
+    USE_LLM_ENDPOINTS = "use_llm_endpoints"
+
+    # Gateway: MCP endpoints
+    VIEW_MCP_ENDPOINTS = "view_mcp_endpoints"
+    EDIT_MCP_ENDPOINTS = "edit_mcp_endpoints"
+    USE_MCP_ENDPOINTS = "use_mcp_endpoints"
+
     @classmethod
     def default_permissions(cls, role):
         VIEWER_PERMISSIONS = [
@@ -207,6 +217,8 @@ class Permission(str, Enum):
             cls.VIEW_TRIGGERS,
             cls.VIEW_MOUNTS,
             cls.VIEW_CHANNELS,
+            cls.VIEW_LLM_ENDPOINTS,
+            cls.VIEW_MCP_ENDPOINTS,
         ]
         ANNOTATOR_PERMISSIONS = VIEWER_PERMISSIONS + [
             cls.EDIT_ANNOTATIONS,
@@ -218,6 +230,8 @@ class Permission(str, Enum):
             cls.EDIT_SPANS,
             cls.RUN_TOOLS,
             cls.RUN_TRIGGERS,
+            cls.USE_LLM_ENDPOINTS,
+            cls.USE_MCP_ENDPOINTS,
         ]
         EDITOR_PERMISSIONS = ANNOTATOR_PERMISSIONS + [
             cls.EDIT_APPLICATIONS,
@@ -238,6 +252,8 @@ class Permission(str, Enum):
             cls.EDIT_TRIGGERS,
             cls.EDIT_CHANNELS,
             cls.RUN_CHANNELS,
+            cls.EDIT_LLM_ENDPOINTS,
+            cls.EDIT_MCP_ENDPOINTS,
         ]
         DEVELOPER_PERMISSIONS = EDITOR_PERMISSIONS + [
             cls.VIEW_API_KEYS,

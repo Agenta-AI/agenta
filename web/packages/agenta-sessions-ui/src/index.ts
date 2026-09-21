@@ -54,7 +54,7 @@ export {
     useRequestSessionTabRename,
     type SessionTabRailProps,
 } from "./SessionTabRail"
-export {withShortcutKey} from "./menuShortcut"
+export {withSessionShortcutKeys, withShortcutKey} from "./menuShortcut"
 export {
     useSessionActions,
     type SessionActionTarget,

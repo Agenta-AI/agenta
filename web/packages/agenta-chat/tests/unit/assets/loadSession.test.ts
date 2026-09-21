@@ -14,9 +14,10 @@ vi.mock("@agenta/entities/session", () => ({
     fetchSessionRecordsAtom: atom(null, async () => fetchResult),
     fetchSessionInteractionStatesAtom: atom(null, async () => interactionRowStates),
     revalidateSessionInteractionsAtom: atom(null, async () => undefined),
+    revalidateSessionRecordsAtom: atom(null, () => undefined),
 }))
 
-const {loadSessionMessages} = await import("../../../src/assets/loadSession")
+const {loadSessionMessages, reloadSessionMessages} = await import("../../../src/assets/loadSession")
 
 const record = (id: string, payload: Record<string, unknown>, sender = "agent"): SessionRecord => ({
     id,
@@ -210,5 +211,47 @@ describe("loadSessionMessages", () => {
         await Promise.resolve()
         await Promise.resolve()
         expect(onRefreshed).not.toHaveBeenCalled()
+    })
+})
+
+// The settlement read (#6698): a send is settled only on evidence from the FRESH log. The cached
+// transcript is delivered for the screen but predates the turn, so it never counts as success.
+describe("reloadSessionMessages", () => {
+    const cached = [record("r1", {type: "message", text: "before"}), record("r2", {type: "done"})]
+    const fresh = [...cached, record("r3", {type: "message", text: "after"})]
+
+    beforeEach(() => {
+        fetchResult = {records: null}
+        interactionRowStates = new Map()
+    })
+
+    it("delivers the cached transcript at once, then the fresh one, and resolves true", async () => {
+        fetchResult = {records: cached, refreshed: Promise.resolve(fresh)}
+        const onTranscript = vi.fn()
+        expect(await reloadSessionMessages("session-1", onTranscript)).toBe(true)
+        expect(onTranscript).toHaveBeenCalledTimes(2)
+        expect(onTranscript.mock.calls[0][0].recordCount).toBe(2)
+        expect(onTranscript.mock.calls[1][0].recordCount).toBe(3)
+    })
+
+    it("resolves false when the fresh read yields nothing, even with a cached transcript", async () => {
+        fetchResult = {records: cached, refreshed: Promise.resolve(null)}
+        const onTranscript = vi.fn()
+        expect(await reloadSessionMessages("session-1", onTranscript)).toBe(false)
+        expect(onTranscript).toHaveBeenCalledOnce()
+    })
+
+    it("resolves false when the fresh read fails, even with a cached transcript", async () => {
+        fetchResult = {records: cached, refreshed: Promise.reject(new Error("offline"))}
+        const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined)
+        expect(await reloadSessionMessages("session-1", vi.fn())).toBe(false)
+        warn.mockRestore()
+    })
+
+    it("treats a read with no flight as the fresh one", async () => {
+        fetchResult = {records: fresh}
+        expect(await reloadSessionMessages("session-1", vi.fn())).toBe(true)
+        fetchResult = {records: null}
+        expect(await reloadSessionMessages("session-1", vi.fn())).toBe(false)
     })
 })

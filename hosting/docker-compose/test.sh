@@ -26,8 +26,12 @@ Test selection:
                                       Omit layer flags for all layers. Web defaults
                                       to unit + integration when it is part of the
                                       default all-suite run.
-  --time-profile                       Show slow-test timing information.
-  --time-profile-min MS                Vitest slow-test threshold (default: 1).
+  --fast                               Run tests not marked slow (default).
+  --slow                               Run only tests marked slow.
+  --all, --full                        Run both fast and slow tests.
+  --time, --time-profile               Show slow-test timing information.
+  --slow-threshold SECONDS             Slow-test threshold (default: 10).
+  --time-profile-min SECONDS           Alias for --slow-threshold.
   --logs[=FILE]                        Tee suite output to a log. With no FILE,
                                       writes tests.<suite>.logs beside each suite.
   --                                    Pass remaining options to every test runner.
@@ -39,7 +43,16 @@ require_value() { [[ -n "${2:-}" ]] || error "Missing value for $1."; }
 
 declare -a env_args=() components=() layers=() forwarded=()
 license_set=false image_set=false
-selected_layer=false time_profile=false slow_ms=1 want_logs=false logfile=""
+selected_layer=false time_profile=false test_selection="fast" test_selection_source="default" slow_threshold_seconds=10 want_logs=false logfile=""
+
+set_test_selection() {
+    local value="$1" source="$2"
+    if [[ "$test_selection_source" != "default" && "$test_selection" != "$value" ]]; then
+        error "Conflicting test-selection flags: '$test_selection_source' sets '$test_selection' but '$source' sets '$value'."
+    fi
+    test_selection="$value"
+    test_selection_source="$source"
+}
 
 while [[ "$#" -gt 0 ]]; do
     case "$1" in
@@ -70,9 +83,12 @@ while [[ "$#" -gt 0 ]]; do
             done
             selected_layer=true
             ;;
-        --time-profile) time_profile=true ;;
-        --time-profile-min) require_value "$1" "${2:-}"; slow_ms="$2"; shift ;;
-        --time-profile-min=*) slow_ms="${1#*=}" ;;
+        --time|--time-profile) time_profile=true ;;
+        --fast) set_test_selection fast --fast ;;
+        --slow) set_test_selection slow --slow ;;
+        --all|--full) set_test_selection all "$1" ;;
+        --slow-threshold|--time-profile-min) require_value "$1" "${2:-}"; slow_threshold_seconds="$2"; shift ;;
+        --slow-threshold=*|--time-profile-min=*) slow_threshold_seconds="${1#*=}" ;;
         --logs) want_logs=true ;;
         --logs=*) want_logs=true; logfile="${1#*=}" ;;
         --) shift; forwarded+=("$@"); break ;;
@@ -82,7 +98,7 @@ while [[ "$#" -gt 0 ]]; do
     shift
 done
 
-[[ "$slow_ms" =~ ^[0-9]+$ ]] || error "--time-profile-min must be a non-negative integer."
+[[ "$slow_threshold_seconds" =~ ^[0-9]+$ ]] || error "--slow-threshold must be a non-negative integer."
 
 load_environment() {
     local license="oss" license_source="default" image="gh" image_source="default"
@@ -149,6 +165,11 @@ load_environment() {
     . "$env_path"
     set +a
     export POSTGRES_HOST="${POSTGRES_HOST:-localhost}"
+
+    if [[ "$stage" == "dev" ]]; then
+        export AGENTA_GATEWAYS_MOCKS_ENABLED=true
+        export AGENTA_GATEWAYS_MOCKS_UPSTREAM_TOKEN="${AGENTA_GATEWAYS_MOCKS_UPSTREAM_TOKEN:-agenta-gateway-mock-token}"
+    fi
     echo "Loaded ${env_path} (stage: ${stage})."
 }
 
@@ -179,11 +200,44 @@ configure_host_postgres() {
     echo "[test.sh] Host PostgreSQL: 127.0.0.1:${port}"
 }
 
+configure_host_store() {
+    local endpoint="${AGENTA_STORE_ENDPOINT_URL:-}" port="${AGENTA_STORE_PORT:-8333}"
+
+    # The compose service name only resolves inside Docker. Preserve an explicitly
+    # configured remote object store; otherwise point host-run tests at the
+    # loopback-published bundled SeaweedFS instance without changing the env file.
+    case "$endpoint" in
+        ""|http://seaweedfs:8333|https://seaweedfs:8333) ;;
+        *) return ;;
+    esac
+    [[ "$port" =~ ^[0-9]+$ ]] && (( port >= 1 && port <= 65535 )) || error "Invalid AGENTA_STORE_PORT: $port"
+    export AGENTA_STORE_ENDPOINT_URL="http://127.0.0.1:${port}"
+    echo "[test.sh] Host object store: ${AGENTA_STORE_ENDPOINT_URL}"
+}
+
 for component in "${components[@]}"; do
     case "$component" in
-        sdk|services|api) configure_host_postgres; break ;;
+        sdk|services|api) configure_host_postgres; configure_host_store; break ;;
     esac
 done
+
+log_destination() {
+    local suite="$1" destination="$logfile"
+    if [[ -z "$destination" ]]; then
+        destination="${REPO_ROOT}/tests.${suite}.logs"
+    elif [[ ${#components[@]} -gt 1 ]]; then
+        destination="${logfile}.${suite}"
+    fi
+    printf '%s\n' "$destination"
+}
+
+prepare_log() {
+    # `return 0`, not a bare `return`: a bare one inherits the failed `[[ ]]` status, and under
+    # `set -e` that aborted the whole script right after the install step whenever --logs was
+    # absent — no test output, exit 1, and nothing saying why.
+    [[ "$want_logs" == true ]] || return 0
+    : > "$(log_destination "$1")"
+}
 
 run_logged() {
     local suite="$1"; shift
@@ -191,55 +245,74 @@ run_logged() {
         "$@"
         return
     fi
-    local destination="$logfile"
-    if [[ -z "$destination" ]]; then
-        destination="${REPO_ROOT}/tests.${suite}.logs"
-    elif [[ ${#components[@]} -gt 1 ]]; then
-        destination="${logfile}.${suite}"
-    fi
+    local destination
+    destination="$(log_destination "$suite")"
     echo "[test.sh] logging stdout+stderr to ${destination}"
-    "$@" 2>&1 | tee "$destination"
+    "$@" 2>&1 | tee -a "$destination"
     return "${PIPESTATUS[0]}"
 }
 
 run_python() {
     local suite="$1" root="$2" layer
-    local -a python_args=("${forwarded[@]+"${forwarded[@]}"}")
-    if [[ "$time_profile" == true ]]; then python_args+=(--time-profile); fi
+    local -a wrapper_args=()
+    case "$test_selection" in
+        fast) wrapper_args+=(--fast) ;;
+        slow) wrapper_args+=(--slow) ;;
+        all) wrapper_args+=(--all) ;;
+    esac
+    if [[ "$time_profile" == true ]]; then
+        wrapper_args+=(--time-profile --time-profile-min "$slow_threshold_seconds")
+    fi
     [[ -f "${root}/run-tests.py" && -f "${root}/uv.lock" ]] || error "Expected run-tests.py and uv.lock in ${root}."
     echo "[test.sh] Installing Python packages: ${root}"
     (cd "$root" && uv sync --locked)
+    prepare_log "$suite"
     if [[ "$selected_layer" == false ]]; then
-        run_logged "$suite" bash -c 'cd "$1" && exec uv run --no-sync python run-tests.py "${@:2}"' _ "$root" "${python_args[@]+"${python_args[@]}"}"
+        run_logged "$suite" bash -c 'cd "$1" && shift && exec uv run --no-sync python run-tests.py "$@"' _ "$root" "${wrapper_args[@]+"${wrapper_args[@]}"}" -- "${forwarded[@]+"${forwarded[@]}"}"
         return
     fi
     for layer in "${layers[@]}"; do
         echo "[test.sh] Running ${suite} ${layer} tests"
-        run_logged "$suite" bash -c 'cd "$1" && exec uv run --no-sync python run-tests.py --layer "$2" "${@:3}"' _ "$root" "$layer" "${python_args[@]+"${python_args[@]}"}"
+        run_logged "$suite" bash -c 'cd "$1" && layer="$2" && shift 2 && exec uv run --no-sync python run-tests.py --layer "$layer" "$@"' _ "$root" "$layer" "${wrapper_args[@]+"${wrapper_args[@]}"}" -- "${forwarded[@]+"${forwarded[@]}"}"
     done
 }
 
 run_runner() {
     local root="${REPO_ROOT}/services/runner" layer
     [[ -f "${root}/pnpm-lock.yaml" && -f "${root}/vitest.config.ts" ]] || error "Expected pnpm-lock.yaml and vitest.config.ts in ${root}."
+    if [[ "$test_selection" == "slow" ]]; then
+        echo "[test.sh] Runner has no slow-marked tests; skipping."
+        return
+    fi
     echo "[test.sh] Installing runner packages: ${root}"
     (cd "$root" && pnpm install --frozen-lockfile)
-    local -a runner_layers=("${layers[@]+"${layers[@]}"}")
+    echo "[test.sh] Building runner extensions: ${root}"
+    (cd "$root" && pnpm run build:extension)
+    local -a runner_layers=("${layers[@]+"${layers[@]}"}") runner_args=("${forwarded[@]+"${forwarded[@]}"}")
     [[ "$selected_layer" == true ]] || runner_layers=(unit integration acceptance)
+    if [[ "$time_profile" == true ]]; then
+        runner_args+=("--slowTestThreshold=$((slow_threshold_seconds * 1000))" --reporter=verbose)
+    fi
+    prepare_log runner
     for layer in "${runner_layers[@]}"; do
         echo "[test.sh] Running runner ${layer} tests"
-        run_logged runner bash -c 'cd "$1" && exec pnpm run "test:$2" -- "${@:3}"' _ "$root" "$layer" "${forwarded[@]+"${forwarded[@]}"}"
+        run_logged runner bash -c 'cd "$1" && exec pnpm run "test:$2" -- "${@:3}"' _ "$root" "$layer" "${runner_args[@]+"${runner_args[@]}"}"
     done
 }
 
 run_web() {
     local root="${REPO_ROOT}/web" layer
     [[ -f "${root}/pnpm-lock.yaml" && -f "${root}/tests/playwright/scripts/run-tests.ts" ]] || error "Expected web test files in ${root}."
+    if [[ "$test_selection" == "slow" ]]; then
+        echo "[test.sh] Web has no slow-marked tests; skipping."
+        return
+    fi
     echo "[test.sh] Installing web workspace packages: ${root}"
     (cd "$root" && pnpm install --frozen-lockfile)
     local -a web_layers=("${layers[@]+"${layers[@]}"}") web_args=("${forwarded[@]+"${forwarded[@]}"}")
     [[ "$selected_layer" == true ]] || web_layers=(unit integration)
-    if [[ "$time_profile" == true ]]; then web_args+=(--reporter=verbose "--slowTestThreshold=${slow_ms}"); fi
+    if [[ "$time_profile" == true ]]; then web_args+=(--reporter=verbose "--slowTestThreshold=$((slow_threshold_seconds * 1000))"); fi
+    prepare_log web
     for layer in "${web_layers[@]}"; do
         echo "[test.sh] Running web ${layer} tests"
         if [[ "$layer" == "acceptance" ]]; then

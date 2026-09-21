@@ -5,16 +5,17 @@ import {
     CancelSubscriptionReasons,
     CANCEL_REASON_OTHER,
 } from "@agenta/settings-ui"
-
-import {Button} from "@/components/ui/button"
 import {
-    Sheet,
-    SheetContent,
-    SheetDescription,
-    SheetFooter,
-    SheetHeader,
-    SheetTitle,
-} from "@/components/ui/sheet"
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    Button,
+} from "@agenta/ui/ui"
 
 interface Props {
     open: boolean
@@ -49,15 +50,18 @@ export const CancelSubscriptionSheet = ({open, onOpenChange, projectId, onChange
     }
 
     return (
-        <Sheet open={open} onOpenChange={(next) => (next ? undefined : onOpenChange(false))}>
-            <SheetContent side="responsive">
-                <SheetHeader>
-                    <SheetTitle>Cancel auto-renewal</SheetTitle>
-                    <SheetDescription>
+        <AlertDialog
+            open={open}
+            onOpenChange={(next) => (next || cancelling ? undefined : onOpenChange(false))}
+        >
+            <AlertDialogContent>
+                <AlertDialogHeader>
+                    <AlertDialogTitle>Cancel auto-renewal</AlertDialogTitle>
+                    <AlertDialogDescription>
                         Your plan stays active until the end of the current period.
-                    </SheetDescription>
-                </SheetHeader>
-                <div className="px-4">
+                    </AlertDialogDescription>
+                </AlertDialogHeader>
+                <div>
                     <CancelSubscriptionReasons
                         value={reason}
                         onChange={setReason}
@@ -66,23 +70,31 @@ export const CancelSubscriptionSheet = ({open, onOpenChange, projectId, onChange
                     />
                     {error ? <p className="m-0 pt-2 text-sm text-colorError">{error}</p> : null}
                 </div>
-                <SheetFooter>
-                    <Button
-                        variant="destructive"
-                        disabled={!canConfirm || cancelling}
-                        onClick={() => void confirm()}
-                    >
-                        {cancelling ? "Cancelling…" : "Confirm"}
-                    </Button>
-                    <Button
-                        variant="outline"
-                        onClick={() => onOpenChange(false)}
-                        disabled={cancelling}
-                    >
-                        Keep my plan
-                    </Button>
-                </SheetFooter>
-            </SheetContent>
-        </Sheet>
+                <AlertDialogFooter>
+                    <AlertDialogCancel asChild>
+                        <Button
+                            variant="outline"
+                            onClick={() => onOpenChange(false)}
+                            disabled={cancelling}
+                        >
+                            Keep my plan
+                        </Button>
+                    </AlertDialogCancel>
+                    {/* Stays open for the error; `confirm` closes it on success. */}
+                    <AlertDialogAction asChild>
+                        <Button
+                            variant="destructive"
+                            disabled={!canConfirm || cancelling}
+                            onClick={(event) => {
+                                event.preventDefault()
+                                void confirm()
+                            }}
+                        >
+                            {cancelling ? "Cancelling…" : "Confirm"}
+                        </Button>
+                    </AlertDialogAction>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
     )
 }

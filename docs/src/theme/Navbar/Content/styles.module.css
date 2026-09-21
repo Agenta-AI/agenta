@@ -1,160 +1,168 @@
-/* Two-row navbar layout */
-.navbarTopRow {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  height: 56px;
-}
+/* Single-row header layout. Piece styling (buttons, search field) is in
+   src/css/navbar.css; this module only places the groups. */
 
-.navbarBottomRow {
+.left {
   display: flex;
   align-items: center;
-  height: 48px;
-}
-
-.navbarLeft {
-  display: flex;
-  align-items: center;
+  gap: 6px;
   flex: 0 0 auto;
 }
 
-/* Small version pill sitting immediately right of the logo. */
+/* Infima gives the brand a 1rem right margin; the gap above is the spacing. */
+.left :global(.navbar__brand) {
+  margin-right: 0;
+}
+
+.right {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex: 0 0 auto;
+  margin-left: auto;
+}
+
+.search {
+  display: flex;
+  align-items: center;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.actions :global(.navbar__item) {
+  padding: 0;
+}
+
+/* Theme toggle between search and the CTAs, set off by hairlines. */
+.divider {
+  width: 1px;
+  height: 20px;
+  margin: 0;
+  background-color: var(--borderdark);
+}
+
+/* GitHub link with the star count, the same 32px control as the toggle. */
+.github {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 6px;
+  border-radius: var(--radius-lg);
+  color: var(--contentprimary);
+  transition: background-color var(--ifm-transition-fast) ease;
+}
+
+.github:hover {
+  background-color: var(--bgelevated1);
+  color: var(--contentprimary);
+  text-decoration: none;
+}
+
+.github:focus-visible {
+  outline: 2px solid var(--contentprimary);
+  outline-offset: 2px;
+}
+
+.githubCount {
+  font-size: 13px;
+  line-height: 18px;
+  font-variant-numeric: tabular-nums;
+  color: var(--contentsecondary);
+}
+
+/* Version pill next to the logo */
 .versionSelector {
   display: flex;
   align-items: center;
-  margin-left: 4px;
+}
+
+.versionSelector :global(.navbar__item.dropdown) {
+  padding: 0;
 }
 
 .versionSelector :global(.navbar__link) {
-  /* Inline-flex so the pill's padding grows its parent, which the menu is positioned against. */
   display: inline-flex;
   align-items: center;
-  font-size: 13px;
-  line-height: 18px;
-  font-weight: var(--ifm-font-weight-semibold);
-  color: var(--sidebar-link-color);
-  padding: 3px 8px;
-  border: none;
-  border-radius: 4px;
+  height: 18px;
+  padding: 0 4px 0 6px;
+  font-size: 11px;
+  line-height: 14px;
+  font-weight: var(--ifm-font-weight-normal);
+  color: var(--contentsecondary);
+  border: 1px solid var(--borderdark);
+  border-radius: var(--radius-sm);
   background-color: transparent;
-  transition: background-color 120ms ease;
+  transition: background-color var(--ifm-transition-fast) ease;
 }
 
 .versionSelector :global(.navbar__link:hover) {
-  color: var(--sidebar-link-color);
-  background-color: var(--ifm-color-emphasis-200);
+  color: var(--contentprimary);
+  background-color: var(--bgelevated1);
 }
 
-/* Theme padding on the dropdown item would push the menu off the pill's left edge. */
-.versionSelector :global(.navbar__item.dropdown) {
-  padding: 4px 0;
+.versionSelector :global(.navbar__link::after) {
+  border-width: 0.25em 0.25em 0;
+  margin-left: 3px;
+  top: 0;
 }
 
-/* Menu hugs its short labels and lines its text up under the pill's text. */
 .versionSelector :global(.dropdown__menu) {
   min-width: 0;
   width: max-content;
-  left: -5px;
-  top: calc(100% + 2px);
+  left: 0;
+  top: calc(100% + 4px);
   padding: 4px;
-  border: 1px solid var(--ifm-color-emphasis-300);
-  border-radius: 6px;
+  border: 1px solid var(--borderdefault);
+  border-radius: var(--radius-md);
+  background-color: var(--bgdefault);
   box-shadow: 0 4px 12px rgb(0 0 0 / 8%);
 }
 
-/* Item text matches the pill and the rest of the navbar rather than body size. */
 .versionSelector :global(.dropdown__link) {
   font-size: 12px;
   line-height: 18px;
-  font-weight: var(--ifm-font-weight-semibold);
-  color: var(--sidebar-link-color);
+  font-weight: var(--ifm-font-weight-normal);
+  color: var(--contentsecondary);
   padding: 4px 8px;
   margin: 0;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
 }
 
-/* The 5% overlay is a quiet fill that works on both the light and dark menu. */
 .versionSelector :global(.dropdown__link:hover),
 .versionSelector :global(.dropdown__link--active) {
-  color: var(--sidebar-link-color);
-  background-color: var(--ifm-hover-overlay);
+  color: var(--contentprimary);
+  background-color: var(--bgelevated1);
 }
 
-.navbarCenter {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex: 1 1 auto;
-  max-width: 740px;
-  margin: 0 auto;
-}
-
-.navbarRight {
-  display: flex;
-  align-items: center;
-  flex: 0 0 auto;
-  justify-content: flex-end;
-}
-
-.navbarLinks {
-  display: flex;
-  align-items: center;
-}
-
-.colorModeToggle {
-  margin-left: 0;
-}
-
-/* Mobile responsive - single row layout */
+/* Tablets: the header keeps the GitHub link, the theme toggle and the
+   primary CTA; "Book a demo" moves to the hamburger. Infima hides
+   .navbar__item below 997px, so the items that stay are shown explicitly. */
 @media (max-width: 996px) {
-  .navbarTopRow {
-    height: auto;
+  .right {
+    gap: 8px;
   }
 
-  .navbarLeft {
-    flex: 0 0 auto;
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
+  .versionSelector :global(.navbar__item),
+  .actions :global(.navbar__item) {
+    display: inline-flex;
   }
 
-  .navbarCenter {
-    flex: 1;
-    display: flex;
-    align-items: center;
-    justify-content: flex-end;
-    max-width: none;
-    margin: 0;
-  }
-
-  .navbarRight {
-    display: none;
-  }
-
-  .navbarBottomRow {
-    display: none;
-  }
-
-  .navbarLinks {
+  .actions :global(.navbar__item):has(:global(.nav_secondary_button)) {
     display: none;
   }
 }
 
-/* Adjust search bar styling within the center area */
-.navbarCenter :global(.navbar__search) {
-  flex: 1 1 auto;
-  display: flex;
-}
-
-.navbarCenter :global(.DocSearch) {
-  flex: 1 1 auto;
-  display: flex;
-}
-
-/* On mobile, reset search bar width constraints */
-@media (max-width: 996px) {
-  .navbarCenter :global(.DocSearch-Button) {
-    min-width: auto !important;
-    max-width: none !important;
+/* Phones: search (as an icon) and the primary CTA only. The version pill
+   moves into the hamburger menu (Navbar/MobileSidebar/PrimaryMenu). */
+@media (max-width: 599px) {
+  .divider,
+  .github,
+  .toggle,
+  .versionSelector {
+    display: none;
   }
 }

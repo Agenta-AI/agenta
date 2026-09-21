@@ -413,13 +413,18 @@ class Message(BaseModel):
 
     role: str
     content: MessageContent = ""
+    display_content: Optional[str] = None
 
     def to_wire(self) -> Dict[str, Any]:
         if isinstance(self.content, str):
             content: Any = self.content
         else:
             content = [block.to_wire() for block in self.content]
-        return {"role": self.role, "content": content}
+        result = {"role": self.role, "content": content}
+        # Absence keeps legacy display; explicit null hides the message.
+        if "display_content" in self.model_fields_set:
+            result["display_content"] = self.display_content
+        return result
 
     @classmethod
     def from_raw(cls, raw: Any) -> Optional["Message"]:
@@ -431,7 +436,12 @@ class Message(BaseModel):
         content = raw.get("content", "")
         if isinstance(content, list):
             content = [ContentBlock.from_raw(block) for block in content]
-        return cls(role=str(raw["role"]), content=content)
+        display = (
+            {"display_content": raw["display_content"]}
+            if "display_content" in raw
+            else {}
+        )
+        return cls(role=str(raw["role"]), content=content, **display)
 
 
 def to_messages(raw: Optional[List[Any]]) -> List[Message]:
@@ -1210,8 +1220,18 @@ class CodexAgentTemplate(HarnessAgentTemplate):
         # connection intent so an explicit ``self_managed`` (subscription) is still excluded;
         # everything else defaults to managed, matching the runner's ``isManagedCodexRun``.
         credential_mode: Optional[str] = None
+        gateway_base_url: Optional[str] = None
+        gateway_header: Optional[str] = None
+        gateway_model: Optional[str] = None
         if self.resolved_connection is not None:
             credential_mode = self.resolved_connection.credential_mode
+            if self.resolved_connection.gateway_credentials is not None:
+                gateway_header = self.resolved_connection.gateway_credentials.header
+                if self.resolved_connection.endpoint is not None:
+                    gateway_base_url = self.resolved_connection.endpoint.base_url
+                    # The SAME id `wire_model_connection` puts on the wire, so the model the
+                    # config declares and the model the runner would ask for are one string.
+                    gateway_model = self.resolved_connection.model
         elif (
             self.model_ref is not None
             and self.model_ref.connection is not None
@@ -1226,6 +1246,9 @@ class CodexAgentTemplate(HarnessAgentTemplate):
             self.tool_specs,
             self.permission_default,
             credential_mode=credential_mode,
+            gateway_base_url=gateway_base_url,
+            gateway_header=gateway_header,
+            model=gateway_model,
         )
         if not files:
             return {}

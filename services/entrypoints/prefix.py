@@ -29,27 +29,43 @@ class ServicesPrefixStripMiddleware:
         await self.app(scope, receive, send)
 
     def _strip(self, scope):
+        # Invariant: `path` keeps `root_path` as its head. ASGI servers put the mount point
+        # there (uvicorn's `--root-path`, used by the dev stacks, prepends it; gunicorn's
+        # worker leaves it empty), and Starlette subtracts the accumulated `root_path` again
+        # at every `Mount` to derive the child path. Stripping the head would leave the two
+        # out of step and 404 every mounted sub-app, so only the part after `root_path` is
+        # ever consumed here.
+        root_path = scope.get("root_path", "")
         path = scope.get("path", "")
+        head = root_path if root_path and path.startswith(root_path) else ""
+        tail = path[len(head) :]
+
         stripped = 0
-        while path == self.prefix or path.startswith(self.prefix + "/"):
-            path = path[len(self.prefix) :] or "/"
+        while tail == self.prefix or tail.startswith(self.prefix + "/"):
+            tail = tail[len(self.prefix) :] or "/"
             stripped += 1
         if not stripped:
             return scope
+
         scope = dict(scope)
-        scope["path"] = path
+        scope["path"] = head + tail
         raw = scope.get("raw_path")
         if isinstance(raw, (bytes, bytearray)):
             # Keep the wire bytes: drop the consumed prefix from the front of the
             # original encoded path instead of re-encoding the decoded one, so a
             # percent-encoded segment such as caf%C3%A9 reaches the app unchanged.
-            raw_prefix = self.prefix.encode("utf-8")
+            raw_head = head.encode("utf-8")
             raw_path = bytes(raw)
-            for _ in range(stripped):
-                if raw_path == raw_prefix or raw_path.startswith(raw_prefix + b"/"):
-                    raw_path = raw_path[len(raw_prefix) :] or b"/"
-                else:
-                    raw_path = path.encode("utf-8")
-                    break
-            scope["raw_path"] = raw_path
+            if raw_path.startswith(raw_head):
+                raw_prefix = self.prefix.encode("utf-8")
+                raw_tail = raw_path[len(raw_head) :]
+                for _ in range(stripped):
+                    if raw_tail == raw_prefix or raw_tail.startswith(raw_prefix + b"/"):
+                        raw_tail = raw_tail[len(raw_prefix) :] or b"/"
+                    else:
+                        raw_tail = tail.encode("utf-8")
+                        break
+                scope["raw_path"] = raw_head + raw_tail
+            else:
+                scope["raw_path"] = (head + tail).encode("utf-8")
         return scope

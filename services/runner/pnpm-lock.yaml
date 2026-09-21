@@ -6,8 +6,9 @@ settings:
 
 overrides:
   '@hono/node-server': 1.19.15
+  '@opentelemetry/propagator-jaeger': 2.9.0
   brace-expansion: 5.0.9
-  fast-uri: 3.1.5
+  fast-uri: 3.1.6
   hono: 4.12.34
   ip-address: 10.3.1
   postcss: 8.5.23
@@ -20,7 +21,7 @@ patchedDependencies:
     hash: a673c410af2021d9bb5f05c899522b66e6bcbe67134a92f506f0aef23fcf090d
     path: patches/acp-http-client@0.4.2.patch
   pi-acp@0.0.29:
-    hash: e30d9db3a9981a7f844a83795d7ceef6d86919eede6e2adf8a9bf0024d5ff49c
+    hash: 538022141d65b5c140169cec54bc064c5f3249f2aa9a05f0f445def152bbc907
     path: patches/pi-acp@0.0.29.patch
   sandbox-agent@0.4.2:
     hash: 91ccdae91dc68390329197a105ecd8cf394f680dd3be2a26731ebe1c2bd58c3f
@@ -74,7 +75,7 @@ importers:
         version: 0.4.2(patch_hash=a673c410af2021d9bb5f05c899522b66e6bcbe67134a92f506f0aef23fcf090d)(zod@4.4.3)
       pi-acp:
         specifier: 0.0.29
-        version: 0.0.29(patch_hash=e30d9db3a9981a7f844a83795d7ceef6d86919eede6e2adf8a9bf0024d5ff49c)
+        version: 0.0.29(patch_hash=538022141d65b5c140169cec54bc064c5f3249f2aa9a05f0f445def152bbc907)
       proper-lockfile:
         specifier: 4.1.2
         version: 4.1.2
@@ -1037,8 +1038,8 @@ packages:
     peerDependencies:
       '@opentelemetry/api': '>=1.0.0 <1.10.0'
 
-  '@opentelemetry/propagator-jaeger@2.8.0':
-    resolution: {integrity: sha512-Xnz9zZvvQzUw+9DrOn0MomR7BxFCkA2pcfXBQuHC28ndJpSbjLs7knzYb05kw5SyCjSsEWombkZMgGcJSk8JVg==}
+  '@opentelemetry/propagator-jaeger@2.9.0':
+    resolution: {integrity: sha512-4mYGty27rYvSM0jtp1ZUOqd3LfVRCYg9H5G9OFzSx5HViYToU21MFhWfco7x1HwXr7ER8yGOiCIHZUwjPksc0Q==}
     engines: {node: ^18.19.0 || >=20.6.0}
     peerDependencies:
       '@opentelemetry/api': '>=1.0.0 <1.10.0'
@@ -1711,8 +1712,8 @@ packages:
   fast-sha256@1.3.0:
     resolution: {integrity: sha512-n11RGP/lrWEFI/bWdygLxhI+pVeo1ZYIVwvvPkW7azl/rOy+F3HYRZ2K5zeE9mmkhQppyv9sQFx0JM9UabnpPQ==}
 
-  fast-uri@3.1.5:
-    resolution: {integrity: sha512-gHwA1O9LDIcKunMKhObS/HimwtehO1nPUECKAu5TpKgaO19fcWEl4bliWe1jWxVFvIXztJjjQ4L8XQ1EU9f7Jw==}
+  fast-uri@3.1.6:
+    resolution: {integrity: sha512-7Ical1vFEMr0onbVzEDIreM22I4khW+fzyQPwvAFWBp1iwdshSZRsL4jjRvPG9JP1uiqMHRto+YU6R2/CzDz5Q==}
 
   fast-xml-builder@1.2.0:
     resolution: {integrity: sha512-00aAWieqff+ZJhsXA4g1g7M8k+7AYoMUUHF+/zFb5U6Uv/P0Vl4QZo84/IcufzYalLuEj9928bXN9PbbFzMF0Q==}
@@ -3763,10 +3764,10 @@ snapshots:
       '@opentelemetry/api': 1.9.1
       '@opentelemetry/core': 2.8.0(@opentelemetry/api@1.9.1)
 
-  '@opentelemetry/propagator-jaeger@2.8.0(@opentelemetry/api@1.9.1)':
+  '@opentelemetry/propagator-jaeger@2.9.0(@opentelemetry/api@1.9.1)':
     dependencies:
       '@opentelemetry/api': 1.9.1
-      '@opentelemetry/core': 2.8.0(@opentelemetry/api@1.9.1)
+      '@opentelemetry/core': 2.9.0(@opentelemetry/api@1.9.1)
 
   '@opentelemetry/resources@2.0.1(@opentelemetry/api@1.9.1)':
     dependencies:
@@ -3836,7 +3837,7 @@ snapshots:
       '@opentelemetry/otlp-exporter-base': 0.219.0(@opentelemetry/api@1.9.1)
       '@opentelemetry/otlp-grpc-exporter-base': 0.219.0(@opentelemetry/api@1.9.1)
       '@opentelemetry/propagator-b3': 2.8.0(@opentelemetry/api@1.9.1)
-      '@opentelemetry/propagator-jaeger': 2.8.0(@opentelemetry/api@1.9.1)
+      '@opentelemetry/propagator-jaeger': 2.9.0(@opentelemetry/api@1.9.1)
       '@opentelemetry/resources': 2.8.0(@opentelemetry/api@1.9.1)
       '@opentelemetry/sdk-logs': 0.219.0(@opentelemetry/api@1.9.1)
       '@opentelemetry/sdk-metrics': 2.8.0(@opentelemetry/api@1.9.1)
@@ -4159,7 +4160,7 @@ snapshots:
   ajv@8.20.0:
     dependencies:
       fast-deep-equal: 3.1.3
-      fast-uri: 3.1.5
+      fast-uri: 3.1.6
       json-schema-traverse: 1.0.0
       require-from-string: 2.0.2
 
@@ -4489,7 +4490,7 @@ snapshots:
 
   fast-sha256@1.3.0: {}
 
-  fast-uri@3.1.5: {}
+  fast-uri@3.1.6: {}
 
   fast-xml-builder@1.2.0:
     dependencies:
@@ -4923,7 +4924,7 @@ snapshots:
 
   pathe@2.0.3: {}
 
-  pi-acp@0.0.29(patch_hash=e30d9db3a9981a7f844a83795d7ceef6d86919eede6e2adf8a9bf0024d5ff49c):
+  pi-acp@0.0.29(patch_hash=538022141d65b5c140169cec54bc064c5f3249f2aa9a05f0f445def152bbc907):
     dependencies:
       '@agentclientprotocol/sdk': 0.26.0(zod@3.25.76)
       zod: 3.25.76

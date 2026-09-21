@@ -725,6 +725,24 @@ const uniqueBySession = (refs: readonly SessionSidebarRef[]): SessionSidebarRef[
 }
 
 /**
+ * The ids the SERVER lists for this scope, pins and pages included. A host reconciles its local
+ * rows against it: a session the server carries no longer needs the local seam, and a local row
+ * that outlived its server twin would resurface the session whenever it aged out of the window.
+ */
+export const sidebarServerSessionIdsAtomFamily = atomFamily((scopeId: string) =>
+    atom<ReadonlySet<string>>((get) => {
+        const ids = new Set<string>()
+        for (const row of get(sidebarPinnedSessionsQueryAtomFamily(scopeId)).data ?? [])
+            ids.add(row.session_id)
+        for (const row of get(sidebarSessionsQueryAtomFamily(scopeId)).data ?? [])
+            ids.add(row.session_id)
+        for (const row of get(sidebarSessionsOlderQueryAtomFamily(scopeId)).data?.rows ?? [])
+            ids.add(row.session_id)
+        return ids
+    }),
+)
+
+/**
  * Pinned sessions first, then the rest by activity.
  *
  * Pins are pulled to the top rather than left in place because a pinned conversation is one you
@@ -926,6 +944,15 @@ export const sidebarSessionGroup = (
     return {key: `agent:${ref.agentId}`, label: ref.agentName?.trim() || "Agent", rank: 0}
 }
 
+/** The agent a heading stands for, or nothing: Pinned and "No agent yet" are not agents. */
+export const sidebarSessionGroupAgentId = (
+    key: string,
+    groupBy: SidebarSessionGroupBy,
+): string | undefined =>
+    groupBy === "agent" && key.startsWith("agent:") && key !== UNASSIGNED_GROUP_KEY
+        ? key.slice("agent:".length)
+        : undefined
+
 /** Ascending by rank, ties broken by label. */
 const compareGroups = (a: {label: string; rank: number}, b: {label: string; rank: number}) =>
     a.rank - b.rank || a.label.localeCompare(b.label)
@@ -995,7 +1022,11 @@ export const sidebarSessionGroupsAtomFamily = atomFamily((scopeId: string) =>
         // headings reshuffle every time you worked in a session. Only the rows under a heading move.
         const sorted: SidebarEntityGroup[] = [...labels]
             .sort(([, a], [, b]) => compareGroups(a, b))
-            .map(([key, {label}]) => ({key, label}))
+            .map(([key, {label}]) => ({
+                key,
+                label,
+                agentId: sidebarSessionGroupAgentId(key, groupBy),
+            }))
         // Only the status headings are hand-arrangeable. Pinned is not a status and never moves;
         // agent headings arrange through the shared agent rank instead, so they are already sorted.
         const headingZone = SESSION_REORDER_ZONES[groupBy]?.groupZone

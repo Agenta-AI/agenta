@@ -20,6 +20,21 @@ class SubscriptionProviderConflict(SecretsError):
         )
 
 
+class SecretSlugConflict(SecretsError):
+    """A secret already exists at this project and slug.
+
+    The unique index `uq_secrets_project_id_slug` is what decides; this type is how that
+    decision reaches a caller that addressed the row by a slug it derives rather than
+    stores (the MCP OAuth grant and client registration, keyed by `uuid5` of the server
+    URL). Such a caller responds by reading the winner and updating it, so the race
+    resolves without either side locking in Python.
+    """
+
+    def __init__(self, *, slug: str):
+        self.slug = slug
+        super().__init__(f"A secret already exists with the slug {slug}.")
+
+
 class SubscriptionSecretNotFound(SecretsError):
     """The addressed secret does not exist, or is not a subscription connection."""
 

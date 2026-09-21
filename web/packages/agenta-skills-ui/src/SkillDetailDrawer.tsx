@@ -2,22 +2,24 @@
  * Skill detail — the drawer a registry card opens (artboards 2/2b), one shell with the
  * editor anatomy throughout:
  *
- * - Read-only by default, always showing the head. USED BY chips sit under the header
- *   line. Revision history is deliberately not surfaced: versioning stays under the hood.
- * - `Edit skill` turns the same drawer editable; Save opens the blast-radius dialog (5b) —
- *   the explicit replacement for silent auto-commit — then commits.
+ * - Editable as soon as the head loads, always showing the head. Revision history is
+ *   deliberately not surfaced: versioning stays under the hood.
+ * - Discard / Save sit in the footer throughout, inert until the draft differs from the
+ *   head; Save opens the blast-radius dialog (5b) — the explicit replacement for silent
+ *   auto-commit — then commits.
+ * - Who runs it reads as a faded count in the header; the names wait behind a hover, each
+ *   a link to its agent. The skill's own verbs — Add to agent, Archive / Restore — live in
+ *   the header's kebab.
  *
  * Connected on purpose (like the create drawer): revisions/usage load and the commit live
  * here once; hosts pass `projectId` and the card's list item.
  */
-import {useCallback, useMemo, useState} from "react"
+import {useCallback, useMemo, useRef, useState} from "react"
 
-import {agentWorkflowsListQueryStateAtom} from "@agenta/entities/workflow"
+import {AgentChip} from "@agenta/entity-ui/agent"
 import {SkillFormView} from "@agenta/entity-ui/drill-in"
 import {
-    addSkillToAgents,
     archiveSkill,
-    buildSkillEmbedEntry,
     commitSkillRevision,
     fetchSkillRevisions,
     querySkillReferencedBy,
@@ -27,32 +29,45 @@ import {
 } from "@agenta/skills"
 import {invalidateSkillsListCache} from "@agenta/skills/state"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
+import {cn} from "@agenta/ui/styles"
 import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
     Button,
-    Checkbox,
     Dialog,
     DialogContent,
     DialogHeader,
     DialogTitle,
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuTrigger,
     Input,
+    Popover,
+    PopoverAnchor,
+    PopoverContent,
+    PopoverTrigger,
     Spinner,
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
 } from "@agenta/ui/ui"
 import {
-    CaretDown,
-    CaretLeft,
+    Archive,
+    ArrowUUpLeft,
+    DotsThreeVertical,
+    Info,
     Lightning,
-    PencilSimple,
     Plus,
     WarningCircle,
 } from "@phosphor-icons/react"
 import {useQuery} from "@tanstack/react-query"
-import {useAtomValue} from "jotai"
+import Link from "next/link"
 
-import {SkillAvatar} from "./SkillCard"
+import {SkillAgentPicker, skillUsageQueryKey} from "./SkillAgentPicker"
 import {SkillSaveBlastRadius} from "./SkillSaveBlastRadius"
 import type {SkillListItem, SkillUsageRef} from "./types"
 
@@ -62,9 +77,9 @@ export interface SkillDetailDrawerProps {
     projectId: string
     /** The clicked card. Null renders nothing (the drawer stays mounted for the exit animation). */
     skill: SkillListItem | null
-    /** Detail/edit width; the pick-agents step stays compact and the resize animates. */
+    /** Where an agent's name in the Used-by popover leads. Absent, the names are plain text. */
+    agentHref?: (agentId: string) => string
     width?: number
-    agentsWidth?: number
 }
 
 const toFormValue = (skill?: Record<string, unknown>): Record<string, unknown> => ({
@@ -80,22 +95,17 @@ const toFormValue = (skill?: Record<string, unknown>): Record<string, unknown> =
         : {}),
 })
 
-/** First zod issue → one human line, mirroring the create drawer. */
-const firstIssue = (error: {issues: {path: PropertyKey[]; message: string}[]}): string => {
-    const issue = error.issues[0]
-    if (!issue) return "Invalid skill."
-    const path = issue.path.join(".")
-    const message = /Too small.*>=1/.test(issue.message) ? "is required" : issue.message
-    return path ? `${path} ${message}` : message
-}
+/** A row of the actions popover — the filter menu's row, restated: icon, label, full width. */
+const ACTION_ROW =
+    "box-border flex w-full cursor-pointer appearance-none items-center gap-2 rounded-control-sm border-0 bg-transparent px-2 py-1.5 text-left font-[inherit] text-[13px] text-foreground outline-none transition-colors hover:bg-accent focus-visible:bg-accent disabled:cursor-default disabled:opacity-50"
 
 export function SkillDetailDrawer({
     open,
     onClose,
     projectId,
     skill,
+    agentHref,
     width = 960,
-    agentsWidth = 520,
 }: SkillDetailDrawerProps) {
     // The list item's id IS the workflow id (the hosts map workflow_id into it).
     const workflowId = skill?.id ?? ""
@@ -108,7 +118,7 @@ export function SkillDetailDrawer({
         staleTime: 15_000,
     })
     const usageQuery = useQuery({
-        queryKey: ["skills", "usage", projectId, workflowId],
+        queryKey: skillUsageQueryKey(projectId, workflowId),
         queryFn: () => querySkillReferencedBy({projectId, workflowId}),
         enabled: open && Boolean(projectId && workflowId) && !isBuiltin,
         staleTime: 15_000,
@@ -127,7 +137,6 @@ export function SkillDetailDrawer({
             })),
         [usageQuery.data],
     )
-    const [editing, setEditing] = useState(false)
     const [draft, setDraft] = useState<Record<string, unknown>>({})
     const [saveOpen, setSaveOpen] = useState(false)
     const [saveMessage, setSaveMessage] = useState("")
@@ -136,13 +145,9 @@ export function SkillDetailDrawer({
     const [busy, setBusy] = useState(false)
     const [error, setError] = useState<string | null>(null)
 
-    // The same drawer hosts the pick-agents step (artboard 3): back chevron, compact width.
-    const [step, setStep] = useState<"detail" | "agents">("detail")
-    const [selectedAgents, setSelectedAgents] = useState<Set<string>>(new Set())
-    const [agentsBusy, setAgentsBusy] = useState(false)
-    const [agentsError, setAgentsError] = useState<string | null>(null)
-
-    // Archive keeps the slug reserved; the registry hides the skill until unarchived.
+    // Archive keeps the slug reserved; the registry hides the skill until unarchived. Its
+    // confirm covers the drawer, not the window: the question is about what the drawer shows.
+    const [panel, setPanel] = useState<HTMLDivElement | null>(null)
     const [archiveOpen, setArchiveOpen] = useState(false)
     const [archiveBusy, setArchiveBusy] = useState(false)
     const [archiveError, setArchiveError] = useState<string | null>(null)
@@ -178,47 +183,66 @@ export function SkillDetailDrawer({
         }
     }, [onClose, projectId, workflowId])
 
-    // The canonical agent list (apps + head-revision is_agent flags) — `is_agent` is a
-    // REVISION flag, so a plain workflows/query cannot filter by it.
-    const roster = useAtomValue(agentWorkflowsListQueryStateAtom)
+    /** The revision the draft started from — the concurrency base. Captured when the
+     * draft is SEEDED, because a background refetch can move `head` while the drawer is
+     * open, and committing against a base the author never saw is exactly what the check
+     * exists to prevent. */
+    const [editBaseId, setEditBaseId] = useState<string | null>(null)
+    // The empty-field chrome waits for a Save press, as in the create drawer.
+    const [attempted, setAttempted] = useState(false)
+    const [discardOpen, setDiscardOpen] = useState(false)
 
     // Fresh state per open — closing only closes, so the exit animation keeps its frame.
     const [wasOpen, setWasOpen] = useState(false)
     if (open !== wasOpen) {
         setWasOpen(open)
         if (open) {
-            setEditing(false)
+            setEditBaseId(null)
+            setAttempted(false)
             setSaveOpen(false)
             setSaveMessage("")
             setPending(null)
             setError(null)
-            setStep("detail")
-            setSelectedAgents(new Set())
-            setAgentsError(null)
             setArchiveOpen(false)
+            setDiscardOpen(false)
         }
     }
 
     // Version numbers are deliberately not surfaced, so the drawer always shows the head.
 
-    /** The revision this edit started from — the concurrency base. Captured on
-     * ENTRY, because a background refetch can move `head` while the drawer is
-     * open, and committing against a base the author never saw is exactly what
-     * the check exists to prevent. */
-    const [editBaseId, setEditBaseId] = useState<string | null>(null)
-    const startEdit = useCallback(() => {
-        setDraft(toFormValue(head?.skill))
-        setEditBaseId(head?.id ?? null)
-        setEditing(true)
+    // The form is editable from the start: the draft seeds from the head once per open (and
+    // again after a commit, which clears the base), never over an edit in progress.
+    if (head && editBaseId === null) {
+        setDraft(toFormValue(head.skill))
+        setEditBaseId(head.id)
+    }
+    const headValue = useMemo(() => toFormValue(head?.skill), [head])
+    const dirty = useMemo(
+        () => editBaseId !== null && JSON.stringify(draft) !== JSON.stringify(headValue),
+        [draft, editBaseId, headValue],
+    )
+    const discard = useCallback(() => {
+        setDraft(headValue)
         setError(null)
-    }, [head])
+    }, [headValue])
+
+    // Every way out — the X, the mask, Escape, a Used-by link — asks first when the draft has
+    // edits, because reopening reseeds from the head and would drop them without a word.
+    const requestClose = useCallback(() => {
+        if (dirty && !busy) setDiscardOpen(true)
+        else onClose()
+    }, [busy, dirty, onClose])
+    const discardAndClose = useCallback(() => {
+        setDiscardOpen(false)
+        discard()
+        onClose()
+    }, [discard, onClose])
 
     const askToCommit = useCallback((content: Record<string, unknown>, defaultMessage: string) => {
+        setAttempted(true)
         const parsed = skillContentSchema.safeParse(content)
-        if (!parsed.success) {
-            setError(firstIssue(parsed.error))
-            return
-        }
+        // The fields say what is missing or malformed; the footer keeps to what the server said.
+        if (!parsed.success) return
         setPending(parsed.data)
         setSaveMessage(defaultMessage)
         setError(null)
@@ -243,7 +267,7 @@ export function SkillDetailDrawer({
             await revisionsQuery.refetch()
             setSaveOpen(false)
             setPending(null)
-            setEditing(false)
+            // Clearing the base reseeds the draft from the head the refetch just brought.
             setEditBaseId(null)
         } catch (err) {
             setError(
@@ -256,87 +280,218 @@ export function SkillDetailDrawer({
         }
     }, [editBaseId, head, pending, projectId, revisionsQuery, saveMessage, workflowId])
 
-    const usedByIds = useMemo(() => new Set(usedBy.map((agent) => agent.id)), [usedBy])
-    const availableAgents = useMemo(
-        () =>
-            (roster.data ?? [])
-                .filter((workflow) => workflow.id && !usedByIds.has(workflow.id))
-                .map((workflow) => ({
-                    workflowId: workflow.id as string,
-                    name:
-                        (workflow.name as string | undefined) ||
-                        (workflow.slug as string | undefined) ||
-                        (workflow.id as string),
-                })),
-        [roster.data, usedByIds],
-    )
-    const toggleAgent = useCallback((workflowId: string) => {
-        setSelectedAgents((prev) => {
-            const next = new Set(prev)
-            if (next.has(workflowId)) next.delete(workflowId)
-            else next.add(workflowId)
-            return next
-        })
+    // Read-only where there is nothing to write to: a built-in, or a skill that is put away.
+    const readOnly = isBuiltin || Boolean(skill?.archived)
+
+    // The skill's own verbs, at the header's right. A popover with rows, not a menu, the way the
+    // filter control is built: the Add to agent row opens the agent picker's panel as a flyout,
+    // and that panel carries a search field a menu's typeahead would fight for every keystroke.
+    const [menuOpen, setMenuOpen] = useState(false)
+    const [agentsOpen, setAgentsOpen] = useState(false)
+    // The flyout closes a beat after the pointer leaves, so crossing the gap between the row
+    // and the panel does not shut it — the filter menu's own timing.
+    const agentsCloseTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+    const openAgents = useCallback(() => {
+        if (agentsCloseTimer.current) clearTimeout(agentsCloseTimer.current)
+        setAgentsOpen(true)
     }, [])
+    const scheduleCloseAgents = useCallback(() => {
+        if (agentsCloseTimer.current) clearTimeout(agentsCloseTimer.current)
+        agentsCloseTimer.current = setTimeout(() => setAgentsOpen(false), 140)
+    }, [])
+    const closeMenu = useCallback(() => {
+        if (agentsCloseTimer.current) clearTimeout(agentsCloseTimer.current)
+        setAgentsOpen(false)
+        setMenuOpen(false)
+    }, [])
+    // An archived skill has no menu: its one verb, Restore, is the footer's button.
+    const actions =
+        !isBuiltin && skill && !skill.archived ? (
+            <Popover
+                open={menuOpen}
+                onOpenChange={(next) => {
+                    setMenuOpen(next)
+                    if (!next) setAgentsOpen(false)
+                }}
+            >
+                <PopoverTrigger asChild>
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        aria-label="Skill actions"
+                        disabled={busy || archiveBusy}
+                        // The header's close button gives 2px back on each side to sit on the
+                        // title's 24px line; a 32px button gives back 4, for the same reason.
+                        className="-my-1"
+                    >
+                        <DotsThreeVertical aria-hidden className="size-4" weight="bold" />
+                    </Button>
+                </PopoverTrigger>
+                <PopoverContent
+                    align="end"
+                    sideOffset={6}
+                    container={panel}
+                    className="flex w-[200px] flex-col p-1"
+                >
+                    <>
+                        {/* Opens on hover, as the filter menu's rows do: the row is an
+                                anchor, not a trigger, so a click on a row the pointer already
+                                opened does not shut it again. */}
+                        <Popover open={agentsOpen} onOpenChange={setAgentsOpen}>
+                            <PopoverAnchor asChild>
+                                <button
+                                    type="button"
+                                    aria-haspopup="listbox"
+                                    aria-expanded={agentsOpen}
+                                    disabled={!head}
+                                    onClick={openAgents}
+                                    onMouseEnter={openAgents}
+                                    onMouseLeave={scheduleCloseAgents}
+                                    className={cn(ACTION_ROW, agentsOpen && "bg-accent")}
+                                >
+                                    <Plus aria-hidden size={14} className="text-muted-foreground" />
+                                    <span className="flex-1">Add to agent</span>
+                                </button>
+                            </PopoverAnchor>
+                            <PopoverContent
+                                side="left"
+                                align="start"
+                                sideOffset={6}
+                                aria-label="Add to agent"
+                                // Inside the sheet, or its scroll lock swallows the list's wheel.
+                                container={panel}
+                                className="flex w-[280px] flex-col gap-0 p-0"
+                                onOpenAutoFocus={(event) => event.preventDefault()}
+                                onMouseEnter={openAgents}
+                                onMouseLeave={scheduleCloseAgents}
+                            >
+                                <SkillAgentPicker projectId={projectId} skill={skill} />
+                            </PopoverContent>
+                        </Popover>
+                        <button
+                            type="button"
+                            onClick={() => {
+                                closeMenu()
+                                setArchiveOpen(true)
+                            }}
+                            className={cn(ACTION_ROW, "text-[var(--ag-colorError)]")}
+                        >
+                            <Archive aria-hidden size={14} />
+                            Archive
+                        </button>
+                    </>
+                </PopoverContent>
+            </Popover>
+        ) : null
 
-    const installToAgents = useCallback(
-        async (mode: "latest" | "pinned") => {
-            if (!skill || selectedAgents.size === 0) return
-            setAgentsBusy(true)
-            setAgentsError(null)
-            try {
-                const entry = buildSkillEmbedEntry({
-                    slug: skill.slug,
-                    workflowId: skill.id,
-                    name: skill.name,
-                    description: skill.description,
-                    mode,
-                    version: mode === "pinned" ? head?.version : undefined,
-                }) as unknown as Record<string, unknown>
-                const outcome = await addSkillToAgents({
-                    projectId,
-                    agentWorkflowIds: [...selectedAgents],
-                    entry,
-                    message: `Add skill ${skill.slug}`,
-                })
-                if (outcome.failed.length) {
-                    setAgentsError(
-                        `${outcome.failed.length} of ${selectedAgents.size} agents could not be updated: ${outcome.failed[0].error}`,
+    // Provenance sits behind an info mark beside the name: a reader who wants to know where a
+    // skill came from hovers; the header stays one line.
+    const provenance = skill?.source ? (
+        <TooltipProvider>
+            <Tooltip>
+                <TooltipTrigger asChild>
+                    <button
+                        type="button"
+                        aria-label="Where this skill came from"
+                        className="box-border inline-flex shrink-0 cursor-help items-center border-0 bg-transparent p-0 font-[inherit] text-[var(--ag-colorTextTertiary)] hover:text-[var(--ag-colorText)]"
+                    >
+                        <Info size={14} aria-hidden />
+                    </button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" align="start">
+                    <span className="flex flex-col gap-0.5">
+                        <span>
+                            Imported from <span className="font-mono">{skill.source.label}</span>
+                        </span>
+                        {skill.source.detached ? (
+                            <span className="opacity-80">Modified locally — no longer synced</span>
+                        ) : null}
+                    </span>
+                </TooltipContent>
+            </Tooltip>
+        </TooltipProvider>
+    ) : null
+
+    // Who runs it reads as a faded count beside the name; the names wait behind a hover, each a
+    // link to its agent. A popover, not a tooltip: a tooltip's content cannot be clicked.
+    const [usageOpen, setUsageOpen] = useState(false)
+    const usageCloseTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+    const openUsage = useCallback(() => {
+        if (usageCloseTimer.current) clearTimeout(usageCloseTimer.current)
+        setUsageOpen(true)
+    }, [])
+    const scheduleCloseUsage = useCallback(() => {
+        if (usageCloseTimer.current) clearTimeout(usageCloseTimer.current)
+        usageCloseTimer.current = setTimeout(() => setUsageOpen(false), 140)
+    }, [])
+    const usage = usedBy.length ? (
+        <Popover open={usageOpen} onOpenChange={setUsageOpen}>
+            <PopoverAnchor asChild>
+                <button
+                    type="button"
+                    aria-haspopup="dialog"
+                    aria-expanded={usageOpen}
+                    onClick={openUsage}
+                    onMouseEnter={openUsage}
+                    onMouseLeave={scheduleCloseUsage}
+                    className="box-border inline-flex shrink-0 cursor-default items-center border-0 bg-transparent p-0 font-[inherit] text-[12px] font-normal text-[var(--ag-colorTextTertiary)] hover:text-[var(--ag-colorTextSecondary)]"
+                >
+                    Used by {usedBy.length} {usedBy.length === 1 ? "agent" : "agents"}
+                </button>
+            </PopoverAnchor>
+            <PopoverContent
+                side="bottom"
+                align="start"
+                sideOffset={6}
+                aria-label="Agents using this skill"
+                container={panel}
+                className="flex w-[240px] flex-col gap-px p-1"
+                onOpenAutoFocus={(event) => event.preventDefault()}
+                onMouseEnter={openUsage}
+                onMouseLeave={scheduleCloseUsage}
+            >
+                {usedBy.map((agent) => {
+                    const label = (
+                        <>
+                            <AgentChip workflowId={agent.id} box="size-5" glyph={13} />
+                            <span className="min-w-0 flex-1 truncate">{agent.name}</span>
+                            <span className="shrink-0 text-[11px] text-[var(--ag-colorTextTertiary)]">
+                                {agent.mode === "pinned"
+                                    ? `pinned v${agent.pinnedVersion ?? ""}`
+                                    : "latest"}
+                            </span>
+                        </>
                     )
-                    await usageQuery.refetch()
-                    return
-                }
-                invalidateSkillsListCache()
-                // Confirm returns to the registry (the drawer closes).
-                onClose()
-            } finally {
-                setAgentsBusy(false)
-            }
-        },
-        [head, onClose, projectId, selectedAgents, skill, usageQuery],
-    )
-
-    const formValue = useMemo(
-        () => (editing ? draft : toFormValue(head?.skill)),
-        [draft, editing, head],
-    )
+                    return agentHref ? (
+                        <Link
+                            key={agent.id}
+                            href={agentHref(agent.id)}
+                            onClick={(event) => {
+                                if (!dirty) return onClose()
+                                event.preventDefault()
+                                requestClose()
+                            }}
+                            className={cn(ACTION_ROW, "no-underline")}
+                        >
+                            {label}
+                        </Link>
+                    ) : (
+                        <span key={agent.id} className={cn(ACTION_ROW, "cursor-default")}>
+                            {label}
+                        </span>
+                    )
+                })}
+            </PopoverContent>
+        </Popover>
+    ) : null
 
     const title = (
         <div className="flex min-w-0 items-center gap-2">
-            {step === "agents" ? (
-                <button
-                    type="button"
-                    aria-label="Back to skill"
-                    onClick={() => setStep("detail")}
-                    className="flex cursor-pointer items-center border-0 bg-transparent p-0 text-[var(--ag-colorTextSecondary)] hover:text-[var(--ag-colorText)]"
-                >
-                    <CaretLeft size={16} />
-                </button>
-            ) : null}
-            {skill ? <SkillAvatar origin={skill.origin} /> : null}
             <span className="min-w-0 truncate font-mono text-sm font-medium">
                 {skill?.slug ?? ""}
             </span>
+            {provenance}
+            {usage}
             {isBuiltin ? (
                 <span className="flex shrink-0 items-center gap-0.5 text-[10px] text-[var(--ag-colorTextTertiary)]">
                     <Lightning size={10} weight="fill" />
@@ -351,50 +506,18 @@ export function SkillDetailDrawer({
         </div>
     )
 
-    // Provenance rides the HEADER as a subtitle line, so the body keeps its full height.
-    const titleWithSource = skill?.source ? (
-        <div className="flex min-w-0 flex-col gap-0.5">
-            {title}
-            <div className="flex min-w-0 flex-wrap items-center gap-1.5 text-[11px] font-normal text-[var(--ag-colorTextSecondary)]">
-                {skill.source.repoUrl ? (
-                    <a
-                        href={skill.source.repoUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="font-mono text-[var(--ag-colorTextSecondary)] underline decoration-[var(--ag-colorBorder)] underline-offset-2 hover:text-[var(--ag-colorText)] hover:decoration-[var(--ag-colorText)]"
-                    >
-                        {skill.source.label}
-                    </a>
-                ) : (
-                    <span className="font-mono">{skill.source.label}</span>
-                )}
-                {skill.source.commitSha ? (
-                    <span className="rounded bg-[var(--ag-colorFillTertiary)] px-1.5 py-px font-mono text-[10px]">
-                        {skill.source.commitSha.slice(0, 7)}
-                    </span>
-                ) : null}
-                {skill.source.detached ? (
-                    <span className="rounded bg-[var(--ag-colorWarningBg)] px-1.5 py-px text-[10px] text-[var(--ag-colorWarningText)]">
-                        modified locally — no longer synced
-                    </span>
-                ) : null}
-            </div>
-        </div>
-    ) : (
-        title
-    )
-
     return (
         <>
             <EnhancedDrawer
                 rootClassName="ag-drawer-elevated"
+                panelRef={setPanel}
                 open={open}
-                onClose={onClose}
+                onClose={requestClose}
                 placement="right"
-                // Compact for the pick-agents step, wide for the editor; the resize animates.
-                width={step === "agents" ? agentsWidth : width}
+                width={width}
                 destroyOnClose
-                title={titleWithSource}
+                title={title}
+                extra={actions}
                 styles={{
                     body: {
                         padding: 0,
@@ -404,292 +527,139 @@ export function SkillDetailDrawer({
                     },
                 }}
                 footer={
-                    step === "agents" ? (
-                        <div className="flex items-center justify-between gap-3">
-                            {agentsError ? (
-                                <span className="flex min-w-0 items-start gap-1.5 text-xs text-[var(--ag-colorError)]">
-                                    <WarningCircle size={14} className="mt-px shrink-0" />
-                                    <span className="min-w-0">{agentsError}</span>
+                    <div className="flex items-center justify-between gap-3">
+                        {error ? (
+                            <span className="flex min-w-0 items-start gap-1.5 text-xs text-[var(--ag-colorError)]">
+                                <WarningCircle size={14} className="mt-px shrink-0" />
+                                <span className="min-w-0">{error}</span>
+                            </span>
+                        ) : (
+                            <span />
+                        )}
+                        <span className="flex shrink-0 items-center gap-2">
+                            {archiveError ? (
+                                <span className="text-xs text-[var(--ag-colorError)]">
+                                    {archiveError}
                                 </span>
-                            ) : (
-                                <span />
-                            )}
-                            <span className="flex shrink-0 items-center">
-                                <Button
-                                    disabled={agentsBusy || selectedAgents.size === 0}
-                                    onClick={() => void installToAgents("latest")}
-                                    className="rounded-r-none"
-                                >
-                                    {agentsBusy ? <Spinner size="small" /> : null}
-                                    Add to {selectedAgents.size}{" "}
-                                    {selectedAgents.size === 1 ? "agent" : "agents"}
+                            ) : null}
+                            {/* An archived skill's one verb takes the footer's action slot;
+                                the editor above it is read-only until it is back. */}
+                            {skill?.archived && !isBuiltin ? (
+                                <Button onClick={() => void runUnarchive()} disabled={archiveBusy}>
+                                    {archiveBusy ? (
+                                        <Spinner size="small" />
+                                    ) : (
+                                        <ArrowUUpLeft aria-hidden size={14} />
+                                    )}
+                                    Restore
                                 </Button>
-                                <DropdownMenu>
-                                    <DropdownMenuTrigger asChild>
-                                        <Button
-                                            disabled={agentsBusy || selectedAgents.size === 0}
-                                            aria-label="Version options for the batch"
-                                            className="rounded-l-none border-l-0 px-1.5"
-                                        >
-                                            <CaretDown size={12} />
-                                        </Button>
-                                    </DropdownMenuTrigger>
-                                    <DropdownMenuContent align="end">
-                                        <DropdownMenuItem
-                                            onSelect={() => void installToAgents("latest")}
-                                        >
-                                            Add — follow latest
-                                        </DropdownMenuItem>
-                                        <DropdownMenuItem
-                                            onSelect={() => void installToAgents("pinned")}
-                                        >
-                                            Add pinned to the current version
-                                        </DropdownMenuItem>
-                                    </DropdownMenuContent>
-                                </DropdownMenu>
-                            </span>
-                        </div>
-                    ) : (
-                        <div className="flex items-center justify-between gap-3">
-                            {error ? (
-                                <span className="flex min-w-0 items-start gap-1.5 text-xs text-[var(--ag-colorError)]">
-                                    <WarningCircle size={14} className="mt-px shrink-0" />
-                                    <span className="min-w-0">{error}</span>
-                                </span>
-                            ) : (
-                                <span />
+                            ) : null}
+                            {/* Always present, so the footer never changes shape under
+                                    the reader; inert until the draft differs from the head. */}
+                            {readOnly ? null : (
+                                <>
+                                    <Button
+                                        variant="outline"
+                                        onClick={discard}
+                                        disabled={busy || !dirty}
+                                    >
+                                        Discard
+                                    </Button>
+                                    <Button
+                                        onClick={() => askToCommit(draft, "")}
+                                        disabled={busy || !dirty}
+                                    >
+                                        Save changes
+                                    </Button>
+                                </>
                             )}
-                            <span className="flex shrink-0 items-center gap-2">
-                                {editing ? (
-                                    <>
-                                        <Button
-                                            variant="outline"
-                                            onClick={() => {
-                                                setEditing(false)
-                                                setError(null)
-                                            }}
-                                            disabled={busy}
-                                        >
-                                            Cancel
-                                        </Button>
-                                        <Button
-                                            onClick={() => askToCommit(draft, "")}
-                                            disabled={busy}
-                                        >
-                                            Save changes
-                                        </Button>
-                                    </>
-                                ) : skill?.archived ? (
-                                    <>
-                                        {archiveError ? (
-                                            <span className="text-xs text-[var(--ag-colorError)]">
-                                                {archiveError}
-                                            </span>
-                                        ) : null}
-                                        <Button
-                                            variant="outline"
-                                            onClick={() => void runUnarchive()}
-                                            disabled={archiveBusy}
-                                        >
-                                            {archiveBusy ? <Spinner size="small" /> : null}
-                                            Unarchive
-                                        </Button>
-                                    </>
-                                ) : !isBuiltin ? (
-                                    <>
-                                        <Button
-                                            variant="outline"
-                                            onClick={() => setArchiveOpen(true)}
-                                            disabled={busy}
-                                            className="text-[var(--ag-colorError)]"
-                                        >
-                                            Archive
-                                        </Button>
-                                        <Button
-                                            variant="outline"
-                                            onClick={() => setStep("agents")}
-                                            disabled={busy || !head}
-                                        >
-                                            <Plus size={14} />
-                                            Add to agent
-                                        </Button>
-                                        <Button onClick={startEdit} disabled={busy || !head}>
-                                            <PencilSimple size={14} />
-                                            Edit skill
-                                        </Button>
-                                    </>
-                                ) : null}
-                            </span>
-                        </div>
-                    )
+                        </span>
+                    </div>
                 }
             >
-                {step === "agents" ? (
-                    <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-4">
-                        {roster.isPending ? (
-                            <div className="flex flex-1 items-center justify-center">
-                                <Spinner size="small" />
-                            </div>
-                        ) : (
-                            <>
-                                {availableAgents.length ? (
-                                    <div className="flex flex-col gap-1.5">
-                                        <span className="text-[10px] font-semibold uppercase tracking-wide text-[var(--ag-colorTextTertiary)]">
-                                            Add to
-                                        </span>
-                                        <div className="flex flex-col overflow-hidden rounded-md border border-solid border-[var(--ag-colorBorderSecondary)]">
-                                            {availableAgents.map((agent) => (
-                                                <label
-                                                    key={agent.workflowId}
-                                                    className="flex cursor-pointer items-center gap-2.5 border-0 border-t border-solid border-[var(--ag-colorSplit)] px-3 py-2 first:border-t-0"
-                                                >
-                                                    <Checkbox
-                                                        checked={selectedAgents.has(
-                                                            agent.workflowId,
-                                                        )}
-                                                        onCheckedChange={() =>
-                                                            toggleAgent(agent.workflowId)
-                                                        }
-                                                        disabled={agentsBusy}
-                                                        aria-label={`Add to ${agent.name}`}
-                                                    />
-                                                    <span className="min-w-0 flex-1 truncate text-xs font-medium">
-                                                        {agent.name}
-                                                    </span>
-                                                    <span className="shrink-0 text-[11px] text-[var(--ag-colorTextTertiary)]">
-                                                        will follow latest
-                                                    </span>
-                                                </label>
-                                            ))}
-                                        </div>
-                                    </div>
-                                ) : (
-                                    <span className="text-xs text-[var(--ag-colorTextSecondary)]">
-                                        Every agent in this project already has this skill.
-                                    </span>
-                                )}
-                                {usedBy.length ? (
-                                    <div className="flex flex-col gap-1.5">
-                                        <span className="text-[10px] font-semibold uppercase tracking-wide text-[var(--ag-colorTextTertiary)]">
-                                            Already added
-                                        </span>
-                                        <div className="flex flex-col overflow-hidden rounded-md border border-solid border-[var(--ag-colorBorderSecondary)]">
-                                            {usedBy.map((agent) => {
-                                                const stale =
-                                                    agent.mode === "pinned" &&
-                                                    agent.pinnedVersion &&
-                                                    head?.version &&
-                                                    Number(agent.pinnedVersion) <
-                                                        Number(head.version)
-
-                                                return (
-                                                    <div
-                                                        key={agent.id}
-                                                        className="flex items-center justify-between gap-2 border-0 border-t border-solid border-[var(--ag-colorSplit)] px-3 py-2 first:border-t-0"
-                                                    >
-                                                        <span className="min-w-0 truncate text-xs font-medium">
-                                                            {agent.name}
-                                                        </span>
-                                                        <span className="flex shrink-0 items-center gap-1.5 text-[11px] text-[var(--ag-colorTextTertiary)]">
-                                                            {agent.mode === "pinned"
-                                                                ? "pinned"
-                                                                : "latest"}
-                                                            {stale ? (
-                                                                <span className="rounded bg-[var(--ag-colorWarningBg)] px-1.5 py-px text-[10px] text-[var(--ag-colorWarningText)]">
-                                                                    update available
-                                                                </span>
-                                                            ) : null}
-                                                        </span>
-                                                    </div>
-                                                )
-                                            })}
-                                        </div>
-                                    </div>
-                                ) : null}
-                            </>
-                        )}
-                    </div>
-                ) : (
-                    <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden p-4">
-                        {!editing && usedBy.length ? (
-                            <div className="flex shrink-0 flex-wrap items-center gap-1.5">
-                                <span className="text-[10px] font-semibold uppercase tracking-wide text-[var(--ag-colorTextTertiary)]">
-                                    Used by
-                                </span>
-                                {usedBy.map((agent) => (
-                                    <span
-                                        key={agent.id}
-                                        className="flex items-center gap-1 rounded-full border border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorFillQuaternary)] px-2 py-px text-[11px]"
-                                    >
-                                        <span className="max-w-40 truncate">{agent.name}</span>
-                                        <span className="text-[var(--ag-colorTextTertiary)]">
-                                            {agent.mode === "pinned" ? "pinned" : "latest"}
-                                        </span>
-                                    </span>
-                                ))}
-                            </div>
-                        ) : null}
-
-                        {isBuiltin ? (
-                            <div className="flex flex-col gap-2 rounded-md border border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorFillQuaternary)] p-4 text-xs">
-                                <span className="font-mono font-medium">{skill?.slug}</span>
-                                <span className="text-[var(--ag-colorTextSecondary)]">
-                                    {skill?.description || "No description."}
-                                </span>
-                                <span className="text-[var(--ag-colorTextTertiary)]">
-                                    Built-in skills are maintained by Agenta and cannot be edited.
-                                </span>
-                            </div>
-                        ) : revisionsQuery.isPending ? (
-                            <div className="flex flex-1 items-center justify-center">
-                                <Spinner size="small" />
-                            </div>
-                        ) : (
-                            <div className="min-h-0 flex-1 overflow-y-auto">
-                                <SkillFormView
-                                    value={formValue}
-                                    onChange={editing ? setDraft : () => undefined}
-                                    disabled={!editing || busy}
-                                />
-                            </div>
-                        )}
-                    </div>
-                )}
+                <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden p-4">
+                    {isBuiltin ? (
+                        <div className="flex flex-col gap-2 rounded-md border border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorFillQuaternary)] p-4 text-xs">
+                            <span className="font-mono font-medium">{skill?.slug}</span>
+                            <span className="text-[var(--ag-colorTextSecondary)]">
+                                {skill?.description || "No description."}
+                            </span>
+                            <span className="text-[var(--ag-colorTextTertiary)]">
+                                Built-in skills are maintained by Agenta and cannot be edited.
+                            </span>
+                        </div>
+                    ) : revisionsQuery.isPending ? (
+                        <div className="flex flex-1 items-center justify-center">
+                            <Spinner size="small" />
+                        </div>
+                    ) : revisionsQuery.isError ? (
+                        // A failed load must not read as an empty skill with a dead Save.
+                        <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center">
+                            <WarningCircle size={20} className="text-[var(--ag-colorError)]" />
+                            <span className="text-sm">Couldn't load this skill.</span>
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => void revisionsQuery.refetch()}
+                            >
+                                Try again
+                            </Button>
+                        </div>
+                    ) : (
+                        // No overflow of its own: the rail bleeds 16px past this box to meet
+                        // the header and footer rules, and a clipping box here cut it short.
+                        // The editor scrolls; the outer wrapper clips at its padding edge.
+                        <div className="min-h-0 flex-1">
+                            <SkillFormView
+                                value={draft}
+                                onChange={readOnly ? () => undefined : setDraft}
+                                disabled={readOnly || busy}
+                                showMissing={attempted}
+                            />
+                        </div>
+                    )}
+                </div>
             </EnhancedDrawer>
 
-            <Dialog
+            {/* An alert, not a dialog: it asks one question and offers no other way out. */}
+            <AlertDialog
                 open={archiveOpen}
                 onOpenChange={(next) => {
                     if (!next && !archiveBusy) setArchiveOpen(false)
                 }}
             >
-                <DialogContent className="sm:max-w-[440px]">
-                    <DialogHeader>
-                        <DialogTitle>Archive {skill?.slug}</DialogTitle>
-                    </DialogHeader>
-                    <div className="flex flex-col gap-3 text-xs text-[var(--ag-colorTextSecondary)]">
-                        {usedBy.length ? (
-                            <div className="flex items-start gap-1.5 rounded-md border border-solid border-[var(--ag-colorWarningBorder)] bg-[var(--ag-colorWarningBg)] px-3 py-2 text-[var(--ag-colorWarningText)]">
-                                <WarningCircle size={14} className="mt-px shrink-0" />
-                                <span>
-                                    {usedBy.length}{" "}
-                                    {usedBy.length === 1
-                                        ? "agent still references"
-                                        : "agents still reference"}{" "}
-                                    this skill — runs will fail to resolve it until it is unarchived
-                                    or removed from the config.
-                                </span>
-                            </div>
-                        ) : null}
-                        <p className="m-0">
-                            The skill disappears from the registry (find it again with Show
-                            archived). Its name stays reserved, and unarchiving restores it with its
-                            full history.
-                        </p>
-                        {archiveError ? (
-                            <span className="text-[var(--ag-colorError)]">{archiveError}</span>
-                        ) : null}
-                        <div className="flex items-center justify-end gap-2">
+                <AlertDialogContent
+                    container={panel}
+                    className="sm:max-w-[440px]"
+                    onEscapeKeyDown={(event) => {
+                        if (archiveBusy) event.preventDefault()
+                    }}
+                >
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Archive {skill?.slug}?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            The skill leaves the registry and agents can no longer run it. Its name
+                            stays reserved, and restoring it brings back its full history.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    {usedBy.length ? (
+                        <div className="flex items-start gap-1.5 rounded-md border border-solid border-[var(--ag-colorWarningBorder)] bg-[var(--ag-colorWarningBg)] px-3 py-2 text-xs text-[var(--ag-colorWarningText)]">
+                            <WarningCircle size={14} className="mt-px shrink-0" />
+                            <span>
+                                {usedBy.length}{" "}
+                                {usedBy.length === 1
+                                    ? "agent still references"
+                                    : "agents still reference"}{" "}
+                                this skill — runs will fail to resolve it until it is restored or
+                                removed from the config.
+                            </span>
+                        </div>
+                    ) : null}
+                    {archiveError ? (
+                        <p className="m-0 text-xs text-[var(--ag-colorError)]">{archiveError}</p>
+                    ) : null}
+                    <AlertDialogFooter>
+                        <AlertDialogCancel asChild>
                             <Button
                                 variant="outline"
                                 onClick={() => setArchiveOpen(false)}
@@ -697,14 +667,53 @@ export function SkillDetailDrawer({
                             >
                                 Cancel
                             </Button>
-                            <Button onClick={() => void runArchive()} disabled={archiveBusy}>
+                        </AlertDialogCancel>
+                        {/* preventDefault keeps the alert open: it closes itself on success and
+                            stays for the error otherwise. */}
+                        <AlertDialogAction asChild>
+                            <Button
+                                variant="destructive"
+                                disabled={archiveBusy}
+                                onClick={(event) => {
+                                    event.preventDefault()
+                                    void runArchive()
+                                }}
+                            >
                                 {archiveBusy ? <Spinner size="small" /> : null}
                                 Archive skill
                             </Button>
-                        </div>
-                    </div>
-                </DialogContent>
-            </Dialog>
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+
+            <AlertDialog
+                open={discardOpen}
+                onOpenChange={(next) => {
+                    if (!next) setDiscardOpen(false)
+                }}
+            >
+                <AlertDialogContent container={panel} className="sm:max-w-[400px]">
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Discard changes?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            This skill has edits that were not saved. Closing throws them away.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel asChild>
+                            <Button variant="outline" onClick={() => setDiscardOpen(false)}>
+                                Keep editing
+                            </Button>
+                        </AlertDialogCancel>
+                        <AlertDialogAction asChild>
+                            <Button variant="destructive" onClick={discardAndClose}>
+                                Discard
+                            </Button>
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
 
             {/* Radix Dialog, not EnhancedModal: /m renders this drawer and antd is banned there. */}
             <Dialog

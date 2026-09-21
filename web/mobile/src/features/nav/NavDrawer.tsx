@@ -1,10 +1,11 @@
-import {useState} from "react"
+import {useEffect, useState} from "react"
 
 import type {SidebarScope} from "@agenta/navigation"
-import {sidebarOpenGroupsAtomFamily} from "@agenta/navigation"
+import {sidebarOpenGroupsAtomFamily, sidebarSessionSearchOpenAtom} from "@agenta/navigation"
 import {SidebarShell} from "@agenta/navigation-ui"
+import {Button} from "@agenta/ui/ui"
 import {ListIcon} from "@phosphor-icons/react"
-import {atom} from "jotai"
+import {atom, useAtomValue} from "jotai"
 import {useRouter} from "next/router"
 
 import {Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger} from "@/components/ui/sheet"
@@ -34,6 +35,12 @@ export const NavDrawer = ({
     scope?: SidebarScope
 }) => {
     const [open, setOpen] = useState(false)
+    // The search palette is a dialog of its own, mounted outside this sheet: opening it from the
+    // rail inside the sheet closes the sheet, or the pick would land under it.
+    const paletteOpen = useAtomValue(sidebarSessionSearchOpenAtom)
+    useEffect(() => {
+        if (paletteOpen) setOpen(false)
+    }, [paletteOpen])
     const mainScope = useMobileNavScope(workspaceId, projectId)
     const scope = scopeOverride ?? mainScope
     const router = useRouter()
@@ -41,13 +48,16 @@ export const NavDrawer = ({
     return (
         <Sheet open={open} onOpenChange={setOpen}>
             <SheetTrigger asChild>
-                <button
+                <Button
                     type="button"
+                    variant="ghost"
+                    size="icon"
                     aria-label="Open navigation"
-                    className="text-muted-foreground relative flex size-8 shrink-0 cursor-pointer items-center justify-center after:absolute after:-inset-1.5 after:content-[''] lg:hidden"
+                    // 20px glyph, not the button's 16: the hamburger is the header's only mark.
+                    className="text-muted-foreground relative after:absolute after:-inset-1.5 after:content-[''] lg:hidden [&_svg:not([class*='size-'])]:size-5"
                 >
-                    <ListIcon size={20} />
-                </button>
+                    <ListIcon />
+                </Button>
             </SheetTrigger>
             <SheetContent side="left" showCloseButton={false} className="w-[236px] gap-0 p-0">
                 {/* The sheet's own X is off: the rail's header already has the button, and

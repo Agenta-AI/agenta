@@ -407,7 +407,8 @@ describe("shared agent settings", () => {
         expect(
             (permissions.querySelector('[aria-label="Policy"]') as HTMLButtonElement).disabled,
         ).toBe(true)
-        await click(button("Policy", permissions))
+        // The policy select runs full width with no rail label, so there is no change marker to open.
+        expect(button("Policy", permissions)).toBeUndefined()
         expect(button("Restore")).toBeUndefined()
         expect(writes).not.toHaveBeenCalled()
     })
@@ -474,7 +475,7 @@ describe("shared agent settings", () => {
         expectRules()
     })
 
-    it("reverts only the visible policy, keeping hidden dirty rules", async () => {
+    it("leaves a dirty policy and hidden rules alone, with no inline Restore", async () => {
         fixture.committed = saved()
         const dirty = {
             ...saved(),
@@ -486,9 +487,10 @@ describe("shared agent settings", () => {
         }
         await mount(dirty)
         const permissions = host.querySelector('section[aria-label="Permissions"]')!
-        await click(button("Policy", permissions))
-        await click(button("Restore"))
-        expect((live.runner as typeof dirty.runner).permissions.default).toBe("ask")
+        // The Policy row no longer carries a change marker, so nothing reverts the policy inline.
+        expect(button("Policy", permissions)).toBeUndefined()
+        expect(button("Restore", permissions)).toBeUndefined()
+        expect((live.runner as typeof dirty.runner).permissions.default).toBe("allow")
         expectRules(dirty)
     })
 
