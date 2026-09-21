@@ -24,7 +24,7 @@ def test_hosted_shares_the_custom_rendering_and_fill_facts():
     hosted = fetch_telegram_hosted_capabilities()
     custom = fetch_telegram_capabilities()
     assert hosted.rendering.text.format == custom.rendering.text.format == "html"
-    assert hosted.rendering.controls.update is False
+    assert hosted.rendering.controls.update is True
     assert hosted.fill.backfill.supported is False
     assert hosted.fill.forwardfill.supported is True
     assert hosted.conversation.default == custom.conversation.default

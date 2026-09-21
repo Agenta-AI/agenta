@@ -347,3 +347,14 @@ explicitly, so the result does not depend on the ambient environment. Verified b
 suite with the three vars unset (simulating CI): 771 channels tests pass. The remaining
 api-unit reds are the known socket.gaierror infra flake on unrelated session DAO tests.
 Lesson: config tests must set every field explicitly; the dev container's env can hide a CI gap.
+
+
+## Frontend finished, live-verified through the UI (2026-09-09 evening)
+Goal run: finish HANDOFF.md's next steps. Done on channels/telegram-ui: the 3 remaining Codex
+items, hosted + custom Slack connect, the QR image (vendored encoder), the /m mount, the
+dark-mode pass, Storybook stories, the Fern client for the bind-link (channels resource only).
+Two bugs found live and fixed: reconnect after disconnect 500'd (unarchive did not restore the
+connection's agents; DAO cascade added + test), and a reload during the connect flow showed
+"connected" before /start (a hosted connection with zero bindings is now "pending"). Stack
+repair: five containers still mounted the wiped worktree; env + override rebuilt from the api
+container env, containers recreated. Full record in STATUS.md.

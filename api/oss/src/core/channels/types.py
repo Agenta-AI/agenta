@@ -129,6 +129,17 @@ class ChannelConnectionIdentityConflict(ChannelsError):
         )
 
 
+class ChannelCredentialRevoked(ChannelsError):
+    """The platform refused the connection's credential outright (Telegram 401
+    on a bot token, Slack `token_revoked`). The outbox switches the connection
+    off so the UI shows it, instead of retrying a call that can never pass."""
+
+    def __init__(self, *, channel: str, detail: str = ""):
+        self.channel = channel
+        self.detail = detail
+        super().__init__(f"{channel}: the credential was revoked {detail}".strip())
+
+
 class ChannelConnectionVerificationFailed(ChannelsError):
     """Raised by `verify_connection` when the platform rejects a credential.
     Nothing is written on this path — surfaced as the platform said it,

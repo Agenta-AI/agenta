@@ -164,23 +164,27 @@ def _card_to_text(card: Dict[str, Any]) -> str:
 def render_content(
     content: List[Dict[str, Any]],
 ) -> Tuple[str, Optional[Dict[str, Any]]]:
-    """Flatten internal content parts into (RAW text, reply_markup).
+    """Flatten internal content parts into (HTML-ready text, reply_markup).
 
-    The text is NOT html-escaped here; the caller splits it and escapes each
-    chunk, so a split can never cut an HTML entity in half. Text and card parts
-    become lines; buttons render as an inline keyboard (one button per row,
-    the button value as callback_data). Above BUTTONS_MAX, or when a value
-    exceeds the 64-byte callback limit, buttons degrade to numbered text.
+    A text part whose `format` is "html" was rendered by the render layer
+    (Markdown -> Telegram HTML) and passes through; every other part is
+    escaped here. Text and card parts become lines; buttons render as an
+    inline keyboard (one button per row, the button value as callback_data).
+    Above BUTTONS_MAX, or when a value exceeds the 64-byte callback limit,
+    buttons degrade to numbered text.
     """
 
     segments: List[str] = []
     for item in content:
         if item.get("type") == "text" and item.get("text"):
-            segments.append(item["text"])
+            if item.get("format") == "html":
+                segments.append(item["text"])
+            else:
+                segments.append(to_html(item["text"]))
         elif item.get("type") == "card":
             card_text = _card_to_text(item)
             if card_text:
-                segments.append(card_text)
+                segments.append(to_html(card_text))
 
     text = "\n".join(segments)
 
@@ -201,7 +205,9 @@ def render_content(
         return text, {"inline_keyboard": keyboard}
 
     if options:
-        numbered = "\n".join(f"{i + 1}. {o['label']}" for i, o in enumerate(options))
+        numbered = "\n".join(
+            f"{i + 1}. {to_html(o['label'])}" for i, o in enumerate(options)
+        )
         text = f"{text}\n{numbered}" if text else numbered
 
     return text, None

@@ -25,8 +25,11 @@ export type { FetchChannelCapabilitiesRequest } from "./FetchChannelCapabilities
 export type { FetchChannelConnectionSetupRequest } from "./FetchChannelConnectionSetupRequest.js";
 export type { FetchChannelSetupRequest } from "./FetchChannelSetupRequest.js";
 export type { FetchChannelSpaceRequest } from "./FetchChannelSpaceRequest.js";
+export type { IngestTelegramEventRequest } from "./IngestTelegramEventRequest.js";
+export type { ListTelegramHostedBindingsRequest } from "./ListTelegramHostedBindingsRequest.js";
 export type { ReadAgentaConversationRequest } from "./ReadAgentaConversationRequest.js";
 export type { SetChannelAgentDefaultRequest } from "./SetChannelAgentDefaultRequest.js";
 export type { SetChannelGrantDefaultRequest } from "./SetChannelGrantDefaultRequest.js";
 export type { SlackInstallCallbackRequest } from "./SlackInstallCallbackRequest.js";
+export type { TelegramHostedBindLinkRequest } from "./TelegramHostedBindLinkRequest.js";
 export type { UnarchiveChannelConnectionRequest } from "./UnarchiveChannelConnectionRequest.js";
