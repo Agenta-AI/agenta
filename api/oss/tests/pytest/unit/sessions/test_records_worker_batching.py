@@ -262,3 +262,60 @@ async def test_quarantined_committed_record_is_not_published_as_a_durable_event(
     assert total_appended == 1
     assert processed_ids == [b"1-0"]
     publisher.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_a_failed_turn_ended_publish_leaves_the_batch_unacknowledged():
+    """The terminal record is the only signal that renders a parked turn's
+    card on a channel. When its publish fails after the commit, the batch is
+    left for redelivery instead of acknowledged and lost."""
+    project_id = uuid4()
+
+    class Service:
+        async def append_many(self, *, events):
+            return [
+                SessionRecord(
+                    record_id=uuid4(),
+                    session_id="sess-1",
+                    project_id=project_id,
+                    sequence=1,
+                    turn_id="turn-1",
+                    record_type="done",
+                    record_source="agent",
+                    attributes={"type": "done", "stopReason": "paused"},
+                    created_at=datetime.now(timezone.utc),
+                )
+            ]
+
+    worker = RecordsWorker(
+        service=Service(),
+        redis_client=None,
+        stream_name="streams:records",
+        consumer_group="worker-records",
+    )
+    batch = [
+        (
+            b"1-0",
+            {
+                b"data": _payload(
+                    project_id=project_id, session_id="sess-1", record_index=0
+                )
+            },
+        )
+    ]
+
+    with (
+        patch(
+            "oss.src.tasks.asyncio.sessions.records_worker.publish_durable_event",
+            new=AsyncMock(return_value=True),
+        ),
+        patch(
+            "oss.src.tasks.asyncio.sessions.records_worker.publish_turn_ended",
+            new=AsyncMock(return_value=False),
+        ) as turn_ended,
+    ):
+        total_appended, processed_ids = await worker.process_batch(batch)
+
+    turn_ended.assert_awaited_once()
+    assert total_appended == 1
+    assert processed_ids == []

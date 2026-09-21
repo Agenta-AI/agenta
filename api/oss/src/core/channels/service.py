@@ -1,13 +1,16 @@
 import re
 import secrets as token_secrets
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from sqlalchemy.exc import IntegrityError
 
 from oss.src.core.channels.dtos import (
     ChannelAgent,
     ChannelAgentCreate,
+    ChannelAgentData,
+    ChannelAgentDataEdit,
+    ChannelAgentFlags,
     ChannelAgentEdit,
     ChannelAgentQuery,
     ChannelCapabilities,
@@ -44,6 +47,7 @@ from oss.src.core.channels.dtos import (
     ChannelThreadCreate,
     ChannelThreadData,
     ChannelThreadQuery,
+    ChannelTriggerKind,
     ChannelTriggerState,
     ChannelTurnInput,
 )
@@ -53,6 +57,7 @@ from oss.src.core.channels.types import (
     ChannelAgentNotFound,
     ChannelConnectionIdentityConflict,
     ChannelConnectionNotFound,
+    ChannelConnectionVerificationFailed,
     ChannelGrantRuleInvalid,
     ChannelsError,
     ChannelSpaceNotFound,
@@ -133,6 +138,18 @@ class ChannelsService:
                 "signing_secret": one_time_secret,
             }
 
+        # Telegram verifies each webhook by a secret token it echoes back. We
+        # mint it here, so it is vaulted with the bot token and hydrated on
+        # every ingress for verify_signature to check. A caller-supplied one
+        # (rotation, tests) is kept as given.
+        if connection.channel == "telegram" and not (connection.credentials or {}).get(
+            "webhook_secret"
+        ):
+            connection.credentials = {
+                **(connection.credentials or {}),
+                "webhook_secret": token_secrets.token_urlsafe(32),
+            }
+
         discovered = await adapter.verify_connection(
             connection=connection,
             credentials=connection.credentials or {},
@@ -168,6 +185,10 @@ class ChannelsService:
             locator_input=locator_input,
             credential_secret_id=credential_secret_id,
         )
+        # The plaintext is about to be discarded from the row; keep it in hand
+        # for the post-store activation, which is the only place a WRITE-time
+        # platform call (Telegram's setWebhook) can run against a stored row.
+        activation_credentials = dict(connection.credentials or {})
         connection.credentials = None
 
         try:
@@ -186,6 +207,41 @@ class ChannelsService:
                 )
             raise _connection_conflict(
                 channel=connection.channel, slug=connection.slug, error=e
+            ) from e
+
+        # Register the connection with the platform now that the row exists.
+        # No-op for every channel whose setup is read-only; Telegram points its
+        # webhook at our per-bot ingress here. It runs after the row is stored
+        # because the call writes on the platform's side and the first update it
+        # triggers must find a row (and its secret) to verify against.
+        #
+        # A failure here means the connection can never receive events, so it is
+        # not a live connection: roll the row and its vault secret back and fail
+        # the create, rather than leaving a connection that looks ready but is
+        # deaf. A caller retries by creating again.
+        try:
+            await adapter.activate_connection(
+                connection=created,
+                credentials=activation_credentials,
+            )
+        except Exception as e:
+            await self.channels_dao.delete_connection(
+                project_id=project_id, connection_id=created.id
+            )
+            if credential_secret_id is not None:
+                await self._discard_credential_secret(
+                    project_id=project_id, secret_id=credential_secret_id
+                )
+            log.warning(
+                "channels: activate_connection failed for channel=%s slug=%s: %s — "
+                "rolled back the connection",
+                connection.channel,
+                connection.slug,
+                e,
+            )
+            raise ChannelConnectionVerificationFailed(
+                channel=connection.channel,
+                message=f"could not register the connection with the platform: {e}",
             ) from e
 
         if one_time_secret is None:
@@ -442,6 +498,9 @@ class ChannelsService:
         if existing is None:
             return None
 
+        connection = _layer_connection_edit(existing=existing, edit=connection)
+
+        rotated_credentials = bool(connection.credentials)
         if connection.credentials:
             adapter = self.adapter_registry.get(existing.channel)
             verify_target = ChannelConnectionCreate(
@@ -479,7 +538,7 @@ class ChannelsService:
         connection.credentials = None
 
         try:
-            return await self.channels_dao.edit_connection(
+            edited = await self.channels_dao.edit_connection(
                 project_id=project_id,
                 user_id=user_id,
                 #
@@ -489,6 +548,137 @@ class ChannelsService:
             raise _connection_conflict(
                 channel=existing.channel, slug=connection.slug, error=e
             ) from e
+
+        # A credential rotation re-verifies and stores the new token, but the
+        # platform still points at the old one until we re-register. Telegram's
+        # setWebhook is the only WRITE-time platform call, so a rotated bot token
+        # has no webhook and cannot deliver updates until this runs. It is gated
+        # on the telegram channel for the same reason the mint above is: no other
+        # channel has a write-time setup call, and hydrating a secret to feed a
+        # no-op would be wasted work.
+        #
+        # setWebhook is idempotent and the per-bot ingress URL never moves, so a
+        # failed call leaves the prior working webhook in place; there is no
+        # corrupt state to roll back. Surface the failure so the rotation is not
+        # silently deaf.
+        if (
+            edited is not None
+            and rotated_credentials
+            and existing.channel == "telegram"
+        ):
+            adapter = self.adapter_registry.get(existing.channel)
+            hydrated = await self._hydrate_connection(
+                project_id=project_id, connection=edited
+            )
+            hydrated_data = (
+                hydrated.data if hydrated and isinstance(hydrated.data, dict) else {}
+            )
+            activation_credentials = {
+                field: hydrated_data[field]
+                for field in ("bot_token", "webhook_secret", "signing_secret")
+                if field in hydrated_data
+            }
+            try:
+                await adapter.activate_connection(
+                    connection=hydrated,
+                    credentials=activation_credentials,
+                )
+            except Exception as e:
+                log.warning(
+                    "channels: re-activation after credential rotation failed for "
+                    "channel=%s slug=%s: %s",
+                    existing.channel,
+                    connection.slug,
+                    e,
+                )
+                raise ChannelConnectionVerificationFailed(
+                    channel=existing.channel,
+                    message=(
+                        "the credential was stored but could not be re-registered "
+                        f"with the platform: {e}"
+                    ),
+                ) from e
+
+        return edited
+
+    async def ensure_hosted_telegram_connection(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        references: Dict[str, Any],
+    ) -> ChannelConnection:
+        """Create or reuse the one hosted Telegram connection for this project,
+        with the chosen agent as its default, and return it. Idempotent: a
+        second connect for the same project reuses the connection and leaves its
+        agent in place. The bind link is minted against the returned connection.
+        """
+
+        # Include archived rows: query_connections does not filter them, and a
+        # disconnected hosted connection still holds the project's unique
+        # external key, so creating a second one would conflict. Reuse it.
+        existing = await self.query_connections(
+            project_id=project_id,
+            connection=ChannelConnectionQuery(channel="telegram_hosted"),
+        )
+        connection = next((c for c in existing if c.channel == "telegram_hosted"), None)
+        if connection is None:
+            connection = await self.create_connection(
+                project_id=project_id,
+                user_id=user_id,
+                connection=ChannelConnectionCreate(
+                    channel="telegram_hosted",
+                    slug="agenta-telegram",
+                    name="Agenta on Telegram",
+                    flags=ChannelConnectionFlags(is_hosted=True),
+                ),
+            )
+        elif connection.deleted_at is not None:
+            # a previously disconnected hosted connection: unarchive and reuse.
+            connection = (
+                await self.unarchive_connection(
+                    project_id=project_id,
+                    user_id=user_id,
+                    connection_id=connection.id,
+                )
+                or connection
+            )
+
+        agents = await self.query_agents(
+            project_id=project_id,
+            agent=ChannelAgentQuery(connection_id=connection.id),
+        )
+        active = [a for a in agents if a.deleted_at is None]
+        if not active:
+            await self.create_agent(
+                project_id=project_id,
+                user_id=user_id,
+                agent=ChannelAgentCreate(
+                    connection_id=connection.id,
+                    slug="default",
+                    name="Default agent",
+                    data=ChannelAgentData(references=references),
+                    flags=ChannelAgentFlags(is_default=True),
+                ),
+            )
+        else:
+            # Per-project connection, retargeted by agent: the connect action
+            # points this project's Telegram at the CALLING agent. If the
+            # answering agent already matches, this is a no-op; if it is a
+            # different agent, retarget it here ("disconnect from agent X and
+            # connect here"). One shared connection, one answering agent.
+            answering = next((a for a in active if a.flags.is_default), active[0])
+            if _reference_id(references) != _reference_id(answering.data.references):
+                await self.edit_agent(
+                    project_id=project_id,
+                    user_id=user_id,
+                    agent=ChannelAgentEdit(
+                        id=answering.id,
+                        data=ChannelAgentDataEdit(references=references),
+                    ),
+                )
+
+        return connection
 
     async def archive_connection(
         self,
@@ -757,11 +947,18 @@ class ChannelsService:
         #
         agent: ChannelAgentEdit,
     ) -> Optional[ChannelAgent]:
+        existing = await self.channels_dao.fetch_agent(
+            project_id=project_id,
+            agent_id=agent.id,
+        )
+        if existing is None:
+            return None
+
         return await self.channels_dao.edit_agent(
             project_id=project_id,
             user_id=user_id,
             #
-            agent=agent,
+            agent=_layer_agent_edit(existing=existing, edit=agent),
         )
 
     async def delete_agent(
@@ -1131,6 +1328,24 @@ class ChannelsService:
 
         return thread
 
+    async def set_pending_choice(
+        self,
+        *,
+        project_id: UUID,
+        thread_id: UUID,
+        pending_choice: Optional[ChannelPendingChoice],
+    ) -> Optional[ChannelThread]:
+        """Overwrite the thread's single pending-choice slot; None clears it.
+
+        The one write path for the slot, so the dispatchers never reach the
+        DAO directly: the outbox sets a card's choice here, the inbox clears
+        it once the answer went through."""
+        return await self.channels_dao.set_pending_choice(
+            project_id=project_id,
+            thread_id=thread_id,
+            pending_choice=pending_choice,
+        )
+
     # --- capability + policy: adapter reads, no persistence --------------- #
 
     async def fetch_capabilities(
@@ -1252,6 +1467,12 @@ class ChannelsService:
         ):
             return None
 
+        # An allow-list on the connection ("Allowed users" on the agent page):
+        # when it names anyone, a sender outside it is dropped before any
+        # space is provisioned. Empty means everyone.
+        if not _sender_allowed(connection, event):
+            return None
+
         capabilities = await self.fetch_capabilities(
             channel=connection.channel, connection=connection
         )
@@ -1290,13 +1511,27 @@ class ChannelsService:
         if space.deleted_at is not None or not space.flags.is_active:
             return None
 
-        agent = await self._addressed_agent(
+        agent = await self._agent_awaiting_answer(
             project_id=project_id,
-            connection_id=connection_id,
             space=space,
             event=event,
             capabilities=capabilities,
         )
+        if agent is None:
+            agent = await self._agent_holding_thread(
+                project_id=project_id,
+                space=space,
+                event=event,
+                capabilities=capabilities,
+            )
+        if agent is None:
+            agent = await self._addressed_agent(
+                project_id=project_id,
+                connection_id=connection_id,
+                space=space,
+                event=event,
+                capabilities=capabilities,
+            )
         # archiving a connection cascades deleted_at onto its agents; without
         # this an archived bot stays off the configuration surface but keeps
         # answering. A deactivated agent refuses exactly like an absent one.
@@ -1339,26 +1574,34 @@ class ChannelsService:
         )
 
         # THREAD grain composes to None where the platform declares no thread
-        # fields (the no-threads case). MESSAGE scope always mints a fresh
-        # thread keyed on this event's own id, since "one session per
-        # message" is the point of that scope.
+        # fields (the no-threads case). MESSAGE scope keys the thread on this
+        # event's own id, since "one session per message" is the point of
+        # that scope; the lookup still runs so a redelivered event finds its
+        # own thread instead of minting a second one (and a second trigger).
         is_message_scope = policy.session_scope is ChannelSessionScope.MESSAGE
 
-        thread = None
         if is_message_scope:
             thread_key = event.id
         else:
-            thread_key = compose_external_key(
-                capabilities,
-                ChannelKeyGrain.THREAD,
-                event.data.external_locator,
-            )
-            thread = await self.channels_dao.fetch_current_thread(
-                project_id=project_id,
-                space_id=space.id,
-                external_key=thread_key,
-                agent_id=agent.id,
-            )
+            if space.kind is ChannelSpaceKind.PRIVATE:
+                # A DM is one conversation: every message in it continues the
+                # same thread, keyed on the space itself, and the reply goes
+                # out top-level (the locator carries no thread_ts). Keying a
+                # DM per message gave the agent no memory between messages
+                # and threaded every answer under the message it answered.
+                thread_key = space.external_key
+            else:
+                thread_key = compose_external_key(
+                    capabilities,
+                    ChannelKeyGrain.THREAD,
+                    event.data.external_locator,
+                )
+        thread = await self.channels_dao.fetch_current_thread(
+            project_id=project_id,
+            space_id=space.id,
+            external_key=thread_key,
+            agent_id=agent.id,
+        )
 
         # A click and a numbered reply converge here: both carry a candidate
         # string, and resolve_pending_choice treats them identically. A click
@@ -1395,6 +1638,26 @@ class ChannelsService:
                 None,
             )
 
+        # The trigger gate. Every message is stored (the fill reads it back
+        # as context), but only some open a turn: a DM, a reply inside a
+        # thread the agent already holds, an answer to a pending choice, or
+        # -- per the effective policy -- a mention, a command, a button.
+        if event.kind is ChannelEventKind.MESSAGE and not _is_trigger(
+            event=event,
+            space=space,
+            policy=policy,
+            thread=thread,
+            capabilities=capabilities,
+        ):
+            log.info(
+                "[CHANNELS] event=%s is not a trigger in space=%s (kind=%s) -- "
+                "stored, no turn",
+                event.id,
+                space.id,
+                space.kind.value,
+            )
+            return None
+
         if thread is None or not thread.flags.is_active:
             thread = await self.channels_dao.create_thread(
                 project_id=project_id,
@@ -1403,19 +1666,108 @@ class ChannelsService:
                     space_id=space.id,
                     agent_id=agent.id,
                     external_key=thread_key,
-                    session_id=str(thread_key or space.external_key),
+                    # a new thread row is a new conversation, `!new` included:
+                    # its session must not resume the closed row's
+                    session_id=str(uuid4()),
                     data=ChannelThreadData(
-                        external_locator=event.data.external_locator,
+                        external_locator=_reply_locator(
+                            space=space, event=event, capabilities=capabilities
+                        ),
                     ),
                 ),
             )
+
+        answered_interaction_id = (
+            pending_choice.interaction_id
+            if resolved_token is not None and pending_choice is not None
+            else None
+        )
 
         return ChannelResolution(
             space=space,
             agent=agent,
             thread=thread,
             policy=policy,
+            answered_interaction_id=answered_interaction_id,
+            resolved_token=resolved_token,
             resolved_choice=resolved_choice,
+        )
+
+    async def _agent_awaiting_answer(
+        self,
+        *,
+        project_id: UUID,
+        space: ChannelSpace,
+        event: ChannelInboxEvent,
+        capabilities: ChannelCapabilities,
+    ) -> Optional[ChannelAgent]:
+        """The agent whose open question this message answers, if any. A typed
+        "Approve" carries no agent, and the default agent is the wrong one in a
+        room with several: the thread that holds the pending choice knows."""
+        candidate = _first_text(event.data.processed.content)
+        if not candidate.strip():
+            return None
+        if space.kind is ChannelSpaceKind.PRIVATE:
+            thread_key = space.external_key
+        else:
+            try:
+                thread_key = compose_external_key(
+                    capabilities, ChannelKeyGrain.THREAD, event.data.external_locator
+                )
+            except Exception:  # pylint: disable=broad-exception-caught
+                return None
+        waiting = await self.channels_dao.fetch_thread_awaiting_choice(
+            project_id=project_id,
+            space_id=space.id,
+            external_key=thread_key,
+        )
+        if waiting is None:
+            return None
+        token = resolve_pending_choice(
+            pending_choice=waiting.data.pending_choice, candidate=candidate
+        )
+        if token is None:
+            return None
+        return await self.channels_dao.fetch_agent(
+            project_id=project_id, agent_id=waiting.agent_id
+        )
+
+    async def _agent_holding_thread(
+        self,
+        *,
+        project_id: UUID,
+        space: ChannelSpace,
+        event: ChannelInboxEvent,
+        capabilities: ChannelCapabilities,
+    ) -> Optional[ChannelAgent]:
+        """The agent whose open conversation this message continues. A reply
+        without a sigil in a thread a specialist opened belongs to that
+        specialist; the default agent would have no thread there and drop it.
+        A sigil always wins, so naming another agent still switches."""
+        named = _parse_sigil(
+            content=event.data.processed.content,
+            sigil=capabilities.addressing.sigils.agent,
+        )
+        if named is not None:
+            return None
+        if space.kind is ChannelSpaceKind.PRIVATE:
+            thread_key = space.external_key
+        else:
+            try:
+                thread_key = compose_external_key(
+                    capabilities, ChannelKeyGrain.THREAD, event.data.external_locator
+                )
+            except Exception:  # pylint: disable=broad-exception-caught
+                return None
+        thread = await self.channels_dao.fetch_active_thread(
+            project_id=project_id,
+            space_id=space.id,
+            external_key=thread_key,
+        )
+        if thread is None:
+            return None
+        return await self.channels_dao.fetch_agent(
+            project_id=project_id, agent_id=thread.agent_id
         )
 
     async def _addressed_agent(
@@ -1463,6 +1815,7 @@ class ChannelsService:
         project_id: UUID,
         resolution: ChannelResolution,
         event_id: UUID,
+        capabilities: Optional[ChannelCapabilities] = None,
     ) -> ChannelTurnInput:
         """What the agent sees.
 
@@ -1485,9 +1838,51 @@ class ChannelsService:
         if not resolution.policy.forwardfill:
             # the turn takes the addressing event alone
             events = [stored for stored in events if stored.id == event_id]
+        else:
+            # The range is read per space (the offset is per thread), so a
+            # fresh thread in a busy channel would otherwise see the whole
+            # channel's history. Keep the thread's own messages: all of them
+            # in a DM, which is one conversation; only those under the same
+            # thread key elsewhere; the addressing event alone under message
+            # scope, where a thread is one message by definition.
+            if capabilities is None:
+                connection = await self.channels_dao.fetch_connection(
+                    project_id=project_id,
+                    connection_id=resolution.space.connection_id,
+                )
+                if connection is None:
+                    raise ChannelConnectionNotFound(
+                        connection_id=resolution.space.connection_id
+                    )
+                capabilities = await self.fetch_capabilities(
+                    channel=connection.channel, connection=connection
+                )
+            events = _filter_thread_events(
+                events,
+                event_id=event_id,
+                resolution=resolution,
+                capabilities=capabilities,
+            )
+
+        if capabilities is None:
+            connection = await self.channels_dao.fetch_connection(
+                project_id=project_id,
+                connection_id=resolution.space.connection_id,
+            )
+            capabilities = await self.fetch_capabilities(
+                channel=connection.channel, connection=connection
+            )
 
         content: List[dict] = []
         for stored in events:
+            # Who is speaking, as its own part before their words: the agent
+            # can address people by name and keep them apart, and the words
+            # themselves are never rewritten.
+            attribution = _attribution_part(
+                stored.data.processed.sender, channel=capabilities.channel
+            )
+            if attribution is not None:
+                content.append(attribution)
             if stored.id == event_id and resolution.resolved_choice is not None:
                 # the resolved label stands in for the raw arrival here only
                 # -- the logged row itself was never rewritten
@@ -1663,6 +2058,47 @@ def _canonical_locator(locator: Optional[dict]) -> str:
     return canonical_json(locator or {})
 
 
+def _platform_label(channel: str) -> str:
+    if channel.startswith("telegram"):
+        return "Telegram"
+    if channel.startswith("slack"):
+        return "Slack"
+    return channel
+
+
+def _attribution_part(sender: Dict[str, Any], *, channel: str) -> Optional[dict]:
+    """ "From Test User (@testuser, Telegram id 1000001):" -- the name when the
+    platform sent one, else the username, else the bare id. None when the
+    event names no sender at all (an Agenta-internal event, for instance)."""
+
+    if not isinstance(sender, dict):
+        return None
+    sender_id = sender.get("id")
+    if sender_id in (None, ""):
+        return None
+    name = sender.get("name") or ""
+    username = sender.get("username") or ""
+    platform = _platform_label(channel)
+    who = name or (f"@{username}" if username else f"user {sender_id}")
+    details = []
+    if name and username:
+        details.append(f"@{username}")
+    details.append(f"{platform} id {sender_id}")
+    return {"type": "text", "text": f"From {who} ({', '.join(details)}):"}
+
+
+def _sender_allowed(connection: ChannelConnection, event: ChannelInboxEvent) -> bool:
+    data = connection.data if isinstance(connection.data, dict) else {}
+    allowed = data.get("allowed_senders")
+    if not isinstance(allowed, list) or not allowed:
+        return True
+    sender = event.data.processed.sender if event.data and event.data.processed else {}
+    sender_id = sender.get("id") if isinstance(sender, dict) else None
+    if sender_id is None:
+        return False
+    return str(sender_id) in {str(item) for item in allowed}
+
+
 def _admitting_grant(
     grants: List[ChannelGrant], *, space_id: UUID
 ) -> Optional[ChannelGrant]:
@@ -1685,7 +2121,8 @@ def resolve_pending_choice(
     one function to the same token — that equality is the whole mechanism.
 
     Tried in order: exact token match (a click, or Agenta's token-as-message),
-    then a 1-based index into the current choice list (a numbered reply).
+    then the label without case (a typed answer), then a 1-based index into
+    the current choice list (a numbered reply).
     `None` covers every non-answer uniformly: no pending choice at all, a
     superseded one (it was overwritten wholesale, so its tokens are simply
     gone), an unknown token, or ordinary text that never meant to answer
@@ -1703,12 +2140,172 @@ def resolve_pending_choice(
         if choice.token == candidate:
             return choice.token
 
+    # a typed answer in the agent's own words ("Approve", "deny"): the label,
+    # compared without case, since a person types it rather than clicks it
+    lowered = candidate.lower()
+    for choice in pending_choice.choices:
+        if choice.label.strip().lower() == lowered:
+            return choice.token
+
     if candidate.isdigit():
         index = int(candidate) - 1
         if 0 <= index < len(pending_choice.choices):
             return pending_choice.choices[index].token
 
     return None
+
+
+def _is_trigger(
+    *,
+    event: ChannelInboxEvent,
+    space: ChannelSpace,
+    policy: ChannelEffectivePolicy,
+    thread: Optional[ChannelThread],
+    capabilities: ChannelCapabilities,
+) -> bool:
+    """Does this stored message open a turn? See the gate in `resolve`. An
+    answer to a pending choice needs no case of its own: a choice is pending
+    only on an active thread, and an active thread admits the message."""
+    from oss.src.core.channels.commands import parse_command
+
+    if space.kind is ChannelSpaceKind.PRIVATE:
+        return True
+    if thread is not None and thread.flags.is_active:
+        return True
+    triggers = policy.triggers
+    content = event.data.processed.content
+    if ChannelTriggerKind.MENTION in triggers:
+        named = _parse_sigil(
+            content=content, sigil=capabilities.addressing.sigils.agent
+        )
+        if event.data.addressed or named is not None:
+            return True
+    if ChannelTriggerKind.COMMAND in triggers:
+        if parse_command(content=content, capabilities=capabilities) is not None:
+            return True
+    return False
+
+
+def _reply_locator(
+    *,
+    space: ChannelSpace,
+    event: ChannelInboxEvent,
+    capabilities: ChannelCapabilities,
+) -> Dict[str, Any]:
+    """Where the thread's replies go. In a DM the reply is top-level, so the
+    fields that belong to the platform's thread grain and not to its space
+    grain are dropped (Slack's `thread_ts`); elsewhere the event's locator."""
+    locator = dict(event.data.external_locator or {})
+    if space.kind is ChannelSpaceKind.PRIVATE:
+        keys = capabilities.identity.keys
+        thread_only = set(keys.get(ChannelKeyGrain.THREAD) or []) - set(
+            keys.get(ChannelKeyGrain.SPACE) or []
+        )
+        for field in thread_only:
+            locator.pop(field, None)
+    return locator
+
+
+def _filter_thread_events(
+    events: List[ChannelInboxEvent],
+    *,
+    event_id: UUID,
+    resolution: ChannelResolution,
+    capabilities: ChannelCapabilities,
+) -> List[ChannelInboxEvent]:
+    """The thread's own share of the space's range. Message scope first: a
+    thread is one message there, whatever the space kind. A DM keeps what
+    arrived since its current thread began, so `!new` really starts over.
+    Elsewhere, the events under the same thread key."""
+    if resolution.policy.session_scope is ChannelSessionScope.MESSAGE:
+        return [stored for stored in events if stored.id == event_id]
+    thread = resolution.thread
+    if resolution.space.kind is ChannelSpaceKind.PRIVATE:
+        since = thread.created_at
+        return [
+            stored
+            for stored in events
+            if stored.id == event_id
+            or since is None
+            or (stored.created_at is not None and stored.created_at >= since)
+        ]
+    thread_key = thread.external_key
+    kept = []
+    for stored in events:
+        try:
+            key = compose_external_key(
+                capabilities, ChannelKeyGrain.THREAD, stored.data.external_locator
+            )
+        except Exception:  # pylint: disable=broad-exception-caught
+            key = None
+        if key == thread_key or stored.id == event_id:
+            kept.append(stored)
+    return kept
+
+
+def _layer_connection_edit(
+    *, existing: ChannelConnection, edit: ChannelConnectionEdit
+) -> ChannelConnectionEdit:
+    """The edit the DAO writes: the stored row with the sent fields laid over
+    it. `data` merges key by key, so a rename keeps the credential reference
+    and the locator; `flags` merges field by field."""
+    sent = edit.model_dump(exclude_unset=True)
+    existing_data = existing.data if isinstance(existing.data, dict) else {}
+    merged = {
+        "id": existing.id,
+        "slug": existing.slug,
+        "name": existing.name,
+        "description": existing.description,
+        "tags": existing.tags,
+        "meta": existing.meta,
+        "data": {**existing_data, **(edit.data or {})}
+        if "data" in sent
+        else dict(existing_data),
+        "credentials": edit.credentials,
+        "flags": (
+            existing.flags.model_copy(update=edit.flags.model_dump(exclude_unset=True))
+            if edit.flags is not None
+            else existing.flags
+        ),
+    }
+    for field in ("slug", "name", "description", "tags", "meta"):
+        if field in sent:
+            merged[field] = sent[field]
+    return ChannelConnectionEdit(**merged)
+
+
+def _layer_agent_edit(
+    *, existing: ChannelAgent, edit: ChannelAgentEdit
+) -> ChannelAgentEdit:
+    """Same rule for an agent: an omitted `data`, `flags`, or header field keeps
+    its stored value. Within `data`, an omitted policy keeps the stored one."""
+    sent = edit.model_dump(exclude_unset=True)
+    data = existing.data
+    if edit.data is not None:
+        data_sent = edit.data.model_dump(exclude_unset=True)
+        data = existing.data.model_copy(
+            update={k: getattr(edit.data, k) for k in data_sent}
+        )
+        # the merged data must still be a complete, valid agent data
+        data = ChannelAgentData.model_validate(data.model_dump(mode="json"))
+    flags = existing.flags
+    if edit.flags is not None:
+        flags = existing.flags.model_copy(
+            update=edit.flags.model_dump(exclude_unset=True)
+        )
+    merged = {
+        "id": existing.id,
+        "name": existing.name,
+        "description": existing.description,
+        "tags": existing.tags,
+        "meta": existing.meta,
+        "data": ChannelAgentDataEdit(references=data.references, policy=data.policy),
+        "flags": flags,
+    }
+    for field in ("name", "description", "tags", "meta"):
+        if field in sent:
+            merged[field] = sent[field]
+    return ChannelAgentEdit(**merged)
 
 
 def _first_text(content: List[dict]) -> str:
@@ -1739,6 +2336,17 @@ def _parse_sigil(*, content: list, sigil: Optional[str]) -> Optional[str]:
     return None
 
 
+def _reference_id(references) -> Optional[str]:
+    """The id of the first (and, for a hosted channel agent, only) reference,
+    handling both a plain dict and a Reference object. Used to tell whether the
+    connection's answering agent already points at the requested app."""
+    if not references:
+        return None
+    value = next(iter(references.values()))
+    raw = value.get("id") if isinstance(value, dict) else getattr(value, "id", None)
+    return str(raw) if raw is not None else None
+
+
 def _channel_defaults(capabilities: ChannelCapabilities):
     from oss.src.core.channels.dtos import ChannelPolicy, ChannelSessionScope
 
@@ -1752,6 +2360,15 @@ def _channel_defaults(capabilities: ChannelCapabilities):
     )
 
     return ChannelPolicy(
+        # What runs a turn unless a level narrows it: being spoken to (a
+        # mention or an agent sigil), a command, or a button. A DM and a
+        # follow-up inside a thread the agent already answered in are
+        # admitted by `resolve` regardless -- they are addressed by nature.
+        triggers={
+            ChannelTriggerKind.MENTION,
+            ChannelTriggerKind.COMMAND,
+            ChannelTriggerKind.ACTION,
+        },
         session_scope=session_scope,
         backfill=capabilities.fill.backfill.supported,
         forwardfill=capabilities.fill.forwardfill.supported,

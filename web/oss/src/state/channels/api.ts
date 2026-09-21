@@ -3,6 +3,7 @@ import {getChannelsClient} from "@agenta/sdk/resources"
 import type {AgentaApi} from "@agentaai/api-client"
 import {getDefaultStore} from "jotai"
 
+import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
 import {projectIdAtom} from "@/oss/state/project"
 
 import {channelConnectionsResponseSchema, type ChannelConnectionsResponse} from "./schemas"
@@ -23,6 +24,13 @@ export const fetchChannelCapabilities = (channel: string) =>
 export const fetchChannelSetup = (channel: string) =>
     getChannelsClient().fetchChannelSetup({channel}, scope())
 
+// Builds the install link from the project in scope -- exported so the test
+// can assert on it without rendering the button.
+export function buildSlackInstallUrl(projectId: string): string {
+    const params = new URLSearchParams({project_id: projectId})
+    return `${getAgentaApiUrl()}/channels/catalog/channels/slack/install/?${params.toString()}`
+}
+
 // --- connections (own row shape — see schemas.ts for why this validates) - //
 
 export const queryChannelConnections = async (
@@ -40,6 +48,23 @@ export const queryChannelConnections = async (
 
 export const createChannelConnection = (connection: AgentaApi.ChannelConnectionCreate) =>
     getChannelsClient().createChannelConnection({connection}, scope())
+
+export const archiveChannelConnection = (connectionId: string) =>
+    getChannelsClient().archiveChannelConnection({connection_id: connectionId}, scope())
+
+// --- hosted Telegram: bind link + bindings ------------------------------ //
+
+/**
+ * Mint the one-time deep link (and its QR source URL) that connects a chat to
+ * the chosen agent through the shared Agenta Telegram bot. Also ensures the
+ * project's hosted connection and points it at the referenced agent.
+ */
+export const createTelegramHostedBindLink = (references: Record<string, unknown>) =>
+    getChannelsClient().createTelegramHostedBindLink({references}, scope())
+
+/** The chats a /start has bound to a hosted connection; empty until the first bind. */
+export const listTelegramHostedBindings = (connectionId: string) =>
+    getChannelsClient().listTelegramHostedBindings({connection_id: connectionId}, scope())
 
 // --- agents -------------------------------------------------------------- //
 

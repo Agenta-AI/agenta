@@ -108,12 +108,18 @@ def test_every_method_parameter_after_self_is_keyword_only():
     # hosted_setup_available, detect_deactivation, revoke_installation: the
     # hosted-app hooks -- a channel with no hosted app answers all three
     # with "no", never fails to implement them.
+    # activate_connection: the write-time setup hook (Telegram's setWebhook) --
+    # a channel whose setup is read-only defaults to doing nothing.
+    # signal_activity: the platform's "working" signal (Telegram's typing
+    # action), re-sent while a turn runs; a platform without one is a no-op.
     assert set(concrete_methods) == {
         "build_setup_document",
         "verify_connection",
         "hosted_setup_available",
+        "activate_connection",
         "detect_deactivation",
         "revoke_installation",
+        "signal_activity",
     }
     assert len(methods) == len(ChannelAdapterInterface.__abstractmethods__) + len(
         concrete_methods

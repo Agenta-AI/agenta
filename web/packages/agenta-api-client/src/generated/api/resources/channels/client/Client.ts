@@ -79,6 +79,80 @@ export class ChannelsClient {
     }
 
     /**
+     * @param {AgentaApi.IngestTelegramEventRequest} request
+     * @param {ChannelsClient.RequestOptions} requestOptions - Request-specific configuration.
+     *
+     * @throws {@link AgentaApi.UnprocessableEntityError}
+     *
+     * @example
+     *     await client.channels.ingestTelegramEvent({
+     *         routing_token: "routing_token"
+     *     })
+     */
+    public ingestTelegramEvent(
+        request: AgentaApi.IngestTelegramEventRequest,
+        requestOptions?: ChannelsClient.RequestOptions,
+    ): core.HttpResponsePromise<AgentaApi.ChannelEventAck> {
+        return core.HttpResponsePromise.fromPromise(this.__ingestTelegramEvent(request, requestOptions));
+    }
+
+    private async __ingestTelegramEvent(
+        request: AgentaApi.IngestTelegramEventRequest,
+        requestOptions?: ChannelsClient.RequestOptions,
+    ): Promise<core.WithRawResponse<AgentaApi.ChannelEventAck>> {
+        const { routing_token: routingToken } = request;
+        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
+        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
+            _authRequest.headers,
+            this._options?.headers,
+            requestOptions?.headers,
+        );
+        const _response = await core.fetcher({
+            url: core.url.join(
+                (await core.Supplier.get(this._options.baseUrl)) ??
+                    (await core.Supplier.get(this._options.environment)) ??
+                    environments.AgentaApiEnvironment.Default,
+                `channels/telegram/events/${core.url.encodePathParam(routingToken)}/`,
+            ),
+            method: "POST",
+            headers: _headers,
+            queryParameters: requestOptions?.queryParams,
+            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 30) * 1000,
+            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
+            withCredentials: true,
+            abortSignal: requestOptions?.abortSignal,
+            fetchFn: this._options?.fetch,
+            logging: this._options.logging,
+        });
+        if (_response.ok) {
+            return { data: _response.body as AgentaApi.ChannelEventAck, rawResponse: _response.rawResponse };
+        }
+
+        if (_response.error.reason === "status-code") {
+            switch (_response.error.statusCode) {
+                case 422:
+                    throw new AgentaApi.UnprocessableEntityError(
+                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.rawResponse,
+                    );
+                default:
+                    throw new errors.AgentaApiError({
+                        statusCode: _response.error.statusCode,
+                        body: _response.error.body,
+                        rawResponse: _response.rawResponse,
+                    });
+            }
+        }
+
+        return handleNonStatusCodeError(
+            _response.error,
+            _response.rawResponse,
+            "POST",
+            "/channels/telegram/events/{routing_token}/",
+        );
+    }
+
+    /**
      * @param {ChannelsClient.RequestOptions} requestOptions - Request-specific configuration.
      *
      * @example
@@ -535,6 +609,175 @@ export class ChannelsClient {
             _response.rawResponse,
             "GET",
             "/channels/catalog/channels/slack/callback/",
+        );
+    }
+
+    /**
+     * Prepare the hosted Telegram connection and its agent, then mint the
+     * one-time deep link the connect UI shows. 404 when the deployment has no
+     * hosted bot configured.
+     *
+     * @param {AgentaApi.TelegramHostedBindLinkRequest} request
+     * @param {ChannelsClient.RequestOptions} requestOptions - Request-specific configuration.
+     *
+     * @throws {@link AgentaApi.UnprocessableEntityError}
+     *
+     * @example
+     *     await client.channels.createTelegramHostedBindLink({
+     *         references: {
+     *             "key": "value"
+     *         }
+     *     })
+     */
+    public createTelegramHostedBindLink(
+        request: AgentaApi.TelegramHostedBindLinkRequest,
+        requestOptions?: ChannelsClient.RequestOptions,
+    ): core.HttpResponsePromise<AgentaApi.TelegramHostedBindLinkResponse> {
+        return core.HttpResponsePromise.fromPromise(this.__createTelegramHostedBindLink(request, requestOptions));
+    }
+
+    private async __createTelegramHostedBindLink(
+        request: AgentaApi.TelegramHostedBindLinkRequest,
+        requestOptions?: ChannelsClient.RequestOptions,
+    ): Promise<core.WithRawResponse<AgentaApi.TelegramHostedBindLinkResponse>> {
+        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
+        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
+            _authRequest.headers,
+            this._options?.headers,
+            requestOptions?.headers,
+        );
+        const _response = await core.fetcher({
+            url: core.url.join(
+                (await core.Supplier.get(this._options.baseUrl)) ??
+                    (await core.Supplier.get(this._options.environment)) ??
+                    environments.AgentaApiEnvironment.Default,
+                "channels/catalog/channels/telegram_hosted/bind-link/",
+            ),
+            method: "POST",
+            headers: _headers,
+            contentType: "application/json",
+            queryParameters: requestOptions?.queryParams,
+            requestType: "json",
+            body: request,
+            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 30) * 1000,
+            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
+            withCredentials: true,
+            abortSignal: requestOptions?.abortSignal,
+            fetchFn: this._options?.fetch,
+            logging: this._options.logging,
+        });
+        if (_response.ok) {
+            return {
+                data: _response.body as AgentaApi.TelegramHostedBindLinkResponse,
+                rawResponse: _response.rawResponse,
+            };
+        }
+
+        if (_response.error.reason === "status-code") {
+            switch (_response.error.statusCode) {
+                case 422:
+                    throw new AgentaApi.UnprocessableEntityError(
+                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.rawResponse,
+                    );
+                default:
+                    throw new errors.AgentaApiError({
+                        statusCode: _response.error.statusCode,
+                        body: _response.error.body,
+                        rawResponse: _response.rawResponse,
+                    });
+            }
+        }
+
+        return handleNonStatusCodeError(
+            _response.error,
+            _response.rawResponse,
+            "POST",
+            "/channels/catalog/channels/telegram_hosted/bind-link/",
+        );
+    }
+
+    /**
+     * The chats bound to a hosted Telegram connection in this project.
+     * Empty until a /start consumed a bind token. 404 when the deployment has
+     * no hosted bot configured.
+     *
+     * @param {AgentaApi.ListTelegramHostedBindingsRequest} request
+     * @param {ChannelsClient.RequestOptions} requestOptions - Request-specific configuration.
+     *
+     * @throws {@link AgentaApi.UnprocessableEntityError}
+     *
+     * @example
+     *     await client.channels.listTelegramHostedBindings({
+     *         connection_id: "connection_id"
+     *     })
+     */
+    public listTelegramHostedBindings(
+        request: AgentaApi.ListTelegramHostedBindingsRequest,
+        requestOptions?: ChannelsClient.RequestOptions,
+    ): core.HttpResponsePromise<AgentaApi.TelegramHostedBindingsResponse> {
+        return core.HttpResponsePromise.fromPromise(this.__listTelegramHostedBindings(request, requestOptions));
+    }
+
+    private async __listTelegramHostedBindings(
+        request: AgentaApi.ListTelegramHostedBindingsRequest,
+        requestOptions?: ChannelsClient.RequestOptions,
+    ): Promise<core.WithRawResponse<AgentaApi.TelegramHostedBindingsResponse>> {
+        const { connection_id: connectionId } = request;
+        const _queryParams: Record<string, unknown> = {
+            connection_id: connectionId,
+        };
+        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
+        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
+            _authRequest.headers,
+            this._options?.headers,
+            requestOptions?.headers,
+        );
+        const _response = await core.fetcher({
+            url: core.url.join(
+                (await core.Supplier.get(this._options.baseUrl)) ??
+                    (await core.Supplier.get(this._options.environment)) ??
+                    environments.AgentaApiEnvironment.Default,
+                "channels/catalog/channels/telegram_hosted/bindings/",
+            ),
+            method: "GET",
+            headers: _headers,
+            queryParameters: { ..._queryParams, ...requestOptions?.queryParams },
+            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 30) * 1000,
+            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
+            withCredentials: true,
+            abortSignal: requestOptions?.abortSignal,
+            fetchFn: this._options?.fetch,
+            logging: this._options.logging,
+        });
+        if (_response.ok) {
+            return {
+                data: _response.body as AgentaApi.TelegramHostedBindingsResponse,
+                rawResponse: _response.rawResponse,
+            };
+        }
+
+        if (_response.error.reason === "status-code") {
+            switch (_response.error.statusCode) {
+                case 422:
+                    throw new AgentaApi.UnprocessableEntityError(
+                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.rawResponse,
+                    );
+                default:
+                    throw new errors.AgentaApiError({
+                        statusCode: _response.error.statusCode,
+                        body: _response.error.body,
+                        rawResponse: _response.rawResponse,
+                    });
+            }
+        }
+
+        return handleNonStatusCodeError(
+            _response.error,
+            _response.rawResponse,
+            "GET",
+            "/channels/catalog/channels/telegram_hosted/bindings/",
         );
     }
 
@@ -1267,13 +1510,7 @@ export class ChannelsClient {
      * @example
      *     await client.channels.editChannelAgent({
      *         agent_id: "agent_id",
-     *         agent: {
-     *             data: {
-     *                 references: {
-     *                     "key": {}
-     *                 }
-     *             }
-     *         }
+     *         agent: {}
      *     })
      */
     public editChannelAgent(

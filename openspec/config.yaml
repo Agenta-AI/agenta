@@ -1,0 +1,28 @@
+schema: spec-driven
+
+context: |
+  Agenta is a self-hostable AI coworker workspace. The backend uses Python and
+  FastAPI. Desktop and mobile share TypeScript channel actions.
+  These channels specifications describe the reviewed PR stack, not released main.
+  Current behavior is pinned to channels/telegram-ui at
+  658d6f5edae34d861d141a38604ef7a12a7b69c8 (PR #6737).
+  Baseline specs describe observed behavior. Change specs describe proposals.
+  Mahmoud confirmed that the channels stack has not shipped to production.
+  Do not require backward compatibility, legacy modes, or migration of pre-release
+  installations. Keep security, tenancy, and Slack API constraints.
+  The native Slack handle change targets one workspace installation in one Agenta
+  project. The channel agent tools change covers optional platform tools for Slack
+  and Telegram destination discovery, search, delivery, and scheduling. Preserve
+  other channel adapters. Do not implement or archive either change until Mahmoud
+  approves its design and explicitly requests implementation.
+
+rules:
+  proposal:
+    - Separate current behavior from proposed behavior and state non-goals.
+  specs:
+    - Use SHALL requirements and WHEN/THEN scenarios.
+    - Include failure, tenant-isolation, and first-installation scenarios.
+  design:
+    - Cite implementation sources and identify untested Slack assumptions.
+  tasks:
+    - Leave implementation checkboxes unchecked in a documentation-only change.

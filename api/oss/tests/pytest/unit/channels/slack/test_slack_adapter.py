@@ -331,6 +331,18 @@ async def test_parse_event_extracts_sigils_and_marks_addressed():
     assert event.addressed is True
 
 
+async def test_parse_event_command_alone_is_not_a_mention():
+    """`!new` without a mention or sigil is a command, admitted by the COMMAND
+    trigger; marking it addressed let it through a mention-only policy."""
+    adapter = SlackAdapter()
+    body = _event_callback({"channel": "C1", "user": "U1", "text": "!new", "ts": "1.1"})
+
+    event = await adapter.parse_event(body=body)
+
+    assert event is not None
+    assert event.addressed is False
+
+
 async def test_parse_event_unaddressed_message_marks_addressed_false():
     adapter = SlackAdapter()
     body = _event_callback(
@@ -362,6 +374,27 @@ async def test_parse_event_ignores_our_own_indicator_edit():
     )
 
     assert await adapter.parse_event(body=body, connection=connection) is None
+
+
+async def test_parse_event_keeps_a_me_message():
+    """A `/me` message is a person speaking: Slack marks it `me_message` and keeps
+    the plain-message fields, so it must enter like any other message."""
+
+    adapter = SlackAdapter()
+    body = _event_callback(
+        {
+            "channel": "C1",
+            "subtype": "me_message",
+            "user": "U1",
+            "text": "<@UBOT1> waves",
+            "ts": "3.3",
+        }
+    )
+
+    event = await adapter.parse_event(body=body)
+    assert event is not None
+    assert event.processed.content[0]["text"] == "<@UBOT1> waves"
+    assert event.processed.sender == {"id": "U1"}
 
 
 @pytest.mark.parametrize("subtype", ["message_changed", "message_deleted"])
@@ -1122,3 +1155,58 @@ async def test_parse_event_threaded_reply_keeps_the_parent_thread_ts():
 
     assert event is not None
     assert event.external_locator["thread_ts"] == "42.1"
+
+
+@pytest.mark.parametrize(
+    "subtype",
+    [
+        "channel_join",
+        "channel_leave",
+        "channel_topic",
+        "channel_purpose",
+        "pinned_item",
+    ],
+)
+async def test_a_system_notice_subtype_is_not_a_message(subtype):
+    """Inviting the bot fired a channel_join that ran a paid turn (F94)."""
+    adapter = SlackAdapter()
+    body = json.dumps(
+        {
+            "type": "event_callback",
+            "team_id": "T1",
+            "event": {
+                "type": "message",
+                "subtype": subtype,
+                "channel": "C1",
+                "user": "U1",
+                "text": "<@UBOT> has joined the channel",
+                "ts": "1.1",
+            },
+        }
+    ).encode()
+
+    assert await adapter.parse_event(body=body, connection=None) is None
+
+
+@pytest.mark.parametrize("subtype", ["thread_broadcast", "file_share"])
+async def test_a_subtype_that_still_carries_a_persons_message_stays(subtype):
+    adapter = SlackAdapter()
+    body = json.dumps(
+        {
+            "type": "event_callback",
+            "team_id": "T1",
+            "event": {
+                "type": "message",
+                "subtype": subtype,
+                "channel": "C1",
+                "user": "U1",
+                "text": "here is the file",
+                "ts": "1.1",
+            },
+        }
+    ).encode()
+
+    event = await adapter.parse_event(body=body, connection=None)
+
+    assert event is not None
+    assert event.processed.content[0]["text"] == "here is the file"
