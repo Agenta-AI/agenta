@@ -5,7 +5,8 @@ This package holds the implementations that reach the Agenta backend over HTTP: 
 named-secret provider, and the connection resolver, plus the resolution entrypoints
 (:func:`resolve_tools`, :func:`resolve_mcp`, :func:`resolve_connection`). The pure resolution
 framework and the neutral models stay in ``agenta.sdk.agents.tools``; only the platform-bound
-code lives here.
+code lives here. ``resolve_secrets`` remains as a deprecated compatibility alias for
+``resolve_connection`` during the migration window.
 
 Kept out of ``agenta.sdk.agents.__init__`` eager exports on purpose: these modules reach
 into ``agenta``/the SDK singleton, so importing them lazily (``from agenta.sdk.agents.platform
@@ -17,38 +18,39 @@ from .connections import VaultConnectionResolver
 from .gateway import AgentaGatewayToolResolver
 from .op_catalog import PLATFORM_OPS, PlatformOp, get_platform_op
 from .platform_tools import AgentaPlatformToolResolver
-from .resolve import resolve_connection, resolve_mcp, resolve_tools
+from .resolve import resolve_connection, resolve_mcp, resolve_secrets, resolve_tools
+from .secrets import (
+    AgentaNamedSecretProvider,
+    resolve_named_secrets,
+    resolve_provider_keys,
+)
 from .session_context import (
     read_session_context,
     resolve_session_context,
     run_optional,
     session_context_timeout,
 )
-from .secrets import (
-    AgentaNamedSecretProvider,
-    resolve_named_secrets,
-    resolve_provider_keys,
-)
 from .workflow import AgentaWorkflowToolResolver
 
 __all__ = [
-    "PlatformConnection",
-    "default_timeout",
-    "AgentaGatewayToolResolver",
-    "AgentaWorkflowToolResolver",
-    "AgentaPlatformToolResolver",
-    "AgentaNamedSecretProvider",
-    "VaultConnectionResolver",
-    "PlatformOp",
     "PLATFORM_OPS",
+    "AgentaGatewayToolResolver",
+    "AgentaNamedSecretProvider",
+    "AgentaPlatformToolResolver",
+    "AgentaWorkflowToolResolver",
+    "PlatformConnection",
+    "PlatformOp",
+    "VaultConnectionResolver",
+    "default_timeout",
     "get_platform_op",
+    "read_session_context",
+    "resolve_connection",
+    "resolve_mcp",
     "resolve_named_secrets",
     "resolve_provider_keys",
-    "resolve_tools",
-    "resolve_mcp",
-    "resolve_connection",
-    "read_session_context",
+    "resolve_secrets",
     "resolve_session_context",
+    "resolve_tools",
     "run_optional",
     "session_context_timeout",
 ]
