@@ -200,6 +200,40 @@ global:
 #   networkMode: "bridge"
 
 # ================================================================== #
+# === Agenta gateways ===
+# Commented out: the chart's values.yaml already ships these defaults,
+# which mirror hosting/docker-compose/{oss,ee}/env.*.gh.example.
+# Uncomment only what you want to change.
+#
+#   mcpGateway.enabled            -> AGENTA_MCP_GATEWAY_ENABLED (api, workers,
+#                                    cron, alembic, services; also web and
+#                                    web-mobile, which hide the MCP settings
+#                                    tab when it is off)
+#   mcpGateway.hostAllowlist      -> AGENTA_MCP_GATEWAY_HOST_ALLOWLIST
+#   llmGateway.enabled            -> AGENTA_LLM_GATEWAY_ENABLED
+#   gatewayEgress.insecureAllowed -> AGENTA_GATEWAYS_INSECURE_EGRESS_ALLOWED
+#   gatewayEgress.insecureHttpAllowed
+#                                 -> AGENTA_GATEWAYS_INSECURE_HTTP_ALLOWED
+#                                    (services and runner only)
+#   gatewayCredentials.ttlSeconds -> AGENTA_GATEWAYS_CREDENTIALS_TTL_SECONDS
+#                                    (unset -> the application default, 43200)
+#
+# Docs: https://docs.agenta.ai/self-host/reference/configuration#agenta-gateways
+# ================================================================== #
+# mcpGateway:
+#   enabled: true
+#   hostAllowlist:          # list, rendered comma-joined; a string works too
+#     - mcp.internal
+#     - 10.0.0.5
+# llmGateway:
+#   enabled: false
+# gatewayEgress:
+#   insecureAllowed: true
+#   insecureHttpAllowed: true
+# gatewayCredentials:
+#   ttlSeconds: 43200
+
+# ================================================================== #
 # === identity — OIDC providers ===
 # ================================================================== #
 # identity:
