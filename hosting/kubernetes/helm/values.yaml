@@ -67,9 +67,12 @@ agenta:
 mcpGateway:
   enabled: true
   # Hosts the gateway's outbound guard admits even when they would otherwise
-  # be refused (a private address, a name that is not public). A list here,
-  # rendered as the comma-separated string the application parses; a plain
-  # string works too. Empty by default, so nothing extra is admitted.
+  # be refused (a private address, a name that is not public), both when a URL
+  # is saved and when the relay calls it. This only narrows anything while
+  # gatewayEgress.insecureAllowed is false; with it true, every target is
+  # admitted already. A list here, rendered as the comma-separated string the
+  # application parses; a plain string works too. Empty by default, so nothing
+  # extra is admitted.
   hostAllowlist: []
   # hostAllowlist:
   #   - mcp.internal

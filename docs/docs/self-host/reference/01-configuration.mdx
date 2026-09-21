@@ -823,13 +823,11 @@ The old per-surface names (`AGENTA_WEBHOOKS_ALLOW_INSECURE`, `AGENTA_WEBHOOK_ALL
 deprecated aliases and still work, but new configuration should use the canonical name.
 :::
 
-:::note This variable also gates saving an MCP server URL
-In 0.119.0, the check that runs when someone saves a custom MCP server URL reads
-`AGENTA_INSECURE_EGRESS_ALLOWED`, not the gateway's own
-`AGENTA_GATEWAYS_INSECURE_EGRESS_ALLOWED` below. On a deployment built from
-`env.oss.gh.example` or `env.ee.gh.example`, which set it to `false`, a plain-HTTP or
-literal private-IP MCP server URL is refused at save time with a `400`, even though the
-relay is configured to call it. See
+:::note This variable does not gate saving an MCP server URL
+Saving a custom MCP server URL is checked under `AGENTA_GATEWAYS_INSECURE_EGRESS_ALLOWED`
+and `AGENTA_MCP_GATEWAY_HOST_ALLOWLIST` below, which are also what the relay enforces when
+it calls the server. In 0.119.0 only, that save-time check read
+`AGENTA_INSECURE_EGRESS_ALLOWED` instead. See
 [Use an MCP server on a private network or over plain HTTP](/self-host/app-tools-and-triggers#use-an-mcp-server-on-a-private-network-or-over-plain-http).
 :::
 
@@ -924,8 +922,10 @@ Leave `AGENTA_GATEWAYS_INSECURE_EGRESS_ALLOWED` at `false` on a deployment where
 do not trust can create MCP connections. Open egress lets any project aim an MCP connection
 at an address inside the network the api container sits on.
 
-This setting governs what the relay may call. It does not govern what the API accepts when
-someone saves an MCP server URL. See
+This setting and the allowlist also govern what the API accepts when someone saves an MCP
+server URL, so a URL that saves is one the relay is willing to call. The save-time check
+resolves no hostnames, so it refuses a literal private IP address but defers a hostname to
+the call-time check. See
 [Use an MCP server on a private network or over plain HTTP](/self-host/app-tools-and-triggers#use-an-mcp-server-on-a-private-network-or-over-plain-http).
 :::
 
