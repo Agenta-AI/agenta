@@ -13,11 +13,11 @@ import type {FileUIPart} from "ai"
 import {useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 
+import {newId} from "@/lib/ids"
+
 import {stashPendingTaskAtom, takePendingTaskAtom} from "../home/pendingTask"
 
 import {agentHandoffPath, isSeededCreate} from "./agentHandoff"
-
-import {newId} from "@/lib/ids"
 
 /**
  * Create an agent from this app, over the SHARED mint+commit core — blank, seeded from a starter

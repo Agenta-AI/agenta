@@ -14,6 +14,10 @@ import {ListTableToolbar} from "@agenta/ui/list-table"
 import {useAtomValue, useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 
+import {PageTitle} from "@/components/PageTitle"
+import {ScreenScaffold} from "@/components/ScreenScaffold"
+import {useStartBlankSession} from "@/features/chat/useStartBlankSession"
+
 import {useBindProjectContext} from "../context/useBindProjectContext"
 import {AppShell} from "../nav/AppShell"
 import {NavDrawer} from "../nav/NavDrawer"
@@ -24,10 +28,6 @@ import {SessionFilterMenu} from "./SessionFilterMenu"
 import {SessionListTable} from "./SessionListTable"
 import {activityFloorIso, DEFAULT_SESSION_LIST_VIEW, type SessionListView} from "./sessionListView"
 import {useSessionRowMenu} from "./useSessionRowMenu"
-
-import {PageTitle} from "@/components/PageTitle"
-import {ScreenScaffold} from "@/components/ScreenScaffold"
-import {useStartBlankSession} from "@/features/chat/useStartBlankSession"
 
 /**
  * The sessions page — the same table, toolbar and filter menu the automations page renders, over

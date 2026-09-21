@@ -21,10 +21,10 @@ import {
 } from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 
-import {mobileSessionsEntity} from "./useMobileNavItems"
-
 import {AVAILABLE_SETTINGS_TABS, useMobileSettingsAccess} from "@/features/settings/settingsTabs"
 import {withMobileSettingsLabels} from "@/lib/integrationsCopy"
+
+import {mobileSessionsEntity} from "./useMobileNavItems"
 
 /** Case-insensitive substring over the label and any extra words. */
 const matches = (query: string, label: string, keywords: string[] = []) =>

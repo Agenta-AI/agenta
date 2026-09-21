@@ -8,9 +8,9 @@ import {ListIcon} from "@phosphor-icons/react"
 import {atom, useAtomValue} from "jotai"
 import {useRouter} from "next/router"
 
-import {useMobileNavScope} from "./mobileNavScope"
-
 import {Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger} from "@/components/ui/sheet"
+
+import {useMobileNavScope} from "./mobileNavScope"
 
 /**
  * The drawer is never collapsed. `sidebarCollapsedAtom` is persisted per origin, which `/m`

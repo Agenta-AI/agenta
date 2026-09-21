@@ -43,6 +43,7 @@ import {atom, useAtomValue, useSetAtom} from "jotai"
 import {unwrap} from "jotai/utils"
 
 import {startBlankSession} from "@/features/chat/useStartBlankSession"
+
 import {useSyncLocalSessionRefs} from "./localSessionRefs"
 
 /** The drawer's scope id — its open-groups persistence bucket. */
