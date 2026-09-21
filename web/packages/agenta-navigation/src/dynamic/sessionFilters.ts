@@ -73,6 +73,24 @@ const toggledGroupsStorageAtom = atomWithStorage<Record<string, string[]>>(
 const storageScope = (scopeId: string, projectId: string | null) =>
     `${scopeId}:${projectId || NO_PROJECT_SCOPE}`
 
+// A scope's own defaults, over the shared ones. Registered by the host at module load, before
+// any read: the mobile rail groups by agent so every heading can carry its "+".
+const scopeDefaults = new Map<string, Partial<SidebarSessionFilters>>()
+
+/** Give one scope different defaults — its Reset returns to these, not the shared ones. */
+export const setSidebarSessionFilterDefaults = (
+    scopeId: string,
+    overrides: Partial<SidebarSessionFilters>,
+): void => {
+    scopeDefaults.set(scopeId, overrides)
+}
+
+/** The defaults a scope resets to. */
+export const sidebarSessionFilterDefaults = (scopeId: string): SidebarSessionFilters => ({
+    ...DEFAULT_SIDEBAR_SESSION_FILTERS,
+    ...scopeDefaults.get(scopeId),
+})
+
 /** Scoped per project so one project's agent filter never narrows another's list. */
 export const sidebarSessionFiltersAtomFamily = atomFamily((scopeId: string) =>
     atom(
@@ -81,18 +99,19 @@ export const sidebarSessionFiltersAtomFamily = atomFamily((scopeId: string) =>
             // MERGED, not `??`: state persisted before a field existed would otherwise come back
             // missing it, and the facet would render with no value.
             const stored = get(sessionFiltersStorageAtom)[scope] ?? {}
-            const merged = {...DEFAULT_SIDEBAR_SESSION_FILTERS, ...stored}
+            const defaults = sidebarSessionFilterDefaults(scopeId)
+            const merged = {...defaults, ...stored}
             // "Pinned first" was retired — pins lead under every grouping, so it grouped by
             // nothing. Anyone still holding it reads as the default rather than as a value the
             // menu cannot show or the grouper understands.
             return GROUP_BY_VALUES.has(merged.groupBy)
                 ? merged
-                : {...merged, groupBy: DEFAULT_SIDEBAR_SESSION_FILTERS.groupBy}
+                : {...merged, groupBy: defaults.groupBy}
         },
         (get, set, next: Partial<SidebarSessionFilters>) => {
             const scope = storageScope(scopeId, get(projectIdAtom))
             const storage = get(sessionFiltersStorageAtom)
-            const current = {...DEFAULT_SIDEBAR_SESSION_FILTERS, ...(storage[scope] ?? {})}
+            const current = {...sidebarSessionFilterDefaults(scopeId), ...(storage[scope] ?? {})}
             set(sessionFiltersStorageAtom, {...storage, [scope]: {...current, ...next}})
         },
     ),
@@ -107,6 +126,7 @@ const FILTER_KEYS = (
 export const sidebarSessionFiltersDirtyAtomFamily = atomFamily((scopeId: string) =>
     atom((get) => {
         const filters = get(sidebarSessionFiltersAtomFamily(scopeId))
+        const defaults = sidebarSessionFilterDefaults(scopeId)
         return FILTER_KEYS.some((key) => {
             const value = filters[key]
             // An array default is a fresh [] every read, so identity would report dirty forever.
@@ -115,7 +135,7 @@ export const sidebarSessionFiltersDirtyAtomFamily = atomFamily((scopeId: string)
             // week, widening it back to everything is off-DEFAULT but not a filter — and a dot
             // that lights up for showing MORE rows says the opposite of what it means.
             if (value === "all") return false
-            return value !== DEFAULT_SIDEBAR_SESSION_FILTERS[key]
+            return value !== defaults[key]
         })
     }),
 )

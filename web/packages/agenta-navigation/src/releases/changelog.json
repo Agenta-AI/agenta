@@ -1,5 +1,11 @@
 [
     {
+        "id": "changelog-2026-09-11-chatgpt-subscription-for-agents",
+        "title": "Connect ChatGPT",
+        "description": "Sign in to ChatGPT from AI providers and choose the subscription when selecting an agent's model.",
+        "link": "https://agenta.ai/docs/changelog/chatgpt-subscription-for-agents"
+    },
+    {
         "id": "changelog-2026-09-05-agent-configuration-history",
         "title": "Agent version history",
         "description": "Compare an earlier agent configuration with the current one and restore it as a new version without deleting history.",
