@@ -104,6 +104,53 @@ describe("useAgentChatQueue", () => {
         expect(result.current.queued).toHaveLength(0)
     })
 
+    // The durable path reports admission from the server. This one has no such event, and
+    // staying silent left a fresh session's optimistic row stuck at `submitting`, where a later
+    // message's failure could delete a row the server was going to list (Mahmoud, #6783).
+    it("reports a send handed straight to the transport as admitted", () => {
+        const onSendAccepted = vi.fn()
+        const {result, sendQueued} = setup({...settledEmpty, onSendAccepted})
+
+        act(() => {
+            result.current.submit({text: "no durable queue here"})
+        })
+
+        expect(sendQueued).toHaveBeenCalledTimes(1)
+        expect(onSendAccepted).toHaveBeenCalledTimes(1)
+        expect(onSendAccepted.mock.calls[0][0]).toMatchObject({text: "no durable queue here"})
+        // No server admission id exists on this path, and claiming one would be a lie.
+        expect(onSendAccepted.mock.calls[0][1]).toBeNull()
+    })
+
+    it("reports a queued message as admitted when it is released, not when it is queued", () => {
+        const onSendAccepted = vi.fn()
+        const {result, rerender, sendQueued} = setup({
+            status: "streaming",
+            messages: [userTurn("u1", "go")],
+            stopped: false,
+            onSendAccepted,
+        })
+
+        act(() => {
+            result.current.submit({text: "waits its turn"})
+        })
+        expect(sendQueued).not.toHaveBeenCalled()
+        expect(onSendAccepted).not.toHaveBeenCalled()
+
+        act(() => {
+            rerender({
+                status: "ready",
+                messages: [userTurn("u1", "go")],
+                stopped: false,
+                onSendAccepted,
+            })
+        })
+
+        expect(sendQueued).toHaveBeenCalledTimes(1)
+        expect(onSendAccepted).toHaveBeenCalledTimes(1)
+        expect(onSendAccepted.mock.calls[0][0]).toMatchObject({text: "waits its turn"})
+    })
+
     it("queues messages typed while a turn is streaming", () => {
         const {result, sendQueued} = setup({
             status: "streaming",

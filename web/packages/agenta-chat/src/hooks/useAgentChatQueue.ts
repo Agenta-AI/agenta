@@ -236,6 +236,25 @@ export const useAgentChatQueue = ({
     const onSendFailedRef = useRef(onSendFailed)
     onSendFailedRef.current = onSendFailed
 
+    /**
+     * Hand a message to the transport on the NON-durable path, and report it as admitted.
+     *
+     * The durable path has a server admission event to report; this one has none — `sendQueued`
+     * is synchronous and answers nothing. Staying silent left the send lifecycle half-driven
+     * here: a fresh session's optimistic row never left `submitting`, so the `accepted` guard
+     * that protects it could not hold, and a later message's failure deleted a row the server
+     * was going to list. Reaching the transport IS the admission this path has, and it is the
+     * same moment `markRunOwned` already claims the run.
+     */
+    const dispatchUnqueued = useCallback(
+        (message: QueuedMessage) => {
+            markRunOwned()
+            sendQueued(message)
+            onSendAcceptedRef.current?.(message, null)
+        },
+        [markRunOwned, sendQueued],
+    )
+
     // Echo rows for durable sends, which the AI SDK chat never receives. Owned by its own hook so
     // this one keeps to admission, queueing, and editing.
     const dockedInputIds = useMemo(
@@ -417,8 +436,7 @@ export const useAgentChatQueue = ({
                 ) {
                     releasingRef.current = true
                     lastSentRef.current = message
-                    markRunOwned()
-                    sendQueued(message)
+                    dispatchUnqueued(message)
                 } else {
                     setQueued((q) => [...q, message])
                 }
@@ -427,7 +445,7 @@ export const useAgentChatQueue = ({
                 ? server.resolveCapabilities().then((capabilities) => admit(capabilities.queue))
                 : admit(server?.capabilities.queue === true)
         },
-        [canReleaseNow, echoes, recoverable, retryContinuation, markRunOwned, sendQueued, server],
+        [canReleaseNow, dispatchUnqueued, echoes, recoverable, retryContinuation, server],
     )
 
     const removeQueued = useCallback(
@@ -597,9 +615,8 @@ export const useAgentChatQueue = ({
         setQueued(rest)
         // A released head also needs refusal recovery because it has left the queue.
         lastSentRef.current = head
-        markRunOwned()
-        sendQueued(head)
-    }, [settled, canReleaseNow, queued, markRunOwned, sendQueued])
+        dispatchUnqueued(head)
+    }, [settled, canReleaseNow, queued, dispatchUnqueued])
 
     return {
         queued: [...(server?.queued ?? []), ...queued],
