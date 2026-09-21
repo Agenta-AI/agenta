@@ -13,15 +13,14 @@ from sqlalchemy import text
 import oss.src.dbs.postgres.shared.engine as engine_module
 import oss.src.models.db_models  # noqa: F401
 from oss.src.dbs.postgres.shared.engine import get_transactions_engine
-from oss.tests.pytest.utils.postgres import postgres_reachable
+from oss.tests.pytest.utils.postgres import require_core_uri
 
 pytestmark = pytest.mark.integration
 
 
 @pytest.fixture(autouse=True)
 def _skip_without_postgres():
-    if not postgres_reachable():
-        pytest.skip("Postgres not reachable — skipping differential acceptance tests")
+    require_core_uri()
 
 
 @pytest.fixture(autouse=True)

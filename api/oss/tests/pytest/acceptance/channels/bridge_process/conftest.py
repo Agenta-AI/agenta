@@ -17,15 +17,14 @@ from oss.src.core.channels.dtos import ChannelKeyGrain
 from oss.src.core.channels.utils import compose_external_key
 from oss.src.dbs.postgres.channels.dbes import ChannelConnectionDBE
 from oss.src.dbs.postgres.shared.engine import get_transactions_engine
-from oss.tests.pytest.utils.postgres import postgres_reachable
+from oss.tests.pytest.utils.postgres import require_core_uri
 
 pytestmark = pytest.mark.integration
 
 
 @pytest.fixture(autouse=True)
 def _skip_without_postgres():
-    if not postgres_reachable():
-        pytest.skip("Postgres not reachable — skipping bridge acceptance tests")
+    require_core_uri()
 
 
 @pytest.fixture(autouse=True)

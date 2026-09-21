@@ -5,18 +5,13 @@ from urllib.parse import urlparse
 import pytest
 
 from oss.src.utils.env import env
-from oss.tests.pytest.utils.postgres import postgres_reachable, postgres_target
+from oss.tests.pytest.utils.postgres import require_core_uri
 
 
 @pytest.fixture(autouse=True)
-def _skip_db_adjacent_when_postgres_unreachable(request):
-    # Most acceptance tests speak pure HTTP; a few read the database directly to
-    # verify server-side effects, and those only work adjacent to the stack.
-    if request.node.get_closest_marker("integration") and not postgres_reachable():
-        pytest.skip(
-            f"Postgres not reachable at {postgres_target()} — skipping "
-            "database-adjacent acceptance tests"
-        )
+def _require_db_adjacent_acceptance_database(request):
+    if request.node.get_closest_marker("integration"):
+        require_core_uri()
 
 
 @lru_cache(maxsize=1)
