@@ -3,7 +3,7 @@ import {useMemo, useState} from "react"
 import {ScheduleBuilderPanel, useScheduleBuilder} from "@agenta/entity-ui/gatewayTrigger"
 import {Button, selectTriggerVariants} from "@agenta/ui/ui"
 import {CalendarBlank, Lightning} from "@phosphor-icons/react"
-import {ChevronDown} from "lucide-react"
+import {ChevronDown, ChevronRight} from "lucide-react"
 
 import {AutomationField} from "./AutomationField"
 import {runsWhenLabel, type Automation, type AutomationKind} from "./automationModel"
@@ -91,7 +91,13 @@ export const AutomationRunsWhenField = ({
                             />
                             <span className="min-w-0 truncate">{label}</span>
                         </span>
-                        <ChevronDown className="text-placeholder size-3 shrink-0" />
+                        {/* Down for a popover that drops from the field; right for the sheet
+                            that slides in from the side, so the glyph says what opens. */}
+                        {isWide ? (
+                            <ChevronDown className="text-placeholder size-3 shrink-0" />
+                        ) : (
+                            <ChevronRight className="text-placeholder size-3 shrink-0" />
+                        )}
                     </button>
                 }
             >

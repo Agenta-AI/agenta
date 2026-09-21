@@ -197,7 +197,11 @@ export const SessionListScreen = ({
             </AppShell>
             {/* The trigger drawers the automation row verbs open, at screen level so one survives
                 its row unmounting underneath it. */}
-            <SessionAutomationDrawers base={`/w/${workspaceId}/p/${projectId}`} />
+            <SessionAutomationDrawers
+                base={`/w/${workspaceId}/p/${projectId}`}
+                workspaceId={workspaceId}
+                projectId={projectId}
+            />
         </>
     )
 }

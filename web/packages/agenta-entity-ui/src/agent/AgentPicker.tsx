@@ -424,6 +424,15 @@ export const AgentPicker = ({
         [agents, value],
     )
     const selectedLabel = selected ? agentLabel(selected) : (fallbackName ?? null)
+    // A bound agent whose name has not arrived is not "nothing picked": the placeholder would
+    // invite a choice that was already made. Fetching, not pending: a disabled query (no
+    // project yet) is pending forever, and a refetch after an invalidation is pending never.
+    const resolving = Boolean(value) && !selectedLabel && agentsQuery.isFetching === true
+    const labelNode = resolving ? (
+        <SkeletonBlock active className="h-3.5 w-36" />
+    ) : (
+        (selectedLabel ?? placeholder)
+    )
     const selectedIds = useMemo(() => (value ? [value] : []), [value])
 
     const pick = useCallback(
@@ -459,7 +468,7 @@ export const AgentPicker = ({
                 )}
             >
                 <AgentChip workflowId={value} box="size-5" glyph={13} />
-                <span className="min-w-0 truncate">{selectedLabel ?? placeholder}</span>
+                <span className="flex min-w-0 items-center truncate">{labelNode}</span>
                 <CaretDown aria-hidden size={12} className="shrink-0 text-muted-foreground" />
             </button>
         ) : (
@@ -481,7 +490,9 @@ export const AgentPicker = ({
                     "focus:shadow-[0_0_0_2px_var(--ag-controlOutline)]",
                     "data-[state=open]:border-primary",
                     "data-[state=open]:shadow-[0_0_0_2px_var(--ag-controlOutline)]",
-                    "disabled:cursor-default disabled:border-border disabled:bg-background",
+                    // Read-only reads as read-only: dimmed, no hover border, no caret. A bound
+                    // agent that looked pickable invited a tap that did nothing.
+                    "disabled:cursor-default disabled:border-border disabled:bg-muted disabled:text-muted-foreground disabled:hover:border-border",
                     // The same error treatment the app's own Select trigger wears.
                     "aria-[invalid=true]:border-error aria-[invalid=true]:focus:shadow-[0_0_0_2px_var(--ag-errorOutline)]",
                     triggerClassName,
@@ -491,14 +502,16 @@ export const AgentPicker = ({
                     <AgentChip workflowId={value} box="size-5" glyph={13} />
                     <span
                         className={[
-                            "min-w-0 truncate",
-                            selectedLabel ? "" : "text-placeholder",
+                            "flex min-w-0 items-center truncate",
+                            selectedLabel || resolving ? "" : "text-placeholder",
                         ].join(" ")}
                     >
-                        {selectedLabel ?? placeholder}
+                        {labelNode}
                     </span>
                 </span>
-                <CaretDown aria-hidden size={12} className="shrink-0 text-muted-foreground" />
+                {disabled ? null : (
+                    <CaretDown aria-hidden size={12} className="shrink-0 text-muted-foreground" />
+                )}
             </button>
         )
 

@@ -109,7 +109,7 @@ export const AgentOverviewScreen = ({
                 </ScreenScaffold>
             </AppShell>
             {/* Mounted at screen level so a drawer survives its row unmounting underneath it. */}
-            <SessionAutomationDrawers base={base} />
+            <SessionAutomationDrawers base={base} workspaceId={workspaceId} projectId={projectId} />
         </>
     )
 }
