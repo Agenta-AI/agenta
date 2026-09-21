@@ -426,9 +426,8 @@ export const AgentPicker = ({
     const selectedLabel = selected ? agentLabel(selected) : (fallbackName ?? null)
     // A bound agent whose name has not arrived is not "nothing picked": the placeholder would
     // invite a choice that was already made. Fetching, not pending: a disabled query (no
-    // project yet) is pending forever, and that is not a name on its way.
-    const resolving =
-        Boolean(value) && !selectedLabel && agentsQuery.isPending && agentsQuery.isFetching === true
+    // project yet) is pending forever, and a refetch after an invalidation is pending never.
+    const resolving = Boolean(value) && !selectedLabel && agentsQuery.isFetching === true
     const labelNode = resolving ? (
         <SkeletonBlock active className="h-3.5 w-36" />
     ) : (
