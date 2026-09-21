@@ -117,23 +117,18 @@ def test_build_an_agent_bundles_the_reference_files():
     assert {
         "references/config-schema.md",
         "references/trigger-inputs.md",
-        "references/agent-templates/index.md",
     } <= paths
 
 
-def test_every_template_entry_has_a_playbook_file():
-    paths = {bundled.path for bundled in BUILD_AN_AGENT_SKILL.files}
-    for entry in AGENT_TEMPLATE_ENTRIES:
-        assert f"references/agent-templates/{entry.key}.md" in paths
-    assert "changelog-writer" in {entry.key for entry in AGENT_TEMPLATE_ENTRIES}
-
-
-def test_index_lists_every_template_and_the_fallback():
-    content = _file("references/agent-templates/index.md").content
-    for entry in AGENT_TEMPLATE_ENTRIES:
-        assert f"references/agent-templates/{entry.key}.md" in content
-    # The router must always offer the no-match escape hatch.
-    assert "No match? Use the generic loop in SKILL.md." in content
+def test_builder_does_not_ship_template_reconstruction_playbooks():
+    # Packages are installed by the template loader. The generic configuration skill must
+    # not send the model through the old reconstruction path, including on the wire.
+    assert "## Templates" not in BUILD_AN_AGENT_SKILL.body
+    assert "references/agent-templates/" not in BUILD_AN_AGENT_SKILL.body
+    assert not any(
+        entry["path"].startswith("references/agent-templates/")
+        for entry in BUILD_AN_AGENT_SKILL.to_wire()["files"]
+    )
 
 
 def test_bundled_file_paths_revalidate():
@@ -211,8 +206,6 @@ def test_reference_files_ride_the_wire():
     assert {
         "references/config-schema.md",
         "references/trigger-inputs.md",
-        "references/agent-templates/index.md",
-        "references/agent-templates/changelog-writer.md",
     } <= wire_paths
 
 

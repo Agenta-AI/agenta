@@ -15,10 +15,6 @@ from __future__ import annotations
 from ..flags import ordered_operations_enabled
 
 from ..skills import SkillFile, SkillTemplate
-from .agent_templates import (
-    AGENT_TEMPLATE_ENTRIES,
-    build_agent_template_skill_files,
-)
 
 # Read once, at import, exactly like the op catalog builds its tool descriptions. The skill
 # TEACHES the commit surface the catalog ADVERTISES, and one deployment must show one shape:
@@ -848,9 +844,6 @@ Don't forget:
 # configuration change and nothing else. A sentence here that restates or contradicts the
 # platform prompt is a bug: models pick between two wordings of one rule unpredictably.
 #
-# WHY THE TEMPLATE LIST IS INLINE. The skill used to send the model to a 28-row index file on
-# every ask. The names are short, so they ride here; the model reads a playbook file only when
-# the ask clearly matches one.
 _BUILD_HEAD = """\
 # Configure this Agenta agent
 
@@ -887,17 +880,6 @@ _BUILD_SHAPE_LEGACY = """\
 Change your configuration only with `commit_revision`, by setting `parameters.agent` fields.
 Read `references/config-schema.md` before your first commit: it gives the exact shape of every
 field, the delta merge semantics, worked examples, and the mistakes that break an agent.
-"""
-
-# The template names are rendered from the entries at import, so the list can never drift from
-# the playbook files that exist.
-_BUILD_TEMPLATES = """\
-
-## Templates
-
-There are playbooks for common agents, one file each under `references/agent-templates/`,
-named here with their file names: {names}. If the ask clearly matches one of these, read that
-file and follow it. Otherwise skip them.
 """
 
 _BUILD_LOOP_ORDERED = """\
@@ -1069,11 +1051,6 @@ _BUILD_FOOTGUNS = """\
 _BUILD_AN_AGENT_BODY = (
     _BUILD_HEAD
     + (_BUILD_SHAPE_ORDERED if _ORDERED else _BUILD_SHAPE_LEGACY)
-    + _BUILD_TEMPLATES.format(
-        names=", ".join(
-            f"{entry.name} (`{entry.key}.md`)" for entry in AGENT_TEMPLATE_ENTRIES
-        )
-    )
     + (_BUILD_LOOP_ORDERED if _ORDERED else _BUILD_LOOP_LEGACY)
     + _BUILD_INSTRUCTIONS_WRITING
     + (
@@ -1099,7 +1076,5 @@ BUILD_AN_AGENT_SKILL = SkillTemplate(
         SkillFile(
             path="references/trigger-inputs.md", content=_TRIGGER_INPUTS_REFERENCE
         ),
-        # One playbook per template plus the generated router index (references/agent-templates/).
-        *build_agent_template_skill_files(),
     ],
 )
