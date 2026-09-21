@@ -183,6 +183,11 @@ from oss.src.core.channels.identity import ChannelIdentityService
 from oss.src.core.channels.service import ChannelsService
 from oss.src.apis.fastapi.channels.ingress import ChannelsIngressRouter
 from oss.src.apis.fastapi.channels.router import ChannelsRouter
+from oss.src.core.channels.telegram_binding import TelegramBindingService
+from oss.src.core.channels.adapters.telegram_hosted.capabilities import (
+    fetch_telegram_hosted_capabilities,
+)
+from oss.src.dbs.postgres.channels.telegram_bind_dao import TelegramBindingDAO
 from oss.src.tasks.asyncio.channels.inbox import InboxDispatcher
 from oss.src.tasks.taskiq.channels.inbox_worker import ChannelsInboxWorker
 
@@ -1159,6 +1164,18 @@ channels_identity_service = ChannelIdentityService(
     identity_dao=channels_identity_dao,
 )
 
+# The hosted (Agenta-owned) Telegram bot. Built only when the deployment has the
+# shared bot configured; otherwise the ingress and the bind endpoint fall back
+# to the custom-bot path and a 404. The binding service owns the one-time link
+# and the chat-to-project map.
+_telegram_binding_service = None
+if env.channels.telegram.enabled:
+    _telegram_binding_service = TelegramBindingService(
+        store=TelegramBindingDAO(engine=_transactions_engine),
+        bot_username=env.channels.telegram.bot_username or "",
+        capabilities=fetch_telegram_hosted_capabilities(),
+    )
+
 # Producer side of the inbound chain: the ingress route enqueues
 # `channels.inbox.dispatch` here; entrypoints/worker_queues.py consumes it.
 _channels_inbox_broker = ProducerOnlyRedisStreamBroker(
@@ -1197,11 +1214,13 @@ channels_ingress = ChannelsIngressRouter(
     channels_service=channels_service,
     adapter_registry=channels_adapter_registry,
     dispatch_task=_channels_inbox_worker.dispatch_inbox_event,
+    telegram_binding_service=_telegram_binding_service,
 )
 
 channels = ChannelsRouter(
     channels_service=channels_service,
     adapter_registry=channels_adapter_registry,
+    telegram_binding_service=_telegram_binding_service,
 )
 
 simple_traces = SimpleTracesRouter(
