@@ -110,12 +110,6 @@ export const useElicitationDock = ({
         })
     }, [front, degradedEarlierInTurn, onOutput])
 
-    // Hold the last non-empty view so a host can animate the dock closed around content already gone.
-    const open = pending.length > 0
-    const shownRef = useRef<ClientToolMeta[]>([])
-    if (open) shownRef.current = pending
-    const shown = shownRef.current
-
     // The host-driven dismiss, keyed by the call it settled. Keyed rather than a bare flag so it
     // survives the card's closing animation (`shown` still holds the settled call) and cannot
     // leak onto the next question. `front` is read through a ref: the host calls this from a
@@ -124,6 +118,14 @@ export const useElicitationDock = ({
     frontRef.current = front
     const [dismissingId, setDismissingId] = useState<string | null>(null)
     const dismissingRef = useRef<string | null>(null)
+
+    // Hold the last non-empty view so a host can animate the dock closed around content already gone.
+    // A front being dismissed closes the dock at once: the message that replaced it is the thing
+    // to look at, and the card only returns if that write fails.
+    const open = pending.length > 0 && dismissingId !== front?.toolCallId
+    const shownRef = useRef<ClientToolMeta[]>([])
+    if (open) shownRef.current = pending
+    const shown = shownRef.current
     const dismiss = useCallback(async () => {
         const target = frontRef.current
         if (!target || target.settled || dismissingRef.current === target.toolCallId) return

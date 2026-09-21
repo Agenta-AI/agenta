@@ -160,11 +160,20 @@ export const useAgentChatQueue = ({
     const onSendFailedRef = useRef(onSendFailed)
     onSendFailedRef.current = onSendFailed
 
+    // A steer this tab sent is on its way in, not held: it stays a transcript echo until the run
+    // saves it as a user row, and never becomes a dock row. Keyed by the durable input id the 202
+    // named, so the dock filter and the echo's retirement agree on which rows those are.
+    const steeredInputIdsRef = useRef(new Set<string>())
+    const dockedServerQueued = useMemo(
+        () => server.queued.filter((item) => !steeredInputIdsRef.current.has(item.id)),
+        [server.queued],
+    )
+
     // Echo rows for durable sends, which the AI SDK chat never receives. Owned by its own hook so
     // this one keeps to admission and editing.
     const dockedInputIds = useMemo(
-        () => new Set(server.queued.map((item) => item.id)),
-        [server.queued],
+        () => new Set(dockedServerQueued.map((item) => item.id)),
+        [dockedServerQueued],
     )
     const echoes = usePendingSendEchoes({messages, dockedInputIds})
 
@@ -172,28 +181,22 @@ export const useAgentChatQueue = ({
     const stashRef = useRef("")
     const editSessionRef = useRef<{id: string; server: boolean} | null>(null)
 
-    const submit = useCallback(
-        (item: {
-            text: string
-            executionText?: string
-            fileParts?: FileUIPart[]
-            stagedFiles?: ComposerAttachment[]
-        }) => {
-            const message: QueuedMessage = {
-                ...item,
-                id: generateId(),
-                ...(item.executionText !== undefined ? {editable: false} : {}),
-            }
+    // One durable admission for both policies, so a steer gets the same echo and refusal
+    // recovery a queued send has.
+    const submitDurable = useCallback(
+        (message: QueuedMessage, policy: "queue" | "steer"): Promise<void> => {
             // Show it before the request leaves. Every exit is driven by evidence about this
-            // send: the turn it started, the dock row it became, or its failure.
+            // send: the turn it started, the dock row (queue) or parked input (steer) it
+            // became, or its failure.
             echoes.add(message)
             return server
-                .submit(message, "queue", {
+                .submit(message, policy, {
                     onAccepted: (executionId) => {
                         echoes.markAccepted(message.id, executionId)
                         onSendAcceptedRef.current?.(message, executionId)
                     },
                     onParked: (inputId) => {
+                        if (policy === "steer") steeredInputIdsRef.current.add(inputId)
                         echoes.markParked(message.id, inputId)
                         onSendAcceptedRef.current?.(message, null)
                     },
@@ -229,13 +232,33 @@ export const useAgentChatQueue = ({
                     // ends.
                     onSettled: () => echoes.markFailed(message.id),
                 })
-                .then(undefined, (error: unknown) => {
-                    echoes.drop(message.id)
-                    onSendFailedRef.current?.(message)
-                    throw error
-                })
+                .then(
+                    () => undefined,
+                    (error: unknown) => {
+                        echoes.drop(message.id)
+                        onSendFailedRef.current?.(message)
+                        throw error
+                    },
+                )
         },
         [echoes, server],
+    )
+
+    const submit = useCallback(
+        (item: {
+            text: string
+            executionText?: string
+            fileParts?: FileUIPart[]
+            stagedFiles?: ComposerAttachment[]
+        }) => {
+            const message: QueuedMessage = {
+                ...item,
+                id: generateId(),
+                ...(item.executionText !== undefined ? {editable: false} : {}),
+            }
+            return submitDurable(message, "queue")
+        },
+        [submitDurable],
     )
 
     const removeQueued = useCallback(
@@ -267,9 +290,9 @@ export const useAgentChatQueue = ({
                 id: generateId(),
                 ...(item.executionText !== undefined ? {editable: false} : {}),
             }
-            await server.submit(message, "steer")
+            await submitDurable(message, "steer")
         },
-        [server],
+        [submitDurable],
     )
 
     // ── Editing a held message ────────────────────────────────────────────────────────────────
@@ -354,7 +377,7 @@ export const useAgentChatQueue = ({
     )
 
     return {
-        queued: server.queued,
+        queued: dockedServerQueued,
         /** Sent-but-not-yet-saved user rows; merge with `mergePendingSendEchoRows`. */
         pendingSendRows: echoes.rows,
         /** A send of this mount is on its way: admitted, not yet named by the runner or refused.

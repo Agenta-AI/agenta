@@ -133,6 +133,7 @@ describe("useAgentChatQueue", () => {
             2,
             expect.objectContaining({text: "change direction"}),
             "steer",
+            expect.anything(),
         )
         expect(result.current.queued).toHaveLength(0)
     })
@@ -166,6 +167,7 @@ describe("useAgentChatQueue", () => {
         expect(server.submit).toHaveBeenCalledWith(
             expect.objectContaining({text: "answered in chat instead"}),
             "steer",
+            expect.anything(),
         )
     })
 
@@ -619,6 +621,46 @@ const echoText = (result: {current: {pendingSendRows: UIMessage[]}}) =>
     )
 
 describe("useAgentChatQueue durable send echoes", () => {
+    it("keeps a steer as a transcript echo, never a dock row", async () => {
+        // A steer is on its way INTO the running turn. Read as a held message it would flash up
+        // in the queue dock ("waits for your answer") between the 202 and the turn saving it as a
+        // user row — the very seam the dismiss-then-steer over a parked question sits on.
+        const {server, watchers} = durableServer("queued")
+        server.busy = true
+        const parked: HarnessProps = {
+            messages: [userTurn("u1", "go")],
+            stopped: false,
+            server,
+        }
+        const {result, rerender} = setup(parked)
+
+        await act(async () => {
+            await result.current.steer({text: "answered in chat instead"})
+        })
+        expect(echoText(result)).toEqual(["answered in chat instead"])
+
+        act(() => watchers[0].onParked?.("input-steer"))
+        const steered: QueuedMessage = {
+            id: "input-steer",
+            text: "answered in chat instead",
+            policy: "steer",
+            source: "server",
+            editable: false,
+        }
+        rerender({...parked, server: {...server, queued: [steered]}})
+
+        expect(result.current.queued).toEqual([])
+        expect(echoText(result)).toEqual(["answered in chat instead"])
+
+        // The run saved it: the real user row retires the echo.
+        rerender({
+            ...parked,
+            messages: [userTurn("u1", "go"), userTurn("u2", "answered in chat instead")],
+            server: {...server, queued: []},
+        })
+        expect(echoText(result)).toEqual([])
+    })
+
     it("shows a durable send before the request resolves", async () => {
         let admit!: (value: "running") => void
         const {server} = durableServer()

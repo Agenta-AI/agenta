@@ -151,6 +151,10 @@ describe("host-driven dismiss", () => {
             output: {action: "cancel"},
         })
         expect(result.current.dismissing).toBe(true)
+        // The dock closes at once — the message that replaced the form is what to look at — but
+        // still holds the card so the host can animate the collapse.
+        expect(result.current.open).toBe(false)
+        expect(result.current.front?.toolCallId).toBe("call_1")
 
         await act(async () => {
             release()
@@ -171,7 +175,9 @@ describe("host-driven dismiss", () => {
             await expect(result.current.dismiss()).rejects.toThrow("offline")
         })
 
+        // The question is still live, so the dock is back.
         expect(result.current.dismissing).toBe(false)
+        expect(result.current.open).toBe(true)
         // The latch let go too: the next attempt goes out again.
         await act(async () => {
             await result.current.dismiss().catch(() => undefined)
