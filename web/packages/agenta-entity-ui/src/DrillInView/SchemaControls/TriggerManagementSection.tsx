@@ -6,7 +6,7 @@
  * the user add/manage them through the existing propless, atom-driven trigger drawers
  * (`@agenta/entity-ui/gatewayTrigger`). It reuses the same hooks and "⋯" menu the
  * workspace settings sections use; nothing about trigger CRUD is rebuilt here. In the
- * playground, running/paused is irrelevant, so rows expose a "Test run" action (status
+ * playground, running/paused is irrelevant, so rows expose a "Run now" action (status
  * shown as a passive dot); pause/resume stays in the schedule drawer.
  *
  * Two pieces of real work live here:
@@ -35,7 +35,6 @@ import {DropdownMenuItem, DropdownMenuSeparator} from "@agenta/ui/ui"
 import {
     ArrowsClockwise,
     ClockCounterClockwise,
-    Flask,
     Pause,
     PencilSimpleLine,
     Play,
@@ -248,8 +247,8 @@ export function TriggerManagementSection({
                     disabled={disabled || !record.id}
                     onSelect={() => simulateSchedule(record)}
                 >
-                    <Flask size={16} />
-                    Test run
+                    <Play size={16} />
+                    Run now
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
@@ -280,7 +279,7 @@ export function TriggerManagementSection({
                         onSelect={() => toggleSchedule(record, false)}
                     >
                         <Pause size={16} />
-                        Pause
+                        Deactivate
                     </DropdownMenuItem>
                 ) : (
                     <DropdownMenuItem
@@ -288,7 +287,7 @@ export function TriggerManagementSection({
                         onSelect={() => toggleSchedule(record, true)}
                     >
                         <Play size={16} />
-                        Resume
+                        Activate
                     </DropdownMenuItem>
                 )}
                 <DropdownMenuSeparator />
