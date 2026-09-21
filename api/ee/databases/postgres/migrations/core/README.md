@@ -43,5 +43,5 @@ docker exec -e PYTHONPATH=/app -w /app/ee/databases/postgres/migrations/core_ee 
 The above command will be used to apply the changes in the script created to the database table(s). If you'd like to revert the migration, run the following command:
 
 ```bash
-docker exec -e PYTHONPATH=/app -w /app/ee/databases/postgres/migrations/core_ee agenta-ee-dev-api-1 alembic -c alembic.ini downgrade head
+docker exec -e PYTHONPATH=/app -w /app/ee/databases/postgres/migrations/core_ee agenta-ee-dev-api-1 alembic -c alembic.ini downgrade -1
 ```
