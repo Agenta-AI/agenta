@@ -172,5 +172,23 @@
     "versions": {
       "1.0.0": "packages/outbound-prospecting/1.0.0"
     }
+  },
+  "qa-checklist": {
+    "latest": "1.0.0",
+    "versions": {
+      "1.0.0": "packages/qa-checklist/1.0.0"
+    }
+  },
+  "qa-project-brief": {
+    "latest": "1.0.0",
+    "versions": {
+      "1.0.0": "packages/qa-project-brief/1.0.0"
+    }
+  },
+  "qa-weekly-digest": {
+    "latest": "1.0.0",
+    "versions": {
+      "1.0.0": "packages/qa-weekly-digest/1.0.0"
+    }
   }
 }

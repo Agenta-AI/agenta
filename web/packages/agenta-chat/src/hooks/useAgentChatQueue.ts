@@ -18,6 +18,7 @@ import {usePendingSendEchoes} from "./usePendingSendEchoes"
 export interface QueuedMessage {
     id: string
     text: string
+    executionText?: string
     fileParts?: FileUIPart[]
     stagedFiles?: ComposerAttachment[]
     attachmentCount?: number
@@ -331,8 +332,17 @@ export const useAgentChatQueue = ({
 
     // Send now only if idle, unlatched, and the queue is empty; otherwise append (FIFO).
     const submit = useCallback(
-        (item: {text: string; fileParts?: FileUIPart[]; stagedFiles?: ComposerAttachment[]}) => {
-            const message: QueuedMessage = {...item, id: generateId()}
+        (item: {
+            text: string
+            executionText?: string
+            fileParts?: FileUIPart[]
+            stagedFiles?: ComposerAttachment[]
+        }) => {
+            const message: QueuedMessage = {
+                ...item,
+                id: generateId(),
+                ...(item.executionText !== undefined ? {editable: false} : {}),
+            }
             const admit = (queue: boolean) => {
                 if (queue && server) {
                     // Show it before the request leaves. Every exit is driven by evidence about
@@ -427,6 +437,7 @@ export const useAgentChatQueue = ({
     const steer = useCallback(
         async (item: {
             text: string
+            executionText?: string
             fileParts?: FileUIPart[]
             stagedFiles?: ComposerAttachment[]
         }) => {
@@ -436,7 +447,11 @@ export const useAgentChatQueue = ({
             if (!capabilities?.steer || !serverBusyRef.current || !server) {
                 throw new Error("The session is not ready to accept a Steer input.")
             }
-            const message: QueuedMessage = {...item, id: generateId()}
+            const message: QueuedMessage = {
+                ...item,
+                id: generateId(),
+                ...(item.executionText !== undefined ? {editable: false} : {}),
+            }
             await server.submit(message, "steer")
         },
         [server],
@@ -488,7 +503,12 @@ export const useAgentChatQueue = ({
      * so the text the session displaced has to come back here too or it is lost for good.
      */
     const commitEdit = useCallback(
-        (item: {text: string; fileParts?: FileUIPart[]; stagedFiles?: ComposerAttachment[]}) => {
+        (item: {
+            text: string
+            executionText?: string
+            fileParts?: FileUIPart[]
+            stagedFiles?: ComposerAttachment[]
+        }) => {
             const id = editingId
             const editSession = editSessionRef.current
             const serverOwnsInput =

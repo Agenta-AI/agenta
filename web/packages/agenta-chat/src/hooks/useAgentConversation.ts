@@ -50,6 +50,12 @@ import {useSetAtom, useStore} from "jotai"
 import {latestTurnId} from "../assets/agentTurn"
 import {buildRequestWithinDeadline} from "../assets/boundedRequest"
 import {prepareAfterContinuationPreflight} from "../assets/continuationPreflight"
+import {
+    displayMessageText,
+    editedExecutionText,
+    readDisplayEdit,
+    saveDisplayEdit,
+} from "../assets/displayContent"
 import {filesToParts} from "../assets/files"
 import {
     isSessionTranscript,
@@ -58,7 +64,7 @@ import {
     type SessionTranscript,
 } from "../assets/loadSession"
 import {mergePendingSendEchoRows} from "../assets/pendingSendEchoes"
-import {messageText, sideEffectingToolsInRange} from "../assets/rewind"
+import {sideEffectingToolsInRange} from "../assets/rewind"
 import {submitApprovalForCapability} from "../assets/serverOwnedApproval"
 import {startupLabelFromDataPart} from "../assets/startupPhases"
 import {getMessageTraceId} from "../assets/trace"
@@ -709,6 +715,7 @@ export const useAgentConversation = ({
 
     // Send one released queued message. Stable (only depends on `sendMessage`) so the queue's
     // release effect doesn't churn on every token.
+    const editedSourceRef = useRef<UIMessage | null>(readDisplayEdit(sessionId))
     const sendQueued = useCallback(
         (item: QueuedMessage) => {
             // A real send means this session has run — drop the never-run marker so a later
@@ -717,13 +724,16 @@ export const useAgentConversation = ({
             clearSessionTurnId(sessionId)
             // Any actual send supersedes a prior user-stop.
             setStopped(false)
-            sendMessage(
-                item.fileParts && item.fileParts.length
-                    ? item.text
-                        ? {text: item.text, files: item.fileParts}
-                        : {files: item.fileParts}
-                    : {text: item.text},
-            ).catch(ignoreStreamRejection)
+            sendMessage({
+                role: "user",
+                parts: [
+                    {type: "text", text: item.executionText ?? item.text},
+                    ...(item.fileParts ?? []),
+                ],
+                ...(item.executionText !== undefined
+                    ? {metadata: {display_content: item.text}}
+                    : {}),
+            }).catch(ignoreStreamRejection)
         },
         [sendMessage, sessionId],
     )
@@ -1285,7 +1295,14 @@ export const useAgentConversation = ({
             clearSessionTurnId(sessionId)
             setStopped(false)
             // One path: `submit` sends now or queues behind held messages via the release gate.
-            await submit({text: trimmed, fileParts, stagedFiles})
+            await submit({
+                text: trimmed,
+                executionText: editedExecutionText(editedSourceRef.current, trimmed),
+                fileParts,
+                stagedFiles,
+            })
+            editedSourceRef.current = null
+            saveDisplayEdit(sessionId, null)
             // The message left the composer — drop its persisted draft (per-session store).
             composerDraftBySession.delete(sessionId)
         },
@@ -1335,13 +1352,19 @@ export const useAgentConversation = ({
                     const current = messagesRef.current
                     const at = current.findIndex((m) => m.id === message.id)
                     if (at < 0) return
+                    editedSourceRef.current = current[at]
+                    saveDisplayEdit(sessionId, current[at])
                     setMessages(current.slice(0, at))
                 } else {
                     clearSessionTurnId(sessionId)
                     regenerate({messageId: message.id}).catch(ignoreStreamRejection)
                 }
             }
-            return {sideEffects, restoreText: isUser ? messageText(message) : undefined, confirm}
+            return {
+                sideEffects,
+                restoreText: isUser ? displayMessageText(msgs[idx]) : undefined,
+                confirm,
+            }
         },
         [regenerate, sessionId, setMessages],
     )

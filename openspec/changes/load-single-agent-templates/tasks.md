@@ -1,6 +1,6 @@
 # Implementation tasks
 
-Runtime implementation through both frontend hosts is complete. Final deployed acceptance evidence remains in progress. The test-first steps, exact files, interfaces, commands, and commit boundaries are in the [implementation plan](../../../docs/superpowers/plans/2026-09-20-load-single-agent-templates.md).
+The runtime and revised display-content contract are implemented. The current implementation plan records deployed acceptance evidence and test coverage. The test-first steps, exact files, interfaces, commands, and commit boundaries are in the [implementation plan](../../../docs/superpowers/plans/2026-09-20-load-single-agent-templates.md).
 
 ## 1. Source and package validation
 
@@ -39,7 +39,27 @@ Runtime implementation through both frontend hosts is complete. Final deployed a
 ## 6. Acceptance
 
 - [x] 6.1 Run source, parser, compiler, provenance, idempotent workflow/skill, mount, durable session start, loader, route, frontend, and type-check suites.
-- [ ] 6.2 Read back the created workflow/revision, skill embeds, mount entries, protected provenance, execution row, and absence of schedules/subscriptions.
+- [x] 6.2 Read back the created workflow/revision, skill embeds, mount entries, protected provenance, execution row, and absence of schedules/subscriptions.
 - [ ] 6.3 Run browser scenarios on the older host and `/m` at desktop and phone widths. Cover reload, timeout replay, two concurrent same-key requests, and ordinary blank creation.
 - [ ] 6.4 Run one ordinary build-kit smoke conversation for a missing connection and an inactive automation recipe. Loading must stop at durable first-message acceptance.
 - [ ] 6.5 Record commit-specific evidence. Mark unrun cases `NOT RUN`. Report all multi-agent scenarios as **NOT IMPLEMENTED**.
+
+## 7. Revised UI runtime and first-message contract (2026-09-21)
+
+- [x] 7.1 Apply ordinary UI runtime additions on the server-started first turn, including skills and disabled-operation preferences, without persisting them into the agent.
+- [x] 7.2 Compose full execution content in the agent service; preserve generic optional `display_content` through SDK conversion, durable input, and runner records. Distinguish absent, string, and explicit null. Reconstruct model history from full content.
+- [x] 7.3 Apply one display rule to pending and durable messages on both UI hosts, including copy, edit, resend, and refresh. Reconcile by stable identity without leaking setup content. Preserve full authorized execution records.
+- [x] 7.4 Add three clearly named QA templates covering a simple skill, a skill with reference/script files plus workspace files, and an inactive automation recipe.
+- [x] 7.5 Test first-turn request_input rendering and submission, actual skill/reference/file use, ordinary UI parity, disabled capabilities, and no automatic trigger creation.
+- [x] 7.6 Record mobile and desktop browser evidence after deployment. Read back saved resources and verify retry and cold-replay behavior.
+- [ ] 7.7 Commit all reviewed preview fixes and revised implementation, push PR #6944, update its description, and verify the deployed SHA and PR head.
+
+### Display-content implementation increment
+
+The [current implementation plan](../../../docs/superpowers/plans/2026-09-21-template-display-content.md) replaces the earlier message-field proposal.
+
+- [x] Add generic display-content transport to Python Message, Vercel conversion, wire schema, and runner interfaces.
+- [x] Persist display-content field presence alongside full execution text in runner user-message records.
+- [x] Verify SDK conversion and runner HTTP persistence with shared fixtures, unit tests, and runner type checking.
+- [x] Connect template startup and frontend display/copy/edit/pending reconciliation.
+- [ ] Complete the remaining UI runtime parity and deployed acceptance tasks above.

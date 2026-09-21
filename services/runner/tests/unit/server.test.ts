@@ -831,7 +831,12 @@ describe("createAgentServer", () => {
   });
   for (const testCase of [
     { name: "plain", sessionOwned: false, detached: false, aborts: true },
-    { name: "session-owned", sessionOwned: true, detached: false, aborts: false },
+    {
+      name: "session-owned",
+      sessionOwned: true,
+      detached: false,
+      aborts: false,
+    },
     { name: "detached", sessionOwned: true, detached: true, aborts: false },
   ]) {
     it(`a dropped ${testCase.name} invoke ${testCase.aborts ? "cancels" : "does not cancel"} the turn`, async () => {
@@ -862,16 +867,18 @@ describe("createAgentServer", () => {
           );
         });
       };
-      const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
-        const url = String(input);
-        if (url.endsWith("/sessions/streams/heartbeat")) {
-          return Response.json({
-            stream: { id: "stream-1" },
-            is_current_turn: true,
-          });
-        }
-        return Response.json({});
-      });
+      const fetchSpy = vi
+        .spyOn(globalThis, "fetch")
+        .mockImplementation(async (input) => {
+          const url = String(input);
+          if (url.endsWith("/sessions/streams/heartbeat")) {
+            return Response.json({
+              stream: { id: "stream-1" },
+              is_current_turn: true,
+            });
+          }
+          return Response.json({});
+        });
       const s = await listen(run);
 
       try {
@@ -887,7 +894,9 @@ describe("createAgentServer", () => {
         request.end(
           JSON.stringify({
             harness: "pi_core",
-            ...(testCase.sessionOwned ? { sessionId: `session-${testCase.name}` } : {}),
+            ...(testCase.sessionOwned
+              ? { sessionId: `session-${testCase.name}` }
+              : {}),
             ...(testCase.detached ? { detached: true } : {}),
             telemetry: {
               exporters: {
@@ -906,13 +915,24 @@ describe("createAgentServer", () => {
         await new Promise<void>((resolve) => setTimeout(resolve, 25));
 
         if (!testCase.aborts) {
-          assert.equal(observedAbort, false, "the dropped response must not own turn lifetime");
-          assert.equal(completed, false, "the fake turn is still running after disconnect");
+          assert.equal(
+            observedAbort,
+            false,
+            "the dropped response must not own turn lifetime",
+          );
+          assert.equal(
+            completed,
+            false,
+            "the fake turn is still running after disconnect",
+          );
           releaseRun?.();
         }
 
         await new Promise<void>((resolve, reject) => {
-          const timeout = setTimeout(() => reject(new Error("run did not settle")), 1_000);
+          const timeout = setTimeout(
+            () => reject(new Error("run did not settle")),
+            1_000,
+          );
           const poll = () => {
             if (completed) {
               clearTimeout(timeout);
@@ -1434,7 +1454,10 @@ describe("createAgentServer", () => {
         ingested.filter((record) => record.record_type === "done").length,
         1,
       );
-      assert.equal(records.filter((record) => record.kind === "result").length, 1);
+      assert.equal(
+        records.filter((record) => record.kind === "result").length,
+        1,
+      );
       assert.equal(records.at(-1)?.result.error, "engine escaped");
     } finally {
       fetchSpy.mockRestore();
@@ -1902,4 +1925,70 @@ describe("registerShutdownHandler (sandbox-leak backstop on docker stop)", () =>
 
     assert.equal(cleanups, 1, "a repeated signal does not re-run cleanup");
   });
+});
+
+describe("user message display persistence", () => {
+  for (const display of [undefined, null, "Visible request", ""]) {
+    it(`preserves ${String(display)} without changing engine input`, async () => {
+      const message = {
+        role: "user",
+        content:
+          "Visible request\n\nTemplate-supplied setup guidance: ask for repository",
+        ...(display !== undefined ? { display_content: display } : {}),
+      };
+      const s = await listen(async (request) => {
+        assert.deepEqual(request.messages, [message]);
+        return { ok: true, output: "Ready" };
+      });
+      const realFetch = globalThis.fetch.bind(globalThis);
+      const ingested: Array<Record<string, any>> = [];
+      const fetchSpy = vi
+        .spyOn(globalThis, "fetch")
+        .mockImplementation(async (input, init) => {
+          const url = String(input);
+          if (url === `${s.url}/run`) return realFetch(input, init);
+          if (url.endsWith("/sessions/streams/heartbeat")) {
+            return Response.json({
+              stream: { id: "stream-display" },
+              is_current_turn: true,
+            });
+          }
+          if (url.endsWith("/sessions/records/ingest"))
+            ingested.push(JSON.parse(String(init?.body)));
+          return Response.json({});
+        });
+      try {
+        const response = await fetchSpy(`${s.url}/run`, {
+          method: "POST",
+          headers: { accept: "application/x-ndjson", ...AUTH },
+          body: JSON.stringify({
+            harness: "pi_core",
+            sessionId: "session-display",
+            runContext: { project: { id: "project-1" } },
+            telemetry: {
+              exporters: {
+                otlp: {
+                  endpoint: `${s.url}/otlp/v1/traces`,
+                  headers: { authorization: "Test platform authorization" },
+                },
+              },
+            },
+            messages: [message],
+          }),
+        });
+        await response.text();
+        const user = ingested.find((record) => record.record_source === "user");
+        assert.ok(user);
+        assert.equal(user.attributes.text, message.content);
+        assert.equal(
+          Object.hasOwn(user.attributes, "display_content"),
+          display !== undefined,
+        );
+        assert.equal(user.attributes.display_content, display);
+      } finally {
+        fetchSpy.mockRestore();
+        await s.close();
+      }
+    });
+  }
 });

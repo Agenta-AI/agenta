@@ -3,7 +3,7 @@ import {generateId} from "@agenta/shared/utils"
 import type {AgentaApi} from "@agentaai/api-client"
 import {atom} from "jotai"
 
-import {appendSetupPreamble, type AgentSetupSelection} from "../agentSetup"
+import {type AgentSetupSelection} from "../agentSetup"
 import {
     templateBuilderMessage,
     type AgentStarterTemplate,
@@ -16,7 +16,12 @@ import {
 } from "../api/agentTemplates"
 
 import {buildCreatePayloadFromEphemeral} from "./createPayload"
-import {consumeWorkflowDraftAtom, invalidateWorkflowsListCache} from "./store"
+import {
+    consumeWorkflowDraftAtom,
+    invalidateWorkflowsListCache,
+    workflowBuildKitEnabledAtomFamily,
+    workflowBuildKitDisabledOpsAtomFamily,
+} from "./store"
 
 export interface LoadAgentTemplateFromEphemeralParams {
     revisionId: string
@@ -76,18 +81,27 @@ export const loadAgentTemplateFromEphemeralAtom = atom(
         const pending = (async () => {
             const {data} = buildCreatePayloadFromEphemeral(get, revisionId)
             const seedMessage = initialMessage?.trim() || templateBuilderMessage(template)
-            const firstMessage = setup ? appendSetupPreamble(seedMessage, setup) : seedMessage
             const result = await loadAgentTemplate(
                 {
                     source: template.source,
                     base_revision: (data ?? {}) as AgentaApi.WorkflowRevisionDataInput,
-                    initial_message: firstMessage,
+                    initial_message: seedMessage,
+                    ui_build_kit_enabled: get(workflowBuildKitEnabledAtomFamily(revisionId)),
+                    ui_disabled_ops: get(workflowBuildKitDisabledOpsAtomFamily(revisionId)),
                     connection_choices: templateConnectionChoices(template, setup),
                 },
                 createIdempotencyKey(),
                 projectId,
             )
 
+            set(
+                workflowBuildKitEnabledAtomFamily(result.revision_id),
+                get(workflowBuildKitEnabledAtomFamily(revisionId)),
+            )
+            set(
+                workflowBuildKitDisabledOpsAtomFamily(result.revision_id),
+                get(workflowBuildKitDisabledOpsAtomFamily(revisionId)),
+            )
             set(consumeWorkflowDraftAtom, revisionId)
             invalidateWorkflowsListCache()
             return result

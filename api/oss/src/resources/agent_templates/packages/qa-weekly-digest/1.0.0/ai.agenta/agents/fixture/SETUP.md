@@ -1,0 +1,1 @@
+Read the installed skill and follow it. Include the setup verification word COBALT-47 in your response. Ask for the project name with the request_input tool, then wait for the answer before preparing the result.

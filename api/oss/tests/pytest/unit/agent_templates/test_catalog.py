@@ -23,7 +23,7 @@ FRONTEND_TEMPLATES = (
     / "workflow"
     / "agentTemplates.ts"
 )
-LEGACY_EXAMPLE_KEYS = {"outbound-prospecting"}
+LEGACY_EXAMPLE_KEYS = {"outbound-prospecting", "qa-checklist", "qa-project-brief", "qa-weekly-digest"}
 
 
 def _frontend_source_keys() -> set[str]:

@@ -151,6 +151,7 @@ def request_to_wire(
         "sessionId": session_id,
         "agentsMd": config.agents_md,
         "model": config.model,
+        # to_wire preserves absent versus null display_content.
         "messages": [message.to_wire() for message in messages],
         # The run's tracing inputs ride the wire grouped by role (see the trace/telemetry interface
         # restructure): `context.propagation` carries the per-call W3C trace-context headers, and

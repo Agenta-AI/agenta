@@ -630,3 +630,31 @@ def test_request_fingerprint_normalizes_choice_order():
     assert template_request_fingerprint(padded) == template_request_fingerprint(
         _command()
     )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("enabled", [False, True])
+async def test_first_message_display_and_run_only_build_kit(enabled):
+    loader, _, _, workflows, _, _, starts = _loader()
+    command = _command(initial_message="Create my checklist.").model_copy(
+        update={
+            "ui_build_kit_enabled": enabled,
+            "ui_disabled_ops": ["create_schedule"],
+        }
+    )
+    await loader.load(project_id=PROJECT_ID, user_id=USER_ID, command=command)
+    saved = next(iter(workflows.records.values())).data.parameters["agent"]
+    assert len(saved["skills"]) == 1
+    assert not any(t.get("name") == "Request input" for t in saved["tools"])
+    call = starts.calls[0]
+    assert call["message"].display_content == "Create my checklist."
+    assert "Ask for the target profile." in call["message"].content
+    assert "Template-supplied setup guidance" in call["message"].content
+    if enabled:
+        agent = call["parameters"]["agent"]
+        ops = {t.get("op") for t in agent["tools"]}
+        assert any(t.get("name") == "Request input" for t in agent["tools"])
+        assert "create_schedule" not in ops
+        assert len(agent["skills"]) == 2
+    else:
+        assert call["parameters"] is None

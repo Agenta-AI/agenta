@@ -94,7 +94,25 @@ The verified transport path is Streamable HTTP, including SSE-framed responses. 
 
 ### Deliver setup context in the first message
 
-Compose the normal first message from the current seed, the optional `SETUP.md`, optional connection/automation notes, unresolved connection choices, and automation recipes still to configure. Label package text as template-supplied content. Do not add hidden messages, new platform system instructions, or a per-turn installation-context resolver. The agent can read its ordinary saved configuration with the existing build kit.
+### Message display contract
+
+The agent service prepares the complete user-level execution content before calling the runner. It includes the user's request and labeled template setup guidance in that content. It also supplies optional `display_content` with the original visible request. The runner has no template-specific setup logic. It preserves this generic field when writing the user-message record. Conversation reconstruction uses the full execution content.
+
+The same display rule applies to pending frontend messages, saved records, refresh, and copy actions:
+
+| Field state                   | Normal chat behavior                                    |
+| ----------------------------- | ------------------------------------------------------- |
+| `display_content` absent      | Show the ordinary message content.                      |
+| `display_content` is a string | Show that string, including an explicitly empty string. |
+| `display_content` is `null`   | Hide the whole message from normal chat.                |
+
+Field presence must survive Python parsing, serialization, Vercel conversion, runner transport, and record persistence. A missing optional value must not be serialized as explicit null. Display content never replaces execution content in model input or server-side history. Attachments keep their ordinary behavior when a text override is present; explicit null hides the whole chat message, including attachments. Authorized execution records retain the complete input.
+
+The frontend already knows the original request when it creates a pending template message. It uses that request for display before backend records arrive. Pending and durable versions must reconcile through stable input/execution/message identity, never a text comparison, because their execution text can differ. The transition must not duplicate the turn or briefly expose setup guidance. Edit and resend paths must keep the execution content separate from the text shown in the editor.
+
+This contract does not add top-level `setup_context` to SDK or runner message types. Template setup composition belongs to the agent service. No model-adapter setup concatenation is needed.
+
+The first UI invocation must receive the same runtime additions as ordinary UI creation, including tools, skills, permission settings, and disabled-operation preferences. Compose them with the compiled package configuration for invocation only. Do not persist UI-only additions into the agent. Reuse the ordinary capability definitions and merge contract so future UI additions do not require a second template tool list. Non-UI runs keep their existing behavior.
 
 No schedule or subscription is created merely by loading the package. Recipes are guidance in the first message. The agent later uses existing discovery, connection, configuration, verification, and trigger tools under their existing permission checks.
 

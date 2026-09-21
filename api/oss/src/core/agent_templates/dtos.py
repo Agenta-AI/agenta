@@ -65,6 +65,8 @@ class TemplateLoadCommand(BaseModel):
 
     source: InternalTemplateSource
     base_revision: WorkflowRevisionData
+    ui_build_kit_enabled: bool = False
+    ui_disabled_ops: list[str] = Field(default_factory=list, max_length=128)
     initial_message: str
     connection_choices: list[TemplateConnectionChoice] = Field(default_factory=list)
     request_key: str

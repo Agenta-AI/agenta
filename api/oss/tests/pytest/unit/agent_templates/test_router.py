@@ -243,3 +243,51 @@ def test_openapi_contains_one_load_operation():
         )
         == 1
     )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "connection", [{"mode": "self_managed"}, {"mode": "agenta", "slug": "my-model"}]
+)
+async def test_model_connection_selection_reaches_loader(monkeypatch, connection):
+    loader = AsyncMock()
+    loader.load.return_value = _result()
+    monkeypatch.setattr(
+        router_module, "check_action_access", AsyncMock(return_value=True)
+    )
+    body = _body()
+    agent = body["base_revision"]["parameters"]["agent"]
+    agent["llm"]["connection"] = connection
+    body["base_revision"]["schemas"] = {
+        "parameters": {
+            "type": "object",
+            "properties": {"agent": {"default": deepcopy(agent)}},
+        }
+    }
+    response = await _post(_app(loader), body=body)
+    assert response.status_code == 201, response.text
+    command = loader.load.await_args.kwargs["command"]
+    assert command.base_revision.parameters["agent"]["llm"]["connection"] == connection
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("target", ["tools", "mcps", "model_secret", "model_nested"])
+async def test_nested_server_owned_bindings_remain_rejected(monkeypatch, target):
+    loader = AsyncMock()
+    monkeypatch.setattr(
+        router_module, "check_action_access", AsyncMock(return_value=True)
+    )
+    body = _body()
+    agent = body["base_revision"]["parameters"]["agent"]
+    if target == "model_secret":
+        agent["llm"]["connection"] = {"mode": "agenta", "secret_id": "forged"}
+    elif target == "model_nested":
+        agent["llm"]["connection"] = {
+            "mode": "agenta",
+            "connection": {"slug": "forged"},
+        }
+    else:
+        agent[target] = [{"connection": {"slug": "forged"}}]
+    response = await _post(_app(loader), body=body)
+    assert response.status_code == 422
+    loader.load.assert_not_awaited()

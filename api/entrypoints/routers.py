@@ -1378,6 +1378,7 @@ session_inputs_service = SessionInputsService(
 session_starts_service = SessionStartsService(
     inputs_service=session_inputs_service,
     executions_dao=session_executions_dao,
+    streams_dao=session_streams_dao,
     workflows_service=workflows_service,
     lock_engine=_lock_engine,
 )

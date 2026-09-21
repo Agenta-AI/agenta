@@ -17,16 +17,16 @@ import {newId} from "@/lib/ids"
 import {stashPendingTaskAtom, takePendingTaskAtom} from "../home/pendingTask"
 
 import {agentHandoffPath, isSeededCreate} from "./agentHandoff"
+import {templateSetupDraftAtom} from "./templateSetupDraft"
 
 /**
  * Create an agent from this app, over the SHARED mint+commit core — blank, seeded from a starter
  * template, or seeded from what the user typed on the first-run hero. One hook so every entry runs
  * the same create rather than three copies of it.
  *
- * A template pick means what it means everywhere (`agentTemplateSeed`: the template's name, its
- * builder instruction). Only the DELIVERY is this app's: the desktop stashes a first-run seed and
- * lands in the playground, so here it stashes a pending task against a freshly minted session and
- * lands in the conversation that sends it — the same hand-off Home's composer uses.
+ * Template entries first visit the existing setup surface. Its confirmed selection reaches the
+ * loader before the server starts the first session. Ordinary creation keeps the pending-task
+ * handoff used by the chat screen.
  */
 export const useNewAgentAction = (base: string) => {
     const router = useRouter()
@@ -35,6 +35,7 @@ export const useNewAgentAction = (base: string) => {
     const createAgent = useCreateAgent({onError: setError})
     const stashTask = useSetAtom(stashPendingTaskAtom)
     const dropTask = useSetAtom(takePendingTaskAtom)
+    const setSetupDraft = useSetAtom(templateSetupDraftAtom)
 
     const run = useCallback(
         async (params?: {
@@ -62,6 +63,22 @@ export const useNewAgentAction = (base: string) => {
             entityId?: string
         }): Promise<boolean> => {
             if (creating) return false
+            // Template loading starts the first run server-side. Collect choices on the existing
+            // setup screen BEFORE calling it; the live session is already too late for a gate.
+            if (params?.templateKey && !params.entityId && !params.setup) {
+                setSetupDraft({
+                    base,
+                    templateKey: params.templateKey,
+                    text: params.seedMessage,
+                    sessionId: params.sessionId,
+                    parts: params.seedParts,
+                })
+                const navigated = await router
+                    .push(`${base}/agents/new?template=${encodeURIComponent(params.templateKey)}`)
+                    .catch(() => false)
+                if (!navigated) setSetupDraft(null)
+                return navigated
+            }
             setCreating(true)
             setError(null)
             const template = params?.templateKey
@@ -121,15 +138,13 @@ export const useNewAgentAction = (base: string) => {
             }
             return true
         },
-        [base, createAgent, creating, dropTask, router, stashTask],
+        [base, createAgent, creating, dropTask, router, setSetupDraft, stashTask],
     )
 
     const create = useCallback(() => void run(), [run])
 
     /**
-     * A template pick. It creates and hands off like every other entry; the connect step is the
-     * SESSION's to run, off the template key carried on the stashed task. Stopping here instead
-     * only worked for a host that rendered the card, so a pick from anywhere else did nothing.
+     * A template pick opens the existing setup surface before the first run can start.
      */
     const createFromTemplate = useCallback(
         (templateKey: string) => {

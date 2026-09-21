@@ -1,0 +1,15 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "qa-project-brief",
+  "version": "1.0.0",
+  "description": "QA project brief acceptance fixture.",
+  "author": {
+    "name": "Agenta"
+  },
+  "license": "Apache-2.0",
+  "extensions": {
+    "ai.agenta": {
+      "manifest": "./ai.agenta/agents.json"
+    }
+  }
+}

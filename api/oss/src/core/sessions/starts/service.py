@@ -4,14 +4,15 @@ from time import monotonic
 from typing import Any, AsyncIterator, Awaitable, Callable
 from uuid import UUID, uuid4
 
+from agenta.sdk.agents import Message
 from agenta.sdk.decorators.running import WorkflowServiceRequest
 from agenta.sdk.models.workflows import WorkflowRequestData
 
-from oss.src.core.sessions.executions.dtos import SessionExecutionSettlement
 from oss.src.core.sessions.executions.interfaces import SessionExecutionsDAOInterface
 from oss.src.core.sessions.inputs.service import SessionInputsService
 from oss.src.core.sessions.starts.dtos import SessionStartResult
 from oss.src.core.sessions.starts.types import SessionStartNotDurable
+from oss.src.core.sessions.streams.interfaces import SessionStreamsDAOInterface
 from oss.src.core.shared.idempotency import resource_identity
 from oss.src.core.workflows.service import WorkflowsService
 
@@ -34,11 +35,13 @@ class SessionStartsService:
         executions_dao: SessionExecutionsDAOInterface,
         workflows_service: WorkflowsService,
         lock_engine: Any,
+        streams_dao: SessionStreamsDAOInterface | None = None,
         poll_timeout_seconds: float = 2.0,
         sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
     ) -> None:
         self._inputs = inputs_service
         self._executions = executions_dao
+        self._streams = streams_dao
         self._workflows = workflows_service
         self._lock_engine = lock_engine
         self._poll_timeout_seconds = poll_timeout_seconds
@@ -80,39 +83,49 @@ class SessionStartsService:
                 # disappear, and the next retry will read the execution row.
                 pass
 
-    async def _fetch_execution(
+    async def _has_started(
         self,
         *,
         project_id: UUID,
         session_id: str,
         execution_id: str,
-    ) -> SessionExecutionSettlement | None:
-        return await self._executions.fetch_execution(
+    ) -> bool:
+        execution = await self._executions.fetch_execution(
             project_id=project_id,
             session_id=session_id,
             execution_id=execution_id,
         )
+        if execution is not None:
+            return True
+        # Initial runs have a stream heartbeat before they have a settlement row.
+        if self._streams is not None:
+            stream = await self._streams.get_by_session_id(
+                project_id=project_id,
+                session_id=session_id,
+            )
+            return stream is not None and stream.turn_id == execution_id
+        return False
 
-    async def _wait_for_execution(
+    async def _wait_for_start(
         self,
         *,
         project_id: UUID,
         session_id: str,
         execution_id: str,
-    ) -> SessionExecutionSettlement | None:
+    ) -> bool:
         deadline = monotonic() + self._poll_timeout_seconds
         delay = 0.05
         while True:
-            execution = await self._fetch_execution(
+            execution = await self._has_started(
                 project_id=project_id,
                 session_id=session_id,
                 execution_id=execution_id,
             )
-            if execution is not None:
-                return execution
+            if execution:
+                return True
             remaining = deadline - monotonic()
             if remaining <= 0:
-                return None
+                return False
             await self._sleep(min(delay, remaining))
             delay = min(delay * 2, 0.25)
 
@@ -122,7 +135,8 @@ class SessionStartsService:
         session_id: str,
         workflow_id: UUID,
         revision_id: UUID,
-        message: str,
+        message: str | Message,
+        parameters: dict[str, Any] | None = None,
     ) -> WorkflowServiceRequest:
         return WorkflowServiceRequest(
             session_id=session_id,
@@ -131,7 +145,14 @@ class SessionStartsService:
                 "workflow_revision": {"id": revision_id},
             },
             data=WorkflowRequestData(
-                inputs={"messages": [{"role": "user", "content": message}]}
+                inputs={
+                    "messages": [
+                        message.to_wire()
+                        if isinstance(message, Message)
+                        else {"role": "user", "content": message}
+                    ]
+                },
+                parameters=parameters,
             ),
         )
 
@@ -142,7 +163,8 @@ class SessionStartsService:
         user_id: UUID,
         workflow_id: UUID,
         revision_id: UUID,
-        message: str,
+        message: str | Message,
+        parameters: dict[str, Any] | None = None,
         request_key: str,
     ) -> SessionStartResult:
         session_id = str(
@@ -156,6 +178,7 @@ class SessionStartsService:
             workflow_id=workflow_id,
             revision_id=revision_id,
             message=message,
+            parameters=parameters,
         )
         content = request.model_dump(mode="json", exclude_none=True)
 
@@ -171,12 +194,12 @@ class SessionStartsService:
                 content=content,
                 idempotency_key=request_key,
             )
-            existing = await self._fetch_execution(
+            existing = await self._has_started(
                 project_id=project_id,
                 session_id=session_id,
                 execution_id=execution_id,
             )
-            if existing is not None:
+            if existing:
                 return SessionStartResult(
                     session_id=session_id,
                     execution_id=execution_id,
@@ -197,12 +220,12 @@ class SessionStartsService:
             except Exception as exc:
                 error = exc
 
-            durable = await self._wait_for_execution(
+            durable = await self._wait_for_start(
                 project_id=project_id,
                 session_id=session_id,
                 execution_id=execution_id,
             )
-            if durable is None:
+            if not durable:
                 if error is not None:
                     raise SessionStartNotDurable() from error
                 raise SessionStartNotDurable()

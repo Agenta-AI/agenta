@@ -313,6 +313,8 @@ const TurnRowInner = ({
         userBody
     )
 
+    if (turn.hidden) return null
+
     return (
         <div className={`${mobileTurnRowClass} ${turn.isUser ? "justify-end" : "justify-start"}`}>
             <ChatBubble

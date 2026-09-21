@@ -1,6 +1,8 @@
 from typing import Any
 from uuid import UUID
 
+from agenta.sdk.agents import Message
+
 from oss.src.core.agent_templates.bindings import TemplateBindingResolver
 from oss.src.core.agent_templates.compiler import TemplateCompiler
 from oss.src.core.agent_templates.dtos import (
@@ -29,6 +31,7 @@ from oss.src.core.shared.exceptions import EntityCreationIdempotencyConflict
 from oss.src.core.shared.idempotency import request_fingerprint, request_key_hash
 from oss.src.core.skills.dtos import InstalledSkillRef
 from oss.src.core.skills.service import SkillsService
+from oss.src.core.workflows.build_kit import apply_ui_build_kit
 from oss.src.core.workflows.dtos import (
     SimpleWorkflow,
     SimpleWorkflowCreate,
@@ -56,6 +59,8 @@ def template_request_fingerprint(command: TemplateLoadCommand) -> str:
     )
     return request_fingerprint(
         {
+            "ui_build_kit_enabled": command.ui_build_kit_enabled,
+            "ui_disabled_ops": sorted(set(command.ui_disabled_ops)),
             "source": command.source.model_dump(mode="json", exclude_none=True),
             "base_revision": command.base_revision.model_dump(
                 mode="json", exclude_none=True
@@ -139,6 +144,7 @@ class AgentTemplateLoader:
         resolved,
         workspace,
         first_message: str,
+        runtime_parameters: dict[str, Any] | None = None,
         replayed: bool,
     ) -> PreparedTemplateLoad:
         if not all(
@@ -151,6 +157,7 @@ class AgentTemplateLoader:
         ):
             raise TemplateWorkflowCreationFailed()
         return PreparedTemplateLoad(
+            runtime_parameters=runtime_parameters,
             workflow_id=workflow.id,
             workflow_slug=workflow.slug,
             variant_id=workflow.variant_id,
@@ -289,6 +296,13 @@ class AgentTemplateLoader:
             resolved=resolved,
             workspace=compiled.workspace,
             first_message=compiled.first_message,
+            runtime_parameters=(
+                apply_ui_build_kit(
+                    compiled.revision_data.parameters or {}, command.ui_disabled_ops
+                )
+                if command.ui_build_kit_enabled
+                else None
+            ),
             replayed=outcome.replayed,
         )
 
@@ -323,7 +337,12 @@ class AgentTemplateLoader:
             user_id=user_id,
             workflow_id=prepared.workflow_id,
             revision_id=prepared.revision_id,
-            message=prepared.first_message,
+            message=Message(
+                role="user",
+                content=prepared.first_message,
+                display_content=command.initial_message,
+            ),
+            parameters=prepared.runtime_parameters,
             request_key=(
                 f"{self._request_key(command)}:first-message:"
                 f"{prepared.resolved_source.digest}"

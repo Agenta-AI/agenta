@@ -1,6 +1,7 @@
 import asyncio
 from datetime import datetime, timezone
 from unittest.mock import AsyncMock
+from types import SimpleNamespace
 from uuid import uuid4
 
 import httpx
@@ -263,3 +264,55 @@ async def test_two_concurrent_same_key_starts_dispatch_once():
     assert {first.replayed, second.replayed} == {False, True}
     assert first.session_id == second.session_id
     assert first.execution_id == second.execution_id
+
+
+@pytest.mark.asyncio
+async def test_live_initial_heartbeat_prevents_duplicate_dispatch_without_settlement():
+    inputs = AsyncMock()
+    inputs.claim_for_execution.side_effect = lambda **kw: _input(kw["content"])
+    executions = AsyncMock()
+    executions.fetch_execution.return_value = None
+    streams = AsyncMock()
+    streams.get_by_session_id.return_value = None
+    workflows = AsyncMock()
+
+    async def invoke(**kw):
+        streams.get_by_session_id.return_value = SimpleNamespace(turn_id=kw["run_id"])
+
+    workflows.invoke_workflow_detached.side_effect = invoke
+    service = SessionStartsService(
+        inputs_service=inputs,
+        executions_dao=executions,
+        streams_dao=streams,
+        workflows_service=workflows,
+        lock_engine=_MemoryLock(),
+        poll_timeout_seconds=0,
+    )
+    first, second = await asyncio.gather(
+        service.start_once(**_args()), service.start_once(**_args())
+    )
+    workflows.invoke_workflow_detached.assert_awaited_once()
+    assert first.execution_id == second.execution_id
+    assert {first.replayed, second.replayed} == {False, True}
+
+
+@pytest.mark.asyncio
+async def test_unrelated_heartbeat_does_not_confirm_start():
+    inputs = AsyncMock()
+    inputs.claim_for_execution.side_effect = lambda **kw: _input(kw["content"])
+    executions = AsyncMock()
+    executions.fetch_execution.return_value = None
+    streams = AsyncMock()
+    streams.get_by_session_id.return_value = SimpleNamespace(
+        turn_id="another-execution"
+    )
+    service = SessionStartsService(
+        inputs_service=inputs,
+        executions_dao=executions,
+        streams_dao=streams,
+        workflows_service=AsyncMock(),
+        lock_engine=_MemoryLock(),
+        poll_timeout_seconds=0,
+    )
+    with pytest.raises(SessionStartNotDurable):
+        await service.start_once(**_args())

@@ -328,8 +328,13 @@ export const useServerSessionInputs = ({
             const outbound: UIMessage = {
                 id: message.id,
                 role: "user",
+                ...(message.executionText !== undefined
+                    ? {metadata: {display_content: message.text}}
+                    : {}),
                 parts: [
-                    ...(message.text ? [{type: "text" as const, text: message.text}] : []),
+                    ...(message.text
+                        ? [{type: "text" as const, text: message.executionText ?? message.text}]
+                        : []),
                     ...(message.fileParts ?? []),
                 ],
             }

@@ -72,6 +72,18 @@ def compose_first_message(
         sections.append(
             "Template-supplied setup guidance:\n" + package.agent.setup.strip()
         )
+    if choices:
+        sections.append(
+            "Retained connection choices:\n"
+            + "\n".join(
+                f"- {choice.connection_key}: "
+                + json.dumps(
+                    choice.model_dump(mode="json", exclude_none=True), sort_keys=True
+                )
+                for choice in choices
+            )
+        )
+        sections.append("Ask me before you write or send anything.")
     unresolved = _unresolved_text(bindings)
     if unresolved:
         sections.append(unresolved)

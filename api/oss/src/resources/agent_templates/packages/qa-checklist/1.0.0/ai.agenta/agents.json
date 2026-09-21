@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "entry": "fixture",
+  "agents": {
+    "fixture": {
+      "name": "QA checklist",
+      "description": "QA checklist acceptance fixture.",
+      "instructions": "./ai.agenta/agents/fixture/AGENTS.md",
+      "setup": "./ai.agenta/agents/fixture/SETUP.md",
+      "skills": [
+        "qa-checklist"
+      ]
+    }
+  }
+}

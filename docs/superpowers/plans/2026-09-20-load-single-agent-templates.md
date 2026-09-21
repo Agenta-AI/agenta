@@ -1,3 +1,5 @@
+> UPDATE: The message contract below is superseded by the [current display-content implementation plan](2026-09-21-template-display-content.md). The original completed tasks remain as implementation history.
+
 # Single-Agent Template Loading Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.

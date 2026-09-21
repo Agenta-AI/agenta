@@ -18,7 +18,6 @@ vi.mock("../../src/workflow/api/agentTemplates", () => ({
     loadAgentTemplate: loadAgentTemplateMock,
 }))
 
-import {appendSetupPreamble} from "../../src/workflow/agentSetup"
 import {AGENT_TEMPLATES, templateBuilderMessage} from "../../src/workflow/agentTemplates"
 import type {AgentTemplateLoadResult} from "../../src/workflow/api/agentTemplates"
 import {buildCreatePayloadFromEphemeral} from "../../src/workflow/state/createPayload"
@@ -129,7 +128,9 @@ describe("template package loading", () => {
         expect(loadAgentTemplateMock).toHaveBeenCalledWith(
             expect.objectContaining({
                 source: template.source,
-                initial_message: appendSetupPreamble(initialMessage, setup),
+                initial_message: initialMessage,
+                ui_build_kit_enabled: true,
+                ui_disabled_ops: [],
             }),
             expect.stringMatching(/^agent-template:/),
             "project-1",

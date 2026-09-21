@@ -28,17 +28,37 @@ _FORBIDDEN_INPUT_KEYS = {
 }
 
 
-def _find_forbidden_key(value: Any) -> str | None:
+_MODEL_CONNECTION_PATHS = {
+    ("base_revision", "parameters", "agent", "llm", "connection"),
+    (
+        "base_revision",
+        "schemas",
+        "parameters",
+        "properties",
+        "agent",
+        "default",
+        "llm",
+        "connection",
+    ),
+}
+
+
+def _find_forbidden_key(value: Any, path: tuple[str, ...] = ()) -> str | None:
     if isinstance(value, dict):
         for key, child in value.items():
-            if str(key).lower() in _FORBIDDEN_INPUT_KEYS:
+            child_path = (*path, str(key))
+            # Model auth selection is authored by the user, unlike tool bindings.
+            if (
+                str(key).lower() in _FORBIDDEN_INPUT_KEYS
+                and child_path not in _MODEL_CONNECTION_PATHS
+            ):
                 return str(key)
-            found = _find_forbidden_key(child)
+            found = _find_forbidden_key(child, child_path)
             if found is not None:
                 return found
     elif isinstance(value, list):
         for child in value:
-            found = _find_forbidden_key(child)
+            found = _find_forbidden_key(child, (*path, "[]"))
             if found is not None:
                 return found
     return None
@@ -77,6 +97,8 @@ TemplateConnectionChoiceRequest = Annotated[
 class TemplateLoadRequest(_StrictRequestModel):
     source: InternalTemplateSource
     base_revision: WorkflowRevisionData
+    ui_build_kit_enabled: bool = False
+    ui_disabled_ops: list[str] = Field(default_factory=list, max_length=128)
     initial_message: str = Field(min_length=1, max_length=20_000)
     connection_choices: list[TemplateConnectionChoiceRequest] = Field(
         default_factory=list,

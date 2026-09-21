@@ -179,6 +179,7 @@ class CompiledTemplate(StrictModel):
 
 
 class PreparedTemplateLoad(StrictModel):
+    runtime_parameters: dict[str, Any] | None = None
     workflow_id: UUID
     workflow_slug: str
     variant_id: UUID
