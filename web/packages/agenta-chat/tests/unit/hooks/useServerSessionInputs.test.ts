@@ -673,6 +673,77 @@ describe("useServerSessionInputs", () => {
         expect(watcher.onFailed).not.toHaveBeenCalled()
     })
 
+    /** A 200 run whose stream carries only these SSE frames, then closes. */
+    const runWithFrames = (frames: unknown[]) => {
+        const body = frames.map((frame) => `data: ${JSON.stringify(frame)}\n`).join("")
+        fetchMock.mockResolvedValue(new Response(body, {status: 200}))
+    }
+
+    const submitRun = async (watcher: {onFailed: () => void}) => {
+        fetchSnapshot.mockResolvedValue(acceptedRunSnapshot)
+        buildAgentRequest.mockResolvedValue({
+            invocationUrl: "https://agent.test/invoke",
+            headers: {Accept: "text/event-stream"},
+            requestBody: {session_id: "session-1", data: {inputs: {messages: []}}},
+        })
+        const {result} = renderHook(() =>
+            useServerSessionInputs({
+                entityId: "revision-1",
+                sessionId: "session-1",
+                messages: [] as UIMessage[],
+                locallyBusy: false,
+                onExecuted: () => true,
+            }),
+        )
+        await waitFor(() => expect(result.current.capabilities.steer).toBe(true))
+        await act(async () => {
+            await result.current.submit({id: "input-1", text: "start"}, "queue", watcher)
+        })
+    }
+
+    const stalledText = "Agent runner stream stalled: no record for 3.0s"
+
+    it("reports the run stream's error text when it fails before the turn exists", async () => {
+        // The runner never admitted the turn, so the failure belongs to the send. The reason the
+        // stream gave must travel with it, or the composer can only say "wasn't sent".
+        runWithFrames([
+            {type: "start"},
+            {type: "data-agent-error", data: {code: "agent_run_failed", errorText: stalledText}},
+            {type: "error", errorText: stalledText},
+        ])
+        const watcher = {onFailed: vi.fn()}
+        await submitRun(watcher)
+        await waitFor(() => expect(watcher.onFailed).toHaveBeenCalledWith(stalledText))
+        expect(watcher.onFailed).toHaveBeenCalledOnce()
+    })
+
+    it("reads the reason from a bare error frame too", async () => {
+        runWithFrames([{type: "error", errorText: stalledText}])
+        const watcher = {onFailed: vi.fn()}
+        await submitRun(watcher)
+        await waitFor(() => expect(watcher.onFailed).toHaveBeenCalledWith(stalledText))
+    })
+
+    it("reports a failure with no reason when the error frame carries no text", async () => {
+        runWithFrames([{type: "data-agent-error", data: {code: "agent_run_failed"}}])
+        const watcher = {onFailed: vi.fn()}
+        await submitRun(watcher)
+        await waitFor(() => expect(watcher.onFailed).toHaveBeenCalledWith(undefined))
+    })
+
+    it("leaves an error after the turn began to the transcript", async () => {
+        // Once the turn id is out the user's row is saved, so this is a failed run, not a
+        // refused send, and the assistant row renders it.
+        runWithFrames([
+            {type: "message-metadata", messageMetadata: {turnId: "turn-9"}},
+            {type: "error", errorText: stalledText},
+        ])
+        const watcher = {onFailed: vi.fn()}
+        await submitRun(watcher)
+        await new Promise((resolve) => setTimeout(resolve, 50))
+        expect(watcher.onFailed).not.toHaveBeenCalled()
+    })
+
     it("rejects a refused Steer admission", async () => {
         fetchSnapshot.mockResolvedValue({
             session: {

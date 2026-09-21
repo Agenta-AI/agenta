@@ -1270,7 +1270,7 @@ const echoText = (result: {current: {pendingSendRows: UIMessage[]}}) =>
 interface CapturedWatcher {
     onAccepted?: (executionId: string) => void
     onParked?: (inputId: string) => void
-    onFailed?: () => void
+    onFailed?: (reason?: string) => void
 }
 
 const durableServer = (
@@ -1460,8 +1460,29 @@ describe("useAgentChatQueue late refusal recovery", () => {
 
         expect(restoreRefusedSend).toHaveBeenCalledWith(
             expect.objectContaining({text: "refused late"}),
+            undefined,
         )
         expect(result.current.pendingSendRows).toHaveLength(0)
+    })
+
+    it("hands the failure reason to the composer with the text", async () => {
+        // The run stream said why it failed before the turn began. The composer needs that to
+        // show more than "wasn't sent".
+        const {server, watchers} = durableServer()
+        const restoreRefusedSend = vi.fn(() => true)
+        const {result} = setup({...settledEmpty, server, restoreRefusedSend})
+
+        await act(async () => {
+            await result.current.submit({text: "refused late"})
+        })
+        await act(async () =>
+            watchers[0].onFailed?.("Agent runner stream stalled: no record for 3.0s"),
+        )
+
+        expect(restoreRefusedSend).toHaveBeenCalledWith(
+            expect.objectContaining({text: "refused late"}),
+            "Agent runner stream stalled: no record for 3.0s",
+        )
     })
 
     it("keeps the flagged row when no composer can take the text", async () => {

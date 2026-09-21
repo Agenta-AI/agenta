@@ -152,14 +152,16 @@ export const readSendRefusal = (status: number, body: string): SendRefusedError 
 export const refusedSendReason = (error: unknown): string | null =>
     error instanceof SendRefusedError ? error.statedReason : null
 
+/** The chip's reason for a stated sentence, or the standing wording when there is none. */
+const describeStatedRefusal = (stated: string | null | undefined): string =>
+    stated ? `wasn't sent — ${stated}` : REFUSED_SEND_REASON
+
 /**
  * What the composer says about a send that never left: the server's own reason when the refusal
  * stated one, and the standing "try again" wording when it did not.
  */
-export const describeRefusedSend = (error: unknown): string => {
-    const stated = refusedSendReason(error)
-    return stated ? `wasn't sent — ${stated}` : REFUSED_SEND_REASON
-}
+export const describeRefusedSend = (error: unknown): string =>
+    describeStatedRefusal(refusedSendReason(error))
 
 /** The subject of the refusal chip's row. The message, not a file, is what was rejected. */
 const REFUSED_SEND_SUBJECT = "Message"
@@ -174,6 +176,14 @@ const REFUSED_SEND_SUBJECT = "Message"
  */
 export const refusedSendRejections = (error: unknown): AttachmentRejection[] => [
     {name: REFUSED_SEND_SUBJECT, reason: describeRefusedSend(error)},
+]
+
+/**
+ * The same rows for a refusal that arrived after the send resolved. The run stream reports only
+ * the sentence its error frame carried, so this takes that instead of an error object.
+ */
+export const lateRefusedSendRejections = (reason?: string): AttachmentRejection[] => [
+    {name: REFUSED_SEND_SUBJECT, reason: describeStatedRefusal(reason)},
 ]
 
 // Keep byte parity with the desktop parser until its duplicate is removed.

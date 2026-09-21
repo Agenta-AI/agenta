@@ -121,7 +121,7 @@ default is `sandbox-agent`.
 | --- | --- | --- |
 | `AGENTA_RUNNER_URL` | service | Set -> HTTP transport to this base URL. Unset -> subprocess CLI. |
 | `AGENTA_RUNNER_DIR` | service | Overrides the runner checkout dir used for the subprocess transport. |
-| `AGENTA_RUNNER_TIMEOUT_SECONDS` | service | Per-call transport timeout. Default `180`. |
+| `AGENTA_RUNNER_TIMEOUT_SECONDS` | service | Per-call transport timeout. Default `1920`. |
 | `AGENT_BACKEND` | runner | Fallback engine when the request omits `backend`. Default `sandbox-agent`. |
 | `PORT` | runner | HTTP listen port. Default `8765`. |
 
@@ -441,7 +441,7 @@ runs are cancelled by transport teardown (connection close or process kill), not
 cooperative in-engine signal.
 
 **Timeouts** are transport-level on the Python side, from
-`AGENTA_RUNNER_TIMEOUT_SECONDS` (default 180s). The one-shot HTTP path uses the httpx
+`AGENTA_RUNNER_TIMEOUT_SECONDS` (default 1920s). The one-shot HTTP path uses the httpx
 client timeout; the one-shot subprocess path uses `asyncio.wait_for` and kills the child on
 expiry; the streaming subprocess path enforces a per-read deadline. There is no separate
 server-side run timeout in the runner today; a run that never ends is bounded by the caller's

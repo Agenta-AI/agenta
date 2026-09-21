@@ -166,7 +166,7 @@ export interface UseAgentConversationArgs {
     sharedReaderLivenessUpdatedAt?: number
     /** Hand a late-refused send back to the composer; return whether it took the text (and the
      * staged files it carried). See `restoreRefusedSend` in `@agenta/chat/assets`. */
-    restoreRefusedSend?: (message: QueuedMessage) => boolean | Promise<boolean>
+    restoreRefusedSend?: (message: QueuedMessage, reason?: string) => boolean | Promise<boolean>
     /** Override the client-tool predicate. Defaults to the package registry's, so a host does not
      * have to opt IN to elicitation and connect widgets — /m shipped without one for months and
      * silently folded every client tool into the plain "used N tools" group, leaving the run

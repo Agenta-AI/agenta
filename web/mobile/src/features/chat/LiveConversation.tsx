@@ -26,6 +26,7 @@ import {
     getInteractionAvailability,
     getLivePendingApprovals,
     isSessionTurnStopping,
+    lateRefusedSendRejections,
     type TurnViewModel,
 } from "@agenta/chat/model"
 import {getSessionTurnId} from "@agenta/chat/state"
@@ -130,7 +131,7 @@ export const LiveConversation = ({
     const attachments = useComposerAttachments({sessionId})
     const {restoreAttachments, setRejections} = attachments
     const restoreRefusedSend = useCallback(
-        async (message: QueuedMessage) => {
+        async (message: QueuedMessage, reason?: string) => {
             const taken = await restoreRefusedSendInto(
                 composerRef.current,
                 {
@@ -140,7 +141,7 @@ export const LiveConversation = ({
                 },
                 restoreAttachments,
             )
-            if (taken) setRejections([{name: "Message", reason: "wasn't sent — try again."}])
+            if (taken) setRejections(lateRefusedSendRejections(reason))
             return taken
         },
         [restoreAttachments, setRejections],

@@ -285,7 +285,7 @@ same runner HTTP surface, not routed through Services, so both containers need b
 |---|---|---|---|---|---|
 | `AGENTA_RUNNER_INTERNAL_URL` | Runner locator | Services API and the platform API (both caller-side) | Compose: `http://runner:8765` on both callers (the `gh.local` and `gh.ssl` files set it on `api` from v0.115.3) | no | `agentRunner.externalUrl`, else derived from `agentRunner.enabled` |
 | `AGENTA_RUNNER_TOKEN` | Shared request credential | Services and the platform API send it; runner verifies it | **Required — no default** | yes | `agenta.runnerToken`, or `agentRunner.auth.tokenSecretRef` to source it from your own Secret |
-| `AGENTA_RUNNER_TIMEOUT_SECONDS` | Idle timeout the caller allows on the run request | Services API and SDK (caller-side) | `360` | no | n/a |
+| `AGENTA_RUNNER_TIMEOUT_SECONDS` | Idle timeout the caller allows on the run request | Services API and SDK (caller-side) | `1920` | no | n/a |
 
 `AGENTA_RUNNER_TOKEN` is **required**, like `AGENTA_AUTH_KEY`. The runner refuses to start without
 it and rejects an un-tokened request with `401`, so there is no unauthenticated mode. It carries a

@@ -29,8 +29,11 @@ export interface ServerInputWatcher {
     onAccepted?: (executionId: string) => void
     /** A 202 parked it as this durable input. */
     onParked?: (inputId: string) => void
-    /** No turn will ever carry it: refused, errored, or accepted by nothing. */
-    onFailed?: () => void
+    /**
+     * No turn will ever carry it: refused, errored, or accepted by nothing. `reason` is the run
+     * stream's own error text when it carried one, already sanitized by the server.
+     */
+    onFailed?: (reason?: string) => void
     /**
      * The accepted turn's stream ended on its own and its records have been re-read. If the
      * saved row still has not arrived by now it never will, so the echo stops waiting silently.
@@ -65,7 +68,7 @@ const RUN_ERROR_FRAME_TYPES = new Set(["error", "data-agent-error"])
 
 type RunFrame =
     | {kind: "accepted"; executionId: string}
-    | {kind: "error"}
+    | {kind: "error"; reason?: string}
     | {kind: "started"}
     | {kind: "status"; label: string}
     | null
@@ -80,6 +83,13 @@ export interface RunAdmission {
     ended: boolean
 }
 
+/** The error text an `error` frame (`errorText`) or a `data-agent-error` frame (`data.errorText`) carries. */
+const runErrorText = (frame: {errorText?: unknown; data?: unknown}): string | undefined => {
+    const data = frame.data as {errorText?: unknown} | undefined
+    const text = frame.errorText ?? data?.errorText
+    return typeof text === "string" && text.trim() ? text.trim() : undefined
+}
+
 const runFrameFromLine = (line: string): RunFrame => {
     const payload = line.startsWith("data:") ? line.slice(5).trim() : line.trim()
     if (!payload || payload === "[DONE]") return null
@@ -87,10 +97,13 @@ const runFrameFromLine = (line: string): RunFrame => {
         const frame = JSON.parse(payload) as {
             type?: unknown
             data?: {executionId?: unknown}
+            errorText?: unknown
             messageMetadata?: {turnId?: unknown}
         }
         if (typeof frame.type !== "string") return null
-        if (RUN_ERROR_FRAME_TYPES.has(frame.type)) return {kind: "error"}
+        if (RUN_ERROR_FRAME_TYPES.has(frame.type)) {
+            return {kind: "error", reason: runErrorText(frame)}
+        }
         const label = startupLabelFromDataPart(frame)
         if (label) return {kind: "status", label}
         // The runner emits its `turn` event only after it admits the request, and the Vercel
@@ -141,6 +154,7 @@ export const readRunAdmission = async (
     let buffer = ""
     let accepted = false
     let started = false
+    let failureReason: string | undefined
     const scan = (chunk: string): "error" | "accepted" | null => {
         buffer += chunk
         // CR-only and CRLF framing are both valid SSE.
@@ -161,6 +175,7 @@ export const readRunAdmission = async (
             }
             if (frame.kind === "error") {
                 if (started || accepted) continue
+                failureReason = frame.reason
                 return "error"
             }
             if (accepted) continue
@@ -176,14 +191,14 @@ export const readRunAdmission = async (
             if (done) break
             // Still scanned past acceptance: the startup phases arrive after it.
             if (scan(decoder.decode(value, {stream: true})) === "error") {
-                watcher?.onFailed?.()
+                watcher?.onFailed?.(failureReason)
                 await reader.cancel().catch(() => undefined)
                 return {accepted: false, ended: true}
             }
         }
         // A last frame with no trailing newline is still a frame, and it can be the refusal.
         if (!accepted && buffer.trim() && scan("\n") === "error") {
-            watcher?.onFailed?.()
+            watcher?.onFailed?.(failureReason)
             return {accepted: false, ended: true}
         }
     } catch {

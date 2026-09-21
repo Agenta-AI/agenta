@@ -14,6 +14,7 @@ import {describe, expect, it} from "vitest"
 import {PENDING_SEND_FAILED_NOTE} from "../../../src/assets/pendingSendEchoes"
 import {
     describeRefusedSend,
+    lateRefusedSendRejections,
     refusedSendRejections,
     readSendRefusal,
     REFUSED_SEND_REASON,
@@ -115,6 +116,27 @@ describe("describeRefusedSend", () => {
         expect(chipFor("")).toBe(REFUSED_SEND_REASON)
         // A rejection with no refusal behind it at all (an aborted upload, say) reads the same.
         expect(describeRefusedSend(new Error("boom"))).toBe(REFUSED_SEND_REASON)
+    })
+
+    it("says the run stream's own reason for a refusal that arrived late", () => {
+        // A stalled runner stream fails before the turn exists, and the frame carries the reason.
+        expect(
+            lateRefusedSendRejections("Agent runner stream stalled: no record for 3.0s"),
+        ).toEqual([
+            {
+                name: "Message",
+                reason: "wasn't sent \u2014 Agent runner stream stalled: no record for 3.0s",
+            },
+        ])
+    })
+
+    it("keeps the standing wording for a late refusal that stated nothing", () => {
+        expect(lateRefusedSendRejections()).toEqual([
+            {name: "Message", reason: REFUSED_SEND_REASON},
+        ])
+        expect(lateRefusedSendRejections("")).toEqual([
+            {name: "Message", reason: REFUSED_SEND_REASON},
+        ])
     })
 
     it("keeps the failed-row note word for word in step with it", () => {
