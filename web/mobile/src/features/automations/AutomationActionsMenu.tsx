@@ -126,7 +126,7 @@ export const AutomationActionsMenu = ({
                         <>
                             <DropdownMenuItem onSelect={onTestRun}>
                                 <Play aria-hidden size={14} />
-                                Test run in playground
+                                Run now
                             </DropdownMenuItem>
                             <DropdownMenuItem
                                 onSelect={() =>
@@ -139,7 +139,7 @@ export const AutomationActionsMenu = ({
                                 {/* The history is a view of the automation rather than a route,
                                     so the screen is asked to open on it. The row promises runs;
                                     landing on the config would make the reader find them. */}
-                                View run history
+                                Run history
                             </DropdownMenuItem>
                             <DropdownMenuItem onSelect={() => void onToggle()}>
                                 {automation.isActive ? (
@@ -147,14 +147,14 @@ export const AutomationActionsMenu = ({
                                 ) : (
                                     <Play aria-hidden size={14} />
                                 )}
-                                {automation.isActive ? "Turn off" : "Turn on"}
+                                {automation.isActive ? "Deactivate" : "Activate"}
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
                         </>
                     ) : null}
                     <DropdownMenuItem variant="destructive" onSelect={onDelete}>
                         <Trash aria-hidden size={14} />
-                        Delete automation
+                        Delete
                     </DropdownMenuItem>
                 </DropdownMenuContent>
             </DropdownMenu>
