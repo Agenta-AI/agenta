@@ -1,3 +1,7 @@
+> Current status: runtime implementation is complete except the acceptance gaps tracked in OpenSpec tasks 6.3 and 6.4. The unchecked steps below are the original test-first implementation recipe, not the current progress ledger. See the [current status](../../design/agent-workflows/projects/agent-plugin-templates/status.md).
+>
+> Review correction: the session start service commits a database dispatch claim before POST /invoke. A lost response or process restart cannot dispatch that input again. Until an execution or matching stream appears, retries return 503. A crash between claim and dispatch requires operator recovery after confirming no remote execution exists; it must not silently resubmit.
+
 > UPDATE: The message contract below is superseded by the [current display-content implementation plan](2026-09-21-template-display-content.md). The original completed tasks remain as implementation history.
 
 # Single-Agent Template Loading Implementation Plan
@@ -997,7 +1001,7 @@ async def materialize_entries_if_absent(
 ) -> MaterializeEntriesResult: ...
 ```
 
-Use `get_or_create_agent_mount` to resolve the project-owned mount. Sort directories by depth, then files by path. Read each destination before writing. If it exists with the same or different content, record `skipped`; never overwrite it. Treat a file-directory type collision as a conflict. Object writes are atomic at one key, so a retry can continue after the last completed key.
+Use `get_or_create_agent_mount` to resolve the project-owned mount. Sort directories by depth, then files by path. Use a storage-level conditional create (If-None-Match: *) for every destination. An earlier listing is only an optimization; it cannot authorize an unconditional write. A precondition failure preserves the winning object. Read each destination before writing. If it exists with the same or different content, record `skipped`; never overwrite it. Treat a file-directory type collision as a conflict. Object writes are atomic at one key, so a retry can continue after the last completed key.
 
 The parser owns path validation. The mount service must still confine every destination because it is a general public service boundary.
 
@@ -1282,7 +1286,7 @@ Use these component keys:
 
 - `skill:<skill-name>` for each skill workflow;
 - `agent` for the agent workflow;
-- `first-message:<template-digest>` for the session start.
+- The original request key for the session start, in the `session-start` namespace, with distinct `session` and `execution` components. Never replace it with the template digest.
 
 Never catch an error and start the first turn with partial resources. Return partial resource ids only through structured logs, not the public error body. The retry key is the recovery mechanism.
 
@@ -1367,7 +1371,7 @@ async def test_replay_returns_200_and_same_ids(client):
     replay = await post_load(client, key="same")
     assert first.status_code == 201
     assert replay.status_code == 200
-    assert replay.json() | {"replayed": False} == first.json()
+    assert replay.json() == {**first.json(), "replayed": True}
 ```
 
 Add tests for missing header, unsupported source kind, unknown key, malformed package, fingerprint conflict, and non-durable handoff. Add a strict transport-model test that rejects client-supplied `connection_id`, `secret_id`, resolved connection slug, workflow id, session id, execution id, version, digest, or `_ag` metadata before the loader runs.
@@ -1469,7 +1473,7 @@ it("has one backend internal package for every starter card", async () => {
     await fs.readFile(
       path.resolve(
         __dirname,
-        "../../../../api/oss/src/resources/agent_templates/catalog.json",
+        "../../../../../api/oss/src/resources/agent_templates/catalog.json",
       ),
       "utf8",
     ),

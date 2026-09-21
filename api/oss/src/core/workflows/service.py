@@ -3621,6 +3621,7 @@ class SimpleWorkflowsService:
             workflow_ref=Reference(id=workflow_id),
         )
 
+    # Keep artifact/variant/revision semantics aligned with ordinary create below.
     async def create_idempotent(
         self,
         *,
@@ -3816,12 +3817,15 @@ class SimpleWorkflowsService:
             if content is None:
                 raise EntityCreationConflict("Workflow content revision")
 
-            complete = await self.fetch(
-                project_id=project_id,
-                workflow_id=workflow_id,
+            complete = SimpleWorkflow(
+                **workflow.model_dump(exclude={"flags"}),
+                flags=SimpleWorkflowFlags(
+                    **WorkflowsService._dump_flags(content.flags)
+                ),
+                variant_id=variant.id,
+                revision_id=content.id,
+                data=_build_simple_workflow_data(content.data),
             )
-            if complete is None:
-                raise EntityCreationConflict("Workflow")
             return SimpleWorkflowCreateResult(
                 workflow=complete,
                 replayed=replayed,
@@ -3846,6 +3850,7 @@ class SimpleWorkflowsService:
 
     # public -------------------------------------------------------------------
 
+    # The retry-safe counterpart is create_idempotent above; keep role flags aligned.
     async def create(
         self,
         *,

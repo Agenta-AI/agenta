@@ -4,6 +4,7 @@ import {stagedFilesToParts, useComposerAttachments} from "@agenta/chat/hooks"
 import {markSessionFresh} from "@agenta/chat/state"
 import {
     agentTemplateByKey,
+    abandonAgentTemplateLoad,
     templateBuilderMessage,
     type AgentSetupSelection,
     type AgentStarterTemplate,
@@ -167,6 +168,8 @@ export const FirstRunScreen = ({
             text: arrival?.text ?? templateBuilderMessage(arrivedTemplate),
             name: arrivedTemplate.name,
             templateKey: arrivedTemplate.key,
+            sessionId,
+            parts: arrival?.parts,
             entityId,
         })
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -206,6 +209,7 @@ export const FirstRunScreen = ({
     // naming it, and clears a template prompt the user never edited; a typed description stays
     // in the editor, still the user's to send.
     const dismissStep = () => {
+        if (step.draft?.template) abandonAgentTemplateLoad(projectId, step.draft.template.key)
         if (step.draft?.template && !promptEdited) setRefill("")
         step.close()
         if (templateKey) {

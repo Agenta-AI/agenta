@@ -67,7 +67,10 @@ class AgentTemplatesRouter:
         *,
         payload: TemplateLoadRequest,
     ) -> JSONResponse:
-        for permission in (Permission.EDIT_WORKFLOWS, Permission.RUN_SESSIONS):
+        permissions = [Permission.EDIT_WORKFLOWS, Permission.RUN_SESSIONS]
+        if payload.attachment_ids:
+            permissions.extend([Permission.VIEW_SESSIONS, Permission.EDIT_SESSIONS])
+        for permission in permissions:
             if not await check_action_access(  # type: ignore
                 user_uid=request.state.user_id,
                 project_id=request.state.project_id,

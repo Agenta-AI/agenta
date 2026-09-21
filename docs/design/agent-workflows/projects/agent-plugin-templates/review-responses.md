@@ -1,6 +1,6 @@
 # PR review responses
 
-This file records the review decisions and where they are reflected. The documents and OpenSpec changes describe proposed behavior; runtime implementation remains outstanding.
+This file records the review decisions and where they are reflected. The single-agent runtime is implemented; current progress and remaining acceptance checks are tracked in [status.md](status.md).
 
 | Comment                                                                                    | Requested change                                                 | Response                                                                                                                                                                                                  | Document                                                       |
 | ------------------------------------------------------------------------------------------ | ---------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
@@ -33,6 +33,6 @@ This file records the review decisions and where they are reflected. The documen
 | [Comment 4057730720](https://github.com/Agenta-AI/agenta/pull/6944#discussion_r4057730720) | Single agent; stop at first message; future general child tools  | The first version ends at durable first-message acceptance. Future child creation/editing requires general agent-management capabilities and is NOT IMPLEMENTED.                                          | [context.md](context.md)                                       |
 | [Comment 4057743042](https://github.com/Agenta-AI/agenta/pull/6944#discussion_r4057743042) | Explain simply; why migrations?                                  | Rewrote onboarding integration as the same interface calling a source-aware loader. No saved-agent migration, compatibility adapter, or migration screen.                                                 | [onboarding-integration.md](onboarding-integration.md)         |
 
-## Validation record
+## Historical specification-only validation record
 
 OpenSpec 1.13.1 was installed from the official npm package and its SHA-512 integrity was verified. Both proposals pass `openspec validate --all --strict --no-interactive`. Runtime and browser scenarios are NOT RUN. Deferred subagent scenarios are NOT IMPLEMENTED. The three package fixtures pass 18 schema/example and negative checks. All 79 local Markdown links and package references pass. Prettier and git diff whitespace checks pass. The local Docusaurus build was attempted but could not start because this checkout has no Docusaurus dependencies.

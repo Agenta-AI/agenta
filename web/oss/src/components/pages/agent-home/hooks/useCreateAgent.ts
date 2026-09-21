@@ -30,7 +30,7 @@ interface CreateAgentParams {
      * The caller then handles placement (e.g. an in-place `setEntityIds` + shallow URL update, no
      * redirect). Omit for the default `router.push` to `/apps/<id>/playground`.
      */
-    onCommitted?: (ids: {appId: string; revisionId: string}) => void
+    onCommitted?: (ids: {appId: string; revisionId: string; sessionId?: string}) => void
     /** Mark the seed as an explicit "go" so the chat auto-sends it once the model is ready (no Start). */
     autoSendSeed?: boolean
     /**
@@ -104,7 +104,7 @@ export function useCreateAgent() {
             }
 
             if (onCommitted) {
-                onCommitted({appId, revisionId})
+                onCommitted({appId, revisionId, sessionId: created.sessionId})
             } else {
                 const session = created.sessionId
                     ? `&session_id=${encodeURIComponent(created.sessionId)}`

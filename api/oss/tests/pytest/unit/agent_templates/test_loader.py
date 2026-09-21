@@ -661,3 +661,65 @@ async def test_first_message_display_and_run_only_build_kit(enabled):
         assert len(agent["skills"]) == 2
     else:
         assert call["parameters"] is None
+
+
+@pytest.mark.asyncio
+async def test_staged_attachment_is_copied_to_started_session_before_dispatch():
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+    from oss.src.core.sessions.starts.service import SessionStartsService
+
+    loader, _, _, _, _, _, starts = _loader()
+    source_id, copied_id = uuid4(), uuid4()
+    attachments = AsyncMock()
+    attachments.fetch_attachment_content.return_value = SimpleNamespace(
+        attachment=SimpleNamespace(
+            id=source_id, filename="brief.txt", media_type="text/plain"
+        ),
+        data=b"Source facts",
+    )
+    attachments.create_attachment.return_value = SimpleNamespace(
+        id=copied_id,
+        filename="brief.txt",
+        media_type="text/plain",
+        size=12,
+    )
+    loader._attachments_service = attachments
+    command = _command().model_copy(
+        update={"staging_session_id": "staging", "attachment_ids": [source_id]}
+    )
+    await loader.load(project_id=PROJECT_ID, user_id=USER_ID, command=command)
+    attachments.fetch_attachment_content.assert_awaited_once_with(
+        project_id=PROJECT_ID,
+        session_id="staging",
+        attachment_id=source_id,
+    )
+    start = starts.calls[0]
+    assert attachments.create_attachment.await_args.kwargs[
+        "session_id"
+    ] == SessionStartsService.session_id_for(
+        project_id=PROJECT_ID,
+        request_key=start["request_key"],
+    )
+    assert start["message"].to_wire()["content"][-1]["attachmentId"] == str(copied_id)
+    assert start["message"].display_content == command.initial_message
+
+
+@pytest.mark.asyncio
+async def test_foreign_or_missing_staged_attachment_fails_before_resource_creation():
+    from unittest.mock import AsyncMock
+    from oss.src.core.sessions.attachments.types import AttachmentNotFound
+
+    loader, events, _, _, _, _, starts = _loader()
+    attachment_id = uuid4()
+    loader._attachments_service = AsyncMock()
+    loader._attachments_service.fetch_attachment_content.side_effect = (
+        AttachmentNotFound(attachment_id=attachment_id)
+    )
+    command = _command().model_copy(
+        update={"staging_session_id": "foreign", "attachment_ids": [attachment_id]}
+    )
+    with pytest.raises(TemplatePackageInvalid, match="unavailable"):
+        await loader.load(project_id=PROJECT_ID, user_id=USER_ID, command=command)
+    assert events == []
+    assert starts.calls == []

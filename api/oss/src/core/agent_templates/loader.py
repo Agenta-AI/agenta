@@ -1,7 +1,7 @@
 from typing import Any
 from uuid import UUID
 
-from agenta.sdk.agents import Message
+from agenta.sdk.agents import Message, ContentBlock
 
 from oss.src.core.agent_templates.bindings import TemplateBindingResolver
 from oss.src.core.agent_templates.compiler import TemplateCompiler
@@ -12,6 +12,7 @@ from oss.src.core.agent_templates.dtos import (
 )
 from oss.src.core.agent_templates.exceptions import (
     TemplateCreateConflict,
+    TemplatePackageInvalid,
     TemplateSkillCreationFailed,
     TemplateWorkflowCreationFailed,
 )
@@ -26,6 +27,8 @@ from oss.src.core.agent_templates.provenance import (
 )
 from oss.src.core.mounts.dtos import MountFileSeed
 from oss.src.core.mounts.service import MountsService
+from oss.src.core.sessions.attachments.service import SessionAttachmentsService
+from oss.src.core.sessions.attachments.types import AttachmentError
 from oss.src.core.sessions.starts.service import SessionStartsService
 from oss.src.core.shared.exceptions import EntityCreationIdempotencyConflict
 from oss.src.core.shared.idempotency import request_fingerprint, request_key_hash
@@ -67,6 +70,14 @@ def template_request_fingerprint(command: TemplateLoadCommand) -> str:
             ),
             "initial_message": command.initial_message.strip(),
             "connection_choices": choices,
+            **(
+                {
+                    "staging_session_id": command.staging_session_id,
+                    "attachment_ids": [str(item) for item in command.attachment_ids],
+                }
+                if command.attachment_ids
+                else {}
+            ),
         }
     )
 
@@ -90,6 +101,7 @@ class AgentTemplateLoader:
         simple_workflows_service: SimpleWorkflowsService,
         mounts_service: MountsService | None = None,
         session_starts_service: SessionStartsService | None = None,
+        attachments_service: SessionAttachmentsService | None = None,
     ) -> None:
         self._source_resolver = source_resolver
         self._package_parser = package_parser
@@ -99,6 +111,7 @@ class AgentTemplateLoader:
         self._simple_workflows_service = simple_workflows_service
         self._mounts_service = mounts_service
         self._session_starts_service = session_starts_service
+        self._attachments_service = attachments_service
 
     @staticmethod
     def _request_key(command: TemplateLoadCommand) -> str:
@@ -317,6 +330,28 @@ class AgentTemplateLoader:
         if self._mounts_service is None or self._session_starts_service is None:
             raise RuntimeError("Template loader runtime services are not configured.")
 
+        attachment_contents = []
+        if command.attachment_ids:
+            if not command.staging_session_id or self._attachments_service is None:
+                raise TemplatePackageInvalid(
+                    "attachment_source_invalid",
+                    "A staging session is required for attachments.",
+                )
+            try:
+                for attachment_id in command.attachment_ids:
+                    attachment_contents.append(
+                        await self._attachments_service.fetch_attachment_content(
+                            project_id=project_id,
+                            session_id=command.staging_session_id,
+                            attachment_id=attachment_id,
+                        )
+                    )
+            except AttachmentError as exc:
+                raise TemplatePackageInvalid(
+                    "attachment_source_invalid",
+                    "A staged attachment is unavailable in this project and session.",
+                ) from exc
+
         prepared = await self.prepare(
             project_id=project_id,
             user_id=user_id,
@@ -332,6 +367,43 @@ class AgentTemplateLoader:
                 for item in prepared.workspace.files
             ],
         )
+        start_key = (
+            f"{self._request_key(command)}:first-message:"
+            f"{prepared.resolved_source.digest}"
+        )
+        message_content: str | list[ContentBlock] = prepared.first_message
+        if attachment_contents:
+            target_session = SessionStartsService.session_id_for(
+                project_id=project_id,
+                request_key=start_key,
+            )
+            blocks = [ContentBlock(type="text", text=prepared.first_message)]
+            for source in attachment_contents:
+                copied = await self._attachments_service.create_attachment(
+                    project_id=project_id,
+                    user_id=user_id,
+                    session_id=target_session,
+                    idempotency_key=f"template-copy:{source.attachment.id}",
+                    filename=source.attachment.filename,
+                    declared_media_type=source.attachment.media_type,
+                    data=source.data,
+                )
+                blocks.append(
+                    ContentBlock(
+                        type="attachment",
+                        attachment_id=str(copied.id),
+                        filename=copied.filename,
+                        mime_type=copied.media_type,
+                        size=copied.size,
+                    )
+                )
+            await self._attachments_service.reference_attachments(
+                project_id=project_id,
+                session_id=command.staging_session_id,
+                attachment_ids=command.attachment_ids,
+            )
+            message_content = blocks
+
         start = await self._session_starts_service.start_once(
             project_id=project_id,
             user_id=user_id,
@@ -339,14 +411,11 @@ class AgentTemplateLoader:
             revision_id=prepared.revision_id,
             message=Message(
                 role="user",
-                content=prepared.first_message,
+                content=message_content,
                 display_content=command.initial_message,
             ),
             parameters=prepared.runtime_parameters,
-            request_key=(
-                f"{self._request_key(command)}:first-message:"
-                f"{prepared.resolved_source.digest}"
-            ),
+            request_key=start_key,
         )
         return TemplateLoadResult(
             workflow_id=prepared.workflow_id,

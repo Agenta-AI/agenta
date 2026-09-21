@@ -191,7 +191,7 @@ async def test_timeout_after_remote_acceptance_rechecks_durable_row():
 
     result = await service.start_once(**_args())
 
-    assert result.replayed is True
+    assert result.replayed is False
 
 
 @pytest.mark.asyncio
@@ -225,6 +225,9 @@ async def test_two_concurrent_same_key_starts_dispatch_once():
     invocation_count = 0
 
     class Inputs:
+        async def claim_dispatch(self, **kwargs):
+            return True
+
         async def claim_for_execution(self, **kwargs):
             return _input(kwargs["content"]).model_copy(
                 update={
@@ -316,3 +319,33 @@ async def test_unrelated_heartbeat_does_not_confirm_start():
     )
     with pytest.raises(SessionStartNotDurable):
         await service.start_once(**_args())
+
+
+@pytest.mark.asyncio
+async def test_delayed_acceptance_cannot_redispatch_even_after_service_restart():
+    inputs = AsyncMock()
+    inputs.claim_for_execution.side_effect = lambda **kw: _input(kw["content"])
+    inputs.claim_dispatch.side_effect = [True, False, False]
+    executions = AsyncMock()
+    executions.fetch_execution.return_value = None
+    workflows = AsyncMock()
+    workflows.invoke_workflow_detached.side_effect = httpx.ReadTimeout(
+        "ambiguous acceptance"
+    )
+
+    with pytest.raises(SessionStartNotDurable):
+        await _service(
+            inputs=inputs, executions=executions, workflows=workflows
+        ).start_once(**_args())
+    with pytest.raises(SessionStartNotDurable):
+        await _service(
+            inputs=inputs, executions=executions, workflows=workflows
+        ).start_once(**_args())
+    workflows.invoke_workflow_detached.assert_awaited_once()
+
+    executions.fetch_execution.side_effect = [None, _execution("session", "execution")]
+    replay = await _service(
+        inputs=inputs, executions=executions, workflows=workflows
+    ).start_once(**_args())
+    assert replay.replayed is True
+    workflows.invoke_workflow_detached.assert_awaited_once()

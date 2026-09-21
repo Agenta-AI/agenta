@@ -189,7 +189,9 @@ async def test_domain_failures_have_stable_transport_errors(
 
     assert response.status_code == expected_status
     assert response.json()["code"] == expected_code
-    assert set(response.json()) == {"code", "message", "retryable", "details"}
+    assert {"code", "message", "retryable", "details"} <= set(response.json())
+    if response.json()["retryable"]:
+        assert response.json()["next_step"]
 
 
 @pytest.mark.asyncio
@@ -271,23 +273,41 @@ async def test_model_connection_selection_reaches_loader(monkeypatch, connection
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("target", ["tools", "mcps", "model_secret", "model_nested"])
-async def test_nested_server_owned_bindings_remain_rejected(monkeypatch, target):
+async def test_native_parameter_names_are_not_template_transport_fields(monkeypatch):
     loader = AsyncMock()
+    loader.load.return_value = _result()
     monkeypatch.setattr(
         router_module, "check_action_access", AsyncMock(return_value=True)
     )
     body = _body()
     agent = body["base_revision"]["parameters"]["agent"]
-    if target == "model_secret":
-        agent["llm"]["connection"] = {"mode": "agenta", "secret_id": "forged"}
-    elif target == "model_nested":
-        agent["llm"]["connection"] = {
-            "mode": "agenta",
-            "connection": {"slug": "forged"},
-        }
-    else:
-        agent[target] = [{"connection": {"slug": "forged"}}]
+    agent["skills"] = [
+        {"name": "sample", "files": [{"path": "SKILL.md", "content": "Instructions"}]}
+    ]
+    agent["tools"] = [{"type": "reference", "version": "1"}]
+    agent["mcps"] = [{"connection": {"slug": "existing"}}]
+    agent["sandbox"] = {"credentials": {"mode": "configured"}}
     response = await _post(_app(loader), body=body)
+    assert response.status_code == 201
+    assert (
+        loader.load.await_args.kwargs["command"].base_revision.parameters["agent"]
+        == agent
+    )
+
+
+@pytest.mark.asyncio
+async def test_internal_path_error_is_not_exposed(monkeypatch):
+    from oss.src.core.mounts.types import MountPathInvalid
+
+    loader = AsyncMock()
+    loader.load.side_effect = MountPathInvalid("Traceback: /private/token-value")
+    monkeypatch.setattr(
+        router_module, "check_action_access", AsyncMock(return_value=True)
+    )
+    response = await _post(_app(loader))
     assert response.status_code == 422
-    loader.load.assert_not_awaited()
+    assert "private" not in response.text
+    assert "token-value" not in response.text
+    assert (
+        response.json()["message"] == "The template contains an invalid workspace path."
+    )

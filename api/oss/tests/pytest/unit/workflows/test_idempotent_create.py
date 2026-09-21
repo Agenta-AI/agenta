@@ -349,8 +349,10 @@ async def test_replay_does_not_replace_a_later_user_revision():
 
     replay = await service.create_idempotent(**_kwargs())
 
-    assert replay.workflow.revision_id == store.heads[variant_id].id
-    assert replay.workflow.data.parameters == {"agent": {"edited": True}}
+    assert replay.workflow.revision_id == first.workflow.revision_id
+    assert replay.workflow.data == first.workflow.data
+    assert store.heads[variant_id].id != replay.workflow.revision_id
+    assert store.heads[variant_id].data.parameters == {"agent": {"edited": True}}
     assert len(store.revisions) == 3
 
 

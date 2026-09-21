@@ -1,6 +1,6 @@
 # Single-agent package data model
 
-This is a proposed format, not a runtime implementation. Agent Plugins 1.0 owns `plugin.json`, `skills/`, and `mcp.json`. Agenta owns the `ai.agenta` extension. The first version accepts one agent. The [future schema](future-extension.schema.json) is a separate design fixture for unimplemented multi-agent support.
+This is the single-agent format implemented by the loader. Agent Plugins 1.0 owns `plugin.json`, `skills/`, and `mcp.json`. Agenta owns the `ai.agenta` extension. The first version accepts one agent. The [future schema](future-extension.schema.json) is a separate design fixture for unimplemented multi-agent support.
 
 ## Source reference
 
@@ -51,7 +51,7 @@ Model/harness/sandbox selection comes from ordinary creation. A package does not
 }
 ```
 
-Gateway options identify an integration. MCP options identify a server declaration in `mcp.json` using only the kind and key. Do not duplicate header requirements, URLs, or credentials on the option. The existing MCP gateway owns endpoint registration, project binding, authentication, and secret handling. An unresolved account or endpoint is a remaining setup need in the first message; it does not become invalid runtime configuration.
+Gateway options identify an integration. MCP options identify a server declaration in `mcp.json` using only the kind and server. Do not duplicate header requirements, URLs, or credentials on the option. The existing MCP gateway owns endpoint registration, project binding, authentication, and secret handling. An unresolved account or endpoint is a remaining setup need in the first message; it does not become invalid runtime configuration.
 
 `required` describes the agent's need and preserves the existing connection step's behavior. It does not introduce a new backend readiness state. Optional connections retain current skip behavior. If the user has already declined one, include that choice in the message so the agent does not immediately ask again.
 

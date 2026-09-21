@@ -134,9 +134,9 @@ These additions SHALL remain invocation-scoped. They MUST NOT be saved into the 
 - **WHEN** the saved agent runs through an API or automation without UI runtime additions
 - **THEN** it retains the ordinary non-UI capability behavior.
 
-### Message display contract
+### Requirement: Message display contract
 
-The agent service prepares the complete user-level execution content before calling the runner. It includes the user's request and labeled template setup guidance in that content. It also supplies optional `display_content` with the original visible request. The runner has no template-specific setup logic. It preserves this generic field when writing the user-message record. Conversation reconstruction uses the full execution content.
+The agent service SHALL prepare the complete user-level execution content before calling the runner. It includes the user's request and labeled template setup guidance in that content. It also supplies optional `display_content` with the original visible request. The runner has no template-specific setup logic. It preserves this generic field when writing the user-message record. Conversation reconstruction uses the full execution content.
 
 The same display rule applies to pending frontend messages, saved records, refresh, and copy actions:
 

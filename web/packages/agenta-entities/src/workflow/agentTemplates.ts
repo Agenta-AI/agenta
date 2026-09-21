@@ -273,63 +273,6 @@ export const categoryFromSlug = (slug: string | undefined): string =>
 const DEFAULT_MODEL = "claude-sonnet-4-5"
 
 export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
-    {
-        key: "qa-checklist",
-        source: {kind: "internal", key: "qa-checklist"},
-        name: "QA checklist",
-        category: "Ops",
-        initials: "QA",
-        color: "#5E5E08",
-        description: "Test a template with one installed checklist skill.",
-        overview: "Test a template with one installed checklist skill.",
-        instructions:
-            "Follow the installed skill and template setup guidance. Ask for the project name.",
-        toolsSummary: "1 checklist skill",
-        trigger: "Manual",
-        triggerDescription: "No automation is activated by loading this template.",
-        seedMessage: "Build a test assistant and ask me for the project name.",
-        builderMessage: "Build a test assistant and ask me for the project name.",
-        model: DEFAULT_MODEL,
-        connections: [],
-    },
-    {
-        key: "qa-project-brief",
-        source: {kind: "internal", key: "qa-project-brief"},
-        name: "QA project brief",
-        category: "Ops",
-        initials: "QA",
-        color: "#5E5E08",
-        description: "Test an installed skill, reference, script, and workspace file.",
-        overview: "Test an installed skill, reference, script, and workspace file.",
-        instructions:
-            "Follow the installed skill and template setup guidance. Ask for the project name.",
-        toolsSummary: "1 skill, reference, script and file",
-        trigger: "Manual",
-        triggerDescription: "No automation is activated by loading this template.",
-        seedMessage: "Build a test assistant and ask me for the project name.",
-        builderMessage: "Build a test assistant and ask me for the project name.",
-        model: DEFAULT_MODEL,
-        connections: [],
-    },
-    {
-        key: "qa-weekly-digest",
-        source: {kind: "internal", key: "qa-weekly-digest"},
-        name: "QA weekly digest",
-        category: "Ops",
-        initials: "QA",
-        color: "#5E5E08",
-        description: "Test a skill and a weekly automation recipe without activating it.",
-        overview: "Test a skill and a weekly automation recipe without activating it.",
-        instructions:
-            "Follow the installed skill and template setup guidance. Ask for the project name.",
-        toolsSummary: "1 skill and inactive schedule recipe",
-        trigger: "Inactive weekly recipe",
-        triggerDescription: "No automation is activated by loading this template.",
-        seedMessage: "Build a test assistant and ask me for the project name.",
-        builderMessage: "Build a test assistant and ask me for the project name.",
-        model: DEFAULT_MODEL,
-        connections: [],
-    },
     // Engineering (dev-workflow automation)
     {
         key: "pr-reviewer",

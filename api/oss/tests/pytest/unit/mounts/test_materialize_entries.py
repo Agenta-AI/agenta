@@ -72,14 +72,16 @@ class _Store:
             if key.startswith(prefix)
         ]
 
-    async def put_object(self, *, bucket, key, body):
+    async def put_object_if_absent(self, *, bucket, key, body):
         self.put_attempts += 1
         if self.fail_on_put == self.put_attempts:
             raise RuntimeError("injected storage failure")
         await asyncio.sleep(0.005)
+        if key in self.objects:
+            return False
         self.objects[key] = body
         self.puts.append(key)
-        return len(body)
+        return True
 
 
 def _service(*, fail_on_put=None):
@@ -252,3 +254,25 @@ async def test_invalid_declarations_fail_before_mount_or_storage_writes():
 
     assert dao.upsert_calls == 0
     assert store.puts == []
+
+
+@pytest.mark.asyncio
+async def test_writer_between_listing_and_put_keeps_its_content():
+    service, _, store = _service()
+    original = store.put_object_if_absent
+
+    async def race(**kwargs):
+        store.objects[kwargs["key"]] = b"user edit won"
+        return await original(**kwargs)
+
+    store.put_object_if_absent = race
+    result = await service.materialize_entries_if_absent(
+        project_id=PROJECT_ID,
+        user_id=USER_ID,
+        workflow_id=WORKFLOW_ID,
+        directories=[],
+        files=[MountFileSeed(path="race.md", content=b"seed")],
+    )
+    assert result.created == []
+    assert result.preserved == ["race.md"]
+    assert list(store.objects.values()) == [b"user edit won"]

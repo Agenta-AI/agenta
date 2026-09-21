@@ -89,6 +89,13 @@ export const useNewAgentAction = (base: string) => {
                 entityId: params?.entityId,
                 template,
                 initialMessage: params?.seedMessage,
+                stagingSessionId: params?.sessionId,
+                attachmentIds: params?.seedParts?.map((part) => {
+                    const id = part.providerMetadata?.agenta?.attachmentId
+                    if (typeof id !== "string")
+                        throw new Error("Wait for the attachment upload before creating the agent.")
+                    return id
+                }),
                 setup: params?.setup,
             })
             if (!created) {

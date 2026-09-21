@@ -1,5 +1,4 @@
 import {projectIdAtom} from "@agenta/shared/state"
-import {generateId} from "@agenta/shared/utils"
 import type {AgentaApi} from "@agentaai/api-client"
 import {atom} from "jotai"
 
@@ -27,6 +26,8 @@ export interface LoadAgentTemplateFromEphemeralParams {
     revisionId: string
     template: AgentStarterTemplate
     /** Preserve the host's editable template prompt when it differs from the card default. */
+    stagingSessionId?: string
+    attachmentIds?: string[]
     initialMessage?: string
     setup?: AgentSetupSelection
 }
@@ -59,8 +60,37 @@ export const templateConnectionChoices = (
     return template.connections.map((connection) => selectedConnectionChoice(connection, connected))
 }
 
-const createIdempotencyKey = (): string =>
-    `agent-template:${Date.now().toString(36)}:${generateId()}`
+interface LoadIntent {
+    key: string
+    request: Omit<AgentTemplateLoadRequest, "project_id">
+}
+const intents = new Map<string, LoadIntent>()
+
+const readIntent = (scope: string): LoadIntent | undefined => {
+    if (intents.has(scope)) return intents.get(scope)
+    try {
+        const stored = globalThis.sessionStorage?.getItem(scope)
+        if (stored) return JSON.parse(stored) as LoadIntent
+    } catch {
+        /* Storage may be unavailable. The in-memory intent still survives retries. */
+    }
+    return undefined
+}
+
+const saveIntent = (scope: string, intent: LoadIntent | null) => {
+    if (intent) intents.set(scope, intent)
+    else intents.delete(scope)
+    try {
+        if (intent) globalThis.sessionStorage?.setItem(scope, JSON.stringify(intent))
+        else globalThis.sessionStorage?.removeItem(scope)
+    } catch {
+        /* Private browsing may reject storage writes. */
+    }
+}
+
+export const abandonAgentTemplateLoad = (projectId: string, templateKey: string) => {
+    saveIntent(`agent-template-intent:${projectId}:${templateKey}`, null)
+}
 
 const inflightLoads = new Map<string, Promise<AgentTemplateLoadResult>>()
 
@@ -69,7 +99,14 @@ export const loadAgentTemplateFromEphemeralAtom = atom(
     async (
         get,
         set,
-        {revisionId, template, initialMessage, setup}: LoadAgentTemplateFromEphemeralParams,
+        {
+            revisionId,
+            template,
+            initialMessage,
+            setup,
+            stagingSessionId,
+            attachmentIds,
+        }: LoadAgentTemplateFromEphemeralParams,
     ): Promise<AgentTemplateLoadResult> => {
         const projectId = get(projectIdAtom)
         if (!projectId) throw new Error("No project ID available")
@@ -81,29 +118,34 @@ export const loadAgentTemplateFromEphemeralAtom = atom(
         const pending = (async () => {
             const {data} = buildCreatePayloadFromEphemeral(get, revisionId)
             const seedMessage = initialMessage?.trim() || templateBuilderMessage(template)
-            const result = await loadAgentTemplate(
-                {
+            const intentScope = `agent-template-intent:${projectId}:${template.source.key}`
+            const intent = readIntent(intentScope) ?? {
+                key: `agent-template:${revisionId}:${template.source.key}`,
+                request: {
                     source: template.source,
                     base_revision: (data ?? {}) as AgentaApi.WorkflowRevisionDataInput,
                     initial_message: seedMessage,
+                    staging_session_id: stagingSessionId,
+                    attachment_ids: attachmentIds,
                     ui_build_kit_enabled: get(workflowBuildKitEnabledAtomFamily(revisionId)),
                     ui_disabled_ops: get(workflowBuildKitDisabledOpsAtomFamily(revisionId)),
                     connection_choices: templateConnectionChoices(template, setup),
                 },
-                createIdempotencyKey(),
-                projectId,
-            )
+            }
+            saveIntent(intentScope, intent)
+            const result = await loadAgentTemplate(intent.request, intent.key, projectId)
 
             set(
                 workflowBuildKitEnabledAtomFamily(result.revision_id),
-                get(workflowBuildKitEnabledAtomFamily(revisionId)),
+                intent.request.ui_build_kit_enabled ?? false,
             )
             set(
                 workflowBuildKitDisabledOpsAtomFamily(result.revision_id),
-                get(workflowBuildKitDisabledOpsAtomFamily(revisionId)),
+                intent.request.ui_disabled_ops ?? [],
             )
             set(consumeWorkflowDraftAtom, revisionId)
             invalidateWorkflowsListCache()
+            saveIntent(intentScope, null)
             return result
         })()
 

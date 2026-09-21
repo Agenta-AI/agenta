@@ -24,7 +24,7 @@ The canonical requirements and WHEN/THEN scenarios are in [the OpenSpec change](
 - Authorize caller, project, and all referenced resources before mutation. Test foreign-project accounts, secrets, workflows, and mounts.
 - Keep parsing/compilation pure. Existing resource services own writes; no foreign-domain table manipulation or duplicated provider clients.
 - Use ordinary creation defaults, not a second template model resolver.
-- Keep MCP options to kind and key. Native services own endpoint/authentication details. Omitted permission overrides preserve current defaults.
+- Keep MCP options to kind and server. Native services own endpoint/authentication details. Omitted permission overrides preserve current defaults.
 - Copy workspace entries in backend code. All setup notes are optional, with file-related guidance only in SETUP.md.
 - Atomically deduplicate create requests and first-session starts; same-key changed-payload requests conflict. A frontend latch alone is insufficient.
 - Preserve user-edited files on retry. Do not replay the whole load after a partial copy error.

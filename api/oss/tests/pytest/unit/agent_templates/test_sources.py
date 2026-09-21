@@ -39,7 +39,7 @@ async def test_internal_source_resolves_latest_and_can_reopen_pin():
         pin=TemplateSourcePin(version=latest.version, digest=latest.digest),
     )
 
-    assert pinned.version == "1.0.0"
+    assert pinned.version == latest.version == "1.0.1"
     assert pinned.digest == latest.digest
     assert pinned.root == latest.root
     assert (pinned.root / "plugin.json").is_file()

@@ -103,3 +103,13 @@ def test_message_with_no_content_is_rejected():
         )
 
     assert error.value.code == "first_message_empty"
+
+
+def test_resolved_capability_keeps_approval_guidance_without_explicit_choice():
+    message = compose_first_message(
+        initial_message="Start.",
+        package=_package(),
+        bindings=TemplateBindingPlan(tools=[{"type": "gateway_connection"}]),
+        choices=[],
+    )
+    assert "Ask me before you write or send anything." in message

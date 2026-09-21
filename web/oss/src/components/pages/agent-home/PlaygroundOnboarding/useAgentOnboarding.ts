@@ -12,6 +12,7 @@ import {
 
 import {sessionStatusAtomFamily} from "@agenta/chat/state"
 import {
+    abandonAgentTemplateLoad,
     createEphemeralAppFromTemplate,
     type AgentSetupSelection,
     type AgentStarterTemplate,
@@ -22,13 +23,15 @@ import {
     isAgentModeAtomFamily,
     playgroundController,
 } from "@agenta/playground"
+import {projectIdAtom} from "@agenta/shared/state"
 import {extractApiErrorMessage} from "@agenta/shared/utils"
 import {App} from "antd"
-import {useAtomValue, useSetAtom} from "jotai"
+import {useAtomValue, useSetAtom, useStore} from "jotai"
 
 import {ONBOARDING_SCOPE_KEY} from "@/oss/components/AgentChatSlice/state/scope"
 import {
     activeSessionIdAtomFamily,
+    adoptSessionAtomFamily,
     adoptScopeSessionsAtom,
     resetScopeAtomFamily,
 } from "@/oss/components/AgentChatSlice/state/sessions"
@@ -73,6 +76,7 @@ export interface AgentOnboardingResult {
  */
 export function useAgentOnboarding(active: boolean): AgentOnboardingResult {
     const {message} = App.useApp()
+    const projectId = useAtomValue(projectIdAtom)
     const setEntityIds = useSetAtom(playgroundController.actions.setEntityIds)
     const createAgent = useCreateAgent()
     const {baseAppURL} = useAtomValue(urlAtom)
@@ -201,6 +205,14 @@ export function useAgentOnboarding(active: boolean): AgentOnboardingResult {
     // to `runCommit` exactly as it did before.
     const setupStep = useAgentSetupStep()
 
+    const cancelSetup = useCallback(() => {
+        if (projectId && setupStep.draft?.template) {
+            abandonAgentTemplateLoad(projectId, setupStep.draft.template.key)
+        }
+        setupStep.close()
+    }, [projectId, setupStep.draft, setupStep.close])
+
+    const sessionStore = useStore()
     const runCommit = useCallback(
         (
             seedMessage: string,
@@ -222,7 +234,7 @@ export function useAgentOnboarding(active: boolean): AgentOnboardingResult {
                 autoSendSeed: true,
                 setup,
                 template,
-                onCommitted: ({appId, revisionId}) => {
+                onCommitted: ({appId, revisionId, sessionId}) => {
                     committed = true
                     // Adopt the founding conversation into the new app's chat scope, in the SAME
                     // batched update as the `chatScopeKey` flip below (`setRealAppId`): the mounted
@@ -230,7 +242,11 @@ export function useAgentOnboarding(active: boolean): AgentOnboardingResult {
                     // and after a reload the app playground finds the session (previously it was
                     // stranded under the fixed onboarding scope, which the next onboarding entry
                     // wipes — permanently destroying the conversation).
-                    adoptScopeSessions({from: ONBOARDING_SCOPE_KEY, to: appId})
+                    if (sessionId) {
+                        sessionStore.set(adoptSessionAtomFamily(appId), {id: sessionId})
+                    } else {
+                        adoptScopeSessions({from: ONBOARDING_SCOPE_KEY, to: appId})
+                    }
                     setRealAppId(appId)
                     // Flip the onboarding state urgently — the settling skeleton, the `chromeRevealed`
                     // timer, and the commit-failure recovery all read `realEntityId` synchronously.
@@ -245,7 +261,7 @@ export function useAgentOnboarding(active: boolean): AgentOnboardingResult {
                         window.history.replaceState(
                             window.history.state,
                             "",
-                            `${baseAppURL}/${appId}/playground?revisions=${revisionId}`,
+                            `${baseAppURL}/${appId}/playground?revisions=${revisionId}${sessionId ? `&session_id=${encodeURIComponent(sessionId)}` : ""}`,
                         )
                     }
                 },
@@ -264,6 +280,7 @@ export function useAgentOnboarding(active: boolean): AgentOnboardingResult {
             setEntityIds,
             baseAppURL,
             adoptScopeSessions,
+            sessionStore,
         ],
     )
 
@@ -311,7 +328,7 @@ export function useAgentOnboarding(active: boolean): AgentOnboardingResult {
                       committing,
                       committingSeed,
                       commit,
-                      setup: CONNECT_STEP_MODE ? setupStep : null,
+                      setup: CONNECT_STEP_MODE ? {...setupStep, close: cancelSetup} : null,
                       commitWithSetup,
                       browseAll,
                       setBrowseAll,
@@ -328,6 +345,7 @@ export function useAgentOnboarding(active: boolean): AgentOnboardingResult {
             commit,
             setupStep,
             commitWithSetup,
+            cancelSetup,
             browseAll,
             chromeRevealed,
             firstRunSettled,

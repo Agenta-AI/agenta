@@ -34,6 +34,8 @@ export interface CreateAgentParams {
     /** Starter cards load their package and begin the durable first session in one request. */
     template?: AgentStarterTemplate
     /** The host's current template prompt, including any edits made before creation. */
+    stagingSessionId?: string
+    attachmentIds?: string[]
     initialMessage?: string
     /** Account choices made in the starter setup step. */
     setup?: AgentSetupSelection
@@ -69,6 +71,8 @@ export const useCreateAgent = ({onError}: UseCreateAgentOptions = {}) => {
             entityId,
             template,
             initialMessage,
+            stagingSessionId,
+            attachmentIds,
             setup,
         }: CreateAgentParams = {}): Promise<CreatedAgent | null> => {
             if (creating) return null
@@ -91,6 +95,8 @@ export const useCreateAgent = ({onError}: UseCreateAgentOptions = {}) => {
                         revisionId: ephemeralId,
                         template,
                         initialMessage,
+                        stagingSessionId,
+                        attachmentIds,
                         setup,
                     })
                     return {

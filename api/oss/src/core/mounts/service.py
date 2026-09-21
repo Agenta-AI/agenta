@@ -719,13 +719,13 @@ class MountsService:
                     )
                     + "/"
                 )
-                await self.mounts_store.put_object(
+                was_created = await self.mounts_store.put_object_if_absent(
                     bucket=self._bucket(),
                     key=key,
                     body=b"",
                 )
                 existing.add(display)
-                created.append(display)
+                (created if was_created else preserved).append(display)
 
             for item in normalized_files:
                 if path_exists(item.path):
@@ -736,13 +736,13 @@ class MountsService:
                     mount=mount,
                     path=item.path,
                 )
-                await self.mounts_store.put_object(
+                was_created = await self.mounts_store.put_object_if_absent(
                     bucket=self._bucket(),
                     key=key,
                     body=item.content,
                 )
                 existing.add(item.path)
-                created.append(item.path)
+                (created if was_created else preserved).append(item.path)
 
             return MaterializeEntriesResult(
                 mount_id=mount.id,

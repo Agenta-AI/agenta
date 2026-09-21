@@ -24,14 +24,19 @@ def _response(
     retryable: bool = False,
     details: dict | None = None,
 ) -> JSONResponse:
+    content = {
+        "code": code,
+        "message": message,
+        "retryable": retryable,
+        "details": details or {},
+    }
+    if retryable:
+        content["next_step"] = (
+            "Retry with the same Idempotency-Key; do not submit a new request."
+        )
     return JSONResponse(
         status_code=status_code,
-        content={
-            "code": code,
-            "message": message,
-            "retryable": retryable,
-            "details": details or {},
-        },
+        content=content,
     )
 
 
@@ -53,7 +58,7 @@ def template_load_error_response(exc: Exception) -> JSONResponse | None:
         return _response(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             code="template_handoff_not_durable",
-            message=str(exc),
+            message="The initial session start was not durably recorded.",
             retryable=True,
         )
     if isinstance(
@@ -78,7 +83,7 @@ def template_load_error_response(exc: Exception) -> JSONResponse | None:
         return _response(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             code="template_package_invalid",
-            message=str(exc),
+            message="The template contains an invalid workspace path.",
         )
     if isinstance(
         exc,

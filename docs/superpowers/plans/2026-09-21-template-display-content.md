@@ -39,7 +39,7 @@ Validation covers SDK round trips, runner persistence and cold reconstruction, b
 - Saved fixture revisions each contain one package skill and zero tools; the initial invocation includes 21 runtime tools.
 - The legacy playground and /m at phone and desktop widths render the same visible request.
 
-The three QA sources are visible starter cards under Ops, named QA checklist, QA project brief, and QA weekly digest. They use the same loading and setup flow as the other cards. The gallery now contains 31 cards.
+The three temporary QA sources were removed from the runtime catalog and gallery after testing, at Mahmoud’s request. The gallery again contains 28 starter cards. The evidence below describes the historical QA run; existing created agents and conversations are preserved.
 
 ## Three test templates
 
@@ -58,3 +58,10 @@ Test the capability merge, disabled operations, saved-versus-runtime configurati
 For hidden context, verify a fixture-specific fact reaches the agent, the setup text is absent from the user-message display and copied text, and both conditions hold after refresh and a cold follow-up. Verify exactly one initial message. Read back installed skills and workspace files and confirm the automation remains inactive.
 
 Include the earlier preview fixes in the same existing PR after review and checks: connection validation, durable startup acknowledgment, mobile authentication-cache refresh, and the integration gate. Commit and push all completed changes to PR #6944, update its stale description, redeploy the resulting commit, and attach the QA outcome with its exact SHA. Do not claim the new requirements are implemented until those checks pass.
+
+
+## Review verification, 2026-09-21
+
+The review follow-up passed 1,673 backend tests (142 skipped), 19 frontend registry/loading tests, and 25 SDK reference tests. Both frontend hosts pass TypeScript checks. Both OpenSpec changes pass strict validation. A live SeaweedFS conditional-create check preserved an existing object; a PostgreSQL concurrent claim and fresh-DAO replay check allowed one dispatch. The preview migration was applied before API restart. A browser-created PR reviewer received its staged attachment, read its verification code, and reopened the same server session after refresh. The gallery shows 28 production cards.
+
+The legacy in-place handoff has a corrected callback, active-session adoption, and URL, but its final live creation check remains unverified. The full viewport/two-tab/forced-timeout matrix and missing-connection/inactive-recipe conversation remain open under OpenSpec tasks 6.3 and 6.4. These results do not replace those acceptance tasks.

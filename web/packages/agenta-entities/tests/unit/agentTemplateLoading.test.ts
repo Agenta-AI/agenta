@@ -177,3 +177,56 @@ describe("template package loading", () => {
         )
     })
 })
+
+it("retries an uncertain creation with the original key and exact payload", async () => {
+    const template = AGENT_TEMPLATES.find((item) => item.key === "pr-reviewer")!
+    const params = {
+        revisionId: REVISION_ID,
+        template,
+        initialMessage: "Original request",
+        stagingSessionId: "staged-session",
+        attachmentIds: ["file-id"],
+    }
+    loadAgentTemplateMock.mockRejectedValueOnce(new Error("response lost"))
+    await expect(store.set(loadAgentTemplateFromEphemeralAtom, params)).rejects.toThrow(
+        "response lost",
+    )
+    const original = loadAgentTemplateMock.mock.calls[0]
+    await store.set(loadAgentTemplateFromEphemeralAtom, params)
+    expect(loadAgentTemplateMock.mock.calls[1]).toEqual(original)
+    expect(original[0]).toMatchObject({
+        staging_session_id: "staged-session",
+        attachment_ids: ["file-id"],
+    })
+})
+
+it("recovers the saved creation intent after a page reload", async () => {
+    const template = AGENT_TEMPLATES.find((item) => item.key === "pr-reviewer")!
+    const request = {
+        source: template.source,
+        base_revision: WORKFLOW_DATA,
+        initial_message: "Saved before reload",
+    }
+    const storage = new Map([
+        [
+            "agent-template-intent:project-1:pr-reviewer",
+            JSON.stringify({key: "agent-template:original-draft", request}),
+        ],
+    ])
+    vi.stubGlobal("sessionStorage", {
+        getItem: (key: string) => storage.get(key) ?? null,
+        setItem: (key: string, value: string) => storage.set(key, value),
+        removeItem: (key: string) => storage.delete(key),
+    })
+    try {
+        await store.set(loadAgentTemplateFromEphemeralAtom, {revisionId: REVISION_ID, template})
+        expect(loadAgentTemplateMock).toHaveBeenCalledWith(
+            request,
+            "agent-template:original-draft",
+            "project-1",
+        )
+        expect(storage.size).toBe(0)
+    } finally {
+        vi.unstubAllGlobals()
+    }
+})

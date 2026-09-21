@@ -58,7 +58,7 @@ class SessionStartsService:
         token = uuid4().hex
         acquired = False
         try:
-            for _ in range(600):
+            for _ in range(100):
                 acquired = bool(await self._lock_engine.set(key, token, nx=True, ex=60))
                 if acquired:
                     break
@@ -156,6 +156,12 @@ class SessionStartsService:
             ),
         )
 
+    @staticmethod
+    def session_id_for(*, project_id: UUID, request_key: str) -> str:
+        return str(
+            resource_identity(project_id, _START_NAMESPACE, request_key, "session")
+        )
+
     async def start_once(
         self,
         *,
@@ -167,9 +173,7 @@ class SessionStartsService:
         parameters: dict[str, Any] | None = None,
         request_key: str,
     ) -> SessionStartResult:
-        session_id = str(
-            resource_identity(project_id, _START_NAMESPACE, request_key, "session")
-        )
+        session_id = self.session_id_for(project_id=project_id, request_key=request_key)
         execution_id = str(
             resource_identity(project_id, _START_NAMESPACE, request_key, "execution")
         )
@@ -207,6 +211,27 @@ class SessionStartsService:
                     replayed=True,
                 )
 
+            dispatch = await self._inputs.claim_dispatch(
+                project_id=project_id,
+                session_id=session_id,
+                input_id=claimed.id,
+                execution_id=execution_id,
+            )
+            if not dispatch:
+                durable = await self._wait_for_start(
+                    project_id=project_id,
+                    session_id=session_id,
+                    execution_id=execution_id,
+                )
+                if not durable:
+                    raise SessionStartNotDurable()
+                return SessionStartResult(
+                    session_id=session_id,
+                    execution_id=execution_id,
+                    input_id=claimed.id,
+                    replayed=True,
+                )
+
             stored_request = WorkflowServiceRequest.model_validate(claimed.content)
             error: Exception | None = None
             try:
@@ -234,5 +259,5 @@ class SessionStartsService:
                 session_id=session_id,
                 execution_id=execution_id,
                 input_id=claimed.id,
-                replayed=error is not None,
+                replayed=False,
             )

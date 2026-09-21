@@ -1,3 +1,4 @@
+from uuid import UUID
 from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -7,61 +8,6 @@ from oss.src.core.agent_templates.dtos import (
     TemplateLoadCommand,
 )
 from oss.src.core.workflows.dtos import WorkflowRevisionData
-
-
-_FORBIDDEN_INPUT_KEYS = {
-    "_ag",
-    "archive",
-    "connection",
-    "connection_id",
-    "credentials",
-    "digest",
-    "execution_id",
-    "mcp_endpoint_slug",
-    "path",
-    "resolved_connection_slug",
-    "secret",
-    "secret_id",
-    "session_id",
-    "version",
-    "workflow_id",
-}
-
-
-_MODEL_CONNECTION_PATHS = {
-    ("base_revision", "parameters", "agent", "llm", "connection"),
-    (
-        "base_revision",
-        "schemas",
-        "parameters",
-        "properties",
-        "agent",
-        "default",
-        "llm",
-        "connection",
-    ),
-}
-
-
-def _find_forbidden_key(value: Any, path: tuple[str, ...] = ()) -> str | None:
-    if isinstance(value, dict):
-        for key, child in value.items():
-            child_path = (*path, str(key))
-            # Model auth selection is authored by the user, unlike tool bindings.
-            if (
-                str(key).lower() in _FORBIDDEN_INPUT_KEYS
-                and child_path not in _MODEL_CONNECTION_PATHS
-            ):
-                return str(key)
-            found = _find_forbidden_key(child, child_path)
-            if found is not None:
-                return found
-    elif isinstance(value, list):
-        for child in value:
-            found = _find_forbidden_key(child, (*path, "[]"))
-            if found is not None:
-                return found
-    return None
 
 
 class _StrictRequestModel(BaseModel):
@@ -99,6 +45,8 @@ class TemplateLoadRequest(_StrictRequestModel):
     base_revision: WorkflowRevisionData
     ui_build_kit_enabled: bool = False
     ui_disabled_ops: list[str] = Field(default_factory=list, max_length=128)
+    staging_session_id: str | None = Field(default=None, min_length=1, max_length=256)
+    attachment_ids: list[UUID] = Field(default_factory=list, max_length=10)
     initial_message: str = Field(min_length=1, max_length=20_000)
     connection_choices: list[TemplateConnectionChoiceRequest] = Field(
         default_factory=list,
@@ -108,9 +56,14 @@ class TemplateLoadRequest(_StrictRequestModel):
     @model_validator(mode="before")
     @classmethod
     def reject_server_owned_fields(cls, value: Any) -> Any:
-        found = _find_forbidden_key(value)
-        if found is not None:
-            raise ValueError(f"'{found}' is server-owned and cannot be supplied.")
+        # Native revision parameters are not template source/binding metadata.
+        # Their own schema and compiler validate them; ordinary names such as
+        # path, version, credentials and connection are legitimate there.
+        if isinstance(value, dict):
+            base = value.get("base_revision")
+            if isinstance(base, dict) and isinstance(base.get("meta"), dict):
+                if "_ag" in base["meta"]:
+                    raise ValueError("'_ag' is server-owned and cannot be supplied.")
         return value
 
     @field_validator("initial_message")

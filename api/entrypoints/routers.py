@@ -1403,6 +1403,7 @@ agent_template_loader = AgentTemplateLoader(
     simple_workflows_service=simple_workflows_service,
     mounts_service=mounts_service,
     session_starts_service=session_starts_service,
+    attachments_service=session_attachments_service,
 )
 agent_templates = AgentTemplatesRouter(loader=agent_template_loader)
 workflows_service.set_session_continuation_resumer(

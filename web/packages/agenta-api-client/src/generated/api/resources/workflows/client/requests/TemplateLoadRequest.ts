@@ -16,6 +16,8 @@ export interface TemplateLoadRequest {
     project_id: string
     source: AgentaApi.InternalTemplateSource
     base_revision: AgentaApi.WorkflowRevisionDataInput
+    staging_session_id?: string
+    attachment_ids?: string[]
     initial_message: string
     ui_build_kit_enabled?: boolean
     ui_disabled_ops?: string[]

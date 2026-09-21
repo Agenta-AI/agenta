@@ -339,6 +339,7 @@ export {
     createWorkflowFromEphemeralAtom,
     type WorkflowCreateFromEphemeralParams,
     loadAgentTemplateFromEphemeralAtom,
+    abandonAgentTemplateLoad,
     templateConnectionChoices,
     type LoadAgentTemplateFromEphemeralParams,
     buildCreatePayloadFromEphemeral,

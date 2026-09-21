@@ -547,6 +547,17 @@ class ObjectStore:
         await client.put_object(bucket, key, BytesIO(body), length=len(body))
         return len(body)
 
+    async def put_object_if_absent(self, *, bucket: str, key: str, body: bytes) -> bool:
+        # The public miniopy uploader rewrites metadata into x-amz-meta-* headers.
+        # Its single-object primitive preserves the S3 conditional request header.
+        try:
+            await self._client()._put_object(bucket, key, body, {"If-None-Match": "*"})
+        except S3Error as exc:
+            if exc.code == "PreconditionFailed":
+                return False
+            raise
+        return True
+
     async def delete_keys(
         self,
         *,

@@ -83,6 +83,7 @@ def compose_first_message(
                 for choice in choices
             )
         )
+    if choices or bindings.tools or bindings.mcps:
         sections.append("Ask me before you write or send anything.")
     unresolved = _unresolved_text(bindings)
     if unresolved:

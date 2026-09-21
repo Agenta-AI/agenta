@@ -49,7 +49,7 @@ The runtime and revised display-content contract are implemented. The current im
 - [x] 7.1 Apply ordinary UI runtime additions on the server-started first turn, including skills and disabled-operation preferences, without persisting them into the agent.
 - [x] 7.2 Compose full execution content in the agent service; preserve generic optional `display_content` through SDK conversion, durable input, and runner records. Distinguish absent, string, and explicit null. Reconstruct model history from full content.
 - [x] 7.3 Apply one display rule to pending and durable messages on both UI hosts, including copy, edit, resend, and refresh. Reconcile by stable identity without leaking setup content. Preserve full authorized execution records.
-- [x] 7.4 Add three clearly named QA templates covering a simple skill, a skill with reference/script files plus workspace files, and an inactive automation recipe.
+- [x] 7.4 Add temporary QA templates (removed from the runtime catalog and gallery after testing at Mahmoud’s request) covering a simple skill, a skill with reference/script files plus workspace files, and an inactive automation recipe.
 - [x] 7.5 Test first-turn request_input rendering and submission, actual skill/reference/file use, ordinary UI parity, disabled capabilities, and no automatic trigger creation.
 - [x] 7.6 Record mobile and desktop browser evidence after deployment. Read back saved resources and verify retry and cold-replay behavior.
 - [x] 7.7 Commit all reviewed preview fixes and revised implementation, push PR #6944, update its description, and verify the deployed SHA and PR head.
@@ -73,3 +73,8 @@ Code commit `14838bd7312d9a0400a387ef58f9642cf76f5e10` passed the revised displa
 - NOT RUN in this pass: two separate browser tabs racing the very first submission, a forced network-timeout injection, and a full missing-connection build-kit conversation. Those broader scenarios keep tasks 6.3 and 6.4 open. Multi-agent loading remains NOT IMPLEMENTED.
 
 Checks: 97 backend template/session tests; 111 SDK message/wire tests; 104 runner tests; 1,198 shared chat tests; 332 mobile tests; 5 template transport/state tests. Runner, chat, mobile, and legacy-host type checks passed. Changed Python and frontend files passed formatting/lint checks and git diff checks.
+
+
+### Review follow-up
+
+Workspace seeds use conditional object creation, not a read-then-overwrite sequence. Session start commits a durable one-shot dispatch claim before crossing the invoke boundary (migration oss000000033). Ambiguous timeout retries only read back acceptance. A crash before dispatch needs operator recovery after ruling out a remote run. The temporary QA catalog sources have been removed; the production gallery has 28 entries. Existing created agents and conversations remain intact.

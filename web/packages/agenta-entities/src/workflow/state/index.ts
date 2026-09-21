@@ -235,6 +235,7 @@ export {
 
 export {
     loadAgentTemplateFromEphemeralAtom,
+    abandonAgentTemplateLoad,
     templateConnectionChoices,
     type LoadAgentTemplateFromEphemeralParams,
 } from "./loadTemplate"

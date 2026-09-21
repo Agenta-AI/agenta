@@ -31,7 +31,12 @@ Future creation and editing of child agents SHALL use general agent-management c
 
 ### Requirement: Finite graph handling
 
-Future loading SHALL create each declared agent once and resolve references only after identities exist. Any graph projection SHALL visit each agent key once and emit each agent/connection slot once.
+Before creating any identities, future loading SHALL validate that entry and every subagents[].agent reference name an agent declared in agents. A missing reference SHALL reject the entire package with no resource writes. Future loading SHALL create each declared agent once and resolve references only after identities exist. Any graph projection SHALL visit each agent key once and emit each agent/connection slot once.
+
+#### Scenario: Unknown agent reference
+
+- **WHEN** entry or any subagent reference is absent from agents
+- **THEN** loading rejects the package before creating any identity or resource.
 
 #### Scenario: Shared child or mutual link
 
@@ -40,12 +45,17 @@ Future loading SHALL create each declared agent once and resolve references only
 
 ### Requirement: Bounded synchronous calls
 
-Future synchronous calls MUST reject a target already present in the call chain and enforce a maximum depth. The chain SHALL start with the entry workflow identity.
+Future synchronous calls MUST reject a target already present in the call chain and enforce a maximum depth of eight workflow identities, including the entry workflow. This limit is fixed for this deferred specification. The chain SHALL start with the entry workflow identity.
 
 #### Scenario: Cycle from entry
 
 - **WHEN** A starts a run and calls B, which tries to call A
 - **THEN** the second A execution is rejected before it starts.
+
+#### Scenario: Call depth exceeded
+
+- **WHEN** eight workflow identities are already in the active call chain and another synchronous call is requested
+- **THEN** the call is rejected before executing the target.
 
 #### Scenario: Independent later run
 
