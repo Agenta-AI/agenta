@@ -5,6 +5,7 @@
 // rows. Pure so the conversation hook can memoize the whole list per commit.
 import type {ToolUIPart, UIMessage} from "ai"
 
+import {displayMessage, getDisplayContent} from "../assets/displayContent"
 import {getMessageRunError, getMessageRunErrorCode, getMessageTraceId} from "../assets/trace"
 
 import {getTurnGrouping} from "./grouping"
@@ -180,7 +181,8 @@ interface OneTurnContext {
     isClientToolPart?: ClientToolPartPredicate
 }
 
-const buildOneTurn = (message: UIMessage, ctx: OneTurnContext): TurnViewModel => {
+const buildOneTurn = (source: UIMessage, ctx: OneTurnContext): TurnViewModel => {
+    const message = displayMessage(source)
     const {
         index,
         isUser,
@@ -201,7 +203,8 @@ const buildOneTurn = (message: UIMessage, ctx: OneTurnContext): TurnViewModel =>
     })
     // The empty-turn collapse: only a truly-empty, non-error turn that follows another empty one.
     const hidden =
-        status.noResponse && !status.showError && !status.hasContent && precededByEmptyAssistant
+        getDisplayContent(source) === null ||
+        (status.noResponse && !status.showError && !status.hasContent && precededByEmptyAssistant)
     const items = buildTurnRenderItems(message.parts, {
         executed,
         isClientToolPart: (part) =>

@@ -40,6 +40,8 @@ export interface ChatMessage {
   role: string;
   /** A plain string, or ACP-style content blocks (text/image/resource/attachment). */
   content: string | ContentBlock[];
+  /** Omitted uses content; null hides the message in normal chat. */
+  display_content?: string | null;
 }
 
 export interface AttachmentRef {
@@ -409,7 +411,12 @@ export type RenderHint =
   | { kind: "elicitation" };
 
 export type AgentEvent =
-  | { type: "message"; text: string; attachments?: AttachmentRef[] }
+  | {
+      type: "message";
+      text: string;
+      attachments?: AttachmentRef[];
+      display_content?: string | null;
+    }
   | { type: "thought"; text: string }
   | { type: "message_start"; id: string }
   | { type: "message_delta"; id: string; delta: string }

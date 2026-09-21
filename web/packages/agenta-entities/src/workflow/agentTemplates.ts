@@ -35,6 +35,8 @@ export interface RequiredIntegration {
  * the connections the way a separately-kept list did.
  */
 export interface TemplateConnection {
+    /** Stable package binding key. */
+    key: string
     /** What the slot is for, in the playbook's words: "read the diff and post review comments". */
     role: string
     /** False for a slot the playbook calls optional — it never gates Create. */
@@ -75,6 +77,7 @@ export interface TemplateExampleSession {
 
 export interface AgentStarterTemplate {
     key: string
+    source: {kind: "internal"; key: string}
     name: string
     /** Primary category for the Home filter chips. */
     category: string
@@ -273,6 +276,7 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
     // Engineering (dev-workflow automation)
     {
         key: "pr-reviewer",
+        source: {kind: "internal", key: "pr-reviewer"},
         example: {
             prompt: "Pull request opened: “Cache revision lookups”",
             steps: [
@@ -303,6 +307,7 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
         // Playbook: "GitHub (or GitLab) to read the diff and post review comments."
         connections: [
             {
+                key: "read-the-diff-and-post-review-comments",
                 role: "Read the diff and post review comments",
                 required: true,
                 primary: {
@@ -329,6 +334,7 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
     },
     {
         key: "changelog-writer",
+        source: {kind: "internal", key: "changelog-writer"},
         example: {
             prompt: "Draft this week's changelog",
             steps: [
@@ -358,6 +364,7 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
         model: DEFAULT_MODEL,
         connections: [
             {
+                key: "read-merged-pull-requests",
                 role: "Read merged pull requests",
                 required: true,
                 primary: {
@@ -377,6 +384,7 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
                 alternatives: ["gitlab"],
             },
             {
+                key: "publish-the-changelog",
                 role: "Publish the changelog",
                 required: true,
                 primary: {
@@ -389,6 +397,7 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
     },
     {
         key: "issue-triage",
+        source: {kind: "internal", key: "issue-triage"},
         example: {
             prompt: "Issue opened: “Playground hangs on large testsets”",
             steps: [
@@ -416,6 +425,7 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
         model: DEFAULT_MODEL,
         connections: [
             {
+                key: "read-and-label-new-issues",
                 role: "Read and label new issues",
                 required: true,
                 primary: {
@@ -435,6 +445,7 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
                 alternatives: ["gitlab"],
             },
             {
+                key: "cross-post-the-triaged-issue",
                 role: "Cross-post the triaged issue",
                 required: false,
                 primary: {
@@ -447,6 +458,7 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
     },
     {
         key: "ci-failure-triage",
+        source: {kind: "internal", key: "ci-failure-triage"},
         example: {
             prompt: "Workflow run failed on main",
             steps: [
@@ -475,6 +487,7 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
         model: DEFAULT_MODEL,
         connections: [
             {
+                key: "read-runs-and-post-comments",
                 role: "Read runs and post comments",
                 required: true,
                 primary: {
@@ -493,6 +506,7 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
                 },
             },
             {
+                key: "notify-a-channel",
                 role: "Notify a channel",
                 required: false,
                 primary: {
@@ -505,6 +519,7 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
     },
     {
         key: "code-qa",
+        source: {kind: "internal", key: "code-qa"},
         example: {
             prompt: "@agent where do we validate API keys?",
             steps: ["Searched the repo for the validation path", "Read the two files that own it"],
@@ -529,6 +544,7 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
         model: DEFAULT_MODEL,
         connections: [
             {
+                key: "read-the-code",
                 role: "Read the code",
                 required: true,
                 primary: {
@@ -548,6 +564,7 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
                 alternatives: ["gitlab"],
             },
             {
+                key: "answer-on-a-slack-mention",
                 role: "Answer on a Slack mention",
                 required: false,
                 primary: {
@@ -559,6 +576,7 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
     },
     {
         key: "dependency-digest",
+        source: {kind: "internal", key: "dependency-digest"},
         name: "Dependency digest",
         category: "Engineering",
         initials: "DD",
@@ -577,6 +595,7 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
         model: DEFAULT_MODEL,
         connections: [
             {
+                key: "list-and-read-dependency-prs",
                 role: "List and read dependency PRs",
                 required: true,
                 primary: {
@@ -596,6 +615,7 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
                 alternatives: ["gitlab"],
             },
             {
+                key: "post-the-digest",
                 role: "Post the digest",
                 required: false,
                 primary: {
@@ -609,6 +629,7 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
     // Support (customer support)
     {
         key: "support-triage",
+        source: {kind: "internal", key: "support-triage"},
         name: "Support triage",
         category: "Support",
         initials: "S",
@@ -628,6 +649,7 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
         model: DEFAULT_MODEL,
         connections: [
             {
+                key: "read-and-post-in-the-support-channel",
                 role: "Read and post in the support channel",
                 required: true,
                 primary: {
@@ -651,6 +673,7 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
     },
     {
         key: "support-reply-drafter",
+        source: {kind: "internal", key: "support-reply-drafter"},
         example: {
             prompt: "New ticket: “Can I export a run as CSV?”",
             steps: [
@@ -680,6 +703,7 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
         model: DEFAULT_MODEL,
         connections: [
             {
+                key: "read-the-tickets",
                 role: "Read the tickets",
                 required: true,
                 primary: {
@@ -702,6 +726,7 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
                 alternatives: ["intercom"],
             },
             {
+                key: "read-a-knowledge-source",
                 role: "Read a knowledge source",
                 required: false,
                 primary: {
@@ -714,6 +739,7 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
     },
     {
         key: "bug-report-router",
+        source: {kind: "internal", key: "bug-report-router"},
         name: "Bug report router",
         category: "Support",
         initials: "BR",
@@ -733,6 +759,7 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
         model: DEFAULT_MODEL,
         connections: [
             {
+                key: "read-the-report",
                 role: "Read the report",
                 required: true,
                 primary: {
@@ -752,6 +779,7 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
                 alternatives: ["intercom"],
             },
             {
+                key: "file-the-bug",
                 role: "File the bug",
                 required: true,
                 primary: {
@@ -776,6 +804,7 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
     },
     {
         key: "feedback-clusterer",
+        source: {kind: "internal", key: "feedback-clusterer"},
         name: "Feedback clusterer",
         category: "Support",
         initials: "FC",
@@ -794,6 +823,7 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
         model: DEFAULT_MODEL,
         connections: [
             {
+                key: "read-the-feedback",
                 role: "Read the feedback",
                 required: true,
                 primary: {
@@ -813,6 +843,7 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
                 alternatives: ["intercom"],
             },
             {
+                key: "log-the-clusters",
                 role: "Log the clusters",
                 required: true,
                 primary: {
@@ -836,6 +867,7 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
     // Sales (leads, CRM, outreach)
     {
         key: "lead-qualifier",
+        source: {kind: "internal", key: "lead-qualifier"},
         name: "Lead qualifier",
         category: "Sales",
         initials: "LQ",
@@ -855,6 +887,7 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
         model: DEFAULT_MODEL,
         connections: [
             {
+                key: "write-the-qualified-lead",
                 role: "Write the qualified lead",
                 required: true,
                 primary: {
@@ -874,6 +907,7 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
                 alternatives: ["salesforce", "attio"],
             },
             {
+                key: "read-inbound-email-leads",
                 role: "Read inbound email leads",
                 required: false,
                 primary: {
@@ -885,6 +919,7 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
     },
     {
         key: "crm-updater",
+        source: {kind: "internal", key: "crm-updater"},
         name: "CRM updater",
         category: "Sales",
         initials: "CU",
@@ -904,6 +939,7 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
         model: DEFAULT_MODEL,
         connections: [
             {
+                key: "read-the-threads",
                 role: "Read the threads",
                 required: true,
                 primary: {
@@ -923,6 +959,7 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
                 },
             },
             {
+                key: "land-the-updates",
                 role: "Land the updates",
                 required: false,
                 primary: {
@@ -935,6 +972,7 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
     },
     {
         key: "outreach-drafter",
+        source: {kind: "internal", key: "outreach-drafter"},
         name: "Outreach drafter",
         category: "Sales",
         initials: "OD",
@@ -954,6 +992,7 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
         model: DEFAULT_MODEL,
         connections: [
             {
+                key: "read-the-contact-list",
                 role: "Read the contact list",
                 required: true,
                 primary: {
@@ -973,6 +1012,7 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
                 alternatives: ["salesforce", "attio"],
             },
             {
+                key: "hold-the-drafts",
                 role: "Hold the drafts",
                 required: false,
                 primary: {
@@ -984,6 +1024,7 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
     },
     {
         key: "meeting-followup",
+        source: {kind: "internal", key: "meeting-followup"},
         name: "Meeting follow-up",
         category: "Sales",
         initials: "MF",
@@ -1003,6 +1044,7 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
         model: DEFAULT_MODEL,
         connections: [
             {
+                key: "draft-the-follow-up",
                 role: "Draft the follow-up",
                 required: true,
                 primary: {
@@ -1022,6 +1064,7 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
                 },
             },
             {
+                key: "read-the-meeting",
                 role: "Read the meeting",
                 required: false,
                 primary: {
@@ -1030,6 +1073,7 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
                 },
             },
             {
+                key: "update-the-crm",
                 role: "Update the CRM",
                 required: false,
                 primary: {
@@ -1042,6 +1086,7 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
     },
     {
         key: "pipeline-digest",
+        source: {kind: "internal", key: "pipeline-digest"},
         name: "Pipeline digest",
         category: "Sales",
         initials: "PD",
@@ -1059,6 +1104,7 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
         model: DEFAULT_MODEL,
         connections: [
             {
+                key: "read-the-deals",
                 role: "Read the deals",
                 required: true,
                 primary: {
@@ -1078,6 +1124,7 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
                 alternatives: ["salesforce", "attio"],
             },
             {
+                key: "post-the-digest",
                 role: "Post the digest",
                 required: true,
                 primary: {
@@ -1103,6 +1150,7 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
     // Monitoring (folded into Engineering, open question #1)
     {
         key: "incident-responder",
+        source: {kind: "internal", key: "incident-responder"},
         name: "Incident responder",
         category: "Engineering",
         initials: "!",
@@ -1122,6 +1170,7 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
         model: DEFAULT_MODEL,
         connections: [
             {
+                key: "read-the-errors",
                 role: "Read the errors",
                 required: true,
                 primary: {
@@ -1140,6 +1189,7 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
                 },
             },
             {
+                key: "notify-or-page",
                 role: "Notify or page",
                 required: true,
                 primary: {
@@ -1161,6 +1211,7 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
                 alternatives: ["pagerduty"],
             },
             {
+                key: "read-extra-context",
                 role: "Read extra context",
                 required: false,
                 primary: {
@@ -1173,6 +1224,7 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
     },
     {
         key: "error-triage",
+        source: {kind: "internal", key: "error-triage"},
         name: "Error triage",
         category: "Engineering",
         initials: "ET",
@@ -1192,6 +1244,7 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
         model: DEFAULT_MODEL,
         connections: [
             {
+                key: "read-the-errors",
                 role: "Read the errors",
                 required: true,
                 primary: {
@@ -1210,6 +1263,7 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
                 },
             },
             {
+                key: "file-the-issue",
                 role: "File the issue",
                 required: true,
                 primary: {
@@ -1234,6 +1288,7 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
     },
     {
         key: "uptime-reporter",
+        source: {kind: "internal", key: "uptime-reporter"},
         name: "Uptime reporter",
         category: "Engineering",
         initials: "UR",
@@ -1249,6 +1304,7 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
         model: DEFAULT_MODEL,
         connections: [
             {
+                key: "read-the-errors",
                 role: "Read the errors",
                 required: true,
                 primary: {
@@ -1269,6 +1325,7 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
                 },
             },
             {
+                key: "post-the-report",
                 role: "Post the report",
                 required: true,
                 primary: {
@@ -1288,6 +1345,7 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
                 },
             },
             {
+                key: "read-uptime-context",
                 role: "Read uptime context",
                 required: false,
                 primary: {
@@ -1300,6 +1358,7 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
     },
     {
         key: "oncall-briefer",
+        source: {kind: "internal", key: "oncall-briefer"},
         name: "On-call briefer",
         category: "Engineering",
         initials: "OC",
@@ -1319,6 +1378,7 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
         model: DEFAULT_MODEL,
         connections: [
             {
+                key: "read-the-errors",
                 role: "Read the errors",
                 required: true,
                 primary: {
@@ -1339,6 +1399,7 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
                 },
             },
             {
+                key: "post-the-brief",
                 role: "Post the brief",
                 required: true,
                 primary: {
@@ -1358,6 +1419,7 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
                 },
             },
             {
+                key: "name-the-on-call-engineer",
                 role: "Name the on-call engineer",
                 required: false,
                 primary: {
@@ -1371,6 +1433,7 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
     // Knowledge (Q&A bots, docs, content)
     {
         key: "docs-qa",
+        source: {kind: "internal", key: "docs-qa"},
         name: "Docs Q&A",
         category: "Knowledge",
         initials: "Q",
@@ -1390,6 +1453,7 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
         model: DEFAULT_MODEL,
         connections: [
             {
+                key: "read-the-documentation",
                 role: "Read the documentation",
                 required: true,
                 primary: {
@@ -1409,6 +1473,7 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
                 alternatives: ["confluence", "googledrive"],
             },
             {
+                key: "read-an-extra-source",
                 role: "Read an extra source",
                 required: false,
                 primary: {
@@ -1420,6 +1485,7 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
     },
     {
         key: "knowledge-chatbot",
+        source: {kind: "internal", key: "knowledge-chatbot"},
         name: "Knowledge chatbot",
         category: "Knowledge",
         initials: "KC",
@@ -1438,6 +1504,7 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
         model: DEFAULT_MODEL,
         connections: [
             {
+                key: "read-the-knowledge-base",
                 role: "Read the knowledge base",
                 required: true,
                 primary: {
@@ -1456,6 +1523,7 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
                 },
             },
             {
+                key: "reply-to-the-asker",
                 role: "Reply to the asker",
                 required: true,
                 primary: {
@@ -1480,6 +1548,7 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
     },
     {
         key: "onboarding-buddy",
+        source: {kind: "internal", key: "onboarding-buddy"},
         name: "Onboarding buddy",
         category: "Knowledge",
         initials: "OB",
@@ -1498,6 +1567,7 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
         model: DEFAULT_MODEL,
         connections: [
             {
+                key: "read-the-onboarding-material",
                 role: "Read the onboarding material",
                 required: true,
                 primary: {
@@ -1517,6 +1587,7 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
                 alternatives: ["confluence"],
             },
             {
+                key: "reply-to-the-new-starter",
                 role: "Reply to the new starter",
                 required: true,
                 primary: {
@@ -1540,6 +1611,7 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
     },
     {
         key: "content-repurposer",
+        source: {kind: "internal", key: "content-repurposer"},
         name: "Content repurposer",
         category: "Knowledge",
         initials: "CR",
@@ -1558,6 +1630,7 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
         model: DEFAULT_MODEL,
         connections: [
             {
+                key: "read-the-source-and-hold-drafts",
                 role: "Read the source and hold drafts",
                 required: true,
                 primary: {
@@ -1576,6 +1649,7 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
                 },
             },
             {
+                key: "read-a-swappable-source",
                 role: "Read a swappable source",
                 required: false,
                 primary: {
@@ -1584,6 +1658,7 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
                 },
             },
             {
+                key: "review-the-drafts",
                 role: "Review the drafts",
                 required: false,
                 primary: {
@@ -1595,6 +1670,7 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
     },
     {
         key: "newsletter-drafter",
+        source: {kind: "internal", key: "newsletter-drafter"},
         name: "Newsletter drafter",
         category: "Knowledge",
         initials: "ND",
@@ -1612,6 +1688,7 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
         model: DEFAULT_MODEL,
         connections: [
             {
+                key: "hold-the-draft",
                 role: "Hold the draft",
                 required: true,
                 primary: {
@@ -1630,6 +1707,7 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
                 },
             },
             {
+                key: "read-what-shipped",
                 role: "Read what shipped",
                 required: true,
                 primary: {
@@ -1656,6 +1734,7 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
     // Ops (digests, reporting, cross-tool syncs)
     {
         key: "standup-summarizer",
+        source: {kind: "internal", key: "standup-summarizer"},
         name: "Standup summarizer",
         category: "Ops",
         initials: "SU",
@@ -1675,6 +1754,7 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
         model: DEFAULT_MODEL,
         connections: [
             {
+                key: "read-and-post-to-the-channel",
                 role: "Read and post to the channel",
                 required: true,
                 primary: {
@@ -1697,6 +1777,7 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
     },
     {
         key: "repo-slack-digest",
+        source: {kind: "internal", key: "repo-slack-digest"},
         name: "Repo Slack digest",
         category: "Ops",
         initials: "RD",
@@ -1714,6 +1795,7 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
         model: DEFAULT_MODEL,
         connections: [
             {
+                key: "read-repository-activity",
                 role: "Read repository activity",
                 required: true,
                 primary: {
@@ -1733,6 +1815,7 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
                 alternatives: ["gitlab"],
             },
             {
+                key: "post-the-digest",
                 role: "Post the digest",
                 required: true,
                 primary: {
@@ -1757,6 +1840,7 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
     },
     {
         key: "cross-tool-sync",
+        source: {kind: "internal", key: "cross-tool-sync"},
         name: "Cross-tool sync",
         category: "Ops",
         initials: "CS",
@@ -1775,6 +1859,7 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
         model: DEFAULT_MODEL,
         connections: [
             {
+                key: "read-from-the-source-tool",
                 role: "Read from the source tool",
                 required: true,
                 primary: {
@@ -1794,6 +1879,7 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
                 alternatives: ["jira"],
             },
             {
+                key: "write-to-the-destination-tool",
                 role: "Write to the destination tool",
                 required: true,
                 primary: {
@@ -1818,6 +1904,7 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
     },
     {
         key: "weekly-report",
+        source: {kind: "internal", key: "weekly-report"},
         name: "Weekly report",
         category: "Ops",
         initials: "WR",
@@ -1837,6 +1924,7 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
         model: DEFAULT_MODEL,
         connections: [
             {
+                key: "read-the-shipped-work",
                 role: "Read the shipped work",
                 required: true,
                 primary: {
@@ -1857,6 +1945,7 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
                 },
             },
             {
+                key: "publish-the-report",
                 role: "Publish the report",
                 required: true,
                 primary: {
@@ -1878,6 +1967,7 @@ export const AGENT_TEMPLATES: AgentStarterTemplate[] = [
                 alternatives: ["slack"],
             },
             {
+                key: "read-product-metrics",
                 role: "Read product metrics",
                 required: false,
                 primary: {

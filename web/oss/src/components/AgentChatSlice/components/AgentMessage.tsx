@@ -1,6 +1,8 @@
 import {memo, useEffect, useMemo, useState} from "react"
 
 import {
+    displayMessage,
+    getDisplayContent,
     getMessageRunError,
     getMessageRunErrorCode,
     isMessageRunErrorTransport,
@@ -262,7 +264,7 @@ const AttachmentFilePart = ({file, sessionId}: {file: FileUIPart; sessionId: str
  * footer. While an assistant message has no content yet, the bubble shows the loading state.
  */
 const AgentMessage = ({
-    message,
+    message: sourceMessage,
     sessionId,
     isStreaming = false,
     isLastMessage = false,
@@ -272,6 +274,7 @@ const AgentMessage = ({
     turnTraceId,
     onRetry,
 }: AgentMessageProps) => {
+    const message = useMemo(() => displayMessage(sourceMessage), [sourceMessage])
     const openTraceDrawer = useSetAtom(openTraceDrawerAtom)
     // Both recovery escapes on a failed run land on the AI providers page, which is what the
     // provider drawer opens; the shared callout only draws them because this app has one.
@@ -579,6 +582,7 @@ const AgentMessage = ({
     // keeps the invisible buttons unclickable. The buttons carry no `disabled`, so the busy guard
     // lives in the handlers: `onRewind` → `handleRewind` early-returns while a stream is in flight.
     const toolbarReveal = turnToolbarRevealClass
+    if (getDisplayContent(sourceMessage) === null) return null
 
     // `group relative` → the toolbar reveals on hover/focus of the whole message row and anchors
     // to the reserved lane (`pb-8`) at the row's bottom. The row is a flex that justifies the
@@ -622,7 +626,7 @@ const AgentMessage = ({
                     usage={usage}
                     copyText={copyText}
                     // Rewinding the LAST turn just re-runs the turn that's already current, so hide it.
-                    onRewind={isLastMessage ? undefined : () => onRewind(message)}
+                    onRewind={isLastMessage ? undefined : () => onRewind(sourceMessage)}
                     onViewTrace={(id) => openTraceDrawer({traceId: id})}
                 />
             </div>

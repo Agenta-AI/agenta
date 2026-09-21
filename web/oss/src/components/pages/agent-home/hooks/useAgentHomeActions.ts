@@ -1,6 +1,6 @@
 import {useCallback, type RefObject} from "react"
 
-import type {AgentSetupSelection} from "@agenta/entities/workflow"
+import type {AgentSetupSelection, AgentStarterTemplate} from "@agenta/entities/workflow"
 import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 
 import {usePostHogAg} from "@/oss/lib/helpers/analytics/hooks/usePostHogAg"
@@ -36,7 +36,12 @@ export function useAgentHomeActions(
         // `prompt` overrides the ref read for Enter-submit, where the editor has already
         // serialized + cleared itself and hands the markdown to the submit callback.
         // `setup` is what the pre-create connect step decided, when it ran.
-        (templateName?: string, prompt?: string, setup?: AgentSetupSelection) => {
+        (
+            templateName?: string,
+            prompt?: string,
+            setup?: AgentSetupSelection,
+            template?: AgentStarterTemplate,
+        ) => {
             const message = prompt?.trim() || readPrompt()
             if (message) {
                 captureFirstAgentIntent(posthog, {
@@ -52,6 +57,7 @@ export function useAgentHomeActions(
                 seedMessage: message,
                 autoSendSeed,
                 setup,
+                template,
             })
         },
         [createAgent, posthog, readPrompt, autoSendSeed],

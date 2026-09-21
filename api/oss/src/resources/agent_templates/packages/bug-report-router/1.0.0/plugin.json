@@ -1,0 +1,19 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "bug-report-router",
+  "version": "1.0.0",
+  "description": "Turns support complaints into Linear bug tickets, including repro steps pulled from the thread.",
+  "author": {
+    "name": "Agenta"
+  },
+  "license": "Apache-2.0",
+  "keywords": [
+    "support",
+    "agent-template"
+  ],
+  "extensions": {
+    "ai.agenta": {
+      "manifest": "./ai.agenta/agents.json"
+    }
+  }
+}

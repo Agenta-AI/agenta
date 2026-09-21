@@ -42,7 +42,7 @@ const OnboardingConfigPanel = () => {
             },
             intentValue: template.category || template.name,
         })
-        commit(templateBuilderMessage(template), template.name)
+        commit(templateBuilderMessage(template), template.name, template)
     }
 
     return (

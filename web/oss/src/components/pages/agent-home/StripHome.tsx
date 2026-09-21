@@ -256,7 +256,7 @@ const StripHome: React.FC = () => {
             if (loading || !setup.draft) return
             const text = composerRef.current?.getMarkdown().trim() || setup.draft.seedMessage
             setLoading(true)
-            const ok = await onCreate(setup.draft.name, text, selection)
+            const ok = await onCreate(setup.draft.name, text, selection, setup.draft.template)
             if (!ok) setLoading(false)
         },
         [loading, onCreate, setup.draft],

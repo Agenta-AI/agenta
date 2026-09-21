@@ -404,13 +404,18 @@ class Message(BaseModel):
 
     role: str
     content: MessageContent = ""
+    display_content: Optional[str] = None
 
     def to_wire(self) -> Dict[str, Any]:
         if isinstance(self.content, str):
             content: Any = self.content
         else:
             content = [block.to_wire() for block in self.content]
-        return {"role": self.role, "content": content}
+        result = {"role": self.role, "content": content}
+        # Absence keeps legacy display; explicit null hides the message.
+        if "display_content" in self.model_fields_set:
+            result["display_content"] = self.display_content
+        return result
 
     @classmethod
     def from_raw(cls, raw: Any) -> Optional["Message"]:
@@ -422,7 +427,12 @@ class Message(BaseModel):
         content = raw.get("content", "")
         if isinstance(content, list):
             content = [ContentBlock.from_raw(block) for block in content]
-        return cls(role=str(raw["role"]), content=content)
+        display = (
+            {"display_content": raw["display_content"]}
+            if "display_content" in raw
+            else {}
+        )
+        return cls(role=str(raw["role"]), content=content, **display)
 
 
 def to_messages(raw: Optional[List[Any]]) -> List[Message]:

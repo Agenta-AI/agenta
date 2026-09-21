@@ -27,6 +27,27 @@ class SessionInputsDAO(SessionInputsDAOInterface):
     def __init__(self, engine: Optional[TransactionsEngine] = None):
         self.engine = engine or get_transactions_engine()
 
+    async def claim_dispatch(
+        self, *, project_id: UUID, session_id: str, input_id: UUID, execution_id: str
+    ) -> bool:
+        async with self.engine.session() as session:
+            result = await session.execute(
+                sa_update(SessionInputDBE)
+                .where(
+                    SessionInputDBE.project_id == project_id,
+                    SessionInputDBE.session_id == session_id,
+                    SessionInputDBE.id == input_id,
+                    SessionInputDBE.state == "promoted",
+                    SessionInputDBE.promoted_execution_id == execution_id,
+                    SessionInputDBE.dispatch_claimed.is_(False),
+                )
+                .values(dispatch_claimed=True)
+                .returning(SessionInputDBE.id)
+            )
+            claimed = result.scalar_one_or_none() is not None
+            await session.commit()
+            return claimed
+
     def transaction(self):
         return self.engine.session()
 

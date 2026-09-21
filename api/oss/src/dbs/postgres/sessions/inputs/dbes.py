@@ -1,6 +1,7 @@
 from sqlalchemy import (
     BigInteger,
     CheckConstraint,
+    Boolean,
     Column,
     ForeignKeyConstraint,
     Index,
@@ -29,6 +30,7 @@ class SessionInputDBE(Base, ProjectScopeDBA, LifecycleDBA, IdentifierDBA):
     idempotency_key = Column(String, nullable=False)
     request_fingerprint = Column(String(64), nullable=False)
     promoted_execution_id = Column(String, nullable=True)
+    dispatch_claimed = Column(Boolean, nullable=False, server_default=text("false"))
 
     __table_args__ = (
         ForeignKeyConstraint(["project_id"], ["projects.id"], ondelete="CASCADE"),

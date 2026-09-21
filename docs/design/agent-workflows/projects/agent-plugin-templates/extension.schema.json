@@ -1,0 +1,294 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agenta.ai/schemas/agent-plugin-extension/1/agents.schema.json",
+  "title": "Agenta Agent Plugin extension",
+  "description": "Proposed single-agent template contract. Runtime loading is not implemented.",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "entry": {
+      "$ref": "#/$defs/key"
+    },
+    "agents": {
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": {
+        "$ref": "#/$defs/key"
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/agent"
+      },
+      "maxProperties": 1
+    }
+  },
+  "required": ["schema_version", "entry", "agents"],
+  "additionalProperties": false,
+  "$defs": {
+    "key": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+    },
+    "packagePath": {
+      "type": "string",
+      "pattern": "^\\./ai\\.agenta/(?!\\.\\.(?:/|$))(?!.*\\/\\.\\.(?:/|$)).+"
+    },
+    "mountPath": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))[^\\u0000-\\u001f\\u007f]+$"
+    },
+    "gatewayOption": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "const": "gateway"
+        },
+        "provider": {
+          "const": "composio"
+        },
+        "integration": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": ["kind", "provider", "integration"],
+      "additionalProperties": false
+    },
+    "mcpOption": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "const": "mcp"
+        },
+        "server": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": ["kind", "server"],
+      "additionalProperties": false
+    },
+    "connectionOption": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/gatewayOption"
+        },
+        {
+          "$ref": "#/$defs/mcpOption"
+        }
+      ]
+    },
+    "permissions": {
+      "type": "object",
+      "properties": {
+        "default": {
+          "enum": ["inherit", "allow", "ask", "deny"]
+        },
+        "tools": {
+          "type": "object",
+          "additionalProperties": {
+            "enum": ["inherit", "allow", "ask", "deny"]
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "connection": {
+      "type": "object",
+      "properties": {
+        "key": {
+          "$ref": "#/$defs/key"
+        },
+        "required": {
+          "type": "boolean"
+        },
+        "purpose": {
+          "type": "string",
+          "minLength": 1
+        },
+        "options": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/connectionOption"
+          }
+        },
+        "policy": {
+          "type": "object",
+          "properties": {
+            "permissions": {
+              "$ref": "#/$defs/permissions"
+            }
+          },
+          "additionalProperties": false
+        },
+        "setup_notes": {
+          "type": "string"
+        }
+      },
+      "required": ["key", "required", "purpose", "options"],
+      "additionalProperties": false
+    },
+    "scheduleTrigger": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "const": "schedule"
+        },
+        "schedule": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": ["type", "schedule"],
+      "additionalProperties": false
+    },
+    "subscriptionTrigger": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "const": "subscription"
+        },
+        "connection": {
+          "$ref": "#/$defs/key"
+        },
+        "event_key": {
+          "type": "string",
+          "minLength": 1
+        },
+        "trigger_config": {
+          "type": "object"
+        }
+      },
+      "required": ["type", "connection", "event_key"],
+      "additionalProperties": false
+    },
+    "automation": {
+      "type": "object",
+      "properties": {
+        "key": {
+          "$ref": "#/$defs/key"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "required": {
+          "type": "boolean"
+        },
+        "trigger": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/scheduleTrigger"
+            },
+            {
+              "$ref": "#/$defs/subscriptionTrigger"
+            }
+          ]
+        },
+        "inputs_fields": {},
+        "setup_notes": {
+          "type": "string"
+        }
+      },
+      "required": ["key", "name", "required", "trigger"],
+      "additionalProperties": false
+    },
+    "workspaceFile": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "const": "file"
+        },
+        "source": {
+          "$ref": "#/$defs/packagePath"
+        },
+        "path": {
+          "$ref": "#/$defs/mountPath"
+        }
+      },
+      "required": ["type", "source", "path"],
+      "additionalProperties": false
+    },
+    "workspaceDirectory": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "const": "directory"
+        },
+        "path": {
+          "$ref": "#/$defs/mountPath"
+        }
+      },
+      "required": ["type", "path"],
+      "additionalProperties": false
+    },
+    "workspace": {
+      "type": "object",
+      "properties": {
+        "entries": {
+          "type": "array",
+          "items": {
+            "oneOf": [
+              {
+                "$ref": "#/$defs/workspaceFile"
+              },
+              {
+                "$ref": "#/$defs/workspaceDirectory"
+              }
+            ]
+          }
+        }
+      },
+      "required": ["entries"],
+      "additionalProperties": false
+    },
+    "agent": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "instructions": {
+          "$ref": "#/$defs/packagePath"
+        },
+        "setup": {
+          "$ref": "#/$defs/packagePath"
+        },
+        "skills": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/key"
+          },
+          "uniqueItems": true
+        },
+        "connections": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/connection"
+          }
+        },
+        "automations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/automation"
+          }
+        },
+        "workspace": {
+          "$ref": "#/$defs/workspace"
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": ["name", "description", "instructions"],
+      "additionalProperties": false
+    }
+  }
+}

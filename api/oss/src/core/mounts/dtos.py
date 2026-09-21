@@ -101,6 +101,17 @@ class MountFileContent(BaseModel):
     content: str
 
 
+class MountFileSeed(BaseModel):
+    path: str
+    content: bytes
+
+
+class MaterializeEntriesResult(BaseModel):
+    mount_id: UUID
+    created: List[str] = Field(default_factory=list)
+    preserved: List[str] = Field(default_factory=list)
+
+
 class MountFileWritten(BaseModel):
     path: str
     size: int = 0

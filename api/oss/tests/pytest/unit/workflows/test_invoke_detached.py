@@ -319,6 +319,32 @@ async def test_invoke_workflow_detached_enables_strict_handshake_for_control_com
     assert captured["strict_first_record"] is True
 
 
+async def test_invoke_workflow_detached_enables_explicit_strict_start():
+    svc = _service()
+    svc._prepare_invoke = AsyncMock(return_value=("Secret tok", "http://svc"))
+    captured = {}
+
+    async def _fake_stream(*, url, credentials, payload, run_id, strict_first_record):
+        captured["strict_first_record"] = strict_first_record
+        from oss.src.core.workflows.dtos import WorkflowServiceDetachedResponse
+
+        return WorkflowServiceDetachedResponse(run_id=run_id, accepted=True)
+
+    svc._stream_service_started = _fake_stream
+
+    from agenta.sdk.decorators.running import WorkflowServiceRequest
+
+    await svc.invoke_workflow_detached(
+        project_id=uuid4(),
+        user_id=uuid4(),
+        request=WorkflowServiceRequest(),
+        run_id="run-strict",
+        strict_start=True,
+    )
+
+    assert captured["strict_first_record"] is True
+
+
 async def test_invoke_workflow_detached_raises_when_no_service_url():
     svc = _service()
     svc._prepare_invoke = AsyncMock(return_value=("Secret tok", None))

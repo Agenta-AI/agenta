@@ -85,6 +85,11 @@ export const pendingInputToQueuedMessage = (input: PendingSessionInput): QueuedM
         }
     }
 
+    const display = message.display_content ?? asRecord(message.metadata)?.display_content
+    if (message.display_content === null || asRecord(message.metadata)?.display_content === null)
+        return null
+    if (typeof display === "string") text = display
+
     return {
         id: input.id,
         text,
@@ -92,7 +97,7 @@ export const pendingInputToQueuedMessage = (input: PendingSessionInput): QueuedM
         attachmentCount,
         policy: input.policy,
         source: "server",
-        editable: input.state === "pending",
+        editable: input.state === "pending" && display === undefined,
     }
 }
 

@@ -483,6 +483,11 @@ class SimpleWorkflow(Identifier, Slug, Lifecycle, Header, Metadata):
     revision_id: Optional[UUID] = None
 
 
+class SimpleWorkflowCreateResult(BaseModel):
+    workflow: SimpleWorkflow
+    replayed: bool
+
+
 class SimpleWorkflowCreate(Slug, Header, Metadata):
     flags: Optional[SimpleWorkflowFlags] = None
 

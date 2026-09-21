@@ -4,6 +4,7 @@ import {stagedFilesToParts, useComposerAttachments} from "@agenta/chat/hooks"
 import {markSessionFresh} from "@agenta/chat/state"
 import {
     agentTemplateByKey,
+    abandonAgentTemplateLoad,
     templateBuilderMessage,
     type AgentSetupSelection,
     type AgentStarterTemplate,
@@ -11,11 +12,13 @@ import {
 import {AgentSetupCard, useAgentSetupStep} from "@agenta/entity-ui/onboarding"
 import {HeightCollapse} from "@agenta/ui/height-collapse"
 import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
+import {useAtom} from "jotai"
 import {useRouter} from "next/router"
 
 import {CONNECT_STEP_MODE} from "@/lib/connectStep"
 import {newId} from "@/lib/ids"
 
+import {templateSetupDraftAtom} from "../agents/templateSetupDraft"
 import {useNewAgentAction} from "../agents/useNewAgentAction"
 import {SessionWorkspace} from "../chat/SessionWorkspace"
 
@@ -55,6 +58,15 @@ export const FirstRunScreen = ({
     /** A pick made on another page (`?template=`): the step opens on landing. */
     templateKey?: string
 }) => {
+    const [pendingDraft, setPendingDraft] = useAtom(templateSetupDraftAtom)
+    const [arrival] = useState(() =>
+        pendingDraft?.base === base && pendingDraft.templateKey === templateKey
+            ? pendingDraft
+            : null,
+    )
+    useEffect(() => {
+        if (arrival) setPendingDraft(null)
+    }, [arrival, setPendingDraft])
     const newAgent = useNewAgentAction(base)
     const router = useRouter()
     const step = useAgentSetupStep()
@@ -64,7 +76,7 @@ export const FirstRunScreen = ({
     // One session id for the whole pre-commit surface: the composer stages attachments against it
     // and the workspace keys its panes off it, so they must agree before the agent exists.
     const [sessionId] = useState(() => {
-        const id = newId()
+        const id = arrival?.sessionId ?? newId()
         markSessionFresh(id)
         return id
     })
@@ -122,7 +134,9 @@ export const FirstRunScreen = ({
     /** Open the step for a template; its prompt carries the hero AND sits in the locked editor. */
     const openStepFor = (template: AgentStarterTemplate): boolean => {
         if (!CONNECT_STEP_MODE) return false
-        const seed = templateBuilderMessage(template)
+        const seed =
+            (arrival?.templateKey === template.key ? arrival.text : undefined) ??
+            templateBuilderMessage(template)
         if (!step.open({seedMessage: seed, name: template.name, template})) return false
         setStepReady(false)
         setRefill(seed)
@@ -131,7 +145,13 @@ export const FirstRunScreen = ({
 
     const pickTemplate = (template: AgentStarterTemplate) => {
         if (openStepFor(template)) return
-        newAgent.createFromTemplate(template.key)
+        if (!entityId) return
+        void newAgent.createFromPrompt({
+            text: templateBuilderMessage(template),
+            name: template.name,
+            templateKey: template.key,
+            entityId,
+        })
     }
 
     // A `?template=` arrival was picked on another page, so the step opens on landing — once per
@@ -140,23 +160,31 @@ export const FirstRunScreen = ({
     const arrivedTemplate = agentTemplateByKey(templateKey)
     const seededTemplate = useRef<string | null>(null)
     useEffect(() => {
-        if (!arrivedTemplate) return
+        if (!arrivedTemplate || !entityId) return
         if (seededTemplate.current === arrivedTemplate.key) return
         seededTemplate.current = arrivedTemplate.key
         if (openStepFor(arrivedTemplate)) return
-        newAgent.createFromTemplate(arrivedTemplate.key)
+        void newAgent.createFromPrompt({
+            text: arrival?.text ?? templateBuilderMessage(arrivedTemplate),
+            name: arrivedTemplate.name,
+            templateKey: arrivedTemplate.key,
+            sessionId,
+            parts: arrival?.parts,
+            entityId,
+        })
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [arrivedTemplate])
+    }, [arrivedTemplate, entityId])
 
     const create = async (text: string, setup?: AgentSetupSelection) => {
         const staged = attachments.files
-        const parts = staged.length > 0 ? stagedFilesToParts(staged, sessionId) : undefined
+        const parts = staged.length > 0 ? stagedFilesToParts(staged, sessionId) : arrival?.parts
         // The outcome comes back as a value, not off `newAgent.error`: that flag belongs to THIS
         // render, so reading it after the await would read the state from before the create.
         const handedOff = await newAgent.createFromPrompt({
             text,
             // A template pick names the agent; a plain description leaves naming to the agent.
             name: step.draft?.name,
+            templateKey: step.draft?.template?.key,
             sessionId,
             parts,
             setup,
@@ -181,6 +209,7 @@ export const FirstRunScreen = ({
     // naming it, and clears a template prompt the user never edited; a typed description stays
     // in the editor, still the user's to send.
     const dismissStep = () => {
+        if (step.draft?.template) abandonAgentTemplateLoad(projectId, step.draft.template.key)
         if (step.draft?.template && !promptEdited) setRefill("")
         step.close()
         if (templateKey) {
