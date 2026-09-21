@@ -212,8 +212,8 @@ async def deliver_http_stream(
     except httpx.ReadTimeout as exc:
         # httpx's ReadTimeout has an empty message, which the wire layer would otherwise
         # collapse to a bare "agent run failed".
-        raise RuntimeError(
-            f"Agent runner stream stalled: no record for {timeout}s: {url}"
+        raise _transport_error(
+            f"Agent runner stream stalled: no record for {timeout}s", detail=url
         ) from exc
     if not saw_result:
         raise RuntimeError("Agent runner stream ended without a terminal result record")
@@ -270,8 +270,9 @@ async def deliver_subprocess_stream(
             try:
                 raw = await asyncio.wait_for(proc.stdout.readline(), timeout=timeout)
             except asyncio.TimeoutError:
-                raise RuntimeError(
-                    f"Agent runner stream stalled: no record for {timeout}s: {' '.join(command)}"
+                raise _transport_error(
+                    f"Agent runner stream stalled: no record for {timeout}s",
+                    detail=" ".join(command),
                 )
             if not raw:  # EOF
                 break

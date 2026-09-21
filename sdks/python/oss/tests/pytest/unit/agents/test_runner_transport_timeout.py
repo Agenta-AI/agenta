@@ -122,8 +122,13 @@ async def test_subprocess_stream_raises_on_a_stall_longer_than_the_idle_window(
         ],
     )
 
-    with pytest.raises(RuntimeError, match="stalled"):
-        await _collect_subprocess(timeout=0.1)
+    with pytest.raises(RuntimeError, match=r"stalled: no record for 0\.1s$") as excinfo:
+        async for _ in ts_runner.deliver_subprocess_stream(
+            ["/opt/internal/agent-bin", "--serve"], {"harness": "pi_core"}, timeout=0.1
+        ):
+            pass
+    # The command line is internal; only the stall itself reaches the user.
+    assert "agent-bin" not in str(excinfo.value)
 
 
 # --- HTTP transport: the timeout is handed to httpx as a per-read (idle) bound ----
@@ -214,11 +219,13 @@ async def test_http_stream_names_a_read_timeout(monkeypatch):
 
     monkeypatch.setattr(httpx, "AsyncClient", _Client)
 
-    with pytest.raises(RuntimeError, match=r"stalled: no record for 7\.5s"):
+    with pytest.raises(RuntimeError, match=r"stalled: no record for 7\.5s$") as excinfo:
         async for _ in ts_runner.deliver_http_stream(
             "http://runner:8765", {"harness": "pi_core"}, timeout=7.5
         ):
             pass
+    # The surfaced text reaches the user, so the internal runner address stays in the log.
+    assert "runner:8765" not in str(excinfo.value)
 
 
 # --- the adapter default must not drift from the shared constant -------------------
