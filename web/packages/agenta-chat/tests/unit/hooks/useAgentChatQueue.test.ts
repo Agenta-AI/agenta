@@ -137,32 +137,30 @@ describe("useAgentChatQueue", () => {
         expect(result.current.queued).toHaveLength(0)
     })
 
-    it("admits Steer into a continuation this tab just started, before the snapshot says busy", async () => {
+    it("admits Steer while the run is parked on the user, before the snapshot says busy", async () => {
         // A question dismissed from the composer resumes the run server-side, but the parked run
-        // read `idle` and the next poll is seconds out. The respond body's execution id is the
-        // proof the turn is live, and the message steering in behind that dismiss rides on it.
+        // reads `idle` and the next poll is seconds out. The transcript already says the turn is
+        // parked on us, and the message steering in behind that dismiss rides on it.
         const server: ServerQueueAdapter = {
             busy: false,
             queued: [],
             submit: vi.fn().mockResolvedValue(undefined),
             remove: vi.fn().mockResolvedValue(undefined),
         }
-        const parked: HarnessProps = {
+        const idle = setup({...settledEmpty, server})
+        await act(async () => {
+            await expect(
+                idle.result.current.steer({text: "nothing to steer into"}),
+            ).rejects.toThrow("not ready to accept a Steer input")
+        })
+
+        const parked = setup({
             messages: [userTurn("u1", "go"), assistantAwaitingApproval("a1")],
             stopped: false,
             server,
-        }
-        const {result, rerender} = setup(parked)
-
-        await act(async () => {
-            await expect(result.current.steer({text: "too early"})).rejects.toThrow(
-                "not ready to accept a Steer input",
-            )
         })
-
-        rerender({...parked, continuationExecutionId: "a1-continuation-execution"})
         await act(async () => {
-            await result.current.steer({text: "answered in chat instead"})
+            await parked.result.current.steer({text: "answered in chat instead"})
         })
 
         expect(server.submit).toHaveBeenCalledWith(

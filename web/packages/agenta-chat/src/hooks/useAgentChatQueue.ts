@@ -110,7 +110,6 @@ export const useAgentChatQueue = ({
 }: UseAgentChatQueueArgs) => {
     const serverBusyRef = useRef(server.busy)
     serverBusyRef.current = server.busy
-    const ownsContinuationRef = useRef(false)
 
     // ── The durable-continuation hold ─────────────────────────────────────────────────────────
     // A server-owned continuation is a TURN. The tab that answered the approval owns it until
@@ -147,11 +146,12 @@ export const useAgentChatQueue = ({
         (!!continuationExecutionId &&
             hasRunningApprovalContinuation(messages) &&
             !approvalContinuationSettled(messages, continuationExecutionId))
-    ownsContinuationRef.current = ownsContinuation
 
     // A stop voids the approval gate, so the aborted turn's lingering `approval-requested` part
     // must not read as "awaiting".
     const hitlPending = !stopped && isHitlPending(messages)
+    const hitlPendingRef = useRef(hitlPending)
+    hitlPendingRef.current = hitlPending
 
     const restoreRefusedSendRef = useRef(restoreRefusedSend)
     restoreRefusedSendRef.current = restoreRefusedSend
@@ -254,11 +254,12 @@ export const useAgentChatQueue = ({
             fileParts?: FileUIPart[]
             stagedFiles?: ComposerAttachment[]
         }) => {
-            // A continuation this tab just started counts as busy. Its heartbeat is not in the
-            // snapshot yet (a parked run reads `idle` until the next poll), but the server already
-            // owns the turn and delivers a steer into it — the host's dismiss-then-steer over a
-            // parked question depends on this.
-            if (!(serverBusyRef.current || ownsContinuationRef.current)) {
+            // A run parked on the user counts as busy. Its heartbeat is not in the snapshot (a
+            // parked run reads `idle`), but the turn is still open server-side: the host's
+            // dismiss-then-steer over a parked question resumes it, and the steer lands in the
+            // resumed turn. Read through a ref, not the transcript: the call comes straight after
+            // the dismiss write, before anything has re-rendered.
+            if (!(serverBusyRef.current || hitlPendingRef.current)) {
                 throw new Error("The session is not ready to accept a Steer input.")
             }
             const message: QueuedMessage = {
