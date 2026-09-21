@@ -2,7 +2,12 @@ import {useEffect, useState} from "react"
 
 import {useAtomValue, useSetAtom} from "jotai"
 
-import {settleTurnSpanAtom, startTurnSpanAtom, turnSpanAtomFamily} from "../state/turnClock"
+import {
+    settleTurnSpanAtom,
+    startTurnSpanAtom,
+    turnSpanAtomFamily,
+    turnSpanElapsed,
+} from "../state/turnClock"
 
 /** `0:12` while counting; `11s` / `4m 12s` once frozen. */
 export const formatElapsed = (ms: number, {live}: {live: boolean}): string => {
@@ -42,5 +47,5 @@ export const useTurnClock = (
     }, [live])
 
     if (!span) return null
-    return (span.endedAt ?? now) - span.startedAt
+    return turnSpanElapsed(span, now)
 }

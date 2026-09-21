@@ -7,6 +7,7 @@ import {
     startTurnClockAtom,
     startTurnSpanAtom,
     turnSpanAtomFamily,
+    turnSpanElapsed,
     turnStartAtomFamily,
 } from "../../../src/state/turnClock"
 
@@ -104,8 +105,8 @@ describe("turn span", () => {
         expect(store.get(turnSpanAtomFamily("turn"))?.startedAt).toBe(Date.now())
     })
 
-    // The freeze exists to keep parked time out of the count, so a resume must still shift.
-    it("shifts an anchored span by the pause rather than re-anchoring it", () => {
+    // The freeze exists to keep parked time out of the count, so a resume must still exclude it.
+    it("keeps parked time out of the count when an anchored span resumes", () => {
         at("2026-09-21T10:00:40Z")
         const began = Date.parse("2026-09-21T10:00:00Z")
         const store = createStore()
@@ -115,9 +116,38 @@ describe("turn span", () => {
         // 30s parked on the reader.
         at("2026-09-21T10:01:10Z")
         store.set(startTurnSpanAtom, "turn", began)
-        const span = store.get(turnSpanAtomFamily("turn"))
-        expect(span?.startedAt).toBe(began + 30_000)
-        expect(span?.endedAt).toBeUndefined()
-        expect(Date.now() - (span?.startedAt ?? 0)).toBe(40_000)
+        const span = store.get(turnSpanAtomFamily("turn"))!
+        expect(span.startedAt).toBe(began)
+        expect(span.pausedMs).toBe(30_000)
+        expect(span.endedAt).toBeUndefined()
+        expect(turnSpanElapsed(span, Date.now())).toBe(40_000)
+    })
+
+    // CodeRabbit on #7013: the run's start arrives from a fetched trace, so it can turn up after
+    // the turn has already parked once. Ignoring it there left the clock counting from the tab.
+    it("anchors a span that only learns the run's start after a pause", () => {
+        at("2026-09-21T10:00:40Z")
+        const began = Date.parse("2026-09-21T10:00:00Z")
+        const store = createStore()
+        store.set(startTurnSpanAtom, "turn") // met mid-flight, trace not resolved yet
+        store.set(settleTurnSpanAtom, "turn")
+
+        // 30s parked, and the trace has resolved by the time the run resumes.
+        at("2026-09-21T10:01:10Z")
+        store.set(startTurnSpanAtom, "turn", began)
+        const span = store.get(turnSpanAtomFamily("turn"))!
+        expect(span.startedAt).toBe(began)
+        expect(span.anchored).toBe(true)
+        expect(span.pausedMs).toBe(30_000)
+        // 70s wall clock since the run began, 30s of it parked.
+        expect(turnSpanElapsed(span, Date.now())).toBe(40_000)
+    })
+
+    it("never reports a negative elapsed", () => {
+        at("2026-09-21T10:00:00Z")
+        const store = createStore()
+        store.set(startTurnSpanAtom, "turn")
+        const span = store.get(turnSpanAtomFamily("turn"))!
+        expect(turnSpanElapsed({...span, pausedMs: 10_000}, Date.now())).toBe(0)
     })
 })

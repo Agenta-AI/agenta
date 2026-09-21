@@ -6,7 +6,9 @@
  * turn timestamp and the turn clock read the same span through this.
  */
 export const parseTraceTime = (value: unknown): number | undefined => {
-    if (value == null) return undefined
-    const ms = new Date(value as string | number).getTime()
+    // Only the two shapes a span actually carries. `new Date()` coerces anything: `true` becomes
+    // 1970, an empty array becomes the epoch, and a caller cannot tell those from a real stamp.
+    if (typeof value !== "string" && typeof value !== "number") return undefined
+    const ms = new Date(value).getTime()
     return Number.isFinite(ms) ? ms : undefined
 }
