@@ -23,6 +23,15 @@ export interface LastContext {
 export const projectHomeUrl = ({workspaceId, projectId}: LastContext): string =>
     `/w/${encodeURIComponent(workspaceId)}/p/${encodeURIComponent(projectId)}/apps`
 
+/**
+ * Settings -> LLM providers, which renders the same shared AI-providers page the desktop's
+ * provider drawer opens. It is where a project's own provider key is added and where a dead
+ * subscription sign-in is renewed, so it is the destination for both recovery escapes on a failed
+ * run.
+ */
+export const llmProvidersUrl = ({workspaceId, projectId}: LastContext): string =>
+    `/w/${encodeURIComponent(workspaceId)}/p/${encodeURIComponent(projectId)}/settings?tab=llms`
+
 export function writeLastContext(context: LastContext): void {
     try {
         localStorage.setItem(LAST_CONTEXT_KEY, JSON.stringify(context))

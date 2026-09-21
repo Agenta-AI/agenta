@@ -109,6 +109,7 @@ export {
     clearWorkflowDraftCallbacks,
     type WorkflowDraftCallbacks,
     discardWorkflowDraftAtom,
+    workflowDraftConsumedAtomFamily,
     // Cache invalidation
     invalidateWorkflowsListCache,
     invalidateWorkflowCache,

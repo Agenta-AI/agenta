@@ -5,9 +5,11 @@ import type {UIMessage} from "ai"
 import {createStore, Provider} from "jotai"
 import {flushSync} from "react-dom"
 import {createRoot} from "react-dom/client"
-import {afterEach, describe, expect, it} from "vitest"
+import {afterEach, describe, expect, it, vi} from "vitest"
 
 import {TurnRow} from "@/features/chat/TurnRow"
+
+vi.mock("next/router", () => import("../support/nextRouter").then((m) => m.nextRouterModule))
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT: boolean}).IS_REACT_ACT_ENVIRONMENT =
     true
 
@@ -51,12 +53,17 @@ const renderAssistantTurn = (inspectorEnabled: boolean) => {
 
 describe("mobile turn inspector control", () => {
     it("shows the trace action without hover when the debug preference is on", () => {
+        // The row carries the hover-reveal class or it does not; with the preference on it does
+        // not, so the toolbar is visible and clickable from the start. Asserting the absence
+        // rather than an `opacity-100` the row no longer adds: the reveal is one class, and a
+        // row without it needs no pointer to appear.
         const toolbar = renderAssistantTurn(true).querySelector(
             '[aria-label="View trace"]',
         )?.parentElement
 
-        expect(toolbar?.className).toContain("opacity-100")
-        expect(toolbar?.className).toContain("pointer-events-auto")
+        expect(toolbar?.className).not.toContain("opacity-0")
+        expect(toolbar?.className).not.toContain("pointer-events-none")
+        expect(toolbar?.className).not.toContain("group-hover:opacity-100")
     })
 
     it("keeps the normal hover reveal while the debug preference is off", () => {

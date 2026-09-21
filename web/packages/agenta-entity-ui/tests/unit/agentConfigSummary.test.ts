@@ -1,6 +1,10 @@
 import {describe, expect, it} from "vitest"
 
-import {agentConfigSummary, prettifyKind} from "../../src/agent/agentConfigSummary"
+import {
+    agentConfigSummary,
+    mcpSummaryDetail,
+    prettifyKind,
+} from "../../src/agent/agentConfigSummary"
 
 // The shape below is a real stored revision's `parameters`, trimmed.
 const parameters = {
@@ -109,5 +113,20 @@ describe("skillNames", () => {
         })
         expect(summary.skills).toBe(4)
         expect(summary.skillNames).toEqual(["PDF tools", "csv-checker", "inline-skill"])
+    })
+})
+
+describe("mcpSummaryDetail", () => {
+    // The mobile card is a fork of the shared one and drifted back to "connected" once
+    // already. Both now call this, so the wording cannot differ between the two apps.
+    it("counts servers and never claims they are connected", () => {
+        expect(mcpSummaryDetail(2)).toBe("2 configured")
+        expect(mcpSummaryDetail(1)).toBe("1 configured")
+        expect(mcpSummaryDetail(2)).not.toMatch(/connected/i)
+    })
+
+    it("offers the action only where there is an editor to reach", () => {
+        expect(mcpSummaryDetail(0, {canEdit: true})).toBe("Connect a server")
+        expect(mcpSummaryDetail(0)).toBe("None configured")
     })
 })

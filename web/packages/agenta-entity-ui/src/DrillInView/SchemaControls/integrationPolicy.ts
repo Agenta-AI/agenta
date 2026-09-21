@@ -19,6 +19,15 @@ import type {GatewayConnectionPermissions, GatewayPermission} from "./toolUtils"
 
 export type IntegrationPreset = "always_ask" | "ask_writes" | "allow_all" | "deny_all" | "custom"
 
+/**
+ * A preset value the default-permission select can hold, including one a source adds of its own.
+ *
+ * The MCP source adds `follow_agent`, the preset whose saved value is the absence of a policy. The
+ * Composio five have no need of it: an integration always carries a `default`, so the absence never
+ * reaches its select (decision 45).
+ */
+export type PermissionPresetValue = IntegrationPreset | "follow_agent"
+
 export interface IntegrationPresetDef {
     value: IntegrationPreset
     /** Label in the drawer's default-permission select. */

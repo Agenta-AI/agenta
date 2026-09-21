@@ -3,6 +3,7 @@ import {memo, useCallback, useMemo, useRef} from "react"
 import {
     getMessageTraceId,
     getMessageUsage,
+    isMessageRunErrorTransport,
     isPendingSendFailed,
     PENDING_SEND_FAILED_NOTE,
 } from "@agenta/chat/assets"
@@ -12,6 +13,7 @@ import {
     AttachmentCard,
     AttachmentCardGrid,
     CollapsibleMessageBody,
+    McpServerNoticeCard,
     TurnFooter,
 } from "@agenta/chat/components"
 import {useHeldFor} from "@agenta/chat/hooks"
@@ -35,9 +37,10 @@ import {cn} from "@/lib/utils"
 
 import {AnswerReveal} from "./AnswerReveal"
 import {AssistantMarkdown, UserMarkdown} from "./AssistantMarkdown"
-import {continuationRetryAction} from "./continuationRetry"
 import {isLiveTextItem} from "./markdownStream"
+import {useProviderRecovery} from "./providerRecovery"
 import {RunErrorCallout} from "./RunErrorCallout"
+import {runRetryAction} from "./runRetry"
 import {mobileTurnRowClass} from "./turnRowClass"
 
 /** The content endpoint carries the session cookie, so a same-origin anchor saves it directly. */
@@ -97,6 +100,20 @@ const TurnRowInner = ({
         turn.message.parts as {state?: string; errorText?: string}[],
     )
     const usage = getMessageUsage(turn.message)
+    const openProviders = useProviderRecovery()
+
+    /**
+     * Notices about a server that did not join the run, above the timeline rather than in it.
+     *
+     * `splitTurnActivity` folds only calls, client tools and the model's own text, so a notice has
+     * no step to be; and `hiddenFromFold` keeps the failed call that produced it off the timeline
+     * anyway, so the notice is the reader's ONLY signal that a server is missing. It renders
+     * whether or not the call behind it is on screen.
+     */
+    const mcpNotices = useMemo(
+        () => turn.items.filter((item) => item.kind === "mcpNotice"),
+        [turn.items],
+    )
 
     // The turn's text, which is what a reader wants on the clipboard — not its tool rows.
     const copyText = (turn.message.parts ?? [])
@@ -171,6 +188,9 @@ const TurnRowInner = ({
         </div>
     ) : (
         <div className="flex min-w-0 max-w-full flex-col gap-3">
+            {mcpNotices.map((item) => (
+                <McpServerNoticeCard key={`mcp-${item.index}`} notice={item.notice} />
+            ))}
             <ActivityTimeline
                 messageId={turn.message.id}
                 clockId={runId}
@@ -196,10 +216,13 @@ const TurnRowInner = ({
                     text={errorText}
                     // Failed before any step: nothing to hang a node on, so it is its own card.
                     variant={activity.steps.length ? "step" : "card"}
-                    onRetry={continuationRetryAction(
-                        turn,
-                        onRewind ? () => onRewind(turn) : undefined,
-                    )}
+                    code={turn.status.errorCode ?? undefined}
+                    transport={isMessageRunErrorTransport(turn.message)}
+                    onRetry={runRetryAction(turn, onRewind ? () => onRewind(turn) : undefined)}
+                    // Both classes the callout can clear with a credential go to the same page,
+                    // as they do on the desktop.
+                    onAddKey={openProviders}
+                    onSignIn={openProviders}
                 />
             ) : answerless && !traceSummary.isPending ? (
                 <span className="text-xs italic text-colorTextSecondary">

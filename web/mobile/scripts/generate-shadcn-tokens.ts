@@ -84,6 +84,23 @@ const VARS: Record<string, [string, string]> = {
     colorWhite: [color(p.surface.white.light), color(p.surface.white.dark)],
     colorFillChip: [color(p.fill.chip.light), color(p.fill.chip.dark)],
     colorErrorBg: [color(p.semantic.errorBg.light), color(p.semantic.errorBg.dark)],
+    // The status vocabulary the shared surfaces paint refusals, banners and tiles with. Every
+    // one resolved on /w and generated nothing on /m, so the same component rendered an
+    // untinted box there: a refused field with no red text, a banner with no amber edge, a
+    // server tile with no fill.
+    colorErrorText: [color(p.semantic.errorText.light), color(p.semantic.errorText.dark)],
+    colorInfoBg: [color(p.surface.infoBg.light), color(p.surface.infoBg.dark)],
+    colorWarningBorder: [
+        color(p.semantic.warningBorder.light),
+        color(p.semantic.warningBorder.dark),
+    ],
+    colorSuccessBorder: [
+        color(p.semantic.successBorder.light),
+        color(p.semantic.successBorder.dark),
+    ],
+    // The page's own base surface. `colorBgBase` is the bottom of the surface ladder; without
+    // it a shared component asking for the base painted nothing.
+    colorBgBase: [color(p.surface.base.light), color(p.surface.base.dark)],
     // The danger callout on Settings › Account (shared `AccountPage`) draws its box with this
     // pair; without the border half the callout read as a bare tinted block on mobile.
     colorErrorBorder: [color(p.semantic.errorBorder.light), color(p.semantic.errorBorder.dark)],
@@ -293,6 +310,22 @@ const VARS: Record<string, [string, string]> = {
     "ag-run-status-success": [color(p.runStatus.success.light), color(p.runStatus.success.dark)],
     "ag-run-status-warning": [color(p.runStatus.warning.light), color(p.runStatus.warning.dark)],
     "ag-run-status-default": [color(p.runStatus.default.light), color(p.runStatus.default.dark)],
+    // The tinted panel surface, under its desktop name: the shared PanelSection styles itself
+    // with `var(--ag-surface-paper)` literally, so /m must publish the same name or every panel
+    // header renders on no background at all.
+    "ag-surface-paper": [color(p.tintedSurface.paper.light), color(p.tintedSurface.paper.dark)],
+    // The single hero ("keycap") action per screen. No MCP surface uses it; it is bridged
+    // because the token existed on neither side as a class and a screen that wants it must not
+    // reach for a literal.
+    "hero-action-bg": [color(p.heroAction.bg.light), color(p.heroAction.bg.dark)],
+    "hero-action-hover-bg": [color(p.heroAction.hoverBg.light), color(p.heroAction.hoverBg.dark)],
+    "hero-action-text": [color(p.heroAction.text.light), color(p.heroAction.text.dark)],
+    // Full shadow lists, not colors — the kit's `shadow-overlay`, `shadow-dialog` and
+    // `shadow-tertiary` read these by their desktop names. `--ag-boxShadowSecondary` was
+    // referenced by globals.css and defined nowhere on /m, so every kit overlay dropped its
+    // shadow here while carrying one on /w.
+    "ag-boxShadowSecondary": [color(p.shadow.overlay.light), color(p.shadow.overlay.dark)],
+    "ag-boxShadowTertiary": [color(p.shadow.tertiary.light), color(p.shadow.tertiary.dark)],
     "ag-colorText": [color(p.text.primary.light), color(p.text.primary.dark)],
     "ag-colorTextSecondary": [color(p.text.secondary.light), color(p.text.secondary.dark)],
     "ag-colorFillSecondary": [color(p.fill.secondary.light), color(p.fill.secondary.dark)],
@@ -360,13 +393,16 @@ const controlScaleVars = (): Record<string, string> => {
         expected[`--text-${k}`] = size
         expected[`--text-${k}--line-height`] = lineHeight
     }
+    for (const [k, stack] of Object.entries(controlScale.fontFamily)) {
+        expected[`--font-${k}`] = stack.join(", ")
+    }
     return expected
 }
 
 const controlScaleDrift = (): string[] => {
     const declared = new Map<string, string>()
     const source = readFileSync(GLOBALS, "utf8")
-    for (const m of source.matchAll(/^\s*(--(?:spacing|radius|text)-[\w-]+):\s*([^;]+);/gm)) {
+    for (const m of source.matchAll(/^\s*(--(?:spacing|radius|text|font)-[\w-]+):\s*([^;]+);/gm)) {
         declared.set(m[1], m[2].trim())
     }
     return Object.entries(controlScaleVars()).flatMap(([name, want]) => {

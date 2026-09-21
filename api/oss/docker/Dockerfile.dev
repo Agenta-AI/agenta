@@ -63,12 +63,15 @@ COPY ./api/oss/src/crons/queries.sh /queries.sh
 COPY ./api/oss/src/crons/queries.txt /etc/cron.d/queries-cron
 COPY ./api/oss/src/crons/triggers.sh /triggers.sh
 COPY ./api/oss/src/crons/triggers.txt /etc/cron.d/triggers-cron
+COPY ./api/oss/src/crons/gateways.sh /gateways.sh
+COPY ./api/oss/src/crons/gateways.txt /etc/cron.d/gateways-cron
 
-RUN chmod +x /queries.sh /triggers.sh \
-    && chmod 0644 /etc/cron.d/queries-cron /etc/cron.d/triggers-cron \
+RUN chmod +x /queries.sh /triggers.sh /gateways.sh \
+    && chmod 0644 /etc/cron.d/queries-cron /etc/cron.d/triggers-cron /etc/cron.d/gateways-cron \
     && sed -i -e '$a\' /etc/cron.d/queries-cron \
     && sed -i -e '$a\' /etc/cron.d/triggers-cron \
-    && sed -E 's/^(([^[:space:]]+[[:space:]]+){5})root[[:space:]]+/\1/' /etc/cron.d/queries-cron /etc/cron.d/triggers-cron \
+    && sed -i -e '$a\' /etc/cron.d/gateways-cron \
+    && sed -E 's/^(([^[:space:]]+[[:space:]]+){5})root[[:space:]]+/\1/' /etc/cron.d/queries-cron /etc/cron.d/triggers-cron /etc/cron.d/gateways-cron \
         | sed 's| >> /proc/1/fd/1 2>&1||' > /app/crontab \
     && chown agenta:agenta /app/crontab
 

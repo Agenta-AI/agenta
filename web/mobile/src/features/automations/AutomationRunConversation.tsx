@@ -1,10 +1,21 @@
 import {AutomationRunConversationUnavailable} from "@agenta/automation-ui"
+import dynamic from "next/dynamic"
 
 import {conversationKey} from "../chat/conversationKey"
 import {LiveConversation} from "../chat/LiveConversation"
 import {ChatLoading} from "../chat/states/ChatStates"
 import {useAgentEntity} from "../chat/useAgentEntity"
 import {useLivenessPoll} from "../sessions/useLivenessPoll"
+
+// The tool catalog is opened by setting an atom, so whoever opens it needs this mounted or the
+// action does nothing. An automation's run is answerable, and the agent's own connect widget
+// opens the catalog from the transcript — which is here, not in the session workspace that
+// carries the other mount. Without it a Connect request parks the turn on a drawer that never
+// appears, and nothing settles the tool call.
+const CatalogDrawer = dynamic(
+    () => import("@agenta/entity-ui/gatewayTool").then((m) => m.CatalogDrawer),
+    {ssr: false},
+)
 
 /**
  * The run's session, as the chat screen already draws it.
@@ -46,21 +57,24 @@ export const AutomationRunConversation = ({
     }
 
     return (
-        <LiveConversation
-            // Per session — the pane swaps transcripts as runs are picked, and the engine's
-            // per-session state must not survive that swap.
-            key={conversationKey({sessionId, revisionId: entityId})}
-            embedded
-            entityId={entityId}
-            sessionId={sessionId}
-            projectId={projectId}
-            workspaceId={workspaceId}
-            agentId={resolvedAgentId}
-            running={running}
-            stopStateLoading={liveness.isLoading}
-            sessionTurnId={liveStream?.turn_id}
-            stoppingTurnId={liveStream?.stopping_turn_id}
-            sharedReader={sharedReader}
-        />
+        <>
+            <LiveConversation
+                // Per session — the pane swaps transcripts as runs are picked, and the engine's
+                // per-session state must not survive that swap.
+                key={conversationKey({sessionId, revisionId: entityId})}
+                embedded
+                entityId={entityId}
+                sessionId={sessionId}
+                projectId={projectId}
+                workspaceId={workspaceId}
+                agentId={resolvedAgentId}
+                running={running}
+                stopStateLoading={liveness.isLoading}
+                sessionTurnId={liveStream?.turn_id}
+                stoppingTurnId={liveStream?.stopping_turn_id}
+                sharedReader={sharedReader}
+            />
+            <CatalogDrawer />
+        </>
     )
 }

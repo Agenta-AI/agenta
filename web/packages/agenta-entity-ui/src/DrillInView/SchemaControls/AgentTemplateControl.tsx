@@ -82,6 +82,7 @@ import {
 } from "./agentTemplate/itemDescriptors"
 import {ITEM_KINDS, type ItemKind} from "./agentTemplate/itemKinds"
 import {InstructionsFileRow, type ItemRowStatus} from "./agentTemplate/ItemRow"
+import {McpServersSectionBody} from "./agentTemplate/McpServersSectionBody"
 import {SectionAddButton} from "./agentTemplate/SectionAddButton"
 import {SectionChangeBody} from "./agentTemplate/SectionChangeBody"
 import {
@@ -200,7 +201,21 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
     const openIntegration = useCallback(() => setIntegrationDrawerOpen(true), [])
     // The integration whose permission drawer is open, addressed by provider and integration.
     const [permissionTarget, setPermissionTarget] = useState<GatewayConnectionTarget | null>(null)
+    // The MCP endpoint being authorized. Held here, not on the row: `extra` renders inside the
+    // row's own click target, and React events propagate through the React tree, so a dialog
+    // mounted there reopens the edit drawer on every click inside it — including the one that
+    // opens the consent popup, which then surfaces behind it.
+    // The Add MCP server drawer, B1 and B2. Only the open flag lives here, because the
+    // section header's add button renders outside the section body that owns the drawer.
+    const [addMcpOpen, setAddMcpOpen] = useState(false)
     // Shared draft-then-save drawer for tools, MCP servers, and skills (writes via ITEM_KINDS).
+    // Nothing is registered at save any more. An MCP item names a connection that already
+    // exists, created by the connect journey, so committing one writes the reference and
+    // nothing else.
+    const prepareItemCommit = useCallback(
+        async (_kind: ItemKind, item: Record<string, unknown>) => item,
+        [],
+    )
     const {
         editing,
         draft,
@@ -211,10 +226,12 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         openEdit,
         closeEditor,
         commitDraft,
+        commitError,
+        committing,
         removeItem,
         draftInvalid,
         draftUnchanged,
-    } = useConfigItemDrawer({config, onChange})
+    } = useConfigItemDrawer({config, onChange, prepareCommit: prepareItemCommit})
 
     // Instructions file editor (a file list — one AGENTS.md today). Draft + Save like the item drawer.
     const [editingInstruction, setEditingInstruction] = useState<{filename: string} | null>(null)
@@ -522,10 +539,11 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         () => (Array.isArray(config.mcps) ? (config.mcps as unknown[]) : []),
         [config.mcps],
     )
-    const handleAddMcpServer = useCallback(
-        () => openCreate("mcp", ITEM_KINDS.mcp.createSeed()),
-        [openCreate],
-    )
+    // The plus opens the registry drawer, not a blank form. Creating a server here used to
+    // mean filling in a form whose first field was a select over connections the author
+    // could not see until they opened it. The registry itself is read by the section body,
+    // so a host with no MCP section fetches nothing.
+    const handleAddMcpServer = useCallback(() => setAddMcpOpen(true), [])
 
     // Skills: a flat array of inline SKILL.md packages or `@ag.embed` references the backend inlines.
     const skills = useMemo(
@@ -1158,21 +1176,24 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         hasMcp && {
             key: "mcp",
             icon: <Plugs size={16} />,
-            title: fieldTitle("mcps", "MCPs"),
+            title: fieldTitle("mcps", "MCP servers"),
             summary: countSummary(mcpServers.length, "server"),
             indicator: sectionIndicator("mcp"),
             extra: !disabled ? headerAddButton("Add MCP server", handleAddMcpServer) : undefined,
             defaultOpen: mcpServers.length > 0,
             content: (
-                <ConfigItemList
-                    kind="mcp"
+                <McpServersSectionBody
                     items={mcpServers}
-                    openEdit={openEdit}
-                    removeItem={removeItem}
-                    closeEditor={closeEditor}
                     disabled={disabled}
+                    agentPolicy={agentPermissionPolicy}
+                    onChangeItems={(next: unknown[]) => setAgentField("mcps", next)}
+                    openForm={(index: number, item: unknown) => openEdit("mcp", index, item)}
+                    removeItem={(index: number) => removeItem("mcp", index)}
+                    closeEditor={closeEditor}
                     statusFor={mcpStatusFor}
                     emptyAdd={<AddTextLink label="add a server" onClick={handleAddMcpServer} />}
+                    addOpen={addMcpOpen}
+                    onAddClose={() => setAddMcpOpen(false)}
                 />
             ),
         },
@@ -1364,6 +1385,8 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                                         ? undefined
                                         : "Changes apply to this agent configuration"
                               }
+                              error={commitError}
+                              saving={committing}
                               width={def.drawerWidth?.(draft)}
                               contentFlush={Boolean(def.formFlush?.(draft))}
                               onCancel={closeEditor}

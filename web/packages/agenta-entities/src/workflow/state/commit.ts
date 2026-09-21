@@ -49,7 +49,7 @@ import {
     workflowEntityAtomFamily,
     workflowDraftAtomFamily,
     updateWorkflowDraftAtom,
-    discardWorkflowDraftAtom,
+    consumeWorkflowDraftAtom,
     invalidateWorkflowsListCache,
     invalidateWorkflowCache,
     invalidateWorkflowRevisionsByWorkflowCache,
@@ -345,7 +345,10 @@ export const commitWorkflowRevisionAtom = atom(
             }
             // A stranded draft is recoverable; a discarded one is not.
             if (!editedDuringCommit || carriedForward) {
-                set(discardWorkflowDraftAtom, revisionId)
+                // CONSUMED, not discarded. A host that switches to the new revision after this
+                // returns still has the old one on screen, and a surface that resets itself on a
+                // discard would reset here for a commit nobody asked for (D94).
+                set(consumeWorkflowDraftAtom, revisionId)
             }
 
             // 5. Invalidate caches in the background so the caller (modal)
@@ -525,8 +528,8 @@ export const createWorkflowVariantAtom = atom(
                 })
             }
 
-            // Discard draft for the base revision
-            set(discardWorkflowDraftAtom, baseRevisionId)
+            // CONSUMED, not discarded: the edits became a revision. See `consumeWorkflowDraftAtom`.
+            set(consumeWorkflowDraftAtom, baseRevisionId)
 
             // 6. Invalidate caches in the background so the caller (modal)
             // isn't blocked by network refetches.
@@ -653,8 +656,8 @@ export const createWorkflowFromEphemeralAtom = atom(
             // 4. Invoke commit callbacks (reuse shared helper)
             await invokeWorkflowCommitCallbacks(result, {revisionId, commitMessage})
 
-            // 5. Discard local draft
-            set(discardWorkflowDraftAtom, revisionId)
+            // 5. The commit consumed the local draft; it was not discarded.
+            set(consumeWorkflowDraftAtom, revisionId)
 
             // 6. Invalidate caches (both app and evaluator lists)
             invalidateWorkflowsListCache()

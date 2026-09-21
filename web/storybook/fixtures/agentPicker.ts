@@ -1,4 +1,3 @@
-import type {Workflow} from "@agenta/entities/workflow"
 import type {QueryKey} from "@tanstack/react-query"
 
 import type {StoryScope} from "../.storybook/decorators/withAgentaData"
@@ -42,10 +41,13 @@ function agent(id: string, name: string, slug: string, description: string) {
 
 /**
  * The two query keys `agentWorkflowsListQueryStateAtom` unions — copied from the atoms that own
- * them (`workflow/state/store.ts`), which is the honest cost of cache-level seeding.
+ * them (`workflow/state/store.ts` and `agentFlagsQueryOptions`), which is the honest cost of
+ * cache-level seeding.
  *
- * The agent-flags key carries a version token built from the apps list, so the two have to be
- * seeded together and in agreement or the second query re-fetches against nothing.
+ * The agent-flags entry is keyed on the project alone and holds the classification map, id to
+ * whether it is an agent, because that query is deliberately not keyed on per-workflow
+ * timestamps: keying it that way made a commit to one app re-fetch the classification of all
+ * of them.
  */
 export function agentPickerQueries(scope: StoryScope, options: {empty?: boolean} = {}) {
     const ids = agentPickerIds(scope)
@@ -79,14 +81,12 @@ export function agentPickerQueries(scope: StoryScope, options: {empty?: boolean}
               agent(ids.teachId, "Teach me", "teach-me", "Explains a codebase area on request"),
           ]
 
-    const versionKey = agents.map((candidate) => [candidate.id, candidate.updated_at])
-
     const queries: [QueryKey, unknown][] = [
         [["workflows", "apps", "list", ids.projectId], {count: agents.length, refs: agents}],
         [["workflows", "evaluators", "list", ids.projectId], {count: 0, refs: []}],
         [
-            ["workflows", "apps", "agentFlags", ids.projectId, versionKey],
-            agents as unknown as Workflow[],
+            ["workflows", "apps", "agentFlags", ids.projectId],
+            new Map(agents.map((candidate) => [candidate.id, true])),
         ],
     ]
     return queries
