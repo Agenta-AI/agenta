@@ -13,6 +13,7 @@ import {
     loadMoreSidebarSessionsAtomFamily,
     SIDEBAR_UNBOUNDED,
     sidebarSessionsListAtomFamily,
+    setSidebarSessionFilterDefaults,
     withEntityGroups,
     type SessionSidebarRef,
     type SidebarConfig,
@@ -45,6 +46,9 @@ import {startBlankSession} from "@/features/chat/useStartBlankSession"
 
 /** The drawer's scope id — its open-groups persistence bucket. */
 export const MOBILE_NAV_SCOPE_ID = "mobile-main"
+// By agent, not the shared flat default: the rail's "+" lives on agent headings, and a heading
+// that is a date or a status names no agent to start a session with. Reset comes back here.
+setSidebarSessionFilterDefaults(MOBILE_NAV_SCOPE_ID, {groupBy: "agent"})
 /** The registry entry for ⌘K / Ctrl+K, which `MobileCommandPalette` binds. */
 const PALETTE_SHORTCUT_ID = "palette.open"
 
