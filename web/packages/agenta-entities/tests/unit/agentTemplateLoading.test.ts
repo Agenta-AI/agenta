@@ -200,12 +200,43 @@ it("retries an uncertain creation with the original key and exact payload", asyn
     })
 })
 
+it("starts a new request when the prompt changed after a failed attempt", async () => {
+    const template = AGENT_TEMPLATES.find((item) => item.key === "pr-reviewer")!
+    loadAgentTemplateMock.mockRejectedValueOnce(new Error("response lost"))
+    await expect(
+        store.set(loadAgentTemplateFromEphemeralAtom, {
+            revisionId: REVISION_ID,
+            template,
+            initialMessage: "Original request",
+        }),
+    ).rejects.toThrow("response lost")
+
+    await store.set(loadAgentTemplateFromEphemeralAtom, {
+        revisionId: REVISION_ID,
+        template,
+        initialMessage: "Edited request",
+    })
+
+    const [firstRequest, firstKey] = loadAgentTemplateMock.mock.calls[0]
+    const [retryRequest, retryKey] = loadAgentTemplateMock.mock.calls[1]
+    expect(firstRequest.initial_message).toBe("Original request")
+    expect(retryRequest.initial_message).toBe("Edited request")
+    expect(retryKey).not.toBe(firstKey)
+})
+
+// The idempotent retry has to survive a reload, because the reload is exactly when the client
+// no longer knows whether the lost first attempt created the agent. It survives on the request
+// the page rebuilds matching the one it stored, which is also what keeps the server's
+// fingerprint check satisfied.
 it("recovers the saved creation intent after a page reload", async () => {
     const template = AGENT_TEMPLATES.find((item) => item.key === "pr-reviewer")!
     const request = {
         source: template.source,
         base_revision: WORKFLOW_DATA,
-        initial_message: "Saved before reload",
+        initial_message: templateBuilderMessage(template),
+        ui_build_kit_enabled: true,
+        ui_disabled_ops: [],
+        connection_choices: templateConnectionChoices(template),
     }
     const storage = new Map([
         [
@@ -225,6 +256,43 @@ it("recovers the saved creation intent after a page reload", async () => {
             "agent-template:original-draft",
             "project-1",
         )
+        expect(storage.size).toBe(0)
+    } finally {
+        vi.unstubAllGlobals()
+    }
+})
+
+it("abandons a saved intent whose prompt the user has since replaced", async () => {
+    const template = AGENT_TEMPLATES.find((item) => item.key === "pr-reviewer")!
+    const scope = "agent-template-intent:project-1:pr-reviewer"
+    const storage = new Map([
+        [
+            scope,
+            JSON.stringify({
+                key: "agent-template:original-draft",
+                request: {
+                    source: template.source,
+                    base_revision: WORKFLOW_DATA,
+                    initial_message: "Saved before reload",
+                },
+            }),
+        ],
+    ])
+    vi.stubGlobal("sessionStorage", {
+        getItem: (key: string) => storage.get(key) ?? null,
+        setItem: (key: string, value: string) => storage.set(key, value),
+        removeItem: (key: string) => storage.delete(key),
+    })
+    try {
+        await store.set(loadAgentTemplateFromEphemeralAtom, {
+            revisionId: REVISION_ID,
+            template,
+            initialMessage: "Review only security-sensitive pull requests.",
+        })
+        const [request, key] = loadAgentTemplateMock.mock.calls[0]
+        expect(request.initial_message).toBe("Review only security-sensitive pull requests.")
+        expect(key).not.toBe("agent-template:original-draft")
+        // The superseded intent is replaced in place, so nothing is stranded under an old key.
         expect(storage.size).toBe(0)
     } finally {
         vi.unstubAllGlobals()

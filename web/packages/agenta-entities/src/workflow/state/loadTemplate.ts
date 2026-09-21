@@ -60,17 +60,87 @@ export const templateConnectionChoices = (
     return template.connections.map((connection) => selectedConnectionChoice(connection, connected))
 }
 
+type LoadRequest = Omit<AgentTemplateLoadRequest, "project_id">
+
 interface LoadIntent {
     key: string
-    request: Omit<AgentTemplateLoadRequest, "project_id">
+    request: LoadRequest
 }
 const intents = new Map<string, LoadIntent>()
+
+const stableJson = (value: unknown): string => {
+    if (value === undefined) return "null"
+    if (value === null || typeof value !== "object") return JSON.stringify(value)
+    if (Array.isArray(value)) return `[${value.map(stableJson).join(",")}]`
+    const fields = Object.entries(value as Record<string, unknown>)
+        .filter(([, field]) => field !== undefined && field !== null)
+        .sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0))
+        .map(([name, field]) => `${JSON.stringify(name)}:${stableJson(field)}`)
+    return `{${fields.join(",")}}`
+}
+
+/**
+ * Mirrors `template_request_fingerprint` server-side, field for field and normalization for
+ * normalization, so the client reuses a request key exactly when the server would accept the
+ * replay and mints a new one whenever the server would answer the changed body with a 409.
+ */
+const requestFingerprint = (request: LoadRequest): string =>
+    stableJson({
+        source: request.source,
+        base_revision: request.base_revision,
+        initial_message: request.initial_message.trim(),
+        ui_build_kit_enabled: request.ui_build_kit_enabled,
+        ui_disabled_ops: [...new Set(request.ui_disabled_ops ?? [])].sort(),
+        connection_choices: [...(request.connection_choices ?? [])].sort((left, right) =>
+            `${left.connection_key}:${left.kind}` < `${right.connection_key}:${right.kind}`
+                ? -1
+                : 1,
+        ),
+        // The server only fingerprints the staged session once it carries attachments.
+        ...(request.attachment_ids?.length
+            ? {
+                  staging_session_id: request.staging_session_id,
+                  attachment_ids: request.attachment_ids,
+              }
+            : {}),
+    })
+
+/**
+ * FNV-1a over two seeds. The tag only has to separate two bodies of the same draft, and a
+ * collision costs a typed 409 rather than a wrong agent, so it stays plain arithmetic instead
+ * of `crypto.subtle`, which is async and missing entirely on the plain-HTTP hosts that many
+ * self-hosted installs run on.
+ */
+const fingerprintTag = (fingerprint: string): string => {
+    let low = 0x811c9dc5
+    let high = 0x01000193
+    for (let index = 0; index < fingerprint.length; index++) {
+        const code = fingerprint.charCodeAt(index)
+        low = Math.imul(low ^ code, 0x01000193)
+        high = Math.imul(high ^ code, 0x85ebca6b)
+    }
+    return `${(low >>> 0).toString(36)}${(high >>> 0).toString(36)}`
+}
+
+const isLoadIntent = (value: unknown): value is LoadIntent => {
+    const intent = value as LoadIntent | null
+    return (
+        typeof intent?.key === "string" &&
+        typeof intent.request?.initial_message === "string" &&
+        typeof intent.request.source?.key === "string"
+    )
+}
 
 const readIntent = (scope: string): LoadIntent | undefined => {
     if (intents.has(scope)) return intents.get(scope)
     try {
         const stored = globalThis.sessionStorage?.getItem(scope)
-        if (stored) return JSON.parse(stored) as LoadIntent
+        // Anything else under this scope was written by a version that shaped the intent
+        // differently; treat it as absent rather than replaying a body we cannot read.
+        if (stored) {
+            const parsed: unknown = JSON.parse(stored)
+            if (isLoadIntent(parsed)) return parsed
+        }
     } catch {
         /* Storage may be unavailable. The in-memory intent still survives retries. */
     }
@@ -119,19 +189,33 @@ export const loadAgentTemplateFromEphemeralAtom = atom(
             const {data} = buildCreatePayloadFromEphemeral(get, revisionId)
             const seedMessage = initialMessage?.trim() || templateBuilderMessage(template)
             const intentScope = `agent-template-intent:${projectId}:${template.source.key}`
-            const intent = readIntent(intentScope) ?? {
-                key: `agent-template:${revisionId}:${template.source.key}`,
-                request: {
-                    source: template.source,
-                    base_revision: (data ?? {}) as AgentaApi.WorkflowRevisionDataInput,
-                    initial_message: seedMessage,
-                    staging_session_id: stagingSessionId,
-                    attachment_ids: attachmentIds,
-                    ui_build_kit_enabled: get(workflowBuildKitEnabledAtomFamily(revisionId)),
-                    ui_disabled_ops: get(workflowBuildKitDisabledOpsAtomFamily(revisionId)),
-                    connection_choices: templateConnectionChoices(template, setup),
-                },
+            const request: LoadRequest = {
+                source: template.source,
+                base_revision: (data ?? {}) as AgentaApi.WorkflowRevisionDataInput,
+                initial_message: seedMessage,
+                staging_session_id: stagingSessionId,
+                attachment_ids: attachmentIds,
+                ui_build_kit_enabled: get(workflowBuildKitEnabledAtomFamily(revisionId)),
+                ui_disabled_ops: get(workflowBuildKitDisabledOpsAtomFamily(revisionId)),
+                connection_choices: templateConnectionChoices(template, setup),
             }
+            const fingerprint = requestFingerprint(request)
+            const stored = readIntent(intentScope)
+            // A stored intent is a retry of THIS request and nothing else. Same body keeps the
+            // key, which is what makes the retry idempotent and what carries a creation across a
+            // reload. A changed body (an edited prompt, a different base revision) is a new
+            // creation and takes a new key: replaying the stored body under the stored key would
+            // silently build the agent from the prompt the user just replaced, and it is the one
+            // case the server cannot catch, because the body it fingerprints never changed.
+            const intent: LoadIntent =
+                stored && requestFingerprint(stored.request) === fingerprint
+                    ? stored
+                    : {
+                          key: `agent-template:${revisionId}:${template.source.key}:${fingerprintTag(fingerprint)}`,
+                          request,
+                      }
+            // One intent per project and template, overwritten in place, so a superseded one is
+            // replaced rather than left behind under a key nothing reads again.
             saveIntent(intentScope, intent)
             const result = await loadAgentTemplate(intent.request, intent.key, projectId)
 
