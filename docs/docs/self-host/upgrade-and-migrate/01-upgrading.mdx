@@ -56,7 +56,7 @@ docker compose -f hosting/docker-compose/oss/docker-compose.gh.yml \
   --profile with-web --profile with-traefik up -d
 ```
 
-For Helm, the chart has no dedicated values for these settings. Set them through `api.extraEnv`, `services.extraEnv` and `agentRunner.extraEnv`. See [Agenta gateways](/self-host/configuration#agenta-gateways).
+For Helm, set `gatewayEgress.insecureAllowed` and `gatewayEgress.insecureHttpAllowed` in your values file. The chart renders each one into the containers that read it. See [Agenta gateways](/self-host/configuration#agenta-gateways).
 
 ### Saving an MCP server URL on 0.119.0
 
