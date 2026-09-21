@@ -12,6 +12,7 @@ import {
 const baseAccess: SettingsAccess = {
     billingEnabled: true,
     canShowTools: true,
+    canShowChannels: true,
     canViewApiKeys: true,
     canViewEvents: true,
     isEE: true,

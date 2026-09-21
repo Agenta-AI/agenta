@@ -48,9 +48,12 @@ def test_agent_variants_instantiate():
     ChannelAgentCreate(
         connection_id=connection_id,
         slug="support",
-        data=ChannelAgentData(references={}),
+        data=ChannelAgentData(references={"workflow_revision": {"id": uuid4()}}),
     )
-    ChannelAgentEdit(id=uuid4(), data=ChannelAgentData(references={}))
+    ChannelAgentEdit(
+        id=uuid4(),
+        data=ChannelAgentData(references={"workflow_revision": {"id": uuid4()}}),
+    )
     ChannelAgentQuery(connection_id=connection_id, slug="support")
 
 

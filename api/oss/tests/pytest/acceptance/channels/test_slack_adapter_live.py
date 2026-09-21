@@ -10,7 +10,6 @@ refusal.
 import os
 from uuid import uuid4
 
-import httpx
 import pytest
 
 from oss.src.core.channels.adapters.slack.adapter import SlackAdapter
@@ -44,7 +43,7 @@ def _connection() -> ChannelConnection:
 @_requires_live_slack
 class TestSlackAdapterLive:
     async def test_post_then_edit_against_a_real_channel(self):
-        adapter = SlackAdapter(http_client=httpx.AsyncClient())
+        adapter = SlackAdapter()
         connection = _connection()
 
         receipt = await adapter.post_message(
@@ -67,7 +66,7 @@ class TestSlackAdapterLive:
         assert edited["ts"] == receipt["ts"]
 
     async def test_discover_spaces_lists_the_test_channel(self):
-        adapter = SlackAdapter(http_client=httpx.AsyncClient())
+        adapter = SlackAdapter()
         connection = _connection()
 
         candidates = await adapter.discover_spaces(connection=connection)
@@ -81,7 +80,7 @@ class TestSlackAdapterLive:
             ChannelBackfillRefused,
         )
 
-        adapter = SlackAdapter(http_client=httpx.AsyncClient())
+        adapter = SlackAdapter()
         connection = _connection()
 
         try:

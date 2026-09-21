@@ -22,6 +22,7 @@ from sqlalchemy import text
 from oss.src.apis.fastapi.channels.ingress import ChannelsIngressRouter
 from oss.src.core.channels.adapters.slack.adapter import SlackAdapter
 from oss.src.core.channels.adapters.slack.capabilities import fetch_slack_capabilities
+from oss.src.utils.env import env
 from oss.src.core.channels.dtos import (
     ChannelConnectionCreate,
     ChannelConnectionFlags,
@@ -84,7 +85,10 @@ async def _fetch_row(engine, project_id, connection_id):
 
 
 @pytest.fixture
-async def deactivation_seam(channels_scope):
+async def deactivation_seam(channels_scope, monkeypatch):
+    # The connection below is hosted, so the adapter verifies its signature
+    # against the deployment's app secret, not a per-connection one.
+    monkeypatch.setattr(env.channels.slack, "signing_secret", SIGNING_SECRET)
     engine = channels_scope["engine"]
     project_id = channels_scope["project_id"]
     team_id = channels_scope["external_id"]

@@ -1,4 +1,4 @@
-import {useCallback, useMemo} from "react"
+import {useCallback, useMemo, type ReactNode} from "react"
 
 import {AgentOverviewLayout} from "@agenta/entity-ui/agent"
 import {resetSessionFiltersAtom, sessionSearchAtom, useSessionsList} from "@agenta/sessions/state"
@@ -35,6 +35,7 @@ export const AgentOverviewBody = ({
     agentNames,
     verbs,
     onEditConfig,
+    channels,
 }: {
     agentId: string
     agentName: string
@@ -43,6 +44,8 @@ export const AgentOverviewBody = ({
     agentNames: ReadonlyMap<string, string>
     verbs: SessionRowVerbs
     onEditConfig: () => void
+    /** The Channels connect card, host-owned (it wires to the channels API). */
+    channels?: ReactNode
 }) => {
     // The grouping is a preference; the tab, the window and the status are the question of the moment.
     const [view, setView] = useFilterMenuView<AgentActivityView>({
@@ -129,6 +132,7 @@ export const AgentOverviewBody = ({
                 // tap away in the session workspace.
                 <div className="hidden w-full flex-col gap-3.5 lg:flex">
                     <AgentConfigCard agentId={agentId} onEdit={onEditConfig} />
+                    {channels}
                     <AgentDriveCard agentId={agentId} />
                     <AgentAutomationsCard agentId={agentId} agentNames={agentNames} base={base} />
                 </div>

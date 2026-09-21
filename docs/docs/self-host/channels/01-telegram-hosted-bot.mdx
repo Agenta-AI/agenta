@@ -1,0 +1,106 @@
+---
+title: "Set up the hosted Telegram bot"
+sidebar_label: "Hosted Telegram bot"
+description: "Configure one shared Telegram bot for a self-hosted deployment: the BotFather steps, the three environment variables, and the setWebhook call."
+sidebar_position: 1
+---
+
+The hosted Telegram bot is one bot that serves every project on the deployment. A user opens the
+Channels card on an agent page, taps **Connect**, scans a QR code or opens the link, and taps
+**Start** in Telegram. The chat is then bound to that user's project and answers with that
+project's agent. Nobody pastes a bot token.
+
+This page is for the operator of a self-hosted deployment. Without it, users can still connect a
+bot of their own from [@BotFather](https://t.me/BotFather). The hosted bot only removes that step.
+
+## Before you start
+
+- The deployment must be reachable from the internet over HTTPS. Telegram delivers updates to a
+  public HTTPS URL and does not accept a private address.
+- Channels must be on: `AGENTA_CHANNELS_ENABLED=true` on the `api`, `worker-queues` and
+  `worker-streams` services, and `NEXT_PUBLIC_AGENTA_CHANNELS_ENABLED=true` on the web service.
+- `AGENTA_API_URL` must hold the public base URL of the API, for example
+  `https://agenta.example.com/api`.
+
+## 1. Create the bot
+
+Open [@BotFather](https://t.me/BotFather) in Telegram and send `/newbot`. Answer the two prompts.
+Keep both answers:
+
+- The **token**, in the form `8123456789:AA...`. The number before the colon is the bot id. You
+  need the bot id in step 3.
+- The **username**, for example `acme_agenta_bot`. Agenta builds the deep link `https://t.me/<username>?start=...` from it.
+
+## 2. Choose a webhook secret
+
+Pick a random string of 1 to 256 characters. Use only `A-Z`, `a-z`, `0-9`, `_` and `-`. Telegram
+echoes this secret on every update, and the ingress rejects an update that does not carry it.
+
+```bash
+openssl rand -hex 32
+```
+
+## 3. Set the environment variables
+
+Set the three variables on the `api`, `worker-queues` and `worker-streams` services. In the Docker
+Compose stack all three read the same env file, so one entry covers them.
+
+```bash
+TELEGRAM_HOSTED_BOT_TOKEN=8123456789:AA...
+TELEGRAM_HOSTED_BOT_USERNAME=acme_agenta_bot
+TELEGRAM_HOSTED_WEBHOOK_SECRET=<the secret from step 2>
+```
+
+Restart the three services. The hosted bot stays off until all three variables are set.
+
+## 4. Register the webhook
+
+Tell Telegram where to deliver updates. The URL is `<AGENTA_API_URL>/channels/telegram/events/<bot id>/`.
+Keep the trailing slash.
+
+```bash
+curl -X POST "https://api.telegram.org/bot8123456789:AA.../setWebhook" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "url": "https://agenta.example.com/api/channels/telegram/events/8123456789/",
+    "secret_token": "<the secret from step 2>",
+    "allowed_updates": ["message", "callback_query"],
+    "drop_pending_updates": true
+  }'
+```
+
+Telegram answers `{"ok":true,"result":true,...}`. Do this once per deployment. Do not register a
+webhook per project, because every project shares this bot.
+
+## 5. Check that it works
+
+Read back what Telegram stored:
+
+```bash
+curl "https://api.telegram.org/bot8123456789:AA.../getWebhookInfo"
+```
+
+The `url` must match the URL from step 4, and `last_error_message` must be absent.
+
+Then open an agent page in Agenta and start the Telegram connection in the Channels card. A QR code
+means the hosted bot is configured. The message `The hosted Telegram bot is not configured on this
+deployment.` means the API does not see all three variables. Check the spelling, and check that you
+restarted the services.
+
+Scan the QR code, tap **Start**, and send a message. The agent answers in the chat.
+
+## Turn it off
+
+Unset the three variables and restart the three services. The connect flow then offers the custom
+bot path instead. To stop Telegram from calling the deployment, also delete the webhook:
+
+```bash
+curl "https://api.telegram.org/bot8123456789:AA.../deleteWebhook"
+```
+
+## Limits
+
+- Private chats only. The hosted bot ignores an update from a group or a supergroup.
+- One hosted connection per project. The connection answers as one agent.
+- A connect link is one use only and expires after 30 minutes. Mint a new one from the Channels
+  card if it expires.

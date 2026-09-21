@@ -128,8 +128,10 @@ def map_connection_dto_to_dbe_edit(
     connection_dbe.tags = connection.tags
     connection_dbe.meta = connection.meta
 
-    connection_dbe.data = connection.data
-    connection_dbe.flags = connection.flags.model_dump()
+    if connection.data is not None:
+        connection_dbe.data = connection.data
+    if connection.flags is not None:
+        connection_dbe.flags = connection.flags.model_dump()
 
 
 # --- Agent -------------------------------------------------------------- #
@@ -201,8 +203,10 @@ def map_agent_dto_to_dbe_edit(
     agent_dbe.tags = agent.tags
     agent_dbe.meta = agent.meta
 
-    agent_dbe.data = agent.data.model_dump(mode="json", exclude_none=True)
-    agent_dbe.flags = agent.flags.model_dump()
+    if agent.data is not None:
+        agent_dbe.data = agent.data.model_dump(mode="json", exclude_none=True)
+    if agent.flags is not None:
+        agent_dbe.flags = agent.flags.model_dump()
 
 
 # --- Space ---------------------------------------------------------------- #

@@ -5,6 +5,7 @@ name directly against the DBE, bypassing the service's clear-then-set."""
 import uuid
 
 import pytest
+from uuid import uuid4
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 
@@ -41,7 +42,7 @@ async def test_second_default_agent_in_one_connection_is_rejected_by_the_databas
         agent=ChannelAgentCreate(
             connection_id=connection_id,
             slug="first",
-            data=ChannelAgentData(references={}),
+            data=ChannelAgentData(references={"workflow_revision": {"id": uuid4()}}),
             flags=ChannelAgentFlags(is_default=True),
         ),
     )
@@ -53,7 +54,9 @@ async def test_second_default_agent_in_one_connection_is_rejected_by_the_databas
             agent=ChannelAgentCreate(
                 connection_id=connection_id,
                 slug="second",
-                data=ChannelAgentData(references={}),
+                data=ChannelAgentData(
+                    references={"workflow_revision": {"id": uuid4()}}
+                ),
                 flags=ChannelAgentFlags(is_default=True),
             ),
         )
@@ -79,7 +82,7 @@ async def test_second_default_grant_in_one_space_is_rejected_by_the_database(
         agent=ChannelAgentCreate(
             connection_id=connection_id,
             slug="agent-one",
-            data=ChannelAgentData(references={}),
+            data=ChannelAgentData(references={"workflow_revision": {"id": uuid4()}}),
         ),
     )
     agent_two = await dao.create_agent(
@@ -88,7 +91,7 @@ async def test_second_default_grant_in_one_space_is_rejected_by_the_database(
         agent=ChannelAgentCreate(
             connection_id=connection_id,
             slug="agent-two",
-            data=ChannelAgentData(references={}),
+            data=ChannelAgentData(references={"workflow_revision": {"id": uuid4()}}),
         ),
     )
     space = await dao.create_space(
@@ -152,7 +155,7 @@ async def test_duplicate_space_scoped_grant_is_rejected_by_the_database(
         agent=ChannelAgentCreate(
             connection_id=connection_id,
             slug="triage",
-            data=ChannelAgentData(references={}),
+            data=ChannelAgentData(references={"workflow_revision": {"id": uuid4()}}),
         ),
     )
     space = await dao.create_space(
@@ -214,7 +217,7 @@ async def test_duplicate_kind_scoped_grant_is_rejected_by_the_database(
         agent=ChannelAgentCreate(
             connection_id=connection_id,
             slug="triage",
-            data=ChannelAgentData(references={}),
+            data=ChannelAgentData(references={"workflow_revision": {"id": uuid4()}}),
         ),
     )
 
@@ -265,7 +268,7 @@ async def test_a_kind_scoped_deny_does_not_collide_with_a_space_scoped_allow(
         agent=ChannelAgentCreate(
             connection_id=connection_id,
             slug="triage",
-            data=ChannelAgentData(references={}),
+            data=ChannelAgentData(references={"workflow_revision": {"id": uuid4()}}),
         ),
     )
     space = await dao.create_space(

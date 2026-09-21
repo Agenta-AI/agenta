@@ -175,7 +175,7 @@ async def _configure_agent(service, *, project_id, user_id, connection_id, locat
 
 
 @pytest.fixture
-async def arms(differential_scope):
+async def arms(differential_scope, monkeypatch):
     """Everything both arms share: one `FakeSlackWorkspace`, one real
     `ChannelsService` against Postgres, one core ingress app reachable over
     ASGITransport, a slack connection and a bridge connection both created
@@ -183,6 +183,11 @@ async def arms(differential_scope):
     front ASGI app that replays deliveries against the identical fake
     through the exact `SlackAdapter` instance the in-process arm also
     drives."""
+    # One installation per fixture instance: the connection identity key is
+    # (api_app_id, enterprise_id, team_id) and is unique across projects, so two
+    # tests sharing the module constants collide on the second create.
+    monkeypatch.setitem(globals(), "TEAM_ID", f"T-diff-{uuid4().hex[:6]}")
+    monkeypatch.setitem(globals(), "API_APP_ID", f"A-diff-{uuid4().hex[:6]}")
 
     engine = differential_scope["engine"]
     project_id = differential_scope["project_id"]
@@ -226,7 +231,7 @@ async def arms(differential_scope):
         ),
     )
 
-    bridge_source = "differential-slack-front"
+    bridge_source = f"differential-slack-front-{uuid4().hex[:6]}"
     bridge_created = await service.create_connection(
         project_id=project_id,
         user_id=user_id,

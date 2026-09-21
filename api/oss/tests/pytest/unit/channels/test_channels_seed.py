@@ -162,7 +162,7 @@ def test_entities_instantiate():
         id=agent_id,
         slug="support-agent",
         connection_id=connection_id,
-        data=ChannelAgentData(references={}),
+        data=ChannelAgentData(references={"workflow_revision": {"id": uuid4()}}),
     )
     space = ChannelSpace(
         id=space_id,
@@ -250,7 +250,7 @@ def test_slug_validator_is_enforced():
             id=uuid4(),
             slug="not a slug!",
             connection_id=uuid4(),
-            data=ChannelAgentData(references={}),
+            data=ChannelAgentData(references={"workflow_revision": {"id": uuid4()}}),
         )
 
 
