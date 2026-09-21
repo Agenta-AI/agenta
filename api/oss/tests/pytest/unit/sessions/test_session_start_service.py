@@ -1,4 +1,5 @@
 import asyncio
+import json
 from datetime import datetime, timezone
 from pathlib import Path
 from unittest.mock import AsyncMock
@@ -383,7 +384,11 @@ class _ClaimFlag:
         return True
 
     async def claim_for_execution(self, **kwargs):
-        return _input(kwargs["content"]).model_copy(
+        # The row holds `content` as JSON and the start path re-reads it from the row rather
+        # than reusing the dict it passed in, so the double round-trips it the same way.
+        # Handing the original object back would hide anything added on the way to storage.
+        stored = json.loads(json.dumps(kwargs["content"]))
+        return _input(stored).model_copy(
             update={
                 "session_id": kwargs["session_id"],
                 "promoted_execution_id": kwargs["execution_id"],
@@ -657,8 +662,17 @@ async def test_the_first_turn_request_never_asks_for_session_admission():
         inputs=inputs, executions=executions, workflows=workflows
     ).start_once(**_args())
 
+    # Three points on the same path: what the builder produces, what survives the row's JSON
+    # round trip, and what is finally sent. `on_busy` must be absent at each.
+    built = SessionStartsService._request(
+        session_id="session-1",
+        workflow_id=WORKFLOW_ID,
+        revision_id=REVISION_ID,
+        message="Configure the agent.",
+    )
+    assert built.on_busy is None
+    assert "on_busy" not in built.model_dump(mode="json", exclude_none=True)
+
     sent = workflows.invoke_workflow_detached.await_args.kwargs["request"]
     assert sent.on_busy is None
-    # The claim path stores the same request and replays it from the row, so the stored copy
-    # has to be clean too.
     assert "on_busy" not in sent.model_dump(mode="json", exclude_none=True)
