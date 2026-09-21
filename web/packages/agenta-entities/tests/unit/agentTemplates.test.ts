@@ -11,8 +11,8 @@ import {
 } from "../../src/workflow/agentTemplates"
 
 describe("AGENT_TEMPLATES", () => {
-    it("has exactly 28 entries", () => {
-        expect(AGENT_TEMPLATES).toHaveLength(28)
+    it("has exactly 31 entries", () => {
+        expect(AGENT_TEMPLATES).toHaveLength(31)
     })
 
     it("has unique keys", () => {

@@ -39,7 +39,7 @@ Validation covers SDK round trips, runner persistence and cold reconstruction, b
 - Saved fixture revisions each contain one package skill and zero tools; the initial invocation includes 21 runtime tools.
 - The legacy playground and /m at phone and desktop widths render the same visible request.
 
-The QA sources are catalog entries for test use, not additional production starter cards. The tests select their source keys through the existing template-loading request.
+The three QA sources are visible starter cards under Ops, named QA checklist, QA project brief, and QA weekly digest. They use the same loading and setup flow as the other cards. The gallery now contains 31 cards.
 
 ## Three test templates
 

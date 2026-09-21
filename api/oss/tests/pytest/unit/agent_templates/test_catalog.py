@@ -25,9 +25,6 @@ FRONTEND_TEMPLATES = (
 )
 LEGACY_EXAMPLE_KEYS = {
     "outbound-prospecting",
-    "qa-checklist",
-    "qa-project-brief",
-    "qa-weekly-digest",
 }
 
 
@@ -42,7 +39,7 @@ def test_catalog_has_exactly_one_source_for_every_starter_card():
     frontend_keys = _frontend_source_keys()
     catalog = json.loads(CATALOG.read_text(encoding="utf-8"))
 
-    assert len(frontend_keys) == 28
+    assert len(frontend_keys) == 31
     assert set(catalog) == frontend_keys | LEGACY_EXAMPLE_KEYS
 
 
