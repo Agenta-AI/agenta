@@ -46,6 +46,8 @@
         "./gatewayTool": "./src/gatewayTool/index.ts",
         "./gatewayTrigger": "./src/gatewayTrigger/index.ts",
         "./loadable": "./src/loadable/index.ts",
+        "./mcpEndpoint": "./src/mcpEndpoint/index.ts",
+        "./mcpEndpoint/refusal": "./src/mcpEndpoint/core/refusal.ts",
         "./profile": "./src/profile/index.ts",
         "./project": "./src/project/index.ts",
         "./organization": "./src/organization/index.ts",

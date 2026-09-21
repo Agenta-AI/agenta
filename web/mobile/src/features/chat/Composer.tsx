@@ -17,6 +17,7 @@ import {
     type ComposerAttachment,
     type useComposerAttachments,
 } from "@agenta/chat/hooks"
+import {refusedSendRejections} from "@agenta/chat/model"
 import {dismissSoftKeyboardAfterSend} from "@agenta/ui/hooks"
 import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 import {HarnessTooltip, SelectLLMProviderBase} from "@agenta/ui/select-llm-provider"
@@ -198,7 +199,7 @@ export const Composer = ({
             attachments.clearAttachments(staged.map((file) => file.uid))
             if (policy === "steer" && onSteer) await onSteer({text, parts, stagedFiles: outbound})
             else await onSend({text, parts, stagedFiles: outbound})
-        } catch {
+        } catch (error: unknown) {
             // Nothing consumes this promise (RichChatInput's submit is fire-and-forget), so an
             // uncaught rejection would leave the user with no message, no error, and no idea a
             // send even failed. Put the text and the tray back, and say so through the
@@ -207,7 +208,7 @@ export const Composer = ({
             // before the clear leaves the tray as it was.
             void richInputRef.current?.setMarkdown(text)
             attachments.restoreAttachments(outbound)
-            attachments.setRejections([{name: "Message", reason: "wasn't sent — try again."}])
+            attachments.setRejections(refusedSendRejections(error))
         }
     }
 

@@ -1,5 +1,7 @@
 import type {FileUIPart, UIMessage} from "ai"
 
+import {REFUSED_SEND_REASON} from "../model/error"
+
 import {getMessageTurnId} from "./agentTurn"
 
 /**
@@ -136,9 +138,10 @@ export const isPendingSendFailed = (message: UIMessage): boolean =>
 
 /**
  * Shown on a failed echo. Word for word what the composer says when a send is refused before it
- * resolves, because to the user those are one event and two phrasings read as carelessness.
+ * resolves, because to the user those are one event and two phrasings read as carelessness. It is
+ * built from the composer's own reason half so the two cannot drift apart.
  */
-export const PENDING_SEND_FAILED_NOTE = "Message wasn't sent — try again."
+export const PENDING_SEND_FAILED_NOTE = `Message ${REFUSED_SEND_REASON}`
 
 const previewExecutionId = (message: UIMessage): string | null => {
     const metadata = message.metadata as {executionId?: unknown} | undefined

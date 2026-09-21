@@ -114,6 +114,23 @@
    (outside .main-wrapper) reads it too. */
 #__docusaurus {
   --doc-sidebar-width: 272px;
+  /* The whole frame (sidebar, reading column, TOC) is capped and centred on
+     wide screens. The offset is what everything fixed or full-width (the
+     sidebar, the header row, the footer) shifts by. Declared here, not on
+     :root, so the sidebar width above is the one it reads (the theme sets
+     its own on :root). */
+  --doc-frame-max: calc(var(--doc-sidebar-width) + var(--doc-content-width) + var(--doc-toc-width) + 30px + 2 * var(--doc-main-padding-x));
+  --doc-frame-offset: 0px;
+}
+
+/* Centring starts only once there is real room for it. Just above the frame
+   width the offset would be a sliver (a 30px gap at 1440px) that leaves the
+   sidebar hanging off the window edge; until then the frame stays anchored
+   left and the reading column alone centres (content.css). */
+@media (min-width: 1600px) {
+  #__docusaurus {
+    --doc-frame-offset: max(0px, calc(50% - var(--doc-frame-max) / 2));
+  }
 }
 
 /* Small laptops: narrower sidebar, TOC and gutters so the reading column

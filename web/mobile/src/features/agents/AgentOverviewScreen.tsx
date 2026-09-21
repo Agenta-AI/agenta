@@ -86,6 +86,7 @@ export const AgentOverviewScreen = ({
                                     description={description}
                                     pending={agentsQuery.isPending && !agent}
                                     onOpenChat={openChat}
+                                    onEditConfig={onEditConfig}
                                 />
                             </div>
                         </div>

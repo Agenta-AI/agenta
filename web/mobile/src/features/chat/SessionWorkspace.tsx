@@ -48,6 +48,15 @@ const ConfigPane = dynamic(() => import("./ConfigPane").then((m) => m.ConfigPane
     ssr: false,
 })
 
+// The tool catalog is opened by setting an atom, so whoever opens it needs this mounted or the
+// action does nothing. It sits at the workspace rather than inside the config pane, because the
+// agent's own connect widget opens it from the transcript and in chat mode the config pane does
+// not render. One mount, always present, as the desktop playground keeps one beside its panels.
+const CatalogDrawer = dynamic(
+    () => import("@agenta/entity-ui/gatewayTool").then((m) => m.CatalogDrawer),
+    {ssr: false},
+)
+
 /**
  * The playground's two-pane frame, on the SAME kit `SplitPane` the desktop drives it with and the
  * SAME `chatPanelMaximizedAtom` that decides the mode: "chat" maximizes the conversation (config
@@ -408,6 +417,7 @@ export const SessionWorkspace = ({
                         />
                     </div>
                 </div>
+                <CatalogDrawer />
             </DriveSessionProvider>
         </>
     )

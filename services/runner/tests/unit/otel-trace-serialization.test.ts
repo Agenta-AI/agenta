@@ -100,6 +100,7 @@ describe("Pi OTLP serialization", () => {
         },
       ],
     });
+    await handlers["agent_settled"]?.({});
     await expect(otel.flush()).resolves.toBeUndefined();
 
     expect(exported).toHaveLength(1);
@@ -132,6 +133,7 @@ describe("Pi OTLP serialization", () => {
     await handlers["agent_start"]?.({});
     await handlers["agent_end"]?.({ messages: [] });
 
+    await handlers["agent_settled"]?.({});
     await expect(otel.flush()).resolves.toBeUndefined();
     expect(log.mock.calls.flat().join(" ")).toContain(
       "serialized trace transport threw",
@@ -168,6 +170,7 @@ describe("Pi OTLP serialization", () => {
       args: { command: "sleep 10" },
     });
     await handlers["agent_end"]?.({ messages: [] });
+    await handlers["agent_settled"]?.({});
     await otel.flush();
 
     expect(exported).toHaveLength(1);
@@ -199,6 +202,7 @@ describe("Pi OTLP serialization", () => {
       message: { role: "assistant", usage: { input: 2, output: 1 } },
     });
     await handlers["agent_end"]?.({ messages: [] });
+    await handlers["agent_settled"]?.({});
     await otel.flush();
     expect(exported).toHaveLength(1);
     expect(otel.usage()).toMatchObject({ input: 2, output: 1, total: 3 });
@@ -211,10 +215,101 @@ describe("Pi OTLP serialization", () => {
       message: { role: "assistant", usage: { input: 5, output: 4 } },
     });
     await handlers["agent_end"]?.({ messages: [] });
+    await handlers["agent_settled"]?.({});
     await otel.flush();
 
     expect(exported).toHaveLength(1);
     expect(otel.usage()).toMatchObject({ input: 5, output: 4, total: 9 });
     expect(otel.config.serializedBatchTransport).toBeUndefined();
+  });
+});
+
+describe("Pi recovery tracing", () => {
+  it("keeps one root through recovery and retains safe diagnostics without message capture", async () => {
+    const spans: ReadableSpan[] = [];
+    const serialize = vi.spyOn(ProtobufTraceSerializer, "serializeRequest");
+    const otel = createAgentaOtel({
+      captureContent: false,
+      serializedBatchTransport: { export: async () => {} },
+    });
+    const handlers: Record<string, (...args: any[]) => Promise<void>> = {};
+    otel.register({
+      on: (name: string, handler: any) => {
+        handlers[name] = handler;
+      },
+    } as any);
+    await handlers.before_agent_start({ prompt: "work" });
+    await handlers.agent_start({});
+    await handlers.turn_start({ turnIndex: 0 });
+    await handlers.before_provider_request(
+      {},
+      { model: { id: "test", provider: "openai-codex" } },
+    );
+    const failure = {
+      role: "assistant",
+      stopReason: "error",
+      errorMessage: "WebSocket error",
+      content: [{ type: "text", text: "private partial output" }],
+      usage: { input: 2, output: 1, totalTokens: 3 },
+      diagnostics: [
+        {
+          type: "provider_transport_failure",
+          error: {
+            name: "WebSocketCloseError",
+            message: "closed",
+            code: 1006,
+            stack: "private stack",
+          },
+          details: {
+            phase: "after_message_stream_start",
+            configuredTransport: "auto",
+            eventsEmitted: true,
+            requestBytes: 42,
+            headers: { authorization: "secret" },
+            body: "private request",
+          },
+        },
+      ],
+    };
+    await handlers.message_end({ message: failure });
+    await handlers.turn_end({});
+    await handlers.agent_end({ messages: [failure] });
+    expect(serialize).not.toHaveBeenCalled();
+    await handlers.agent_start({});
+    await handlers.turn_start({ turnIndex: 1 });
+    await handlers.before_provider_request(
+      {},
+      { model: { id: "test", provider: "openai-codex" } },
+    );
+    const success = {
+      role: "assistant",
+      stopReason: "stop",
+      content: [{ type: "text", text: "done" }],
+      usage: { input: 4, output: 2, totalTokens: 6 },
+    };
+    await handlers.message_end({ message: success });
+    await handlers.turn_end({});
+    await handlers.agent_end({ messages: [success] });
+    expect(serialize).not.toHaveBeenCalled();
+    await handlers.agent_settled({});
+    await otel.flush();
+    for (const [batch] of serialize.mock.calls) spans.push(...batch);
+    expect(spans.filter((s) => s.name === "invoke_agent")).toHaveLength(1);
+    const root = spans.find((s) => s.name === "invoke_agent")!;
+    expect(root.status.code).not.toBe(2);
+    expect(root.attributes["gen_ai.usage.total_tokens"]).toBe(9);
+    expect(spans.filter((s) => s.name === "chat test")).toHaveLength(2);
+    const diagnostic = spans
+      .flatMap((s) => s.events)
+      .find((e) => e.name === "provider_transport_failure");
+    expect(diagnostic?.attributes).toMatchObject({
+      "error.code": 1006,
+      "transport.phase": "after_message_stream_start",
+      "transport.requestBytes": 42,
+    });
+    expect(JSON.stringify(diagnostic)).not.toMatch(
+      /private|authorization|secret/,
+    );
+    expect(otel.usage().total).toBe(9);
   });
 });

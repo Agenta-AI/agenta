@@ -1,5 +1,19 @@
 import { type AgentRunRequest, type ToolPermission } from "../../protocol.ts";
+import {
+  normalizeMcpServerPermissions,
+  type McpPermissionTable,
+  type McpServerPermissions,
+} from "../../mcp-permission.ts";
+// Re-exported so the gate call sites keep importing their MCP permission vocabulary from the
+// runtime-policy module they already depend on, while the rules themselves stay in one
+// dependency-free file the Pi extension bundle can import too.
+export {
+  mcpToolPermission,
+  type McpPermissionTable,
+  type McpServerPermissions,
+} from "../../mcp-permission.ts";
 import { claimSessionOwnership, REPLICA_ID } from "../../sessions/alive.ts";
+import { materializeGatewayHeaders } from "./run-plan.ts";
 import {
   configuredIngestBases,
   isAgentaIngest,
@@ -10,6 +24,7 @@ import {
 } from "../../tracing/otel.ts";
 import { endpointHost } from "../../tracing/export-diagnostics.ts";
 import { PendingApprovalPauseController } from "./pause.ts";
+import { GATEWAY_PLACEHOLDER_API_KEY } from "../../extensions/model-provider-override.ts";
 
 type Log = (message: string) => void;
 
@@ -116,16 +131,59 @@ export function resolveRunOtlpTarget(
   };
 }
 
-export function serverPermissionsFromRequest(
+/**
+ * Build the run's MCP permission table: one entry per configured server, keyed on the server name
+ * as it arrives on the wire.
+ *
+ * The name is a label, not identity. It was both once — the gateway route for an author-supplied
+ * server was `custom/{name}` — and the independent-connection work separated them: the SDK builds
+ * the route from `connection.slug` whenever a connection reference is present
+ * (`sdks/python/agenta/sdk/agents/mcp/resolver.py`), and falls back to the name only for agent
+ * revisions committed before that reference existed, which are immutable and still arrive here.
+ *
+ * The table is still keyed on the wire name, because that is what a harness renders into a tool
+ * name and therefore what the gate has to look up. Two connections may carry one display name, so
+ * that key is not unique: such a name is marked ambiguous here and every call under it is refused
+ * (D10). When the connection slug reaches this call site the table gains a second key and nothing
+ * downstream moves.
+ *
+ * The per-server rules live in `src/mcp-permission.ts`, which the in-sandbox Pi extension imports
+ * too, so the two harness families cannot disagree about what a policy means.
+ */
+export function mcpPermissionsFromRequest(
   request: AgentRunRequest,
-): ReadonlyMap<string, ToolPermission> {
-  const permissions = new Map<string, ToolPermission>();
+  log?: Log,
+): McpPermissionTable {
+  const table = new Map<string, McpServerPermissions>();
+  const colliding = new Set<string>();
   for (const server of request.mcpServers ?? []) {
-    if (server.policy?.permission !== undefined) {
-      permissions.set(server.name, server.policy.permission);
+    const name = typeof server?.name === "string" ? server.name : "";
+    if (!name) continue;
+    if (table.has(name)) {
+      // Two configured servers under one wire name. This used to overwrite, so the last one
+      // declared answered for both and every call under that name resolved to one
+      // connection's policy whichever connection the model meant (D10).
+      //
+      // The entry is marked ambiguous rather than merged, and `mcpToolPermission` refuses
+      // it — the same verdict the ACP gate gives a rendered name more than one server could
+      // claim (D2), because it is the same situation: a call that cannot be attributed to a
+      // connection. Marking rather than merging is what keeps it one rule; a merged verdict
+      // would be a second, quieter policy nobody configured.
+      colliding.add(name);
+      table.set(name, { tools: new Map(), ambiguous: true });
+      continue;
     }
+    table.set(name, normalizeMcpServerPermissions(server.policy));
   }
-  return permissions;
+  for (const name of colliding) {
+    // Once per name, at intake. D2's refusal is per call and says nothing about why two
+    // servers share a name; this is the line that tells an operator which name to fix.
+    log?.(
+      `[mcp] error: more than one configured server is named '${name}', so no ` +
+        `'mcp__${name}__*' call can be attributed to one of them; every such call is refused`,
+    );
+  }
+  return table;
 }
 
 export function shouldSuppressPausedToolCallUpdate(
@@ -162,6 +220,24 @@ const CLAUDE_STRICT_DEPLOYMENTS = new Set([
   "vertex_ai",
 ]);
 
+/**
+ * Codex validates the provider block's ``env_key`` before it sends an HTTP request. Gateway
+ * routes authenticate with ``X-AG-Credentials`` instead, so provide only a fixed, non-secret
+ * selector value—not a provider credential.
+ */
+export function applyCodexGatewayConnectionEnv(
+  env: Record<string, string>,
+  request: AgentRunRequest,
+  acpAgent: string,
+): void {
+  if (
+    acpAgent !== "codex" ||
+    !request.modelConnection?.gatewayCredentials?.value
+  )
+    return;
+  env.OPENAI_API_KEY = GATEWAY_PLACEHOLDER_API_KEY;
+}
+
 export function applyClaudeConnectionEnv(
   env: Record<string, string>,
   request: AgentRunRequest,
@@ -169,6 +245,10 @@ export function applyClaudeConnectionEnv(
   logger: Log,
 ): void {
   if (acpAgent !== "claude") return;
+
+  // Claude Code discovers the gateway's current stateless MCP interface.
+  env.MCP_PROTOCOL_NEGOTIATION = "auto";
+  logger("claude MCP protocol negotiation: auto");
 
   // Disable the Claude Agent SDK's Tool-Search feature for every Claude run. The bundled
   // SDK defaults Tool-Search ON, which makes Claude DEFER the `agenta-tools` MCP tools and
@@ -186,6 +266,22 @@ export function applyClaudeConnectionEnv(
   if (baseUrl) {
     env.ANTHROPIC_BASE_URL = baseUrl;
     logger(`claude base_url: ${baseUrl}`);
+  }
+
+  // Gateway credentials use one `Name: Value` pair per ANTHROPIC_CUSTOM_HEADERS line.
+  const gatewayHeaders = materializeGatewayHeaders(request);
+  const headerLines = Object.entries(gatewayHeaders)
+    .map(([name, value]) => `${name}: ${value}`)
+    .join("\n");
+  if (headerLines) {
+    env.ANTHROPIC_CUSTOM_HEADERS = headerLines;
+    // The Anthropic SDK refuses to initialize without a key-shaped value, even when a custom
+    // base URL and headers authenticate the request. This is only a fixed selector; the gateway
+    // alone reads the real credential carried in ANTHROPIC_CUSTOM_HEADERS.
+    env.ANTHROPIC_API_KEY = GATEWAY_PLACEHOLDER_API_KEY;
+    logger(
+      `claude gateway credentials header: ${request.modelConnection?.gatewayCredentials?.header}`,
+    );
   }
 
   if (deployment === "bedrock") {
