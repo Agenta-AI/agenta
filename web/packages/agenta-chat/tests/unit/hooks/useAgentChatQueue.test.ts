@@ -322,6 +322,28 @@ describe("useAgentChatQueue", () => {
         expect(onSendFailed.mock.calls[0][0]).toMatchObject({text: "waits its turn"})
     })
 
+    // The server accepted the run and the invoke stream then dropped. The shared run owns a turn
+    // the records will carry, so this is a disconnect, not a send that never left.
+    it("leaves a send alone when the accepted run outlives its stream", () => {
+        const onSendFailed = vi.fn()
+        const props: HarnessProps = {...settledEmpty, onSendFailed}
+        const {result, rerender} = setup(props)
+
+        act(() => {
+            result.current.submit({text: "accepted, then disconnected"})
+        })
+        act(() => {
+            rerender({
+                ...props,
+                status: "error",
+                acceptedRunPending: true,
+                messages: [userTurn("u1", "accepted, then disconnected")],
+            })
+        })
+
+        expect(onSendFailed).not.toHaveBeenCalled()
+    })
+
     // A stream that fails after the runner named the turn is a failed TURN, which the transcript
     // owns. Reporting it here would retire a row for a session the server does list.
     it("leaves a send alone when the stream fails after its turn was named", () => {

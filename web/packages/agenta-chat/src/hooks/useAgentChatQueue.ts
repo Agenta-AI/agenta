@@ -293,17 +293,22 @@ export const useAgentChatQueue = ({
      * failed turn the transcript owns, not a send that never left. A user stop lands on "ready",
      * so it never reaches here.
      *
+     * `acceptedRunPending` is the other way a turn exists without being named yet: the server sent
+     * `data-session-accepted` and the invoke stream then dropped, so the shared run owns a turn the
+     * records will carry. That is a disconnect, not a failed send, exactly as `canReleaseNow` reads
+     * it.
+     *
      * Reports without consuming `lastSentRef`: the desktop's session-busy recovery claims the same
      * message through `takeLastSent`, and these effects run before its own.
      */
     const retractedSendIdRef = useRef<string | null>(null)
     useEffect(() => {
-        if (status !== "error") return
+        if (status !== "error" || acceptedRunPending) return
         const unadmitted = lastSentRef.current
         if (!unadmitted || retractedSendIdRef.current === unadmitted.id) return
         retractedSendIdRef.current = unadmitted.id
         onSendFailedRef.current?.(unadmitted)
-    }, [status])
+    }, [acceptedRunPending, status])
 
     /** Take back the last sent message only after an optional placement succeeds. */
     const takeLastSent = useCallback((place?: (message: QueuedMessage) => boolean) => {
