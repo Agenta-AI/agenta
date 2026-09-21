@@ -337,7 +337,9 @@ class MountsRouter:
                 "requestBody": {
                     "required": True,
                     "content": {
-                        "application/octet-stream": {"schema": {"type": "string", "format": "binary"}},
+                        "application/octet-stream": {
+                            "schema": {"type": "string", "format": "binary"}
+                        },
                     },
                 }
             },
@@ -640,7 +642,9 @@ class MountsRouter:
         x_agenta_app_scope: Optional[str] = Header(default=None),
     ):
         await self._check(request, Permission.VIEW_MOUNTS)
-        enforce_app_scope(
+        # The scope decides the path, not the query: a scoped caller that named none gets its own
+        # folder, so a pathless listing cannot walk out of the app's scope.
+        scoped_path = enforce_app_scope(
             token=x_agenta_app_scope,
             project_id=UUID(request.state.project_id),
             mount_id=mount_id,
@@ -663,7 +667,7 @@ class MountsRouter:
         listing = await self.mounts_service.list_files(
             project_id=UUID(request.state.project_id),
             mount_id=mount_id,
-            path=path,
+            path=scoped_path,
             order=order,
             limit=limit,
             depth=depth,

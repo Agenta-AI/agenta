@@ -22,8 +22,6 @@ import {z} from "zod"
 
 import {projectScopedRequest} from "@agenta/entities/session"
 
-import {scopeHeaders} from "./scopeToken"
-
 import {safeParseWithLogging} from "../../shared/utils/zodSchema"
 
 import {
@@ -34,6 +32,7 @@ import {
     type FileStat,
     type FsResults,
 } from "./protocol"
+import {scopeHeaders} from "./scopeToken"
 
 // ---------------------------------------------------------------------------------------------
 // Types

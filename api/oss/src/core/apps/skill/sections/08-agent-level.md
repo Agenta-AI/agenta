@@ -1,7 +1,7 @@
 
 ## Agent-level layout: `agent-files/.apps/`
 
-`agent-files/.apps/` is your record of the apps you have built. It survives across sessions.
+`agent-files/.apps/` is your record of the apps you have built, across sessions.
 Do these in order; each rule is a checklist item.
 
 1. **First `create_app` in this agent's life:** write `agent-files/.apps/layout.json` as
@@ -9,8 +9,9 @@ Do these in order; each rule is a checklist item.
    `version`, stop and say so. Do not guess at a migration.
 2. **After every app event in this session** (create, update, archive): rewrite
    `agent-files/.apps/registry/<session_id>.json` whole, as
-   `{"version": 1, "session_id": "<id>", "apps": [{"slug", "path", "template", "created_at",
-   "updated_at", "state", "notes"}]}`. Never write another session's registry file.
+   `{"version": 1, "session_id": "<id>", "apps": []}`, one object per app, string keys
+   `slug`, `path`, `template`, `created_at`, `updated_at`, `state`, `notes`. Never write
+   another session's registry.
 3. **Before creating an app:** read every file under `agent-files/.apps/registry/` and merge by
    slug. If the person is asking for something you already built in this session, update it.
    If you built it in another session, say so and offer to recreate it here from the same

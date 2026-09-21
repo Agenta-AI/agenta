@@ -84,9 +84,15 @@
   /** Board shaped by the config: every configured column exists, in config order; extra
    *  columns found in the data file are kept after them so nothing is silently dropped. */
   function normalise(raw, cfg) {
+    // Duplicate ids in the stored board are folded, not dropped: a column id is an identity, so
+    // two entries claiming one id are the same column, and keeping only the last would delete
+    // the other's cards on the next load.
     const byId = new Map();
     for (const col of (raw && Array.isArray(raw.columns) ? raw.columns : [])) {
-      if (col && typeof col.id === "string") byId.set(col.id, col);
+      if (!col || typeof col.id !== "string") continue;
+      const seen = byId.get(col.id);
+      if (seen) seen.cards = [...cleanCards(seen.cards), ...cleanCards(col.cards)];
+      else byId.set(col.id, {...col, cards: cleanCards(col.cards)});
     }
     const columns = [];
     for (const c of cfg.columns) {
@@ -132,8 +138,16 @@
   }
 
   function normaliseConfig(raw) {
+    // One column per id, first wins: config order is display order. A repeated id rendered two
+    // columns that shared an identity, and the second always drew empty, because the lookup that
+    // fills it is consumed by the first.
+    const seen = new Set();
     const cols = raw && Array.isArray(raw.columns)
-      ? raw.columns.filter((c) => c && typeof c.id === "string")
+      ? raw.columns.filter((c) => {
+          if (!c || typeof c.id !== "string" || seen.has(c.id)) return false;
+          seen.add(c.id);
+          return true;
+        })
       : [];
     return {
       title: raw && typeof raw.title === "string" ? raw.title : DEFAULT_CONFIG.title,

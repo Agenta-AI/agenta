@@ -159,15 +159,21 @@ def enforce(
     mount_id: UUID,
     path: Optional[str],
     writing: bool,
-) -> None:
+) -> Optional[str]:
     """Apply a scope token to one file request, if the caller sent one.
 
     No token means no narrowing: the request stands or falls on the project permission check, the
     way every other drive call does. With a token, all four have to hold — same project, same
     mount, path inside the folder, and the level covers the method.
+
+    Returns THE PATH THE REQUEST MUST USE, so that narrowing cannot be forgotten at a call site.
+    A scoped caller that names no path is asking about "everything it may see", and that is the
+    token's own folder — not the whole mount. Listing took the caller's `None` straight to the
+    service, which walked the entire tree: the token widened the request instead of narrowing it,
+    which is the one thing a scope token must never do.
     """
     if token is None:
-        return
+        return path
 
     scope = parse(token)
 
@@ -175,5 +181,8 @@ def enforce(
         raise ScopeTokenInvalid("token was issued for a different drive")
     if writing and not scope.allows_write():
         raise ScopeTokenInvalid("this app was granted read access only")
-    if path is not None and not scope.allows_path(path):
+    if path is None:
+        return scope.prefix
+    if not scope.allows_path(path):
         raise ScopeTokenInvalid("path is outside the app folder")
+    return path

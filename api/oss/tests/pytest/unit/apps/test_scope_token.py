@@ -181,7 +181,7 @@ class TestEnforce:
             )
 
     def test_a_pathless_call_still_checks_drive_and_level(self):
-        # `path=None` is a listing of the mount root; the drive and level still have to match.
+        # The drive and level still have to match when no path is named.
         enforce(
             token=_token(), project_id=PROJECT, mount_id=MOUNT, path=None, writing=False
         )
@@ -193,6 +193,52 @@ class TestEnforce:
                 path=None,
                 writing=False,
             )
+
+    def test_a_pathless_scoped_call_is_narrowed_to_the_folder(self):
+        # A token must never widen a request. `path=None` used to skip the prefix check and let
+        # the caller list the whole mount, so the scoped page could read every file on the drive.
+        assert (
+            enforce(
+                token=_token(),
+                project_id=PROJECT,
+                mount_id=MOUNT,
+                path=None,
+                writing=False,
+            )
+            == DIR
+        )
+
+    def test_a_named_path_inside_the_folder_is_returned_unchanged(self):
+        inside = f"{DIR}/board.json"
+        assert (
+            enforce(
+                token=_token(),
+                project_id=PROJECT,
+                mount_id=MOUNT,
+                path=inside,
+                writing=False,
+            )
+            == inside
+        )
+
+    def test_an_unscoped_call_keeps_whatever_path_it_asked_for(self):
+        # No token, no narrowing: the project permission check is what stands behind these.
+        assert (
+            enforce(
+                token=None, project_id=PROJECT, mount_id=MOUNT, path=None, writing=False
+            )
+            is None
+        )
+        assert (
+            enforce(
+                token=None,
+                project_id=PROJECT,
+                mount_id=MOUNT,
+                path="somewhere/else",
+                writing=False,
+            )
+            == "somewhere/else"
+        )
 
 
 class TestAppScope:

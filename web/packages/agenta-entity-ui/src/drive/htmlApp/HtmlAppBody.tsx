@@ -322,6 +322,12 @@ export function HtmlAppBody({
 
             {view === "run" && host && grant ? (
                 <RunView
+                    // Keyed by the entry file: a different entry is a different run, and every
+                    // piece of state the view holds — the page it is on, the back stack, the
+                    // iframe itself — belongs to the one it was opened with. Without this the
+                    // view kept the previous file's path and re-rendered THAT page under the new
+                    // app's name.
+                    key={path}
                     host={host}
                     dir={dir}
                     entryPath={path}
