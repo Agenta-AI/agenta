@@ -170,8 +170,10 @@ Two ops on the agent's platform tool surface:
   `app.json` (`board@1`). Agent-authored starters can be listed but cannot yet be copied.
   `update` accepts only JSON booleans. New copies refuse existing destination files. The service
   prepares and checks all files first, writes them conditionally, and publishes `app.json` last.
-  On failure it attempts to restore only files whose etags still match its writes. If restoration
-  fails, `app_copy_incomplete` names the paths that need inspection. This is compensation, not a
+  On failure it attempts to restore only files whose etags still match its acknowledged writes.
+  A lost response with an ambiguous outcome preserves the copied files; matching bytes do not
+  prove write ownership. If safe restoration is not possible, `app_copy_incomplete` names the
+  paths that need inspection. This is compensation, not a
   multi-file storage transaction; readers can observe in-progress updates, and conditional deletion
   retains the storage caveat above.
 - `list_starters() -> list[{name, version, when, config_keys, data_files, access}]`

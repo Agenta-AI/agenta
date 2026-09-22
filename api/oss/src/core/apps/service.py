@@ -502,17 +502,19 @@ class AppsService:
                     previous = before[path]
                     if previous is not None and observed.etag == previous.etag:
                         pass
-                    elif (
-                        observed.content.encode("utf-8") == pending[path]
-                        and observed.etag
-                    ):
-                        written[path] = observed.etag
                     else:
                         unrestored.append(path)
                 except MountFileNotFound:
                     pass
                 except Exception:
                     unrestored.append(path)
+            if unrestored:
+                raise AppsError(
+                    "app_copy_incomplete",
+                    "The last write has an unknown outcome; copied files were preserved.",
+                    next_step="Inspect the listed paths before retrying the copy.",
+                    details={"paths": list(written) + unrestored},
+                ) from error
             for path, etag in reversed(list(written.items())):
                 if not etag:
                     unrestored.append(path)

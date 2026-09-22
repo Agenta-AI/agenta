@@ -153,7 +153,7 @@ async def test_failed_copy_restores_previous_files(fake_mounts, update, fail_at)
 
 
 @pytest.mark.parametrize("fail_at", [1, 2, 3])
-async def test_lost_write_response_is_reconciled_before_rollback(fake_mounts, fail_at):
+async def test_lost_write_response_preserves_ambiguous_files(fake_mounts, fail_at):
     original = fake_mounts.write_file
     calls = 0
 
@@ -166,9 +166,26 @@ async def test_lost_write_response_is_reconciled_before_rollback(fake_mounts, fa
         return result
 
     fake_mounts.write_file = lose_response
-    with pytest.raises(TimeoutError):
+    with pytest.raises(AppsError) as exc:
         await _create(fake_mounts)
-    assert fake_mounts.files == {}
+    assert exc.value.code == "app_copy_incomplete"
+    assert set(exc.value.details["paths"]) == set(fake_mounts.files)
+    assert len(fake_mounts.files) == fail_at
+
+
+async def test_lost_response_does_not_delete_identical_concurrent_write(fake_mounts):
+    original = fake_mounts.write_file
+
+    async def lose_response(**kwargs):
+        await original(**kwargs)
+        fake_mounts.files[kwargs["path"]] = kwargs["content"].decode("utf-8")
+        raise TimeoutError("another writer stored the same bytes")
+
+    fake_mounts.write_file = lose_response
+    with pytest.raises(AppsError) as exc:
+        await _create(fake_mounts)
+    assert exc.value.code == "app_copy_incomplete"
+    assert list(fake_mounts.files) == ["apps/sprint/index.html"]
 
 
 async def test_manifest_is_published_last(fake_mounts):
