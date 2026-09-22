@@ -25,7 +25,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@agentclientprotocol/claude-agent-acp": "0.58.1",
+    "@agentclientprotocol/claude-agent-acp": "0.81.0",
     "@anthropic-ai/sdk": "0.111.0",
     "@daytonaio/sdk": "npm:@daytona/sdk@^0.198.0",
     "@earendil-works/pi-ai": "0.80.6",
