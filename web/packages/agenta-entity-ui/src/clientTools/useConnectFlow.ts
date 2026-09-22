@@ -70,6 +70,28 @@ export interface ConnectOutput {
 
 export type ConnectPhase = "idle" | "connecting" | "error"
 
+/** The parked call's integration key and connection slug, read the one way every surface reads
+ * them: the call may pin a slug; otherwise it defaults to the integration key. */
+export const connectRequestRefs = (input: unknown): {integration: string; slug: string} => {
+    const record = (input ?? {}) as Record<string, unknown>
+    const integration = typeof record.integration === "string" ? record.integration : ""
+    const slug =
+        typeof record.slug === "string" && record.slug ? record.slug : integration || "default"
+    return {integration, slug}
+}
+
+/**
+ * The "Not now" output: a structured refusal (NOT an error), so the run resumes and the agent can
+ * respond gracefully or offer an alternative. Distinct from "cancelled" (abandoned popup) so the
+ * agent can tell an explicit decline from a mishap. Shared by the card's own button and the
+ * dock's host-driven dismiss (a chat message sent over the request), so both settle identically.
+ */
+export const declinedConnectOutput = (input: unknown): ConnectOutput => ({
+    connected: false,
+    ...connectRequestRefs(input),
+    reason: "declined",
+})
+
 /**
  * Resolve the actual connect mode to use, the same way the settings ConnectModal's
  * `resolveAvailableModes` does — the toolkit's own catalog data is the source of truth for
@@ -170,11 +192,8 @@ export const isConnectModeResolving = ({
 
 export const useConnectFlow = (meta: ClientToolMeta, settle: SettleClientTool, active = true) => {
     const input = (meta.input ?? {}) as Record<string, unknown>
-    const integration = typeof input.integration === "string" ? input.integration : ""
-    // Connection slug: the call may pin one; default to the integration key. The output carries it
-    // back as the reference the runner re-resolves.
-    const slug =
-        typeof input.slug === "string" && input.slug ? input.slug : integration || "default"
+    // The output carries these back as the reference the runner re-resolves.
+    const {integration, slug} = connectRequestRefs(input)
     const hintedMode = input.mode === "api_key" ? "api_key" : "oauth"
     // The toolkit's real supported schemes override a hint the toolkit doesn't actually
     // support (see `resolveConnectMode`). While the catalog lookup is still in flight,
@@ -478,13 +497,11 @@ export const useConnectFlow = (meta: ClientToolMeta, settle: SettleClientTool, a
         else setPhase("idle")
     }, [finish, teardown, integration, slug, meta.settled])
 
-    // The user's "Not now": a structured refusal (NOT an error), so the run resumes and the agent
-    // can respond gracefully / offer an alternative. Distinct from "cancelled" (abandoned popup) so
-    // the agent can tell an explicit decline from a mishap.
+    // The user's "Not now" — see `declinedConnectOutput`.
     const decline = useCallback(() => {
         if (settledRef.current || meta.settled || pendingAnswerRef.current) return
-        finish({connected: false, integration, slug, reason: "declined"})
-    }, [finish, integration, slug, meta.settled])
+        finish(declinedConnectOutput(meta.input))
+    }, [finish, meta.input, meta.settled])
 
     return {
         integration,
