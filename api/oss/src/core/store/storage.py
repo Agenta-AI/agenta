@@ -685,6 +685,10 @@ class ObjectStore:
         try:
             await self._client()._put_object(bucket, key, body, {"If-None-Match": "*"})
         except S3Error as exc:
+            if exc.code == "NoSuchBucket":
+                raise MountStorageUnavailable(
+                    "Mount storage bucket is unavailable."
+                ) from exc
             if exc.code == "PreconditionFailed":
                 return False
             raise

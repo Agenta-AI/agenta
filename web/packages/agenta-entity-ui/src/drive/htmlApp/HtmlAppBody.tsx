@@ -167,6 +167,16 @@ export function HtmlAppBody({
     const [grant, setGrant] = useState<GrantLevel | null>(
         () => (mountId ? grants.get(mountId, dir)?.level : null) ?? null,
     )
+    // A grant belongs to one folder. Callers reuse this component across files without a key, and
+    // a cached file renders with no loading gap to remount it, so the folder's state is reset here:
+    // otherwise an app in folder B would run under folder A's grant.
+    const folder = `${mountId ?? ""}/${dir}`
+    const [grantFolder, setGrantFolder] = useState(folder)
+    if (grantFolder !== folder) {
+        setGrantFolder(folder)
+        setGrant((mountId ? grants.get(mountId, dir)?.level : null) ?? null)
+        setView((current) => (current === "run" ? "preview" : current))
+    }
     const frameRef = useRef<HTMLIFrameElement>(null)
 
     const {manifest, loaded: manifestLoaded} = useAppManifest(runnable ? io : null, dir)

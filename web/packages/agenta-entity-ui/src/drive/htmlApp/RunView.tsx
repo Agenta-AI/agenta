@@ -4,7 +4,7 @@
  * Strip: a dot, `Running · read + write · <dir>`, a "‹ back" control once the app navigated to a
  * sibling page, a Refresh MENU (one item, "Reload files": re-assemble + re-attach), a "Files
  * changed" pill when the drive moved underneath the app, and an error badge that expands into the
- * list (with Copy). The host is attached on iframe load and detached on unmount; theme changes
+ * list (with Copy). The host is attached on the frame's first load and detached on unmount; theme changes
  * (`.dark` / `data-theme` on the root, or the OS preference) re-resolve the kit tokens and reach
  * the app through `host.setTheme`.
  *
@@ -16,6 +16,8 @@ import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {
     SANDBOX_FLAGS,
+    buildRunFrame,
+    isFrameNavigated,
     type GrantLevel,
     type HtmlAppHost,
     type HtmlAppHostError,
@@ -133,6 +135,11 @@ export function RunView({
     const [backStack, setBackStack] = useState<string[]>([])
     const [doc, setDoc] = useState<string | null>(null)
     const [frameKey, setFrameKey] = useState(0)
+    /** Bumped per assembled page, so every page gets a fresh iframe and a fresh first load. */
+    const [docVersion, setDocVersion] = useState(0)
+    /** The app tried to load another document; it stays stopped until "Reload files". */
+    const [stopped, setStopped] = useState(false)
+    const attachedFrameRef = useRef<HTMLIFrameElement | null>(null)
     const [errors, setErrors] = useState<string[]>([])
     const [errorsOpen, setErrorsOpen] = useState(false)
     const [copied, setCopied] = useState(false)
@@ -170,6 +177,7 @@ export function RunView({
             })
             if (!alive) return
             result.errors.forEach(pushError)
+            setDocVersion((v) => v + 1)
             setDoc(result.html)
         })
         return () => {
@@ -189,11 +197,40 @@ export function RunView({
         pushError,
     ])
 
-    // Attach on iframe load; detach when the view goes away.
+    const frameDoc = useMemo(() => (doc == null ? null : buildRunFrame(doc)), [doc])
+
+    const stopApp = useCallback(() => {
+        host.detach()
+        setStopped(true)
+        pushError("The app tried to load another page and was stopped. Reload files to restart it.")
+    }, [host, pushError])
+
+    // Attach on the frame's FIRST load only; detach when the view goes away. The hello goes to
+    // "*" (the frame is an opaque origin), so a later load means someone else's document would
+    // get the bridge port. Every page we assemble gets a new iframe, so a second load on the same
+    // element is never ours.
     useEffect(() => () => host.detach(), [host])
     const onFrameLoad = useCallback(() => {
-        if (frameRef.current) host.attach(frameRef.current)
-    }, [host])
+        const frame = frameRef.current
+        if (!frame) return
+        if (attachedFrameRef.current === frame) {
+            stopApp()
+            return
+        }
+        attachedFrameRef.current = frame
+        host.attach(frame)
+    }, [host, stopApp])
+
+    // The wrapper reports the app's own frame loading a second document (see `buildRunFrame`).
+    useEffect(() => {
+        const onMessage = (event: MessageEvent) => {
+            const wrapper = frameRef.current?.contentWindow
+            if (!wrapper || event.source !== wrapper || !isFrameNavigated(event.data)) return
+            stopApp()
+        }
+        window.addEventListener("message", onMessage)
+        return () => window.removeEventListener("message", onMessage)
+    }, [stopApp])
 
     useEffect(() => host.setVisible(visible), [host, visible])
 
@@ -228,6 +265,7 @@ export function RunView({
     }, [])
 
     const reload = useCallback(() => {
+        setStopped(false)
         setErrors([])
         setErrorsOpen(false)
         setFrameKey((k) => k + 1)
@@ -256,11 +294,17 @@ export function RunView({
                     aria-hidden
                     className={cn(
                         "size-2 shrink-0 rounded-full",
-                        doc == null ? "bg-colorTextQuaternary" : "bg-colorSuccess",
+                        doc == null
+                            ? "bg-colorTextQuaternary"
+                            : stopped
+                              ? "bg-colorError"
+                              : "bg-colorSuccess",
                     )}
                 />
                 <span className="truncate">
-                    <span className="text-colorText">{doc == null ? "Starting" : "Running"}</span>
+                    <span className="text-colorText">
+                        {doc == null ? "Starting" : stopped ? "Stopped" : "Running"}
+                    </span>
                     {" · "}
                     {GRANT_LABEL[grant]}
                     {" · "}
@@ -357,7 +401,7 @@ export function RunView({
                 </div>
             ) : null}
 
-            {doc == null ? (
+            {frameDoc == null ? (
                 <div className="min-h-0 flex-1 p-3">
                     <div className="flex flex-col gap-2">
                         {Array.from({length: 6}).map((_, i) => (
@@ -365,13 +409,19 @@ export function RunView({
                         ))}
                     </div>
                 </div>
+            ) : stopped ? (
+                <div data-slot="run-stopped" className="min-h-0 flex-1 p-3 text-colorTextSecondary">
+                    The app tried to load another page and was stopped. Use Refresh, then Reload
+                    files, to start it again.
+                </div>
             ) : (
                 // No allow-same-origin: the app is an opaque origin and reaches the drive only over
-                // the port the host hands it on load.
+                // the port the host hands it on load. The srcdoc is the wrapper from
+                // `buildRunFrame`, which holds the app in a nested frame that cannot navigate out.
                 <iframe
-                    key={frameKey}
+                    key={`${frameKey}:${docVersion}`}
                     ref={frameRef}
-                    srcDoc={doc}
+                    srcDoc={frameDoc}
                     sandbox={SANDBOX_FLAGS}
                     onLoad={onFrameLoad}
                     title="App"

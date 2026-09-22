@@ -201,6 +201,18 @@ would block them anyway, and the kit must render identically in Storybook and in
   the egress surface below, which is the reason.
 - CSP (`RUN_CSP`), injected as a `<meta http-equiv>` at the top of the document:
   `default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; form-action 'none'`.
+- Wrapper frame (`buildRunFrame` in `frame.ts`). The Run iframe holds a small wrapper document,
+  and the wrapper holds the app in a nested iframe with the same sandbox flags. The wrapper's CSP
+  (`RUN_FRAME_CSP`) is `RUN_CSP` plus `frame-src 'none'`. A frame's navigations are checked against
+  the policy of the document that embeds it, so the app cannot navigate itself to a network URL
+  (`location.href`, meta refresh, link clicks, `data:` or `blob:` hops); its first srcdoc still
+  loads. The app srcdoc inherits that policy.
+- One port, one document. The `hello` must be posted to `"*"` because an opaque origin has no
+  name `postMessage` accepts, so the port goes to whatever document is in the frame. The host
+  attaches on the Run iframe's first load only, and the wrapper forwards the `hello` only to the
+  app's first load. Any later load of either frame stops the app: the wrapper removes the app
+  frame and posts `{v: 1, type: "frame-navigated"}` to the host, which detaches the port and shows
+  the app as stopped until "Reload files". An external link click therefore stops the app.
 - Feature flag: `userScopedFlagAtom` with key `agent-apps` (`AGENT_APPS_FLAG`). Off means the
   drive shows the folder as plain files. The preference defaults to false per user. HTML apps
   remain experimental; this release does not enable Run by default.
@@ -221,8 +233,9 @@ It does not authorize upload, download, folder creation or export endpoints.
 
 If token minting fails, Run may continue with ordinary authenticated requests without this
 header. That is intentional compatibility behavior, not an unconditional server-side folder
-boundary. Normal authentication and project permissions still apply. Agent-side `create_app`
-writes are separate from the UI's `EDIT_MOUNTS` permission and retain their existing policy.
+boundary. Normal authentication and project permissions still apply. The agent-side tools ask
+for the same permissions as the mount routes: `create_app` needs `EDIT_MOUNTS` and
+`list_starters` needs `VIEW_MOUNTS`, on top of `RUN_TOOLS`.
 
 Preview has no app bridge. It strips app scripts, keeps external links available, and applies
 `PREVIEW_CSP`, including `frame-src 'none'` and `object-src 'none'`. Its policy allows HTTPS
