@@ -27,9 +27,9 @@ Mahmoud approved the behavior specifications and simplification on 2026-09-22. C
 ## 4. Validate in the PR
 
 - [x] 4.1 Run focused Python tests, Ruff, Actionlint and `git diff --check`; record commands and counts in validation.md. Workflow 50 runs the regression tests in the PR.
-- [ ] 4.2 Run the opt-in real-provider acceptance workflow against the final code revision; verify a real authorized comment, real readiness, duplicate/stale events, accelerated expiry, immediate finalization and final environment absence. Attach the artifact and run URL.
+- [x] 4.2 Ran the opt-in real-provider acceptance workflow against head `db94c5dc` ([run 35761621916](https://github.com/Agenta-AI/agenta/actions/runs/35761621916), `result: pass`). Verified a real authorized comment, real Railway readiness, duplicate/stale events, accelerated one-hour expiry, immediate automatic-mode finalization and final environment absence. The first run ([35757665922](https://github.com/Agenta-AI/agenta/actions/runs/35757665922)) surfaced the Railway async-delete name-release race, now fixed and re-tested. Evidence artifact `railway-lifecycle-evidence.json` attached to the run.
 - [x] 4.3 Update the hosting runbook with the command, timing limits, legacy behavior, failure reporting and rollback; compare instructions with the configured workflows.
-- [ ] 4.4 Read back the PR's final revision and readiness state; publish exact-revision results without claiming unrelated web tests passed.
+- [x] 4.4 Read back acceptance evidence for exact head `db94c5dc` and source images `pr-7058-db94c5dc...-35761310910-1`; reported the pass without claiming unrelated web tests passed (source image jobs required, web tests not awaited).
 
 ## 5. After merge
 
