@@ -172,12 +172,20 @@ def _client_tool_revision() -> WorkflowRevision:
                             },
                         },
                         "required": [],
+                        # Each branch restates `type: object`. The root already declares it, but
+                        # xAI reads a root-level union branch as the parameter root in its own
+                        # right and refuses a tool whose root is not typed an object
+                        # (`invalid_client_tool_schema`). Restating it changes nothing for a
+                        # validator that reads the sibling `type`, and is what makes the tool
+                        # advertisable to Grok at all.
                         "oneOf": [
                             {
+                                "type": "object",
                                 "required": ["integration"],
                                 "not": {"required": ["target"]},
                             },
                             {
+                                "type": "object",
                                 "required": ["target"],
                                 "not": {"required": ["integration"]},
                             },
