@@ -100,6 +100,18 @@ export const useMountAssembleIo = (mountId: string | null, projectId: string | n
         }
     }, [mountId, projectId])
 
+/** A stable id per host instance, for keying the view that attaches it. */
+const hostKeys = new WeakMap<HtmlAppHost, number>()
+let nextHostKey = 0
+const hostKey = (host: HtmlAppHost): number => {
+    let key = hostKeys.get(host)
+    if (key === undefined) {
+        key = ++nextHostKey
+        hostKeys.set(host, key)
+    }
+    return key
+}
+
 const AssemblingSkeleton = () => (
     <div className="min-h-0 flex-1 p-3">
         <div className="flex flex-col gap-2">
@@ -167,6 +179,16 @@ export function HtmlAppBody({
     const [grant, setGrant] = useState<GrantLevel | null>(
         () => (mountId ? grants.get(mountId, dir)?.level : null) ?? null,
     )
+    // A grant belongs to one folder. Callers reuse this component across files without a key, and
+    // a cached file renders with no loading gap to remount it, so the folder's state is reset here:
+    // otherwise an app in folder B would run under folder A's grant.
+    const folder = `${mountId ?? ""}/${dir}`
+    const [grantFolder, setGrantFolder] = useState(folder)
+    if (grantFolder !== folder) {
+        setGrantFolder(folder)
+        setGrant((mountId ? grants.get(mountId, dir)?.level : null) ?? null)
+        setView((current) => (current === "run" ? "preview" : current))
+    }
     const frameRef = useRef<HTMLIFrameElement>(null)
 
     const {manifest, loaded: manifestLoaded} = useAppManifest(runnable ? io : null, dir)
@@ -332,8 +354,10 @@ export function HtmlAppBody({
                     // piece of state the view holds — the page it is on, the back stack, the
                     // iframe itself — belongs to the one it was opened with. Without this the
                     // view kept the previous file's path and re-rendered THAT page under the new
-                    // app's name.
-                    key={path}
+                    // app's name. The host is in the key too: RunView attaches a host on its
+                    // frame's first load only, so a new host (grant or project change) needs a
+                    // new frame.
+                    key={`${path}:${hostKey(host)}`}
                     host={host}
                     dir={dir}
                     entryPath={path}

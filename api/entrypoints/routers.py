@@ -601,7 +601,15 @@ app.add_middleware(
     allow_methods=["*"],
     # `Idempotency-Key` rides on durable session writes (interaction answers, queued inputs);
     # without it every cross-origin client fails the preflight for those routes.
-    allow_headers=["Content-Type", "Idempotency-Key"]
+    # The HTML app bridge sends its folder scope token and conditional-write headers on mount
+    # file requests; etags come back in the response body, so nothing extra is exposed.
+    allow_headers=[
+        "Content-Type",
+        "Idempotency-Key",
+        "X-Agenta-App-Scope",
+        "If-Match",
+        "If-None-Match",
+    ]
     + get_all_supertokens_cors_headers(),
 )
 

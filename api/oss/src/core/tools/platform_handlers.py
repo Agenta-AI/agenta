@@ -987,19 +987,22 @@ PLATFORM_TOOL_HANDLERS: Dict[str, PlatformToolHandlerRegistration] = {
         handler=handle_commit_revision,
         elevated_permission=Permission.EDIT_WORKFLOWS,
     ),
-    # Agent HTML apps. Both write to / read from the session's own drive, which RUN_TOOLS
-    # already covers (the mount endpoints ask for nothing more), so neither is elevated.
+    # Agent HTML apps. Both touch the session's drive, so they demand what the mount routes
+    # demand for the same act: writing a file needs EDIT_MOUNTS, reading one VIEW_MOUNTS.
+    # RUN_TOOLS alone is not enough; an EE annotator holds it without EDIT_MOUNTS.
     CREATE_APP_CALL_REF: PlatformToolHandlerRegistration(
         call_ref=CREATE_APP_CALL_REF,
         timeout_ms=CREATE_APP_DEFAULT_TIMEOUT_MS,
         handler=handle_create_app,
         needs_mounts=True,
+        elevated_permission=Permission.EDIT_MOUNTS,
     ),
     LIST_STARTERS_CALL_REF: PlatformToolHandlerRegistration(
         call_ref=LIST_STARTERS_CALL_REF,
         timeout_ms=LIST_STARTERS_DEFAULT_TIMEOUT_MS,
         handler=handle_list_starters,
         needs_mounts=True,
+        elevated_permission=Permission.VIEW_MOUNTS,
     ),
 }
 

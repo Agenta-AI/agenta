@@ -4,6 +4,7 @@
  * Lane A adds the real bridge: the injected stub, the parent-side host and its parts.
  */
 export * from "./etags"
+export * from "./frame"
 export * from "./fsClient"
 export * from "./grants"
 export * from "./host"
