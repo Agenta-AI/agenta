@@ -80,7 +80,6 @@ describe("useConnectionDock host-driven dismiss", () => {
         ])
         // Shut, but still holding the cards so the host can animate the collapse.
         expect(result.current.open).toBe(false)
-        expect(result.current.dismissing).toBe(true)
         expect(result.current.stack).toHaveLength(2)
     })
 
@@ -94,7 +93,6 @@ describe("useConnectionDock host-driven dismiss", () => {
         })
 
         expect(result.current.open).toBe(true)
-        expect(result.current.dismissing).toBe(false)
         // The latch let go too: the next attempt goes out again.
         await act(async () => {
             await result.current.dismiss().catch(() => undefined)

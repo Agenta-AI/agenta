@@ -14,7 +14,7 @@
  */
 import {useCallback, useMemo, useRef, useState} from "react"
 
-import {declinedConnectOutput} from "@agenta/entity-ui/clientTools"
+import {declinedConnectOutput} from "@agenta/shared/clientTools"
 import type {UIMessage} from "ai"
 
 import type {ClientToolOutputHandler} from "../clientTools/ClientToolPart"
@@ -74,8 +74,6 @@ export interface ConnectionDockState {
      * whether the handler threw or reported `false`. A no-op while nothing is parked.
      */
     dismiss: () => Promise<void>
-    /** The parked connections are being dismissed from outside. */
-    dismissing: boolean
 }
 
 export const useConnectionDock = ({
@@ -187,6 +185,5 @@ export const useConnectionDock = ({
         bringForward,
         shortcutsEnabled: !approvalsPending && !elicitationPending,
         dismiss,
-        dismissing: shown.stack.some((meta) => dismissingIds.has(meta.toolCallId)),
     }
 }

@@ -150,7 +150,6 @@ describe("host-driven dismiss", () => {
             toolCallId: "call_1",
             output: {action: "cancel"},
         })
-        expect(result.current.dismissing).toBe(true)
         // The dock closes at once — the message that replaced the form is what to look at — but
         // still holds the card so the host can animate the collapse.
         expect(result.current.open).toBe(false)
@@ -160,9 +159,9 @@ describe("host-driven dismiss", () => {
             release()
             await first
         })
-        // Still marked: the card only leaves once the transcript retires it, and until then it
-        // must keep showing the dismiss rather than re-arming its buttons.
-        expect(result.current.dismissing).toBe(true)
+        // Still shut: the card only leaves for good once the transcript retires it, and a
+        // re-opened dock would flash the form back over the message that replaced it.
+        expect(result.current.open).toBe(false)
     })
 
     it("re-arms the card when the settle write fails, and lets the failure through", async () => {
@@ -176,7 +175,6 @@ describe("host-driven dismiss", () => {
         })
 
         // The question is still live, so the dock is back.
-        expect(result.current.dismissing).toBe(false)
         expect(result.current.open).toBe(true)
         // The latch let go too: the next attempt goes out again.
         await act(async () => {
@@ -198,7 +196,7 @@ describe("host-driven dismiss", () => {
             await expect(result.current.dismiss()).rejects.toThrow("couldn't be dismissed")
         })
 
-        expect(result.current.dismissing).toBe(false)
+        expect(result.current.open).toBe(true)
     })
 
     it("does nothing when no question is parked", async () => {
@@ -211,7 +209,58 @@ describe("host-driven dismiss", () => {
         })
 
         expect(onOutput).not.toHaveBeenCalled()
-        expect(result.current.dismissing).toBe(false)
+        expect(result.current.open).toBe(false)
+    })
+
+    it("settles every parked question, not just the front", async () => {
+        // The dock closes on dismiss, so a straggler left unsettled would block the run behind a
+        // card nobody can see. Mirrors `useConnectionDock.dismiss`.
+        const onOutput = vi.fn(() => Promise.resolve(true))
+        const {result} = renderHook(() =>
+            useElicitationDock({
+                messages: turn(toolPart(), toolPart({toolCallId: "call_2"})),
+                onOutput,
+            }),
+        )
+
+        await act(async () => {
+            await result.current.dismiss()
+        })
+
+        expect(onOutput.mock.calls.map((call) => call[0].toolCallId)).toEqual(["call_1", "call_2"])
+        expect(result.current.open).toBe(false)
+    })
+
+    it("drops each settled form's saved answers, but only once the write lands", async () => {
+        // A stub store: Node 26's own `localStorage` getter shadows jsdom's and reads undefined.
+        const store = new Map<string, string>([
+            ["agenta:elicitation-draft:call_1", "{}"],
+            ["agenta:elicitation-draft:call_2", "{}"],
+        ])
+        Object.defineProperty(window, "localStorage", {
+            configurable: true,
+            value: {
+                getItem: (key: string) => store.get(key) ?? null,
+                setItem: (key: string, value: string) => void store.set(key, value),
+                removeItem: (key: string) => void store.delete(key),
+            },
+        })
+        const failing = vi.fn(() => Promise.resolve(false))
+        const messages = turn(toolPart(), toolPart({toolCallId: "call_2"}))
+        const first = renderHook(() => useElicitationDock({messages, onOutput: failing}))
+
+        await act(async () => {
+            await first.result.current.dismiss().catch(() => undefined)
+        })
+        // The write did not land and the cards are coming back — their answers must still be there.
+        expect(store.size).toBe(2)
+
+        const landing = vi.fn(() => Promise.resolve(true))
+        const second = renderHook(() => useElicitationDock({messages, onOutput: landing}))
+        await act(async () => {
+            await second.result.current.dismiss()
+        })
+        expect(store.size).toBe(0)
     })
 })
 

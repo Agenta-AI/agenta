@@ -901,9 +901,16 @@ export const LiveConversation = ({
                                     // puts the text back with the cards intact. `steer` rather
                                     // than `send`: the session has already run, so there is no
                                     // fresh-session registration to do.
+                                    //
+                                    // Settled together, not in sequence: a failure after one dock
+                                    // had already gone would hand the text back with that dock's
+                                    // request silently cancelled. Both writes go out, and the
+                                    // first rejection is what the composer reports.
                                     if (elicits.open || connects.open) {
-                                        if (elicits.open) await elicits.dismiss()
-                                        if (connects.open) await connects.dismiss()
+                                        await Promise.all([
+                                            elicits.open ? elicits.dismiss() : null,
+                                            connects.open ? connects.dismiss() : null,
+                                        ])
                                         await conversation.steer({text, parts, stagedFiles})
                                         return
                                     }

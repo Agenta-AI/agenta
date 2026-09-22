@@ -160,22 +160,26 @@ export const useAgentChatQueue = ({
     const onSendFailedRef = useRef(onSendFailed)
     onSendFailedRef.current = onSendFailed
 
-    // A steer this tab sent is on its way in, not held: it stays a transcript echo until the run
-    // saves it as a user row, and never becomes a dock row. Keyed by the durable input id the 202
-    // named, so the dock filter and the echo's retirement agree on which rows those are.
-    const steeredInputIdsRef = useRef(new Set<string>())
-    const dockedServerQueued = useMemo(
-        () => server.queued.filter((item) => !steeredInputIdsRef.current.has(item.id)),
-        [server.queued],
-    )
-
     // Echo rows for durable sends, which the AI SDK chat never receives. Owned by its own hook so
     // this one keeps to admission and editing.
+    //
+    // Retirement reads EVERY durable row, including the ones the dock hides below: a queued send's
+    // echo retires precisely because its row is now in the snapshot, so filtering here would leave
+    // it waiting forever.
     const dockedInputIds = useMemo(
-        () => new Set(dockedServerQueued.map((item) => item.id)),
-        [dockedServerQueued],
+        () => new Set(server.queued.map((item) => item.id)),
+        [server.queued],
     )
     const echoes = usePendingSendEchoes({messages, dockedInputIds})
+
+    // A steer this tab sent is on its way INTO the running turn, not held behind it, so while its
+    // echo is on screen the dock leaves the row out rather than showing the same message twice.
+    // Derived from the live echoes, so the row comes back the moment the echo stops covering it —
+    // an input the turn ended without consuming is visible again, and removable.
+    const dockedServerQueued = useMemo(
+        () => server.queued.filter((item) => !echoes.dockCoveredIds.has(item.id)),
+        [server.queued, echoes.dockCoveredIds],
+    )
 
     const [editingId, setEditingId] = useState<string | null>(null)
     const stashRef = useRef("")
@@ -188,7 +192,7 @@ export const useAgentChatQueue = ({
             // Show it before the request leaves. Every exit is driven by evidence about this
             // send: the turn it started, the dock row (queue) or parked input (steer) it
             // became, or its failure.
-            echoes.add(message)
+            echoes.add({...message, policy})
             return server
                 .submit(message, policy, {
                     onAccepted: (executionId) => {
@@ -196,7 +200,6 @@ export const useAgentChatQueue = ({
                         onSendAcceptedRef.current?.(message, executionId)
                     },
                     onParked: (inputId) => {
-                        if (policy === "steer") steeredInputIdsRef.current.add(inputId)
                         echoes.markParked(message.id, inputId)
                         onSendAcceptedRef.current?.(message, null)
                     },

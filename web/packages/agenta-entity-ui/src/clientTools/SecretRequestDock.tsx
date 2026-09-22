@@ -14,11 +14,13 @@ interface SecretRequestDockProps {
     revisionId: string
     canEditSecrets?: boolean
     onAdoptRevision: (revisionId: string) => void
+    /** Settle channel. Resolving `false` means the write did not land and the gate is still open
+     *  (see `SettleClientTool`), so the buttons come back. */
     onOutput: (args: {
         toolName: string
         toolCallId: string
         output: Record<string, unknown>
-    }) => void
+    }) => void | boolean | Promise<void | boolean>
 }
 
 export const SecretRequestDock = ({
@@ -67,7 +69,17 @@ export const SecretRequestDock = ({
     const settle = (output: Record<string, unknown>) => {
         if (settling || meta.settled) return
         setSettling(true)
-        onOutput({toolName: meta.toolName, toolCallId: meta.toolCallId, output})
+        // A host that reports the failure itself still resolves, with `false` (see
+        // `ClientToolOutputHandler`). Give the buttons back rather than spinning over a gate that
+        // is still open.
+        void Promise.resolve(
+            onOutput({toolName: meta.toolName, toolCallId: meta.toolCallId, output}),
+        ).then(
+            (landed) => {
+                if (landed === false) setSettling(false)
+            },
+            () => setSettling(false),
+        )
     }
     const configured = (slug: string, envVar: string, nextRevisionId: string) => {
         onAdoptRevision(nextRevisionId)

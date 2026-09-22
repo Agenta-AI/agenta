@@ -102,6 +102,40 @@ export interface SettleClientTool {
     (args: {errorText: string}): void | boolean | Promise<void | boolean>
 }
 
+/** The settled connect call's reference shape (what the runner re-resolves against). */
+export interface ConnectOutput {
+    connected?: boolean
+    integration?: string
+    slug?: string
+    /**
+     * `"declined" | "cancelled" | "timeout"` for the three expected non-error terminal states, or
+     * the actual failure message when the create call itself errored.
+     */
+    reason?: string
+}
+
+/** The parked call's integration key and connection slug, read the one way every surface reads
+ * them: the call may pin a slug; otherwise it defaults to the integration key. */
+export const connectRequestRefs = (input: unknown): {integration: string; slug: string} => {
+    const record = (input ?? {}) as Record<string, unknown>
+    const integration = typeof record.integration === "string" ? record.integration : ""
+    const slug =
+        typeof record.slug === "string" && record.slug ? record.slug : integration || "default"
+    return {integration, slug}
+}
+
+/**
+ * The "Not now" output: a structured refusal (NOT an error), so the run resumes and the agent can
+ * respond gracefully or offer an alternative. Distinct from "cancelled" (abandoned popup) so the
+ * agent can tell an explicit decline from a mishap. Shared by the card's own button and the dock's
+ * host-driven dismiss (a chat message sent over the request), so both settle identically.
+ */
+export const declinedConnectOutput = (input: unknown): ConnectOutput => ({
+    connected: false,
+    ...connectRequestRefs(input),
+    reason: "declined",
+})
+
 /** Props every client-tool widget receives — mirrors OSS `ClientToolHandlerProps`. */
 export interface ClientToolWidgetProps {
     meta: ClientToolMeta

@@ -661,6 +661,39 @@ describe("useAgentChatQueue durable send echoes", () => {
         expect(echoText(result)).toEqual([])
     })
 
+    it("shows a parked steer in the dock again once its echo stops covering it", async () => {
+        // The turn ended without consuming the input. Hidden forever, the message would be
+        // unreachable — no row to remove, send now, or even see.
+        const {server, watchers} = durableServer("queued")
+        server.busy = true
+        const parked: HarnessProps = {
+            messages: [userTurn("u1", "go")],
+            stopped: false,
+            server,
+        }
+        const {result, rerender} = setup(parked)
+
+        await act(async () => {
+            await result.current.steer({text: "answered in chat instead"})
+        })
+        act(() => watchers[0].onParked?.("input-steer"))
+        const steered: QueuedMessage = {
+            id: "input-steer",
+            text: "answered in chat instead",
+            policy: "steer",
+            source: "server",
+            editable: false,
+        }
+        const withRow = {...parked, server: {...server, queued: [steered]}}
+        rerender(withRow)
+        expect(result.current.queued).toEqual([])
+
+        act(() => watchers[0].onSettled?.())
+        rerender({...withRow, server: {...server, queued: [steered]}})
+
+        expect(result.current.queued).toEqual([steered])
+    })
+
     it("shows a durable send before the request resolves", async () => {
         let admit!: (value: "running") => void
         const {server} = durableServer()

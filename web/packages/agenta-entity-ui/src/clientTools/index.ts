@@ -18,7 +18,7 @@ export {
     type GatewayTarget,
     type GatewayPlane,
 } from "./useGatewayConnectFlow"
-export {useConnectFlow, connectRequestRefs, declinedConnectOutput} from "./useConnectFlow"
+export {useConnectFlow} from "./useConnectFlow"
 export {IntegrationTile, type IntegrationTileProps} from "./IntegrationTile"
 export {
     useIntegrationIdentity,

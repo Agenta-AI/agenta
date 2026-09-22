@@ -82,7 +82,6 @@ const setup = (input: unknown = TWO_QUESTIONS, state: Partial<ElicitationDockSta
         queue: [meta],
         shortcutsEnabled: true,
         dismiss: vi.fn(async () => undefined),
-        dismissing: false,
         ...state,
     }
     const view = render(<ElicitationDock elicits={elicits} onOutput={onOutput} />)
@@ -227,6 +226,8 @@ describe("settling", () => {
     })
 
     it("gives the buttons back when the host reports the write did not land", async () => {
+        // `sendToolOutput` swallows a refused respond and resolves `false`. Read as success, the
+        // card spins forever over a question that is still live.
         const onOutput = vi.fn(() => Promise.resolve(false))
         const meta = metaWith(TWO_QUESTIONS)
         render(
@@ -237,7 +238,6 @@ describe("settling", () => {
                     queue: [meta],
                     shortcutsEnabled: true,
                     dismiss: vi.fn(async () => undefined),
-                    dismissing: false,
                 }}
                 onOutput={onOutput}
             />,
@@ -254,56 +254,6 @@ describe("settling", () => {
         // The latch let go too: a retry goes out again.
         fireEvent.click(screen.getByLabelText("Dismiss this request"))
         expect(onOutput).toHaveBeenCalledTimes(2)
-    })
-
-    it("reads a host-driven dismiss as its own ✕ having fired, and takes no answer meanwhile", () => {
-        // The host settles the card when a chat message is sent over it. Between that write and
-        // the transcript catching up the card is still mounted, so it must show the dismiss and
-        // refuse a competing answer — otherwise Send here races the cancel for the same call.
-        const {onOutput} = setup(TWO_QUESTIONS, {dismissing: true})
-
-        const dismiss = screen.getByLabelText("Dismiss this request") as HTMLButtonElement
-        expect(dismiss.disabled).toBe(false)
-        expect(dismiss.querySelector(".animate-spin")).toBeTruthy()
-        expect((screen.getByText("Next").closest("button") as HTMLButtonElement).disabled).toBe(
-            true,
-        )
-        expect((screen.getByText("Skip").closest("button") as HTMLButtonElement).disabled).toBe(
-            true,
-        )
-
-        fireEvent.change(screen.getByLabelText("Your name"), {target: {value: "Ada"}})
-        fireEvent.keyDown(screen.getByRole("group"), {key: "Enter", metaKey: true})
-        fireEvent.click(screen.getByText("Next"))
-        fireEvent.click(dismiss)
-
-        expect(onOutput).not.toHaveBeenCalled()
-    })
-
-    it("drops the saved draft on a host-driven dismiss, like the ✕ does", () => {
-        window.localStorage.setItem(
-            "agenta:elicitation-draft:call_1",
-            JSON.stringify({values: {name: "Ada"}, index: 0}),
-        )
-        const {rerender} = setup()
-        expect(screen.getByLabelText("Your name")).toHaveProperty("value", "Ada")
-
-        const meta = metaWith(TWO_QUESTIONS)
-        rerender(
-            <ElicitationDock
-                elicits={{
-                    open: true,
-                    front: meta,
-                    queue: [meta],
-                    shortcutsEnabled: true,
-                    dismiss: vi.fn(async () => undefined),
-                    dismissing: true,
-                }}
-                onOutput={vi.fn()}
-            />,
-        )
-
-        expect(window.localStorage.getItem("agenta:elicitation-draft:call_1")).toBeNull()
     })
 })
 
