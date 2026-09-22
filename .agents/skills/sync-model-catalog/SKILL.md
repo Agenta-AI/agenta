@@ -82,11 +82,13 @@ itself the moment a regeneration carries the model. Prune superseded additions a
 Probe live sessions by reading the model config options (the same `getConfigOptions` call
 `allowedModels` uses in `services/runner/src/engines/sandbox_agent/model.ts`), but do not copy one
 session's set blindly. Account entitlements and promotions can add or remove context-hinted variants
-such as `claude-fable-5[1m]` while keeping the same model family.
+such as `claude-fable-5-1[1m]` while keeping the same model family.
 
 Use the stable bare canonical id when the runner can safely widen it to the session's hinted option.
-For Fable, publish `claude-fable-5`: it matches a bare live option exactly and the runner resolves it
-to `claude-fable-5[1m]` when that is the only offered variant. Do not publish the friendly forms
+For Fable, publish `claude-fable-5-1`: an API-key session offers it bare, and the runner resolves it
+to `claude-fable-5-1[1m]` on a subscription session, where that is the only offered variant. Drop an
+id the pinned build no longer offers at all (Claude Code 2.1.280 dropped `claude-fable-5`); keeping
+it publishes a picker option that fails at run time. Do not publish the friendly forms
 `fable` or `fable[1m]`; the harness does not recognize that model family under those ids. Requires
 an authenticated Claude session, so this is a manual/periodic step, not a CI gate.
 

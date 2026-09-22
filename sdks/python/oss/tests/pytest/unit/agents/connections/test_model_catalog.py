@@ -214,8 +214,14 @@ def test_claude_catalog_uses_stable_harness_request_values():
         "sonnet",
         "haiku",
         "opus[1m]",
-        "claude-fable-5",
+        "claude-fable-5-1",
     ]
+
+
+def test_claude_catalog_labels_fable_5_1_as_the_frontier():
+    entry = next(e for e in claude_model_catalog().models if e.id == "claude-fable-5-1")
+    assert entry.name == "Claude Fable 5.1"
+    assert entry.ratings is not None and entry.ratings.intelligence == 5
 
 
 def test_fable_ships_as_a_current_fact_via_the_pi_anthropic_block():
@@ -352,11 +358,11 @@ def test_default_models_are_published_per_harness_in_its_own_spelling():
     assert pi_defaults["openrouter"] == PROVIDER_DEFAULT_MODELS["openrouter"]
     assert len(pi_defaults["openrouter"]) == 10
 
-    # Claude selects by alias: `claude-fable-5` is its own alias, and the versioned opus, sonnet
-    # and haiku ids arrive under the tier alias Claude actually accepts. Opus arrives as the
-    # bracketed `opus[1m]` because that is the spelling Claude publishes for the Opus tier.
+    # Claude selects by alias: `claude-fable-5-1` is its own request value, and the versioned
+    # opus, sonnet and haiku ids arrive under the tier alias Claude actually accepts. Opus arrives
+    # as the bracketed `opus[1m]` because that is the spelling Claude publishes for the Opus tier.
     assert catalog["claude"]["capabilities"]["default_models"] == {
-        "anthropic": ["opus[1m]", "claude-fable-5", "sonnet", "haiku"]
+        "anthropic": ["opus[1m]", "claude-fable-5-1", "sonnet", "haiku"]
     }
     # Codex reaches openai only, and names its models bare.
     assert catalog["codex"]["capabilities"]["default_models"] == {
