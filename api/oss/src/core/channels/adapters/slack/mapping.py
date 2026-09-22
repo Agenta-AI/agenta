@@ -35,6 +35,18 @@ def extract_sigils(text: str) -> Tuple[Optional[str], Optional[str], Optional[st
     return agent, command, arg
 
 
+def mentions_user(text: str, user_id: Optional[str]) -> bool:
+    """True when `text` @-mentions `user_id`. Slack rewrites an @mention into
+    `<@U…>`, or `<@U…|display-name>` when it carries a label -- both forms
+    count. Used to recognise a native @Agenta mention in an ordinary
+    `message` event, the copy every install reliably receives (app_mention is
+    a duplicate we drop)."""
+
+    if not user_id:
+        return False
+    return re.search(rf"<@{re.escape(user_id)}(?:\|[^>]*)?>", text or "") is not None
+
+
 def build_locator(
     *, team: str, channel: str, thread_ts: Optional[str] = None
 ) -> Dict[str, Any]:

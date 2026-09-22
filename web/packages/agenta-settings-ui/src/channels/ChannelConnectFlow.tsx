@@ -189,7 +189,10 @@ export const ChannelConnectFlow = ({
     }, [mode, actions, platform, name])
 
     // --- hosted Telegram: mint, then wait for the /start ---------------------- //
+    const mintingTelegramLink = useRef(false)
     const mintTelegramLink = useCallback(async () => {
+        if (mintingTelegramLink.current) return
+        mintingTelegramLink.current = true
         setTgStep("preparing")
         setError(null)
         try {
@@ -212,6 +215,8 @@ export const ChannelConnectFlow = ({
                     "The hosted Telegram bot is not available on this deployment. Use your own bot instead.",
                 ),
             )
+        } finally {
+            mintingTelegramLink.current = false
         }
     }, [actions])
 

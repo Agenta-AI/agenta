@@ -25,7 +25,11 @@ from oss.src.core.channels.types import (
 )
 from oss.src.core.channels.utils import compose_external_key
 from oss.src.core.channels.adapters.telegram.signature import verify_telegram_secret
-from oss.src.core.channels.telegram_binding import BindTokenError, ChatAlreadyConnected
+from oss.src.core.channels.telegram_binding import (
+    BindTokenError,
+    ChatAlreadyConnected,
+    ChatBoundElsewhere,
+)
 from oss.src.utils.env import env
 
 if TYPE_CHECKING:
@@ -392,6 +396,14 @@ class ChannelsIngressRouter:
                 chat_id,
                 "This chat is already connected to Agenta. To change the agent, "
                 "disconnect it in Agenta first.",
+            )
+            return
+        except ChatBoundElsewhere:
+            await self._hosted_say(
+                adapter,
+                chat_id,
+                "This Telegram chat is connected to another Agenta project. "
+                "Disconnect it from that project first, then create a new connection link.",
             )
             return
         except BindTokenError as e:

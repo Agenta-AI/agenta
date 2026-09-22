@@ -3,6 +3,7 @@ import re
 from typing import Any, Dict, List, Optional, Tuple
 
 from oss.src.core.channels.dtos import ChannelSpaceKind
+from oss.src.core.channels.render.approval import approval_details
 
 MAX_CHARS = 4096
 # callback_data is capped at 64 BYTES by Telegram; above the row limit we
@@ -154,10 +155,9 @@ def _card_to_text(card: Dict[str, Any]) -> str:
     title = card.get("title")
     if title:
         lines.append(title)
-    arguments = card.get("arguments") or {}
-    if isinstance(arguments, dict):
-        for key, value in arguments.items():
-            lines.append(f"{key}: {value}")
+    if card.get("text"):
+        lines.append(card["text"])
+    lines.append(approval_details(card.get("arguments")))
     return "\n".join(lines)
 
 

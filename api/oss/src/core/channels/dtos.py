@@ -403,6 +403,7 @@ class ChannelPendingChoice(BaseModel):
     # approval card: the answer goes to the sessions respond path, and no
     # new turn opens
     interaction_id: Optional[str] = None
+    outbox_event_id: Optional[UUID] = None
 
 
 class ChannelThreadData(BaseModel):

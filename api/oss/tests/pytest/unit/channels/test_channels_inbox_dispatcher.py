@@ -18,6 +18,7 @@ from oss.src.core.channels.dtos import (
     ChannelAgentFlags,
     ChannelCapabilities,
     ChannelConnection,
+    ChannelDeliveryState,
     ChannelEffectivePolicy,
     ChannelEventKind,
     ChannelEventOrigin,
@@ -26,6 +27,8 @@ from oss.src.core.channels.dtos import (
     ChannelInboxEventProcessed,
     ChannelInboxTrigger,
     ChannelInboxTriggerFlags,
+    ChannelOutboxEvent,
+    ChannelOutboxEventData,
     ChannelPolicyLevel,
     ChannelResolution,
     ChannelSessionScope,
@@ -40,6 +43,7 @@ from oss.src.core.channels.dtos import (
     ChannelTriggerState,
     ChannelTurnInput,
 )
+from oss.src.core.channels.render.render import FAILED_START_TEXT
 import oss.src.tasks.asyncio.channels.inbox as inbox_module
 from oss.src.tasks.asyncio.channels.inbox import InboxDispatcher, TurnRefused
 
@@ -111,6 +115,23 @@ def _make_resolution(*, agent_id=None, thread_id=None, space_id=None):
 def _make_connection(*, channel="mock"):
     return ChannelConnection(
         id=uuid4(), slug="c", channel=channel, external_key=uuid4()
+    )
+
+
+def _make_outbox_event(
+    *,
+    thread_id,
+    connection_id,
+    state=ChannelDeliveryState.CREATED,
+):
+    return ChannelOutboxEvent(
+        id=uuid4(),
+        connection_id=connection_id,
+        thread_id=thread_id,
+        turn_id="t-1",
+        key=uuid4(),
+        state=state,
+        data=ChannelOutboxEventData(),
     )
 
 
@@ -1033,3 +1054,123 @@ class TestApprovalAnswer:
 
         channels_service.open_turn.assert_not_called()
         invoke_fn.assert_not_called()
+
+
+class TestFailedStartNotification:
+    """QA finding (2026-09-22): an invoke that failed before any session event
+    settled the trigger FAILED and told the chat nothing — the sessions outbox
+    only renders failures for turns that started. The dispatcher now posts a
+    fixed failed-start notice itself, idempotent on the turn's outbox key."""
+
+    def _service_with_delivery(self, *, resolution, trigger, existing_event=None):
+        service = _make_channels_service(resolution=resolution, trigger=trigger)
+        service.channels_dao.fetch_outbox_event_by_key = AsyncMock(
+            return_value=existing_event
+        )
+        created = _make_outbox_event(
+            thread_id=resolution.thread.id,
+            connection_id=resolution.space.connection_id,
+        )
+        service.channels_dao.record_outbox_event = AsyncMock(return_value=created)
+        service.channels_dao.transition_outbox_event = AsyncMock()
+        self.adapter = MagicMock()
+        self.adapter.post_message = AsyncMock(return_value={"chat": "1", "ts": "9.9"})
+        service.adapter_registry.get = MagicMock(return_value=self.adapter)
+        return service
+
+    async def test_invoke_failure_posts_a_failed_start_notice(self):
+        event = _make_event()
+        resolution = _make_resolution()
+        trigger = _make_trigger(thread_id=resolution.thread.id, event_id=event.id)
+        channels_service = self._service_with_delivery(
+            resolution=resolution, trigger=trigger
+        )
+
+        dispatcher = InboxDispatcher(
+            channels_service=channels_service,
+            invoke_fn=AsyncMock(side_effect=RuntimeError("boom")),
+        )
+        await dispatcher.dispatch_event(
+            project_id=uuid4(), connection_id=event.connection_id, event=event
+        )
+
+        self.adapter.post_message.assert_awaited_once()
+        _, post_kwargs = self.adapter.post_message.call_args
+        assert post_kwargs["content"][0]["text"] == FAILED_START_TEXT
+        # never the exception text
+        assert "boom" not in post_kwargs["content"][0]["text"]
+
+        channels_service.channels_dao.transition_outbox_event.assert_awaited_once()
+        _, tr_kwargs = channels_service.channels_dao.transition_outbox_event.call_args
+        assert tr_kwargs["state"] is ChannelDeliveryState.SENT
+
+    async def test_notice_is_deduplicated_on_redelivery(self):
+        """A row already SENT for this turn's item 0 means the notice (or the
+        turn's own indicator) went out — a redelivered task posts nothing."""
+
+        event = _make_event()
+        resolution = _make_resolution()
+        trigger = _make_trigger(thread_id=resolution.thread.id, event_id=event.id)
+        sent = _make_outbox_event(
+            thread_id=resolution.thread.id,
+            connection_id=resolution.space.connection_id,
+            state=ChannelDeliveryState.SENT,
+        )
+        channels_service = self._service_with_delivery(
+            resolution=resolution, trigger=trigger, existing_event=sent
+        )
+
+        dispatcher = InboxDispatcher(
+            channels_service=channels_service,
+            invoke_fn=AsyncMock(side_effect=RuntimeError("boom")),
+        )
+        await dispatcher.dispatch_event(
+            project_id=uuid4(), connection_id=event.connection_id, event=event
+        )
+
+        self.adapter.post_message.assert_not_called()
+        channels_service.channels_dao.record_outbox_event.assert_not_called()
+
+    async def test_notice_delivery_failure_never_raises(self):
+        """The trigger is already settled FAILED; a notice that cannot be
+        delivered is logged, never re-raised into the task (which would
+        re-invoke the turn)."""
+
+        event = _make_event()
+        resolution = _make_resolution()
+        trigger = _make_trigger(thread_id=resolution.thread.id, event_id=event.id)
+        channels_service = self._service_with_delivery(
+            resolution=resolution, trigger=trigger
+        )
+        self.adapter.post_message = AsyncMock(side_effect=RuntimeError("slack down"))
+
+        dispatcher = InboxDispatcher(
+            channels_service=channels_service,
+            invoke_fn=AsyncMock(side_effect=RuntimeError("boom")),
+        )
+        # must not raise
+        await dispatcher.dispatch_event(
+            project_id=uuid4(), connection_id=event.connection_id, event=event
+        )
+
+        channels_service.settle_turn.assert_awaited_once()
+        _, settle_kwargs = channels_service.settle_turn.call_args
+        assert settle_kwargs["state"] == ChannelTriggerState.FAILED
+
+    async def test_successful_invoke_posts_no_notice(self):
+        event = _make_event()
+        resolution = _make_resolution()
+        trigger = _make_trigger(thread_id=resolution.thread.id, event_id=event.id)
+        channels_service = self._service_with_delivery(
+            resolution=resolution, trigger=trigger
+        )
+
+        dispatcher = InboxDispatcher(
+            channels_service=channels_service,
+            invoke_fn=AsyncMock(return_value="run-1"),
+        )
+        await dispatcher.dispatch_event(
+            project_id=uuid4(), connection_id=event.connection_id, event=event
+        )
+
+        self.adapter.post_message.assert_not_called()

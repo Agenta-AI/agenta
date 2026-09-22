@@ -441,6 +441,7 @@ class ChannelsOutboxWorker:
                         ],
                         posted_at=datetime.now(timezone.utc),
                         interaction_id=interaction_id,
+                        outbox_event_id=event.id,
                     ),
                 )
 

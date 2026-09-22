@@ -12,7 +12,7 @@ thread get-or-create) stays inside the service.
 
 import asyncio
 from typing import Awaitable, Callable, Optional
-from uuid import UUID, uuid4
+from uuid import UUID, uuid4, uuid5
 
 from oss.src.core.channels.commands import (
     CommandArgumentInvalid,
@@ -21,13 +21,20 @@ from oss.src.core.channels.commands import (
     parse_command,
 )
 from oss.src.core.channels.dtos import (
+    ChannelCapabilities,
+    ChannelConnection,
+    ChannelDeliveryState,
     ChannelInboxEvent,
     ChannelInboxEventQuery,
     ChannelKeyGrain,
+    ChannelOutboxEventCreate,
+    ChannelOutboxEventData,
     ChannelResolution,
     ChannelTriggerState,
     ChannelTurnInput,
 )
+from oss.src.core.channels.render.render import render_failed_start
+from oss.src.core.channels.utils import canonical_json, compose_outbox_key
 from oss.src.core.workflows.dtos import (
     WorkflowServiceRequest,
     WorkflowServiceRequestData,
@@ -172,6 +179,17 @@ class InboxDispatcher:
             pending_choice=None,
             expected_interaction_id=interaction_id,
         )
+        try:
+            await self.channels_service.dismiss_approval_choices(
+                project_id=project_id,
+                connection_id=connection_id,
+                thread=resolution.thread,
+                interaction_id=interaction_id,
+            )
+        except Exception:  # UI cleanup must not replay an admitted decision.
+            log.warning(
+                "[CHANNELS] could not dismiss resolved approval controls", exc_info=True
+            )
         log.info(
             "[INBOX DISPATCHER] event=%s answered interaction=%s approved=%s",
             event.id,
@@ -452,6 +470,8 @@ class InboxDispatcher:
             turn_id=turn_id,
             trigger_id=trigger.id,
             user_id=user_id,
+            connection=connection,
+            capabilities=capabilities,
         )
 
     async def _invoke_with_retry(
@@ -463,10 +483,12 @@ class InboxDispatcher:
         turn_id: str,
         trigger_id: UUID,
         user_id: Optional[UUID] = None,
+        connection: Optional[ChannelConnection] = None,
+        capabilities: Optional[ChannelCapabilities] = None,
     ) -> None:
         """Invoke once, retrying only on a refused overlapping turn — never
         the `force` path, never coalescing. Any other failure settles the
-        trigger FAILED and stops."""
+        trigger FAILED, tells the chat the run never started, and stops."""
 
         attempt = 0
         while True:
@@ -517,6 +539,13 @@ class InboxDispatcher:
                     state=ChannelTriggerState.FAILED,
                     status=Status(code="500", message=str(e)),
                 )
+                await self._notify_failed_start(
+                    project_id=project_id,
+                    resolution=resolution,
+                    turn_id=turn_id,
+                    connection=connection,
+                    capabilities=capabilities,
+                )
                 return
             else:
                 await self.channels_service.settle_turn(
@@ -525,6 +554,85 @@ class InboxDispatcher:
                     state=ChannelTriggerState.SETTLED,
                 )
                 return
+
+    async def _notify_failed_start(
+        self,
+        *,
+        project_id: UUID,
+        resolution: ChannelResolution,
+        turn_id: str,
+        connection: Optional[ChannelConnection],
+        capabilities: Optional[ChannelCapabilities],
+    ) -> None:
+        """Tell the chat the run never started (QA finding, 2026-09-22: the
+        dispatcher settled FAILED before any turn-start event existed, so the
+        sessions outbox had nothing to render a failure from and the user got
+        silence).
+
+        Same idempotency contract as the sessions outbox: the notice claims
+        this turn's item 0 by outbox key, so a task redelivery finds the row
+        SENT and posts nothing. A row that already carries a receipt belongs
+        to a turn that DID start (the indicator landed before the failure) —
+        the sessions outbox owns that row, so it is left alone. Fixed text,
+        never the exception: the invoke error is an internal detail.
+
+        Best-effort by design: the trigger is already settled FAILED, and a
+        notification failure must not turn a handled error into a task retry
+        that would re-invoke the turn.
+        """
+
+        try:
+            if connection is None or capabilities is None:
+                return  # injected-invoke test path with no delivery context
+
+            thread = resolution.thread
+            key = compose_outbox_key(thread_id=thread.id, turn_id=turn_id, item=0)
+            dao = self.channels_service.channels_dao
+
+            event = await dao.fetch_outbox_event_by_key(project_id=project_id, key=key)
+            if event is None:
+                event = await dao.record_outbox_event(
+                    project_id=project_id,
+                    event=ChannelOutboxEventCreate(
+                        connection_id=connection.id,
+                        thread_id=thread.id,
+                        turn_id=turn_id,
+                        key=key,
+                        data=ChannelOutboxEventData(),
+                    ),
+                )
+            elif event.state is ChannelDeliveryState.SENT or (
+                event.data and event.data.external_locator
+            ):
+                return
+
+            item = render_failed_start(capabilities=capabilities)
+            content = [part.model_dump(exclude_none=True) for part in item.parts]
+
+            adapter = self.channels_service.adapter_registry.get(connection.channel)
+            receipt = await adapter.post_message(
+                connection=connection,
+                locator=thread.data.external_locator or {},
+                content=content,
+                idempotency_key=uuid5(event.key, canonical_json(content)),
+            )
+
+            await dao.transition_outbox_event(
+                project_id=project_id,
+                event_id=event.id,
+                state=ChannelDeliveryState.SENT,
+                status=Status(code="sent"),
+                data=ChannelOutboxEventData(
+                    external_locator=receipt,
+                    processed={"content": content},
+                ),
+            )
+        except Exception:
+            log.error(
+                "[INBOX DISPATCHER] failed-start notice not delivered turn_id=%s",
+                turn_id,
+                exc_info=True,
+            )
 
     async def _invoke_via_workflows_service(
         self,

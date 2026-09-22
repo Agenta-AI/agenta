@@ -450,6 +450,7 @@ async def test_edit_message_targets_editmessagetext():
     assert seen[0].url.path == "/bot123:abc/editMessageText"
     body = json.loads(seen[0].content.decode())
     assert body["message_id"] == 7777
+    assert body["reply_markup"] == {"inline_keyboard": []}
 
 
 @pytest.mark.asyncio
@@ -487,7 +488,7 @@ def test_render_content_renders_the_approval_card_as_text():
     ]
     text, markup = render_content(content)
     assert "Approval needed: Write" in text
-    assert "path: /x" in text
+    assert '"path": "/x"' in text
     assert markup["inline_keyboard"][0][0]["callback_data"] == "approve"
 
 

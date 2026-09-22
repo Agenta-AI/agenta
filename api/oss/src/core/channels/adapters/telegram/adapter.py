@@ -342,8 +342,7 @@ class TelegramAdapter(ChannelAdapterInterface):
             "text": text,
             "parse_mode": "HTML",
         }
-        if reply_markup:
-            params["reply_markup"] = reply_markup
+        params["reply_markup"] = reply_markup or {"inline_keyboard": []}
         result = await self._call(connection, "editMessageText", params)
         message = result.get("result")
         # editMessageText returns True (not a message) when nothing changed;
@@ -357,6 +356,23 @@ class TelegramAdapter(ChannelAdapterInterface):
             "chat_id": external_locator["chat_id"],
             "message_id": external_locator["message_id"],
         }
+
+    async def dismiss_choices(
+        self, *, connection: ChannelConnection, external_locator: Dict[str, Any]
+    ) -> None:
+        try:
+            await self._call(
+                connection,
+                "editMessageReplyMarkup",
+                {
+                    "chat_id": external_locator["chat_id"],
+                    "message_id": external_locator["message_id"],
+                    "reply_markup": {"inline_keyboard": []},
+                },
+            )
+        except _TelegramApiError as exc:
+            if "message is not modified" not in exc.description.lower():
+                raise
 
     async def signal_activity(
         self, *, connection: ChannelConnection, locator: Dict[str, Any]

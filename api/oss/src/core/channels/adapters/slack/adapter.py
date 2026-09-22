@@ -16,6 +16,7 @@ from oss.src.core.channels.adapters.slack.mapping import (
     classify_space_kind,
     extract_sigils,
     is_bot_authored,
+    mentions_user,
     parse_block_action,
     render_buttons_or_degrade,
     split_for_max_chars,
@@ -264,6 +265,16 @@ class SlackAdapter(ChannelAdapterInterface):
 
         event = payload.get("event") or {}
 
+        # A channel mention is delivered twice: once as a `message.*` event
+        # carrying `client_msg_id`, once as `app_mention` (our manifest
+        # subscribes to both). The `message.*` copy is the one every install
+        # reliably receives -- some installs never emit `app_mention` at all --
+        # and its native `<@bot>` mention is recognised below. Routing on it
+        # makes `app_mention` a pure duplicate: admitting it too would run the
+        # turn a second time, so drop it here (QA finding, 2026-09-22).
+        if event.get("type") == "app_mention":
+            return None
+
         # Edits and deletions arrive as message subtypes whose author lives in
         # the NESTED event["message"], not on the outer event. Our own
         # indicator edit ("Thinking…" -> answer, chat.update) therefore read as
@@ -311,10 +322,12 @@ class SlackAdapter(ChannelAdapterInterface):
                 content=content,
                 sender={"id": event.get("user") or ""},
             ),
-            # A command alone is not a mention: the COMMAND trigger admits it,
-            # or not, on its own; folding it in here let `!new` through a
-            # mention-only policy.
-            addressed=bool(agent or event.get("type") == "app_mention"),
+            # Addressed when the message names an agent by sigil (~agent) or
+            # natively @-mentions the bot (<@bot_user_id>, the form Slack
+            # delivers a real @Agenta as). A command alone is not a mention:
+            # the COMMAND trigger admits it, or not, on its own; folding it in
+            # here let `!new` through a mention-only policy.
+            addressed=bool(agent or mentions_user(text, bot_user_id)),
         )
 
     # --- egress --- #

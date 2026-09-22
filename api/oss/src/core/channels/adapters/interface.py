@@ -186,6 +186,12 @@ class ChannelAdapterInterface(ABC):
         """Edit in place — the indicator becoming the answer. Offered only
         where the declaration says `rendering.controls.update`."""
 
+    async def dismiss_choices(
+        self, *, connection: ChannelConnection, external_locator: Dict[str, Any]
+    ) -> None:
+        """Remove resolved message controls without changing the message text."""
+        return None
+
     async def signal_activity(
         self,
         *,

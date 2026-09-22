@@ -2000,6 +2000,51 @@ class ChannelsService:
 
     # --- delivery: the outbound path --------------------------------------- #
 
+    async def dismiss_approval_choices(
+        self,
+        *,
+        project_id: UUID,
+        connection_id: UUID,
+        thread: ChannelThread,
+        interaction_id: str,
+    ) -> None:
+        pending = thread.data.pending_choice
+        if (
+            pending is None
+            or pending.interaction_id != interaction_id
+            or pending.outbox_event_id is None
+        ):
+            return
+        event = await self.channels_dao.fetch_outbox_event(
+            project_id=project_id,
+            event_id=pending.outbox_event_id,
+        )
+        if (
+            event is None
+            or event.thread_id != thread.id
+            or event.connection_id != connection_id
+            or not event.data.external_locator
+        ):
+            return
+        content = (event.data.processed or {}).get("content") or []
+        if not any(
+            part.get("type") == "button"
+            and str(part.get("value", "")).startswith(f"{interaction_id}:")
+            for part in content
+        ):
+            return
+        connection = await self.fetch_connection(
+            project_id=project_id,
+            connection_id=connection_id,
+        )
+        if connection is None:
+            return
+        adapter = self.adapter_registry.get(connection.channel)
+        await adapter.dismiss_choices(
+            connection=connection,
+            external_locator=event.data.external_locator,
+        )
+
     async def enqueue_output(self, *, project_id, thread_id, turn_id, items):
         raise NotImplementedError
 

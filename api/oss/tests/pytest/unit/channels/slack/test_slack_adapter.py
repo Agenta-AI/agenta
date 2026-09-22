@@ -343,6 +343,81 @@ async def test_parse_event_command_alone_is_not_a_mention():
     assert event.addressed is False
 
 
+async def test_parse_event_native_bot_mention_in_a_message_marks_addressed():
+    """The live-QA defect (2026-09-22): a real @Agenta arrives as an ordinary
+    `message` event whose text carries `<@BOT>`, not as a `~sigil`. Without
+    recognising the native mention the turn never started. Needs the
+    connection, since the bot's own user id is what the mention is matched
+    against."""
+
+    connection = _connection(bot_user_id="UBOT1")
+    adapter = SlackAdapter()
+    body = _event_callback(
+        {
+            "channel": "C1",
+            "user": "U1",
+            "text": "<@UBOT1> QA ping: reply exactly SLACK QA OK",
+            "ts": "1.1",
+        }
+    )
+
+    event = await adapter.parse_event(body=body, connection=connection)
+
+    assert event is not None
+    assert event.addressed is True
+
+
+async def test_parse_event_labelled_native_bot_mention_marks_addressed():
+    """Slack sometimes renders a mention with a display label: `<@U…|name>`."""
+
+    connection = _connection(bot_user_id="UBOT1")
+    adapter = SlackAdapter()
+    body = _event_callback(
+        {"channel": "C1", "user": "U1", "text": "<@UBOT1|agenta> hi", "ts": "1.1"}
+    )
+
+    event = await adapter.parse_event(body=body, connection=connection)
+
+    assert event is not None
+    assert event.addressed is True
+
+
+async def test_parse_event_mention_of_another_user_is_not_addressed():
+    """A message mentioning someone else, not the bot, must not open a turn."""
+
+    connection = _connection(bot_user_id="UBOT1")
+    adapter = SlackAdapter()
+    body = _event_callback(
+        {"channel": "C1", "user": "U1", "text": "<@USOMEONE> look at this", "ts": "1.1"}
+    )
+
+    event = await adapter.parse_event(body=body, connection=connection)
+
+    assert event is not None
+    assert event.addressed is False
+
+
+async def test_parse_event_drops_app_mention_as_a_duplicate():
+    """A channel mention is delivered twice when both message.* and app_mention
+    are subscribed. The message.* copy is routed on (its native mention is
+    recognised); the app_mention copy is dropped so the turn runs once, not
+    twice."""
+
+    connection = _connection(bot_user_id="UBOT1")
+    adapter = SlackAdapter()
+    body = _event_callback(
+        {
+            "type": "app_mention",
+            "channel": "C1",
+            "user": "U1",
+            "text": "<@UBOT1> QA ping",
+            "ts": "1.1",
+        }
+    )
+
+    assert await adapter.parse_event(body=body, connection=connection) is None
+
+
 async def test_parse_event_unaddressed_message_marks_addressed_false():
     adapter = SlackAdapter()
     body = _event_callback(

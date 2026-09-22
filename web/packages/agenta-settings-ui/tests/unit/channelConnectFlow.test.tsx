@@ -57,6 +57,28 @@ const click = async (text: string) => {
 }
 const advance = async (ms: number) => act(async () => vi.advanceTimersByTimeAsync(ms))
 
+it("mints one Telegram link when StrictMode replays the effect", async () => {
+    const mint = vi.fn().mockResolvedValue({
+        url: "https://t.me/qa?start=synthetic",
+        connectionId: "qa",
+        expiresInSeconds: 30,
+    })
+    await act(async () =>
+        root.render(
+            <React.StrictMode>
+                <ChannelConnectFlow
+                    platform="telegram"
+                    agentName="QA"
+                    onConnected={vi.fn()}
+                    actions={{...NOOP_ACTIONS, connectHostedTelegram: mint}}
+                />
+            </React.StrictMode>,
+        ),
+    )
+    expect(mint).toHaveBeenCalledTimes(1)
+    expect(container.textContent).toContain("Continue in Telegram")
+})
+
 it("keeps polling after copying the Telegram link", async () => {
     const count = vi.fn().mockResolvedValue(0)
     await act(async () =>

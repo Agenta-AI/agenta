@@ -1,6 +1,10 @@
 from typing import Any, Dict, List, Optional
 
 from oss.src.core.channels.dtos import ChannelCapabilities
+from oss.src.core.channels.render.approval import (
+    approval_details,
+    redact_approval_arguments,
+)
 from oss.src.core.channels.render.dtos import RenderChoiceOption, RenderItem, RenderPart
 from oss.src.core.channels.render.markdown_html import markdown_to_telegram_html_chunks
 
@@ -9,6 +13,11 @@ INDICATOR_TEXT = "Thinking…"
 # run is never a placeholder that sits there forever.
 NO_ANSWER_TEXT = (
     "The agent run failed and produced no answer. Check the session in Agenta."
+)
+# The run never started at all: said out loud in the chat, so a message that
+# triggered nothing is never silently swallowed (QA finding, 2026-09-22).
+FAILED_START_TEXT = (
+    "The agent run could not be started. Check the agent's configuration in Agenta."
 )
 # Appended to a partial answer while the turn is still running.
 PROGRESS_CURSOR = " …"
@@ -78,6 +87,23 @@ def render_no_answer(*, capabilities: ChannelCapabilities) -> RenderItem:
     )
 
 
+def render_failed_start(*, capabilities: ChannelCapabilities) -> RenderItem:
+    """The turn never started (invoke failed before any session event), so no
+    indicator exists to fold a failure into — this is the whole answer. Fixed
+    text on purpose: the invoke error is an internal detail and must not leak
+    into the chat."""
+
+    return RenderItem(
+        parts=[
+            RenderPart(
+                type="text",
+                text=FAILED_START_TEXT,
+                format=_plain_or_declared(capabilities),
+            )
+        ]
+    )
+
+
 def _plain_or_declared(capabilities: ChannelCapabilities) -> str:
     """html channels escape plain parts themselves; markdown/plain channels
     take the declared format as before."""
@@ -117,10 +143,22 @@ def _render_pending_interaction(
     tool_call = payload.get("toolCall") if isinstance(payload, dict) else None
     arguments = None
     if isinstance(tool_call, dict):
-        arguments = tool_call.get("arguments") or tool_call.get("input")
+        arguments = next(
+            (
+                tool_call[key]
+                for key in ("rawInput", "arguments", "input")
+                if isinstance(tool_call.get(key), dict)
+            ),
+            None,
+        )
 
     tool = pending_interaction.get("tool")
-    title = f"Approval needed: {tool}" if tool else "Approval needed"
+    if isinstance(tool, str) and tool.startswith("mcp__"):
+        tool = tool.split("__", 2)[-1]
+    label = str(tool).replace("_", " ").strip().capitalize()[:160] if tool else ""
+    title = f"Approval needed: {label}" if label else "Approval needed"
+    arguments = redact_approval_arguments(arguments)
+    scope = "Approve allows this tool call once. Deny prevents it."
     interaction_id = pending_interaction.get("id")
     interaction_id = str(interaction_id) if interaction_id else None
 
@@ -136,6 +174,7 @@ def _render_pending_interaction(
                 RenderPart(
                     type="card",
                     title=title,
+                    text=scope,
                     tool=tool,
                     arguments=arguments if isinstance(arguments, dict) else None,
                 ),
@@ -149,7 +188,7 @@ def _render_pending_interaction(
         )
 
     # buttons unsupported, or the option count exceeds the declared max
-    lines = [title]
+    lines = [title, scope, approval_details(arguments)]
     for i, (label, _) in enumerate(options, start=1):
         lines.append(f"{i}. {label}")
     lines.append("Reply with the number to choose.")
@@ -159,7 +198,7 @@ def _render_pending_interaction(
             RenderPart(
                 type="text",
                 text="\n".join(lines),
-                format=capabilities.rendering.text.format,
+                format=_plain_or_declared(capabilities),
             )
         ],
         choice=choice,
