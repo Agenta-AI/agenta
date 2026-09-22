@@ -568,6 +568,14 @@ jobs:
         if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","services-only"]'), inputs.packages)
         run: uv run hosting/kubernetes/helm/tests/test_runner_secret_absence.py
 
+      # The gateway settings are documented with a values.yaml path per variable, and the
+      # schema's root is additionalProperties:true, so a key the chart does not model is
+      # accepted and ignored. This asserts each one reaches the containers that read it and
+      # stays off the ones that do not.
+      - name: Assert the gateway values reach their readers
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","services-only"]'), inputs.packages)
+        run: uv run hosting/kubernetes/helm/tests/test_gateway_values.py
+
   run-runner-integration-tests:
     if: |
       github.event_name == 'workflow_dispatch' ||

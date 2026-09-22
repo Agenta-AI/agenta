@@ -102,8 +102,8 @@ export const useOnboardingChat = ({
         // Resolve BEFORE clearing the composer below — `resolveTemplateName` compares against the
         // live text, so reading it after the clear would always see "" and never match the seed.
         const templateName = stripProvenance.resolveTemplateName(text)
-        // Free-text submit (never a template — those go straight through `onboarding.commit` from the
-        // template pickers below, source "template"), so no double-fire with those call sites.
+        // Preserve the selected package when submitting a composer-seeded template.
+        // Resolving its display name alone would send this through ordinary blank creation.
         if (text) {
             captureFirstAgentIntent(onboardingPosthog, {
                 source: "composer",
@@ -115,15 +115,21 @@ export const useOnboardingChat = ({
         // sent until the step's own Create actually commits (which the `committingSeed` effect
         // below then picks up, exactly as it does for a template click).
         if (CONNECT_STEP_MODE) {
-            onboarding.commit(text, templateName)
+            onboarding.commit(text, templateName, stripProvenance.selectedTemplate ?? undefined)
             return
         }
         setPendingFirstTurn(text || null)
         // The text becomes the sent first turn — clear the composer so it doesn't linger into the chat.
         richInputRef.current?.setMarkdown("")
-        onboarding.commit(text, templateName)
+        onboarding.commit(text, templateName, stripProvenance.selectedTemplate ?? undefined)
         if (TEMPLATE_STRIP_MODE) stripProvenance.clear()
-    }, [onboarding, onboardingPosthog, stripProvenance.clear, stripProvenance.resolveTemplateName])
+    }, [
+        onboarding,
+        onboardingPosthog,
+        stripProvenance.clear,
+        stripProvenance.resolveTemplateName,
+        stripProvenance.selectedTemplate,
+    ])
 
     // The step's "Create agent". The composer stayed editable behind the card, so the description
     // is re-read here — the draft the step opened with is one edit out of date.

@@ -36,9 +36,9 @@ import {type SessionDriveData} from "@agenta/entities/drive"
 import {useTreeGroupScroll} from "@agenta/entities/drive"
 import {TREE_WIDTH_COMPACT} from "@agenta/entities/drive"
 import {type MountFile} from "@agenta/entities/session"
-import {projectIdAtom} from "@agenta/shared/state"
+import {agentAppsEnabledAtom, projectIdAtom} from "@agenta/shared/state"
 import {InputAffix as Input} from "@agenta/ui/ui"
-import {Code, Eye, MagnifyingGlass} from "@phosphor-icons/react"
+import {Code, Eye, MagnifyingGlass, Play} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 
@@ -60,7 +60,7 @@ import {DriveTreeList} from "./DriveTreeList"
 import {DriveTreePane} from "./DriveTreePane"
 import {TreeRow} from "./DriveTreeRow"
 import {FolderView} from "./FolderView"
-import {DriveHtmlPreview} from "./renderers"
+import {DriveHtmlApp} from "./renderers"
 import {useDriveDownloadAll} from "./useDriveDownloadAll"
 import {useDriveTreeData} from "./useDriveTreeData"
 import {useDriveWrites} from "./useDriveWrites"
@@ -327,8 +327,12 @@ export function DriveExplorer({
     const tooLargeToEdit = (markdownKind || codeKind) && !editableMarkdown && !editableCode
     // An editable HTML file shows its source or the rendered document (row 2 switches).
     const htmlKind = editableCode && selectedKind === "html"
-    const [htmlView, setHtmlView] = useState<"source" | "preview">("source")
-    const htmlPreview = htmlKind && htmlView === "preview"
+    const agentAppsEnabled = useAtomValue(agentAppsEnabledAtom)
+    const [htmlView, setHtmlView] = useState<"source" | "preview" | "run">("source")
+    // Run needs the flag and a mount; without them a stale "run" falls back to Preview.
+    const htmlRunnable = htmlKind && agentAppsEnabled && !!selectedMount
+    const htmlPreview = htmlKind && htmlView !== "source"
+    const htmlBodyView = htmlView === "run" && htmlRunnable ? "run" : "preview"
     const editing = editableMarkdown || editableCode
     const editor = useDriveFileEditor(
         editing ? selectedMount : null,
@@ -551,7 +555,7 @@ export function DriveExplorer({
                     htmlKind
                         ? {
                               value: htmlView,
-                              onChange: (v) => setHtmlView(v as "source" | "preview"),
+                              onChange: (v) => setHtmlView(v as "source" | "preview" | "run"),
                               options: [
                                   {
                                       value: "source",
@@ -563,6 +567,15 @@ export function DriveExplorer({
                                       label: "Preview",
                                       icon: <Eye className="size-3.5" />,
                                   },
+                                  ...(htmlRunnable
+                                      ? [
+                                            {
+                                                value: "run",
+                                                label: "Run",
+                                                icon: <Play className="size-3.5" />,
+                                            },
+                                        ]
+                                      : []),
                               ],
                           }
                         : undefined
@@ -630,11 +643,13 @@ export function DriveExplorer({
                     onSave={onSave}
                 />
             ) : htmlPreview ? (
-                <DriveHtmlPreview
+                <DriveHtmlApp
                     mount={selectedMount}
                     path={selectedMountPath}
                     displayPath={selectedPath}
                     onNavigate={select}
+                    view={htmlBodyView}
+                    onViewChange={setHtmlView}
                 />
             ) : editableCode ? (
                 <DriveCodeEditor

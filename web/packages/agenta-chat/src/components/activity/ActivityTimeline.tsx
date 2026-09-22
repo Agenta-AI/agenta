@@ -10,7 +10,14 @@ import {useReducedMotion} from "motion/react"
 import {useHeldFor} from "../../hooks/useHeldFor"
 import {useRevealed} from "../../hooks/useRevealed"
 import {formatElapsed, useTurnClock} from "../../hooks/useTurnClock"
-import {activityFiles, currentStep, hasLiveStep, partToolName, type ActivityStep} from "../../model"
+import {
+    activityFiles,
+    currentStep,
+    hasLiveStep,
+    parseTraceTime,
+    partToolName,
+    type ActivityStep,
+} from "../../model"
 import {resolveToolDisplay} from "../../skin"
 import {activityFoldKey, expandedValueAtomFamily, setExpandedAtom} from "../../state"
 import {useStartupPhase} from "../../state/turnClock"
@@ -230,6 +237,10 @@ export interface ActivityTimelineProps {
     waitingOnUser?: boolean
     /** The turn's trace: once settled, its duration outranks the local count. */
     traceId?: string | null
+    /** This tab streamed the run itself, so its first step is the start. False for a run found
+     * already in progress, whose start has to come from the trace. Defaults to true: a caller
+     * that cannot tell is a caller whose turn began here. */
+    streamedHere?: boolean
     /** Renders a client tool's widget in its step; absent on a read-only host. */
     renderClientTool?: (part: ToolUIPart) => ReactNode
 }
@@ -244,6 +255,7 @@ export const ActivityTimeline = ({
     sessionId,
     waitingOnUser = false,
     traceId,
+    streamedHere = true,
     firstTurn = false,
     renderClientTool,
 }: ActivityTimelineProps) => {
@@ -253,11 +265,20 @@ export const ActivityTimeline = ({
         waitingOnUser ||
         (current?.kind === "tool" && (current.part.state as string) === "approval-requested")
     const live = streaming || hasLiveStep(steps)
+    // A run this tab met mid-flight: it was already going when the tab opened, so there is no local
+    // span to count from and the clock would report the age of the TAB, not of the run (#6934). The
+    // trace's root span is when the run began — the same source the timestamp beside this line
+    // already trusts over first-seen-here. A run this tab streamed from the start needs none of
+    // this: its own first step IS the start, so it never fetches a trace mid-stream.
+    const metMidFlight = live && !streamedHere
+    const trace = useAtomValue(
+        traceDataSummaryAtomFamily((!live || metMidFlight) && traceId ? traceId : ""),
+    )
+    const startedAt = metMidFlight ? parseTraceTime(trace.rootSpan?.start_time) : undefined
     // The clock counts the agent's work: from the first step, paused while parked on the reader.
-    const counted = useTurnClock(clockId, live && !awaiting && steps.length > 0)
+    const counted = useTurnClock(clockId, live && !awaiting && steps.length > 0, startedAt)
     // A run resumed after a gate traces only its last leg; the longer of the two is the work.
-    const trace = useAtomValue(traceDataSummaryAtomFamily(!live && traceId ? traceId : ""))
-    const traced = trace.metrics.durationMs ?? null
+    const traced = live ? null : (trace.metrics.durationMs ?? null)
     const elapsed = live
         ? counted
         : traced === null && counted === null

@@ -14,7 +14,8 @@ stack.
 
 import io
 import zipfile
-from typing import List, Tuple
+from hashlib import md5
+from typing import List, Optional, Tuple
 from uuid import UUID, uuid4
 
 import pytest
@@ -31,11 +32,13 @@ from oss.src.core.mounts.service import (
     mint_session_slug,
     validate_file_path,
 )
-from oss.src.core.store.dtos import StoreObject
+from oss.src.core.store.dtos import StoreObject, StorePutResult
+from oss.src.core.store.types import StorePreconditionFailed
 from oss.src.core.mounts.types import (
     MountFileNotFound,
     MountNotFound,
     MountPathInvalid,
+    MountPreconditionFailed,
 )
 
 
@@ -207,11 +210,16 @@ class FakeMountStorage:
     def set_mtime(self, bucket: str, key: str, mtime: int) -> None:
         self._mtimes.setdefault(bucket, {})[key] = mtime
 
+    @staticmethod
+    def etag_of(body: bytes) -> str:
+        # S3 single-part etags are the body's md5 — the fake mirrors that so tests can predict them.
+        return md5(body).hexdigest()
+
     async def list_objects_v2(self, *, bucket: str, prefix: str) -> List[StoreObject]:
         b = self._store.get(bucket, {})
         m = self._mtimes.get(bucket, {})
         return [
-            StoreObject(key=k, size=len(v), mtime=m.get(k))
+            StoreObject(key=k, size=len(v), mtime=m.get(k), etag=self.etag_of(v))
             for k, v in b.items()
             if k.startswith(prefix)
         ]
@@ -229,7 +237,9 @@ class FakeMountStorage:
             keys = [k for k in keys if k.encode("utf-8") > sa]
         page = keys[:max_keys]
         has_more = len(keys) > max_keys
-        return [StoreObject(key=k, size=len(b[k])) for k in page], has_more
+        return [
+            StoreObject(key=k, size=len(b[k]), etag=self.etag_of(b[k])) for k in page
+        ], has_more
 
     async def list_objects_shallow(self, *, bucket: str, prefix: str):
         # One level under `prefix` (delimiter "/"): immediate files + immediate subdir prefixes.
@@ -250,18 +260,62 @@ class FakeMountStorage:
                     k
                 )  # an empty-folder marker at this level (may equal `prefix`)
             else:
-                files.append(StoreObject(key=k, size=len(v)))
+                files.append(StoreObject(key=k, size=len(v), etag=self.etag_of(v)))
         return files, sorted(subdirs)
 
     async def get_object(self, *, bucket: str, key: str) -> bytes:
+        body, _ = await self.get_object_with_etag(bucket=bucket, key=key)
+        return body
+
+    async def get_object_with_etag(
+        self, *, bucket: str, key: str
+    ) -> Tuple[bytes, Optional[str]]:
         b = self._store.get(bucket, {})
         if key not in b:
             raise MountFileNotFound()
-        return b[key]
+        return b[key], self.etag_of(b[key])
 
-    async def put_object(self, *, bucket: str, key: str, body: bytes) -> int:
+    async def stat_object(self, *, bucket: str, key: str) -> StoreObject:
+        b = self._store.get(bucket, {})
+        if key not in b:
+            raise MountFileNotFound()
+        return StoreObject(
+            key=key,
+            size=len(b[key]),
+            mtime=self._mtimes.get(bucket, {}).get(key),
+            etag=self.etag_of(b[key]),
+        )
+
+    def _current_etag(self, bucket: str, key: str) -> Optional[str]:
+        body = self._store.get(bucket, {}).get(key)
+        return None if body is None else self.etag_of(body)
+
+    async def put_object(
+        self,
+        *,
+        bucket: str,
+        key: str,
+        body: bytes,
+        if_match: Optional[str] = None,
+        if_none_match_any: bool = False,
+    ) -> StorePutResult:
+        current = self._current_etag(bucket, key)
+        if if_match is not None and current != if_match.strip('"'):
+            raise StorePreconditionFailed(current)
+        if if_none_match_any and current is not None:
+            raise StorePreconditionFailed(current)
         self._store.setdefault(bucket, {})[key] = body
-        return len(body)
+        return StorePutResult(size=len(body), etag=self.etag_of(body))
+
+    async def delete_object_if_match(
+        self, *, bucket: str, key: str, if_match: str
+    ) -> int:
+        current = self._current_etag(bucket, key)
+        if current is None or current != if_match.strip('"'):
+            raise StorePreconditionFailed(current)
+        del self._store[bucket][key]
+        self._mtimes.get(bucket, {}).pop(key, None)
+        return 1
 
     async def delete_keys(self, *, bucket: str, keys: List[str]) -> int:
         b = self._store.get(bucket, {})
@@ -632,12 +686,198 @@ class TestMountFileOpsRoundtrip:
         listing = await service.list_files(
             project_id=pid, mount_id=mid, order="path", limit=100, git_aware=True
         )
+        # `.gitignore` itself is a dotfile, so the curated flat view drops it as hidden plumbing.
         assert {f.path for f in listing.files} == {
-            ".gitignore",
             "api/main.py",
             "web/index.ts",
         }
-        assert listing.total == 3
+        assert listing.total == 2
+
+    async def test_git_aware_flat_listing_excludes_hidden_paths(self):
+        # Dot-prefixed files and directories are plumbing, not user content: the curated flat view
+        # leaves them out of both the listing and its `total` (#6027).
+        mount = _make_mount()
+        service, pid, mid = _make_service(mount)
+        for path in [
+            "notes.md",
+            ".env",
+            ".claude/settings.json",
+            "src/.hidden/keep.txt",
+            "src/main.py",
+        ]:
+            await service.write_file(
+                project_id=pid, mount_id=mid, path=path, content=b"x"
+            )
+
+        listing = await service.list_files(
+            project_id=pid, mount_id=mid, order="path", limit=100, git_aware=True
+        )
+
+        assert {f.path for f in listing.files} == {"notes.md", "src/main.py"}
+        assert listing.total == 2
+
+    async def test_git_aware_count_only_excludes_hidden_paths(self):
+        # The "N files" badge reads the count-only total, so it must agree with the list above.
+        mount = _make_mount()
+        service, pid, mid = _make_service(mount)
+        for path in ["notes.md", ".env", ".claude/settings.json"]:
+            await service.write_file(
+                project_id=pid, mount_id=mid, path=path, content=b"x"
+            )
+
+        listing = await service.list_files(
+            project_id=pid, mount_id=mid, limit=0, git_aware=True
+        )
+
+        assert listing.total == 1
+        assert listing.files == []
+
+    async def test_hidden_tree_does_not_spend_the_count_budget(self, monkeypatch):
+        # `cap` bounds the DESCENT, but the number it produces is the VISIBLE file count — so the
+        # two have to be measured in the same unit. A hidden directory is pruned during the walk,
+        # not counted and then filtered away afterwards; otherwise a drive with a big `.claude/`
+        # reports a needless "N+" when its real files could have been counted exactly.
+        monkeypatch.setattr(mounts_service_module, "_COUNT_CAP", 5)
+        mount = _make_mount()
+        service, pid, mid = _make_service(mount)
+        for i in range(10):
+            await service.write_file(
+                project_id=pid, mount_id=mid, path=f".claude/f{i}.json", content=b"x"
+            )
+        for path in ["a.txt", "b.txt"]:
+            await service.write_file(
+                project_id=pid, mount_id=mid, path=path, content=b"x"
+            )
+
+        listing = await service.list_files(
+            project_id=pid, mount_id=mid, limit=0, git_aware=True
+        )
+
+        assert listing.total == 2
+        assert listing.total_capped is False
+
+    async def test_root_dotfiles_do_not_spend_the_count_budget(self, monkeypatch):
+        # The directory prune cannot reach a hidden file sitting at a KEPT directory's root, so the
+        # level scan has to skip it too. Otherwise five root dotfiles exhaust the budget and the
+        # drive reports "1+" for a count it could state exactly.
+        monkeypatch.setattr(mounts_service_module, "_COUNT_CAP", 5)
+        mount = _make_mount()
+        service, pid, mid = _make_service(mount)
+        for path in [
+            ".env",
+            ".dockerignore",
+            ".coderabbit.yaml",
+            ".prettierrc",
+            ".npmrc",
+            "a.txt",
+        ]:
+            await service.write_file(
+                project_id=pid, mount_id=mid, path=path, content=b"x"
+            )
+
+        listing = await service.list_files(
+            project_id=pid, mount_id=mid, limit=0, git_aware=True
+        )
+
+        assert listing.total == 1
+        assert listing.total_capped is False
+
+    async def test_gitignore_still_applies_when_it_is_pruned_from_the_count(self):
+        # `.gitignore` is a hidden file, so the level scan skips it — but its RULES must still be
+        # read first, or the files it ignores would start counting.
+        mount = _make_mount()
+        service, pid, mid = _make_service(mount)
+        for path, body in [
+            (".gitignore", b"ignored.txt\n"),
+            ("ignored.txt", b"x"),
+            ("kept.txt", b"x"),
+        ]:
+            await service.write_file(
+                project_id=pid, mount_id=mid, path=path, content=body
+            )
+
+        listing = await service.list_files(
+            project_id=pid, mount_id=mid, order="path", limit=100, git_aware=True
+        )
+
+        assert {f.path for f in listing.files} == {"kept.txt"}
+        assert listing.total == 1
+
+    async def test_internal_tree_does_not_spend_the_count_budget(self, monkeypatch):
+        # Same rule for the runner-owned `agents/` namespace, which can hold a whole transcript
+        # workspace: pruned during the walk, so it never crowds out the real files.
+        monkeypatch.setattr(mounts_service_module, "_COUNT_CAP", 5)
+        mount = _make_mount()
+        service, pid, mid = _make_service(mount)
+        for i in range(10):
+            await service.write_file(
+                project_id=pid,
+                mount_id=mid,
+                path=f"agents/sessions/s{i}.json",
+                content=b"x",
+            )
+        await service.write_file(
+            project_id=pid, mount_id=mid, path="a.txt", content=b"x"
+        )
+
+        listing = await service.list_files(
+            project_id=pid, mount_id=mid, limit=0, git_aware=True
+        )
+
+        assert listing.total == 1
+        assert listing.total_capped is False
+
+    async def test_count_still_caps_on_a_genuinely_large_visible_tree(
+        self, monkeypatch
+    ):
+        # The budget still bites when the files really are visible — the prunes narrow what counts,
+        # they do not remove the bound.
+        monkeypatch.setattr(mounts_service_module, "_COUNT_CAP", 5)
+        mount = _make_mount()
+        service, pid, mid = _make_service(mount)
+        for i in range(12):
+            await service.write_file(
+                project_id=pid, mount_id=mid, path=f"docs/f{i}.md", content=b"x"
+            )
+
+        listing = await service.list_files(
+            project_id=pid, mount_id=mid, limit=0, git_aware=True
+        )
+
+        assert listing.total_capped is True
+        assert listing.total >= 5
+
+    async def test_raw_flat_listing_keeps_hidden_paths(self):
+        # The hidden-file pruning is part of the CURATED view only — the raw contract still lists
+        # everything that is stored, so other API consumers see the mount as it really is.
+        mount = _make_mount()
+        service, pid, mid = _make_service(mount)
+        for path in ["notes.md", ".env"]:
+            await service.write_file(
+                project_id=pid, mount_id=mid, path=path, content=b"x"
+            )
+
+        listing = await service.list_files(
+            project_id=pid, mount_id=mid, order="path", limit=100, git_aware=False
+        )
+
+        assert {f.path for f in listing.files} == {"notes.md", ".env"}
+
+    async def test_git_aware_shallow_listing_keeps_hidden_paths(self):
+        # `depth=1` backs the browsable explorer, which shows hidden entries (dimmed) behind its own
+        # toggle — so the pruning above must NOT reach this view.
+        mount = _make_mount()
+        service, pid, mid = _make_service(mount)
+        for path in ["notes.md", ".env"]:
+            await service.write_file(
+                project_id=pid, mount_id=mid, path=path, content=b"x"
+            )
+
+        listing = await service.list_files(
+            project_id=pid, mount_id=mid, depth=1, git_aware=True
+        )
+
+        assert {f.path for f in listing.files} == {"notes.md", ".env"}
 
     async def test_raw_listing_keeps_git_and_ignored_by_default(self):
         # Default (git_aware=False) is the plain-endpoint contract: EVERY object under the prefix, incl.
@@ -959,3 +1199,178 @@ class TestMountFileOpsRoundtrip:
             )
         with pytest.raises(MountPathInvalid):
             await service.delete_path(project_id=pid, mount_id=mid, path="/abs")
+
+
+# ---------------------------------------------------------------------------
+# Conditional file ops (etags, If-Match / If-None-Match)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+class TestConditionalFileOps:
+    async def test_write_returns_the_etag_that_read_and_list_echo(self):
+        mount = _make_mount()
+        service, pid, mid = _make_service(mount)
+
+        written = await service.write_file(
+            project_id=pid, mount_id=mid, path="notes.txt", content=b"hello"
+        )
+        assert written.etag == FakeMountStorage.etag_of(b"hello")
+
+        content = await service.read_file(
+            project_id=pid, mount_id=mid, path="notes.txt"
+        )
+        assert content.etag == written.etag
+
+        for listing in (
+            await service.list_files(project_id=pid, mount_id=mid),
+            await service.list_files(project_id=pid, mount_id=mid, depth=1),
+            await service.list_files(project_id=pid, mount_id=mid, order="name"),
+        ):
+            by_path = {f.path: f for f in listing.files}
+            assert by_path["notes.txt"].etag == written.etag
+
+    async def test_folder_entries_carry_no_etag(self):
+        mount = _make_mount()
+        service, pid, mid = _make_service(mount)
+        await service.create_folder(project_id=pid, mount_id=mid, path="dir")
+        await service.write_file(
+            project_id=pid, mount_id=mid, path="dir/a.txt", content=b"a"
+        )
+
+        for listing in (
+            await service.list_files(project_id=pid, mount_id=mid),
+            await service.list_files(project_id=pid, mount_id=mid, depth=1),
+        ):
+            by_path = {f.path: f for f in listing.files}
+            assert by_path["dir"].is_folder is True
+            assert by_path["dir"].etag is None
+
+    async def test_if_match_writes_over_the_matching_etag_only(self):
+        mount = _make_mount()
+        service, pid, mid = _make_service(mount)
+        first = await service.write_file(
+            project_id=pid, mount_id=mid, path="f.txt", content=b"v1"
+        )
+
+        second = await service.write_file(
+            project_id=pid,
+            mount_id=mid,
+            path="f.txt",
+            content=b"v2",
+            if_match=first.etag,
+        )
+        assert second.etag == FakeMountStorage.etag_of(b"v2")
+
+        with pytest.raises(MountPreconditionFailed) as exc:
+            await service.write_file(
+                project_id=pid,
+                mount_id=mid,
+                path="f.txt",
+                content=b"v3",
+                if_match=first.etag,
+            )
+        assert exc.value.etag == second.etag
+        content = await service.read_file(project_id=pid, mount_id=mid, path="f.txt")
+        assert content.content == "v2"
+
+    async def test_if_match_on_a_missing_file_fails_with_no_etag(self):
+        mount = _make_mount()
+        service, pid, mid = _make_service(mount)
+
+        with pytest.raises(MountPreconditionFailed) as exc:
+            await service.write_file(
+                project_id=pid,
+                mount_id=mid,
+                path="ghost.txt",
+                content=b"v",
+                if_match="anything",
+            )
+        assert exc.value.etag is None
+
+    async def test_if_none_match_any_only_creates(self):
+        mount = _make_mount()
+        service, pid, mid = _make_service(mount)
+
+        created = await service.write_file(
+            project_id=pid,
+            mount_id=mid,
+            path="new.txt",
+            content=b"v1",
+            if_none_match_any=True,
+        )
+        assert created.etag == FakeMountStorage.etag_of(b"v1")
+
+        with pytest.raises(MountPreconditionFailed) as exc:
+            await service.write_file(
+                project_id=pid,
+                mount_id=mid,
+                path="new.txt",
+                content=b"v2",
+                if_none_match_any=True,
+            )
+        assert exc.value.etag == created.etag
+
+    async def test_delete_if_match_removes_only_the_matching_file(self):
+        mount = _make_mount()
+        service, pid, mid = _make_service(mount)
+        written = await service.write_file(
+            project_id=pid, mount_id=mid, path="f.txt", content=b"v1"
+        )
+
+        with pytest.raises(MountPreconditionFailed) as exc:
+            await service.delete_path(
+                project_id=pid, mount_id=mid, path="f.txt", if_match="stale"
+            )
+        assert exc.value.etag == written.etag
+
+        deleted = await service.delete_path(
+            project_id=pid, mount_id=mid, path="f.txt", if_match=written.etag
+        )
+        assert deleted.count == 1
+        with pytest.raises(MountFileNotFound):
+            await service.read_file(project_id=pid, mount_id=mid, path="f.txt")
+
+    async def test_delete_if_match_on_a_missing_file_fails_with_no_etag(self):
+        mount = _make_mount()
+        service, pid, mid = _make_service(mount)
+
+        with pytest.raises(MountPreconditionFailed) as exc:
+            await service.delete_path(
+                project_id=pid, mount_id=mid, path="ghost.txt", if_match="x"
+            )
+        assert exc.value.etag is None
+
+    async def test_delete_if_match_on_a_folder_fails_and_keeps_its_contents(self):
+        # A folder has no etag, so a conditional delete can never match it; the cascade
+        # stays an unconditional-only operation.
+        mount = _make_mount()
+        service, pid, mid = _make_service(mount)
+        await service.write_file(
+            project_id=pid, mount_id=mid, path="dir/a.txt", content=b"a"
+        )
+
+        with pytest.raises(MountPreconditionFailed) as exc:
+            await service.delete_path(
+                project_id=pid, mount_id=mid, path="dir", if_match="x"
+            )
+        assert exc.value.etag is None
+        listing = await service.list_files(project_id=pid, mount_id=mid)
+        assert {f.path for f in listing.files} >= {"dir/a.txt"}
+
+    async def test_conditions_do_not_bypass_path_validation(self):
+        mount = _make_mount()
+        service, pid, mid = _make_service(mount)
+
+        with pytest.raises(MountPathInvalid):
+            await service.write_file(
+                project_id=pid,
+                mount_id=mid,
+                path="../escape",
+                content=b"x",
+                if_match="x",
+            )
+        with pytest.raises(MountPathInvalid):
+            await service.delete_path(
+                project_id=pid, mount_id=mid, path="../escape", if_match="x"
+            )

@@ -9,14 +9,16 @@ import {
     useSessionsList,
 } from "@agenta/sessions/state"
 import {SessionListLoadMore, type SessionMenuEntry} from "@agenta/sessions-ui"
+import {LoadError} from "@agenta/ui/components/presentational"
 import {useMediaQuery} from "@agenta/ui/hooks"
 import {ListTable, type ListTableColumn, type ListTableGroup} from "@agenta/ui/list-table"
+import {Button, SimpleTooltip} from "@agenta/ui/ui"
 import {useAtomValue} from "jotai"
+import {Plus} from "lucide-react"
 
 import {deriveSessionGroups, type SessionGrouping} from "./sessionListView"
 import {SessionRowCells} from "./SessionRowCells"
 import {SessionsEmpty} from "./states/SessionsEmpty"
-import {SessionsError} from "./states/SessionsError"
 import {SessionsNoMatch} from "./states/SessionsNoMatch"
 
 /**
@@ -92,6 +94,7 @@ export const SessionListTable = ({
     agentNames,
     agentNamesReady,
     verbs,
+    onNewSession,
     onClearSearch,
     onResetView,
 }: {
@@ -108,6 +111,8 @@ export const SessionListTable = ({
      */
     agentNamesReady: boolean
     verbs: SessionRowVerbs
+    /** Start a blank session with an agent — an agent heading's "+". */
+    onNewSession?: (agentId: string) => void
     /** Undoes the SEARCH only — what a term that matched nothing needs. */
     onClearSearch: () => void
     /** Undoes every facet, the grouping and the search. */
@@ -171,7 +176,34 @@ export const SessionListTable = ({
         return out
     }, [agentNames, agentNamesReady, group, list.groups])
 
-    if (list.isError) return <SessionsError onRetry={list.refetch} />
+    // Under agent grouping every row in a group shares the agent, so the first row names it.
+    // Pins and "No agent yet" are not agents, and "Unknown agent" is one the roster no longer
+    // lists (archived, deleted) — nothing to start a session with. None of them get a "+".
+    const groupActions = useCallback(
+        (run: ListTableGroup<SessionRowVm>) => {
+            if (group !== "agent" || !onNewSession || run.key === "pinned") return null
+            const agentId = run.rows[0]?.agentId
+            if (!agentId || !agentNames.has(agentId)) return null
+            return (
+                <SimpleTooltip title={`New session with ${run.label}`}>
+                    <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-sm"
+                        aria-label={`New session with ${run.label}`}
+                        className="size-6 text-muted-foreground hover:text-foreground"
+                        onClick={() => onNewSession(agentId)}
+                    >
+                        <Plus className="size-3.5" />
+                    </Button>
+                </SimpleTooltip>
+            )
+        },
+        [agentNames, group, onNewSession],
+    )
+
+    if (list.isError)
+        return <LoadError framed title="Could not load sessions" onRetry={list.refetch} />
 
     return (
         // Say that these rows are a previous query's while a new one resolves. Typing in the
@@ -199,6 +231,7 @@ export const SessionListTable = ({
                     onOpenRow={verbs.open}
                     collapsedKeys={collapsed}
                     onToggleGroup={toggleGroup}
+                    groupActions={groupActions}
                     empty={
                         // Never while the rows are a previous query's. "No sessions yet" is a
                         // claim about the account, and showing it over an unsettled query told

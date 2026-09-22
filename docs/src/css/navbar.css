@@ -16,6 +16,20 @@
   }
 }
 
+/* Wide screens: the frame is capped and centred (content.css); the header
+   row follows it. */
+@media (min-width: 1600px) {
+  .navbar__inner {
+    max-width: calc(
+      var(--doc-frame-max) - var(--ifm-navbar-padding-horizontal) - var(--doc-main-padding-x)
+    );
+    /* Auto margins, not the offset: the offset's 50% would resolve against
+       the navbar's padded box, not the window. Auto centres on the same
+       line as the frame because the navbar's padding is the frame's. */
+    margin: 0 auto;
+  }
+}
+
 .navbar__inner {
   flex-wrap: nowrap;
 }

@@ -3606,6 +3606,132 @@ const sidebar: SidebarsConfig = {
         },
       ],
     },
+    {
+      type: "category",
+      label: "Gateway",
+      items: [
+        {
+          type: "doc",
+          id: "reference/api/issue-gateway-credentials",
+          label: "Issue Gateway Credentials",
+          className: "api-method post",
+        },
+      ],
+    },
+    {
+      type: "category",
+      label: "Gateway: LLM",
+      items: [
+        {
+          type: "doc",
+          id: "reference/api/resolve-llm-gateway-connection",
+          label: "Resolve Agent Connection",
+          className: "api-method post",
+        },
+        {
+          type: "doc",
+          id: "reference/api/list-llm-endpoints",
+          label: "List Endpoints",
+          className: "api-method get",
+        },
+        {
+          type: "doc",
+          id: "reference/api/create-llm-endpoint",
+          label: "Create Endpoint",
+          className: "api-method post",
+        },
+        {
+          type: "doc",
+          id: "reference/api/query-llm-endpoints",
+          label: "Query Endpoints",
+          className: "api-method post",
+        },
+        {
+          type: "doc",
+          id: "reference/api/fetch-llm-endpoint",
+          label: "Fetch Endpoint",
+          className: "api-method get",
+        },
+        {
+          type: "doc",
+          id: "reference/api/edit-llm-endpoint",
+          label: "Edit Endpoint",
+          className: "api-method put",
+        },
+        {
+          type: "doc",
+          id: "reference/api/delete-llm-endpoint",
+          label: "Delete Endpoint",
+          className: "api-method delete",
+        },
+      ],
+    },
+    {
+      type: "category",
+      label: "Gateway: MCP",
+      items: [
+        {
+          type: "doc",
+          id: "reference/api/issue-agenta-mcp-credential",
+          label: "Issue Agenta Credential",
+          className: "api-method post",
+        },
+        {
+          type: "doc",
+          id: "reference/api/list-mcp-endpoints",
+          label: "List Endpoints",
+          className: "api-method get",
+        },
+        {
+          type: "doc",
+          id: "reference/api/create-mcp-endpoint",
+          label: "Create Endpoint",
+          className: "api-method post",
+        },
+        {
+          type: "doc",
+          id: "reference/api/query-mcp-endpoints",
+          label: "Query Endpoints",
+          className: "api-method post",
+        },
+        {
+          type: "doc",
+          id: "reference/api/probe-mcp-endpoint",
+          label: "Probe Endpoint",
+          className: "api-method post",
+        },
+        {
+          type: "doc",
+          id: "reference/api/fetch-mcp-endpoint",
+          label: "Fetch Endpoint",
+          className: "api-method get",
+        },
+        {
+          type: "doc",
+          id: "reference/api/edit-mcp-endpoint",
+          label: "Edit Endpoint",
+          className: "api-method put",
+        },
+        {
+          type: "doc",
+          id: "reference/api/delete-mcp-endpoint",
+          label: "Delete Endpoint",
+          className: "api-method delete",
+        },
+        {
+          type: "doc",
+          id: "reference/api/connect-mcp-endpoint",
+          label: "Connect Endpoint",
+          className: "api-method post",
+        },
+        {
+          type: "doc",
+          id: "reference/api/disconnect-mcp-endpoint",
+          label: "Disconnect Endpoint",
+          className: "api-method delete",
+        },
+      ],
+    },
   ],
 };
 

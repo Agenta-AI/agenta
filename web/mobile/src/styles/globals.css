@@ -12,8 +12,11 @@
    a border-color is `currentColor`, i.e. a bright line on a dark surface. 98 of the 115 vars the
    packages use were undefined here before this import. */
 @import "@agenta/ui/theme-variables.css";
-/* The surface ladder the shared panels are painted on — one definition, both apps. */
-@import "@agenta/ui/surfaces.css";
+/* The surface ladder the shared panels are painted on — one definition, both apps. In the
+   `components` layer, not bare: unlayered CSS outranks every Tailwind utility, so a utility on
+   the same element (`Kbd`'s tooltip re-skin over `ag-surface-chip`) could never win — a cap in
+   a light-mode tooltip drew white glyphs on the light chip. */
+@import "@agenta/ui/surfaces.css" layer(components);
 /* The Lexical editor's own theme + Prism code tokens. Mobile renders the SAME editor (the chat
    composer and the config panel's JSON/YAML views), so it needs the same stylesheets — without
    them code blocks and editor chrome render untokenised. */
@@ -465,12 +468,6 @@
         mask-position: -80% 0;
         -webkit-mask-position: -80% 0;
     }
-}
-
-/* Desktop surface classes the shared composer references (kbd hint chip). */
-.ag-surface-chip {
-    background: var(--ag-surface-chip);
-    border: 1px solid var(--ag-surface-chip-border);
 }
 
 /* antd Switch geometry: height and width differ for the same name, which one spacing

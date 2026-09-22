@@ -1805,3 +1805,27 @@ def test_request_to_wire_carries_only_rendered_turn_context():
     assert payload["turnContext"] == context
     assert "sessionContext" not in payload
     assert payload["messages"] == [{"role": "user", "content": "hi"}]
+
+
+def test_display_content_survives_sdk_and_wire_conversion(golden):
+    from agenta.sdk.agents.adapters.vercel.messages import (
+        message_to_vercel_ui_message,
+        vercel_messages_to_agenta_messages,
+    )
+
+    cases = golden("message_display.json")
+    messages = [Message.from_raw(raw) for raw in cases]
+    payload = request_to_wire(
+        harness=HarnessKind.PI,
+        sandbox="local",
+        config=PiAgentTemplate(),
+        messages=messages,
+    )
+    assert payload["messages"] == cases
+    for raw, message in zip(cases, messages):
+        ui = message_to_vercel_ui_message(message)
+        restored = vercel_messages_to_agenta_messages([ui])[0]
+        assert restored.to_wire() == raw
+    from agenta.sdk.agents.wire_models import WireChatMessage
+
+    assert "display_content" in WireChatMessage.model_fields

@@ -87,7 +87,23 @@ def test_catalog_ships_platform_builder_ops():
         "resume_schedule",
         "pause_subscription",
         "resume_subscription",
+        "create_app",
+        "list_starters",
     }
+
+
+def test_app_ops_are_handler_mode_and_hide_their_bound_fields():
+    create = get_platform_op("create_app")
+    assert create.handler == "tools.agenta.create_app"
+    assert create.read_only is False
+    schema = create.resolved_input_schema()
+    assert set(schema["properties"]) == {"starter", "dir", "update"}
+    assert schema["required"] == ["starter", "dir"]
+
+    starters = get_platform_op("list_starters")
+    assert starters.handler == "tools.agenta.list_starters"
+    assert starters.read_only is True
+    assert starters.resolved_input_schema()["properties"] == {}
 
 
 def test_reserved_id_uses_the_tools_agenta_namespace():

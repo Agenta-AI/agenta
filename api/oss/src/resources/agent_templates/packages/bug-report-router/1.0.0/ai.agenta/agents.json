@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "entry": "bug-report-router",
+  "agents": {
+    "bug-report-router": {
+      "name": "Bug report router",
+      "description": "Turns support complaints into Linear bug tickets, including repro steps pulled from the thread.",
+      "instructions": "./ai.agenta/agents/bug-report-router/AGENTS.md",
+      "setup": "./ai.agenta/agents/bug-report-router/SETUP.md",
+      "connections": [
+        {
+          "key": "read-the-report",
+          "required": true,
+          "purpose": "Read the report",
+          "options": [
+            {
+              "kind": "gateway",
+              "provider": "composio",
+              "integration": "slack"
+            },
+            {
+              "kind": "gateway",
+              "provider": "composio",
+              "integration": "intercom"
+            }
+          ],
+          "setup_notes": "Read threads, confirm filed tickets"
+        },
+        {
+          "key": "file-the-bug",
+          "required": true,
+          "purpose": "File the bug",
+          "options": [
+            {
+              "kind": "gateway",
+              "provider": "composio",
+              "integration": "linear"
+            },
+            {
+              "kind": "gateway",
+              "provider": "composio",
+              "integration": "jira"
+            },
+            {
+              "kind": "gateway",
+              "provider": "composio",
+              "integration": "github"
+            }
+          ],
+          "setup_notes": "Search & create issues"
+        }
+      ]
+    }
+  }
+}

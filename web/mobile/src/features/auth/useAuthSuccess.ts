@@ -12,7 +12,10 @@ import {queryClient} from "@/lib/queryClient"
 export function useAuthSuccess() {
     const router = useRouter()
     return useCallback(async () => {
-        await queryClient.invalidateQueries({queryKey: ["mobile", "projects"]})
+        await Promise.all([
+            queryClient.invalidateQueries({queryKey: ["profile"]}),
+            queryClient.invalidateQueries({queryKey: ["mobile", "projects"]}),
+        ])
         await router.replace("/")
     }, [router])
 }

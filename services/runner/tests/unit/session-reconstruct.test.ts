@@ -53,7 +53,12 @@ describe("reconstructMessages", () => {
     const out = reconstructMessages([
       rec("user", { type: "message", text: "search" }),
       rec("agent", { type: "message", text: "let me look" }),
-      rec("agent", { type: "tool_call", id: "c1", name: "web_search", input: { q: "x" } }),
+      rec("agent", {
+        type: "tool_call",
+        id: "c1",
+        name: "web_search",
+        input: { q: "x" },
+      }),
       rec("agent", { type: "tool_result", id: "c1", output: "found" }),
       rec("agent", { type: "message", text: "done" }),
     ]);
@@ -79,7 +84,12 @@ describe("reconstructMessages", () => {
   it("keeps a still-parked tool_call (no result yet) so a later HITL answer can bind", () => {
     const out = reconstructMessages([
       rec("user", { type: "message", text: "delete it" }),
-      rec("agent", { type: "tool_call", id: "gate1", name: "delete_file", input: { p: "/x" } }),
+      rec("agent", {
+        type: "tool_call",
+        id: "gate1",
+        name: "delete_file",
+        input: { p: "/x" },
+      }),
       // gate paused — no tool_result recorded for gate1
     ]);
     const blocks = out[1].content as ContentBlock[];
@@ -94,7 +104,11 @@ describe("reconstructMessages", () => {
       rec("agent", { type: "thought", text: "thinking..." }),
       rec("agent", { type: "message", text: "answer" }),
       rec("agent", { type: "usage", input: 10, output: 5 }),
-      rec("agent", { type: "interaction_request", id: "i1", kind: "user_approval" }),
+      rec("agent", {
+        type: "interaction_request",
+        id: "i1",
+        kind: "user_approval",
+      }),
       rec("agent", { type: "done", stopReason: "end_turn" }),
     ]);
     assert.deepEqual(out, [
@@ -161,4 +175,20 @@ describe("reconstructMessages", () => {
       },
     ]);
   });
+});
+
+it("restores full execution text exactly once despite a display override", () => {
+  for (const display_content of [undefined, null, "Visible", ""]) {
+    const full = "Visible\nTemplate-supplied setup guidance: COBALT-47";
+    const messages = reconstructMessages([
+      rec("user", { type: "message", text: full, display_content }),
+      rec("agent", { type: "message", text: "Ready" }),
+      rec("user", { type: "message", text: "Follow up" }),
+    ]);
+    assert.deepEqual(messages, [
+      { role: "user", content: full },
+      { role: "assistant", content: "Ready" },
+      { role: "user", content: "Follow up" },
+    ]);
+  }
 });

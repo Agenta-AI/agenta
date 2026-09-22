@@ -61,6 +61,8 @@ _HANDLER_CALL_REFS = frozenset(
         f"{PLATFORM_OP_NAMESPACE}test_run",
         f"{PLATFORM_OP_NAMESPACE}read_config",
         f"{PLATFORM_OP_NAMESPACE}commit_revision",
+        f"{PLATFORM_OP_NAMESPACE}create_app",
+        f"{PLATFORM_OP_NAMESPACE}list_starters",
     }
 )
 
@@ -1618,10 +1620,84 @@ _READ_CONFIG_OPS: tuple = (
 )
 
 
+# Agent HTML apps. Copies of `CREATE_APP_TOOL_DEFINITION` / `LIST_STARTERS_TOOL_DEFINITION` in
+# the API's `core/apps/handlers.py`; an API unit test asserts the two stay equal.
+_BOUND_FROM_RUN_SCHEMA: Dict[str, Any] = {
+    "type": "string",
+    "description": "Bound from the run; the model never sets it.",
+}
+
+_CREATE_APP_DESCRIPTION = (
+    "Copy an app starter into a folder of this session's drive so the person gets a "
+    "small interactive page (a board, a checklist, a form). Call list_starters first, "
+    "then create_app(starter, dir); then write the app's config and data files. "
+    "Refuses when dir/app.json already exists unless update is true, and an update "
+    "leaves the app's data and config files alone."
+)
+
+_CREATE_APP_INPUT_SCHEMA: Dict[str, Any] = {
+    "type": "object",
+    "additionalProperties": False,
+    "required": ["starter", "dir"],
+    "properties": {
+        "starter": {
+            "type": "string",
+            "description": "Starter name, optionally pinned: `board` or `board@1`.",
+        },
+        "dir": {
+            "type": "string",
+            "description": "Target folder relative to the drive root, e.g. `apps/sprint-board`.",
+        },
+        "update": {
+            "type": "boolean",
+            "default": False,
+            "description": "Refresh the template files of an existing app in `dir`.",
+        },
+        "session_id": _BOUND_FROM_RUN_SCHEMA,
+    },
+}
+
+_LIST_STARTERS_DESCRIPTION = (
+    "List the app starters create_app can copy: name, version, when to use it, its "
+    "config keys, data files and the drive access it needs. Includes starters this "
+    "agent authored under agent-files/.apps/starters/ (listed, not copyable yet)."
+)
+
+_LIST_STARTERS_INPUT_SCHEMA: Dict[str, Any] = {
+    "type": "object",
+    "additionalProperties": False,
+    "properties": {
+        "session_id": _BOUND_FROM_RUN_SCHEMA,
+        "artifact_id": _BOUND_FROM_RUN_SCHEMA,
+    },
+}
+
+
 PLATFORM_OPS: Dict[str, PlatformOp] = {
     op.op: op
     for op in _READ_CONFIG_OPS
     + (
+        PlatformOp(
+            op="create_app",
+            description=_CREATE_APP_DESCRIPTION,
+            handler=f"{PLATFORM_OP_NAMESPACE}create_app",
+            input_schema=_CREATE_APP_INPUT_SCHEMA,
+            context_bindings={"session_id": "$ctx.session.id"},
+            read_only=False,
+            timeout_ms=30000,
+        ),
+        PlatformOp(
+            op="list_starters",
+            description=_LIST_STARTERS_DESCRIPTION,
+            handler=f"{PLATFORM_OP_NAMESPACE}list_starters",
+            input_schema=_LIST_STARTERS_INPUT_SCHEMA,
+            context_bindings={
+                "session_id": "$ctx.session.id",
+                "artifact_id": "$ctx.workflow.artifact.id",
+            },
+            read_only=True,
+            timeout_ms=15000,
+        ),
         PlatformOp(
             op="discover_tools",
             description=_DISCOVER_TOOLS_DESCRIPTION,

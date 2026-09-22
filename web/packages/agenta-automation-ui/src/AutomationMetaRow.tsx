@@ -7,7 +7,7 @@ import {AutomationActiveSwitch} from "./AutomationActiveSwitch"
 /**
  * The facts under the name: on/off, then what it runs and when it last changed.
  *
- * `trailing` is what a phone puts beside the switch — Test run, off the crowded title row.
+ * `trailing` is what a phone puts beside the switch — Run now, off the crowded title row.
  *
  * No owner clause — the trigger endpoints carry only a `created_by_id`, and there is no user
  * lookup in this stack to turn that into a name, so the line stops at the agent.

@@ -1,9 +1,9 @@
-"""The three resolution entrypoints, composed over the SDK framework + platform adapters.
+"""The resolution entrypoints, composed over the SDK framework + platform adapters.
 
-Deliberately three separate functions, not one aggregate: a caller resolves only what it
-needs. Each defaults to the Agenta-platform-backed adapters (the connected path) but accepts
-injected adapters, so an offline standalone user can pass an env-backed secret provider and
-no gateway resolver, and a test can pass fakes.
+Deliberately separate functions, not one aggregate: a caller resolves only what it needs. Each
+defaults to the Agenta-platform-backed adapters (the connected path) but accepts injected
+adapters, so an offline standalone user can pass an env-backed secret provider and no gateway
+resolver, and a test can pass fakes.
 
 - ``resolve_tools`` -> runnable tool specs (builtin names, code/client specs, gateway callback
   specs). Code-tool named secrets are resolved through the secret provider here.
@@ -12,10 +12,13 @@ no gateway resolver, and a test can pass fakes.
 - ``resolve_connection`` -> one least-privilege ``ResolvedConnection`` for a single ``ModelRef``,
   via the secrets-backed ``VaultConnectionResolver`` (fail-loud), routed through the gateway
   and carrying no provider secret (D36/D30).
+- ``resolve_secrets`` -> deprecated compatibility alias for ``resolve_connection``; it warns on
+  use and remains available for callers migrating from the previous public name.
 """
 
 from __future__ import annotations
 
+import warnings
 from typing import Any, List, Optional, Sequence
 
 from agenta.sdk.agents.connections import (
@@ -43,7 +46,6 @@ from agenta.sdk.agents.tools.interfaces import (
     ToolSecretProvider,
     WorkflowToolResolver,
 )
-
 from agenta.sdk.utils.logging import get_module_logger
 
 from .connection import GatewayCredentialsError, PlatformConnection
@@ -53,7 +55,7 @@ from .platform_tools import AgentaPlatformToolResolver
 from .secrets import AgentaNamedSecretProvider
 from .workflow import AgentaWorkflowToolResolver
 
-__all__ = ["resolve_tools", "resolve_mcp", "resolve_connection"]
+__all__ = ["resolve_connection", "resolve_mcp", "resolve_secrets", "resolve_tools"]
 
 log = get_module_logger(__name__)
 
@@ -164,3 +166,45 @@ async def resolve_connection(
     return await (resolver or VaultConnectionResolver()).resolve(
         model=model, context=context
     )
+
+
+_RESOLVE_SECRETS_CHANGED = (
+    "resolve_secrets is deprecated and is now an alias for resolve_connection"
+    "(model=..., context=...), which resolves one least-privilege connection and returns a "
+    "ResolvedConnection. It is no longer the whole-vault provider-key dump: the old "
+    "connection= argument is gone and the old {ENV_VAR: key} return is gone with it, so "
+    "update the call and not only the name."
+)
+
+
+async def resolve_secrets(
+    *,
+    model: Optional[ModelRef] = None,
+    context: Optional[RuntimeAuthContext] = None,
+    resolver: Optional[ConnectionResolver] = None,
+    **legacy: Any,
+) -> ResolvedConnection:
+    """Deprecated compatibility alias for :func:`resolve_connection`.
+
+    ``resolve_secrets`` was part of the public platform module before connection resolution
+    became the canonical API. Keep the import path available for one deprecation window while
+    directing callers to the least-privilege connection resolver.
+
+    The name is all that survives. It used to call ``resolve_provider_keys``, the model-blind
+    whole-vault dump that returned ``{ENV_VAR: key}`` for a ``connection=``; the gateway work
+    deleted that function deliberately. So a caller written against the old one has to change
+    the call, not only the name.
+
+    That caller is also the one who cannot read a warning: ``resolve_secrets(connection=...)``
+    would die on the signature before ``warnings.warn`` ran. Hence the loose signature. The old
+    shape raises ``TypeError`` carrying the explanation, and the new shape warns.
+    """
+    if legacy or model is None or context is None:
+        raise TypeError(_RESOLVE_SECRETS_CHANGED)
+
+    warnings.warn(
+        f"{_RESOLVE_SECRETS_CHANGED} It will be removed in a future breaking release.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    return await resolve_connection(model=model, context=context, resolver=resolver)

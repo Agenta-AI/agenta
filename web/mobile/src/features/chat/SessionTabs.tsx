@@ -1,7 +1,7 @@
 import {chatPanelMaximizedAtom, configPanelCollapsedAtom} from "@agenta/chat/state"
 import {querySessionStreams} from "@agenta/entities/session"
 import {useSessionFilesPane} from "@agenta/entity-ui/drive"
-import {SessionTabRail, withShortcutKey} from "@agenta/sessions-ui"
+import {SessionTabRail, withSessionShortcutKeys} from "@agenta/sessions-ui"
 import {shortcutAria} from "@agenta/shared/utils"
 import {ShortcutKeys} from "@agenta/ui/shortcuts"
 import {Button, SimpleTooltip} from "@agenta/ui/ui"
@@ -80,19 +80,8 @@ export const SessionTabs = ({
                 withPinned
                 activeSessionId={sessionId}
                 activeFallbackTitle={query.data?.name}
-                // Both keys work on this surface, so both menu rows name theirs.
                 menuFor={(vm) =>
-                    menu.menuFor(vm).map((entry) => {
-                        if (!("key" in entry)) return entry
-                        if (entry.key === "archive")
-                            return {
-                                ...entry,
-                                label: withShortcutKey(entry.label, "session.archive"),
-                            }
-                        if (entry.key === "rename")
-                            return {...entry, label: withShortcutKey(entry.label, "session.rename")}
-                        return entry
-                    })
+                    withSessionShortcutKeys(menu.menuFor(vm), {isActive: vm.id === sessionId})
                 }
                 onMenuSelect={menu.onMenuSelect}
                 // "Rename" and the tab's pencil open the rail's own editor; this only persists it.

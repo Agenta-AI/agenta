@@ -58,6 +58,8 @@ EXPECTED_BUILD_KIT_OPS_WITHOUT_READ_CONFIG = (
     "list_subscriptions",
     "remove_schedule",
     "remove_subscription",
+    "list_starters",
+    "create_app",
 )
 
 EXPECTED_BUILD_KIT_OPS_WITH_READ_CONFIG = (
@@ -79,6 +81,8 @@ EXPECTED_BUILD_KIT_OPS_WITH_READ_CONFIG = (
     "list_subscriptions",
     "remove_schedule",
     "remove_subscription",
+    "list_starters",
+    "create_app",
 )
 
 
@@ -137,6 +141,8 @@ EXPECTED_BUILD_KIT_PERMISSIONS = {
     "list_subscriptions": "allow",
     "remove_schedule": "ask",
     "remove_subscription": "ask",
+    "list_starters": "allow",
+    "create_app": "allow",
 }
 
 
@@ -226,7 +232,14 @@ def test_agent_template_overlay_contains_platform_ops_playbook_skill_and_permiss
                 "@ag.references": {"workflow": {"slug": BUILD_AN_AGENT_SLUG}},
                 "@ag.selector": {"path": "parameters.skill"},
             },
-        }
+        },
+        {
+            "name": "agenta-apps",
+            "@ag.embed": {
+                "@ag.references": {"workflow": {"slug": "__ag__agenta_apps"}},
+                "@ag.selector": {"path": "parameters.skill"},
+            },
+        },
     ]
     assert GETTING_STARTED_WITH_AGENTA_SLUG not in {
         _embed_slug(skill) for skill in overlay["skills"]
@@ -394,7 +407,10 @@ async def test_resolved_build_kit_overlay_parses_through_from_params():
     assert client_tools[1].render == {"kind": "elicitation"}
     # The secret request opens the secret dock, so it carries its own render.kind.
     assert client_tools[2].render == {"kind": "secret"}
-    assert [skill.name for skill in template.skills] == ["build-an-agent"]
+    assert [skill.name for skill in template.skills] == [
+        "build-an-agent",
+        "agenta-apps",
+    ]
 
 
 @pytest.mark.asyncio

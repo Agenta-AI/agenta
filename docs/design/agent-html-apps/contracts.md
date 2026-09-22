@@ -1,0 +1,321 @@
+# Agent HTML apps — phase 1 contracts (lane 0)
+
+## Purpose
+
+Six lanes build agent HTML apps in parallel: the bridge host (A), the API deltas (B), the UI
+(C), the platform ops (D), the stub and kit (E), and the starters (F). This document and the
+TypeScript next to it are the one place they agree. Everything that can be a type is a type, so
+a mismatch fails in `tsc` instead of in a demo.
+
+Source of truth (in `@agenta/entities`, exported from `@agenta/entities/drive`):
+
+| File                                                               | What                                                            |
+| ------------------------------------------------------------------ | --------------------------------------------------------------- |
+| `web/packages/agenta-entities/src/drive/htmlApp/protocol.ts`       | Messages, error codes, caps, sandbox/CSP, kit names, host types |
+| `web/packages/agenta-entities/src/drive/htmlApp/manifest.ts`       | `AppManifest`, `parseManifest`, `isAppFolderListing`            |
+| `web/packages/agenta-entities/src/drive/htmlApp/mockHost.ts`       | `createMockHtmlAppHost` — the behavioural reference and fixture |
+| `web/packages/agenta-entities/tests/unit/htmlApp.manifest.test.ts` | Every manifest rule, one assertion each                         |
+| `web/packages/agenta-entities/tests/unit/htmlApp.mockHost.test.ts` | Every host rule, including If-Match and the MessageChannel path |
+
+### How to propose a change
+
+Open a PR against `feat/agent-apps-contracts` that changes the TypeScript and this file together,
+and say which lane needs it and why. Never fork a type locally ("my own `FsRequest` with one more
+field") — the point of the lane is that a change here breaks every consumer's typecheck at once,
+which is the review. Additive fields on messages are cheap; renames and new error codes need a
+note in the PR so the other lanes can grep for the impact.
+
+## Bridge protocol
+
+Defined in `protocol.ts`. The host renders the app's entry file in a sandboxed iframe, posts a
+`hello` with `window.postMessage` and a transferred `MessagePort`, and then everything travels over
+the port. Every message carries `v: 1`. Requests carry a numeric `id` the response echoes.
+
+iframe → parent (`IframeToParent`):
+
+| Message          | Fields                                         | Meaning                                     |
+| ---------------- | ---------------------------------------------- | ------------------------------------------- |
+| `FsRequest`      | `id, method, path, body?, force?`              | One `window.agenta.fs` call                 |
+| `HelloAck`       | `type: "hello-ack"`                            | The stub installed `window.agenta`          |
+| `NavMsg`         | `type: "nav", href`                            | The app wants to navigate; the host decides |
+| `ScriptErrorMsg` | `type: "error", message, source?, line?, col?` | Uncaught error inside the iframe            |
+
+parent → iframe (`ParentToIframe`):
+
+| Message         | Fields                                          | Meaning                                        |
+| --------------- | ----------------------------------------------- | ---------------------------------------------- |
+| `Hello`         | `type: "hello", dir, canWrite, visible, tokens` | First message; the port rides along with it    |
+| `FsResponse`    | `id, ok: true, result, etag?`                   | Success; `result` shape is `FsResults[method]` |
+| `FsFailure`     | `id, ok: false, error: {code, message, etag?}`  | Failure                                        |
+| `VisibilityMsg` | `type: "visibility", visible`                   | Tab shown/hidden                               |
+| `ChangedMsg`    | `type: "changed", paths`                        | Files changed outside the app (agent, upload)  |
+| `ThemeMsg`      | `type: "theme", tokens`                         | Kit tokens changed (theme switch)              |
+
+Methods (`FsMethod`): `read`, `readJSON`, `write`, `writeJSON`, `list`, `exists`, `stat`,
+`remove`. `write`, `writeJSON` and `remove` need the `read-write` grant (`WRITE_METHODS`).
+
+Error codes (`BridgeErrorCode`):
+
+| Code          | When                                                                                                |
+| ------------- | --------------------------------------------------------------------------------------------------- |
+| `scope`       | Path leaves the app dir (absolute, `..`, backslash, control chars, `%2e`)                           |
+| `read_only`   | Write method under a `read` grant                                                                   |
+| `not_found`   | No such file (read/readJSON/stat/remove)                                                            |
+| `conflict`    | If-Match mismatch (HTTP 412); `error.etag` is the server's current etag, `null` if the file is gone |
+| `too_large`   | Read over 4 MB or write body over 1 MB                                                              |
+| `unavailable` | Host detached, or the network call failed                                                           |
+| `bad_request` | Missing body on write, non-JSON body on `writeJSON`, non-JSON file on `readJSON`                    |
+
+### Automatic If-Match
+
+The app never handles etags itself. The host (and the mock) remembers the etag it last returned
+for a path — from `read`, `readJSON`, `list`, `stat` or a successful `write` — and sends it as
+`If-Match` on the next `write`/`remove` of that path. If the server answers 412 the app gets
+`conflict` with the etag the server holds now; the usual recovery is to re-read (which refreshes
+the cached etag) and retry. `force: true` on the request skips the header and overwrites. A path
+the app has never read is written unconditionally. `externalWrite` on the mock is how a test or
+story simulates the agent editing a file underneath the app: the stored content changes, the
+cached etag does not, and a `changed` message is queued (delivered immediately when attached,
+flushed right after `hello` otherwise). `externalWrite(path, text, {silent: true})` skips the
+`changed` message and is otherwise identical: it is the "agent wrote and the app has not heard
+yet" state, where the app's next write conflicts.
+
+### `changed`
+
+`changed` paths are app-relative, like every other path on the bridge; the host maps the drive's
+mount-relative paths before it sends them. `changed` is a hint and nothing more: neither host
+touches the If-Match cache when it sends one. An app that re-reads on `changed` refreshes its etag
+as a side effect of the read; an app that does not gets `conflict` on its next write, re-reads,
+merges and retries. Dropping the cached etag on `changed` would turn that write into an
+unconditional overwrite of the agent's edit, which is the one outcome the etag exists to prevent.
+
+Both hosts expose the same paths to the UI through the optional `onChanged(cb)` on `HtmlAppHost`
+(the Run strip's "Files changed" pill). The mock adds `emitNav(href)` and `emitError(e)` so a story
+or test can raise what only the iframe normally posts.
+
+### Theme tokens in the stub
+
+The stub rewrites `<style id="agenta-tokens">` on `hello` and on every `theme` message. It accepts
+only names matching `--[A-Za-z0-9_-]+`, plus `color-scheme`, and strips `;{}<>` from values, so a
+token can never close the rule or open a tag. `tokensToCss` in the kit applies the same rule to the
+block the assembler writes before the stub runs.
+
+Paths are relative to the app dir, `/`-separated, no leading slash. `list("")` lists the app dir
+itself; every other method rejects the empty path with `scope`.
+
+## Manifest
+
+Defined in `manifest.ts`. A folder is an app when a file named `app.json` sits directly in it
+(`isAppFolderListing`) and `parseManifest` returns non-null. Parsing is tolerant: only bad JSON,
+`agenta_app !== 1`, a missing `name`, or an `entry` with `/`, `\` or `..` in it make the folder
+not-an-app. Malformed optional fields are dropped; unknown top-level fields are kept in `extra`.
+
+```json
+{
+  "agenta_app": 1,
+  "name": "Retro board",
+  "icon": "📋",
+  "entry": "index.html",
+  "template": "agent:retro-board@2",
+  "access": "read-write",
+  "data": ["data/cards.json", "data/columns.json"],
+  "config": "config.json",
+  "kit": true,
+  "refresh": {
+    "prompt": "Re-read the last sprint's notes and refresh data/cards.json"
+  },
+  "tools": ["drive.search"]
+}
+```
+
+Defaults: `entry` → `index.html`, `access` → `read`, `kit` → `true`. `refresh` and `tools` are
+parsed and typed but unused in v1 (nothing runs the prompt, nothing exposes the tools); they are
+in the type so v2 does not need a manifest migration. `template` is stamped by `create_app`
+(lane D) and is `null` or absent for hand-written apps.
+
+## API deltas (lane B)
+
+All under the existing mount files endpoints; nothing new is mounted.
+
+- `GET /mounts/{id}/files?read=p` → `{path, content, etag}`.
+- List entries gain `etag` (a string for files, `null` for folders).
+- `PUT /mounts/{id}/files?path=p` with a raw text body honours `If-Match: <etag>` and
+  `If-None-Match: *` (create only). Returns `{path, size, etag}`.
+- `DELETE /mounts/{id}/files?path=p` honours `If-Match`, with one caveat worth knowing:
+  conditional `DeleteObject` is not portable across S3-compatible stores, so the store
+  emulates it as stat-compare-delete. A write landing between the stat and the delete is
+  not caught. `PUT` has no such gap: it sends a real conditional put. The window is one
+  round trip and the caller already holds the etag it wants gone, so the worst case is
+  deleting a version it never saw. Stated at the function in `core/store/storage.py`.
+- Precondition mismatch → `412` with body `{"detail": {"code": "conflict", "etag": <current or null>}}`.
+- No precondition header → unconditional, exactly as today. Existing callers do not change.
+
+Frontend transport note: every method goes through the Fern client, write included. The endpoint
+declares its raw body with FastAPI's `openapi_extra`, so the generated `writeMountFile` takes a
+`Blob` typed `text/plain; charset=utf-8`; the axios raw-body workaround this note used to
+describe was removed once the client was regenerated. Delete passes `If-Match` as the generated
+request's typed `if-match` field. The 412 body above is what the host maps to `conflict`.
+
+## Platform ops (lane D)
+
+Two ops on the agent's platform tool surface:
+
+- `create_app(starter: str, dir: str, update: bool = False) -> {paths: list[str], template: str}`
+  Copies a starter into `dir`. Refuses when `dir/app.json` already exists unless `update=True`;
+  with `update`, replaces the non-data files only (everything the manifest's `data` list does not
+  name) so the user's content survives a template bump. Stamps `template` in the written
+  `app.json` (`board@1`, or `agent:retro-board@2` for an agent-authored starter).
+- `list_starters() -> list[{name, version, when, config_keys, data_files, access}]`
+  Union of the bundled starters and any `agent-files/.apps/starters/*/SKILL.md` in the mount;
+  `when` is the one-line "use this when…" from the SKILL.md front matter.
+
+## Kit (lane E)
+
+The kit is one CSS file the host injects when `kit !== false`. It reads exactly the tokens in
+`KIT_TOKENS` and defines exactly the classes in `KIT_CLASSES`:
+
+- Tokens: `--ag-bg`, `--ag-fg`, `--ag-muted`, `--ag-line`, `--ag-accent`, `--ag-accent-soft`,
+  `--ag-ok`, `--ag-warn`, `--ag-crit`, `--ag-font`, `--ag-radius`.
+- Classes: `.ag-app`, `.ag-toolbar`, `.ag-btn`, `.ag-btn-primary`, `.ag-input`, `.ag-select`,
+  `.ag-check`, `.ag-card`, `.ag-columns`, `.ag-column`, `.ag-list`, `.ag-grid`, `.ag-badge`,
+  `.ag-empty`, `.ag-toast`.
+
+12px base font size. The kit CSS contains no `url()`, `@import` or `@font-face` — the CSP below
+would block them anyway, and the kit must render identically in Storybook and in the drive.
+
+## Sandbox, CSP and feature flag
+
+- `sandbox="allow-scripts allow-forms"` (`SANDBOX_FLAGS`). No `allow-same-origin`: the app is an
+  opaque origin and only ever reaches the drive through the port. No `allow-popups` either — see
+  the egress surface below, which is the reason.
+- CSP (`RUN_CSP`), injected as a `<meta http-equiv>` at the top of the document:
+  `default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; form-action 'none'`.
+- Feature flag: `userScopedFlagAtom` with key `agent-apps` (`AGENT_APPS_FLAG`). Off means the
+  drive shows the folder as plain files.
+
+## The egress surface
+
+"The app cannot reach the network" is the claim the whole design rests on, so it is worth stating
+exactly what enforces it, because `default-src 'none'` is not the whole answer.
+
+| Channel                                 | Stopped by                            |
+| --------------------------------------- | ------------------------------------- |
+| `fetch`, XHR, WebSocket, EventSource    | `default-src 'none'`                  |
+| Image beacon (`new Image().src`)        | `img-src data: blob:`                 |
+| Remote fonts, styles, scripts           | `default-src 'none'`                  |
+| `window.open("https://…?d=" + data)`    | **no `allow-popups`**                 |
+| `<form action="https://…">`             | **`form-action 'none'`**              |
+| `RTCPeerConnection` (ICE / STUN / TURN) | **the stub deletes the constructors** |
+| Reaching the parent page or cookies     | no `allow-same-origin`                |
+
+The last three are the ones that surprise people. **CSP's fetch directives do not govern
+navigation**, and `navigate-to` never shipped in any browser, so no CSP value blocks a popup —
+only the sandbox attribute does. `form-action` likewise does not inherit from `default-src`; it
+has to be named or form submission is unrestricted.
+
+This was live: with `allow-popups`, an app could call `window.open` synchronously inside any click
+it already handled, ship the data in the query string, and `close()` the window immediately. It
+was verified against the real assembled document — with the flag the listening server logged the
+request and the stolen bytes, without it nothing arrived. `htmlApp.egress.test.ts` pins both
+constants so restoring either fails a test.
+
+Two consequences worth carrying into later phases:
+
+- **An app that needs an external link does not get a popup.** The click arrives at the host as a
+  `nav` message and the host decides, which also means the person sees the destination.
+- **Any future relaxation of the CSP is an egress decision, not a convenience one.** "Let apps
+  load a chart library from a CDN" reopens this by adding a remote origin. The library shelf in
+  the canvas doc exists precisely so that never has to happen: builds are inlined at assembly.
+
+### WebRTC, and why this list is not the security model
+
+WebRTC is the row that changes how to read the rest of the table. ICE is not a fetch, so no CSP
+value governs it: measured against this exact sandbox and policy, a peer connection gathered a
+`srflx` candidate — a completed round trip to a public STUN server — and UDP reached a host and
+port of the app's choosing, while every HTTP-shaped channel above was blocked. `webrtc 'block'`
+in a `<meta>` policy had no effect. It is closed in the bridge stub, which runs before any app
+script, and the usual recovery (a clean constructor off a nested `about:blank` frame) fails
+because the sandbox has no `allow-same-origin`.
+
+Two exits were found this way: popups, then WebRTC. Each was found by thinking of one more.
+**Enumerating exits against a browser does not terminate** — the surface grows every release, and
+a blocklist is only as good as the last person who went looking. Treat this table as a record of
+what is closed, never as a proof that nothing is open.
+
+### Preview is a different document, with different flags
+
+Everything above describes **Run**. The Preview tab renders ordinary drive HTML and does not
+share those flags: it keeps `allow-popups allow-popups-to-escape-sandbox`, because an external
+link opening in a new tab is what people expect of a rendered document, and it has no bridge, so
+there is no `window.agenta` to steal from.
+
+What it does instead is strip every agent script — `<script>`, `on*` handlers, `javascript:`
+URLs, `iframe[srcdoc]` — so the only code that runs is the nav interceptor. For a while that
+stripping was taken as the reason the popup flags were harmless. It was not. The strip list never
+covered `<iframe src="data:text/html,…">`: the nested context inherits `allow-scripts` from the
+preview sandbox, so its script runs even though the outer document has none left. Preview shipped
+no CSP at all, so that script could simply `fetch` anywhere. Measured the same way as the rows
+above — the request arrived at a listening server with its query string intact.
+
+`<object data="data:text/html,…">` and `<embed>` open the same door, which is the point:
+lengthening the strip list would have moved the vector, not closed it. `PREVIEW_CSP` denies the
+capability instead. `frame-src 'none'` and `object-src 'none'` stop the nested contexts, and
+`default-src 'none'` covers `connect-src`, so a context that somehow loads still has nowhere to
+send anything. Re-run with the policy in place: nothing ran, nothing arrived.
+
+It is deliberately wider than `RUN_CSP` in one respect. `inlineAssets` folds in same-mount assets
+only and leaves external URLs alone, so drive HTML that links a remote stylesheet, image or font
+renders today; `style-src`, `img-src` and `font-src` keep `https:` so it keeps rendering.
+`connect-src` stays denied, which is the channel that mattered.
+
+The cost is that a page embedding a legitimate `<iframe>` (a video, a third-party widget) no
+longer renders that frame in Preview. Nothing in the drive templates does this today. If that
+becomes a real need, it is an egress decision like any other on this page, not a convenience one.
+
+That is why the folder rule is enforced on the server as well, and why that is the layer to trust:
+an app that cannot obtain bytes outside its folder makes the exit list stop being load-bearing.
+See `core/apps/scope_token.py`. The table above still matters, because an app can always leak the
+folder you granted it — but with the prefix check the damage is bounded by what the person chose
+to show it, rather than by whether this page got every path right.
+
+## Stub globals (lane E)
+
+The stub is inlined into the app document ahead of its own scripts and installs:
+
+```ts
+window.agenta = {
+    version: 1,
+    ready: Promise<void>,          // resolves after hello; fs calls before it queue
+    canWrite: boolean,
+    dir: string,                   // app dir relative to the mount root
+    visible: boolean,
+    fs: {
+        read(path): Promise<string>,
+        readJSON(path): Promise<unknown>,
+        write(path, text, opts?: {force?: boolean}): Promise<{path, size, etag}>,
+        writeJSON(path, value, opts?: {force?: boolean}): Promise<{path, size, etag}>,
+        list(path?): Promise<FileEntry[]>,
+        exists(path): Promise<boolean>,
+        stat(path): Promise<FileStat>,
+        remove(path, opts?: {force?: boolean}): Promise<{deleted: boolean}>,
+    },
+    addEventListener(type: "visibilitychange" | "changed" | "theme", cb): () => void,
+}
+```
+
+Failures reject with an `Error` whose `code` is the `BridgeErrorCode` and whose `etag` (on
+`conflict`) is the server's current etag. The stub also forwards `window.onerror` as
+`ScriptErrorMsg` and intercepts link clicks as `NavMsg`.
+
+## Storybook (lane C)
+
+Stories for the UI live under `web/storybook/stories/entity-ui/htmlApp/` and are titled
+`@agenta/entity-ui/Drive/HtmlApp/<Component>`. They run on `createMockHtmlAppHost` — pass
+`grant`, `failWith`, `latencyMs` and `externalWrite` to reach the states a reviewer cannot click
+into: read-only, conflict, slow drive, agent edit while open, script error.
+
+## Size caps
+
+4 MB per read (`READ_CAP`), 1 MB per write (`WRITE_CAP`); over either → `too_large`. The API
+enforces the same numbers, so the host does not need to pre-check, but the mock does so the UI
+can be built against the error.

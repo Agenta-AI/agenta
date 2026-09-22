@@ -1,5 +1,14 @@
 # Migrations with Alembic
 
+> [!IMPORTANT]
+> **This `tracing/` chain is PARKED (frozen legacy history).** Do **not** add new
+> revisions here — it ends at `park00000000` and never advances. Author new tracing
+> migrations in `tracing_oss/` (shared, runs in both editions) or `tracing_ee/` (EE-only).
+> When running the commands below, swap `-w .../tracing` for the corresponding active
+> chain working directory (`-w .../tracing_oss` or `-w .../tracing_ee`).
+> See the parked `core/README.md` banner and
+> `docs/designs/oss-ee-convergence/migration-chains-and-edition-switch.md`.
+
 Generic single-database configuration with an async dbapi.
 
 ## Autogenerate Migrations
@@ -14,7 +23,7 @@ To make migrations after creating a new table schema or modifying a current colu
 
 
 ```bash
-docker exec -e PYTHONPATH=/app -w /app/oss/databases/postgres/migrations/tracing agenta-oss-dev-api-1 alembic -c alembic.ini revision --autogenerate -m "migration message"
+docker exec -e PYTHONPATH=/app -w /app/oss/databases/postgres/migrations/tracing_oss agenta-oss-dev-api-1 alembic -c alembic.ini revision --autogenerate -m "migration message"
 ```
 
 The above command will create a script that contains the changes that was made to the database schema. Kindly update "migration message" with a message that is clear to indicate what change was made. Here are some examples:
@@ -26,7 +35,7 @@ The above command will create a script that contains the changes that was made t
 ### Applying Migrations
 
 ```bash
-docker exec -e PYTHONPATH=/app -w /app/oss/databases/postgres/migrations/tracing agenta-oss-dev-api-1 alembic -c alembic.ini upgrade head
+docker exec -e PYTHONPATH=/app -w /app/oss/databases/postgres/migrations/tracing_oss agenta-oss-dev-api-1 alembic -c alembic.ini upgrade head
 ```
 
 The above command will be used to apply the changes in the script created to the database table(s).

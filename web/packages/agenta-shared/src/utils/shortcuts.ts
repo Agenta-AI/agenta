@@ -121,6 +121,15 @@ export const PLAYGROUND_SHORTCUTS: readonly Shortcut[] = [
         modifiers: ["alt"],
         key: "K",
     },
+    // The mobile app's search-everything palette — MobileCommandPalette.tsx
+    {
+        id: "palette.open",
+        group: "sessions",
+        label: "Search sessions, agents and pages",
+        modifiers: ["mod"],
+        key: "K",
+        when: "in the mobile app",
+    },
 
     // Side panels — ShowConfigPanelButton.tsx, OpenFilesPaneButton.tsx
     {

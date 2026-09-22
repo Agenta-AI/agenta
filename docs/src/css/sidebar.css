@@ -27,7 +27,7 @@
   .theme-doc-sidebar-container [class*="sidebarViewport"] {
     position: fixed;
     top: 0;
-    left: 0;
+    left: var(--doc-frame-offset);
     width: calc(var(--doc-sidebar-width) - 1px);
     height: 100vh;
     max-height: 100vh;

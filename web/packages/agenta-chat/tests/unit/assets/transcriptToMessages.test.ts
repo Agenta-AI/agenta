@@ -1503,3 +1503,21 @@ describe("transcriptToMessages MCP server notices", () => {
         expect(parts.some((part) => part.type === "data-mcp-server-failed")).toBeFalsy()
     })
 })
+
+it.each([undefined, null, "Visible", ""])("preserves display override %j on replay", (display) => {
+    const messages = transcriptToMessages([
+        record(
+            "display",
+            {
+                type: "message",
+                text: "Visible plus setup fact cobalt",
+                ...(display !== undefined ? {display_content: display} : {}),
+            },
+            "user",
+            "execution-display",
+        ),
+    ])!
+    expect(messages[0].parts).toEqual([{type: "text", text: "Visible plus setup fact cobalt"}])
+    expect((messages[0].metadata as Record<string, unknown>).display_content).toBe(display)
+    expect((messages[0].metadata as Record<string, unknown>).turnId).toBe("execution-display")
+})

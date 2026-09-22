@@ -337,7 +337,10 @@ describe("wire contract: requests (vs Python golden)", () => {
     // A hosted subscription run carries NO credential entry: the harness signs in from the login.
     assert.deepEqual(req.modelConnection?.credentials, []);
     const subscription = req.modelConnection?.subscription;
-    assert.ok(subscription, "the subscription block is what makes this run hosted");
+    assert.ok(
+      subscription,
+      "the subscription block is what makes this run hosted",
+    );
     // Nested, field by field: a rename or a dropped counter on either side fails here or at `tsc`.
     assert.equal(subscription.id, "0199-secret-id");
     assert.equal(subscription.slug, "chatgpt");
@@ -477,5 +480,20 @@ describe("wire contract: results (vs Python golden)", () => {
     assert.equal(res.ok, true);
     assert.equal(res.output, undefined);
     assert.equal(res.capabilities, undefined);
+  });
+});
+
+describe("message display contract", () => {
+  it("keeps full model input regardless of display override", () => {
+    const messages = loadGolden("message_display.json") as NonNullable<
+      AgentRunRequest["messages"]
+    >;
+    assert.equal(messages[1].display_content, "Request");
+    assert.equal(messages[2].display_content, null);
+    assert.equal(messages[3].display_content, "");
+    assert.equal(Object.hasOwn(messages[0], "display_content"), false);
+    for (const message of messages) {
+      assert.equal(resolvePromptText({ messages: [message] }), message.content);
+    }
   });
 });

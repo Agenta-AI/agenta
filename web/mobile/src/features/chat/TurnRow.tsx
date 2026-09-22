@@ -200,6 +200,7 @@ const TurnRowInner = ({
                 answerStarted={activity.answer !== null}
                 waitingOnUser={turn.isLast && waitingOnUser}
                 traceId={traceId}
+                streamedHere={streamedHereRef.current}
                 firstTurn={firstTurn}
                 renderClientTool={renderClientTool}
             />
@@ -312,6 +313,8 @@ const TurnRowInner = ({
     ) : (
         userBody
     )
+
+    if (turn.hidden) return null
 
     return (
         <div className={`${mobileTurnRowClass} ${turn.isUser ? "justify-end" : "justify-start"}`}>

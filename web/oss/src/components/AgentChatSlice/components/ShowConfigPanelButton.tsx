@@ -6,8 +6,8 @@ import {configPanelCollapsedAtom} from "@agenta/chat/state"
 import {shortcutAria} from "@agenta/shared/utils"
 import {ShortcutKeys} from "@agenta/ui/shortcuts"
 import {Button, SimpleTooltip} from "@agenta/ui/ui"
-import {CaretDoubleRight} from "@phosphor-icons/react"
 import {useSetAtom} from "jotai"
+import {ChevronsRight} from "lucide-react"
 
 export default function ShowConfigPanelButton() {
     const setConfigPanelCollapsed = useSetAtom(configPanelCollapsedAtom)
@@ -28,7 +28,7 @@ export default function ShowConfigPanelButton() {
                 onClick={() => setConfigPanelCollapsed(false)}
                 className="h-7 w-7 shrink-0 p-0"
             >
-                <CaretDoubleRight size={14} />
+                <ChevronsRight size={14} />
             </Button>
         </SimpleTooltip>
     )

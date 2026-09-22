@@ -72,6 +72,9 @@ class MountFile(BaseModel):
     # freshly-written directory (e.g. a `git clone`) up into ONE folder row instead of flooding the
     # "recent files" list with its leaves. None for real files.
     item_count: Optional[int] = None
+    # The object's unquoted store ETag — the `If-Match` token for a conditional write/delete.
+    # None for folder entries.
+    etag: Optional[str] = None
 
 
 class MountFileList(BaseModel):
@@ -99,11 +102,24 @@ class MountArchiveSource(BaseModel):
 class MountFileContent(BaseModel):
     path: str
     content: str
+    etag: Optional[str] = None
+
+
+class MountFileSeed(BaseModel):
+    path: str
+    content: bytes
+
+
+class MaterializeEntriesResult(BaseModel):
+    mount_id: UUID
+    created: List[str] = Field(default_factory=list)
+    preserved: List[str] = Field(default_factory=list)
 
 
 class MountFileWritten(BaseModel):
     path: str
     size: int = 0
+    etag: Optional[str] = None
 
 
 class MountFolderCreated(BaseModel):

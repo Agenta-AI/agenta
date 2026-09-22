@@ -68,6 +68,7 @@ const MCP_SERVER_FAILED_FIELDS = [
 ] as const
 
 interface DraftMessage {
+    displayContent?: string | null
     id: string
     role: "user" | "assistant"
     parts: Part[]
@@ -394,6 +395,9 @@ function applyEvent(
 
     switch (type) {
         case "message": {
+            if (payload.display_content === null || typeof payload.display_content === "string") {
+                draft.displayContent = payload.display_content
+            }
             draft.parts.push({type: "text", text: str(payload.text)})
             const attachments = Array.isArray(payload.attachments) ? payload.attachments : []
             for (const raw of attachments) {
@@ -800,6 +804,7 @@ export function transcriptToMessages(
             // and metrics bar light up on reload. traceId stays absent until the backend stamps one;
             // usage is present whenever the turn persisted a `usage` event.
             const metadata: Record<string, unknown> = {}
+            if (d.displayContent !== undefined) metadata.display_content = d.displayContent
             if (d.traceId) metadata.traceId = d.traceId
             if (d.usage) metadata.usage = d.usage
             if (d.paused) metadata.paused = true

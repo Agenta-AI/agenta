@@ -130,40 +130,48 @@ def validate_webhook_url(url: str) -> None:
     resolve_validated_webhook_ip(url)
 
 
-def validate_url_format_and_literal_ip(url: str) -> None:
+def validate_url_format_and_literal_ip(
+    url: str, *, allow_insecure: Optional[bool] = None, label: str = "URL"
+) -> None:
     """Scheme/host/credentials checks plus a literal-IP block, no DNS resolution.
 
     For save-time validation of tenant-configured URLs (e.g. custom_provider.url) where a
     full resolve+block would risk rejecting a momentarily-unresolvable hostname; a hostname
     that isn't a literal IP is deferred to the resolve-time check at the point of use.
+
+    `allow_insecure` overrides the webhook flag for a caller that owns its own policy, the
+    same way :func:`resolve_validated_ip` takes it: the gateway egress boundary validates a
+    save under the flag its relay will enforce at call time. Left unset, the webhook flag
+    decides, which is what every existing caller relies on. `label` names the thing being
+    refused; its default is the word every one of these messages already opened with, so a
+    caller that passes nothing reads exactly as it did before.
     """
+    insecure = _WEBHOOK_ALLOW_INSECURE if allow_insecure is None else allow_insecure
+
     if not url:
-        raise ValueError("URL is required.")
+        raise ValueError(f"{label} is required.")
 
     parsed = urlparse(url)
     scheme = parsed.scheme.lower()
     if scheme not in {"http", "https"}:
-        raise ValueError("URL must use http or https.")
-    if scheme == "http" and not _WEBHOOK_ALLOW_INSECURE:
-        raise ValueError("URL must use https.")
+        raise ValueError(f"{label} must use http or https.")
+    if scheme == "http" and not insecure:
+        raise ValueError(f"{label} must use https.")
     if not parsed.netloc:
-        raise ValueError("URL must include a host.")
+        raise ValueError(f"{label} must include a host.")
     if parsed.username or parsed.password:
-        raise ValueError("URL must not include credentials.")
+        raise ValueError(f"{label} must not include credentials.")
 
     hostname = (parsed.hostname or "").lower()
     if not hostname:
-        raise ValueError("URL must include a valid hostname.")
-    if (
-        hostname in {"localhost", "localhost.localdomain"}
-        and not _WEBHOOK_ALLOW_INSECURE
-    ):
-        raise ValueError("URL hostname is not allowed.")
+        raise ValueError(f"{label} must include a valid hostname.")
+    if hostname in {"localhost", "localhost.localdomain"} and not insecure:
+        raise ValueError(f"{label} hostname is not allowed.")
 
     try:
         ip = ipaddress.ip_address(hostname)
     except ValueError:
         return
 
-    if _is_blocked_ip(ip):
-        raise ValueError("URL resolves to a blocked IP range.")
+    if _is_blocked_ip(ip, allow_insecure=insecure):
+        raise ValueError(f"{label} resolves to a blocked IP range.")

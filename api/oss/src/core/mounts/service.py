@@ -1,10 +1,11 @@
 import asyncio
 from bisect import bisect_left, bisect_right
+from contextlib import asynccontextmanager
 from collections import deque
 from posixpath import basename
 from re import sub
-from typing import AsyncIterator, TYPE_CHECKING, List, Optional, Tuple
-from uuid import UUID, uuid5, NAMESPACE_DNS
+from typing import AsyncIterator, TYPE_CHECKING, List, Optional, Protocol, Tuple
+from uuid import UUID, uuid4, uuid5, NAMESPACE_DNS
 
 import pathspec
 
@@ -20,7 +21,9 @@ from oss.src.core.mounts.dtos import (
     MountFile,
     MountFileContent,
     MountFileDeleted,
+    MaterializeEntriesResult,
     MountFileList,
+    MountFileSeed,
     MountFileWritten,
     MountFolderCreated,
     MountQuery,
@@ -28,6 +31,7 @@ from oss.src.core.mounts.dtos import (
 from oss.src.core.mounts.interfaces import MountsDAOInterface
 from oss.src.core.store.dtos import StoreObject
 from oss.src.core.store.storage import ObjectStore
+from oss.src.core.store.types import StorePreconditionFailed
 from oss.src.core.mounts.types import (
     ATTACHMENTS_MOUNT_NAME,
     ATTACHMENTS_MOUNT_PURPOSE,
@@ -40,6 +44,7 @@ from oss.src.core.mounts.types import (
     MountNameInvalid,
     MountNotFound,
     MountPathInvalid,
+    MountPreconditionFailed,
     MountProtected,
     MountSlugReserved,
     MountStorageUnavailable,
@@ -251,8 +256,9 @@ def _is_git_plumbing(path: str) -> bool:
 
 def _is_hidden_path(path: str) -> bool:
     """A dot-prefixed (hidden) file or folder anywhere in the path — `.claude/…`, `.gitignore`, etc.
-    Mirrors the web `isHiddenPath`. Dropped from the RECENCY view only (it is meant to read like
-    "what did I just work on", not dotfile plumbing); the browsable tree still lists them (dimmed)."""
+    Mirrors the web `isHiddenPath`. Dropped from the curated FLAT view (count + recency): those read
+    like "what is in my drive / what did I just work on", not dotfile plumbing. The browsable tree
+    and `depth=1` levels still list them (dimmed), behind the UI's "show hidden" toggle."""
     return any(
         segment.startswith(".") for segment in path.strip("/").split("/") if segment
     )
@@ -401,6 +407,20 @@ def _rollup_recent_entries(
     return entries
 
 
+class _MountMaterializeLock(Protocol):
+    async def set(self, *args, **kwargs): ...
+
+    async def eval(self, *args, **kwargs): ...
+
+
+_RELEASE_MATERIALIZE_LOCK = """
+if redis.call('get', KEYS[1]) == ARGV[1] then
+    return redis.call('del', KEYS[1])
+end
+return 0
+"""
+
+
 class MountsService:
     def __init__(
         self,
@@ -410,12 +430,14 @@ class MountsService:
         bucket: Optional[str] = None,
         namespace: Optional[str] = None,
         workflows_service: Optional["WorkflowsService"] = None,
+        lock_engine: Optional[_MountMaterializeLock] = None,
     ):
         self.mounts_dao = mounts_dao
         self.mounts_store = mounts_store
         self.bucket = bucket
         self.namespace = namespace
         self.workflows_service = workflows_service
+        self.lock_engine = lock_engine
 
     def _storage_key(self, *, project_id: UUID, mount: Mount, path: str = "") -> str:
         """Object-key prefix for a mount: [<namespace>/]mounts/<project_id>/<mount_id>/<path>.
@@ -559,6 +581,177 @@ class MountsService:
             user_id=user_id,
             mount_create=mount_create,
         )
+
+    @asynccontextmanager
+    async def _materialize_lock(
+        self,
+        *,
+        project_id: UUID,
+        workflow_id: UUID,
+    ) -> AsyncIterator[None]:
+        if self.lock_engine is None:
+            yield
+            return
+
+        key = f"agenta:mount:materialize:{project_id}:{workflow_id}"
+        token = uuid4().hex
+        acquired = False
+        try:
+            for _ in range(100):
+                acquired = bool(await self.lock_engine.set(key, token, nx=True, ex=30))
+                if acquired:
+                    break
+                await asyncio.sleep(0.05)
+        except Exception as exc:
+            log.warning(
+                "mount materialization lock unavailable; refusing an unsafe write",
+                exc_info=True,
+            )
+            raise MountStorageUnavailable() from exc
+        if not acquired:
+            raise MountStorageUnavailable()
+
+        try:
+            yield
+        finally:
+            if acquired:
+                try:
+                    await self.lock_engine.eval(
+                        _RELEASE_MATERIALIZE_LOCK,
+                        1,
+                        key,
+                        token,
+                    )
+                except Exception:
+                    log.warning(
+                        "mount materialization lock release failed; waiting for TTL",
+                        exc_info=True,
+                    )
+
+    async def materialize_entries_if_absent(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        workflow_id: UUID,
+        directories: List[str],
+        files: List[MountFileSeed],
+    ) -> MaterializeEntriesResult:
+        """Create declared agent files once without replacing any existing path.
+
+        A retry re-lists the mount under the same distributed lock. Objects from
+        a partial prior attempt and files edited by the user are preserved.
+        """
+        normalized_directories = sorted(
+            {path.strip("/") for path in directories},
+            key=lambda path: (path.count("/"), path),
+        )
+        normalized_files = sorted(files, key=lambda item: item.path)
+
+        for path in normalized_directories:
+            validate_file_path(path)
+        for item in normalized_files:
+            validate_file_path(item.path)
+            if item.path != item.path.strip("/"):
+                raise MountPathInvalid(
+                    "Workspace file paths must not end with a slash."
+                )
+
+        directory_set = set(normalized_directories)
+        file_paths = [item.path for item in normalized_files]
+        if len(file_paths) != len(set(file_paths)):
+            raise MountPathInvalid("Workspace file paths must be unique.")
+        if directory_set.intersection(file_paths):
+            raise MountPathInvalid(
+                "A workspace path cannot be both a file and a folder."
+            )
+
+        declared_files = set(file_paths)
+        for path in [*normalized_directories, *file_paths]:
+            segments = path.split("/")
+            for index in range(1, len(segments)):
+                parent = "/".join(segments[:index])
+                if parent in declared_files:
+                    raise MountPathInvalid(
+                        "A workspace file cannot contain another declared path."
+                    )
+
+        if self.mounts_store is None:
+            raise MountStorageUnavailable()
+
+        async with self._materialize_lock(
+            project_id=project_id,
+            workflow_id=workflow_id,
+        ):
+            mount = await self.get_or_create_agent_mount(
+                project_id=project_id,
+                user_id=user_id,
+                artifact_id=str(workflow_id),
+            )
+            base = self._storage_key(project_id=project_id, mount=mount)
+            objects = await self.mounts_store.list_objects_v2(
+                bucket=self._bucket(),
+                prefix=base,
+            )
+            existing = {
+                item.key[len(base) :]
+                for item in objects
+                if item.key.startswith(base) and item.key != base
+            }
+
+            def path_exists(path: str) -> bool:
+                prefix = path.rstrip("/") + "/"
+                return (
+                    path in existing
+                    or prefix in existing
+                    or any(key.startswith(prefix) for key in existing)
+                )
+
+            created: List[str] = []
+            preserved: List[str] = []
+            for path in normalized_directories:
+                display = path + "/"
+                if path_exists(path):
+                    preserved.append(display)
+                    continue
+                key = (
+                    self._storage_key(
+                        project_id=project_id,
+                        mount=mount,
+                        path=path,
+                    )
+                    + "/"
+                )
+                was_created = await self.mounts_store.put_object_if_absent(
+                    bucket=self._bucket(),
+                    key=key,
+                    body=b"",
+                )
+                existing.add(display)
+                (created if was_created else preserved).append(display)
+
+            for item in normalized_files:
+                if path_exists(item.path):
+                    preserved.append(item.path)
+                    continue
+                key = self._storage_key(
+                    project_id=project_id,
+                    mount=mount,
+                    path=item.path,
+                )
+                was_created = await self.mounts_store.put_object_if_absent(
+                    bucket=self._bucket(),
+                    key=key,
+                    body=item.content,
+                )
+                existing.add(item.path)
+                (created if was_created else preserved).append(item.path)
+
+            return MaterializeEntriesResult(
+                mount_id=mount.id,
+                created=created,
+                preserved=preserved,
+            )
 
     async def get_or_create_session_cwd(
         self,
@@ -959,9 +1152,10 @@ class MountsService:
         mount_base: str,
         cap: Optional[int] = None,
     ) -> Tuple[List[StoreObject], List[Tuple[str, "pathspec.PathSpec"]], bool]:
-        """Enumerate a mount's FILES by descending the tree LEVEL BY LEVEL, skipping `.git` and
-        gitignored DIRECTORIES at the store layer — so a dependency dump (`node_modules`, tens of
-        thousands of objects) is never enumerated at all. The flat `recursive=True` listing cannot
+        """Enumerate a mount's FILES by descending the tree LEVEL BY LEVEL, skipping every directory
+        the curated view discards — `.git`, gitignored, runner-internal (`agents/`) and hidden
+        (dot-prefixed) — at the store layer, so a dependency dump (`node_modules`, tens of thousands
+        of objects) is never enumerated at all. The flat `recursive=True` listing cannot
         exclude a prefix, so it must scan every object; this walks only what survives, listing sibling
         directories concurrently (bounded by `_LIST_CONCURRENCY`) so wall-clock tracks the tree DEPTH,
         not the object count. Each level's `.gitignore` files are read before that level's children are
@@ -969,6 +1163,9 @@ class MountsService:
 
         `cap` early-stops the descent once that many files are collected — for a bounded COUNT of a
         pathologically large (non-ignored) tree, so the cost never runs away regardless of contents.
+        Because the prunes above run DURING the walk, what `cap` budgets is (near enough) the files
+        the caller will actually count, so a drive only reports "N+" when it genuinely holds that
+        many VISIBLE files.
 
         Returns (kept StoreObjects, specs, truncated). `truncated` is True when the `cap` stopped the
         walk early (the real count is higher). The caller still applies FILE-level gitignore for
@@ -998,17 +1195,27 @@ class MountsService:
             subdir_prefixes: List[str] = []
             for level_files, level_subdirs in listings:
                 for obj in level_files:
-                    kept.append(obj)
                     rel = (
                         obj.key[len(mount_base) :]
                         if obj.key.startswith(mount_base)
                         else obj.key
                     )
+                    # Read BEFORE the prune below: `.gitignore` is itself a hidden file.
                     if rel == ".gitignore" or rel.endswith("/.gitignore"):
                         dir_rel = (
                             "" if rel == ".gitignore" else rel[: -len("/.gitignore")]
                         )
                         gitignore_reads.append((dir_rel, obj.key))
+                    # Charge `cap` only for files the caller can actually count, so a root full of
+                    # dotfiles can't report "N+" over an exactly countable drive. Gitignored files
+                    # still pass here; their specs are not in scope until the level is read.
+                    if (
+                        _is_git_plumbing(rel)
+                        or _is_internal_mount_path(rel)
+                        or _is_hidden_path(rel)
+                    ):
+                        continue
+                    kept.append(obj)
                 subdir_prefixes.extend(level_subdirs)
 
             # Bounded COUNT: enough to know it's "more than the cap" — stop before descending further.
@@ -1033,7 +1240,16 @@ class MountsService:
                 ).rstrip("/")
                 if not dir_rel:
                     continue
-                if _is_git_plumbing(dir_rel) or _path_gitignored(dir_rel, True, specs):
+                # Every directory whose files the curated view would discard anyway. Pruning them
+                # HERE, not after the walk, is what keeps `cap` a budget of COUNTABLE files: a big
+                # `.claude/` or `agents/` tree would otherwise spend the budget and then be filtered
+                # out, reporting a needless "N+" on a drive that could be counted exactly.
+                if (
+                    _is_git_plumbing(dir_rel)
+                    or _is_internal_mount_path(dir_rel)
+                    or _is_hidden_path(dir_rel)
+                    or _path_gitignored(dir_rel, True, specs)
+                ):
                     continue
                 visited.add(sub_prefix)
                 frontier.append(sub_prefix)
@@ -1069,6 +1285,8 @@ class MountsService:
         output) are pruned, runner-internal artifacts are hidden, and — for perf — the flat/recency
         modes descend level-by-level pruning ignored DIRECTORIES at the store layer instead of
         enumerating a `node_modules` dump. Pruning drives both the count and the tree in that mode.
+        The curated FLAT view (count + recency) additionally drops dot-prefixed paths; the browse and
+        `depth=1` views keep them, so the explorer can still show them behind its own toggle.
 
         `include_gitignored` (git_aware only) surfaces `.gitignore`-matched files again — the UI's
         "show git-ignored files" toggle — while STILL hiding `.git` plumbing and runner internals.
@@ -1142,7 +1360,9 @@ class MountsService:
                 if not rel or not _keep(rel, False):
                     continue
                 seen.add(rel)
-                shallow.append(MountFile(path=rel, size=obj.size, mtime=obj.mtime))
+                shallow.append(
+                    MountFile(path=rel, size=obj.size, mtime=obj.mtime, etag=obj.etag)
+                )
             subdir_rels: List[str] = []
             for sub_key in level_subdirs:
                 rel = (
@@ -1260,27 +1480,34 @@ class MountsService:
                     ),
                     size=o.size,
                     mtime=o.mtime,
+                    etag=o.etag,
                 )
                 for o in store_files
             ]
             if git_aware:
-                # Whole-directory pruning happened at the store level; a `.git` file or a gitignored
-                # FILE inside a KEPT directory (e.g. a stray `*.pyc`) still needs dropping here.
+                # The descent already pruned these as whole DIRECTORIES. What is left to drop is the
+                # matching FILE sitting in a KEPT directory — a stray `*.pyc`, a root `.gitignore` or
+                # `.env`, a `.agenta-*` marker — which no directory prune can reach.
+                #
+                # Hidden files leave the curated flat view entirely: this is the "N files" badge and
+                # the recency list it labels, which are about user content, not plumbing. The
+                # browsable tree still lists them (dimmed, behind the UI's "show hidden" toggle),
+                # which is why they drop here and not in the browse/`depth=1` views.
                 files = [f for f in files if not _is_git_plumbing(f.path)]
                 if specs:
                     files = [
                         f for f in files if not _path_gitignored(f.path, False, specs)
                     ]
                 files = [f for f in files if not _is_internal_mount_path(f.path)]
+                files = [f for f in files if not _is_hidden_path(f.path)]
             total = len(files)
             if count_only:
                 return MountFileList(files=[], total=total, total_capped=truncated)
             if order == "recent":
                 if git_aware:
-                    # Drop dotfile plumbing (`.claude/…`, `.gitignore`) — the recency list reads as
-                    # "what did I just work on" — then roll a fresh directory into one folder row.
-                    visible = [f for f in files if not _is_hidden_path(f.path)]
-                    entries = _rollup_recent_entries(visible, limit)
+                    # Hidden/internal plumbing is already gone above; roll a fresh directory into
+                    # one folder row so the list reads as "what did I just work on".
+                    entries = _rollup_recent_entries(files, limit)
                     return MountFileList(files=entries, total=total)
                 # RAW recency: newest object-store mtime first, no rollup/hidden pruning.
                 files.sort(key=lambda f: f.mtime or 0, reverse=True)
@@ -1312,7 +1539,9 @@ class MountsService:
                 if folder_rel:
                     folders.add(folder_rel)
                 continue
-            browse_files.append(MountFile(path=rel, size=obj.size, mtime=obj.mtime))
+            browse_files.append(
+                MountFile(path=rel, size=obj.size, mtime=obj.mtime, etag=obj.etag)
+            )
             if rel == ".gitignore" or rel.endswith("/.gitignore"):
                 dir_rel = "" if rel == ".gitignore" else rel[: -len("/.gitignore")]
                 gitignore_keys.append((dir_rel, key))
@@ -1465,12 +1694,17 @@ class MountsService:
         mount_id: UUID,
         path: str,
     ) -> MountFileContent:
-        body = await self.read_file_bytes(
-            project_id=project_id, mount_id=mount_id, path=path
+        validate_file_path(path)
+        mount = await self._resolve_mount(project_id=project_id, mount_id=mount_id)
+
+        key = self._storage_key(project_id=project_id, mount=mount, path=path)
+        body, etag = await self.mounts_store.get_object_with_etag(
+            bucket=self._bucket(), key=key
         )
         return MountFileContent(
             path=path,
             content=body.decode("utf-8", "replace"),
+            etag=etag,
         )
 
     async def write_file(
@@ -1480,17 +1714,27 @@ class MountsService:
         mount_id: UUID,
         path: str,
         content: bytes,
+        if_match: Optional[str] = None,
+        if_none_match_any: bool = False,
     ) -> MountFileWritten:
+        """Write `content` to `path`. `if_match` writes only over the given etag,
+        `if_none_match_any` only creates; a failed condition raises `MountPreconditionFailed`
+        with the current etag (None when the file is absent). Neither set: unconditional."""
         validate_file_path(path)
         mount = await self._resolve_mount(project_id=project_id, mount_id=mount_id)
 
         key = self._storage_key(project_id=project_id, mount=mount, path=path)
-        size = await self.mounts_store.put_object(
-            bucket=self._bucket(),
-            key=key,
-            body=content,
-        )
-        return MountFileWritten(path=path, size=size)
+        try:
+            result = await self.mounts_store.put_object(
+                bucket=self._bucket(),
+                key=key,
+                body=content,
+                if_match=if_match,
+                if_none_match_any=if_none_match_any,
+            )
+        except StorePreconditionFailed as e:
+            raise MountPreconditionFailed(etag=e.current_etag) from e
+        return MountFileWritten(path=path, size=result.size, etag=result.etag)
 
     async def create_folder(
         self,
@@ -1519,7 +1763,12 @@ class MountsService:
         project_id: UUID,
         mount_id: UUID,
         path: str,
+        if_match: Optional[str] = None,
     ) -> MountFileDeleted:
+        """Delete the file at `path`, or a folder and everything under it. With `if_match` only
+        the exact file object is deleted, and only while its etag still equals `if_match`;
+        otherwise `MountPreconditionFailed` carries the current etag (None when absent — a
+        missing file or a folder, which has no etag)."""
         validate_file_path(path)
         mount = await self._resolve_mount(project_id=project_id, mount_id=mount_id)
 
@@ -1530,6 +1779,15 @@ class MountsService:
         )
         folder_prefix = exact_key + "/"
         bucket = self._bucket()
+
+        if if_match is not None:
+            try:
+                count = await self.mounts_store.delete_object_if_match(
+                    bucket=bucket, key=exact_key, if_match=if_match
+                )
+            except StorePreconditionFailed as e:
+                raise MountPreconditionFailed(etag=e.current_etag) from e
+            return MountFileDeleted(deleted=path, count=count)
 
         objects = await self.mounts_store.list_objects_v2(
             bucket=bucket,

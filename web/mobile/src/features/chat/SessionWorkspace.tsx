@@ -37,6 +37,7 @@ import {resolveSessionPanes} from "./sessionPanes"
 import {SessionsPane} from "./SessionsPane"
 import {SessionTabs} from "./SessionTabs"
 import {SessionTopBar} from "./SessionTopBar"
+import {useLeaveSession} from "./useLeaveSession"
 import {useSessionTabClose} from "./useSessionTabClose"
 import {useStartBlankSession} from "./useStartBlankSession"
 import {useTriggerTestRun} from "./useTriggerTestRun"
@@ -225,7 +226,8 @@ export const SessionWorkspace = ({
     const shortcutSessions = useMemo(() => openTabIds.map((id) => ({id})), [openTabIds])
     const startBlank = useStartBlankSession(base)
     const closeTabs = useSessionTabClose({agentId, sessionId, base})
-    const sessionActions = useSessionActions()
+    // Archiving the session you are on has to move you off it.
+    const sessionActions = useSessionActions({onRemoved: useLeaveSession(base)})
     // Alt+R opens the active TAB's inline editor — the rail listens for this request.
     const requestTabRename = useRequestSessionTabRename()
     const setChatMaximized = useSetAtom(chatPanelMaximizedAtom)

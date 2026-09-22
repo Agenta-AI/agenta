@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "entry": "issue-triage",
+  "agents": {
+    "issue-triage": {
+      "name": "Issue triage",
+      "description": "Labels every new issue by area and priority and assigns it to the right owner, so nothing sits untriaged.",
+      "instructions": "./ai.agenta/agents/issue-triage/AGENTS.md",
+      "setup": "./ai.agenta/agents/issue-triage/SETUP.md",
+      "connections": [
+        {
+          "key": "read-and-label-new-issues",
+          "required": true,
+          "purpose": "Read and label new issues",
+          "options": [
+            {
+              "kind": "gateway",
+              "provider": "composio",
+              "integration": "github"
+            },
+            {
+              "kind": "gateway",
+              "provider": "composio",
+              "integration": "gitlab"
+            }
+          ],
+          "setup_notes": "Read issues, apply labels & assignees"
+        },
+        {
+          "key": "cross-post-the-triaged-issue",
+          "required": false,
+          "purpose": "Cross-post the triaged issue",
+          "options": [
+            {
+              "kind": "gateway",
+              "provider": "composio",
+              "integration": "linear"
+            },
+            {
+              "kind": "gateway",
+              "provider": "composio",
+              "integration": "jira"
+            }
+          ],
+          "setup_notes": "Cross-post the triaged issue"
+        }
+      ]
+    }
+  }
+}

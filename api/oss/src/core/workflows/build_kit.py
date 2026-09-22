@@ -1,5 +1,6 @@
 """Playground build-kit content served through the static workflow catalogue."""
 
+from copy import deepcopy
 from typing import Any, Dict, List, Optional
 
 from agenta.sdk.agents.adapters.agenta_builtins import (
@@ -11,6 +12,8 @@ from agenta.sdk.agents.platform.workflow import (
     REQUEST_CONNECTION_WORKFLOW_SLUG,
     REQUEST_SECRET_WORKFLOW_SLUG,
 )
+
+from oss.src.core.apps.assembly import AGENTA_APPS_SKILL, AGENTA_APPS_SLUG
 
 BUILD_KIT_WORKFLOW_SLUG = "__ag__build_kit"
 BUILD_KIT_WORKFLOW_NAME = "Playground build kit"
@@ -55,6 +58,9 @@ _BUILD_KIT_OP_PERMISSIONS = {
     "list_subscriptions": "allow",
     "remove_schedule": "ask",
     "remove_subscription": "ask",
+    # Both act on the session's own drive, which `write_files: allow` already opens.
+    "list_starters": "allow",
+    "create_app": "allow",
 }
 
 # Cut ops stay catalog opt-ins. `annotate_trace` and `query_spans` left the kit on 2026-09-07:
@@ -80,6 +86,10 @@ DEFAULT_BUILD_KIT_OPS: tuple[str, ...] = (
     "list_subscriptions",
     "remove_schedule",
     "remove_subscription",
+    # Agent HTML apps. Unconditional: the overlay has no drive or feature gate, and the
+    # web flag only hides Run, so without it the app is still a previewable HTML file.
+    "list_starters",
+    "create_app",
 )
 
 # (slug, name) pairs — reserved static client tools embedded in every build kit, in order.
@@ -137,7 +147,12 @@ def build_agent_template_overlay() -> Dict[str, Any]:
                 BUILD_AN_AGENT_SLUG,
                 name=BUILD_AN_AGENT_SKILL.name,
                 selector_path="parameters.skill",
-            )
+            ),
+            _workflow_embed(
+                AGENTA_APPS_SLUG,
+                name=AGENTA_APPS_SKILL.name,
+                selector_path="parameters.skill",
+            ),
         ],
         "sandbox": {
             "permissions": {
@@ -146,3 +161,62 @@ def build_agent_template_overlay() -> Dict[str, Any]:
             }
         },
     }
+
+
+def apply_ui_build_kit(
+    parameters: Dict[str, Any], disabled_ops: List[str]
+) -> Dict[str, Any]:
+    """Mirror the ordinary UI merge on a run-only copy using canonical kit definitions."""
+
+    def merge(base, overlay):
+        result = deepcopy(base)
+        for key, value in overlay.items():
+            result[key] = (
+                merge(result[key], value)
+                if isinstance(result.get(key), dict) and isinstance(value, dict)
+                else deepcopy(value)
+            )
+        return result
+
+    def identity(entry, section):
+        if not isinstance(entry, dict):
+            return None
+        if section == "tools" and entry.get("type") == "platform":
+            return "platform:" + entry["op"]
+        if section != "mcps":
+            refs = entry.get("@ag.embed", {}).get("@ag.references", {})
+            slug = refs.get("workflow", {}).get("slug") or refs.get(
+                "workflow_revision", {}
+            ).get("slug")
+            if slug:
+                return "workflow:" + slug
+        return entry.get("name") if section != "skills" else None
+
+    result = deepcopy(parameters)
+    agent = result.get("agent", result)
+    overlay = build_agent_template_overlay()
+    overlay["tools"] = [
+        tool
+        for tool in overlay["tools"]
+        if not (tool.get("type") == "platform" and tool.get("op") in disabled_ops)
+    ]
+    for section, additions in overlay.items():
+        if section in ("tools", "skills", "mcps"):
+            items = list(agent.get(section) or [])
+            positions = {
+                identity(item, section): index
+                for index, item in enumerate(items)
+                if identity(item, section) is not None
+            }
+            for item in additions:
+                key = identity(item, section)
+                if key is not None and key in positions:
+                    items[positions[key]] = item
+                else:
+                    if key is not None:
+                        positions[key] = len(items)
+                    items.append(item)
+            agent[section] = items
+        else:
+            agent[section] = merge(agent.get(section) or {}, additions)
+    return result

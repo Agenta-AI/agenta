@@ -340,6 +340,71 @@ class SessionInputsService:
             execution_id=successor_execution_id or current_execution_id,
         )
 
+    async def claim_dispatch(
+        self, *, project_id: UUID, session_id: str, input_id: UUID, execution_id: str
+    ) -> bool:
+        return await self._dao.claim_dispatch(
+            project_id=project_id,
+            session_id=session_id,
+            input_id=input_id,
+            execution_id=execution_id,
+        )
+
+    async def release_dispatch(
+        self, *, project_id: UUID, session_id: str, input_id: UUID, execution_id: str
+    ) -> bool:
+        return await self._dao.release_dispatch(
+            project_id=project_id,
+            session_id=session_id,
+            input_id=input_id,
+            execution_id=execution_id,
+        )
+
+    async def claim_for_execution(
+        self,
+        *,
+        project_id: UUID,
+        user_id: Optional[UUID],
+        session_id: str,
+        execution_id: str,
+        content: Dict[str, Any],
+        idempotency_key: str,
+    ) -> PendingInput:
+        """Create and promote one exact input without exposing it to the queue."""
+        fingerprint = input_fingerprint(content=content, policy="queue")
+        async with self._dao.transaction() as transaction:
+            item = await self._dao.create_input(
+                user_id=user_id,
+                pending_input=PendingInputCreate(
+                    project_id=project_id,
+                    session_id=session_id,
+                    content=content,
+                    policy="queue",
+                    idempotency_key=idempotency_key,
+                    request_fingerprint=fingerprint,
+                ),
+                transaction=transaction,
+            )
+            if item.request_fingerprint != fingerprint:
+                raise SessionInputIdempotencyConflict()
+            if item.state == PendingInputState.promoted:
+                if item.promoted_execution_id != execution_id:
+                    raise SessionInputIdempotencyConflict()
+                return item
+            if item.state != PendingInputState.pending:
+                raise SessionInputIdempotencyConflict()
+
+            promoted = await self._dao.promote_next(
+                project_id=project_id,
+                session_id=session_id,
+                execution_id=execution_id,
+                input_id=item.id,
+                transaction=transaction,
+            )
+            if promoted is None or promoted.promoted_execution_id != execution_id:
+                raise SessionInputIdempotencyConflict()
+            return promoted
+
     async def _has_pending_interaction(
         self,
         *,
