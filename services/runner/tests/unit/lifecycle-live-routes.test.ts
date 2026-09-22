@@ -188,7 +188,7 @@ function makeCtx(engine: KeepaliveEngine): KeepaliveContext {
     pool: new SessionPool<SessionEnvironment>({ poolMax: 8 }, () => {}),
     config,
     // The propagation hold is real in production — it is what keeps applied state from advancing
-    // over a value the egress layer has probably not picked up yet. Ten seconds per rotation test
+    // over a value the egress layer has probably not picked up yet. Thirty seconds per rotation test
     // would buy the assertions nothing, so the seam exists and the tests use it.
     credentialWait: async () => {},
   };
@@ -1131,6 +1131,42 @@ describe("the disagreement counters stay quiet", () => {
     // never to a restart, which behind a reference would install the same placeholder and deliver
     // nothing while reporting success.
     assert.equal(mechanismForRotation(unbounded), "rebuild-sandbox");
+  });
+
+  it("a Daytona rotation holds the turn for the full measured propagation before it runs", async () => {
+    // The hold is the only thing between a rotated vault value and a turn that goes out on the
+    // OLD key. Measured on staging (2026-09-23): a turn held 10s still used the old value; one
+    // dispatched 28s after the rotation used the new one. So the turn must wait the 30s bound,
+    // and it must wait BEFORE it runs, not beside it.
+    const { port, deliveries } = makeCredentialPort();
+    const { engine, calls } = makeEngine({ credentialPort: port });
+    const events: string[] = [];
+    const ctx: KeepaliveContext = {
+      ...makeCtx(engine),
+      credentialWait: async (ms) => {
+        events.push(`hold:${ms}:turns=${calls.turns.length}`);
+      },
+    };
+    await runWithKeepalive(
+      withSecret("sk-a", turn1),
+      undefined,
+      undefined,
+      ctx,
+    );
+    await runWithKeepalive(
+      withSecret("sk-b", turn2()),
+      undefined,
+      undefined,
+      ctx,
+    );
+
+    assert.equal(deliveries.length, 1, "the rotation was delivered live");
+    assert.deepEqual(
+      events,
+      ["hold:30000:turns=1"],
+      "one 30s hold, taken after the first turn and before the rotated one",
+    );
+    assert.equal(calls.turns.length, 2);
   });
 
   it("keeps the STRONGER repair when a rotation and a runtime change collide", () => {

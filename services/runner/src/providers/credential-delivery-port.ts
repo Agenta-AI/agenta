@@ -357,9 +357,7 @@ export interface DesiredCredentialSet {
  * a fix to that file's stale "EXACTLY TWO" comment, which now guards four kinds.
  */
 export type CredentialDeliveryMechanism =
-  | "rotate-in-place"
-  | "restart-runtime"
-  | "rebuild-sandbox";
+  "rotate-in-place" | "restart-runtime" | "rebuild-sandbox";
 
 /**
  * How long a provider may take to apply a rotated value at its EGRESS layer.
@@ -405,9 +403,13 @@ export interface CredentialDeliveryCapabilities {
  *
  * That is the only propagation statement the provider makes. It says SECONDS, plural, with no
  * upper bound, so `withinMs` is a READING of that sentence rather than a number the provider
- * committed to. Ten seconds is chosen as comfortably above any plausible reading of "seconds"
- * while staying far below `MAX_PROPAGATION_HOLD_MS` — long enough that the hold means something,
- * short enough that a rotation stays cheaper than the rebuild it replaces.
+ * committed to, and the reading must follow what the egress layer actually does. Measured: a value
+ * update on an existing Secret took 15-18s to reach a running sandbox (2026-08-09), and on staging
+ * (2026-09-23) a Claude turn held for the earlier 10s bound still went out on the OLD value while a
+ * turn dispatched 28s after the rotation used the new one. Daytona's own support guidance is that
+ * substitution settles within about 30s. The bound is therefore `MAX_PROPAGATION_HOLD_MS` itself:
+ * a rotated turn pays 30s once, and a shorter hold reports a rotation as applied while the sandbox
+ * is still sending the old key.
  *
  * WHAT THE HOLD DOES AND DOES NOT BUY, per the ruling above: it makes the runner wait until the
  * new value is expected to be in force before it reports success, so applied state never advances
@@ -422,7 +424,7 @@ export const daytonaCredentialCapabilities: CredentialDeliveryCapabilities = {
   referenceIndirection: true,
   canReplaceSlotSet: true,
   canRestartConsumer: true,
-  egressPropagation: { kind: "bounded", withinMs: 10_000 },
+  egressPropagation: { kind: "bounded", withinMs: MAX_PROPAGATION_HOLD_MS },
 };
 
 /** The local provider: the daemon environment is frozen before it starts, so nothing is live. */
