@@ -3,11 +3,11 @@
 import type * as core from "../../core/index.js";
 import * as errors from "../../errors/index.js";
 
-export class UnprocessableEntityError extends errors.AgentaApiError {
+export class ForbiddenError extends errors.AgentaApiError {
     constructor(body?: unknown, rawResponse?: core.RawResponse) {
         super({
-            message: "UnprocessableEntityError",
-            statusCode: 422,
+            message: "ForbiddenError",
+            statusCode: 403,
             body: body,
             rawResponse: rawResponse,
         });
