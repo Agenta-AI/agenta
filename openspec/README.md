@@ -4,7 +4,7 @@
 
 [Proposal](changes/railway-preview-cost-controls/proposal.md), [behavior specifications](changes/railway-preview-cost-controls/specs/railway-preview-lifecycle/spec.md), [PR comment command](changes/railway-preview-cost-controls/specs/railway-preview-comments/spec.md), [design](changes/railway-preview-cost-controls/design.md), and [tasks](changes/railway-preview-cost-controls/tasks.md).
 
-Draft, not implemented. Delete automatic previews after tests and let authorized maintainers request a one-hour preview with a `/preview` comment on the pull request.
+Implemented in PR #7058. Delete automatic previews after tests and let authorized maintainers request a one-hour preview with a `/preview` comment on the pull request. See [validation status and limits](changes/railway-preview-cost-controls/validation.md) before treating provider acceptance or default-branch activation as complete.
 
 ## Agent template specifications
 

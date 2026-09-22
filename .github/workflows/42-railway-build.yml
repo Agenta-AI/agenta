@@ -44,7 +44,12 @@ permissions:
   packages: write
 
 concurrency:
-  group: railway-preview-build-${{ inputs.pr_number || github.ref_name }}
+  # `github.workflow` resolves to the CALLING workflow, so the automatic
+  # preview build (14) and a manual /preview build (46) for the same PR get
+  # separate groups. A /preview must never cancel an in-progress CI build,
+  # which would skip its deploy/tests/cleanup. Image tags carry run id and
+  # attempt, so distinct groups cannot collide on artifacts.
+  group: railway-preview-build-${{ github.workflow }}-${{ inputs.pr_number || github.ref_name }}
   cancel-in-progress: true
 
 jobs:

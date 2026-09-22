@@ -165,6 +165,10 @@ class GitHub:
         )
 
 
+class ProvisioningError(RuntimeError):
+    """Environment create or readiness failed; retryable while nothing is live."""
+
+
 class Railway:
     def __init__(self):
         self.project_name = os.environ.get(
@@ -276,6 +280,27 @@ class Railway:
             )
 
     def create(self, pr, image_tag, timeout):
+        # Railway's environmentDelete is asynchronous: it delists an environment
+        # (so find() reports it gone and a delete verifies) before it frees the
+        # environment's globally unique name. A create for the same PR that lands
+        # in that release window fails with "already exists", and the create
+        # script's appearance-poll times out because the name is being released,
+        # not created. Retry while nothing is live for this PR. The create
+        # script's own poll already adopts any in-flight background create before
+        # it returns failure, so retrying here cannot duplicate an environment.
+        attempts = max(1, int(os.environ.get("RAILWAY_CREATE_ATTEMPTS", "3")))
+        pause = max(0, int(os.environ.get("RAILWAY_CREATE_RETRY_SECONDS", "20")))
+        for attempt in range(1, attempts + 1):
+            try:
+                return self._create_once(pr, image_tag, timeout)
+            except ProvisioningError:
+                # A live environment means the failure happened mid-deploy, not
+                # on a contested name; do not retry over a half-built preview.
+                if attempt >= attempts or self.find(pr) is not None:
+                    raise
+                time.sleep(pause)
+
+    def _create_once(self, pr, image_tag, timeout):
         # Run the existing trusted script, never a script from the source checkout.
         with tempfile.TemporaryDirectory(prefix="railway-output-") as folder:
             output = Path(folder) / "output"
@@ -303,7 +328,7 @@ class Railway:
                     proc.wait()
                 raise RuntimeError("Preview startup deadline exceeded") from None
             if code:
-                raise RuntimeError("Preview provisioning/readiness failed")
+                raise ProvisioningError("Preview provisioning/readiness failed")
             values = dict(
                 line.split("=", 1)
                 for line in output.read_text().splitlines()

@@ -1,9 +1,10 @@
 """Provider-boundary regressions; mock transport, not lifecycle behavior."""
 
+import os
 import unittest
 from unittest.mock import Mock, patch
 
-from preview_lifecycle import GitHub, Railway
+from preview_lifecycle import GitHub, ProvisioningError, Railway
 
 
 class ProviderTests(unittest.TestCase):
@@ -11,6 +12,39 @@ class ProviderTests(unittest.TestCase):
         rw = Railway.__new__(Railway)
         rw.project, rw.template = "project", "pr-template"
         return rw
+
+    def test_create_retries_while_a_deleted_name_is_still_releasing(self):
+        rw = self.railway()
+        rw._create_once = Mock(side_effect=[ProvisioningError("x"), "https://preview"])
+        rw.find = Mock(return_value=None)  # nothing live: name is being released
+        with patch.dict(os.environ, {"RAILWAY_CREATE_RETRY_SECONDS": "0"}):
+            self.assertEqual(rw.create(7, "tag", 30), "https://preview")
+        self.assertEqual(rw._create_once.call_count, 2)
+
+    def test_create_does_not_retry_over_a_live_half_built_preview(self):
+        rw = self.railway()
+        rw._create_once = Mock(side_effect=ProvisioningError("mid-deploy"))
+        rw.find = Mock(return_value={"id": "e1"})  # a live env means mid-deploy
+        with (
+            patch.dict(os.environ, {"RAILWAY_CREATE_RETRY_SECONDS": "0"}),
+            self.assertRaises(ProvisioningError),
+        ):
+            rw.create(7, "tag", 30)
+        self.assertEqual(rw._create_once.call_count, 1)
+
+    def test_create_stops_after_the_attempt_budget(self):
+        rw = self.railway()
+        rw._create_once = Mock(side_effect=ProvisioningError("still held"))
+        rw.find = Mock(return_value=None)
+        with (
+            patch.dict(
+                os.environ,
+                {"RAILWAY_CREATE_RETRY_SECONDS": "0", "RAILWAY_CREATE_ATTEMPTS": "2"},
+            ),
+            self.assertRaises(ProvisioningError),
+        ):
+            rw.create(7, "tag", 30)
+        self.assertEqual(rw._create_once.call_count, 2)
 
     def test_paginates_beyond_first_hundred(self):
         rw = self.railway()
