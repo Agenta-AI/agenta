@@ -40,6 +40,7 @@ export function pinnedSessionListArgs(
         agentId,
         sessionIds: pinnedIds,
         enabled,
+        lowPriority: true,
     }
 }
 
@@ -95,12 +96,15 @@ export const useSessionCardList = ({
     )
     const useWaiting = waitingIds.length > 0
 
+    // Every read here is a side surface beside a transcript, so all three carry the low
+    // fetch-priority hint: the browser sends the transcript's request ahead of them.
     const waitingQuery = useSessionList({
         originPolicy: policy.origin,
         expansions: policy.expansions,
         agentId,
         sessionIds: waitingIds,
         enabled: useWaiting,
+        lowPriority: true,
     })
     const usePins = withPinned && pinnedIds.length > 0
     const pinnedQuery = useSessionList(pinnedSessionListArgs(policy, agentId, pinnedIds, usePins))
@@ -109,6 +113,7 @@ export const useSessionCardList = ({
         expansions: policy.expansions,
         agentId,
         excludeSessionIds: withPinned ? [...pinnedIds, ...waitingIds] : waitingIds,
+        lowPriority: true,
     })
 
     const pinnedSet = useMemo(() => new Set(pinnedIds), [pinnedIds])

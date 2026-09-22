@@ -1,6 +1,5 @@
 import {
     livenessPollInterval,
-    queryInteractions,
     querySessions,
     querySessionsFlatPage,
     type SessionStream,
@@ -11,11 +10,11 @@ import {
     workflowMolecule,
 } from "@agenta/entities/workflow"
 import {isAutomationSession, sessionOpenTarget} from "@agenta/sessions/row"
-import {pinnedSessionIdsAtom} from "@agenta/sessions/state"
+import {actionableInteractionsQueryOptions, pinnedSessionIdsAtom} from "@agenta/sessions/state"
 import {idleReadyAtom, projectIdAtom} from "@agenta/shared/state"
 import {atom, type Getter} from "jotai"
 import {atomFamily} from "jotai-family"
-import {atomWithQuery} from "jotai-tanstack-query"
+import {atomWithQuery, queryClientAtom} from "jotai-tanstack-query"
 
 import {MAIN_SIDEBAR_SCOPE_ID, SESSIONS_SIDEBAR_KEY} from "../constants"
 import {
@@ -277,12 +276,13 @@ const sidebarWaitingIdsQueryAtomFamily = atomFamily((scopeId: string) =>
         const needed = status === "waiting" || status === "idle"
         return {
             queryKey: ["sidebar-sessions-waiting", projectId],
-            queryFn: async ({signal}) => {
-                const rows = await queryInteractions({
-                    projectId: projectId ?? "",
-                    actionableOnly: true,
-                    abortSignal: signal,
-                })
+            queryFn: async () => {
+                // Through the shared gates query, not a request of its own: the card list and
+                // the tab rail read the same rows under the same key, so one flight serves all
+                // three and a fresh copy inside its stale window costs nothing.
+                const rows = await get(queryClientAtom).fetchQuery(
+                    actionableInteractionsQueryOptions(projectId ?? ""),
+                )
                 // The interactions query applies no ORDER BY, so row order is not stable between
                 // executions. Both session queries put this array in their cache key, and a pure
                 // reorder would re-key them on every poll and re-fetch the whole tail. The server

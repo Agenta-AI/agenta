@@ -16,6 +16,7 @@ describe("pinnedSessionListArgs", () => {
             agentId: "agent-1",
             sessionIds: ["pin-1", "pin-2"],
             enabled: true,
+            lowPriority: true,
         })
     })
 
@@ -30,6 +31,7 @@ describe("pinnedSessionListArgs", () => {
             agentId: undefined,
             sessionIds: [],
             enabled: false,
+            lowPriority: true,
         })
     })
 })

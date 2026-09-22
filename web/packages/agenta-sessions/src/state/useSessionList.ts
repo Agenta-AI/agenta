@@ -28,13 +28,23 @@ export {SESSIONS_PAGE_SIZE}
  * Cadence mirrors mobile: 15s while anything is pending (a running turn is what mints new gates),
  * stopped when idle, re-checked on focus.
  */
+/** The project's actionable gates — every surface that needs them reads THIS key, so a rail, a
+ * card list and a page open at once cost one request. The `actionable-interactions` token is what
+ * the watch relays invalidate on an interaction event. */
+export const actionableInteractionsQueryKey = (projectId: string) =>
+    ["sessions-page", "actionable-interactions", projectId] as const
+
+export const actionableInteractionsQueryOptions = (projectId: string) => ({
+    queryKey: actionableInteractionsQueryKey(projectId),
+    queryFn: ({signal}: {signal?: AbortSignal}) =>
+        queryInteractions({projectId, actionableOnly: true, abortSignal: signal}),
+    staleTime: 10_000,
+})
+
 export const useActionableInteractions = (projectId: string) =>
     useQuery<SessionInteraction[] | null>({
-        queryKey: ["sessions-page", "actionable-interactions", projectId],
-        queryFn: ({signal}) =>
-            queryInteractions({projectId, actionableOnly: true, abortSignal: signal}),
+        ...actionableInteractionsQueryOptions(projectId),
         enabled: Boolean(projectId),
-        staleTime: 10_000,
         refetchInterval: (query) => ((query.state.data?.length ?? 0) > 0 ? 15_000 : 30_000),
         refetchOnWindowFocus: true,
     })
@@ -82,6 +92,11 @@ export interface SessionListOptions {
      * a list — a full page per row is a lot of list to throw away. */
     limit?: number
     enabled?: boolean
+    /**
+     * Fetch-priority hint for a list that is never the screen's point — the chat's sessions pane
+     * and tab rail. A list a page exists to show stays at the browser default.
+     */
+    lowPriority?: boolean
 }
 
 export const sessionListIdWindow = ({
@@ -140,6 +155,7 @@ export const useSessionList = ({
     activityFloor,
     originPolicy,
     expansions,
+    lowPriority = false,
     waitingSessionIds,
     limit,
     enabled = true,
@@ -164,6 +180,7 @@ export const useSessionList = ({
         sessionIds: idWindow.sessionIds,
         excludeSessionIds,
         limit: idWindow.limit,
+        lowPriority,
     })
 
     return useInfiniteQuery({

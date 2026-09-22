@@ -42,6 +42,8 @@ export function sessionTabListArgs(
         agentId,
         sessionIds: [...ids],
         enabled: ids.length > 0,
+        // A rail beside a transcript, never the screen's point.
+        lowPriority: true,
     }
 }
 

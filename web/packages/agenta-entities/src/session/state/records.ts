@@ -6,7 +6,7 @@
  */
 import {recordsPersister} from "@agenta/shared/api/persist"
 import {projectIdAtom} from "@agenta/shared/state"
-import type {QueryKey, QueryPersister} from "@tanstack/react-query"
+import type {QueryFunctionContext, QueryKey, QueryPersister} from "@tanstack/react-query"
 import {atom} from "jotai"
 import {atomFamily} from "jotai-family"
 import {atomWithQuery, queryClientAtom} from "jotai-tanstack-query"
@@ -27,8 +27,17 @@ const SESSION_RECORDS_STALE_MS = 15_000
 const sessionRecordsQueryOptions = (projectId: string, sessionId: string) => ({
     // Widened to QueryKey so fetchQuery/atomWithQuery and the persister agree on one key type.
     queryKey: sessionRecordsQueryKey(projectId, sessionId) as QueryKey,
-    queryFn: ({signal}: {signal?: AbortSignal}) =>
-        querySessionRecords({sessionId, projectId, abortSignal: signal, lowPriority: true}),
+    // Low priority ONLY when a copy is already on hand (a disk restore or a stale cache being
+    // revalidated behind a painted transcript). The first read of a session is the transcript
+    // itself — the one request the open exists for — and demoting it unconditionally let every
+    // list and dock read ahead of it on the connection.
+    queryFn: ({signal, client, queryKey}: QueryFunctionContext) =>
+        querySessionRecords({
+            sessionId,
+            projectId,
+            abortSignal: signal,
+            lowPriority: client.getQueryData(queryKey) !== undefined,
+        }),
     staleTime: SESSION_RECORDS_STALE_MS,
     // persist-client-core bundles its own query-core types; the cast bridges the nominal split.
     persister: recordsPersister.persisterFn as unknown as QueryPersister<

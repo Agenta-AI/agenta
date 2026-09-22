@@ -24,6 +24,11 @@ import {useMountGeneration} from "./useMountGeneration"
 /** "queued" parks the input and the dock owns it; "running" starts a turn the transcript adopts. */
 export type ServerInputAdmission = "queued" | "running"
 
+/** Snapshot poll cadence while a turn runs or an input is parked: the queue can move any second. */
+export const ACTIVE_SNAPSHOT_POLL_MS = 2_000
+/** Cadence for an idle session with an empty queue: only another browser's send changes it. */
+export const IDLE_SNAPSHOT_POLL_MS = 15_000
+
 /** Reports what became of ONE send, so its echo can retire on evidence about itself. */
 export interface ServerInputWatcher {
     /** The run stream named the turn this send started. */
@@ -296,11 +301,19 @@ export const useServerSessionInputs = ({
     }, [load, scope])
 
     // Pending-input events arrive in a later increment. Until then, a small snapshot poll gives
-    // every mounted browser the same durable order.
+    // every mounted browser the same durable order. Tight only while there is something for it to
+    // track — a turn in flight or a parked input — and slow otherwise: an idle session with an
+    // empty queue changes only when someone sends, which the transcript's own watch reports.
+    // Polling every 2 s for the life of every open session was, by itself, the steadiest source of
+    // API traffic the chat produced.
+    const tracking = locallyBusy || view.executionState !== "idle" || view.queued.length > 0
     useEffect(() => {
-        const timer = setInterval(() => void refresh(), 2_000)
+        const timer = setInterval(
+            () => void refresh(),
+            tracking ? ACTIVE_SNAPSHOT_POLL_MS : IDLE_SNAPSHOT_POLL_MS,
+        )
         return () => clearInterval(timer)
-    }, [refresh])
+    }, [refresh, tracking])
 
     const submit = useCallback(
         async (
