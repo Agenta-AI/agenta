@@ -406,10 +406,13 @@ export interface CredentialDeliveryCapabilities {
  * committed to, and the reading must follow what the egress layer actually does. Measured: a value
  * update on an existing Secret took 15-18s to reach a running sandbox (2026-08-09), and on staging
  * (2026-09-23) a Claude turn held for the earlier 10s bound still went out on the OLD value while a
- * turn dispatched 28s after the rotation used the new one. Daytona's own support guidance is that
- * substitution settles within about 30s. The bound is therefore `MAX_PROPAGATION_HOLD_MS` itself:
- * a rotated turn pays 30s once, and a shorter hold reports a rotation as applied while the sandbox
- * is still sending the old key.
+ * turn dispatched 28s after the rotation used the new one. The update latency therefore sits
+ * somewhere between about 12s and 28s. The bound is `MAX_PROPAGATION_HOLD_MS` itself, which leaves
+ * no headroom under the cap: if updates ever take longer, this provider belongs on
+ * `{ kind: "unbounded" }` (rebuild) rather than on a longer hold. A rotated turn pays 30s once. A
+ * rebuild would usually be faster (a new Secret substitutes within ~3s, see
+ * `docs/design/daytona-secret-propagation/`), but it pays a cold start and the stuck-wiring risk
+ * recorded there, and the in-place route was the Q5 ruling.
  *
  * WHAT THE HOLD DOES AND DOES NOT BUY, per the ruling above: it makes the runner wait until the
  * new value is expected to be in force before it reports success, so applied state never advances

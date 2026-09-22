@@ -1140,11 +1140,19 @@ describe("the disagreement counters stay quiet", () => {
     // and it must wait BEFORE it runs, not beside it.
     const { port, deliveries } = makeCredentialPort();
     const { engine, calls } = makeEngine({ credentialPort: port });
-    const events: string[] = [];
+    const holds: Array<{ ms: number; deliveries: number; turns: number }> = [];
+    let releaseHold!: () => void;
     const ctx: KeepaliveContext = {
       ...makeCtx(engine),
-      credentialWait: async (ms) => {
-        events.push(`hold:${ms}:turns=${calls.turns.length}`);
+      credentialWait: (ms) => {
+        holds.push({
+          ms,
+          deliveries: deliveries.length,
+          turns: calls.turns.length,
+        });
+        return new Promise<void>((resolve) => {
+          releaseHold = resolve;
+        });
       },
     };
     await runWithKeepalive(
@@ -1153,19 +1161,27 @@ describe("the disagreement counters stay quiet", () => {
       undefined,
       ctx,
     );
-    await runWithKeepalive(
+    const rotated = runWithKeepalive(
       withSecret("sk-b", turn2()),
       undefined,
       undefined,
       ctx,
     );
+    while (holds.length === 0) await new Promise((r) => setTimeout(r, 0));
 
-    assert.equal(deliveries.length, 1, "the rotation was delivered live");
-    assert.deepEqual(
-      events,
-      ["hold:30000:turns=1"],
-      "one 30s hold, taken after the first turn and before the rotated one",
+    // The value is written first and the hold starts after: a hold taken before the update
+    // would expire before the new value had even been sent to the provider.
+    assert.deepEqual(holds, [{ ms: 30_000, deliveries: 1, turns: 1 }]);
+    // Nothing runs while the hold is pending: a hold that is not awaited is no hold at all.
+    for (let i = 0; i < 20; i++) await new Promise((r) => setTimeout(r, 0));
+    assert.equal(
+      calls.turns.length,
+      1,
+      "the rotated turn must wait out the hold",
     );
+
+    releaseHold();
+    await rotated;
     assert.equal(calls.turns.length, 2);
   });
 
