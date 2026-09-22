@@ -1,9 +1,8 @@
-import {useEffect, useRef} from "react"
-
-import {querySessions} from "@agenta/entities/session"
 import {retrieveWorkflowRevision} from "@agenta/entities/workflow"
 import {isValidUUID} from "@agenta/shared/utils"
 import {useQuery} from "@tanstack/react-query"
+
+import {useSessionHeader} from "./useSessionHeader"
 
 /**
  * The revision a bound id names, whichever level the id lives at.
@@ -55,10 +54,16 @@ export const boundReferenceId = (
 }
 
 /**
- * Resolve the entity the conversation engine invokes: session → owning agent (the latest
- * turn's workflow reference, off `/sessions/query`) → that agent's LATEST revision id. The engine's
- * request builder reads everything else (invocation URL, config, references) off the workflow
- * molecule, which self-fetches by this revision id.
+ * Resolve the entity the conversation engine invokes: session → owning agent (the workflow
+ * reference the session's own stream row carries, off the header the tab bar fetches anyway) →
+ * that agent's LATEST revision id. The engine's request builder reads everything else
+ * (invocation URL, config, references) off the workflow molecule, which self-fetches by this
+ * revision id.
+ *
+ * This used to read the agent off a project-wide `/sessions/query` — every session in the
+ * project, to find one row — and that list was the first link in the chain the transcript waited
+ * on. The stream row fills its `references` on the first turn, so the header is a single-row read
+ * that already answers it, shared with the title, and the first request the chat screen makes.
  *
  * Null while resolving or for a session with no turns yet (no references → nothing to invoke);
  * the composer disables itself on null. `fallbackAgentId` covers exactly that case for a
@@ -72,27 +77,8 @@ export const useAgentEntity = (
     projectId: string,
     fallbackAgentId?: string | null,
 ) => {
-    // Keyed by PROJECT, not session. The response is the same whole-project list whichever
-    // session asks for it, so a per-session key refetched all of it once per session opened.
-    const sessionsQuery = useQuery({
-        queryKey: ["mobile", "project-sessions", projectId],
-        queryFn: async () => {
-            // `/sessions/query` rows carry the latest turn's workflow references (WP0-R3);
-            // the raw stream row does NOT — references are stamped per turn.
-            // NOT `sessionIds`. That filter matches the row's `session_id`, which is a different
-            // value from the `id` the route carries (v4 vs v7), so it returns ZERO rows.
-            return (await querySessions({projectId})) ?? []
-        },
-        enabled: Boolean(projectId),
-        staleTime: 60_000,
-        refetchOnWindowFocus: false,
-    })
-    // Match on `id` — the session STREAM id, which is what the route carries. A row also has a
-    // `session_id`, and it is a different value entirely (v4 where `id` is v7), so matching on
-    // that never hit; the miss used to fall through to `rows[0]` and resolve the WRONG agent.
-    const row = sessionsQuery.data?.find(
-        (candidate) => candidate.id === sessionId || candidate.session_id === sessionId,
-    )
+    const header = useSessionHeader(projectId, sessionId)
+    const row = header.data
     // No row is a real answer for a session with no turns yet. Another session's row is not.
     const listedAgentId = boundReferenceId(row?.references)
     const boundId = listedAgentId ?? fallbackAgentId ?? null
@@ -105,25 +91,14 @@ export const useAgentEntity = (
         refetchOnWindowFocus: false,
     })
 
-    // The project key means nothing here remounts per session, so a list cached before this
-    // session existed would never be re-read. Re-read once per missing session — a session with
-    // no turns yet is a real miss, so never retry beyond that.
-    const {isSuccess, isFetching, refetch} = sessionsQuery
-    const missedRef = useRef<string | null>(null)
-    const missing = isSuccess && !row && !fallbackAgentId
-    useEffect(() => {
-        if (!missing || missedRef.current === sessionId) return
-        missedRef.current = sessionId
-        void refetch()
-    }, [missing, sessionId, refetch])
-
-    // A route-supplied agent IS the answer, so do not gate the screen on a list fetch that by
-    // definition cannot contain a session the client minted a moment ago.
-    const awaitingList = (sessionsQuery.isPending || (missing && isFetching)) && !fallbackAgentId
+    // A header with no row is a session with no turns yet: the route's fallback names its agent,
+    // or there is nothing to invoke. No retry — the row appears with the first turn, and the
+    // watch's lifecycle event re-reads this query when it does.
+    const awaitingHeader = header.isPending && !fallbackAgentId
 
     return {
         agentId: revisionQuery.data?.workflowId ?? boundId,
         entityId: revisionQuery.data?.revisionId ?? null,
-        resolving: awaitingList || (Boolean(boundId) && revisionQuery.isPending),
+        resolving: awaitingHeader || (Boolean(boundId) && revisionQuery.isPending),
     }
 }

@@ -1,4 +1,4 @@
-import {useMemo, useRef, useState} from "react"
+import {useEffect, useMemo, useRef, useState} from "react"
 
 import {
     buildTurnViewModels,
@@ -6,7 +6,9 @@ import {
     createTurnViewModelCache,
     getPendingApprovals,
 } from "@agenta/chat/model"
-import {useAtomValue} from "jotai"
+import {fetchSessionRecordsAtom} from "@agenta/entities/session"
+import {projectIdAtom} from "@agenta/shared/state"
+import {useAtomValue, useSetAtom} from "jotai"
 
 import {ContentRail} from "@/components/ContentRail"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
@@ -57,6 +59,18 @@ export const ChatScreen = ({
     // sends (the server uses the saved config), but config-derived UI (always-allow) never
     // qualifies. Home/Sessions bind it too; chat must not depend on having visited them.
     useBindProjectContext(projectId)
+    // The transcript is what this screen exists to show, and it needs nothing but the session id
+    // — yet it used to be the LAST request of the open: the conversation hook that reads it
+    // mounts only once the agent has resolved (header → revision), and its own reader waits for
+    // the session snapshot on top. Warm the shared records cache the moment the route names the
+    // session, so every later read is a hit and the transcript races the agent chain instead of
+    // queueing behind it. Gated on the bound project: the cache keys on it.
+    const boundProjectId = useAtomValue(projectIdAtom)
+    const prefetchRecords = useSetAtom(fetchSessionRecordsAtom)
+    useEffect(() => {
+        if (!sessionId || boundProjectId !== projectId) return
+        void prefetchRecords(sessionId).catch(() => undefined)
+    }, [boundProjectId, prefetchRecords, projectId, sessionId])
     const {
         entityId: latestEntityId,
         agentId: resolvedAgentId,

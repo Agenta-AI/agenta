@@ -1,12 +1,10 @@
 import {chatPanelMaximizedAtom, configPanelCollapsedAtom} from "@agenta/chat/state"
-import {querySessionStreams} from "@agenta/entities/session"
 import {useSessionFilesPane} from "@agenta/entity-ui/drive"
-import {SessionTabRail, withSessionShortcutKeys} from "@agenta/sessions-ui"
+import {SessionTabRail, SessionTabStrip, withSessionShortcutKeys} from "@agenta/sessions-ui"
 import {shortcutAria} from "@agenta/shared/utils"
 import {ShortcutKeys} from "@agenta/ui/shortcuts"
 import {Button, SimpleTooltip} from "@agenta/ui/ui"
 import {Folder, FolderOpen} from "@phosphor-icons/react"
-import {useQuery} from "@tanstack/react-query"
 import {useAtomValue} from "jotai"
 import {useRouter} from "next/router"
 
@@ -17,6 +15,7 @@ import {useSessionRowMenu} from "../sessions/useSessionRowMenu"
 import {ConfigRevealButton} from "./ConfigRevealButton"
 import {InspectSessionButton} from "./InspectSessionButton"
 import {SessionHistoryMenu} from "./SessionHistoryMenu"
+import {useSessionHeader} from "./useSessionHeader"
 import {useSessionTabClose} from "./useSessionTabClose"
 import {useStartBlankSession} from "./useStartBlankSession"
 
@@ -60,21 +59,72 @@ export const SessionTabs = ({
         agentId ?? sessionId,
         sessionId,
     )
-    // Key leads with `session-stream`: a rename patches by key PREFIX, so a nested key never
-    // matches and the title lags. The singular GET redirects onto the web app, so POST it.
-    const query = useQuery({
-        queryKey: ["session-stream", projectId, sessionId],
-        queryFn: async () => (await querySessionStreams({sessionId, projectId}))?.[0] ?? null,
-        enabled: Boolean(projectId && sessionId),
-        staleTime: 30_000,
-    })
+    const query = useSessionHeader(projectId, sessionId)
+
+    const leadingExtra = !chatMaximized && configCollapsed ? <ConfigRevealButton /> : undefined
+    const extra = (
+        <>
+            {chatMaximized ? null : (
+                <>
+                    <InspectSessionButton sessionId={sessionId} />
+                    {agentId ? (
+                        <SessionHistoryMenu
+                            agentId={agentId}
+                            base={base}
+                            activeSessionId={sessionId}
+                        />
+                    ) : null}
+                </>
+            )}
+            {/* Shows the state and flips it; hidden below md, where the pane never mounts. */}
+            <SimpleTooltip
+                title={
+                    <span className="flex items-center gap-1.5">
+                        {filesOpen ? "Hide files" : "Show files"}{" "}
+                        <ShortcutKeys id="panel.files" tone="inverse" />
+                    </span>
+                }
+            >
+                <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label={filesOpen ? "Hide files pane" : "Show files pane"}
+                    aria-pressed={filesOpen}
+                    aria-keyshortcuts={shortcutAria("panel.files")}
+                    onClick={toggleFiles}
+                    // The glyph's weight carries the state; no colour shift on top.
+                    className="h-7 w-7 shrink-0 p-0"
+                >
+                    {/* A folder says "files" where a panel glyph wouldn't; open = pane shown. */}
+                    {filesOpen ? <FolderOpen size={14} weight="fill" /> : <Folder size={14} />}
+                </Button>
+            </SimpleTooltip>
+        </>
+    )
+
+    // The rail's list queries key on the agent. Mounted with `agentId` still null they asked
+    // for the whole project, then re-keyed and asked again when the agent landed — two reads
+    // and an aborted one per open. Until the agent resolves (off the session header, ~50 ms)
+    // the strip stands in with the same controls, so nothing shifts when the tabs arrive.
+    if (!agentId) {
+        return (
+            <>
+                <PageTitle title={query.data?.name} />
+                <SessionTabStrip
+                    className={chatMaximized ? "md:hidden" : undefined}
+                    extra={extra}
+                    leadingExtra={leadingExtra}
+                />
+            </>
+        )
+    }
 
     return (
         <>
             <PageTitle title={query.data?.name} />
             <SessionTabRail
                 className={chatMaximized ? "md:hidden" : undefined}
-                agentId={agentId ?? undefined}
+                agentId={agentId}
                 policy={{origin: "exclude-trigger", expansions: []}}
                 limit={12}
                 withPinned
@@ -99,51 +149,9 @@ export const SessionTabs = ({
                 // Starting a session needs an agent to start it with.
                 // A blank session to type into — NOT the agent's overview, which is where this
                 // used to land.
-                onNew={agentId ? () => startBlank(agentId) : undefined}
-                leadingExtra={
-                    !chatMaximized && configCollapsed ? <ConfigRevealButton /> : undefined
-                }
-                extra={
-                    <>
-                        {chatMaximized ? null : (
-                            <>
-                                <InspectSessionButton sessionId={sessionId} />
-                                <SessionHistoryMenu
-                                    agentId={agentId}
-                                    base={base}
-                                    activeSessionId={sessionId}
-                                />
-                            </>
-                        )}
-                        {/* Shows the state and flips it; hidden below md, where the pane never mounts. */}
-                        <SimpleTooltip
-                            title={
-                                <span className="flex items-center gap-1.5">
-                                    {filesOpen ? "Hide files" : "Show files"}{" "}
-                                    <ShortcutKeys id="panel.files" tone="inverse" />
-                                </span>
-                            }
-                        >
-                            <Button
-                                variant="ghost"
-                                size="icon-sm"
-                                aria-label={filesOpen ? "Hide files pane" : "Show files pane"}
-                                aria-pressed={filesOpen}
-                                aria-keyshortcuts={shortcutAria("panel.files")}
-                                onClick={toggleFiles}
-                                // The glyph's weight carries the state; no colour shift on top.
-                                className="h-7 w-7 shrink-0 p-0"
-                            >
-                                {/* A folder says "files" where a panel glyph wouldn't; open = pane shown. */}
-                                {filesOpen ? (
-                                    <FolderOpen size={14} weight="fill" />
-                                ) : (
-                                    <Folder size={14} />
-                                )}
-                            </Button>
-                        </SimpleTooltip>
-                    </>
-                }
+                onNew={() => startBlank(agentId)}
+                leadingExtra={leadingExtra}
+                extra={extra}
             />
         </>
     )
