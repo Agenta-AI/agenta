@@ -1,0 +1,49 @@
+name: "46 - railway preview comment"
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  packages: write
+  pull-requests: write
+  actions: write
+
+jobs:
+  request:
+    if: >-
+      github.event.issue.pull_request && github.event.comment.user.type == 'User' &&
+      contains(github.event.comment.body, '/preview')
+    uses: ./.github/workflows/49-railway-lifecycle.yml
+    with:
+      operation: request
+      pr_number: ${{ format('{0}', github.event.issue.number) }}
+    secrets: inherit
+
+  build:
+    needs: request
+    if: needs.request.outputs.sha != ''
+    uses: ./.github/workflows/42-railway-build.yml
+    with:
+      pr_number: ${{ format('{0}', github.event.issue.number) }}
+      source_sha: ${{ needs.request.outputs.sha }}
+
+  deploy:
+    needs: [request, build]
+    uses: ./.github/workflows/49-railway-lifecycle.yml
+    with:
+      operation: deploy-manual
+      pr_number: ${{ format('{0}', github.event.issue.number) }}
+      source_sha: ${{ needs.request.outputs.sha }}
+      image_tag: ${{ needs.build.outputs.image_tag }}
+    secrets: inherit
+
+  cleanup-failed:
+    needs: [request, build, deploy]
+    if: always() && needs.request.outputs.sha != '' && needs.deploy.result != 'success'
+    uses: ./.github/workflows/49-railway-lifecycle.yml
+    with:
+      operation: finish
+      pr_number: ${{ format('{0}', github.event.issue.number) }}
+    secrets: inherit

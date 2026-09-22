@@ -10,12 +10,7 @@ on:
       - "sdks/python/**"
       - "hosting/railway/**"
       - ".github/workflows/14-check-pr-preview.yml"
-      - ".github/workflows/40-railway.yml"
-      - ".github/workflows/41-railway-setup.yml"
-      - ".github/workflows/42-railway-build.yml"
-      - ".github/workflows/43-railway-deploy.yml"
-      - ".github/workflows/44-railway-tests.yml"
-      - ".github/workflows/45-railway-cleanup.yml"
+      - ".github/workflows/4*-railway*.yml"
   workflow_dispatch:
     inputs:
       pr_number:
@@ -28,40 +23,56 @@ permissions:
   contents: read
   packages: write
   pull-requests: write
+  actions: write
 
 concurrency:
   group: railway-preview-automation-${{ github.event.pull_request.number || inputs.pr_number || github.ref_name }}
   cancel-in-progress: true
 
 jobs:
+  resolve:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (!github.event.pull_request.draft && github.event.pull_request.head.repo.full_name == github.repository)
+    runs-on: ubuntu-latest
+    outputs:
+      pr: ${{ steps.pr.outputs.pr }}
+      sha: ${{ steps.pr.outputs.sha }}
+    steps:
+      - uses: actions/github-script@v7
+        id: pr
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr_number }}
+        with:
+          script: |
+            if (!/^[1-9][0-9]*$/.test(process.env.PR_NUMBER)) throw new Error('Invalid PR number');
+            const n = Number(process.env.PR_NUMBER);
+            const {data: pr} = await github.rest.pulls.get({...context.repo, pull_number: n});
+            if (pr.state !== 'open' || pr.draft || pr.head.repo.full_name !== `${context.repo.owner}/${context.repo.repo}`) {
+              throw new Error('An open, non-draft, same-repository PR is required');
+            }
+            core.setOutput('pr', String(n));
+            core.setOutput('sha', pr.head.sha);
+
   build:
-    if: github.event_name == 'workflow_dispatch' || !github.event.pull_request.draft
+    needs: resolve
     uses: ./.github/workflows/42-railway-build.yml
     with:
-      pr_number: ${{ github.event.pull_request.number || inputs.pr_number }}
-
-  setup:
-    needs: [build]
-    if: needs.build.result == 'success'
-    uses: ./.github/workflows/41-railway-setup.yml
-    with:
-      pr_number: ${{ needs.build.outputs.pr_number }}
-      image_tag: ${{ needs.build.outputs.image_tag }}
-    secrets: inherit
+      pr_number: ${{ needs.resolve.outputs.pr }}
+      source_sha: ${{ needs.resolve.outputs.sha }}
 
   deploy:
-    needs: [build, setup]
-    if: |
-      needs.build.result == 'success' &&
-      needs.setup.result == 'success'
-    uses: ./.github/workflows/43-railway-deploy.yml
+    needs: [resolve, build]
+    uses: ./.github/workflows/49-railway-lifecycle.yml
     with:
-      pr_number: ${{ needs.build.outputs.pr_number }}
+      operation: deploy-ci
+      pr_number: ${{ needs.resolve.outputs.pr }}
+      source_sha: ${{ needs.resolve.outputs.sha }}
       image_tag: ${{ needs.build.outputs.image_tag }}
     secrets: inherit
 
   tests:
-    needs: [deploy]
+    needs: deploy
     if: needs.deploy.outputs.preview_url != ''
     uses: ./.github/workflows/44-railway-tests.yml
     with:
@@ -69,6 +80,16 @@ jobs:
       layers: all
       packages: all
       mobile_gate_enabled: true
-      # Railway previews keep /m directly reachable for desktop reviewers.
       mobile_reverse_gate_enabled: false
+    secrets: inherit
+
+  cleanup:
+    # A failed/skipped test or partial setup must still release infrastructure.
+    # Cancellation can interrupt this finalizer; workflow 45 is independent.
+    needs: [resolve, build, deploy, tests]
+    if: always() && needs.resolve.outputs.pr != '' && needs.build.result == 'success'
+    uses: ./.github/workflows/49-railway-lifecycle.yml
+    with:
+      operation: finish
+      pr_number: ${{ needs.resolve.outputs.pr }}
     secrets: inherit

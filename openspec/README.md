@@ -1,4 +1,12 @@
-# Agent template specifications
+# Repository specifications
+
+## Railway preview cost controls
+
+[Proposal](changes/railway-preview-cost-controls/proposal.md), [behavior specifications](changes/railway-preview-cost-controls/specs/railway-preview-lifecycle/spec.md), [PR comment command](changes/railway-preview-cost-controls/specs/railway-preview-comments/spec.md), [design](changes/railway-preview-cost-controls/design.md), and [tasks](changes/railway-preview-cost-controls/tasks.md).
+
+Draft, not implemented. Delete automatic previews after tests and let authorized maintainers request a one-hour preview with a `/preview` comment on the pull request.
+
+## Agent template specifications
 
 These OpenSpec changes are proposals for PR #6944. No runtime implementation is included, and no change has been archived as a shipped capability.
 

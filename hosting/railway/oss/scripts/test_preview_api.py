@@ -1,0 +1,136 @@
+"""Provider-boundary regressions; mock transport, not lifecycle behavior."""
+
+import unittest
+from unittest.mock import Mock, patch
+
+from preview_lifecycle import GitHub, Railway
+
+
+class ProviderTests(unittest.TestCase):
+    def railway(self):
+        rw = Railway.__new__(Railway)
+        rw.project, rw.template = "project", "pr-template"
+        return rw
+
+    def test_paginates_beyond_first_hundred(self):
+        rw = self.railway()
+        rw.query = Mock(
+            side_effect=[
+                {
+                    "environments": {
+                        "edges": [{"node": {"name": f"pr-{n}"}} for n in range(1, 101)],
+                        "pageInfo": {"hasNextPage": True, "endCursor": "next"},
+                    }
+                },
+                {
+                    "environments": {
+                        "edges": [{"node": {"name": "pr-101"}}],
+                        "pageInfo": {"hasNextPage": False, "endCursor": "last"},
+                    }
+                },
+            ]
+        )
+        self.assertEqual(len(rw.environments()), 101)
+        self.assertEqual(rw.query.call_args.args[1]["after"], "next")
+
+    def test_bad_cursor_fails_instead_of_looping(self):
+        rw = self.railway()
+        rw.query = Mock(
+            return_value={
+                "environments": {
+                    "edges": [],
+                    "pageInfo": {"hasNextPage": True, "endCursor": None},
+                }
+            }
+        )
+        with self.assertRaises(RuntimeError):
+            rw.environments()
+
+    def test_protected_template_name(self):
+        rw = self.railway()
+        rw.template = "pr-123"
+        with self.assertRaises(ValueError):
+            rw.find(123)
+
+    def test_find_does_not_match_other_environments(self):
+        rw = self.railway()
+        rw.environments = Mock(
+            return_value=[
+                {"id": "a", "name": "production"},
+                {"id": "b", "name": "pr-template"},
+                {"id": "c", "name": "pr-1234"},
+            ]
+        )
+        self.assertIsNone(rw.find(123))
+
+    def test_delete_refuses_wrong_id(self):
+        rw = self.railway()
+        rw.find = Mock(return_value={"id": "new", "name": "pr-123"})
+        rw.query = Mock()
+        with self.assertRaises(RuntimeError):
+            rw.delete(123, "old")
+        rw.query.assert_not_called()
+
+    def test_delete_reads_back_absence(self):
+        rw = self.railway()
+        rw.find = Mock(side_effect=[{"id": "env"}, None])
+        rw.query = Mock()
+        rw.delete(123, "env")
+        self.assertEqual(rw.find.call_count, 2)
+        self.assertEqual(rw.query.call_args.args[1], {"id": "env"})
+
+    def test_delete_reports_still_present(self):
+        rw = self.railway()
+        rw.find = Mock(return_value={"id": "env"})
+        rw.query = Mock()
+        with self.assertRaises(RuntimeError):
+            rw.delete(123, "env")
+
+    def test_permissions_use_current_github_permission(self):
+        gh = GitHub("Agenta-AI/agenta")
+        for permission in ["read", "triage", "none", "write", "maintain", "admin"]:
+            with self.subTest(permission=permission):
+                gh.api = Mock(return_value={"permission": permission})
+                self.assertEqual(
+                    gh.authorized("maintainer"),
+                    permission in {"write", "maintain", "admin"},
+                )
+
+    def test_permission_api_error_fails_closed(self):
+        gh = GitHub("Agenta-AI/agenta")
+        gh.api = Mock(side_effect=RuntimeError("API unavailable"))
+        with self.assertRaises(RuntimeError):
+            gh.authorized("maintainer")
+
+    def test_old_attempt_cannot_cancel_new_attempt(self):
+        gh = GitHub("Agenta-AI/agenta")
+        gh.active = Mock(return_value=True)
+        gh.api = Mock(return_value={"run_attempt": 2})
+        gh.stop(1, 1)
+        self.assertEqual(gh.api.call_count, 1)
+
+    @patch("preview_lifecycle.run_json")
+    def test_github_pagination_flattens_pages(self, run):
+        run.return_value = [[{"id": 1}], [{"id": 2}]]
+        gh = GitHub("Agenta-AI/agenta")
+        self.assertEqual(gh.comments(123), [{"id": 1}, {"id": 2}])
+        self.assertIn("--paginate", run.call_args.args[0])
+
+    def test_comment_write_verified(self):
+        gh = GitHub("Agenta-AI/agenta")
+        gh.api = Mock(
+            side_effect=[
+                {"id": 1},
+                {
+                    "id": 1,
+                    "body": "different",
+                    "user": {"login": "github-actions[bot]"},
+                },
+            ]
+        )
+        with self.assertRaises(RuntimeError):
+            gh.save(123, None, "expected")
+
+
+if __name__ == "__main__":
+    unittest.main()
