@@ -503,7 +503,9 @@ describe("preview links", () => {
         const win = frame.contentWindow as Window & {eval(code: string): unknown}
         const out = await assemblePreview(html, {dir: "docs", io: null})
         win.document.open()
-        win.document.write(out.replace(/<script>[\s\S]*?<\/script>/, ""))
+        // The interceptor is evaluated below instead, so the realm runs it exactly once.
+        expect(out).toContain(INTERCEPTOR_TAG)
+        win.document.write(out.replace(INTERCEPTOR_TAG, ""))
         win.document.close()
         win.eval(HTML_NAV_INTERCEPTOR)
         const posted: unknown[] = []
