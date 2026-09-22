@@ -9,7 +9,7 @@ import {useEffect, useId, useMemo, useRef} from "react"
 
 import {dayjs, type ElicitationStep} from "@agenta/shared/utils"
 import {AutosizeTextarea, DatePicker, DateTimePicker, Input, SimpleTooltip} from "@agenta/ui/ui"
-import {Check, Info} from "@phosphor-icons/react"
+import {Check, CircleNotch, Info} from "@phosphor-icons/react"
 
 import {ElicitationChips} from "./ElicitationChips"
 
@@ -93,6 +93,10 @@ export interface ElicitationControlProps {
     cursor: number
     /** Suppress the keyboard affordances on a surface that has no keyboard. */
     touch?: boolean
+    /** A settle is in flight: rows stop taking clicks, so a second click cannot send twice. */
+    disabled?: boolean
+    /** The selected row IS the in-flight settle (a one-shot pick), so it spins in place. */
+    pending?: boolean
     onChange: (value: unknown) => void
     /** Pick a row: sets the value AND advances (single-select only). */
     /** Picks a row. A multi-select toggles instead of advancing — the caller owns that rule. */
@@ -112,6 +116,8 @@ export const ElicitationControl = ({
     value,
     cursor,
     touch,
+    disabled,
+    pending,
     onChange,
     onPick,
     onCursor,
@@ -219,11 +225,13 @@ export const ElicitationControl = ({
                             ref={isCursor ? cursorRowRef : undefined}
                             role={multi ? "checkbox" : "radio"}
                             aria-checked={isSelected}
+                            aria-disabled={disabled || undefined}
                             tabIndex={-1}
                             aria-describedby={
                                 row.description ? `${describedBy}-${index}` : undefined
                             }
                             onClick={() => {
+                                if (disabled) return
                                 // The Other row is a text field, not an answer: focus it instead of
                                 // committing an empty pick and moving on.
                                 if (isOther) {
@@ -243,12 +251,16 @@ export const ElicitationControl = ({
                             // made merely pointing at a row look like having chosen it. Hover
                             // belongs to CSS so it leaves when the pointer does — driving it from
                             // state stranded the last hovered row lit.
-                            className={`flex h-[30px] shrink-0 cursor-pointer items-center gap-2 rounded-md px-2 text-xs ${
+                            className={`flex h-[30px] shrink-0 items-center gap-2 rounded-md px-2 text-xs ${
+                                disabled ? "cursor-default" : "cursor-pointer"
+                            } ${
                                 isSelected
                                     ? "bg-colorFillSecondary font-medium"
                                     : isCursor
                                       ? "bg-colorFillTertiary"
-                                      : "hover:bg-colorFillTertiary"
+                                      : disabled
+                                        ? ""
+                                        : "hover:bg-colorFillTertiary"
                             }`}
                         >
                             <span className="shrink-0 text-[11px] tabular-nums text-colorText">
@@ -260,6 +272,10 @@ export const ElicitationControl = ({
                                     data-elicitation-other
                                     value={otherText}
                                     placeholder={OTHER_LABEL}
+                                    disabled={disabled}
+                                    // Enter commits the typed value, as it does in the plain text
+                                    // field: this row is a field too, only dressed as an option.
+                                    onKeyDown={submitOnEnter}
                                     onChange={(event) =>
                                         onChange(nextOtherValue(event.target.value))
                                     }
@@ -298,13 +314,21 @@ export const ElicitationControl = ({
                                 shortcut hints, which have nothing left to teach on it. Single
                                 and multi alike — a chosen row is a chosen row. */}
                             {isSelected && !isOther ? (
-                                <Check
-                                    size={12}
-                                    weight="bold"
-                                    aria-hidden
-                                    className="ml-auto shrink-0 text-colorText"
-                                />
-                            ) : isCursor && !touch ? (
+                                pending ? (
+                                    <CircleNotch
+                                        size={12}
+                                        aria-label="Sending"
+                                        className="ml-auto shrink-0 animate-spin text-colorText"
+                                    />
+                                ) : (
+                                    <Check
+                                        size={12}
+                                        weight="bold"
+                                        aria-hidden
+                                        className="ml-auto shrink-0 text-colorText"
+                                    />
+                                )
+                            ) : isCursor && !touch && !disabled ? (
                                 <span className="ml-auto flex shrink-0 items-center gap-1.5 text-[9px] text-colorTextQuaternary">
                                     <kbd className="font-sans">↑</kbd>
                                     <kbd className="font-sans">↓</kbd>
