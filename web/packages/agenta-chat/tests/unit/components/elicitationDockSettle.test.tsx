@@ -714,6 +714,16 @@ describe("a one-question pick-one form", () => {
         expect(onOutput.mock.calls[0][0].output).toMatchObject({content: {colour: "Teal"}})
     })
 
+    it("leaves an IME's Enter to the composition", () => {
+        const {onOutput} = setup(ONE_QUESTION)
+
+        const other = screen.getByPlaceholderText("Other — type a value")
+        fireEvent.change(other, {target: {value: "みど"}})
+        fireEvent.keyDown(other, {key: "Enter", isComposing: true})
+
+        expect(onOutput).not.toHaveBeenCalled()
+    })
+
     it("sends the typed Other value on Enter", () => {
         const {onOutput} = setup(ONE_QUESTION)
 

@@ -133,6 +133,9 @@ export const ElicitationControl = ({
     // A single-line field has no other meaning for Enter, and "type, Enter, next" is the habit
     // everywhere else. Only text and number use this; every richer control keeps the key.
     const submitOnEnter = (event: React.KeyboardEvent) => {
+        // An IME's Enter commits the candidate, not the answer: submitting here sends a half-typed
+        // word and leaves the composition orphaned.
+        if (event.nativeEvent.isComposing) return
         if (event.key !== "Enter" || event.metaKey || event.ctrlKey || event.shiftKey) return
         event.preventDefault()
         onSubmit()
