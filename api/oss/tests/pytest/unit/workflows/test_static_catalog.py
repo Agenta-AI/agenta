@@ -1053,29 +1053,57 @@ def _request_connection_tool() -> dict:
     return revision.data.parameters["tool"]
 
 
-def test_request_connection_schema_requires_exactly_one_path():
-    """Either `integration` or `target` is required, never both. The `mode`/`slug`
-    fields (integration-only) are unchanged in shape."""
+def test_request_connection_schema_offers_both_paths_without_a_root_union():
+    """`integration` and `target` are both optional properties; "exactly one" is stated in their
+    descriptions because OpenAI and xAI refuse a root-level union. The `mode`/`slug` fields
+    (integration-only) are unchanged in shape."""
     tool = _request_connection_tool()
     schema = tool["input_schema"]
     assert set(schema["properties"]) == {"integration", "target", "slug", "mode"}
     assert schema["required"] == []
-    # Each branch restates `type: object`: xAI reads a root-level union branch as the
-    # parameter root in its own right and rejects the tool when it is not typed an object.
-    assert schema["oneOf"] == [
-        {
-            "type": "object",
-            "required": ["integration"],
-            "not": {"required": ["target"]},
-        },
-        {
-            "type": "object",
-            "required": ["target"],
-            "not": {"required": ["integration"]},
-        },
-    ]
+    assert "oneOf" not in schema
+    assert "Omit when" in schema["properties"]["integration"]["description"]
+    assert "Omit when" in schema["properties"]["target"]["description"]
+    assert "exactly one" in tool["description"]
     assert schema["additionalProperties"] is False
     assert schema["properties"]["mode"]["enum"] == ["oauth", "api_key"]
+
+
+# OpenAI refuses a function whose parameter root is not `type: object` or carries any of these
+# keywords (`invalid_function_parameters`), and xAI reads a root-level union branch as the root.
+# The build kit declares every one of these tools on every turn, so one bad root fails them all.
+_ROOT_FORBIDDEN_KEYWORDS = ("oneOf", "anyOf", "allOf", "enum", "const", "not")
+
+
+def _platform_tool_schemas():
+    from agenta.sdk.agents.platform.op_catalog import PLATFORM_OPS
+
+    catalog = StaticWorkflowCatalog()
+    for slug in catalog.list_slugs():
+        revision = catalog.retrieve_revision(slug=slug)
+        tool = ((revision.data.parameters or {}) if revision else {}).get("tool")
+        if tool:
+            yield f"{slug}:{tool['name']}", tool["input_schema"]
+    for op_key, op in PLATFORM_OPS.items():
+        yield f"op:{op_key}", op.resolved_input_schema()
+
+
+_PLATFORM_TOOL_SCHEMAS = dict(_platform_tool_schemas())
+
+
+def test_platform_tool_schemas_cover_client_tools_and_ops():
+    names = set(_PLATFORM_TOOL_SCHEMAS)
+    assert "__ag__request_connection:request_connection" in names
+    assert "__ag__request_secret:request_secret" in names
+    assert "__ag__request_input:request_input" in names
+    assert "op:commit_revision" in names
+
+
+@pytest.mark.parametrize("name", sorted(_PLATFORM_TOOL_SCHEMAS))
+def test_platform_tool_schema_root_is_a_plain_object(name):
+    schema = _PLATFORM_TOOL_SCHEMAS[name]
+    assert schema.get("type") == "object"
+    assert [key for key in _ROOT_FORBIDDEN_KEYWORDS if key in schema] == []
 
 
 def test_request_connection_target_shape():
