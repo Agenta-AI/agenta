@@ -2,7 +2,7 @@
   "schema_version": "1",
   "_curation": {
     "harness": "claude",
-    "note": "Hand-curated. `id` is the stable Claude Code request value (model_selection = alias). label/description/ratings written by a human from the current lineup. The live harness can add or remove context-hinted variants as account access changes, so the catalog uses the stable bare id the runner can widen to a `[1m]` option when available. Current lineup: Claude Fable 5.1 is the frontier, Claude Opus 5.5 is the recommended default one tier below it. Ratings: 1-5, higher is better; `cost` is cost-efficiency (5 = cheapest).",
+    "note": "Hand-curated. `id` is the stable Claude Code request value (model_selection = alias). label/description/ratings written by a human from the current lineup. The live harness can add or remove context-hinted variants as account access changes, so the catalog uses the stable bare id the runner can widen to a `[1m]` option when available. Current lineup: Claude Fable 5.1 is the frontier, Claude Opus 5.5 is the recommended default one tier below it. The pinned Claude Code build no longer offers `claude-fable-5` as a selectable model (it offers `claude-fable-5-1`, or `claude-fable-5-1[1m]` on subscription accounts), so Fable 5 is not listed. Ratings: 1-5, higher is better; `cost` is cost-efficiency (5 = cheapest).",
     "sources": "@anthropic-ai/claude-agent-sdk@0.3.280 accepted set; Anthropic models overview + pricing pages, checked 2026-09-22."
   },
   "models": [
@@ -93,31 +93,6 @@
       "ratings": {
         "cost": 3,
         "intelligence": 4,
-        "speed": 3
-      }
-    },
-    {
-      "id": "claude-fable-5",
-      "provider": "anthropic",
-      "source": "curated",
-      "name": "Claude Fable 5",
-      "pricing": {
-        "input_per_mtok": 10.0,
-        "output_per_mtok": 50.0,
-        "cache_read_per_mtok": 0.25,
-        "cache_write_per_mtok": 12.5,
-        "currency": "USD"
-      },
-      "context_window": 1000000,
-      "modalities": [
-        "text",
-        "image"
-      ],
-      "label": "Fable 5",
-      "description": "Anthropic's Mythos-class reasoning tier (Fable 5), above Opus, for demanding long-horizon work.",
-      "ratings": {
-        "cost": 2,
-        "intelligence": 5,
         "speed": 3
       }
     },

@@ -284,10 +284,12 @@ def main() -> None:
             f'RUN test "$(node -p "require(\'{CLAUDE_ACP_PACKAGE_JSON}\').version")" '
             f'= "{CLAUDE_ACP_VERSION}" '
             f"&& echo claude-acp-version={CLAUDE_ACP_VERSION}",
-            # The bundled SDK binary must actually carry Opus 5.5; fail the build otherwise.
+            # The bundled SDK binary must actually carry Opus 5.5 and Fable 5.1 (both in the
+            # published Claude catalog); fail the build otherwise.
             f"RUN BIN=$(find {PI_ACP_INSTALL_DIR}/claude -type f -name claude | head -1) "
             '&& test -n "$BIN" && grep -aq claude-opus-5-5 "$BIN" '
-            "&& echo claude-model-table-has-opus-5-5",
+            '&& grep -aq claude-fable-5-1 "$BIN" '
+            "&& echo claude-model-table-has-opus-5-5-and-fable-5-1",
         ]
     )
 

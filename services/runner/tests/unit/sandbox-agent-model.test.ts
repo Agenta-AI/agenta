@@ -57,6 +57,17 @@ describe("pickModel", () => {
     assert.equal(pickModel(allowed, "haiku"), "haiku");
   });
 
+  it("resolves claude-fable-5-1 against both option sets the pinned Claude build reports", () => {
+    // Captured from @anthropic-ai/claude-agent-sdk 0.3.280 supportedModels(): an API-key session
+    // offers the bare id, a subscription session only the [1m] variant.
+    const apiKey = ["default", "opus[1m]", "claude-fable-5-1", "sonnet", "haiku"];
+    const subscription = ["default", "opus[1m]", "claude-fable-5-1[1m]", "sonnet", "haiku"];
+    assert.equal(pickModel(apiKey, "claude-fable-5-1"), "claude-fable-5-1");
+    assert.equal(pickModel(subscription, "claude-fable-5-1"), "claude-fable-5-1[1m]");
+    // The build no longer offers Fable 5; a stale request must not be widened onto Fable 5.1.
+    assert.equal(pickModel(subscription, "claude-fable-5"), undefined);
+  });
+
   it("does not fall back from a hinted request to a bare id (never shrinks context)", () => {
     // Only "sonnet" is offered (no "[1m]" sibling): a caller that explicitly asked for the
     // long-context variant must not be silently downgraded to the short-context one.
