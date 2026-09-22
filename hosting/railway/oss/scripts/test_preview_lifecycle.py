@@ -159,6 +159,33 @@ class LifecycleTests(unittest.TestCase):
         self.c.sweep()
         self.assertIsNone(self.rw.live)
 
+    def test_manual_request_does_not_adopt_unmanaged_legacy_preview(self):
+        self.rw.create(123, "old-tag", 30)
+        with self.assertRaises(RuntimeError):
+            self.c.request(self.event(), 1, 1)
+        self.assertFalse(self.gh.records)
+        self.assertFalse(self.rw.deleted)
+
+    def test_ci_does_not_delete_unmanaged_legacy_preview(self):
+        self.rw.create(123, "old-tag", 30)
+        with self.assertRaises(RuntimeError):
+            self.deploy()
+        self.assertFalse(self.gh.records)
+        self.c.finish("1-1")
+        self.assertFalse(self.rw.deleted)
+
+    def test_readiness_after_deadline_is_cleaned_up(self):
+        create = self.rw.create
+
+        def late(*args):
+            self.time += 1800
+            return create(*args)
+
+        self.rw.create = late
+        with self.assertRaises(RuntimeError):
+            self.deploy()
+        self.assertIsNone(self.rw.live)
+
     def test_ci_finish_deletes(self):
         self.deploy()
         self.c.finish("1-1")

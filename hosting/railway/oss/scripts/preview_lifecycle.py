@@ -449,6 +449,10 @@ class Controller:
             d["manual_until"] = self.now() + d["limits"]["manual"]
             self.save("CI and manual review share this exact revision.")
             return {}
+        if not self.data and self.rw.find(self.pr):
+            raise RuntimeError(
+                "An unmanaged legacy preview exists. Wait for legacy cleanup before requesting a new preview."
+            )
         self.new(sha, run_id, attempt, "manual", comment_id)
         return {"sha": sha, "generation": self.data["generation"]}
 
@@ -540,6 +544,12 @@ class Controller:
         expected_tag = f"pr-{self.pr}-{sha}-{run_id}-{attempt}"
         if image_tag != expected_tag:
             raise ValueError("Image tag does not identify this exact build")
+        if mode == "ci":
+            self.reconcile()
+        if not self.data and self.rw.find(self.pr):
+            raise RuntimeError(
+                "An unmanaged legacy preview exists; refusing to interrupt its tests"
+            )
         generation = f"{run_id}-{attempt}"
         preserved_manual_until = 0
         if mode == "manual":
