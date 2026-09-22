@@ -42,6 +42,7 @@ import {
     MAX_DIGIT_ROWS,
     isMultiSelect,
     optionRowsFor,
+    selectedRowFor,
     type OptionRow,
 } from "./elicitation/ElicitationControl"
 
@@ -255,7 +256,9 @@ const LiveCard = ({
     const cardRef = useRef<HTMLDivElement>(null)
     const form = useMemo(() => buildElicitationSteps(payload), [payload])
     // Which button fired, so the spinner lands on it (the card only reports "submitting").
-    const [firedAction, setFiredAction] = useState<"primary" | "secondary" | "dismiss" | null>(null)
+    const [firedAction, setFiredAction] = useState<
+        "primary" | "secondary" | "dismiss" | "pick" | null
+    >(null)
 
     const complete = useCallback(
         (content: Record<string, unknown>) => {
@@ -317,6 +320,16 @@ const LiveCard = ({
     }, [submitting, isReview, stepper, decline])
 
     const multi = isMultiSelect(step)
+    // One question, one row: the click is the answer, and the row it landed on spins in place of
+    // a Send button. The Send button comes back only for the trailing "Other" row, which is typed
+    // into rather than picked.
+    const oneShot = stepper.submitsOnPick
+    const otherIndex = rows.length && rows[rows.length - 1].value === null ? rows.length - 1 : -1
+    const otherEngaged =
+        oneShot &&
+        otherIndex >= 0 &&
+        (cursor === otherIndex ||
+            selectedRowFor(step, step ? values[step.name] : undefined) === otherIndex)
 
     /** Focus the trailing "Other" text field. It is a row you type into, never one you pick. */
     const focusOther = useCallback(
@@ -337,10 +350,16 @@ const LiveCard = ({
             // Digits and Enter used to die here on the Other row, because it carries no value.
             if (row.value === null) return focusOther(index)
             if (multi) return stepper.toggle(step.name, row.value)
+            // A one-shot pick settles the card, so it takes the same guard as every other settle
+            // path: a second click while the first is in flight must not send a competing answer.
+            if (oneShot) {
+                if (submitting) return
+                setFiredAction("pick")
+            }
             const value = step.kind === "boolean" ? row.value === "true" : row.value
             stepper.pick(step.name, value, `Picked ${row.label}`, index, immediate)
         },
-        [step, stepper, multi, focusOther],
+        [step, stepper, multi, focusOther, oneShot, submitting],
     )
 
     // Row-driven steps and the review list put focus on the card itself, so digits and arrows work
@@ -550,6 +569,8 @@ const LiveCard = ({
                             value={values[step.name]}
                             cursor={cursor}
                             touch={touch}
+                            disabled={submitting}
+                            pending={submitting && firedAction === "pick"}
                             onChange={(value) => stepper.setValue(step.name, value)}
                             onPick={pickRow}
                             onCursor={stepper.setCursor}
@@ -560,14 +581,18 @@ const LiveCard = ({
             </div>
 
             <div className="flex flex-row-reverse items-center gap-2">
-                <LoadingButton
-                    className={touchCls}
-                    disabled={submitting}
-                    loading={submitting && firedAction === "primary"}
-                    onClick={primary}
-                >
-                    {stepper.primaryLabel}
-                </LoadingButton>
+                {/* Dropped, not disabled, on a one-shot form: the rows are the Send button. Skip
+                    still holds the row's height, so the composer does not move either way. */}
+                {!oneShot || otherEngaged ? (
+                    <LoadingButton
+                        className={touchCls}
+                        disabled={submitting}
+                        loading={submitting && firedAction === "primary"}
+                        onClick={primary}
+                    >
+                        {stepper.primaryLabel}
+                    </LoadingButton>
+                ) : null}
                 <LoadingButton
                     variant="ghost"
                     className={touchCls}
