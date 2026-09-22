@@ -94,6 +94,7 @@ export * from "./ApplicationVariantFlags.js";
 export * from "./ApplicationVariantFork.js";
 export * from "./ApplicationVariantResponse.js";
 export * from "./ApplicationVariantsResponse.js";
+export * from "./AppScopeResponse.js";
 export * from "./ArchiveMount.js";
 export * from "./BodyConfigsFetchVariantsConfigsFetchPost.js";
 export * from "./Bucket.js";

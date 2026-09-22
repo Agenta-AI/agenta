@@ -36,6 +36,7 @@ from agenta.sdk.engines.running.utils import (
     normalize_snippet_data,
 )
 
+from oss.src.core.apps.assembly import AGENTA_APPS_SKILL, AGENTA_APPS_SLUG
 from oss.src.core.workflows.build_kit import (
     AGENTA_BUILTIN_AGENT_URI,
     BUILD_KIT_WORKFLOW_DESCRIPTION,
@@ -367,6 +368,14 @@ _STATIC_WORKFLOWS: Dict[str, Dict[str, Any]] = {
         "latest": "v1",
         "versions": {
             "v1": _build_kit_revision,
+        },
+    },
+    AGENTA_APPS_SLUG: {
+        "kind": "skill",
+        "embeddable": True,
+        "latest": "v1",
+        "versions": {
+            "v1": _skill_revision(AGENTA_APPS_SKILL),
         },
     },
 }

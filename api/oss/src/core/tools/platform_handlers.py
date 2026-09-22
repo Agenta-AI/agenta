@@ -32,6 +32,16 @@ from agenta.sdk.engines.tracing.propagation import inject
 from agenta.sdk.models.workflows import WorkflowServiceStatus
 
 from oss.src.core.access.permissions.types import Permission
+from oss.src.core.apps.handlers import (
+    CREATE_APP_CALL_REF,
+    CREATE_APP_DEFAULT_TIMEOUT_MS,
+    CREATE_APP_TOOL_DEFINITION,
+    LIST_STARTERS_CALL_REF,
+    LIST_STARTERS_DEFAULT_TIMEOUT_MS,
+    LIST_STARTERS_TOOL_DEFINITION,
+    handle_create_app,
+    handle_list_starters,
+)
 from oss.src.core.shared.dtos import Reference, Windowing
 from oss.src.core.tools.dtos import (
     TestRunExpectations,
@@ -945,6 +955,8 @@ class PlatformToolHandlerRegistration:
     # also hold ``elevated_permission`` (checked at the API boundary, before dispatch).
     elevated_permission: Optional[Permission] = None
     requires_elevation: Optional[Callable[[Any], bool]] = None
+    # Drive-backed handlers take the router's MountsService as `mounts_service`.
+    needs_mounts: bool = False
 
 
 PLATFORM_TOOL_HANDLERS: Dict[str, PlatformToolHandlerRegistration] = {
@@ -975,6 +987,29 @@ PLATFORM_TOOL_HANDLERS: Dict[str, PlatformToolHandlerRegistration] = {
         handler=handle_commit_revision,
         elevated_permission=Permission.EDIT_WORKFLOWS,
     ),
+    # Agent HTML apps. Both write to / read from the session's own drive, which RUN_TOOLS
+    # already covers (the mount endpoints ask for nothing more), so neither is elevated.
+    CREATE_APP_CALL_REF: PlatformToolHandlerRegistration(
+        call_ref=CREATE_APP_CALL_REF,
+        timeout_ms=CREATE_APP_DEFAULT_TIMEOUT_MS,
+        handler=handle_create_app,
+        needs_mounts=True,
+    ),
+    LIST_STARTERS_CALL_REF: PlatformToolHandlerRegistration(
+        call_ref=LIST_STARTERS_CALL_REF,
+        timeout_ms=LIST_STARTERS_DEFAULT_TIMEOUT_MS,
+        handler=handle_list_starters,
+        needs_mounts=True,
+    ),
+}
+
+# Model-facing definitions (name, description, JSON schema, context bindings, read_only) for
+# the handlers whose op catalog entry is authored here rather than in the SDK. The SDK's
+# ``PLATFORM_OPS`` entry for each must be a copy of this dict; ``read_only`` follows the
+# catalog's convention (a read hint for the runner's ``allow_reads`` policy).
+PLATFORM_TOOL_DEFINITIONS: Dict[str, Dict[str, Any]] = {
+    CREATE_APP_CALL_REF: CREATE_APP_TOOL_DEFINITION,
+    LIST_STARTERS_CALL_REF: LIST_STARTERS_TOOL_DEFINITION,
 }
 
 
@@ -1005,6 +1040,7 @@ async def dispatch_platform_tool_handler(
     user_id: UUID,
     workflows_service: Optional[WorkflowsService],
     tracing_service: Optional[TracingService],
+    mounts_service: Any = None,
 ) -> PlatformHandlerResult:
     registration = PLATFORM_TOOL_HANDLERS.get(call_ref)
     if registration is None:
@@ -1012,6 +1048,9 @@ async def dispatch_platform_tool_handler(
             f"Unknown reserved Agenta tool handler: {call_ref}"
         )
 
+    extra: Dict[str, Any] = (
+        {"mounts_service": mounts_service} if registration.needs_mounts else {}
+    )
     return await registration.handler(
         arguments=arguments,
         headers=headers,
@@ -1020,4 +1059,5 @@ async def dispatch_platform_tool_handler(
         workflows_service=workflows_service,
         tracing_service=tracing_service,
         timeout_ms=registration.timeout_ms,
+        **extra,
     )

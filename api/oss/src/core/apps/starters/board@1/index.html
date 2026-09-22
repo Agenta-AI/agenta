@@ -1,0 +1,373 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Board</title>
+<!--
+  Board starter (board@1). The reference custom app: kit classes for layout, the agenta
+  bridge for files, nothing external. Data lives in board.json next to this file; the
+  column set and title come from config.json (defaults below when it is missing).
+-->
+<style>
+  /* Only what the kit does not cover: drag feedback and the unsaved marker. */
+  .card-row { display: flex; align-items: flex-start; gap: 6px; }
+  .card-row .text { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+  .card-row .text.done { text-decoration: line-through; opacity: 0.6; }
+  .card-tools { display: flex; gap: 4px; margin-top: 6px; align-items: center; }
+  .handle { cursor: grab; touch-action: none; user-select: none; padding: 0 4px; opacity: 0.6; }
+  .ag-card.dragging { opacity: 0.4; }
+  .ag-column.drop-target { outline: 2px dashed var(--ag-accent, #6366f1); outline-offset: -2px; }
+  .ag-column > header { display: flex; justify-content: space-between; align-items: baseline; }
+  .add-form { display: flex; gap: 4px; margin-top: 6px; }
+  .add-form .ag-input { flex: 1; min-width: 0; }
+  .status { margin-left: auto; }
+  .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+</style>
+</head>
+<body>
+<div class="ag-app">
+  <div class="ag-toolbar">
+    <strong id="title">Board</strong>
+    <span id="status" class="ag-badge status" hidden></span>
+  </div>
+  <div id="columns" class="ag-columns"></div>
+  <div id="toast" class="ag-toast" role="status" aria-live="polite" hidden></div>
+</div>
+
+<script>
+(() => {
+  "use strict";
+
+  const DEFAULT_CONFIG = {
+    title: "Board",
+    columns: [
+      {id: "todo", title: "To do"},
+      {id: "doing", title: "Doing"},
+      {id: "done", title: "Done"},
+    ],
+  };
+  const CONFIG_FILE = "config.json";
+  const BOARD_FILE = "board.json";
+  const SAVE_DEBOUNCE_MS = 300;
+
+  const el = {
+    title: document.getElementById("title"),
+    status: document.getElementById("status"),
+    columns: document.getElementById("columns"),
+    toast: document.getElementById("toast"),
+  };
+
+  let config = DEFAULT_CONFIG;
+  let board = {columns: []};
+  let dirty = false;        // local edits not yet written
+  let saveTimer = null;
+  let saving = false;
+  let pendingReload = false; // a `changed` arrived while a drag or save was in flight
+  let drag = null;           // {cardId, fromId, ghost}
+
+  // ---- data ------------------------------------------------------------------
+
+  const uid = () => Math.random().toString(36).slice(2, 10);
+
+  const isNotFound = (e) => e && e.code === "not_found";
+
+  async function readJSONOr(path, fallback) {
+    try {
+      return await agenta.fs.readJSON(path);
+    } catch (e) {
+      if (isNotFound(e)) return fallback;
+      throw e;
+    }
+  }
+
+  /** Board shaped by the config: every configured column exists, in config order; extra
+   *  columns found in the data file are kept after them so nothing is silently dropped. */
+  function normalise(raw, cfg) {
+    // Duplicate ids in the stored board are folded, not dropped: a column id is an identity, so
+    // two entries claiming one id are the same column, and keeping only the last would delete
+    // the other's cards on the next load.
+    const byId = new Map();
+    for (const col of (raw && Array.isArray(raw.columns) ? raw.columns : [])) {
+      if (!col || typeof col.id !== "string") continue;
+      const seen = byId.get(col.id);
+      if (seen) seen.cards = [...cleanCards(seen.cards), ...cleanCards(col.cards)];
+      else byId.set(col.id, {...col, cards: cleanCards(col.cards)});
+    }
+    const columns = [];
+    for (const c of cfg.columns) {
+      const found = byId.get(c.id);
+      byId.delete(c.id);
+      columns.push({id: c.id, title: c.title || c.id, cards: cleanCards(found && found.cards)});
+    }
+    for (const col of byId.values()) {
+      columns.push({id: col.id, title: col.title || col.id, cards: cleanCards(col.cards)});
+    }
+    return {columns};
+  }
+
+  function cleanCards(cards) {
+    if (!Array.isArray(cards)) return [];
+    return cards
+      .filter((c) => c && typeof c.text === "string")
+      .map((c) => ({id: typeof c.id === "string" ? c.id : uid(), text: c.text, done: !!c.done}));
+  }
+
+  /** Conflict merge: union of cards by id; position (column + order) from ours; cards only
+   *  the other side knows stay where the other side put them. */
+  function merge(ours, theirs) {
+    const ourIds = new Set();
+    for (const col of ours.columns) for (const card of col.cards) ourIds.add(card.id);
+    const out = {columns: ours.columns.map((c) => ({...c, cards: c.cards.slice()}))};
+    for (const tcol of theirs.columns) {
+      let target = out.columns.find((c) => c.id === tcol.id);
+      if (!target) {
+        target = {id: tcol.id, title: tcol.title || tcol.id, cards: []};
+        out.columns.push(target);
+      }
+      for (const card of tcol.cards) if (!ourIds.has(card.id)) target.cards.push(card);
+    }
+    return out;
+  }
+
+  async function load() {
+    config = normaliseConfig(await readJSONOr(CONFIG_FILE, DEFAULT_CONFIG));
+    board = normalise(await readJSONOr(BOARD_FILE, {columns: []}), config);
+    dirty = false;
+    render();
+  }
+
+  function normaliseConfig(raw) {
+    // One column per id, first wins: config order is display order. A repeated id rendered two
+    // columns that shared an identity, and the second always drew empty, because the lookup that
+    // fills it is consumed by the first.
+    const seen = new Set();
+    const cols = raw && Array.isArray(raw.columns)
+      ? raw.columns.filter((c) => {
+          if (!c || typeof c.id !== "string" || seen.has(c.id)) return false;
+          seen.add(c.id);
+          return true;
+        })
+      : [];
+    return {
+      title: raw && typeof raw.title === "string" ? raw.title : DEFAULT_CONFIG.title,
+      columns: cols.length ? cols : DEFAULT_CONFIG.columns,
+    };
+  }
+
+  // ---- saving ----------------------------------------------------------------
+
+  /** Whether local edits should hold a reload back. Only edits something will actually write
+   *  do: a read-only board never calls save(), so `dirty` there means scratch the viewer was
+   *  told is "not saved", and holding on it froze the board at their first touch. */
+  const holdsReload = () => drag || saving || (dirty && agenta.canWrite);
+
+  function scheduleSave() {
+    dirty = true;
+    render();
+    if (!agenta.canWrite) return;
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(save, SAVE_DEBOUNCE_MS);
+  }
+
+  async function save() {
+    if (saving) { pendingReload = true; return; }
+    saving = true;
+    try {
+      await writeOnce(board);
+      dirty = false;
+      toast("Saved");
+    } catch (e) {
+      if (e && e.code === "conflict") {
+        try {
+          const theirs = normalise(await readJSONOr(BOARD_FILE, {columns: []}), config);
+          board = merge(board, theirs);
+          await writeOnce(board);
+          dirty = false;
+          toast("Merged and saved");
+        } catch (e2) {
+          toast("Could not save: " + describe(e2));
+        }
+      } else {
+        toast("Could not save: " + describe(e));
+      }
+    } finally {
+      saving = false;
+      render();
+      if (pendingReload && !holdsReload()) { pendingReload = false; load().catch(report); }
+    }
+  }
+
+  const writeOnce = (value) => agenta.fs.writeJSON(BOARD_FILE, value);
+
+  const describe = (e) => (e && (e.code || e.message)) || "unknown error";
+
+  // ---- rendering -------------------------------------------------------------
+
+  function render() {
+    el.title.textContent = config.title;
+    document.title = config.title;
+    if (!agenta.canWrite) {
+      el.status.textContent = "Read-only: changes are not saved";
+      el.status.hidden = false;
+    } else if (dirty) {
+      el.status.textContent = "Saving…";
+      el.status.hidden = false;
+    } else {
+      el.status.hidden = true;
+    }
+
+    el.columns.replaceChildren(...board.columns.map(renderColumn));
+  }
+
+  function renderColumn(col) {
+    const section = h("section", {class: "ag-column", "data-col": col.id});
+    const header = h("header", {}, h("strong", {}, col.title), h("span", {class: "ag-badge"}, String(col.cards.length)));
+    const list = h("div", {class: "ag-list", role: "list"});
+    if (col.cards.length === 0) list.append(h("div", {class: "ag-empty"}, "No cards"));
+    for (const card of col.cards) list.append(renderCard(card, col));
+    section.append(header, list, renderAddForm(col));
+    return section;
+  }
+
+  function renderCard(card, col) {
+    const unsaved = dirty && !agenta.canWrite;
+    const node = h("article", {class: "ag-card", role: "listitem", "data-card": card.id});
+    const check = h("input", {type: "checkbox", class: "ag-check", "aria-label": "Done"});
+    check.checked = card.done;
+    check.addEventListener("change", () => { card.done = check.checked; scheduleSave(); });
+    const handle = h("span", {class: "handle", "aria-hidden": "true", title: "Drag to move"}, "⋮⋮");
+    handle.addEventListener("pointerdown", (ev) => startDrag(ev, card, col, node));
+    node.append(h("div", {class: "card-row"}, handle, check, h("span", {class: "text" + (card.done ? " done" : "")}, card.text)));
+
+    const move = h("select", {class: "ag-select", "aria-label": "Move to column"});
+    move.append(h("option", {value: ""}, "Move to…"));
+    for (const other of board.columns) {
+      if (other.id !== col.id) move.append(h("option", {value: other.id}, other.title));
+    }
+    move.addEventListener("change", () => { if (move.value) moveCard(card.id, col.id, move.value); });
+    const remove = h("button", {type: "button", class: "ag-btn", "aria-label": "Delete card"}, "Delete");
+    remove.addEventListener("click", () => {
+      col.cards = col.cards.filter((c) => c.id !== card.id);
+      scheduleSave();
+    });
+    const tools = h("div", {class: "card-tools"}, move, remove);
+    if (unsaved) tools.append(h("span", {class: "ag-badge"}, "unsaved"));
+    node.append(tools);
+    return node;
+  }
+
+  function renderAddForm(col) {
+    const input = h("input", {class: "ag-input", type: "text", placeholder: "Add a card", "aria-label": "New card in " + col.title});
+    const button = h("button", {type: "submit", class: "ag-btn ag-btn-primary"}, "Add");
+    const form = h("form", {class: "add-form"}, input, button);
+    form.addEventListener("submit", (ev) => {
+      ev.preventDefault();
+      const text = input.value.trim();
+      if (!text) return;
+      col.cards.push({id: uid(), text, done: false});
+      input.value = "";
+      scheduleSave();
+      const again = el.columns.querySelector(`[data-col="${col.id}"] .add-form .ag-input`);
+      if (again) again.focus();
+    });
+    return form;
+  }
+
+  function moveCard(cardId, fromId, toId, index) {
+    if (fromId === toId && index === undefined) return;
+    const from = board.columns.find((c) => c.id === fromId);
+    const to = board.columns.find((c) => c.id === toId);
+    if (!from || !to) return;
+    const at = from.cards.findIndex((c) => c.id === cardId);
+    if (at === -1) return;
+    const [card] = from.cards.splice(at, 1);
+    if (index === undefined || index > to.cards.length) to.cards.push(card);
+    else to.cards.splice(index, 0, card);
+    scheduleSave();
+  }
+
+  // ---- drag (pointer events) ---------------------------------------------------
+
+  function startDrag(ev, card, col, node) {
+    if (ev.button !== 0 && ev.pointerType === "mouse") return;
+    ev.preventDefault();
+    drag = {cardId: card.id, fromId: col.id, node};
+    node.classList.add("dragging");
+    node.setPointerCapture && ev.target.setPointerCapture(ev.pointerId);
+    window.addEventListener("pointermove", onDragMove);
+    window.addEventListener("pointerup", onDragEnd, {once: true});
+    window.addEventListener("pointercancel", onDragEnd, {once: true});
+  }
+
+  function columnAt(x, y) {
+    const hit = document.elementFromPoint(x, y);
+    return hit ? hit.closest(".ag-column") : null;
+  }
+
+  function onDragMove(ev) {
+    if (!drag) return;
+    const over = columnAt(ev.clientX, ev.clientY);
+    for (const c of el.columns.children) c.classList.toggle("drop-target", c === over);
+  }
+
+  function onDragEnd(ev) {
+    window.removeEventListener("pointermove", onDragMove);
+    if (!drag) return;
+    const {cardId, fromId, node} = drag;
+    drag = null;
+    node.classList.remove("dragging");
+    const over = ev.type === "pointerup" ? columnAt(ev.clientX, ev.clientY) : null;
+    for (const c of el.columns.children) c.classList.remove("drop-target");
+    if (over) moveCard(cardId, fromId, over.dataset.col);
+    if (pendingReload && !holdsReload()) { pendingReload = false; load().catch(report); }
+  }
+
+  // ---- bridge events -------------------------------------------------------------
+
+  function onChanged(msg) {
+    const paths = (msg && msg.paths) || [];
+    if (!paths.some((p) => p === BOARD_FILE || p === CONFIG_FILE)) return;
+    // Our own pending write will merge on conflict; a re-read now would drop local edits.
+    if (holdsReload()) { pendingReload = true; return; }
+    load().catch(report);
+  }
+
+  // ---- utilities ---------------------------------------------------------------
+
+  function h(tag, attrs, ...children) {
+    const node = document.createElement(tag);
+    for (const [k, v] of Object.entries(attrs || {})) node.setAttribute(k, v);
+    node.append(...children);
+    return node;
+  }
+
+  let toastTimer = null;
+  function toast(text) {
+    el.toast.textContent = text;
+    el.toast.hidden = false;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { el.toast.hidden = true; }, 1800);
+  }
+
+  function report(e) {
+    toast("Error: " + describe(e));
+  }
+
+  // ---- boot ------------------------------------------------------------------------
+
+  async function main() {
+    if (!window.agenta) {
+      el.columns.append(h("div", {class: "ag-empty"}, "This app needs the Agenta drive to run."));
+      return;
+    }
+    await agenta.ready;
+    agenta.addEventListener("changed", onChanged);
+    await load();
+  }
+
+  main().catch(report);
+})();
+</script>
+</body>
+</html>

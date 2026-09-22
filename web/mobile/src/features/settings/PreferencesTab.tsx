@@ -1,6 +1,10 @@
 import {PreferencesPage, type ThemePickerProps} from "@agenta/settings-ui"
 import {desktopEscapeHref, writeClassicModeCookie} from "@agenta/shared/hooks"
-import {classicModeEnabledAtom, playgroundInspectorEnabledAtom} from "@agenta/shared/state"
+import {
+    agentAppsEnabledAtom,
+    classicModeEnabledAtom,
+    playgroundInspectorEnabledAtom,
+} from "@agenta/shared/state"
 import {useAtom} from "jotai"
 
 /**
@@ -10,6 +14,7 @@ import {useAtom} from "jotai"
 export const PreferencesTab = ({theme}: {theme: ThemePickerProps}) => {
     const [classicMode, setClassicMode] = useAtom(classicModeEnabledAtom)
     const [inspector, setInspector] = useAtom(playgroundInspectorEnabledAtom)
+    const [agentApps, setAgentApps] = useAtom(agentAppsEnabledAtom)
 
     const onClassicModeChange = (enabled: boolean) => {
         setClassicMode(enabled)
@@ -39,6 +44,15 @@ export const PreferencesTab = ({theme}: {theme: ThemePickerProps}) => {
                     enabled: inspector,
                     onChange: setInspector,
                     badge: "DEBUG",
+                },
+                {
+                    key: "agent-apps",
+                    title: "Agent apps",
+                    description:
+                        "Offer Run on HTML files in an agent's drive, so a page can read and write its own folder.",
+                    enabled: agentApps,
+                    onChange: setAgentApps,
+                    badge: "BETA",
                 },
             ]}
         />
