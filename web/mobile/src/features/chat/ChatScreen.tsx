@@ -228,6 +228,7 @@ const ReplayScreen = ({
                     sessionId={sessionId}
                     remoteRunning={running}
                     waitingOnUser={pendingCount > 0}
+                    resuming={false}
                     pending={running && !!visibleTurns[visibleTurns.length - 1]?.isUser}
                 />
             </ContentRail>

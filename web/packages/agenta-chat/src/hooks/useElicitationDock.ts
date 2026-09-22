@@ -64,6 +64,17 @@ export interface ElicitationDockState {
      * `false`. A no-op while nothing is parked.
      */
     dismiss: () => Promise<void>
+    /**
+     * The settle channel the cards answer through — the host's `onOutput` wrapped so the dock
+     * closes when the answer LEAVES rather than when the transcript carries it back, and re-opens
+     * when the write did not land. Hosts pass this to the dock component, not their own handler.
+     */
+    settle: ClientToolOutputHandler
+    /**
+     * Calls answered here whose transcript rows have not arrived. Empty again once they do, or once
+     * a write fails — a host reads it as "an answer is in flight", which is not the same as parked.
+     */
+    settlingIds: ReadonlySet<string>
 }
 
 /** Fully arrived. `input-streaming` and the `{}` input-refresh announce (sdk `vercel/stream.py`)
@@ -111,25 +122,66 @@ export const useElicitationDock = ({
         })
     }, [front, degradedEarlierInTurn, onOutput])
 
-    // The host-driven dismiss, keyed by the calls it settled. Keyed rather than a bare flag so it
-    // survives the dock's closing animation (`shown` still holds the settled calls) and cannot
-    // leak onto the agent's next ask. `pending` is read through a ref: the host calls this from a
-    // send handler whose closure may predate the current transcript. The sibling of
-    // `useConnectionDock`'s, down to the recovery — keep the two in step.
+    // Calls whose answer is out but whose transcript row has not come back. Keyed rather than a
+    // bare flag so it survives the dock's closing animation (`shown` still holds the settled
+    // calls) and cannot leak onto the agent's next ask. `pending` is read through a ref: the host
+    // calls `dismiss` from a send handler whose closure may predate the current transcript. The
+    // sibling of `useConnectionDock`'s, down to the recovery — keep the two in step.
     const pendingRef = useRef(pending)
     pendingRef.current = pending
-    const [dismissingIds, setDismissingIds] = useState<ReadonlySet<string>>(() => new Set())
-    const dismissingRef = useRef<Set<string>>(new Set())
+    const [settlingIds, setSettlingIds] = useState<ReadonlySet<string>>(() => new Set())
+    const settlingRef = useRef<Set<string>>(new Set())
+    const markSettling = useCallback((ids: string[]) => {
+        for (const id of ids) settlingRef.current.add(id)
+        setSettlingIds(new Set(settlingRef.current))
+    }, [])
+    const forgetSettling = useCallback((ids: string[]) => {
+        for (const id of ids) settlingRef.current.delete(id)
+        setSettlingIds(new Set(settlingRef.current))
+    }, [])
+
+    // The transcript caught up, so the marker has nothing left to hide — and without this the set
+    // would grow for the life of the conversation and keep reading as an answer in flight.
+    useEffect(() => {
+        if (settlingRef.current.size === 0) return
+        const live = new Set(pending.map((meta) => meta.toolCallId))
+        let changed = false
+        for (const id of settlingRef.current) {
+            if (!live.has(id)) {
+                settlingRef.current.delete(id)
+                changed = true
+            }
+        }
+        if (changed) setSettlingIds(new Set(settlingRef.current))
+    }, [pending])
+
+    // A card answered itself. The write still has to reach the server and come back through the
+    // records, so hide the card on the way out and give it back only if it never landed.
+    const settle = useCallback<ClientToolOutputHandler>(
+        async (args) => {
+            if (!onOutput) return false
+            markSettling([args.toolCallId])
+            try {
+                const landed = await onOutput(args)
+                if (landed === false) forgetSettling([args.toolCallId])
+                return landed
+            } catch (error) {
+                forgetSettling([args.toolCallId])
+                throw error
+            }
+        },
+        [onOutput, markSettling, forgetSettling],
+    )
+
     const dismiss = useCallback(async () => {
         // No settle channel means nothing can be written, so nothing is dismissed. Checked before
         // the markers go up: closing the dock over a question that is still parked would hide it.
         if (!onOutput) return
         const targets = pendingRef.current.filter(
-            (meta) => !meta.settled && !dismissingRef.current.has(meta.toolCallId),
+            (meta) => !meta.settled && !settlingRef.current.has(meta.toolCallId),
         )
         if (targets.length === 0) return
-        for (const meta of targets) dismissingRef.current.add(meta.toolCallId)
-        setDismissingIds(new Set(dismissingRef.current))
+        markSettling(targets.map((meta) => meta.toolCallId))
         try {
             const landed = await Promise.all(
                 targets.map((meta) =>
@@ -150,16 +202,15 @@ export const useElicitationDock = ({
             for (const meta of targets) discardElicitationDraft(meta.toolCallId)
         } catch (error) {
             // The questions are still live: give the dock back.
-            for (const meta of targets) dismissingRef.current.delete(meta.toolCallId)
-            setDismissingIds(new Set(dismissingRef.current))
+            forgetSettling(targets.map((meta) => meta.toolCallId))
             throw error
         }
-    }, [onOutput])
+    }, [onOutput, markSettling, forgetSettling])
 
     // Hold the last non-empty view so a host can animate the dock closed around content already gone.
-    // A dock being dismissed closes at once: the message that replaced it is the thing to look at,
-    // and the cards only return if a write fails.
-    const open = pending.length > 0 && !pending.every((meta) => dismissingIds.has(meta.toolCallId))
+    // An answered or dismissed dock closes at once: what replaced it is the thing to look at, and
+    // the cards only return if a write fails.
+    const open = pending.length > 0 && !pending.every((meta) => settlingIds.has(meta.toolCallId))
     const shownRef = useRef<ClientToolMeta[]>([])
     if (open) shownRef.current = pending
     const shown = shownRef.current
@@ -170,5 +221,7 @@ export const useElicitationDock = ({
         queue: shown,
         shortcutsEnabled: !approvalsPending,
         dismiss,
+        settle,
+        settlingIds,
     }
 }

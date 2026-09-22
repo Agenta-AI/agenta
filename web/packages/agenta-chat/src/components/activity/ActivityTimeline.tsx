@@ -215,7 +215,8 @@ const liveVerb = (
     if (!step) return firstTurn ? startupLabel || "Waking up the agent" : "Working"
     if (step.kind === "thought") return step.source === "text" ? "Writing" : "Thinking"
     const part = step.part
-    if ((part.state as string) === "approval-requested") return "Waiting for your approval"
+    // Only reached with the wait already over (`awaiting` owns the line while it lasts): a gate
+    // still marked `approval-requested` here is one the reader just answered, so it reads as work.
     return resolveToolDisplay(partToolName(part), (part as {input?: unknown}).input).activity
         .running
 }
@@ -235,6 +236,9 @@ export interface ActivityTimelineProps {
     firstTurn?: boolean
     /** The run is parked on the reader (a question, a connect). */
     waitingOnUser?: boolean
+    /** The ask was answered here and the answer is still in flight, so the transcript keeps
+     *  carrying it. The wait is over: the line reads as work, not as a wait. */
+    resuming?: boolean
     /** The turn's trace: once settled, its duration outranks the local count. */
     traceId?: string | null
     /** This tab streamed the run itself, so its first step is the start. False for a run found
@@ -254,6 +258,7 @@ export const ActivityTimeline = ({
     answerStarted,
     sessionId,
     waitingOnUser = false,
+    resuming = false,
     traceId,
     streamedHere = true,
     firstTurn = false,
@@ -262,9 +267,12 @@ export const ActivityTimeline = ({
     const startupLabel = useStartupPhase(streaming && firstTurn && sessionId ? sessionId : "")
     const current = currentStep(steps)
     const awaiting =
-        waitingOnUser ||
-        (current?.kind === "tool" && (current.part.state as string) === "approval-requested")
-    const live = streaming || hasLiveStep(steps)
+        !resuming &&
+        (waitingOnUser ||
+            (current?.kind === "tool" && (current.part.state as string) === "approval-requested"))
+    // `resuming` keeps the line alive across the gap: the answered ask is the only open step, so
+    // without it the fold would read "Worked for 11s" until the agent's next record lands.
+    const live = streaming || hasLiveStep(steps) || resuming
     // A run this tab met mid-flight: it was already going when the tab opened, so there is no local
     // span to count from and the clock would report the age of the TAB, not of the run (#6934). The
     // trace's root span is when the run began — the same source the timestamp beside this line
@@ -324,11 +332,17 @@ export const ActivityTimeline = ({
                     text={
                         awaiting
                             ? "Waiting for you"
-                            : answerStarted && !current
-                              ? "Answering"
-                              : idle
-                                ? "Working"
-                                : liveVerb(current ?? lastAgentStep(steps), startupLabel, firstTurn)
+                            : resuming && !current
+                              ? "Working"
+                              : answerStarted && !current
+                                ? "Answering"
+                                : idle
+                                  ? "Working"
+                                  : liveVerb(
+                                        current ?? lastAgentStep(steps),
+                                        startupLabel,
+                                        firstTurn,
+                                    )
                     }
                 />
             </>
