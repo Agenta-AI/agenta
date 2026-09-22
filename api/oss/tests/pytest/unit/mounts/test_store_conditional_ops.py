@@ -13,8 +13,7 @@ from types import SimpleNamespace
 
 import pytest
 from miniopy_async.error import S3Error
-
-from oss.src.core.mounts.types import MountFileNotFound
+from oss.src.core.mounts.types import MountFileNotFound, MountStorageUnavailable
 from oss.src.core.store.storage import ObjectStore, _normalize_etag
 from oss.src.core.store.types import StorePreconditionFailed
 
@@ -91,6 +90,48 @@ def _store() -> tuple[ObjectStore, _FakeMinio]:
     fake = _FakeMinio()
     store._client = lambda: fake  # type: ignore[method-assign]
     return store, fake
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "operation",
+    ["read", "stat", "put", "create", "replace", "delete", "delete_after_stat"],
+)
+async def test_missing_bucket_is_unavailable_not_missing_file_or_conflict(operation):
+    store, fake = _store()
+    fake.objects["k"] = b"v1"
+
+    async def unavailable(*args, **kwargs):
+        raise _s3error("NoSuchBucket")
+
+    method = {
+        "read": "get_object",
+        "stat": "stat_object",
+        "put": "put_object",
+        "create": "_put_object",
+        "replace": "_put_object",
+        "delete": "stat_object",
+        "delete_after_stat": "remove_object",
+    }[operation]
+    setattr(fake, method, unavailable)
+    with pytest.raises(MountStorageUnavailable):
+        if operation == "read":
+            await store.get_object(bucket=_BUCKET, key="k")
+        elif operation == "stat":
+            await store.stat_object(bucket=_BUCKET, key="k")
+        elif operation in ("delete", "delete_after_stat"):
+            await store.delete_object_if_match(
+                bucket=_BUCKET, key="k", if_match=_etag(b"v1")
+            )
+        else:
+            await store.put_object(
+                bucket=_BUCKET,
+                key="k",
+                body=b"v2",
+                if_match=_etag(b"v1") if operation == "replace" else None,
+                if_none_match_any=operation == "create",
+            )
+    assert fake.objects["k"] == b"v1"
 
 
 class TestEtagNormalization:

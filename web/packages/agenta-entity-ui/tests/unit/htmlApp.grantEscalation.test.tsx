@@ -109,6 +109,106 @@ const runWithStoredGrant = async (opts: {
 /** The sheet is a dialog; its heading names the app. */
 const sheetIsOpen = () => document.body.textContent?.includes("Run Board?") === true
 
+const click = async (element: Element | null | undefined) => {
+    expect(element).toBeTruthy()
+    await act(async () => {
+        element?.dispatchEvent(new MouseEvent("click", {bubbles: true}))
+    })
+}
+
+const openRun = () =>
+    click(
+        [...container.querySelectorAll("*")].find(
+            (el) => el.children.length === 0 && el.textContent?.trim() === "Run",
+        ),
+    )
+const confirmRun = () =>
+    click(
+        [...document.querySelectorAll("[role=dialog] button")].find(
+            (el) => el.textContent?.trim() === "Run",
+        ),
+    )
+
+const renderBody = async (
+    grants: GrantStore,
+    io: ReturnType<typeof manifestIo>,
+    path = ENTRY,
+    canWrite = true,
+) => {
+    await act(async () =>
+        root.render(
+            <HtmlAppEnvContext.Provider
+                value={{
+                    enabled: true,
+                    io,
+                    createHost: stubHost,
+                    grants,
+                    canEditMounts: canWrite,
+                    kitCss: "",
+                    bridgeStub: "",
+                    resolveTokens: () => ({}),
+                }}
+            >
+                <HtmlAppBody mount={MOUNT} path={path} content="<html></html>" />
+            </HtmlAppEnvContext.Provider>,
+        ),
+    )
+}
+
+describe("Run: confirmation belongs to the displayed request", () => {
+    it("cannot confirm before a delayed manifest supplies its access", async () => {
+        let resolve!: (value: string) => void
+        const waiting = new Promise<string>((done) => {
+            resolve = done
+        })
+        const io = {fetchText: () => waiting, fetchDataUri: () => Promise.resolve(null)}
+        const grants = createGrantStore()
+        await renderBody(grants, io)
+        await openRun()
+        const button = [...document.querySelectorAll("button")].find((el) =>
+            el.textContent?.includes("Loading permissions"),
+        )
+        expect(button?.disabled).toBe(true)
+        expect(grants.get("m1", DIR)).toBeNull()
+        await act(async () =>
+            resolve(JSON.stringify({agenta_app: 1, name: "Board", access: "read-write"})),
+        )
+        await confirmRun()
+        expect(grants.get("m1", DIR)).toEqual({level: "read-write", asked: "read-write"})
+    })
+
+    it("does not carry a selection into a different app's request", async () => {
+        const grants = createGrantStore()
+        const io = manifestIo("read-write")
+        await renderBody(grants, io)
+        await openRun()
+        await click(document.querySelector('[role=radio][value="read"]'))
+        await renderBody(grants, io, "apps/other/index.html")
+        await confirmRun()
+        expect(grants.get("m1", DIR)).toBeNull()
+        expect(grants.get("m1", "apps/other")).toEqual({level: "read-write", asked: "read-write"})
+    })
+
+    it("never records write access after write permission is revoked", async () => {
+        const grants = createGrantStore()
+        const io = manifestIo("read-write")
+        await renderBody(grants, io)
+        await openRun()
+        await renderBody(grants, io, ENTRY, false)
+        await confirmRun()
+        expect(grants.get("m1", DIR)).toEqual({level: "read", asked: "read-write"})
+    })
+
+    it("resets the selection when requested access changes while open", async () => {
+        const grants = createGrantStore()
+        await renderBody(grants, manifestIo("read"))
+        await openRun()
+        await renderBody(grants, manifestIo("read-write"))
+        await confirmRun()
+        expect(grants.get("m1", DIR)).toEqual({level: "read-write", asked: "read-write"})
+    })
+})
+
 describe("Run: when a stored grant sends you back to the sheet", () => {
     it("asks when the app now wants read-write and only read was ever offered", async () => {
         await runWithStoredGrant({

@@ -6,7 +6,6 @@ import json
 from uuid import uuid4
 
 import pytest
-
 from oss.src.core.apps.handlers import (
     CREATE_APP_CALL_REF,
     CREATE_APP_TOOL_DEFINITION,
@@ -127,6 +126,102 @@ async def test_invalid_dir_is_refused_before_any_write(fake_mounts, bad_dir):
     assert fake_mounts.writes == []
 
 
+@pytest.mark.parametrize(
+    "update,fail_at", [(False, 1), (False, 2), (False, 3), (True, 1), (True, 2)]
+)
+async def test_failed_copy_restores_previous_files(fake_mounts, update, fail_at):
+    if update:
+        await _create(fake_mounts)
+        fake_mounts.files["apps/sprint/index.html"] = "custom entry"
+    before = dict(fake_mounts.files)
+    original = fake_mounts.write_file
+    calls = 0
+
+    async def fail_once(**kwargs):
+        nonlocal calls
+        calls += 1
+        if calls == fail_at:
+            raise RuntimeError("storage disconnected")
+        return await original(**kwargs)
+
+    fake_mounts.write_file = fail_once
+    with pytest.raises(RuntimeError, match="storage disconnected"):
+        await _create(fake_mounts, update=update)
+    assert fake_mounts.files == before
+    fake_mounts.write_file = original
+    await _create(fake_mounts, update=update)
+
+
+@pytest.mark.parametrize("fail_at", [1, 2, 3])
+async def test_lost_write_response_is_reconciled_before_rollback(fake_mounts, fail_at):
+    original = fake_mounts.write_file
+    calls = 0
+
+    async def lose_response(**kwargs):
+        nonlocal calls
+        calls += 1
+        result = await original(**kwargs)
+        if calls == fail_at:
+            raise TimeoutError("response lost after commit")
+        return result
+
+    fake_mounts.write_file = lose_response
+    with pytest.raises(TimeoutError):
+        await _create(fake_mounts)
+    assert fake_mounts.files == {}
+
+
+async def test_manifest_is_published_last(fake_mounts):
+    await _create(fake_mounts)
+    assert fake_mounts.writes[-1] == "apps/sprint/app.json"
+
+
+async def test_create_does_not_overwrite_existing_entry_without_manifest(fake_mounts):
+    fake_mounts.files["apps/sprint/index.html"] = "unrelated document"
+    before = dict(fake_mounts.files)
+    with pytest.raises(AppsError, match="already exists"):
+        await _create(fake_mounts)
+    assert fake_mounts.files == before
+    assert fake_mounts.writes == []
+
+
+async def test_failed_copy_preserves_concurrent_edit_and_reports_path(fake_mounts):
+    original = fake_mounts.write_file
+
+    async def concurrent_edit(**kwargs):
+        if kwargs["path"].endswith("config.json"):
+            fake_mounts.files["apps/sprint/index.html"] = "someone else's edit"
+            raise RuntimeError("disconnected")
+        return await original(**kwargs)
+
+    fake_mounts.write_file = concurrent_edit
+    with pytest.raises(AppsError) as exc:
+        await _create(fake_mounts)
+    assert exc.value.code == "app_copy_incomplete"
+    assert exc.value.details == {"paths": ["apps/sprint/index.html"]}
+    assert fake_mounts.files == {"apps/sprint/index.html": "someone else's edit"}
+
+
+async def test_concurrent_create_is_not_overwritten(fake_mounts):
+    original = fake_mounts.write_file
+
+    async def concurrent_create(**kwargs):
+        if kwargs["path"].endswith("config.json"):
+            fake_mounts.files[kwargs["path"]] = "concurrent config"
+        return await original(**kwargs)
+
+    fake_mounts.write_file = concurrent_create
+    with pytest.raises(AppsError) as exc:
+        await _create(fake_mounts)
+    assert exc.value.code == "conflict"
+    assert fake_mounts.files == {"apps/sprint/config.json": "concurrent config"}
+
+
+async def test_update_true_on_new_app_still_creates_config(fake_mounts):
+    await _create(fake_mounts, update=True)
+    assert "apps/sprint/config.json" in fake_mounts.files
+
+
 # --- handler ---------------------------------------------------------------------
 
 
@@ -168,6 +263,43 @@ async def test_handler_returns_the_agent_error_envelope(fake_mounts):
     assert result.ok is False
     assert result.content.code == "unknown_starter"
     assert result.content.retryable is False
+
+
+@pytest.mark.parametrize("update", ["false", "true", "", 0, 1, None, [], {}])
+async def test_handler_rejects_non_boolean_update_before_mount_creation(
+    fake_mounts, update
+):
+    result = await handle_create_app(
+        arguments={
+            "starter": "board",
+            "dir": "apps/sprint",
+            "session_id": "sess-1",
+            "update": update,
+        },
+        project_id=PROJECT,
+        user_id=uuid4(),
+        mounts_service=fake_mounts,
+    )
+    assert result.ok is False
+    assert result.content.code == "invalid_arguments"
+    assert fake_mounts.session_calls == []
+    assert fake_mounts.writes == []
+
+
+@pytest.mark.parametrize("update", [False, True])
+async def test_handler_accepts_boolean_update(fake_mounts, update):
+    result = await handle_create_app(
+        arguments={
+            "starter": "board",
+            "dir": "apps/sprint",
+            "session_id": "sess-1",
+            "update": update,
+        },
+        project_id=PROJECT,
+        user_id=uuid4(),
+        mounts_service=fake_mounts,
+    )
+    assert result.ok is True
 
 
 def test_tool_definition_hides_the_bound_field_from_the_model():

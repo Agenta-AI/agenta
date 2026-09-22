@@ -169,7 +169,7 @@ export function HtmlAppBody({
     )
     const frameRef = useRef<HTMLIFrameElement>(null)
 
-    const {manifest} = useAppManifest(runnable ? io : null, dir)
+    const {manifest, loaded: manifestLoaded} = useAppManifest(runnable ? io : null, dir)
     const appName = manifest?.name ?? (dir ? (dir.split("/").pop() ?? dir) : path)
     const canEditMounts = env.canEditMounts ?? (isAgentFileUploadsEnabled() && !!mountId)
     /** What the app asks for. The sheet preselects it; the grant store records it. */
@@ -256,24 +256,30 @@ export function HtmlAppBody({
             // app wanted last time the user answered, so deliberately choosing read over an offered
             // read-write is remembered and never re-asked. Without `canEditMounts` the sheet has no
             // write option to offer, so re-prompting would only loop.
-            if (existing && !(canEditMounts && exceedsGrant(existing.asked, requestedAccess))) {
-                setGrant(existing.level)
+            if (
+                manifestLoaded &&
+                existing &&
+                !(canEditMounts && exceedsGrant(existing.asked, requestedAccess))
+            ) {
+                setGrant(canEditMounts ? existing.level : "read")
                 setView("run")
             } else {
                 setSheetOpen(true)
             }
         },
-        [mountId, dir, grants, canEditMounts, requestedAccess],
+        [mountId, dir, grants, canEditMounts, requestedAccess, manifestLoaded],
     )
 
     const confirmGrant = useCallback(
         (level: GrantLevel) => {
-            if (mountId) grants.set(mountId, dir, level, requestedAccess)
-            setGrant(level)
+            if (!manifestLoaded || !mountId || !runnable) return
+            const allowed = canEditMounts ? level : "read"
+            grants.set(mountId, dir, allowed, requestedAccess)
+            setGrant(allowed)
             setSheetOpen(false)
             setView("run")
         },
-        [mountId, dir, grants, requestedAccess],
+        [mountId, dir, grants, requestedAccess, canEditMounts, manifestLoaded, runnable],
     )
 
     const cancelGrant = useCallback(() => {
@@ -367,7 +373,16 @@ export function HtmlAppBody({
 
             {runnable ? (
                 <GrantSheet
+                    key={JSON.stringify([
+                        mountId,
+                        dir,
+                        appName,
+                        requestedAccess,
+                        canEditMounts,
+                        sheetOpen,
+                    ])}
                     open={sheetOpen}
+                    pending={!manifestLoaded}
                     appName={appName}
                     dir={dirOf(displayPath ?? path)}
                     requested={requestedAccess}

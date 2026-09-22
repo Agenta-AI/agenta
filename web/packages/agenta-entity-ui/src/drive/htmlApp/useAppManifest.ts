@@ -15,27 +15,37 @@ export interface AppManifestState {
 }
 
 export function useAppManifest(io: AssembleIo | null, dir: string): AppManifestState {
-    const [state, setState] = useState<AppManifestState>({manifest: null, loaded: !io})
+    const [state, setState] = useState<AppManifestState & {io: AssembleIo | null; dir: string}>({
+        manifest: null,
+        loaded: !io,
+        io,
+        dir,
+    })
 
     useEffect(() => {
         if (!io) {
-            setState({manifest: null, loaded: true})
+            setState({manifest: null, loaded: true, io, dir})
             return
         }
         let alive = true
-        setState({manifest: null, loaded: false})
+        setState({manifest: null, loaded: false, io, dir})
         io.fetchText(joinAppPath(dir, APP_MANIFEST_FILENAME))
             .then((text) => {
                 if (!alive) return
-                setState({manifest: text == null ? null : parseManifest(text), loaded: true})
+                setState({
+                    manifest: text == null ? null : parseManifest(text),
+                    loaded: true,
+                    io,
+                    dir,
+                })
             })
             .catch(() => {
-                if (alive) setState({manifest: null, loaded: true})
+                if (alive) setState({manifest: null, loaded: true, io, dir})
             })
         return () => {
             alive = false
         }
     }, [io, dir])
 
-    return state
+    return state.io === io && state.dir === dir ? state : {manifest: null, loaded: !io}
 }

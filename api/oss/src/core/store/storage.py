@@ -39,7 +39,7 @@ _AWS_MAX_FEDERATION_SECONDS = 129600
 # other rules alone. Never rename it: an old rule under a stale id would linger forever.
 _RETENTION_RULE_ID = "agenta-noncurrent-version-expiration"
 
-_NOT_FOUND_CODES = ("NoSuchKey", "NoSuchObject", "NoSuchBucket")
+_NOT_FOUND_CODES = ("NoSuchKey", "NoSuchObject")
 
 
 def _normalize_etag(value: Optional[str]) -> Optional[str]:
@@ -556,6 +556,10 @@ class ObjectStore:
             try:
                 resp = await client.get_object(bucket, key, session)
             except S3Error as e:
+                if e.code == "NoSuchBucket":
+                    raise MountStorageUnavailable(
+                        "Mount storage bucket is unavailable."
+                    ) from e
                 if e.code in _NOT_FOUND_CODES:
                     raise MountFileNotFound() from e
                 raise
@@ -575,6 +579,10 @@ class ObjectStore:
         try:
             obj = await client.stat_object(bucket, key)
         except S3Error as e:
+            if e.code == "NoSuchBucket":
+                raise MountStorageUnavailable(
+                    "Mount storage bucket is unavailable."
+                ) from e
             if e.code in _NOT_FOUND_CODES:
                 raise MountFileNotFound() from e
             raise
@@ -607,9 +615,16 @@ class ObjectStore:
         """
         client = self._client()
         if if_match is None and not if_none_match_any:
-            result = await client.put_object(
-                bucket, key, BytesIO(body), length=len(body)
-            )
+            try:
+                result = await client.put_object(
+                    bucket, key, BytesIO(body), length=len(body)
+                )
+            except S3Error as e:
+                if e.code == "NoSuchBucket":
+                    raise MountStorageUnavailable(
+                        "Mount storage bucket is unavailable."
+                    ) from e
+                raise
             return StorePutResult(size=len(body), etag=_normalize_etag(result.etag))
 
         headers = {"Content-Type": "application/octet-stream"}
@@ -620,6 +635,10 @@ class ObjectStore:
         try:
             result = await client._put_object(bucket, key, body, headers)
         except S3Error as e:
+            if e.code == "NoSuchBucket":
+                raise MountStorageUnavailable(
+                    "Mount storage bucket is unavailable."
+                ) from e
             # AWS answers an If-Match on a missing key with 404 rather than 412; both mean the
             # condition did not hold.
             if e.code == "PreconditionFailed" or (
@@ -650,7 +669,14 @@ class ObjectStore:
         if current is None or current != _normalize_etag(if_match):
             raise StorePreconditionFailed(current)
         client = self._client()
-        await client.remove_object(bucket, key)
+        try:
+            await client.remove_object(bucket, key)
+        except S3Error as e:
+            if e.code == "NoSuchBucket":
+                raise MountStorageUnavailable(
+                    "Mount storage bucket is unavailable."
+                ) from e
+            raise
         return 1
 
     async def put_object_if_absent(self, *, bucket: str, key: str, body: bytes) -> bool:
