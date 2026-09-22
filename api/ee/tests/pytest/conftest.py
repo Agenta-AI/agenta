@@ -1,3 +1,11 @@
+import os
+
+# litellm fetches its model price map from GitHub at import time unless this is set, so a change
+# upstream (a dropped model, a new price) changes test results without any change here. Pin the
+# map bundled with the locked litellm. It must be set before anything imports litellm. Export
+# LITELLM_LOCAL_MODEL_COST_MAP=False to test against the live map on purpose.
+os.environ.setdefault("LITELLM_LOCAL_MODEL_COST_MAP", "True")
+
 import sys
 from pathlib import Path
 

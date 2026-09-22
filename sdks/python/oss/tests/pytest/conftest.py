@@ -2,7 +2,15 @@
 # Intentionally minimal — e2e fixtures are scoped to tests/pytest/acceptance/.
 # Unit tests must not require environment variables or running services.
 
-import pytest
+import os
+
+# litellm fetches its model price map from GitHub at import time unless this is set, so a change
+# upstream (a dropped model, a new price) changes test results without any change here. Pin the
+# map bundled with the locked litellm. It must be set before anything imports litellm. Export
+# LITELLM_LOCAL_MODEL_COST_MAP=False to test against the live map on purpose.
+os.environ.setdefault("LITELLM_LOCAL_MODEL_COST_MAP", "True")
+
+import pytest  # noqa: E402
 
 # Egress guards resolve their flag once at import time, so a shell that exported
 # AGENTA_INSECURE_EGRESS_ALLOWED (a loaded dev env file) disables them for the whole test
