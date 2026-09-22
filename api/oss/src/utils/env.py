@@ -1336,6 +1336,7 @@ class LLMConfig(BaseModel):
     perplexityai: str = os.getenv("PERPLEXITYAI_API_KEY", "")
     togetherai: str = os.getenv("TOGETHERAI_API_KEY", "")
     minimax: str = os.getenv("MINIMAX_API_KEY", "")
+    xai: str = os.getenv("XAI_API_KEY", "")
 
     model_config = ConfigDict(extra="ignore")
 
@@ -1358,6 +1359,7 @@ class LLMConfig(BaseModel):
                 "perplexityai",
                 "togetherai",
                 "minimax",
+                "xai",
             ]
             if getattr(self, name)
         ]

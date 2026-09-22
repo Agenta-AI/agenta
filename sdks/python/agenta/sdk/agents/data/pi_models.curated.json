@@ -3,7 +3,7 @@
   "_curation": {
     "target": "pi_models.generated.json",
     "note": "Human overlay for the generated Pi catalog. Keyed by the entry `id` (the `provider/model` join key). Only `label`, `description`, and `ratings` may appear here; the objective facts (name/pricing/context_window/modalities) always come from the generated file. The SDK loader merges this on top of the generated facts, so a pi-ai regeneration never overwrites these judgments. Ratings: 1-5, higher is better; `cost` is cost-efficiency (5 = cheapest). Sourced from the current lineup (Fable 5 is the Anthropic frontier, above Opus), not a model's memory. Uncurated ids are valid and fall back to `name` in the picker; seed only the models worth a description. The separate `additions` list carries WHOLE entries (facts included, `source`: `curated`) for models released after the pinned pi-ai snapshot, which the generated file cannot carry at all. A generated entry of the same id always wins, so an addition retires itself on the next regeneration; drop it then.",
-    "sources": "@earendil-works/pi-ai@0.85.1; vendor model and pricing pages, checked 2026-09-07."
+    "sources": "@earendil-works/pi-ai@0.85.1; vendor model and pricing pages, checked 2026-09-07. xAI Grok 4.7 addition: litellm 1.92.0 model table, cross-checked against xAI's live /v1/models, 2026-09-22."
   },
   "overlay": {
     "openai/gpt-6-astra": {
@@ -50,5 +50,24 @@
       "ratings": {"cost": 4, "intelligence": 4, "speed": 4}
     }
   },
-  "additions": []
+  "additions": [
+      {
+          "id": "xai/grok-4.7",
+          "provider": "xai",
+          "source": "curated",
+          "name": "Grok 4.7",
+          "pricing": {
+              "input_per_mtok": 2,
+              "output_per_mtok": 6,
+              "cache_read_per_mtok": 0.5,
+              "cache_write_per_mtok": 0,
+              "currency": "USD"
+          },
+          "context_window": 500000,
+          "modalities": [
+              "text",
+              "image"
+          ]
+      }
+  ]
 }

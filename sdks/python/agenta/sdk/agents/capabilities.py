@@ -12,7 +12,7 @@ concern, and the vault resolve stays harness-agnostic.
 The provider lists are the REAL harness facts, derived from
 ``docs/design/agent-workflows/projects/provider-model-auth/harness-provider-matrix.md``:
 
-- **Pi** reaches eight Agenta-vault-mapped providers directly (the ones whose ``provider_key``
+- **Pi** reaches nine Agenta-vault-mapped providers directly (the ones whose ``provider_key``
   secret drives a Pi provider via its env-key map), plus ``openai-codex`` (OpenAI's ChatGPT/Codex
   subscription), which Pi reaches through its own OAuth login rather than a vault key, usable
   under ``self_managed``. Pi also
@@ -43,7 +43,7 @@ from pydantic import BaseModel, Field, model_validator
 
 from agenta.sdk.utils.assets import supported_llm_models
 
-# The eight Agenta-vault-mapped providers Pi reaches directly via its env-key map (a stored
+# The nine Agenta-vault-mapped providers Pi reaches directly via its env-key map (a stored
 # ``provider_key`` secret of these drives Pi). Kept in agreement with the SDK resolver
 # provider-env maps.
 PI_VAULT_PROVIDERS: List[str] = [
@@ -55,6 +55,7 @@ PI_VAULT_PROVIDERS: List[str] = [
     "minimax",
     "together_ai",
     "openrouter",
+    "xai",
 ]
 
 # Subscription/OAuth-only providers Pi also reaches. ``openai-codex`` is OpenAI's ChatGPT/Codex
@@ -137,6 +138,7 @@ PROVIDER_ENV_VARS: Dict[str, str] = {
     # must use Pi's name or the key never reaches the harness.
     "together_ai": "TOGETHER_API_KEY",
     "openrouter": "OPENROUTER_API_KEY",
+    "xai": "XAI_API_KEY",
 }
 
 
@@ -193,6 +195,13 @@ PROVIDER_DEFAULT_MODELS: Dict[str, List[str]] = {
         "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free",
         "openrouter/z-ai/glm-5.3",
         "openrouter/google/gemini-3.8-flash",
+    ],
+    # 4.6 and 4.5 come from the generated catalog. Grok 4.7 alone postdates the pinned pi-ai
+    # release, so its facts ride the curated ``additions`` list until a bump carries it.
+    "xai": [
+        "xai/grok-4.7",
+        "xai/grok-4.6",
+        "xai/grok-4.5",
     ],
 }
 

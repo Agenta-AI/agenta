@@ -55,6 +55,7 @@ const LLM_STANDARD_PROVIDER_ENV_BY_KIND: Partial<Record<StandardProviderKind, st
     [StandardProviderKind.Openrouter]: "OPENROUTER_API_KEY",
     [StandardProviderKind.Gemini]: "GEMINI_API_KEY",
     [StandardProviderKind.Minimax]: "MINIMAX_API_KEY",
+    [StandardProviderKind.Xai]: "XAI_API_KEY",
 }
 
 const MCP_STANDARD_PROVIDER_ENV_BY_KIND: Record<McpStandardProviderKind, string> = {

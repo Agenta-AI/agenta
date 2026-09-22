@@ -1060,9 +1060,19 @@ def test_request_connection_schema_requires_exactly_one_path():
     schema = tool["input_schema"]
     assert set(schema["properties"]) == {"integration", "target", "slug", "mode"}
     assert schema["required"] == []
+    # Each branch restates `type: object`: xAI reads a root-level union branch as the
+    # parameter root in its own right and rejects the tool when it is not typed an object.
     assert schema["oneOf"] == [
-        {"required": ["integration"], "not": {"required": ["target"]}},
-        {"required": ["target"], "not": {"required": ["integration"]}},
+        {
+            "type": "object",
+            "required": ["integration"],
+            "not": {"required": ["target"]},
+        },
+        {
+            "type": "object",
+            "required": ["target"],
+            "not": {"required": ["integration"]},
+        },
     ]
     assert schema["additionalProperties"] is False
     assert schema["properties"]["mode"]["enum"] == ["oauth", "api_key"]

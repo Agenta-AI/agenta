@@ -20,5 +20,6 @@ export const LlmCustomProviderKind = {
     TogetherAi: "together_ai",
     Openrouter: "openrouter",
     Gemini: "gemini",
+    Xai: "xai",
 } as const;
 export type LlmCustomProviderKind = (typeof LlmCustomProviderKind)[keyof typeof LlmCustomProviderKind];
