@@ -227,10 +227,12 @@ const ProviderConnectionCard = ({
         () =>
             modelDisplayOrder({
                 available,
-                prioritized: [...(connection?.models ?? []), ...catalog.defaults],
+                // Defaults first: they carry Agenta's own ranking (newest tier first), and
+                // `modelDisplayOrder` now leads with this array's order.
+                prioritized: [...catalog.defaults, ...(connection?.models ?? [])],
                 manual: manualModels,
             }),
-        [available, connection?.models, catalog.defaults, manualModels],
+        [available, catalog.defaults, connection?.models, manualModels],
     )
 
     const modelOptions = useMemo(

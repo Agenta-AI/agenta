@@ -179,6 +179,19 @@ supported_llm_models = {
         "minimax/MiniMax-M2.1-lightning",
         "minimax/MiniMax-M2",
     ],
+    # The 4-series, checked against xAI's own /v1/models rather than taken from litellm's
+    # table. litellm still carries `grok-4`, `grok-4-fast-*` and `grok-4-1-fast-*`, and spells
+    # the 4.20 pair without its date; xAI serves none of those, so listing them would only buy
+    # the user a 404. `grok-4.20-multi-agent-0309` is served but is a responses-only model, and
+    # the image and video `grok-imagine-*` models are not chat, so neither belongs here.
+    "xai": [
+        "xai/grok-4.7",
+        "xai/grok-4.6",
+        "xai/grok-4.5",
+        "xai/grok-4.3",
+        "xai/grok-4.20-0309-reasoning",
+        "xai/grok-4.20-0309-non-reasoning",
+    ],
 }
 
 providers_list = list(supported_llm_models.keys())
@@ -213,6 +226,7 @@ litellm_provider_prefixes: Dict[str, Optional[str]] = {
     # the model prefix "perplexity" — see the ids under "perplexityai" above.
     "perplexityai": "perplexity",
     "together_ai": "together_ai",
+    "xai": "xai",
     # Stored vault kinds with no catalog models and no litellm provider: litellm 1.92.0 knows
     # neither service (both wound down, and litellm dropped them), so no prefix routes them.
     # `aleph_alpha/luminous-base` fails with the same "LLM Provider NOT provided" as the bare id,
