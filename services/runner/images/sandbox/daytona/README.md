@@ -89,6 +89,10 @@ DAYTONA_API_KEY=... DAYTONA_TARGET=eu uv run build_snapshot.py --force
    `AGENTA_RUNNER_DAYTONA_SNAPSHOT=<trial name>`. Set it and restart the runner.
 3. When the real snapshot is active, it deletes the trial.
 
+Deleting a trial is best effort in both places: if Daytona refuses the delete, the script prints
+a warning naming the trial, and you delete it in Daytona. A leftover trial is clutter, not a risk,
+because no runner points at it.
+
 A snapshot whose build failed (`error` or `build_failed`) never served a sandbox, so `--force`
 replaces it directly. Without `--force`, the script builds nothing when the name already exists.
 Sandboxes already running keep the old contents; only sandboxes created after the rebuild pick up
