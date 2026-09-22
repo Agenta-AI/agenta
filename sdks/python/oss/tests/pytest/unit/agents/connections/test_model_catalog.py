@@ -352,6 +352,7 @@ def test_default_models_are_published_per_harness_in_its_own_spelling():
     ]
     assert pi_defaults["anthropic"] == [
         "anthropic/claude-opus-5-5",
+        "anthropic/claude-opus-5",
         "anthropic/claude-fable-5-1",
         "anthropic/claude-sonnet-5",
         "anthropic/claude-haiku-4-5",
@@ -418,7 +419,11 @@ def test_fable_5_1_keeps_its_own_claude_request_value():
 def test_opus_5_5_is_a_prompt_model_and_a_default():
     from agenta.sdk.utils.assets import supported_llm_models
 
-    assert "anthropic/claude-opus-5-5" in supported_llm_models["anthropic"]
+    assert supported_llm_models["anthropic"][0] == "anthropic/claude-opus-5-5"
+    assert PROVIDER_DEFAULT_MODELS["anthropic"][:2] == [
+        "anthropic/claude-opus-5-5",
+        "anthropic/claude-opus-5",
+    ]
     assert "anthropic/claude-fable-5-1" in supported_llm_models["anthropic"]
     assert "anthropic/claude-opus-5-5" in PROVIDER_DEFAULT_MODELS["anthropic"]
     assert "anthropic/claude-fable-5-1" in PROVIDER_DEFAULT_MODELS["anthropic"]

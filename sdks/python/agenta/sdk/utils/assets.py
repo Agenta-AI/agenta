@@ -14,9 +14,9 @@ from litellm import cost_calculator
 # unknown price is more useful than a missing one.
 supported_llm_models = {
     "anthropic": [
+        "anthropic/claude-opus-5-5",
         "anthropic/claude-fable-5-1",
         "anthropic/claude-fable-5",
-        "anthropic/claude-opus-5-5",
         "anthropic/claude-sonnet-5",
         "anthropic/claude-opus-5",
         "anthropic/claude-opus-4-8",
