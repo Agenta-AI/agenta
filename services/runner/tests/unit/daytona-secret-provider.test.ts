@@ -630,7 +630,7 @@ describe("process-local Daytona Secret provider", () => {
         )!,
         (event) => log.push(event),
         // The propagation hold is real in production. Waiting it out here would buy the assertions
-        // nothing and cost the suite ten seconds per arm.
+        // nothing and cost the suite thirty seconds per arm.
         { wait: async () => {} },
       );
     };
@@ -645,7 +645,7 @@ describe("process-local Daytona Secret provider", () => {
       assert.equal(result.ok, true);
       assert.equal(
         result.ok && result.holdTurnForMs,
-        10_000,
+        30_000,
         "the turn is held for the provider's stated propagation bound",
       );
       // THE SANDBOX IS THE SAME ONE. This is the assertion the whole lane exists for.
