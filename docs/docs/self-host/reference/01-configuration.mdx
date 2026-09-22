@@ -846,17 +846,23 @@ Two of these ship a value in the Docker Compose env templates that differs from 
 the code applies when the variable is absent. An upgraded deployment keeps its existing env
 file, which has none of these lines, so it runs on the code defaults until you add them.
 
-| Env var | Code default | `env.oss.dev.example` / `env.ee.dev.example` | `env.oss.gh.example` / `env.ee.gh.example` |
-|---|---|---|---|
-| `AGENTA_MCP_GATEWAY_ENABLED` | `true` | `true` | `true` |
-| `AGENTA_LLM_GATEWAY_ENABLED` | `false` | `false` | `false` |
-| `AGENTA_MCP_GATEWAY_HOST_ALLOWLIST` | empty | commented out | commented out |
-| `AGENTA_GATEWAYS_INSECURE_EGRESS_ALLOWED` | `false` | `true` | `true` |
-| `AGENTA_GATEWAYS_INSECURE_HTTP_ALLOWED` | `false` | `true` | `true` |
-| `AGENTA_GATEWAYS_CREDENTIALS_TTL_SECONDS` | `43200` | unset | unset |
+| Env var | Code default | `env.oss.dev.example` / `env.ee.dev.example` | `env.oss.gh.example` / `env.ee.gh.example` | Helm `values.yaml` |
+|---|---|---|---|---|
+| `AGENTA_MCP_GATEWAY_ENABLED` | `true` | `true` | `true` | `true` |
+| `AGENTA_LLM_GATEWAY_ENABLED` | `false` | `false` | `false` | `false` |
+| `AGENTA_MCP_GATEWAY_HOST_ALLOWLIST` | empty | commented out | commented out | empty |
+| `AGENTA_GATEWAYS_INSECURE_EGRESS_ALLOWED` | `false` | `true` | `true` | unset |
+| `AGENTA_GATEWAYS_INSECURE_HTTP_ALLOWED` | `false` | `true` | `true` | unset |
+| `AGENTA_GATEWAYS_CREDENTIALS_TTL_SECONDS` | `43200` | unset | unset | unset |
+
+A Compose install and a Helm install differ here. The `.gh` templates open both guards, because
+you edit that file once at install time and it is yours from then on. The chart leaves both
+`gatewayEgress` keys commented out, so the code defaults apply and a `helm upgrade` that
+touches no values file cannot change either guard. Set them yourself if you need them.
 
 :::note Kubernetes / Helm
-The chart renders every gateway value in this table into the containers that read it.
+The chart renders every gateway value in this table into the containers that read it. A key you
+leave unset renders no environment variable at all, so the application's own default applies.
 `gatewayEgress.insecureHttpAllowed` is rendered into the services and agent runner containers;
 the API does not read that setting.
 :::

@@ -86,21 +86,26 @@ mcpGateway:
 llmGateway:
   enabled: false
 
-gatewayEgress:
-  # The gateway relays every MCP call an agent makes, so its own outbound
-  # guard decides which addresses that relay may reach. True (permissive)
-  # matches the compose self-host template, where an MCP server on a private
-  # network is the normal case. Set false on a deployment open to untrusted
-  # users, and list the hosts you do want in mcpGateway.hostAllowlist.
-  insecureAllowed: true
-  # Gateway credentials are bearer credentials, so Agenta sends them over
-  # https, or over plain http to loopback. True lets them cross plain http to
-  # a routable host, which is what a self-host reached at an IP or a LAN name
-  # needs: otherwise every gateway-routed run fails with
-  # `gateway_insecure_endpoint`. Set false once the deployment is behind
-  # https, or if it is open to untrusted users. Read by the services and
-  # runner containers only.
-  insecureHttpAllowed: true
+# Two guards on the gateway's outbound boundary. Both are left unset on
+# purpose, so the application's own defaults apply and a chart upgrade does
+# not change either one. Those defaults require https and refuse a private
+# or loopback address.
+#
+# Set insecureAllowed: true if an MCP server in one of your projects sits on
+# a private network or answers over plain http. It lifts the https
+# requirement and the address check for every gateway target, at save time
+# and at call time. On a deployment where people you do not trust can create
+# MCP connections, leave it unset and name the one server you want reachable
+# in mcpGateway.hostAllowlist instead.
+#
+# Set insecureHttpAllowed: true if your own Agenta deployment is reached over
+# plain http at an address that is not loopback, such as an IP or a LAN name.
+# It lets a run's gateway credential travel there, which otherwise fails with
+# `gateway_insecure_endpoint`. This is the hop into Agenta, not the hop out
+# to an MCP server. Read by the services and runner containers only.
+# gatewayEgress:
+#   insecureAllowed: true
+#   insecureHttpAllowed: true
 
 # How long the sandbox-scoped gateway credential a run carries stays valid,
 # in seconds. Left unset on purpose so the application's own default (43200,
