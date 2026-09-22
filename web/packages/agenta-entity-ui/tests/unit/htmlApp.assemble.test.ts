@@ -16,9 +16,8 @@
  * jsdom (recorded in the move commit), and a verbatim copy of that code kept below — so a jsdom
  * upgrade that changes serialisation shifts both sides, while a change to the assembler shifts one.
  */
-import {beforeAll, describe, expect, it} from "vitest"
-
 import {BRIDGE_STUB, PREVIEW_CSP, RUN_CSP} from "@agenta/entities/drive"
+import {beforeAll, describe, expect, it} from "vitest"
 
 import {
     assemblePreview,
@@ -204,7 +203,12 @@ const SCRIPTS = `<html>
 </html>`
 
 // Captured by running the pre-move `inlineHtmlAssets` under this jsdom, in the move commit.
-const INTERCEPTOR_TAG = `<script>${LEGACY_HTML_NAV_INTERCEPTOR}</script>`
+const INTERCEPTOR_TAG = `<script>${HTML_NAV_INTERCEPTOR}</script>`
+const LEGACY_INTERCEPTOR_TAG = `<script>${LEGACY_HTML_NAV_INTERCEPTOR}</script>`
+
+/** The pre-move output with the one intended change applied: the fragment-aware interceptor. */
+const legacyWithCurrentInterceptor = async (...args: Parameters<typeof legacyInlineHtmlAssets>) =>
+    (await legacyInlineHtmlAssets(...args)).replace(LEGACY_INTERCEPTOR_TAG, INTERCEPTOR_TAG)
 
 const EXPECTED_PLAIN =
     '<!DOCTYPE html>\n<html><head><meta charset="utf-8"><title>Plain</title></head>\n<body>\n<h1>Hello</h1>\n<p>Just text &amp; an <em>emphasis</em>.</p>\n\n' +
@@ -217,7 +221,7 @@ const EXPECTED_ASSETS =
     "</body></html>"
 
 const EXPECTED_SCRIPTS =
-    '<!DOCTYPE html>\n<html><head>\n\n\n</head>\n<body>\n<a href="#" target="_blank" rel="noopener noreferrer">js</a>\n<a href="https://example.com" target="_blank" rel="noopener noreferrer">ext</a>\n<a href="guide.html">guide</a>\n<a href="#top" target="_blank" rel="noopener noreferrer">top</a>\n<div>c</div>\n<iframe></iframe>\n<img src="x.png">\n<form action="#"><button>go</button></form>\n\n' +
+    '<!DOCTYPE html>\n<html><head>\n\n\n</head>\n<body>\n<a href="#">js</a>\n<a href="https://example.com" target="_blank" rel="noopener noreferrer">ext</a>\n<a href="guide.html">guide</a>\n<a href="#top">top</a>\n<div>c</div>\n<iframe></iframe>\n<img src="x.png">\n<form action="#"><button>go</button></form>\n\n' +
     INTERCEPTOR_TAG +
     "</body></html>"
 
@@ -228,20 +232,27 @@ const withoutCsp = (out: string): string =>
     out.replace(`<meta http-equiv="Content-Security-Policy" content="${PREVIEW_CSP}">`, "")
 
 describe("assemblePreview is byte-identical to the pre-move inlineHtmlAssets", () => {
-    it("keeps the nav interceptor verbatim", () => {
-        expect(HTML_NAV_INTERCEPTOR).toBe(LEGACY_HTML_NAV_INTERCEPTOR)
+    it("keeps the nav interceptor verbatim except for the fragment branch", () => {
+        // The one intended change since the move: `#…` links became a hash change instead of
+        // falling through (which reloaded the whole app in a new tab).
+        expect(HTML_NAV_INTERCEPTOR).toBe(
+            LEGACY_HTML_NAV_INTERCEPTOR.replace(
+                'if(!href||href.charAt(0)==="#")return;',
+                'if(!href)return;if(href.charAt(0)==="#"){e.preventDefault();location.hash=href;return}',
+            ),
+        )
     })
 
     it("plain page (no mount)", async () => {
         const out = await assemblePreview(PLAIN, {dir: "", io: null})
         expect(withoutCsp(out)).toBe(EXPECTED_PLAIN)
-        expect(withoutCsp(out)).toBe(await legacyInlineHtmlAssets(PLAIN, null, "", null))
+        expect(withoutCsp(out)).toBe(await legacyWithCurrentInterceptor(PLAIN, null, "", null))
     })
 
     it("linked css + img: same-mount assets inline, external and data: left alone", async () => {
         const out = await assemblePreview(ASSETS, {dir: "site", io})
         expect(withoutCsp(out)).toBe(EXPECTED_ASSETS)
-        expect(withoutCsp(out)).toBe(await legacyInlineHtmlAssets(ASSETS, "m1", "site", "p1"))
+        expect(withoutCsp(out)).toBe(await legacyWithCurrentInterceptor(ASSETS, "m1", "site", "p1"))
         // Proof the inlining ran (the pre-move code fell back to the raw html on any throw).
         expect(out).toContain("<style>body{color:red}")
         expect(out).toContain("data:image/png;base64,UE5HLUJZVEVT")
@@ -250,14 +261,14 @@ describe("assemblePreview is byte-identical to the pre-move inlineHtmlAssets", (
     it("scripts, inline handlers, javascript: urls, nested srcdoc — all stripped", async () => {
         const out = await assemblePreview(SCRIPTS, {dir: "docs", io: null})
         expect(withoutCsp(out)).toBe(EXPECTED_SCRIPTS)
-        expect(withoutCsp(out)).toBe(await legacyInlineHtmlAssets(SCRIPTS, null, "docs", null))
+        // Not compared with the pre-move output: that one sent `#…` links to a new tab.
         expect(out).not.toMatch(/alert\(1\)|onload|onclick|onmouseover|onerror|evil\(\)|srcdoc/i)
     })
 
     it("a document without a mount still assembles when the mount branch would be skipped", async () => {
         // Mount id present but no io == the local composer attachment path.
         const out = await assemblePreview(ASSETS, {dir: "site", io: null})
-        expect(withoutCsp(out)).toBe(await legacyInlineHtmlAssets(ASSETS, null, "site", null))
+        expect(withoutCsp(out)).toBe(await legacyWithCurrentInterceptor(ASSETS, null, "site", null))
         expect(out).toContain('href="./styles/app.css"')
     })
 })
@@ -476,5 +487,58 @@ describe("assembleRunDocument", () => {
         })
         expect(BRIDGE_STUB.length).toBeGreaterThan(0)
         expect(html).toContain(`<script>${BRIDGE_STUB}</script>`)
+    })
+})
+
+describe("preview links", () => {
+    /**
+     * A srcdoc document resolves `#x` against the PARENT app's URL. With `target="_blank"` on
+     * anchors and `allow-popups-to-escape-sandbox`, a table-of-contents click opened the whole
+     * app in a new tab. Anchors must stay in the document; relative links go to the drive;
+     * external links still open a new tab.
+     */
+    const realm = async (html: string) => {
+        const frame = document.createElement("iframe")
+        document.body.appendChild(frame)
+        const win = frame.contentWindow as Window & {eval(code: string): unknown}
+        const out = await assemblePreview(html, {dir: "docs", io: null})
+        win.document.open()
+        win.document.write(out.replace(/<script>[\s\S]*?<\/script>/, ""))
+        win.document.close()
+        win.eval(HTML_NAV_INTERCEPTOR)
+        const posted: unknown[] = []
+        ;(win.parent as unknown as {postMessage: (m: unknown) => void}).postMessage = (m) =>
+            posted.push(m)
+        const click = (href: string) => {
+            const a = win.document.querySelector(`a[href="${href}"]`) as HTMLAnchorElement
+            const event = new win.MouseEvent("click", {bubbles: true, cancelable: true})
+            a.dispatchEvent(event)
+            return event.defaultPrevented
+        }
+        return {win, frame, posted, click}
+    }
+
+    it("keeps anchors in the document and scrolls by hash", async () => {
+        const {win, frame, posted, click} = await realm(
+            '<a href="#part-2">toc</a><a href="#">top</a><h2 id="part-2">Part 2</h2>',
+        )
+        expect(win.document.querySelector('a[href="#part-2"]')?.getAttribute("target")).toBeNull()
+        expect(click("#part-2")).toBe(true)
+        expect(win.location.hash).toBe("#part-2")
+        expect(click("#")).toBe(true)
+        expect(posted).toEqual([])
+        frame.remove()
+    })
+
+    it("sends relative links to the drive and leaves external links to a new tab", async () => {
+        const {win, frame, posted, click} = await realm(
+            '<a href="guide.html">guide</a><a href="https://example.com/x">ext</a>',
+        )
+        expect(click("guide.html")).toBe(true)
+        expect(posted).toEqual([{type: "ag-html-nav", href: "guide.html"}])
+        const ext = win.document.querySelector('a[href="https://example.com/x"]')
+        expect(ext?.getAttribute("target")).toBe("_blank")
+        expect(click("https://example.com/x")).toBe(false)
+        frame.remove()
     })
 })

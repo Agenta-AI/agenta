@@ -154,10 +154,12 @@ export interface PreviewContext {
 }
 
 // The ONLY script that runs in the preview (the agent's are stripped): it turns an internal
-// relative link click into a `postMessage` the parent uses to open that file in the drive. Anchors
-// (#…) and external links fall through to the browser.
+// relative link click into a `postMessage` the parent uses to open that file in the drive, and
+// external links fall through to the browser (a new tab). Anchors (#…) become a hash change on the
+// document itself: a srcdoc document resolves `#x` against the PARENT app's URL, so left to the
+// browser the click navigated to the app instead of scrolling.
 export const HTML_NAV_INTERCEPTOR =
-    '(function(){document.addEventListener("click",function(e){var el=e.target;while(el&&el.tagName!=="A")el=el.parentElement;if(!el)return;var href=el.getAttribute("href");if(!href||href.charAt(0)==="#")return;if(/^[a-z][a-z0-9+.-]*:/i.test(href)||href.indexOf("//")===0)return;e.preventDefault();parent.postMessage({type:"ag-html-nav",href:href},"*")},true)})()'
+    '(function(){document.addEventListener("click",function(e){var el=e.target;while(el&&el.tagName!=="A")el=el.parentElement;if(!el)return;var href=el.getAttribute("href");if(!href)return;if(href.charAt(0)==="#"){e.preventDefault();location.hash=href;return}if(/^[a-z][a-z0-9+.-]*:/i.test(href)||href.indexOf("//")===0)return;e.preventDefault();parent.postMessage({type:"ag-html-nav",href:href},"*")},true)})()'
 
 /**
  * Fold a multi-file site into ONE self-contained document the sandboxed iframe can render: linked
@@ -188,7 +190,10 @@ export async function assemblePreview(html: string, {dir, io}: PreviewContext): 
             }
         })
         doc.querySelectorAll("a[href]").forEach((a) => {
-            if (isExternalUrl(a.getAttribute("href") ?? "")) {
+            const href = a.getAttribute("href") ?? ""
+            // Anchors stay in the document (the interceptor scrolls); a new tab would resolve
+            // `#x` against the app's URL and reload the whole app there.
+            if (isExternalUrl(href) && !href.startsWith("#")) {
                 a.setAttribute("target", "_blank")
                 a.setAttribute("rel", "noopener noreferrer")
             }

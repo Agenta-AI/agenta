@@ -7,8 +7,8 @@
  */
 import {afterEach, describe, expect, it} from "vitest"
 
-import {BRIDGE_STUB, buildBridgeStub} from "../../src/drive/htmlApp/stub"
 import type {FsRequest, IframeToParent, ParentToIframe} from "../../src/drive/htmlApp/protocol"
+import {BRIDGE_STUB, buildBridgeStub} from "../../src/drive/htmlApp/stub"
 
 interface StubAgenta {
     version: number
@@ -466,9 +466,22 @@ describe("link interception", () => {
         expect(await r.parent.next()).toEqual({v: 1, type: "nav", href: "pages/about.html"})
     })
 
-    it("lets external, protocol-relative and fragment links fall through", async () => {
+    it("keeps a fragment link in the document: a hash change, no nav, no navigation", async () => {
+        // A srcdoc document resolves `#x` against the host app's URL, so the browser's default
+        // would navigate the frame to the app. The stub turns it into a same-document hash change.
         const r = await connected()
-        for (const href of ["https://example.com", "mailto:x@y.z", "//cdn.example.com/x", "#top"]) {
+        const a = r.doc.createElement("a")
+        a.setAttribute("href", "#section-2")
+        r.doc.body.appendChild(a)
+        expect(click(r, a)).toBe(true)
+        expect(r.win.location.hash).toBe("#section-2")
+        await tick()
+        expect(sinceHello(r.parent.received)).toEqual([])
+    })
+
+    it("lets external and protocol-relative links fall through", async () => {
+        const r = await connected()
+        for (const href of ["https://example.com", "mailto:x@y.z", "//cdn.example.com/x"]) {
             const a = r.doc.createElement("a")
             a.setAttribute("href", href)
             r.doc.body.appendChild(a)
