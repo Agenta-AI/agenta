@@ -1,4 +1,4 @@
-import type {UIMessage} from "ai"
+import type {FileUIPart, UIMessage} from "ai"
 
 export const getDisplayContent = (message: UIMessage): string | null | undefined => {
     const metadata = message.metadata as Record<string, unknown> | undefined
@@ -35,6 +35,27 @@ export const editedExecutionText = (source: UIMessage | null, text: string): str
         .map((part) => part.text)
         .join("")
     return `${original}\n\nUpdated user request (replaces the earlier visible request; retain its supporting context):\n${text}`
+}
+
+/**
+ * The parts one outbound user message carries, for every send path.
+ *
+ * An attachment-only send must not carry an empty text part. The SDK keeps any text that is not
+ * None (`_part_to_blocks`), so an empty string becomes an empty text content block, and
+ * Anthropic-family models refuse those. Shared because this guard lived on one send path and not
+ * the other two, which is how it went missing.
+ */
+export const outboundUserParts = ({
+    text,
+    executionText,
+    fileParts,
+}: {
+    text: string
+    executionText?: string
+    fileParts?: FileUIPart[]
+}): UIMessage["parts"] => {
+    const body = executionText ?? text
+    return [...(body ? [{type: "text" as const, text: body}] : []), ...(fileParts ?? [])]
 }
 
 const editKey = (sessionId: string) => `agenta:display-edit:${sessionId}`
