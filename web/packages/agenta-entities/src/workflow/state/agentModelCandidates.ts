@@ -25,12 +25,25 @@ import {
     subscriptionStatusQueryAtomFamily,
 } from "./subscriptionStatus"
 
+/** Whether a candidate source answered, rejected, or never settled. */
+export type AgentModelSourceOutcome = "ok" | "error" | "unsettled"
+
+export interface AgentModelSourceReport {
+    provider_connections: AgentModelSourceOutcome
+    harness_catalog: AgentModelSourceOutcome
+    subscription_status: AgentModelSourceOutcome
+    /** HTTP status of the first errored source in the order above; 0 when the error carries none. */
+    status: number
+}
+
 export interface AgentModelCandidatesState {
     status: "loading" | "error" | "ready"
     candidates: AgentModelCandidate[]
     connections: ProviderConnection[]
     capabilities: HarnessCapabilitiesMap | null
     error: unknown | null
+    /** Set by `loadAgentModelCandidates` only; the atom family derives from live query state. */
+    sources?: AgentModelSourceReport
 }
 
 interface CandidateSourceState {
@@ -138,6 +151,35 @@ export const agentModelCandidatesAtomFamily = atomFamily((showSubscriptions: boo
     }),
 )
 
+const AGENT_CREATION_SOURCE_RETRY_DELAY_MS = 250
+
+/** Retry one failed source read and log the underlying error for diagnosis. */
+const retryAgentCreationSource =
+    (source: "provider connections" | "harness catalog") =>
+    (failureCount: number, error: unknown): boolean => {
+        const willRetry = failureCount < 1
+        if (willRetry) {
+            console.error(`[agent-create] Retrying ${source} after failure`, {
+                attempt: failureCount + 1,
+                error,
+            })
+        }
+        return willRetry
+    }
+
+const sourceOutcome = (result: {data: unknown; error: unknown}): AgentModelSourceOutcome => {
+    if (result.error !== undefined) return "error"
+    return result.data === undefined ? "unsettled" : "ok"
+}
+
+const httpStatusFrom = (error: unknown): number => {
+    if (!error || typeof error !== "object") return 0
+    const direct = (error as {status?: unknown}).status
+    if (typeof direct === "number") return direct
+    const response = (error as {response?: {status?: unknown}}).response
+    return typeof response?.status === "number" ? response.status : 0
+}
+
 export async function loadAgentModelCandidates({
     projectId,
     userId,
@@ -156,7 +198,8 @@ export async function loadAgentModelCandidates({
         queryKey: ["vault", "secrets", userId, projectId],
         queryFn: () => fetchVaultSecret({projectId}),
         staleTime: 5 * 60_000,
-        retry: false,
+        retry: retryAgentCreationSource("provider connections"),
+        retryDelay: AGENT_CREATION_SOURCE_RETRY_DELAY_MS,
     } as const
     const [vault, capabilities, subscription] = await Promise.all([
         (refreshVault
@@ -171,7 +214,8 @@ export async function loadAgentModelCandidates({
                 queryFn: async () =>
                     (await fetchHarnessCapabilities()) as unknown as HarnessCapabilitiesMap,
                 staleTime: 5 * 60_000,
-                retry: false,
+                retry: retryAgentCreationSource("harness catalog"),
+                retryDelay: AGENT_CREATION_SOURCE_RETRY_DELAY_MS,
             })
             .then((data) => ({data, error: undefined}))
             .catch((error: unknown) => ({data: undefined, error})),
@@ -198,7 +242,7 @@ export async function loadAgentModelCandidates({
             : Promise.resolve({data: null, error: undefined}),
     ])
 
-    return resolveAgentModelCandidateSources({
+    const resolved = resolveAgentModelCandidateSources({
         vaultRows: vault.data,
         vaultError: vault.error,
         capabilities: capabilities.data,
@@ -209,4 +253,14 @@ export async function loadAgentModelCandidates({
         pairModelSelection,
         showSubscriptions,
     })
+
+    return {
+        ...resolved,
+        sources: {
+            provider_connections: sourceOutcome(vault),
+            harness_catalog: sourceOutcome(capabilities),
+            subscription_status: sourceOutcome(subscription),
+            status: httpStatusFrom(vault.error ?? capabilities.error ?? subscription.error),
+        },
+    }
 }

@@ -968,6 +968,7 @@ export const agentWorkflowsListQueryStateAtom = atom<ListQueryState<Workflow>>((
     return {
         data,
         isPending: (appQuery.isPending || agentFlagsQuery.isPending) ?? false,
+        isFetching: appQuery.isFetching || agentFlagsQuery.isFetching,
         isError: appQuery.isError || agentFlagsQuery.isError,
         error: appQuery.error ?? agentFlagsQuery.error ?? null,
     }

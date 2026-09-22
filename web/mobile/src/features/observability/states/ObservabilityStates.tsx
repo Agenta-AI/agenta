@@ -7,7 +7,7 @@ import {
     EmptyMedia,
     EmptyTitle,
 } from "@agenta/ui/ui"
-import {Activity, RefreshCw, TriangleAlert} from "lucide-react"
+import {Activity} from "lucide-react"
 
 import {Skeleton} from "@/components/ui/skeleton"
 
@@ -66,23 +66,4 @@ export const ObservabilityFiltered = ({onClear}: {onClear: () => void}) => (
             </Button>
         </EmptyContent>
     </Empty>
-)
-
-export const ObservabilityError = ({
-    message = "Could not load traces.",
-    onRetry,
-}: {
-    message?: string
-    onRetry?: () => void
-}) => (
-    <div className="flex flex-col items-center justify-center gap-3 px-6 py-16 text-center">
-        <TriangleAlert className="size-6 text-destructive" />
-        <p className="m-0 text-sm font-medium text-foreground">{message}</p>
-        {onRetry ? (
-            <Button variant="outline" size="sm" onClick={onRetry}>
-                <RefreshCw className="size-3.5" />
-                Try again
-            </Button>
-        ) : null}
-    </div>
 )

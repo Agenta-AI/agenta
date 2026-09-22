@@ -233,6 +233,14 @@ export {
     clearWorkflowArchiveCallbacks,
 } from "./commit"
 
+export {
+    loadAgentTemplateFromEphemeralAtom,
+    abandonAgentTemplateLoad,
+    templateConnectionChoices,
+    type LoadAgentTemplateFromEphemeralParams,
+} from "./loadTemplate"
+export {buildCreatePayloadFromEphemeral, type EphemeralCreatePayload} from "./createPayload"
+
 // ============================================================================
 // EVALUATOR UTILITIES (for evaluator-type workflows)
 // ============================================================================

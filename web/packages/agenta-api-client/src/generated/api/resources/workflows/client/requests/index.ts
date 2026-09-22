@@ -18,6 +18,7 @@ export type { QueryWorkflowVariantsRequest } from "./QueryWorkflowVariantsReques
 export type { SimpleWorkflowCreateRequest } from "./SimpleWorkflowCreateRequest.js";
 export type { SimpleWorkflowEditRequest } from "./SimpleWorkflowEditRequest.js";
 export type { SimpleWorkflowQueryRequest } from "./SimpleWorkflowQueryRequest.js";
+export type { TemplateLoadRequest } from "./TemplateLoadRequest.js";
 export type { UnarchiveSimpleWorkflowRequest } from "./UnarchiveSimpleWorkflowRequest.js";
 export type { UnarchiveWorkflowRequest } from "./UnarchiveWorkflowRequest.js";
 export type { UnarchiveWorkflowRevisionRequest } from "./UnarchiveWorkflowRevisionRequest.js";

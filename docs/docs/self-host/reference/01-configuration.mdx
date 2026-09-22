@@ -823,16 +823,49 @@ The old per-surface names (`AGENTA_WEBHOOKS_ALLOW_INSECURE`, `AGENTA_WEBHOOK_ALL
 deprecated aliases and still work, but new configuration should use the canonical name.
 :::
 
+:::note This variable does not gate saving an MCP server URL
+Saving a custom MCP server URL is checked under `AGENTA_GATEWAYS_INSECURE_EGRESS_ALLOWED`
+and `AGENTA_MCP_GATEWAY_HOST_ALLOWLIST` below, which are also what the relay enforces when
+it calls the server. In 0.119.0 only, that save-time check read
+`AGENTA_INSECURE_EGRESS_ALLOWED` instead. See
+[Use an MCP server on a private network or over plain HTTP](/self-host/app-tools-and-triggers#use-an-mcp-server-on-a-private-network-or-over-plain-http).
+:::
+
 ## Agenta gateways
 
 | Env var | env.py path | values.yaml path |
 |---|---|---|
-| `AGENTA_LLM_GATEWAY_ENABLED` | `llm_gateway.enabled` | `llmGateway.enabled` |
-| `AGENTA_MCP_GATEWAY_ENABLED` | `mcp_gateway.enabled` | `mcpGateway.enabled` |
-| `AGENTA_MCP_GATEWAY_HOST_ALLOWLIST` | `mcp_gateway.host_allowlist` | `mcpGateway.hostAllowlist` |
-| `AGENTA_GATEWAYS_INSECURE_EGRESS_ALLOWED` | `gateway_egress.insecure_allowed` | `gatewayEgress.insecureAllowed` |
-| `AGENTA_GATEWAYS_INSECURE_HTTP_ALLOWED` | n/a (read directly by the SDK and the runner) | n/a |
-| `AGENTA_GATEWAYS_CREDENTIALS_TTL_SECONDS` | `gateway_credentials.ttl_seconds` | `gatewayCredentials.ttlSeconds` |
+| `AGENTA_LLM_GATEWAY_ENABLED` | `llm_gateway.enabled` (api) | `llmGateway.enabled` |
+| `AGENTA_MCP_GATEWAY_ENABLED` | `mcp_gateway.enabled` (api; the web container reads the same name) | `mcpGateway.enabled` |
+| `AGENTA_MCP_GATEWAY_HOST_ALLOWLIST` | `mcp_gateway.host_allowlist` (api) | `mcpGateway.hostAllowlist` |
+| `AGENTA_GATEWAYS_INSECURE_EGRESS_ALLOWED` | `gateway_egress.insecure_allowed` (api) | `gatewayEgress.insecureAllowed` |
+| `AGENTA_GATEWAYS_INSECURE_HTTP_ALLOWED` | n/a (read by the services and runner containers, not by the api) | `gatewayEgress.insecureHttpAllowed` |
+| `AGENTA_GATEWAYS_CREDENTIALS_TTL_SECONDS` | `gateway_credentials.ttl_seconds` (api) | `gatewayCredentials.ttlSeconds` |
+
+Two of these ship a value in the Docker Compose env templates that differs from the default
+the code applies when the variable is absent. An upgraded deployment keeps its existing env
+file, which has none of these lines, so it runs on the code defaults until you add them.
+
+| Env var | Code default | `env.oss.dev.example` / `env.ee.dev.example` | `env.oss.gh.example` / `env.ee.gh.example` | Helm `values.yaml` |
+|---|---|---|---|---|
+| `AGENTA_MCP_GATEWAY_ENABLED` | `true` | `true` | `true` | `true` |
+| `AGENTA_LLM_GATEWAY_ENABLED` | `false` | `false` | `false` | `false` |
+| `AGENTA_MCP_GATEWAY_HOST_ALLOWLIST` | empty | commented out | commented out | empty |
+| `AGENTA_GATEWAYS_INSECURE_EGRESS_ALLOWED` | `false` | `true` | `true` | unset |
+| `AGENTA_GATEWAYS_INSECURE_HTTP_ALLOWED` | `false` | `true` | `true` | unset |
+| `AGENTA_GATEWAYS_CREDENTIALS_TTL_SECONDS` | `43200` | unset | unset | unset |
+
+A Compose install and a Helm install differ here. The `.gh` templates open both guards, because
+you edit that file once at install time and it is yours from then on. The chart leaves both
+`gatewayEgress` keys commented out, so the code defaults apply and a `helm upgrade` that
+touches no values file cannot change either guard. Set them yourself if you need them.
+
+:::note Kubernetes / Helm
+The chart renders every gateway value in this table into the containers that read it. A key you
+leave unset renders no environment variable at all, so the application's own default applies.
+`gatewayEgress.insecureHttpAllowed` is rendered into the services and agent runner containers;
+the API does not read that setting.
+:::
 
 :::note Which gateways your deployment serves
 Agenta has two gateways, and each has its own switch.
@@ -868,27 +901,62 @@ credential, and keep it above the longest turn you expect: a turn still running 
 credential expires starts failing its gateway calls.
 :::
 
-:::note Serving the gateway over plain HTTP
+:::note Which MCP servers the relay may call
+The MCP gateway relays every MCP call an agent makes, so the relay's own outbound guard
+decides which MCP servers an agent can reach. That guard requires `https` and refuses an
+address that resolves into a private, loopback, link-local, reserved, multicast or RFC 6598
+range. `AGENTA_GATEWAYS_INSECURE_EGRESS_ALLOWED=true` turns both checks off.
+
+The code default is `false`. All four Docker Compose env templates ship `true`, because a
+self-hosted MCP server usually sits on the same network as the deployment or answers over
+plain HTTP. With the guard on, such a server fails at run time with one of:
+
+```text
+blocked target: Upstream URL must use https.
+blocked target: Upstream URL resolves to a blocked IP range.
+```
+
+`AGENTA_MCP_GATEWAY_HOST_ALLOWLIST` is the narrower alternative. It takes a comma-separated
+list of hostnames, with no scheme and no port, and every hostname on it skips the guard while
+the guard stays on for everything else:
+
+```bash
+AGENTA_MCP_GATEWAY_HOST_ALLOWLIST=mcp.internal,10.0.0.5
+```
+
+Leave `AGENTA_GATEWAYS_INSECURE_EGRESS_ALLOWED` at `false` on a deployment where people you
+do not trust can create MCP connections. Open egress lets any project aim an MCP connection
+at an address inside the network the api container sits on.
+
+This setting and the allowlist also govern what the API accepts when someone saves an MCP
+server URL, so a URL that saves is one the relay is willing to call. The save-time check
+resolves no hostnames, so it refuses a literal private IP address but defers a hostname to
+the call-time check. See
+[Use an MCP server on a private network or over plain HTTP](/self-host/app-tools-and-triggers#use-an-mcp-server-on-a-private-network-or-over-plain-http).
+:::
+
+:::note Reaching the gateway over plain HTTP
 An agent that reaches a model or an MCP server through an Agenta gateway authenticates to
 that gateway with a bearer credential. Agenta sends one only over HTTPS, or over plain HTTP
-to a loopback address, which never leaves the machine. Both defaults are on, and
-`AGENTA_GATEWAYS_INSECURE_HTTP_ALLOWED` defaults to `false`.
+to a loopback address, which never leaves the machine. `AGENTA_GATEWAYS_INSECURE_HTTP_ALLOWED`
+lifts that rule.
+
+The code default is `false`. All four Docker Compose env templates ship `true`.
 
 This matters if you reach your deployment at a plain-HTTP address that is not loopback, such
-as `http://192.0.2.10:8680` or `http://agenta.internal`. Agenta refuses to send the
-credential, so every gateway-routed run fails with the error code
+as `http://192.0.2.10:8680` or `http://agenta.internal`. With the variable at `false`, Agenta
+refuses to send the credential, so every gateway-routed run fails with the error code
 `gateway_insecure_endpoint` and a message naming this variable.
 
-Two ways to fix it. Put the deployment behind HTTPS, which is the right answer for anything
-other people can reach. Or, if it is a single-tenant deployment on a network you control, set
-`AGENTA_GATEWAYS_INSECURE_HTTP_ALLOWED=true` and accept that the credential travels in clear
-text on that network.
+You have two ways to answer that. Put the deployment behind HTTPS, and the credential is
+encrypted in transit. Or set `AGENTA_GATEWAYS_INSECURE_HTTP_ALLOWED=true`, and the credential
+travels in clear text on whatever network sits between the sandbox and your deployment.
 
 Setting it to `true` changes exactly one answer. A provider's own API key is still never sent
 over plain HTTP to a non-loopback host, and a remote sandbox still requires an HTTPS endpoint
 with a public DNS name, because a cloud sandbox dials your deployment across the internet.
-The variable is read by the API, the agent service, and the runner, so set it in the env file
-all three load and recreate those containers.
+The variable is read by the services and runner containers. The api container does not read
+it, so set it in the env file the services and runner containers load, and recreate those two.
 :::
 
 ## alembic

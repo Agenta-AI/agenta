@@ -41,7 +41,7 @@ export function useTemplateSelect(openSetup: (template: AgentStarterTemplate) =>
                 })
                 // What the pick MEANS is shared (name + builder instruction); this app only
                 // decides where the seed is delivered.
-                void createAgent(agentTemplateSeed(template))
+                void createAgent({...agentTemplateSeed(template), template})
                 return
             }
             captureFirstAgentIntent(posthog, {

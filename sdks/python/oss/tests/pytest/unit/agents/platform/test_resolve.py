@@ -1,14 +1,24 @@
-"""The composition entrypoints: resolve_tools / resolve_mcp."""
+"""The platform composition entrypoints and their public compatibility exports."""
 
 from __future__ import annotations
 
 from typing import Mapping, Sequence
 
 import pytest
-
-from agenta.sdk.agents.platform import PlatformConnection, resolve_tools
-from agenta.sdk.agents.platform import resolve_mcp
+from agenta.sdk.agents.connections import (
+    ModelRef,
+    ResolvedConnection,
+    RuntimeAuthContext,
+)
+from agenta.sdk.agents.platform import (
+    PlatformConnection,
+    resolve_connection,
+    resolve_mcp,
+    resolve_secrets,
+    resolve_tools,
+)
 from agenta.sdk.agents.platform import connection as platform_connection
+from agenta.sdk.agents.platform.resolve import resolve_secrets as module_resolve_secrets
 
 from .conftest import GATEWAY_CREDENTIALS_VALUE
 
@@ -57,6 +67,86 @@ class _ExplodingGateway:
         raise AssertionError(
             "gateway resolver must not be called without gateway tools"
         )
+
+
+async def test_resolve_secrets_is_a_deprecated_connection_alias():
+    calls: dict[str, object] = {}
+    expected = ResolvedConnection(
+        provider="openai",
+        model="gpt-5.5",
+        credential_mode="none",
+    )
+    model = ModelRef(provider="openai", model="gpt-5.5")
+    context = RuntimeAuthContext(harness="pi_core", backend="local")
+
+    class _Resolver:
+        async def resolve(self, *, model, context):
+            calls.update(model=model, context=context)
+            return expected
+
+    assert resolve_secrets is module_resolve_secrets
+    with pytest.warns(
+        DeprecationWarning, match="resolve_secrets.*resolve_connection"
+    ) as raised:
+        resolved = await resolve_secrets(
+            model=model,
+            context=context,
+            resolver=_Resolver(),
+        )
+
+    # The pre-gateway `resolve_secrets` took `connection=` and returned `{ENV_VAR: key}`. A
+    # caller written against it has to change the call, so the warning must not read as a rename.
+    message = str(raised.pop(DeprecationWarning).message)
+    assert "connection=" in message
+    assert "ResolvedConnection" in message
+
+    assert resolved is expected
+    assert calls == {"model": model, "context": context}
+
+
+@pytest.mark.parametrize(
+    "call",
+    [
+        {"connection": object()},
+        {},
+        {"model": ModelRef(provider="openai", model="gpt-5.5")},
+    ],
+)
+async def test_the_old_call_shape_raises_with_the_explanation_instead_of_a_bare_type_error(
+    call,
+):
+    """The caller this deprecation addresses is the one who cannot reach a warning.
+
+    `resolve_secrets(connection=...)` would die on the signature before `warnings.warn` ran, so
+    the explanation has to travel on the TypeError.
+    """
+    with pytest.raises(TypeError) as raised:
+        await resolve_secrets(**call)
+
+    message = str(raised.value)
+    assert "connection=" in message
+    assert "resolve_connection" in message
+    assert "ResolvedConnection" in message
+
+
+async def test_resolve_connection_remains_the_canonical_entrypoint():
+    expected = ResolvedConnection(
+        provider="openai",
+        model="gpt-5.5",
+        credential_mode="none",
+    )
+
+    class _Resolver:
+        async def resolve(self, *, model, context):
+            return expected
+
+    resolved = await resolve_connection(
+        model=ModelRef(provider="openai", model="gpt-5.5"),
+        context=RuntimeAuthContext(harness="pi_core", backend="local"),
+        resolver=_Resolver(),
+    )
+
+    assert resolved is expected
 
 
 async def test_resolve_tools_skips_gateway_without_gateway_tools():

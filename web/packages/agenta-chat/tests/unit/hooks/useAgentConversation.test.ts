@@ -485,6 +485,29 @@ describe("useAgentConversation", () => {
         })
     })
 
+    // An empty text part reaches the model as an empty text content block, which Anthropic-family
+    // models refuse. v0.119.0 omitted it and the durable path still does (risk map, entry 5).
+    it("sends an attachment-only message with no text part", async () => {
+        fetchMock.mockResolvedValue(streamResponse("Got the file"))
+        const store = createStore()
+        const sessionId = nextSessionId()
+        markSessionFresh(sessionId)
+        const {result} = mount(store, "rev-1", sessionId)
+
+        const attachment = {
+            type: "file" as const,
+            url: "https://files.test/report.pdf",
+            mediaType: "application/pdf",
+        }
+        await act(async () => {
+            await result.current.send({text: "", parts: [attachment]})
+        })
+        await waitFor(() => expect(vi.mocked(buildAgentRequest)).toHaveBeenCalled())
+
+        const outbound = vi.mocked(buildAgentRequest).mock.calls.at(-1)?.[1].at(-1)
+        expect(outbound?.parts).toEqual([attachment])
+    })
+
     it("runs a full turn: send → stream → settle → persist + status publish", async () => {
         fetchMock.mockResolvedValue(streamResponse("Hello back"))
         const store = createStore()

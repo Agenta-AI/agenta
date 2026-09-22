@@ -260,6 +260,44 @@
         "target":   { "type": "string", "description": "DAYTONA_TARGET." }
       }
     },
+    "llmGateway": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "The LLM gateway plane: model calls routed through Agenta, so the provider key stays on the deployment instead of travelling into the sandbox. Rendered into the API, services, workers, cron and alembic containers.",
+      "properties": {
+        "enabled": { "type": ["boolean", "string"], "description": "AGENTA_LLM_GATEWAY_ENABLED — default false. Off, a model call resolves the project's stored provider key and injects it into the run, the way it did before the gateway existed. True routes every model call in every project through the gateway." }
+      }
+    },
+    "mcpGateway": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "The MCP gateway plane: an agent reaches an MCP server through Agenta, so the server's credential stays on the deployment. Rendered into the API, services, workers, cron and alembic containers; `enabled` also goes to the web and web-mobile containers, which hide the MCP settings tab when it is off.",
+      "properties": {
+        "enabled": { "type": ["boolean", "string"], "description": "AGENTA_MCP_GATEWAY_ENABLED — default true. Off, the API refuses every MCP gateway route, the MCP settings tab disappears, and an agent dials its declared MCP servers directly." },
+        "hostAllowlist": {
+          "type": ["array", "string"],
+          "items": { "type": "string" },
+          "description": "AGENTA_MCP_GATEWAY_HOST_ALLOWLIST — hosts the gateway's outbound guard admits even when they would otherwise be refused. A list is joined with commas into the single string the application parses; a comma-separated string is accepted as-is. Empty by default."
+        }
+      }
+    },
+    "gatewayEgress": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "The two transport escape hatches around the gateways. They govern opposite directions and land in different containers, which is why they are separate keys.",
+      "properties": {
+        "insecureAllowed": { "type": ["boolean", "string"], "description": "AGENTA_GATEWAYS_INSECURE_EGRESS_ALLOWED — whether the gateway's outbound guard (egress OUT of Agenta, to an MCP server or a model provider) enforces its range and https checks. Chart default true, matching the compose self-host template, where an MCP server on a private network is the normal case. Distinct from agenta.insecureEgressAllowed, which governs webhooks and OIDC probes. Rendered into the API, services, workers, cron and alembic containers." },
+        "insecureHttpAllowed": { "type": ["boolean", "string"], "description": "AGENTA_GATEWAYS_INSECURE_HTTP_ALLOWED — whether a gateway credential may cross a plain-http hop INTO Agenta from a routable host (https, and plain http to loopback, are always allowed). Chart default true, matching the compose self-host template: a deployment reached at an IP or a LAN name otherwise fails every gateway-routed run with `gateway_insecure_endpoint`. Read by the agenta SDK and the runner, so it is rendered into the services and runner containers only, never the API." }
+      }
+    },
+    "gatewayCredentials": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "The sandbox-scoped credential a run carries to reach a gateway. Rendered into the API, services, workers, cron and alembic containers.",
+      "properties": {
+        "ttlSeconds": { "type": ["integer", "string"], "minimum": 1, "description": "AGENTA_GATEWAYS_CREDENTIALS_TTL_SECONDS — lifetime in seconds. Unset by default so the application's own default (43200, 12 hours) applies; that default sits above the longest run Agenta lets finish. The credential is issued once at the start of a run and never replaced, so this is also the longest a single turn may keep using an MCP server or a model through a gateway." }
+      }
+    },
     "loops": {
       "type": "object",
       "additionalProperties": false,

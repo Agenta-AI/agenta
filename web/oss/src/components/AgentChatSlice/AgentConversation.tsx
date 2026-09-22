@@ -1,10 +1,16 @@
 import {useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject} from "react"
 
 import {
+    displayMessageText,
+    editedExecutionText,
+    readDisplayEdit,
+    saveDisplayEdit,
+} from "@agenta/chat/assets"
+import {
     describeAccepted,
     filesToParts,
     jumpGateOpen,
-    messageText,
+    outboundUserParts,
     restoreHeldRefusedSend,
     restoreRefusedSend as restoreRefusedSendInto,
     sideEffectingToolsInRange,
@@ -406,6 +412,7 @@ const AgentConversation = ({
 
     // Send one released queued message. Stable (only depends on `sendMessage`) so the queue's
     // release effect doesn't churn on every token.
+    const editedSourceRef = useRef<UIMessage | null>(readDisplayEdit(sessionId))
     const sendQueued = useCallback(
         (item: QueuedMessage) => {
             scrollIntent.follow()
@@ -416,13 +423,13 @@ const AgentConversation = ({
             // queue-release path; the manual path also clears it in handleSubmit) — otherwise the
             // "Stopped" tag would smear onto the freshly-sent turn.
             setStopped(false)
-            sendMessage(
-                item.fileParts && item.fileParts.length
-                    ? item.text
-                        ? {text: item.text, files: item.fileParts}
-                        : {files: item.fileParts}
-                    : {text: item.text},
-            ).catch(ignoreStreamRejection)
+            sendMessage({
+                role: "user",
+                parts: outboundUserParts(item),
+                ...(item.executionText !== undefined
+                    ? {metadata: {display_content: item.text}}
+                    : {}),
+            }).catch(ignoreStreamRejection)
         },
         [sendMessage, sessionId],
     )
@@ -784,7 +791,15 @@ const AgentConversation = ({
             attachments.clearAttachments(consumedUids)
             // One path: `submit` sends now or queues behind held messages via the shared release gate.
             if (policy === "steer") await steer({text: trimmed, fileParts})
-            else await submit({text: trimmed, fileParts, stagedFiles})
+            else
+                await submit({
+                    text: trimmed,
+                    executionText: editedExecutionText(editedSourceRef.current, trimmed),
+                    fileParts,
+                    stagedFiles,
+                })
+            editedSourceRef.current = null
+            saveDisplayEdit(sessionId, null)
             setPendingRun((current) => (current?.nonce === pendingRunNonce ? null : current))
             return
         }
@@ -871,8 +886,10 @@ const AgentConversation = ({
 
             const run = () => {
                 if (isUser) {
+                    editedSourceRef.current = msgs[idx]
+                    saveDisplayEdit(sessionId, msgs[idx])
                     setMessages(msgs.slice(0, idx))
-                    richInputRef.current?.setMarkdown(messageText(message))
+                    richInputRef.current?.setMarkdown(displayMessageText(msgs[idx]))
                     requestAnimationFrame(() => richInputRef.current?.focus())
                 } else {
                     regenerate({messageId: message.id}).catch(ignoreStreamRejection)

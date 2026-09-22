@@ -35,6 +35,7 @@ import { describe, it } from "vitest";
 import assert from "node:assert/strict";
 
 import {
+  RELAY_POLL_MAX_MS,
   RELAY_POLL_MS,
   startToolRelay,
   sweepStaleRelayFiles,
@@ -932,5 +933,254 @@ describe("startToolRelay client-tool pause (the paused-cold answer)", () => {
     );
 
     await relay.stop();
+  });
+});
+
+/**
+ * A user Stop froze a production runner for fifteen hours. The turn's abort signal is
+ * forwarded into `wait()`, and both wake sources answer an aborted wait with "closed" on
+ * sight, while `isHealthy()` keeps reporting true until `close()` runs — and only `stop()`
+ * closes a source. The loop chose its wake-source branch on `isHealthy()` alone, so after
+ * the abort every iteration awaited microtasks only: the event loop never reached its timer
+ * and I/O phases, the process stopped serving HTTP and flushing logs, and the `stop()` that
+ * would have ended the loop could never be scheduled.
+ *
+ * A regression here starves the event loop, so a plain assertion would hang the whole test
+ * runner instead of failing it. Every test below releases the loop once it has listed an
+ * impossible number of times, which turns that hang into a failed count assertion.
+ */
+describe("the relay loop never spins on a source that resolves instantly", () => {
+  /** Far beyond any honest poll cadence, and cheap enough to reach in milliseconds. */
+  const RUNAWAY_LIST_CALLS = 2_000;
+  /** Generous room for a slow CI box: ~2 polls at RELAY_POLL_MS, plus slack. */
+  const MAX_POLLS_PER_WINDOW = 8;
+
+  /**
+   * The real local source's contract: healthy until closed, an aborted wait answered
+   * instantly, an ordinary wait parked on its own timer.
+   */
+  function abortAwareSource(): {
+    source: RelayActivitySource;
+    degrade: () => void;
+  } {
+    let closed = false;
+    let healthy = true;
+    return {
+      source: {
+        suspendsPolling: false,
+        isHealthy: () => healthy && !closed,
+        wait: ({ timeoutMs, signal }) => {
+          if (closed || signal?.aborted) return Promise.resolve("closed");
+          return new Promise((resolve) => {
+            const timer = setTimeout(() => resolve("timeout"), timeoutMs);
+            signal?.addEventListener(
+              "abort",
+              () => {
+                clearTimeout(timer);
+                resolve("closed");
+              },
+              { once: true },
+            );
+          });
+        },
+        close: () => {
+          closed = true;
+        },
+      },
+      degrade: () => {
+        healthy = false;
+      },
+    };
+  }
+
+  /** A source that resolves EVERY wait instantly while claiming to be healthy. */
+  function instantSource(
+    suspendsPolling = false,
+    outcome: "closed" | "timeout" = "closed",
+  ): { source: RelayActivitySource; degrade: () => void } {
+    let healthy = true;
+    return {
+      source: {
+        suspendsPolling,
+        isHealthy: () => healthy,
+        wait: () => Promise.resolve(outcome),
+        close: () => {},
+      },
+      degrade: () => {
+        healthy = false;
+      },
+    };
+  }
+
+  function countingHost(
+    source: RelayActivitySource,
+    release: () => void,
+  ): { host: RelayHost; listCalls: () => number } {
+    let listCalls = 0;
+    const host: RelayHost = {
+      list: async () => {
+        listCalls += 1;
+        if (listCalls === RUNAWAY_LIST_CALLS) release();
+        return [];
+      },
+      read: async () => assert.fail("these tests publish no requests"),
+      write: async () => {},
+      rename: async () => {},
+      remove: async () => {},
+      createActivitySource: () => source,
+    };
+    return { host, listCalls: () => listCalls };
+  }
+
+  it("keeps the poll cadence after the turn is aborted, and still yields to timers", async () => {
+    const fake = abortAwareSource();
+    const { host, listCalls } = countingHost(fake.source, fake.degrade);
+    const controller = new AbortController();
+    const relay = startToolRelay(
+      host,
+      DIR,
+      [],
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      { signal: controller.signal },
+    );
+    try {
+      await until(() => listCalls() > 0, "the loop's first list pass");
+
+      controller.abort();
+      // The invariant itself: work queued on the macrotask side of the event loop after the
+      // abort must still run. A spinning loop owns the microtask queue and starves it.
+      let timerRan = false;
+      setTimeout(() => {
+        timerRan = true;
+      }, 0);
+
+      const before = listCalls();
+      await sleep(RELAY_POLL_MS * 2);
+      const polls = listCalls() - before;
+
+      assert.ok(timerRan, "a timer queued after the abort must get to run");
+      assert.ok(
+        polls <= MAX_POLLS_PER_WINDOW,
+        `the aborted loop must poll, not spin: ${polls} list passes in ${
+          RELAY_POLL_MS * 2
+        } ms`,
+      );
+    } finally {
+      await relay.stop();
+    }
+  });
+
+  it("stops promptly after an abort, and the polling ends with the loop", async () => {
+    const fake = abortAwareSource();
+    const { host, listCalls } = countingHost(fake.source, fake.degrade);
+    const controller = new AbortController();
+    const relay = startToolRelay(
+      host,
+      DIR,
+      [],
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      { signal: controller.signal },
+    );
+    await until(() => listCalls() > 0, "the loop's first list pass");
+    controller.abort();
+
+    const startedAt = Date.now();
+    await relay.stop();
+    const stopMs = Date.now() - startedAt;
+
+    // Bounded by one sleep at the idle-backoff cap, not by the 30 s safety wait.
+    assert.ok(
+      stopMs < RELAY_POLL_MAX_MS + 1_000,
+      `stop() must resolve out of an aborted loop promptly, took ${stopMs} ms`,
+    );
+
+    const after = listCalls();
+    await sleep(RELAY_POLL_MS * 2);
+    assert.equal(
+      listCalls(),
+      after,
+      "a stopped loop must not keep listing the relay dir",
+    );
+  });
+
+  it("floors a healthy source that answers every wait instantly, with no signal in play", async () => {
+    // The floor is the general guard: no future wake source may reintroduce the spin by
+    // resolving early, whatever the turn's signal says.
+    const fake = instantSource();
+    const { host, listCalls } = countingHost(fake.source, fake.degrade);
+    const relay = startToolRelay(host, DIR, [], undefined);
+    try {
+      await until(() => listCalls() > 0, "the loop's first list pass");
+
+      const before = listCalls();
+      await sleep(RELAY_POLL_MS * 2);
+      const polls = listCalls() - before;
+
+      assert.ok(
+        polls <= MAX_POLLS_PER_WINDOW,
+        `an instantly-resolving wait must not raise the poll rate: ${polls} list passes`,
+      );
+    } finally {
+      await relay.stop();
+    }
+  });
+
+  it(
+    "never floors the teardown: stop() returns straight out of a parked wait",
+    async () => {
+      // The floor is a sleep, and stop() cannot interrupt one. `stop()` resolves the parked
+      // wait by closing the source, so without an exemption every turn's teardown would pay a
+      // poll delay it never used to, and so would every cancel waiting behind it. The idle
+      // backoff is driven to its cap first, which is the largest floor the loop can produce.
+      const fake = fakeSource(false);
+      const { host } = fakeHost(fake.source);
+      const relay = startToolRelay(host, DIR, [], undefined);
+
+      await until(() => fake.waitTimeouts.length > 0, "the first wait");
+      while (fake.waitTimeouts.at(-1) !== RELAY_POLL_MAX_MS) {
+        const parked = fake.waitTimeouts.length;
+        fake.expire();
+        await until(
+          () => fake.waitTimeouts.length > parked,
+          "the loop to re-park on a longer backoff",
+          5_000,
+        );
+      }
+
+      const startedAt = Date.now();
+      await relay.stop();
+      const stopMs = Date.now() - startedAt;
+
+      assert.ok(
+        stopMs < 100,
+        `stop() must not wait out the ${RELAY_POLL_MAX_MS} ms floor, took ${stopMs} ms`,
+      );
+    },
+    30_000,
+  );
+
+  it("floors a suspended source by the poll delay, never by the 30 s safety wait", async () => {
+    // The floor is a sleep, and a sleep is not interruptible by close(). Capping it at the
+    // wait's own timeout alone would let a suspended source park stop() for 30 s, trading
+    // the freeze for a turn that takes half a minute to end.
+    const fake = instantSource(true, "timeout");
+    const { host, listCalls } = countingHost(fake.source, fake.degrade);
+    const relay = startToolRelay(host, DIR, [], undefined);
+    await until(() => listCalls() > 0, "the loop's first list pass");
+
+    const startedAt = Date.now();
+    await relay.stop();
+    const stopMs = Date.now() - startedAt;
+
+    assert.ok(
+      stopMs < RELAY_POLL_MAX_MS + 1_000,
+      `stop() must not wait out a safety-poll-sized floor, took ${stopMs} ms`,
+    );
   });
 });

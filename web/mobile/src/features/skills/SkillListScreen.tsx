@@ -17,6 +17,7 @@ import {
     type SkillListItem,
 } from "@agenta/skills-ui"
 import {pageContentWidthClass} from "@agenta/ui/components/page-width"
+import {LoadError} from "@agenta/ui/components/presentational"
 import {useFilterMenuView} from "@agenta/ui/filter-menu"
 import {ListTableToolbar, ListTableViewToggle} from "@agenta/ui/list-table"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
@@ -41,7 +42,6 @@ import {
     type SkillListView,
 } from "./skillListView"
 import {SkillsEmpty} from "./states/SkillsEmpty"
-import {SkillsError} from "./states/SkillsError"
 import {SkillsNoMatch} from "./states/SkillsNoMatch"
 
 /** The page column, shared with agents and automations, so the nav entries line up. */
@@ -148,7 +148,7 @@ export const SkillListScreen = ({
     const body = query.isError ? (
         // A failed fetch must not read as an empty project, so the error replaces the results
         // rather than sitting under a header row that is no longer describing anything.
-        <SkillsError onRetry={retry} />
+        <LoadError framed title="Could not load skills" onRetry={retry} />
     ) : (
         <SkillListTable
             groups={groups}

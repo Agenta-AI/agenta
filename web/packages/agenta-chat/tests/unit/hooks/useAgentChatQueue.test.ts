@@ -75,6 +75,8 @@ interface HarnessProps {
      * than the call, and this stayed synchronous.
      */
     restoreRefusedSend?: Parameters<typeof useAgentChatQueue>[0]["restoreRefusedSend"]
+    onSendAccepted?: Parameters<typeof useAgentChatQueue>[0]["onSendAccepted"]
+    onSendFailed?: Parameters<typeof useAgentChatQueue>[0]["onSendFailed"]
 }
 
 const setup = (initial: HarnessProps) => {
@@ -100,6 +102,53 @@ describe("useAgentChatQueue", () => {
         expect(sendQueued).toHaveBeenCalledTimes(1)
         expect(sendQueued.mock.calls[0][0]).toMatchObject({text: "hello"})
         expect(result.current.queued).toHaveLength(0)
+    })
+
+    // The durable path reports admission from the server. This one has no such event, and
+    // staying silent left a fresh session's optimistic row stuck at `submitting`, where a later
+    // message's failure could delete a row the server was going to list (Mahmoud, #6783).
+    it("reports a send handed straight to the transport as admitted", () => {
+        const onSendAccepted = vi.fn()
+        const {result, sendQueued} = setup({...settledEmpty, onSendAccepted})
+
+        act(() => {
+            result.current.submit({text: "no durable queue here"})
+        })
+
+        expect(sendQueued).toHaveBeenCalledTimes(1)
+        expect(onSendAccepted).toHaveBeenCalledTimes(1)
+        expect(onSendAccepted.mock.calls[0][0]).toMatchObject({text: "no durable queue here"})
+        // No server admission id exists on this path, and claiming one would be a lie.
+        expect(onSendAccepted.mock.calls[0][1]).toBeNull()
+    })
+
+    it("reports a queued message as admitted when it is released, not when it is queued", () => {
+        const onSendAccepted = vi.fn()
+        const {result, rerender, sendQueued} = setup({
+            status: "streaming",
+            messages: [userTurn("u1", "go")],
+            stopped: false,
+            onSendAccepted,
+        })
+
+        act(() => {
+            result.current.submit({text: "waits its turn"})
+        })
+        expect(sendQueued).not.toHaveBeenCalled()
+        expect(onSendAccepted).not.toHaveBeenCalled()
+
+        act(() => {
+            rerender({
+                status: "ready",
+                messages: [userTurn("u1", "go")],
+                stopped: false,
+                onSendAccepted,
+            })
+        })
+
+        expect(sendQueued).toHaveBeenCalledTimes(1)
+        expect(onSendAccepted).toHaveBeenCalledTimes(1)
+        expect(onSendAccepted.mock.calls[0][0]).toMatchObject({text: "waits its turn"})
     })
 
     it("queues messages typed while a turn is streaming", () => {
@@ -211,6 +260,62 @@ describe("useAgentChatQueue", () => {
 
         expect(result.current.queued).toHaveLength(0)
         expect(sendQueued).not.toHaveBeenCalled()
+    })
+
+    // A host that showed the session the moment the message left needs to hear about every way
+    // that send can die (#6783 review): rejected before it left, or refused after the 200.
+    it("reports a rejected durable send as failed, once", async () => {
+        const onSendFailed = vi.fn()
+        const onSendAccepted = vi.fn()
+        const server: ServerQueueAdapter = {
+            capabilities: {queue: true, steer: true},
+            busy: false,
+            queued: [],
+            submit: vi.fn().mockRejectedValue(new Error("not ready")),
+            remove: vi.fn().mockResolvedValue(undefined),
+        }
+        const {result} = setup({...settledEmpty, server, onSendFailed, onSendAccepted})
+
+        await act(async () => {
+            await expect(result.current.submit({text: "first message"})).rejects.toThrow(
+                "not ready",
+            )
+        })
+
+        expect(onSendFailed).toHaveBeenCalledOnce()
+        expect(onSendFailed.mock.calls[0][0]).toMatchObject({text: "first message"})
+        expect(onSendAccepted).not.toHaveBeenCalled()
+    })
+
+    it("reports a late refusal as failed and an admitted turn as accepted", async () => {
+        const onSendFailed = vi.fn()
+        const onSendAccepted = vi.fn()
+        const server: ServerQueueAdapter = {
+            capabilities: {queue: true, steer: true},
+            busy: false,
+            queued: [],
+            submit: vi.fn(async (message, _policy, watcher) => {
+                if (message.text === "refused") watcher?.onFailed?.()
+                else watcher?.onAccepted?.("exec-1")
+                return "running" as const
+            }),
+            remove: vi.fn().mockResolvedValue(undefined),
+        }
+        const {result} = setup({...settledEmpty, server, onSendFailed, onSendAccepted})
+
+        await act(async () => {
+            await result.current.submit({text: "refused"})
+        })
+        expect(onSendFailed).toHaveBeenCalledOnce()
+        expect(onSendAccepted).not.toHaveBeenCalled()
+
+        await act(async () => {
+            await result.current.submit({text: "admitted"})
+        })
+        expect(onSendAccepted).toHaveBeenCalledOnce()
+        expect(onSendAccepted.mock.calls[0][0]).toMatchObject({text: "admitted"})
+        expect(onSendAccepted.mock.calls[0][1]).toBe("exec-1")
+        expect(onSendFailed).toHaveBeenCalledOnce()
     })
 
     it("propagates a refused Steer without inventing a client-only queued message", async () => {

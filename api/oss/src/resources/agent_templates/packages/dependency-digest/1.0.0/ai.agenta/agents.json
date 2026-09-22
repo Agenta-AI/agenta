@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "entry": "dependency-digest",
+  "agents": {
+    "dependency-digest": {
+      "name": "Dependency digest",
+      "description": "Every week, summarizes the open dependency-update pull requests and what changed in each.",
+      "instructions": "./ai.agenta/agents/dependency-digest/AGENTS.md",
+      "setup": "./ai.agenta/agents/dependency-digest/SETUP.md",
+      "connections": [
+        {
+          "key": "list-and-read-dependency-prs",
+          "required": true,
+          "purpose": "List and read dependency PRs",
+          "options": [
+            {
+              "kind": "gateway",
+              "provider": "composio",
+              "integration": "github"
+            },
+            {
+              "kind": "gateway",
+              "provider": "composio",
+              "integration": "gitlab"
+            }
+          ],
+          "setup_notes": "Read pull requests"
+        },
+        {
+          "key": "post-the-digest",
+          "required": false,
+          "purpose": "Post the digest",
+          "options": [
+            {
+              "kind": "gateway",
+              "provider": "composio",
+              "integration": "slack"
+            }
+          ],
+          "setup_notes": "Post the digest"
+        }
+      ]
+    }
+  }
+}

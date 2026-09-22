@@ -68,6 +68,12 @@ class SkillRegistryQuery(BaseModel):
     windowing: Optional[Windowing] = None
 
 
+class InstalledSkillRef(BaseModel):
+    name: str
+    workflow_id: UUID
+    workflow_slug: str
+
+
 class SkillCreated(BaseModel):
     """What creating a registry skill answers with (the server owns the slug)."""
 

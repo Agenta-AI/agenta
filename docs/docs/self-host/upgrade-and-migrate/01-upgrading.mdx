@@ -16,6 +16,86 @@ Agenta follows semantic versioning with new releases every week. Stay updated by
 The multi-organization release flips OSS from invite-only to open signup. If your instance is reachable beyond a trusted network, set `AGENTA_ACCESS_ALLOWED_OWNER_EMAILS` (and optionally `AGENTA_ACCESS_ALLOWED_DOMAINS`) before upgrading. See [Migrate to Multi-Organization OSS](/self-host/upgrades/multi-org-migration).
 :::
 
+## Upgrading to 0.119.0
+
+This section applies if your projects use MCP servers, or if you plan to add one. Skip it otherwise, and follow the standard upgrade process below.
+
+### What changed
+
+Before 0.119.0, an agent's sandbox called an MCP server directly. Since 0.119.0, every MCP call an agent makes goes to the api container, which relays it to the server. The server's credential stays on your deployment instead of travelling into the sandbox. `AGENTA_MCP_GATEWAY_ENABLED` controls the relay and defaults to `true`.
+
+Because the api container now makes the call, the relay's own outbound guard decides which MCP servers an agent can reach. That guard is a separate setting from the one that governs webhooks.
+
+### Add the new settings to your env file
+
+An upgrade reuses your existing `.env` file, which has none of the new lines, so your deployment runs on the code defaults. Those defaults refuse an MCP server that is on a private network or answers over plain HTTP. The env templates shipped with 0.119.0 set them permissively instead, so a fresh install and an upgraded install behave differently until you add the lines yourself.
+
+If an MCP server in one of your projects is on `http://` or on a private address, add this to your env file:
+
+```bash
+# Let the relay call MCP servers on plain HTTP and on private addresses.
+# Code default: false. The 0.119.x env templates ship true.
+AGENTA_GATEWAYS_INSECURE_EGRESS_ALLOWED=true
+```
+
+A second setting applies only if your own Agenta deployment is reached over plain HTTP at an address that is not loopback, such as an IP address or a LAN name. It governs the hop into Agenta, not the hop out to an MCP server, and without it a gateway-routed run fails with `gateway_insecure_endpoint`:
+
+```bash
+# Let gateway credentials travel when your own deployment is reached over plain HTTP
+# at a non-loopback address. Code default: false. The 0.119.x env templates ship true.
+AGENTA_GATEWAYS_INSECURE_HTTP_ALLOWED=true
+```
+
+On a deployment where people you do not trust can create MCP connections, leave `AGENTA_GATEWAYS_INSECURE_EGRESS_ALLOWED` at `false` and name the servers you want reachable with `AGENTA_MCP_GATEWAY_HOST_ALLOWLIST` instead. Both postures are set out in [Use an MCP server on a private network or over plain HTTP](/self-host/app-tools-and-triggers#use-an-mcp-server-on-a-private-network-or-over-plain-http).
+
+Containers read the env file at start, so recreate them after editing it:
+
+```bash
+docker compose -f hosting/docker-compose/oss/docker-compose.gh.yml \
+  --env-file hosting/docker-compose/oss/.env.oss.gh \
+  --profile with-web --profile with-traefik up -d
+```
+
+For Helm, set `gatewayEgress.insecureAllowed` and `gatewayEgress.insecureHttpAllowed` in your values file. The chart ships both commented out, so an upgrade that touches no values file keeps the code defaults and both guards stay on. The chart renders each key you do set into the containers that read it. See [Agenta gateways](/self-host/configuration#agenta-gateways).
+
+Two more things change for Helm in this release. The chart now implements all five gateway keys, so a key you added under `api.extraEnv`, `services.extraEnv` or `agentRunner.extraEnv` to work around their absence now duplicates the one the chart renders. Remove the `extraEnv` copy. And the schema now rejects an unknown key under `mcpGateway`, `llmGateway`, `gatewayEgress` or `gatewayCredentials`, where 0.119.0 accepted and ignored it, so `helm upgrade` fails on a typo it used to swallow. For the same reason a real key that used to do nothing now takes effect: if you set `mcpGateway.enabled: false` against 0.119.0 and saw no change, it now turns the MCP gateway off.
+
+### Saving an MCP server URL on 0.119.0
+
+This applies only while you are on 0.119.0. In that version, the check that runs when someone saves a custom MCP server URL reads `AGENTA_INSECURE_EGRESS_ALLOWED`, the setting that governs webhooks, rather than the gateway setting above. The two production templates, `env.oss.gh.example` and `env.ee.gh.example`, set it to `false`, so on such a deployment a plain-HTTP or literal-private-IP URL is refused with a `400`:
+
+```text
+endpoint.data.route.base_url is invalid: URL must use https.
+endpoint.data.route.base_url is invalid: URL resolves to a blocked IP range.
+```
+
+From 0.119.1, that check follows `AGENTA_GATEWAYS_INSECURE_EGRESS_ALLOWED`, the same setting the relay uses at call time. Upgrade to 0.119.1 rather than setting `AGENTA_INSECURE_EGRESS_ALLOWED=true`: that variable has no effect on MCP saves from 0.119.1, and setting it widens what webhooks, workflow hooks, custom model provider endpoints and OIDC issuer probes may reach. If you set it to `true` on 0.119.0 for this reason alone, set it back after upgrading.
+
+A server that is already saved keeps working. This check runs only when a URL is saved.
+
+### Before rolling back below 0.119.0
+
+Migration `oss000000030` adds two labels, `OAUTH_PROVIDER` and `OAUTH_GRANT`, to the Postgres enum behind the `kind` column of the `secrets` table. A version before 0.119.0 does not know those labels, and listing a project's secrets reads every row, so one row of either kind makes the whole list fail with a server error. That takes down the playground's provider key list for the project, not just the MCP screens.
+
+PostgreSQL cannot remove a value from an enum once it is added, and running the migration's own downgrade does not remove it either. A schema rollback alone does not fix this.
+
+If any project completed an MCP OAuth connection while you were on 0.119.0 or later, delete those rows before rolling back:
+
+```sql
+DELETE FROM secrets WHERE kind IN ('OAUTH_PROVIDER','OAUTH_GRANT');
+```
+
+Through Docker Compose:
+
+```bash
+docker compose -f hosting/docker-compose/oss/docker-compose.gh.yml \
+  --env-file hosting/docker-compose/oss/.env.oss.gh exec -T postgres \
+  psql -U username -d agenta_oss_core \
+  -c "DELETE FROM secrets WHERE kind IN ('OAUTH_PROVIDER','OAUTH_GRANT');"
+```
+
+Those rows are the stored OAuth registrations and tokens for MCP connections. Deleting them ends those connections. Reconnect each affected MCP server after you upgrade again.
+
 ## Standard Upgrade Process
 
 For most upgrades, follow these steps to update your Agenta instance:

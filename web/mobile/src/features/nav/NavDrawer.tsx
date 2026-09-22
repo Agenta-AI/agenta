@@ -1,11 +1,11 @@
-import {useState} from "react"
+import {useEffect, useState} from "react"
 
 import type {SidebarScope} from "@agenta/navigation"
-import {sidebarOpenGroupsAtomFamily} from "@agenta/navigation"
+import {sidebarOpenGroupsAtomFamily, sidebarSessionSearchOpenAtom} from "@agenta/navigation"
 import {SidebarShell} from "@agenta/navigation-ui"
 import {Button} from "@agenta/ui/ui"
 import {ListIcon} from "@phosphor-icons/react"
-import {atom} from "jotai"
+import {atom, useAtomValue} from "jotai"
 import {useRouter} from "next/router"
 
 import {Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger} from "@/components/ui/sheet"
@@ -35,6 +35,12 @@ export const NavDrawer = ({
     scope?: SidebarScope
 }) => {
     const [open, setOpen] = useState(false)
+    // The search palette is a dialog of its own, mounted outside this sheet: opening it from the
+    // rail inside the sheet closes the sheet, or the pick would land under it.
+    const paletteOpen = useAtomValue(sidebarSessionSearchOpenAtom)
+    useEffect(() => {
+        if (paletteOpen) setOpen(false)
+    }, [paletteOpen])
     const mainScope = useMobileNavScope(workspaceId, projectId)
     const scope = scopeOverride ?? mainScope
     const router = useRouter()

@@ -17,6 +17,30 @@ vi.mock("@agenta/entities/gatewayTool", () => ({
     useToolIntegrationDetail: () => ({integration: null}),
 }))
 
+/** Trace root-span starts by trace id, for the turns that read one. */
+const {traceStarts} = vi.hoisted(() => ({traceStarts: new Map<string, string>()}))
+
+vi.mock("@agenta/entities/loadable", async () => {
+    const {atom} = await import("jotai")
+    const byKey = new Map<string, unknown>()
+    return {
+        traceDataSummaryAtomFamily: (key: string) => {
+            if (!byKey.has(key)) {
+                byKey.set(
+                    key,
+                    atom(() => ({
+                        rootSpan: traceStarts.has(key) ? {start_time: traceStarts.get(key)} : null,
+                        metrics: {},
+                        isPending: false,
+                        error: null,
+                    })),
+                )
+            }
+            return byKey.get(key)
+        },
+    }
+})
+
 const toolStep = (state: string, key = "c1"): ActivityStep => ({
     kind: "tool",
     key,
@@ -57,6 +81,7 @@ beforeEach(() => {
 afterEach(() => {
     vi.useRealTimers()
     vi.unstubAllGlobals()
+    traceStarts.clear()
     cleanup()
 })
 
@@ -67,6 +92,27 @@ describe("ActivityTimeline", () => {
         expect(line.textContent).toContain("Reading a file")
         expect(line.textContent).not.toContain("step")
         expect(line.textContent).toMatch(/0:00/)
+    })
+
+    // #6934: open a tab on a response already in progress and the clock counted the age of the
+    // TAB, not of the run, so a long wait read as a fresh one.
+    it("counts from the run's start for a turn it met mid-flight", () => {
+        vi.setSystemTime(new Date("2026-09-21T10:00:40Z"))
+        traceStarts.set("t1", "2026-09-21T10:00:00Z")
+        mount({
+            steps: [toolStep("input-available")],
+            streaming: true,
+            traceId: "t1",
+            streamedHere: false,
+        })
+        expect(screen.getByRole("button", {expanded: false}).textContent).toMatch(/0:40/)
+    })
+
+    it("counts from now for a run it streamed itself, trace or no trace", () => {
+        vi.setSystemTime(new Date("2026-09-21T10:00:40Z"))
+        traceStarts.set("t1", "2026-09-21T10:00:00Z")
+        mount({steps: [toolStep("input-available")], streaming: true, traceId: "t1"})
+        expect(screen.getByRole("button", {expanded: false}).textContent).toMatch(/0:00/)
     })
 
     it("narrates the startup on a session's first turn; a later turn just works", () => {

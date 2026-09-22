@@ -39,6 +39,8 @@ export interface SidebarConfig {
     isGroupLabel?: boolean
     /** Collapsible heading only: whether its rows are folded away. Drives the caret. */
     isCollapsed?: boolean
+    /** Collapsible heading only: a trailing "+" that links somewhere (an agent's new session). */
+    groupAdd?: {link: string; label: string; onClick?: (event: MouseEvent) => void}
     /** Render the item normally but suppress its navigation — clicking it is a no-op (current location). */
     inert?: boolean
     /** Route prefixes that select this row; empty opts it out of matching. Defaults to `[link]`. */

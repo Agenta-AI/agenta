@@ -6,7 +6,7 @@
 import {shortcutAria} from "@agenta/shared/utils"
 import {ShortcutKeys} from "@agenta/ui/shortcuts"
 import {Button, SimpleTooltip} from "@agenta/ui/ui"
-import {CaretDoubleLeft} from "@phosphor-icons/react"
+import {ChevronsLeft} from "lucide-react"
 
 import {useSessionFilesPane} from "@/oss/components/Drives/SessionFilesPane"
 
@@ -35,7 +35,7 @@ export default function OpenFilesPaneButton({sessionId}: {sessionId: string | nu
                 onClick={openPane}
                 className="h-7 w-7 shrink-0 p-0"
             >
-                <CaretDoubleLeft size={14} />
+                <ChevronsLeft size={14} />
             </Button>
         </SimpleTooltip>
     )

@@ -1,6 +1,6 @@
 import {useCallback} from "react"
 
-import {AutomationDrawer} from "@agenta/automation-ui"
+import {AutomationDrawer, automationRunHistoryDrawerAtom} from "@agenta/automation-ui"
 import {configPanelCollapsedAtom} from "@agenta/chat/state"
 import type {TriggerOwnerRef} from "@agenta/entity-ui/drill-in"
 import {StorageFilesHeader, StorageSection} from "@agenta/entity-ui/drive"
@@ -11,7 +11,8 @@ import {ShortcutKeys} from "@agenta/ui/shortcuts"
 import {Button, SimpleTooltip} from "@agenta/ui/ui"
 import {Sidebar} from "@phosphor-icons/react"
 import {useSetAtom} from "jotai"
-import {useRouter} from "next/router"
+
+import {AutomationRunHistoryDrawerHost} from "../automations/AutomationRunHistoryDrawerHost"
 
 import {DrillInBridgeProvider} from "./DrillInBridgeProvider"
 
@@ -38,15 +39,14 @@ export const ConfigPane = ({
     projectId: string
 }) => {
     const setConfigCollapsed = useSetAtom(configPanelCollapsedAtom)
-    const router = useRouter()
-    // A row's "Run history" is the automation detail screen opened on its runs (`?view=runs`).
+    // A row's "Run history" opens in a drawer over the agent, like the automation editor does,
+    // rather than navigating away from the conversation.
+    const openDrawer = useSetAtom(automationRunHistoryDrawerAtom)
     const openRunHistory = useCallback(
-        ({id}: TriggerOwnerRef) => {
-            void router
-                .push(`/w/${workspaceId}/p/${projectId}/automations/${id}?view=runs`)
-                .catch(() => undefined)
+        ({id, kind}: TriggerOwnerRef) => {
+            openDrawer({automationId: id, kind: kind === "schedule" ? "schedule" : "event"})
         },
-        [router, workspaceId, projectId],
+        [openDrawer],
     )
 
     return (
@@ -69,7 +69,15 @@ export const ConfigPane = ({
                     }
                     // The same automations editor the /m screens render, so a schedule opened
                     // from an agent's panel is the surface it is opened from anywhere else.
-                    automationDrawer={<AutomationDrawer />}
+                    automationDrawer={
+                        <>
+                            <AutomationDrawer />
+                            <AutomationRunHistoryDrawerHost
+                                workspaceId={workspaceId}
+                                projectId={projectId}
+                            />
+                        </>
+                    }
                     onOpenRunHistory={openRunHistory}
                     header={
                         <AgentConfigHeader

@@ -4,13 +4,8 @@ import {timeAgo} from "@agenta/shared/utils"
 import {SkeletonBlock} from "@agenta/ui/ui"
 import {useAtomValue} from "jotai"
 
+import {parseTraceTime} from "../model/traceTime"
 import {messageCreatedAtAtomFamily} from "../state"
-
-const parseTraceTime = (value: unknown): number | undefined => {
-    if (value == null) return undefined
-    const ms = new Date(value as string | number).getTime()
-    return Number.isFinite(ms) ? ms : undefined
-}
 
 /**
  * When a turn happened — "just now", "5m ago", "13h ago".

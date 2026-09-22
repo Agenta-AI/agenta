@@ -1710,3 +1710,107 @@ def test_edit_pending_ui_parts_preserves_durable_attachment_identity():
             "providerMetadata": {"agenta": {"attachmentId": new_attachment_id}},
         },
     ]
+
+
+async def _promoted_input(scope, inputs, *, key: str, execution_id: str):
+    """One promoted, un-claimed row, created the way the template load creates it."""
+    service = SessionInputsService(inputs_dao=inputs, streams_service=SimpleNamespace())
+    content = {"session_id": scope["session_id"], "data": {"messages": [key]}}
+    return await service.claim_for_execution(
+        project_id=scope["project_id"],
+        user_id=scope["user_id"],
+        session_id=scope["session_id"],
+        execution_id=execution_id,
+        content=content,
+        idempotency_key=key,
+    )
+
+
+async def _is_claimed(scope, input_id) -> bool:
+    async with scope["engine"].session() as session:
+        return await session.scalar(
+            text("SELECT dispatch_claimed FROM session_inputs WHERE id = :id"),
+            {"id": input_id},
+        )
+
+
+async def test_dispatch_claim_is_one_shot_and_its_release_gives_back_exactly_one(
+    input_scope,
+):
+    scope = input_scope
+    inputs = SessionInputsDAO(engine=scope["engine"])
+    execution_id = "execution-claim-1"
+    item = await _promoted_input(
+        scope, inputs, key="claim-1", execution_id=execution_id
+    )
+    claim = {
+        "project_id": scope["project_id"],
+        "session_id": scope["session_id"],
+        "input_id": item.id,
+        "execution_id": execution_id,
+    }
+
+    assert await inputs.claim_dispatch(**claim) is True
+    assert await _is_claimed(scope, item.id) is True
+    # The second claim is the at-most-once guarantee: one row, one dispatch.
+    assert await inputs.claim_dispatch(**claim) is False
+
+    assert await inputs.release_dispatch(**claim) is True
+    assert await _is_claimed(scope, item.id) is False
+    # And the release is compare-and-set too, so a second releaser cannot hand out a
+    # second dispatch on a claim that is already back.
+    assert await inputs.release_dispatch(**claim) is False
+
+    assert await inputs.claim_dispatch(**claim) is True
+    assert await inputs.claim_dispatch(**claim) is False
+
+
+async def test_release_dispatch_refuses_a_row_promoted_for_another_execution(
+    input_scope,
+):
+    scope = input_scope
+    inputs = SessionInputsDAO(engine=scope["engine"])
+    execution_id = "execution-claim-2"
+    item = await _promoted_input(
+        scope, inputs, key="claim-2", execution_id=execution_id
+    )
+    claim = {
+        "project_id": scope["project_id"],
+        "session_id": scope["session_id"],
+        "input_id": item.id,
+        "execution_id": execution_id,
+    }
+    assert await inputs.claim_dispatch(**claim) is True
+
+    for wrong in (
+        {**claim, "execution_id": "a-different-execution"},
+        {**claim, "project_id": uuid.uuid4()},
+        {**claim, "session_id": "a-different-session"},
+        {**claim, "input_id": uuid.uuid4()},
+    ):
+        assert await inputs.release_dispatch(**wrong) is False
+        assert await _is_claimed(scope, item.id) is True
+
+    assert await inputs.release_dispatch(**claim) is True
+
+
+async def test_concurrent_claims_after_a_release_let_exactly_one_through(input_scope):
+    scope = input_scope
+    inputs = SessionInputsDAO(engine=scope["engine"])
+    execution_id = "execution-claim-3"
+    item = await _promoted_input(
+        scope, inputs, key="claim-3", execution_id=execution_id
+    )
+    claim = {
+        "project_id": scope["project_id"],
+        "session_id": scope["session_id"],
+        "input_id": item.id,
+        "execution_id": execution_id,
+    }
+    assert await inputs.claim_dispatch(**claim) is True
+    assert await inputs.release_dispatch(**claim) is True
+
+    won = await asyncio.gather(*(inputs.claim_dispatch(**claim) for _ in range(8)))
+
+    assert won.count(True) == 1
+    assert await _is_claimed(scope, item.id) is True

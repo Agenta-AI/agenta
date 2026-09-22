@@ -135,7 +135,9 @@ export const AutomationFilterMenu = ({
             // The square icon size is 28; the search field and New automation are both 32.
             triggerClassName="size-8"
             active={!isDefaultAutomationListView(view)}
-            onReset={() => onChange(DEFAULT_AUTOMATION_LIST_VIEW)}
+            // The mode survives a reset: it is how the reader chose to read the list, not what
+            // they narrowed it to.
+            onReset={() => onChange({...DEFAULT_AUTOMATION_LIST_VIEW, mode: view.mode})}
             resetDisabled={isDefaultAutomationListView(view)}
         />
     )

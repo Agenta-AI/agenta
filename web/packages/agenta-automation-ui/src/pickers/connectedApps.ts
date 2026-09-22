@@ -13,7 +13,11 @@ export interface ConnectedApp {
  * Two connections to the same app are two accounts, not two apps, so the rail shows the
  * integration once; a valid connection wins over a broken one, since the pick binds to it.
  */
-export function connectedApps(connections: TriggerConnection[]): ConnectedApp[] {
+export function connectedApps(
+    connections: TriggerConnection[],
+    /** Catalog display names by integration key — "Google BigQuery", not "Googlebigquery". */
+    catalogNames?: ReadonlyMap<string, string | null | undefined>,
+): ConnectedApp[] {
     const byIntegration = new Map<string, {connection: TriggerConnection; app: ConnectedApp}>()
     for (const connection of connections) {
         const connectionId = connection.id
@@ -27,7 +31,7 @@ export function connectedApps(connections: TriggerConnection[]): ConnectedApp[] 
             app: {
                 connectionId,
                 integrationKey: connection.integration_key,
-                label: appLabel(connection),
+                label: appLabel(connection, catalogNames?.get(connection.integration_key)),
             },
         })
     }

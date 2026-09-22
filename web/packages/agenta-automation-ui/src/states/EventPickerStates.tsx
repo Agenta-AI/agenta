@@ -1,4 +1,4 @@
-import {Button} from "@agenta/ui/ui"
+import {Button, SkeletonBlock} from "@agenta/ui/ui"
 import {Lightning, MagnifyingGlass, Plug} from "@phosphor-icons/react"
 
 /**
@@ -35,9 +35,31 @@ const EventPickerEmptyFrame = ({
 )
 
 /** The app is connected and the catalog simply lists nothing to watch for. */
-export const EventListEmpty = ({appLabel}: {appLabel: string}) => (
+export const EventListEmpty = ({
+    appLabel,
+    logo,
+    logoLoading = false,
+}: {
+    appLabel: string
+    /** The app's own mark, so the frame names the app the way the rail does. */
+    logo?: string | null
+    logoLoading?: boolean
+}) => (
     <EventPickerEmptyFrame
-        icon={<Lightning aria-hidden size={19} className="text-muted-foreground" />}
+        icon={
+            logo ? (
+                <img
+                    src={logo}
+                    alt=""
+                    aria-hidden
+                    className="size-5 rounded-[4px] object-contain"
+                />
+            ) : logoLoading ? (
+                <SkeletonBlock active className="size-5 rounded-[4px]" />
+            ) : (
+                <Lightning aria-hidden size={19} className="text-muted-foreground" />
+            )
+        }
         title="No events to watch"
         body={`${appLabel} is connected, but it publishes nothing this automation can run on. Pick another app from the list.`}
     />

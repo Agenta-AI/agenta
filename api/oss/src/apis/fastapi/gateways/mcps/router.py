@@ -28,6 +28,7 @@ from oss.src.apis.fastapi.shared.exceptions import FORBIDDEN_EXCEPTION
 from oss.src.core.access.permissions.service import check_action_access
 from oss.src.core.access.permissions.types import Permission
 from oss.src.core.gateways.dtos import GatewayAuthScheme, GatewayEndpointNamespace
+from oss.src.core.gateways.egress import validate_egress_url_format
 from oss.src.core.gateways.mcps.dtos import (
     MCPEndpoint,
     MCPOAuthData,
@@ -38,7 +39,6 @@ from oss.src.core.gateways.mcps.providers.agenta.entitlement import (
 from oss.src.core.gateways.mcps.types import MCPEndpointNotFoundError
 from oss.src.core.gateways.run_claims import gateway_run_id, gateway_tools
 from oss.src.core.gateways.types import GatewaysError
-from oss.src.core.webhooks.utils import validate_url_format_and_literal_ip
 from oss.src.utils.context import AuthScope, get_auth_scope
 from oss.src.middlewares.auth import (
     GATEWAY_TOKEN_AUDIENCE,
@@ -55,14 +55,19 @@ if TYPE_CHECKING:
 
 
 def _guard_custom_endpoint_url(*, url: Optional[str]) -> None:
-    """Validate a custom MCP endpoint URL before saving it."""
+    """Validate a custom MCP endpoint URL before saving it.
+
+    Under the gateway's own egress policy, not the webhook one: whatever this accepts here
+    is what the relay will dial later, so the two cannot be allowed to disagree (see
+    `core/gateways/egress.py::validate_egress_url_format`).
+    """
     if not url:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="endpoint.data.route.base_url is required",
         )
     try:
-        validate_url_format_and_literal_ip(url)
+        validate_egress_url_format(url)
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

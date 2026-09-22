@@ -2,13 +2,11 @@ import {useCallback, useMemo, useState} from "react"
 
 import {
     agentLabel,
-    AUTOMATION_STATUS_LABEL,
     AutomationLastRunCell,
     AutomationListEmpty,
-    AutomationListError,
     AutomationListNoMatch,
     automationStatus,
-    type AutomationStatus,
+    type Automation,
     type AutomationListView,
     DEFAULT_AUTOMATION_LIST_VIEW,
     deriveAutomationList,
@@ -18,11 +16,17 @@ import {
 } from "@agenta/automation-ui"
 import {AgentChip} from "@agenta/entity-ui/agent"
 import {pageContentWidthClass} from "@agenta/ui/components/page-width"
+import {LoadError} from "@agenta/ui/components/presentational"
 import {useFilterMenuView} from "@agenta/ui/filter-menu"
 import {useMediaQuery} from "@agenta/ui/hooks"
-import {ListTable, ListTableToolbar, type ListTableColumn} from "@agenta/ui/list-table"
+import {
+    ListTable,
+    ListTableToolbar,
+    ListTableViewToggle,
+    type ListTableColumn,
+} from "@agenta/ui/list-table"
 import {Button} from "@agenta/ui/ui"
-import {ClockClockwise, Lightning, Plus} from "@phosphor-icons/react"
+import {Plus} from "@phosphor-icons/react"
 import {useRouter} from "next/router"
 
 import {PageTitle} from "@/components/PageTitle"
@@ -33,18 +37,10 @@ import {AppShell} from "../nav/AppShell"
 import {NavDrawer} from "../nav/NavDrawer"
 
 import {AutomationActionsMenu} from "./AutomationActionsMenu"
+import {AutomationCardBody} from "./AutomationCardBody"
 import {AutomationFilterMenu} from "./AutomationFilterMenu"
-
-/**
- * The status cell's colour. A bare dot and a coloured word, never a pill: the status column is
- * read down, and four pills in a column read as four buttons. Stopped is a choice, so it reads
- * as inert; red, not the accent, is reserved for a fault to fix.
- */
-const STATUS_COLOR: Record<AutomationStatus, {dot: string; text: string}> = {
-    working: {dot: "bg-success", text: "text-success"},
-    paused: {dot: "bg-muted-foreground", text: "text-muted-foreground"},
-    attention: {dot: "bg-destructive", text: "text-destructive"},
-}
+import {AutomationKindMark} from "./AutomationKindMark"
+import {AutomationStatusMark} from "./AutomationStatusMark"
 
 /**
  * The four columns, shared by the header row and every body row so the two can never drift.
@@ -60,12 +56,6 @@ const STATUS_COLOR: Record<AutomationStatus, {dot: string; text: string}> = {
  * moving between the two nav entries sees one page frame rather than two.
  */
 const PAGE_FRAME = `${pageContentWidthClass} lg:px-16`
-
-/** The kind mark's tile. Preset pairs, so both halves flip with the theme. */
-const KIND_CHIP: Record<"event" | "schedule", string> = {
-    event: "bg-[var(--ag-preset-orange-bg)] text-[var(--ag-preset-orange-text)]",
-    schedule: "bg-[var(--ag-preset-purple-bg)] text-[var(--ag-preset-purple-text)]",
-}
 
 const NAME_COLUMN: ListTableColumn = {key: "name", label: "Automation", width: "minmax(140px,2fr)"}
 const LAST_RUN_COLUMN: ListTableColumn = {
@@ -103,9 +93,10 @@ const NARROW_MIN_WIDTH = 300
  * One table over both trigger endpoints: a reader sees a list of things that run an agent, not a
  * schedules tab beside a subscriptions tab. Every row answers the four questions in order — what
  * it is, whether it is working, when it runs, and which agent it runs — and the whole row opens
- * the detail screen, because there is nothing else on a row to click.
+ * the detail screen, because there is nothing else on a row to click. The frame's card view
+ * stacks the same four answers, switched from the toolbar as on skills.
  *
- * A hand-built CSS grid rather than the shared `DataTable`: this table's column distribution is
+ * The shared `ListTable` rather than the `DataTable`: this table's column distribution is
  * `minmax()`/`fr`, its cells carry no vertical rules, and its rows pad 13/14 — none of which the
  * shared table's fixed `<colgroup>` layout and 8px cells can express without being overridden
  * everywhere.
@@ -121,13 +112,17 @@ export const AutomationListScreen = ({
     const router = useRouter()
     const base = `/w/${workspaceId}/p/${projectId}`
     const [search, setSearch] = useState("")
-    // Grouping is a display preference a reader sets once; the filters are a question they were
-    // asking at the time, so only the first survives a reload.
+    // Grouping and the view mode are how a reader chose to read the list; the filters are a
+    // question they were asking at the time, so only the first two survive a reload.
     const [view, setView] = useFilterMenuView<AutomationListView>({
         key: "agenta:automations:view",
         fallback: DEFAULT_AUTOMATION_LIST_VIEW,
-        persist: ["group"],
+        persist: ["group", "mode"],
     })
+    const setMode = useCallback(
+        (mode: AutomationListView["mode"]) => setView({...view, mode}),
+        [setView, view],
+    )
     // Group headings carry a chevron, so it has to do something: collapsed keys, not a flag per
     // group, because the groups themselves come and go as the view changes.
     const narrow = !useMediaQuery(WIDE_QUERY)
@@ -153,6 +148,17 @@ export const AutomationListScreen = ({
         [agentNames],
     )
 
+    // The Agent cell's label, resolved the same way for a row and a card.
+    const agentName = useCallback(
+        (automation: Automation) =>
+            agentLabel(
+                automation.agentId,
+                agentNames.get(automation.agentId ?? "")?.trim() || null,
+                agentsReady,
+            ),
+        [agentNames, agentsReady],
+    )
+
     const term = search.trim()
     const isEmpty = !isLoading && !error && automations.length === 0
     const groups = useMemo(
@@ -161,12 +167,16 @@ export const AutomationListScreen = ({
     )
 
     const body = (() => {
-        if (error) return <AutomationListError onRetry={refetch} />
+        if (error) return <LoadError framed title="Could not load automations" onRetry={refetch} />
 
         return (
             <ListTable
                 columns={narrow ? NARROW_COLUMNS : WIDE_COLUMNS}
                 minWidth={narrow ? NARROW_MIN_WIDTH : WIDE_MIN_WIDTH}
+                view={view.mode}
+                // A card holds a status line, a cadence and an agent; narrower than this the
+                // cadence wraps and the grid reads as a wall of text.
+                cardMinWidth={300}
                 loading={isLoading}
                 groups={groups.map((group) => ({
                     key: group.key,
@@ -193,39 +203,34 @@ export const AutomationListScreen = ({
                                     ? () => setSearch("")
                                     : isDefaultAutomationListView(view)
                                       ? undefined
-                                      : () => setView(DEFAULT_AUTOMATION_LIST_VIEW)
+                                      : // The mode survives: it is how the reader chose to
+                                        // read the list, not what they narrowed it to.
+                                        () =>
+                                            setView({
+                                                ...DEFAULT_AUTOMATION_LIST_VIEW,
+                                                mode: view.mode,
+                                            })
                             }
                         />
                     )
                 }
+                renderCard={(automation) => (
+                    <AutomationCardBody
+                        automation={automation}
+                        agentName={agentName(automation)}
+                        base={base}
+                    />
+                )}
                 renderRow={(automation) => {
                     // Run outcomes land in W6; until then nothing here has failed.
                     const status = automationStatus(automation, false)
-                    const color = STATUS_COLOR[status]
                     const runsWhen = runsWhenLabel(automation)
-                    const agentName = agentLabel(
-                        automation.agentId,
-                        agentNames.get(automation.agentId ?? "")?.trim() || null,
-                        agentsReady,
-                    )
+                    const name = agentName(automation)
 
                     return (
                         <>
                             <span className="flex min-w-0 items-center gap-2">
-                                {/* A tile, like the agent's beside it, so the two marks on a row
-                                    read as the same kind of thing. The two kinds get their own
-                                    tint: at a glance down the column, colour separates "when
-                                    something happens" from "on a schedule" faster than two
-                                    small glyphs do. */}
-                                <span
-                                    className={`flex size-7 shrink-0 items-center justify-center rounded-md ${KIND_CHIP[automation.kind]}`}
-                                >
-                                    {automation.kind === "event" ? (
-                                        <Lightning size={15} aria-hidden />
-                                    ) : (
-                                        <ClockClockwise size={15} aria-hidden />
-                                    )}
-                                </span>
+                                <AutomationKindMark kind={automation.kind} />
                                 <span
                                     className="truncate text-[14px] text-foreground"
                                     title={automation.name}
@@ -234,17 +239,7 @@ export const AutomationListScreen = ({
                                 </span>
                             </span>
 
-                            {narrow ? null : (
-                                <span className="flex min-w-0 items-center gap-[7px]">
-                                    <span
-                                        aria-hidden
-                                        className={`size-1.5 shrink-0 rounded-full ${color.dot}`}
-                                    />
-                                    <span className={`text-[13px] ${color.text}`}>
-                                        {AUTOMATION_STATUS_LABEL[status]}
-                                    </span>
-                                </span>
-                            )}
+                            {narrow ? null : <AutomationStatusMark status={status} />}
 
                             {narrow ? null : (
                                 <span
@@ -257,7 +252,7 @@ export const AutomationListScreen = ({
 
                             <AutomationLastRunCell automation={automation} />
 
-                            {narrow ? null : agentName ? (
+                            {narrow ? null : name ? (
                                 <span className="flex min-w-0 items-center gap-1.5">
                                     {/* The agent's own mark, not a generic robot — a column of
                                         identical icons identifies nothing. Same tile the agent
@@ -270,9 +265,9 @@ export const AutomationListScreen = ({
                                     />
                                     <span
                                         className="truncate text-[13px] text-foreground"
-                                        title={agentName}
+                                        title={name}
                                     >
-                                        {agentName}
+                                        {name}
                                     </span>
                                 </span>
                             ) : (
@@ -336,17 +331,26 @@ export const AutomationListScreen = ({
                             own left edge so it reads as the control that narrows what is below
                             it. */}
                         {/* One control beside the field, not three: sort and group are rows
-                            inside it, so the bar stays a search bar. */}
+                            inside it, so the bar stays a search bar. The view switch takes the
+                            far edge, where it changes how the results are drawn rather than
+                            which ones are. */}
                         <ListTableToolbar
                             search={search}
                             onSearchChange={setSearch}
                             searchPlaceholder="Search automations"
                             actions={
-                                <AutomationFilterMenu
-                                    view={view}
-                                    onChange={setView}
-                                    agents={agents}
-                                />
+                                <>
+                                    <AutomationFilterMenu
+                                        view={view}
+                                        onChange={setView}
+                                        agents={agents}
+                                    />
+                                    <ListTableViewToggle
+                                        value={view.mode}
+                                        onChange={setMode}
+                                        className="ml-auto"
+                                    />
+                                </>
                             }
                         />
                         {body}

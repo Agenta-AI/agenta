@@ -1,0 +1,177 @@
+{
+  "pr-reviewer": {
+    "latest": "1.0.0",
+    "versions": {
+      "1.0.0": "packages/pr-reviewer/1.0.0"
+    }
+  },
+  "changelog-writer": {
+    "latest": "1.0.0",
+    "versions": {
+      "1.0.0": "packages/changelog-writer/1.0.0"
+    }
+  },
+  "issue-triage": {
+    "latest": "1.0.0",
+    "versions": {
+      "1.0.0": "packages/issue-triage/1.0.0"
+    }
+  },
+  "ci-failure-triage": {
+    "latest": "1.0.0",
+    "versions": {
+      "1.0.0": "packages/ci-failure-triage/1.0.0"
+    }
+  },
+  "code-qa": {
+    "latest": "1.0.0",
+    "versions": {
+      "1.0.0": "packages/code-qa/1.0.0"
+    }
+  },
+  "dependency-digest": {
+    "latest": "1.0.0",
+    "versions": {
+      "1.0.0": "packages/dependency-digest/1.0.0"
+    }
+  },
+  "support-triage": {
+    "latest": "1.0.0",
+    "versions": {
+      "1.0.0": "packages/support-triage/1.0.0"
+    }
+  },
+  "support-reply-drafter": {
+    "latest": "1.0.0",
+    "versions": {
+      "1.0.0": "packages/support-reply-drafter/1.0.0"
+    }
+  },
+  "bug-report-router": {
+    "latest": "1.0.0",
+    "versions": {
+      "1.0.0": "packages/bug-report-router/1.0.0"
+    }
+  },
+  "feedback-clusterer": {
+    "latest": "1.0.0",
+    "versions": {
+      "1.0.0": "packages/feedback-clusterer/1.0.0"
+    }
+  },
+  "lead-qualifier": {
+    "latest": "1.0.0",
+    "versions": {
+      "1.0.0": "packages/lead-qualifier/1.0.0"
+    }
+  },
+  "crm-updater": {
+    "latest": "1.0.0",
+    "versions": {
+      "1.0.0": "packages/crm-updater/1.0.0"
+    }
+  },
+  "outreach-drafter": {
+    "latest": "1.0.0",
+    "versions": {
+      "1.0.0": "packages/outreach-drafter/1.0.0"
+    }
+  },
+  "meeting-followup": {
+    "latest": "1.0.0",
+    "versions": {
+      "1.0.0": "packages/meeting-followup/1.0.0"
+    }
+  },
+  "pipeline-digest": {
+    "latest": "1.0.0",
+    "versions": {
+      "1.0.0": "packages/pipeline-digest/1.0.0"
+    }
+  },
+  "incident-responder": {
+    "latest": "1.0.0",
+    "versions": {
+      "1.0.0": "packages/incident-responder/1.0.0"
+    }
+  },
+  "error-triage": {
+    "latest": "1.0.0",
+    "versions": {
+      "1.0.0": "packages/error-triage/1.0.0"
+    }
+  },
+  "uptime-reporter": {
+    "latest": "1.0.0",
+    "versions": {
+      "1.0.0": "packages/uptime-reporter/1.0.0"
+    }
+  },
+  "oncall-briefer": {
+    "latest": "1.0.0",
+    "versions": {
+      "1.0.0": "packages/oncall-briefer/1.0.0"
+    }
+  },
+  "docs-qa": {
+    "latest": "1.0.0",
+    "versions": {
+      "1.0.0": "packages/docs-qa/1.0.0"
+    }
+  },
+  "knowledge-chatbot": {
+    "latest": "1.0.0",
+    "versions": {
+      "1.0.0": "packages/knowledge-chatbot/1.0.0"
+    }
+  },
+  "onboarding-buddy": {
+    "latest": "1.0.0",
+    "versions": {
+      "1.0.0": "packages/onboarding-buddy/1.0.0"
+    }
+  },
+  "content-repurposer": {
+    "latest": "1.0.0",
+    "versions": {
+      "1.0.0": "packages/content-repurposer/1.0.0"
+    }
+  },
+  "newsletter-drafter": {
+    "latest": "1.0.0",
+    "versions": {
+      "1.0.0": "packages/newsletter-drafter/1.0.0"
+    }
+  },
+  "standup-summarizer": {
+    "latest": "1.0.0",
+    "versions": {
+      "1.0.0": "packages/standup-summarizer/1.0.0"
+    }
+  },
+  "repo-slack-digest": {
+    "latest": "1.0.0",
+    "versions": {
+      "1.0.0": "packages/repo-slack-digest/1.0.0"
+    }
+  },
+  "cross-tool-sync": {
+    "latest": "1.0.0",
+    "versions": {
+      "1.0.0": "packages/cross-tool-sync/1.0.0"
+    }
+  },
+  "weekly-report": {
+    "latest": "1.0.0",
+    "versions": {
+      "1.0.0": "packages/weekly-report/1.0.0"
+    }
+  },
+  "outbound-prospecting": {
+    "latest": "1.0.1",
+    "versions": {
+      "1.0.0": "packages/outbound-prospecting/1.0.0",
+      "1.0.1": "packages/outbound-prospecting/1.0.1"
+    }
+  }
+}

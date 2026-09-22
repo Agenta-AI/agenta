@@ -800,7 +800,8 @@ async function runAndStreamWithApiBaseResolved(
   };
   let flushPersist: (() => Promise<void>) | undefined;
   let persistError:
-    ((message: string, code?: RunErrorCode) => void) | undefined;
+    | ((message: string, code?: RunErrorCode) => void)
+    | undefined;
   let persistTerminal: ((stopReason?: string) => void) | undefined;
   let terminalRecordEmitted = false;
 
@@ -922,7 +923,14 @@ async function runAndStreamWithApiBaseResolved(
       // writes the prompt only on the turn that first introduced it.
       if (tailIsFreshUserMessage(request)) {
         persist(
-          { type: "message", text: turn.text, attachments: turn.attachments },
+          {
+            type: "message",
+            text: turn.text,
+            attachments: turn.attachments,
+            ...(turn.message && Object.hasOwn(turn.message, "display_content")
+              ? { display_content: turn.message.display_content }
+              : {}),
+          },
           "user",
         );
         if (turn.attachments.length > 0) {
