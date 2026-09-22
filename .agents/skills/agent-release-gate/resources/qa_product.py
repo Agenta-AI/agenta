@@ -101,7 +101,8 @@ def resolve_credentials(env_file: str | pathlib.Path | None = None) -> None:
 # well-known free reference server (tools: read_wiki_structure / read_wiki_contents / ask_question).
 # Override with --mcp-url to point at any other public server. The runner/SDK both reject non-https
 # and private/loopback hosts (SSRF guard), so a LOCAL server is NOT reachable from the deployment —
-# it must be a public HTTPS URL. See STATUS.md "MCP smoke test".
+# it must be a public HTTPS URL. The journey registers it as a project MCP connection first, since
+# the gateway, not the harness, dials it (LESSONS.md section 15).
 DEFAULT_MCP_URL = "https://mcp.deepwiki.com/mcp"
 MCP_URL = DEFAULT_MCP_URL
 
@@ -1885,8 +1886,12 @@ def j7_mcp(cell: dict) -> dict:
       http:// and private/loopback/metadata hosts, so a local MCP server is unreachable from the
       deployment. --mcp-url must be a public HTTPS Streamable-HTTP endpoint (default: DeepWiki).
 
-    The harness dials the URL directly (on `local`, from the runner host), so the endpoint must be
-    reachable from the deployment's network.
+    The server is registered first as a project MCP connection and the agent references it by
+    slug. Since v0.119.0 the SDK routes every agent MCP server through the MCP gateway whenever the
+    run carries a gateway (`sdk/agents/mcp/resolver.py` `_resolve_gateway`): the author's URL is
+    not dialled, and a server with no stored connection answers 404 at
+    `/gateways/mcps/custom/<name>`. So the gateway, not the harness, dials the URL, and it must be
+    reachable from the API container.
     """
     if cell["harness"] != "claude":
         return {
@@ -1894,10 +1899,37 @@ def j7_mcp(cell: dict) -> dict:
             "why": f"MCP requires a Claude harness; Pi rejects any run with mcps (cell harness={cell['harness']}). Run with --cell C1.",
         }
 
+    slug = f"qa-gate-mcp-{uuid.uuid4().hex[:8]}"
+    created = api_call(
+        "POST",
+        "/gateways/mcps/endpoints/",
+        json={
+            "endpoint": {
+                "slug": slug,
+                "auth_mode": "none",
+                "secret_id": None,
+                "data": {"route": {"base_url": MCP_URL}},
+            }
+        },
+    )
+    if created.status_code != 200:
+        return {
+            "pass": False,
+            "why": f"could not register {MCP_URL} as an MCP connection: "
+            f"HTTP {created.status_code} {created.text[:300]}",
+        }
+    endpoint_id = created.json()["endpoint"]["id"]
+    try:
+        return _j7_mcp_turn(cell, slug)
+    finally:
+        api_call("DELETE", f"/gateways/mcps/endpoints/{endpoint_id}")
+
+
+def _j7_mcp_turn(cell: dict, slug: str) -> dict:
     s = str(uuid.uuid4())
     mcp = {
         "name": "deepwiki",
-        "connection": {"type": "http", "url": MCP_URL},
+        "connection": {"type": "gateway", "namespace": "custom", "slug": slug},
         "policy": {"tools": {"mode": "all"}},
     }
     prompt = (
