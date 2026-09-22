@@ -17,6 +17,7 @@ vi.mock("@agenta/entities/workflow", () => ({
         },
     ],
     templateBuilderMessage: () => "Set up a PR reviewer and review my open pull requests.",
+    templateProviderSlugs: () => [],
 }))
 
 import {firstAgentInput} from "./choices"
