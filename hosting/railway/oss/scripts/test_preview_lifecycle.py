@@ -118,6 +118,47 @@ class LifecycleTests(unittest.TestCase):
         self.c.request(self.event(), 1, 1)
         self.deploy("manual")
 
+    def test_ci_reuses_same_revision_without_renewing_manual_time(self):
+        self.manual()
+        expiry = self.c.data["manual_until"]
+        identity = self.rw.live["id"]
+        self.time += 120
+        self.deploy(run=2)
+        self.assertEqual(self.rw.live["id"], identity)
+        self.assertEqual(self.c.data["manual_until"], expiry)
+        self.c.finish("1-1")
+        self.assertIsNotNone(self.rw.live)
+
+    def test_ci_does_not_discard_manual_request_during_build(self):
+        self.c.request(self.event(), 2, 1)
+        self.deploy(run=1)
+        self.assertEqual(self.c.data["manual_comment"], 10)
+        self.assertEqual(self.c.data["manual_until"], self.time + 3600)
+
+    def test_older_ci_cannot_replace_newer_generation(self):
+        self.deploy(run=2)
+        with self.assertRaises(ValueError):
+            self.deploy(run=1)
+        self.assertEqual(self.c.data["run_id"], 2)
+        self.assertFalse(self.rw.deleted)
+
+    def test_startup_is_bounded_by_shorter_ci_deadline(self):
+        with patch.dict(os.environ, {"RAILWAY_CI_PREVIEW_MAX_MINUTES": "1"}):
+            self.deploy()
+        self.assertEqual(self.rw.created[0][2], 60)
+
+    def test_late_provider_creation_is_removed_after_absence_check(self):
+        self.deploy()
+        identity = self.rw.live["id"]
+        self.c.finish("1-1")
+        self.rw.live = {
+            "id": identity,
+            "name": "pr-123",
+            "createdAt": "2026-01-01T00:00:00Z",
+        }
+        self.c.sweep()
+        self.assertIsNone(self.rw.live)
+
     def test_ci_finish_deletes(self):
         self.deploy()
         self.c.finish("1-1")

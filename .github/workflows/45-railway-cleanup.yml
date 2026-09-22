@@ -26,6 +26,20 @@ env:
   RAILWAY_TEMPLATE_ENV: ${{ vars.RAILWAY_TEMPLATE_ENV || 'pr-template' }}
 
 jobs:
+  legacy-tests:
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    concurrency:
+      group: railway-clone-preview-test
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.workflow_sha }}
+          persist-credentials: false
+      - name: Reconcile abandoned acceptance-test environments
+        run: python3 hosting/railway/oss/scripts/preview_lifecycle.py legacy-tests
+
   inventory:
     runs-on: ubuntu-latest
     outputs:

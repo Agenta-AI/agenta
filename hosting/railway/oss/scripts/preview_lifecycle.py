@@ -184,6 +184,36 @@ class Railway:
                 raise RuntimeError("Railway pagination did not advance")
             cursor = next_cursor
 
+    def cleanup_test_previews(self):
+        # Workflow 48 and this cleanup share a separate concurrency slot. Keep
+        # the previous six-hour fallback for interrupted clone acceptance runs.
+        for env in self.environments():
+            name = env["name"]
+            if name in {self.template, "production"} or not name.startswith(
+                ("pr-clone-", "wp3-")
+            ):
+                continue
+            created = int(
+                dt.datetime.fromisoformat(
+                    env["createdAt"].replace("Z", "+00:00")
+                ).timestamp()
+            )
+            if clock() - created <= 6 * 3600:
+                continue
+            current = [
+                item
+                for item in self.environments()
+                if item["id"] == env["id"] and item["name"] == name
+            ]
+            if not current:
+                continue
+            self.query(
+                "mutation($id:String!){environmentDelete(id:$id)}", {"id": env["id"]}
+            )
+            if any(item["id"] == env["id"] for item in self.environments()):
+                raise RuntimeError("Legacy test preview deletion could not be verified")
+            print(f"Removed expired test environment {name}; absence verified")
+
     def name(self, pr):
         return f"pr-{pr}"
 
@@ -511,6 +541,7 @@ class Controller:
         if image_tag != expected_tag:
             raise ValueError("Image tag does not identify this exact build")
         generation = f"{run_id}-{attempt}"
+        preserved_manual_until = 0
         if mode == "manual":
             if (
                 not self.data
@@ -519,16 +550,42 @@ class Controller:
             ):
                 raise ValueError("Manual request no longer owns this preview")
         else:
+            manual_comment = 0
             if self.data and self.data["phase"] != "stopped":
-                if self.data["generation"] == generation:
+                old = self.data
+                if old["generation"] == generation:
                     raise ValueError(
                         "Deployment already started; reconcile instead of replaying"
                     )
-                self.gh.stop(self.data["run_id"], self.data["attempt"])
-                self.destroy(
-                    "Superseded by a newer CI revision; manual time is not renewed."
-                )
-            self.new(sha, run_id, attempt, mode)
+                if old["mode"] == "ci" and (old["run_id"], old["attempt"]) > (
+                    run_id,
+                    attempt,
+                ):
+                    raise ValueError("A newer CI generation already owns this preview")
+                self.gh.stop(old["run_id"], old["attempt"])
+                if old["sha"] == sha:
+                    manual_comment = old["manual_comment"]
+                    preserved_manual_until = old["manual_until"]
+                    live = self.rw.find(self.pr)
+                    if (
+                        old["phase"] == "ready"
+                        and live
+                        and live["id"] == old["env_id"]
+                        and self.now() < old["started"] + old["limits"]["ci"]
+                    ):
+                        old.update(
+                            run_id=run_id,
+                            attempt=attempt,
+                            generation=generation,
+                            mode="ci",
+                            ci_until=old["started"] + old["limits"]["ci"],
+                        )
+                        self.save(
+                            "CI is reusing the ready exact-head preview. Manual expiry is unchanged."
+                        )
+                        return {"preview_url": old["url"], "generation": generation}
+                self.destroy("Superseded CI work stopped before replacement.")
+            self.new(sha, run_id, attempt, mode, manual_comment)
         d = self.data
         # Never adopt a legacy environment with unknown contents. Remove only
         # the exact preview name in the configured project after checking CI.
@@ -560,7 +617,7 @@ class Controller:
             if d["ready"] >= d["startup_until"]:
                 raise RuntimeError("Preview became ready after its startup deadline")
             d["phase"] = "ready"
-            d["manual_until"] = (
+            d["manual_until"] = preserved_manual_until or (
                 d["ready"] + d["limits"]["manual"] if d["manual_comment"] else 0
             )
             self.save()
@@ -617,11 +674,22 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "operation",
-        choices=["request", "deploy-ci", "deploy-manual", "finish", "sweep", "list"],
+        choices=[
+            "request",
+            "deploy-ci",
+            "deploy-manual",
+            "finish",
+            "sweep",
+            "list",
+            "legacy-tests",
+        ],
     )
     args = parser.parse_args()
     gh = GitHub(os.environ["GITHUB_REPOSITORY"])
     rw = Railway()
+    if args.operation == "legacy-tests":
+        rw.cleanup_test_previews()
+        return
     if args.operation == "list":
         prs = sorted(
             {
