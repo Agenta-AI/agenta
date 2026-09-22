@@ -42,6 +42,7 @@ import {
 import {atom, useAtomValue, useSetAtom} from "jotai"
 import {unwrap} from "jotai/utils"
 
+import {useLeaveSession} from "@/features/chat/useLeaveSession"
 import {startBlankSession} from "@/features/chat/useStartBlankSession"
 
 import {useSyncLocalSessionRefs} from "./localSessionRefs"
@@ -145,7 +146,8 @@ export const useMobileNavItems = (projectURL: string): SidebarConfig[] => {
     // and hands `NavMenu` a new items array that defeats its own memo.
     const source = useMemo(() => withEntityGroups(rawSource, groups), [rawSource, groups])
     // Resolved ONCE for the rail, not once per row: the verbs do not differ by session.
-    const chrome = useSessionRowChrome(useSessionActions())
+    // Archiving or deleting the session on screen has to move you off it, from here too.
+    const chrome = useSessionRowChrome(useSessionActions({onRemoved: useLeaveSession(projectURL)}))
     // Platform read in an effect: the server has none, and a guess mismatches on hydration.
     const mac = useIsMacPlatform()
     const paletteShortcut = useMemo(() => {
