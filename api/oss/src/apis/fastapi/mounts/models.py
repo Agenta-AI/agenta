@@ -113,6 +113,12 @@ class MountFileDeletedResponse(BaseModel):
     count: int = 0
 
 
+class MountFileMovedResponse(BaseModel):
+    source: str
+    destination: str
+    count: int = 0
+
+
 # ---------------------------------------------------------------------------
 # Signed-credentials response (sandbox injection)
 # ---------------------------------------------------------------------------

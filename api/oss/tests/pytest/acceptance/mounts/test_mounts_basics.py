@@ -391,6 +391,55 @@ class TestMountFileOps:
         resp = authed_api("GET", f"/mounts/{fake_id}/files")
         assert resp.status_code == 404, resp.text
 
+    def test_move_renames_folder_and_refuses_occupied_destination(self, authed_api):
+        mount_id = _create_mount(authed_api)
+
+        folder = authed_api(
+            "POST", f"/mounts/{mount_id}/files/folder", params={"path": "drafts"}
+        )
+        skip_if_mount_storage_unavailable(folder)
+        assert folder.status_code == 200, folder.text
+        write = _write_file(authed_api, mount_id, "drafts/a.txt", b"a")
+        assert write.status_code == 200, write.text
+        _write_file(authed_api, mount_id, "taken.txt", b"t")
+
+        moved = authed_api(
+            "POST",
+            f"/mounts/{mount_id}/files/move",
+            params={"path": "drafts", "to": "final"},
+        )
+        assert moved.status_code == 200, moved.text
+        assert moved.json() == {"source": "drafts", "destination": "final", "count": 2}
+
+        listing = authed_api("GET", f"/mounts/{mount_id}/files")
+        paths = {f["path"] for f in listing.json()["files"]}
+        assert "final/a.txt" in paths
+        assert not any(p.startswith("drafts") for p in paths)
+
+        occupied = authed_api(
+            "POST",
+            f"/mounts/{mount_id}/files/move",
+            params={"path": "final/a.txt", "to": "taken.txt"},
+        )
+        assert occupied.status_code == 409, occupied.text
+
+        missing = authed_api(
+            "POST",
+            f"/mounts/{mount_id}/files/move",
+            params={"path": "nope.txt", "to": "x.txt"},
+        )
+        assert missing.status_code == 404, missing.text
+
+    def test_path_traversal_rejected_on_move(self, authed_api):
+        mount_id = _create_mount(authed_api)
+
+        resp = authed_api(
+            "POST",
+            f"/mounts/{mount_id}/files/move",
+            params={"path": "a.txt", "to": "../escape"},
+        )
+        assert resp.status_code == 422, resp.text
+
 
 # ---------------------------------------------------------------------------
 # Shallow (depth=1) listing
