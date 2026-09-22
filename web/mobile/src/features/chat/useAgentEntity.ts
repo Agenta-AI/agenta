@@ -1,3 +1,5 @@
+import {useEffect, useRef} from "react"
+
 import {retrieveWorkflowRevision} from "@agenta/entities/workflow"
 import {isValidUUID} from "@agenta/shared/utils"
 import {useQuery} from "@tanstack/react-query"
@@ -91,10 +93,22 @@ export const useAgentEntity = (
         refetchOnWindowFocus: false,
     })
 
-    // A header with no row is a session with no turns yet: the route's fallback names its agent,
-    // or there is nothing to invoke. No retry — the row appears with the first turn, and the
-    // watch's lifecycle event re-reads this query when it does.
-    const awaitingHeader = header.isPending && !fallbackAgentId
+    // A header with no row is a session with no turns yet — but it can also be a copy cached
+    // (30 s) from before that session's first turn landed. Re-read ONCE per missing session, as
+    // the list read did for the same reason: a session with no turns is a real answer, so never
+    // retry past that.
+    const {isSuccess, isFetching, refetch} = header
+    const missedRef = useRef<string | null>(null)
+    const missing = isSuccess && !row && !fallbackAgentId
+    useEffect(() => {
+        if (!missing || missedRef.current === sessionId) return
+        missedRef.current = sessionId
+        void refetch()
+    }, [missing, sessionId, refetch])
+
+    // A route-supplied agent IS the answer, so do not gate the screen on a read that by
+    // definition cannot know a session the client minted a moment ago.
+    const awaitingHeader = (header.isPending || (missing && isFetching)) && !fallbackAgentId
 
     return {
         agentId: revisionQuery.data?.workflowId ?? boundId,

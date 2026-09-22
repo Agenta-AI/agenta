@@ -35,6 +35,7 @@ export function sessionTabListArgs(
     policy: SessionListRequestPolicy,
     agentId: string | undefined,
     ids: readonly string[],
+    lowPriority = false,
 ): SessionListOptions {
     return {
         originPolicy: "all",
@@ -42,8 +43,7 @@ export function sessionTabListArgs(
         agentId,
         sessionIds: [...ids],
         enabled: ids.length > 0,
-        // A rail beside a transcript, never the screen's point.
-        lowPriority: true,
+        lowPriority,
     }
 }
 
@@ -73,11 +73,14 @@ export const useSessionTabRows = ({
     policy,
     agentId,
     ids,
+    lowPriority = false,
 }: {
     policy: SessionListRequestPolicy
     agentId?: string
     /** The open-tab set. Null before it is seeded — nothing is fetched. */
     ids: readonly string[] | null
+    /** The rail sits beside the transcript; its host says so. */
+    lowPriority?: boolean
 }): SessionTabRows => {
     const projectId = useAtomValue(projectIdAtom) ?? ""
     const pinnedIds = useAtomValue(pinnedSessionIdsAtom)
@@ -89,7 +92,7 @@ export const useSessionTabRows = ({
         () => pendingBySessionId(interactions.data),
         [interactions.data],
     )
-    const query = useSessionList(sessionTabListArgs(policy, agentId, requested))
+    const query = useSessionList(sessionTabListArgs(policy, agentId, requested, lowPriority))
 
     const pinnedSet = useMemo(() => new Set(pinnedIds), [pinnedIds])
     const requestedSet = useMemo(() => new Set(requested), [requested])

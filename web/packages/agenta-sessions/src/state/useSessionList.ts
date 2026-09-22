@@ -34,10 +34,23 @@ export {SESSIONS_PAGE_SIZE}
 export const actionableInteractionsQueryKey = (projectId: string) =>
     ["sessions-page", "actionable-interactions", projectId] as const
 
-export const actionableInteractionsQueryOptions = (projectId: string) => ({
+/**
+ * `outerSignal` is for an imperative `fetchQuery` reader whose own query was aborted: TanStack
+ * hands the shared entry its own signal, so a caller that wants its abort to reach the request
+ * passes its signal here. A subscriber (`useActionableInteractions`) passes nothing and keeps
+ * the query's own.
+ */
+export const actionableInteractionsQueryOptions = (
+    projectId: string,
+    outerSignal?: AbortSignal,
+) => ({
     queryKey: actionableInteractionsQueryKey(projectId),
     queryFn: ({signal}: {signal?: AbortSignal}) =>
-        queryInteractions({projectId, actionableOnly: true, abortSignal: signal}),
+        queryInteractions({
+            projectId,
+            actionableOnly: true,
+            abortSignal: outerSignal ?? signal,
+        }),
     staleTime: 10_000,
 })
 
@@ -94,7 +107,8 @@ export interface SessionListOptions {
     enabled?: boolean
     /**
      * Fetch-priority hint for a list that is never the screen's point — the chat's sessions pane
-     * and tab rail. A list a page exists to show stays at the browser default.
+     * and tab rail, which sit beside the transcript. A list a surface exists to show (a page, a
+     * home card) stays at the browser default, so this is the CALLER's call, never a default.
      */
     lowPriority?: boolean
 }

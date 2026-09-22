@@ -6,7 +6,7 @@ import {
     createTurnViewModelCache,
     getPendingApprovals,
 } from "@agenta/chat/model"
-import {fetchSessionRecordsAtom} from "@agenta/entities/session"
+import {fetchSessionRecordsAtom, isSessionFresh} from "@agenta/entities/session"
 import {projectIdAtom} from "@agenta/shared/state"
 import {useAtomValue, useSetAtom} from "jotai"
 
@@ -69,6 +69,9 @@ export const ChatScreen = ({
     const prefetchRecords = useSetAtom(fetchSessionRecordsAtom)
     useEffect(() => {
         if (!sessionId || boundProjectId !== projectId) return
+        // A session this client minted a moment ago has no records to read — the conversation
+        // hook skips that guaranteed-empty query for the same reason.
+        if (isSessionFresh(sessionId)) return
         void prefetchRecords(sessionId).catch(() => undefined)
     }, [boundProjectId, prefetchRecords, projectId, sessionId])
     const {

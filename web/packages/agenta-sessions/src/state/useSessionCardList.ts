@@ -33,6 +33,7 @@ export function pinnedSessionListArgs(
     agentId: string | undefined,
     pinnedIds: string[],
     enabled: boolean,
+    lowPriority = false,
 ): SessionListOptions {
     return {
         originPolicy: "all",
@@ -40,7 +41,7 @@ export function pinnedSessionListArgs(
         agentId,
         sessionIds: pinnedIds,
         enabled,
-        lowPriority: true,
+        lowPriority,
     }
 }
 
@@ -59,6 +60,12 @@ export interface UseSessionCardListArgs {
     limit?: number
     /** Pinned sessions lead the list, and are excluded from the recent rows below them. */
     withPinned?: boolean
+    /**
+     * This card sits BESIDE the thing the screen is for (the chat's sessions pane, its tab rail,
+     * its history menu), so its reads may queue behind that thing's. A card that is the surface's
+     * own content leaves this off.
+     */
+    lowPriority?: boolean
 }
 
 /**
@@ -80,6 +87,7 @@ export const useSessionCardList = ({
     agentId,
     limit = 7,
     withPinned = false,
+    lowPriority = false,
 }: UseSessionCardListArgs) => {
     const [extraRows, setExtraRows] = useState(0)
     const projectId = useAtomValue(projectIdAtom) ?? ""
@@ -96,24 +104,26 @@ export const useSessionCardList = ({
     )
     const useWaiting = waitingIds.length > 0
 
-    // Every read here is a side surface beside a transcript, so all three carry the low
-    // fetch-priority hint: the browser sends the transcript's request ahead of them.
+    // All three reads share the card's own priority — a card beside a transcript lets the
+    // transcript's request go first; a card that IS the content does not.
     const waitingQuery = useSessionList({
         originPolicy: policy.origin,
         expansions: policy.expansions,
         agentId,
         sessionIds: waitingIds,
         enabled: useWaiting,
-        lowPriority: true,
+        lowPriority,
     })
     const usePins = withPinned && pinnedIds.length > 0
-    const pinnedQuery = useSessionList(pinnedSessionListArgs(policy, agentId, pinnedIds, usePins))
+    const pinnedQuery = useSessionList(
+        pinnedSessionListArgs(policy, agentId, pinnedIds, usePins, lowPriority),
+    )
     const listQuery = useSessionList({
         originPolicy: policy.origin,
         expansions: policy.expansions,
         agentId,
         excludeSessionIds: withPinned ? [...pinnedIds, ...waitingIds] : waitingIds,
-        lowPriority: true,
+        lowPriority,
     })
 
     const pinnedSet = useMemo(() => new Set(pinnedIds), [pinnedIds])

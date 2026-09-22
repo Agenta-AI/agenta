@@ -128,6 +128,8 @@ export const SessionTabs = ({
                 policy={{origin: "exclude-trigger", expansions: []}}
                 limit={12}
                 withPinned
+                // Beside the transcript, not the screen's point: its reads queue behind it.
+                lowPriority
                 activeSessionId={sessionId}
                 activeFallbackTitle={query.data?.name}
                 menuFor={(vm) =>

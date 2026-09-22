@@ -212,6 +212,7 @@ export const useServerSessionInputs = ({
     sessionId,
     messages,
     locallyBusy,
+    remotelyBusy = false,
     isSharedReaderReady,
     onExecuted,
     onStartupPhase,
@@ -220,6 +221,13 @@ export const useServerSessionInputs = ({
     sessionId: string
     messages: UIMessage[]
     locallyBusy: boolean
+    /**
+     * Someone else is running this session (the project liveness poll, which the host already
+     * reads). Without it the tight cadence could only be entered from the snapshot this poll
+     * itself fetches, so a send from ANOTHER browser stayed invisible here for a whole idle
+     * interval — the dock and `busy` lag exactly when a second client is active.
+     */
+    remotelyBusy?: boolean
     /** Read current transport readiness when admitting input, including after reconnect. */
     isSharedReaderReady?: () => boolean
     /**
@@ -306,7 +314,8 @@ export const useServerSessionInputs = ({
     // empty queue changes only when someone sends, which the transcript's own watch reports.
     // Polling every 2 s for the life of every open session was, by itself, the steadiest source of
     // API traffic the chat produced.
-    const tracking = locallyBusy || view.executionState !== "idle" || view.queued.length > 0
+    const tracking =
+        locallyBusy || remotelyBusy || view.executionState !== "idle" || view.queued.length > 0
     useEffect(() => {
         const timer = setInterval(
             () => void refresh(),

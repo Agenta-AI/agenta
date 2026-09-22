@@ -65,6 +65,8 @@ export const SessionsPane = ({
                         policy={{origin: "exclude-trigger", expansions: []}}
                         limit={20}
                         withPinned
+                        // Beside the transcript, not the screen's point: its reads queue behind it.
+                        lowPriority
                         alwaysShowPin
                         emptyText="No sessions with this agent yet."
                         onOpenRow={open}

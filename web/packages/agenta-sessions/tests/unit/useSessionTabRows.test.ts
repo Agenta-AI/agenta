@@ -17,7 +17,7 @@ describe("sessionTabListArgs", () => {
             agentId: "agent-1",
             sessionIds: ["s-1", "s-2"],
             enabled: true,
-            lowPriority: true,
+            lowPriority: false,
         })
     })
 
