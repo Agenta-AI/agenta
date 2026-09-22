@@ -12,7 +12,10 @@ from agenta.sdk.engines.running.utils import AGENTA_BUILTIN_SKILL_URI
 
 from oss.src.core.shared.dtos import Reference
 from oss.src.core.shared.exceptions import EntityCreationConflict
-from oss.src.core.shared.idempotency import resource_identity
+from oss.src.core.shared.idempotency import (
+    idempotent_workflow_slug,
+    resource_identity,
+)
 from oss.src.core.skills.exceptions import (
     SkillContentInvalidError,
     SkillNotFoundError,
@@ -445,7 +448,10 @@ class SkillsService:
         return InstalledSkillRef(
             name=skill_name,
             workflow_id=workflow_id,
-            workflow_slug=f"{skill_name}-{workflow_id.hex[:8]}",
+            workflow_slug=idempotent_workflow_slug(
+                slug=skill_name,
+                workflow_id=workflow_id,
+            ),
         )
 
     async def create_skill_idempotent(

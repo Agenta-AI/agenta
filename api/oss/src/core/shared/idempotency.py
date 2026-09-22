@@ -1,5 +1,6 @@
 import hashlib
 import json
+from typing import Optional
 from uuid import UUID, uuid5
 
 from pydantic import BaseModel
@@ -15,6 +16,17 @@ def resource_identity(
     component: str,
 ) -> UUID:
     return uuid5(_RESOURCE_NAMESPACE, f"{project_id}:{namespace}:{key}:{component}")
+
+
+def idempotent_workflow_slug(*, slug: Optional[str], workflow_id: UUID) -> str:
+    """The slug an idempotent workflow create produces for ``workflow_id``.
+
+    Shared so a caller that plans a reference and the creator that writes it cannot disagree:
+    they did, above 48 characters, and the mismatch raised on every retry of a load that had
+    already created the workflow.
+    """
+    prefix = (slug or "workflow").strip("-")[:48]
+    return f"{prefix or 'workflow'}-{workflow_id.hex[:8]}"
 
 
 def request_key_hash(key: str) -> str:

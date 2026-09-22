@@ -13,6 +13,7 @@ from oss.src.core.agent_templates.exceptions import (
     TemplateWorkflowCreationFailed,
 )
 from oss.src.core.mounts.types import MountPathInvalid, MountStorageUnavailable
+from oss.src.core.sessions.inputs.types import SessionInputIdempotencyConflict
 from oss.src.core.sessions.starts.types import SessionStartNotDurable
 
 
@@ -53,6 +54,17 @@ def template_load_error_response(exc: Exception) -> JSONResponse | None:
             status_code=status.HTTP_409_CONFLICT,
             code="template_load_conflict",
             message=exc.message,
+        )
+    # The same exception the sessions router already maps, so it answers with the same code
+    # rather than a second name for one condition.
+    if isinstance(exc, SessionInputIdempotencyConflict):
+        return _response(
+            status_code=status.HTTP_409_CONFLICT,
+            code="idempotency_key_reused",
+            message=(
+                "This Idempotency-Key was already used for a different first message. "
+                "Resend the original request body, or start over with a new key."
+            ),
         )
     if isinstance(exc, SessionStartNotDurable):
         return _response(

@@ -15,6 +15,11 @@ from oss.src.core.sessions.starts.types import SessionStartNotDurable
 from oss.src.core.sessions.streams.interfaces import SessionStreamsDAOInterface
 from oss.src.core.shared.idempotency import resource_identity
 from oss.src.core.workflows.service import WorkflowsService
+from oss.src.core.workflows.types import invoke_never_dispatched
+from oss.src.utils.logging import get_module_logger
+
+
+log = get_module_logger(__name__)
 
 
 _RELEASE_START_LOCK = """
@@ -138,6 +143,15 @@ class SessionStartsService:
         message: str | Message,
         parameters: dict[str, Any] | None = None,
     ) -> WorkflowServiceRequest:
+        """Build the first turn's request. It must not carry `on_busy`.
+
+        Setting it turns on the workflow service's session admission, which answers a lost
+        admission response with a bare 503 carrying no `x-ag-` header, after the API may already
+        have committed the pending-input row. `detached_start_never_sent` reads exactly that
+        shape as proof the run never started, so it would release this turn's one-shot dispatch
+        claim and let a retry run the turn twice. The admission is redundant here anyway: this
+        path claims and promotes its own input before invoking.
+        """
         return WorkflowServiceRequest(
             session_id=session_id,
             references={
@@ -155,6 +169,34 @@ class SessionStartsService:
                 parameters=parameters,
             ),
         )
+
+    async def _release_dispatch(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        input_id: UUID,
+        execution_id: str,
+    ) -> None:
+        """Hand the one-shot dispatch claim back so one later retry can invoke again.
+
+        Only for an invoke that provably never reached the service. Without this the claim is
+        permanent, and every retry carrying the same request key raises `SessionStartNotDurable`
+        forever: the agent exists and its first turn can never start. A failed release keeps that
+        old behaviour rather than risking a second dispatch, so it is logged and swallowed.
+        """
+        try:
+            await self._inputs.release_dispatch(
+                project_id=project_id,
+                session_id=session_id,
+                input_id=input_id,
+                execution_id=execution_id,
+            )
+        except Exception as exc:  # noqa: BLE001
+            log.warning(
+                "[SESSIONS] dispatch claim release failed for "
+                f"session={session_id} execution={execution_id}: {exc}"
+            )
 
     @staticmethod
     def session_id_for(*, project_id: UUID, request_key: str) -> str:
@@ -234,6 +276,14 @@ class SessionStartsService:
 
             stored_request = WorkflowServiceRequest.model_validate(claimed.content)
             error: Exception | None = None
+            # `except Exception` deliberately lets `asyncio.CancelledError` through with the claim
+            # still held. A shutdown or a client disconnect can cancel this task with the request
+            # already on the wire, which is the ambiguous case, not a never-sent one.
+            #
+            # Two narrow windows do strand the claim rather than decide it: a cancel delivered at
+            # the `claim_dispatch` await after its UPDATE committed, and a cancel during the
+            # readback below after a provably never-sent failure. Both need an attempt id on the
+            # row to close, which needs a migration, so they are named here and not papered over.
             try:
                 await self._workflows.invoke_workflow_detached(
                     project_id=project_id,
@@ -252,6 +302,13 @@ class SessionStartsService:
             )
             if not durable:
                 if error is not None:
+                    if invoke_never_dispatched(error):
+                        await self._release_dispatch(
+                            project_id=project_id,
+                            session_id=session_id,
+                            input_id=claimed.id,
+                            execution_id=execution_id,
+                        )
                     raise SessionStartNotDurable() from error
                 raise SessionStartNotDurable()
 

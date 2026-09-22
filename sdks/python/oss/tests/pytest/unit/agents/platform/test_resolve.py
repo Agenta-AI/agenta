@@ -85,15 +85,48 @@ async def test_resolve_secrets_is_a_deprecated_connection_alias():
             return expected
 
     assert resolve_secrets is module_resolve_secrets
-    with pytest.warns(DeprecationWarning, match="resolve_secrets.*resolve_connection"):
+    with pytest.warns(
+        DeprecationWarning, match="resolve_secrets.*resolve_connection"
+    ) as raised:
         resolved = await resolve_secrets(
             model=model,
             context=context,
             resolver=_Resolver(),
         )
 
+    # The pre-gateway `resolve_secrets` took `connection=` and returned `{ENV_VAR: key}`. A
+    # caller written against it has to change the call, so the warning must not read as a rename.
+    message = str(raised.pop(DeprecationWarning).message)
+    assert "connection=" in message
+    assert "ResolvedConnection" in message
+
     assert resolved is expected
     assert calls == {"model": model, "context": context}
+
+
+@pytest.mark.parametrize(
+    "call",
+    [
+        {"connection": object()},
+        {},
+        {"model": ModelRef(provider="openai", model="gpt-5.5")},
+    ],
+)
+async def test_the_old_call_shape_raises_with_the_explanation_instead_of_a_bare_type_error(
+    call,
+):
+    """The caller this deprecation addresses is the one who cannot reach a warning.
+
+    `resolve_secrets(connection=...)` would die on the signature before `warnings.warn` ran, so
+    the explanation has to travel on the TypeError.
+    """
+    with pytest.raises(TypeError) as raised:
+        await resolve_secrets(**call)
+
+    message = str(raised.value)
+    assert "connection=" in message
+    assert "resolve_connection" in message
+    assert "ResolvedConnection" in message
 
 
 async def test_resolve_connection_remains_the_canonical_entrypoint():

@@ -47,7 +47,11 @@ from oss.src.core.shared.exceptions import (
     EntityCreationConflict,
     EntityCreationIdempotencyConflict,
 )
-from oss.src.core.shared.idempotency import resource_identity, request_key_hash
+from oss.src.core.shared.idempotency import (
+    idempotent_workflow_slug,
+    resource_identity,
+    request_key_hash,
+)
 from oss.src.core.git.dtos import (
     ArtifactCreate,
     ArtifactEdit,
@@ -149,6 +153,9 @@ from oss.src.core.workflows.types import (
     StaticWorkflowSlug,
     WorkflowServiceUrlMissing,
     WorkflowDetachedStartFailed,
+    WorkflowDetachedStartNeverSent,
+    detached_start_never_sent,
+    transport_never_sent,
     is_static_workflow_slug,
 )
 
@@ -814,59 +821,75 @@ class WorkflowsService:
         # cold-start without ever budgeting the whole run.
         timeout = httpx.Timeout(connect=30.0, read=None, write=30.0, pool=30.0)
 
-        async with httpx.AsyncClient(
-            timeout=timeout,
-            follow_redirects=True,
-        ) as client:
-            async with client.stream(
-                "POST",
-                url,
-                json=payload,
-                headers=headers,
-            ) as response:
-                if response.status_code < 200 or response.status_code >= 300:
-                    raw = await response.aread()
-                    raise WorkflowDetachedStartFailed(
-                        f"Workflow service returned HTTP {response.status_code} on detached start: "
-                        f"{raw[:500]!r}"
-                    )
-
-                trace_id = response.headers.get("x-ag-trace-id")
-                span_id = response.headers.get("x-ag-span-id")
-
-                async for line in response.aiter_lines():
-                    line = line.strip()
-                    if not line:
-                        continue
-                    # First meaningful record = started/accepted. Return WITHOUT draining;
-                    # exiting the context closes the connection (run keeps going on the runner).
-                    try:
-                        record = json.loads(line)
-                    except json.JSONDecodeError as error:
-                        if strict_first_record:
-                            raise WorkflowDetachedStartFailed(
-                                "Workflow service emitted malformed NDJSON before detached start."
-                            ) from error
-                        record = None
-                    if strict_first_record and not isinstance(record, dict):
-                        raise WorkflowDetachedStartFailed(
-                            "Workflow service emitted a non-object record before detached start."
+        try:
+            async with httpx.AsyncClient(
+                timeout=timeout,
+                follow_redirects=True,
+            ) as client:
+                async with client.stream(
+                    "POST",
+                    url,
+                    json=payload,
+                    headers=headers,
+                ) as response:
+                    if response.status_code < 200 or response.status_code >= 300:
+                        raw = await response.aread()
+                        message = (
+                            f"Workflow service returned HTTP {response.status_code} on detached start: "
+                            f"{raw[:500]!r}"
                         )
-                    if strict_first_record and isinstance(record, dict):
-                        failure = WorkflowsService._detached_start_failure(record)
-                        if failure is not None:
+                        # A status that only an intermediary, or the service's own front door, can
+                        # produce. The run was not accepted, so a one-shot caller may start over.
+                        if detached_start_never_sent(response):
+                            raise WorkflowDetachedStartNeverSent(message)
+                        raise WorkflowDetachedStartFailed(message)
+
+                    trace_id = response.headers.get("x-ag-trace-id")
+                    span_id = response.headers.get("x-ag-span-id")
+
+                    async for line in response.aiter_lines():
+                        line = line.strip()
+                        if not line:
+                            continue
+                        # First meaningful record = started/accepted. Return WITHOUT draining;
+                        # exiting the context closes the connection (run keeps going on the runner).
+                        try:
+                            record = json.loads(line)
+                        except json.JSONDecodeError as error:
+                            if strict_first_record:
+                                raise WorkflowDetachedStartFailed(
+                                    "Workflow service emitted malformed NDJSON before detached start."
+                                ) from error
+                            record = None
+                        if strict_first_record and not isinstance(record, dict):
                             raise WorkflowDetachedStartFailed(
-                                f"Workflow service rejected detached start: {failure}"
+                                "Workflow service emitted a non-object record before detached start."
                             )
-                    record_run_id = (
-                        record.get("run_id") if isinstance(record, dict) else None
-                    )
-                    return WorkflowServiceDetachedResponse(
-                        run_id=record_run_id or run_id,
-                        accepted=True,
-                        trace_id=trace_id,
-                        span_id=span_id,
-                    )
+                        if strict_first_record and isinstance(record, dict):
+                            failure = WorkflowsService._detached_start_failure(record)
+                            if failure is not None:
+                                raise WorkflowDetachedStartFailed(
+                                    f"Workflow service rejected detached start: {failure}"
+                                )
+                        record_run_id = (
+                            record.get("run_id") if isinstance(record, dict) else None
+                        )
+                        return WorkflowServiceDetachedResponse(
+                            run_id=record_run_id or run_id,
+                            accepted=True,
+                            trace_id=trace_id,
+                            span_id=span_id,
+                        )
+
+        # A transport failure on the request we addressed: nothing was delivered, so a one-shot
+        # caller may start over. On a redirect hop it proves nothing, and `transport_never_sent`
+        # is what tells the two apart.
+        except (httpx.RequestError, httpx.InvalidURL) as error:
+            if transport_never_sent(error, url=url):
+                raise WorkflowDetachedStartNeverSent(
+                    f"Workflow service was never reached on detached start: {error!r}"
+                ) from error
+            raise
 
         # The stream closed before any record arrived: the run never started.
         raise WorkflowDetachedStartFailed(
@@ -3645,8 +3668,10 @@ class SimpleWorkflowsService:
             request_key,
             component,
         )
-        prefix = (simple_workflow_create.slug or "workflow").strip("-")[:48]
-        workflow_slug = f"{prefix or 'workflow'}-{workflow_id.hex[:8]}"
+        workflow_slug = idempotent_workflow_slug(
+            slug=simple_workflow_create.slug,
+            workflow_id=workflow_id,
+        )
         variant_slug = resource_identity(
             project_id, namespace, request_key, f"{component}:variant"
         ).hex[-12:]

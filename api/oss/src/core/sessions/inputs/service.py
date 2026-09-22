@@ -350,6 +350,16 @@ class SessionInputsService:
             execution_id=execution_id,
         )
 
+    async def release_dispatch(
+        self, *, project_id: UUID, session_id: str, input_id: UUID, execution_id: str
+    ) -> bool:
+        return await self._dao.release_dispatch(
+            project_id=project_id,
+            session_id=session_id,
+            input_id=input_id,
+            execution_id=execution_id,
+        )
+
     async def claim_for_execution(
         self,
         *,

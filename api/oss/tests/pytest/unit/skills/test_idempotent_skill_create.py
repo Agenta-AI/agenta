@@ -3,6 +3,10 @@ from uuid import uuid4
 
 import pytest
 
+from oss.src.core.shared.idempotency import (
+    idempotent_workflow_slug,
+    resource_identity,
+)
 from oss.src.core.skills.exceptions import SkillContentInvalidError
 from oss.src.core.skills.service import SkillsService
 from oss.src.core.workflows.dtos import SimpleWorkflow, SimpleWorkflowCreateResult
@@ -34,18 +38,21 @@ class _SimpleWorkflows:
             kwargs["request_key"],
             component,
         )
-        planned_id = SkillsService.plan_idempotent_skill_ref(
-            project_id=kwargs["project_id"],
-            namespace=kwargs["namespace"],
-            request_key=kwargs["request_key"],
-            skill_name=kwargs["simple_workflow_create"].data.parameters["skill"][
-                "name"
-            ],
+        # Identity the way the real creator derives it, never by asking the planner: a fake that
+        # replays the planner's answer agrees with it by construction and can never see them drift.
+        workflow_id = resource_identity(
+            kwargs["project_id"],
+            kwargs["namespace"],
+            kwargs["request_key"],
+            component,
         )
         if key not in self.records:
             self.records[key] = SimpleWorkflow(
-                id=planned_id.workflow_id,
-                slug=planned_id.workflow_slug,
+                id=workflow_id,
+                slug=idempotent_workflow_slug(
+                    slug=kwargs["simple_workflow_create"].slug,
+                    workflow_id=workflow_id,
+                ),
                 variant_id=uuid4(),
                 revision_id=uuid4(),
                 data=kwargs["simple_workflow_create"].data,
@@ -148,3 +155,31 @@ async def test_invalid_skill_is_rejected_before_workflow_creation():
         )
 
     assert not simple.calls
+
+
+@pytest.mark.asyncio
+async def test_a_skill_name_above_the_slug_limit_still_matches_the_planned_reference():
+    # `SkillTemplate.name` allows 64 characters and the created slug truncates its prefix at 48.
+    # A planner that did not truncate the same way made every such skill fail its identity check.
+    long_name = "a" + "-prospect" * 6
+    assert 48 < len(long_name) <= 64
+
+    service, _ = _service()
+    planned = SkillsService.plan_idempotent_skill_ref(
+        project_id=PROJECT_ID,
+        namespace=NAMESPACE,
+        request_key=REQUEST_KEY,
+        skill_name=long_name,
+    )
+
+    created = await service.create_skill_idempotent(
+        project_id=PROJECT_ID,
+        user_id=USER_ID,
+        namespace=NAMESPACE,
+        request_key=REQUEST_KEY,
+        request_fingerprint=FINGERPRINT,
+        skill={**SKILL, "name": long_name},
+    )
+
+    assert created.slug == planned.workflow_slug
+    assert created.workflow_id == str(planned.workflow_id)
