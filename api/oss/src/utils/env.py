@@ -1359,6 +1359,7 @@ class LLMConfig(BaseModel):
                 "perplexityai",
                 "togetherai",
                 "minimax",
+                "xai",
             ]
             if getattr(self, name)
         ]

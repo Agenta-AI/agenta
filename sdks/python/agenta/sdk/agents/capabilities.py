@@ -196,8 +196,8 @@ PROVIDER_DEFAULT_MODELS: Dict[str, List[str]] = {
         "openrouter/z-ai/glm-5.3",
         "openrouter/google/gemini-3.8-flash",
     ],
-    # Grok 4.7 postdates the pinned pi-ai catalog, so its facts ride the curated ``additions``
-    # list until a regeneration carries them (same as the Gemini Flash note above).
+    # 4.6 and 4.5 come from the generated catalog. Grok 4.7 alone postdates the pinned pi-ai
+    # release, so its facts ride the curated ``additions`` list until a bump carries it.
     "xai": [
         "xai/grok-4.7",
         "xai/grok-4.6",

@@ -179,21 +179,18 @@ supported_llm_models = {
         "minimax/MiniMax-M2.1-lightning",
         "minimax/MiniMax-M2",
     ],
-    # The 4-series, concrete tiers only. `grok-4.20` is an umbrella over its reasoning and
-    # non-reasoning halves, so listing it would ask the user to pick a model and then pick
-    # nothing in particular (the same reason the bare "gpt-5.6" is absent above).
+    # The 4-series, checked against xAI's own /v1/models rather than taken from litellm's
+    # table. litellm still carries `grok-4`, `grok-4-fast-*` and `grok-4-1-fast-*`, and spells
+    # the 4.20 pair without its date; xAI serves none of those, so listing them would only buy
+    # the user a 404. `grok-4.20-multi-agent-0309` is served but is a responses-only model, and
+    # the image and video `grok-imagine-*` models are not chat, so neither belongs here.
     "xai": [
         "xai/grok-4.7",
         "xai/grok-4.6",
         "xai/grok-4.5",
         "xai/grok-4.3",
-        "xai/grok-4.20-reasoning",
-        "xai/grok-4.20-non-reasoning",
-        "xai/grok-4-1-fast-reasoning",
-        "xai/grok-4-1-fast-non-reasoning",
-        "xai/grok-4-fast-reasoning",
-        "xai/grok-4-fast-non-reasoning",
-        "xai/grok-4",
+        "xai/grok-4.20-0309-reasoning",
+        "xai/grok-4.20-0309-non-reasoning",
     ],
 }
 
