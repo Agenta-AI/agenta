@@ -100,6 +100,20 @@ describe("useConnectionDock host-driven dismiss", () => {
         expect(onOutput).toHaveBeenCalledTimes(4)
     })
 
+    it("does nothing at all without a settle channel, leaving the dock open", async () => {
+        // `onOutput` is optional, and its absence is a no-op — not a silent success that closes
+        // the dock over requests the run is still waiting on.
+        const {result} = renderHook(() =>
+            useConnectionDock({messages: turn([part("github-1", false)])}),
+        )
+
+        await act(async () => {
+            await result.current.dismiss()
+        })
+
+        expect(result.current.open).toBe(true)
+    })
+
     it("does nothing when nothing is parked", async () => {
         const onOutput = vi.fn()
         const {result} = renderHook(() =>

@@ -212,6 +212,20 @@ describe("host-driven dismiss", () => {
         expect(result.current.open).toBe(false)
     })
 
+    it("does nothing at all without a settle channel, leaving the dock open", async () => {
+        // `onOutput` is optional. Treating its absence as a landed write closed the dock over a
+        // question that was still parked, and dropped the answers with it.
+        const {result} = renderHook(() =>
+            useElicitationDock({messages: turn(toolPart(), renderPart("call_1"))}),
+        )
+
+        await act(async () => {
+            await result.current.dismiss()
+        })
+
+        expect(result.current.open).toBe(true)
+    })
+
     it("settles every parked question, not just the front", async () => {
         // The dock closes on dismiss, so a straggler left unsettled would block the run behind a
         // card nobody can see. Mirrors `useConnectionDock.dismiss`.

@@ -135,6 +135,10 @@ export const useConnectionDock = ({
     const [dismissingIds, setDismissingIds] = useState<ReadonlySet<string>>(() => new Set())
     const dismissingRef = useRef<Set<string>>(new Set())
     const dismiss = useCallback(async () => {
+        // No settle channel means nothing can be written, so nothing is dismissed — the documented
+        // no-op. Checked before the markers go up, which would otherwise close the dock over
+        // requests that are still parked.
+        if (!onOutput) return
         const targets = pendingRef.current.filter(
             (meta) => !meta.settled && !dismissingRef.current.has(meta.toolCallId),
         )

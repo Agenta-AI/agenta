@@ -16,6 +16,24 @@ import {
 const userTurn = (id: string, text: string): UIMessage =>
     ({id, role: "user", parts: [{type: "text", text}]}) as UIMessage
 
+/** An assistant tail paused on a parked client tool (a question form the dock owns). */
+const assistantAwaitingQuestion = (id: string): UIMessage =>
+    ({
+        id,
+        role: "assistant",
+        parts: [
+            {
+                type: "tool-__ag__request_input",
+                state: "input-available",
+                toolCallId: `${id}-question`,
+                input: {
+                    message: "A few details",
+                    requestedSchema: {type: "object", properties: {name: {type: "string"}}},
+                },
+            },
+        ],
+    }) as unknown as UIMessage
+
 /** An assistant tail paused on a HITL tool gate (the dock-actionable state). */
 const assistantAwaitingApproval = (id: string): UIMessage =>
     ({
@@ -138,7 +156,7 @@ describe("useAgentChatQueue", () => {
         expect(result.current.queued).toHaveLength(0)
     })
 
-    it("admits Steer while the run is parked on the user, before the snapshot says busy", async () => {
+    it("admits Steer while the run is parked on a client tool, before the snapshot says busy", async () => {
         // A question dismissed from the composer resumes the run server-side, but the parked run
         // reads `idle` and the next poll is seconds out. The transcript already says the turn is
         // parked on us, and the message steering in behind that dismiss rides on it.
@@ -156,7 +174,7 @@ describe("useAgentChatQueue", () => {
         })
 
         const parked = setup({
-            messages: [userTurn("u1", "go"), assistantAwaitingApproval("a1")],
+            messages: [userTurn("u1", "go"), assistantAwaitingQuestion("a1")],
             stopped: false,
             server,
         })
@@ -167,6 +185,40 @@ describe("useAgentChatQueue", () => {
         expect(server.submit).toHaveBeenCalledWith(
             expect.objectContaining({text: "answered in chat instead"}),
             "steer",
+            expect.anything(),
+        )
+    })
+
+    it("refuses Steer while an APPROVAL is parked, so the message keeps queueing behind the gate", async () => {
+        // A message typed over an approval is as likely to be consent as a redirect, so the gate
+        // stays the only way to answer it. Reading "parked on the user" as steerable would have
+        // admitted one straight past the queue.
+        const server: ServerQueueAdapter = {
+            busy: false,
+            queued: [],
+            submit: vi.fn().mockResolvedValue(undefined),
+            remove: vi.fn().mockResolvedValue(undefined),
+        }
+        const {result} = setup({
+            messages: [userTurn("u1", "go"), assistantAwaitingApproval("a1")],
+            stopped: false,
+            server,
+        })
+
+        await act(async () => {
+            await expect(result.current.steer({text: "yes go ahead"})).rejects.toThrow(
+                "not ready to accept a Steer input",
+            )
+        })
+        expect(server.submit).not.toHaveBeenCalled()
+
+        // The same message still queues, which is what the approval dock expects.
+        await act(async () => {
+            await result.current.submit({text: "yes go ahead"})
+        })
+        expect(server.submit).toHaveBeenCalledWith(
+            expect.objectContaining({text: "yes go ahead"}),
+            "queue",
             expect.anything(),
         )
     })

@@ -121,6 +121,9 @@ export const useElicitationDock = ({
     const [dismissingIds, setDismissingIds] = useState<ReadonlySet<string>>(() => new Set())
     const dismissingRef = useRef<Set<string>>(new Set())
     const dismiss = useCallback(async () => {
+        // No settle channel means nothing can be written, so nothing is dismissed. Checked before
+        // the markers go up: closing the dock over a question that is still parked would hide it.
+        if (!onOutput) return
         const targets = pendingRef.current.filter(
             (meta) => !meta.settled && !dismissingRef.current.has(meta.toolCallId),
         )
