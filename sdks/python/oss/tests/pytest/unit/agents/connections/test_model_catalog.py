@@ -13,6 +13,7 @@ from agenta.sdk.agents import model_catalog as model_catalog_module
 from agenta.sdk.agents.capabilities import (
     CLAUDE_MODEL_ALIASES,
     HARNESS_CONNECTION_CAPABILITIES,
+    MODEL_ID_ALIASES,
     PROVIDER_DEFAULT_MODELS,
     harness_catalog_document,
 )
@@ -350,7 +351,7 @@ def test_default_models_are_published_per_harness_in_its_own_spelling():
         "gpt-5.6-sol",
     ]
     assert pi_defaults["anthropic"] == [
-        "anthropic/claude-opus-5",
+        "anthropic/claude-opus-5-5",
         "anthropic/claude-fable-5-1",
         "anthropic/claude-sonnet-5",
         "anthropic/claude-haiku-4-5",
@@ -390,6 +391,34 @@ def test_curated_default_models_exist_in_the_pinned_pi_catalog():
     for provider, models in PROVIDER_DEFAULT_MODELS.items():
         for model_id in models:
             assert model_id in catalog_ids, (provider, model_id)
-    # Opus 5 postdates the pinned pi-ai snapshot, so it reaches the catalog through the curated
+    # Opus 5.5 postdates the pinned pi-ai snapshot, so it reaches the catalog through the curated
     # `additions` list rather than the generated file. The loop above is what proves it arrived.
-    assert "anthropic/claude-opus-5" in catalog_ids
+    assert "anthropic/claude-opus-5-5" in catalog_ids
+    entry = next(
+        e for e in pi_model_catalog().models if e.id == "anthropic/claude-opus-5-5"
+    )
+    assert entry.name == "Claude Opus 5.5" and entry.source == "curated"
+
+
+def test_fable_5_1_keeps_its_own_claude_request_value():
+    # A curated Fable 5.1 id must reach Claude as Fable 5.1, never be respelled as Fable 5.
+    fable_aliases = {
+        alias
+        for prefix, alias in MODEL_ID_ALIASES.items()
+        if "anthropic/claude-fable-5-1".startswith(prefix)
+    }
+    assert fable_aliases == {"claude-fable-5-1"}
+    claude_defaults = harness_catalog_document()["claude"]["capabilities"][
+        "default_models"
+    ]["anthropic"]
+    assert "claude-fable-5-1" in claude_defaults
+    assert "claude-fable-5" not in claude_defaults
+
+
+def test_opus_5_5_is_a_prompt_model_and_a_default():
+    from agenta.sdk.utils.assets import supported_llm_models
+
+    assert "anthropic/claude-opus-5-5" in supported_llm_models["anthropic"]
+    assert "anthropic/claude-fable-5-1" in supported_llm_models["anthropic"]
+    assert "anthropic/claude-opus-5-5" in PROVIDER_DEFAULT_MODELS["anthropic"]
+    assert "anthropic/claude-fable-5-1" in PROVIDER_DEFAULT_MODELS["anthropic"]
