@@ -3,7 +3,7 @@
   "_curation": {
     "target": "pi_models.generated.json",
     "note": "Human overlay for the generated Pi catalog. Keyed by the entry `id` (the `provider/model` join key). Only `label`, `description`, and `ratings` may appear here; the objective facts (name/pricing/context_window/modalities) always come from the generated file. The SDK loader merges this on top of the generated facts, so a pi-ai regeneration never overwrites these judgments. Ratings: 1-5, higher is better; `cost` is cost-efficiency (5 = cheapest). Sourced from the current lineup (Fable 5 is the Anthropic frontier, above Opus), not a model's memory. Uncurated ids are valid and fall back to `name` in the picker; seed only the models worth a description. The separate `additions` list carries WHOLE entries (facts included, `source`: `curated`) for models released after the pinned pi-ai snapshot, which the generated file cannot carry at all. A generated entry of the same id always wins, so an addition retires itself on the next regeneration; drop it then.",
-    "sources": "@earendil-works/pi-ai@0.85.1; vendor model and pricing pages, checked 2026-09-07. xAI Grok 4.7 addition: litellm 1.92.0 model table, cross-checked against xAI's live /v1/models, 2026-09-22."
+    "sources": "@earendil-works/pi-ai@0.85.1; vendor model and pricing pages, checked 2026-09-07. xAI Grok 4.7 addition: litellm 1.92.0 model table, cross-checked against xAI's live /v1/models, 2026-09-22. Claude Opus 5.5 addition: litellm 1.92.0 model table, matching the Anthropic pricing in claude_models.curated.json, 2026-09-22."
   },
   "overlay": {
     "openai/gpt-6-astra": {
@@ -25,6 +25,11 @@
       "label": "Fable",
       "description": "Anthropic's most capable model. Use for the hardest reasoning and long-horizon agentic work.",
       "ratings": {"cost": 1, "intelligence": 5, "speed": 2}
+    },
+    "anthropic/claude-opus-5-5": {
+      "label": "Opus 5.5",
+      "description": "Strong reasoning and long-running agentic work one tier below Fable, at a mid-tier price.",
+      "ratings": {"cost": 3, "intelligence": 4, "speed": 3}
     },
     "anthropic/claude-opus-4-8": {
       "label": "Opus 4.8",
@@ -51,6 +56,24 @@
     }
   },
   "additions": [
+      {
+          "id": "anthropic/claude-opus-5-5",
+          "provider": "anthropic",
+          "source": "curated",
+          "name": "Claude Opus 5.5",
+          "pricing": {
+              "input_per_mtok": 4,
+              "output_per_mtok": 20,
+              "cache_read_per_mtok": 0.2,
+              "cache_write_per_mtok": 5,
+              "currency": "USD"
+          },
+          "context_window": 1000000,
+          "modalities": [
+              "text",
+              "image"
+          ]
+      },
       {
           "id": "xai/grok-4.7",
           "provider": "xai",
