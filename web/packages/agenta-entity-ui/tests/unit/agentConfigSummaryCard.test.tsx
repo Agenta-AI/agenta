@@ -78,6 +78,17 @@ describe("AgentConfigSummaryCard", () => {
         expect(host.textContent).not.toMatch(/Advanced|Sandbox|Daytona/)
     })
 
+    it("counts the MCP servers on the agent without claiming they are authorized", async () => {
+        // Whether a configured server is authorized is a live fact this card never reads, and
+        // "connected" is the word the settings list, the drawer and the agent rail all reserve
+        // for the authorized state. The rail said "1 connected" for a server that had just
+        // been disconnected (round 4, D5).
+        await mount({mcps: [{name: "mock-mcp"}, {name: "acme"}]})
+
+        expect(row("MCP servers").textContent).toBe("MCP servers2 configured")
+        expect(host.textContent).not.toMatch(/connected/i)
+    })
+
     it("renders read-only bodyless rows without actions, bands, or empty body padding", async () => {
         await mount()
         expect(
@@ -87,7 +98,7 @@ describe("AgentConfigSummaryCard", () => {
             ["Model", "Not set"],
             ["Instructions", "No instructions"],
             ["Tools", "None enabled"],
-            ["MCP servers", "None connected"],
+            ["MCP servers", "None configured"],
             ["Skills", "None available"],
             ["Permissions", "Not set"],
         ]) {

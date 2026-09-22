@@ -164,7 +164,10 @@
         "passwordPolicy":   { "type": "string", "enum": ["none", "basic", "strong"], "description": "SUPERTOKENS_PASSWORD_POLICY." },
         "passwordMinLength":{ "type": ["integer", "string"], "description": "SUPERTOKENS_PASSWORD_MIN_LENGTH." },
         "passwordMaxLength":{ "type": ["integer", "string"], "description": "SUPERTOKENS_PASSWORD_MAX_LENGTH." },
-        "passwordRegex":    { "type": "string", "description": "SUPERTOKENS_PASSWORD_REGEX." }
+        "passwordRegex":    { "type": "string", "description": "SUPERTOKENS_PASSWORD_REGEX." },
+        "terminationGracePeriodSeconds": { "$ref": "#/$defs/terminationGracePeriodSeconds" },
+        "lifecycle":        { "$ref": "#/$defs/containerLifecycle" },
+        "strategy":         { "$ref": "#/$defs/workloadStrategy" }
       }
     },
     "secrets": {
@@ -257,6 +260,44 @@
         "target":   { "type": "string", "description": "DAYTONA_TARGET." }
       }
     },
+    "llmGateway": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "The LLM gateway plane: model calls routed through Agenta, so the provider key stays on the deployment instead of travelling into the sandbox. Rendered into the API, services, workers, cron and alembic containers.",
+      "properties": {
+        "enabled": { "type": ["boolean", "string"], "description": "AGENTA_LLM_GATEWAY_ENABLED — default false. Off, a model call resolves the project's stored provider key and injects it into the run, the way it did before the gateway existed. True routes every model call in every project through the gateway." }
+      }
+    },
+    "mcpGateway": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "The MCP gateway plane: an agent reaches an MCP server through Agenta, so the server's credential stays on the deployment. Rendered into the API, services, workers, cron and alembic containers; `enabled` also goes to the web and web-mobile containers, which hide the MCP settings tab when it is off.",
+      "properties": {
+        "enabled": { "type": ["boolean", "string"], "description": "AGENTA_MCP_GATEWAY_ENABLED — default true. Off, the API refuses every MCP gateway route, the MCP settings tab disappears, and an agent dials its declared MCP servers directly." },
+        "hostAllowlist": {
+          "type": ["array", "string"],
+          "items": { "type": "string" },
+          "description": "AGENTA_MCP_GATEWAY_HOST_ALLOWLIST — hosts the gateway's outbound guard admits even when they would otherwise be refused. A list is joined with commas into the single string the application parses; a comma-separated string is accepted as-is. Empty by default."
+        }
+      }
+    },
+    "gatewayEgress": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "The two transport escape hatches around the gateways. They govern opposite directions and land in different containers, which is why they are separate keys.",
+      "properties": {
+        "insecureAllowed": { "type": ["boolean", "string"], "description": "AGENTA_GATEWAYS_INSECURE_EGRESS_ALLOWED — whether the gateway's outbound guard (egress OUT of Agenta, to an MCP server or a model provider) enforces its range and https checks. Chart default true, matching the compose self-host template, where an MCP server on a private network is the normal case. Distinct from agenta.insecureEgressAllowed, which governs webhooks and OIDC probes. Rendered into the API, services, workers, cron and alembic containers." },
+        "insecureHttpAllowed": { "type": ["boolean", "string"], "description": "AGENTA_GATEWAYS_INSECURE_HTTP_ALLOWED — whether a gateway credential may cross a plain-http hop INTO Agenta from a routable host (https, and plain http to loopback, are always allowed). Chart default true, matching the compose self-host template: a deployment reached at an IP or a LAN name otherwise fails every gateway-routed run with `gateway_insecure_endpoint`. Read by the agenta SDK and the runner, so it is rendered into the services and runner containers only, never the API." }
+      }
+    },
+    "gatewayCredentials": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "The sandbox-scoped credential a run carries to reach a gateway. Rendered into the API, services, workers, cron and alembic containers.",
+      "properties": {
+        "ttlSeconds": { "type": ["integer", "string"], "minimum": 1, "description": "AGENTA_GATEWAYS_CREDENTIALS_TTL_SECONDS — lifetime in seconds. Unset by default so the application's own default (43200, 12 hours) applies; that default sits above the longest run Agenta lets finish. The credential is issued once at the start of a run and never replaced, so this is also the longest a single turn may keep using an MCP server or a model through a gateway." }
+      }
+    },
     "loops": {
       "type": "object",
       "additionalProperties": false,
@@ -310,7 +351,9 @@
                 "pullPolicy": { "type": "string", "enum": ["Always", "IfNotPresent", "Never"] }
               }
             },
-            "persistence": { "type": "object", "additionalProperties": true }
+            "persistence": { "type": "object", "additionalProperties": true },
+            "terminationGracePeriodSeconds": { "$ref": "#/$defs/terminationGracePeriodSeconds" },
+            "lifecycle":   { "$ref": "#/$defs/containerLifecycle" }
           }
         }
       }
@@ -329,6 +372,9 @@
         "host":        { "type": "string", "description": "AGENTA_RUNNER_HOST, the runner's bind address. Default 0.0.0.0. The runner itself defaults to 127.0.0.1, which the kubelet cannot reach, so the probes would fail forever." },
         "port":        { "type": ["integer", "string"], "description": "AGENTA_RUNNER_PORT and the container port. Default 8765." },
         "replicas":    { "type": "integer", "minimum": 0 },
+        "terminationGracePeriodSeconds": { "$ref": "#/$defs/terminationGracePeriodSeconds" },
+        "lifecycle":   { "$ref": "#/$defs/containerLifecycle" },
+        "strategy":    { "$ref": "#/$defs/workloadStrategy" },
         "fuse": {
           "type": "object",
           "additionalProperties": false,
@@ -435,7 +481,9 @@
         "activeDeadlineSeconds":   { "type": "integer" },
         "backoffLimit":            { "type": "integer" },
         "ttlSecondsAfterFinished": { "type": "integer" },
-        "resources":               { "type": "object", "additionalProperties": true }
+        "resources":               { "type": "object", "additionalProperties": true },
+        "terminationGracePeriodSeconds": { "$ref": "#/$defs/terminationGracePeriodSeconds" },
+        "lifecycle":               { "$ref": "#/$defs/containerLifecycle" }
       }
     },
     "docker": {
@@ -506,10 +554,42 @@
     "workerStreams":      { "$ref": "#/$defs/component" },
     "workerQueues":       { "$ref": "#/$defs/component" },
     "cron":               { "$ref": "#/$defs/component" },
+    "networkPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "NetworkPolicy for the bundled data stores. The bundled PostgreSQL is not covered: the Bitnami subchart renders its own policy, which allows every source by default, and policies are additive, so a narrower one from this chart would take nothing away. Restrict it with postgresql.primary.networkPolicy.allowExternal and .extraIngress instead.",
+      "properties": {
+        "enabled": { "type": "boolean", "description": "Default false. When true, the chart renders one NetworkPolicy per bundled data store it deploys (the volatile Redis, the durable Redis, SeaweedFS). Each one lets in only pods of this release, in the same namespace, on that store's port, and denies every other ingress to those pods. Policies are additive, so that deny holds only while no other policy selects the same pods. Egress is left alone. A cluster whose CNI does not implement NetworkPolicy ignores these objects." },
+        "extraIngressFrom": {
+          "type": "array",
+          "description": "Extra `from:` entries added to every store policy, in the shape the NetworkPolicy spec uses (podSelector, namespaceSelector, ipBlock). Use it for a client the release does not own, such as the Google Cloud load balancer health checker on 130.211.0.0/22 and 35.191.0.0/16 when a store is published through an Ingress.",
+          "items": { "type": "object", "additionalProperties": true }
+        }
+      }
+    },
     "nameOverride":     { "type": "string" },
     "fullnameOverride": { "type": "string" }
   },
   "$defs": {
+    "terminationGracePeriodSeconds": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Seconds Kubernetes waits between the TERM signal and the KILL signal. Rendered on the pod spec only when set. A preStop hook must fit inside this window: the KILL lands at the end of it whatever the hook is still doing."
+    },
+    "containerLifecycle": {
+      "type": "object",
+      "additionalProperties": true,
+      "description": "Container lifecycle hooks, rendered verbatim under the container's `lifecycle:`. A preStop hook holds the pod open while a managed load balancer notices the endpoint is gone, for example `preStop: {sleep: {seconds: 10}}` (Kubernetes 1.30 and later) or `preStop: {exec: {command: [\"sh\", \"-c\", \"sleep 10\"]}}`."
+    },
+    "workloadStrategy": {
+      "type": "object",
+      "additionalProperties": true,
+      "description": "Rendered verbatim under the Deployment's `spec.strategy`. `{rollingUpdate: {maxUnavailable: 0}}` makes a rollout add the new pod before it removes the old one. Deployments only: the chart's StatefulSets (the durable Redis, SeaweedFS) and the migration Job have no spec.strategy and ignore it.",
+      "properties": {
+        "type": { "type": "string", "enum": ["RollingUpdate", "Recreate"] },
+        "rollingUpdate": { "type": "object", "additionalProperties": true }
+      }
+    },
     "ingressPath": {
       "type": "object",
       "additionalProperties": false,
@@ -559,6 +639,9 @@
           }
         },
         "resources":   { "type": "object", "additionalProperties": true },
+        "terminationGracePeriodSeconds": { "$ref": "#/$defs/terminationGracePeriodSeconds" },
+        "lifecycle":   { "$ref": "#/$defs/containerLifecycle" },
+        "strategy":    { "$ref": "#/$defs/workloadStrategy" },
         "extraEnv":    { "$ref": "#/$defs/rawEnvList" },
         "envFrom":     { "$ref": "#/$defs/envFromList" },
         "env":         { "type": "object", "additionalProperties": { "type": ["string", "number", "boolean"] } },
@@ -586,6 +669,9 @@
         "persistence":     { "type": "object", "additionalProperties": true },
         "image":           { "type": "object", "additionalProperties": true },
         "resources":       { "type": "object", "additionalProperties": true },
+        "terminationGracePeriodSeconds": { "$ref": "#/$defs/terminationGracePeriodSeconds" },
+        "lifecycle":       { "$ref": "#/$defs/containerLifecycle" },
+        "strategy":        { "$ref": "#/$defs/workloadStrategy" },
         "external": {
           "type": "object",
           "additionalProperties": false,

@@ -1,19 +1,20 @@
 import {chatPanelMaximizedAtom, configPanelCollapsedAtom} from "@agenta/chat/state"
 import {querySessionStreams} from "@agenta/entities/session"
 import {useSessionFilesPane} from "@agenta/entity-ui/drive"
-import {SessionTabRail, withShortcutKey} from "@agenta/sessions-ui"
+import {SessionTabRail, withSessionShortcutKeys} from "@agenta/sessions-ui"
 import {shortcutAria} from "@agenta/shared/utils"
 import {ShortcutKeys} from "@agenta/ui/shortcuts"
 import {Button, SimpleTooltip} from "@agenta/ui/ui"
+import {Folder, FolderOpen} from "@phosphor-icons/react"
 import {useQuery} from "@tanstack/react-query"
-import {useAtom, useAtomValue} from "jotai"
-import {ChevronsLeft, ChevronsRight} from "lucide-react"
+import {useAtomValue} from "jotai"
 import {useRouter} from "next/router"
 
 import {PageTitle} from "@/components/PageTitle"
 
 import {useSessionRowMenu} from "../sessions/useSessionRowMenu"
 
+import {ConfigRevealButton} from "./ConfigRevealButton"
 import {InspectSessionButton} from "./InspectSessionButton"
 import {SessionHistoryMenu} from "./SessionHistoryMenu"
 import {useSessionTabClose} from "./useSessionTabClose"
@@ -54,8 +55,11 @@ export const SessionTabs = ({
     const menu = useSessionRowMenu(base)
     const startBlank = useStartBlankSession(base)
     const closeTabs = useSessionTabClose({agentId, sessionId, base})
-    const [configCollapsed, setConfigCollapsed] = useAtom(configPanelCollapsedAtom)
-    const {open: filesOpen, openPane} = useSessionFilesPane(agentId ?? sessionId, sessionId)
+    const configCollapsed = useAtomValue(configPanelCollapsedAtom)
+    const {open: filesOpen, toggle: toggleFiles} = useSessionFilesPane(
+        agentId ?? sessionId,
+        sessionId,
+    )
     // Key leads with `session-stream`: a rename patches by key PREFIX, so a nested key never
     // matches and the title lags. The singular GET redirects onto the web app, so POST it.
     const query = useQuery({
@@ -76,19 +80,8 @@ export const SessionTabs = ({
                 withPinned
                 activeSessionId={sessionId}
                 activeFallbackTitle={query.data?.name}
-                // Both keys work on this surface, so both menu rows name theirs.
                 menuFor={(vm) =>
-                    menu.menuFor(vm).map((entry) => {
-                        if (!("key" in entry)) return entry
-                        if (entry.key === "archive")
-                            return {
-                                ...entry,
-                                label: withShortcutKey(entry.label, "session.archive"),
-                            }
-                        if (entry.key === "rename")
-                            return {...entry, label: withShortcutKey(entry.label, "session.rename")}
-                        return entry
-                    })
+                    withSessionShortcutKeys(menu.menuFor(vm), {isActive: vm.id === sessionId})
                 }
                 onMenuSelect={menu.onMenuSelect}
                 // "Rename" and the tab's pencil open the rail's own editor; this only persists it.
@@ -108,63 +101,48 @@ export const SessionTabs = ({
                 // used to land.
                 onNew={agentId ? () => startBlank(agentId) : undefined}
                 leadingExtra={
-                    !chatMaximized && configCollapsed ? (
+                    !chatMaximized && configCollapsed ? <ConfigRevealButton /> : undefined
+                }
+                extra={
+                    <>
+                        {chatMaximized ? null : (
+                            <>
+                                <InspectSessionButton sessionId={sessionId} />
+                                <SessionHistoryMenu
+                                    agentId={agentId}
+                                    base={base}
+                                    activeSessionId={sessionId}
+                                />
+                            </>
+                        )}
+                        {/* Shows the state and flips it; hidden below md, where the pane never mounts. */}
                         <SimpleTooltip
                             title={
                                 <span className="flex items-center gap-1.5">
-                                    Show configuration{" "}
-                                    <ShortcutKeys id="panel.config" tone="inverse" />
+                                    {filesOpen ? "Hide files" : "Show files"}{" "}
+                                    <ShortcutKeys id="panel.files" tone="inverse" />
                                 </span>
                             }
                         >
                             <Button
                                 variant="ghost"
                                 size="icon-sm"
-                                aria-label="Show configuration"
-                                aria-keyshortcuts={shortcutAria("panel.config")}
-                                onClick={() => setConfigCollapsed(false)}
+                                aria-label={filesOpen ? "Hide files pane" : "Show files pane"}
+                                aria-pressed={filesOpen}
+                                aria-keyshortcuts={shortcutAria("panel.files")}
+                                onClick={toggleFiles}
+                                // The glyph's weight carries the state; no colour shift on top.
                                 className="h-7 w-7 shrink-0 p-0"
                             >
-                                <ChevronsRight size={14} />
+                                {/* A folder says "files" where a panel glyph wouldn't; open = pane shown. */}
+                                {filesOpen ? (
+                                    <FolderOpen size={14} weight="fill" />
+                                ) : (
+                                    <Folder size={14} />
+                                )}
                             </Button>
                         </SimpleTooltip>
-                    ) : undefined
-                }
-                extra={
-                    chatMaximized ? undefined : (
-                        <>
-                            <InspectSessionButton sessionId={sessionId} />
-                            {/* Same slot and order as the desktop bar: inspector, history, then
-                                the files opener at the right edge the pane expands from. */}
-                            <SessionHistoryMenu
-                                agentId={agentId}
-                                base={base}
-                                activeSessionId={sessionId}
-                            />
-                            {filesOpen ? null : (
-                                <SimpleTooltip
-                                    title={
-                                        <span className="flex items-center gap-1.5">
-                                            Show files{" "}
-                                            <ShortcutKeys id="panel.files" tone="inverse" />
-                                        </span>
-                                    }
-                                    side="left"
-                                >
-                                    <Button
-                                        variant="ghost"
-                                        size="icon-sm"
-                                        aria-label="Show files pane"
-                                        aria-keyshortcuts={shortcutAria("panel.files")}
-                                        onClick={openPane}
-                                        className="h-7 w-7 shrink-0 p-0"
-                                    >
-                                        <ChevronsLeft size={14} />
-                                    </Button>
-                                </SimpleTooltip>
-                            )}
-                        </>
-                    )
+                    </>
                 }
             />
         </>

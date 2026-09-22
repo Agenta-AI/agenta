@@ -61,7 +61,12 @@ export interface RichChatInputHandle {
      * document, which would discard whatever the user had already written.
      */
     insertText: (text: string) => void
-    setMarkdown: (markdown: string) => void
+    /**
+     * Replace the document. Resolves once the editor has COMMITTED the write: Lexical schedules an
+     * update rather than applying one, so a `getMarkdown` in the calling tick still reads the old
+     * document. A caller that must know the text arrived (a refused send put back) awaits this.
+     */
+    setMarkdown: (markdown: string) => Promise<void>
     /** Read the current content as markdown without submitting (e.g. non-Enter actions). */
     getMarkdown: () => string
     /** Open a dictation session at the end of the document (see `plugins/dictation`). */
@@ -280,9 +285,18 @@ export const RichChatInput = forwardRef<RichChatInputHandle, RichChatInputProps>
                     })
                 },
                 setMarkdown: (markdown: string) =>
-                    editorRef.current?.update(() => {
-                        $convertFromMarkdownString(markdown, CHAT_TRANSFORMERS)
-                        $getRoot().selectEnd()
+                    new Promise<void>((resolve) => {
+                        const editor = editorRef.current
+                        if (!editor) return resolve()
+                        editor.update(
+                            () => {
+                                $convertFromMarkdownString(markdown, CHAT_TRANSFORMERS)
+                                $getRoot().selectEnd()
+                            },
+                            // Fires after the update is committed and reconciled — the editor's own
+                            // acknowledgement that the document now holds this text.
+                            {onUpdate: resolve},
+                        )
                     }),
                 getMarkdown: () =>
                     editorRef.current

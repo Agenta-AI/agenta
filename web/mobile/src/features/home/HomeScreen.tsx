@@ -7,7 +7,7 @@ import {
     type Workflow,
 } from "@agenta/entities/workflow"
 import {HomeFocus, type HomeListAgent} from "@agenta/home-ui"
-import {pageContentWidthClass} from "@agenta/ui/components/page-width"
+import {LoadError} from "@agenta/ui/components/presentational"
 import {useAtomValue} from "jotai"
 
 import {PageTitle} from "@/components/PageTitle"
@@ -19,8 +19,9 @@ import {AppShell} from "../nav/AppShell"
 import {NavDrawer} from "../nav/NavDrawer"
 
 import {resolveHomeSurface} from "./homeSurface"
+import {HOME_PAGE_FRAME} from "./pageFrame"
 import {HomeSkeleton} from "./states/HomeSkeleton"
-import {HomeListError, HomeListSkeleton, HomeSectionEmpty} from "./states/HomeStates"
+import {HomeListSkeleton, HomeSectionEmpty} from "./states/HomeStates"
 import {useHomeHandoff} from "./useHomeHandoff"
 
 /**
@@ -41,7 +42,7 @@ export const HomeScreen = ({workspaceId, projectId}: {workspaceId: string; proje
     const base = `/w/${workspaceId}/p/${projectId}`
     const agentsQuery = useAtomValue(agentWorkflowsListQueryStateAtom)
     const agents = useMemo<Workflow[]>(() => agentsQuery.data ?? [], [agentsQuery.data])
-    const handoff = useHomeHandoff(base)
+    const handoff = useHomeHandoff(base, projectId)
     const surface = resolveHomeSurface({
         agentCount: agents.length,
         isPending: agentsQuery.isPending,
@@ -65,16 +66,14 @@ export const HomeScreen = ({workspaceId, projectId}: {workspaceId: string; proje
         [agents],
     )
 
-    // The frame every screen here applies: the shared column plus a phone's own gutters below
-    // `lg`, widening to the page gutters above it. The deep top inset is Home's own — the centred
-    // column is the whole page, so it hangs rather than starting at the top. The skeleton takes
-    // the SAME frame, or the hold sits somewhere the page does not.
-    const frame = `${pageContentWidthClass} px-4 pb-12 pt-10 lg:px-16 lg:pb-16 lg:pt-[120px]`
+    // The skeleton takes the SAME frame, or the hold sits somewhere the page does not.
+    const frame = HOME_PAGE_FRAME
 
     const homeBody = (
         <HomeFocus
             className={frame}
             agents={listAgents}
+            preferredAgentId={handoff.preferredAgentId}
             templates={AGENT_TEMPLATES}
             attachments={handoff.attachments}
             onStartTask={handoff.onStartTask}
@@ -87,7 +86,10 @@ export const HomeScreen = ({workspaceId, projectId}: {workspaceId: string; proje
             errorSlot={
                 agentsQuery.isError ? (
                     // The list atom exposes no refetch; invalidating its cache is what re-runs it.
-                    <HomeListError onRetry={() => void invalidateWorkflowsListCache()} />
+                    <LoadError
+                        title="Could not load your agents"
+                        onRetry={() => void invalidateWorkflowsListCache()}
+                    />
                 ) : undefined
             }
         />

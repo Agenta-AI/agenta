@@ -3,6 +3,7 @@ import type {ReactNode} from "react"
 import type {SidebarScope} from "@agenta/navigation"
 
 import {useTrackLastNonSettingsPath} from "./lastNonSettingsPath"
+import {MobileCommandPalette} from "./MobileCommandPalette"
 import {NavRail} from "./NavRail"
 
 /**
@@ -29,6 +30,7 @@ export const AppShell = ({
         <div className="flex h-[var(--ag-viewport-height,100dvh)]">
             <NavRail workspaceId={workspaceId} projectId={projectId} scope={scope} />
             <main className="min-w-0 flex-1">{children}</main>
+            <MobileCommandPalette projectURL={`/w/${workspaceId}/p/${projectId}`} />
         </div>
     )
 }

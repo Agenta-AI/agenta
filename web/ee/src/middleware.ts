@@ -6,12 +6,12 @@ import {
 import {NextRequest, NextResponse} from "next/server"
 
 /**
- * Forward gate: desktop routes are redirected into the /m app, for two independent reasons.
+ * Forward gate: desktop routes are redirected into the /m app, for two reasons: the device
+ * heuristic and the Classic mode preference.
  *
- * - AGENTA_MOBILE_GATE — the device gate. DEFAULT ON; "false" opts out.
- * - AGENTA_CLASSIC_MODE_GATE — the preference gate, any device. DEFAULT ON; "false" opts out.
+ * AGENTA_MOBILE_GATE covers both. DEFAULT ON; "false" opts out of every redirect.
  *
- * Both flags are read inside the handler at request time: on the self-hosted
+ * The flag is read inside the handler at request time: on the self-hosted
  * standalone Node server, non-NEXT_PUBLIC process.env is resolved at runtime
  * (the client-only DefinePlugin in next.config.ts does not touch this
  * compiler), so flipping the env + recreating the container is enough — no
@@ -30,7 +30,6 @@ export function middleware(request: NextRequest) {
         header: (name) => request.headers.get(name),
         cookie: (name) => request.cookies.get(name)?.value,
         gateEnabled: resolveGateEnabled(process.env.AGENTA_MOBILE_GATE),
-        classicGateEnabled: process.env.AGENTA_CLASSIC_MODE_GATE !== "false",
     })
 
     if (decision.kind === "redirect") {

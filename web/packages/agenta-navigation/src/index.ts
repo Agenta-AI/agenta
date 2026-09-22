@@ -22,6 +22,7 @@ export {
     sidebarSessionSearchOpenAtom,
     sidebarSessionSearchQueryAtom,
     sidebarSessionSearchResultsAtom,
+    sidebarServerSessionIdsAtomFamily,
     withLocalSessions,
     type SessionSidebarRef,
 } from "./dynamic/sessionsSource"

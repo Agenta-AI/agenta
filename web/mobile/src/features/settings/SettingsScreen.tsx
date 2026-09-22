@@ -21,11 +21,13 @@ import {
     type AuthFlagKey,
     DomainsSection,
     GatewayToolsSection,
+    McpServersSection,
     OrganizationsPage,
     SsoProvidersSection,
     SettingsPageShell,
     useEntitlements,
 } from "@agenta/settings-ui"
+import {LoadError} from "@agenta/ui/components/presentational"
 import {THEME_OPTIONS, useThemeMode} from "@agenta/ui/theme"
 import {useQuery} from "@tanstack/react-query"
 import {useRouter} from "next/router"
@@ -56,11 +58,7 @@ import {SecretsTab} from "./SecretsTab"
 import {useSettingsNavScope} from "./settingsNavScope"
 import {SettingsTabRail} from "./SettingsTabRail"
 import {useActiveSettingsTab, useMobileSettingsAccess} from "./settingsTabs"
-import {
-    OrganizationError,
-    OrganizationLoading,
-    OrganizationNoFlags,
-} from "./states/OrganizationStates"
+import {OrganizationLoading, OrganizationNoFlags} from "./states/OrganizationStates"
 import {useConfirmModal} from "./useConfirmModal"
 import {WebhooksTab} from "./WebhooksTab"
 
@@ -204,6 +202,19 @@ const TabBody = ({
                     {confirmModal}
                 </>
             )
+        // Writable, like Tools: the section and its journey are shared with the desktop, so
+        // a connection added here is the same connection added there.
+        case "mcpEndpoints":
+            // Gated here too, not only in `useActiveSettingsTab`: a render boundary that
+            // trusts the router is one refactor away from rendering a surface whose every
+            // action the gateway refuses.
+            if (!access.canShowMcpEndpoints) return null
+            return (
+                <>
+                    <McpServersSection confirm={confirm} />
+                    {confirmModal}
+                </>
+            )
         case "projects":
             return (
                 <ProjectsTab
@@ -242,7 +253,13 @@ const TabBody = ({
             // Waiting on entitlements too: every `has*` reads false until they land, so
             // rendering now would flash the locked state at an entitled organization.
             if (org.isPending || entitlements.isLoading) return <OrganizationLoading />
-            if (org.isError) return <OrganizationError onRetry={() => void org.refetch()} />
+            if (org.isError)
+                return (
+                    <LoadError
+                        title="Could not load this organization's settings"
+                        onRetry={() => void org.refetch()}
+                    />
+                )
             if (!flags) return <OrganizationNoFlags />
             const domainList = domains.data ?? []
             const providerList = providers.data ?? []

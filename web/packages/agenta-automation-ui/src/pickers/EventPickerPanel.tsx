@@ -10,10 +10,9 @@ import {
 } from "@agenta/entities/gatewayTrigger"
 import {SchemaForm, type SchemaFormHandle} from "@agenta/entity-ui/gatewayTool"
 import {useSchemaFormInstance} from "@agenta/entity-ui/gatewayTrigger"
-import {Button, Input} from "@agenta/ui/ui"
-import {ArrowLeft, Warning} from "@phosphor-icons/react"
+import {Button, SkeletonBlock} from "@agenta/ui/ui"
+import {ArrowLeft} from "@phosphor-icons/react"
 import {useSetAtom} from "jotai"
-import {Search} from "lucide-react"
 
 import type {Automation} from "../automationModel"
 import {EventPickerNoApps} from "../states/EventPickerStates"
@@ -43,7 +42,7 @@ export interface EventSelection {
  * The filters step is not reimplemented either: it is the event's own `trigger_config` through
  * the shared `SchemaForm`, which paints the required fields inline and hides the optional ones
  * behind its own disclosure. It takes over the right pane only — the search field, the app rail
- * and "Connect another app…" stay where they were, so picking a different app is still one click.
+ * and "Connect another app" stay where they were, so picking a different app is still one click.
  *
  * The selection leaves on **Done**, not on pick: an event whose required filters are empty
  * (GitHub's owner/repo) is a subscription that can never run, so handing back the moment the event
@@ -96,7 +95,17 @@ export const EventPickerPanel = ({
         [automation.raw],
     )
 
-    const apps = useMemo(() => connectedApps(connections), [connections])
+    // The catalog's display name, not the integration key made readable: "Google Calendar",
+    // not "Googlecalendar". Resolved here once, so every label downstream reads the same.
+    const {integrations} = useTriggerCatalogIntegrations()
+    const catalogNames = useMemo(
+        () => new Map(integrations.map((integration) => [integration.key, integration.name])),
+        [integrations],
+    )
+    const apps = useMemo(
+        () => connectedApps(connections, catalogNames),
+        [catalogNames, connections],
+    )
     const connection = useMemo(
         () => connections.find((candidate) => candidate.id === connectionId),
         [connections, connectionId],
@@ -200,28 +209,16 @@ export const EventPickerPanel = ({
         }
     }, [connectionId, eventKey, onClose, onSelectEvent])
 
-    // The catalog's display name, not the integration key made readable: "Google Calendar",
-    // not "Googlecalendar".
-    const {integrations} = useTriggerCatalogIntegrations()
     const boundAppLabel = connection
-        ? appLabel(
-              connection,
-              integrations.find((integration) => integration.key === connection.integration_key)
-                  ?.name,
-          )
+        ? appLabel(connection, catalogNames.get(connection.integration_key))
         : (activeApp?.label ?? "connected")
 
     return (
-        <div className="flex min-h-0 flex-col">
-            {/* The panel body is the only scroller, and only downward: the panes inside grow to
-                their content so a filter form never gets a scrollbar of its own that cuts a field
-                in half, and overflow-x is pinned because setting overflow-y alone computes the
-                other axis to auto — which bought a 6px sideways scroll on nothing. */}
-            <div className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto overflow-x-hidden p-2.5">
-                {/* Height comes from the taller pane, not from the box around it: as `flex-1` of a
-                    scrolling body the row stopped at the visible height, and the rail's rule
-                    ended mid-panel while the form ran on past it. */}
-                <div className="flex flex-1 items-stretch gap-[10px]">
+        <div className="flex min-h-0 flex-1 flex-col">
+            {/* Each pane scrolls on its own: a long rail and a long event list are two lists,
+                and one scroller over both dragged the app you were browsing off-screen. */}
+            <div className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-hidden p-2.5">
+                <div className="flex min-h-0 flex-1 items-stretch gap-[10px]">
                     {/* Wide, the rail never goes away: the search belongs to the app selected in
                         it, so hiding it would take away the one control that changes the scope.
                         Narrow, it is the first step and leaves once an app is picked. */}
@@ -243,8 +240,8 @@ export const EventPickerPanel = ({
                     ) : null}
                     {/* Only the right pane changes once an event is chosen — the rail stays put. */}
                     {!isWide && onApps ? null : showFilters ? (
-                        <div className="flex min-w-0 flex-1 flex-col gap-2">
-                            <div className="flex flex-col gap-1">
+                        <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-2 overflow-y-auto overflow-x-hidden pb-4">
+                            <div className="flex flex-col gap-2">
                                 <button
                                     type="button"
                                     onClick={() => setBrowsing(true)}
@@ -259,7 +256,18 @@ export const EventPickerPanel = ({
                                     {eventLabel(event?.name, eventKey)}
                                 </span>
                             </div>
-                            {schema ? (
+                            {eventLoading ? (
+                                // Field-shaped, so the form lands where the placeholder was
+                                // instead of under a "needs no filters" line that then vanishes.
+                                <div className="flex flex-col gap-4">
+                                    {Array.from({length: 3}, (_, index) => (
+                                        <div key={index} className="flex flex-col gap-1.5">
+                                            <SkeletonBlock active className="h-4 w-24" />
+                                            <SkeletonBlock active className="h-9 w-full" />
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : schema ? (
                                 <SchemaForm
                                     ref={formRef}
                                     form={configForm}
@@ -288,24 +296,19 @@ export const EventPickerPanel = ({
                                     <span className="min-w-0 truncate">All apps</span>
                                 </button>
                             )}
-                            <div className="relative shrink-0">
-                                <Search
-                                    aria-hidden
-                                    className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground"
-                                />
-                                <Input
-                                    value={search}
-                                    onChange={(changed) => setSearch(changed.target.value)}
-                                    aria-label={`Search ${activeApp.label} events`}
-                                    placeholder={`Search ${activeApp.label} events`}
-                                    className="h-8 pl-8 text-[13px]"
-                                />
-                            </div>
                             <EventList
                                 app={activeApp}
-                                selectedEventKey={eventKey}
-                                query={query}
-                                onClearSearch={() => setSearch("")}
+                                // The check means "the event this automation has", not the one
+                                // under consideration: a row looked at and left is not chosen.
+                                // By app, not connection: the rail keeps one connection per app,
+                                // and the bound one may not be the one it kept.
+                                selectedEventKey={
+                                    connection?.integration_key === activeApp.integrationKey
+                                        ? (automation.eventKey ?? "")
+                                        : ""
+                                }
+                                search={search}
+                                onSearchChange={setSearch}
                                 onPick={onPick}
                             />
                         </div>
@@ -317,20 +320,7 @@ export const EventPickerPanel = ({
 
             {/* Done commits the filters, so it belongs to the event, not to browsing. */}
             {showFilters ? (
-                <div className="flex shrink-0 items-center gap-3 border-0 border-t border-solid border-border px-4 py-3">
-                    {missing.length ? (
-                        <p className="m-0 flex min-w-0 flex-1 items-center gap-1.5 text-xs leading-snug text-muted-foreground">
-                            <Warning aria-hidden size={14} className="shrink-0" />
-                            <span className="min-w-0">
-                                {missing.length === 1
-                                    ? "One filter is still empty"
-                                    : `${missing.length} filters are still empty`}
-                                {" — without them this event never arrives."}
-                            </span>
-                        </p>
-                    ) : (
-                        <span className="flex-1" />
-                    )}
+                <div className="flex shrink-0 items-center justify-end border-0 border-t border-solid border-border px-4 py-3">
                     <Button type="button" disabled={!ready || saving} onClick={() => void onDone()}>
                         Done
                     </Button>

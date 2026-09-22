@@ -1,0 +1,19 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "feedback-clusterer",
+  "version": "1.0.0",
+  "description": "Each day, clusters new customer feedback into themes and logs the summary to Notion.",
+  "author": {
+    "name": "Agenta"
+  },
+  "license": "Apache-2.0",
+  "keywords": [
+    "support",
+    "agent-template"
+  ],
+  "extensions": {
+    "ai.agenta": {
+      "manifest": "./ai.agenta/agents.json"
+    }
+  }
+}

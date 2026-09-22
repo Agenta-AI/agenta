@@ -2,6 +2,27 @@ import path from "path"
 
 import type {NextConfig} from "next"
 
+/**
+ * The hostnames this app's dev server accepts hot-reload connections from.
+ *
+ * A Next 16 dev server refuses a hot-reload upgrade whose Origin is not allow-listed, and the
+ * client then falls back to reloading the whole page. A dev stack reached through a hostname
+ * rather than localhost therefore needs that hostname listed, so the deployment's own web URL
+ * is read for it. `allowedDevOrigins` is read by `next dev` and has no effect on a build.
+ */
+const allowedDevOrigins = (): string[] => {
+    const origins = new Set(["localhost", "127.0.0.1", "[::1]"])
+    const configured = process.env.AGENTA_WEB_URL
+    if (configured) {
+        try {
+            origins.add(new URL(configured).hostname)
+        } catch {
+            // An unparseable value leaves the local origins in place rather than failing the run.
+        }
+    }
+    return [...origins]
+}
+
 const nextConfig: NextConfig = {
     // Path mount: Traefik routes PathPrefix(`/m`) here with NO stripprefix —
     // the app itself owns the prefix (assets, links, and routes all under /m).
@@ -34,6 +55,7 @@ const nextConfig: NextConfig = {
         "@agenta/playground-ui",
         "@agenta/chat",
     ],
+    allowedDevOrigins: allowedDevOrigins(),
     reactStrictMode: true,
     pageExtensions: ["ts", "tsx"],
     productionBrowserSourceMaps: true,
@@ -50,6 +72,23 @@ const nextConfig: NextConfig = {
     // `next build`. (Next 16 removed the `eslint` option; `next build` no longer lints.)
     typescript: {
         ignoreBuildErrors: true,
+    },
+    async redirects() {
+        return [
+            {
+                // The providers' ONE registered redirect URI is the desktop `/auth/callback/<id>`;
+                // in production the desktop middleware hands a mobile-started landing to
+                // `/m/auth/callback/<id>` (see decideDesktopGate), and behind Traefik this app
+                // never sees the bare path. On a direct-port dev run (`next dev` on the origin
+                // the URI is registered against, no desktop in front) the landing arrives
+                // here and would 404, killing every OAuth sign-in. Mirror the hand-off so
+                // the dev loop completes; Next carries the `code`/`state` query along.
+                source: "/auth/callback/:provider",
+                destination: "/m/auth/callback/:provider",
+                basePath: false,
+                permanent: false,
+            },
+        ]
     },
     async headers() {
         return [

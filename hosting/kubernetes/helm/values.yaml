@@ -42,6 +42,81 @@ agenta:
   runnerToken: "replace-me"
 
 # ================================================================== #
+# Agenta — Gateways
+#
+# Values mirror hosting/docker-compose/{oss,ee}/env.*.gh.example, which
+# is the reference for a self-hosted install. Every key below is real:
+# the chart renders it into the containers that read it, and only those.
+#
+#   llmGateway.enabled            -> AGENTA_LLM_GATEWAY_ENABLED
+#   mcpGateway.enabled            -> AGENTA_MCP_GATEWAY_ENABLED
+#   mcpGateway.hostAllowlist      -> AGENTA_MCP_GATEWAY_HOST_ALLOWLIST
+#   gatewayEgress.insecureAllowed -> AGENTA_GATEWAYS_INSECURE_EGRESS_ALLOWED
+#   gatewayEgress.insecureHttpAllowed
+#                                 -> AGENTA_GATEWAYS_INSECURE_HTTP_ALLOWED
+#   gatewayCredentials.ttlSeconds -> AGENTA_GATEWAYS_CREDENTIALS_TTL_SECONDS
+#
+# Docs: https://docs.agenta.ai/self-host/reference/configuration#agenta-gateways
+# ================================================================== #
+
+# The MCP gateway lets an agent reach an MCP server through Agenta, so the
+# server's credential stays on your deployment instead of travelling into
+# the sandbox. On by default. Off, the API refuses every MCP gateway route,
+# the web container hides the MCP settings tab, and an agent dials its
+# declared MCP servers directly.
+mcpGateway:
+  enabled: true
+  # Hosts the gateway's outbound guard admits even when they would otherwise
+  # be refused (a private address, a name that is not public), both when a URL
+  # is saved and when the relay calls it. This only narrows anything while
+  # gatewayEgress.insecureAllowed is false; with it true, every target is
+  # admitted already. A list here, rendered as the comma-separated string the
+  # application parses; a plain string works too. Empty by default, so nothing
+  # extra is admitted.
+  hostAllowlist: []
+  # hostAllowlist:
+  #   - mcp.internal
+  #   - 10.0.0.5
+
+# The LLM gateway does the same for model calls, keeping your provider key
+# out of the sandbox. OFF by default: turning it on changes how every model
+# call in the project is routed, and an upgrade should not make that change
+# for you. While it is off, a model call resolves the project's stored
+# provider key and injects it into the run, as before.
+llmGateway:
+  enabled: false
+
+# Two guards on the gateway's outbound boundary. Both are left unset on
+# purpose, so the application's own defaults apply and a chart upgrade does
+# not change either one. Those defaults require https and refuse a private
+# or loopback address.
+#
+# Set insecureAllowed: true if an MCP server in one of your projects sits on
+# a private network or answers over plain http. It lifts the https
+# requirement and the address check for every gateway target, at save time
+# and at call time. On a deployment where people you do not trust can create
+# MCP connections, leave it unset and name the one server you want reachable
+# in mcpGateway.hostAllowlist instead.
+#
+# Set insecureHttpAllowed: true if your own Agenta deployment is reached over
+# plain http at an address that is not loopback, such as an IP or a LAN name.
+# It lets a run's gateway credential travel there, which otherwise fails with
+# `gateway_insecure_endpoint`. This is the hop into Agenta, not the hop out
+# to an MCP server. Read by the services and runner containers only.
+# gatewayEgress:
+#   insecureAllowed: true
+#   insecureHttpAllowed: true
+
+# How long the sandbox-scoped gateway credential a run carries stays valid,
+# in seconds. Left unset on purpose so the application's own default (43200,
+# 12 hours) applies; that default sits above the longest run Agenta lets
+# finish. Lower it for a shorter-lived credential, and keep it above the
+# longest turn you expect: a turn still running when the credential expires
+# starts failing its gateway calls.
+# gatewayCredentials:
+#   ttlSeconds: 43200
+
+# ================================================================== #
 # docker (compose-only — no-op on Kubernetes, kept commented so the
 # helm surface mirrors the compose env without taking effect here).
 # ================================================================== #
@@ -132,7 +207,8 @@ redisDurable:
 #           secretName: agenta-store-tls
 #     image:
 #       repository: chrislusf/seaweedfs
-#       tag: "4.37"  # pin a 4.37-era image — IAM regressed in other releases
+#       tag: "4.47"  # pinned — IAM regressed in other releases; 4.42 is the floor for
+#                    # versioned deletes (older builds leave deleted files listed but unreadable)
 #       pullPolicy: IfNotPresent
 #     persistence:
 #       enabled: true
@@ -180,6 +256,42 @@ redisDurable:
 #                              #   agentRunner.fuse.enabled: false
 #                              #   agentRunner.providers.enabled: [daytona]
 #                              #   agentRunner.providers.default: daytona
+
+# ================================================================== #
+# Graceful rollouts — per-workload, all unset by default.
+# A managed load balancer keeps sending requests to a pod for a few
+# seconds after Kubernetes removes it from the endpoints, so a pod that
+# exits at once answers them with 502. Hold the pod open with a preStop
+# hook, give it room with a grace period, and keep a spare pod during
+# the rollout with a strategy. See hosting/kubernetes/README.md.
+# The keys work on api, services, web, webMobile, cron, workerStreams,
+# workerQueues, agentRunner, supertokens, redisVolatile, redisDurable,
+# store.seaweedfs and alembic. `strategy` is for Deployments only.
+# ================================================================== #
+# api:
+#   terminationGracePeriodSeconds: 45
+#   lifecycle:
+#     preStop:
+#       sleep:
+#         seconds: 10   # needs Kubernetes 1.30+; use an exec hook below 1.30
+#   strategy:
+#     rollingUpdate:
+#       maxUnavailable: 0
+
+# ================================================================== #
+# networkPolicy — lock the bundled data stores down to this release.
+# Off by default. When on, the chart renders one NetworkPolicy per
+# bundled store it deploys (redis-volatile, redis-durable, seaweedfs).
+# The bundled PostgreSQL is not covered; the Bitnami subchart owns its
+# own policy. See hosting/kubernetes/README.md.
+# ================================================================== #
+# networkPolicy:
+#   enabled: false
+#   extraIngressFrom:            # raw NetworkPolicy `from:` entries
+#     - ipBlock:
+#         cidr: 130.211.0.0/22   # Google Cloud health checkers
+#     - ipBlock:
+#         cidr: 35.191.0.0/16
 
 # ================================================================== #
 # workers — topology A (workers-sprawl); see docs/designs/workers-sprawl/specs.md

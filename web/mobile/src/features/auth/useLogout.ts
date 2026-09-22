@@ -19,7 +19,10 @@ export const useLogout = () => {
         await signOut().catch(() => undefined)
         clearLastContext()
         clearTranscriptSnapshots()
-        await queryClient.invalidateQueries({queryKey: ["mobile", "projects"]})
+        await Promise.all([
+            queryClient.invalidateQueries({queryKey: ["profile"]}),
+            queryClient.invalidateQueries({queryKey: ["mobile", "projects"]}),
+        ])
         void router.replace("/auth")
     }, [router])
 }

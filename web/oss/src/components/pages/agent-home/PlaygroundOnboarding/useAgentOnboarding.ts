@@ -11,12 +11,20 @@ import {
 } from "react"
 
 import {sessionStatusAtomFamily} from "@agenta/chat/state"
-import {createEphemeralAppFromTemplate, agentIconAtomFamily} from "@agenta/entities/workflow"
+import {
+    abandonAgentTemplateLoad,
+    agentIconAtomFamily,
+    createEphemeralAppFromTemplate,
+    type AgentSetupSelection,
+    type AgentStarterTemplate,
+} from "@agenta/entities/workflow"
+import {useAgentSetupStep} from "@agenta/entity-ui/onboarding"
 import {
     hasPendingHydrationAtomFamily,
     isAgentModeAtomFamily,
     playgroundController,
 } from "@agenta/playground"
+import {projectIdAtom} from "@agenta/shared/state"
 import {extractApiErrorMessage} from "@agenta/shared/utils"
 import {App} from "antd"
 import {useAtomValue, useSetAtom, useStore} from "jotai"
@@ -24,6 +32,7 @@ import {useAtomValue, useSetAtom, useStore} from "jotai"
 import {ONBOARDING_SCOPE_KEY} from "@/oss/components/AgentChatSlice/state/scope"
 import {
     activeSessionIdAtomFamily,
+    adoptSessionAtomFamily,
     adoptScopeSessionsAtom,
     resetScopeAtomFamily,
 } from "@/oss/components/AgentChatSlice/state/sessions"
@@ -31,7 +40,7 @@ import {ONBOARDING_SESSION_DEFAULT, onboardingSessionAtom} from "@/oss/state/onb
 import {urlAtom} from "@/oss/state/url"
 import {writePlaygroundSelectionToQuery} from "@/oss/state/url/playground"
 
-import {TEMPLATE_STRIP_MODE} from "../assets/constants"
+import {CONNECT_STEP_MODE, TEMPLATE_STRIP_MODE} from "../assets/constants"
 import {useCreateAgent} from "../hooks/useCreateAgent"
 
 import OnboardingConfigPanel from "./OnboardingConfigPanel"
@@ -68,6 +77,7 @@ export interface AgentOnboardingResult {
  */
 export function useAgentOnboarding(active: boolean): AgentOnboardingResult {
     const {message} = App.useApp()
+    const projectId = useAtomValue(projectIdAtom)
     const setEntityIds = useSetAtom(playgroundController.actions.setEntityIds)
     const createAgent = useCreateAgent()
     const {baseAppURL} = useAtomValue(urlAtom)
@@ -85,7 +95,6 @@ export function useAgentOnboarding(active: boolean): AgentOnboardingResult {
     const [chromeRevealed, setChromeRevealed] = useState(false)
     const [error, setError] = useState(false)
     const startedRef = useRef(false)
-    const commitInFlightRef = useRef(false)
 
     // Publish the onboarding lifecycle to a globally-readable atom so surfaces outside the playground
     // subtree (the sidebar, the layout) can adjust without the playground-scoped OnboardingContext.
@@ -193,11 +202,26 @@ export function useAgentOnboarding(active: boolean): AgentOnboardingResult {
     // ephemeral + an `onCommitted` callback (no redirect): swap the entity, flip to the live chat, and
     // reflect the app in the URL via `history.replaceState` (a real nav to the app route is a different
     // Next page → would remount; a reload then lands on the app playground).
-    const iconStore = useStore()
-    const commit = useCallback(
-        (seedMessage: string, name?: string) => {
-            if (!entityId || commitInFlightRef.current || realEntityId) return
-            commitInFlightRef.current = true
+    // The pre-create connect step (#6043). Inert when the flag is off: `commit` then goes straight
+    // to `runCommit` exactly as it did before.
+    const setupStep = useAgentSetupStep()
+
+    const cancelSetup = useCallback(() => {
+        if (projectId && setupStep.draft?.template) {
+            abandonAgentTemplateLoad(projectId, setupStep.draft.template.key)
+        }
+        setupStep.close()
+    }, [projectId, setupStep.draft, setupStep.close])
+
+    const sessionStore = useStore()
+    const runCommit = useCallback(
+        (
+            seedMessage: string,
+            name?: string,
+            setup?: AgentSetupSelection,
+            template?: AgentStarterTemplate,
+        ) => {
+            if (!entityId || committing || realEntityId) return
             setCommitting(true)
             // Surface the seed so the chat can render it as an optimistic user turn during commit.
             setCommittingSeed(seedMessage.trim() || null)
@@ -209,9 +233,13 @@ export function useAgentOnboarding(active: boolean): AgentOnboardingResult {
                 // Create-agent is an explicit "go" → the chat sends the description as the first turn
                 // once the model is ready (no extra Start click), keeping the transition seamless.
                 autoSendSeed: true,
-                onCommitted: ({appId, revisionId}) => {
-                    const icon = iconStore.get(agentIconAtomFamily(entityId))
-                    if (icon) iconStore.set(agentIconAtomFamily(appId), icon)
+                setup,
+                template,
+                onCommitted: ({appId, revisionId, sessionId}) => {
+                    // Carry the ephemeral agent's chosen icon onto the committed app so the
+                    // identity the user set during onboarding survives the swap.
+                    const icon = sessionStore.get(agentIconAtomFamily(entityId))
+                    if (icon) sessionStore.set(agentIconAtomFamily(appId), icon)
                     committed = true
                     // Adopt the founding conversation into the new app's chat scope, in the SAME
                     // batched update as the `chatScopeKey` flip below (`setRealAppId`): the mounted
@@ -219,7 +247,11 @@ export function useAgentOnboarding(active: boolean): AgentOnboardingResult {
                     // and after a reload the app playground finds the session (previously it was
                     // stranded under the fixed onboarding scope, which the next onboarding entry
                     // wipes — permanently destroying the conversation).
-                    adoptScopeSessions({from: ONBOARDING_SCOPE_KEY, to: appId})
+                    if (sessionId) {
+                        sessionStore.set(adoptSessionAtomFamily(appId), {id: sessionId})
+                    } else {
+                        adoptScopeSessions({from: ONBOARDING_SCOPE_KEY, to: appId})
+                    }
                     setRealAppId(appId)
                     // Flip the onboarding state urgently — the settling skeleton, the `chromeRevealed`
                     // timer, and the commit-failure recovery all read `realEntityId` synchronously.
@@ -234,12 +266,11 @@ export function useAgentOnboarding(active: boolean): AgentOnboardingResult {
                         window.history.replaceState(
                             window.history.state,
                             "",
-                            `${baseAppURL}/${appId}/playground?revisions=${revisionId}`,
+                            `${baseAppURL}/${appId}/playground?revisions=${revisionId}${sessionId ? `&session_id=${encodeURIComponent(sessionId)}` : ""}`,
                         )
                     }
                 },
             }).finally(() => {
-                commitInFlightRef.current = false
                 setCommitting(false)
                 // On a failed commit (createAgent resolves without onCommitted), drop the optimistic
                 // seed so no stale "sent" turn can be re-surfaced by a later render.
@@ -248,15 +279,50 @@ export function useAgentOnboarding(active: boolean): AgentOnboardingResult {
         },
         [
             entityId,
-            iconStore,
             committing,
             realEntityId,
             createAgent,
             setEntityIds,
             baseAppURL,
             adoptScopeSessions,
+            sessionStore,
         ],
     )
+
+    // "Create agent" now opens the connect step rather than committing: the accounts this agent
+    // will need get connected while it is still a draft, instead of being asked for mid-run.
+    const commit = useCallback(
+        (seedMessage: string, name?: string, template?: AgentStarterTemplate) => {
+            if (!entityId || committing || realEntityId) return
+            // The step earns its interruption only when it has an account to ask about; with
+            // nothing detected it would block on a card that says "Nothing required."
+            if (CONNECT_STEP_MODE && setupStep.open({seedMessage, name, template})) return
+            runCommit(seedMessage, name, undefined, template)
+        },
+        [entityId, committing, realEntityId, runCommit, setupStep.open],
+    )
+
+    // The draft is what the composer said when the step OPENED; the composer is still editable
+    // behind the card, so a surface that can read it passes what it says now.
+    const commitWithSetup = useCallback(
+        (selection: AgentSetupSelection, draftOverride?: {seedMessage: string; name?: string}) => {
+            const draft = setupStep.draft
+            if (!draft) return
+            runCommit(
+                draftOverride?.seedMessage ?? draft.seedMessage,
+                draftOverride ? draftOverride.name : draft.name,
+                selection,
+                draft.template,
+            )
+        },
+        [setupStep.draft, runCommit],
+    )
+
+    // The step belongs to ONE pre-commit draft: once the agent is real, close it so a failed-then-
+    // retried commit can't leave the card docked over a live chat.
+    useEffect(() => {
+        if (realEntityId && setupStep.draft) setupStep.close()
+    }, [realEntityId, setupStep.draft, setupStep.close])
 
     const contextValue = useMemo<OnboardingContextValue | null>(
         () =>
@@ -267,6 +333,8 @@ export function useAgentOnboarding(active: boolean): AgentOnboardingResult {
                       committing,
                       committingSeed,
                       commit,
+                      setup: CONNECT_STEP_MODE ? {...setupStep, close: cancelSetup} : null,
+                      commitWithSetup,
                       browseAll,
                       setBrowseAll,
                       chromeRevealed,
@@ -280,6 +348,9 @@ export function useAgentOnboarding(active: boolean): AgentOnboardingResult {
             committing,
             committingSeed,
             commit,
+            setupStep,
+            commitWithSetup,
+            cancelSetup,
             browseAll,
             chromeRevealed,
             firstRunSettled,

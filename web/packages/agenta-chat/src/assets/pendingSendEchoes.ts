@@ -1,5 +1,7 @@
 import type {FileUIPart, UIMessage} from "ai"
 
+import {REFUSED_SEND_REASON} from "../model/error"
+
 import {getMessageTurnId} from "./agentTurn"
 
 /**
@@ -112,6 +114,18 @@ export const retirePendingSendEchoes = (
 }
 
 /** Disposable user rows; the id prefix keeps rewind from finding an echo in the AI SDK array. */
+/**
+ * Is a send still on its way to the runner, or streaming as an echo this client owns?
+ *
+ * Every echo that is not refused and not parked in the queue is a turn THIS client started and is
+ * still waiting on: from the moment it leaves the composer until its durable row retires it. That
+ * is the local "submitted" signal the AI SDK's `status` carries on the direct path, which the
+ * server-owned send path never sets — without it the working indicator waited for the next
+ * liveness poll to notice the run (#6778).
+ */
+export const pendingSendsInFlight = (pending: readonly PendingSendEcho[]): boolean =>
+    pending.some((echo) => !echo.failed && !echo.parkedInputId)
+
 export const pendingSendEchoMessages = (pending: readonly PendingSendEcho[]): UIMessage[] =>
     pending.map(
         (item) =>
@@ -136,9 +150,10 @@ export const isPendingSendFailed = (message: UIMessage): boolean =>
 
 /**
  * Shown on a failed echo. Word for word what the composer says when a send is refused before it
- * resolves, because to the user those are one event and two phrasings read as carelessness.
+ * resolves, because to the user those are one event and two phrasings read as carelessness. It is
+ * built from the composer's own reason half so the two cannot drift apart.
  */
-export const PENDING_SEND_FAILED_NOTE = "Message wasn't sent — try again."
+export const PENDING_SEND_FAILED_NOTE = `Message ${REFUSED_SEND_REASON}`
 
 const previewExecutionId = (message: UIMessage): string | null => {
     const metadata = message.metadata as {executionId?: unknown} | undefined
@@ -157,9 +172,9 @@ const echoExecutionId = (message: UIMessage): string | null => {
  * echoes, then the answers to those echoes.
  *
  * Splitting the previews needs every echo to name its own execution. While one is still
- * unacknowledged, a preview cannot be attributed, and guessing puts an answer above its own
- * question. So the split applies only when all of them are acknowledged; otherwise the echoes go
- * last, which is wrong for at most the previous answer and never for the new one.
+ * unacknowledged, a preview cannot be attributed; it can only be the previous answer when the
+ * saved transcript still ends on that question, and otherwise it is the new one, so the echoes
+ * go before it.
  */
 export const mergePendingSendEchoRows = (
     durable: UIMessage[],
@@ -170,7 +185,13 @@ export const mergePendingSendEchoRows = (
     if (echoes.length === 0) return [...durable, ...preview]
     if (preview.length === 0) return [...durable, ...echoes]
     const ids = echoes.map(echoExecutionId)
-    if (ids.some((id) => id === null)) return [...durable, ...preview, ...echoes]
+    if (ids.some((id) => id === null)) {
+        // Unattributable previews can only be the previous answer if that turn is still open.
+        const previousOpen = durable[durable.length - 1]?.role === "user"
+        return previousOpen
+            ? [...durable, ...preview, ...echoes]
+            : [...durable, ...echoes, ...preview]
+    }
     const owned = new Set(ids as string[])
     const earlier: UIMessage[] = []
     const answers: UIMessage[] = []

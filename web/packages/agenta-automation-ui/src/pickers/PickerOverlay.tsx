@@ -30,7 +30,7 @@ export const usePickerIsWide = () => useMediaQuery(PICKER_WIDE_QUERY)
  * different focus behaviour), so the breakpoint is read in JS: no CSS rule can swap a `Popover`
  * for a `Sheet`, and rendering both would mount every child twice.
  *
- * `lg` is the app's own phone/desktop line (`ScreenScaffold`, `SheetContent side="responsive"`),
+ * `lg` is the app's own phone/desktop line (`ScreenScaffold`),
  * so a picker changes shape at the same width the screen around it does. Crossing that line
  * remounts the children — an in-flight pick is lost, which only happens on a live window resize.
  */
@@ -88,19 +88,21 @@ export const PickerOverlay = ({
     return (
         <Sheet open={open} onOpenChange={onOpenChange}>
             <SheetTrigger asChild>{trigger}</SheetTrigger>
-            {/* The content panes below scroll on their own, so the sheet must not also scroll —
-                two nested scrollers is how a footer ends up unreachable behind the keyboard. */}
+            {/* The content panes below scroll on their own, so the sheet must not also scroll. */}
             <SheetContent
-                side="bottom"
+                // From the right, like the drawer this field sits in: a sheet rising from the
+                // bottom under a side drawer read as a different surface.
+                side="right"
                 // No description on a picker; declaring none keeps Radix from warning about it.
                 aria-describedby={undefined}
-                // Taller than the sheet's 378px default: the schedule builder and an event's
-                // filter form both run past it, and a body clipped at a fixed height is one
-                // whose Done button is off screen.
-                className="h-[min(85dvh,640px)] gap-0 overflow-hidden p-0"
+                // Full width on a phone, the automation drawer's 640px above it; full height
+                // so the schedule builder and an event's filter form keep Done on screen.
+                className="w-full gap-0 overflow-hidden p-0 sm:max-w-[640px]"
             >
-                <SheetHeader className="shrink-0 px-4 py-3">
-                    <SheetTitle className="text-sm">{title}</SheetTitle>
+                {/* The sheet primitives' own header: the same height and type as the
+                    automation drawer (EnhancedDrawer), which this opens beside. */}
+                <SheetHeader className="shrink-0">
+                    <SheetTitle>{title}</SheetTitle>
                 </SheetHeader>
                 {children}
             </SheetContent>

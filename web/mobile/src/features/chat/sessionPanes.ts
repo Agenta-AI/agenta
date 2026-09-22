@@ -4,7 +4,9 @@
  * The split holds the pane (configuration, or the sessions rail) beside the conversation. With two
  * panes both are visible and this only picks what sits on the left. On a phone there is no room
  * for two, so the pane REPLACES the conversation: anything that turns the pane on takes the chat,
- * and its composer, off the screen. That is why the rule lives here with tests rather than inline.
+ * and its composer, off the screen. The Files pane follows the same rule, and outranks the
+ * configuration: it is opened on purpose, by a tap on a file. That is why the rule lives here with
+ * tests rather than inline.
  */
 export interface SessionPaneInputs {
     /** The Build/Chat switch. Shared with the desktop playground through localStorage. */
@@ -15,6 +17,8 @@ export interface SessionPaneInputs {
     twoPane: boolean
     /** False when the session has no revision to configure yet, such as a session with no turns. */
     hasEntity: boolean
+    /** The Files pane's open flag (`useSessionFilesPane`), which any file opener latches. */
+    filesOpen: boolean
 }
 
 export interface SessionPanes {
@@ -22,6 +26,8 @@ export interface SessionPanes {
     showConfig: boolean
     /** Give the pane slot the screen. On a phone this hides the conversation. */
     showPane: boolean
+    /** Show the Files pane. Beside the conversation with two panes; in its place on a phone. */
+    showFiles: boolean
 }
 
 export const resolveSessionPanes = ({
@@ -29,7 +35,11 @@ export const resolveSessionPanes = ({
     configCollapsed,
     twoPane,
     hasEntity,
+    filesOpen,
 }: SessionPaneInputs): SessionPanes => {
+    // On a phone an open Files pane takes the whole screen, so nothing else gets a slot. Neither
+    // flag is touched: closing Files lands back on whatever was showing under it.
+    if (filesOpen && !twoPane) return {showConfig: false, showPane: false, showFiles: true}
     const showConfig = !chatMaximized && !configCollapsed && hasEntity
     // The sessions rail stands in for the config panel ONLY in maximized mode, as on the desktop.
     // Collapsing config collapses the PANE and gives the width to the conversation; swapping the
@@ -39,5 +49,5 @@ export const resolveSessionPanes = ({
     // chat belongs, with no way out: `/m` reads the maximized flag and never writes it, and the
     // desktop playground writes it to the same origin. A phone in maximized mode shows the
     // conversation, and the tab rail above it still reaches every session.
-    return {showConfig, showPane: showConfig || (twoPane && chatMaximized)}
+    return {showConfig, showPane: showConfig || (twoPane && chatMaximized), showFiles: filesOpen}
 }

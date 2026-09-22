@@ -14,6 +14,7 @@ import {ChatComposer} from "../../../src/components/ChatComposer"
 import QueuedMessagesDock from "../../../src/components/QueuedMessagesDock"
 import {useAgentChatQueue} from "../../../src/hooks/useAgentChatQueue"
 import type {useComposerAttachments} from "../../../src/hooks/useComposerAttachments"
+import {describeRefusedSend} from "../../../src/model/error"
 import {
     useServerSessionInputs,
     type ServerSessionInputs,
@@ -100,6 +101,18 @@ beforeEach(() => {
     fetchMock.mockReset()
 })
 
+/**
+ * The fresh run's response is held open on purpose and released at the end of each case. A
+ * failing assertion returns before that call, so the release is also registered here: a leaked
+ * open stream fails the cases that follow instead of the one that caused it.
+ */
+let releaseFreshResponse: (() => void) | null = null
+
+afterEach(() => {
+    releaseFreshResponse?.()
+    releaseFreshResponse = null
+})
+
 afterEach(cleanup)
 
 interface PendingInput {
@@ -177,9 +190,13 @@ const RunningElsewhereAdmissionHarness = ({
         try {
             if (policy === "steer") await queue.steer({text})
             else await queue.submit({text})
-        } catch {
+        } catch (error) {
             inputRef.current?.setMarkdown(text)
-            setRejections([{name: "Message", reason: "wasn't sent — try again."}])
+            // The same reader both apps put on this line (AgentConversation, mobile Composer):
+            // the refusal's own sentence when it stated one, the standing wording when it did
+            // not. Hardcoding the standing wording here would hide whether the send path read
+            // the refusal body at all.
+            setRejections([{name: "Message", reason: describeRefusedSend(error)}])
         } finally {
             sending.current = false
         }
@@ -234,7 +251,16 @@ const RunningElsewhereAdmissionHarness = ({
     )
 }
 
-const setupRunningElsewhereAdmission = async ({refuse = false}: {refuse?: boolean} = {}) => {
+/** How the stack answers the admission request: accepted, or refused with this status and body. */
+interface AdmissionRefusal {
+    status: number
+    body: string
+}
+
+const setupRunningElsewhereAdmission = async ({
+    refuse = false,
+    refusal,
+}: {refuse?: boolean; refusal?: AdmissionRefusal} = {}) => {
     const pending: PendingInput[] = []
     let requestCount = 0
     let closeFreshResponse = () => {}
@@ -262,11 +288,18 @@ const setupRunningElsewhereAdmission = async ({refuse = false}: {refuse?: boolea
         if (requestCount === 1) {
             const body = new ReadableStream({
                 start(controller) {
-                    closeFreshResponse = () => controller.close()
+                    let closed = false
+                    closeFreshResponse = () => {
+                        if (closed) return
+                        closed = true
+                        controller.close()
+                    }
+                    releaseFreshResponse = closeFreshResponse
                 },
             })
             return new Response(body, {status: 200})
         }
+        if (refusal) return new Response(refusal.body, {status: refusal.status})
         if (refuse) return new Response(null, {status: 409})
 
         const request = JSON.parse(String(init?.body)) as {
@@ -482,6 +515,9 @@ describe("useServerSessionInputs", () => {
             [expect.objectContaining({id: "input-1", role: "user"})],
             {sessionId: "session-1"},
         )
+        expect(buildAgentRequest.mock.calls[0][1].at(-1).parts).toEqual([
+            {type: "text", text: "run this next"},
+        ])
         expect(fetchMock).toHaveBeenCalledWith(
             "https://agent.test/invoke",
             expect.objectContaining({
@@ -494,6 +530,54 @@ describe("useServerSessionInputs", () => {
                 }),
             }),
         )
+    })
+
+    // An empty text part reaches the model as an empty text content block, which Anthropic-family
+    // models refuse (v0.119.1 risk map, entry 5).
+    it("sends an attachment-only input with no text part", async () => {
+        fetchCapabilities.mockResolvedValue({durableApprovals: true, queue: true, steer: true})
+        fetchSnapshot.mockResolvedValue({
+            session: {
+                id: "11111111-1111-4111-8111-111111111111",
+                project_id: "22222222-2222-4222-8222-222222222222",
+                session_id: "session-1",
+            },
+            execution: null,
+            execution_state: {id: "turn-1", state: "running"},
+            read: {latest_sequence: 0, history_complete: true},
+            pending: {inputs: [], interactions: []},
+            capabilities: {durable_approvals: true, queue: true, steer: true},
+        })
+        buildAgentRequest.mockResolvedValue({
+            invocationUrl: "https://agent.test/invoke",
+            headers: {Accept: "text/event-stream"},
+            requestBody: {session_id: "session-1", data: {inputs: {messages: []}}},
+        })
+        fetchMock.mockResolvedValue(new Response(null, {status: 202}))
+
+        const attachment = {
+            type: "file" as const,
+            url: "https://files.test/report.pdf",
+            mediaType: "application/pdf",
+        }
+        const {result} = renderHook(() =>
+            useServerSessionInputs({
+                entityId: "revision-1",
+                sessionId: "session-1",
+                messages: [] as UIMessage[],
+                locallyBusy: true,
+            }),
+        )
+        await waitFor(() => expect(result.current.capabilities.queue).toBe(true))
+
+        await act(async () => {
+            await result.current.submit(
+                {id: "input-2", text: "", fileParts: [attachment], source: "local"},
+                "queue",
+            )
+        })
+
+        expect(buildAgentRequest.mock.calls[0][1].at(-1).parts).toEqual([attachment])
     })
 
     it("releases admission after a fresh run's headers while its response keeps streaming", async () => {
@@ -542,6 +626,104 @@ describe("useServerSessionInputs", () => {
         await waitFor(() => expect(onExecuted).toHaveBeenCalledOnce())
     })
 
+    const acceptedRunSnapshot = {
+        session: {
+            id: "11111111-1111-4111-8111-111111111111",
+            project_id: "22222222-2222-4222-8222-222222222222",
+            session_id: "session-1",
+        },
+        execution: null,
+        execution_state: {id: "turn-1", state: "running"},
+        read: {latest_sequence: 0, history_complete: true},
+        pending: {inputs: [], interactions: []},
+        capabilities: {durable_approvals: true, queue: true, steer: true},
+    }
+    const acceptedFrame = `data: ${JSON.stringify({
+        type: "data-session-accepted",
+        data: {executionId: "turn-9"},
+    })}\n`
+
+    /** A 200 run whose stream names its turn, then stays open until the test ends it. */
+    const acceptedRun = () => {
+        let end!: (how: "close" | "drop") => void
+        const body = new ReadableStream<Uint8Array>({
+            start(controller) {
+                controller.enqueue(new TextEncoder().encode(acceptedFrame))
+                end = (how) =>
+                    how === "close" ? controller.close() : controller.error(new Error("dropped"))
+            },
+        })
+        fetchMock.mockResolvedValue(new Response(body, {status: 200}))
+        return {end: (how: "close" | "drop") => end(how)}
+    }
+
+    const submitAccepted = async (onExecuted: () => void | boolean | Promise<void | boolean>) => {
+        fetchSnapshot.mockResolvedValue(acceptedRunSnapshot)
+        buildAgentRequest.mockResolvedValue({
+            invocationUrl: "https://agent.test/invoke",
+            headers: {Accept: "text/event-stream"},
+            requestBody: {session_id: "session-1", data: {inputs: {messages: []}}},
+        })
+        const run = acceptedRun()
+        const watcher = {onAccepted: vi.fn(), onSettled: vi.fn(), onFailed: vi.fn()}
+        const {result} = renderHook(() =>
+            useServerSessionInputs({
+                entityId: "revision-1",
+                sessionId: "session-1",
+                messages: [] as UIMessage[],
+                locallyBusy: false,
+                onExecuted,
+            }),
+        )
+        await waitFor(() => expect(result.current.capabilities.steer).toBe(true))
+        await act(async () => {
+            await result.current.submit({id: "input-1", text: "start"}, "queue", watcher)
+        })
+        await waitFor(() => expect(watcher.onAccepted).toHaveBeenCalledWith("turn-9"))
+        return {run, watcher}
+    }
+
+    it("settles only after the records re-read it started has landed", async () => {
+        // The saved row that retires the echo arrives in that read. Reporting settlement
+        // before it landed flagged a delivered message as not sent whenever the read outlived
+        // the turn (#6698).
+        let finishRead!: (reconciled: boolean) => void
+        const onExecuted = vi.fn(
+            () =>
+                new Promise<boolean>((resolve) => {
+                    finishRead = resolve
+                }),
+        )
+        const {run, watcher} = await submitAccepted(onExecuted)
+
+        run.end("close")
+        await waitFor(() => expect(onExecuted).toHaveBeenCalledOnce())
+        await new Promise((resolve) => setTimeout(resolve, 20))
+        expect(watcher.onSettled).not.toHaveBeenCalled()
+
+        await act(async () => finishRead(true))
+        await waitFor(() => expect(watcher.onSettled).toHaveBeenCalledOnce())
+    })
+
+    it("does not settle on a re-read that could not reach the records", async () => {
+        const {run, watcher} = await submitAccepted(() => Promise.resolve(false))
+        run.end("close")
+        await new Promise((resolve) => setTimeout(resolve, 50))
+        expect(watcher.onSettled).not.toHaveBeenCalled()
+        expect(watcher.onFailed).not.toHaveBeenCalled()
+    })
+
+    it("does not settle when the connection drops after acceptance", async () => {
+        // The turn may still be running on the server; a drop is neither a failure nor an end.
+        const onExecuted = vi.fn(() => Promise.resolve(true))
+        const {run, watcher} = await submitAccepted(onExecuted)
+        run.end("drop")
+        await waitFor(() => expect(onExecuted).toHaveBeenCalledOnce())
+        await new Promise((resolve) => setTimeout(resolve, 50))
+        expect(watcher.onSettled).not.toHaveBeenCalled()
+        expect(watcher.onFailed).not.toHaveBeenCalled()
+    })
+
     it("rejects a refused Steer admission", async () => {
         fetchSnapshot.mockResolvedValue({
             session: {
@@ -587,8 +769,11 @@ describe("useServerSessionInputs", () => {
         async (interaction, policy) => {
             const {closeFreshResponse, inputRef} = await setupRunningElsewhereAdmission()
             const text = `say ${interaction}`
-            act(() => inputRef.current?.setMarkdown(text))
-            await waitFor(() => expect(inputRef.current?.getMarkdown()).toBe(text))
+            // `setMarkdown` resolves from Lexical's `onUpdate`; the draft exists only after that.
+            await act(async () => {
+                await inputRef.current?.setMarkdown(text)
+            })
+            expect(inputRef.current?.getMarkdown()).toBe(text)
 
             if (interaction === "Enter") {
                 const editor = screen.getByLabelText("Chat message")
@@ -617,12 +802,49 @@ describe("useServerSessionInputs", () => {
 
     it("keeps the draft and shows the failure card when admission is refused elsewhere", async () => {
         const {closeFreshResponse, inputRef} = await setupRunningElsewhereAdmission({refuse: true})
-        act(() => inputRef.current?.setMarkdown("keep this draft"))
+        await act(async () => {
+            await inputRef.current?.setMarkdown("keep this draft")
+        })
         fireEvent.click(await screen.findByRole("button", {name: "Queue"}))
 
         await screen.findByTitle("Message wasn't sent — try again.")
         expect(inputRef.current?.getMarkdown()).toBe("keep this draft")
         expect(screen.queryByText("1 queued message")).toBeNull()
+        closeFreshResponse()
+    })
+
+    /**
+     * QA-D6's only visible line, driven end to end.
+     *
+     * The model-level cases pin `readSendRefusal` and the chip's wording, but they call the
+     * reader directly. This drives the send path itself against a refusing stack, so the
+     * assertion fails if that path ever goes back to cancelling the 422 body and throwing the
+     * status number — the defect QA-D6 named, which the reader alone cannot catch.
+     */
+    it("puts the refusal's own sentence on the composer, not just a status", async () => {
+        const {closeFreshResponse, inputRef} = await setupRunningElsewhereAdmission({
+            refusal: {
+                status: 422,
+                body: JSON.stringify({
+                    session_id: "c0432835345f4ef6b1350ba5a807c5e5",
+                    status: {
+                        code: 422,
+                        message: "No model provider is configured.",
+                        type: "https://agenta.ai/docs/errors#v1:sdk:unknown-workflow-invoke-error",
+                        stacktrace: ["Traceback (most recent call last):\n"],
+                    },
+                }),
+            },
+        })
+        await act(async () => {
+            await inputRef.current?.setMarkdown("keep this draft")
+        })
+        fireEvent.click(await screen.findByRole("button", {name: "Queue"}))
+
+        await screen.findByTitle("Message wasn't sent — No model provider is configured.")
+        // The traceback beside the sentence is for an operator's log, never for this chip.
+        expect(screen.queryByText(/Traceback/)).toBeNull()
+        expect(inputRef.current?.getMarkdown()).toBe("keep this draft")
         closeFreshResponse()
     })
 })

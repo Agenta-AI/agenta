@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "entry": "cross-tool-sync",
+  "agents": {
+    "cross-tool-sync": {
+      "name": "Cross-tool sync",
+      "description": "Mirrors new Linear issues into a Notion tracker on a schedule.",
+      "instructions": "./ai.agenta/agents/cross-tool-sync/AGENTS.md",
+      "setup": "./ai.agenta/agents/cross-tool-sync/SETUP.md",
+      "connections": [
+        {
+          "key": "read-from-the-source-tool",
+          "required": true,
+          "purpose": "Read from the source tool",
+          "options": [
+            {
+              "kind": "gateway",
+              "provider": "composio",
+              "integration": "linear"
+            },
+            {
+              "kind": "gateway",
+              "provider": "composio",
+              "integration": "jira"
+            }
+          ],
+          "setup_notes": "Read issues"
+        },
+        {
+          "key": "write-to-the-destination-tool",
+          "required": true,
+          "purpose": "Write to the destination tool",
+          "options": [
+            {
+              "kind": "gateway",
+              "provider": "composio",
+              "integration": "notion"
+            },
+            {
+              "kind": "gateway",
+              "provider": "composio",
+              "integration": "confluence"
+            },
+            {
+              "kind": "gateway",
+              "provider": "composio",
+              "integration": "github"
+            }
+          ],
+          "setup_notes": "Create & update tracker pages"
+        }
+      ]
+    }
+  }
+}

@@ -70,6 +70,74 @@ def test_managed_run_renders_file_free_provider_block():
         assert "sk-" not in content
 
 
+def test_gateway_route_renders_base_url_and_env_http_headers():
+    # A gateway-routed managed connection carries base_url + env_http_headers, mapping
+    # OUR header name to the shared env var — never the raw value.
+    content, config = _config(
+        build_codex_settings_files(
+            {},
+            credential_mode="none",
+            gateway_base_url="https://gw.example.com/gateways/llms/standard/openai",
+            gateway_header="X-AG-Credentials",
+        )
+    )
+    provider = config["model_providers"][MANAGED_PROVIDER_ID]
+    assert (
+        provider["base_url"] == "https://gw.example.com/gateways/llms/standard/openai"
+    )
+    assert provider["env_http_headers"] == {
+        "X-AG-Credentials": "AGENTA_GATEWAY_CREDENTIALS_VALUE"
+    }
+    assert "ApiKey" not in content  # never the raw credential value
+
+
+def test_gateway_route_declares_the_model_codex_would_refuse_to_switch_to():
+    # OR31d. Codex checks a model CHANGE against a baked five-entry catalogue, so an Agenta
+    # model key was refused before the request left the process. Declared in config it is
+    # accepted, because codex-acp takes it verbatim as the thread's model.
+    content, config = _config(
+        build_codex_settings_files(
+            {},
+            credential_mode="none",
+            gateway_base_url="https://gw.example.com/gateways/llms/custom/acme",
+            gateway_header="X-AG-Credentials",
+            model="acme/openai/echo",
+        )
+    )
+    assert config["model"] == "acme/openai/echo"
+    # A top-level scalar, so it must precede the provider table TOML requires tables to follow.
+    assert content.index("model = ") < content.index("[model_providers.")
+
+
+def test_a_non_gateway_managed_run_still_leaves_the_model_to_the_runner():
+    # Pinning where the catalogue already knows the id would take selection from the runner
+    # for no gain, so the scalar is gateway-routed runs only.
+    _, config = _config(
+        build_codex_settings_files({}, credential_mode="env", model="gpt-5.5")
+    )
+    assert "model" not in config
+
+
+def test_a_gateway_run_with_no_resolved_model_writes_no_model_scalar():
+    _, config = _config(
+        build_codex_settings_files(
+            {},
+            credential_mode="none",
+            gateway_base_url="https://gw.example.com/gateways/llms/custom/acme",
+            gateway_header="X-AG-Credentials",
+        )
+    )
+    assert "model" not in config
+
+
+def test_non_gateway_run_omits_base_url_and_headers():
+    # Byte-identical to before when there is nothing gateway-shaped to add.
+    content, config = _config(build_codex_settings_files({}, credential_mode="env"))
+    provider = config["model_providers"][MANAGED_PROVIDER_ID]
+    assert "base_url" not in provider
+    assert "env_http_headers" not in provider
+
+
 def test_managed_run_places_model_provider_scalar_before_the_table():
     # TOML requires top-level scalars before any table. The provider pointer and any authored scalars
     # must precede the [model_providers.*] table, or tomllib would fold them into it.
@@ -150,7 +218,7 @@ def test_network_restriction_renders_nothing_when_not_expressible(network_mode):
     )
 
 
-# Regression (D-008 amendment): a tool-bearing run WITH permission rules never renders an
+# A tool-bearing run with permission rules never renders an
 # [mcp_servers.*] table. A transport-less server entry crashes codex at session/new; the
 # runner-side gate is the tool-permission authority.
 def test_permission_rules_render_no_mcp_servers_tables():

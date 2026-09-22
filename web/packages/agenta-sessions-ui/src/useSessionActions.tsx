@@ -7,7 +7,7 @@ import {
     unarchiveSessionRemote,
 } from "@agenta/entities/session"
 import {shareUrl} from "@agenta/sessions/link"
-import {pinnedSessionIdsAtom, toggleSessionPinAtom} from "@agenta/sessions/state"
+import {pinnedSessionIdsAtom, toggleSessionPinAtom, unpinSessionAtom} from "@agenta/sessions/state"
 import {projectIdAtom} from "@agenta/shared/state"
 import {message, modal} from "@agenta/ui/app-message"
 import {copyToClipboard} from "@agenta/ui/utils"
@@ -68,6 +68,12 @@ export interface UseSessionActionsOptions {
      * Keeping that answer pure means it never reads `window` outside the click.
      */
     sharePathFor?: (target: SessionActionTarget) => string
+    /**
+     * Runs after a session is archived or deleted, before the lists revalidate. A surface whose
+     * sessions are routes leaves the one it is on here — the server side is done, and the next
+     * list read will no longer carry the row.
+     */
+    onRemoved?: (target: SessionActionTarget) => void | Promise<unknown>
 }
 
 /**
@@ -77,11 +83,16 @@ export interface UseSessionActionsOptions {
  * mobile lists — and they must not drift into offering different verbs, or the same verb with
  * different effects.
  */
-export const useSessionActions = ({localCache, sharePathFor}: UseSessionActionsOptions = {}) => {
+export const useSessionActions = ({
+    localCache,
+    sharePathFor,
+    onRemoved,
+}: UseSessionActionsOptions = {}) => {
     const queryClient = useQueryClient()
     const projectId = useAtomValue(projectIdAtom) ?? ""
     const pinnedIds = useAtomValue(pinnedSessionIdsAtom)
     const togglePin = useSetAtom(toggleSessionPinAtom)
+    const unpin = useSetAtom(unpinSessionAtom)
 
     const revalidate = useCallback(() => {
         void queryClient.invalidateQueries({queryKey: ["sessions-page"]})
@@ -151,9 +162,15 @@ export const useSessionActions = ({localCache, sharePathFor}: UseSessionActionsO
                     return
                 }
             }
+            // Archiving drops the pin: a pinned row leads every list, which is the opposite of
+            // what archiving asks for, and the menu will not pin it back until it is unarchived.
+            if (!target.archived) {
+                unpin(target.sessionId)
+                await onRemoved?.(target)
+            }
             revalidate()
         },
-        [isCached, localCache, projectId, revalidate],
+        [isCached, localCache, onRemoved, projectId, revalidate, unpin],
     )
 
     const remove = useCallback(
@@ -182,11 +199,13 @@ export const useSessionActions = ({localCache, sharePathFor}: UseSessionActionsO
                             return
                         }
                     }
+                    unpin(target.sessionId)
+                    await onRemoved?.(target)
                     revalidate()
                 },
             })
         },
-        [isCached, localCache, projectId, revalidate],
+        [isCached, localCache, onRemoved, projectId, revalidate, unpin],
     )
 
     const copyShareLink = useCallback(

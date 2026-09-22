@@ -1,0 +1,16 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "outbound-prospecting",
+  "version": "1.0.0",
+  "description": "Research prospective customers and prepare reviewed outreach drafts.",
+  "author": {
+    "name": "Agenta"
+  },
+  "license": "Apache-2.0",
+  "keywords": ["sales", "research", "outreach"],
+  "extensions": {
+    "ai.agenta": {
+      "manifest": "./ai.agenta/agents.json"
+    }
+  }
+}

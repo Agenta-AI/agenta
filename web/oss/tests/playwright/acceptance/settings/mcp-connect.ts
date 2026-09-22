@@ -1,0 +1,519 @@
+/**
+ * The MCP connect journey, end to end in a browser.
+ *
+ * The suite this replaces drove a flow that no longer exists: it registered a server through
+ * a modal asking for a slug and an authentication mode, then connected it from a row menu.
+ * Both steps are gone, so every selector it held is gone with them.
+ *
+ * Selectors here are accessible names and visible text rather than test ids wherever the UI
+ * has one. That is deliberate: `getByRole("button", {name: "Connect MCP"})` fails when the
+ * label regresses and a test id does not, and the label is the part a person actually reads.
+ * Structure-only elements are located by their text within a row.
+ *
+ * The environment facts this suite depends on, and the steps it shares with the agent
+ * configuration suite, live in ../utils/mcpConnections.
+ */
+import {
+    TestCostType,
+    TestCoverage,
+    TestLensType,
+    TestLicenseType,
+    TestPath,
+    TestRoleType,
+    TestScope,
+    TestSpeedType,
+    TestcaseType,
+} from "@agenta/web-tests/playwright/config/testTags"
+import {test} from "@agenta/web-tests/tests/fixtures/base.fixture"
+import {expect} from "@agenta/web-tests/utils"
+import type {Page} from "@playwright/test"
+
+import {expectAuthenticatedSession} from "../utils/auth"
+import {
+    apiBaseUrl,
+    captureConsentMessages,
+    consentMessages,
+    createMcpConnectionViaApi,
+    ensureMockMcpUpstream,
+    fillJourneyUrlAndName,
+    finishJourney,
+    journeyDialog,
+    mcpKeyPath,
+    mcpOauthPath,
+    mockMcpBase,
+    mockNeedsHostMapping,
+    navigate,
+    projectIdFrom,
+    PROBE_MS,
+    ROUTE_WARMUP_MS,
+    uniqueName,
+} from "../utils/mcpConnections"
+import {createScenarios} from "../utils/scenarios"
+import {buildAcceptanceTags} from "../utils/tags"
+
+const scenarios = createScenarios(test)
+
+const createTags = (license: TestLicenseType) =>
+    buildAcceptanceTags({
+        scope: [TestScope.SETTINGS],
+        coverage: [TestCoverage.FULL],
+        path: TestPath.HAPPY,
+        lens: TestLensType.FUNCTIONAL,
+        cost: TestCostType.Free,
+        license,
+        role: TestRoleType.Owner,
+        caseType: TestcaseType.TYPICAL,
+        speed: TestSpeedType.SLOW,
+    })
+
+/** Whether this worker has already paid for the settings route to compile. */
+let settingsWarmed = false
+
+const openSettings = async (page: Page, basePath: string) => {
+    await navigate(page, `${basePath}/settings?tab=mcpEndpoints`)
+    // The tab falls back when the deployment serves no MCP gateway, so assert we are on it
+    // rather than discovering it three steps later.
+    //
+    // The first visit in a worker also pays for a development server to compile the route,
+    // which is why it gets its own budget rather than borrowing the one meant for a round
+    // trip to an MCP server.
+    await expect(page.getByRole("button", {name: "Connect MCP"}).first()).toBeVisible({
+        timeout: settingsWarmed ? 30000 : ROUTE_WARMUP_MS,
+    })
+    settingsWarmed = true
+}
+
+const connectionRow = (page: Page, name: string) =>
+    page.locator("tr").filter({hasText: name}).first()
+
+/** Open the journey from the settings header and drive it to the name step. */
+const startJourney = async (page: Page, url: string, name: string) => {
+    await page.getByRole("button", {name: "Connect MCP"}).first().click()
+    return fillJourneyUrlAndName(page, url, name)
+}
+
+export const mcpConnectAcceptanceTests = (license: TestLicenseType) => () => {
+    const tags = createTags(license)
+
+    test.beforeEach(async ({page}) => {
+        // One reachability check, cached across the suite, so a stack without the mock upstream
+        // skips these cases with a sentence naming what to start rather than failing. The hosted
+        // preview is the only web-acceptance environment and never runs the gateway mocks, so a
+        // hard failure there was red on every unrelated pull request; a compose or local stack
+        // that does run them still executes the whole journey.
+        const {reachable, reason} = await ensureMockMcpUpstream()
+        test.skip(!reachable, reason)
+
+        // Every case here waits on the API dialing a third party, and the OAuth one waits on
+        // discovery and a consent page besides. The suite-wide minute is meant for a page of
+        // clicks and is the wrong budget for that: it was cutting the OAuth case off mid-probe.
+        test.setTimeout(180_000)
+        await expectAuthenticatedSession(page)
+    })
+
+    test(
+        "connects a server that needs no authentication",
+        {tag: tags},
+        async ({page, apiHelpers}) => {
+            const name = uniqueName("Open MCP")
+            const basePath = apiHelpers.getProjectScopedBasePath()
+
+            await scenarios.given("the user is on MCP settings", async () => {
+                await openSettings(page, basePath)
+            })
+
+            await scenarios.when("the user connects a server by URL", async () => {
+                const dialog = await startJourney(page, `${mockMcpBase()}/`, name)
+                // The probe reached the server and read what it needs, so the journey says
+                // so before asking for anything else.
+                await expect(dialog.getByText("Reachable · no sign-in needed")).toBeVisible()
+                await dialog.getByRole("button", {name: "Connect", exact: true}).click()
+                await finishJourney(
+                    page,
+                    connectionRow(page, name).getByText("Connected", {exact: true}),
+                )
+            })
+
+            await scenarios.then("the connection is listed as ready", async () => {
+                const row = connectionRow(page, name)
+                await expect(row).toBeVisible({timeout: 30000})
+                await expect(row.getByText("Connected", {exact: true})).toBeVisible({
+                    timeout: 30000,
+                })
+            })
+        },
+    )
+
+    test(
+        "suggests the name the server gives for itself",
+        {tag: tags},
+        async ({page, apiHelpers}) => {
+            await scenarios.given("the user is on MCP settings", async () => {
+                await openSettings(page, apiHelpers.getProjectScopedBasePath())
+            })
+
+            await scenarios.then(
+                "the name step is pre-filled from the server's own metadata",
+                async () => {
+                    await page.getByRole("button", {name: "Connect MCP"}).first().click()
+                    const dialog = journeyDialog(page)
+                    await dialog.getByLabel("Server URL").fill(`${mockMcpBase()}/`)
+                    await dialog.getByRole("button", {name: "Continue"}).click()
+
+                    const nameField = dialog.getByLabel("Name", {exact: true})
+                    await expect(nameField).toBeVisible({timeout: 30000})
+                    // serverInfo.name from the handshake, not the hostname fallback.
+                    await expect(nameField).toHaveValue("agenta-mock-mcp")
+                },
+            )
+        },
+    )
+
+    test(
+        "refuses a display name the project already uses",
+        {tag: tags},
+        async ({page, apiHelpers}) => {
+            const name = uniqueName("Duplicate MCP")
+            const basePath = apiHelpers.getProjectScopedBasePath()
+
+            await scenarios.given("the page is open before the name is taken", async () => {
+                await openSettings(page, basePath)
+            })
+
+            await scenarios.and("another connection to another server takes it", async () => {
+                // Out of band on purpose: a page that already knows about the collision
+                // refuses the name from its own list and never asks the server.
+                //
+                // At a DIFFERENT address on purpose too. A refusing row whose address also
+                // matches is taken to be this journey's own lost save and continued from
+                // (decision 44), which is the next case. Two connections to two servers
+                // cannot share one label, and that is the refusal this one is about.
+                await createMcpConnectionViaApi(
+                    page,
+                    basePath,
+                    name,
+                    `${mockMcpBase()}${mcpKeyPath}`,
+                )
+            })
+
+            await scenarios.when("the user submits that name", async () => {
+                const dialog = await startJourney(page, `${mockMcpBase()}/`, name)
+
+                // The SERVER's refusal is what this case exists to exercise, and both checks
+                // now say the same sentence (decision 15), so the copy alone cannot tell
+                // whether the request was ever made. The response is what can: the create
+                // has to reach the API and come back 409 for the sentence below to be the
+                // server's (D51).
+                const refused = page.waitForResponse(
+                    (response) =>
+                        response.request().method() === "POST" &&
+                        new URL(response.url()).pathname.endsWith("/gateways/mcps/endpoints/") &&
+                        response.status() === 409,
+                    {timeout: PROBE_MS},
+                )
+                await dialog.getByRole("button", {name: "Connect", exact: true}).click()
+                await refused
+
+                const refusal = dialog.getByText(
+                    "Give this connection a name no other one in the project uses.",
+                )
+                await expect(refusal).toBeVisible({timeout: PROBE_MS})
+                // Said once rather than twice: the field error and a generic paragraph both
+                // rendering it is what D39 was about.
+                await expect(dialog.getByText("already uses this name")).toHaveCount(1)
+            })
+
+            await scenarios.then("the journey stays on the name step", async () => {
+                const dialog = journeyDialog(page)
+                await expect(dialog.getByLabel("Name", {exact: true})).toBeVisible()
+                await expect(dialog.getByLabel("Name", {exact: true})).toHaveValue(name)
+                await dialog.getByRole("button", {name: "Cancel"}).click()
+            })
+        },
+    )
+
+    test(
+        "refuses a taken name even where the address is the same",
+        {tag: tags},
+        async ({page, apiHelpers}) => {
+            const name = uniqueName("Same Address MCP")
+            const basePath = apiHelpers.getProjectScopedBasePath()
+            let existingSlug = ""
+
+            await scenarios.given("the page is open before the connection exists", async () => {
+                await openSettings(page, basePath)
+            })
+
+            await scenarios.and("that name and that address are already a connection", async () => {
+                // Out of band, so the page refuses nothing from its own list and the server
+                // is the one that answers.
+                const endpoint = await createMcpConnectionViaApi(page, basePath, name)
+                existingSlug = endpoint.slug
+            })
+
+            await scenarios.when("the user connects that server under that name", async () => {
+                const dialog = await startJourney(page, `${mockMcpBase()}/`, name)
+
+                // The journey does continue from a row a refusal turns out to be, but only
+                // where its own create could have made it: a create whose answer was lost
+                // fails on the transport, not with a conflict (decision 44, revised). This
+                // journey's first create met the conflict, so there is nothing of its own
+                // behind it and the row is somebody else's, address or no address.
+                const refused = page.waitForResponse(
+                    (response) =>
+                        response.request().method() === "POST" &&
+                        new URL(response.url()).pathname.endsWith("/gateways/mcps/endpoints/") &&
+                        response.status() === 409,
+                    {timeout: PROBE_MS},
+                )
+                await dialog.getByRole("button", {name: "Connect", exact: true}).click()
+                await refused
+
+                await expect(
+                    dialog.getByText(
+                        "Give this connection a name no other one in the project uses.",
+                    ),
+                ).toBeVisible({timeout: PROBE_MS})
+            })
+
+            await scenarios.then("nothing was taken over and nothing was made", async () => {
+                const response = await page.request.post(
+                    `${apiBaseUrl()}/gateways/mcps/endpoints/query?project_id=${projectIdFrom(basePath)}`,
+                    {data: {}},
+                )
+                expect(response.ok(), await response.text()).toBe(true)
+                const body = (await response.json()) as {
+                    endpoints: {name?: string; slug?: string}[]
+                }
+                const matching = body.endpoints.filter((row) => row.name === name)
+                // Still the one row somebody else made, untouched. A journey that had adopted
+                // it would have authorized against a connection this person never chose.
+                expect(matching).toHaveLength(1)
+                expect(matching[0].slug).toBe(existingSlug)
+
+                await journeyDialog(page).getByRole("button", {name: "Cancel"}).click()
+            })
+        },
+    )
+
+    test("keeps two connections to one server apart", {tag: tags}, async ({page, apiHelpers}) => {
+        const first = uniqueName("Acme A")
+        const second = uniqueName("Acme B")
+        const basePath = apiHelpers.getProjectScopedBasePath()
+
+        await scenarios.given("the user is on MCP settings", async () => {
+            await openSettings(page, basePath)
+        })
+
+        await scenarios.when("the user connects the same URL twice", async () => {
+            for (const name of [first, second]) {
+                const dialog = await startJourney(page, `${mockMcpBase()}/`, name)
+                await dialog.getByRole("button", {name: "Connect", exact: true}).click()
+                await finishJourney(page, connectionRow(page, name))
+            }
+        })
+
+        await scenarios.then("both are listed, each with its own name", async () => {
+            // A URL is an address, not an account. Two connections to one server are two
+            // connections, and the list has to let a person tell them apart.
+            await expect(connectionRow(page, first)).toBeVisible()
+            await expect(connectionRow(page, second)).toBeVisible()
+        })
+    })
+
+    test("removes a connection, identity and all", {tag: tags}, async ({page, apiHelpers}) => {
+        const name = uniqueName("Remove MCP")
+        const basePath = apiHelpers.getProjectScopedBasePath()
+
+        await scenarios.given("a connected server", async () => {
+            await openSettings(page, basePath)
+            const dialog = await startJourney(page, `${mockMcpBase()}/`, name)
+            await dialog.getByRole("button", {name: "Connect", exact: true}).click()
+            await finishJourney(
+                page,
+                connectionRow(page, name).getByText("Connected", {exact: true}),
+            )
+            await expect(
+                connectionRow(page, name).getByText("Connected", {exact: true}),
+            ).toBeVisible({
+                timeout: 30000,
+            })
+        })
+
+        await scenarios.when("the user removes it", async () => {
+            const row = connectionRow(page, name)
+            await row.getByRole("button").last().click()
+            await page.getByRole("menuitem", {name: "Remove"}).click()
+            // Removing takes the identity with it, which is why it confirms.
+            await page
+                .getByRole("button", {name: /Yes|Remove|Confirm/})
+                .last()
+                .click()
+        })
+
+        await scenarios.then("the connection is gone from the list", async () => {
+            await expect(connectionRow(page, name)).toHaveCount(0, {timeout: 30000})
+        })
+
+        await scenarios.and("a server needing no authentication offers no Disconnect", async () => {
+            // It holds no grant, and the route refuses a non-OAuth endpoint, so offering the
+            // action would produce a 400 on a row that reads as connected.
+            const other = uniqueName("No auth MCP")
+            const dialog = await startJourney(page, `${mockMcpBase()}/`, other)
+            await dialog.getByRole("button", {name: "Connect", exact: true}).click()
+            const row = connectionRow(page, other)
+            await finishJourney(page, row.getByText("Connected", {exact: true}))
+            await row.getByRole("button").last().click()
+            await expect(page.getByRole("menuitem", {name: "Disconnect"})).toHaveCount(0)
+            await page.keyboard.press("Escape")
+        })
+    })
+
+    test("opens a connection to see its tools", {tag: tags}, async ({page, apiHelpers}) => {
+        const name = uniqueName("Tools MCP")
+        const basePath = apiHelpers.getProjectScopedBasePath()
+
+        await scenarios.given("a connected server", async () => {
+            await openSettings(page, basePath)
+            const dialog = await startJourney(page, `${mockMcpBase()}/`, name)
+            await dialog.getByRole("button", {name: "Connect", exact: true}).click()
+            await finishJourney(
+                page,
+                connectionRow(page, name).getByText("Connected", {exact: true}),
+            )
+            await expect(
+                connectionRow(page, name).getByText("Connected", {exact: true}),
+            ).toBeVisible({
+                timeout: 30000,
+            })
+        })
+
+        await scenarios.when("the user opens it", async () => {
+            await connectionRow(page, name).click()
+        })
+
+        await scenarios.then("its tools are listed, read-only", async () => {
+            const detail = page.getByTestId("mcp-connection-detail")
+            await expect(detail.getByText("Tools", {exact: true})).toBeVisible({timeout: 30000})
+            // The mock advertises `echo`; permissions are the agent's business, so this view
+            // says what exists and points at the agent configuration.
+            // A tool name the server advertised, not a sentence this page would render
+            // whatever the server said (D39). The mock advertises echo, fail and slow.
+            await expect(detail.getByText("echo", {exact: true})).toBeVisible({timeout: PROBE_MS})
+            await expect(detail.getByText("fail", {exact: true})).toBeVisible()
+        })
+    })
+
+    test("authorizes a server that uses OAuth", {tag: tags}, async ({page, apiHelpers}) => {
+        // Not a skip: the consent page is the half of this flow only a browser can prove, and
+        // a run that quietly drops it is the failure mode D25 is about.
+        //
+        // The mapping is asked for only when the mock is reachable by a compose name alone. A
+        // stack that publishes it on a public address needs nothing, and demanding the mapping
+        // there refused a run that was going to work (D53).
+        if (mockNeedsHostMapping() && !process.env.PLAYWRIGHT_HOST_RESOLVER_RULES) {
+            throw new Error(
+                "The authorization server publishes itself under the address the API dials, so " +
+                    "the browser has to resolve that name too. Either publish the mock on an " +
+                    "address a browser can reach, or re-run with " +
+                    `PLAYWRIGHT_HOST_RESOLVER_RULES="MAP ${new URL(mockMcpBase()).hostname} 127.0.0.1".`,
+            )
+        }
+        const name = uniqueName("OAuth MCP")
+        const basePath = apiHelpers.getProjectScopedBasePath()
+
+        await scenarios.given("the user is on MCP settings", async () => {
+            await openSettings(page, basePath)
+        })
+
+        // Opened by the Connect press below and awaited two steps later, which is the point
+        // of this case: the window is opened inside the tap, before the row exists and
+        // before the authorization URL has been minted, because a browser refuses one
+        // opened after a promise has resolved.
+        let popupPromise: Promise<Page>
+
+        await scenarios.when("the user connects the protected surface", async () => {
+            // Armed before anything opens a window. The completion the provider's window
+            // posts back is the one durable trace of the round trip: it lands here and stays
+            // here, where the page it was posted from closes itself seconds later.
+            await captureConsentMessages(page)
+            const dialog = await startJourney(page, `${mockMcpBase()}${mcpOauthPath}`, name)
+            // The check read the challenge, so the sheet knows it is OAuth before the person
+            // commits to anything.
+            await expect(dialog.getByText("Reachable · signs in with OAuth")).toBeVisible()
+            popupPromise = page.waitForEvent("popup")
+            await dialog.getByRole("button", {name: "Connect", exact: true}).click()
+        })
+
+        await scenarios.and("the provider's window completes the sign-in", async () => {
+            // Nobody is asked which scopes to grant: everything the server offered is asked
+            // for, because which of them to grant is the server's business. Pinned by the
+            // wait the sheet goes to instead, because the checklist's headline was retired
+            // with it and counting a string that exists nowhere passes either way.
+            await expect(journeyDialog(page).getByText(`Waiting for ${name}…`)).toBeVisible({
+                timeout: 30000,
+            })
+
+            // The window opened inside the tap is the half of this flow only a browser can
+            // prove, so it is awaited. What it SAYS is not read: the callback page reports
+            // the connection and then closes itself on a three-second timer, while the mock
+            // round trip takes about one, so the sentence is usually gone before a query
+            // reaches it and the case died on a race it was never about (round 6).
+            const popup = await popupPromise
+
+            // What the round trip left behind instead, asserted rather than waited out: the
+            // completion arrived, it came from the API's own origin, which is the only one
+            // the journey trusts, and it reported success.
+            await expect
+                .poll(async () => (await consentMessages(page)).length, {timeout: 60000})
+                .toBeGreaterThan(0)
+            const completions = await consentMessages(page)
+            expect(completions.at(-1)).toMatchObject({
+                origin: new URL(apiBaseUrl()).origin,
+                type: "mcp:oauth:connected",
+                success: true,
+            })
+
+            // And the window that carried it is gone, which is the callback page's own doing.
+            await expect.poll(() => popup.isClosed(), {timeout: 60000}).toBe(true)
+
+            // The outcome is the opener's: the sheet closed on it and the row says so.
+            await finishJourney(
+                page,
+                connectionRow(page, name).getByText("Connected", {exact: true}),
+            )
+        })
+
+        await scenarios.then("the connection is listed as ready", async () => {
+            await expect(
+                connectionRow(page, name).getByText("Connected", {exact: true}),
+            ).toBeVisible({
+                timeout: 30000,
+            })
+        })
+
+        await scenarios.when("the user disconnects it", async () => {
+            const row = connectionRow(page, name)
+            await row.getByRole("button").last().click()
+            await page.getByRole("menuitem", {name: "Disconnect"}).click()
+            await page
+                .getByRole("button", {name: /Yes|Disconnect|Confirm/})
+                .last()
+                .click()
+        })
+
+        await scenarios.then("the connection survives, asking to be authorized again", async () => {
+            // Disconnecting takes the credential and leaves the connection, so one
+            // Connect brings it back rather than making a new one.
+            //
+            // "Login expired", not the record's own "Needs authorization": a list says whether
+            // a connection works, and a revoked grant and a refused key are the same sentence
+            // to whoever is scanning the table.
+            const row = connectionRow(page, name)
+            await expect(row).toBeVisible()
+            await expect(row.getByText("Login expired")).toBeVisible({
+                timeout: 30000,
+            })
+        })
+    })
+}

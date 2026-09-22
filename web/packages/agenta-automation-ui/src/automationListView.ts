@@ -1,3 +1,5 @@
+import type {ListTableView} from "@agenta/ui/list-table"
+
 import {
     AUTOMATION_STATUS_LABEL,
     automationStatus,
@@ -28,6 +30,8 @@ export interface AutomationListView {
     agent: string
     sort: AutomationSort
     group: AutomationGrouping
+    /** Rows or cards. A display preference, like `group`, never a filter. */
+    mode: ListTableView
 }
 
 export const DEFAULT_AUTOMATION_LIST_VIEW: AutomationListView = {
@@ -36,6 +40,7 @@ export const DEFAULT_AUTOMATION_LIST_VIEW: AutomationListView = {
     agent: "all",
     sort: "updated",
     group: "none",
+    mode: "list",
 }
 
 export interface AutomationGroup {
@@ -54,11 +59,12 @@ export const AUTOMATION_TYPE_LABEL: Record<"schedule" | "event", string> = {
  * How many of the view's five controls are off their default.
  *
  * Sort counts alongside the filters even though it hides nothing: what this answers is whether
- * the table is showing what it shows by default, and a re-sorted table is not.
+ * the table is showing what it shows by default, and a re-sorted table is not. The mode does
+ * not count: cards over the same rows are still the rows the table shows by default.
  */
 const automationListViewChanges = (view: AutomationListView): number =>
     (Object.keys(DEFAULT_AUTOMATION_LIST_VIEW) as (keyof AutomationListView)[]).filter(
-        (key) => view[key] !== DEFAULT_AUTOMATION_LIST_VIEW[key],
+        (key) => key !== "mode" && view[key] !== DEFAULT_AUTOMATION_LIST_VIEW[key],
     ).length
 
 export const isDefaultAutomationListView = (view: AutomationListView): boolean =>

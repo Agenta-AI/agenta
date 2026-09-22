@@ -45,6 +45,11 @@ export {AutomationLastRunCell} from "./AutomationLastRunCell"
 export {AutomationFailureBanner} from "./AutomationFailureBanner"
 export {AutomationRunHistoryCard} from "./AutomationRunHistoryCard"
 export {AutomationRunHistoryView} from "./AutomationRunHistoryView"
+export {AutomationRunHistoryDrawer} from "./AutomationRunHistoryDrawer"
+export {
+    automationRunHistoryDrawerAtom,
+    type AutomationRunHistoryDrawerState,
+} from "./runHistoryDrawerAtom"
 export {AutomationTriggerDrawers} from "./AutomationTriggerDrawers"
 
 // Run history.

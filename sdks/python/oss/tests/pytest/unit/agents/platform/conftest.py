@@ -28,6 +28,11 @@ def _clean_env(monkeypatch):
     """No ambient config leaks in, so an unset connection truly resolves to ``None``."""
     for name in _ENV_VARS:
         monkeypatch.delenv(name, raising=False)
+    # The SDK tracing endpoint is another base-URL source, so unit tests clear it too.
+    import agenta as ag
+
+    if ag.tracing is not None:
+        monkeypatch.setattr(ag.tracing, "otlp_url", None)
     monkeypatch.setattr(
         "agenta.sdk.engines.tracing.propagation.inject",
         lambda carrier: carrier,
@@ -50,6 +55,13 @@ class _FakeResponse:
         return self._payload
 
 
+# The credential the backend issues for the sandbox, in place of the caller's own. It is
+# answered here for every adapter test so that `capture` keeps recording the request under
+# test rather than the exchange that precedes it.
+GATEWAY_CREDENTIALS_PATH = "/gateways/credentials"
+GATEWAY_CREDENTIALS_VALUE = "Secret synthetic-gateway-audience-token"
+
+
 def _fake_async_client(*, response, raises, capture: Dict[str, Any]):
     class _Client:
         def __init__(self, *args, **kwargs) -> None:
@@ -62,6 +74,13 @@ def _fake_async_client(*, response, raises, capture: Dict[str, Any]):
             return False
 
         async def post(self, url, json=None, headers=None):
+            if url.endswith(GATEWAY_CREDENTIALS_PATH):
+                capture.setdefault("gateway_credentials_requests", []).append(
+                    {"url": url, "headers": headers}
+                )
+                return _FakeResponse(
+                    200, {"credentials": GATEWAY_CREDENTIALS_VALUE}, None
+                )
             capture.update(method="POST", url=url, json=json, headers=headers)
             if raises:
                 raise raises

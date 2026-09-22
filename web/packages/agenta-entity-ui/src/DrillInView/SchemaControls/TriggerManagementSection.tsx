@@ -6,8 +6,8 @@
  * the user add/manage them through the existing propless, atom-driven trigger drawers
  * (`@agenta/entity-ui/gatewayTrigger`). It reuses the same hooks and "⋯" menu the
  * workspace settings sections use; nothing about trigger CRUD is rebuilt here. In the
- * playground, running/paused is irrelevant, so rows expose a "Run in playground" test
- * action (status shown as a passive dot); pause/resume stays in the schedule drawer.
+ * playground, running/paused is irrelevant, so rows expose a "Run now" action (status
+ * shown as a passive dot); pause/resume stays in the schedule drawer.
  *
  * Two pieces of real work live here:
  *  1. Scoping — the list hooks return every project trigger, so we filter to the agent
@@ -34,8 +34,7 @@ import {message} from "@agenta/ui"
 import {DropdownMenuItem, DropdownMenuSeparator} from "@agenta/ui/ui"
 import {
     ArrowsClockwise,
-    Flask,
-    ListChecks,
+    ClockCounterClockwise,
     Pause,
     PencilSimpleLine,
     Play,
@@ -54,11 +53,22 @@ import {useAgentTriggers} from "./triggerManagement/useAgentTriggers"
 export {AddTriggerDropdown} from "./triggerManagement/AddTriggerDropdown"
 export {useAgentTriggers} from "./triggerManagement/useAgentTriggers"
 
+/** Which automation a row action names — the same pair the deliveries drawer is keyed by. */
+export interface TriggerOwnerRef {
+    kind: "subscription" | "schedule"
+    id: string
+}
+
 export interface TriggerManagementSectionProps {
     /** The open agent's revision id (the drill-in entityId). */
     entityId: string | null
     /** Read-only mode (e.g. a non-editable revision). */
     disabled?: boolean
+    /**
+     * Where a row's "Run history" goes. A surface with an automation detail page (mobile) sends
+     * the reader there; absent, the history opens in the deliveries drawer over this panel.
+     */
+    onOpenRunHistory?: (owner: TriggerOwnerRef) => void
     /**
      * The unified create/edit automation drawer, mounted once by this section. This package
      * cannot import it directly (that package depends on this one), so the host passes it in.
@@ -69,6 +79,7 @@ export interface TriggerManagementSectionProps {
 export function TriggerManagementSection({
     entityId,
     disabled,
+    onOpenRunHistory,
     automationDrawer,
 }: TriggerManagementSectionProps) {
     const {scopedSubscriptions, scopedSchedules, defaultReferences, defaultBoundLabel} =
@@ -85,6 +96,22 @@ export function TriggerManagementSection({
     const openScheduleDrawer = useSetAtom(triggerScheduleDrawerAtom)
     const openDeliveries = useSetAtom(triggerDeliveriesDrawerAtom)
     const setPendingRun = useSetAtom(simulatedAgentRunAtomFamily(entityId ?? ""))
+
+    const openRunHistory = useCallback(
+        (owner: TriggerOwnerRef, name?: string | null) => {
+            if (onOpenRunHistory) {
+                onOpenRunHistory(owner)
+                return
+            }
+            openDeliveries({
+                mode: "owner-history",
+                owner,
+                name: name ?? undefined,
+                playgroundEntityId: entityId ?? undefined,
+            })
+        },
+        [onOpenRunHistory, openDeliveries, entityId],
+    )
 
     // A schedule (cron) has no external event to replay — simulate it with its own
     // configured inputs, exactly like the schedule drawer's "Run in playground".
@@ -105,7 +132,7 @@ export function TriggerManagementSection({
                       2,
                   )}\n\`\`\``
             setPendingRun({text, nonce: Date.now(), newSession: true})
-            message.success("Running in playground")
+            message.success("Starting run")
         },
         [entityId, setPendingRun],
     )
@@ -120,16 +147,11 @@ export function TriggerManagementSection({
                 <DropdownMenuItem
                     onSelect={() => {
                         if (record.id)
-                            openDeliveries({
-                                mode: "owner-history",
-                                owner: {kind: "subscription", id: record.id},
-                                name: record.name ?? undefined,
-                                playgroundEntityId: entityId ?? undefined,
-                            })
+                            openRunHistory({kind: "subscription", id: record.id}, record.name)
                     }}
                 >
-                    <ListChecks size={16} />
-                    View deliveries
+                    <ClockCounterClockwise size={16} />
+                    Run history
                 </DropdownMenuItem>
                 <DropdownMenuItem
                     disabled={disabled}
@@ -195,7 +217,7 @@ export function TriggerManagementSection({
         ),
         [
             entityId,
-            openDeliveries,
+            openRunHistory,
             openSubscriptionDrawer,
             refreshSubscription,
             revokeSubscription,
@@ -225,23 +247,18 @@ export function TriggerManagementSection({
                     disabled={disabled || !record.id}
                     onSelect={() => simulateSchedule(record)}
                 >
-                    <Flask size={16} />
-                    Run in playground
+                    <Play size={16} />
+                    Run now
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
                     onSelect={() => {
                         if (record.id)
-                            openDeliveries({
-                                mode: "owner-history",
-                                owner: {kind: "schedule", id: record.id},
-                                name: record.name ?? undefined,
-                                playgroundEntityId: entityId ?? undefined,
-                            })
+                            openRunHistory({kind: "schedule", id: record.id}, record.name)
                     }}
                 >
-                    <ListChecks size={16} />
-                    View deliveries
+                    <ClockCounterClockwise size={16} />
+                    Run history
                 </DropdownMenuItem>
                 <DropdownMenuItem
                     disabled={disabled}
@@ -262,7 +279,7 @@ export function TriggerManagementSection({
                         onSelect={() => toggleSchedule(record, false)}
                     >
                         <Pause size={16} />
-                        Pause
+                        Deactivate
                     </DropdownMenuItem>
                 ) : (
                     <DropdownMenuItem
@@ -270,7 +287,7 @@ export function TriggerManagementSection({
                         onSelect={() => toggleSchedule(record, true)}
                     >
                         <Play size={16} />
-                        Resume
+                        Activate
                     </DropdownMenuItem>
                 )}
                 <DropdownMenuSeparator />
@@ -293,7 +310,7 @@ export function TriggerManagementSection({
             </>
         ),
         [
-            openDeliveries,
+            openRunHistory,
             openScheduleDrawer,
             removeSchedule,
             simulateSchedule,

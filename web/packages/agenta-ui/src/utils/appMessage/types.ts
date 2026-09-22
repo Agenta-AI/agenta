@@ -30,6 +30,8 @@ export interface ArgsProps {
     style?: React.CSSProperties
     className?: string
     onClick?: (e: React.MouseEvent<HTMLDivElement>) => void
+    /** Agenta extension (not antd): an outline button on the toast's right. */
+    action?: {label: React.ReactNode; onClick: () => void}
     /** Accepted for antd source compatibility; not implemented (see AppMessage notes). */
     classNames?: Record<string, string | undefined>
     /** Accepted for antd source compatibility; not implemented. */
@@ -194,6 +196,8 @@ export interface ModalFuncProps {
     style?: React.CSSProperties
     wrapClassName?: string
     type?: "info" | "success" | "error" | "warn" | "warning" | "confirm"
+    /** antd `getContainer`: confine the modal (mask included) to a positioned element. */
+    getContainer?: () => HTMLElement | null
     /** `false` disables Escape-to-dismiss. */
     keyboard?: boolean
     closable?: boolean
@@ -209,8 +213,6 @@ export interface ModalFuncProps {
     transitionName?: string
     /** Accepted for antd source compatibility; not implemented. */
     maskTransitionName?: string
-    /** Accepted for antd source compatibility; not implemented. */
-    getContainer?: unknown
     /** Accepted for antd source compatibility; not implemented. */
     footer?: React.ReactNode
     /** Accepted for antd source compatibility; not implemented. */

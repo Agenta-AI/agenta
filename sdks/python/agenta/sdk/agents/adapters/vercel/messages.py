@@ -64,11 +64,19 @@ def _ui_message_to_message(raw: Any) -> Optional[Message]:
     for part in parts or []:
         blocks.extend(_part_to_blocks(part))
 
+    metadata = raw.get("metadata")
+    display = (
+        {"display_content": metadata["display_content"]}
+        if isinstance(metadata, dict) and "display_content" in metadata
+        else {}
+    )
     if not blocks:
-        return Message(role=role, content="")
+        return Message(role=role, content="", **display)
     if all(block.type == "text" for block in blocks):
-        return Message(role=role, content="".join(block.text or "" for block in blocks))
-    return Message(role=role, content=blocks)
+        return Message(
+            role=role, content="".join(block.text or "" for block in blocks), **display
+        )
+    return Message(role=role, content=blocks, **display)
 
 
 def _part_to_blocks(part: Any) -> List[ContentBlock]:
@@ -297,6 +305,11 @@ def message_to_vercel_ui_message(
             "id": message_id,
             "role": source.role,
             "parts": _content_to_parts(source.content),
+            **(
+                {"metadata": {"display_content": source.display_content}}
+                if "display_content" in source.model_fields_set
+                else {}
+            ),
         }
     raise TypeError(
         "message_to_vercel_ui_message expects an AgentResult or Message, "

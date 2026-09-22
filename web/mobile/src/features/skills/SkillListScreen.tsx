@@ -1,6 +1,7 @@
-import {useCallback, useMemo, useState} from "react"
+import {useCallback, useEffect, useMemo, useState} from "react"
 
 import {
+    invalidateSkillsListCache,
     skillsListDataAtom,
     skillsListQueryAtom,
     skillsSearchAtom,
@@ -11,29 +12,50 @@ import {
     NewSkillMenuButton,
     SkillCreateDrawer,
     SkillDetailDrawer,
-    SkillGallerySections,
     SkillImportDrawer,
+    useSkillCreateEntry,
     type SkillListItem,
 } from "@agenta/skills-ui"
 import {pageContentWidthClass} from "@agenta/ui/components/page-width"
-import {FilterRailLayout} from "@agenta/ui/components/presentational"
-import {Button, SearchInput} from "@agenta/ui/ui"
-import {useAtom, useAtomValue} from "jotai"
+import {LoadError} from "@agenta/ui/components/presentational"
+import {useFilterMenuView} from "@agenta/ui/filter-menu"
+import {ListTableToolbar, ListTableViewToggle} from "@agenta/ui/list-table"
+import {useAtom, useAtomValue, useSetAtom} from "jotai"
 
 import {PageTitle} from "@/components/PageTitle"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
-import {BROWSE_RAIL_MODE} from "@/lib/browseLayout"
 
+import {useAgentOwners} from "../agents/useAgentOwners"
 import {useBindProjectContext} from "../context/useBindProjectContext"
 import {AppShell} from "../nav/AppShell"
 import {NavDrawer} from "../nav/NavDrawer"
 
+import {SkillFilterMenu} from "./SkillFilterMenu"
+import {SkillListTable} from "./SkillListTable"
+import {
+    DEFAULT_SKILL_LIST_VIEW,
+    deriveSkillList,
+    isDefaultSkillFilters,
+    listRepositories,
+    toSkillListRow,
+    type SkillListRow,
+    type SkillListView,
+} from "./skillListView"
+import {SkillsEmpty} from "./states/SkillsEmpty"
+import {SkillsNoMatch} from "./states/SkillsNoMatch"
+
+/** The page column, shared with agents and automations, so the nav entries line up. */
+const PAGE_FRAME = `${pageContentWidthClass} lg:px-16`
+
 /**
- * The skill registry — where the nav's Skills entry lands. Same browse shape as agents and
- * sessions: title and search in a pinned toolbar (or the rail, in rail mode), the shared
- * `SkillGallerySections` grid below — the same cards the desktop registry page renders.
- * Card/drawer navigation and the create flows land with the desktop's follow-up
- * checkpoints (plan-web.md W3.3/W5).
+ * The skill registry — where the nav's Skills entry lands.
+ *
+ * The registry is the shared `ListTable` — the frame the agents and automations lists use — with
+ * this app's columns, and it is the first list here to offer the frame's card view as well: the
+ * same groups drawn as tiles, switched from the toolbar.
+ *
+ * Search and the filter menu sit in one toolbar above the results, the same row the agents list
+ * opens with. The drawers — detail, import, create — are the shared ones the desktop page mounts.
  */
 export const SkillListScreen = ({
     workspaceId,
@@ -43,109 +65,153 @@ export const SkillListScreen = ({
     projectId: string
 }) => {
     useBindProjectContext(projectId)
+    const base = `/w/${workspaceId}/p/${projectId}`
     const query = useAtomValue(skillsListQueryAtom)
     const projectSkills = useAtomValue(skillsListDataAtom)
     const [search, setSearch] = useAtom(skillsSearchAtom)
-    const [showArchived, setShowArchived] = useAtom(skillsShowArchivedAtom)
+    const setShowArchived = useSetAtom(skillsShowArchivedAtom)
+    // One cached request, shared with the agents roster: a row names its author under a source
+    // heading, and cannot from an id alone.
+    const {ownerNames} = useAgentOwners({workspaceId, projectId})
 
-    const {sections} = useMemo(() => buildRegistrySections(projectSkills), [projectSkills])
+    // Grouping and the view mode are how a reader chose to read the list; the filters are a
+    // question they were asking at the time, so only the first two survive a reload.
+    const [view, setView] = useFilterMenuView<SkillListView>({
+        key: "agenta:skills:view",
+        fallback: DEFAULT_SKILL_LIST_VIEW,
+        persist: ["group", "mode"],
+    })
 
-    // Card tap -> the detail drawer (read-only editor + versions rail + used-by).
+    // The switch is half a query: off leaves archived skills out of the fetch, on brings them
+    // in, and the predicate in `deriveSkillList` then keeps only the ones that are.
+    useEffect(() => {
+        setShowArchived(view.archived)
+    }, [setShowArchived, view.archived])
+
+    // The registry query already took the search, so every row here matches it. The shared
+    // sections do the item mapping — provenance, age, origin — so a row and the desktop's card
+    // describe a skill the same way; this screen only re-cuts them.
+    const rows = useMemo<SkillListRow[]>(() => {
+        // The sections drop the raw item, and the author id lives only there.
+        const creators = new Map(
+            projectSkills.map((item) => [item.workflow_id ?? item.id ?? "", item.created_by_id]),
+        )
+        return buildRegistrySections(projectSkills)
+            .sections.flatMap((section) => section.skills)
+            .map((item) => toSkillListRow(item, ownerNames.get(creators.get(item.id) ?? "")))
+    }, [ownerNames, projectSkills])
+    const repositories = useMemo(() => listRepositories(rows), [rows])
+    const groups = useMemo(() => deriveSkillList(rows, view), [rows, view])
+
+    const term = search.trim()
+    const isLoading = query.isPending
+    // "This project has no skills" is a claim about the project, so it is only ever made about
+    // the unnarrowed list — a search that matches nothing empties this one too.
+    const projectHasSkills = rows.length > 0
+    const retry = useCallback(() => invalidateSkillsListCache(), [])
+    const resetFilters = useCallback(
+        // The grouping and the mode survive: they are how the reader chose to read the list.
+        () => setView({...DEFAULT_SKILL_LIST_VIEW, group: view.group, mode: view.mode}),
+        [setView, view.group, view.mode],
+    )
+    const setMode = useCallback(
+        (mode: SkillListView["mode"]) => setView({...view, mode}),
+        [setView, view],
+    )
+
+    // Row tap → the detail drawer (read-only editor + versions rail + used-by).
     const [detailSkill, setDetailSkill] = useState<SkillListItem | null>(null)
     const [detailOpen, setDetailOpen] = useState(false)
-    const openSkill = useCallback((item: SkillListItem) => {
-        setDetailSkill(item)
+    const openRow = useCallback((row: SkillListRow) => {
+        setDetailSkill(row.item)
         setDetailOpen(true)
     }, [])
     const closeDetail = useCallback(() => setDetailOpen(false), [])
+    // The drawer's Used-by names lead to the agent's own page.
+    const agentHref = useCallback((agentId: string) => `${base}/agents/${agentId}`, [base])
     const [importOpen, setImportOpen] = useState(false)
     const openImport = useCallback(() => setImportOpen(true), [])
     const closeImport = useCallback(() => setImportOpen(false), [])
-    // Write and Upload share the create drawer; the MODE decides its opening state —
-    // Upload starts as the full-drawer dropzone and morphs into the editor (1c → 1d).
-    const [createMode, setCreateMode] = useState<"write" | "upload" | null>(null)
-    const openWrite = useCallback(() => setCreateMode("write"), [])
-    const openUpload = useCallback(() => setCreateMode("upload"), [])
-    const closeCreate = useCallback(() => setCreateMode(null), [])
+    const {createOpen, upload, onWrite, onUpload, closeCreate} = useSkillCreateEntry()
 
-    // Identical content in both shells — a toolbar above the results, or the rail beside them.
-    const browseControls = (
-        <div
-            className={
-                BROWSE_RAIL_MODE
-                    ? "contents"
-                    : `${pageContentWidthClass} flex shrink-0 flex-col gap-3 px-6 pb-3 pt-2 lg:px-16 lg:pt-14`
+    const emptyState = isLoading ? null : projectHasSkills || term ? (
+        <SkillsNoMatch
+            term={term || undefined}
+            onClear={
+                term ? () => setSearch("") : isDefaultSkillFilters(view) ? undefined : resetFilters
             }
-        >
-            <div className="flex min-w-0 items-center gap-2">
-                <NavDrawer workspaceId={workspaceId} projectId={projectId} />
-                {/* 24px is the desktop rung; on a phone it eats the row beside the hamburger,
-                    so the title drops to the 16px ramp the other /m list screens use. */}
-                <h1 className="text-colorText m-0 min-w-0 flex-1 truncate text-[16px] font-semibold leading-[1.5] sm:text-[24px] sm:leading-[1.3333333333333333]">
-                    Skills
-                </h1>
-                {/* Skills' archived view is inline (Archived tags in the same grid), so this
-                    toggles rather than routes. It rides the title row so the toolbar below
-                    carries only the search and the create action. */}
-                <Button
-                    type="button"
-                    variant="link"
-                    size="sm"
-                    onClick={() => setShowArchived(!showArchived)}
-                    className="text-muted-foreground shrink-0 px-0"
-                >
-                    {showArchived ? "Hide archived" : "Archived skills"}
-                </Button>
-            </div>
-
-            {/* Desktop's toolbar axis (TableShell): search left and growing, action right. */}
-            <div className="flex min-w-0 items-center justify-between gap-3">
-                <SearchInput
-                    value={search}
-                    onValueChange={setSearch}
-                    placeholder="Search skills by name…"
-                    className="min-w-0 grow sm:max-w-80"
-                />
-                <NewSkillMenuButton
-                    className="shrink-0"
-                    onWrite={openWrite}
-                    onUpload={openUpload}
-                    onImport={openImport}
-                />
-            </div>
-        </div>
+        />
+    ) : (
+        <SkillsEmpty />
     )
 
-    const gallery = (
-        <div className="flex flex-col gap-6">
-            <SkillGallerySections
-                sections={sections}
-                onOpenSkill={openSkill}
-                search={search}
-                loading={query.isPending}
-            />
-        </div>
+    const body = query.isError ? (
+        // A failed fetch must not read as an empty project, so the error replaces the results
+        // rather than sitting under a header row that is no longer describing anything.
+        <LoadError framed title="Could not load skills" onRetry={retry} />
+    ) : (
+        <SkillListTable
+            groups={groups}
+            view={view.mode}
+            group={view.group}
+            isLoading={isLoading}
+            onOpen={openRow}
+            empty={emptyState}
+        />
     )
 
     return (
         <>
             <PageTitle title="Skills" />
             <AppShell workspaceId={workspaceId} projectId={projectId}>
-                <ScreenScaffold fill header={BROWSE_RAIL_MODE ? undefined : browseControls}>
-                    {BROWSE_RAIL_MODE ? (
-                        <FilterRailLayout
-                            rail={browseControls}
-                            contentClassName="overflow-y-auto px-6 pb-6 pt-4"
-                        >
-                            {gallery}
-                        </FilterRailLayout>
-                    ) : (
+                <ScreenScaffold
+                    header={
                         <div
-                            className={`${pageContentWidthClass} min-h-0 min-w-0 flex-1 overflow-y-auto px-6 pb-6 pt-4 lg:px-16`}
+                            className={`box-border shrink-0 px-4 pb-3 pt-3 lg:pt-14 ${PAGE_FRAME}`}
                         >
-                            {gallery}
+                            <div className="flex min-w-0 items-center gap-2">
+                                <NavDrawer workspaceId={workspaceId} projectId={projectId} />
+                                {/* From `sm`, 24px is the desktop page-title rung; on a phone it
+                                    eats the row, so the title drops to the 16px body ramp. */}
+                                <h1 className="m-0 min-w-0 flex-1 truncate text-[16px] font-semibold leading-[1.5] text-foreground sm:text-[24px] sm:leading-[1.3333333333333333]">
+                                    Skills
+                                </h1>
+                                <NewSkillMenuButton
+                                    onWrite={onWrite}
+                                    onUpload={onUpload}
+                                    onImport={openImport}
+                                    className="h-control-sm rounded-control-sm px-btn-sm text-btn-sm sm:h-control sm:rounded-control sm:px-btn sm:text-btn-md"
+                                />
+                            </div>
                         </div>
-                    )}
+                    }
+                >
+                    <div className={`min-w-0 px-4 pb-12 pt-3 ${PAGE_FRAME}`}>
+                        {/* Search belongs to the list, not to the page: it sits on the results'
+                            own left edge. The facets ride one control beside it; the view switch
+                            takes the far edge, where it changes how the results are drawn rather
+                            than which ones are. */}
+                        <ListTableToolbar
+                            search={search}
+                            onSearchChange={setSearch}
+                            searchPlaceholder="Search skills by name…"
+                            actions={
+                                <>
+                                    <SkillFilterMenu
+                                        view={view}
+                                        onChange={setView}
+                                        repositories={repositories}
+                                    />
+                                    <ListTableViewToggle
+                                        value={view.mode}
+                                        onChange={setMode}
+                                        className="ml-auto"
+                                    />
+                                </>
+                            }
+                        />
+                        {body}
+                    </div>
                 </ScreenScaffold>
             </AppShell>
             <SkillDetailDrawer
@@ -153,13 +219,14 @@ export const SkillListScreen = ({
                 onClose={closeDetail}
                 projectId={projectId}
                 skill={detailSkill}
+                agentHref={agentHref}
             />
             <SkillImportDrawer open={importOpen} onClose={closeImport} projectId={projectId} />
             <SkillCreateDrawer
-                open={createMode !== null}
+                open={createOpen}
                 onClose={closeCreate}
                 projectId={projectId}
-                mode={createMode ?? "write"}
+                upload={upload}
             />
         </>
     )

@@ -62,6 +62,9 @@ export default function ConnectDrawer({
     onSuccess,
 }: Props) {
     const [loading, setLoading] = useState(false)
+    /** A failed create said NOTHING before — the spinner just stopped, indistinguishable from
+     * a popup that never came. The server's refusal must reach the person who clicked. */
+    const [submitError, setSubmitError] = useState<string | null>(null)
     // One suffix per drawer instance keeps the derived slug stable while the author edits the name.
     const slugSuffixRef = useRef(randomAlphanumeric(3))
 
@@ -93,6 +96,7 @@ export default function ConnectDrawer({
         slugSuffixRef.current = randomAlphanumeric(3)
         setName(seedName)
         setNameError(null)
+        setSubmitError(null)
         setLoading(false)
         onClose()
     }, [onClose, seedName])
@@ -108,6 +112,7 @@ export default function ConnectDrawer({
             return
         }
         setNameError(null)
+        setSubmitError(null)
         try {
             setLoading(true)
 
@@ -188,7 +193,11 @@ export default function ConnectDrawer({
                 handleClose()
                 onSuccess?.()
             }
-        } catch {
+        } catch (error) {
+            console.error("[ConnectDrawer] create connection failed", error)
+            setSubmitError(
+                "Couldn't start the connection — the server rejected it. Try again; if it keeps failing, this deployment's connections provider isn't configured.",
+            )
             setLoading(false)
         }
     }, [slug, name, selectedMode, integrationKey, handleClose, onSuccess, invalidateConnections])
@@ -278,6 +287,12 @@ export default function ConnectDrawer({
                 )}
 
                 <Divider className="!m-0" />
+
+                {submitError ? (
+                    <p className="m-0 text-xs leading-snug text-[var(--ag-colorError)]">
+                        {submitError}
+                    </p>
+                ) : null}
 
                 <ModalFooter
                     onCancel={handleClose}

@@ -45,11 +45,14 @@ import {
 import {
     Bold,
     ChevronDown,
+    Code,
     Italic,
     Link as LinkIcon,
     List,
     ListOrdered,
+    Strikethrough,
     Table as TableIcon,
+    TextQuote,
     Unlink,
 } from "lucide-react"
 
@@ -77,6 +80,8 @@ const BLOCK_TYPES = [
 export interface MarkdownToolbarProps {
     /** Disable the buttons (e.g. while the editor shows raw Markdown source or is read-only). */
     disabled?: boolean
+    /** `inline`: H1 / H2 / H3 buttons instead of the dropdown, plus strikethrough, code and quote. */
+    layout?: "default" | "inline"
 }
 
 const BTN_BASE =
@@ -133,11 +138,13 @@ function TableSizePicker({onPick}: {onPick: (rows: number, cols: number) => void
     )
 }
 
-export function MarkdownToolbar({disabled = false}: MarkdownToolbarProps) {
+export function MarkdownToolbar({disabled = false, layout = "default"}: MarkdownToolbarProps) {
     const [editor] = useLexicalComposerContext()
     const [active, setActive] = useState({
         bold: false,
         italic: false,
+        strikethrough: false,
+        code: false,
         bullet: false,
         ordered: false,
         link: false,
@@ -179,6 +186,8 @@ export function MarkdownToolbar({disabled = false}: MarkdownToolbarProps) {
                 setActive({
                     bold: selection.hasFormat("bold"),
                     italic: selection.hasFormat("italic"),
+                    strikethrough: selection.hasFormat("strikethrough"),
+                    code: selection.hasFormat("code"),
                     bullet: listType === "bullet",
                     ordered: listType === "number",
                     link: Boolean(linkNode),
@@ -302,62 +311,114 @@ export function MarkdownToolbar({disabled = false}: MarkdownToolbarProps) {
 
     const blockLabel = BLOCK_TYPES.find((b) => b.key === blockType)?.label ?? "Normal text"
 
+    // Pressing the active level returns the block to a paragraph.
+    const headingButton = (level: "h1" | "h2" | "h3") =>
+        button(
+            level,
+            `Heading ${level.slice(1)}`,
+            <span className="text-[11px] font-semibold tracking-wide">{level.toUpperCase()}</span>,
+            () => formatBlock(blockType === level ? "paragraph" : level),
+            blockType === level,
+        )
+
     return (
         // Below sm the row scrolls sideways instead of wrapping: a second row of buttons ate
         // vertical space the editor needs in a phone drawer.
-        <div className="flex min-w-0 items-center gap-0.5 overflow-x-auto [scrollbar-width:none] sm:flex-wrap sm:overflow-x-visible [&::-webkit-scrollbar]:hidden">
-            {/* Block type — paragraph / headings / quote / code block. */}
-            <DropdownMenu>
-                <DropdownMenuTrigger asChild disabled={disabled}>
-                    <button
-                        type="button"
-                        title="Text style"
-                        aria-label="Text style"
-                        disabled={disabled}
-                        onMouseDown={(e) => e.preventDefault()}
-                        className={`${btnClass(disabled, false)} !w-auto min-w-[88px] justify-between gap-1 px-2 text-xs`}
-                    >
-                        <span className="truncate">{blockLabel}</span>
-                        <ChevronDown size={13} className="shrink-0" />
-                    </button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="start">
-                    {BLOCK_TYPES.map((b) => (
-                        <DropdownMenuItem
-                            key={b.key}
-                            // text-xs matches the trigger; the item default (14px) overshoots it.
-                            // antd `selectable` + `selectedKeys`: the active block is highlighted.
-                            className={cn(
-                                "text-xs",
-                                b.key === blockType && "bg-controlItemBgActive text-colorPrimary",
-                            )}
-                            onMouseDown={keepEditorSelection}
-                            onSelect={() => formatBlock(b.key)}
+        <div
+            className={
+                layout === "inline"
+                    ? "flex min-w-0 flex-nowrap items-center gap-0.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                    : "flex min-w-0 items-center gap-0.5 overflow-x-auto [scrollbar-width:none] sm:flex-wrap sm:overflow-x-visible [&::-webkit-scrollbar]:hidden"
+            }
+        >
+            {layout === "inline" ? (
+                <>
+                    {headingButton("h1")}
+                    {headingButton("h2")}
+                    {headingButton("h3")}
+                </>
+            ) : (
+                /* Block type — paragraph / headings / quote / code block. */
+                <DropdownMenu>
+                    <DropdownMenuTrigger asChild disabled={disabled}>
+                        <button
+                            type="button"
+                            title="Text style"
+                            aria-label="Text style"
+                            disabled={disabled}
+                            onMouseDown={(e) => e.preventDefault()}
+                            className={`${btnClass(disabled, false)} !w-auto min-w-[88px] justify-between gap-1 px-2 text-xs`}
                         >
-                            {b.label}
-                        </DropdownMenuItem>
-                    ))}
-                </DropdownMenuContent>
-            </DropdownMenu>
+                            <span className="truncate">{blockLabel}</span>
+                            <ChevronDown size={13} className="shrink-0" />
+                        </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start">
+                        {BLOCK_TYPES.map((b) => (
+                            <DropdownMenuItem
+                                key={b.key}
+                                // text-xs matches the trigger; the item default (14px) overshoots it.
+                                // antd `selectable` + `selectedKeys`: the active block is highlighted.
+                                className={cn(
+                                    "text-xs",
+                                    b.key === blockType &&
+                                        "bg-controlItemBgActive text-colorPrimary",
+                                )}
+                                onMouseDown={keepEditorSelection}
+                                onSelect={() => formatBlock(b.key)}
+                            >
+                                {b.label}
+                            </DropdownMenuItem>
+                        ))}
+                    </DropdownMenuContent>
+                </DropdownMenu>
+            )}
 
             {divider}
-            {button("b", "Bold", <Bold size={15} />, () => formatText("bold"), active.bold)}
-            {button("i", "Italic", <Italic size={15} />, () => formatText("italic"), active.italic)}
+            {button("b", "Bold", <Bold size={14} />, () => formatText("bold"), active.bold)}
+            {button("i", "Italic", <Italic size={14} />, () => formatText("italic"), active.italic)}
+            {layout === "inline"
+                ? button(
+                      "s",
+                      "Strikethrough",
+                      <Strikethrough size={14} />,
+                      () => formatText("strikethrough"),
+                      active.strikethrough,
+                  )
+                : null}
+            {layout === "inline"
+                ? button(
+                      "code",
+                      "Inline code",
+                      <Code size={14} />,
+                      () => formatText("code"),
+                      active.code,
+                  )
+                : null}
             {divider}
             {button(
                 "ul",
                 "Bulleted list",
-                <List size={15} />,
+                <List size={14} />,
                 () => editor.dispatchCommand(INSERT_UNORDERED_LIST_COMMAND, undefined),
                 active.bullet,
             )}
             {button(
                 "ol",
                 "Numbered list",
-                <ListOrdered size={15} />,
+                <ListOrdered size={14} />,
                 () => editor.dispatchCommand(INSERT_ORDERED_LIST_COMMAND, undefined),
                 active.ordered,
             )}
+            {layout === "inline"
+                ? button(
+                      "quote",
+                      "Quote",
+                      <TextQuote size={14} />,
+                      () => formatBlock(blockType === "quote" ? "paragraph" : "quote"),
+                      blockType === "quote",
+                  )
+                : null}
             {divider}
 
             {/* Link — popover asks for the URL (and removes an existing link). */}
@@ -378,7 +439,7 @@ export function MarkdownToolbar({disabled = false}: MarkdownToolbarProps) {
                         onMouseDown={(e) => e.preventDefault()}
                         className={btnClass(disabled, active.link)}
                     >
-                        <LinkIcon size={15} />
+                        <LinkIcon size={14} />
                     </button>
                 </PopoverTrigger>
                 <PopoverContent side="bottom" align="center" className="p-3">
@@ -425,7 +486,7 @@ export function MarkdownToolbar({disabled = false}: MarkdownToolbarProps) {
                             onMouseDown={(e) => e.preventDefault()}
                             className={`${btnClass(false, false)} !w-auto gap-0.5 px-1`}
                         >
-                            <TableIcon size={15} />
+                            <TableIcon size={14} />
                             <ChevronDown size={12} />
                         </button>
                     </DropdownMenuTrigger>
@@ -487,7 +548,7 @@ export function MarkdownToolbar({disabled = false}: MarkdownToolbarProps) {
                             onMouseDown={(e) => e.preventDefault()}
                             className={btnClass(disabled, false)}
                         >
-                            <TableIcon size={15} />
+                            <TableIcon size={14} />
                         </button>
                     </PopoverTrigger>
                     <PopoverContent

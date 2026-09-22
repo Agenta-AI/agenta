@@ -24,10 +24,13 @@ import {
     credentialFieldsForKind,
     credentialStatusLine,
     credentialValuesFor,
+    DEFAULT_ENDPOINT_PROTOCOL,
     defaultNamePreview,
     doneState,
+    endpointProtocolFieldForKind,
     harnessSupportsProviderKind,
     hasRequiredCredential,
+    initialEndpointProtocol,
     manualModelPlaceholderForKind,
     modelDisplayOrder,
     probeProviderMutationAtom,
@@ -41,12 +44,13 @@ import {
     SecretKind,
     storedCredentialFields,
     type CredentialValues,
+    type LlmEndpointProtocol,
     type ProbeProviderResponse,
     type ProviderConnection,
 } from "@agenta/entities/secret"
 import {harnessCapabilitiesAtomFamily} from "@agenta/entities/workflow"
 import {projectIdAtom} from "@agenta/shared/state"
-import {InputAffix, LoadingButton, PasswordInput, Textarea} from "@agenta/ui/ui"
+import {InputAffix, LoadingButton, PasswordInput, Segmented, Textarea} from "@agenta/ui/ui"
 import {WarningCircle} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
 
@@ -146,6 +150,13 @@ const ProviderConnectionCard = ({
     // `null` means "not chosen yet" — the defaults apply until the user touches the list.
     const [checkedModels, setCheckedModels] = useState<string[] | null>(connection?.models ?? null)
     const [harnesses, setHarnesses] = useState<string[] | null>(connection?.harnesses ?? null)
+    // Only the kinds that declare one carry it. `null` is "this record declares none", which a
+    // save leaves alone: a new connection declares the default, an existing one declares what it
+    // already did, and nothing but the control itself turns silence into a declaration.
+    const protocolField = useMemo(() => endpointProtocolFieldForKind(kind), [kind])
+    const [protocol, setProtocol] = useState<LlmEndpointProtocol | null>(
+        initialEndpointProtocol(connection),
+    )
 
     // The card is remounted per provider by its key in the drawer, but a Settings row click can
     // swap the connection under a mounted card; reseed rather than show the previous one's state.
@@ -162,6 +173,7 @@ const ProviderConnectionCard = ({
         setManualModels([])
         setCheckedModels(connection?.models ?? null)
         setHarnesses(connection?.harnesses ?? null)
+        setProtocol(initialEndpointProtocol(connection))
     }, [connection, storedCredential])
 
     // A saved write-only record returns no values, so its secret fields arrive empty every time.
@@ -248,10 +260,10 @@ const ProviderConnectionCard = ({
             selectableHarnesses(Object.keys(capabilities ?? {})).map((id) => ({
                 id,
                 label: harnessMetaFor(id).label,
-                supported: harnessSupportsProviderKind(capabilities, id, kind),
+                supported: harnessSupportsProviderKind(capabilities, id, kind, protocol),
                 domain: HARNESS_DOMAINS[id],
             })),
-        [capabilities, kind],
+        [capabilities, kind, protocol],
     )
 
     // Null when no harness declares this deployment: the card checks nothing, and the save leaves
@@ -316,6 +328,18 @@ const ProviderConnectionCard = ({
         setProbeFailure(null)
     }
 
+    // A harness the new protocol cannot reach leaves the saved list rather than staying in it as
+    // policy no run can honour. Only the chosen set is pruned; an untouched card has chosen none.
+    const changeProtocol = (next: LlmEndpointProtocol) => {
+        setProtocol(next)
+        setHarnesses(
+            (previous) =>
+                previous?.filter((id) =>
+                    harnessSupportsProviderKind(capabilities, id, kind, next),
+                ) ?? null,
+        )
+    }
+
     const toggleModel = (id: string, checked: boolean) =>
         setCheckedModels(
             checked
@@ -332,6 +356,10 @@ const ProviderConnectionCard = ({
                     kind,
                     name,
                     credential,
+                    // Omitted for a record that declares no protocol, which keeps it undeclared:
+                    // sending the control's displayed default would narrow a gateway nobody
+                    // described, and an Anthropic-compatible one would lose every Claude Code row.
+                    ...(protocolField && protocol ? {protocol} : {}),
                     modelNames: Object.fromEntries(
                         modelOptions.flatMap((option) =>
                             option.checked && option.name ? [[option.id, option.name]] : [],
@@ -473,6 +501,20 @@ const ProviderConnectionCard = ({
                         </div>
                     )
                 })}
+
+                {protocolField ? (
+                    <div className="flex flex-col gap-1">
+                        <span className="font-medium text-colorText">{protocolField.label}</span>
+                        <Segmented
+                            size="sm"
+                            options={protocolField.options}
+                            // An undeclared record shows the default without having declared it;
+                            // pressing an option is what makes the statement.
+                            value={protocol ?? DEFAULT_ENDPOINT_PROTOCOL}
+                            onChange={(next) => changeProtocol(next as LlmEndpointProtocol)}
+                        />
+                    </div>
+                ) : null}
 
                 {testedField === null ? <div>{testButton}</div> : null}
 

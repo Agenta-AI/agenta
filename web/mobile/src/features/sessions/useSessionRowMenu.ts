@@ -18,6 +18,8 @@ import {isToolsEnabled} from "@agenta/shared/api"
 import {useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 
+import {useLeaveSession} from "../chat/useLeaveSession"
+
 const targetFor = (vm: SessionRowVm) => ({
     sessionId: vm.id,
     appId: vm.agentId,
@@ -37,8 +39,8 @@ const targetForStream = (session: SessionStream) => ({
  * The session row's context menu, bound to this app.
  *
  * The verbs are the SHARED ones — rename, pin, archive, delete, with their confirms — so a
- * session behaves the same here as on the desktop list. No local cache adapter: this app has no
- * open-tab store, so every action goes straight to the server.
+ * session behaves the same here as on the desktop list. No local cache adapter: every action goes
+ * straight to the server, and the open-tab set only learns of it afterwards (`useLeaveSession`).
  */
 export const useSessionRowMenu = (base: string) => {
     const router = useRouter()
@@ -62,7 +64,8 @@ export const useSessionRowMenu = (base: string) => {
         ({sessionId}: SessionActionTarget) => sessionRoutePath(base, sessionId),
         [base],
     )
-    const actions = useSessionActions({sharePathFor})
+    // Archiving or deleting the session you are on has to move you off it.
+    const actions = useSessionActions({sharePathFor, onRemoved: useLeaveSession(base)})
 
     const open = useCallback(
         (vm: SessionRowVm) => void router.push(sessionRoutePath(base, vm.id)),

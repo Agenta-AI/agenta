@@ -8,6 +8,8 @@ never raise ``HTTPException`` directly.
 from math import isfinite
 from typing import Any, Dict, Optional
 
+import httpx
+
 # Reserved-slug detection is canonical in the SDK (it also drives is_static inference there). The
 # API re-exports it so every write path can reject a reserved slug and every read path can
 # short-circuit it, all off one definition. Independent of any StaticWorkflowProvider so the
@@ -118,3 +120,110 @@ class WorkflowDetachedStartFailed(WorkflowError):
 
     def __init__(self, message: Optional[str] = None):
         super().__init__(message or "Detached workflow run failed to start.")
+
+
+class WorkflowDetachedStartNeverSent(WorkflowDetachedStartFailed):
+    """A detached start whose response proves the workflow service never saw the request.
+
+    A subclass, so every existing handler of ``WorkflowDetachedStartFailed`` is unaffected and
+    only a caller asking the narrower question has to know about it.
+    """
+
+
+# The statuses that mean the run was not accepted, whoever answered.
+#
+# 404: no route matched. From a reverse proxy this is the catch-all picking up the path after the
+# service's router disappeared (a stopped container), and from the service itself it is "Workflow
+# not found", raised before anything runs.
+#
+# 503: emitted instead of forwarding. A proxy or load balancer returns it when it has no healthy
+# backend to send to, and the three places the service itself returns 503 (session admission
+# unavailable, and the auth and vault middlewares failing to reach the API) all sit in front of
+# the workflow, so none of them can follow an accepted run.
+#
+# 502 and 504 are deliberately NOT here. Both mean the gateway did forward and then gave up on the
+# answer, so the run may have been accepted.
+_NEVER_DISPATCHED_STATUSES = frozenset({404, 503})
+
+# The header is the second half of the proof, and it is not true that every response the service
+# builds carries it: the three 503 sites named above are bare JSONResponses with no header at all.
+# What holds is the pair.
+#
+# A failure INSIDE a run is always stamped. It leaves as a batch response whose status is >= 400,
+# which goes out through `_make_json_response`, which sets `x-ag-version`
+# (`sdks/python/agenta/sdk/decorators/routing.py`). A run that has begun streaming has already
+# committed 200, so it cannot present a failure as a status at all. Pinned on the SDK side by
+# `sdks/python/oss/tests/pytest/unit/test_invoke_error_response_headers_routing.py`, because this
+# rule fails OPEN: an unstamped in-run 503 would read as never-sent and let a retry run a turn
+# that already executed its tool calls.
+#
+# The unstamped 404 and 503 answers are the ones listed above, and every one of them sits in
+# front of the workflow. That is a property of where those sites are, which no check here can
+# hold still, so the SDK test above is what keeps the two halves from drifting into one.
+_SERVICE_HEADER_PREFIX = "x-ag-"
+
+
+def detached_start_never_sent(response: httpx.Response) -> bool:
+    """True when this non-2xx response proves the workflow service never saw the request."""
+    if response.status_code not in _NEVER_DISPATCHED_STATUSES:
+        return False
+    return not any(
+        name.lower().startswith(_SERVICE_HEADER_PREFIX) for name in response.headers
+    )
+
+
+# Transport failures where no byte reached the address we aimed at: the request never left this
+# process (an unusable URL, an unknown scheme), never got a connection to write on (pool timeout),
+# or never established one (refused, unresolvable host, connect timeout — httpx reports all three
+# as ConnectError/ConnectTimeout). A read timeout and a write error part-way through the body are
+# absent on purpose: both mean bytes were already on the wire.
+_NEVER_SENT_TRANSPORT = (
+    httpx.InvalidURL,
+    httpx.UnsupportedProtocol,
+    httpx.ConnectError,
+    httpx.ConnectTimeout,
+    httpx.PoolTimeout,
+)
+
+
+def transport_never_sent(error: Exception, *, url: str) -> bool:
+    """True when a transport failure hit the request we sent, rather than a redirect of it.
+
+    The detached invoke follows redirects, so httpx may issue up to twenty requests. A connect
+    failure on the second one says nothing about the first: an intermediary answered that, and a
+    proxy that redirects a POST may have forwarded it. Only a failure on the request we addressed
+    proves nothing was delivered, and the exception carries the address it actually attempted.
+
+    Compared as `httpx.URL`, because the raw strings differ for an explicit default port or an
+    uppercase host, and reading those as a redirect would strand the claim this exists to free.
+    """
+    if not isinstance(error, _NEVER_SENT_TRANSPORT):
+        return False
+    try:
+        attempted = error.request.url
+    except (AttributeError, RuntimeError):
+        # No request was ever bound to the error, so none was ever sent.
+        return True
+    return httpx.URL(url) == attempted
+
+
+# What the caller of a detached invoke may treat as never dispatched. Both are raised by this
+# domain, from the one scope that can prove it: the URL check before any request is built, and
+# the transport and response classification inside the detached start. A bare httpx error is
+# deliberately not here. Reaching the caller unclassified, it can only have come from a redirect
+# hop or from outside the send, and neither proves anything.
+_NEVER_DISPATCHED = (
+    WorkflowServiceUrlMissing,
+    WorkflowDetachedStartNeverSent,
+)
+
+
+def invoke_never_dispatched(error: BaseException) -> bool:
+    """True only when a failed invoke provably never reached the workflow service.
+
+    A caller holding a one-shot dispatch claim uses this to decide whether releasing the claim
+    is safe. A false positive lets a retry start a turn the service already accepted, so every
+    outcome that cannot be proven never-sent answers False. `asyncio.CancelledError` is one of
+    those: a cancel can land with the request already on the wire.
+    """
+    return isinstance(error, _NEVER_DISPATCHED)

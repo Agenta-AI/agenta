@@ -1,10 +1,19 @@
 import {useMemo} from "react"
 
 import {composioLogo, PROVIDERS} from "@agenta/entities/workflow"
-import {agentConfigSummary, agentLatestRevisionAtomFamily} from "@agenta/entity-ui/agent"
+import {
+    AGENT_CONFIG_ROW_TITLES,
+    agentConfigSummary,
+    agentLatestRevisionAtomFamily,
+    instructionsSummaryDetail,
+    mcpSummaryDetail,
+    permissionsSummaryDetail,
+    skillsSummaryDetail,
+    toolsCopyFor,
+} from "@agenta/entity-ui/agent"
 import {humanizeActionKey} from "@agenta/shared/utils"
 import {LogoMarks} from "@agenta/ui/components/presentational"
-import {Cpu, FileText, GraduationCap, Plugs, Wrench} from "@phosphor-icons/react"
+import {Cpu, FileText, GraduationCap, Plugs, ShieldCheck, Wrench} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 
 import {AgentOverviewCard} from "./AgentOverviewCard"
@@ -13,7 +22,8 @@ import {AgentOverviewCardError} from "./states/AgentOverviewCardError"
 import {AgentOverviewCardSkeleton} from "./states/AgentOverviewCardSkeleton"
 
 const ICON = 16
-const INSTRUCTIONS_FILE = "AGENTS.md"
+/** This card calls tools integrations; the rest of the row's wording is the shared one. */
+const TOOLS_COPY = toolsCopyFor("integrations", "Integrations")
 /** Marks past this collapse to "+N" — a phone row cannot hold a longer run. */
 const MAX_MARKS = 4
 
@@ -49,21 +59,17 @@ export const AgentConfigCard = ({
         [summary.integrationKeys],
     )
 
-    // User MCP servers are a Claude-harness feature; on any other harness the row only offers a
-    // setting the runtime ignores — unless a server is already configured, which is worth saying.
-    const showMcp = summary.mcps > 0 || Boolean(summary.harness?.toLowerCase().includes("claude"))
-
+    // The names when there are any, because a narrow row can hold them and "3 skills" says how
+    // many and never which. The count and the empty action are the shared ones.
     const skills =
         summary.skillNames.length > 0
             ? summary.skillNames.join(", ")
-            : summary.skills
-              ? `${summary.skills} ${summary.skills === 1 ? "skill" : "skills"}`
-              : "No skills"
+            : skillsSummaryDetail(summary.skills, {canEdit: true})
 
     return (
         <AgentOverviewCard title="Configuration" action="Edit" onAction={onEdit}>
             {revision.isPending ? (
-                <AgentOverviewCardSkeleton rows={4} />
+                <AgentOverviewCardSkeleton rows={6} />
             ) : revision.isError ? (
                 <AgentOverviewCardError
                     message="Couldn't load this agent's configuration."
@@ -73,24 +79,22 @@ export const AgentConfigCard = ({
                 <>
                     <AgentOverviewCardRow
                         icon={<Cpu size={ICON} />}
-                        label="Model"
+                        label={AGENT_CONFIG_ROW_TITLES.model}
                         detail={summary.model ? modelName(summary.model) : "Choose a model"}
                         title={summary.model ?? undefined}
                         onClick={onEdit}
                     />
                     <AgentOverviewCardRow
                         icon={<FileText size={ICON} />}
-                        label="Instructions"
-                        detail={
-                            summary.instructions
-                                ? `${INSTRUCTIONS_FILE} · ${summary.instructionWords}w`
-                                : "Add instructions"
-                        }
+                        label={AGENT_CONFIG_ROW_TITLES.instructions}
+                        detail={instructionsSummaryDetail(summary.instructionWords, {
+                            canEdit: true,
+                        })}
                         onClick={onEdit}
                     />
                     <AgentOverviewCardRow
                         icon={<Wrench size={ICON} />}
-                        label="Integrations"
+                        label={TOOLS_COPY.toolsTitle}
                         detail={
                             marks.length > 0 ? (
                                 <LogoMarks
@@ -98,29 +102,45 @@ export const AgentConfigCard = ({
                                     size={16}
                                     max={MAX_MARKS}
                                     stacked
-                                    label="Integrations"
+                                    label={TOOLS_COPY.toolsTitle}
                                 />
                             ) : summary.tools ? (
-                                `${summary.tools} enabled`
+                                TOOLS_COPY.toolsCount(summary.tools)
                             ) : (
-                                "No integrations"
+                                // The row opens the editor, so an empty one offers the action
+                                // rather than reporting the absence, as every other row here does.
+                                TOOLS_COPY.toolsAdd
                             )
                         }
                         onClick={onEdit}
                     />
-                    {showMcp ? (
-                        <AgentOverviewCardRow
-                            icon={<Plugs size={ICON} />}
-                            label="MCP servers"
-                            detail={summary.mcps ? `${summary.mcps} connected` : "Connect a server"}
-                            onClick={onEdit}
-                        />
-                    ) : null}
+                    {/* Drawn unconditionally, like the shared card. It had been gated on a
+                        Claude harness or an existing server, so the one row that says "Connect a
+                        server" was missing on exactly the agents that have none — and the two
+                        cards disagreed about which rows an agent has. */}
+                    <AgentOverviewCardRow
+                        icon={<Plugs size={ICON} />}
+                        label={AGENT_CONFIG_ROW_TITLES.mcps}
+                        // The shared card's rule, not this fork's own wording: it said
+                        // "connected", which claims an authorized state no summary card
+                        // can know, and which the shared card was fixed away from.
+                        detail={mcpSummaryDetail(summary.mcps, {canEdit: true})}
+                        onClick={onEdit}
+                    />
                     <AgentOverviewCardRow
                         icon={<GraduationCap size={ICON} />}
-                        label="Skills"
+                        label={AGENT_CONFIG_ROW_TITLES.skills}
                         detail={skills}
                         title={summary.skillNames.join(", ") || undefined}
+                        onClick={onEdit}
+                    />
+                    {/* The shared card's last row, which this one never had: the agent's default
+                        tool permission is the setting that decides whether a run stops to ask, and
+                        a card claiming to say what the agent IS cannot leave it out. */}
+                    <AgentOverviewCardRow
+                        icon={<ShieldCheck size={ICON} />}
+                        label={AGENT_CONFIG_ROW_TITLES.permissions}
+                        detail={permissionsSummaryDetail(summary.permissions)}
                         onClick={onEdit}
                     />
                 </>

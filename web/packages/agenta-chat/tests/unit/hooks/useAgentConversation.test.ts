@@ -9,6 +9,7 @@
 import {createElement, type ReactNode} from "react"
 
 import {
+    ApprovalNotPendingError,
     fetchSessionSnapshot,
     querySessionTranscript,
     sessionLivePreviewAtomFamily,
@@ -484,6 +485,29 @@ describe("useAgentConversation", () => {
         })
     })
 
+    // An empty text part reaches the model as an empty text content block, which Anthropic-family
+    // models refuse. v0.119.0 omitted it and the durable path still does (risk map, entry 5).
+    it("sends an attachment-only message with no text part", async () => {
+        fetchMock.mockResolvedValue(streamResponse("Got the file"))
+        const store = createStore()
+        const sessionId = nextSessionId()
+        markSessionFresh(sessionId)
+        const {result} = mount(store, "rev-1", sessionId)
+
+        const attachment = {
+            type: "file" as const,
+            url: "https://files.test/report.pdf",
+            mediaType: "application/pdf",
+        }
+        await act(async () => {
+            await result.current.send({text: "", parts: [attachment]})
+        })
+        await waitFor(() => expect(vi.mocked(buildAgentRequest)).toHaveBeenCalled())
+
+        const outbound = vi.mocked(buildAgentRequest).mock.calls.at(-1)?.[1].at(-1)
+        expect(outbound?.parts).toEqual([attachment])
+    })
+
     it("runs a full turn: send → stream → settle → persist + status publish", async () => {
         fetchMock.mockResolvedValue(streamResponse("Hello back"))
         const store = createStore()
@@ -570,6 +594,40 @@ describe("useAgentConversation", () => {
 
         await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2), {timeout: 5000})
         expect(getSessionTurnId(sessionId)).toBeUndefined()
+    })
+
+    it("reports an already-answered gate on the dock, not on the transcript", async () => {
+        // The other path into the same refusal. `sendToolOutput` had no handler at all, so a
+        // replayed client-tool answer threw into nothing; the dock's `settle` awaits through
+        // `Promise.allSettled` and puts the reason on its own card, which is where a reader is
+        // looking when they press Approve. Two surfaces, one refusal, and the transcript stays out
+        // of it: the run has not failed.
+        durableApprovalCapability.mockResolvedValue(true)
+        respondAnswer.mockRejectedValue(new ApprovalNotPendingError())
+        fetchMock.mockResolvedValueOnce(approvalResponse())
+        const store = createStore()
+        const sessionId = nextSessionId()
+        markSessionFresh(sessionId)
+        const {result} = mount(store, "rev-1", sessionId)
+
+        await act(async () => {
+            await result.current.send({text: "needs approval"})
+        })
+        await waitFor(() => expect(result.current.approvals.open).toBe(true), {timeout: 5000})
+
+        await act(async () => result.current.approvals.respond(true))
+
+        await waitFor(() =>
+            expect(result.current.approvals.errorText).toBe(
+                "This approval is no longer pending. Refresh and retry.",
+            ),
+        )
+        expect(result.current.approvals.answered).toBe(false)
+        // Re-armed, so the reader can act again after refreshing.
+        expect(result.current.approvals.responding).toBe(false)
+        expect(result.current.error).toBeUndefined()
+        expect(result.current.turns.at(-1)?.status.showError).not.toBe(true)
+        expect(result.current.runStatus).not.toBe("error")
     })
 
     it("voids an approval resume before its delayed interaction write releases", async () => {
@@ -1360,4 +1418,147 @@ describe("server-owned client-tool answers", () => {
             expect(fetchMock).not.toHaveBeenCalled()
         },
     )
+
+    /** The shape Fern throws for a conflict: the status, and the route's body with its code. */
+    const conflict = (code: string, message: string) =>
+        Object.assign(new Error(message), {
+            statusCode: 409,
+            body: {code, message, retryable: false},
+        })
+
+    const answerOnce = async (result: {
+        current: {sendToolOutput: (input: object) => Promise<void>}
+    }) => {
+        await act(async () => {
+            await expect(
+                result.current.sendToolOutput({
+                    toolName: "request_input",
+                    toolCallId: "questionnaire",
+                    output: {action: "accept", content: {goal: "Correctness"}},
+                }),
+            ).resolves.toBeUndefined()
+        })
+    }
+
+    it("settles quietly when the server says the interaction already moved on", async () => {
+        // The other half of the same condition. D139 recognised only the local guard, where no
+        // pending row is found among the cached ones; the server answers 409 when the row moved on
+        // underneath the decision, and nothing converted that into the settled branch, so the
+        // transcript grew a run-failure callout for an approval that had gone through.
+        //
+        // Narrower than it reads: the route accepts a repeat of the SAME answer under the same
+        // idempotency key, and accepts a row already answered with the same resolution, so a plain
+        // replay never conflicts at all.
+        durableApprovalCapability.mockResolvedValue(true)
+        respondAnswer.mockRejectedValue(
+            conflict("execution_terminal", "The interaction is no longer pending."),
+        )
+        const store = createStore()
+        const sessionId = nextSessionId()
+        markSessionFresh(sessionId)
+        const {result} = mount(store, "rev-1", sessionId)
+
+        await answerOnce(result)
+
+        expect(result.current.error).toBeUndefined()
+        expect(result.current.turns.at(-1)?.status.showError).not.toBe(true)
+        expect(result.current.runStatus).not.toBe("error")
+    })
+
+    it("shows the conflict that says the answer went somewhere else", async () => {
+        // Same status, different answer. `execution_mismatch` means this interaction belongs to a
+        // different execution, so the reader's decision did not land where they thought and the
+        // callout is exactly where they should learn it. Keying the settled branch on 409 rather
+        // than on the body's code would have swallowed this one.
+        durableApprovalCapability.mockResolvedValue(true)
+        respondAnswer.mockRejectedValue(
+            conflict("execution_mismatch", "The interaction belongs to a different execution."),
+        )
+        const store = createStore()
+        const sessionId = nextSessionId()
+        markSessionFresh(sessionId)
+        const {result} = mount(store, "rev-1", sessionId)
+
+        await answerOnce(result)
+
+        await waitFor(() => {
+            const last = result.current.turns.at(-1)
+            expect(last?.status.showError).toBe(true)
+            expect(last?.status.errorText).toContain(
+                "The interaction belongs to a different execution.",
+            )
+        })
+    })
+
+    it("shows a reused idempotency key too, which is a different answer under one key", async () => {
+        durableApprovalCapability.mockResolvedValue(true)
+        respondAnswer.mockRejectedValue(
+            conflict(
+                "idempotency_key_reused",
+                "This idempotency key was already used for a different response.",
+            ),
+        )
+        const store = createStore()
+        const sessionId = nextSessionId()
+        markSessionFresh(sessionId)
+        const {result} = mount(store, "rev-1", sessionId)
+
+        await answerOnce(result)
+
+        await waitFor(() => expect(result.current.turns.at(-1)?.status.showError).toBe(true))
+    })
+
+    // Reloading a transcript after an approved gate replays its tool output, and the gate the
+    // first submit settled is not pending any more. Nothing caught the rejection: dev showed the
+    // Next error overlay reading "This approval is no longer pending. Refresh and retry." and
+    // production got a silently dead approval. The mobile dock has always read it as settled.
+    it("treats an answer for an already-settled gate as settled, not as a failure", async () => {
+        durableApprovalCapability.mockResolvedValue(true)
+        respondAnswer.mockRejectedValue(new ApprovalNotPendingError())
+        const store = createStore()
+        const sessionId = nextSessionId()
+        markSessionFresh(sessionId)
+        const {result} = mount(store, "rev-1", sessionId)
+
+        await act(async () => {
+            await expect(
+                result.current.sendToolOutput({
+                    toolName: "request_input",
+                    toolCallId: "questionnaire",
+                    output: {action: "accept", content: {goal: "Correctness"}},
+                }),
+            ).resolves.toBeUndefined()
+        })
+
+        expect(result.current.error).toBeUndefined()
+        expect(result.current.turns.at(-1)?.status.showError).not.toBe(true)
+        expect(result.current.runStatus).not.toBe("error")
+    })
+
+    it("puts a real submission failure on the transcript instead of nowhere", async () => {
+        // The other half of the same missing handler: a refusal that is not "already answered"
+        // has to reach the reader, and the run-failure callout is where this conversation says so.
+        durableApprovalCapability.mockResolvedValue(true)
+        respondAnswer.mockRejectedValue(new Error("Approval could not be submitted."))
+        const store = createStore()
+        const sessionId = nextSessionId()
+        markSessionFresh(sessionId)
+        const {result} = mount(store, "rev-1", sessionId)
+
+        await act(async () => {
+            await expect(
+                result.current.sendToolOutput({
+                    toolName: "request_input",
+                    toolCallId: "questionnaire",
+                    output: {action: "accept", content: {goal: "Correctness"}},
+                }),
+            ).resolves.toBeUndefined()
+        })
+
+        await waitFor(() => {
+            const last = result.current.turns.at(-1)
+            expect(last?.status.showError).toBe(true)
+            expect(last?.status.errorText).toContain("Approval could not be submitted.")
+        })
+    })
 })

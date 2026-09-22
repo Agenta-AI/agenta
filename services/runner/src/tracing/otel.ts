@@ -337,8 +337,9 @@ export function resolveOtlpTraceEndpoint(endpoint?: string): string {
  * unauthenticated spans, so those must still be sent.
  *
  * Both configured bases count, not only the one `defaultTarget` picked: a run can be handed the
- * public URL while the runner's own hop is internal. The full normalized ingest URL must match,
- * because a third-party collector may share the Agenta host behind a different proxy path.
+ * public URL while the runner's own hop is internal. The endpoint must equal one of the ingest
+ * URLs a configured base serves (see `ingestUrlsForBase`), and nothing else: a third-party
+ * collector may share the Agenta host behind a different proxy path.
  */
 /**
  * Host names that all denote THIS deployment's own API host.
@@ -364,27 +365,76 @@ const LOCAL_HOST_ALIASES = new Set([
   "host.docker.internal",
 ]);
 
-export function isAgentaIngest(endpoint: string): boolean {
-  const normalize = (value: string): string | undefined => {
-    try {
-      const url = new URL(value);
-      const path = url.pathname.replace(/\/+$/, "") || "/";
-      const host = LOCAL_HOST_ALIASES.has(url.hostname)
-        ? "__local__"
-        : url.hostname;
-      const port = url.port ? `:${url.port}` : "";
-      return `${url.protocol}//${host}${port}${path}`;
-    } catch {
-      return undefined;
-    }
-  };
+/**
+ * One comparable spelling of a parsed URL: scheme, host (local aliases folded), port, and path.
+ *
+ * The path is passed in, so a caller can compare a base's parsed authority against a path it
+ * builds itself without ever re-parsing text it assembled. See `ingestUrlsForBase`.
+ */
+function normalizeIngestParts(url: URL, pathname: string): string {
+  const path = pathname.replace(/\/+$/, "") || "/";
+  const host = LOCAL_HOST_ALIASES.has(url.hostname)
+    ? "__local__"
+    : url.hostname;
+  const port = url.port ? `:${url.port}` : "";
+  return `${url.protocol}//${host}${port}${path}`;
+}
 
-  const normalizedEndpoint = normalize(endpoint);
+/** One comparable spelling of a URL, or undefined when it does not parse. */
+function normalizeIngestUrl(value: string): string | undefined {
+  try {
+    const url = new URL(value);
+    return normalizeIngestParts(url, url.pathname);
+  } catch {
+    return undefined;
+  }
+}
+
+/** The path Agenta's api serves OTLP traces on, under any number of leading `/api` segments. */
+const TRACE_PATH = "/otlp/v1/traces";
+
+/**
+ * Every ingest URL one configured base serves, as comparable spellings.
+ *
+ * `<base>/otlp/v1/traces` always counts: it is what the runner's own fallback exporter builds
+ * (`defaultTarget`). A dispatched run's endpoint comes from the SDK instead, which drops a
+ * trailing `/api` from the base and then appends its own (`sdks/python/agenta/sdk/utils/init.py`).
+ * So a base written WITHOUT that suffix — `AGENTA_API_INTERNAL_URL=http://agenta-api:8000`, the
+ * shape every compose file uses and the natural value for the Helm chart's optional
+ * `agenta.apiInternalUrl` — arrives with an extra `/api` segment on the wire. Accepting only the
+ * first spelling called that endpoint a third-party collector, withheld the run credential, and
+ * turned session calls into HTTP 401. The api strips leading `/api` segments in a loop
+ * (`api/oss/src/middlewares/prefix.py`), so both spellings reach the same route.
+ *
+ * A base that ALREADY ends in `/api` gets no second candidate. The SDK reproduces such a base
+ * exactly, so nothing needs the extra shape, and the base's root sibling must stay foreign: a
+ * shared ingress can route `/api/*` to Agenta and `/otlp/v1/traces` to somebody else's collector.
+ * The api's prefix strip cannot argue otherwise, because it runs AFTER the proxy picked a backend.
+ *
+ * Every candidate is built from the PARSED base's authority and path, never from its raw text. A
+ * textual `replace(/\/api$/, "")` turns `http://api` into `http:/`, and appending the trace path
+ * to that manufactures a different host — `http://otlp/v1/traces`, which the allowlist then
+ * accepts. An allowlist must never invent an origin it was not given.
+ */
+function ingestUrlsForBase(base: string): string[] {
+  let url: URL;
+  try {
+    url = new URL(base);
+  } catch {
+    return [];
+  }
+  const path = url.pathname.replace(/\/+$/, "");
+  const paths = path.endsWith("/api")
+    ? [`${path}${TRACE_PATH}`]
+    : [`${path}${TRACE_PATH}`, `${path}/api${TRACE_PATH}`];
+  return paths.map((candidate) => normalizeIngestParts(url, candidate));
+}
+
+export function isAgentaIngest(endpoint: string): boolean {
+  const normalizedEndpoint = normalizeIngestUrl(endpoint);
   if (!normalizedEndpoint) return false;
-  return configuredIngestBases().some(
-    (base) =>
-      normalize(`${base.replace(/\/+$/, "")}/otlp/v1/traces`) ===
-      normalizedEndpoint,
+  return configuredIngestBases().some((base) =>
+    ingestUrlsForBase(base).includes(normalizedEndpoint),
   );
 }
 
@@ -956,6 +1006,41 @@ function applyAssistant(
       span.setAttribute("gen_ai.usage.cost", u.cost.total);
   }
 
+  // Pi keeps transport details outside errorMessage. Preserve a bounded allowlist,
+  // never provider payloads or headers, even when conversation capture is disabled.
+  for (const diagnostic of (Array.isArray(msg.diagnostics)
+    ? msg.diagnostics
+    : []
+  ).slice(-8)) {
+    if (diagnostic?.type !== "provider_transport_failure") continue;
+    const attributes: Record<string, string | number | boolean> = {};
+    for (const [prefix, source, keys] of [
+      ["error", diagnostic.error, ["name", "message", "code"]],
+      [
+        "transport",
+        diagnostic.details,
+        [
+          "configuredTransport",
+          "fallbackTransport",
+          "eventsEmitted",
+          "phase",
+          "requestBytes",
+        ],
+      ],
+    ] as const) {
+      for (const key of keys) {
+        const value = source?.[key];
+        if (typeof value === "string")
+          attributes[`${prefix}.${key}`] = value.slice(0, 2000);
+        else if (
+          typeof value === "boolean" ||
+          (typeof value === "number" && Number.isFinite(value))
+        )
+          attributes[`${prefix}.${key}`] = value;
+      }
+    }
+    span.addEvent("provider_transport_failure", attributes);
+  }
   emitMessages(span, "llm.output_messages", [msg], capture);
   if (msg.stopReason === "error" || msg.errorMessage) {
     span.setStatus({ code: SpanStatusCode.ERROR, message: msg.errorMessage });
@@ -1018,6 +1103,7 @@ export function createAgentaOtel(
   let currentTurn: { span: Span; ctx: Context; index?: number } | undefined;
   let llmSpan: Span | undefined;
   let lastContextMessages: any[] | undefined;
+  let lastAgentMessages: any[] | undefined;
   const toolSpans = new Map<string, Span>();
   // Run totals, summed across every assistant turn. Stamped on the agent span and
   // returned so the caller can roll them up onto the workflow span in its own process
@@ -1052,6 +1138,7 @@ export function createAgentaOtel(
     config.skillsDropped = next.skillsDropped;
     config.redactor = next.redactor;
     config.traceId = undefined;
+    lastAgentMessages = undefined;
     runUsage.input = 0;
     runUsage.output = 0;
     runUsage.total = 0;
@@ -1064,7 +1151,8 @@ export function createAgentaOtel(
     });
 
     pi.on("agent_start", async () => {
-      if (config.enabled === false) return;
+      // Retries and compaction start another attempt within the same user turn.
+      if (config.enabled === false || agentSpan) return;
       // Nest under the caller's workflow span when a traceparent was supplied,
       // so the whole run joins the /invoke trace; otherwise start a fresh root.
       // Tag the run id onto the start context BEFORE creating the root span, so onStart
@@ -1224,6 +1312,10 @@ export function createAgentaOtel(
     });
 
     pi.on("agent_end", async (event: any) => {
+      lastAgentMessages = event?.messages;
+    });
+
+    pi.on("agent_settled", async () => {
       if (!agentSpan) return;
       // Cancellation may skip message_end, tool_execution_end, and turn_end. Close every child
       // before the agent root so the one native batch contains all partial work Pi still holds.
@@ -1239,9 +1331,18 @@ export function createAgentaOtel(
       }
       setOutput(
         agentSpan,
-        lastAssistantText(event?.messages),
+        lastAssistantText(lastAgentMessages),
         config.captureContent,
       );
+      const finalAssistant = lastAgentMessages?.findLast(
+        (message: any) => message?.role === "assistant",
+      );
+      if (finalAssistant?.stopReason === "error") {
+        agentSpan.setStatus({
+          code: SpanStatusCode.ERROR,
+          message: finalAssistant.errorMessage,
+        });
+      }
       // Stamp the run total on the agent span so it shows the agent's tokens/cost even
       // though Agenta cannot roll the per-turn LLM spans up across batches.
       if (runUsage.total > 0) {

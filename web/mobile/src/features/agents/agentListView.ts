@@ -1,4 +1,5 @@
 import {timeAgo} from "@agenta/shared/utils"
+import type {ListTableView} from "@agenta/ui/list-table"
 
 /**
  * How the agents roster is CUT and NARROWED — the half of the view the filter menu owns, kept
@@ -33,6 +34,8 @@ export interface AgentListView {
     type: AgentTypeFilter
     status: AgentStatusFilter
     group: AgentGrouping
+    /** Rows or cards. A display preference, like `group`, never a filter. */
+    mode: ListTableView
 }
 
 export const ALL_OWNERS = "all"
@@ -42,6 +45,7 @@ export const DEFAULT_AGENT_LIST_VIEW: AgentListView = {
     type: "active",
     status: "all",
     group: "none",
+    mode: "list",
 }
 
 /** The view control's dot: the filters only, never the grouping — cutting a list into runs
@@ -51,6 +55,7 @@ export const isDefaultAgentFilters = (view: AgentListView): boolean =>
     view.type === DEFAULT_AGENT_LIST_VIEW.type &&
     view.status === DEFAULT_AGENT_LIST_VIEW.status
 
+/** The filters and the grouping — never the mode: how the rows are DRAWN is not a view of them. */
 export const isDefaultAgentListView = (view: AgentListView): boolean =>
     isDefaultAgentFilters(view) && view.group === DEFAULT_AGENT_LIST_VIEW.group
 
