@@ -45,6 +45,7 @@ export const LITELLM_MODEL_PREFIXES: Readonly<Record<StandardProviderKind, strin
     together_ai: "together_ai",
     openrouter: "openrouter",
     gemini: "gemini",
+    xai: "xai",
     // The two stored kinds with no catalog models and no litellm provider: litellm 1.92.0 knows
     // neither service (both wound down), so `aleph_alpha/luminous-base` fails with the same "LLM
     // Provider NOT provided" as the bare id. Identity rather than the "anyscale"/"aleph_alpha"

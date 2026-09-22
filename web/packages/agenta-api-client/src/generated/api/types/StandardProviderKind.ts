@@ -15,5 +15,6 @@ export const StandardProviderKind = {
     TogetherAi: "together_ai",
     Openrouter: "openrouter",
     Gemini: "gemini",
+    Xai: "xai",
 } as const;
 export type StandardProviderKind = (typeof StandardProviderKind)[keyof typeof StandardProviderKind];

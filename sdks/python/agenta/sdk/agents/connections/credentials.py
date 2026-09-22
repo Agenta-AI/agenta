@@ -46,6 +46,7 @@ CREDENTIAL_EXTRAS_KEYS: FrozenSet[str] = frozenset(
         "TOGETHERAI_API_KEY",
         "TOGETHER_API_KEY",
         "OPENROUTER_API_KEY",
+        "XAI_API_KEY",
         # Raw env-style keys: AWS.
         "AWS_ACCESS_KEY_ID",
         "AWS_SECRET_ACCESS_KEY",

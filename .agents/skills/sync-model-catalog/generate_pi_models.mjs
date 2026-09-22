@@ -34,6 +34,7 @@ const PROVIDER_MAP = {
   minimax: "minimax",
   together: "together_ai",
   openrouter: "openrouter",
+  xai: "xai",
   "openai-codex": "openai-codex",
 };
 

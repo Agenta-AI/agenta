@@ -179,6 +179,22 @@ supported_llm_models = {
         "minimax/MiniMax-M2.1-lightning",
         "minimax/MiniMax-M2",
     ],
+    # The 4-series, concrete tiers only. `grok-4.20` is an umbrella over its reasoning and
+    # non-reasoning halves, so listing it would ask the user to pick a model and then pick
+    # nothing in particular (the same reason the bare "gpt-5.6" is absent above).
+    "xai": [
+        "xai/grok-4.7",
+        "xai/grok-4.6",
+        "xai/grok-4.5",
+        "xai/grok-4.3",
+        "xai/grok-4.20-reasoning",
+        "xai/grok-4.20-non-reasoning",
+        "xai/grok-4-1-fast-reasoning",
+        "xai/grok-4-1-fast-non-reasoning",
+        "xai/grok-4-fast-reasoning",
+        "xai/grok-4-fast-non-reasoning",
+        "xai/grok-4",
+    ],
 }
 
 providers_list = list(supported_llm_models.keys())
@@ -213,6 +229,7 @@ litellm_provider_prefixes: Dict[str, Optional[str]] = {
     # the model prefix "perplexity" — see the ids under "perplexityai" above.
     "perplexityai": "perplexity",
     "together_ai": "together_ai",
+    "xai": "xai",
     # Stored vault kinds with no catalog models and no litellm provider: litellm 1.92.0 knows
     # neither service (both wound down, and litellm dropped them), so no prefix routes them.
     # `aleph_alpha/luminous-base` fails with the same "LLM Provider NOT provided" as the bare id,
