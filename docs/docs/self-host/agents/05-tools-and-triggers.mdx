@@ -37,43 +37,30 @@ Applies when the MCP server's URL is `http://` rather than `https://`, or when i
 private network (`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`), loopback, link-local, or in
 RFC 6598 shared address space. It does not apply to a public `https://` server.
 
-Two settings decide whether such a server works, and they answer different questions.
+Two settings decide whether such a server works. The first answers both the save-time and the
+call-time question. The second is a narrower exemption, checked before it.
 
 | Setting | Read by | Question it answers |
 |---|---|---|
-| `AGENTA_INSECURE_EGRESS_ALLOWED` | api | May this URL be saved at all? |
-| `AGENTA_GATEWAYS_INSECURE_EGRESS_ALLOWED` | api | May the relay call it during a run? |
+| `AGENTA_GATEWAYS_INSECURE_EGRESS_ALLOWED` | api | May this URL be saved, and may the relay call it during a run? |
+| `AGENTA_MCP_GATEWAY_HOST_ALLOWLIST` | api | Which hostnames skip that guard entirely? |
 
 Pick the posture that matches your deployment.
 
 ### Posture 1: nobody untrusted can create MCP connections
 
-This is the posture the four Docker Compose env templates ship. They set
-`AGENTA_GATEWAYS_INSECURE_EGRESS_ALLOWED=true`, so the relay calls an MCP server on a private
-address or over plain HTTP.
-
-On a deployment built from a `.gh` template, that is not enough on its own in this version. Those
-templates also set `AGENTA_INSECURE_EGRESS_ALLOWED=false`, and in 0.119.0 the save-time check on an
-MCP server URL reads that older variable rather than the gateway one. Saving the server is refused
-with a `400`, before the relay is ever involved:
-
-```text
-endpoint.data.route.base_url is invalid: URL must use https.
-endpoint.data.route.base_url is invalid: URL resolves to a blocked IP range.
-endpoint.data.route.base_url is invalid: URL hostname is not allowed.
-```
-
-To save such a URL on a `.gh` deployment, set both:
+This is the posture the four Docker Compose env templates ship:
 
 ```bash
-AGENTA_INSECURE_EGRESS_ALLOWED=true
 AGENTA_GATEWAYS_INSECURE_EGRESS_ALLOWED=true
 ```
 
-`AGENTA_INSECURE_EGRESS_ALLOWED=true` also widens what webhooks, workflow hooks, custom model
-provider endpoints and OIDC issuer probes may reach on your network. A later release makes the
-save-time check follow the gateway setting, and this second variable is then no longer needed for
-MCP servers.
+One setting covers both steps. The URL saves, and the relay calls the server during a run, whether
+the server is on a private address or answers over plain HTTP.
+
+On 0.119.0 only, the save-time check read `AGENTA_INSECURE_EGRESS_ALLOWED` instead, so on that
+version a `.gh` deployment refused the save with a `400` even with the line above set. Upgrade to
+0.119.1 rather than widening that webhook setting.
 
 Recreate the api container so it reads the change:
 
@@ -97,9 +84,18 @@ AGENTA_GATEWAYS_INSECURE_EGRESS_ALLOWED=false
 AGENTA_MCP_GATEWAY_HOST_ALLOWLIST=mcp.internal
 ```
 
-Saving the URL is still subject to `AGENTA_INSECURE_EGRESS_ALLOWED`, described above. The save-time
-check resolves no hostnames, so `https://mcp.internal:8443` can be saved without widening egress,
-while `http://mcp.internal:8080` and `https://10.0.0.5:8443` cannot.
+The allowlist is checked first, before any scheme or address check, and it covers both steps. At
+save time, a URL whose hostname is on the list is accepted whatever its scheme, so both
+`https://mcp.internal:8443` and `http://mcp.internal:8080` are saved. At call time, the relay dials
+such a host as written, with no address check and no resolve-and-pin, so the plain-HTTP URL is
+called too. For the hosts on it, the allowlist drops the HTTPS requirement as well as the
+private-address one.
+
+Every URL whose hostname is not on the list follows `AGENTA_GATEWAYS_INSECURE_EGRESS_ALLOWED`. With
+that at `false`, `https://10.0.0.5:8443` is refused at save time, as a literal private IP address.
+A hostname that is not a literal IP address, such as `https://other.internal:8443`, saves anyway,
+because the save-time check resolves no hostnames. It is refused later, at call time, once the name
+resolves to a private address.
 
 ### Errors you will see
 
@@ -113,7 +109,9 @@ two fixes. This one fires at call time rather than at save time, so a public hos
 to an internal address reaches it too.
 
 **`endpoint.data.route.base_url is invalid: URL must use https.`** with a `400` when saving. The
-save-time check refused the URL. Set `AGENTA_INSECURE_EGRESS_ALLOWED=true`.
+save-time check refused the URL. Set `AGENTA_GATEWAYS_INSECURE_EGRESS_ALLOWED=true`, or put the
+server's hostname in `AGENTA_MCP_GATEWAY_HOST_ALLOWLIST`. On 0.119.0 this check read
+`AGENTA_INSECURE_EGRESS_ALLOWED` instead.
 
 **`gateway_insecure_endpoint`** during a run. Unrelated to the MCP server's address. It means your
 own Agenta deployment is reached over plain HTTP at a non-loopback address, so Agenta will not send
