@@ -992,6 +992,34 @@ export function startToolRelay(
     }
   };
 
+  // Floor under every wake-source wait. A source is free to resolve instantly, and some do
+  // it forever: an aborted turn makes both sources answer "closed" on sight. Without a
+  // floor the iteration then awaits nothing but microtasks, the event loop never reaches
+  // its timer and I/O phases, and the `stop()` that would end this loop can never be
+  // scheduled. An "activity" wake is exempt — a request is waiting and picking it up
+  // without a poll interval is the whole point of the watch — unless the caller already
+  // saw a wake produce nothing, which is the one way "activity" could spin the loop too.
+  // The floor is capped by the wait's own timeout, so a wait that ran its course adds
+  // nothing, and by the poll delay, so a closed source cannot pin `stop()` on the 30 s
+  // safety wait.
+  const waitWithFloor = async (
+    activitySource: RelayActivitySource,
+    timeoutMs: number,
+    floorMs: number,
+    floorActivity: boolean,
+  ): Promise<"activity" | "timeout" | "closed"> => {
+    const startedAt = Date.now();
+    const outcome = await boundedWait(activitySource, timeoutMs);
+    // `stop()` already cleared `active` and closed the source, which is what resolved this
+    // wait. There is no next iteration to spin, so flooring here would only make every
+    // turn's teardown (and every cancel behind it) wait out a poll delay it never used to.
+    if (!active) return outcome;
+    if (outcome === "activity" && !floorActivity) return outcome;
+    const remaining = Math.min(timeoutMs, floorMs) - (Date.now() - startedAt);
+    if (remaining > 0) await sleep(remaining);
+    return outcome;
+  };
+
   // Hop 2 wake source (plan decision 3). Undefined (no capability, or the remote watch
   // flag is off, or fs.watch failed) leaves the loop below byte-for-byte today's poll.
   const source = host.createActivitySource?.(relayDir);
@@ -1055,15 +1083,35 @@ export function startToolRelay(
           source.noteMiss?.();
         }
         idlePolls = sawNew ? 0 : idlePolls + 1;
-        if (source && source.isHealthy() && source.suspendsPolling) {
+        // An aborted turn makes every source answer wait() instantly while isHealthy()
+        // keeps saying true — only `stop()` closes a source, and `stop()` is exactly what
+        // the starved event loop can no longer run. So the signal disqualifies the source
+        // here too, and the loop falls to the sleep branch below: a real timer, a real
+        // yield. Waiting is what the source is for, and after an abort it cannot wait.
+        const sourceUsable =
+          source !== undefined &&
+          source.isHealthy() &&
+          opts?.signal?.aborted !== true;
+        const floorMs = relayPollDelayMs(idlePolls);
+        // The wake that led into this pass claimed a request and none was there, so the
+        // next one has to earn its exemption from the floor.
+        const floorActivity = lastWaitOutcome === "activity" && !sawNew;
+        if (source && sourceUsable && source.suspendsPolling) {
           // Healthy remote watch: the watch exec's completion is the wake; the remote
           // poll is suspended and only the 30 s safety poll remains (plan decision 6).
-          lastWaitOutcome = await boundedWait(source, RELAY_SAFETY_POLL_MS);
-        } else if (source && source.isHealthy()) {
+          lastWaitOutcome = await waitWithFloor(
+            source,
+            RELAY_SAFETY_POLL_MS,
+            floorMs,
+            floorActivity,
+          );
+        } else if (source && sourceUsable) {
           // Local watch: shortens the sleep only; the poll cadence is unchanged.
-          lastWaitOutcome = await boundedWait(
+          lastWaitOutcome = await waitWithFloor(
             source,
             relayPollDelayMs(idlePolls),
+            floorMs,
+            floorActivity,
           );
         } else {
           // Classic loop, byte for byte (no source, demoted, or closed).
