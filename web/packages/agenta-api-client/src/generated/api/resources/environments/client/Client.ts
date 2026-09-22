@@ -86,7 +86,7 @@ export class EnvironmentsClient {
             switch (_response.error.statusCode) {
                 case 422:
                     throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.error.body as unknown,
                         _response.rawResponse,
                     );
                 default:
@@ -155,7 +155,7 @@ export class EnvironmentsClient {
             switch (_response.error.statusCode) {
                 case 422:
                     throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.error.body as unknown,
                         _response.rawResponse,
                     );
                 default:
@@ -233,7 +233,7 @@ export class EnvironmentsClient {
             switch (_response.error.statusCode) {
                 case 422:
                     throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.error.body as unknown,
                         _response.rawResponse,
                     );
                 default:
@@ -307,7 +307,7 @@ export class EnvironmentsClient {
             switch (_response.error.statusCode) {
                 case 422:
                     throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.error.body as unknown,
                         _response.rawResponse,
                     );
                 default:
@@ -381,7 +381,7 @@ export class EnvironmentsClient {
             switch (_response.error.statusCode) {
                 case 422:
                     throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.error.body as unknown,
                         _response.rawResponse,
                     );
                 default:
@@ -484,7 +484,7 @@ export class EnvironmentsClient {
             switch (_response.error.statusCode) {
                 case 422:
                     throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.error.body as unknown,
                         _response.rawResponse,
                     );
                 default:
@@ -555,7 +555,7 @@ export class EnvironmentsClient {
             switch (_response.error.statusCode) {
                 case 422:
                     throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.error.body as unknown,
                         _response.rawResponse,
                     );
                 default:
@@ -624,7 +624,7 @@ export class EnvironmentsClient {
             switch (_response.error.statusCode) {
                 case 422:
                     throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.error.body as unknown,
                         _response.rawResponse,
                     );
                 default:
@@ -702,7 +702,7 @@ export class EnvironmentsClient {
             switch (_response.error.statusCode) {
                 case 422:
                     throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.error.body as unknown,
                         _response.rawResponse,
                     );
                 default:
@@ -776,7 +776,7 @@ export class EnvironmentsClient {
             switch (_response.error.statusCode) {
                 case 422:
                     throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.error.body as unknown,
                         _response.rawResponse,
                     );
                 default:
@@ -850,7 +850,7 @@ export class EnvironmentsClient {
             switch (_response.error.statusCode) {
                 case 422:
                     throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.error.body as unknown,
                         _response.rawResponse,
                     );
                 default:
@@ -965,7 +965,7 @@ export class EnvironmentsClient {
             switch (_response.error.statusCode) {
                 case 422:
                     throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.error.body as unknown,
                         _response.rawResponse,
                     );
                 default:
@@ -1043,7 +1043,7 @@ export class EnvironmentsClient {
             switch (_response.error.statusCode) {
                 case 422:
                     throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.error.body as unknown,
                         _response.rawResponse,
                     );
                 default:
@@ -1115,7 +1115,7 @@ export class EnvironmentsClient {
             switch (_response.error.statusCode) {
                 case 422:
                     throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.error.body as unknown,
                         _response.rawResponse,
                     );
                 default:
@@ -1194,7 +1194,7 @@ export class EnvironmentsClient {
             switch (_response.error.statusCode) {
                 case 422:
                     throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.error.body as unknown,
                         _response.rawResponse,
                     );
                 default:
@@ -1266,7 +1266,7 @@ export class EnvironmentsClient {
             switch (_response.error.statusCode) {
                 case 422:
                     throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.error.body as unknown,
                         _response.rawResponse,
                     );
                 default:
@@ -1347,7 +1347,7 @@ export class EnvironmentsClient {
             switch (_response.error.statusCode) {
                 case 422:
                     throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.error.body as unknown,
                         _response.rawResponse,
                     );
                 default:
@@ -1424,7 +1424,7 @@ export class EnvironmentsClient {
             switch (_response.error.statusCode) {
                 case 422:
                     throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.error.body as unknown,
                         _response.rawResponse,
                     );
                 default:
@@ -1501,7 +1501,7 @@ export class EnvironmentsClient {
             switch (_response.error.statusCode) {
                 case 422:
                     throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.error.body as unknown,
                         _response.rawResponse,
                     );
                 default:
@@ -1528,17 +1528,19 @@ export class EnvironmentsClient {
      * @throws {@link AgentaApi.UnprocessableEntityError}
      *
      * @example
-     *     await client.environments.queryEnvironmentRevisions()
+     *     await client.environments.queryEnvironmentRevisions({
+     *         body: {}
+     *     })
      */
     public queryEnvironmentRevisions(
-        request: AgentaApi.QueryEnvironmentRevisionsRequest = {},
+        request: AgentaApi.QueryEnvironmentRevisionsRequest,
         requestOptions?: EnvironmentsClient.RequestOptions,
     ): core.HttpResponsePromise<AgentaApi.EnvironmentRevisionsResponse> {
         return core.HttpResponsePromise.fromPromise(this.__queryEnvironmentRevisions(request, requestOptions));
     }
 
     private async __queryEnvironmentRevisions(
-        request: AgentaApi.QueryEnvironmentRevisionsRequest = {},
+        request: AgentaApi.QueryEnvironmentRevisionsRequest,
         requestOptions?: EnvironmentsClient.RequestOptions,
     ): Promise<core.WithRawResponse<AgentaApi.EnvironmentRevisionsResponse>> {
         const {
@@ -1566,6 +1568,7 @@ export class EnvironmentsClient {
             oldest,
             limit,
             order,
+            body: _body,
         } = request;
         const _queryParams: Record<string, unknown> = {
             environment_id: environmentId,
@@ -1611,7 +1614,10 @@ export class EnvironmentsClient {
             ),
             method: "POST",
             headers: _headers,
+            contentType: "application/json",
             queryParameters: { ..._queryParams, ...requestOptions?.queryParams },
+            requestType: "json",
+            body: _body,
             timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 30) * 1000,
             maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
             withCredentials: true,
@@ -1630,7 +1636,7 @@ export class EnvironmentsClient {
             switch (_response.error.statusCode) {
                 case 422:
                     throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.error.body as unknown,
                         _response.rawResponse,
                     );
                 default:
@@ -1709,7 +1715,7 @@ export class EnvironmentsClient {
             switch (_response.error.statusCode) {
                 case 422:
                     throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.error.body as unknown,
                         _response.rawResponse,
                     );
                 default:
@@ -1788,7 +1794,7 @@ export class EnvironmentsClient {
             switch (_response.error.statusCode) {
                 case 422:
                     throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.error.body as unknown,
                         _response.rawResponse,
                     );
                 default:
@@ -1867,7 +1873,7 @@ export class EnvironmentsClient {
             switch (_response.error.statusCode) {
                 case 422:
                     throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.error.body as unknown,
                         _response.rawResponse,
                     );
                 default:
@@ -1947,7 +1953,7 @@ export class EnvironmentsClient {
             switch (_response.error.statusCode) {
                 case 422:
                     throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.error.body as unknown,
                         _response.rawResponse,
                     );
                 default:
@@ -2016,7 +2022,7 @@ export class EnvironmentsClient {
             switch (_response.error.statusCode) {
                 case 422:
                     throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.error.body as unknown,
                         _response.rawResponse,
                     );
                 default:
@@ -2094,7 +2100,7 @@ export class EnvironmentsClient {
             switch (_response.error.statusCode) {
                 case 422:
                     throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.error.body as unknown,
                         _response.rawResponse,
                     );
                 default:
@@ -2168,7 +2174,7 @@ export class EnvironmentsClient {
             switch (_response.error.statusCode) {
                 case 422:
                     throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.error.body as unknown,
                         _response.rawResponse,
                     );
                 default:
@@ -2242,7 +2248,7 @@ export class EnvironmentsClient {
             switch (_response.error.statusCode) {
                 case 422:
                     throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.error.body as unknown,
                         _response.rawResponse,
                     );
                 default:
@@ -2316,7 +2322,7 @@ export class EnvironmentsClient {
             switch (_response.error.statusCode) {
                 case 422:
                     throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.error.body as unknown,
                         _response.rawResponse,
                     );
                 default:
@@ -2385,7 +2391,7 @@ export class EnvironmentsClient {
             switch (_response.error.statusCode) {
                 case 422:
                     throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.error.body as unknown,
                         _response.rawResponse,
                     );
                 default:
@@ -2459,7 +2465,7 @@ export class EnvironmentsClient {
             switch (_response.error.statusCode) {
                 case 422:
                     throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.error.body as unknown,
                         _response.rawResponse,
                     );
                 default:

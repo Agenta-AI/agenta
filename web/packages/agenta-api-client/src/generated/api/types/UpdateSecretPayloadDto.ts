@@ -13,8 +13,12 @@ export interface UpdateSecretPayloadDto {
 export namespace UpdateSecretPayloadDto {
     export type Data =
         | AgentaApi.StandardProviderDto
+        | AgentaApi.McpStandardProviderDto
         | AgentaApi.CustomProviderDto
         | AgentaApi.SsoProviderDto
         | AgentaApi.WebhookProviderDto
-        | AgentaApi.CustomSecretDto;
+        | AgentaApi.CustomSecretDto
+        | AgentaApi.OAuthProviderDto
+        | AgentaApi.OAuthGrantDto
+        | AgentaApi.SubscriptionProviderDto;
 }
