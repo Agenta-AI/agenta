@@ -47,8 +47,10 @@ const RETIRED_MODEL_SUCCESSORS: Record<string, string> = {
  * successor is returned bare; `pickModel` then widens it to the hinted option when that is the
  * only variant on offer.
  */
+const baseModelId = (id: string) => stripContextHint(id.slice(id.indexOf("/") + 1));
+
 const retiredModelSuccessor = (id: string): string | undefined =>
-  RETIRED_MODEL_SUCCESSORS[stripContextHint(id.slice(id.indexOf("/") + 1))];
+  RETIRED_MODEL_SUCCESSORS[baseModelId(id)];
 
 /**
  * Pick the harness-specific model id for a requested name. Harnesses expose their own ids
@@ -139,6 +141,9 @@ export async function applyModel(
     if (match && match !== wanted) {
       try {
         await session.setModel(match);
+        if (retiredModelSuccessor(wanted) && baseModelId(match) !== baseModelId(wanted)) {
+          log(`model '${wanted}' is retired by this harness; upgraded to '${match}'`);
+        }
         return match;
       } catch {
         // even the resolved id failed; fall through to the strict/lenient terminal handling

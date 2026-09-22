@@ -211,8 +211,28 @@ describe("applyModel", () => {
       },
     };
 
-    assert.equal(await applyModel(session, "claude-fable-5"), "claude-fable-5-1[1m]");
+    const logs: string[] = [];
+    assert.equal(
+      await applyModel(session, "claude-fable-5", (m) => logs.push(m)),
+      "claude-fable-5-1[1m]",
+    );
     assert.deepEqual(calls, ["claude-fable-5", "claude-fable-5-1[1m]"]);
+    assert.deepEqual(logs, [
+      "model 'claude-fable-5' is retired by this harness; upgraded to 'claude-fable-5-1[1m]'",
+    ]);
+  });
+
+  it("does not log an upgrade for a plain context-hint widening", async () => {
+    const session = {
+      setModel: async (id: string) => {
+        if (id !== "sonnet[1m]") {
+          throw new Error("Unsupported value. Allowed values: default, sonnet[1m]");
+        }
+      },
+    };
+    const logs: string[] = [];
+    assert.equal(await applyModel(session, "sonnet", (m) => logs.push(m)), "sonnet[1m]");
+    assert.deepEqual(logs, []);
   });
 
   it("fails loudly (strict default) when the requested model cannot be resolved", async () => {
