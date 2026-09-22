@@ -45,6 +45,7 @@ import json
 import os
 import sys
 import time
+import uuid
 from pathlib import Path
 
 from daytona import (
@@ -228,7 +229,9 @@ def parse_args(argv: list[str]) -> tuple[str, bool]:
 
 
 def trial_name(name: str) -> str:
-    return f"{name}-candidate-{time.strftime('%Y%m%d%H%M%S', time.gmtime())}"
+    # The random suffix keeps two concurrent refreshes from cleaning up each other's trial.
+    stamp = time.strftime("%Y%m%d%H%M%S", time.gmtime())
+    return f"{name}-candidate-{stamp}-{uuid.uuid4().hex[:6]}"
 
 
 def plan_build(name: str, force: bool, existing_state: object | None) -> str:

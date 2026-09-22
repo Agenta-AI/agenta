@@ -80,7 +80,7 @@ DAYTONA_API_KEY=... DAYTONA_TARGET=eu uv run build_snapshot.py --force
 
 `--force` on a working snapshot replaces it in three steps:
 
-1. It builds a trial snapshot, `<name>-candidate-<timestamp>`, from the same recipe, running every
+1. It builds a trial snapshot, `<name>-candidate-<timestamp>-<random>`, from the same recipe, running every
    build assertion. If the trial fails, the script deletes it and exits; the live snapshot is not
    touched.
 2. Once the trial passes, it deletes the live snapshot and rebuilds it under its real name. New

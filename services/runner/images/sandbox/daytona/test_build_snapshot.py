@@ -17,7 +17,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import build_snapshot  # noqa: E402
-from build_snapshot import SNAPSHOT_NAME, parse_args, plan_build  # noqa: E402
+from build_snapshot import SNAPSHOT_NAME, parse_args, plan_build, trial_name  # noqa: E402
 from daytona.common.errors import DaytonaNotFoundError  # noqa: E402
 
 
@@ -41,6 +41,14 @@ def test_force_replaces_a_snapshot_that_never_built():
     assert plan_build(SNAPSHOT_NAME, True, SimpleNamespace(value="error")) == (
         "replace-failed"
     )
+
+
+def test_trial_names_differ_within_the_same_second(monkeypatch):
+    frozen = build_snapshot.time.gmtime(0)
+    monkeypatch.setattr(build_snapshot.time, "gmtime", lambda: frozen)
+    names = {trial_name(SNAPSHOT_NAME) for _ in range(20)}
+    assert len(names) == 20
+    assert all(name.startswith(f"{SNAPSHOT_NAME}-candidate-") for name in names)
 
 
 def test_parse_args():
