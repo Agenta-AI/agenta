@@ -207,12 +207,19 @@ export const useElicitationDock = ({
         }
     }, [onOutput, markSettling, forgetSettling])
 
+    // A card whose answer is already out leaves the shown set, so it can never be the front one
+    // the actions address. The runner parks one question per turn, so in practice this empties
+    // the dock; a straggler behind it would come forward.
+    const live = useMemo(
+        () => pending.filter((meta) => !settlingIds.has(meta.toolCallId)),
+        [pending, settlingIds],
+    )
     // Hold the last non-empty view so a host can animate the dock closed around content already gone.
     // An answered or dismissed dock closes at once: what replaced it is the thing to look at, and
     // the cards only return if a write fails.
-    const open = pending.length > 0 && !pending.every((meta) => settlingIds.has(meta.toolCallId))
+    const open = live.length > 0
     const shownRef = useRef<ClientToolMeta[]>([])
-    if (open) shownRef.current = pending
+    if (open) shownRef.current = live
     const shown = shownRef.current
 
     return {

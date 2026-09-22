@@ -468,7 +468,10 @@ export const useServerSessionInputs = ({
 
     return {
         executionState: view.executionState,
-        busy: locallyBusy || view.executionState !== "idle",
+        // `remotelyBusy` too, for the same reason `tracking` reads it: the snapshot is how
+        // `executionState` learns about another browser's run, so leaving it out here reported
+        // the session idle for exactly the interval the poll was waiting out.
+        busy: locallyBusy || remotelyBusy || view.executionState !== "idle",
         queued: view.queued,
         submit,
         remove,

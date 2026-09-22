@@ -279,12 +279,14 @@ const sidebarWaitingIdsQueryAtomFamily = atomFamily((scopeId: string) =>
         const queryClient = get(queryClientAtom)
         return {
             queryKey: ["sidebar-sessions-waiting", projectId],
-            queryFn: async ({signal}) => {
+            queryFn: async () => {
                 // Through the shared gates query, not a request of its own: the card list and
                 // the tab rail read the same rows under the same key, so one flight serves all
-                // three and a fresh copy inside its stale window costs nothing.
+                // three and a fresh copy inside its stale window costs nothing. Deliberately
+                // WITHOUT this query's signal: the flight is shared, so aborting the sidebar
+                // would abort the request the other two are waiting on.
                 const rows = await queryClient.fetchQuery(
-                    actionableInteractionsQueryOptions(projectId ?? "", signal),
+                    actionableInteractionsQueryOptions(projectId ?? ""),
                 )
                 // The interactions query applies no ORDER BY, so row order is not stable between
                 // executions. Both session queries put this array in their cache key, and a pure

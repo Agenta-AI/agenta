@@ -35,22 +35,15 @@ export const actionableInteractionsQueryKey = (projectId: string) =>
     ["sessions-page", "actionable-interactions", projectId] as const
 
 /**
- * `outerSignal` is for an imperative `fetchQuery` reader whose own query was aborted: TanStack
- * hands the shared entry its own signal, so a caller that wants its abort to reach the request
- * passes its signal here. A subscriber (`useActionableInteractions`) passes nothing and keeps
- * the query's own.
+ * One flight for every reader of the gated rows (the card list, the tab rail, the sidebar's
+ * waiting filter). The request keeps TanStack's own signal: an imperative `fetchQuery` reader
+ * that handed its signal over here would abort the shared entry for everyone else when its own
+ * query was cancelled.
  */
-export const actionableInteractionsQueryOptions = (
-    projectId: string,
-    outerSignal?: AbortSignal,
-) => ({
+export const actionableInteractionsQueryOptions = (projectId: string) => ({
     queryKey: actionableInteractionsQueryKey(projectId),
     queryFn: ({signal}: {signal?: AbortSignal}) =>
-        queryInteractions({
-            projectId,
-            actionableOnly: true,
-            abortSignal: outerSignal ?? signal,
-        }),
+        queryInteractions({projectId, actionableOnly: true, abortSignal: signal}),
     staleTime: 10_000,
 })
 

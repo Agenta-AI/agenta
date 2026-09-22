@@ -123,6 +123,12 @@ export const useApprovalDock = ({
             const ownerId = ids[0]
             const results = await Promise.allSettled(responses)
             if (currentIdRef.current !== ownerId) return
+            // A host without `respondAll` answers one gate per response, so an outcome belongs to
+            // ONE id; a batch is a single response for the whole set. Restoring by outcome rather
+            // than wholesale is what keeps a fan-out's successful gates from coming back
+            // actionable because a sibling failed.
+            const matching = (keep: (result: (typeof results)[number]) => boolean) =>
+                results.length === ids.length ? ids.filter((_, index) => keep(results[index])) : ids
             const failed = results.find(
                 (result): result is PromiseRejectedResult => result.status === "rejected",
             )
@@ -132,13 +138,19 @@ export const useApprovalDock = ({
                 )
                 setRecoverable(recoverable)
                 setAnswered(true)
-                // Nothing resumes on its own — bring the card back to say so.
-                if (recoverable) forgetSettled(ids)
+                // Nothing resumes on its own — bring those cards back to say so.
+                if (recoverable)
+                    forgetSettled(
+                        matching(
+                            (result) =>
+                                result.status === "fulfilled" && result.value?.recoverable === true,
+                        ),
+                    )
                 return
             }
             setResponding(false)
             setResolvingIds(null)
-            forgetSettled(ids)
+            forgetSettled(matching((result) => result.status === "rejected"))
             setErrorText(
                 failed.reason instanceof Error
                     ? failed.reason.message
