@@ -380,8 +380,10 @@ function bridgeStub(): void {
         reportError({message: "Unhandled rejection: " + describe(reason)})
     })
 
-    // Internal link clicks become `nav` messages the host routes inside the drive; external and
-    // fragment links fall through to the browser (same rules as the drive's HTML preview).
+    // Internal link clicks become `nav` messages the host routes inside the drive; external links
+    // fall through to the browser. A fragment link becomes a hash change on this document: a
+    // srcdoc document resolves `#x` against the host app's URL, so the browser's own handling
+    // would navigate the frame away (which stops the app) instead of scrolling.
     document.addEventListener(
         "click",
         function (event) {
@@ -389,7 +391,12 @@ function bridgeStub(): void {
             while (el && el.tagName !== "A") el = el.parentElement
             if (!el) return
             var href = el.getAttribute("href")
-            if (!href || href.charAt(0) === "#") return
+            if (!href) return
+            if (href.charAt(0) === "#") {
+                event.preventDefault()
+                location.hash = href
+                return
+            }
             if (/^[a-z][a-z0-9+.-]*:/i.test(href) || href.indexOf("//") === 0) return
             event.preventDefault()
             if (port) port.postMessage({v: VERSION, type: "nav", href: href})
