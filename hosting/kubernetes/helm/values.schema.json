@@ -216,7 +216,8 @@
         "openai":       { "type": "string" },
         "openrouter":   { "type": "string" },
         "perplexityai": { "type": "string" },
-        "togetherai":   { "type": "string" }
+        "togetherai":   { "type": "string" },
+        "xai":          { "type": "string" }
       }
     },
     "cloudflare": {

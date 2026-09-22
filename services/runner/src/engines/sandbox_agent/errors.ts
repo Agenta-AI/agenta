@@ -11,6 +11,7 @@ const PROVIDER_KEY_LABELS: Record<string, string> = {
   groq: "Groq",
   together_ai: "Together AI",
   openrouter: "OpenRouter",
+  xai: "xAI",
 };
 
 /**

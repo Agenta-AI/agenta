@@ -6,7 +6,7 @@ Agenta `sandbox-agent` runner path.
 We ship the recipe, not a built snapshot. The operator runs it in their own Daytona account:
 
 ```bash
-DAYTONA_API_KEY=... DAYTONA_TARGET=eu uv run build_snapshot.py --force
+DAYTONA_API_KEY=... DAYTONA_TARGET=eu uv run build_snapshot.py
 ```
 
 Configure the runner service with:
@@ -71,15 +71,26 @@ do not forward Pi extension dialogs as ACP permission requests.
 
 ## Refreshing an existing snapshot
 
-The snapshot name is pinned, so Daytona keeps serving whatever you built under it. When this recipe
-changes, rebuild it in each Daytona account that uses it:
+Daytona keeps serving whatever you built under a name. When this recipe changes, build it under a
+NEW name in each Daytona account that uses it, then switch the runner:
 
 ```bash
-DAYTONA_API_KEY=... DAYTONA_TARGET=eu uv run build_snapshot.py --force
+DAYTONA_API_KEY=... DAYTONA_TARGET=eu uv run build_snapshot.py --name agenta-agent-sandbox-v1-20260922
+# after it prints "built", on the runner:
+AGENTA_RUNNER_DAYTONA_SNAPSHOT=agenta-agent-sandbox-v1-20260922
 ```
 
-`--force` is required: without it the script sees the existing snapshot and exits. Sandboxes already
-running keep the old contents; only sandboxes created after the rebuild pick up the change.
+Roll the runner so it picks up the setting, verify a Daytona run, then delete the old snapshot in
+Daytona.
+
+The script never deletes a snapshot that built successfully, even with `--force`. It used to
+delete the live snapshot and then build; when the build failed one of its assertions, every
+Daytona run failed until someone rebuilt by hand. Now `--force` on a usable snapshot exits with the
+command to run instead, and it only replaces a snapshot whose build failed (`error` or
+`build_failed`), which never served a sandbox. Sandboxes already running keep the old contents;
+only sandboxes created after the switch pick up the change.
+
+The decision logic has unit tests that need no Daytona account: `uv run test_build_snapshot.py`.
 
 ## Pi installation
 
