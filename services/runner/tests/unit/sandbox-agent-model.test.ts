@@ -5,11 +5,14 @@
  */
 import { describe, it } from "vitest";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 
 import {
   allowedFromError,
   allowedModels,
   applyModel,
+  CLAUDE_TIER_ALIASES,
   ModelNotSettableError,
   pickModel,
 } from "../../src/engines/sandbox_agent/model.ts";
@@ -77,6 +80,67 @@ describe("pickModel", () => {
     assert.equal(pickModel(["claude-fable-5", "claude-fable-5-1"], "claude-fable-5"), "claude-fable-5");
     // No successor on offer: still no match, so the strict path fails loud.
     assert.equal(pickModel(["default", "sonnet"], "claude-fable-5"), undefined);
+  });
+
+  it("runs a concrete Claude id on its tier alias when the build does not offer the id", () => {
+    // Captured from the pinned build on staging: an API-key session offers `opus[1m]` but not
+    // `claude-opus-5-5`, so a saved concrete id failed with ModelNotSettableError.
+    const apiKey = ["default", "opus[1m]", "claude-fable-5-1", "sonnet", "haiku"];
+    const subscription = ["default", "opus[1m]", "claude-fable-5-1[1m]", "sonnet", "haiku"];
+    const cases: Array<[string, string]> = [
+      ["claude-opus-5-5", "opus[1m]"],
+      ["anthropic/claude-opus-5-5", "opus[1m]"],
+      ["claude-opus-5-5[1m]", "opus[1m]"],
+      ["anthropic/claude-opus-5-5[1m]", "opus[1m]"],
+      ["claude-sonnet-5", "sonnet"],
+      ["anthropic/claude-sonnet-5", "sonnet"],
+      ["claude-sonnet-5[1m]", "sonnet"],
+      ["claude-haiku-4-5", "haiku"],
+      ["anthropic/claude-haiku-4-5", "haiku"],
+      ["claude-haiku-4-5[1m]", "haiku"],
+    ];
+    for (const [saved, alias] of cases) {
+      assert.equal(pickModel(apiKey, saved), alias, `api key: ${saved}`);
+      assert.equal(pickModel(subscription, saved), alias, `subscription: ${saved}`);
+    }
+  });
+
+  it("prefers the requested context variant, then the bare alias, within a tier", () => {
+    const both = ["default", "opus", "opus[1m]", "sonnet"];
+    assert.equal(pickModel(both, "claude-opus-5-5"), "opus");
+    assert.equal(pickModel(both, "claude-opus-5-5[1m]"), "opus[1m]");
+    assert.equal(pickModel(["default", "opus", "sonnet"], "anthropic/claude-opus-5-5"), "opus");
+  });
+
+  it("keeps an exact offered id over its tier alias", () => {
+    const offered = ["default", "opus[1m]", "claude-opus-5-5", "sonnet", "haiku"];
+    assert.equal(pickModel(offered, "claude-opus-5-5"), "claude-opus-5-5");
+    assert.equal(pickModel(offered, "anthropic/claude-opus-5-5"), "claude-opus-5-5");
+    assert.equal(
+      pickModel(["default", "claude-opus-5-5[1m]", "opus[1m]"], "claude-opus-5-5"),
+      "claude-opus-5-5[1m]",
+    );
+  });
+
+  it("finds no tier alias when the build offers nothing in that tier", () => {
+    assert.equal(pickModel(["default", "sonnet", "haiku"], "claude-opus-5-5"), undefined);
+    // Pi's provider-prefixed ids are never a tier alias.
+    assert.equal(pickModel(["anthropic/opus", "anthropic/claude-opus-5"], "claude-opus-5-5"), undefined);
+  });
+
+  it("mirrors the tier entries of the SDK's MODEL_ID_ALIASES", () => {
+    const source = readFileSync(
+      join(import.meta.dirname, "../../../../sdks/python/agenta/sdk/agents/capabilities.py"),
+      "utf8",
+    );
+    const block = /^MODEL_ID_ALIASES[^{]*\{([^}]*)\}/m.exec(source)?.[1];
+    assert.ok(block, "MODEL_ID_ALIASES not found in capabilities.py");
+    const sdkTiers: Record<string, string> = {};
+    for (const [, prefix, alias] of block.matchAll(/"anthropic\/([^"]+)":\s*"([^"]+)"/g)) {
+      // Tier entries are open prefixes (`claude-opus-`); the rest name one retired model.
+      if (prefix.endsWith("-")) sdkTiers[prefix] = alias.replace(/\[[^[\]]*\]$/, "");
+    }
+    assert.deepEqual(sdkTiers, CLAUDE_TIER_ALIASES);
   });
 
   it("does not fall back from a hinted request to a bare id (never shrinks context)", () => {
@@ -219,6 +283,30 @@ describe("applyModel", () => {
     assert.deepEqual(calls, ["claude-fable-5", "claude-fable-5-1[1m]"]);
     assert.deepEqual(logs, [
       "model 'claude-fable-5' is retired by this harness; upgraded to 'claude-fable-5-1[1m]'",
+    ]);
+  });
+
+  it("runs a saved claude-opus-5-5 on the API-key build's opus[1m] and logs it", async () => {
+    const calls: string[] = [];
+    const session = {
+      setModel: async (id: string) => {
+        calls.push(id);
+        if (id !== "opus[1m]") {
+          throw new Error(
+            "Unsupported value. Allowed values: default, opus[1m], claude-fable-5-1, sonnet, haiku",
+          );
+        }
+      },
+    };
+
+    const logs: string[] = [];
+    assert.equal(
+      await applyModel(session, "anthropic/claude-opus-5-5", (m) => logs.push(m)),
+      "opus[1m]",
+    );
+    assert.deepEqual(calls, ["anthropic/claude-opus-5-5", "opus[1m]"]);
+    assert.deepEqual(logs, [
+      "model 'anthropic/claude-opus-5-5' is not offered by this harness; running its tier alias 'opus[1m]'",
     ]);
   });
 
