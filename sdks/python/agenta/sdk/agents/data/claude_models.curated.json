@@ -120,6 +120,31 @@
         "intelligence": 5,
         "speed": 3
       }
+    },
+    {
+      "id": "claude-fable-5-1",
+      "provider": "anthropic",
+      "source": "curated",
+      "name": "Claude Fable 5.1",
+      "pricing": {
+        "input_per_mtok": 10.0,
+        "output_per_mtok": 50.0,
+        "cache_read_per_mtok": 0.25,
+        "cache_write_per_mtok": 12.5,
+        "currency": "USD"
+      },
+      "context_window": 1000000,
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "label": "Fable 5.1",
+      "description": "The current Anthropic frontier (Fable 5.1): the strongest reasoning tier for demanding, long-horizon agentic work.",
+      "ratings": {
+        "cost": 2,
+        "intelligence": 5,
+        "speed": 3
+      }
     }
   ]
 }
