@@ -11,10 +11,30 @@ permissions:
   actions: write
 
 jobs:
-  request:
+  authorize:
     if: >-
       github.event.issue.pull_request && github.event.comment.user.type == 'User' &&
       contains(github.event.comment.body, '/preview')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      authorized: ${{ steps.check.outputs.authorized }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.workflow_sha }}
+          persist-credentials: false
+      - id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.issue.number }}
+        run: python3 hosting/railway/oss/scripts/preview_lifecycle.py authorize
+
+  request:
+    needs: authorize
+    # Reject strangers before they can occupy/displace the cleanup mutex.
+    if: needs.authorize.outputs.authorized == 'true'
     uses: ./.github/workflows/49-railway-lifecycle.yml
     with:
       operation: request

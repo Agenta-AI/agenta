@@ -34,16 +34,7 @@ def main():
     run = gh.api(f"actions/runs/{source_run}/attempts/{source_attempt}")
     if run["path"] != ".github/workflows/14-check-pr-preview.yml":
         raise ValueError("Image source must be the PR preview workflow")
-    jobs = []
-    page = 1
-    while True:
-        data = gh.api(
-            f"actions/runs/{source_run}/attempts/{source_attempt}/jobs?per_page=100&page={page}"
-        )
-        jobs.extend(data["jobs"])
-        if len(jobs) >= data["total_count"]:
-            break
-        page += 1
+    jobs = gh.jobs(source_run, source_attempt)
     builds = [job for job in jobs if job["name"].startswith("build /")]
     if len(builds) < 19 or any(job["conclusion"] != "success" for job in builds):
         raise ValueError(

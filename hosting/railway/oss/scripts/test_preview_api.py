@@ -102,6 +102,36 @@ class ProviderTests(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             gh.authorized("maintainer")
 
+    def test_waiting_finalizer_is_not_an_active_resource_user(self):
+        gh = GitHub("Agenta-AI/agenta")
+        gh.api = Mock(return_value={"status": "in_progress"})
+        gh.jobs = Mock(
+            return_value=[
+                {"name": "tests / run-api-tests (acceptance)", "status": "completed"},
+                {"name": "cleanup / mutate", "status": "queued"},
+            ]
+        )
+        self.assertFalse(gh.active(1, 1))
+
+    def test_running_test_is_an_active_resource_user(self):
+        gh = GitHub("Agenta-AI/agenta")
+        gh.api = Mock(return_value={"status": "in_progress"})
+        gh.jobs = Mock(
+            return_value=[
+                {"name": "tests / run-api-tests (acceptance)", "status": "in_progress"},
+                {"name": "cleanup / mutate", "status": "queued"},
+            ]
+        )
+        self.assertTrue(gh.active(1, 1))
+
+    def test_between_job_scheduling_gap_is_not_treated_as_completion(self):
+        gh = GitHub("Agenta-AI/agenta")
+        gh.api = Mock(return_value={"status": "in_progress"})
+        gh.jobs = Mock(
+            return_value=[{"name": "build / prepare", "status": "completed"}]
+        )
+        self.assertTrue(gh.active(1, 1))
+
     def test_old_attempt_cannot_cancel_new_attempt(self):
         gh = GitHub("Agenta-AI/agenta")
         gh.active = Mock(return_value=True)

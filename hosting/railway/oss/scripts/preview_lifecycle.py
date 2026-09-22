@@ -53,6 +53,21 @@ def settings():
     }
 
 
+def authorized_comment(gh, event, pr):
+    comment = event.get("comment", {})
+    if (
+        event.get("action") != "created"
+        or "pull_request" not in event.get("issue", {})
+        or event["issue"].get("number") != pr
+        or comment.get("body", "").strip() != "/preview"
+        or comment.get("user", {}).get("type") != "User"
+    ):
+        return False
+    if not gh.authorized(comment["user"]["login"]):
+        raise ValueError("Repository write permission is required")
+    return True
+
+
 def run_json(args, payload=None):
     result = subprocess.run(
         args,
@@ -108,9 +123,31 @@ class GitHub:
         response = self.api(f"collaborators/{login}/permission")
         return response.get("permission") in {"write", "maintain", "admin"}
 
+    def jobs(self, run_id, attempt):
+        jobs, page = [], 1
+        while True:
+            result = self.api(
+                f"actions/runs/{run_id}/attempts/{attempt}/jobs?per_page=100&page={page}"
+            )
+            jobs.extend(result["jobs"])
+            if len(jobs) >= result["total_count"]:
+                return jobs
+            if not result["jobs"]:
+                raise RuntimeError("GitHub job pagination did not advance")
+            page += 1
+
     def active(self, run_id, attempt):
         run = self.api(f"actions/runs/{run_id}/attempts/{attempt}")
-        return run["status"] != "completed"
+        if run["status"] == "completed":
+            return False
+        jobs = self.jobs(run_id, attempt)
+        # An old finalizer may be waiting for the very mutex this caller holds.
+        # Wait for resource users, not the finalizer, or replacement deadlocks.
+        finalizers = {"cleanup / mutate", "cleanup-failed / mutate"}
+        unfinished = [job for job in jobs if job["status"] != "completed"]
+        return not unfinished or any(
+            job["name"] not in finalizers for job in unfinished
+        )
 
     def stop(self, run_id, attempt):
         if not run_id or not self.active(run_id, attempt):
@@ -416,19 +453,10 @@ class Controller:
         self.save()
 
     def request(self, event, run_id, attempt):
-        comment = event.get("comment", {})
-        if (
-            event.get("action") != "created"
-            or "pull_request" not in event.get("issue", {})
-            or event["issue"].get("number") != self.pr
-            or comment.get("body", "").strip() != "/preview"
-            or comment.get("user", {}).get("type") != "User"
-        ):
+        if not authorized_comment(self.gh, event, self.pr):
             return {}
-        if not self.gh.authorized(comment["user"]["login"]):
-            raise ValueError("Repository write permission is required")
         sha = self.eligible()
-        comment_id = comment["id"]
+        comment_id = event["comment"]["id"]
         if self.data and comment_id <= self.data["last_comment"]:
             return {}  # Redelivery is never a new lease, even after expiry.
         self.reconcile()
@@ -685,6 +713,7 @@ def main():
     parser.add_argument(
         "operation",
         choices=[
+            "authorize",
             "request",
             "deploy-ci",
             "deploy-manual",
@@ -696,6 +725,13 @@ def main():
     )
     args = parser.parse_args()
     gh = GitHub(os.environ["GITHUB_REPOSITORY"])
+    if args.operation == "authorize":
+        raw_pr = os.environ.get("PR_NUMBER", "")
+        if not re.fullmatch(r"[1-9][0-9]*", raw_pr):
+            raise ValueError("PR_NUMBER must be positive digits")
+        event = json.loads(Path(os.environ["GITHUB_EVENT_PATH"]).read_text())
+        outputs({"authorized": str(authorized_comment(gh, event, int(raw_pr))).lower()})
+        return  # No Railway credential or per-PR mutation slot needed here.
     rw = Railway()
     if args.operation == "legacy-tests":
         rw.cleanup_test_previews()
