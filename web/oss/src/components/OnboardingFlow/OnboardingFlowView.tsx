@@ -30,6 +30,8 @@ import {
 import {Button, Input} from "antd"
 import Image from "next/image"
 
+import {templateProviderSlugs} from "@agenta/entities/workflow"
+
 import {
     firstAgentInput,
     roles,
@@ -274,7 +276,7 @@ export default function OnboardingFlowView({
                                                 {template.description}
                                             </span>
                                             <span className="mt-2 flex gap-1">
-                                                {template.logoSlugs?.map((slug) => (
+                                                {templateProviderSlugs(template).map((slug) => (
                                                     <Image
                                                         key={slug}
                                                         src={`https://logos.composio.dev/api/${slug}`}
@@ -318,7 +320,7 @@ export default function OnboardingFlowView({
                                                     template.example?.prompt ??
                                                     template.name}
                                             </strong>
-                                            {template.logoSlugs?.map((slug) => (
+                                            {templateProviderSlugs(template).map((slug) => (
                                                 <Image
                                                     key={slug}
                                                     src={`https://logos.composio.dev/api/${slug}`}
