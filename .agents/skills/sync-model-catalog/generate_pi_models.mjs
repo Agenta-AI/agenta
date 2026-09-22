@@ -9,9 +9,10 @@
 // loader merges on top of this file. Regeneration only ever rewrites this generated file, so the
 // overlay survives a bump.
 //
-// Run from the runner package (so `@earendil-works/pi-ai` resolves):
-//   node .agents/skills/sync-model-catalog/generate_pi_models.mjs \
-//     services/runner/node_modules/@earendil-works/pi-ai/dist/models.generated.js \
+// Run from the repo root, resolving pi-ai through `@earendil-works/pi-coding-agent` — the runner
+// also declares an older pi-ai directly, and that copy is not what the harness runs:
+//   MODELS=$(realpath services/runner/node_modules/@earendil-works/pi-coding-agent/../pi-ai/dist/models.generated.js)
+//   node .agents/skills/sync-model-catalog/generate_pi_models.mjs "$MODELS" \
 //     sdks/python/agenta/sdk/agents/data/pi_models.generated.json
 //
 // The output JSON carries no inline comments (JSON forbids them); the "generated, do not
