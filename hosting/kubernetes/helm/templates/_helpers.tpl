@@ -1412,6 +1412,7 @@ imagePullSecrets:
 {{- if $llm.openrouter }}{{- $llmEnvVars = append $llmEnvVars "OPENROUTER_API_KEY" }}{{- end }}
 {{- if $llm.perplexityai }}{{- $llmEnvVars = append $llmEnvVars "PERPLEXITYAI_API_KEY" }}{{- end }}
 {{- if $llm.togetherai }}{{- $llmEnvVars = append $llmEnvVars "TOGETHERAI_API_KEY" }}{{- end }}
+{{- if $llm.xai }}{{- $llmEnvVars = append $llmEnvVars "XAI_API_KEY" }}{{- end }}
 {{- range $envName := $llmEnvVars }}
 - name: {{ $envName }}
   valueFrom:

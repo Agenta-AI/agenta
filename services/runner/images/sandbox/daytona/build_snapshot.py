@@ -18,10 +18,13 @@ built snapshot through its own DAYTONA_SNAPSHOT_CODE / DAYTONA_SNAPSHOT variable
 recipe runs the shared tool recipe (install-agent-tools.sh), which includes python3 and
 typescript/ts-node.
 
-Run: DAYTONA_API_KEY=... DAYTONA_TARGET=eu uv run build_snapshot.py [--force]
+Run: DAYTONA_API_KEY=... DAYTONA_TARGET=eu uv run build_snapshot.py [--name NAME] [--force]
 
-The snapshot name is pinned, so Daytona keeps serving whatever was built under it. Whenever this
-recipe changes, every Daytona account using it must rerun the build with --force; see README.md.
+Daytona keeps serving whatever was built under a name. Whenever this recipe changes, build it
+under a NEW name (`--name agenta-agent-sandbox-v1-20260922`), then point
+AGENTA_RUNNER_DAYTONA_SNAPSHOT at that name; see README.md. The script never deletes a snapshot
+that built successfully: runners may be starting sandboxes from it, and a replacement build can
+fail on any of the assertions below, which used to leave every Daytona run without a snapshot.
 
 Licensing (see services/runner/docker/README.md):
     This script is the build recipe we ship, NOT a snapshot we distribute. Whoever
@@ -200,32 +203,90 @@ def install_agent_tools_commands() -> list[str]:
     ]
 
 
+# A snapshot in one of these states never served a sandbox, so replacing it cannot break a run.
+FAILED_SNAPSHOT_STATES = frozenset({"error", "build_failed"})
+
+
+def parse_args(argv: list[str]) -> tuple[str, bool]:
+    """`--name NAME` (default: the runner's pinned name) and `--force`."""
+    name = SNAPSHOT_NAME
+    force = False
+    args = iter(argv)
+    for arg in args:
+        if arg == "--force":
+            force = True
+        elif arg == "--name":
+            name = next(args, "")
+            if not name:
+                raise SystemExit("--name needs a snapshot name")
+        elif arg.startswith("--name="):
+            name = arg.removeprefix("--name=")
+            if not name:
+                raise SystemExit("--name needs a snapshot name")
+        else:
+            raise SystemExit(f"unknown argument: {arg}")
+    return name, force
+
+
+def suggested_name() -> str:
+    return f"{SNAPSHOT_NAME}-{time.strftime('%Y%m%d-%H%M', time.gmtime())}"
+
+
+def plan_build(name: str, force: bool, existing_state: object | None) -> str:
+    """What to do with `name`: "build", "skip", "replace-failed", or "refuse".
+
+    A healthy snapshot is never deleted, even with --force: a runner may be creating sandboxes
+    from it right now, and deleting it before a replacement exists fails every Daytona run for
+    as long as the rebuild takes, or for good when the rebuild trips an assertion. A refresh
+    builds under a new name instead, and the operator switches the runner to it.
+    """
+    if existing_state is None:
+        return "build"
+    if str(getattr(existing_state, "value", existing_state)) in FAILED_SNAPSHOT_STATES:
+        return "replace-failed" if force else "skip"
+    return "refuse" if force else "skip"
+
+
+def wait_until_deleted(daytona: Daytona, name: str) -> None:
+    deadline = time.monotonic() + 120
+    while True:
+        try:
+            daytona.snapshot.get(name)
+        except DaytonaNotFoundError:
+            return
+        if time.monotonic() >= deadline:
+            raise TimeoutError(f"Timed out waiting for snapshot '{name}' to delete")
+        time.sleep(2)
+
+
 def main() -> None:
-    force = "--force" in sys.argv
+    name, force = parse_args(sys.argv[1:])
     daytona = Daytona(DaytonaConfig())
 
     try:
-        existing = daytona.snapshot.get(SNAPSHOT_NAME)
+        existing = daytona.snapshot.get(name)
     except DaytonaNotFoundError:
         existing = None
 
-    if existing and not force:
-        print(f"snapshot '{SNAPSHOT_NAME}' already exists; pass --force to rebuild.")
+    action = plan_build(name, force, existing.state if existing else None)
+    if action == "skip":
+        print(
+            f"snapshot '{name}' already exists (state: {existing.state}). To refresh it, build "
+            f"under a new name: --name {suggested_name()}"
+        )
         return
-    if existing:
-        print(f"deleting existing snapshot '{SNAPSHOT_NAME}'...")
+    if action == "refuse":
+        raise SystemExit(
+            f"snapshot '{name}' exists and is usable, so it is not deleted: runners may be "
+            "starting sandboxes from it. Build the refreshed recipe under a new name, e.g.\n"
+            f"    uv run build_snapshot.py --name {suggested_name()}\n"
+            "then set AGENTA_RUNNER_DAYTONA_SNAPSHOT to that name and roll the runner. Delete "
+            f"'{name}' yourself once no runner points at it."
+        )
+    if action == "replace-failed":
+        print(f"deleting failed snapshot '{name}' (state: {existing.state})...")
         daytona.snapshot.delete(existing)
-        deadline = time.monotonic() + 120
-        while True:
-            try:
-                daytona.snapshot.get(SNAPSHOT_NAME)
-            except DaytonaNotFoundError:
-                break
-            if time.monotonic() >= deadline:
-                raise TimeoutError(
-                    "Timed out waiting for the old Daytona snapshot to delete"
-                )
-            time.sleep(2)
+        wait_until_deleted(daytona, name)
 
     # Add Pi globally so it is on PATH for the non-root sandbox user. The full base
     # already bakes Claude, Codex, and OpenCode, so verify their native binaries
@@ -293,11 +354,12 @@ def main() -> None:
         ]
     )
 
-    print(f"building snapshot '{SNAPSHOT_NAME}' from {SANDBOX_AGENT_IMAGE} (+ pi)...")
+    print(f"building snapshot '{name}' from {SANDBOX_AGENT_IMAGE} (+ pi)...")
     started = time.monotonic()
+    # Raises when the build fails, so the switch instructions below print only for an ACTIVE one.
     daytona.snapshot.create(
         CreateSnapshotParams(
-            name=SNAPSHOT_NAME,
+            name=name,
             image=image,
             resources=Resources(
                 cpu=int(os.getenv("AGENTA_RUNNER_DAYTONA_SANDBOX_CPU", "2")),
@@ -307,7 +369,12 @@ def main() -> None:
         ),
         on_logs=print,
     )
-    print(f"\nsnapshot '{SNAPSHOT_NAME}' built in {time.monotonic() - started:.1f}s")
+    print(f"\nsnapshot '{name}' built in {time.monotonic() - started:.1f}s")
+    if name != SNAPSHOT_NAME:
+        print(
+            f"Point the runner at it: AGENTA_RUNNER_DAYTONA_SNAPSHOT={name}\n"
+            "Delete the previous snapshot only after every runner has switched."
+        )
 
 
 if __name__ == "__main__":
