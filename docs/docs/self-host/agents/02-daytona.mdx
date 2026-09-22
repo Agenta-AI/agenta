@@ -93,20 +93,14 @@ for on their own: `python3` (also available as `python`), `unzip`, `zip`, `rg` (
 `jq`, `ps`, `file`, and `tree`. It builds a snapshot named `agenta-agent-sandbox-v1` and sets each
 sandbox to 2 vCPU, 4 GB of memory, and 5 GB of disk.
 
-If you already built a snapshot from an earlier release, build the new recipe under a new name
-after upgrading, then point the runner at that name (next step):
+If you already built `agenta-agent-sandbox-v1` from an earlier release, rebuild it with `--force`
+after upgrading. Daytona keeps the snapshot you built, so a snapshot built from an older recipe
+keeps its older toolset until you rebuild it. `--force` first builds a trial copy under a
+temporary name, so a recipe that fails its checks leaves your working snapshot untouched. New
+sandboxes cannot start while the real snapshot is rebuilt, so run it in a quiet window. If that
+last step fails, the script prints the setting that points the runner at the trial copy.
 
-```bash
-uv run build_snapshot.py --name agenta-agent-sandbox-v1-20260922
-```
-
-Daytona keeps the snapshot you built, so a snapshot built from an older recipe keeps its older
-toolset until the runner moves to a new one. The script never deletes a working snapshot, because
-your runner may be starting sandboxes from it; `--force` only replaces a snapshot whose build
-failed. Delete the old snapshot in Daytona once no runner points at it.
-
-Point the runner at the snapshot you built. On a first install that is `agenta-agent-sandbox-v1`;
-after a refresh, use the new name:
+Point the runner at it:
 
 ```bash
 AGENTA_RUNNER_DAYTONA_SNAPSHOT=agenta-agent-sandbox-v1

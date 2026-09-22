@@ -20,11 +20,10 @@ typescript/ts-node.
 
 Run: DAYTONA_API_KEY=... DAYTONA_TARGET=eu uv run build_snapshot.py [--name NAME] [--force]
 
-Daytona keeps serving whatever was built under a name. Whenever this recipe changes, build it
-under a NEW name (`--name agenta-agent-sandbox-v1-20260922`), then point
-AGENTA_RUNNER_DAYTONA_SNAPSHOT at that name; see README.md. The script never deletes a snapshot
-that built successfully: runners may be starting sandboxes from it, and a replacement build can
-fail on any of the assertions below, which used to leave every Daytona run without a snapshot.
+Daytona keeps serving whatever was built under a name. Whenever this recipe changes, rerun the
+build with --force in every Daytona account that uses it; see README.md. --force first builds a
+trial snapshot under a temporary name, so a recipe that fails one of the assertions below never
+costs the live snapshot. Only after the trial passes is the live one deleted and rebuilt.
 
 Licensing (see services/runner/docker/README.md):
     This script is the build recipe we ship, NOT a snapshot we distribute. Whoever
@@ -46,6 +45,7 @@ import json
 import os
 import sys
 import time
+import uuid
 from pathlib import Path
 
 from daytona import (
@@ -228,23 +228,26 @@ def parse_args(argv: list[str]) -> tuple[str, bool]:
     return name, force
 
 
-def suggested_name() -> str:
-    return f"{SNAPSHOT_NAME}-{time.strftime('%Y%m%d-%H%M', time.gmtime())}"
+def trial_name(name: str) -> str:
+    # The random suffix keeps two concurrent refreshes from cleaning up each other's trial.
+    stamp = time.strftime("%Y%m%d%H%M%S", time.gmtime())
+    return f"{name}-candidate-{stamp}-{uuid.uuid4().hex[:6]}"
 
 
 def plan_build(name: str, force: bool, existing_state: object | None) -> str:
-    """What to do with `name`: "build", "skip", "replace-failed", or "refuse".
+    """What to do with `name`: "build", "skip", "replace-failed", or "trial-then-replace".
 
-    A healthy snapshot is never deleted, even with --force: a runner may be creating sandboxes
-    from it right now, and deleting it before a replacement exists fails every Daytona run for
-    as long as the rebuild takes, or for good when the rebuild trips an assertion. A refresh
-    builds under a new name instead, and the operator switches the runner to it.
+    A usable snapshot is replaced only after a trial build of the same recipe has passed every
+    assertion: runners may be starting sandboxes from it, and deleting it first would leave
+    them with no snapshot at all if the new recipe fails.
     """
     if existing_state is None:
         return "build"
+    if not force:
+        return "skip"
     if str(getattr(existing_state, "value", existing_state)) in FAILED_SNAPSHOT_STATES:
-        return "replace-failed" if force else "skip"
-    return "refuse" if force else "skip"
+        return "replace-failed"
+    return "trial-then-replace"
 
 
 def wait_until_deleted(daytona: Daytona, name: str) -> None:
@@ -259,6 +262,21 @@ def wait_until_deleted(daytona: Daytona, name: str) -> None:
         time.sleep(2)
 
 
+def delete_snapshot(daytona: Daytona, name: str) -> None:
+    daytona.snapshot.delete(daytona.snapshot.get(name))
+    wait_until_deleted(daytona, name)
+
+
+def discard_snapshot(daytona: Daytona, name: str) -> None:
+    """Best-effort cleanup of a snapshot no runner uses; a leftover is only clutter."""
+    try:
+        delete_snapshot(daytona, name)
+    except DaytonaNotFoundError:
+        pass
+    except Exception as exc:  # noqa: BLE001
+        print(f"could not delete snapshot '{name}' ({exc}); delete it in Daytona.")
+
+
 def main() -> None:
     name, force = parse_args(sys.argv[1:])
     daytona = Daytona(DaytonaConfig())
@@ -271,23 +289,46 @@ def main() -> None:
     action = plan_build(name, force, existing.state if existing else None)
     if action == "skip":
         print(
-            f"snapshot '{name}' already exists (state: {existing.state}). To refresh it, build "
-            f"under a new name: --name {suggested_name()}"
+            f"snapshot '{name}' already exists (state: {existing.state}); pass --force to "
+            "rebuild it (a trial build runs first, so a failing recipe leaves it untouched)."
         )
         return
-    if action == "refuse":
-        raise SystemExit(
-            f"snapshot '{name}' exists and is usable, so it is not deleted: runners may be "
-            "starting sandboxes from it. Build the refreshed recipe under a new name, e.g.\n"
-            f"    uv run build_snapshot.py --name {suggested_name()}\n"
-            "then set AGENTA_RUNNER_DAYTONA_SNAPSHOT to that name and roll the runner. Delete "
-            f"'{name}' yourself once no runner points at it."
-        )
     if action == "replace-failed":
         print(f"deleting failed snapshot '{name}' (state: {existing.state})...")
-        daytona.snapshot.delete(existing)
-        wait_until_deleted(daytona, name)
+        delete_snapshot(daytona, name)
+        build_snapshot(daytona, name)
+        return
+    if action == "build":
+        build_snapshot(daytona, name)
+        if name != SNAPSHOT_NAME:
+            print(f"Point the runner at it: AGENTA_RUNNER_DAYTONA_SNAPSHOT={name}")
+        return
 
+    trial = trial_name(name)
+    print(f"'{name}' is live; building a trial snapshot '{trial}' first...")
+    try:
+        build_snapshot(daytona, trial)
+    except Exception as exc:
+        discard_snapshot(daytona, trial)
+        raise SystemExit(
+            f"trial build failed ({exc}); the live snapshot '{name}' was not touched."
+        ) from exc
+
+    print(f"trial passed; replacing '{name}'...")
+    try:
+        delete_snapshot(daytona, name)
+        build_snapshot(daytona, name)
+    except Exception as exc:
+        raise SystemExit(
+            f"replacing '{name}' failed ({exc}); it may be gone. The trial snapshot "
+            f"'{trial}' passed every check and was kept. Point the runner at it and restart "
+            f"the runner:\n    AGENTA_RUNNER_DAYTONA_SNAPSHOT={trial}"
+        ) from exc
+    discard_snapshot(daytona, trial)
+
+
+def build_snapshot(daytona: Daytona, name: str) -> None:
+    """Build `name` from the recipe; raises when any build step or assertion fails."""
     # Add Pi globally so it is on PATH for the non-root sandbox user. The full base
     # already bakes Claude, Codex, and OpenCode, so verify their native binaries
     # instead of reinstalling them.
@@ -356,7 +397,6 @@ def main() -> None:
 
     print(f"building snapshot '{name}' from {SANDBOX_AGENT_IMAGE} (+ pi)...")
     started = time.monotonic()
-    # Raises when the build fails, so the switch instructions below print only for an ACTIVE one.
     daytona.snapshot.create(
         CreateSnapshotParams(
             name=name,
@@ -370,11 +410,6 @@ def main() -> None:
         on_logs=print,
     )
     print(f"\nsnapshot '{name}' built in {time.monotonic() - started:.1f}s")
-    if name != SNAPSHOT_NAME:
-        print(
-            f"Point the runner at it: AGENTA_RUNNER_DAYTONA_SNAPSHOT={name}\n"
-            "Delete the previous snapshot only after every runner has switched."
-        )
 
 
 if __name__ == "__main__":
