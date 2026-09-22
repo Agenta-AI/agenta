@@ -1920,9 +1920,17 @@ def j7_mcp(cell: dict) -> dict:
         }
     endpoint_id = created.json()["endpoint"]["id"]
     try:
-        return _j7_mcp_turn(cell, slug)
+        result = _j7_mcp_turn(cell, slug)
     finally:
-        api_call("DELETE", f"/gateways/mcps/endpoints/{endpoint_id}")
+        deleted = api_call("DELETE", f"/gateways/mcps/endpoints/{endpoint_id}")
+    # A leaked connection stays in the project the gate shares with other runs, so it fails the
+    # journey rather than passing quietly.
+    if not deleted.is_success:
+        result["pass"] = False
+        result["why"] += (
+            f"; cleanup of MCP connection {slug} failed: HTTP {deleted.status_code}"
+        )
+    return result
 
 
 def _j7_mcp_turn(cell: dict, slug: str) -> dict:
