@@ -68,10 +68,43 @@ const freshTraceMarks = new Map<string, number>()
 
 const canonicalTraceKey = (traceId: string) => traceId.replace(/-/g, "")
 
+/**
+ * Forget what a trace looked like before its run finished.
+ *
+ * A turn met mid-flight reads its trace WHILE the run is still going, to count from the run's
+ * start instead of from the tab (#7013). A run's spans all reach the backend in one batch when it
+ * ends, so that read finds no such trace — and these queries keep whatever they learn for the life
+ * of the page (`staleTime: Infinity`, `retryOnMount: false`, no refetch on focus). The turn would
+ * otherwise carry that pre-run answer for good: no duration, no timestamp, no latency, however
+ * long the run ran. By the time this is called the run is over, so that answer is obsolete.
+ */
+const dropPreSettleTraceAnswer = (traceId: string) => {
+    const key = canonicalTraceKey(traceId)
+    const queryClient = getDefaultStore().get(queryClientAtom)
+    // Invalidating refetches only what is still being watched, which is enough: a turn nobody
+    // watches carries no failed read, because the query loses its state when its last observer
+    // goes. `trace-summary-settle.test.ts` pins that. If it ever stopped holding, this would have
+    // to CLEAR the error rather than mark it stale, since a query that errored with no data does
+    // not fetch on its next mount either (`retryOnMount: false` blocks exactly that).
+    void queryClient.invalidateQueries({
+        predicate: (query) => {
+            const [kind, , id] = query.queryKey
+            return (
+                (kind === "trace-summary" || kind === "trace-entity") &&
+                typeof id === "string" &&
+                canonicalTraceKey(id) === key
+            )
+        },
+    })
+}
+
 /** Call at run completion (stream finish / invocation success) with the run's trace id. */
 export const markTraceAsFresh = (traceId: string | null | undefined) => {
     if (!traceId) return
+    // Order matters: the mark is what gives the refetch on the next line the full not-found
+    // retry ladder, which covers the lag between the stream closing and the spans landing.
     freshTraceMarks.set(canonicalTraceKey(traceId), Date.now())
+    dropPreSettleTraceAnswer(traceId)
 }
 
 const isTraceFresh = (traceId: string) => {
