@@ -40,6 +40,7 @@ import type {ClientToolMeta} from "../skin"
 import {
     ElicitationControl,
     MAX_DIGIT_ROWS,
+    isEditingOutside,
     isMultiSelect,
     optionRowsFor,
     selectedRowFor,
@@ -321,15 +322,16 @@ const LiveCard = ({
 
     const multi = isMultiSelect(step)
     // One question, one row: the click is the answer, and the row it landed on spins in place of
-    // a Send button. The Send button comes back only for the trailing "Other" row, which is typed
-    // into rather than picked.
+    // a Send button. The keyboard never gets that shortcut: the card can appear under someone
+    // typing in the composer, so a digit, an arrow or Space only selects, and Enter sends. The Send
+    // button comes back once something is selected that way, and for the trailing "Other" row,
+    // which is typed into rather than picked.
     const oneShot = stepper.submitsOnPick
+    const selected = selectedRowFor(step, step ? values[step.name] : undefined)
     const otherIndex = rows.length && rows[rows.length - 1].value === null ? rows.length - 1 : -1
     const otherEngaged =
-        oneShot &&
-        otherIndex >= 0 &&
-        (cursor === otherIndex ||
-            selectedRowFor(step, step ? values[step.name] : undefined) === otherIndex)
+        oneShot && otherIndex >= 0 && (cursor === otherIndex || selected === otherIndex)
+    const showSend = !oneShot || otherEngaged || (selected >= 0 && firedAction !== "pick")
 
     /** Focus the trailing "Other" text field. It is a row you type into, never one you pick. */
     const focusOther = useCallback(
@@ -362,11 +364,27 @@ const LiveCard = ({
         [step, stepper, multi, focusOther, oneShot, submitting],
     )
 
+    /** Select a row on a one-shot form without sending it. The keyboard's half of `pickRow`. */
+    const selectRow = useCallback(
+        (index: number) => {
+            const row = rows[index]
+            if (!step || !row) return
+            if (row.value === null) return focusOther(index)
+            stepper.setValue(step.name, step.kind === "boolean" ? row.value === "true" : row.value)
+            stepper.setCursor(index)
+        },
+        [rows, step, stepper, focusOther],
+    )
+
     // Row-driven steps and the review list put focus on the card itself, so digits and arrows work
-    // immediately. Free-text steps focus their input instead (see ElicitationControl).
+    // immediately. Free-text steps focus their input instead (see ElicitationControl). Neither
+    // takes focus from the composer: the user typing there keeps typing there.
     useEffect(() => {
         if ((!rows.length && !isReview) || !active) return
-        const frame = requestAnimationFrame(() => cardRef.current?.focus({preventScroll: true}))
+        const frame = requestAnimationFrame(() => {
+            if (isEditingOutside(cardRef.current)) return
+            cardRef.current?.focus({preventScroll: true})
+        })
         return () => cancelAnimationFrame(frame)
     }, [rows.length, isReview, stepper.index, active])
 
@@ -436,14 +454,21 @@ const LiveCard = ({
             if (index < Math.min(rows.length, MAX_DIGIT_ROWS)) {
                 event.preventDefault()
                 // Keyboard picks advance at once: the user meant it, and the hold that protects a
-                // misclick just fights fast entry.
-                pickRow(rows[index], index, true)
+                // misclick just fights fast entry. On a one-shot form advancing IS sending, so the
+                // digit only selects.
+                if (oneShot) selectRow(index)
+                else pickRow(rows[index], index, true)
             }
             return
         }
         if (event.key === "ArrowDown" || event.key === "ArrowUp") {
             event.preventDefault()
-            stepper.moveCursor(event.key === "ArrowDown" ? 1 : -1, rows.length)
+            const delta = event.key === "ArrowDown" ? 1 : -1
+            // A one-shot form is a radio group, where the arrows move the selection itself. The
+            // Other row takes only the cursor: landing on it must not trap the arrows in its field.
+            const next = (cursor + delta + rows.length) % rows.length
+            if (oneShot && rows[next].value !== null) selectRow(next)
+            else stepper.moveCursor(delta, rows.length)
             return
         }
         if (event.key === "Home" || event.key === "End") {
@@ -458,10 +483,23 @@ const LiveCard = ({
             if (row) pickRow(row, cursor)
             return
         }
+        if (event.key === " " && oneShot) {
+            event.preventDefault()
+            selectRow(cursor)
+            return
+        }
         if (event.key === "Enter") {
             event.preventDefault()
             const row = rows[cursor]
-            if (row) pickRow(row, cursor, true)
+            if (!row) return
+            // Enter sends what is selected. With nothing selected yet it selects the lit row
+            // first, so a stray Enter cannot send an answer either.
+            if (oneShot) {
+                if (row.value !== null && selected === cursor) primary()
+                else selectRow(cursor)
+                return
+            }
+            pickRow(row, cursor, true)
         }
     }
 
@@ -472,6 +510,7 @@ const LiveCard = ({
     return (
         <div
             ref={cardRef}
+            data-elicitation-card
             tabIndex={-1}
             role="group"
             aria-label={
@@ -581,9 +620,10 @@ const LiveCard = ({
             </div>
 
             <div className="flex flex-row-reverse items-center gap-2">
-                {/* Dropped, not disabled, on a one-shot form: the rows are the Send button. Skip
-                    still holds the row's height, so the composer does not move either way. */}
-                {!oneShot || otherEngaged ? (
+                {/* Dropped, not disabled, on a one-shot form until the keyboard selects: a click
+                    on a row is the Send button. Skip still holds the row's height, so the
+                    composer does not move either way. */}
+                {showSend ? (
                     <LoadingButton
                         className={touchCls}
                         disabled={submitting}

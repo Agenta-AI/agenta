@@ -76,6 +76,20 @@ export const selectedRowFor = (step: ElicitationStep | null, value: unknown): nu
     return typeof value === "string" && value.trim() !== "" ? rows.length - 1 : -1
 }
 
+/** Marks the card's root, so a control can tell focus inside the card from focus elsewhere. */
+export const CARD_ATTR = "data-elicitation-card"
+
+/**
+ * Whether the user is typing in a field outside `container` — the composer, most often. The card
+ * appears mid-run, often mid-keystroke, and taking focus then turns the next typed character into
+ * an answer. Focus inside the card (moving between steps) never counts.
+ */
+export const isEditingOutside = (container: Element | null | undefined): boolean => {
+    const active = document.activeElement as HTMLElement | null
+    if (!active || container?.contains(active)) return false
+    return active.tagName === "INPUT" || active.tagName === "TEXTAREA" || active.isContentEditable
+}
+
 /** Date steps hold the WIRE string, never a dayjs object: drafts round-trip through JSON, and
  * `serializeElicitationContent` passes an already-correct string straight through. */
 const isDateKind = (step: ElicitationStep): boolean =>
@@ -134,8 +148,9 @@ export const ElicitationControl = ({
     // everywhere else. Only text and number use this; every richer control keeps the key.
     const submitOnEnter = (event: React.KeyboardEvent) => {
         // An IME's Enter commits the candidate, not the answer: submitting here sends a half-typed
-        // word and leaves the composition orphaned.
-        if (event.nativeEvent.isComposing) return
+        // word and leaves the composition orphaned. Safari can report the final Enter with
+        // `isComposing` already false, but still sends it as keyCode 229.
+        if (event.nativeEvent.isComposing || event.keyCode === 229) return
         if (event.key !== "Enter" || event.metaKey || event.ctrlKey || event.shiftKey) return
         event.preventDefault()
         onSubmit()
@@ -172,6 +187,8 @@ export const ElicitationControl = ({
     useEffect(() => {
         if (rows.length) return
         const frame = requestAnimationFrame(() => {
+            const card = (fieldRef.current ?? dateBoxRef.current)?.closest(`[${CARD_ATTR}]`)
+            if (isEditingOutside(card)) return
             // A picker exposes no ref, so reach for its trigger. Without this a date step leaves
             // focus on the body and every card-level shortcut goes dead until the user clicks.
             if (step.kind === "date" || step.kind === "date-time") {
