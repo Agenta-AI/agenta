@@ -13,7 +13,10 @@
       "name": null,
       "pricing": null,
       "context_window": null,
-      "modalities": ["text", "image"],
+      "modalities": [
+        "text",
+        "image"
+      ],
       "label": "Default",
       "description": "The harness's recommended default model. Resolves to whatever the Claude Code build selects.",
       "ratings": null
@@ -23,48 +26,100 @@
       "provider": "anthropic",
       "source": "curated",
       "name": "Claude Sonnet 5",
-      "pricing": {"input_per_mtok": 2.0, "output_per_mtok": 10.0, "cache_read_per_mtok": 0.2, "cache_write_per_mtok": 2.5, "currency": "USD"},
+      "pricing": {
+        "input_per_mtok": 2.0,
+        "output_per_mtok": 10.0,
+        "cache_read_per_mtok": 0.2,
+        "cache_write_per_mtok": 2.5,
+        "currency": "USD"
+      },
       "context_window": 1000000,
-      "modalities": ["text", "image"],
-      "label": "Sonnet",
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "label": "Sonnet 5",
       "description": "Balanced speed and capability for everyday agentic work, cheaper than Opus.",
-      "ratings": {"cost": 4, "intelligence": 3, "speed": 4}
+      "ratings": {
+        "cost": 4,
+        "intelligence": 3,
+        "speed": 4
+      }
     },
     {
       "id": "haiku",
       "provider": "anthropic",
       "source": "curated",
       "name": "Claude Haiku 4.5",
-      "pricing": {"input_per_mtok": 1.0, "output_per_mtok": 5.0, "cache_read_per_mtok": 0.1, "cache_write_per_mtok": 1.25, "currency": "USD"},
+      "pricing": {
+        "input_per_mtok": 1.0,
+        "output_per_mtok": 5.0,
+        "cache_read_per_mtok": 0.1,
+        "cache_write_per_mtok": 1.25,
+        "currency": "USD"
+      },
       "context_window": 200000,
-      "modalities": ["text", "image"],
-      "label": "Haiku",
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "label": "Haiku 4.5",
       "description": "The fastest, cheapest tier. Use for high-volume, latency-sensitive tasks.",
-      "ratings": {"cost": 5, "intelligence": 2, "speed": 5}
+      "ratings": {
+        "cost": 5,
+        "intelligence": 2,
+        "speed": 5
+      }
     },
     {
       "id": "opus[1m]",
       "provider": "anthropic",
       "source": "curated",
       "name": "Claude Opus 5.5",
-      "pricing": {"input_per_mtok": 4.0, "output_per_mtok": 20.0, "cache_read_per_mtok": 0.2, "cache_write_per_mtok": 5.0, "currency": "USD"},
+      "pricing": {
+        "input_per_mtok": 4.0,
+        "output_per_mtok": 20.0,
+        "cache_read_per_mtok": 0.2,
+        "cache_write_per_mtok": 5.0,
+        "currency": "USD"
+      },
       "context_window": 1000000,
-      "modalities": ["text", "image"],
-      "label": "Opus (1M context)",
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "label": "Opus 5.5 (1M context)",
       "description": "The recommended default: strong reasoning and long-running agentic coding at a mid-tier price, with a 1M-token context window.",
-      "ratings": {"cost": 3, "intelligence": 4, "speed": 3}
+      "ratings": {
+        "cost": 3,
+        "intelligence": 4,
+        "speed": 3
+      }
     },
     {
-      "id": "claude-fable-5-1",
+      "id": "claude-fable-5",
       "provider": "anthropic",
       "source": "curated",
-      "name": "Claude Fable 5.1",
-      "pricing": {"input_per_mtok": 10.0, "output_per_mtok": 50.0, "cache_read_per_mtok": 0.25, "cache_write_per_mtok": 12.5, "currency": "USD"},
+      "name": "Claude Fable 5",
+      "pricing": {
+        "input_per_mtok": 10.0,
+        "output_per_mtok": 50.0,
+        "cache_read_per_mtok": 0.25,
+        "cache_write_per_mtok": 12.5,
+        "currency": "USD"
+      },
       "context_window": 1000000,
-      "modalities": ["text", "image"],
-      "label": "Fable",
-      "description": "The current Anthropic frontier: the strongest reasoning tier for demanding, long-horizon agentic work.",
-      "ratings": {"cost": 2, "intelligence": 5, "speed": 3}
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "label": "Fable 5",
+      "description": "Anthropic's Mythos-class reasoning tier (Fable 5), above Opus, for demanding long-horizon work.",
+      "ratings": {
+        "cost": 2,
+        "intelligence": 5,
+        "speed": 3
+      }
     }
   ]
 }
