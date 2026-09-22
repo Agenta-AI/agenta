@@ -105,7 +105,8 @@ toolset until the runner moves to a new one. The script never deletes a working 
 your runner may be starting sandboxes from it; `--force` only replaces a snapshot whose build
 failed. Delete the old snapshot in Daytona once no runner points at it.
 
-Point the runner at it:
+Point the runner at the snapshot you built. On a first install that is `agenta-agent-sandbox-v1`;
+after a refresh, use the new name:
 
 ```bash
 AGENTA_RUNNER_DAYTONA_SNAPSHOT=agenta-agent-sandbox-v1

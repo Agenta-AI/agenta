@@ -51,6 +51,8 @@ def test_parse_args():
     with pytest.raises(SystemExit):
         parse_args(["--name"])
     with pytest.raises(SystemExit):
+        parse_args(["--name="])
+    with pytest.raises(SystemExit):
         parse_args(["--bogus"])
 
 

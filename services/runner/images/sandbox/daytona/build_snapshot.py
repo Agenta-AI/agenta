@@ -221,6 +221,8 @@ def parse_args(argv: list[str]) -> tuple[str, bool]:
                 raise SystemExit("--name needs a snapshot name")
         elif arg.startswith("--name="):
             name = arg.removeprefix("--name=")
+            if not name:
+                raise SystemExit("--name needs a snapshot name")
         else:
             raise SystemExit(f"unknown argument: {arg}")
     return name, force

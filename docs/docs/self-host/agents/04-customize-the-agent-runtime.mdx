@@ -87,7 +87,8 @@ runner at it.
 
 A Daytona sandbox runs in the cloud and cannot mount a directory from your host. To make files
 available to Daytona runs, fetch them into the snapshot from a `RUN` step in the same
-`dockerfile_commands` list, then rebuild. For example, a repository checkout at
+`dockerfile_commands` list, then build the snapshot under a new name and point the runner at that
+name. The build script never replaces a working snapshot. For example, a repository checkout at
 `/agenta/workspaces/my-service`:
 
 ```python
