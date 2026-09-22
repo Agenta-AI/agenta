@@ -90,9 +90,14 @@ export interface MCPConnectResponse {
     scopes_offered?: string[]
 }
 
+export interface MCPRegisteredOAuthClient {
+    client_id: string
+    client_secret?: string
+}
+
 // Mirror of MCPServerProbeResult in api/oss/src/core/gateways/mcps/probe.py.
 export type MCPProbeAuthMode = "none" | "oauth" | "unknown"
-export type MCPProbeRegistration = "dynamic" | "metadata" | "unavailable"
+export type MCPProbeRegistration = "dynamic" | "metadata" | "unsupported" | "unavailable"
 
 export interface MCPProbeProblem {
     cause: string
@@ -112,6 +117,7 @@ export interface MCPProbeAuth {
     authorization_server?: string | null
     scopes_offered?: string[]
     registration?: MCPProbeRegistration | null
+    client_secret_required?: boolean
     /**
      * The status a server refused the anonymous handshake with, when it refused one.
      *

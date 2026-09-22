@@ -54,6 +54,38 @@ def identity_document_client_info(
     )
 
 
+def provided_client_info(
+    *,
+    client_id: str,
+    client_secret: str | None,
+    redirect_uri: str,
+    scopes: list[str],
+    issuer: str,
+    token_endpoint_auth_methods_supported: list[str],
+) -> OAuthClientInformationFull:
+    """Build client information for an OAuth application registered by the user."""
+    token_endpoint_auth_method = "none"
+    if client_secret:
+        token_endpoint_auth_method = (
+            "client_secret_basic"
+            if "client_secret_basic" in token_endpoint_auth_methods_supported
+            and "client_secret_post" not in token_endpoint_auth_methods_supported
+            else "client_secret_post"
+        )
+
+    return OAuthClientInformationFull(
+        client_id=client_id,
+        client_secret=client_secret,
+        redirect_uris=[redirect_uri],
+        grant_types=["authorization_code", "refresh_token"],
+        response_types=["code"],
+        scope=" ".join(scopes) if scopes else None,
+        token_endpoint_auth_method=token_endpoint_auth_method,
+        issuer=issuer,
+        client_name="Agenta",
+    )
+
+
 def registration_covers(
     client_info: OAuthClientInformationFull, *, redirect_uri: str
 ) -> bool:

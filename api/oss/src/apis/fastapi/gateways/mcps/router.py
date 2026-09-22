@@ -518,6 +518,12 @@ class MCPGatewayRouter:
             endpoint_id=endpoint_id,
             server_url=server_url,
             scopes=body.scopes,
+            client_id=(body.oauth_client.client_id if body.oauth_client else None),
+            client_secret=(
+                body.oauth_client.client_secret.get_secret_value()
+                if body.oauth_client and body.oauth_client.client_secret
+                else None
+            ),
         )
 
         return MCPConnectResponse(count=1, redirect_url=start.authorization_url)

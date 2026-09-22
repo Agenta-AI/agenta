@@ -6,7 +6,7 @@ The house triple, matching `triggers/models.py`, plus the connect shapes.
 
 from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, SecretStr, field_validator, model_validator
 
 from oss.src.core.gateways.mcps.dtos import (
     MCPEndpoint,
@@ -41,11 +41,27 @@ class MCPEndpointsResponse(BaseModel):
     endpoints: List[MCPEndpoint] = Field(default_factory=list)
 
 
+class MCPOAuthClientInput(BaseModel):
+    """Write-only credentials for an OAuth application registered by the user."""
+
+    client_id: str = Field(min_length=1, max_length=1024)
+    client_secret: SecretStr | None = Field(default=None, max_length=4096)
+
+    @field_validator("client_id")
+    @classmethod
+    def client_id_must_be_trimmed(cls, client_id: str) -> str:
+        trimmed = client_id.strip()
+        if not trimmed:
+            raise ValueError("client_id must not be blank")
+        return trimmed
+
+
 class MCPConnectRequest(BaseModel):
     """Request MCP OAuth scope discovery or authorization.
     `scopes` present (an empty list is a legal "no scopes") is the begin step."""
 
     scopes: Optional[List[str]] = None
+    oauth_client: MCPOAuthClientInput | None = None
 
     @field_validator("scopes")
     @classmethod
@@ -61,6 +77,12 @@ class MCPConnectRequest(BaseModel):
         if len(set(scopes)) != len(scopes):
             raise ValueError("scopes must not contain duplicates")
         return scopes
+
+    @model_validator(mode="after")
+    def oauth_client_is_only_accepted_when_authorization_begins(self):
+        if self.oauth_client is not None and self.scopes is None:
+            raise ValueError("oauth_client requires scopes")
+        return self
 
 
 class MCPConnectResponse(BaseModel):

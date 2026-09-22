@@ -5,6 +5,8 @@ C0-style: every model in the file constructs with representative values. Also co
 
 from uuid import uuid4
 
+import pytest
+from pydantic import ValidationError
 
 from oss.src.apis.fastapi.gateways.mcps.models import (
     MCPConnectRequest,
@@ -111,6 +113,31 @@ def test_mcp_connect_request_default_scopes_is_none():
     "chose nothing"."""
     request = MCPConnectRequest()
     assert request.scopes is None
+
+
+def test_mcp_connect_request_accepts_write_only_registered_client_credentials():
+    request = MCPConnectRequest.model_validate(
+        {
+            "scopes": ["read"],
+            "oauth_client": {
+                "client_id": "registered-client",
+                "client_secret": "registered-secret",
+            },
+        }
+    )
+
+    assert request.oauth_client is not None
+    assert request.oauth_client.client_id == "registered-client"
+    assert request.oauth_client.client_secret is not None
+    assert request.oauth_client.client_secret.get_secret_value() == "registered-secret"
+    assert "registered-secret" not in repr(request)
+
+
+def test_mcp_connect_request_rejects_credentials_on_the_discovery_step():
+    with pytest.raises(ValidationError, match="oauth_client requires scopes"):
+        MCPConnectRequest.model_validate(
+            {"oauth_client": {"client_id": "registered-client"}}
+        )
 
 
 def test_mcp_connect_response_instantiates():

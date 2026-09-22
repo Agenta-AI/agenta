@@ -56,6 +56,27 @@ describe("mcpEndpoints api", () => {
         expect(result.redirect_url).toBe("https://auth.example.test/authorize")
     })
 
+    it("beginMcpConnect sends registered client credentials only on the begin step", async () => {
+        vi.mocked(axios.post).mockResolvedValue({data: {count: 1, redirect_url: "x"}})
+
+        await beginMcpConnect("endpoint-1", ["read"], "project-1", {
+            client_id: "registered-client",
+            client_secret: "registered-secret",
+        })
+
+        expect(axios.post).toHaveBeenCalledWith(
+            `${BASE}/endpoint-1/connect`,
+            {
+                scopes: ["read"],
+                oauth_client: {
+                    client_id: "registered-client",
+                    client_secret: "registered-secret",
+                },
+            },
+            {params: {project_id: "project-1"}},
+        )
+    })
+
     it("beginMcpConnect allows an empty scope list through unchanged", async () => {
         vi.mocked(axios.post).mockResolvedValue({data: {count: 1, redirect_url: "x"}})
 

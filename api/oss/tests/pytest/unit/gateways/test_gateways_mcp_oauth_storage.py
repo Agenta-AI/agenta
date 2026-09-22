@@ -106,6 +106,7 @@ def _storage(
     server_url="https://mcp.acme.io/",
     endpoint_id=None,
     authorization_server=None,
+    redirect_uri=None,
 ):
     dao = dao or _FakeSecretsDAO()
     vault = VaultService(secrets_dao=dao)
@@ -115,6 +116,7 @@ def _storage(
         server_url=server_url,
         endpoint_id=endpoint_id or uuid4(),
         authorization_server=authorization_server,
+        redirect_uri=redirect_uri,
     )
     return storage, dao
 
@@ -367,6 +369,49 @@ async def test_a_grant_operation_without_a_connection_is_refused():
         await registration_only.get_tokens()
     with pytest.raises(ValueError):
         await registration_only.set_tokens(OAuthToken(access_token="tok"))
+
+
+@pytest.mark.asyncio
+async def test_two_user_provided_clients_at_one_issuer_remain_connection_specific():
+    dao = _FakeSecretsDAO()
+    project_id = uuid4()
+    issuer = "https://auth.acme.io/"
+    redirect_uri = "https://api.agenta.ai/gateways/mcps/connect/callback"
+    storage_a, _ = _storage(
+        dao=dao,
+        project_id=project_id,
+        authorization_server=issuer,
+        redirect_uri=redirect_uri,
+    )
+    storage_b, _ = _storage(
+        dao=dao,
+        project_id=project_id,
+        authorization_server=issuer,
+        redirect_uri=redirect_uri,
+    )
+
+    await storage_a.set_client_info(
+        OAuthClientInformationFull(
+            redirect_uris=[redirect_uri],
+            client_id="client-a",
+            client_secret="secret-a",
+        ),
+        endpoint_specific=True,
+    )
+    await storage_b.set_client_info(
+        OAuthClientInformationFull(
+            redirect_uris=[redirect_uri],
+            client_id="client-b",
+            client_secret="secret-b",
+        ),
+        endpoint_specific=True,
+    )
+
+    client_a = await storage_a.get_client_info()
+    client_b = await storage_b.get_client_info()
+    assert client_a is not None and client_a.client_id == "client-a"
+    assert client_b is not None and client_b.client_id == "client-b"
+    assert dao.create_calls == 2
 
 
 @pytest.mark.asyncio

@@ -99,11 +99,16 @@ def _open_server(requests: list[httpx.Request] | None = None):
 def _protected_server(
     *,
     registration_endpoint: str | None = None,
+    metadata_document_supported: bool = True,
+    token_auth_methods: list[str] | None = None,
     metadata_status: int = 200,
     requests: list[httpx.Request] | None = None,
 ):
     """A server that refuses the anonymous handshake and publishes where to authorize."""
     metadata = dict(_AS_METADATA)
+    metadata["client_id_metadata_document_supported"] = metadata_document_supported
+    if token_auth_methods is not None:
+        metadata["token_endpoint_auth_methods_supported"] = token_auth_methods
     if registration_endpoint:
         metadata["registration_endpoint"] = registration_endpoint
 
@@ -434,6 +439,30 @@ async def test_an_issuer_offering_registration_reports_dynamic():
     ).probe(server_url=_SERVER_URL)
 
     assert result.auth.registration is MCPProbeRegistration.DYNAMIC
+
+
+@pytest.mark.asyncio
+async def test_an_issuer_with_no_automatic_client_identity_reports_unsupported():
+    result = await _probe(_protected_server(metadata_document_supported=False)).probe(
+        server_url=_SERVER_URL
+    )
+
+    assert result.auth.mode is MCPProbeAuthMode.OAUTH
+    assert result.auth.registration is MCPProbeRegistration.UNSUPPORTED
+    assert result.auth.client_secret_required is True
+
+
+@pytest.mark.asyncio
+async def test_an_unsupported_issuer_can_accept_a_public_registered_client():
+    result = await _probe(
+        _protected_server(
+            metadata_document_supported=False,
+            token_auth_methods=["none"],
+        )
+    ).probe(server_url=_SERVER_URL)
+
+    assert result.auth.registration is MCPProbeRegistration.UNSUPPORTED
+    assert result.auth.client_secret_required is False
 
 
 @pytest.mark.asyncio

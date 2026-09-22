@@ -105,6 +105,16 @@ def _issuer_slug(issuer_url: str) -> str:
     return get_slug_from_name_and_id("oauth-provider", uuid5(NAMESPACE_URL, issuer_url))
 
 
+def endpoint_registration_slug(
+    *, issuer_url: str, redirect_uri: str, endpoint_id: UUID
+) -> str:
+    """Where a user-provided client lives for one MCP connection."""
+    return get_slug_from_name_and_id(
+        "oauth-provider",
+        uuid5(NAMESPACE_URL, f"{issuer_url}\n{redirect_uri}\n{endpoint_id}"),
+    )
+
+
 def registration_slug(*, issuer_url: str, redirect_uri: str) -> str:
     """Where one client registration lives: one issuer, one callback address.
 
@@ -127,11 +137,10 @@ class SecretsTokenStorage:
 
     The two records are keyed on different things on purpose. A grant authorizes an
     account, so it belongs to the connection that consented: `grant_slug(endpoint_id)`.
-    A client registration under RFC 7591 names this *deployment* to an authorization
-    server; it is not an account, two connections at one authorization server
-    legitimately share one, and registering per connection would mint a fresh client on
-    every connect, which authorization servers rate limit. So it is keyed on the issuer
-    and on the callback address it was created with, never on the connection.
+    A dynamic client registration under RFC 7591 names this *deployment* to an
+    authorization server, so connections legitimately share it by issuer and callback
+    address. A client entered by the user is different: two connections may use different
+    provider applications, so that registration also includes the connection id.
 
     The callback address is part of that key because a registration is bound to it. A
     changed public address therefore writes a NEW registration row rather than
@@ -324,15 +333,21 @@ class SecretsTokenStorage:
     def _registration_slugs(self, *, current_address: bool) -> List[str]:
         """Where to look for a registration, best first.
 
-        The per-address slug is what a registration is written under when the caller
-        knows its callback address. The issuer slug follows, because every registration
-        written before the address joined the key is there. `current_address=False` skips
-        the first, which is what a grant that references no registration wants: it
-        predates per-address registrations, so the issuer's row is its own and a newer
-        one at this address was never the client it was issued against.
+        A user-provided client for this connection comes first, then the shared client
+        for this callback address. The issuer slug follows because registrations written
+        before the address joined the key live there. `current_address=False` skips the
+        first two: a grant that references no registration predates both key shapes.
         """
         slugs: List[str] = []
         if current_address and self.redirect_uri:
+            if self.endpoint_id is not None:
+                slugs.append(
+                    endpoint_registration_slug(
+                        issuer_url=self._issuer,
+                        redirect_uri=self.redirect_uri,
+                        endpoint_id=self.endpoint_id,
+                    )
+                )
             slugs.append(
                 registration_slug(
                     issuer_url=self._issuer, redirect_uri=self.redirect_uri
@@ -532,7 +547,12 @@ class SecretsTokenStorage:
         self.resolved_registration_slug = found[0]
         return self._as_client_info(found[1])
 
-    async def set_client_info(self, client_info: OAuthClientInformationFull) -> None:
+    async def set_client_info(
+        self,
+        client_info: OAuthClientInformationFull,
+        *,
+        endpoint_specific: bool = False,
+    ) -> None:
         issuer = self.authorization_server or self.server_url
         provider_settings = OAuthProviderSettingsDTO(
             client_id=client_info.client_id or "",
@@ -555,14 +575,22 @@ class SecretsTokenStorage:
             data=OAuthProviderDTO(provider=provider_settings),
         )
 
-        # One row per callback address. A registration for a DIFFERENT address is left
-        # exactly where it is, because the grants issued against it still need it; only
-        # the row for this address is written. A caller with no callback address keeps
-        # writing the issuer row, which is where it always wrote.
+        # Dynamic registrations share one row per callback address. A client entered by
+        # the user gets a row for this connection, because another connection at the same
+        # issuer may use another provider application. A caller with no callback address
+        # keeps writing the legacy issuer row.
         slug = (
-            registration_slug(issuer_url=issuer, redirect_uri=self.redirect_uri)
-            if self.redirect_uri
-            else _issuer_slug(issuer)
+            endpoint_registration_slug(
+                issuer_url=issuer,
+                redirect_uri=self.redirect_uri,
+                endpoint_id=self._require_endpoint_id(),
+            )
+            if self.redirect_uri and endpoint_specific
+            else (
+                registration_slug(issuer_url=issuer, redirect_uri=self.redirect_uri)
+                if self.redirect_uri
+                else _issuer_slug(issuer)
+            )
         )
         self.resolved_registration_slug = slug
 

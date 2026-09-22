@@ -19,6 +19,7 @@ import type {
     MCPEndpointEdit,
     MCPEndpointResponse,
     MCPEndpointsResponse,
+    MCPRegisteredOAuthClient,
 } from "../core/types"
 
 const BASE = "/gateways/mcps/endpoints"
@@ -115,10 +116,11 @@ export const beginMcpConnect = async (
     endpointId: string,
     scopes: string[],
     projectId?: string,
+    oauthClient?: MCPRegisteredOAuthClient,
 ): Promise<MCPConnectResponse> => {
     const response = await axios.post(
         `${getAgentaApiUrl()}${BASE}/${endpointId}/connect`,
-        {scopes},
+        {scopes, ...(oauthClient ? {oauth_client: oauthClient} : {})},
         {params: projectId ? {project_id: projectId} : undefined},
     )
     return response.data

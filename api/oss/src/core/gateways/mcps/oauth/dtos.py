@@ -17,6 +17,8 @@ class MCPOAuthDiscovery(BaseModel):
     authorization_endpoint: str
     token_endpoint: str
     registration_endpoint: Optional[str] = None
+    client_id_metadata_document_supported: bool = False
+    token_endpoint_auth_methods_supported: list[str] = Field(default_factory=list)
 
 
 class MCPOAuthAuthorizationStart(BaseModel):

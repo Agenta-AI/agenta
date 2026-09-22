@@ -25,14 +25,31 @@ class MCPOAuthRegistrationError(GatewaysError):
         )
 
 
-class MCPOAuthRegistrationUnavailableError(MCPOAuthRegistrationError):
-    """The authorization server offers no way for this deployment to name itself.
+class MCPOAuthRegistrationUnsupportedError(MCPOAuthRegistrationError):
+    """The issuer accepts only clients registered outside the connect flow."""
 
-    It advertises no registration endpoint, and this deployment is not publicly
-    resolvable, so it cannot serve a client-id metadata document either. Nothing is
-    wrong with the request; there is simply no path, and the operator has to make the
-    deployment reachable or register a client by hand.
-    """
+    def __init__(self, *, authorization_server: str):
+        super().__init__(
+            authorization_server=authorization_server,
+            detail=(
+                "it supports neither dynamic client registration nor client ID "
+                "metadata documents; enter a registered OAuth client or use a token"
+            ),
+        )
+
+
+class MCPOAuthClientSecretRequiredError(MCPOAuthRegistrationError):
+    """The issuer does not accept a public OAuth client."""
+
+    def __init__(self, *, authorization_server: str):
+        super().__init__(
+            authorization_server=authorization_server,
+            detail="this provider requires an OAuth client secret",
+        )
+
+
+class MCPOAuthRegistrationUnavailableError(MCPOAuthRegistrationError):
+    """A metadata document is supported, but the issuer cannot reach this deployment."""
 
     def __init__(self, *, authorization_server: str):
         super().__init__(

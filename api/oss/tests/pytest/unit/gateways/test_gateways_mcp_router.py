@@ -162,6 +162,7 @@ class MockMCPOAuthConnectService:
         self.complete_return = None
         self.complete_raises = None
         self.begun_endpoint_ids = []
+        self.begun_clients = []
         self.disconnect_return = True
         # Which connection each disconnect named. A disconnect that dropped the
         # neighbour's grant would be invisible without this.
@@ -173,9 +174,20 @@ class MockMCPOAuthConnectService:
             raise self.discover_raises
         return self.discover_return
 
-    async def begin(self, *, project_id, user_id, endpoint_id, server_url, scopes):
+    async def begin(
+        self,
+        *,
+        project_id,
+        user_id,
+        endpoint_id,
+        server_url,
+        scopes,
+        client_id=None,
+        client_secret=None,
+    ):
         self.calls.append(("begin", server_url, tuple(scopes)))
         self.begun_endpoint_ids.append(endpoint_id)
+        self.begun_clients.append((client_id, client_secret))
         return self.begin_return
 
     async def claim(self, *, state, caller_user_id):
@@ -514,6 +526,29 @@ def test_connect_begin_step_returns_the_redirect_url(
     assert oauth_service.calls == [("begin", _SERVER_URL, ("read",))]
     # No discovery-caching edit_endpoint call on the begin step.
     assert service.calls == ["fetch_endpoint"]
+    assert oauth_service.begun_clients == [(None, None)]
+
+
+def test_connect_begin_step_accepts_a_write_only_registered_client(
+    client, service, oauth_service, allow
+):
+    endpoint_id = uuid4()
+    service.fetch_return = _oauth_endpoint(endpoint_id)
+
+    response = client.post(
+        f"/endpoints/{endpoint_id}/connect",
+        json={
+            "scopes": ["read"],
+            "oauth_client": {
+                "client_id": "registered-client",
+                "client_secret": "registered-secret",
+            },
+        },
+    )
+
+    assert response.status_code == 200
+    assert oauth_service.begun_clients == [("registered-client", "registered-secret")]
+    assert "registered-secret" not in response.text
 
 
 @pytest.mark.parametrize("scopes", [["read", "read"], ["read", " "]])
