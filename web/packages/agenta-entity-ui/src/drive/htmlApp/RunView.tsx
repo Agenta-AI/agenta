@@ -164,6 +164,7 @@ export function RunView({
             if (!alive) return
             if (html == null) {
                 pushError(`Page not found in the app folder: ${currentPath}`)
+                setDocVersion((v) => v + 1)
                 setDoc("")
                 return
             }

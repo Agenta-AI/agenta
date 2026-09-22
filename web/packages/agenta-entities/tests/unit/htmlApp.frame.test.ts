@@ -37,8 +37,8 @@ afterEach(() => {
 
 const tick = () => new Promise((resolve) => setTimeout(resolve, 10))
 
-/** A wrapper realm running the script, with the app frame's first load already fired. */
-const wrapper = async (appHtml = "<p>app</p>") => {
+/** A wrapper realm running the script; by default the app frame's first load has fired. */
+const wrapper = async (appHtml = "<p>app</p>", {loaded = true} = {}) => {
     const outer = document.createElement("iframe")
     document.body.appendChild(outer)
     frames.push(outer)
@@ -51,7 +51,7 @@ const wrapper = async (appHtml = "<p>app</p>") => {
     // Forwarded messages land on the app frame's window.
     const toApp = vi.fn()
     ;(app.contentWindow as unknown as {postMessage: unknown}).postMessage = toApp
-    await tick()
+    if (loaded) await tick()
     return {win, app, toApp, toHost}
 }
 
@@ -148,6 +148,49 @@ describe("the bridge port reaches the app's first document only", () => {
         deliver(win, hello, win.parent, [])
         deliver(win, hello, win.parent, [port(), port()])
         expect(toApp).not.toHaveBeenCalled()
+    })
+})
+
+describe("ports the wrapper does not forward are closed", () => {
+    // A port left open stays entangled with the host's end; closing it is what makes a refused
+    // hello inert rather than merely unforwarded.
+    const closeSpy = () => {
+        const p = port()
+        return {p, close: vi.spyOn(p, "close")}
+    }
+
+    it("closes a second hello's port", async () => {
+        const {win} = await wrapper()
+        deliver(win, hello, win.parent, [port()])
+        const second = closeSpy()
+        deliver(win, hello, win.parent, [second.p])
+        expect(second.close).toHaveBeenCalled()
+    })
+
+    it("closes a hello's port that arrives after the app navigated", async () => {
+        const {win, app} = await wrapper()
+        navigate(app)
+        const late = closeSpy()
+        deliver(win, hello, win.parent, [late.p])
+        expect(late.close).toHaveBeenCalled()
+    })
+
+    it("closes a second hello's port while the first is still waiting for the load", async () => {
+        const {win} = await wrapper("<p>app</p>", {loaded: false})
+        deliver(win, hello, win.parent, [port()])
+        const second = closeSpy()
+        deliver(win, hello, win.parent, [second.p])
+        expect(second.close).toHaveBeenCalled()
+    })
+})
+
+describe("a hello that arrives before the app loaded", () => {
+    it("waits for the first load, then forwards exactly once", async () => {
+        const {win, toApp} = await wrapper("<p>app</p>", {loaded: false})
+        deliver(win, hello, win.parent, [port()])
+        expect(toApp, "nothing is forwarded before the app's first load").not.toHaveBeenCalled()
+        await tick()
+        expect(toApp).toHaveBeenCalledTimes(1)
     })
 })
 

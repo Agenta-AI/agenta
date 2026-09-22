@@ -212,7 +212,13 @@ would block them anyway, and the kit must render identically in Storybook and in
   attaches on the Run iframe's first load only, and the wrapper forwards the `hello` only to the
   app's first load. Any later load of either frame stops the app: the wrapper removes the app
   frame and posts `{v: 1, type: "frame-navigated"}` to the host, which detaches the port and shows
-  the app as stopped until "Reload files". An external link click therefore stops the app.
+  the app as stopped until "Reload files". An external link click, `location.reload()`,
+  `document.open()` after load and a form submitted to the page itself all stop the app. Hash links
+  keep working.
+- Known gap: Chrome's `<link rel="prerender">` prefetch ignores CSP, even on a top-level page, so an
+  app can still send one request per load with data in its URL. No policy closes it and stripping
+  the tag would not stop a script adding it; the grant sheet tells the user the app may be able
+  to send out what it reads.
 - Feature flag: `userScopedFlagAtom` with key `agent-apps` (`AGENT_APPS_FLAG`). Off means the
   drive shows the folder as plain files. The preference defaults to false per user. HTML apps
   remain experimental; this release does not enable Run by default.

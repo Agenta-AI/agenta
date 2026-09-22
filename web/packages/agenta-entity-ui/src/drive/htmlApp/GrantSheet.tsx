@@ -85,7 +85,9 @@ export function GrantSheet({
                 <section data-slot="grant-sheet-extra" hidden aria-hidden />
 
                 <p className="m-0 text-xs text-colorTextTertiary">
-                    The app never receives your login. Agenta makes the file calls for it.
+                    The app never receives your login. Agenta makes the file calls for it. Only run
+                    apps you trust: the app's code can read these files and may be able to send what
+                    it reads outside Agenta.
                 </p>
 
                 <DialogFooter className="gap-2">

@@ -13,10 +13,19 @@
  * - A live bridge on a foreign page. The `hello` carrying the bridge port has to go to `"*"` (an
  *   opaque origin has no name `postMessage` accepts), so whatever document sits in the frame
  *   when it is sent receives the port. The wrapper forwards the port once, to the app's first
- *   load, and reports any later load to the host as {@link FrameNavigated} instead.
+ *   load, and reports any later load to the host as {@link FrameNavigated} instead. If the app
+ *   navigates before its own load finishes, the first load is the replacement; under
+ *   `frame-src 'none'` that can only be an error page or an `about:blank` / `javascript:`
+ *   document the app made itself, in its own origin and under the inherited policy, so it holds
+ *   nothing the app did not.
  *
  * The app srcdoc inherits the wrapper's policy, which is {@link RUN_CSP} plus `frame-src`, so the
- * no-network policy holds even for a document the app swaps in with a `javascript:` URL.
+ * policy holds even for a document the app swaps in with a `javascript:` URL.
+ *
+ * Not closed: Chrome's `<link rel="prerender">` prefetch ignores CSP (even on a top-level page),
+ * so an app can still send one request per load with data in its URL. No policy stops it, and
+ * stripping the tag would not stop a script adding it, so the grant sheet says the app may be
+ * able to send out what it reads.
  */
 
 // Old-style code on purpose: the body below is shipped as a string into a foreign document.

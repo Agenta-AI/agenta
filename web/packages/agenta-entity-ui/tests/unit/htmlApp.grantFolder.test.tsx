@@ -134,3 +134,65 @@ describe("switching folders while Run is selected", () => {
         expect(hosts.every((o) => o.grant === "read-write")).toBe(true)
     })
 })
+
+describe("a new host while Run stays open", () => {
+    it("gets a fresh frame, so the new host is attached on its first load", async () => {
+        const grants = createGrantStore()
+        grants.set("m1", "apps/a", "read-write", "read-write")
+        const hosts: HtmlAppHost[] = []
+        const factory = () => {
+            const host = stubHost()
+            hosts.push(host)
+            return host
+        }
+        const render = (createHost: () => HtmlAppHost) =>
+            act(async () => {
+                root.render(
+                    <HtmlAppEnvContext.Provider
+                        value={{
+                            enabled: true,
+                            io,
+                            createHost,
+                            grants,
+                            canEditMounts: true,
+                            kitCss: "",
+                            bridgeStub: "",
+                            resolveTokens: () => ({}),
+                        }}
+                    >
+                        <HtmlAppBody
+                            mount={MOUNT}
+                            path={A}
+                            content="<html></html>"
+                            controlledView="run"
+                        />
+                    </HtmlAppEnvContext.Provider>,
+                )
+            })
+        const waitForFrame = async () => {
+            await settle()
+            await act(async () => {
+                await new Promise((resolve) => setTimeout(resolve, 20))
+            })
+            return container.querySelector("iframe")
+        }
+
+        await render(() => factory())
+        const first = await waitForFrame()
+        expect(first).toBeTruthy()
+
+        // A different factory recreates the host, as a grant or project change does.
+        await render(() => factory())
+        const second = await waitForFrame()
+        const latest = hosts[hosts.length - 1]
+        expect(hosts.length).toBeGreaterThan(1)
+        expect(second).toBeTruthy()
+        expect(second).not.toBe(first)
+        if ((latest.attach as ReturnType<typeof vi.fn>).mock.calls.length === 0) {
+            await act(async () => {
+                second!.dispatchEvent(new Event("load"))
+            })
+        }
+        expect(latest.attach).toHaveBeenCalledWith(second)
+    })
+})

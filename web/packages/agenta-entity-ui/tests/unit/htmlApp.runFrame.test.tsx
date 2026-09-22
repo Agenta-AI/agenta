@@ -16,16 +16,29 @@ import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
 import {RunView} from "../../src/drive/htmlApp/RunView"
 
-const fakeHost = () =>
-    ({
+const fakeHost = () => {
+    const nav: {fire?: (href: string) => void} = {}
+    return {
         attach: vi.fn(),
         detach: vi.fn(),
         setVisible: vi.fn(),
         setTheme: vi.fn(),
         notifyChanged: vi.fn(),
         onError: () => () => undefined,
-        onNav: () => () => undefined,
-    }) satisfies HtmlAppHost
+        onNav: (cb: (href: string) => void) => {
+            nav.fire = cb
+            return () => undefined
+        },
+        nav,
+    } satisfies HtmlAppHost & {nav: typeof nav}
+}
+
+/** Serves sibling pages of the app. */
+const siblingIo = {
+    fetchText: (path: string) =>
+        Promise.resolve(path.endsWith("missing.html") ? null : `<html><body>${path}</body></html>`),
+    fetchDataUri: () => Promise.resolve(null),
+}
 
 let container: HTMLDivElement
 let root: Root
@@ -48,7 +61,11 @@ const settle = () =>
 
 const frame = () => container.querySelector("iframe")
 
-const mount = async (host: HtmlAppHost, changedPaths: string[] = []) => {
+const mount = async (
+    host: HtmlAppHost,
+    changedPaths: string[] = [],
+    io: typeof siblingIo | null = null,
+) => {
     await act(async () => {
         root.render(
             <RunView
@@ -57,7 +74,7 @@ const mount = async (host: HtmlAppHost, changedPaths: string[] = []) => {
                 entryPath="apps/x/index.html"
                 entryContent="<html><body>app</body></html>"
                 grant="read-write"
-                io={null}
+                io={io}
                 kitCss={null}
                 bridgeStub=""
                 resolveTokens={() => ({})}
@@ -128,6 +145,43 @@ describe("Run frame", () => {
             )
         })
         expect(frame()).toBeTruthy()
+    })
+
+    it("ignores other messages from its own wrapper", async () => {
+        const host = fakeHost()
+        await mount(host)
+        const el = frame()!
+        await act(async () => {
+            for (const data of [{v: 1, type: "nav", href: "x"}, {type: "frame-navigated"}, "x"]) {
+                window.dispatchEvent(new MessageEvent("message", {data, source: el.contentWindow}))
+            }
+        })
+        expect(frame()).toBe(el)
+        expect(container.textContent).not.toContain("Stopped")
+    })
+
+    it.each([
+        ["a sibling page", "sub.html"],
+        ["a missing sibling page", "missing.html"],
+    ])("gives %s a fresh frame with its own first attach", async (_label, href) => {
+        const host = fakeHost()
+        await mount(host, [], siblingIo)
+        const first = frame()!
+        if (host.attach.mock.calls.length === 0) await load(first)
+        expect(host.attach).toHaveBeenCalledTimes(1)
+
+        await act(async () => {
+            host.nav.fire?.(href)
+        })
+        await settle()
+
+        const second = frame()
+        expect(second, "the new page renders in a new iframe").toBeTruthy()
+        expect(second).not.toBe(first)
+        if (host.attach.mock.calls.length === 1) await load(second!)
+        expect(host.attach).toHaveBeenCalledTimes(2)
+        expect(host.attach).toHaveBeenLastCalledWith(second)
+        expect(container.textContent).not.toContain("Stopped")
     })
 
     it("reload starts a fresh frame, which gets its own first attach", async () => {

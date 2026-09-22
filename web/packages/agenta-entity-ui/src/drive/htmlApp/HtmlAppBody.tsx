@@ -100,6 +100,18 @@ export const useMountAssembleIo = (mountId: string | null, projectId: string | n
         }
     }, [mountId, projectId])
 
+/** A stable id per host instance, for keying the view that attaches it. */
+const hostKeys = new WeakMap<HtmlAppHost, number>()
+let nextHostKey = 0
+const hostKey = (host: HtmlAppHost): number => {
+    let key = hostKeys.get(host)
+    if (key === undefined) {
+        key = ++nextHostKey
+        hostKeys.set(host, key)
+    }
+    return key
+}
+
 const AssemblingSkeleton = () => (
     <div className="min-h-0 flex-1 p-3">
         <div className="flex flex-col gap-2">
@@ -342,8 +354,10 @@ export function HtmlAppBody({
                     // piece of state the view holds — the page it is on, the back stack, the
                     // iframe itself — belongs to the one it was opened with. Without this the
                     // view kept the previous file's path and re-rendered THAT page under the new
-                    // app's name.
-                    key={path}
+                    // app's name. The host is in the key too: RunView attaches a host on its
+                    // frame's first load only, so a new host (grant or project change) needs a
+                    // new frame.
+                    key={`${path}:${hostKey(host)}`}
                     host={host}
                     dir={dir}
                     entryPath={path}
