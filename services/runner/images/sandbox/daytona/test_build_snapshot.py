@@ -26,9 +26,9 @@ def test_builds_a_missing_snapshot():
     assert plan_build(SNAPSHOT_NAME, True, None) == "build"
 
 
-def test_force_never_replaces_a_usable_snapshot():
-    assert plan_build(SNAPSHOT_NAME, True, "active") == "refuse"
-    assert plan_build(SNAPSHOT_NAME, True, "building") == "refuse"
+def test_force_on_a_usable_snapshot_runs_a_trial_first():
+    assert plan_build(SNAPSHOT_NAME, True, "active") == "trial-then-replace"
+    assert plan_build(SNAPSHOT_NAME, True, "building") == "trial-then-replace"
 
 
 def test_existing_snapshot_without_force_is_left_alone():
@@ -57,13 +57,15 @@ def test_parse_args():
 
 
 class FakeSnapshots:
-    def __init__(self, existing: dict[str, str]):
+    """Records every create/delete in order; a create whose name matches `fail` raises."""
+
+    def __init__(self, existing: dict[str, str], fail=lambda _name: False):
         self.existing = {
             name: SimpleNamespace(name=name, state=state)
             for name, state in existing.items()
         }
-        self.deleted: list[str] = []
-        self.created: list[str] = []
+        self.fail = fail
+        self.events: list[tuple[str, str]] = []
 
     def get(self, name):
         if name not in self.existing:
@@ -71,15 +73,25 @@ class FakeSnapshots:
         return self.existing[name]
 
     def delete(self, snapshot):
-        self.deleted.append(snapshot.name)
+        self.events.append(("delete", snapshot.name))
         self.existing.pop(snapshot.name)
 
     def create(self, params, on_logs=None):
-        self.created.append(params.name)
+        self.events.append(("create", params.name))
+        if self.fail(params.name):
+            self.existing[params.name] = SimpleNamespace(
+                name=params.name, state="build_failed"
+            )
+            raise RuntimeError("build assertion failed")
+        self.existing[params.name] = SimpleNamespace(name=params.name, state="active")
 
 
-def run_main(monkeypatch, argv, existing):
-    snapshots = FakeSnapshots(existing)
+def is_trial(name: str) -> bool:
+    return name.startswith(f"{SNAPSHOT_NAME}-candidate-")
+
+
+def run_main(monkeypatch, argv, existing, fail=lambda _name: False):
+    snapshots = FakeSnapshots(existing, fail)
     monkeypatch.setattr(
         build_snapshot, "Daytona", lambda _config: SimpleNamespace(snapshot=snapshots)
     )
@@ -88,32 +100,74 @@ def run_main(monkeypatch, argv, existing):
     return snapshots
 
 
-def test_forced_rebuild_of_the_live_snapshot_deletes_nothing(monkeypatch):
+def test_forced_rebuild_proves_a_trial_before_replacing_the_live_snapshot(
+    monkeypatch,
+):
     snapshots = run_main(monkeypatch, ["--force"], {SNAPSHOT_NAME: "active"})
-    with pytest.raises(SystemExit) as refused:
+    build_snapshot.main()
+    trial = snapshots.events[0][1]
+    assert is_trial(trial)
+    assert snapshots.events == [
+        ("create", trial),
+        ("delete", SNAPSHOT_NAME),
+        ("create", SNAPSHOT_NAME),
+        ("delete", trial),
+    ]
+    assert set(snapshots.existing) == {SNAPSHOT_NAME}
+    assert snapshots.existing[SNAPSHOT_NAME].state == "active"
+
+
+def test_failed_trial_never_touches_the_live_snapshot(monkeypatch):
+    snapshots = run_main(
+        monkeypatch, ["--force"], {SNAPSHOT_NAME: "active"}, fail=is_trial
+    )
+    with pytest.raises(SystemExit) as failed:
         build_snapshot.main()
-    assert "--name" in str(refused.value)
-    assert snapshots.deleted == []
-    assert snapshots.created == []
+    assert "was not touched" in str(failed.value)
+    assert ("delete", SNAPSHOT_NAME) not in snapshots.events
+    assert ("create", SNAPSHOT_NAME) not in snapshots.events
+    assert snapshots.existing[SNAPSHOT_NAME].state == "active"
+    # The failed trial never served a sandbox, so it is cleaned up.
+    assert set(snapshots.existing) == {SNAPSHOT_NAME}
 
 
-def test_refresh_builds_beside_the_live_snapshot(monkeypatch):
+def test_failed_rebuild_keeps_the_trial_and_prints_the_fallback(monkeypatch):
+    snapshots = run_main(
+        monkeypatch,
+        ["--force"],
+        {SNAPSHOT_NAME: "active"},
+        fail=lambda name: name == SNAPSHOT_NAME,
+    )
+    with pytest.raises(SystemExit) as failed:
+        build_snapshot.main()
+    trial = snapshots.events[0][1]
+    assert is_trial(trial)
+    assert snapshots.existing[trial].state == "active"
+    assert ("delete", trial) not in snapshots.events
+    assert f"AGENTA_RUNNER_DAYTONA_SNAPSHOT={trial}" in str(failed.value)
+
+
+def test_existing_snapshot_without_force_builds_nothing(monkeypatch):
+    snapshots = run_main(monkeypatch, [], {SNAPSHOT_NAME: "active"})
+    build_snapshot.main()
+    assert snapshots.events == []
+
+
+def test_named_build_leaves_the_live_snapshot_alone(monkeypatch):
     snapshots = run_main(
         monkeypatch, ["--name", "snap-next"], {SNAPSHOT_NAME: "active"}
     )
     build_snapshot.main()
-    assert snapshots.deleted == []
-    assert snapshots.created == ["snap-next"]
+    assert snapshots.events == [("create", "snap-next")]
     assert snapshots.existing[SNAPSHOT_NAME].state == "active"
 
 
-def test_forced_rebuild_replaces_a_failed_build(monkeypatch):
+def test_forced_rebuild_replaces_a_failed_build_directly(monkeypatch):
     snapshots = run_main(
         monkeypatch, ["--name", "snap-next", "--force"], {"snap-next": "build_failed"}
     )
     build_snapshot.main()
-    assert snapshots.deleted == ["snap-next"]
-    assert snapshots.created == ["snap-next"]
+    assert snapshots.events == [("delete", "snap-next"), ("create", "snap-next")]
 
 
 if __name__ == "__main__":
