@@ -32,6 +32,25 @@ export class ModelNotSettableError extends Error {
 const stripContextHint = (id: string) => id.replace(/\[[^[\]]*\]$/, "");
 
 /**
+ * Retired model ids the harness no longer offers, mapped to the successor a saved config should
+ * run on instead. Claude Code 2.1.280 dropped `claude-fable-5` and moves its own saved setting to
+ * Fable 5.1; saved agent configs get the same treatment so they keep running. Consulted only
+ * after the requested id failed to match, so a harness that still offers the old id keeps it.
+ */
+const RETIRED_MODEL_SUCCESSORS: Record<string, string> = {
+  "claude-fable-5": "claude-fable-5-1",
+};
+
+/**
+ * The successor for a retired id, in any spelling a saved config may hold: bare,
+ * provider-prefixed (`anthropic/claude-fable-5`) or context-hinted (`claude-fable-5[1m]`). The
+ * successor is returned bare; `pickModel` then widens it to the hinted option when that is the
+ * only variant on offer.
+ */
+const retiredModelSuccessor = (id: string): string | undefined =>
+  RETIRED_MODEL_SUCCESSORS[stripContextHint(id.slice(id.indexOf("/") + 1))];
+
+/**
  * Pick the harness-specific model id for a requested name. Harnesses expose their own ids
  * (Pi: "openai-codex/gpt-5.5"; Claude: alias ids like "opus" / "sonnet[1m]"). Match exact, then
  * by provider suffix (Pi), then by context-hint-normalized alias (Claude).
@@ -45,17 +64,21 @@ const stripContextHint = (id: string) => id.replace(/\[[^[\]]*\]$/, "");
  * the only variant on offer. This only widens a request to the harness's actual (equal-or-larger
  * context) variant; it never falls back from a hinted request to a bare id, which would silently
  * shrink the context window.
+ *
+ * Last, a retired id the harness no longer offers resolves to its successor (see
+ * `RETIRED_MODEL_SUCCESSORS`).
  */
 export function pickModel(allowed: string[], wanted?: string): string | undefined {
   if (!wanted) return undefined;
   if (allowed.includes(wanted)) return wanted;
   const suffix = (id: string) => id.slice(id.indexOf("/") + 1);
-  return (
+  const match =
     allowed.find((id) => suffix(id) === wanted) ??
     allowed.find((id) => suffix(id) === suffix(wanted)) ??
-    allowed.find((id) => id !== wanted && stripContextHint(id) === wanted) ??
-    undefined
-  );
+    allowed.find((id) => id !== wanted && stripContextHint(id) === wanted);
+  if (match) return match;
+  const successor = retiredModelSuccessor(wanted);
+  return successor ? pickModel(allowed, successor) : undefined;
 }
 
 /** Enumerate the harness's selectable model ids from the session config options. */

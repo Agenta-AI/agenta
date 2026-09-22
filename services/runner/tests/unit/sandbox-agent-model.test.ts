@@ -64,8 +64,19 @@ describe("pickModel", () => {
     const subscription = ["default", "opus[1m]", "claude-fable-5-1[1m]", "sonnet", "haiku"];
     assert.equal(pickModel(apiKey, "claude-fable-5-1"), "claude-fable-5-1");
     assert.equal(pickModel(subscription, "claude-fable-5-1"), "claude-fable-5-1[1m]");
-    // The build no longer offers Fable 5; a stale request must not be widened onto Fable 5.1.
-    assert.equal(pickModel(subscription, "claude-fable-5"), undefined);
+  });
+
+  it("upgrades a saved claude-fable-5 to Fable 5.1, which the pinned build offers instead", () => {
+    const apiKey = ["default", "opus[1m]", "claude-fable-5-1", "sonnet", "haiku"];
+    const subscription = ["default", "opus[1m]", "claude-fable-5-1[1m]", "sonnet", "haiku"];
+    for (const saved of ["claude-fable-5", "anthropic/claude-fable-5", "claude-fable-5[1m]"]) {
+      assert.equal(pickModel(apiKey, saved), "claude-fable-5-1", saved);
+      assert.equal(pickModel(subscription, saved), "claude-fable-5-1[1m]", saved);
+    }
+    // A build that still offers Fable 5 keeps it: the upgrade applies only once nothing matched.
+    assert.equal(pickModel(["claude-fable-5", "claude-fable-5-1"], "claude-fable-5"), "claude-fable-5");
+    // No successor on offer: still no match, so the strict path fails loud.
+    assert.equal(pickModel(["default", "sonnet"], "claude-fable-5"), undefined);
   });
 
   it("does not fall back from a hinted request to a bare id (never shrinks context)", () => {
@@ -185,6 +196,23 @@ describe("applyModel", () => {
 
     assert.equal(await applyModel(session, "gpt-5.5"), "openai-codex/gpt-5.5");
     assert.deepEqual(calls, ["gpt-5.5", "openai-codex/gpt-5.5"]);
+  });
+
+  it("runs a saved claude-fable-5 config on Fable 5.1 instead of failing (strict default)", async () => {
+    const calls: string[] = [];
+    const session = {
+      setModel: async (id: string) => {
+        calls.push(id);
+        if (id !== "claude-fable-5-1[1m]") {
+          throw new Error(
+            "Unsupported value. Allowed values: default, opus[1m], claude-fable-5-1[1m], sonnet, haiku",
+          );
+        }
+      },
+    };
+
+    assert.equal(await applyModel(session, "claude-fable-5"), "claude-fable-5-1[1m]");
+    assert.deepEqual(calls, ["claude-fable-5", "claude-fable-5-1[1m]"]);
   });
 
   it("fails loudly (strict default) when the requested model cannot be resolved", async () => {
