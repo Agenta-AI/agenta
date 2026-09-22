@@ -38,8 +38,8 @@ const nextRouteChange = () =>
     })
 
 /** The session on screen, from the route — the one whose removal has to move you. */
-const useActiveSessionId = (): string | undefined => {
-    const {session_id: sessionId} = useRouter().query
+const routeSessionId = (query: typeof Router.query): string | undefined => {
+    const {session_id: sessionId} = query
     return typeof sessionId === "string" ? sessionId : undefined
 }
 
@@ -57,7 +57,7 @@ const useActiveSessionId = (): string | undefined => {
 export const useLeaveSession = (base: string) => {
     const router = useRouter()
     const store = useStore()
-    const activeId = useActiveSessionId()
+    const activeId = routeSessionId(router.query)
 
     // The tab of the session being left, dropped once the route has moved on. Not at landing:
     // the session on screen always rejoins the open set, and the rail's join effect for the
@@ -77,7 +77,9 @@ export const useLeaveSession = (base: string) => {
     return useCallback(
         async ({sessionId, appId}: LeaveSessionTarget) => {
             const scope = sessionTabScope(appId)
-            if (sessionId !== activeId) {
+            // Read now, not at render: `useSessionActions` holds this callback for the length of
+            // the server call, and the person may have moved to another session meanwhile.
+            if (sessionId !== routeSessionId(Router.query)) {
                 store.set(closeSessionTabsAtom, {scope, ids: [sessionId]})
                 return
             }
@@ -104,6 +106,6 @@ export const useLeaveSession = (base: string) => {
             )
                 pendingCloseRef.current = null
         },
-        [activeId, base, router, store],
+        [base, router, store],
     )
 }
