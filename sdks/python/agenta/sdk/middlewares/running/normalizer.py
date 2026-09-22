@@ -8,6 +8,8 @@ from uuid import UUID
 
 from agenta.sdk.utils.exceptions import suppress
 from agenta.sdk.models.workflows import (
+    failure_code_of,
+    returned_stacktrace,
     WorkflowServiceStatus,
     WorkflowRequestData,
     WorkflowServiceResponseData,
@@ -24,6 +26,11 @@ from agenta.sdk.utils.logging import get_module_logger
 
 
 log = get_module_logger(__name__)
+
+
+# Whether a refusal returns its Python traceback to whoever made the request is decided by
+# `returned_stacktrace`, beside `failure_code_of`, because the invoke routing layer answers
+# the same question about the same request (D68).
 
 
 class NormalizerMiddleware:
@@ -213,12 +220,19 @@ class NormalizerMiddleware:
     ) -> WorkflowServiceBatchResponse:
         error_status = None
 
+        # The handler's own exceptions are caught HERE, not by the invoke routing layer, so a
+        # failure class named by the exception must be carried onto the status here too. Both
+        # sites read it through `failure_code_of` so they cannot answer differently.
+        failure_code = failure_code_of(exc)
+
         if isinstance(exc, ErrorStatus):
+            raised_stacktrace = exc.stacktrace
             error_status = WorkflowServiceStatus(
                 type=exc.type,
                 code=exc.code,
                 message=exc.message,
-                stacktrace=exc.stacktrace,
+                stacktrace=returned_stacktrace(exc.stacktrace),
+                failure_code=failure_code,
             )
         else:
             type = "https://agenta.ai/docs/errors#v1:sdk:unknown-workflow-invoke-error"
@@ -235,12 +249,14 @@ class NormalizerMiddleware:
                 value=exc,
                 tb=exc.__traceback__,
             )
+            raised_stacktrace = stacktrace
 
             error_status = WorkflowServiceStatus(
                 type=type,
                 code=code,
                 message=message,
-                stacktrace=stacktrace,
+                stacktrace=returned_stacktrace(stacktrace),
+                failure_code=failure_code,
             )
 
         trace_id, span_id, session_id = self._correlation_ids()
@@ -252,11 +268,15 @@ class NormalizerMiddleware:
             session_id=session_id,
         )
 
+        # The traceback goes here rather than onto the response. This line already
+        # existed and already carries the rest of the failure, so an operator reads one
+        # record, and withholding the traceback from the caller costs them nothing.
         log.warning(
             "Workflow handler invocation failed",
             status_code=error_status.code if error_status else None,
             status_type=error_status.type if error_status else None,
             message=error_status.message if error_status else None,
+            stacktrace=raised_stacktrace,
             trace_id=trace_id,
             span_id=span_id,
         )

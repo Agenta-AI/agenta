@@ -108,10 +108,17 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 {{- define "agenta.seaweedfs.image" -}}
 {{- $img := default dict (default dict (default dict .Values.store).seaweedfs).image -}}
-{{- printf "%s:%s" (default "chrislusf/seaweedfs" $img.repository) (default "4.37" $img.tag) -}}
+{{- printf "%s:%s" (default "chrislusf/seaweedfs" $img.repository) (default "4.47" $img.tag) -}}
 {{- end }}
 {{- define "agenta.seaweedfs.pullPolicy" -}}{{ default "IfNotPresent" (default dict (default dict (default dict .Values.store).seaweedfs).image).pullPolicy }}{{- end }}
 {{- define "agenta.seaweedfs.port" -}}{{ default 8333 (default dict (default dict .Values.store).seaweedfs).port }}{{- end }}
+{{- /* FUSE for the runner's local sandboxes. Default true, which is the behavior the chart
+       always had. Set agentRunner.fuse.enabled=false on a cluster that forbids SYS_ADMIN or
+       a hostPath mount of /dev/fuse, such as GKE Autopilot; use the Daytona provider there. */ -}}
+{{- define "agenta.agentRunner.fuse.enabled" -}}
+{{- $v := (default dict (default dict .Values.agentRunner).fuse).enabled -}}
+{{- if kindIs "invalid" $v }}true{{- else }}{{- $v -}}{{- end }}
+{{- end }}
 {{- define "agenta.workerStreams.enabled" -}}
 {{- $v := (default dict .Values.workerStreams).enabled -}}
 {{- if kindIs "invalid" $v }}true{{- else }}{{- $v -}}{{- end }}
@@ -155,6 +162,9 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- define "agenta.webMobile.port" -}}{{ default 3000 (default dict .Values.webMobile).port }}{{- end }}
 {{- define "agenta.services.port" -}}{{ default 80 (default dict .Values.services).port }}{{- end }}
 {{- define "agenta.agentRunner.port" -}}{{ default 8765 (default dict .Values.agentRunner).port }}{{- end }}
+{{- /* Bind address for the runner (AGENTA_RUNNER_HOST). The runner defaults to 127.0.0.1,
+       which no probe and no other pod can reach. Always 0.0.0.0 here unless overridden. */ -}}
+{{- define "agenta.agentRunner.host" -}}{{ default "0.0.0.0" (default dict .Values.agentRunner).host }}{{- end }}
 {{- define "agenta.supertokens.port" -}}{{ default 3567 (default dict (include "agenta.values" . | fromYaml).supertokens).port }}{{- end }}
 {{- define "agenta.redisVolatile.port" -}}{{ default 6379 (default dict .Values.redisVolatile).port }}{{- end }}
 {{- define "agenta.redisDurable.port" -}}{{ default 6381 (default dict .Values.redisDurable).port }}{{- end }}
@@ -223,17 +233,29 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 
 {{/* ================================================================
+   Does the release create the ServiceAccount?
+
+   `default true $sa.create` would treat an explicit
+   `serviceAccount.create: false` as unset and still say true. Use
+   hasKey, so an explicit false is honored and true applies only when
+   the key is omitted.
+
+   serviceaccount.yaml, agenta.serviceAccountName and the migration Job
+   all read this one helper, so they cannot disagree about who owns the
+   ServiceAccount. A disagreement would point pods at a name the chart
+   never created.
+   ================================================================ */}}
+{{- define "agenta.serviceAccount.create" -}}
+{{- $sa := default dict .Values.serviceAccount -}}
+{{- if hasKey $sa "create" -}}{{- $sa.create -}}{{- else }}true{{- end }}
+{{- end }}
+
+{{/* ================================================================
    ServiceAccount name
    ================================================================ */}}
 {{- define "agenta.serviceAccountName" -}}
 {{- $sa := default dict .Values.serviceAccount -}}
-{{- /* See serviceaccount.yaml: `default true` would silently override
-       an explicit `serviceAccount.create: false`. Use hasKey so the
-       helper agrees with the template — otherwise pods would mount a
-       SA name the template never created. */ -}}
-{{- $create := true -}}
-{{- if hasKey $sa "create" -}}{{- $create = $sa.create -}}{{- end -}}
-{{- if $create }}
+{{- if eq (include "agenta.serviceAccount.create" .) "true" }}
 {{- default (include "agenta.fullname" .) $sa.name }}
 {{- else }}
 {{- default "default" $sa.name }}
@@ -348,7 +370,9 @@ http://{{ include "agenta.agentRunner.serviceName" . }}:{{ include "agenta.agent
 {{- /* Services sends the shared runner protocol credential the runner verifies (interface.md
        section 2). REQUIRED and always rendered — the runner rejects an un-tokened request with 401
        and refuses to boot without the secret, so a Services pod without it could never call it.
-       Mirrors runner-deployment.yaml: an explicit auth.tokenSecretRef wins, else the platform Secret. */}}
+       Mirrors runner-deployment.yaml: an explicit auth.tokenSecretRef wins, else the platform Secret.
+       The platform Secret is `agenta.secretName`, so a `secrets.existingSecret` install reads the
+       operator's own Secret instead of a chart-managed one the chart never creates. */}}
 - name: AGENTA_RUNNER_TOKEN
   valueFrom:
     secretKeyRef:
@@ -356,7 +380,7 @@ http://{{ include "agenta.agentRunner.serviceName" . }}:{{ include "agenta.agent
       name: {{ $auth.tokenSecretRef.name | quote }}
       key: {{ $auth.tokenSecretRef.key | quote }}
       {{- else }}
-      name: {{ include "agenta.fullname" . | quote }}
+      name: {{ include "agenta.secretName" . | quote }}
       key: AGENTA_RUNNER_TOKEN
       {{- end }}
 {{- end }}
@@ -402,6 +426,11 @@ http://{{ include "agenta.agentRunner.serviceName" . }}:{{ include "agenta.agent
 {{/* ================================================================
    Alembic job defaults.
    ================================================================ */}}
+{{- /* Which Helm hook phase the migration Job runs in. "post" (the default) keeps the
+       behavior the chart always had, which the bundled PostgreSQL StatefulSet needs. "pre"
+       runs the migrations before the app pods start, which is what an external database
+       wants. See alembic-job.yaml. */ -}}
+{{- define "agenta.alembic.hookPhase" -}}{{ default "post" (default dict .Values.alembic).hookPhase }}{{- end }}
 {{- define "agenta.alembic.activeDeadlineSeconds" -}}{{ default 600 (default dict .Values.alembic).activeDeadlineSeconds }}{{- end }}
 {{- define "agenta.alembic.backoffLimit" -}}{{ default 3 (default dict .Values.alembic).backoffLimit }}{{- end }}
 {{- define "agenta.alembic.ttlSecondsAfterFinished" -}}{{ default 300 (default dict .Values.alembic).ttlSecondsAfterFinished }}{{- end }}
@@ -409,7 +438,16 @@ http://{{ include "agenta.agentRunner.serviceName" . }}:{{ include "agenta.agent
 {{/* ================================================================
    Ingress defaults.
    ================================================================ */}}
-{{- define "agenta.ingress.className" -}}{{ default "traefik" (default dict .Values.ingress).className }}{{- end }}
+{{- /* Default "traefik", but an explicit empty string means "render no ingressClassName".
+       hasKey, not `default`, because `default` would turn "" back into "traefik".
+       Some controllers ignore the field: GKE reacts only to the legacy
+       kubernetes.io/ingress.class annotation, and an Ingress carrying a className it does
+       not own gets no controller events at all. Setting className: "" lets the operator
+       route by annotation alone. */ -}}
+{{- define "agenta.ingress.className" -}}
+{{- $ingress := default dict .Values.ingress -}}
+{{- if hasKey $ingress "className" }}{{ $ingress.className }}{{ else }}traefik{{ end }}
+{{- end }}
 {{- define "agenta.ingress.host" -}}{{ default "agenta.local" (default dict .Values.ingress).host }}{{- end }}
 {{- define "agenta.ingress.paths.api.path" -}}
 {{- $paths := default dict (default dict .Values.ingress).paths -}}
@@ -431,8 +469,19 @@ http://{{ include "agenta.agentRunner.serviceName" . }}:{{ include "agenta.agent
 {{- $svc := default dict $paths.services -}}
 {{- default "Prefix" $svc.pathType -}}
 {{- end }}
-{{- define "agenta.ingress.paths.webMobile.path" -}}/m{{- end }}
-{{- define "agenta.ingress.paths.webMobile.pathType" -}}Prefix{{- end }}
+{{- /* The mobile image is built with basePath /m, so the path must stay /m unless the image
+       is rebuilt. pathType is still worth overriding: a managed ingress (GKE) may need
+       ImplementationSpecific. */ -}}
+{{- define "agenta.ingress.paths.webMobile.path" -}}
+{{- $paths := default dict (default dict .Values.ingress).paths -}}
+{{- $m := default dict $paths.webMobile -}}
+{{- default "/m" $m.path -}}
+{{- end }}
+{{- define "agenta.ingress.paths.webMobile.pathType" -}}
+{{- $paths := default dict (default dict .Values.ingress).paths -}}
+{{- $m := default dict $paths.webMobile -}}
+{{- default "Prefix" $m.pathType -}}
+{{- end }}
 {{- define "agenta.ingress.paths.web.path" -}}
 {{- $paths := default dict (default dict .Values.ingress).paths -}}
 {{- $w := default dict $paths.web -}}
@@ -442,6 +491,28 @@ http://{{ include "agenta.agentRunner.serviceName" . }}:{{ include "agenta.agent
 {{- $paths := default dict (default dict .Values.ingress).paths -}}
 {{- $w := default dict $paths.web -}}
 {{- default "Prefix" $w.pathType -}}
+{{- end }}
+
+{{/* ================================================================
+   One extra ingress path item, shared by ingress.extraPaths and by
+   ingress.extraHosts[].paths. The caller passes the item itself, not
+   the root context, so this helper must not use `.Values`.
+
+   servicePort accepts a number (rendered as port.number) or a string
+   (rendered as port.name), which is what the Ingress spec allows.
+   ================================================================ */}}
+{{- define "agenta.ingress.extraPath" -}}
+- path: {{ .path }}
+  pathType: {{ default "Prefix" .pathType }}
+  backend:
+    service:
+      name: {{ .serviceName | quote }}
+      port:
+        {{- if kindIs "string" .servicePort }}
+        name: {{ .servicePort | quote }}
+        {{- else }}
+        number: {{ .servicePort | int }}
+        {{- end }}
 {{- end }}
 
 {{/* ================================================================
@@ -822,6 +893,38 @@ imagePullSecrets:
       key: CLOUDFLARE_TURNSTILE_SECRET_KEY
       optional: true
 {{- end }}
+{{- /* The web container reads AGENTA_MCP_GATEWAY_ENABLED itself: entrypoint.sh normalizes it
+     and writes NEXT_PUBLIC_AGENTA_MCP_GATEWAY_ENABLED into the runtime env, which is what
+     hides the MCP endpoints tab on a deployment whose API refuses every MCP gateway route.
+     Without it here the browser bundle falls back to "on" and offers a tab that leads to a
+     refusal. Same value as commonEnv renders for the API, from the same key, so the two
+     cannot disagree. */}}
+{{- $mcpGateway := default dict .Values.mcpGateway -}}
+{{- if hasKey $mcpGateway "enabled" }}
+- name: AGENTA_MCP_GATEWAY_ENABLED
+  value: {{ $mcpGateway.enabled | quote }}
+{{- end }}
+{{- end }}
+
+{{/* ================================================================
+   AGENTA_GATEWAYS_INSECURE_HTTP_ALLOWED — whether a gateway credential
+   may cross a plain-http hop to a routable host.
+
+   Read by the agenta SDK inside the services container
+   (sdks/python/agenta/sdk/agents/connections/models.py) and by the
+   runner (services/runner/src/engines/sandbox_agent/run-plan.ts), and
+   by nothing in the API image. Those two legs re-validate the same
+   rule, so a value set on one but not the other admits a run and then
+   strands it inside the sandbox. Kept out of commonEnv for that
+   reason: commonEnv would put it on the API, workers, cron and
+   alembic, none of which read it, and still miss the runner.
+   ================================================================ */}}
+{{- define "agenta.gatewayInsecureHttpEnv" -}}
+{{- $gatewayEgress := default dict .Values.gatewayEgress -}}
+{{- if hasKey $gatewayEgress "insecureHttpAllowed" }}
+- name: AGENTA_GATEWAYS_INSECURE_HTTP_ALLOWED
+  value: {{ $gatewayEgress.insecureHttpAllowed | quote }}
+{{- end }}
 {{- end }}
 
 {{/* ================================================================
@@ -889,11 +992,19 @@ imagePullSecrets:
       key: AGENTA_CRYPT_KEY
 {{- if eq (include "agenta.store.enabled" .) "true" }}
 {{- $store := default dict .Values.store }}
+{{- /* An explicit store.endpointUrl always wins, even with SeaweedFS bundled. A Daytona
+       sandbox runs outside the cluster and cannot resolve the in-cluster Service name, so
+       it needs a public URL. Expose the bundled store through store.seaweedfs.ingress and
+       set store.endpointUrl to that hostname. Compose does the same with
+       AGENTA_STORE_TRAEFIK_ENABLE plus AGENTA_STORE_DOMAIN. The internal Service URL stays
+       the fallback for a cluster-only deployment. */}}
 - name: AGENTA_STORE_ENDPOINT_URL
-  {{- if eq (include "agenta.seaweedfs.enabled" .) "true" }}
+  {{- if $store.endpointUrl }}
+  value: {{ $store.endpointUrl | quote }}
+  {{- else if eq (include "agenta.seaweedfs.enabled" .) "true" }}
   value: {{ printf "http://%s-seaweedfs:%v" (include "agenta.fullname" .) (include "agenta.seaweedfs.port" .) | quote }}
   {{- else }}
-  value: {{ default "" $store.endpointUrl | quote }}
+  value: ""
   {{- end }}
 {{- if $store.stsEndpointUrl }}
 - name: AGENTA_STORE_STS_ENDPOINT_URL
@@ -1136,6 +1247,50 @@ imagePullSecrets:
 {{- else if hasKey $svcHook "allowInsecure" }}
 - name: AGENTA_INSECURE_EGRESS_ALLOWED
   value: {{ $svcHook.allowInsecure | quote }}
+{{- end }}
+{{- /* Agenta gateways — the four switches api/oss/src/utils/env.py resolves. They belong in
+     commonEnv because that is this chart's equivalent of the one env file compose hands to
+     api, workers and cron: the settings object is a module-level singleton in the API image,
+     so a worker or the cron container that resolved a different value than the API would be
+     the bug. AGENTA_GATEWAYS_INSECURE_HTTP_ALLOWED is deliberately NOT here — no API code
+     reads it, and it has its own helper below.
+     Until this block existed the documented keys were accepted and ignored: the schema's root
+     is additionalProperties:true, so `mcpGateway: {enabled: false}` installed cleanly and
+     changed nothing. */}}
+{{- $llmGateway := default dict .Values.llmGateway -}}
+{{- $mcpGateway := default dict .Values.mcpGateway -}}
+{{- $gatewayEgress := default dict .Values.gatewayEgress -}}
+{{- $gatewayCredentials := default dict .Values.gatewayCredentials -}}
+{{- if hasKey $llmGateway "enabled" }}
+- name: AGENTA_LLM_GATEWAY_ENABLED
+  value: {{ $llmGateway.enabled | quote }}
+{{- end }}
+{{- if hasKey $mcpGateway "enabled" }}
+- name: AGENTA_MCP_GATEWAY_ENABLED
+  value: {{ $mcpGateway.enabled | quote }}
+{{- end }}
+{{- /* A YAML list, joined here, the way agentRunner.providers.enabled already is: the
+     application parses one comma-separated string, and a list is what an operator can extend
+     from a second values file without re-typing the whole line. A plain string is accepted
+     too, so a value pasted straight out of the compose env file still works. */}}
+{{- if $mcpGateway.hostAllowlist }}
+- name: AGENTA_MCP_GATEWAY_HOST_ALLOWLIST
+  {{- if kindIs "string" $mcpGateway.hostAllowlist }}
+  value: {{ $mcpGateway.hostAllowlist | quote }}
+  {{- else }}
+  value: {{ join "," $mcpGateway.hostAllowlist | quote }}
+  {{- end }}
+{{- end }}
+{{- if hasKey $gatewayEgress "insecureAllowed" }}
+- name: AGENTA_GATEWAYS_INSECURE_EGRESS_ALLOWED
+  value: {{ $gatewayEgress.insecureAllowed | quote }}
+{{- end }}
+{{- /* Unset by default, so the application's own 43200s default applies. Rendering an empty
+     string here instead would be read as "no TTL configured" by nobody: the parser sees a
+     value and has to reject it. */}}
+{{- if $gatewayCredentials.ttlSeconds }}
+- name: AGENTA_GATEWAYS_CREDENTIALS_TTL_SECONDS
+  value: {{ $gatewayCredentials.ttlSeconds | quote }}
 {{- end }}
 {{- /* agenta.services.code — SDK sandbox runner selector */}}
 {{- if $svcCode.sandboxRunner }}

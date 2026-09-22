@@ -38,8 +38,10 @@
         "./drill-in": "./src/drill-in/index.ts",
         "./editor": "./src/Editor/index.ts",
         "./editor-theme.css": "./src/styles/editor-theme.css",
+        "./filter-menu": "./src/filter-menu/index.ts",
         "./height-collapse": "./src/components/HeightCollapse.tsx",
         "./hooks": "./src/hooks/index.ts",
+        "./list-table": "./src/list-table/index.ts",
         "./llm-icons": "./src/LLMIcons/index.ts",
         "./rich-chat-input": "./src/RichChatInput/index.ts",
         "./select-llm-provider": "./src/SelectLLMProvider/index.ts",
@@ -55,7 +57,9 @@
         "./ui": "./src/components/ui/index.ts",
         "./utils": "./src/utils/index.ts",
         "./agent-icon": "./src/agent-icon/index.ts",
-        "./page-title": "./src/page-title/index.tsx"
+        "./page-title": "./src/page-title/index.tsx",
+        "./github-mark": "./src/github-mark.tsx",
+        "./config-accordion": "./src/components/presentational/section/ConfigAccordionSection.tsx"
     },
     "peerDependencies": {
         "@lexical/code": ">=0.38.0",
@@ -124,6 +128,7 @@
         "@tanstack/react-virtual": "^3.13.2",
         "class-variance-authority": "^0.7.1",
         "clsx": "^2.1.1",
+        "cmdk": "^1.1.1",
         "dompurify": "^3.4.12",
         "fast-deep-equal": "^3.1.3",
         "immer": "^10.2.0",
@@ -132,7 +137,7 @@
         "jotai-immer": "^0.4.3",
         "jotai-scheduler": "^0.0.5",
         "jotai-tanstack-query": "^0.11.0",
-        "js-yaml": "^4.3.0",
+        "js-yaml": "^4.3.1",
         "json5": "^2.2.3",
         "jsonrepair": "^3.13.3",
         "lexical": "^0.46.0",
@@ -142,6 +147,7 @@
         "prismjs": "^1.30.0",
         "react-day-picker": "^10.0.1",
         "react-resizable": "^3.0.5",
+        "sonner": "^2.0.8",
         "tailwind-merge": "^2.6.0",
         "uuid": "^11.1.1"
     },

@@ -63,6 +63,38 @@ class MCPConnection(BaseModel):
         return self
 
 
+class MCPGatewayConnection(BaseModel):
+    """Select a platform-managed MCP gateway route.
+
+    Gateway routes own their upstream configuration and credentials. The agent
+    declares only the public route identity, so upstream URLs and secrets never
+    enter the runner configuration.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: Literal["gateway"] = "gateway"
+    namespace: Literal["builtin", "standard", "custom"]
+    provider: Optional[str] = Field(default=None, min_length=1, max_length=128)
+    slug: Optional[str] = Field(default=None, min_length=1, max_length=128)
+
+    @model_validator(mode="after")
+    def _validate_route_identity(self) -> "MCPGatewayConnection":
+        if self.namespace == "custom":
+            if not self.slug or self.provider:
+                raise ValueError("custom gateway MCP routes require slug only")
+        elif not self.provider or self.slug:
+            raise ValueError(
+                f"{self.namespace} gateway MCP routes require provider only"
+            )
+        return self
+
+
+MCPServerConnection = Annotated[
+    Union[MCPConnection, MCPGatewayConnection], Field(discriminator="type")
+]
+
+
 class MCPToolPolicy(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -79,19 +111,106 @@ class MCPToolPolicy(BaseModel):
 
 
 class MCPPolicy(BaseModel):
+    """What the agent may do with one connected MCP server.
+
+    Three fields, three different questions, and they are deliberately not collapsed:
+
+    - ``tools`` is a FILTER. It decides which of the server's tools are advertised to the model
+      at all. A tool it hides is never offered and never called, so it needs no permission.
+    - ``permission`` is the WHOLE-SERVER decision for every advertised tool. It is the field that
+      shipped first and it stays the fallback, so a configuration that predates per-tool policy
+      behaves exactly as it did.
+    - ``tool_permissions`` is the PER-TOOL decision, keyed by the tool name the server itself
+      advertises (``echo``), never the harness-rendered name (``mcp__acme-prod__echo``). The
+      upstream name is the only spelling every harness agrees on; see OR80 for what happens when a
+      lookup is built on a rendered one instead.
+
+    ``new_tool_permission`` answers the question the other three cannot: an MCP server can start
+    advertising a tool that did not exist when the agent was configured, and something has to
+    decide for it before a human has seen it. Resolution for an advertised tool is
+    ``tool_permissions[tool]``, then ``new_tool_permission``.
+
+    Those two fields are an OPT-IN. With neither set, this model emits nothing new and the server
+    permission (or, absent that, the run's own default permission ladder) governs exactly as
+    before. With either set, the per-tool table is authoritative for this server and the ladder is
+    not consulted for it, because a per-tool policy that a run default can widen is not a policy.
+    """
+
     model_config = ConfigDict(extra="forbid")
 
     tools: MCPToolPolicy = Field(default_factory=MCPToolPolicy)
     permission: Optional[Permission] = None
+    tool_permissions: Dict[str, Permission] = Field(default_factory=dict)
+    new_tool_permission: Optional[Permission] = None
+
+    def resolved_new_tool_permission(self) -> Optional[Permission]:
+        """The decision an advertised tool gets when the table has no entry of its own.
+
+        ``ask`` is the floor rather than "fall through to the run default": a tool nobody has
+        looked at yet must reach a human, and a run default of ``allow`` must not silently widen a
+        server whose author took the trouble to write a per-tool table. Returns ``None`` when the
+        author opted out entirely, which is what keeps an existing configuration unchanged.
+
+        The whole-server ``permission`` is NOT the floor either, and reading it here was D88 on
+        the shipped path. This value becomes ``newToolPermission`` on the wire and the runner
+        honours it verbatim, so ``permission="allow"`` beside any per-tool table sent
+        ``newToolPermission: "allow"`` and a tool the author had never named ran unapproved under
+        every harness. The runner's own intake is explicit that this must not happen: an omitted
+        ``newToolPermission`` beside a readable table gets ``ask``, "so a human decides rather
+        than a parser", and ``mcpToolPermission`` "deliberately does NOT fall through to the
+        whole-server permission" once a table exists
+        (``services/runner/src/mcp-permission.ts``).
+
+        The docstring above this one already said so; only the expression disagreed, and the one
+        test that covered the fallback used ``permission="ask"``, where both ladders give the same
+        answer. That is why it survived.
+        """
+        # Either field set is the opt-in; neither set leaves this server on the ladder, which is
+        # the no-table case the runner reads identically: it emits neither key, so the runner
+        # never opts in and `mcpToolPermission` returns the whole-server permission as before.
+        if not self.tool_permissions and self.new_tool_permission is None:
+            return None
+        return self.new_tool_permission or "ask"
+
+    @model_validator(mode="after")
+    def _validate_tool_permissions(self) -> "MCPPolicy":
+        for name in self.tool_permissions:
+            if not name.strip():
+                raise ValueError("MCP tool permissions require non-empty tool names")
+        # A permission for a tool the filter hides is dead configuration, and dead permission
+        # configuration is precisely the class of defect OR79 records. Refuse it rather than drop
+        # it silently: the author either meant to list the tool or meant to permit a different one.
+        if self.tools.mode == "include":
+            hidden = sorted(set(self.tool_permissions) - set(self.tools.names))
+            if hidden:
+                raise ValueError(
+                    "MCP tool permissions name tools the include filter hides: "
+                    f"{', '.join(hidden)}"
+                )
+        return self
 
 
 class MCPServerConfig(BaseModel):
-    """Saved author intent. This model never contains resolved secret values."""
+    """Saved author intent. This model never contains resolved secret values.
+
+    ``name`` is a LABEL, not an identity. A harness renders this server's tools as
+    ``mcp__<name>__<tool>`` and the model chooses a tool by that string, so the name has
+    to be stable for the life of the configuration and distinct from every other server
+    on the same agent. It is frozen at save: renaming the connection in settings changes
+    the settings row and the picker, and deliberately does not reach a saved agent, since
+    it would otherwise rename every tool mid-flight and invalidate the permission rules
+    rendered against the old names.
+
+    Which connection this server IS lives in ``connection``: a gateway connection carries
+    the slug the platform derived once and never changes. A configuration that carries no
+    connection reference falls back to matching an endpoint by this name, which is
+    deprecated and kept only for revisions already committed; see ``mcp/resolver.py``.
+    """
 
     model_config = ConfigDict(extra="forbid")
 
     name: str = Field(min_length=1, max_length=128, pattern=r"^[A-Za-z0-9._-]+$")
-    connection: MCPConnection
+    connection: MCPServerConnection
     policy: MCPPolicy = Field(default_factory=MCPPolicy)
 
     @field_validator("name")
@@ -177,4 +296,11 @@ class ResolvedMCPServer(BaseModel):
         }
         if self.policy.permission is not None:
             wire["policy"]["permission"] = self.policy.permission
+        # camelCase, because the runner protocol is camelCase and the fields that shipped before
+        # this one are single words that hid the difference. Emitted only when the author opted
+        # into per-tool policy, so an existing configuration produces a byte-identical wire.
+        new_tool_permission = self.policy.resolved_new_tool_permission()
+        if new_tool_permission is not None:
+            wire["policy"]["toolPermissions"] = dict(self.policy.tool_permissions)
+            wire["policy"]["newToolPermission"] = new_tool_permission
         return wire

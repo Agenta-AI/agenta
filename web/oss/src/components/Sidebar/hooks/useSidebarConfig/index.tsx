@@ -13,7 +13,8 @@ import {
     SESSIONS_SIDEBAR_KEY,
     SKILLS_SIDEBAR_KEY,
 } from "@agenta/navigation"
-import {SessionFilterMenu} from "@agenta/navigation-ui"
+import {loadMoreSidebarSessionsAtomFamily} from "@agenta/navigation"
+import {SessionFilterMenu, SessionSearchButton} from "@agenta/navigation-ui"
 import {advancedNavHiddenAtom} from "@agenta/shared/state"
 import {
     ChartLineUpIcon,
@@ -29,7 +30,7 @@ import {
     ChatsCircleIcon,
     PuzzlePieceIcon,
 } from "@phosphor-icons/react"
-import {useAtomValue} from "jotai"
+import {useAtomValue, useSetAtom} from "jotai"
 
 import {getEntityKindIcon} from "@/oss/components/References"
 import useURL from "@/oss/hooks/useURL"
@@ -52,6 +53,7 @@ export const useSidebarConfig = (): MainSidebarItems => {
     const {appId: routedAppId, routeLayer} = useAppState()
     const {projectURL, baseAppURL, appURL, recentlyVisitedAppURL} = useURL()
     const dynamicChildren = useSidebarDynamicChildren()
+    const loadMoreSessions = useSetAtom(loadMoreSidebarSessionsAtomFamily(MAIN_SIDEBAR_SCOPE_ID))
     const homeNavInert = useAtomValue(homeNavInertAtom)
     const deadEndNavDisabled = useAtomValue(deadEndNavDisabledAtom)
     const hideAdvancedNav = useAtomValue(advancedNavHiddenAtom)
@@ -97,7 +99,6 @@ export const useSidebarConfig = (): MainSidebarItems => {
                 title: "Agents",
                 link: `${projectURL}/agents`,
                 icon: <RobotIcon size={14} />,
-                hideChildrenWhenCollapsed: true,
                 // Only agents reach `/apps/<id>` with this rail up, so the prefix can't over-claim.
                 matchLinks: [`${projectURL}/agents`, `${baseAppURL}/`],
                 // Onboarding IS agent creation — the list page is an empty dead-end until it commits.
@@ -122,12 +123,18 @@ export const useSidebarConfig = (): MainSidebarItems => {
                 disabled: !hasProjectURL || deadEndNavDisabled,
                 tooltip: deadEndNavDisabled ? "Your sessions will appear here" : undefined,
                 // No collapse caret: the rows are grouped and individually collapsible, and the
-                // filter is this group's affordance.
+                // search and filter are this group's affordances.
                 alwaysOpen: true,
                 // The rail does not scroll; THIS group does. Sessions is the only list that grows
                 // without bound, so the entries after it stay on screen.
                 scrollChildren: true,
-                groupAction: <SessionFilterMenu scopeId={MAIN_SIDEBAR_SCOPE_ID} />,
+                onReachEnd: loadMoreSessions,
+                groupAction: (
+                    <>
+                        <SessionSearchButton />
+                        <SessionFilterMenu scopeId={MAIN_SIDEBAR_SCOPE_ID} />
+                    </>
+                ),
             },
             {
                 key: "evaluation-group",
@@ -184,7 +191,15 @@ export const useSidebarConfig = (): MainSidebarItems => {
                 disabled: !hasProjectURL,
             },
         ],
-        [baseAppURL, deadEndNavDisabled, hasProjectURL, hideAdvancedNav, homeNavInert, projectURL],
+        [
+            baseAppURL,
+            deadEndNavDisabled,
+            hasProjectURL,
+            hideAdvancedNav,
+            homeNavInert,
+            loadMoreSessions,
+            projectURL,
+        ],
     )
 
     const appItems = useMemo<SidebarConfig[]>(() => {

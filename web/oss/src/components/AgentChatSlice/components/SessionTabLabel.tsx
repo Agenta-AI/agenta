@@ -1,5 +1,6 @@
 import {useCallback, useImperativeHandle, useState, type Ref} from "react"
 
+import {message} from "@agenta/ui/app-message"
 import {Input} from "@agenta/ui/ui"
 
 export interface SessionTabLabelHandle {
@@ -24,7 +25,11 @@ const SessionTabLabel = ({
     onEditingChange,
 }: {
     label: string
-    onRename: (next: string) => void
+    /**
+     * Commits the new name. Resolving `false` means the write did not land; the label says so,
+     * because the host's list will quietly put the old name back otherwise (#6695).
+     */
+    onRename: (next: string) => void | boolean | Promise<boolean | void>
     className?: string
     /** Styles the resting span (the tag passes its fade mask here). */
     style?: React.CSSProperties
@@ -53,7 +58,10 @@ const SessionTabLabel = ({
     if (editing) {
         const commit = () => {
             setEditing(false)
-            if (draft.trim() !== label) onRename(draft)
+            if (draft.trim() === label) return
+            void Promise.resolve(onRename(draft)).then((ok) => {
+                if (ok === false) message.error("Couldn't rename this session")
+            })
         }
         return (
             <Input

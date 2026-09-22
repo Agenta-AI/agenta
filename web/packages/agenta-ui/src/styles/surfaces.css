@@ -184,3 +184,35 @@
         animation-duration: 1ms;
     }
 }
+
+/* The activity timeline's wire while the run is live: a short glow travels down it, the current
+   the steps arrive on. Wire and glow share the wire's own colour; only the glow's alpha moves. */
+@keyframes ag-activity-current {
+    from {
+        background-position: 0 -120%;
+    }
+    to {
+        background-position: 0 220%;
+    }
+}
+
+.ag-activity-wire-live {
+    overflow: hidden;
+}
+
+.ag-activity-wire-live::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(transparent, var(--ag-colorPrimary) 45%, transparent);
+    background-size: 100% 60%;
+    background-repeat: no-repeat;
+    animation: ag-activity-current 2.6s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .ag-activity-wire-live::after {
+        animation: none;
+        display: none;
+    }
+}

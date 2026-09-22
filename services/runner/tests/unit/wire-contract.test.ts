@@ -37,6 +37,7 @@ const KNOWN_REQUEST_KEYS = [
   "sessionId",
   "agentsMd",
   "model",
+  "connection",
   "harnessMode",
   "modelCapabilities",
   "modelConnection",
@@ -99,6 +100,7 @@ describe("wire contract: requests (vs Python golden)", () => {
     "run_request.codex.json",
     "run_request.attachment.json",
     "run_request.gateway_connection.json",
+    "run_request.subscription_connection.json",
   ]) {
     it(`${name}: every top-level key is known to AgentRunRequest`, () => {
       const req = loadGolden(name) as Record<string, unknown>;
@@ -325,6 +327,35 @@ describe("wire contract: requests (vs Python golden)", () => {
     );
   });
 
+  it("subscription connection request: the login arrives exactly as Python sent it", () => {
+    const req = loadGolden(
+      "run_request.subscription_connection.json",
+    ) as AgentRunRequest;
+    // The author's choice rides `connection`; the resolved login rides `modelConnection`.
+    assert.deepEqual(req.connection, { mode: "self_managed", slug: "chatgpt" });
+    assert.equal(req.modelConnection?.credentialMode, "runtime_provided");
+    // A hosted subscription run carries NO credential entry: the harness signs in from the login.
+    assert.deepEqual(req.modelConnection?.credentials, []);
+    const subscription = req.modelConnection?.subscription;
+    assert.ok(
+      subscription,
+      "the subscription block is what makes this run hosted",
+    );
+    // Nested, field by field: a rename or a dropped counter on either side fails here or at `tsc`.
+    assert.equal(subscription.id, "0199-secret-id");
+    assert.equal(subscription.slug, "chatgpt");
+    assert.equal(subscription.provider, "chatgpt");
+    assert.equal(subscription.version, 3);
+    assert.equal(subscription.generation, 1);
+    assert.deepEqual(subscription.login, {
+      type: "oauth",
+      access: "access-token",
+      refresh: "refresh-token",
+      expires: 1789000000000,
+      accountId: "acct-1",
+    });
+  });
+
   it("codex request: no Pi built-ins, file-free managed auth provider block, managed key", () => {
     const req = loadGolden("run_request.codex.json") as AgentRunRequest;
     assert.equal(req.harness, "codex");
@@ -430,10 +461,39 @@ describe("wire contract: results (vs Python golden)", () => {
     assert.equal(res.error, "model exploded");
   });
 
+  it("error result with errorDetail: a gateway refusal survives structured (WP13)", () => {
+    const res = loadGolden("run_result.error_detail.json") as AgentRunResult;
+    assert.equal(res.ok, false);
+    assert.equal(res.errorDetail?.code, "model_not_allowed");
+    assert.equal(res.errorDetail?.retryable, false);
+    assert.equal(
+      res.errorDetail?.next_step,
+      "choose a model the connection allows",
+    );
+    assert.deepEqual(res.errorDetail?.details, {
+      type: "invalid_request_error",
+    });
+  });
+
   it("minimal ok result: bare success is valid", () => {
     const res = { ok: true } as AgentRunResult;
     assert.equal(res.ok, true);
     assert.equal(res.output, undefined);
     assert.equal(res.capabilities, undefined);
+  });
+});
+
+describe("message display contract", () => {
+  it("keeps full model input regardless of display override", () => {
+    const messages = loadGolden("message_display.json") as NonNullable<
+      AgentRunRequest["messages"]
+    >;
+    assert.equal(messages[1].display_content, "Request");
+    assert.equal(messages[2].display_content, null);
+    assert.equal(messages[3].display_content, "");
+    assert.equal(Object.hasOwn(messages[0], "display_content"), false);
+    for (const message of messages) {
+      assert.equal(resolvePromptText({ messages: [message] }), message.content);
+    }
   });
 });

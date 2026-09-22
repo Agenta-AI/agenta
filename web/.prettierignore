@@ -5,3 +5,10 @@ mobile/src/styles/theme.generated.css
 # Runtime-generated config and unmodified designer reference assets.
 **/public/__env.js
 storybook/public/agent-custom-secrets/
+
+# Vendored pdfjs worker, copied into public/ at dev and build time.
+**/public/pdf.worker.min.mjs
+# Generated previews and Astro build artifacts.
+storybook/storybook-static/
+website/.astro/
+website/dist/

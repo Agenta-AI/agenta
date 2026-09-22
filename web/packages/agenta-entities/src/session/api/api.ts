@@ -456,6 +456,35 @@ export const isInteractionConflict = (error: unknown): boolean =>
     (error as {statusCode?: number; response?: {status?: number}} | null)?.statusCode === 409 ||
     (error as {response?: {status?: number}} | null)?.response?.status === 409
 
+/**
+ * The `code` the respond route puts on a conflict body, which is what says WHICH conflict it is.
+ *
+ * The route answers several different conditions with one status, so 409 alone is not an answer:
+ * `execution_terminal` is the interaction or its execution already settled, `execution_mismatch`
+ * is the interaction belonging to a different execution, and `idempotency_key_reused` is the same
+ * key carrying a different answer. Only the first is something a reader has nothing to do about.
+ * Fern keeps the parsed body on the thrown error.
+ */
+export const interactionConflictCode = (error: unknown): string | undefined => {
+    const body = (error as {body?: unknown} | null)?.body
+    if (!body || typeof body !== "object") return undefined
+    const code = (body as {code?: unknown}).code
+    return typeof code === "string" ? code : undefined
+}
+
+/**
+ * A conflict that means the answer is already in and there is nothing left to do about it.
+ *
+ * Narrower than it looks from the outside. The route accepts a repeat of the SAME answer under
+ * the same idempotency key, and accepts an interaction already answered with the same resolution,
+ * so a plain replay does not conflict at all; this fires for a row that moved on underneath a
+ * decision. The two 409s it deliberately does not cover, `execution_mismatch` and
+ * `idempotency_key_reused`, both mean the reader's decision did not land where they thought, and
+ * they have to be told.
+ */
+export const isSettledInteractionConflict = (error: unknown): boolean =>
+    isInteractionConflict(error) && interactionConflictCode(error) === "execution_terminal"
+
 /** True for the backend's `404 No such file or folder`. */
 const isNotFound = (error: unknown): boolean =>
     (error as {statusCode?: number} | null)?.statusCode === 404
@@ -742,8 +771,12 @@ export async function querySessionsPage({
     return parseSessionsQueryResponse(data, "[querySessionsPage]")
 }
 
-/** Temporary list-only adapter for callers that have not migrated to the page envelope. */
-export async function querySessions({
+/**
+ * The flat params above against the page envelope, so a caller that pages can read the
+ * server's cursor (`windowing.next` plus the boundary it belongs with) off the response.
+ * `querySessions` is this function with the envelope thrown away.
+ */
+export async function querySessionsFlatPage({
     projectId,
     references,
     includeEnded = true,
@@ -763,8 +796,8 @@ export async function querySessions({
     newest,
     oldest,
     order,
-}: QuerySessionsParams): Promise<SessionStream[] | null> {
-    const page = await querySessionsPage({
+}: QuerySessionsParams): Promise<SessionsQueryResponse | null> {
+    return querySessionsPage({
         projectId,
         session:
             search !== undefined || flags !== undefined || origin !== undefined
@@ -794,6 +827,11 @@ export async function querySessions({
         abortSignal,
         lowPriority,
     })
+}
+
+/** Temporary list-only adapter for callers that have not migrated to the page envelope. */
+export async function querySessions(params: QuerySessionsParams): Promise<SessionStream[] | null> {
+    const page = await querySessionsFlatPage(params)
     return page?.sessions ?? null
 }
 

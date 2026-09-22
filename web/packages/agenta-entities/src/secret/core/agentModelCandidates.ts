@@ -1,13 +1,22 @@
 import {
     bareModelId,
+    connectionRunsWithoutCredential,
+    customRouteFamily,
+    CUSTOM_KIND,
     harnessSupportsProviderKind,
     providerModelCatalog,
+    soleAgentHarnessProviderFamily,
     type HarnessCapabilityMap,
     type ProviderConnection,
 } from "./connections"
 import {connectionSlugFor} from "./promptModelGroups"
+import {
+    subscriptionHarnesses,
+    subscriptionIsReady,
+    subscriptionRunProvider,
+} from "./subscriptionConnections"
 import {subscriptionPairModels, type SubscriptionPair} from "./subscriptionPairs"
-import {SecretKind, SecretManagementPolicy} from "./types"
+import {LlmEndpointProtocol, SecretKind, SecretManagementPolicy} from "./types"
 
 export type AgentConnectionMode = "agenta" | "self_managed"
 
@@ -39,17 +48,6 @@ export const selectableAgentHarnesses = (harnessIds: string[]): string[] =>
     harnessIds.filter((id) => id !== "pi_agenta")
 
 /**
- * The OpenAI-compatible deployment surface, and the family a route through it falls back to.
- *
- * A `custom` record is an endpoint address, not a protocol declaration. Agenta's form calls it the
- * OpenAI-compatible endpoint and the SDK resolver defaults a custom route it cannot otherwise place
- * to `openai`. The very same record is an Anthropic gateway when the model names that family, so
- * the fallback is a default and never a fact.
- */
-const CUSTOM_KIND = "custom"
-const CUSTOM_FALLBACK_FAMILY = "openai"
-
-/**
  * A model key with its storage namespace removed.
  *
  * The API stores a custom connection's models as `<provider-slug>/<kind>/<model-slug>`, so the
@@ -79,48 +77,31 @@ const withoutConnectionNamespace = (id: string, connection: ProviderConnection):
 }
 
 /**
- * The provider family a harness accepts through the `custom` surface, or null when it accepts none.
- *
- * Mirrors `HARNESS_CUSTOM_DEPLOYMENT_PROVIDERS` in the SDK, which the catalog does not publish, and
- * derives it from what the catalog does publish: a harness that reaches `openai` speaks the
- * OpenAI-compatible dialect, and one that reaches a single other family speaks that. On the shipped
- * catalog this is pi_core and codex to `openai`, claude to `anthropic`, which is the SDK map.
- */
-const customRouteFamily = (
-    capabilities: HarnessCapabilityMap | null | undefined,
-    harness: string,
-): string | null => {
-    const providers = capabilities?.[harness]?.providers ?? []
-    if (providers.some((provider) => provider.toLowerCase() === CUSTOM_FALLBACK_FAMILY)) {
-        return CUSTOM_FALLBACK_FAMILY
-    }
-    return soleAgentHarnessProviderFamily(capabilities, harness)
-}
-
-/**
  * Whether one model on a custom connection is a route this harness is offered by default.
  *
- * Asymmetric, because the two kinds of route are not the same claim. An OpenAI-compatible route
+ * The endpoint's DECLARED protocol answers this outright where the record carries one: it is the
+ * operator's own statement about the wire format, which is exactly the fact a model id cannot
+ * establish. A LiteLLM gateway serves OpenAI-named models over the Anthropic Messages endpoint.
+ *
+ * Only a record written before the protocol field existed falls back to the guess below, which is
+ * asymmetric because the two kinds of route are not the same claim. An OpenAI-compatible route
  * takes every model: that IS what the surface means, and a gateway serving Mistral or DeepSeek over
  * the OpenAI wire format is ordinary. Any other route is a claim about the endpoint's protocol, and
- * the model naming that vendor is the only evidence a vault record carries.
+ * the model naming that vendor is the only evidence such a record carries.
  *
- * A default, not a verdict. A model's upstream vendor does not establish the endpoint's protocol: a
- * LiteLLM gateway serves OpenAI-named models over the Anthropic Messages endpoint for exactly this
- * harness. So a saved harness policy is taken at its word and skips this check entirely; only a
- * connection with no policy is decided here.
- *
- * Per model, not per connection: on a mixed gateway with no policy, one Anthropic id must not hand
- * Claude Code the OpenAI ids beside it (issue #6692).
+ * Per model, not per connection: on a mixed legacy gateway with no policy, one Anthropic id must
+ * not hand Claude Code the OpenAI ids beside it (issue #6692).
  */
 const customRouteAdmitsModel = (
     capabilities: HarnessCapabilityMap | null | undefined,
     harness: string,
     family: string | null,
+    declared?: LlmEndpointProtocol | null,
 ): boolean => {
     const route = customRouteFamily(capabilities, harness)
     if (!route) return false
-    if (route === CUSTOM_FALLBACK_FAMILY) return true
+    if (declared) return route === declared
+    if (route === LlmEndpointProtocol.Openai) return true
     return family === route
 }
 
@@ -136,7 +117,7 @@ const customRouteProvider = (
     harness: string,
 ): string | null => {
     const route = customRouteFamily(capabilities, harness)
-    return route && route !== CUSTOM_FALLBACK_FAMILY ? route : null
+    return route && route !== LlmEndpointProtocol.Openai ? route : null
 }
 
 /**
@@ -153,7 +134,12 @@ export const effectiveHarnesses = (
     return harnessIds.filter(
         (harness) =>
             allowed.includes(harness) &&
-            harnessSupportsProviderKind(capabilities, harness, connection.kind),
+            harnessSupportsProviderKind(
+                capabilities,
+                harness,
+                connection.kind,
+                connection.protocol,
+            ),
     )
 }
 
@@ -224,14 +210,6 @@ export const agentFamilyFromModelId = (
     return null
 }
 
-export const soleAgentHarnessProviderFamily = (
-    capabilities: HarnessCapabilityMap | null | undefined,
-    harness: string | null | undefined,
-): string | null => {
-    const providers = harness ? (capabilities?.[harness]?.providers ?? []) : []
-    return providers.length === 1 ? providers[0] : null
-}
-
 export const agentVaultProviderFamily = (
     modelId: string | null | undefined,
     connectionKind: string | null | undefined,
@@ -245,6 +223,62 @@ export const agentVaultProviderFamily = (
     return soleAgentHarnessProviderFamily(capabilities, harness)
 }
 
+/**
+ * The routes one hosted subscription connection offers.
+ *
+ * A subscription is `self_managed` with a SLUG: the run carries no key, and the slug is what names
+ * the stored sign-in the runner materializes. That is the whole difference from the mounted
+ * subscription rows, which are `self_managed` with no slug because nothing is stored.
+ *
+ * The models come off the record — the plan fixes them and the API writes them — and the provider
+ * is whatever the driving harness calls the family (`openai-codex` for Pi).
+ */
+export const subscriptionConnectionCandidates = ({
+    connection,
+    capabilities,
+    harnessIds,
+}: {
+    connection: ProviderConnection
+    capabilities: HarnessCapabilityMap | null | undefined
+    harnessIds: string[]
+}): AgentModelCandidate[] => {
+    const subscription = connection.subscription
+    if (!subscription || !subscriptionIsReady(subscription)) return []
+
+    // The stored slug and nothing else: the resolver selects the sign-in by it, so a name-derived
+    // stand-in would name no record and fail the run.
+    const slug = connection.slug?.trim()
+    if (!slug) return []
+
+    const allowed = subscriptionHarnesses(connection)
+    const ids = (connection.models ?? []).filter(Boolean)
+
+    const candidates: AgentModelCandidate[] = []
+    for (const harness of harnessIds) {
+        if (!allowed.includes(harness)) continue
+        if (!capabilities?.[harness]?.connection_modes?.includes("self_managed")) continue
+        // A harness with no run-provider name cannot consume this login at all, so it gets no
+        // row: the SDK refuses the same pair, and an offered row would only fail the run.
+        const runProvider = subscriptionRunProvider(harness, subscription.provider)
+        if (!runProvider) continue
+        for (const modelId of ids) {
+            candidates.push({
+                modelId,
+                provider: runProvider,
+                mode: "self_managed",
+                slug,
+                harness,
+                source: "subscription",
+                // The record id, so the row is distinct from the mounted plan's
+                // `subscription:<family>` key even when both are present.
+                connectionKey: connection.id,
+                managed: false,
+            })
+        }
+    }
+    return candidates
+}
+
 const connectionCandidates = ({
     connections,
     capabilities,
@@ -252,7 +286,19 @@ const connectionCandidates = ({
 }: BuildAgentModelCandidatesArgs): AgentModelCandidate[] => {
     const candidates: AgentModelCandidate[] = []
     for (const connection of connections) {
-        if (!connection.hasStoredCredential) continue
+        if (connection.subscription) {
+            candidates.push(
+                ...subscriptionConnectionCandidates({connection, capabilities, harnessIds}),
+            )
+            continue
+        }
+        // A connection with nothing stored cannot run — unless it is a kind that needs nothing
+        // stored. An open OpenAI-compatible endpoint is saved deliberately without a key, is
+        // registered as an active gateway endpoint, and was still never offered here, so the
+        // agent showed "Add your model provider key" for a key the card calls optional.
+        if (!connection.hasStoredCredential && !connectionRunsWithoutCredential(connection)) {
+            continue
+        }
         const harnesses = effectiveHarnesses(connection, capabilities, harnessIds)
         const ids = connectionModelIds(connection, capabilities)
         if (!harnesses.length || !ids.length) continue
@@ -288,16 +334,20 @@ const connectionCandidates = ({
             }
 
             for (const id of ids) {
-                // A custom connection's endpoint dialect is unknown, so with no saved policy each
-                // model is admitted on the family its own id names (#6692). A policy is the user's
-                // own statement about the endpoint and skips the check: the vendor a model comes
-                // from says nothing about the protocol a translating gateway speaks.
+                // With no saved policy, the declared protocol decides; an undeclared (legacy)
+                // record falls back to admitting each model on the family its own id names
+                // (#6692). A policy is the user's own statement and skips the check: the vendor a
+                // model comes from says nothing about the protocol a translating gateway speaks.
                 if (customKind && !savedPolicy) {
                     const family = agentFamilyFromModelId(
                         withoutConnectionNamespace(id, connection),
                         capabilities,
                     )
-                    if (!customRouteAdmitsModel(capabilities, harness, family)) continue
+                    if (
+                        !customRouteAdmitsModel(capabilities, harness, family, connection.protocol)
+                    ) {
+                        continue
+                    }
                 }
                 candidates.push({
                     modelId: id,

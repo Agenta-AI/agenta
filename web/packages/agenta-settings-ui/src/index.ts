@@ -1,3 +1,4 @@
+export type {ConfirmDestructive, DestructiveConfirmProps} from "./confirm"
 export {default as SettingsPageShell, type SettingsPageShellProps} from "./SettingsPageShell"
 export {ThemePicker, type ThemePickerProps, type ThemeChoice} from "./ThemePicker"
 export {PreferencesPage, type PreferencesPageProps, type PreferenceFlag} from "./PreferencesPage"
@@ -75,13 +76,13 @@ export {
 export {DomainsSection, type DomainsSectionProps} from "./access/DomainsSection"
 export {SsoProvidersSection, type SsoProvidersSectionProps} from "./access/SsoProvidersSection"
 export {
-    default as TriggerConnectionsSection,
-    type TriggerConnectionsSectionProps,
-} from "./triggers/TriggerConnectionsSection"
-export {default as TriggerSchedulesSection} from "./triggers/TriggerSchedulesSection"
-export {default as TriggerSubscriptionsSection} from "./triggers/TriggerSubscriptionsSection"
+    default as McpServersSection,
+    type McpServersSectionCopy,
+    type McpServersSectionProps,
+} from "./mcp/McpServersSection"
 export {
     default as GatewayToolsSection,
+    type GatewayToolsSectionCopy,
     type GatewayToolsSectionProps,
 } from "./tools/GatewayToolsSection"
 export {default as IntegrationGrid} from "./tools/IntegrationGrid"

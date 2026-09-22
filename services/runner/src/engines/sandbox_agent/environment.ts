@@ -34,6 +34,10 @@ import { existsSync, mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 
 import { apiBase } from "../../apiBase.ts";
+import {
+  observeSubscription,
+  thrownFields,
+} from "../../subscription-events.ts";
 import { abortableSandboxProvider } from "../../environment/abortable-sandbox-provider.ts";
 import { throwIfAcquireAborted } from "../../environment/acquire-abort.ts";
 
@@ -65,6 +69,8 @@ import {
 } from "./daytona.ts";
 import { applyCodexMode, resolveCodexMode } from "./codex-mode.ts";
 import { classifyRunError, conciseError, type RunErrorCode } from "./errors.ts";
+import { startSubscriptionPublisher } from "./subscription-login/publisher.ts";
+import { recoverSubscriptionAuthFailure } from "./subscription-recovery.ts";
 import {
   awaitCredentialSubstitution,
   buildCredentialPreflightInput,
@@ -80,6 +86,9 @@ import {
   takeDaytonaSecretLease,
 } from "./daytona-secret-provider.ts";
 import type { DaytonaSecretLease } from "./daytona-secrets.ts";
+import { errorEventWithDetail } from "../../gateway-error.ts";
+import { codexConfigPinnedModel } from "./codex-assets.ts";
+import { probeMcpServerHandshakes } from "./mcp-handshake.ts";
 import { buildSessionMcpServers, validateUserMcpServers } from "./mcp.ts";
 import { applyModel } from "./model.ts";
 import {
@@ -96,6 +105,7 @@ import {
 import {
   PI_AGENT_DIR_UNWRITABLE_MESSAGE,
   PI_MODEL_CONFIG_WRITE_FAILED_MESSAGE,
+  PI_PROMPT_CHANNEL_UNAVAILABLE_MESSAGE,
   PI_MODEL_OVERRIDE_EXTENSION_UNAVAILABLE_MESSAGE,
   PI_PERMISSION_EXTENSION_UNAVAILABLE_MESSAGE,
   prepareLocalPiAssets,
@@ -413,7 +423,7 @@ function publishAcquireResult(
 ): AcquireEnvironmentResult {
   if (result.ok) return result;
   if (result.errorCode && result.errorCode !== "runner_error") {
-    emit?.({ type: "error", message: result.error, code: result.errorCode });
+    emit?.(errorEventWithDetail(result.error, result.errorCode));
   }
   return {
     ok: false,
@@ -459,6 +469,8 @@ async function acquireEnvironmentOnce(
     localModelConfigUnwritable,
     localModelOverrideUnenforceable,
     localPiAgentDirUnwritable,
+    localPiPromptChannelUnavailable,
+    localSubscriptionError,
     logger,
     mcpAbort,
     piExtEnv,
@@ -522,6 +534,11 @@ async function acquireEnvironmentOnce(
       mcpAbort: environment.mcpAbort,
       closeToolMcp: environment.closeToolMcp,
     });
+    // Session end, and the LAST moment a Daytona sandbox is still reachable. The drain awaits the
+    // pass in flight and takes one final sample, so a token Pi wrote after the last interval still
+    // reaches the API before the sandbox goes.
+    await environment.subscriptionPublisher?.stop();
+    environment.subscriptionPublisher = undefined;
     inFlightSandboxes.delete(environment);
     // Graceful `session/cancel` BEFORE tearing down the daemon, or the ACP adapter subprocess
     // reparents to PID 1 and never exits. Skip if the pause path already sent it.
@@ -531,7 +548,7 @@ async function acquireEnvironmentOnce(
       alreadyRequested: !!environment.sessionDestroyRequested,
     });
     // Pi may have retained the original prompt's telemetry channel across an approval park.
-    // The harness is now quiescent and `agent_end` has had a chance to publish its partial trace;
+    // The harness is now quiescent and `agent_settled` has had a chance to publish its partial trace;
     // drain it before the filesystem disappears. `finish` includes bounded teardown/sweeping.
     const piTraceExport = environment.piTraceExport;
     if (piTraceExport) {
@@ -606,6 +623,7 @@ async function acquireEnvironmentOnce(
     // Codex auth.json backstop that deliberately does NOT exist — lives with the unit.
     removeRuntimeFiles({
       runAgentDir: environment.runAgentDir,
+      piPromptDir: environment.piPromptDir,
       codexSqliteHome: environment.codexSqliteHome,
     });
     // Remove the per-run skills temp root the materializer created (success or error).
@@ -646,6 +664,31 @@ async function acquireEnvironmentOnce(
     if (localPiAgentDirUnwritable) {
       throw new Error(PI_AGENT_DIR_UNWRITABLE_MESSAGE);
     }
+    // Fail closed before the harness starts: a hosted subscription run whose login could not be
+    // written would come up unauthenticated, and Pi never re-reads the file once it is running.
+    if (localSubscriptionError) {
+      throw localSubscriptionError;
+    }
+    // Fail closed: without its own prompt dir the run would read, or write, the system prompts
+    // of the other sessions on this connection.
+    if (localPiPromptChannelUnavailable) {
+      throw new Error(PI_PROMPT_CHANNEL_UNAVAILABLE_MESSAGE);
+    }
+    // The one publisher for this session, started as soon as the login is on disk and
+    // BEFORE the remaining fail-closed gates, so an acquire that fails later still publishes
+    // through the teardown drain. Its first pass repairs a publication a
+    // previous session lost: the agent dir can already hold a login newer than the delivered one,
+    // whose push never reached the API. The sandbox is read at each pass because a Daytona run
+    // acquires one further down.
+    environment.subscriptionPublisher = startSubscriptionPublisher({
+      plan,
+      state: environment.subscriptionPublish,
+      sandbox: () => environment.sandbox,
+      apiBase: apiBase(),
+      authorization: runCred,
+      log: logger,
+    });
+
     // Fail closed before any sandbox/mount infra spins up: a local Pi run whose policy could gate a
     // built-in tool cannot proceed without the permission extension installed (Decision 2).
     if (localBuiltinGatingUnenforceable) {
@@ -923,6 +966,7 @@ async function acquireEnvironmentOnce(
         const endpoint = storeReachableFromSandbox(storeEndpoint)
           ? undefined
           : ((await (deps.discoverTunnelEndpoint ?? discoverTunnelEndpoint)({
+              storeEndpoint,
               log: logger,
               signal,
             })) ?? undefined);
@@ -995,6 +1039,7 @@ async function acquireEnvironmentOnce(
         const endpoint = storeReachableFromSandbox(storeEndpoint)
           ? undefined
           : ((await (deps.discoverTunnelEndpoint ?? discoverTunnelEndpoint)({
+              storeEndpoint,
               log: logger,
               signal,
             })) ?? undefined);
@@ -1240,6 +1285,16 @@ async function acquireEnvironmentOnce(
     // Close the internal gateway-tool MCP server (if one started) when the session is destroyed.
     environment.closeToolMcp = sessionMcp.close;
 
+    // Preflight each configured MCP server's handshake, so a server that cannot connect is a
+    // reported server rather than a silently absent one (see `mcp-handshake.ts`). Probes the
+    // REQUEST's servers, not the materialized list: on a Daytona Secrets run the materialized
+    // credentials are placeholders the gateway would rightly refuse, and the probe would then
+    // report a failure that the run does not have.
+    environment.mcpHandshakeFailures = await probeMcpServerHandshakes(
+      request.mcpServers,
+      { signal: mcpAbort.signal, log: logger },
+    );
+
     // Shared session-init payload for both the createSession and continuity-resume paths below.
     // Built as a plain variable (not an inline object literal at the call site) so the extra
     // `_meta` key survives the daemon SDK's narrow `Omit<NewSessionRequest, "_meta">` types —
@@ -1396,12 +1451,28 @@ async function acquireEnvironmentOnce(
       piModelConfig && piModelConfig.models.length > 0
         ? `${piModelsJsonProviderId(piModelConfig)}/${piModelConfig.models[0].id}`
         : request.model;
-    environment.model = await (deps.applyModel ?? applyModel)(
-      environment.session,
-      wantedModel,
-      logger,
-      { strict: strictModel },
-    );
+    // A Codex run whose config DECLARES the model has already selected it: codex-acp took the
+    // config's id as the thread's model and advertised it as the session's first option, so the
+    // change `applyModel` would ask for is a no-op against a catalogue check that used to refuse
+    // it outright (OR31d). Skipping the call is the smaller edit than relying on that no-op, and
+    // the span is still labelled, with the id the config pinned rather than one nobody applied.
+    const pinnedCodexModel =
+      plan.acpAgent === "codex"
+        ? codexConfigPinnedModel(plan.workspace.harnessFiles)
+        : undefined;
+    if (pinnedCodexModel) {
+      environment.model = pinnedCodexModel;
+      logger(
+        `[codex] model pinned by config, skipping model change: ${pinnedCodexModel}`,
+      );
+    } else {
+      environment.model = await (deps.applyModel ?? applyModel)(
+        environment.session,
+        wantedModel,
+        logger,
+        { strict: strictModel },
+      );
+    }
     if (plan.acpAgent === "codex") {
       const mode = resolveCodexMode(request.harnessMode);
       await (deps.applyCodexMode ?? applyCodexMode)(
@@ -1466,12 +1537,52 @@ async function acquireEnvironmentOnce(
     // added to acquire, this site needs BOTH the predicate and that counter.
     // The CLASS as well as the line, because acquire is now a user-facing failure surface: the
     // loop turns a classified code into the error event the client renders a retry state from.
-    const classified = classifyRunError(
+    let classified = classifyRunError(
       err,
       plan.harness,
       request.modelConnection?.provider,
       { authFault: () => describeCodexSubscriptionAuthFault(plan) },
     );
+    // Same substitution as the turn path: a hosted subscription run must never be told to add a
+    // vault key. Acquire itself makes no model call, but the harness starts here and a dead login
+    // can surface as a startup failure.
+    //
+    // `replayable: false` on purpose. There is no turn to replay at acquire, and the automatic
+    // retry of amendment A1 belongs to the turn path. The recovery still runs its provider check
+    // and its failure report, so the connection's own state ends up correct and the user gets the
+    // retry copy rather than a sign-in prompt whenever a newer login already exists.
+    const subscriptionForError = plan.credentials.subscription;
+    const subscriptionHomeForError = plan.credentials.subscriptionHome;
+    if (
+      subscriptionForError &&
+      subscriptionHomeForError &&
+      environment.subscriptionPublish
+    ) {
+      const publisher = environment.subscriptionPublisher;
+      try {
+        const recovery = await recoverSubscriptionAuthFailure({
+          err,
+          subscription: subscriptionForError,
+          state: environment.subscriptionPublish,
+          home: subscriptionHomeForError,
+          isDaytona: plan.isDaytona,
+          sandbox: environment.sandbox as never,
+          api: { apiBase: apiBase(), authorization: runCred, log: logger },
+          ...(publisher ? { publish: publisher.reconcile } : {}),
+          log: logger,
+        });
+        if (recovery?.action === "fail") classified = recovery.classified;
+      } catch (recoveryError) {
+        // Recovery is best effort. The original acquire failure still has to reach the caller,
+        // and every resource registered so far still has to be destroyed below.
+        observeSubscription(logger, "subscription.recovery", {
+          connection: subscriptionForError.id,
+          trigger: "acquire",
+          verdict: "threw",
+          ...thrownFields(recoveryError),
+        });
+      }
+    }
     const error = classified.message;
     // Mirror today's shared teardown: no otel exists yet during acquire, so there is no partial
     // trace to flush — just run the incrementally-registered finalizers and surface the error.

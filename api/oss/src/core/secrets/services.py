@@ -1,4 +1,4 @@
-from typing import Any, Optional
+from typing import Any, Callable, Optional
 from uuid import UUID, uuid4
 
 from pydantic import ValidationError
@@ -6,19 +6,30 @@ from pydantic import ValidationError
 from oss.src.utils.env import env
 from oss.src.utils.caching import get_cache, invalidate_cache, set_cache
 from oss.src.utils.helpers import get_slug_from_name_and_id
+from oss.src.utils.logging import get_module_logger
 from oss.src.core.secrets.enums import (
     STANDARD_PROVIDER_DISPLAY_NAMES,
+    SUBSCRIPTION_PROVIDER_DISPLAY_NAMES,
     SecretKind,
     StandardProviderKind,
+    SubscriptionProviderKind,
 )
-from oss.src.core.secrets.interfaces import SecretsDAOInterface
+from oss.src.core.secrets.interfaces import (
+    LLMEndpointRegistrarInterface,
+    SecretsDAOInterface,
+)
 from oss.src.core.secrets.context import set_data_encryption_key
 from oss.src.core.secrets.redaction import (
     CREDENTIAL_EXTRAS_KEYS,
     PRIMARY_CREDENTIAL_FIELDS,
 )
+from oss.src.core.secrets.types import (
+    ServerOwnedFieldNotWritable,
+    SubscriptionProviderConflict,
+)
 from oss.src.core.secrets.dtos import (
     CreateSecretDTO,
+    subscription_provider_slug,
     SecretResponseDTO,
     SecretDTO,
     UpdateSecretPayloadDTO,
@@ -31,6 +42,9 @@ from oss.src.core.secrets.managed import (
     SecretManagementDTO,
     SecretManager,
 )
+
+
+log = get_module_logger(__name__)
 
 
 _BLANK_CREDENTIAL_VALUE_MESSAGE = (
@@ -83,6 +97,37 @@ def _secret_format(data: Any) -> Optional[str]:
     return str(getattr(fmt, "value", fmt))
 
 
+# Fields the server owns on a subscription connection. The sign-in routes are the only
+# writers: a create or an update that states one is refused, and one that omits it keeps
+# the stored value, so a rename does not reset the connection to "never signed in".
+SERVER_OWNED_DATA_FIELDS = {
+    SecretKind.SUBSCRIPTION_PROVIDER.value: (
+        "login",
+        "login_attempt",
+        "login_version",
+        "login_generation",
+        "login_state",
+        "login_error",
+    ),
+}
+
+
+def reject_server_owned_fields(*, secret: Any) -> None:
+    """Refuse a payload that states a field only the sign-in routes may write."""
+    if secret is None:
+        return
+
+    kind = getattr(secret, "kind", None)
+    owned = SERVER_OWNED_DATA_FIELDS.get(str(getattr(kind, "value", kind)), ())
+    if not owned:
+        return
+
+    stated = getattr(secret.data, "model_fields_set", set())
+    written = [field for field in owned if field in stated]
+    if written:
+        raise ServerOwnedFieldNotWritable(fields=written)
+
+
 def _carry_over_saved_value(*, kind: str, stored_data: Any, update_data: Any) -> None:
     """Fill an update payload's omitted value field from the stored record.
 
@@ -113,7 +158,34 @@ def _carry_over_saved_value(*, kind: str, stored_data: Any, update_data: Any) ->
                 if stored_value is not None:
                     setattr(update_container, field, stored_value)
 
+    _carry_over_saved_server_state(
+        kind=kind,
+        stored_data=stored_data,
+        update_data=update_data,
+    )
     _carry_over_saved_extras(stored_data=stored_data, update_data=update_data)
+
+
+def _carry_over_saved_server_state(
+    *,
+    kind: str,
+    stored_data: Any,
+    update_data: Any,
+) -> None:
+    """Keep-on-omit for the server-owned fields that live on the data object itself.
+
+    Omission is read from the payload's own field set, not from the value, because the
+    login write paths clear an attempt with an explicit null and that clear must survive.
+    """
+    for field in SERVER_OWNED_DATA_FIELDS.get(kind, ()):
+        if not hasattr(update_data, field):
+            continue
+        if field in update_data.model_fields_set:
+            continue
+
+        stored_value = getattr(stored_data, field, None)
+        if stored_value is not None:
+            setattr(update_data, field, stored_value)
 
 
 def _revalidate_merged_secret(*, secret: Any) -> UpdateSecretPayloadDTO:
@@ -310,8 +382,14 @@ def _carry_over_saved_policy(*, stored_data: Any, update_data: Any) -> None:
 
 
 class VaultService:
-    def __init__(self, secrets_dao: SecretsDAOInterface):
+    def __init__(
+        self,
+        secrets_dao: SecretsDAOInterface,
+        *,
+        llm_endpoint_registrar: Optional[LLMEndpointRegistrarInterface] = None,
+    ):
         self.secrets_dao = secrets_dao
+        self.llm_endpoint_registrar = llm_endpoint_registrar
         self._data_encryption_key = env.agenta.crypt_key
 
     async def create_secret(
@@ -320,12 +398,14 @@ class VaultService:
         project_id: UUID | None = None,
         organization_id: UUID | None = None,
         create_secret_dto: CreateSecretDTO,
+        user_id: UUID | None = None,
     ):
         return await self._create_secret(
             project_id=project_id,
             organization_id=organization_id,
             create_secret_dto=create_secret_dto,
             management=None,
+            user_id=user_id,
         )
 
     async def create_managed_secret(
@@ -335,12 +415,14 @@ class VaultService:
         organization_id: UUID | None = None,
         create_secret_dto: CreateSecretDTO,
         management: SecretManagementDTO,
+        user_id: UUID | None = None,
     ):
         return await self._create_secret(
             project_id=project_id,
             organization_id=organization_id,
             create_secret_dto=create_secret_dto,
             management=management,
+            user_id=user_id,
         )
 
     async def _create_secret(
@@ -350,7 +432,10 @@ class VaultService:
         organization_id: UUID | None = None,
         create_secret_dto: CreateSecretDTO,
         management: SecretManagementDTO | None,
+        user_id: UUID | None = None,
     ):
+        reject_server_owned_fields(secret=create_secret_dto.secret)
+
         # custom_secret and custom_provider are addressed by slug; derive one from the name when
         # absent so the record keeps its identity when the display name later changes.
         if (
@@ -367,6 +452,13 @@ class VaultService:
 
         if create_secret_dto.secret.kind == SecretKind.PROVIDER_KEY:
             await self._name_and_slug_provider_key(
+                project_id=project_id,
+                organization_id=organization_id,
+                create_secret_dto=create_secret_dto,
+            )
+
+        if create_secret_dto.secret.kind == SecretKind.SUBSCRIPTION_PROVIDER:
+            await self._name_and_slug_subscription_provider(
                 project_id=project_id,
                 organization_id=organization_id,
                 create_secret_dto=create_secret_dto,
@@ -391,7 +483,74 @@ class VaultService:
 
         if project_id is not None:
             await invalidate_cache(project_id=str(project_id))
+
+        await self._register_llm_endpoint(
+            project_id=project_id,
+            user_id=user_id,
+            secret_dto=secret_dto,
+        )
+
         return secret_dto
+
+    async def _register_llm_endpoint(
+        self,
+        *,
+        project_id: UUID | None,
+        user_id: UUID | None,
+        secret_dto: Optional[SecretResponseDTO],
+    ) -> None:
+        """Keep the LLM gateway's endpoint for this connection in step with the vault.
+
+        Only a custom provider names an endpoint. A failure here is logged, never raised:
+        the credential is already stored, and a gateway problem must not make the vault
+        refuse writes.
+        """
+        if (
+            self.llm_endpoint_registrar is None
+            or project_id is None
+            or secret_dto is None
+            or secret_dto.kind != SecretKind.CUSTOM_PROVIDER
+        ):
+            return
+
+        try:
+            await self.llm_endpoint_registrar.register(
+                project_id=project_id,
+                user_id=user_id,
+                secret=secret_dto,
+            )
+        except Exception as exception:  # noqa: BLE001 - see the docstring.
+            log.warning(
+                "Could not register the LLM endpoint for a custom provider secret.",
+                secret_id=str(secret_dto.id),
+                exception=repr(exception),
+            )
+
+    async def _deregister_llm_endpoint(
+        self,
+        *,
+        project_id: UUID | None,
+        secret_dto: Optional[SecretResponseDTO],
+    ) -> None:
+        if (
+            self.llm_endpoint_registrar is None
+            or project_id is None
+            or secret_dto is None
+            or secret_dto.kind != SecretKind.CUSTOM_PROVIDER
+        ):
+            return
+
+        try:
+            await self.llm_endpoint_registrar.deregister(
+                project_id=project_id,
+                secret=secret_dto,
+            )
+        except Exception as exception:  # noqa: BLE001 - see `_register_llm_endpoint`.
+            log.warning(
+                "Could not deregister the LLM endpoint for a custom provider secret.",
+                secret_id=str(secret_dto.id),
+                exception=repr(exception),
+            )
 
     async def _name_and_slug_provider_key(
         self,
@@ -433,6 +592,53 @@ class VaultService:
                 header.name,
                 uuid4(),
             )
+
+    async def _name_and_slug_subscription_provider(
+        self,
+        *,
+        project_id: UUID | None,
+        organization_id: UUID | None,
+        create_secret_dto: CreateSecretDTO,
+    ) -> None:
+        """Name and slug a new subscription connection, and refuse a duplicate provider.
+
+        One connection per provider per project is the whole model for now, so the slug is
+        the provider id itself and a second one is a conflict rather than a second row. The
+        unique index on (project_id, slug) would refuse it too, but as an integrity error
+        the caller cannot act on.
+        """
+        provider = create_secret_dto.secret.data.provider
+        provider_kind = SubscriptionProviderKind(getattr(provider, "value", provider))
+
+        with set_data_encryption_key(
+            data_encryption_key=self._data_encryption_key,
+        ):
+            secrets_dtos = await self.secrets_dao.list(
+                project_id=project_id,
+                organization_id=organization_id,
+            )
+
+        for secret_dto in secrets_dtos or []:
+            if secret_dto.kind != SecretKind.SUBSCRIPTION_PROVIDER:
+                continue
+            stored_provider = getattr(secret_dto.data, "provider", None)
+            if (
+                getattr(stored_provider, "value", stored_provider)
+                == provider_kind.value
+            ):
+                raise SubscriptionProviderConflict(provider=provider_kind.value)
+
+        header = create_secret_dto.header
+        if not header.name:
+            header.name = SUBSCRIPTION_PROVIDER_DISPLAY_NAMES[provider_kind]
+
+        # This is the storage identity, not the editable display identity. Keeping it canonical
+        # lets the database's (project_id, slug) unique index serialize concurrent creates.
+        create_secret_dto.slug = provider_kind.value
+
+        create_secret_dto.secret.data.provider_slug = subscription_provider_slug(
+            header.name
+        )
 
     async def get_secret_by_id(
         self,
@@ -503,6 +709,21 @@ class VaultService:
         organization_id: UUID | None = None,
         user_id: UUID | None = None,
     ):
+        reject_server_owned_fields(secret=update_secret_dto.secret)
+
+        # The row as it was, captured under the DAO's write lock the way `delete_secret`
+        # captures it: an update may change a secret's kind, and only the previous kind
+        # says whether an endpoint was registered for it.
+        replaced: list[SecretResponseDTO] = []
+
+        def resolve_update(
+            stored_secret_dto: SecretResponseDTO,
+            requested_update: UpdateSecretDTO,
+        ) -> UpdateSecretDTO:
+            resolved = _resolve_update(stored_secret_dto, requested_update)
+            replaced.append(stored_secret_dto)
+            return resolved
+
         with set_data_encryption_key(
             data_encryption_key=self._data_encryption_key,
         ):
@@ -512,10 +733,78 @@ class VaultService:
                 project_id=project_id,
                 organization_id=organization_id,
                 user_id=user_id,
-                resolve_update=_resolve_update,
+                resolve_update=resolve_update,
             )
 
         if project_id is not None:
+            await invalidate_cache(project_id=str(project_id))
+
+        # An update that moves a row off `custom_provider` leaves the endpoint registered
+        # for it behind, because registration returns early for every other kind and
+        # nothing deregistered the old one. The endpoint then names a secret that is no
+        # longer a custom provider, and no later write reaches it (CR4).
+        #
+        # Deregistered before the new registration runs, so a row that arrives at the same
+        # slug is the one that survives.
+        for previous in replaced:
+            if previous.kind == SecretKind.CUSTOM_PROVIDER and (
+                secret_dto is None or secret_dto.kind != SecretKind.CUSTOM_PROVIDER
+            ):
+                await self._deregister_llm_endpoint(
+                    project_id=project_id,
+                    secret_dto=previous,
+                )
+
+        # The row the DAO returns already carries the slug and id the endpoint is keyed on,
+        # so registration needs no second read.
+        await self._register_llm_endpoint(
+            project_id=project_id,
+            user_id=user_id,
+            secret_dto=secret_dto,
+        )
+
+        return secret_dto
+
+    async def update_secret_atomically(
+        self,
+        *,
+        secret_id: UUID,
+        project_id: UUID | None = None,
+        organization_id: UUID | None = None,
+        user_id: UUID | None = None,
+        resolve_update: Callable[[SecretResponseDTO], Optional[UpdateSecretDTO]],
+    ):
+        """Apply an update computed from the stored row under the DAO's write lock.
+
+        The subscription login writes decide WHAT to store by comparing the pushed login
+        with the stored one. Two runners can push at the same time, so that comparison has
+        to read the row the write commits, not a snapshot taken before it.
+
+        A resolver that returns None means the row already holds what the caller wanted.
+        Nothing is written and the project cache keeps its entry, so a device login poll
+        every two seconds does not evict every reader's view of the vault.
+        """
+        changed = False
+
+        def resolve(stored: SecretResponseDTO, _requested: UpdateSecretDTO):
+            nonlocal changed
+            update = resolve_update(stored)
+            changed = update is not None
+            return update
+
+        with set_data_encryption_key(
+            data_encryption_key=self._data_encryption_key,
+        ):
+            secret_dto = await self.secrets_dao.update(
+                secret_id=secret_id,
+                update_secret_dto=UpdateSecretDTO(),
+                project_id=project_id,
+                organization_id=organization_id,
+                user_id=user_id,
+                resolve_update=resolve,
+            )
+
+        if changed and project_id is not None:
             await invalidate_cache(project_id=str(project_id))
         return secret_dto
 
@@ -563,6 +852,14 @@ class VaultService:
         project_id: UUID | None = None,
         organization_id: UUID | None = None,
     ) -> None:
+        # The DAO hands the row to `authorize_delete` under its write lock; capturing it
+        # there is what tells us which endpoint slug to drop, without a second read.
+        deleted: list[SecretResponseDTO] = []
+
+        def authorize_delete(stored_secret_dto: SecretResponseDTO) -> None:
+            _authorize_delete(stored_secret_dto)
+            deleted.append(stored_secret_dto)
+
         with set_data_encryption_key(
             data_encryption_key=self._data_encryption_key,
         ):
@@ -570,8 +867,14 @@ class VaultService:
                 secret_id=secret_id,
                 project_id=project_id,
                 organization_id=organization_id,
-                authorize_delete=_authorize_delete,
+                authorize_delete=authorize_delete,
             )
 
         if project_id is not None:
             await invalidate_cache(project_id=str(project_id))
+
+        for stored_secret_dto in deleted:
+            await self._deregister_llm_endpoint(
+                project_id=project_id,
+                secret_dto=stored_secret_dto,
+            )

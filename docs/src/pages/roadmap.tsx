@@ -1,10 +1,11 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import Layout from '@theme/Layout';
-import useDocusaurusContext from '@docusaurus/useDocusaurusContext';
-import Link from '@docusaurus/Link';
+import { HtmlClassNameProvider } from '@docusaurus/theme-common';
 import BrowserOnly from '@docusaurus/BrowserOnly';
 import clsx from 'clsx';
+import SidebarShell, { SidebarGroup } from '@site/src/components/SidebarShell';
 import styles from './roadmap.module.css';
+import { formatDate } from '@site/src/utils/formatDate';
 
 import {
     shippedFeatures,
@@ -107,9 +108,14 @@ async function fetchDiscussions(signal?: AbortSignal): Promise<GithubDiscussion[
     return collected;
 }
 
-function SectionHeader({ children }: { children: React.ReactNode }) {
+function SectionHeader({ id, count, children }: { id: string; count?: number; children: React.ReactNode }) {
     return (
-        <h2 className={styles.sectionHeader}>{children}</h2>
+        <div className={styles.sectionHeader}>
+            <h2 id={id}>{children}</h2>
+            {typeof count === 'number' && (
+                <span className={styles.sectionCount}>{count} shown</span>
+            )}
+        </div>
     );
 }
 
@@ -133,17 +139,19 @@ function getCategoryIcon(categoryName: string): string {
     return icons[categoryName] || '🏷️';
 }
 
-function LabelsInline({ labels, variant = 'colored' }: { labels?: Label[]; variant?: 'colored' | 'neutral' }) {
+function LabelsInline({ labels, variant = 'neutral' }: { labels?: Label[]; variant?: 'colored' | 'neutral' }) {
     if (!labels || labels.length === 0) return null;
     return (
         <span className={styles.labelsRowInline}>
             {labels.map((l) => (
                 <span
                     key={l.name}
-                    className={styles.labelChip}
-                    style={variant === 'neutral' ? undefined : (l.color ? { ['--chip-bg' as any]: `#${l.color}` } : undefined)}
+                    className={clsx(styles.labelChip, variant === 'colored' && styles.labelChipColored)}
+                    style={variant === 'colored' && l.color ? { ['--chip-bg' as any]: `#${l.color}` } : undefined}
                 >
-                    <span className={styles.labelIcon} aria-hidden="true">{getCategoryIcon(l.name)}</span>
+                    {variant === 'colored' && (
+                        <span className={styles.labelIcon} aria-hidden="true">{getCategoryIcon(l.name)}</span>
+                    )}
                     {l.name}
                 </span>
             ))}
@@ -157,6 +165,7 @@ function FeatureCardClickable({
     href,
     labels,
     date,
+    hidden = false,
     target = "_blank",
 }: {
     title: string;
@@ -164,11 +173,12 @@ function FeatureCardClickable({
     href: string;
     labels?: Label[];
     date?: string;
+    hidden?: boolean;
     target?: string;
 }) {
     return (
         <a
-            className={styles.featureCard}
+            className={clsx(styles.featureCard, hidden && styles.featureCardHidden)}
             href={href}
             target={target}
             rel={target === "_blank" ? "noreferrer noopener" : undefined}
@@ -177,16 +187,16 @@ function FeatureCardClickable({
                 <div className={styles.featureTitleAndDate}>
                     <div className={styles.featureTitle}>{title}</div>
                     {date && (
-                        <div className={styles.featureMetaDateInline}>
-                            {new Date(date).toLocaleDateString()}
-                        </div>
+                        <time className={styles.featureMetaDateInline} dateTime={date}>
+                            {formatDate(date)}
+                        </time>
                     )}
                 </div>
                 <div className={styles.featureTitleRight}>
                     <LabelsInline labels={labels} />
                 </div>
             </div>
-            {description && <div className={styles.featureDescription}>{description}</div>}
+            {description && <p className={styles.featureDescription}>{description}</p>}
         </a>
     );
 }
@@ -323,7 +333,7 @@ function DiscussionsTableClient() {
                                             {d.labels.map((l) => (
                                                 <span
                                                     key={l.name}
-                                                    className={styles.labelChip}
+                                                    className={clsx(styles.labelChip, styles.labelChipColored)}
                                                     style={l.color ? { ['--chip-bg' as any]: `#${l.color}` } : undefined}
                                                 >
                                                     {l.name}
@@ -373,89 +383,154 @@ function DiscussionsTableClient() {
     );
 }
 
-export default function RoadmapPage() {
-    const { siteConfig } = useDocusaurusContext();
-    const pageTitle = 'Roadmap';
-    const pageDescription = 'What we shipped, what we are building next, and what we plan to build.';
+const SECTIONS = [
+    { id: 'last-shipped', label: 'Last shipped' },
+    { id: 'building-next', label: 'Building next' },
+    { id: 'planned', label: 'Planned' },
+];
 
-    return (
-        <Layout title={pageTitle} description={pageDescription}>
-            <main className={styles.container}>
-                <header className={styles.pageHeader}>
-                    <h1 className={styles.pageTitle}>Roadmap</h1>
-                    <p className={styles.pageSubtitle}>{pageDescription}</p>
-                </header>
-
-                <SectionHeader>Last Shipped</SectionHeader>
-                <div className={styles.sectionList}>
-                    {shippedFeatures.slice(0, 7).map((f: ShippedFeature) => (
-                        <FeatureCardClickable
-                            key={f.id}
-                            title={f.title}
-                            description={f.description}
-                            href={f.changelogPath}
-                            labels={f.labels}
-                            date={f.shippedAt}
-                            target="_self"
-                        />
-                    ))}
-                    {shippedFeatures.length === 0 && (
-                        <div className={styles.empty}>No shipped items listed yet.</div>
-                    )}
-                </div>
-
-                <SectionHeader>In progress</SectionHeader>
-                <div className={styles.sectionList}>
-                    {inProgressFeatures.map((f: PlannedFeature) => (
-                        <FeatureCardClickable
-                            key={f.id}
-                            title={f.title}
-                            description={f.description}
-                            href={f.githubUrl}
-                            labels={f.labels}
-                        />
-                    ))}
-                    {inProgressFeatures.length === 0 && (
-                        <div className={styles.empty}>No in-progress items listed yet.</div>
-                    )}
-                </div>
-
-                <SectionHeader>Planned</SectionHeader>
-                <div className={styles.sectionList}>
-                    {plannedFeatures.map((f: PlannedFeature) => (
-                        <FeatureCardClickable
-                            key={f.id}
-                            title={f.title}
-                            description={f.description}
-                            href={f.githubUrl}
-                            labels={f.labels}
-                        />
-                    ))}
-                    {plannedFeatures.length === 0 && (
-                        <div className={styles.empty}>No planned items listed yet.</div>
-                    )}
-                </div>
-
-                <SectionHeader>Feature Requests</SectionHeader>
-                <p className={styles.discussionsIntro}>
-                    {SHOW_DISCUSSIONS
-                        ? 'Upvote or comment on the features you care about or request a new feature.'
-                        : 'Tell us what you need. Feature requests go to GitHub Discussions, where you and others can comment on them.'}
-                </p>
-                <div className={styles.actionsBar}>
-                    <a
-                        className={clsx('nav_primary_button', styles.primaryAction)}
-                        href={NEW_DISCUSSION_URL}
-                        target="_blank"
-                        rel="noreferrer noopener"
-                    >
-                        Request a feature
-                    </a>
-                </div>
-                {SHOW_DISCUSSIONS && <DiscussionsTable />}
-            </main>
-        </Layout>
-    );
+function categoriesOf(features: Array<{ labels?: Label[] }>): string[] {
+    const names = new Set<string>();
+    features.forEach((f) => f.labels?.forEach((l) => names.add(l.name)));
+    return Array.from(names);
 }
 
+function matchesCategory(labels: Label[] | undefined, category: string | null): boolean {
+    return !category || Boolean(labels?.some((l) => l.name === category));
+}
 
+const SHIPPED = shippedFeatures.slice(0, 7);
+const CATEGORIES = categoriesOf([...SHIPPED, ...inProgressFeatures, ...plannedFeatures]);
+
+export default function RoadmapPage() {
+    const pageDescription = 'What we shipped, what we are building next, and what we plan to build.';
+    const shipped = SHIPPED;
+    const categories = CATEGORIES;
+    // The Category links filter every section to one label; clicking the
+    // active one clears the filter.
+    const [category, setCategory] = useState<string | null>(null);
+    const countOf = (features: Array<{ labels?: Label[] }>) =>
+        features.filter((f) => matchesCategory(f.labels, category)).length;
+
+    const sidebar = (
+        <>
+            <SidebarGroup title="Status">
+                {SECTIONS.map((s) => (
+                    <li key={s.id} className="menu__list-item">
+                        <a className="menu__link" href={`#${s.id}`}>
+                            {s.label}
+                        </a>
+                    </li>
+                ))}
+            </SidebarGroup>
+            <SidebarGroup title="Category">
+                {categories.map((name) => (
+                    <li key={name} className="menu__list-item">
+                        <button
+                            type="button"
+                            className={clsx('menu__link', category === name && 'menu__link--active')}
+                            aria-pressed={category === name}
+                            onClick={() => setCategory(category === name ? null : name)}
+                        >
+                            {name}
+                        </button>
+                    </li>
+                ))}
+            </SidebarGroup>
+        </>
+    );
+
+    return (
+        <HtmlClassNameProvider className="roadmap-page">
+        <Layout title="Roadmap" description={pageDescription}>
+            <SidebarShell sidebar={sidebar}>
+                <div className={styles.container}>
+                    <header className={styles.pageHeader}>
+                        <h1 className={styles.pageTitle}>Roadmap</h1>
+                        <p className={styles.pageSubtitle}>{pageDescription}</p>
+                    </header>
+
+                    <section className={styles.section}>
+                        <SectionHeader id="last-shipped" count={countOf(shipped)}>Last shipped</SectionHeader>
+                        <div className={styles.sectionList}>
+                            {shipped.map((f: ShippedFeature) => (
+                                <FeatureCardClickable
+                                    key={f.id}
+                                    title={f.title}
+                                    description={f.description}
+                                    href={f.changelogPath}
+                                    labels={f.labels}
+                                    date={f.shippedAt}
+                                    hidden={!matchesCategory(f.labels, category)}
+                                    target="_self"
+                                />
+                            ))}
+                            {shipped.length === 0 && (
+                                <div className={styles.empty}>No shipped items listed yet.</div>
+                            )}
+                        </div>
+                    </section>
+
+                    <section className={styles.section}>
+                        <SectionHeader id="building-next" count={countOf(inProgressFeatures)}>Building next</SectionHeader>
+                        <div className={styles.sectionList}>
+                            {inProgressFeatures.map((f: PlannedFeature) => (
+                                <FeatureCardClickable
+                                    key={f.id}
+                                    title={f.title}
+                                    description={f.description}
+                                    href={f.githubUrl}
+                                    labels={f.labels}
+                                    hidden={!matchesCategory(f.labels, category)}
+                                />
+                            ))}
+                            {inProgressFeatures.length === 0 && (
+                                <div className={styles.empty}>No in-progress items listed yet.</div>
+                            )}
+                        </div>
+                    </section>
+
+                    <section className={styles.section}>
+                        <SectionHeader id="planned" count={countOf(plannedFeatures)}>Planned</SectionHeader>
+                        <div className={styles.sectionList}>
+                            {plannedFeatures.map((f: PlannedFeature) => (
+                                <FeatureCardClickable
+                                    key={f.id}
+                                    title={f.title}
+                                    description={f.description}
+                                    href={f.githubUrl}
+                                    labels={f.labels}
+                                    hidden={!matchesCategory(f.labels, category)}
+                                />
+                            ))}
+                            {plannedFeatures.length === 0 && (
+                                <div className={styles.empty}>No planned items listed yet.</div>
+                            )}
+                        </div>
+                    </section>
+
+                    <section className={styles.section}>
+                        <SectionHeader id="feature-requests">Feature requests</SectionHeader>
+                        <p className={styles.discussionsIntro}>
+                            {SHOW_DISCUSSIONS
+                                ? 'Upvote or comment on the features you care about or request a new feature.'
+                                : 'Tell us what you need. Feature requests go to GitHub Discussions, where you and others can comment on them.'}
+                        </p>
+                        <div className={styles.actionsBar}>
+                            <a
+                                className={clsx('nav_primary_button', styles.primaryAction)}
+                                href={NEW_DISCUSSION_URL}
+                                target="_blank"
+                                rel="noreferrer noopener"
+                            >
+                                Request a feature
+                            </a>
+                        </div>
+                        {SHOW_DISCUSSIONS && <DiscussionsTable />}
+                    </section>
+                </div>
+            </SidebarShell>
+        </Layout>
+        </HtmlClassNameProvider>
+    );
+}

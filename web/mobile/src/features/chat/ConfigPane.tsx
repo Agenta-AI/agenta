@@ -1,12 +1,18 @@
+import {useCallback} from "react"
+
+import {AutomationDrawer, automationRunHistoryDrawerAtom} from "@agenta/automation-ui"
 import {configPanelCollapsedAtom} from "@agenta/chat/state"
+import type {TriggerOwnerRef} from "@agenta/entity-ui/drill-in"
 import {StorageFilesHeader, StorageSection} from "@agenta/entity-ui/drive"
 import {AgentBuildPanel} from "@agenta/playground-ui/agent-build"
 import {AgentConfigHeader} from "@agenta/playground-ui/agent-config-header"
 import {shortcutAria} from "@agenta/shared/utils"
 import {ShortcutKeys} from "@agenta/ui/shortcuts"
 import {Button, SimpleTooltip} from "@agenta/ui/ui"
+import {Sidebar} from "@phosphor-icons/react"
 import {useSetAtom} from "jotai"
-import {ChevronsLeft} from "lucide-react"
+
+import {AutomationRunHistoryDrawerHost} from "../automations/AutomationRunHistoryDrawerHost"
 
 import {DrillInBridgeProvider} from "./DrillInBridgeProvider"
 
@@ -24,13 +30,24 @@ import {DrillInBridgeProvider} from "./DrillInBridgeProvider"
 export const ConfigPane = ({
     entityId,
     sessionId,
+    workspaceId,
     projectId,
 }: {
     entityId: string
     sessionId: string
+    workspaceId: string
     projectId: string
 }) => {
     const setConfigCollapsed = useSetAtom(configPanelCollapsedAtom)
+    // A row's "Run history" opens in a drawer over the agent, like the automation editor does,
+    // rather than navigating away from the conversation.
+    const openDrawer = useSetAtom(automationRunHistoryDrawerAtom)
+    const openRunHistory = useCallback(
+        ({id, kind}: TriggerOwnerRef) => {
+            openDrawer({automationId: id, kind: kind === "schedule" ? "schedule" : "event"})
+        },
+        [openDrawer],
+    )
 
     return (
         <div className="ag-panel-raised ag-scroll-no-bar flex h-full min-h-0 w-full flex-col overflow-y-auto">
@@ -50,6 +67,18 @@ export const ConfigPane = ({
                     storageHeader={
                         <StorageFilesHeader revisionId={entityId} sessionId={sessionId} />
                     }
+                    // The same automations editor the /m screens render, so a schedule opened
+                    // from an agent's panel is the surface it is opened from anywhere else.
+                    automationDrawer={
+                        <>
+                            <AutomationDrawer />
+                            <AutomationRunHistoryDrawerHost
+                                workspaceId={workspaceId}
+                                projectId={projectId}
+                            />
+                        </>
+                    }
+                    onOpenRunHistory={openRunHistory}
                     header={
                         <AgentConfigHeader
                             revisionId={entityId}
@@ -76,7 +105,7 @@ export const ConfigPane = ({
                                         onClick={() => setConfigCollapsed(true)}
                                         className="h-7 w-7 shrink-0 p-0"
                                     >
-                                        <ChevronsLeft size={14} />
+                                        <Sidebar size={16} weight="fill" mirrored />
                                     </Button>
                                 </SimpleTooltip>
                             }

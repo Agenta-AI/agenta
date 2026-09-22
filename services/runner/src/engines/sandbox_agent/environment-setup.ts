@@ -35,7 +35,17 @@ import {
 } from "./pi-model-config.ts";
 import { loadPiBuiltinRegistry } from "./pi-builtin-registry.ts";
 import { PUBLIC_SPECS_FILE_ENV } from "../../tools/tool-mcp-env.ts";
-import { buildRunPlan } from "./run-plan.ts";
+import {
+  buildRunPlan,
+  DAYTONA_DURABLE_MOUNT_ROOT,
+  LOCAL_DURABLE_MOUNT_ROOT,
+  resolveSandboxProviderId,
+} from "./run-plan.ts";
+import {
+  materializeSubscriptionLoginForRun,
+  SUBSCRIPTION_MATERIALIZE_FAILED_MESSAGE,
+} from "./subscription-login/files.ts";
+import { subscriptionPublishState } from "./subscription-login/publisher.ts";
 import { configFingerprint } from "./session-identity.ts";
 import type {
   SandboxAgentDeps,
@@ -52,7 +62,6 @@ import {
   projectScopeFor,
   resolvesToLocalProvider,
 } from "./session-identity.ts";
-import { loadRunnerConfig } from "../../config/runner-config.ts";
 import { buildRuntimeEnvironment } from "../../environment/runtime-lifecycle.ts";
 import { createTimingLog } from "../../environment/timing.ts";
 
@@ -148,15 +157,18 @@ export async function prepareEnvironmentSetup(
     );
   }
   // Derive the durable cwd from the sign prefix (one source of truth, both providers).
-  // local: /tmp/agenta/<prefix>  —  daytona: /home/sandbox/agenta/<prefix>
   // <prefix> is already "mounts/<project_id>/<mount_id>", so no extra slug is needed.
   let durableCwd: string | undefined;
   if (mountCreds?.prefix) {
+    // Same resolver `buildRunPlan` uses, not a second reading of the config: this choice is made
+    // BEFORE the plan exists, and when the two disagreed a Daytona run selected here by
+    // `deps.sandboxProvider` alone got the local root, which no Daytona sandbox has.
     const isDaytonaReq =
-      (request.sandbox ?? loadRunnerConfig().providers.default) === "daytona";
-    durableCwd = isDaytonaReq
-      ? `/home/sandbox/agenta/${mountCreds.prefix}`
-      : `/tmp/agenta/${mountCreds.prefix}`;
+      resolveSandboxProviderId(request, deps.sandboxProvider) === "daytona";
+    const root = isDaytonaReq
+      ? DAYTONA_DURABLE_MOUNT_ROOT
+      : LOCAL_DURABLE_MOUNT_ROOT;
+    durableCwd = `${root}/${mountCreds.prefix}`;
   }
 
   const planResult = buildRunPlan(request, {
@@ -272,6 +284,38 @@ export async function prepareEnvironmentSetup(
     log: logger,
   });
   let runAgentDir = localPiAssets.dir;
+  // A HOSTED subscription run's login rides the request; write it into this run's per-connection
+  // agent dir BEFORE the daemon starts. Pi caches `auth.json` in memory at construction and never
+  // re-reads it while its cached credential is unexpired (research/pi-auth.md section 8), so a
+  // login that lands after the harness is up is invisible to it for the life of the session.
+  //
+  // A failure here is TERMINAL, like the gates below. Letting the run continue would start Pi
+  // against an empty agent dir, and its "No API key found for openai-codex" would then be
+  // classified as a dead sign-in — telling the user to re-authenticate a connection that is fine.
+  let localSubscriptionError: Error | undefined;
+  const subscriptionForRun = plan.credentials.subscription;
+  if (
+    subscriptionForRun &&
+    plan.credentials.subscriptionHome &&
+    !plan.isDaytona
+  ) {
+    try {
+      await materializeSubscriptionLoginForRun({
+        home: plan.credentials.subscriptionHome,
+        isDaytona: false,
+        subscription: subscriptionForRun,
+        log: logger,
+      });
+    } catch (err) {
+      // The message names no path and carries no provider text; the cause goes to the log only.
+      logger(
+        `subscription login materialize failed error=${err instanceof Error ? err.name : "unknown"}`,
+      );
+      localSubscriptionError = new Error(
+        SUBSCRIPTION_MATERIALIZE_FAILED_MESSAGE,
+      );
+    }
+  }
   // Local managed Codex authenticates from `<cwd>/.codex/auth.json`; point CODEX_HOME at that
   // directory now (a path only, safe before the durable cwd mount), and point CODEX_SQLITE_HOME
   // at a local off-mount directory. The auth.json file itself is written after the mount, right
@@ -310,6 +354,14 @@ export async function prepareEnvironmentSetup(
   // engine try, like the three gates above, so it becomes a visible error frame.
   const localPiAgentDirUnwritable =
     plan.isPi && !plan.isDaytona && !localPiAssets.agentDirWritable;
+  // Fail closed: a local subscription run reads its system prompts from a per-run dir precisely
+  // because the agent dir belongs to the connection, not to the session. With no such dir the
+  // only remaining channel is that shared dir. Recorded here and thrown inside the engine try.
+  const localPiPromptChannelUnavailable =
+    plan.isPi &&
+    !plan.isDaytona &&
+    plan.credentials.credentialMode === "runtime_provided" &&
+    !localPiAssets.promptDir;
 
   // A local Claude subscription run reads and writes the operator's read-write mounted login
   // DIRECTLY: `buildDaemonEnv` already carried `CLAUDE_CONFIG_DIR` (the mount) into the daemon env,
@@ -386,8 +438,13 @@ export async function prepareEnvironmentSetup(
     clientToolRelayRef,
     executableToolGateRef,
     mcpAbort,
+    mcpHandshakeFailures: [],
     runAgentDir,
+    piPromptDir: localPiAssets.promptDir,
     codexSqliteHome,
+    subscriptionPublish: subscriptionForRun
+      ? subscriptionPublishState(subscriptionForRun)
+      : undefined,
     mountCreds,
     agentMountCreds,
     mountProjectId: mountCreds?.projectId,
@@ -443,6 +500,8 @@ export async function prepareEnvironmentSetup(
     localModelConfigUnwritable,
     localModelOverrideUnenforceable,
     localPiAgentDirUnwritable,
+    localPiPromptChannelUnavailable,
+    localSubscriptionError,
     mcpAbort,
     piExtEnv,
     piModelConfig,

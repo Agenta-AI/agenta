@@ -57,7 +57,6 @@ services:
             #
             - ../../../web/oss/src:/app/oss/src
             - ../../../web/oss/public:/app/oss/public
-            - ../../../web/oss/scripts:/app/oss/scripts
             - ../../../web/packages:/app/packages
             - nextjs-oss-cache:/app/oss/.next/cache
             - turbo-oss-cache:/app/.turbo
@@ -88,8 +87,10 @@ services:
         # === IMAGE ================================================ #
         image: agenta-oss-dev-web:latest
         # === EXECUTION ============================================ #
-        # Same dev-sandbox env mirroring as the web service (see comment there).
-        command: sh -c 'printf "AGENTA_MOBILE_GATE=%s\nAGENTA_MOBILE_REVERSE_GATE=%s\n" "$${AGENTA_MOBILE_GATE:-true}" "$${AGENTA_MOBILE_REVERSE_GATE:-true}" > /app/mobile/.env.development.local && pnpm dev-mobile'
+        # Same dev-sandbox env mirroring as the web service (see comment there). The mobile
+        # dev server reads this file for config, and its allowed hot-reload origins derive
+        # from AGENTA_WEB_URL, so that variable is mirrored here too.
+        command: sh -c 'printf "AGENTA_MOBILE_GATE=%s\nAGENTA_MOBILE_REVERSE_GATE=%s\nAGENTA_WEB_URL=%s\n" "$${AGENTA_MOBILE_GATE:-true}" "$${AGENTA_MOBILE_REVERSE_GATE:-true}" "$${AGENTA_WEB_URL:-}" > /app/mobile/.env.development.local && pnpm dev-mobile'
         # === STORAGE ============================================== #
         volumes:
             - ../../../web/packages:/app/packages
@@ -172,6 +173,8 @@ services:
         environment:
             AGENTA_SERVICES_INTERNAL_KEY: ${AGENTA_SERVICES_INTERNAL_KEY:?AGENTA_SERVICES_INTERNAL_KEY is required}
             DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
+            AGENTA_GATEWAYS_MOCKS_ENABLED: "true"
+            AGENTA_GATEWAYS_MOCKS_UPSTREAM_TOKEN: ${AGENTA_GATEWAYS_MOCKS_UPSTREAM_TOKEN:-agenta-gateway-mock-token}
             # kill's direct runner hop (W7.3, sandbox teardown) — same compose-network
             # address + shared token as the `services` container's runner_url().
             AGENTA_RUNNER_INTERNAL_URL: ${AGENTA_RUNNER_INTERNAL_URL:-http://runner:8765}
@@ -218,8 +221,16 @@ services:
             watchmedo auto-restart --directory=/app/ee/src --directory=/app/ee/databases --directory=/app/oss/src
             --directory=/app/oss/databases --directory=/app/entrypoints --directory=/sdks/python/agenta
             --directory=/clients/python/agenta_client --pattern=*.py --recursive --ignore-patterns=*/tests/*
-            --signal SIGTERM --kill-after 5 --
+            --signal SIGTERM --kill-after 5 --debounce-interval 1 --
             python -m entrypoints.worker_streams
+        # === RESOURCES =========================================== #
+        # Cap child PIDs so a reloader/consumer leak fails loudly instead of
+        # exhausting the host (a rebase file-event burst orphaned ~219 workers).
+        # 20 was below the steady-state need: measured 24 on worker-queues and 22
+        # on worker-streams while idle, so both crash-looped on "can't start new
+        # thread" and silently stopped consuming. 64 still catches the runaway
+        # this cap exists for, with room for the watchmedo reloader's threads.
+        pids_limit: 64
         # === STORAGE ============================================== #
         volumes:
             - ../../../api/ee:/app/ee
@@ -268,8 +279,16 @@ services:
             watchmedo auto-restart --directory=/app/ee/src --directory=/app/ee/databases --directory=/app/oss/src
             --directory=/app/oss/databases --directory=/app/entrypoints --directory=/sdks/python/agenta
             --directory=/clients/python/agenta_client --pattern=*.py --recursive --ignore-patterns=*/tests/*
-            --signal SIGTERM --kill-after 5 --
+            --signal SIGTERM --kill-after 5 --debounce-interval 1 --
             python -m entrypoints.worker_queues
+        # === RESOURCES =========================================== #
+        # Cap child PIDs so a reloader/consumer leak fails loudly instead of
+        # exhausting the host (a rebase file-event burst orphaned ~219 workers).
+        # 20 was below the steady-state need: measured 24 on worker-queues and 22
+        # on worker-streams while idle, so both crash-looped on "can't start new
+        # thread" and silently stopped consuming. 64 still catches the runaway
+        # this cap exists for, with room for the watchmedo reloader's threads.
+        pids_limit: 64
         # === STORAGE ============================================== #
         volumes:
             - ../../../api/ee:/app/ee
@@ -320,6 +339,7 @@ services:
             #
             - ../../../api/oss/src/crons/queries.sh:/queries.sh
             - ../../../api/oss/src/crons/triggers.sh:/triggers.sh
+            - ../../../api/oss/src/crons/gateways.sh:/gateways.sh
         # === CONFIGURATION ======================================== #
         env_file:
             - ${ENV_FILE:-./.env.oss.dev}
@@ -389,8 +409,10 @@ services:
                 "*.pyc",
                 "--reload-exclude",
                 "__pycache__",
-                "--root-path",
-                "/services",
+                # No --root-path: traefik strips /services, and the app strips it again itself
+                # (ServicesPrefixStripMiddleware). Setting it too made every mounted sub-app 404 —
+                # /agent/v0/* answered "Not Found" for authenticated requests while
+                # /services/health still worked.
                 "--loop",
                 "uvloop",
                 "--http",
@@ -458,6 +480,9 @@ services:
             AGENTA_API_INTERNAL_URL: ${AGENTA_API_INTERNAL_URL:-http://api:8000}
             AGENTA_API_KEY: ${AGENTA_API_KEY:-}
             AGENTA_RUNNER_TOKEN: ${AGENTA_RUNNER_TOKEN:?AGENTA_RUNNER_TOKEN is required}
+            # Where the runner keeps state that must outlive a container recreate: the per-connection
+            # copy of a hosted subscription login (Pi rotates the refresh token on every exchange).
+            AGENTA_RUNNER_STATE_DIR: /var/lib/agenta/runner-state
             AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS: ${AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS:-local}
             AGENTA_RUNNER_DEFAULT_SANDBOX_PROVIDER: ${AGENTA_RUNNER_DEFAULT_SANDBOX_PROVIDER:-local}
             # Worst-case turn duration. Keep AGENTA_MOUNTS_CREDENTIALS_TTL_SECONDS (API) above it
@@ -484,6 +509,12 @@ services:
             AGENTA_SESSIONS_RECONSTRUCT: ${AGENTA_SESSIONS_RECONSTRUCT:-}
             AGENTA_RECORDS_DURABLE: ${AGENTA_RECORDS_DURABLE:-}
             AGENTA_RUNNER_LIVE_FRAMES: ${AGENTA_RUNNER_LIVE_FRAMES:-true}
+            # Also unreachable without an explicit entry (no env_file), and the runner is
+            # the leg that refuses a gateway-routed run: it re-validates the transport rule
+            # the SDK applied, so a value set for the api and services but not here would
+            # admit the run and then strand it inside the sandbox. Default off; see
+            # docs/docs/self-host/reference/01-configuration.mdx.
+            AGENTA_GATEWAYS_INSECURE_HTTP_ALLOWED: ${AGENTA_GATEWAYS_INSECURE_HTTP_ALLOWED:-}
         # === STORAGE ============================================== #
         volumes:
             - ../../../services/runner/src:/app/src
@@ -492,6 +523,7 @@ services:
             # token must persist back to the host login (a copy would discard it).
             - ${HOME}/.pi/agent:/pi-agent:rw
         # === NETWORK ============================================== #
+            - runner-state:/var/lib/agenta/runner-state
         networks:
             - agenta-network
         # === RUNTIME ============================================== #
@@ -596,8 +628,10 @@ services:
     seaweedfs:
         # === IMAGE ================================================ #
         # Pinned (not :latest) so the IAM/STS subsystem stays on a known-good build — it has
-        # regressed across releases (e.g. 4.13). 4.37 verified working with the config below.
-        image: chrislusf/seaweedfs:4.37
+        # regressed across releases (e.g. 4.13). 4.47 verified working with the config below.
+        # Never go below 4.42: older builds keep listing a pre-versioning object after its
+        # delete marker is written, so a deleted file reappears in a geesefs mount, unreadable.
+        image: chrislusf/seaweedfs:4.47
         # === EXECUTION ============================================ #
         # ONLY FOR SEAWEEDFS (the bundled dev store). Real S3/R2/MinIO ship their own STS/IAM
         # and ignore all of this. Two configs, both generated from env (no committed files):
@@ -641,8 +675,10 @@ services:
         # === NETWORK ============================================== #
         networks:
             - agenta-network
-        # ports:
-        #     - "8333:8333"
+        # Loopback-only: host-run tests use this published S3 endpoint, while
+        # containers continue using the in-network `seaweedfs:8333` address.
+        ports:
+            - "127.0.0.1:${AGENTA_STORE_PORT:-8333}:8333"
         # === LIFECYCLE ============================================ #
         restart: always
         healthcheck:
@@ -652,7 +688,7 @@ services:
             retries: 30
             start_period: 5s
 
-    ngrok:
+    ngrok-mounts:
         # === ACTIVATION =========================================== #
         # Only for REMOTE sandboxes (Daytona/E2B): geesefs runs inside the cloud sandbox and
         # cannot reach `seaweedfs:8333` on the compose network, so this tunnels the store to a
@@ -673,7 +709,7 @@ services:
         command:
             - |
               if [ -z "$${NGROK_AUTHTOKEN}" ]; then
-                echo "ngrok: NGROK_AUTHTOKEN unset; no tunnel (remote sandbox mounts disabled)."
+                echo "ngrok-mounts: NGROK_AUTHTOKEN unset; no tunnel (remote sandbox mounts disabled)."
                 exit 0
               fi
               printf 'version: 3\nagent:\n  web_addr: 0.0.0.0:4040\n' > /tmp/ngrok.yml
@@ -692,6 +728,65 @@ services:
         restart: on-failure
         depends_on:
             seaweedfs:
+                condition: service_healthy
+
+    ngrok-ingress:
+        # === ACTIVATION =========================================== #
+        # A SECOND tunnel, beside the store's, publishing THIS deployment's ingress on a public
+        # HTTPS address. It exists for the cases where something outside has to reach us: a
+        # platform posting a webhook, or an authorization server fetching a document we serve.
+        #
+        # It forwards to traefik, so every inbound route arrives on its normal path -- `/api/...`
+        # is already routed there, in the self-host compose files, and in production. So no
+        # integration needs a tunnel of its own; one endpoint serves channels, the model and MCP
+        # gateways, and anything added later.
+        #
+        # A browser redirect needs none of this: the user is already looking at this deployment,
+        # so the address that got them there is one their browser reaches.
+        #
+        # Separate from the `ngrok-mounts` service on purpose. That one publishes the object store and
+        # the runner finds it at `ngrok-mounts:4040`; keeping them apart means neither can be handed the
+        # other's URL. Costs two agent sessions -- if the plan allows only one, run a single agent
+        # with two named endpoints instead: the runner matches a tunnel by the upstream it
+        # forwards to, so that arrangement is safe too.
+        profiles:
+            - with-tunnel
+        # === IMAGE ================================================ #
+        image: ngrok/ngrok:latest
+        # === EXECUTION ============================================ #
+        # Same shape as the store tunnel: without a token ngrok would exit non-zero and, under
+        # `restart: on-failure`, loop; exit 0 instead so an unconfigured deploy stays quiet.
+        # NGROK_DOMAIN_INGRESS pins a reserved domain, which is what keeps an address we hand to a
+        # provider valid across restarts -- a rotating one invalidates every registration.
+        entrypoint: ["/bin/sh", "-c"]
+        command:
+            - |
+              if [ -z "$${NGROK_AUTHTOKEN}" ]; then
+                echo "ngrok-ingress: NGROK_AUTHTOKEN unset; no tunnel (ingress not published)."
+                exit 0
+              fi
+              DOMAIN_ARG=""
+              if [ -n "$${NGROK_DOMAIN_INGRESS}" ]; then
+                DOMAIN_ARG="--domain=$${NGROK_DOMAIN_INGRESS}"
+              fi
+              printf 'version: 3\nagent:\n  web_addr: 0.0.0.0:4040\n' > /tmp/ngrok.yml
+              exec /bin/ngrok http traefik:80 $${DOMAIN_ARG} --log stdout --config /tmp/ngrok.yml
+        # === CONFIGURATION ======================================== #
+        environment:
+            NGROK_AUTHTOKEN: ${NGROK_AUTHTOKEN:-}
+            NGROK_DOMAIN_INGRESS: ${NGROK_DOMAIN_INGRESS:-}
+        # === NETWORK ============================================== #
+        networks:
+            - agenta-network
+        # Nothing reads this agent's API today; the public URL is for a human to paste into a
+        # provider's configuration. Uncomment to inspect it from the host.
+        # ports:
+        #     - "4041:4040"
+        # === LIFECYCLE ============================================ #
+        # Not `always`: that would restart the intentional exit-0 above into a loop.
+        restart: on-failure
+        depends_on:
+            traefik:
                 condition: service_healthy
 
     traefik:
@@ -762,6 +857,105 @@ services:
     #
     #
     #
+    # Local gateway upstreams used by development and acceptance tests.
+    mock-llm-gateway:
+        # === IMAGE ================================================ #
+        image: agenta-oss-dev-api:latest
+        # === EXECUTION ============================================ #
+        command:
+            [
+                "uvicorn",
+                "oss.src.core.gateways.llms.providers.mock.app:app",
+                "--host",
+                "0.0.0.0",
+                "--port",
+                "9091",
+                "--reload",
+                # Scoped, because `--reload` alone watches everything mounted at /app and
+                # this image mounts the whole api source tree. Any edit anywhere under
+                # `api/oss/src` then restarts these containers, which on a shared dev box
+                # happens constantly and kills whatever request was in flight — the
+                # occasional timeout in `integration/gateways/test_mock_upstreams.py`. It
+                # also wipes the mock issuer's state, which is process-local by design, so
+                # a consent flow spanning a restart fails. Watch the gateway code these
+                # apps are, plus `utils` for the env they read.
+                "--reload-dir",
+                "/app/oss/src/core/gateways",
+                "--reload-dir",
+                "/app/oss/src/utils",
+            ]
+        # === SOURCE =============================================== #
+        # The mock gateways run a module out of the api image. Without this mount they are
+        # the one part of the stack nobody can iterate on cheaply, which is why the mock MCP
+        # server went so long without an OAuth issuer to test the consent flow against.
+        volumes:
+            - ../../../api/oss:/app/oss
+            - ../../../api/entrypoints:/app/entrypoints
+        # === NETWORK ============================================== #
+        environment:
+            AGENTA_GATEWAYS_MOCKS_ENABLED: "true"
+            AGENTA_GATEWAYS_MOCKS_UPSTREAM_TOKEN: ${AGENTA_GATEWAYS_MOCKS_UPSTREAM_TOKEN:-agenta-gateway-mock-token}
+        ports:
+            - "127.0.0.1:${AGENTA_MOCK_LLM_GATEWAY_PORT:-9091}:9091"
+        networks:
+            - agenta-network
+        # === LIFECYCLE ============================================ #
+        restart: always
+        healthcheck:
+            test: ["CMD", "curl", "-sf", "http://localhost:9091/health"]
+            interval: 5s
+            timeout: 5s
+            retries: 10
+
+    mock-mcp-gateway:
+        # === IMAGE ================================================ #
+        image: agenta-oss-dev-api:latest
+        # === EXECUTION ============================================ #
+        command:
+            [
+                "uvicorn",
+                "oss.src.core.gateways.mcps.providers.mock.app:app",
+                "--host",
+                "0.0.0.0",
+                "--port",
+                "9092",
+                "--reload",
+                # Scoped, because `--reload` alone watches everything mounted at /app and
+                # this image mounts the whole api source tree. Any edit anywhere under
+                # `api/oss/src` then restarts these containers, which on a shared dev box
+                # happens constantly and kills whatever request was in flight — the
+                # occasional timeout in `integration/gateways/test_mock_upstreams.py`. It
+                # also wipes the mock issuer's state, which is process-local by design, so
+                # a consent flow spanning a restart fails. Watch the gateway code these
+                # apps are, plus `utils` for the env they read.
+                "--reload-dir",
+                "/app/oss/src/core/gateways",
+                "--reload-dir",
+                "/app/oss/src/utils",
+            ]
+        # === SOURCE =============================================== #
+        # The mock gateways run a module out of the api image. Without this mount they are
+        # the one part of the stack nobody can iterate on cheaply, which is why the mock MCP
+        # server went so long without an OAuth issuer to test the consent flow against.
+        volumes:
+            - ../../../api/oss:/app/oss
+            - ../../../api/entrypoints:/app/entrypoints
+        # === NETWORK ============================================== #
+        environment:
+            AGENTA_GATEWAYS_MOCKS_ENABLED: "true"
+            AGENTA_GATEWAYS_MOCKS_UPSTREAM_TOKEN: ${AGENTA_GATEWAYS_MOCKS_UPSTREAM_TOKEN:-agenta-gateway-mock-token}
+        ports:
+            - "127.0.0.1:${AGENTA_MOCK_MCP_GATEWAY_PORT:-9092}:9092"
+        networks:
+            - agenta-network
+        # === LIFECYCLE ============================================ #
+        restart: always
+        healthcheck:
+            test: ["CMD", "curl", "-sf", "http://localhost:9092/health"]
+            interval: 5s
+            timeout: 5s
+            retries: 10
+
     #
     #
     #
@@ -805,6 +999,7 @@ networks:
     agenta-network:
 
 volumes:
+    runner-state:
     postgres-data:
     redis-volatile-data:
     redis-durable-data:

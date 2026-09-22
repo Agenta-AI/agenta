@@ -1,11 +1,10 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {
-    EDGE_FADE_MASK,
-    jumpGateOpen,
     latestTurnId,
     resolveStopExecution,
     shouldShowStopControl,
+    restoreRefusedSend as restoreRefusedSendInto,
 } from "@agenta/chat/assets"
 import {getPendingSecretInteractions} from "@agenta/chat/clientTools"
 import {
@@ -21,6 +20,7 @@ import {
     useAgentModelKeyStatus,
     useConnectionDock,
     useElicitationDock,
+    useComposerAttachments,
 } from "@agenta/chat/hooks"
 import {
     getInteractionAvailability,
@@ -29,26 +29,28 @@ import {
     type TurnViewModel,
 } from "@agenta/chat/model"
 import {getSessionTurnId} from "@agenta/chat/state"
-import {cancelSessionExecution} from "@agenta/entities/session"
+import {
+    cancelSessionExecution,
+    dropUnacceptedLocalSessionAtom,
+    isSessionFresh,
+    markLocalSessionAcceptedAtom,
+    registerLocalSessionAtom,
+} from "@agenta/entities/session"
+import {invalidateAgentCommittedRevisionCache} from "@agenta/entities/workflow"
 import {AgentIntroCard} from "@agenta/entity-ui/agent"
 import {SecretRequestDock} from "@agenta/entity-ui/clientTools"
+import {AgentSetupCard} from "@agenta/entity-ui/onboarding"
 import {isOnScreen, isOverlayOpen} from "@agenta/shared/utils"
 import {message, modal} from "@agenta/ui/app-message"
-import {
-    ChatBubble,
-    ChatBubbleAvatar,
-    ChatJumpToLatest,
-    turnRowClass,
-} from "@agenta/ui/components/presentational"
+import {ChatBubble} from "@agenta/ui/components/presentational"
 import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 import {isAltChord} from "@agenta/ui/shortcuts"
+import {Button} from "@agenta/ui/ui"
 import {useQueryClient} from "@tanstack/react-query"
 import {useAtomValue, useSetAtom} from "jotai"
-import {User} from "lucide-react"
 
 import {ContentRail} from "@/components/ContentRail"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
-import {Button} from "@/components/ui/button"
 
 import {useProjectPermission} from "../context/useProjectPermission"
 import {failPendingTaskAtom, pendingTasksAtom, sendPendingTaskAtom} from "../home/pendingTask"
@@ -56,16 +58,19 @@ import {AppShell} from "../nav/AppShell"
 import {livenessQueryKey, useLivenessUpdatedAt} from "../sessions/useLivenessPoll"
 
 import {ApprovalDock} from "./ApprovalDock"
+import {committedRevisionIds} from "./committedRevisionIds"
 import {Composer} from "./Composer"
 import {ConnectModelStrip} from "./ConnectModelStrip"
 import {MODEL_KEY_WAIT_LIMIT_MS, pendingTaskDecision} from "./pendingTaskPolicy"
 import {selectedRevisionAtomFamily} from "./selectedRevision"
 import {ChatLoading} from "./states/ChatStates"
 import {cancelledStopAction} from "./stopHereState"
-import {TurnRow} from "./TurnRow"
+import {TranscriptTurns} from "./TranscriptTurns"
+import {mobileTurnRowClass} from "./turnRowClass"
+import {mergeAssistantRuns} from "./turnRuns"
 import {deriveMobileRemoteTurnPresentation, showTrailingWorkingPulse} from "./turnStatus"
-import {TurnStatusLine} from "./TurnStatusLine"
 import {useApprovalActions, type ApprovalActions} from "./useApprovalActions"
+import {useSessionSetupStep} from "./useSessionSetupStep"
 import {useSessionWatch} from "./useSessionWatch"
 import {useStartBlankSession} from "./useStartBlankSession"
 import {useTranscriptAutoScroll} from "./useTranscriptAutoScroll"
@@ -81,6 +86,12 @@ import {useTranscriptAutoScroll} from "./useTranscriptAutoScroll"
  * mobile's detached resume path; after it fires, the records change and the watch relay's
  * `revalidate()` folds the resumed turn in.
  */
+/** The caret is in a field that is not ours — leave it there. */
+const isTypingElsewhere = (active: Element | null): boolean =>
+    active instanceof HTMLElement &&
+    active !== document.body &&
+    (active.isContentEditable || active.tagName === "INPUT" || active.tagName === "TEXTAREA")
+
 export const LiveConversation = ({
     entityId,
     sessionId,
@@ -116,12 +127,45 @@ export const LiveConversation = ({
     // payload is identical, so reading it higher up re-rendered the config pane and its drawers.
     const livenessUpdatedAt = useLivenessUpdatedAt(projectId)
     const startBlankSession = useStartBlankSession(`/w/${workspaceId}/p/${projectId}`)
+    // The composer's input handle. Declared here because the released task puts its text back in
+    // the composer, rewind (far below) refills it the same way, and a refused send comes back
+    // through it too.
+    const composerRef = useRef<RichChatInputHandle | null>(null)
+    // The composer's tray, owned here for the same reason: a refusal that arrives after the send
+    // resolved has to put the files back from outside the composer's own submit.
+    const attachments = useComposerAttachments({sessionId})
+    const {restoreAttachments, setRejections} = attachments
+    const restoreRefusedSend = useCallback(
+        async (message: QueuedMessage) => {
+            const taken = await restoreRefusedSendInto(
+                composerRef.current,
+                {
+                    text: message.text,
+                    stagedFiles: message.stagedFiles ?? [],
+                    fileParts: message.fileParts ?? [],
+                },
+                restoreAttachments,
+            )
+            if (taken) setRejections([{name: "Message", reason: "wasn't sent — try again."}])
+            return taken
+        },
+        [restoreAttachments, setRejections],
+    )
+
+    // The rail row for a fresh session follows its first send: admitted keeps it until the server
+    // lists the session, rejected or refused drops it (nothing will ever list that session).
+    const registerLocalSession = useSetAtom(registerLocalSessionAtom)
+    const markLocalSessionAccepted = useSetAtom(markLocalSessionAcceptedAtom)
+    const dropUnacceptedLocalSession = useSetAtom(dropUnacceptedLocalSessionAtom)
     const conversation = useAgentConversation({
         entityId,
         sessionId,
         sharedReaderAdvertised: sharedReader,
         sharedReaderRunning: running,
         sharedReaderLivenessUpdatedAt: livenessUpdatedAt,
+        restoreRefusedSend,
+        onSendAccepted: () => markLocalSessionAccepted(sessionId),
+        onSendFailed: () => dropUnacceptedLocalSession(sessionId),
     })
     const canEditSecrets = useProjectPermission(projectId, "edit_secret")
     const pinRevision = useSetAtom(selectedRevisionAtomFamily(sessionId))
@@ -136,6 +180,20 @@ export const LiveConversation = ({
         () => getPendingSecretInteractions(conversation.messages)[0],
         [conversation.messages],
     )
+
+    // The agent committing itself: the stream carries a one-way `data-committed-revision` part.
+    // Follow it — pin the workspace and retarget the next send — and drop the latest-revision
+    // caches, or the config pane and the version chip keep showing the revision it replaced.
+    // The desktop does the same in its own host hook; the shared engine leaves it to the skin.
+    const committedSeenRef = useRef<Set<string>>(new Set())
+    useEffect(() => {
+        for (const revisionId of committedRevisionIds(conversation.messages)) {
+            if (committedSeenRef.current.has(revisionId)) continue
+            committedSeenRef.current.add(revisionId)
+            invalidateAgentCommittedRevisionCache()
+            if (revisionId !== entityId) adoptSecretRevision(revisionId)
+        }
+    }, [adoptSecretRevision, conversation.messages, entityId])
 
     // The connect-model gate — desktop parity. The engine deliberately leaves this to the skin
     // (`useAgentConversation` says so): a keyless project must be told to add a key BEFORE the
@@ -164,10 +222,6 @@ export const LiveConversation = ({
         return () => clearTimeout(timer)
     }, [modelKeyLoading])
 
-    // The composer's input handle. Declared here because the released task puts its text back in
-    // the composer, and rewind (far below) refills it the same way.
-    const composerRef = useRef<RichChatInputHandle | null>(null)
-
     // Editing borrows the composer: the row's text goes in, the draft it displaces is stashed.
     const {beginEdit, cancelEdit} = conversation
     const editQueued = useCallback(
@@ -185,6 +239,19 @@ export const LiveConversation = ({
         input?.focus()
     }, [cancelEdit])
 
+    // Landing on a session — a new one from `+` or the shortcut, or a switch to an existing one —
+    // puts the caret in the composer, once it can take input. Not while the caret is already in
+    // some other field: a self-commit remounts this screen mid-edit in the config pane.
+    const disabled = conversation.isHydrating || modelBlocked
+    useEffect(() => {
+        if (disabled) return
+        const frame = requestAnimationFrame(() => {
+            if (isTypingElsewhere(document.activeElement)) return
+            composerRef.current?.focus()
+        })
+        return () => cancelAnimationFrame(frame)
+    }, [disabled, sessionId])
+
     // Keep Home tasks session-scoped until admission; failures require an explicit retry.
     const pendingTasks = useAtomValue(pendingTasksAtom)
     const pendingTask = pendingTasks[sessionId]
@@ -192,7 +259,46 @@ export const LiveConversation = ({
     const sendPendingTask = useSetAtom(sendPendingTaskAtom)
     const failPendingTask = useSetAtom(failPendingTaskAtom)
     const pendingTaskError = pendingTask?.delivery === "failed"
-    const {isHydrating, revalidate, send, stop, voidPendingResume} = conversation
+    const {
+        isHydrating,
+        revalidate,
+        send: sendToConversation,
+        stop,
+        voidPendingResume,
+    } = conversation
+    // A fresh session becomes real on the server only once this first message is admitted, which
+    // can take seconds on a cold runner. Note it locally first, so the rail lists it now (#6776).
+    const send = useCallback(
+        async (input: Parameters<typeof sendToConversation>[0]) => {
+            if (isSessionFresh(sessionId)) {
+                registerLocalSession({
+                    sessionId,
+                    projectId,
+                    agentId: agentId ?? null,
+                    name: input.text,
+                })
+            }
+            try {
+                await sendToConversation(input)
+            } catch (error) {
+                // The durable path reports this through `onSendFailed` too; this covers the rest.
+                dropUnacceptedLocalSession(sessionId)
+                throw error
+            }
+        },
+        [
+            agentId,
+            dropUnacceptedLocalSession,
+            projectId,
+            registerLocalSession,
+            sendToConversation,
+            sessionId,
+        ],
+    )
+    // A template create asks for its accounts here, on arrival, instead of on a create surface of
+    // its own. Holds the first message while it does; declines silently when there is nothing to
+    // ask, which is every other way into this screen.
+    const setup = useSessionSetupStep(sessionId)
     useEffect(() => {
         if (!pendingTask || pendingTask.delivery) return
         const decision = pendingTaskDecision({
@@ -202,6 +308,7 @@ export const LiveConversation = ({
             modelKeyLoading,
             modelKeyWaitedMs,
             modelBlocked,
+            setupBlocking: setup.blocking,
         })
         if (decision === "hold") return
         if (decision === "abandon") {
@@ -218,6 +325,7 @@ export const LiveConversation = ({
         modelKeyLoading,
         modelKeyWaitedMs,
         modelBlocked,
+        setup.blocking,
         send,
         sessionId,
         sendPendingTask,
@@ -240,7 +348,11 @@ export const LiveConversation = ({
         readerReady: conversation.readerReady,
         ownedContinuation: conversation.acceptedRunPending,
     })
-    const showingTurnActivity = streamingHere || remoteTurn.showActivity
+    // `sendInFlight` covers the gap the other two cannot: the message has left the composer, and
+    // neither `useChat` (the server-owned path never moves its status) nor liveness (a poll away)
+    // knows yet. Without it the pulse arrived a runner accept plus a poll after the send (#6778).
+    const showingTurnActivity =
+        streamingHere || conversation.sendInFlight || remoteTurn.showActivity
     const streamingHereRef = useRef(streamingHere)
     streamingHereRef.current = streamingHere
     const hitlPendingRef = useRef(conversation.hitlPending)
@@ -484,7 +596,7 @@ export const LiveConversation = ({
     // transcript on renders that changed nothing about it (a watch reconnect, a steer phase).
     // Memoized, it re-pins exactly when the turns actually change.
     const visibleTurns = useMemo(
-        () => conversation.turns.filter((turn) => !turn.hidden),
+        () => mergeAssistantRuns(conversation.turns.filter((turn) => !turn.hidden)),
         [conversation.turns],
     )
     const autoScroll = useTranscriptAutoScroll(visibleTurns)
@@ -507,15 +619,6 @@ export const LiveConversation = ({
     })
     const secretDockOpen =
         !streamingHere && !stopping && !conversation.stopped && Boolean(pendingSecret)
-    // A docked gate holds the jump pill back — same rule, same reasons, as the desktop. This
-    // surface has no question-form dock yet, so approvals, connect, and secret cards gate it.
-    const gateOpen =
-        jumpGateOpen({
-            approvals: pendingApprovals.length,
-            elicitationOpen: false,
-            connectionOpen: connects.open,
-        }) || secretDockOpen
-
     // Rewind: re-run the conversation from a turn. The hook only SCANS (it never opens dialogs),
     // so the warning about tools that already ran, and putting a rewound user message back into
     // the composer, are this surface's job — same division the desktop uses. `composerRef` is
@@ -584,14 +687,13 @@ export const LiveConversation = ({
         body = <ChatLoading />
     } else {
         body = (
-            <ContentRail className="flex grow flex-col gap-3 p-4 pb-[calc(1rem+env(safe-area-inset-bottom))]">
+            <ContentRail className="flex grow flex-col gap-3 p-4 pt-6 pb-[calc(1rem+env(safe-area-inset-bottom))]">
                 {/* A held or failed Home task stays visible until accepted. */}
                 {heldTaskText ? (
-                    <div className={`${turnRowClass} justify-end`}>
+                    <div className={`${mobileTurnRowClass} justify-end`}>
                         <ChatBubble
                             placement="end"
                             variant="filled"
-                            avatar={<ChatBubbleAvatar icon={<User className="size-4" />} />}
                             className="min-w-0 max-w-[85%]"
                             classNames={{
                                 content: "min-w-0 max-w-full overflow-hidden text-xs",
@@ -620,23 +722,14 @@ export const LiveConversation = ({
                         ) : null}
                     </div>
                 ) : null}
-                {visibleTurns.map((turn) => (
-                    <TurnRow
-                        workflowId={agentId}
-                        key={turn.message.id}
-                        turn={turn}
-                        onClientToolOutput={conversation.sendToolOutput}
-                        onRewind={handleRewind}
-                        sessionId={sessionId}
-                    />
-                ))}
-                {/* The working indicator moved into the streaming turn itself, beside its avatar,
-                    where the desktop has always had it — as a line after the whole list it floated
-                    far below the turn it described. It falls back to here for the one case that
-                    turn cannot cover: the request is submitted and no assistant turn exists yet. */}
-                <TurnStatusLine
-                    working={showTrailingWorkingPulse(showingTurnActivity, visibleTurns)}
-                    waitingForInput={conversation.hitlPending}
+                <TranscriptTurns
+                    turns={visibleTurns}
+                    sessionId={sessionId}
+                    remoteRunning={showingTurnActivity && !streamingHere}
+                    waitingOnUser={conversation.hitlPending}
+                    pending={showTrailingWorkingPulse(showingTurnActivity, visibleTurns)}
+                    onClientToolOutput={conversation.sendToolOutput}
+                    onRewind={handleRewind}
                 />
             </ContentRail>
         )
@@ -648,16 +741,13 @@ export const LiveConversation = ({
             <ScreenScaffold
                 scrollRef={autoScroll.ref}
                 onScroll={autoScroll.onScroll}
-                scrollOverlay={
-                    <ChatJumpToLatest
-                        show={autoScroll.showJump && !gateOpen}
-                        onClick={autoScroll.jumpToLatest}
-                    />
-                }
                 embedded={embedded}
-                // The top edge fades as a MASK, exactly as the desktop transcript does — content
-                // dissolves under the tab bar instead of being cut by a hard line.
-                scrollStyle={{maskImage: EDGE_FADE_MASK, WebkitMaskImage: EDGE_FADE_MASK}}
+                // Edge fades as a MASK, only where content is clipped — the Home list's rule, so
+                // the first message reads crisp at the top and the bottom says there is more.
+                scrollStyle={{
+                    maskImage: autoScroll.edgeMask,
+                    WebkitMaskImage: autoScroll.edgeMask,
+                }}
                 footer={
                     <div className="relative">
                         {/* What you have lined up stays visible while a gate is open: the queued
@@ -729,21 +819,38 @@ export const LiveConversation = ({
                                 </ContentRail>
                             </div>
                         ) : null}
+                        {/* The template's accounts, asked for once on arrival. Above the model
+                        strip because it is what the user came here holding: the first message is
+                        parked behind it, and "Continue" is what releases it. */}
+                        {setup.open ? (
+                            <div className="bg-background shrink-0 px-3 pt-3 pb-0">
+                                <ContentRail>
+                                    <AgentSetupCard
+                                        accounts={setup.accounts}
+                                        suggestions={setup.suggestions}
+                                        onAddAccount={setup.addAccount}
+                                        onCreate={setup.resolve}
+                                        onDismiss={setup.resolve}
+                                        createLabel="Continue"
+                                    />
+                                </ContentRail>
+                            </div>
+                        ) : null}
                         {/* Docked with the other strips, directly above the composer it disables —
                         the same place the desktop banner sits. */}
                         <ContentRail>
-                            <ConnectModelStrip
-                                providerEntry={modelKey.providerEntry}
-                                gateActive={modelBlocked}
-                            />
+                            <ConnectModelStrip gateActive={modelBlocked} />
                         </ContentRail>
                         {/* Failed Home tasks retain their original text and files for retry. */}
                         {pendingTaskError ? (
                             <ContentRail>
                                 <div className="mb-2 flex flex-wrap items-center gap-2 text-xs">
                                     <span role="alert" className="text-destructive">
-                                        The message was not sent. Your text and attachments are
-                                        saved.
+                                        The message was not sent.
+                                        {pendingTask?.failureReason
+                                            ? ` ${pendingTask.failureReason}`
+                                            : ""}{" "}
+                                        Your text and attachments are saved.
                                     </span>
                                     {pendingTask?.parts?.map((part, index) => (
                                         <span
@@ -779,12 +886,13 @@ export const LiveConversation = ({
                         <Composer
                             entityId={entityId}
                             sessionId={sessionId}
-                            onSend={async ({text, parts}) => {
+                            attachments={attachments}
+                            onSend={async ({text, parts, stagedFiles}) => {
                                 setStoppingHere(false)
                                 // An open edit rewrites its held message instead of sending. The
                                 // input clears on submit, so the displaced draft goes back after.
                                 if (!conversation.editingId) {
-                                    await conversation.send({text, parts})
+                                    await send({text, parts, stagedFiles})
                                     return
                                 }
                                 const draft = await conversation.commitEdit({
@@ -796,8 +904,10 @@ export const LiveConversation = ({
                                         composerRef.current?.setMarkdown(draft),
                                     )
                             }}
-                            onSteer={({text, parts}) => conversation.steer({text, parts})}
-                            disabled={conversation.isHydrating || modelBlocked}
+                            onSteer={({text, parts, stagedFiles}) =>
+                                conversation.steer({text, parts, stagedFiles})
+                            }
+                            disabled={disabled}
                             placeholder={
                                 modelBlocked ? "Connect a model to start chatting…" : undefined
                             }

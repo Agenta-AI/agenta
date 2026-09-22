@@ -1,0 +1,444 @@
+/* Single-row header: logo + version, search, icon buttons, CTAs.
+   The row itself is laid out in src/theme/Navbar/Content; this file owns the
+   look of the pieces that are plain Docusaurus/Infima markup. */
+
+.navbar {
+  box-shadow: none;
+  border-bottom: 1px solid var(--borderdefault);
+  padding: 0 var(--ifm-navbar-padding-horizontal);
+}
+
+/* The right group ends on the reading column's right edge (main padding),
+   the logo on the sidebar's text edge (sidebar padding). */
+@media (min-width: 997px) {
+  .navbar {
+    padding-right: var(--doc-main-padding-x);
+  }
+}
+
+/* Wide screens: the frame is capped and centred (content.css); the header
+   row follows it. */
+@media (min-width: 1600px) {
+  .navbar__inner {
+    max-width: calc(
+      var(--doc-frame-max) - var(--ifm-navbar-padding-horizontal) - var(--doc-main-padding-x)
+    );
+    /* Auto margins, not the offset: the offset's 50% would resolve against
+       the navbar's padded box, not the window. Auto centres on the same
+       line as the frame because the navbar's padding is the frame's. */
+    margin: 0 auto;
+  }
+}
+
+.navbar__inner {
+  flex-wrap: nowrap;
+}
+
+.navbar__logo {
+  height: 24px;
+  margin-right: 0;
+}
+
+.navbar__logo img {
+  height: 24px;
+}
+
+/* Section links only live in the sidebar rail and the hamburger menu now. */
+.navbar__link {
+  font-size: 13px;
+  line-height: 18px;
+  padding: 0;
+  color: var(--navbar-link-color);
+  font-weight: var(--ifm-font-weight-normal);
+}
+
+.navbar__link--active {
+  color: var(--navbar-link-active-color);
+  font-weight: var(--ifm-font-weight-semibold);
+}
+
+/* CTAs */
+.nav_primary_button,
+.nav_secondary_button {
+  display: inline-flex;
+  align-items: center;
+  height: 32px;
+  font-family: var(--ifm-font-family-base);
+  font-size: 13px;
+  line-height: 18px;
+  border-radius: var(--radius-lg);
+  outline: none;
+  border: none;
+  cursor: pointer;
+  transition:
+    background-color var(--ifm-transition-fast) ease,
+    opacity var(--ifm-transition-fast) ease;
+}
+
+/* Keyboard focus: the outline is reset above, so draw the ring explicitly. */
+.nav_primary_button:focus-visible,
+.nav_secondary_button:focus-visible {
+  outline: 2px solid var(--contentprimary);
+  outline-offset: 2px;
+}
+
+.nav_primary_button {
+  background-color: var(--bginverse);
+  color: var(--contentinverse);
+  font-weight: var(--ifm-font-weight-semibold);
+  padding: 0 14px;
+}
+
+/* When the class sits on an <a> (roadmap, hamburger), Infima's a:hover
+   would recolour the label to the link colour, which is the button's fill. */
+.nav_primary_button:hover {
+  opacity: 0.88;
+  color: var(--contentinverse);
+}
+
+.nav_secondary_button {
+  background-color: transparent;
+  color: var(--contentprimary);
+  padding: 0 8px;
+}
+
+.nav_secondary_button:hover {
+  background-color: var(--bgelevated1);
+  color: var(--contentprimary);
+}
+
+/* Search button in the header: a 240px field with a bordered ⌘K key chip. */
+.navbar [class*="navbarSearchContainer"] {
+  padding: 0;
+}
+
+.navbar .DocSearch-Button {
+  box-sizing: border-box;
+  width: 240px;
+  height: 32px;
+  margin: 0;
+  padding: 0 10px;
+  background-color: var(--bgelevated1);
+  border: 1px solid var(--borderdefault);
+  border-radius: var(--radius-lg);
+  color: var(--contenttertiary);
+  --docsearch-subtle-color: var(--borderdefault);
+}
+
+.navbar .DocSearch-Button:hover,
+.navbar .DocSearch-Button:focus {
+  background-color: var(--bgelevated1);
+  border-color: var(--borderdark);
+  box-shadow: none;
+}
+
+.navbar .DocSearch-Search-Icon {
+  width: 14px;
+  height: 14px;
+  color: var(--contenttertiary);
+}
+
+.navbar .DocSearch-Button-Placeholder {
+  font-size: 13px;
+  padding: 0 8px;
+  color: var(--contenttertiary);
+}
+
+.navbar .DocSearch-Button-Keys {
+  min-width: 0;
+  height: 18px;
+  padding: 0 5px;
+  gap: 1px;
+  background: var(--bgdefault);
+  border: 1px solid var(--borderdefault);
+  border-radius: 5px;
+}
+
+.navbar .DocSearch-Button-Key {
+  box-shadow: none;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  width: auto;
+  height: auto;
+  top: 0;
+  font-family: var(--ifm-font-family-monospace);
+  font-size: 11px;
+  line-height: 16px;
+  color: var(--contentsecondary);
+}
+
+/* Below the sidebar breakpoint: single row, compact logo, search as an icon. */
+@media (max-width: 996px) {
+  /* The theme positions the search box at right: var(--ifm-navbar-padding-horizontal). */
+  .navbar {
+    --ifm-navbar-padding-horizontal: 16px;
+  }
+
+  .navbar__logo,
+  .navbar__logo img {
+    height: 22px;
+  }
+
+  /* Hamburger: two short bars (src/theme/Icon/Menu). */
+  .navbar__toggle {
+    display: inline-flex;
+    align-items: center;
+    width: auto;
+    height: 32px;
+    margin-right: 10px;
+    padding: 0;
+    color: var(--contentprimary);
+  }
+
+  .menuToggle {
+    display: inline-flex;
+    align-items: center;
+  }
+
+  .menuToggleBars {
+    position: relative;
+    display: block;
+    width: 16px;
+    height: 16px;
+  }
+
+  .menuToggleBars span {
+    position: absolute;
+    left: 0;
+    display: block;
+    width: 16px;
+    height: 2px;
+    border-radius: 1px;
+    background-color: currentColor;
+    transition: transform var(--ifm-transition-fast) ease, top var(--ifm-transition-fast) ease;
+  }
+
+  .menuToggleBars span:first-child {
+    top: 4px;
+  }
+
+  .menuToggleBars span:last-child {
+    top: 10px;
+  }
+
+  /* Open state: the bars form an X. */
+  .navbar__toggle[aria-expanded="true"] .menuToggleBars span:first-child {
+    top: 7px;
+    transform: rotate(45deg);
+  }
+
+  .navbar__toggle[aria-expanded="true"] .menuToggleBars span:last-child {
+    top: 7px;
+    transform: rotate(-45deg);
+  }
+
+
+  /* The theme positions the search box absolutely here, where it would sit
+     on top of the controls that stay in the header; keep it in flow. */
+  .navbar [class*="navbarSearchContainer"] {
+    position: static;
+  }
+
+  /* The search field collapses to an icon button like the GitHub link and
+     the theme toggle beside it. */
+  .navbar .DocSearch-Button {
+    width: 32px;
+    padding: 0;
+    justify-content: center;
+    background-color: transparent;
+    border-color: transparent;
+    color: var(--contentprimary);
+  }
+
+  .navbar .DocSearch-Button:hover,
+  .navbar .DocSearch-Button:focus {
+    background-color: var(--bgelevated1);
+    border-color: transparent;
+  }
+
+  .navbar .DocSearch-Button .DocSearch-Search-Icon {
+    width: 16px;
+    height: 16px;
+    color: var(--contentprimary);
+  }
+
+  .navbar .DocSearch-Button-Placeholder,
+  .navbar .DocSearch-Button-Keys {
+    display: none;
+  }
+
+  .navbar .DocSearch-Search-Icon {
+    margin: 0;
+  }
+}
+
+/* Tablets: header gutters match the content gutters. */
+@media (min-width: 600px) and (max-width: 996px) {
+  .navbar {
+    --ifm-navbar-padding-horizontal: 32px;
+  }
+}
+
+/* ===== Hamburger sidebar (custom PrimaryMenu with pinned footer) ===== */
+
+.navbar-sidebar {
+  background-color: var(--bgdefault);
+}
+
+/* --- Header (src/theme/Navbar/MobileSidebar/Header): theme toggle and
+   close as the same 32px ghost icon buttons the site header uses --- */
+.navbar-sidebar__brand {
+  padding: 0 16px;
+  gap: 4px;
+}
+
+.navbar-sidebar__brand .navbar__brand {
+  margin-right: auto;
+}
+
+.navbar-sidebar__close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-lg);
+  color: var(--contentprimary);
+  transition: background-color var(--ifm-transition-fast) ease;
+}
+
+.navbar-sidebar__close:hover {
+  background-color: var(--bgelevated1);
+}
+
+.navbar-sidebar__close:focus-visible {
+  outline: 2px solid var(--contentprimary);
+  outline-offset: 2px;
+}
+
+.navbar-sidebar__close svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* --- Body: pin the footer to the bottom of the primary panel only --- */
+.navbar-sidebar__item:has(.mobileSidebarFooter) {
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+
+.navbar-sidebar__item:has(.mobileSidebarFooter) > .menu__list {
+  flex: 0 0 auto;
+}
+
+.mobileSidebarFooter {
+  margin-top: auto;
+  margin-right: -8px;
+  padding: 16px 12px 14px;
+}
+
+.mobileSidebarActions {
+  display: flex;
+  gap: 10px;
+}
+
+.mobileSidebarActions .nav_primary_button,
+.mobileSidebarActions .nav_secondary_button {
+  flex: 1 1 0;
+  justify-content: center;
+  height: 40px;
+  margin: 0 !important;
+  text-align: center;
+  text-decoration: none !important;
+}
+
+.mobileSidebarActions .nav_secondary_button {
+  border: 1px solid var(--borderdefault) !important;
+}
+
+/* Hamburger rows (both panels): taller than the desktop sidebar rows so they
+   work as touch targets, and full width. */
+.navbar-sidebar .menu__link {
+  height: auto;
+  min-height: 40px;
+  padding: 8px 12px;
+  margin: 0;
+  font-size: 14px;
+  line-height: 20px;
+}
+
+.navbar-sidebar__item:has(.mobileSidebarFooter) .menu__list .menu__link {
+  margin: 1px 0;
+}
+
+/* --- Panels: the same gutters as the page, and the secondary panel's
+   "Back" as a quiet row instead of a full-width band --- */
+.navbar-sidebar__items {
+  padding: 0;
+}
+
+.navbar-sidebar__item {
+  padding: 8px 16px 16px;
+}
+
+.navbar-sidebar__back {
+  display: flex;
+  align-items: center;
+  width: auto;
+  margin: 4px -8px 12px;
+  padding: 0 8px;
+  height: 36px;
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: var(--ifm-font-weight-normal);
+  color: var(--contentsecondary);
+  background: none;
+  border: 0;
+  border-radius: var(--radius-md);
+  text-align: left;
+}
+
+.navbar-sidebar__back:hover {
+  color: var(--contentprimary);
+  background-color: var(--bgelevated1);
+}
+
+/* Secondary panel: group titles like the desktop sidebar, rows with the
+   sidebar's inset. */
+.navbar-sidebar li.sidebar-section-title > .menu__list-item-collapsible {
+  padding: 0 0 4px;
+}
+
+.navbar-sidebar li.sidebar-section-title:not(:first-child) > .menu__list-item-collapsible {
+  margin-top: 16px;
+}
+
+.navbar-sidebar li.sidebar-section-title > .menu__list-item-collapsible > .menu__link {
+  min-height: 0;
+  padding: 0;
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.navbar-sidebar .theme-doc-sidebar-menu .menu__list .menu__list {
+  padding-left: 0;
+}
+
+.navbar-sidebar .theme-doc-sidebar-menu .menu__list-item:not(:first-child) {
+  margin-top: 1px;
+}
+
+.navbar-sidebar .theme-doc-sidebar-menu .menu__link {
+  padding: 8px 10px;
+  margin: 0 -10px;
+}
+
+.navbar-sidebar .theme-doc-sidebar-menu .menu__link--active {
+  background-color: var(--bgelevated1);
+}

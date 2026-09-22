@@ -83,6 +83,8 @@ export const skillRegistryItemSchema = z
         message: z.string().optional().nullable(),
         created_at: z.string().optional().nullable(),
         updated_at: z.string().optional().nullable(),
+        /** Who authored the skill workflow; absent on built-ins. */
+        created_by_id: z.string().optional().nullable(),
         is_static: z.boolean().optional().nullable(),
         /** Only listed when include_archived was requested. */
         archived: z.boolean().optional().nullable(),

@@ -7,10 +7,10 @@ import type {
     SidebarSlotContext,
 } from "@agenta/navigation"
 import {HOME_SIDEBAR_KEY, MAIN_SIDEBAR_SCOPE_ID, SESSIONS_SIDEBAR_KEY} from "@agenta/navigation"
-import {SidebarLogo} from "@agenta/navigation-ui"
+import {SessionSearchPalette, SidebarLogo} from "@agenta/navigation-ui"
 import {atom, useAtomValue} from "jotai"
 
-import SidePanelSubscriptionInfo from "@/oss/components/SidePanel/Subscription"
+import useURL from "@/oss/hooks/useURL"
 import {appStateSnapshotAtom} from "@/oss/state/appState"
 import {homeNavHighlightedAtom} from "@/oss/state/onboarding"
 
@@ -25,16 +25,17 @@ const MainSidebarHeader = ({collapsed}: SidebarSlotContext) => (
     <SidebarLogo collapsed={collapsed} toggle={<SidebarToggleButton />} />
 )
 
-const MainSidebarFooter = ({collapsed}: SidebarSlotContext) =>
-    collapsed ? null : (
-        <div className="w-full">
-            <SidePanelSubscriptionInfo />
-        </div>
+// The palette is a modal with one owner: mounted here, it exists exactly where the Sessions
+// group that opens it does, rather than in every scope's shell.
+const MainSidebarAfterBottom = ({collapsed}: SidebarSlotContext) => {
+    const {projectURL} = useURL()
+    return (
+        <>
+            <ProjectOrgSwitcher collapsed={collapsed} />
+            <SessionSearchPalette projectURL={projectURL} />
+        </>
     )
-
-const MainSidebarAfterBottom = ({collapsed}: SidebarSlotContext) => (
-    <ProjectOrgSwitcher collapsed={collapsed} />
-)
+}
 
 // The open session is a fact about the playground, not about where you are: the tab list is
 // persisted per agent, so off that route the pin outranked the row the route itself selects (#6389).
@@ -81,6 +82,5 @@ export const mainSidebarScope: SidebarScope = {
     useSelection: useMainSidebarSelection,
     useSections: useMainSidebarSections,
     header: MainSidebarHeader,
-    footer: MainSidebarFooter,
     afterBottom: MainSidebarAfterBottom,
 }

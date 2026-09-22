@@ -74,7 +74,7 @@ export function useSubscriptionRun({
                       2,
                   )}\n\`\`\``
             setPendingRun({text, nonce: Date.now(), newSession: true})
-            message.success("Running in playground")
+            message.success("Starting run")
         },
         [playgroundEntityId, setPendingRun, label, eventKey],
     )

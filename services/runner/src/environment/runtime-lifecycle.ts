@@ -33,6 +33,7 @@
 import { rmSync } from "node:fs";
 
 import { configureDaytonaCodexEnv } from "../engines/sandbox_agent/codex-assets.ts";
+import { configureDaytonaSubscriptionEnv } from "../engines/sandbox_agent/daytona.ts";
 import { buildDaemonEnv } from "../engines/sandbox_agent/daemon.ts";
 import {
   buildPiExtensionEnv,
@@ -41,7 +42,11 @@ import {
   resolvePiToolSpecsDelivery,
   writePiToolSpecsFileLocal,
 } from "../engines/sandbox_agent/pi-assets.ts";
-import { applyClaudeConnectionEnv } from "../engines/sandbox_agent/runtime-policy.ts";
+import {
+  applyClaudeConnectionEnv,
+  applyCodexGatewayConnectionEnv,
+} from "../engines/sandbox_agent/runtime-policy.ts";
+import { GATEWAY_CREDENTIALS_VALUE_ENV } from "../engines/sandbox_agent/run-plan.ts";
 import type { AgentRunRequest } from "../protocol.ts";
 import { PI_TRACE_CONTROL_FILE } from "../tracing/pi-spool-protocol.ts";
 import type { RunPlan } from "../engines/sandbox_agent/run-plan.ts";
@@ -87,6 +92,11 @@ export interface RuntimeFilesInput {
    */
   runAgentDir: string | undefined;
   /**
+   * The per-run Pi prompt dir (`preparePiPromptChannel`). Throwaway by construction: it holds
+   * only this run's prompt files and the wrapper that hands them to Pi.
+   */
+  piPromptDir: string | undefined;
+  /**
    * The local off-mount Codex SQLite home. Disposable: native resume rides the `sessions/`
    * rollout files on CODEX_HOME, not the SQLite, so losing it costs nothing.
    */
@@ -109,6 +119,7 @@ export function removeRuntimeFiles(input: RuntimeFilesInput): void {
   // never to throw. Each removal is independent, so one failure must not skip the next.
   for (const [path, recursive] of [
     [input.runAgentDir, true],
+    [input.piPromptDir, true],
     [input.codexSqliteHome, true],
   ] as const) {
     if (!path) continue;
@@ -197,10 +208,23 @@ export function buildRuntimeEnvironment(
       clearProviderEnv,
       provider: r.modelConnection?.provider,
       deployment: r.modelConnection?.deployment,
+      // A hosted subscription run reads its login from a per-connection dir, never the operator's
+      // mount. Undefined on every other run, which keeps today's inheritance.
+      piAgentDir: p.isDaytona ? undefined : p.credentials.subscriptionHome,
     },
   );
   // Apply only the resolved provider keys.
   Object.assign(env, p.credentials.modelEnvironment);
+  // OUR gateway credential, not a provider secret: unlike `modelEnvironment` it never goes
+  // through Daytona Secret hiding (there is no third party to leak it to — it authenticates the
+  // harness to US), so it lands directly in the daemon env. Pi and Codex reference it by
+  // `$AGENTA_GATEWAY_CREDENTIALS_VALUE` indirection from their own config files rather than
+  // writing the raw value to disk; Claude reads it straight into ANTHROPIC_CUSTOM_HEADERS below.
+  const gatewayCredentials = r.modelConnection?.gatewayCredentials;
+  if (gatewayCredentials?.value) {
+    env[GATEWAY_CREDENTIALS_VALUE_ENV] = gatewayCredentials.value;
+  }
+  applyCodexGatewayConnectionEnv(env, input.request, p.acpAgent as never);
   applyClaudeConnectionEnv(env, input.request, p.acpAgent as never, input.log);
   const piSessionDir = configurePiSessionWorkspace(input.plan, env);
   configurePiSkillSnapshot(input.piSkillSnapshot as never, env);
@@ -232,6 +256,19 @@ export function buildRuntimeEnvironment(
   // `sessions/` rollouts) while CODEX_SQLITE_HOME points in-VM, off the mount. Set here because
   // the Daytona daemon env is fixed at sandbox creation and is built from `piExtEnv`.
   configureDaytonaCodexEnv(input.plan, piExtEnv);
+  // A hosted subscription run on Daytona reads its login from an in-VM dir the runner writes
+  // through the sandbox file API. Set here for the same reason as the Codex paths above: the
+  // Daytona daemon environment is fixed at sandbox creation and is built from `piExtEnv`, so a
+  // value decided after the sandbox exists never reaches the harness.
+  configureDaytonaSubscriptionEnv(input.plan, piExtEnv);
+  // And the gateway credential, for the same reason as the two above. The Daytona daemon
+  // environment is built from `piExtEnv` plus the model environment; `env` is not one of its
+  // inputs. Set on `env` alone the credential exists only on a local daemon, and a Daytona
+  // harness expands the `$AGENTA_GATEWAY_CREDENTIALS_VALUE` its own config file references to
+  // nothing, so every call it makes reaches the gateway unauthenticated.
+  if (gatewayCredentials?.value) {
+    piExtEnv[GATEWAY_CREDENTIALS_VALUE_ENV] = gatewayCredentials.value;
+  }
   assignSandboxEnvironment([env, piExtEnv], p.credentials.sandboxEnvironment);
   // LAST, deliberately: the local daemon inherits the extension env, and Daytona gets the same
   // values through `envVars`. Assigning earlier would drop every key added above.

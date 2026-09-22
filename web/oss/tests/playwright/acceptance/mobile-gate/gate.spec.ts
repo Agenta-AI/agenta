@@ -6,12 +6,20 @@ const IPHONE_UA =
 const gateEnabled = process.env.AGENTA_MOBILE_GATE !== "false"
 const reverseGateEnabled = process.env.AGENTA_MOBILE_REVERSE_GATE !== "false"
 
+/**
+ * A genuinely empty context. `storageState: undefined` reads as "no session" but does not clear
+ * anything: an option set to undefined falls back to the config value, so these tests inherited
+ * the shared signed-in state, including the `agenta-mobile-optout` cookie that switches the very
+ * gate they assert on off. Both directions decide on the request, before any session matters.
+ */
+const NO_SESSION = {cookies: [], origins: []}
+
 test.describe("mobile gate: forward direction", () => {
     test.skip(!gateEnabled, "mobile gate opted out (AGENTA_MOBILE_GATE=false)")
     test.use({
         userAgent: IPHONE_UA,
         extraHTTPHeaders: {"sec-ch-ua-mobile": "?1"},
-        storageState: undefined,
+        storageState: NO_SESSION,
     })
 
     test("mobile UA on a desktop route lands in /m", async ({page}) => {
@@ -45,7 +53,7 @@ test.describe("mobile gate: reverse direction", () => {
         !reverseGateEnabled,
         "reverse mobile gate opted out (AGENTA_MOBILE_REVERSE_GATE=false)",
     )
-    test.use({storageState: undefined})
+    test.use({storageState: NO_SESSION})
 
     test("desktop UA on /m is sent to the desktop app", async ({page}) => {
         await page.goto("/m/")

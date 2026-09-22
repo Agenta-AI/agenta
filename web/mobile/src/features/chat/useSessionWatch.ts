@@ -16,6 +16,18 @@ import {sessionWatchUrl, watchRetryDelayMs} from "./watchRelay"
 const MIN_INTERVAL_MS = 3_000
 
 /**
+ * The rail's head window, not its paging tail.
+ *
+ * Both live under the `sidebar-sessions` prefix, and the tail carries `"older"` in the third
+ * slot. Invalidating the tail re-reads every page the rail has loaded, one request each, so at
+ * twelve pages a single turn costs twelve requests and a turn start and settle both land here.
+ * The head alone is correct for a lifecycle event: it is ordered by last activity, so the session
+ * that just changed is inside its window by definition.
+ */
+export const isSidebarSessionHeadQuery = (queryKey: readonly unknown[]) =>
+    queryKey[0] === "sidebar-sessions" && queryKey[2] !== "older"
+
+/**
  * One EventSource per foregrounded chat screen (M3 live relay). Most events invalidate existing
  * queries; interaction events also carry committed row state for immediate gate retirement:
  *
@@ -82,7 +94,9 @@ export const useSessionWatch = ({
             })
             // The rail draws the same liveness on its own rows, off its own queries. Without
             // these its dot outlives the run you are watching finish, until the next poll.
-            void queryClient.invalidateQueries({queryKey: ["sidebar-sessions"]})
+            void queryClient.invalidateQueries({
+                predicate: (query) => isSidebarSessionHeadQuery(query.queryKey),
+            })
             void queryClient.invalidateQueries({queryKey: ["sidebar-sessions-pinned"]})
             void queryClient.invalidateQueries({queryKey: ["sidebar-sessions-waiting"]})
         }

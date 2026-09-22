@@ -13,16 +13,10 @@ import {
 } from "../../components/ui/alert-dialog"
 import {Button} from "../../components/ui/button"
 import {Notification, NotificationViewport} from "../../components/ui/notification"
-import {Toast, ToastViewport} from "../../components/ui/toast"
+import {Toaster} from "../../components/ui/toast"
 import {cn} from "../../components/ui/utils"
 
-import {
-    closeConfirmById,
-    closeNotificationById,
-    confirmStore,
-    messageStore,
-    notificationStore,
-} from "./store"
+import {closeConfirmById, closeNotificationById, confirmStore, notificationStore} from "./store"
 import type {ConfirmRecord, NotificationRecord} from "./store"
 import {notificationPlacements} from "./types"
 import type {NotificationPlacement} from "./types"
@@ -43,31 +37,8 @@ import type {NotificationPlacement} from "./types"
 // ---------------------------------------------------------------------------
 
 function MessageOutlet() {
-    const records = React.useSyncExternalStore(
-        messageStore.subscribe,
-        messageStore.getSnapshot,
-        messageStore.getServerSnapshot,
-    )
-
-    if (records.length === 0) return null
-
-    return (
-        <ToastViewport>
-            {records.map((record) => (
-                <Toast
-                    key={record.id}
-                    type={record.type}
-                    icon={record.icon}
-                    open={record.open}
-                    className={record.className}
-                    style={record.style}
-                    onClick={record.onClick}
-                >
-                    {record.content}
-                </Toast>
-            ))}
-        </ToastViewport>
-    )
+    // Sonner draws the toasts the `message.*` service raises (see store.ts).
+    return <Toaster />
 }
 
 // ---------------------------------------------------------------------------
@@ -201,12 +172,13 @@ function ConfirmModal({record}: {record: ConfirmRecord}) {
             }}
         >
             <AlertDialogContent
+                container={config.getContainer?.() ?? undefined}
                 // antd's confirm modals are not closable by default; `closable` opts in.
                 showCloseButton={config.closable ?? false}
                 className={cn(
-                    // antd non-centered Modals sit 100px from the top. `self-start` beats the
-                    // positioner's `items-center` without touching the shared AlertDialog.
-                    config.centered ? undefined : "self-start mt-[100px]",
+                    // Centered like every shadcn dialog; `centered: false` opts back into antd's
+                    // 100px-from-top placement (`self-start` beats the positioner's `items-center`).
+                    config.centered === false ? "self-start mt-[100px]" : undefined,
                     config.className,
                 )}
                 style={

@@ -151,6 +151,7 @@ def request_to_wire(
         "sessionId": session_id,
         "agentsMd": config.agents_md,
         "model": config.model,
+        # to_wire preserves absent versus null display_content.
         "messages": [message.to_wire() for message in messages],
         # The run's tracing inputs ride the wire grouped by role (see the trace/telemetry interface
         # restructure): `context.propagation` carries the per-call W3C trace-context headers, and
@@ -203,7 +204,11 @@ def result_from_wire(data: Dict[str, Any]) -> AgentResult:
     """
     data = get_active_redactor().redact_json(data, sink="runner_result")
     if not data.get("ok"):
-        raise AgentRunFailed(sanitize_runner_error(data.get("error")))
+        error_detail = data.get("errorDetail")
+        raise AgentRunFailed(
+            sanitize_runner_error(data.get("error")),
+            error_detail=error_detail if isinstance(error_detail, dict) else None,
+        )
 
     messages: List[Message] = []
     for raw in data.get("messages") or []:

@@ -3,15 +3,16 @@
  *
  * Settings has a table beside the drawer that already lists every connection, so there the drawer
  * is the catalog and nothing else. A playground has no such table: Connected sits above the
- * catalog and Subscriptions below it, and both stay pinned while the catalog scrolls between them.
+ * catalog and subscription cards below it, and both stay pinned while the catalog scrolls between
+ * them.
  *
- * Connected is one row per stored connection, folded into a single subtitle. Subscriptions is one
- * row per subscription × HARNESS pair — the unit models are configured for — because the same
- * ChatGPT plan read by Codex and by Pi runs two different model lists.
+ * Connected is one row per stored connection, folded into a single subtitle. The lower section
+ * holds the project's hosted ChatGPT sign-in, a Claude self-hosting link, then one row per
+ * DEPLOYMENT-mounted subscription and harness pair.
  *
  * Design: providers-drawer-final/README.md §3 ("Connected"), §5 ("Subscriptions").
  */
-import {useMemo} from "react"
+import {useMemo, type ReactNode} from "react"
 
 import {
     connectedRowSubtitle,
@@ -26,7 +27,8 @@ import {
     SUBSCRIPTION_STATUS_QUERY_HARNESS,
     subscriptionStatusQueryAtomFamily,
 } from "@agenta/entities/workflow"
-import {ArrowSquareOut, CaretRight} from "@phosphor-icons/react"
+import {Button} from "@agenta/ui/ui"
+import {CaretRight} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 
 import {harnessMetaFor} from "../DrillInView/SchemaControls/harnessMeta"
@@ -104,38 +106,21 @@ const SubscriptionRow = ({pair, onSelect}: {pair: SubscriptionPair; onSelect: ()
     </button>
 )
 
-/**
- * The row that closes the section: how a subscription gets set up at all.
- *
- * Overlapped Anthropic and OpenAI marks, because it stands for both. The whole row is the target —
- * there is nothing to configure here, only a guide to follow.
- */
-const SetupRow = ({docsUrl}: {docsUrl: string}) => (
-    <a
-        href={docsUrl}
-        target="_blank"
-        rel="noreferrer"
-        // box-border is load-bearing: preflight is off, and an <a> gets no UA border-box the way a
-        // <button> does, so `w-full` + `px-6` would measure 100% PLUS 48px and push docs off the edge.
-        className="box-border flex w-full items-center gap-3 px-6 py-2 no-underline hover:bg-colorFillQuaternary"
-    >
-        <span className="flex shrink-0 items-center">
-            {providerLogo("anthropic", "size-5 shrink-0 opacity-60")}
-            {providerLogo("openai", "-ml-2 size-5 shrink-0")}
-        </span>
-        <span className="flex min-w-0 flex-1 flex-col">
-            <span className="truncate text-xs text-colorText">
-                Set up a Claude or ChatGPT subscription
-            </span>
-            <span className="truncate text-[11px] text-colorTextTertiary">
-                Self-hosted deployments only, for now
-            </span>
-        </span>
-        <span className="flex shrink-0 items-center gap-1 whitespace-nowrap text-field-sm text-btn-link hover:text-btn-link-hover">
-            docs
-            <ArrowSquareOut size={12} />
-        </span>
-    </a>
+/** Claude uses the same card treatment as ChatGPT, but setup still happens on the deployment. */
+const ClaudeSubscriptionCard = ({docsUrl}: {docsUrl: string}) => (
+    <section className="flex flex-col gap-3 rounded-md border border-solid border-colorBorderSecondary p-4 text-xs">
+        <div className="flex items-start justify-between gap-3">
+            <div className="flex min-w-0 flex-col gap-0.5">
+                <span className="text-sm font-medium text-colorText">Claude</span>
+                <span className="text-colorTextSecondary">Self-hosted deployments only.</span>
+            </div>
+            <Button size="sm" asChild>
+                <a href={docsUrl} target="_blank" rel="noreferrer" className="no-underline">
+                    Connect Claude
+                </a>
+            </Button>
+        </div>
+    </section>
 )
 
 export interface PlaygroundConnectedSectionProps {
@@ -184,21 +169,17 @@ export const PlaygroundConnectedSection = ({
     )
 }
 
-export interface PlaygroundSubscriptionsSectionProps {
-    subscriptionDocsUrl: string
-    onSelectPair: (pair: SubscriptionPair) => void
-}
-
 /**
- * Below the catalog: nothing here is added from the drawer, so it closes the list.
+ * The logins this DEPLOYMENT mounts, as one row per subscription and harness pair.
  *
- * No status prose in the rows. A pair that is not `ready` produces no row at all — a green dot on
- * an openable row means it works, and everything short of that is what the setup row is for.
+ * Its own component so its poll only runs on a deployment that can mount a login at all. No status
+ * prose in the rows: a pair that is not `ready` produces no row, and a green dot means it works.
  */
-export const PlaygroundSubscriptionsSection = ({
-    subscriptionDocsUrl,
+const MountedSubscriptionRows = ({
     onSelectPair,
-}: PlaygroundSubscriptionsSectionProps) => {
+}: {
+    onSelectPair: (pair: SubscriptionPair) => void
+}) => {
     // One poll for the whole deployment: the runner answers for EVERY harness in a single call, and
     // the shared key keeps this surface and the pickers on one TanStack query rather than three.
     const query = useAtomValue(subscriptionStatusQueryAtomFamily(SUBSCRIPTION_STATUS_QUERY_HARNESS))
@@ -207,23 +188,38 @@ export const PlaygroundSubscriptionsSection = ({
         [query.data?.harnesses],
     )
 
-    return (
-        <div className="shrink-0 border-0 border-t border-solid border-colorSplit">
-            <SectionLabel>Subscriptions</SectionLabel>
-            {pairs?.length ? (
-                pairs.map((pair) => (
-                    <SubscriptionRow
-                        key={pair.key}
-                        pair={pair}
-                        onSelect={() => onSelectPair(pair)}
-                    />
-                ))
-            ) : (
-                <p className="m-0 px-6 pb-1 text-field-sm text-colorTextSecondary">
-                    Use your Claude or ChatGPT plan in the playground — no API key needed.
-                </p>
-            )}
-            <SetupRow docsUrl={subscriptionDocsUrl} />
-        </div>
-    )
+    if (!pairs?.length) return null
+
+    return pairs.map((pair) => (
+        <SubscriptionRow key={pair.key} pair={pair} onSelect={() => onSelectPair(pair)} />
+    ))
 }
+
+export interface PlaygroundSubscriptionsSectionProps {
+    subscriptionDocsUrl: string
+    onSelectPair: (pair: SubscriptionPair) => void
+    /**
+     * The hosted sign-in card. Both sources are subscriptions, so they share one section and one
+     * label; only this one is connected from the drawer, so it comes first. Required: it is what
+     * keeps the section from rendering a border and a label over nothing when nothing is mounted.
+     */
+    hostedCard: ReactNode
+    /** Whether this deployment can mount an operator login at all. */
+    showMounted?: boolean
+}
+
+/** Below the catalog: nothing here is added from the drawer, so it closes the list. */
+export const PlaygroundSubscriptionsSection = ({
+    subscriptionDocsUrl,
+    onSelectPair,
+    hostedCard,
+    showMounted = true,
+}: PlaygroundSubscriptionsSectionProps) => (
+    <div className="shrink-0 border-0 border-t border-solid border-colorSplit">
+        <div className="flex flex-col gap-3 px-6 py-4">
+            {hostedCard}
+            <ClaudeSubscriptionCard docsUrl={subscriptionDocsUrl} />
+        </div>
+        {showMounted ? <MountedSubscriptionRows onSelectPair={onSelectPair} /> : null}
+    </div>
+)

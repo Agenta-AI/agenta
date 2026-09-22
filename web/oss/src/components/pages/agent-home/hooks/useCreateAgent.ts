@@ -1,5 +1,10 @@
 import {useCallback} from "react"
 
+import {
+    appendSetupPreamble,
+    type AgentSetupSelection,
+    type AgentStarterTemplate,
+} from "@agenta/entities/workflow"
 import {useCreateAgent as useCreateAgentCore} from "@agenta/home-ui"
 import {projectIdAtom} from "@agenta/shared/state"
 import {App} from "antd"
@@ -25,9 +30,17 @@ interface CreateAgentParams {
      * The caller then handles placement (e.g. an in-place `setEntityIds` + shallow URL update, no
      * redirect). Omit for the default `router.push` to `/apps/<id>/playground`.
      */
-    onCommitted?: (ids: {appId: string; revisionId: string}) => void
+    onCommitted?: (ids: {appId: string; revisionId: string; sessionId?: string}) => void
     /** Mark the seed as an explicit "go" so the chat auto-sends it once the model is ready (no Start). */
     autoSendSeed?: boolean
+    /**
+     * What the pre-create setup step decided (#6043). Rides along on the seed message so the
+     * builder knows which accounts are ready, which the user declined, and how much it may do
+     * unattended — see `appendSetupPreamble`. Omitted when the step didn't run.
+     */
+    setup?: AgentSetupSelection
+    /** Starter card package to load. Omit for ordinary blank-agent creation. */
+    template?: AgentStarterTemplate
 }
 
 /**
@@ -53,8 +66,16 @@ export function useCreateAgent() {
             entityId,
             onCommitted,
             autoSendSeed,
+            setup,
+            template,
         }: CreateAgentParams = {}) => {
-            const created = await createAgent({name, entityId})
+            const created = await createAgent({
+                name,
+                entityId,
+                template,
+                initialMessage: seedMessage,
+                setup,
+            })
             if (!created) return false
 
             const {appId, revisionId} = created
@@ -72,19 +93,25 @@ export function useCreateAgent() {
                 })
             }
 
-            if (seedMessage?.trim()) {
+            const seed = setup ? appendSetupPreamble(seedMessage ?? "", setup) : (seedMessage ?? "")
+            if (!template && seed.trim()) {
                 store.set(addFirstRunSeedAtom, {
                     appId,
                     revisionId,
-                    seedMessage: seedMessage.trim(),
+                    seedMessage: seed.trim(),
                     autoSend: autoSendSeed,
                 })
             }
 
             if (onCommitted) {
-                onCommitted({appId, revisionId})
+                onCommitted({appId, revisionId, sessionId: created.sessionId})
             } else {
-                void router.push(`${baseAppURL}/${appId}/playground?revisions=${revisionId}`)
+                const session = created.sessionId
+                    ? `&session_id=${encodeURIComponent(created.sessionId)}`
+                    : ""
+                void router.push(
+                    `${baseAppURL}/${appId}/playground?revisions=${revisionId}${session}`,
+                )
             }
             return true
         },

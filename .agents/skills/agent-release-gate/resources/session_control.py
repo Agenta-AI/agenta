@@ -464,6 +464,16 @@ class DockerComposeHooks(OperatorHooks):
         )
 
     def kill_runner(self) -> None:
+        """SIGKILL the runner and bring the replacement back up. Both halves are load-bearing.
+
+        The kill must be a SIGKILL, because on SIGTERM the runner runs its shutdown handler and
+        destroys every sandbox it owns, including the one the cell is testing.
+
+        The start must be explicit, which is why this is `restart -t 0` rather than `kill`:
+        Docker treats an operator-issued kill as a manual stop and skips the `always` restart
+        policy, so a bare kill leaves the runner exited for every later cell. Do not simplify
+        this into `docker kill`.
+        """
         self.dc("restart", "-t", "0", f"{self.project}-runner-1", timeout=60)
 
     def pause_runner(self) -> None:
@@ -2041,10 +2051,17 @@ def cell_stop_approval(cfg_ask, references_ask, args, hooks: OperatorHooks) -> C
     pending = next((i for i in before if i.get("status") == "pending"), None)
     late = {"skipped": "no pending interaction was found before the Stop"}
     if pending:
+        # The durable approval path validates `Idempotency-Key` BEFORE it decides whether the
+        # execution is still continuable, so an answer without that header comes back 422 and
+        # can never reach the 409 this cell asserts. A real browser always sends one. Without
+        # it the cell reported a false FAIL on every deployment with durable approvals on
+        # (release v0.117.0 QA, staging and the local stack, both cleared by adding it).
+        # The key is stable per interaction so a retry of the same late answer stays idempotent.
         r = api(
             "POST",
             f"/sessions/interactions/{pending['id']}/respond",
             json={"answer": {"approved": True}},
+            headers={"Idempotency-Key": f"stop-approval-late-{pending['id']}"},
         )
         late = {"status": r.status_code, "body": r.text[:300]}
     denied = assistant_message(t1)
@@ -2099,8 +2116,14 @@ def _judge_stop_approval(evidence: dict, *, pending_found: bool) -> dict:
         )
     late = evidence["late_answer"]
     if durable_stop == "on" and late.get("status") != 409:
+        hint = ""
+        if late.get("status") == 422:
+            hint = (
+                "; a 422 here means the answer carried no Idempotency-Key, which the durable "
+                "path validates before it looks at whether the execution is continuable"
+            )
         return _fail(
-            f"the late approval answer returned HTTP {late.get('status')}, expected 409"
+            f"the late approval answer returned HTTP {late.get('status')}, expected 409{hint}"
         )
     if durable_stop == "off":
         if late.get("status") != 200:

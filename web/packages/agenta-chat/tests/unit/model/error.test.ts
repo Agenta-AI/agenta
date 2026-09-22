@@ -36,6 +36,47 @@ describe("parseAgentRunError", () => {
         })
     })
 
+    it("prefers the failure class over the HTTP status", () => {
+        // Connection resolution runs before the stream opens, so a not-ready subscription can
+        // only be reported through this envelope. `422` alone cannot tell the bubble to offer
+        // Sign in again; the slug can, and it is the same word the in-stream frame carries.
+        const raw = JSON.stringify({
+            status: {
+                code: 422,
+                failure_code: "subscription_login_required",
+                message: "The ChatGPT sign-in is not ready. Sign in from AI providers.",
+            },
+        })
+        expect(parseAgentRunError(raw)).toEqual({
+            message: "The ChatGPT sign-in is not ready. Sign in from AI providers.",
+            code: "subscription_login_required",
+        })
+    })
+
+    it("keeps the HTTP status when the envelope names no failure class", () => {
+        // `failure_code` is opt-in on the server, so every older error must parse as before.
+        const raw = JSON.stringify({status: {code: 422, message: "no usable credential"}})
+        expect(parseAgentRunError(raw)).toEqual({message: "no usable credential", code: 422})
+    })
+
+    it("ignores a failure class that is not a slug", () => {
+        const raw = JSON.stringify({status: {code: 422, failure_code: 17, message: "Boom"}})
+        expect(parseAgentRunError(raw)).toEqual({message: "Boom", code: 422})
+    })
+
+    it("keeps the continuation race class ahead of a failure class", () => {
+        // The type-URL rule is the older contract and names the same event more precisely.
+        const raw = JSON.stringify({
+            status: {
+                type: "https://agenta.ai/docs/errors#continuation-resumed",
+                code: 409,
+                failure_code: "something_else",
+                message: "The durable continuation owns this session.",
+            },
+        })
+        expect(parseAgentRunError(raw).code).toBe("continuation_resumed")
+    })
+
     it("falls back to a top-level message when there's no status wrapper", () => {
         const raw = JSON.stringify({message: "Top level"})
         expect(parseAgentRunError(raw)).toEqual({message: "Top level", code: undefined})

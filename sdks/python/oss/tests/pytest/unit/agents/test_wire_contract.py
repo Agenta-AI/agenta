@@ -23,6 +23,7 @@ from agenta.sdk.redaction.context import redaction_context
 from agenta.sdk.redaction.redactor import Redactor
 
 from agenta.sdk.agents import (
+    AgentRunFailed,
     AgentTemplate,
     ClaudeAgentTemplate,
     CodexAgentTemplate,
@@ -387,6 +388,64 @@ def _attachment_payload():
     )
 
 
+#: The login the hosted-subscription golden carries. Not a credential: every value is a literal.
+_SUBSCRIPTION_LOGIN = {
+    "type": "oauth",
+    "access": "access-token",
+    "refresh": "refresh-token",
+    "expires": 1789000000000,
+    "accountId": "acct-1",
+}
+
+
+def _subscription_connection_payload():
+    """A Pi run authenticated by a hosted subscription instead of an API key.
+
+    The harness still owns authentication (``runtime_provided``, no credentials), and Agenta
+    delivers the login it signs in with. This is the only wire shape that carries a login, so
+    the golden is the anchor the runner's own mirror is asserted against.
+    """
+    from agenta.sdk.agents.connections import Connection, ResolvedSubscription
+    from agenta.sdk.agents.dtos import ModelRef
+
+    config = PiAgentTemplate(
+        agents_md="You are a helpful assistant.",
+        model="openai-codex/gpt-5.5",
+        model_ref=ModelRef(
+            model="gpt-5.5",
+            provider="openai-codex",
+            connection=Connection(mode="self_managed", slug="chatgpt"),
+        ),
+        resolved_connection=ResolvedConnection(
+            provider="openai-codex",
+            model="gpt-5.5",
+            credential_mode="runtime_provided",
+            subscription=ResolvedSubscription(
+                id="0199-secret-id",
+                slug="chatgpt",
+                provider="chatgpt",
+                version=3,
+                generation=1,
+                login=dict(_SUBSCRIPTION_LOGIN),
+            ),
+        ),
+    )
+    return request_to_wire(
+        harness=HarnessKind.PI,
+        sandbox="local",
+        config=config,
+        messages=[Message(role="user", content="hi")],
+        session_id=None,
+    )
+
+
+def test_request_to_wire_subscription_connection_matches_golden(golden):
+    """The hosted-subscription run's whole payload, login included (contracts section 1)."""
+    payload = _subscription_connection_payload()
+    assert payload == golden("run_request.subscription_connection.json")
+    assert set(payload) <= KNOWN_REQUEST_KEYS
+
+
 def test_request_to_wire_gateway_connection_matches_golden(golden):
     """The connection run's whole payload, including ``gatewayPolicy`` (contracts section 5)."""
     payload = _gateway_connection_payload()
@@ -429,6 +488,10 @@ def test_request_to_wire_omits_gateway_policy_without_a_connection(golden):
         ("run_request.claude.json", _claude_payload()),
         ("run_request.codex.json", _codex_payload()),
         ("run_request.attachment.json", _attachment_payload()),
+        (
+            "run_request.subscription_connection.json",
+            _subscription_connection_payload(),
+        ),
     ):
         assert "gatewayPolicy" not in payload
         assert "gatewayPolicy" not in golden(name)
@@ -925,8 +988,7 @@ def test_request_to_wire_codex_matches_golden(golden):
 
 
 def test_request_to_wire_codex_renders_config_toml_from_authored_options():
-    # The Milestone 1 authoring schema does not yet carry these keys. That support lands in the
-    # permissions milestone, so this test drives the pass-through directly to pin the rendering.
+    # This test drives the pass-through directly to pin the rendering.
     # No resolved connection is threaded here, so the run defaults to MANAGED (file-free auth): the
     # config gains the `model_provider` pointer + the custom provider table (env_key OPENAI_API_KEY)
     # around the authored scalars (D-002 final ruling).
@@ -1010,6 +1072,43 @@ def test_request_to_wire_codex_subscription_renders_no_provider_block():
         messages=[Message(role="user", content="hi")],
     )
     assert "harnessFiles" not in payload
+
+
+def test_request_to_wire_codex_gateway_route_renders_base_url_and_headers():
+    # A gateway-routed resolved connection threads endpoint.base_url and the gateway
+    # credential's HEADER NAME (never its value) onto config.toml.
+    from agenta.sdk.agents.connections.models import GatewayCredentials
+
+    config = CodexAgentTemplate(
+        model="openai/gpt-5.5",
+        resolved_connection=ResolvedConnection(
+            provider="openai",
+            model="gpt-5.5",
+            deployment="custom",
+            credential_mode="none",
+            endpoint=Endpoint(
+                base_url="https://gw.example.com/gateways/llms/standard/openai"
+            ),
+            gateway_credentials=GatewayCredentials(
+                header="X-AG-Credentials", value="ApiKey mock-gateway-credentials"
+            ),
+        ),
+    )
+    payload = request_to_wire(
+        harness=HarnessKind.CODEX,
+        sandbox="local",
+        config=config,
+        messages=[Message(role="user", content="hi")],
+    )
+    content = payload["harnessFiles"][0]["content"]
+    assert (
+        'base_url = "https://gw.example.com/gateways/llms/standard/openai"' in content
+    )
+    assert (
+        'env_http_headers = { "X-AG-Credentials" = "AGENTA_GATEWAY_CREDENTIALS_VALUE" }'
+        in content
+    )
+    assert "ApiKey mock-gateway-credentials" not in content
 
 
 def test_author_permission_rules_exclude_mcp_from_wire_but_keep_settings():
@@ -1194,6 +1293,41 @@ def test_request_to_wire_carries_consumer_owned_model_connection():
         assert removed not in payload
 
 
+def test_request_to_wire_carries_the_hosted_subscription_block():
+    # A hosted subscription run: the harness still owns authentication (runtime_provided, no
+    # credentials), and Agenta delivers the login the harness signs in with.
+    login = dict(_SUBSCRIPTION_LOGIN)
+    payload = _subscription_connection_payload()
+
+    assert set(payload) <= KNOWN_REQUEST_KEYS
+    assert payload["model"] == "openai-codex/gpt-5.5"
+    # The author's choice still rides `connection`; the resolved login rides `modelConnection`.
+    assert payload["connection"] == {"mode": "self_managed", "slug": "chatgpt"}
+    assert payload["modelConnection"] == {
+        "provider": "openai-codex",
+        "deployment": "direct",
+        "credentialMode": "runtime_provided",
+        "credentials": [],
+        "subscription": {
+            "id": "0199-secret-id",
+            "slug": "chatgpt",
+            "provider": "chatgpt",
+            "version": 3,
+            "generation": 1,
+            "login": login,
+        },
+    }
+    # The schema must describe what the producer emits, or the runner mirror drifts. The login is
+    # a typed model, so a producer that dropped one of its four required fields fails right here.
+    parsed = WireRunRequest.model_validate(payload)
+    assert parsed.model_connection is not None
+    subscription = parsed.model_connection.subscription
+    assert subscription is not None
+    assert subscription.version == 3
+    assert subscription.generation == 1
+    assert subscription.login.model_dump(by_alias=True) == login
+
+
 @pytest.mark.parametrize(
     ("provider", "model", "expected"),
     [
@@ -1292,6 +1426,54 @@ def test_result_from_wire_parses_ok(golden):
 def test_result_from_wire_raises_on_failure(golden):
     with pytest.raises(RuntimeError, match="model exploded"):
         result_from_wire(golden("run_result.error.json"))
+
+
+def test_result_from_wire_carries_gateway_error_detail(golden):
+    # A gateway refusal survives on AgentRunFailed as structured data, not only as a string.
+    with pytest.raises(AgentRunFailed) as excinfo:
+        result_from_wire(golden("run_result.error_detail.json"))
+    exc = excinfo.value
+    assert exc.error_detail is not None
+    assert exc.error_detail["code"] == "model_not_allowed"
+    assert exc.error_detail["retryable"] is False
+    assert exc.error_detail["next_step"] == "choose a model the connection allows"
+    # failure_code takes the specific cause, not the generic default.
+    assert exc.failure_code == "model_not_allowed"
+
+
+def test_result_from_wire_error_detail_absent_for_a_plain_failure(golden):
+    with pytest.raises(AgentRunFailed) as excinfo:
+        result_from_wire(golden("run_result.error.json"))
+    exc = excinfo.value
+    assert exc.error_detail is None
+    assert exc.failure_code == "agent_run_failed"
+
+
+@pytest.mark.parametrize(
+    "error_detail", ["not an envelope", ["not", "an", "envelope"], 1]
+)
+def test_result_from_wire_ignores_malformed_gateway_error_detail(error_detail):
+    with pytest.raises(AgentRunFailed) as excinfo:
+        result_from_wire(
+            {
+                "ok": False,
+                "error": "gateway failed",
+                "errorDetail": error_detail,
+            }
+        )
+
+    assert excinfo.value.error_detail is None
+    assert excinfo.value.failure_code == "agent_run_failed"
+
+
+@pytest.mark.parametrize(
+    "error_detail", ["not an envelope", ["not", "an", "envelope"], 1]
+)
+def test_agent_run_failed_ignores_malformed_error_detail(error_detail):
+    error = AgentRunFailed("runner failed", error_detail=error_detail)  # type: ignore[arg-type]
+
+    assert error.error_detail is None
+    assert error.failure_code == "agent_run_failed"
 
 
 def test_sanitize_runner_error_passes_clean_message_through():
@@ -1623,3 +1805,27 @@ def test_request_to_wire_carries_only_rendered_turn_context():
     assert payload["turnContext"] == context
     assert "sessionContext" not in payload
     assert payload["messages"] == [{"role": "user", "content": "hi"}]
+
+
+def test_display_content_survives_sdk_and_wire_conversion(golden):
+    from agenta.sdk.agents.adapters.vercel.messages import (
+        message_to_vercel_ui_message,
+        vercel_messages_to_agenta_messages,
+    )
+
+    cases = golden("message_display.json")
+    messages = [Message.from_raw(raw) for raw in cases]
+    payload = request_to_wire(
+        harness=HarnessKind.PI,
+        sandbox="local",
+        config=PiAgentTemplate(),
+        messages=messages,
+    )
+    assert payload["messages"] == cases
+    for raw, message in zip(cases, messages):
+        ui = message_to_vercel_ui_message(message)
+        restored = vercel_messages_to_agenta_messages([ui])[0]
+        assert restored.to_wire() == raw
+    from agenta.sdk.agents.wire_models import WireChatMessage
+
+    assert "display_content" in WireChatMessage.model_fields

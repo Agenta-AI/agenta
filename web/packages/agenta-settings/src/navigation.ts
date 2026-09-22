@@ -5,8 +5,8 @@ export type SettingsTabKey =
     | "secrets"
     | "llms"
     | "tools"
-    | "triggers"
     | "webhooks"
+    | "mcpEndpoints"
     | "workspace"
     | "projects"
     | "organizationGeneral"
@@ -20,8 +20,9 @@ export type SettingsScopeKey = "project" | "organization" | "personal"
 
 export interface SettingsAccess {
     billingEnabled: boolean
+    /** Whether this deployment serves the MCP gateway the endpoints tab manages. */
+    canShowMcpEndpoints: boolean
     canShowTools: boolean
-    canShowTriggers: boolean
     canViewApiKeys: boolean
     canViewEvents: boolean
     isEE: boolean
@@ -76,16 +77,16 @@ export const SETTINGS_TABS: SettingsTabDefinition[] = [
         docs: {label: "About tools", href: `${DOCS_BASE}/concepts/tools-and-integrations`},
     },
     {
-        key: "triggers",
-        scope: "project",
-        description: "Run agents automatically from schedules or events.",
-        docs: {label: "About automations", href: `${DOCS_BASE}/concepts/automations`},
-    },
-    {
         key: "webhooks",
         scope: "project",
         description:
             "Send workflow events to your own HTTP endpoints, with signed payloads and delivery retries.",
+    },
+    {
+        key: "mcpEndpoints",
+        scope: "project",
+        description:
+            "MCP servers connected to this project. Each agent chooses which of these to use and what it may run.",
     },
     {
         key: "organizationGeneral",
@@ -162,8 +163,8 @@ const SETTINGS_LABELS: Record<Exclude<SettingsTabKey, "billing">, string> = {
     // The tab key stays `llms` so existing `?tab=llms` links keep working.
     llms: "AI providers",
     tools: "Tools",
-    triggers: "Triggers",
     webhooks: "Webhooks",
+    mcpEndpoints: "MCPs",
     workspace: "Members",
     projects: "Projects",
     organizationGeneral: "Organizations",
@@ -199,8 +200,8 @@ export const isSettingsTabVisible = (key: SettingsTabKey, access: SettingsAccess
             return access.canViewApiKeys
         case "tools":
             return access.canShowTools
-        case "triggers":
-            return access.canShowTriggers
+        case "mcpEndpoints":
+            return access.canShowMcpEndpoints
         case "organization":
             return access.isEE && access.isOwner
         case "auditLog":

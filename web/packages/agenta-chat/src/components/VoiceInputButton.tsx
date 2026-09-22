@@ -226,10 +226,11 @@ const VoiceInputButton = ({
                     // A second press while the prompt is open would only queue another request.
                     disabled={disabled || audioPending || audioBlocked}
                     aria-label={dictating ? "Stop voice input" : (title ?? MODE_HINT[effective])}
-                    className={highlighted ? "animate-pulse" : undefined}
                 >
                     {/* While dictating the button's job is to stop, so it shows that instead of
-                        the mode it was started from. */}
+                        the mode it was started from. It does not pulse: the waveform beside it is
+                        already saying a voice is coming in, and two things throbbing at once made
+                        the stop control read as a status light rather than a button. */}
                     {dictating ? (
                         <StopCircle size={16} weight="fill" />
                     ) : (

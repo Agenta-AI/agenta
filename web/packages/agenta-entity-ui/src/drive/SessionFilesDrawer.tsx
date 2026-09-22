@@ -9,7 +9,7 @@
  */
 import {useMemo} from "react"
 
-import {AGENT_FILES_DIR, type DroppedFile} from "@agenta/entities/drive"
+import {AGENT_FILES_DIR, cleanPath, type DroppedFile} from "@agenta/entities/drive"
 import {useSessionDriveSummary} from "@agenta/entities/drive"
 import {drivePathFromToolPath} from "@agenta/entities/session"
 import {atom, useAtom} from "jotai"
@@ -51,7 +51,14 @@ export const matchesTail = (filePath: string, requested: string): boolean =>
 export const resolveQuickLookPath = (recents: {path: string}[], requested: string): string => {
     const resolved = drivePathFromToolPath(requested)
     if (requested.startsWith("/")) {
-        if (!resolved) return requested
+        if (!resolved) {
+            // A presented path written absolute (`/agent-files/x`) is the drive's own, not `/etc/x`.
+            const presented = cleanPath(requested)
+            const known =
+                presented.startsWith(`${AGENT_FILES_DIR}/`) ||
+                recents.some((f) => f.path === presented)
+            return known ? presented : requested
+        }
         // The agent mount is presented folded under `agent-files/`, except on a drive that IS the
         // agent mount, which presents it at the root. Try both spellings, then fall back to the
         // folded one — `resolveMount` unfolds it again, so it resolves either way.

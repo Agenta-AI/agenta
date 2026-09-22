@@ -6,6 +6,7 @@ import {
     SessionTab,
     SessionTabDragItem,
     SessionTabStrip,
+    withSessionShortcutKeys,
     withShortcutKey,
     type MenuSelect,
 } from "@agenta/sessions-ui"
@@ -107,7 +108,7 @@ interface SessionTagProps {
     // would change identity every render and drag each chip's Tooltip/Button subtree with them.
     onSelect: (id: string) => void
     onClose: (id: string) => void
-    onRename: (id: string, title: string) => void
+    onRename: (id: string, title: string) => void | boolean | Promise<boolean | void>
     /** Right-click actions, from the shared `useSessionActions` set. */
     menu: {items: SessionMenuItem[]; onClick: MenuSelect}
 }
@@ -263,7 +264,7 @@ export interface SessionTagBarProps {
     onClose: (id: string) => void
     /** Bulk closes from a tab's context menu ("Close other tabs" / "Close tabs to the right"). */
     onCloseMany?: (ids: string[]) => void
-    onRename: (id: string, title: string) => void
+    onRename: (id: string, title: string) => void | boolean | Promise<boolean | void>
     /** Right-aligned extras (e.g. the session-history menu). */
     extra?: React.ReactNode
     /** Left-aligned extra (the config-panel reveal control) — rendered at the strip's leading
@@ -329,22 +330,17 @@ const SessionTagBar = ({
             })
             return {
                 items: [
-                    ...menuItems(target).map((entry) => {
-                        if ("key" in entry && entry.key === "rename") {
-                            return {...entry, label: withShortcutKey(entry.label, "session.rename")}
-                        }
-                        if ("key" in entry && entry.key === "archive") {
-                            return {
-                                ...entry,
-                                label: withShortcutKey(entry.label, "session.archive"),
-                            }
-                        }
-                        return entry
+                    ...withSessionShortcutKeys(menuItems(target), {
+                        isActive: session.id === activeId,
                     }),
                     {type: "divider" as const},
                     {
                         key: "close",
-                        label: withShortcutKey("Close", "session.close"),
+                        // Alt+W closes the ACTIVE session too, so the keycap stays on its chip.
+                        label:
+                            session.id === activeId
+                                ? withShortcutKey("Close", "session.close")
+                                : "Close",
                         icon: <X size={14} />,
                         disabled: sessions.length <= 1,
                     },
@@ -373,7 +369,17 @@ const SessionTagBar = ({
                 },
             }
         },
-        [isPinned, menuItems, onClose, onCloseMany, onMenuClick, requestRename, scope, sessions],
+        [
+            activeId,
+            isPinned,
+            menuItems,
+            onClose,
+            onCloseMany,
+            onMenuClick,
+            requestRename,
+            scope,
+            sessions,
+        ],
     )
     // Session ids present when the bar first mounted. Seeded once; NOT topped up, so an id that
     // appears later reads as "added after mount" and scrolls smoothly (see SessionTag).

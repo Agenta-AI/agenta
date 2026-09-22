@@ -147,6 +147,7 @@ export {
     describeMcp,
     describeSkill,
     describeTool,
+    skillCommandName,
     staticEmbedSlug,
     toolName,
 } from "./agentTemplate/itemDescriptors"

@@ -43,6 +43,14 @@ const CAPABILITIES: HarnessCapabilitiesMap = {
             anthropic: ["anthropic/claude-opus-4-7"],
             gemini: ["gemini/gemini-2.5-pro"],
         },
+        // The shipped catalog publishes user MCP servers for Pi too: the Agenta Pi extension is
+        // Pi's MCP client and consumes registered gateway routes.
+        mcp: {
+            user_servers: {
+                connection_types: ["http"],
+                credentials: ["none", "header_secret_refs"],
+            },
+        },
     },
     claude: {
         providers: ["anthropic"],
@@ -137,7 +145,7 @@ describe("connectionUtils: composeModelValue (always a ModelRef)", () => {
         })
     })
 
-    it("omits the slug for a self_managed connection", () => {
+    it("writes no slug for a self_managed run that names no record", () => {
         expect(
             composeModelValue({
                 modelId: "opus",
@@ -146,6 +154,23 @@ describe("connectionUtils: composeModelValue (always a ModelRef)", () => {
                 slug: null,
             }),
         ).toEqual({model: "opus", provider: "anthropic", connection: {mode: "self_managed"}})
+    })
+
+    it("writes the slug for a hosted subscription, which is self_managed AND a record", () => {
+        // The resolver selects the stored sign-in by this slug. Without it the run falls back to
+        // whatever login the deployment mounted, which on cloud is none.
+        expect(
+            composeModelValue({
+                modelId: "gpt-5.6-sol",
+                provider: "openai-codex",
+                mode: "self_managed",
+                slug: "chatgpt",
+            }),
+        ).toEqual({
+            model: "gpt-5.6-sol",
+            provider: "openai-codex",
+            connection: {mode: "self_managed", slug: "chatgpt"},
+        })
     })
 
     it("round-trips a structured object through the helpers", () => {
@@ -180,7 +205,9 @@ describe("connectionUtils: composeModelValue (always a ModelRef)", () => {
 describe("connectionUtils: capability gating (inspect-fed)", () => {
     it("shows external MCP authoring only when the harness publishes it", () => {
         expect(harnessSupportsUserMcp(CAPABILITIES, "claude")).toBe(true)
-        expect(harnessSupportsUserMcp(CAPABILITIES, "pi_core")).toBe(false)
+        expect(harnessSupportsUserMcp(CAPABILITIES, "pi_core")).toBe(true)
+        // A harness that publishes no `mcp` block at all still hides the section.
+        expect(harnessSupportsUserMcp(CAPABILITIES, "pi_openai_compat")).toBe(false)
         expect(harnessSupportsUserMcp(null, "claude")).toBe(false)
     })
 

@@ -39,6 +39,8 @@ export interface SidebarConfig {
     isGroupLabel?: boolean
     /** Collapsible heading only: whether its rows are folded away. Drives the caret. */
     isCollapsed?: boolean
+    /** Collapsible heading only: a trailing "+" that links somewhere (an agent's new session). */
+    groupAdd?: {link: string; label: string; onClick?: (event: MouseEvent) => void}
     /** Render the item normally but suppress its navigation — clicking it is a no-op (current location). */
     inert?: boolean
     /** Route prefixes that select this row; empty opts it out of matching. Defaults to `[link]`. */
@@ -63,6 +65,8 @@ export interface SidebarConfig {
      * and scrolls inside itself, so the entries after it stay on screen however long it grows.
      * Opt-in — a rail with no such group keeps scrolling as a whole. */
     scrollChildren?: boolean
+    /** Scrolled near the end of a `scrollChildren` group — load the next page. */
+    onReachEnd?: () => void
     /** Workflow categories that support this item. Omit to support every category. */
     workflowCategories?: readonly SidebarWorkflowCategory[]
 }

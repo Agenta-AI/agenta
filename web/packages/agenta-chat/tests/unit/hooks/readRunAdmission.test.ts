@@ -27,7 +27,39 @@ const watcher = () => ({
     onFailed: vi.fn(),
 })
 
+const status = (phase: string) =>
+    `data: ${JSON.stringify({type: "data-agent-status", data: {phase}})}\n`
+
 describe("readRunAdmission", () => {
+    it("narrates the startup phases, before and after acceptance, and accepts only once", async () => {
+        const w = {...watcher(), onStartupPhase: vi.fn()}
+        await readRunAdmission(
+            streamOf([
+                status("environment_starting"),
+                accepted("turn-0"),
+                status("preparing_workspace"),
+                accepted("turn-0"),
+                `data: ${JSON.stringify({type: "error", errorText: "late"})}\n`,
+                status("environment_ready"),
+            ]),
+            w,
+        )
+        expect(w.onStartupPhase.mock.calls.map(([label]) => label)).toEqual([
+            "Getting things ready",
+            "Loading details",
+            "Ready",
+        ])
+        expect(w.onAccepted).toHaveBeenCalledTimes(1)
+        expect(w.onFailed).not.toHaveBeenCalled()
+    })
+
+    it("reads a status frame that shares the acceptance's chunk", async () => {
+        const w = {...watcher(), onStartupPhase: vi.fn()}
+        await readRunAdmission(streamOf([accepted("turn-0") + status("environment_ready")]), w)
+        expect(w.onStartupPhase).toHaveBeenCalledWith("Ready")
+        expect(w.onAccepted).toHaveBeenCalledTimes(1)
+    })
+
     it("reports the accepted turn id", async () => {
         const w = watcher()
         await readRunAdmission(streamOf([accepted("turn-1"), "data: {}\n"]), w)
@@ -54,9 +86,9 @@ describe("readRunAdmission", () => {
 
     it("reads a final frame with no trailing newline", async () => {
         const w = watcher()
-        await expect(readRunAdmission(streamOf([accepted("turn-4").trimEnd()]), w)).resolves.toBe(
-            true,
-        )
+        await expect(
+            readRunAdmission(streamOf([accepted("turn-4").trimEnd()]), w),
+        ).resolves.toEqual({accepted: true, ended: true})
         expect(w.onAccepted).toHaveBeenCalledWith("turn-4")
     })
 
@@ -65,17 +97,34 @@ describe("readRunAdmission", () => {
         // reported nothing without a newline and onFailed with one.
         const w = watcher()
         const frame = `data: ${JSON.stringify({type: "error", errorText: "refused"})}`
-        await expect(readRunAdmission(streamOf([frame]), w)).resolves.toBe(false)
+        await expect(readRunAdmission(streamOf([frame]), w)).resolves.toEqual({
+            accepted: false,
+            ended: true,
+        })
         expect(w.onFailed).toHaveBeenCalledTimes(1)
     })
 
     it("reports whether the turn was named, which is what gates settlement", async () => {
         const ok = watcher()
-        await expect(readRunAdmission(streamOf([accepted("turn-7")]), ok)).resolves.toBe(true)
+        await expect(readRunAdmission(streamOf([accepted("turn-7")]), ok)).resolves.toEqual({
+            accepted: true,
+            ended: true,
+        })
         const silent = watcher()
         await expect(
             readRunAdmission(streamOf(['data: {"type":"start"}\n']), silent),
-        ).resolves.toBe(false)
+        ).resolves.toEqual({accepted: false, ended: true})
+    })
+
+    it("reports a connection that dropped after acceptance as not ended", async () => {
+        // The turn may still be running on the server; its row is saved and the liveness poll
+        // reads it later. Neither a failure nor an ending, so nothing settles on it.
+        const w = watcher()
+        await expect(
+            readRunAdmission(streamOf([accepted("turn-10")], new Error("network")), w),
+        ).resolves.toEqual({accepted: true, ended: false})
+        expect(w.onAccepted).toHaveBeenCalledWith("turn-10")
+        expect(w.onFailed).not.toHaveBeenCalled()
     })
 
     it("reports failure for an error frame before acceptance", async () => {
@@ -147,7 +196,7 @@ describe("readRunAdmission", () => {
             w,
         )
         expect(w.onFailed).not.toHaveBeenCalled()
-        expect(result).toBe(false)
+        expect(result).toEqual({accepted: false, ended: true})
     })
 
     // The competing-turn refusal in services/runner/src/server.ts persists nothing, and it reaches
@@ -201,7 +250,7 @@ describe("readRunAdmission", () => {
         )
         expect(w.onAccepted).toHaveBeenCalledWith("turn-9")
         expect(w.onFailed).not.toHaveBeenCalled()
-        expect(result).toBe(true)
+        expect(result).toEqual({accepted: true, ended: true})
     })
 
     it("does not read a failure after acceptance as a refused send", async () => {

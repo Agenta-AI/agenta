@@ -16,6 +16,9 @@ export interface AgentConfigSummary {
     /** The brief itself, raw — `InstructionsFileRow` derives its own preview from the markdown. */
     instructions: string | null
     tools: number
+    /** The integration behind each gateway-connection tool (`linear`, `github`), in tool order,
+     * deduplicated — so an overview can show the marks rather than only the count. */
+    integrationKeys: string[]
     mcps: number
     skills: number
     /** Display names of the agent's skills (embed refs by their sibling name/slug, inline
@@ -45,6 +48,12 @@ const skillName = (entry: unknown): string | null => {
     return slug
 }
 
+/** A gateway-connection tool's integration key; null for a custom or builtin tool. */
+const integrationKey = (entry: unknown): string | null =>
+    isRecord(entry) && entry.type === "gateway_connection"
+        ? str(nested(entry, "connection")?.integration)
+        : null
+
 const nested = (parent: unknown, key: string): Record<string, unknown> | null => {
     if (!isRecord(parent)) return null
     const child = parent[key]
@@ -70,6 +79,13 @@ export function agentConfigSummary(parameters: unknown): AgentConfigSummary {
         instructionWords: instructions ? instructions.split(/\s+/).filter(Boolean).length : null,
         instructions,
         tools: count(agent.tools),
+        integrationKeys: Array.isArray(agent.tools)
+            ? [
+                  ...new Set(
+                      agent.tools.map(integrationKey).filter((key): key is string => Boolean(key)),
+                  ),
+              ]
+            : [],
         mcps: count(agent.mcps),
         skills: count(agent.skills),
         skillNames: Array.isArray(agent.skills)
@@ -79,3 +95,101 @@ export function agentConfigSummary(parameters: unknown): AgentConfigSummary {
         permissions: prettifyKind(str(nested(nested(agent, "runner"), "permissions")?.default)),
     }
 }
+
+/**
+ * What the MCP servers row says, on every summary card in both apps.
+ *
+ * "configured", not "connected": this counts the servers on the agent, and whether each one
+ * is authorized is a live fact no summary card holds. Saying "connected" claimed the
+ * authorized state for a disconnected server, in the one word the rest of the product now
+ * reserves for it (round 4, D5). The rule lives here because the mobile card is a fork of
+ * the shared one and drifted back to the wrong word once already.
+ */
+export const mcpSummaryDetail = (mcps: number, {canEdit = false} = {}): string =>
+    mcps ? `${mcps} configured` : canEdit ? "Connect a server" : "None configured"
+
+/**
+ * What the skills row says. Same shape as the MCP row's, and here for the same reason: an empty
+ * row on a card whose rows open the editor has to offer the action, not report the absence. The
+ * mobile card said "No skills" beside its own "Add instructions", which is the drift this stops.
+ */
+export const skillsSummaryDetail = (skills: number, {canEdit = false} = {}): string =>
+    skills
+        ? `${skills} ${skills === 1 ? "skill" : "skills"}`
+        : canEdit
+          ? "Add skills"
+          : "None available"
+
+/**
+ * What the instructions row says. `AGENTS.md · 28 words`, or the action when there is no brief.
+ * The mobile card abbreviated the count to `28w` for a narrow row, which is a different string
+ * for the same fact and the kind of difference nothing was watching.
+ */
+export const instructionsSummaryDetail = (words: number | null, {canEdit = false} = {}): string =>
+    words ? `AGENTS.md · ${words} words` : canEdit ? "Add instructions" : "No instructions"
+
+/**
+ * The tools row's wording. Its noun is the one thing each host names for itself: the playground
+ * calls them tools and the mobile overview calls them integrations. Everything else about the row
+ * comes from here, so an empty row cannot offer an action on one app and report a fact on the
+ * other.
+ */
+export interface AgentConfigToolsCopy {
+    toolsTitle: string
+    toolsCount: (count: number) => string
+    toolsAdd: string
+    toolsNone: string
+}
+
+export const toolsCopyFor = (noun: string, plural: string): AgentConfigToolsCopy => ({
+    toolsTitle: plural,
+    toolsCount: (count) => `${count} enabled`,
+    toolsAdd: `Add ${noun}`,
+    toolsNone: `No ${noun}`,
+})
+
+/** The playground's own nouns, and the default every host gets. */
+export const DEFAULT_TOOLS_COPY: AgentConfigToolsCopy = {
+    ...toolsCopyFor("tools", "Tools"),
+    toolsNone: "None enabled",
+}
+
+/**
+ * The rows every agent summary card shows, in order, with the title each one carries.
+ *
+ * The two cards are not one component: the desktop one renders the playground panel's
+ * accordion sections and the mobile one renders the overview rail's own shell, which its two
+ * sibling cards share so the three read as one column. What must not differ is WHICH rows there
+ * are and what they are called. The mobile card was missing `permissions` entirely and had
+ * drifted on the MCP row's wording, which is the same failure twice, so the vocabulary lives
+ * here and both cards read it.
+ *
+ * The tools row's noun is the one variable: the mobile card calls it Integrations.
+ */
+export const AGENT_CONFIG_ROW_KEYS = [
+    "model",
+    "instructions",
+    "tools",
+    "mcps",
+    "skills",
+    "permissions",
+] as const
+
+export type AgentConfigRowKey = (typeof AGENT_CONFIG_ROW_KEYS)[number]
+
+export const AGENT_CONFIG_ROW_TITLES: Record<AgentConfigRowKey, string> = {
+    model: "Model",
+    instructions: "Instructions",
+    tools: "Tools",
+    mcps: "MCP servers",
+    skills: "Skills",
+    permissions: "Permissions",
+}
+
+/**
+ * What the permissions row says. "Not set" rather than a blank: a revision written before the
+ * field existed has no default, and an empty right-hand side reads as a value that failed to
+ * load.
+ */
+export const permissionsSummaryDetail = (permissions: string | null): string =>
+    permissions || "Not set"

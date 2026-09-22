@@ -13,9 +13,12 @@ export {
     fetchInteraction,
     respondInteraction,
     transitionInteraction,
+    interactionConflictCode,
     isInteractionConflict,
+    isSettledInteractionConflict,
     querySessionStreams,
     querySessionsPage,
+    querySessionsFlatPage,
     querySessions,
     setSessionHeader,
     fetchSessionStream,
@@ -162,6 +165,9 @@ export {
     type SessionInteractionRowStates,
 } from "./state/interactionStatus"
 export {
+    APPROVAL_NOT_PENDING,
+    ApprovalNotPendingError,
+    isApprovalNotPendingError,
     recordInteractionAnswerAtom,
     respondInteractionAnswerAtom,
     respondInteractionAnswersAtom,
@@ -205,3 +211,12 @@ export {
     isSessionFresh,
     markSessionFresh,
 } from "./core/freshSessions"
+export {
+    dropUnacceptedLocalSessionAtom,
+    forgetLocalSessionsAtom,
+    localSessionNameFromText,
+    localSessionsAtom,
+    markLocalSessionAcceptedAtom,
+    registerLocalSessionAtom,
+    type LocalSession,
+} from "./core/localSessions"

@@ -9,7 +9,7 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from "@agenta/ui/ui"
-import {DotsThreeIcon, Note, PencilSimple, Rocket, Trash} from "@phosphor-icons/react"
+import {Archive, DotsThreeIcon, Note, PencilSimple, Rocket} from "@phosphor-icons/react"
 
 import {useAgentIconChrome} from "./agentIcon"
 import {Tip} from "./Tip"
@@ -163,9 +163,11 @@ export const AgentCard = ({
                 </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" onClick={(event) => event.stopPropagation()}>
+                {/* The same words and marks [[AgentActionsMenu]] uses: one object, one set of
+                    verbs, whichever surface offers them. */}
                 <DropdownMenuItem onSelect={onOpenOverview}>
                     <Note size={16} />
-                    Open overview
+                    Open configuration
                 </DropdownMenuItem>
                 {onOpenPlayground ? (
                     <DropdownMenuItem onSelect={onOpenPlayground}>
@@ -183,8 +185,8 @@ export const AgentCard = ({
                     <>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem variant="destructive" onSelect={onArchive}>
-                            <Trash size={16} />
-                            Archive
+                            <Archive size={16} />
+                            Archive agent
                         </DropdownMenuItem>
                     </>
                 ) : null}

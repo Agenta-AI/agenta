@@ -75,6 +75,7 @@ PI_SUBSCRIPTION_MODELS: Dict[str, List[str]] = {
     # ``openai-codex``, served via ``chatgpt.com/backend-api``); keep it in sync when the pinned
     # Pi version changes its codex model list.
     "openai-codex": [
+        "gpt-6-astra",
         "gpt-5.6-sol",
         "gpt-5.6-terra",
         "gpt-5.6-luna",
@@ -107,6 +108,7 @@ CLAUDE_MODEL_ALIASES: List[str] = [
 # sync with ``data/codex_models.curated.json`` and the ``sync-model-catalog`` skill. See decision
 # D-006.
 CODEX_MODELS: List[str] = [
+    "gpt-6-astra",
     "gpt-5.6-sol",
     "gpt-5.6-terra",
     "gpt-5.6-luna",
@@ -145,13 +147,14 @@ PROVIDER_ENV_VARS: Dict[str, str] = {
 # the spelling it accepts. A saved list on a connection — including an empty one — always wins.
 PROVIDER_DEFAULT_MODELS: Dict[str, List[str]] = {
     "openai": [
+        "openai/gpt-6-astra",
         "openai/gpt-5.6-luna",
         "openai/gpt-5.6-terra",
         "openai/gpt-5.6-sol",
     ],
     "anthropic": [
-        "anthropic/claude-fable-5",
         "anthropic/claude-opus-5",
+        "anthropic/claude-fable-5-1",
         "anthropic/claude-sonnet-5",
         "anthropic/claude-haiku-4-5",
     ],
@@ -180,12 +183,16 @@ PROVIDER_DEFAULT_MODELS: Dict[str, List[str]] = {
         "together_ai/zai-org/GLM-5.2",
     ],
     "openrouter": [
-        "openrouter/z-ai/glm-5.2",
-        "openrouter/deepseek/deepseek-v4-flash",
-        "openrouter/deepseek/deepseek-v4-pro",
+        "openrouter/tencent/hy4-preview",
         "openrouter/openai/gpt-5.6-luna",
+        "openrouter/deepseek/deepseek-v4-flash-0731",
+        "openrouter/z-ai/glm-5.3-flash",
+        "openrouter/deepseek/deepseek-v4-flash",
         "openrouter/xiaomi/mimo-v2.5",
-        "openrouter/tencent/hy3-preview",
+        "openrouter/tencent/hy3",
+        "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free",
+        "openrouter/z-ai/glm-5.3",
+        "openrouter/google/gemini-3.8-flash",
     ],
 }
 
@@ -194,11 +201,13 @@ PROVIDER_DEFAULT_MODELS: Dict[str, List[str]] = {
 # be translated before it can be matched. Keyed by prefix because the alias tracks the tier
 # across versions (``claude-sonnet-5`` and its successor both answer to ``sonnet``). Only ids a
 # harness could otherwise not name belong here: ``claude-fable-5`` is its own alias, so it needs
-# no entry. Opus maps to the bracketed ``opus[1m]`` rather than a bare ``opus`` because that
+# no entry. Fable 5.1 maps to Claude Code's stable Fable 5 alias. Opus maps to the bracketed
+# ``opus[1m]`` rather than a bare ``opus`` because that
 # bracketed spelling is the exact value Claude Code publishes for the Opus tier in its accepted
 # alias set (see :data:`CLAUDE_MODEL_ALIASES`), and a harness only advertises defaults it can
 # actually select, so any other spelling would be dropped instead of offered.
 MODEL_ID_ALIASES: Dict[str, str] = {
+    "anthropic/claude-fable-5-": "claude-fable-5",
     "anthropic/claude-sonnet-": "sonnet",
     "anthropic/claude-haiku-": "haiku",
     "anthropic/claude-opus-": "opus[1m]",
@@ -389,6 +398,12 @@ HARNESS_CONNECTION_CAPABILITIES: Dict[str, HarnessConnectionCapabilities] = {
         model_selection="provider/id",
         models=_pi_models(),
         model_catalog=_model_catalog("pi_core"),
+        # Pi has no built-in MCP client; the Agenta Pi extension is one, and it takes only an
+        # already-resolved Agenta gateway route (``/gateways/mcps/...``), never a direct author
+        # URL — enforced in ``services/runner/src/extensions/pi-mcp.ts``.
+        mcp=HarnessMCPCapabilities(
+            user_servers=UserMCPServerCapabilities(),
+        ),
     ),
     "claude": HarnessConnectionCapabilities(
         providers=["anthropic"],
@@ -401,11 +416,12 @@ HARNESS_CONNECTION_CAPABILITIES: Dict[str, HarnessConnectionCapabilities] = {
             user_servers=UserMCPServerCapabilities(),
         ),
     ),
-    # Codex reaches OpenAI through managed direct connections and self_managed subscription OAuth
-    # via the mounted CODEX_HOME login. It accepts user HTTP MCP servers like Claude.
+    # Codex reaches OpenAI through managed direct or OpenAI-compatible custom connections and
+    # self_managed subscription OAuth via the mounted CODEX_HOME login. It accepts user HTTP MCP
+    # servers like Claude.
     "codex": HarnessConnectionCapabilities(
         providers=["openai"],
-        deployments=["direct"],
+        deployments=["direct", "custom"],
         connection_modes=list(_ALL_MODES),
         model_selection="provider/id",
         models={"openai": list(CODEX_MODELS)},
@@ -488,6 +504,8 @@ def harness_allows_deployment(harness: str, deployment: str) -> bool:
     if entry is None:
         return False
     normalized = "vertex_ai" if deployment == "vertex" else deployment
+    if normalized == "mock":
+        normalized = "custom"
     return normalized in entry.deployments
 
 
@@ -499,6 +517,7 @@ def harness_allows_deployment(harness: str, deployment: str) -> bool:
 HARNESS_CUSTOM_DEPLOYMENT_PROVIDERS: Dict[str, str] = {
     "pi_core": "openai",
     "claude": "anthropic",
+    "codex": "openai",
 }
 
 
@@ -509,8 +528,8 @@ def harness_allows_pair(harness: str, provider: str, deployment: str) -> bool:
     ``harness_allows_deployment`` gate each axis independently; this gates their cross product,
     which those flat lists cannot express on their own. A ``direct`` (or cloud) deployment is
     allowed for any provider the harness already reaches, so the pair reduces to the two
-    independent checks there. A ``custom`` deployment is narrower: Pi consumes it only with the
-    ``openai`` family and Claude only with ``anthropic`` (per
+    independent checks there. A ``custom`` deployment is narrower: Pi and Codex consume it only
+    with the ``openai`` family, and Claude only with ``anthropic`` (per
     :data:`HARNESS_CUSTOM_DEPLOYMENT_PROVIDERS`). An unknown harness is closed.
 
     The allowed triples:
@@ -519,15 +538,20 @@ def harness_allows_pair(harness: str, provider: str, deployment: str) -> bool:
     - ``pi_core`` + any other family + ``custom`` -> rejected;
     - ``claude`` + ``anthropic`` + ``direct``/``custom``/``bedrock``/``vertex_ai`` -> allowed;
     - ``claude`` + ``openai`` + anything -> rejected (Claude reaches anthropic only);
+    - ``codex`` + ``openai`` + ``direct`` or ``custom`` -> allowed;
     - unknown harness -> rejected.
     """
     if HARNESS_CONNECTION_CAPABILITIES.get(harness) is None:
         return False
+    if deployment == "mock":
+        return True
     if not harness_allows_provider(harness, provider):
         return False
     if not harness_allows_deployment(harness, deployment):
         return False
     normalized = "vertex_ai" if deployment == "vertex" else deployment
+    if normalized == "mock":
+        normalized = "custom"
     if normalized == "custom":
         allowed = HARNESS_CUSTOM_DEPLOYMENT_PROVIDERS.get(harness)
         return allowed is not None and provider.lower() == allowed.lower()

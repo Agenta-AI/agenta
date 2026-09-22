@@ -106,6 +106,18 @@ EXPOSE 8765
 # through a per-run temp dir the runtime user owns, so this is the fast path for the default dir,
 # not the only safeguard.
 RUN mkdir -p /pi-agent && chown node:node /pi-agent
+# Durable runner state (the per-connection copy of a hosted subscription login). A named volume
+# mounted here inherits this ownership, so the non-root runner can write it.
+RUN mkdir -p /var/lib/agenta/runner-state && chown node:node /var/lib/agenta/runner-state
+
+# Durable session drives are geesefs-mounted at /var/lib/agenta/mounts/<project_id>/<mount_id>
+# (LOCAL_DURABLE_MOUNT_ROOT in environment-setup.ts). They moved off /tmp because harnesses treat
+# /tmp as clearable scratch. /var/lib is root-owned 0755, this image drops to `node`, and the
+# documented subscription self-host scheme overrides `user:` with an arbitrary operator uid — so no
+# runtime uid could create the root itself. Create it here with /tmp's own 1777 sticky mode, which
+# is what let the old root work for any uid: anyone may add their own subtree, nobody may remove
+# another's. Confinement between sessions is the runner's mount namespace, not these bits.
+RUN mkdir -p /var/lib/agenta/mounts && chmod 1777 /var/lib/agenta /var/lib/agenta/mounts
 
 # Pin HOME so the sandbox-agent daemon's per-agent install dir ($HOME/.local/share/sandbox-agent)
 # is the same at build time (the pin RUN below) and at runtime (buildDaemonEnv copies HOME into the

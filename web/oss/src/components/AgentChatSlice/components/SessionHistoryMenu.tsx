@@ -12,17 +12,11 @@ import {
     PopoverTrigger,
     SimpleTooltip,
 } from "@agenta/ui/ui"
-import {
-    Archive,
-    ArrowCounterClockwise,
-    CaretRight,
-    ClockCounterClockwise,
-    Power,
-    Trash,
-} from "@phosphor-icons/react"
+import {Archive, ArrowCounterClockwise, CaretRight, Power, Trash} from "@phosphor-icons/react"
 import {useQueryClient} from "@tanstack/react-query"
 import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
+import {History} from "lucide-react"
 
 import {projectIdAtom} from "@/oss/state/project"
 
@@ -281,7 +275,7 @@ const SessionHistoryMenu = () => {
         <Popover open={open} onOpenChange={setOpen}>
             <PopoverTrigger asChild>
                 <Button variant="ghost" size="icon-sm" aria-label="Session history">
-                    <ClockCounterClockwise size={16} />
+                    <History size={16} />
                 </Button>
             </PopoverTrigger>
             <PopoverContent align="end" className="flex flex-col gap-1 p-2">

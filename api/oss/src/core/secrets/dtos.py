@@ -1,6 +1,8 @@
+from re import sub
 from typing import Optional, Union, List, Dict, Any
+from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from oss.src.core.secrets.managed import (
     PublicSecretManagementDTO,
@@ -9,9 +11,16 @@ from oss.src.core.secrets.managed import (
 
 from oss.src.core.secrets.enums import (
     SecretKind,
-    StandardProviderKind,
-    CustomProviderKind,
+    is_always_write_only,
+    LLMEndpointProtocol,
+    LLMStandardProviderKind,
+    MCPStandardProviderKind,
+    LLMCustomProviderKind,
     CustomSecretFormat,
+    SubscriptionLoginState,
+    SubscriptionProviderKind,
+    SUBSCRIPTION_PROVIDER_HARNESSES,
+    SUBSCRIPTION_PROVIDER_MODELS,
 )
 from oss.src.core.shared.dtos import (
     Identifier,
@@ -43,8 +52,43 @@ class SecretValueRequiredError(Exception):
 # to mean "keep stored", and responses may be redacted.
 
 
+def _single_line_credential(value: Optional[str]) -> Optional[str]:
+    """Normalize a credential that has to survive being put in an HTTP header.
+
+    Surrounding whitespace is stripped, because a key pasted from a terminal or a
+    provider's console routinely arrives with a trailing newline and the person who
+    pasted it cannot see it. An interior control character is refused: the value is not
+    recoverable by guessing, and storing one produces a connection that fails on every
+    call with an error nobody can act on.
+
+    Refusing here is also what keeps the failure out of the caller's hands. h11 validates
+    the header while the request is being built and its refusal quotes the bytes it
+    rejected, so a credential with a stray newline used to come back to the caller inside
+    a transport-error message (OR86). The relay no longer copies that text, and this stops
+    the value being storable in the first place.
+
+    The error names the field and never the value.
+    """
+    if value is None:
+        return None
+    stripped = value.strip()
+    if any(ord(character) < 0x20 or ord(character) == 0x7F for character in stripped):
+        raise ValueError(
+            "credential contains a control character and cannot be sent in a request "
+            "header; check for a stray newline or tab"
+        )
+    return stripped
+
+
 class StandardProviderSettingsDTO(BaseModel):
+    # A validation error on a credential field renders the rejected input by default, so
+    # the value would travel on to whatever logs or reports the error. The rejection has
+    # to name the field and nothing else (OR86).
+    model_config = ConfigDict(hide_input_in_errors=True)
+
     key: Optional[str] = None
+
+    _normalize_key = field_validator("key")(_single_line_credential)
 
 
 class CustomModelSettingsDTO(BaseModel):
@@ -53,12 +97,17 @@ class CustomModelSettingsDTO(BaseModel):
 
 
 class StandardProviderDTO(BaseModel):
-    kind: StandardProviderKind
+    kind: LLMStandardProviderKind
     provider: StandardProviderSettingsDTO
     # A missing list means "use Agenta's default models"; an empty list is an explicit "none".
     models: Optional[List[CustomModelSettingsDTO]] = None
     # A missing list means "any harness Agenta supports"; a saved list narrows that set.
     harnesses: Optional[List[str]] = None
+
+
+class MCPStandardProviderDTO(BaseModel):
+    kind: MCPStandardProviderKind
+    provider: StandardProviderSettingsDTO
 
 
 class CustomProviderSettingsDTO(BaseModel):
@@ -69,14 +118,76 @@ class CustomProviderSettingsDTO(BaseModel):
 
 
 class CustomProviderDTO(BaseModel):
-    kind: CustomProviderKind
+    kind: LLMCustomProviderKind
     provider: CustomProviderSettingsDTO
     models: List[CustomModelSettingsDTO]
     harnesses: Optional[List[str]] = None
+    # Not a credential: it describes the endpoint's wire shape, so it is never redacted.
+    # None registers the endpoint as `openai`, because the row needs a concrete provider family.
+    # It is not a declaration: the surfaces that offer harnesses infer an undeclared record instead.
+    protocol: Optional[LLMEndpointProtocol] = None
 
     # fields will be filled at runtime
     provider_slug: Optional[str] = None
     model_keys: Optional[List[str]] = None
+
+
+class SubscriptionLoginDTO(BaseModel):
+    """A harness-format subscription credential, stored and returned verbatim.
+
+    The shape is Pi's, not ours: extra keys are kept so a Pi version that adds a field
+    round-trips through the vault without losing it.
+    """
+
+    model_config = ConfigDict(extra="allow")
+
+    type: str = "oauth"
+    access: Optional[str] = None
+    refresh: Optional[str] = None
+    # Epoch milliseconds, as Pi writes it. Two logins are ordered by this value.
+    expires: Optional[int] = None
+    accountId: Optional[str] = None  # noqa: N815 - Pi's own field name.
+
+
+class SubscriptionLoginAttemptDTO(BaseModel):
+    """The in-flight device login, kept on the row so any API replica can poll it."""
+
+    id: str
+    expires_at: Optional[str] = None
+    user_code: Optional[str] = None
+    verification_uri: Optional[str] = None
+    poll_after_ms: Optional[int] = None
+
+
+class SubscriptionProviderDTO(BaseModel):
+    provider: SubscriptionProviderKind = SubscriptionProviderKind.CHATGPT
+    # A missing list is filled with the provider default; an empty list is an explicit "none".
+    harnesses: Optional[List[str]] = None
+    models: Optional[List[str]] = None
+
+    login: Optional[SubscriptionLoginDTO] = None
+    # Bumps on every stored login change, including a refresh pushed back by a run.
+    login_version: int = 0
+    # Bumps only on a new device login, so a refresh keeps warm sessions.
+    login_generation: int = 0
+    login_state: SubscriptionLoginState = SubscriptionLoginState.PENDING_LOGIN
+    login_error: Optional[str] = None
+    login_attempt: Optional[SubscriptionLoginAttemptDTO] = None
+
+    # fields will be filled at runtime
+    provider_slug: Optional[str] = None
+    model_keys: Optional[List[str]] = None
+
+
+def subscription_provider_slug(name: Optional[str]) -> str:
+    """The picker-facing slug for a subscription connection, derived from its name.
+
+    Lowercased and hyphenated rather than taken verbatim like a custom provider's, because
+    the model keys built from it are matched against the harness provider id, and the
+    default name is "ChatGPT" while the key the contract fixes is `chatgpt/<model>`.
+    """
+    normalized = sub(r"[^a-z0-9]+", "-", (name or "").lower()).strip("-")
+    return normalized or SubscriptionProviderKind.CHATGPT.value
 
 
 class SSOProviderSettingsDTO(BaseModel):
@@ -100,6 +211,11 @@ class WebhookProviderDTO(BaseModel):
 
 
 class CustomSecretSettingsDTO(BaseModel):
+    # A validation error on a credential field renders the rejected input by default, so
+    # the value would travel on to whatever logs or reports the error. The rejection has
+    # to name the field and nothing else (OR86).
+    model_config = ConfigDict(hide_input_in_errors=True)
+
     format: CustomSecretFormat
     default_env_var: Optional[str] = None
     content: Optional[Union[str, Dict[str, Union[str, int, float, bool, None]]]] = None
@@ -110,20 +226,89 @@ class CustomSecretDTO(BaseModel):
     secret: CustomSecretSettingsDTO
 
 
+class OAuthProviderSettingsDTO(BaseModel):
+    # A validation error on a credential field renders the rejected input by default, so
+    # the value would travel on to whatever logs or reports the error. The rejection has
+    # to name the field and nothing else (OR86).
+    model_config = ConfigDict(hide_input_in_errors=True)
+
+    client_id: str
+    client_secret: Optional[str] = None
+
+    _normalize_client_secret = field_validator("client_secret")(_single_line_credential)
+    issuer_url: str
+    scopes: List[str]
+    extra: Dict[str, Any] = Field(default_factory=dict)
+
+
+class OAuthProviderDTO(BaseModel):
+    provider: OAuthProviderSettingsDTO
+
+
+class OAuthGrantSettingsDTO(BaseModel):
+    # A validation error on a credential field renders the rejected input by default, so
+    # the value would travel on to whatever logs or reports the error. The rejection has
+    # to name the field and nothing else (OR86).
+    model_config = ConfigDict(hide_input_in_errors=True)
+
+    server: str
+    access_token: Optional[str] = None
+    refresh_token: Optional[str] = None
+
+    _normalize_tokens = field_validator("access_token", "refresh_token")(
+        _single_line_credential
+    )
+    expires_at: Optional[int] = None
+    scopes: List[str]
+    # The authorization server that issued these tokens, recorded when the grant is
+    # written. Not a credential and never redacted: it is the pin a renewal is checked
+    # against, so that a resource which later names a different authorization server
+    # cannot have the stored refresh token presented to it.
+    issuer: Optional[str] = None
+    # The connection these tokens authorize. A server URL is an address, and several
+    # connections in one project can share one: two accounts at the same MCP server are
+    # two connections, so the endpoint is what a grant belongs to. The row is addressed
+    # by a slug derived from this id; the field records what the row is for, so a reader
+    # or a migration does not have to reverse the slug to find out. Optional because
+    # rows written before the key moved off the server URL do not carry it.
+    endpoint_id: Optional[UUID] = None
+    # The client registration these tokens were issued against, by vault slug. A renewal
+    # must present the client the authorization server bound the grant to, and a
+    # deployment can hold more than one registration at a single issuer once its public
+    # address changes, so "the registration for this issuer" stopped being one answer.
+    # Optional: a grant written before this carries none, and so does one from the
+    # identity-document strategy, which persists no registration at all. Both fall back
+    # to the issuer's registration, which is where they were already looking.
+    client_registration_slug: Optional[str] = None
+
+
+class OAuthGrantDTO(BaseModel):
+    grant: OAuthGrantSettingsDTO
+
+
 SecretDataDTO = Union[
     StandardProviderDTO,
+    MCPStandardProviderDTO,
     CustomProviderDTO,
     SSOProviderDTO,
     WebhookProviderDTO,
     CustomSecretDTO,
+    OAuthProviderDTO,
+    OAuthGrantDTO,
+    # Last on purpose: every field has a default, so this member would swallow another
+    # kind's raw dict if it were tried first.
+    SubscriptionProviderDTO,
 ]
 
 
 def _validate_secret_data_based_on_kind(
-    values: Dict[str, Any],
+    values: Dict[str, Any] | BaseModel,
     *,
     value_required: bool,
 ) -> Dict[str, Any]:
+    if isinstance(values, BaseModel):
+        values = values.model_dump(mode="python")
+
     kind = values.get("kind")
     if isinstance(kind, SecretKind):
         kind = kind.value
@@ -132,8 +317,13 @@ def _validate_secret_data_based_on_kind(
         data = data.model_dump()
         values["data"] = data
 
-    standard_provider_kinds = {provider.value for provider in StandardProviderKind}
-    custom_provider_kinds = {provider.value for provider in CustomProviderKind}
+    llm_standard_provider_kinds = {
+        provider.value for provider in LLMStandardProviderKind
+    }
+    mcp_standard_provider_kinds = {
+        provider.value for provider in MCPStandardProviderKind
+    }
+    custom_provider_kinds = {provider.value for provider in LLMCustomProviderKind}
 
     if kind == SecretKind.PROVIDER_KEY.value:
         if not isinstance(data, dict):
@@ -148,15 +338,17 @@ def _validate_secret_data_based_on_kind(
                 "The provided request secret dto is missing required fields for StandardProviderSettingsDTO"
             )
         # Accept the legacy provider slug on input, but persist the canonical value.
-        if data.get("kind") == StandardProviderKind.MISTRALAI.value:
-            data["kind"] = StandardProviderKind.MISTRAL.value
-        if data.get("kind") not in standard_provider_kinds:
+        if data.get("kind") == LLMStandardProviderKind.MISTRALAI.value:
+            data["kind"] = LLMStandardProviderKind.MISTRAL.value
+        provider_kind = data.get("kind")
+        if provider_kind in llm_standard_provider_kinds:
+            values["data"] = StandardProviderDTO.model_validate(data)
+        elif provider_kind in mcp_standard_provider_kinds:
+            values["data"] = MCPStandardProviderDTO.model_validate(data)
+        else:
             raise ValueError(
-                "The provided kind in data is not a valid StandardProviderKind enum"
+                "The provided kind in data is not a valid LLM or MCP provider key enum"
             )
-        # Both provider shapes now accept {kind, provider, models}, so the union can no
-        # longer tell them apart from the payload alone; the secret kind decides.
-        values["data"] = StandardProviderDTO.model_validate(data)
 
     elif kind == SecretKind.CUSTOM_PROVIDER.value:
         if not isinstance(data, dict):
@@ -245,6 +437,58 @@ def _validate_secret_data_based_on_kind(
                     )
         else:
             raise ValueError("A custom_secret format must be 'text' or 'json'")
+    elif kind == SecretKind.SUBSCRIPTION_PROVIDER.value:
+        if not isinstance(data, dict):
+            raise ValueError(
+                "The provided request secret dto is not a valid type for SubscriptionProviderDTO"
+            )
+
+        provider = data.get("provider") or SubscriptionProviderKind.CHATGPT.value
+        if isinstance(provider, SubscriptionProviderKind):
+            provider = provider.value
+        if provider not in {member.value for member in SubscriptionProviderKind}:
+            raise ValueError(
+                "The provided provider in data is not a valid SubscriptionProviderKind enum"
+            )
+        data["provider"] = provider
+
+        provider_kind = SubscriptionProviderKind(provider)
+        # A subscription carries no value on create: the login arrives later through the
+        # device login routes, so `value_required` adds nothing to check here.
+        if data.get("harnesses") is None:
+            data["harnesses"] = list(SUBSCRIPTION_PROVIDER_HARNESSES[provider_kind])
+        if data.get("models") is None:
+            data["models"] = list(SUBSCRIPTION_PROVIDER_MODELS[provider_kind])
+
+        values["data"] = SubscriptionProviderDTO.model_validate(data)
+    elif kind == SecretKind.OAUTH_PROVIDER.value:
+        if not isinstance(data, dict):
+            raise ValueError(
+                "The provided request secret dto is not a valid type for OAuthProviderDTO"
+            )
+        provider = data.get("provider")
+        required_fields = {"client_id", "issuer_url", "scopes"}
+        if not isinstance(provider, dict) or not required_fields.issubset(provider):
+            raise ValueError(
+                "The provided request secret dto is missing required fields for OAuthProviderSettingsDTO"
+            )
+        values["data"] = OAuthProviderDTO.model_validate(data)
+    elif kind == SecretKind.OAUTH_GRANT.value:
+        if not isinstance(data, dict):
+            raise ValueError(
+                "The provided request secret dto is not a valid type for OAuthGrantDTO"
+            )
+        grant = data.get("grant")
+        required_fields = {"server", "scopes"}
+        if (
+            not isinstance(grant, dict)
+            or not required_fields.issubset(grant)
+            or (value_required and grant.get("access_token") in (None, ""))
+        ):
+            raise ValueError(
+                "The provided request secret dto is missing required fields for OAuthGrantSettingsDTO"
+            )
+        values["data"] = OAuthGrantDTO.model_validate(data)
     else:
         raise ValueError("The provided kind is not a valid SecretKind enum")
 
@@ -269,6 +513,15 @@ class CreateSecretDTO(Slug, BaseModel):
     header: Header
     secret: SecretDTO
     write_only: bool = True
+
+    @model_validator(mode="after")
+    def force_write_only_on_unreadable_kinds(self):
+        # Not a rejection: the field is optional and an old client sends nothing, so refusing
+        # `False` outright would fail requests that never meant to ask for a readable grant.
+        # The server decides instead, which is the only reading that cannot be bypassed.
+        if is_always_write_only(self.secret.kind):
+            self.write_only = True
+        return self
 
     @model_validator(mode="before")
     def ensure_header_exists(cls, values):
@@ -311,6 +564,14 @@ class CreateSecretDTO(Slug, BaseModel):
                 and secret.get("kind") == SecretKind.CUSTOM_PROVIDER.value
             ):
                 secret["data"].update({"provider_slug": header["name"]})
+            elif (
+                isinstance(secret, dict)
+                and secret.get("kind") == SecretKind.SUBSCRIPTION_PROVIDER.value
+                and isinstance(secret.get("data"), dict)
+            ):
+                secret["data"].update(
+                    {"provider_slug": subscription_provider_slug(header["name"])}
+                )
         return values
 
 
@@ -351,6 +612,14 @@ class UpdateSecretDTO(BaseModel):
                 and secret.get("kind") == SecretKind.CUSTOM_PROVIDER.value
             ):
                 secret["data"].update({"provider_slug": header["name"]})
+            elif (
+                isinstance(secret, dict)
+                and secret.get("kind") == SecretKind.SUBSCRIPTION_PROVIDER.value
+                and isinstance(secret.get("data"), dict)
+            ):
+                secret["data"].update(
+                    {"provider_slug": subscription_provider_slug(header["name"])}
+                )
         return values
 
 
@@ -373,7 +642,28 @@ class _SecretResponseBaseDTO(Identifier, Slug, BaseModel):
         return _validate_secret_data_based_on_kind(values, value_required=False)
 
     @model_validator(mode="after")
+    def force_write_only_on_unreadable_kinds(self):
+        # THE FAIL-CLOSED DEFAULT. `write_only` rides inside the encrypted JSON, and a row
+        # written before the mark existed, or one created with an explicit `False`, reads back
+        # as `False` and would be returned unredacted to anyone holding only VIEW_SECRET.
+        # Deciding it from the KIND here means no stored row can be readable when it should
+        # not be, which is why the fix needs no data migration. Every construction path runs
+        # through this model, the cache rehydration included.
+        if is_always_write_only(self.kind):
+            self.write_only = True
+        return self
+
+    @model_validator(mode="after")
     def build_up_model_keys(self):
+        if self.kind == SecretKind.SUBSCRIPTION_PROVIDER:
+            provider_slug = self.data.provider_slug or self.data.provider.value  # type: ignore[union-attr]
+            self.data.provider_slug = provider_slug  # type: ignore[union-attr]
+            self.data.model_keys = [  # type: ignore[union-attr]
+                f"{provider_slug}/{model}"
+                for model in (self.data.models or [])  # type: ignore[union-attr]
+            ]
+            return self
+
         if self.kind == SecretKind.CUSTOM_PROVIDER:
             self.data.model_keys = [  # type: ignore[union-attr]
                 f"{self.data.provider_slug}/{self.data.kind.value}/{model.slug}"  # type: ignore[union-attr]

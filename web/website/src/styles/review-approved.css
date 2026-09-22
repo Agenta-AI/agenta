@@ -1,0 +1,136 @@
+@media(max-width:860px){.ag-v2-grid2{grid-template-columns:1fr!important}.ag-v2-grid2>div{height:480px!important}.ag-v2-conn{grid-template-columns:1fr!important}.ag-v2-conn>div{border-left:none!important}}
+/* Section visual tokens measured from the supplied Agenta Landing v3 design. */
+:root {
+  --ag-d-bg-2: #1c1a16;
+  --hiw-body: var(--app-text-body);
+  --hiw-bub-bg: var(--paper-100);
+  --hiw-bub-ring: var(--paper-150);
+  --hiw-bub-text: var(--ink-900);
+  --hiw-card-bg: #ffffff;
+  --hiw-tool-bg: var(--paper-50);
+  --hiw-tool-label: var(--ink-600);
+  --hiw-tool-ring: var(--paper-200);
+  --ios-card-bg: var(--paper-0);
+  --ios-card-shadow: 0 0 0 1px var(--th-border);
+  --ios-label: var(--ink-300);
+  --ios-row-rule: var(--paper-150);
+  --logo-grey: #B9B8B6;
+  --st-title: var(--th-text-hi);
+  --tplx-chip-bg: #ffffff;
+  --tplx-chip-shadow: var(--shadow-ring);
+  --tplx-panel-shadow: var(--shadow-frame);
+  --tplx-rule: var(--paper-150);
+  --tplx-rule-soft: var(--paper-150);
+  --tplx-soon-bg: var(--paper-150);
+  --tplx-soon-text: var(--ink-500);
+  --tplx-trig-bg: rgba(242,242,92,0.35);
+  --tplx-trig-ring: rgba(36,36,36,0.12);
+}
+[data-theme="dark"] {
+  --hiw-body: rgba(255,255,255,0.82);
+  --hiw-bub-bg: rgba(255,255,255,0.06);
+  --hiw-bub-ring: rgba(255,255,255,0.07);
+  --hiw-bub-text: #f0eff2;
+  --hiw-card-bg: #161519;
+  --hiw-tool-bg: rgba(255,255,255,0.03);
+  --hiw-tool-label: rgba(255,255,255,0.78);
+  --hiw-tool-ring: rgba(255,255,255,0.07);
+  --ios-card-bg: var(--ag-d-bg-2);
+  --ios-card-shadow: 0 24px 70px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.07);
+  --ios-label: rgba(255,255,255,0.36);
+  --ios-row-rule: rgba(255,255,255,0.06);
+  --st-title: var(--text-on-dark);
+  --tplx-chip-bg: rgba(255,255,255,0.05);
+  --tplx-chip-shadow: inset 0 0 0 1px rgba(255,255,255,0.1);
+  --tplx-panel-shadow: 0 24px 70px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.07);
+  --tplx-rule: rgba(255,255,255,0.07);
+  --tplx-rule-soft: rgba(255,255,255,0.05);
+  --tplx-soon-bg: rgba(255,255,255,0.08);
+  --tplx-soon-text: rgba(255,255,255,0.55);
+  --tplx-trig-bg: rgba(242,242,92,0.1);
+  --tplx-trig-ring: rgba(242,242,92,0.25);
+}
+@media(max-width:860px){.ag-v2-grid2>div{height:500px!important}.ag-v2-grid2>div>div:first-child{left:24px!important;right:24px!important}.ag-v2-grid2>div>div:nth-child(2){top:220px!important;left:24px!important}}
+/* September 16 review feedback. */
+.feedback-product-grid>div:nth-child(-n+2){height:560px!important}
+.feedback-product-grid>div:nth-child(3){height:710px!important}
+.feedback-product-grid>div:nth-child(4){height:710px!important}
+.feedback-model-visual{position:absolute;left:40px;right:24px;top:150px;bottom:32px}
+.feedback-model-panel{width:100%;height:100%;border:1px solid var(--th-border);border-radius:14px;background:var(--hiw-card-bg);padding:8px;font:13px/1.4 var(--font-ui);overflow:hidden}
+.feedback-model-head,.feedback-model-row{display:grid;grid-template-columns:1fr 1.3fr;gap:10px;align-items:center;padding:13px 10px;min-height:58px}.feedback-model-head{color:var(--th-text-mut);min-height:44px;border-bottom:1px solid var(--th-border)}
+.feedback-model-row>span,.feedback-model-row>strong{display:flex;align-items:center;gap:8px;min-width:0}.feedback-model-row strong{font-weight:600;font-size:12px}.feedback-model-row img{flex-shrink:0;object-fit:contain}.feedback-model-row:nth-child(2){background:var(--th-hover);border-radius:8px}
+.feedback-connections-visual{top:150px!important;bottom:32px!important;mask-image:linear-gradient(to right,#000 78%,transparent 100%)!important}
+.feedback-connections-panel{height:100%;box-shadow:0 0 0 5px var(--th-bg-0),0 0 0 6px var(--th-border)!important;border:1px solid var(--th-border)}
+.feedback-chat-stack{position:absolute;left:40px;right:24px;top:150px;display:flex;flex-direction:column;gap:18px;font-family:var(--font-ui)}
+.feedback-slack-panel,.feedback-telegram-panel{background:var(--hiw-card-bg);border:1px solid var(--th-border);border-radius:14px;overflow:hidden;font-size:12px}
+.feedback-telegram-panel{padding:14px;display:flex;flex-direction:column;gap:10px}.feedback-telegram-heading{display:flex;gap:8px;align-items:center;font-size:12px}.feedback-telegram-heading>span:last-child{margin-left:auto;color:var(--th-text-mut);font-size:11px}.feedback-telegram-icon{display:grid;place-items:center;background:#229ed9;color:white;border-radius:50%;width:24px;height:24px}.feedback-telegram-request,.feedback-telegram-reply{padding:9px 12px;border-radius:10px;max-width:90%;line-height:1.45}.feedback-telegram-request{align-self:flex-end;background:#e3f3fb;color:#244755}.feedback-telegram-reply{background:var(--th-bg-0);color:var(--th-text-body)}
+.feedback-diagram-column{min-width:0;position:relative;z-index:1}.feedback-diagram-card{height:236px;justify-content:space-between}
+@media(max-width:860px){.feedback-model-visual{top:200px!important;left:24px!important;right:18px!important;bottom:24px}.feedback-product-grid>div:nth-child(-n+2){height:610px!important}.feedback-chat-stack{top:200px!important;left:24px!important;right:24px!important}.feedback-product-grid>div:nth-child(3){height:800px!important}.feedback-product-grid>div:nth-child(4){height:500px!important}.feedback-model-row,.feedback-model-head{padding:12px 4px;gap:6px}.feedback-model-row strong{font-size:11px}.feedback-model-row img{width:17px;height:17px}}
+/* Workspace directions based on the supplied file-browser screenshot. */
+.workspace-feature-card{position:relative;overflow:hidden;background:var(--th-bg-0);min-width:0}.ws-version[hidden]{display:none!important}.ws-copy{position:absolute;left:40px;right:40px;top:40px}.ws-copy h3{margin:0 0 8px;font:var(--text-title);color:var(--th-text-hi)}.ws-copy p{margin:0;font:var(--text-body-sm);color:var(--th-text-body)}.ws-scene{position:absolute;top:175px;left:30px;right:20px;height:470px;font:12px/1.5 var(--font-ui);color:#303236;perspective:1000px}.ws-window{background:#fff;border:1px solid #dcdedc;border-radius:10px;overflow:hidden;box-shadow:0 12px 30px #20202012}.ws-path{display:flex;gap:17px;align-items:center;background:#f6f5f3;padding:12px 14px;border-bottom:1px solid #e1e1df;color:#89908f}.ws-path strong{color:#24495d;font-size:12px;font-weight:500}.ws-file-toolbar{display:flex;gap:15px;padding:8px 14px;border-bottom:1px solid #e6e5e3;color:#929494}.ws-file-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px 8px;padding:20px 12px}.ws-file{display:flex;flex-direction:column;align-items:center;gap:7px;font-size:10px;min-width:0}.ws-file>span{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.ws-file-icon{position:relative;width:31px;height:39px;border:1.5px solid #d5d6d5;border-radius:3px;display:flex;align-items:flex-end;justify-content:center;padding-bottom:3px}.ws-file-icon:before{content:'';position:absolute;right:-1px;top:-1px;width:11px;height:11px;background:linear-gradient(45deg,#f5f5f4 48%,#d5d6d5 50%,white 55%);border-left:1px solid #d5d6d5;border-bottom:1px solid #d5d6d5}.ws-file-icon span{font:600 8px/1.4 var(--font-ui);letter-spacing:.04em;color:#24495d;background:#f4f5f5;padding:0 3px;border-radius:2px}.ws-folder{color:#153e53;font-size:40px;line-height:39px}.ws-browser-top{display:flex;justify-content:space-between;background:#f6f5f3;padding:10px 12px;color:#969b99;font-size:10px}.ws-address{margin:9px 12px;padding:5px 8px;border:1px solid #e5e5e2;border-radius:5px;font-size:9px;color:#919590}.ws-browser-page{padding:10px 20px 24px}.ws-browser-page small{display:block;font-size:8px;letter-spacing:.15em;color:#94998e}.ws-browser-page strong{font:400 21px/1.1 var(--font-display);display:block;margin:10px 0 18px;max-width:230px}.ws-text-line{height:5px;background:#ebece8;margin:8px 0;width:95%;border-radius:3px}.ws-text-line.short{width:64%}.ws-preview-block{height:50px;background:#efefd5;border-radius:5px;margin-top:16px}.ws-app-dock{display:flex;align-items:center;justify-content:center;gap:12px;background:#ffffffed;border:1px solid #deded8;border-radius:12px;padding:10px 14px;box-shadow:0 8px 30px #0001;width:max-content}.ws-app-dock>span:first-child{font-size:10px;color:#888;margin-right:2px}
+.ws-scene-layered .ws-browser{width:80%;transform:rotate(-4deg);position:absolute;top:10px;left:5px}.ws-scene-layered .ws-files{width:79%;position:absolute;top:145px;right:-5px;transform:rotate(3deg)}.ws-scene-layered .ws-app-dock{position:absolute;bottom:0;left:15px}
+.ws-scene-unified{background:white;border:1px solid #deded8;border-radius:12px;overflow:hidden;height:410px;box-shadow:0 18px 40px #0001}.ws-unified-bar{padding:13px;background:#f6f5f3;border-bottom:1px solid #ddd;font-weight:500}.ws-unified-bar span{float:right;font-size:9px;color:#828783}.ws-split{display:grid;grid-template-columns:1fr 1fr;gap:0}.ws-split .ws-window{border:0;border-radius:0;box-shadow:none}.ws-split .ws-browser{border-right:1px solid #eee}.ws-split .ws-file-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:15px 3px;padding:15px 6px}.ws-split .ws-path{gap:5px;font-size:9px;padding:10px 5px}.ws-split .ws-path strong{font-size:9px}.ws-scene-unified .ws-app-dock{margin:16px auto;box-shadow:none}
+.ws-scene-files .ws-files{position:absolute;top:5px;left:0;width:95%;transform:rotate(-2deg)}.ws-scene-files .ws-browser{position:absolute;right:-5px;top:215px;width:63%;transform:rotate(5deg)}.ws-scene-files .ws-browser-page{padding:5px 14px 12px}.ws-scene-files .ws-browser-page strong{font-size:16px;margin:8px 0}.ws-scene-files .ws-preview-block{height:20px}.ws-scene-files .ws-app-dock{position:absolute;left:-2px;bottom:0;gap:7px;padding:7px}.ws-scene-files .ws-app-dock>span:first-child{display:none}
+.ws-flow{font-size:10px;color:#797e76;margin-bottom:16px;letter-spacing:.04em}.ws-scene-task .ws-browser{width:80%;height:230px}.ws-scene-task .ws-files{position:absolute;top:205px;right:0;width:78%;transform:rotate(2deg)}.ws-scene-task .ws-file-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;padding:12px}.ws-scene-task .ws-app-dock{position:absolute;top:125px;right:0;flex-direction:column;gap:9px;padding:10px}.ws-scene-task .ws-app-dock>span:first-child{display:none}
+/* Slack leads; Telegram floats over its lower-right corner. */
+.feedback-chat-stack{display:block;top:165px!important;left:30px!important;right:24px!important;perspective:1000px;height:485px}.feedback-slack-panel{position:absolute;top:0;left:0;width:88%;transform:rotateY(4deg) rotate(-2deg);transform-origin:left center;box-shadow:0 18px 36px #0002;z-index:1}.feedback-telegram-panel{position:absolute;right:-6px;top:300px;width:72%;transform:rotateY(-6deg) rotate(4deg);box-shadow:0 22px 42px #0003;z-index:2}.feedback-telegram-heading{flex-wrap:wrap}.feedback-telegram-heading>span:last-child{margin-left:0;font-size:10px}.feedback-telegram-request,.feedback-telegram-reply{font-size:11px}
+@media(max-width:860px){.feedback-product-grid>div.workspace-feature-card{height:740px!important}.ws-copy{left:24px;right:24px}.ws-scene{top:210px;left:20px;right:20px;transform-origin:top left;height:460px}.ws-app-dock{gap:7px;padding:8px}.ws-file-grid{gap:14px 5px}.ws-file{font-size:8px}.ws-scene-unified{height:430px}.ws-split .ws-browser-page{padding:8px}.ws-split .ws-browser-page strong{font-size:17px}.ws-scene-files .ws-browser{top:230px}.feedback-chat-stack{top:220px!important;height:510px}.feedback-telegram-panel{width:82%;top:370px;right:-5px}.feedback-slack-panel{width:97%}.feedback-product-grid>div:nth-child(3){height:840px!important}}
+.ws-version{position:absolute;inset:0}
+.feedback-telegram-panel{top:230px}
+.ws-folder{position:relative;width:39px;height:29px;margin-top:10px;background:#153e53;border-radius:3px;font-size:0;transform:none}.ws-folder:before{content:'';position:absolute;top:-6px;left:0;width:18px;height:9px;background:#153e53;border-radius:3px 3px 0 0}
+@media(max-width:860px){.feedback-telegram-panel{top:300px}}
+/* Aligned feature cards and grouped subscription selector. */
+.feedback-product-grid>div:nth-child(n){height:720px!important}
+.subscription-visual{position:absolute;top:160px;left:40px;right:24px}
+.subscription-panel{background:var(--hiw-card-bg);border:1px solid var(--th-border);border-radius:14px;padding:10px 12px;box-shadow:0 12px 22px #00000008;font:14px/1.4 var(--font-ui);color:var(--th-text-hi)}
+.subscription-provider{display:flex;align-items:center;gap:12px;min-height:58px;padding:10px 8px}.subscription-provider img,.subscription-model img{flex-shrink:0;object-fit:contain}.subscription-provider strong{font-size:15px;font-weight:600}.subscription-kind{margin-left:auto;color:var(--th-text-mut);font-size:13px;white-space:nowrap}.subscription-arrow{margin-left:auto;font-size:22px;line-height:1;color:var(--th-text-mut)}.subscription-kind+.subscription-arrow{margin-left:4px}.subscription-models{border-left:1px solid var(--th-border);margin:0 0 8px 16px;padding-left:12px}.subscription-model{display:flex;align-items:center;gap:12px;padding:12px;min-height:48px;border-radius:10px}.subscription-model.selected{background:var(--th-hover);font-weight:600}.subscription-model.selected .subscription-arrow{color:var(--th-text-hi)}.subscription-x{width:20px;font-size:25px;line-height:20px}
+.feedback-connections-visual{bottom:auto!important;height:494px}
+.feedback-slack-panel,.feedback-telegram-panel,.ws-scene .ws-window{transform:none!important;box-shadow:0 20px 40px #00000024,0 3px 8px #0000000a}
+.feedback-chat-stack,.ws-scene{top:175px!important}.feedback-telegram-panel{top:240px}.ws-scene-layered .ws-files{top:155px}.ws-scene-files .ws-browser{top:225px}
+@media(max-width:860px){.feedback-product-grid>div:nth-child(n){height:820px!important}.subscription-visual{top:210px;left:24px;right:24px}.subscription-panel{padding:8px}.subscription-provider{gap:8px;padding:12px 2px;flex-wrap:wrap}.subscription-provider strong{font-size:13px}.subscription-kind{font-size:11px}.subscription-provider img{width:17px;height:17px}.subscription-model{font-size:13px}.subscription-models{margin-left:10px;padding-left:8px}.feedback-chat-stack,.ws-scene{top:210px!important}.feedback-telegram-panel{top:300px}.feedback-connections-visual{height:494px}}
+.ws-scene-layered .ws-browser,.ws-scene-files .ws-files{top:0}
+/* Provider marks are dark SVGs when loaded through <img>; invert the three
+   monochrome providers so they remain legible on the dark theme. */
+[data-theme="dark"] #section-30 img[src$="/openai.svg"],
+[data-theme="dark"] #section-30 img[src$="/ollama.svg"],
+[data-theme="dark"] #section-30 img[src$="/openrouter.svg"] {
+  filter: invert(1) brightness(0.85);
+}
+/* Compact, equal feature cards. */
+.feedback-product-grid>div:nth-child(n){height:590px!important}
+.subscription-visual{top:140px;left:40px;right:32px}
+.subscription-panel{padding:8px 10px}
+.subscription-provider{min-height:46px;padding:7px 8px}
+.subscription-model{min-height:39px;padding:8px 12px}
+.subscription-models{margin-bottom:4px}
+.feedback-connections-visual{top:140px!important;height:auto!important;bottom:auto!important}
+.feedback-connections-panel{height:auto!important}
+.feedback-chat-stack,.ws-scene{top:145px!important;height:390px}
+.feedback-slack-panel{font-size:11px}
+.feedback-telegram-panel{top:210px}
+.ws-scene-layered .ws-browser{width:78%}
+.ws-scene-layered .ws-browser-page{padding:8px 18px 18px}
+.ws-scene-layered .ws-browser-page strong{font-size:19px;margin:8px 0 12px}
+.ws-scene-layered .ws-files{top:125px;width:76%}
+.ws-scene-layered .ws-file-grid{padding:14px 10px;gap:12px 8px}
+@media(max-width:860px){
+.feedback-product-grid>div:nth-child(n){height:660px!important}
+.subscription-visual{top:170px;left:24px;right:24px}
+.subscription-provider{min-height:46px;padding:7px 2px}
+.feedback-connections-visual{top:170px!important;height:auto!important}
+.feedback-chat-stack,.ws-scene{top:175px!important;height:440px}
+.feedback-telegram-panel{top:270px}
+.ws-scene-layered .ws-files{top:160px;width:80%}
+}
+@media(max-width:860px){
+.feedback-telegram-panel{top:235px}
+.feedback-connections-panel .ag-v2-conn>div{padding-top:8px!important;padding-bottom:8px!important;min-height:0!important}
+.feedback-connections-visual{top:155px!important}
+}
+@media(max-width:860px){.feedback-connections-panel .ag-v2-conn>div{padding-top:5px!important;padding-bottom:5px!important}}
+/* Temporarily hide the two deferred controls cards, retaining their editable data. */
+#section-26 .ag-bento>div:nth-child(n+3){display:none!important}
+#section-26.ag-controls{padding-bottom:80px!important}
+@media(max-width:860px){#section-26.ag-controls{padding-bottom:56px!important}}
+/* Testimonial temporarily hidden at Mahmoud's request; content retained. */
+#section-31{display:none!important}

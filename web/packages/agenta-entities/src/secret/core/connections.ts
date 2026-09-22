@@ -10,7 +10,7 @@
  * Design: docs/design/provider-connections-models/experience.md ("Provider connection card").
  */
 
-import type {LlmProvider} from "@agenta/shared/types"
+import type {LlmProvider, SubscriptionLoginFacts} from "@agenta/shared/types"
 import {extractApiErrorMessage} from "@agenta/shared/utils"
 
 import {
@@ -22,13 +22,21 @@ import {
     toProviderCredentials,
     type CredentialValues,
 } from "./providerCatalog"
-import {PROVIDER_AUTH_REQUIREMENTS} from "./providerFields"
+import {DEFAULT_ENDPOINT_PROTOCOL, PROVIDER_AUTH_REQUIREMENTS} from "./providerFields"
 import {
+    SUBSCRIPTION_PROVIDER_KIND,
+    subscriptionProviderFamily,
+    subscriptionProviderName,
+} from "./subscriptionConnections"
+import {
+    LlmEndpointProtocol,
+    McpStandardProviderKind,
     PROVIDER_KINDS,
     SECRET_VALUE_FIELDS,
     SecretKind,
     VAULT_PERSIST_REDACTED,
     type CreateSecretDto,
+    type ProviderVaultRow,
     type SecretManagementPolicy,
 } from "./types"
 
@@ -50,8 +58,12 @@ export interface ProviderConnection {
     secretKind: SecretKind
     /** Saved active models. `undefined` means "use Agenta's defaults"; `[]` means "offer none". */
     models?: string[]
+    /** Provider-supplied display names keyed by model id. */
+    modelNames?: Record<string, string>
     /** Saved harness policy. `undefined` means "any harness Agenta supports". */
     harnesses?: string[]
+    /** Declared endpoint protocol on a custom connection. `undefined` means it declares none. */
+    protocol?: LlmEndpointProtocol
     createdAt?: string
     /**
      * The vault holds a credential for this connection. On a write-only record this is the ONLY
@@ -63,9 +75,25 @@ export interface ProviderConnection {
     keyPreview?: string
     /** Server-enforced management policy. Manager-only rows may not be edited or deleted by users. */
     managementPolicy?: SecretManagementPolicy
+    /**
+     * Present only on a hosted subscription connection: how usable its stored sign-in is. Its
+     * absence is what tells every other surface this is an ordinary key connection.
+     */
+    subscription?: SubscriptionLoginFacts
     /** The row this was derived from — the mutations round-trip it. */
     source: LlmProvider
 }
+
+/** Whether a connection is a hosted subscription rather than a stored key. */
+export const isSubscriptionConnection = (connection: ProviderConnection): boolean =>
+    !!connection.subscription
+
+/**
+ * The MCP plane keeps its project credentials in the same vault, under the same `provider_key`
+ * kind, so a stored Composio key reaches this derivation looking like any other standard row.
+ * It names no LLM provider, and everything downstream of a connection assumes one.
+ */
+const MCP_STANDARD_PROVIDER_KINDS = new Set<string>(Object.values(McpStandardProviderKind))
 
 /** Normalize a stored provider label (kind, env name, or title) to a canonical vault kind. */
 const canonicalKind = (value: string | undefined): string => {
@@ -80,8 +108,30 @@ const canonicalKind = (value: string | undefined): string => {
  * Named secrets are not connections and drop out. A standard row identifies its provider through
  * `title` (the stored kind); a custom row through `provider`.
  */
-export const toProviderConnections = (rows: LlmProvider[]): ProviderConnection[] =>
+export const toProviderConnections = (rows: ProviderVaultRow[]): ProviderConnection[] =>
     rows.reduce<ProviderConnection[]>((acc, row) => {
+        if (row.type === SUBSCRIPTION_PROVIDER_KIND && row.id && row.subscription) {
+            const provider = row.subscription.provider
+            // The FAMILY is the kind, so the logo and every family-keyed lookup still resolve; the
+            // product name is what the user reads.
+            acc.push({
+                id: row.id,
+                slug: row.slug,
+                name: row.displayName || subscriptionProviderName(provider),
+                kind: subscriptionProviderFamily(provider),
+                title: subscriptionProviderName(provider),
+                secretKind: SUBSCRIPTION_PROVIDER_KIND as SecretKind,
+                models: row.models,
+                harnesses: row.harnesses,
+                createdAt: row.created_at,
+                // The vault holds a sign-in only once one has been stored; a pending row has none.
+                hasStoredCredential: row.subscription.loginState !== "pending_login",
+                managementPolicy: row.managementPolicy as SecretManagementPolicy | undefined,
+                subscription: row.subscription,
+                source: row,
+            })
+            return acc
+        }
         if (row.type !== SecretKind.ProviderKey && row.type !== SecretKind.CustomProvider) {
             return acc
         }
@@ -90,6 +140,9 @@ export const toProviderConnections = (rows: LlmProvider[]): ProviderConnection[]
         const kind = canonicalKind(
             row.type === SecretKind.ProviderKey ? row.title : (row.provider ?? ""),
         )
+        if (row.type === SecretKind.ProviderKey && MCP_STANDARD_PROVIDER_KINDS.has(kind)) {
+            return acc
+        }
         const title = providerTitleForKind(kind)
 
         acc.push({
@@ -105,7 +158,9 @@ export const toProviderConnections = (rows: LlmProvider[]): ProviderConnection[]
             title,
             secretKind: row.type as SecretKind,
             models: row.models,
+            modelNames: row.modelNames,
             harnesses: row.harnesses,
+            ...(row.protocol ? {protocol: row.protocol} : {}),
             createdAt: row.created_at,
             // A readable record proves it by carrying the value; a write-only one only says so.
             hasStoredCredential:
@@ -293,6 +348,33 @@ export const hasRequiredCredential = (
     return fields.some((field) => filled(field.key))
 }
 
+/**
+ * Whether a connection that holds no secret is nonetheless complete.
+ *
+ * True only for a kind that requires no secret material at all, and only once that kind's own
+ * required fields are there. The OpenAI-compatible endpoint is the one such kind: its base URL
+ * is the address and its key is conditional, which the card states in the field's own label
+ * ("API key — if the endpoint requires one") and in `REQUIRED_FIELDS_BY_KIND`. A self-hosted
+ * gateway that authorizes by network position is a complete connection with nothing to store.
+ *
+ * Every other kind requires a secret, as a required field (`apiKey`, `vertexCredentials`) or as
+ * one of its alternative auth sets (Bedrock), so this stays false for all of them and a
+ * keyless row of those kinds remains unusable.
+ */
+export const connectionRunsWithoutCredential = (connection: ProviderConnection): boolean => {
+    const {kind} = connection
+    if (PROVIDER_AUTH_REQUIREMENTS[kind]) return false
+    if (secretKindForProviderKind(kind) === SecretKind.ProviderKey) return false
+
+    const secretFields = new Set<string>(SECRET_VALUE_FIELDS)
+    const fields = credentialFieldsForKind(kind)
+    if (fields.some((field) => field.required && secretFields.has(field.key))) return false
+
+    // The kind needs no secret; the record still needs whatever else the kind requires, which
+    // for an endpoint is the address there is otherwise nothing to dial.
+    return hasRequiredCredential(kind, credentialValuesFor(connection), [])
+}
+
 /** A key rendered as `sk-••••9Qa`: enough to tell two keys apart, never enough to use one. */
 export const maskSecret = (value: string): string =>
     value.length <= 8
@@ -357,6 +439,8 @@ export const defaultNamePreview = (kind: string, connections: ProviderConnection
 /** One row of the card's Active models list. */
 export interface ModelOption {
     id: string
+    /** Provider-supplied display name. */
+    name?: string
     checked: boolean
     /** Part of Agenta's default set for this provider — tagged in the list. */
     isDefault: boolean
@@ -506,6 +590,7 @@ export const buildModelOptions = ({
     defaults = [],
     discovered = false,
     order,
+    names = {},
 }: {
     available: string[]
     checked: string[]
@@ -513,6 +598,7 @@ export const buildModelOptions = ({
     defaults?: string[]
     discovered?: boolean
     order?: string[]
+    names?: Record<string, string>
 }): ModelOption[] => {
     const availableSet = new Set(available)
     const checkedSet = new Set(checked)
@@ -527,6 +613,7 @@ export const buildModelOptions = ({
 
     return ids.map((id) => ({
         id,
+        ...(names[id] && names[id] !== id ? {name: names[id]} : {}),
         checked: checkedSet.has(id),
         isDefault: defaultSet.has(id),
         unavailable: discovered && !availableSet.has(id) && !manualSet.has(id),
@@ -537,6 +624,71 @@ export const buildModelOptions = ({
 // Harness policy
 // ---------------------------------------------------------------------------
 
+/** The OpenAI-compatible deployment surface, and the family a route through it defaults to. */
+export const CUSTOM_KIND = "custom"
+const CUSTOM_FALLBACK_FAMILY: LlmEndpointProtocol = LlmEndpointProtocol.Openai
+
+/** The one provider family a harness reaches, or null when it reaches several or none. */
+export const soleAgentHarnessProviderFamily = (
+    capabilities: HarnessCapabilityMap | null | undefined,
+    harness: string | null | undefined,
+): string | null => {
+    const providers = harness ? (capabilities?.[harness]?.providers ?? []) : []
+    return providers.length === 1 ? providers[0] : null
+}
+
+/**
+ * The provider family a harness accepts through the `custom` surface, or null when it accepts none.
+ *
+ * Mirrors `HARNESS_CUSTOM_DEPLOYMENT_PROVIDERS` in the SDK, which the catalog does not publish, and
+ * derives it from what the catalog does publish: a harness that reaches `openai` speaks the
+ * OpenAI-compatible dialect, and one that reaches a single other family speaks that. On the shipped
+ * catalog this is pi_core and codex to `openai`, claude to `anthropic`, which is the SDK map.
+ */
+export const customRouteFamily = (
+    capabilities: HarnessCapabilityMap | null | undefined,
+    harness: string,
+): string | null => {
+    const providers = capabilities?.[harness]?.providers ?? []
+    if (providers.some((provider) => provider.toLowerCase() === CUSTOM_FALLBACK_FAMILY)) {
+        return CUSTOM_FALLBACK_FAMILY
+    }
+    return soleAgentHarnessProviderFamily(capabilities, harness)
+}
+
+/**
+ * The protocol a custom endpoint DECLARES, or null where it declares none.
+ *
+ * Null is not a synonym for `openai`. A record written before the field existed made no statement
+ * about its wire format, so reading one into it would narrow connections that have been saved and
+ * working for months: an Anthropic gateway stored as `harnesses: ["claude"]` would lose every
+ * Claude Code row in the picker. An undeclared record therefore narrows nothing, and the per-model
+ * vendor guess in `customRouteAdmitsModel` stays its only decider. Only a declared protocol is a
+ * fact to gate on — and the provider form declares one on every save.
+ */
+export const declaredEndpointProtocol = (
+    protocol: string | null | undefined,
+): LlmEndpointProtocol | null =>
+    protocol === LlmEndpointProtocol.Anthropic || protocol === LlmEndpointProtocol.Openai
+        ? protocol
+        : null
+
+/**
+ * What the protocol control starts on, which is also what a save may declare.
+ *
+ * A new connection starts on the form's default and declares it: the person is describing an
+ * endpoint as they create it, and the control they see is the statement they are making.
+ *
+ * An existing record starts on what it declared, and one that declared nothing keeps declaring
+ * nothing. Reading the default into it would turn a name-only edit into a statement about the
+ * wire format — the narrowing `declaredEndpointProtocol` exists to avoid, applied by accident
+ * to a record whose owner never touched the control.
+ */
+export const initialEndpointProtocol = (
+    connection: {protocol?: string | null} | null | undefined,
+): LlmEndpointProtocol | null =>
+    connection ? declaredEndpointProtocol(connection.protocol) : DEFAULT_ENDPOINT_PROTOCOL
+
 /**
  * Whether a harness can technically drive this provider kind.
  *
@@ -544,22 +696,32 @@ export const buildModelOptions = ({
  * reachable when the harness consumes that deployment surface. The saved harness list is user
  * policy layered on top — this is the technical limit underneath it.
  *
- * Deliberately coarse for a deployment surface, because the surface does not name a family: an
- * endpoint the harness can speak to at all passes here. Which family a connection under that
- * surface is ASSUMED to speak, and therefore which harnesses it is offered under by default, is
- * `effectiveHarnesses` in ./agentModelCandidates.
+ * Coarse for every deployment surface but `custom`, which is the one the record declares a protocol
+ * for: consuming the surface says the harness can speak to an endpoint at all, and the declared
+ * protocol says whether it can speak to THIS one. Without that second rule Claude Code is offered
+ * on an OpenAI-compatible endpoint and the run fails with a 422 the user never sees.
+ *
+ * An UNDECLARED endpoint stays as coarse as it was. Narrowing on a protocol nobody stated would
+ * take working Claude Code routes away from every gateway saved before the field existed, which is
+ * the worse bug of the two; those records are judged model by model in the picker instead.
  */
 export const harnessSupportsProviderKind = (
     capabilities: HarnessCapabilityMap | null | undefined,
     harness: string,
     kind: string,
+    protocol?: string | null,
 ): boolean => {
     const entry = capabilities?.[harness]
     if (!entry) return false
 
     const deployment = deploymentForProviderKind(kind)
-    if (deployment !== "direct") return !!entry.deployments?.includes(deployment)
-    return !!entry.providers?.includes(kind)
+    if (deployment === "direct") return !!entry.providers?.includes(kind)
+    if (!entry.deployments?.includes(deployment)) return false
+    if (deployment !== CUSTOM_KIND) return true
+
+    const declared = declaredEndpointProtocol(protocol)
+    if (!declared) return true
+    return customRouteFamily(capabilities, harness) === declared
 }
 
 // ---------------------------------------------------------------------------
@@ -628,8 +790,12 @@ export interface ConnectionDraft {
     credential: CredentialValues
     /** The explicit list of checked models; `undefined` leaves the connection on Agenta's defaults. */
     models?: string[]
+    /** Provider-supplied display names for the selected models. */
+    modelNames?: Record<string, string>
     /** The explicit harness policy; `undefined` leaves it open to any harness Agenta supports. */
     harnesses?: string[]
+    /** The declared endpoint protocol; only the kinds whose card asks for one carry it. */
+    protocol?: LlmEndpointProtocol
 }
 
 /**
@@ -667,8 +833,8 @@ export const connectionPolicyForSave = ({
  * `custom_provider` is addressed by name, so an empty one is filled with the same preview the
  * card showed — the caller passes `fallbackName` for that.
  *
- * `models` and `harnesses` are written only when the draft carries them: an omitted field means
- * "Agenta's defaults", which is not the same record as an explicit empty list.
+ * `models`, `harnesses` and `protocol` are written only when the draft carries them: an omitted
+ * field means "Agenta's defaults", which is not the same record as an explicit empty list.
  */
 export const buildConnectionPayload = (
     draft: ConnectionDraft,
@@ -677,7 +843,14 @@ export const buildConnectionPayload = (
     const name = draft.name.trim()
     const key = (draft.credential.apiKey ?? "").trim()
     const policy = {
-        ...(draft.models ? {models: draft.models.map((slug) => ({slug}))} : {}),
+        ...(draft.models
+            ? {
+                  models: draft.models.map((slug) => ({
+                      slug,
+                      ...(draft.modelNames?.[slug] ? {extras: {name: draft.modelNames[slug]}} : {}),
+                  })),
+              }
+            : {}),
         ...(draft.harnesses ? {harnesses: draft.harnesses} : {}),
     }
 
@@ -718,6 +891,7 @@ export const buildConnectionPayload = (
                 // empty list the API already stores for it.
                 models: policy.models ?? [],
                 ...(policy.harnesses ? {harnesses: policy.harnesses} : {}),
+                ...(draft.protocol ? {protocol: draft.protocol} : {}),
             },
         },
     } as CreateSecretDto

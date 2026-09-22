@@ -1,0 +1,19 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "crm-updater",
+  "version": "1.0.0",
+  "description": "Each day, updates CRM contact records using context from your recent email threads.",
+  "author": {
+    "name": "Agenta"
+  },
+  "license": "Apache-2.0",
+  "keywords": [
+    "sales",
+    "agent-template"
+  ],
+  "extensions": {
+    "ai.agenta": {
+      "manifest": "./ai.agenta/agents.json"
+    }
+  }
+}

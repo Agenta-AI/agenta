@@ -6,9 +6,19 @@
  * (the expanded analytics dashboard, an app's routing verbs) arrives as a slot.
  */
 export {HomeOverview, type HomeOverviewProps} from "./HomeOverview"
+export {HomeFocus, type HomeFocusProps} from "./HomeFocus"
+export {resolveBoundAgentId} from "./boundAgent"
+export {HomeGreeting} from "./HomeGreeting"
+export {
+    HomeEntityList,
+    type HomeEntityListProps,
+    type HomeListAgent,
+    type HomeListTab,
+} from "./HomeEntityList"
 export {AgentsPanel, type AgentsPanelEntry, type AgentsPanelProps} from "./AgentsPanel"
 export {NewAgentButton, type NewAgentButtonProps, type NewAgentTemplate} from "./NewAgentButton"
 export {TemplateGallery, type TemplateGalleryProps} from "./TemplateGallery"
+export {TEMPLATE_GALLERY_COPY} from "./templateGalleryCopy"
 export {TemplateDetail, type TemplateDetailProps} from "./TemplateDetail"
 export {TemplateCard, type TemplateCardProps} from "./TemplateCard"
 export {TemplateProviderMarks} from "./TemplateProviderMarks"
@@ -22,6 +32,7 @@ export {UsageCard, type UsageCardProps} from "./UsageCard"
 export {AnalyticsRangePicker, type AnalyticsRangePickerProps} from "./AnalyticsRangePicker"
 export {
     HomeTaskComposer,
-    type HomeTaskComposerAgent,
+    type HomeComposerMode,
+    type HomeComposerTemplate,
     type HomeTaskComposerProps,
 } from "./HomeTaskComposer"

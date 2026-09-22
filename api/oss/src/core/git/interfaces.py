@@ -19,6 +19,7 @@ from oss.src.core.git.dtos import (
     RevisionCreate,
     RevisionEdit,
     RevisionQuery,
+    RevisionGrouping,
     RevisionCommit,
 )
 
@@ -273,6 +274,7 @@ class GitDAOInterface(ABC):
         project_id: UUID,
         #
         revision_query: RevisionQuery,
+        grouping: Optional[RevisionGrouping] = None,
         #
         artifact_refs: Optional[List[Reference]] = None,
         variant_refs: Optional[List[Reference]] = None,

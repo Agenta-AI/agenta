@@ -125,6 +125,10 @@ const themeAwareColors = {
     // while its border and title (both listed above) resolved correctly dark.
     colorErrorBg: v("colorErrorBg"),
     colorSuccessBg: v("colorSuccessBg"),
+    // `border-colorSuccessBorder` fell through to the light-only hex dump and painted antd's
+    // light green (#b7eb8f) in dark mode. Found by compiling the config and reading the emitted
+    // rule rather than the intent.
+    colorSuccessBorder: v("colorSuccessBorder"),
     // Any name NOT listed here falls through to antd-tailwind.json, a LIGHT-ONLY hex dump,
     // and is frozen at its light value in dark. That is how the slider's dark track broke.
     colorInfo: v("colorInfo"),
@@ -134,6 +138,14 @@ const themeAwareColors = {
     controlItemBgActive: v("controlItemBgActive"),
     controlItemBgHover: v("controlItemBgHover"),
     colorWhite: v("colorWhite"),
+    // The tinted panel surface. It had a variable but no class, so package code reached for
+    // `bg-[var(--ag-surface-paper)]`, which is the dialect that freezes tokens at their light
+    // value on /m because the raw variable is not bridged there.
+    "surface-paper": v("surface-paper"),
+    // The single hero ("keycap") action per screen. Class-less until now for the same reason.
+    "hero-action": v("hero-action-bg"),
+    "hero-action-hover": v("hero-action-hover-bg"),
+    "hero-action-foreground": v("hero-action-text"),
 }
 
 export const createConfig = (content: string[] = []): Config => {
@@ -147,6 +159,7 @@ export const createConfig = (content: string[] = []): Config => {
             "../packages/agenta-ui/src/**/*.{js,ts,jsx,tsx}",
             "../packages/agenta-annotation-ui/src/**/*.{js,ts,jsx,tsx}",
             "../packages/agenta-entity-ui/src/**/*.{js,ts,jsx,tsx}",
+            "../packages/agenta-automation-ui/src/**/*.{js,ts,jsx,tsx}",
             "../packages/agenta-entities/src/**/*.{js,ts,jsx,tsx}",
             "../packages/agenta-playground/src/**/*.{js,ts,jsx,tsx}",
             "../packages/agenta-playground-ui/src/**/*.{js,ts,jsx,tsx}",
@@ -181,6 +194,7 @@ export const createConfig = (content: string[] = []): Config => {
                     // form falls through to the antd root var during coexistence; drop it once
                     // `--font-inter` is applied globally.
                     portal: ["var(--font-inter, var(--ant-font-family, system-ui, sans-serif))"],
+                    ...controlScale.fontFamily,
                 },
                 colors: {
                     ...antdTailwind,
@@ -365,8 +379,6 @@ export const createConfig = (content: string[] = []): Config => {
                         from: {transform: "translateY(0)"},
                         to: {transform: "translateY(100%)"},
                     },
-                    // antd Spin dot pulse (antSpinMove): base opacity 0.3 ramps to 1.
-                    "spin-move": {to: {opacity: "1"}},
                     // Config-section title shimmer (ConfigAccordionSection glint sweep).
                     "config-shimmer": {
                         "0%": {maskPosition: "180% 0", WebkitMaskPosition: "180% 0"},
@@ -413,8 +425,6 @@ export const createConfig = (content: string[] = []): Config => {
                     "sheet-out-top": "sheet-out-top 0.3s cubic-bezier(0.755,0.05,0.855,0.06)",
                     "sheet-in-bottom": "sheet-in-bottom 0.3s cubic-bezier(0.23,1,0.32,1)",
                     "sheet-out-bottom": "sheet-out-bottom 0.3s cubic-bezier(0.755,0.05,0.855,0.06)",
-                    // antd Spin: 1s linear infinite alternate, dots staggered by animation-delay.
-                    "spin-move": "spin-move 1s linear infinite alternate",
                     // Picker panels: 0.2s sits in the dropdown budget; easeOutQuint is the same
                     // curve the drawer slides on, so docked surfaces share one deceleration.
                     "command-panel-in": "command-panel-in 0.2s cubic-bezier(0.23,1,0.32,1)",

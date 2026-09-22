@@ -1,0 +1,37 @@
+---
+title: "Architecture"
+sidebar_label: "Architecture"
+description: "How an API request moves through the Agenta agent service, runner, harness, and sandbox."
+sidebar_position: 3
+---
+
+An agent request crosses five boundaries:
+
+1. **Your application** sends messages, a project ID, and a stored or inline configuration.
+2. **Agent workflow service** authenticates the request, resolves references and embeds, and normalizes the response.
+3. **Runner** manages the loop, sessions, tools, permissions, interactions, and events.
+4. **Harness** drives Pi, Claude Code, or Codex and calls the selected model.
+5. **Sandbox** provides the working directory, command runtime, skill files, and output files.
+
+## Stored and inline agents
+
+A stored run sends `references.workflow_revision`. Agenta fetches the versioned workflow configuration. An inline run sends `data.parameters.agent`; this takes precedence when both are present.
+
+## State boundaries
+
+| State                            | Lifetime                               |
+| -------------------------------- | -------------------------------------- |
+| Request messages                 | one invocation unless replayed         |
+| Session records and interactions | session                                |
+| Warm harness process             | while retained by the runner           |
+| Session working directory        | session according to sandbox retention |
+| Workflow configuration           | versioned project resource             |
+| Traces                           | observability retention policy         |
+
+A session can continue after a harness restart because Agenta reconstructs model-visible history from durable records. Warm continuation is faster and preserves in-process state, but clients must not depend on it.
+
+## Deployment responsibility
+
+Agenta Cloud operates the agent service, runner, and configured sandbox providers. In self-hosted deployments, you operate those components and choose which model connections, sandbox providers, and network policies are available.
+
+See [Sessions and turns](/reference/agents/sessions-and-turns) for continuation behavior and [Sandboxes and security](/reference/agents/sandboxes-and-security) for trust boundaries.

@@ -52,10 +52,12 @@ export {
 // ============================================================================
 
 export {
+    agentFlagsQueryOptions,
     deriveWorkflowTypeFromRevision,
-    fetchAndClassifyWorkflows,
-    filterAgentWorkflows,
-    filterNonAgentWorkflows,
+    ensureAgentFlags,
+    selectAgentWorkflows,
+    selectNonAgentWorkflows,
+    withAgentFlags,
 } from "./helpers"
 
 // ============================================================================
@@ -72,6 +74,8 @@ export {
     appWorkflowsListQueryStateAtom,
     promptWorkflowsListQueryStateAtom,
     agentWorkflowsListQueryStateAtom,
+    appWorkflowsAgentFlagsQueryAtom,
+    appWorkflowsWithAgentFlagsAtom,
     // Single workflow artifact by id (current-workflow resolution without listing all)
     workflowDetailQueryAtomFamily,
     // Variant/Revision list queries (for 3-level hierarchy)
@@ -105,6 +109,7 @@ export {
     clearWorkflowDraftCallbacks,
     type WorkflowDraftCallbacks,
     discardWorkflowDraftAtom,
+    workflowDraftConsumedAtomFamily,
     // Cache invalidation
     invalidateWorkflowsListCache,
     invalidateWorkflowCache,
@@ -137,10 +142,16 @@ export {
 
 // Persisted agent-type map (cold-reload fallback for playgroundEarlyAgentStateAtom)
 // ============================================================================
-// AGENT ICON (per-agent glyph + colour, persisted client-side)
+// AGENT ICON (per-agent glyph + colour, stored on the artifact's tags)
 // ============================================================================
 
-export {agentIconAtomFamily, type AgentIconRecord} from "./agentIcon"
+export {
+    agentIconAtomFamily,
+    readAgentIconTag,
+    withAgentIconTag,
+    type AgentIconRecord,
+    type AgentIconSetting,
+} from "./agentIcon"
 
 export {readPersistedAgentType} from "./persistedAgentType"
 
@@ -221,6 +232,14 @@ export {
     registerWorkflowArchiveCallbacks,
     clearWorkflowArchiveCallbacks,
 } from "./commit"
+
+export {
+    loadAgentTemplateFromEphemeralAtom,
+    abandonAgentTemplateLoad,
+    templateConnectionChoices,
+    type LoadAgentTemplateFromEphemeralParams,
+} from "./loadTemplate"
+export {buildCreatePayloadFromEphemeral, type EphemeralCreatePayload} from "./createPayload"
 
 // ============================================================================
 // EVALUATOR UTILITIES (for evaluator-type workflows)

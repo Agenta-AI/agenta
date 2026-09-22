@@ -8,10 +8,9 @@ import {
     updateWebhookAtom,
     type WebhookEventType,
 } from "@agenta/entities/webhook"
-import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from "@agenta/ui/ui"
+import {Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from "@agenta/ui/ui"
 import {useAtom, useSetAtom} from "jotai"
 
-import {Button} from "@/components/ui/button"
 import {Input} from "@/components/ui/input"
 import {
     Sheet,

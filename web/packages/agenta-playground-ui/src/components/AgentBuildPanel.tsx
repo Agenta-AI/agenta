@@ -6,6 +6,7 @@ import {
     AgentOperationsSkeleton,
     FieldsDetectionProvider,
     PlaygroundConfigSection,
+    type TriggerOwnerRef,
 } from "@agenta/entity-ui/drill-in"
 import {hasPendingHydrationAtomFamily} from "@agenta/playground"
 import {useAtomValue} from "jotai"
@@ -34,6 +35,16 @@ export interface AgentBuildPanelProps {
     stickyHeaderTop?: number
     /** Operational section headers stick while their own section scrolls past. */
     sticky?: boolean
+    /**
+     * The automations create/edit drawer. Slotted like `storage`: the unified drawer lives in a
+     * package that depends on entity-ui, so the app mounts it and passes it down.
+     */
+    automationDrawer: ReactNode
+    /**
+     * Where an automation row's "Run history" goes. A surface with an automation detail page
+     * navigates there; absent, the history opens in the deliveries drawer over the panel.
+     */
+    onOpenRunHistory?: (owner: TriggerOwnerRef) => void
     className?: string
 }
 
@@ -53,6 +64,8 @@ export const AgentBuildPanel = memo(
         storageHeader,
         stickyHeaderTop = 48,
         sticky = true,
+        automationDrawer,
+        onOpenRunHistory,
         className,
     }: AgentBuildPanelProps) => {
         const hasPendingHydration = useAtomValue(hasPendingHydrationAtomFamily(revisionId))
@@ -91,6 +104,8 @@ export const AgentBuildPanel = memo(
                         sticky={sticky}
                         storage={storage}
                         storageHeader={storageHeader}
+                        automationDrawer={automationDrawer}
+                        onOpenRunHistory={onOpenRunHistory}
                     />
                 )}
             </div>

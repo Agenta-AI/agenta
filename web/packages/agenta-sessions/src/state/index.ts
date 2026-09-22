@@ -3,6 +3,7 @@ export {
     sessionAgentFilterAtom,
     sessionStatusFilterAtom,
     sessionShowArchivedAtom,
+    sessionArchivedOnlyAtom,
     sessionShowTriggeredAtom,
     sessionFiltersActiveAtom,
     sessionFiltersActiveExceptAgentAtom,
@@ -15,7 +16,12 @@ export {
     type SessionScope,
     type SessionStatusFilter,
 } from "./filters"
-export {pinnedSessionIdsAtom, isSessionPinnedAtom, toggleSessionPinAtom} from "./pins"
+export {
+    pinnedSessionIdsAtom,
+    isSessionPinnedAtom,
+    toggleSessionPinAtom,
+    unpinSessionAtom,
+} from "./pins"
 export {
     sessionTabScope,
     MAX_OPEN_SESSION_TABS,
@@ -77,6 +83,12 @@ export {
     type SessionCardGroup,
     type UseSessionCardListArgs,
 } from "./useSessionCardList"
+export {
+    useSessionTabRows,
+    sessionTabListArgs,
+    sessionTabRowsPending,
+    type SessionTabRows,
+} from "./useSessionTabRows"
 export {
     pendingSessionOpensAtom,
     addPendingSessionOpenAtom,

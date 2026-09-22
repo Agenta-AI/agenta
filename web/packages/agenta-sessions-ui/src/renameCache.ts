@@ -13,11 +13,11 @@ export const NAMED_SESSION_QUERY_KEYS = [
 /**
  * Rewrites one session's name wherever a cached list holds it.
  *
- * Four shapes carry sessions: the rail's flat `SessionStream[]`, a single query page
- * (`{sessions}`), an infinite query's `{pages}`, and one bare session. Anything else is handed
- * back untouched, so an unrecognised cache entry is left alone rather than corrupted. Returns the
- * SAME object when the session is not in it — a fresh identity would re-render every list that
- * never held it.
+ * Five shapes carry sessions: the rail's flat `SessionStream[]`, a single query page
+ * (`{sessions}`), the rail's paging tail (`{rows, more}`), an infinite query's `{pages}`, and one
+ * bare session. Anything else is handed back untouched, so an unrecognised cache entry is left
+ * alone rather than corrupted. Returns the SAME object when the session is not in it — a fresh
+ * identity would re-render every list that never held it.
  */
 export const withRenamedSession = (data: unknown, sessionId: string, name: string): unknown => {
     if (Array.isArray(data)) {
@@ -31,7 +31,11 @@ export const withRenamedSession = (data: unknown, sessionId: string, name: strin
         return changed ? next : data
     }
     if (!data || typeof data !== "object") return data
-    const {pages, sessions} = data as {pages?: unknown; sessions?: unknown}
+    const {pages, sessions, rows} = data as {
+        pages?: unknown
+        sessions?: unknown
+        rows?: unknown
+    }
     if (Array.isArray(pages)) {
         const next = pages.map((page) => withRenamedSession(page, sessionId, name))
         return next.some((page, index) => page !== pages[index]) ? {...data, pages: next} : data
@@ -39,6 +43,12 @@ export const withRenamedSession = (data: unknown, sessionId: string, name: strin
     if (Array.isArray(sessions)) {
         const next = withRenamedSession(sessions, sessionId, name)
         return next === sessions ? data : {...data, sessions: next}
+    }
+    // The rail's paging tail. It carries `more` beside its rows because whether another page
+    // exists cannot be read off a row count, so the rows are not the cache entry itself.
+    if (Array.isArray(rows)) {
+        const next = withRenamedSession(rows, sessionId, name)
+        return next === rows ? data : {...data, rows: next}
     }
     // One session on its own, the shape `/m`'s per-session stream query caches.
     if ((data as {session_id?: string}).session_id === sessionId) return {...data, name}

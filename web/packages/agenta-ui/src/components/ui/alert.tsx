@@ -1,74 +1,66 @@
 import * as React from "react"
 
-import {CheckCircle, Info, WarningCircle, XCircle, X} from "@phosphor-icons/react"
 import {cva, type VariantProps} from "class-variance-authority"
+import {CircleAlert, CircleCheck, Info, TriangleAlert, X} from "lucide-react"
 
 import {cn} from "./utils"
 
 /**
- * Alert — an @agenta/ui re-skin of antd `Alert`, presentational (plain div + cva, no Radix).
- * bg/border/icon colour resolve through the palette-derived `--ag-*` bridge, so they flip
- * light↔dark with the app theme. Geometry comes from the control scale + Tailwind spacing,
- * never raw pixels. `border-solid`/`box-border` are required (preflight is OFF app-wide).
- *
- * antd → @agenta/ui mapping (call-sites): type/message/description/showIcon/closable/onClose/
- * banner/icon all map 1:1. `action`/`afterClose` are not built — see Alert.md.
+ * Alert — the shadcn alert (neutral card; `error` is the destructive variant) behind antd Alert's props.
+ * Unlike shadcn, success/info/warning keep the status colour on the icon.
  */
 const alertVariants = cva(
     [
         // CONTROL_RESET — preflight is off app-wide (see button.tsx).
         "box-border border-solid",
-        "relative flex border text-colorTextHeading transition-colors",
-        // 12px / 20px line-height (antd reset), pinned so it never inherits the ancestor size.
-        "rounded-control-lg text-field-md",
+        "relative flex w-full items-start gap-2 border px-2.5 py-2 text-left text-sm",
+        "bg-card text-card-foreground",
     ],
     {
         variants: {
             type: {
-                success: "bg-success-bg border-success-border",
-                info: "bg-info-bg border-info-border",
-                warning: "bg-warning-bg border-warning-border",
-                error: "bg-error-bg border-error-border",
-            },
-            // antd: description grows padding (20/24) + top-aligns; else 8/12 + center.
-            hasDescription: {
-                true: "items-start px-6 py-5",
-                false: "items-center px-3 py-2",
+                success: "border-border",
+                info: "border-border",
+                warning: "border-border",
+                // Error text, description at 90%.
+                error: "border-border text-error [&_[data-slot=alert-description]]:text-[color:color-mix(in_srgb,var(--ag-colorError)_90%,transparent)]",
             },
             // antd banner: no border, no radius.
-            banner: {true: "rounded-none border-0", false: ""},
+            banner: {true: "rounded-none border-0", false: "rounded-control-lg"},
         },
-        defaultVariants: {type: "info", hasDescription: false, banner: false},
+        defaultVariants: {type: "info", banner: false},
     },
 )
 
-// antd Alert icon colour = the semantic colour per type. warning = colorWarning (NOT
-// colorWarningText, which `text-warning` maps to and diverges in dark).
+// warning = colorWarning, not colorWarningText (which diverges in dark).
 const alertIconColor: Record<NonNullable<AlertProps["type"]>, string> = {
     success: "text-colorSuccess",
     info: "text-info",
     warning: "text-colorWarning",
-    error: "text-colorError",
+    error: "text-current",
 }
 
-// antd default filled status icons (CheckCircle/Info/ExclamationCircle/CloseCircle equivalents).
 const alertDefaultIcon: Record<NonNullable<AlertProps["type"]>, React.ReactNode> = {
-    success: <CheckCircle weight="fill" />,
-    info: <Info weight="fill" />,
-    warning: <WarningCircle weight="fill" />,
-    error: <XCircle weight="fill" />,
+    success: <CircleCheck />,
+    info: <Info />,
+    warning: <TriangleAlert />,
+    error: <CircleAlert />,
 }
 
 export interface AlertProps
-    extends
-        Omit<React.HTMLAttributes<HTMLDivElement>, "type">,
-        Omit<VariantProps<typeof alertVariants>, "hasDescription"> {
+    extends Omit<React.HTMLAttributes<HTMLDivElement>, "type">, VariantProps<typeof alertVariants> {
     message?: React.ReactNode
     description?: React.ReactNode
     showIcon?: boolean
     closable?: boolean
     onClose?: React.MouseEventHandler<HTMLButtonElement>
     icon?: React.ReactNode
+    /**
+     * A trailing control on the alert's own line: the reconnect link on an expired-login banner,
+     * the retry on a failed probe. It is right aligned and never wraps, so the message reflows
+     * around it rather than pushing it onto a second line.
+     */
+    action?: React.ReactNode
 }
 
 export function Alert({
@@ -81,6 +73,7 @@ export function Alert({
     onClose,
     banner = false,
     icon,
+    action,
     ...props
 }: AlertProps) {
     const resolvedType = type ?? "info"
@@ -91,49 +84,58 @@ export function Alert({
         <div
             data-slot="alert"
             role="alert"
-            className={cn(alertVariants({type: resolvedType, hasDescription, banner}), className)}
+            className={cn(
+                alertVariants({type: resolvedType, banner}),
+                banner && "px-2.5 py-2",
+                className,
+            )}
             {...props}
         >
             {iconVisible ? (
                 <span
                     data-slot="alert-icon"
+                    // Nudged 2px down to sit on the title line.
                     className={cn(
-                        // marginXS (8px) + 12px icon / marginSM (12px) + 20px icon (measured).
-                        "shrink-0 leading-none",
-                        hasDescription ? "mr-3 [&_svg]:size-5" : "mr-2 [&_svg]:size-3",
+                        "flex size-4 shrink-0 translate-y-0.5 items-center justify-center [&_svg]:size-4",
                         alertIconColor[resolvedType],
                     )}
                 >
                     {icon ?? alertDefaultIcon[resolvedType]}
                 </span>
             ) : null}
-            <div data-slot="alert-content" className="min-w-0 flex-1">
+            <div data-slot="alert-content" className="flex min-w-0 flex-1 flex-col gap-0.5">
                 {message != null ? (
                     <div
                         data-slot="alert-title"
-                        // antd: with a description the title grows to fontSizeLG (16px), not bold.
-                        // leading ratio 1.4286 = antd's 22.86px line-height (field-lg ships 1.5).
-                        className={cn(
-                            hasDescription &&
-                                "mb-2 block text-field-lg leading-[1.4285714285714286]",
-                        )}
+                        className="font-medium leading-5 [&_a]:underline [&_a]:underline-offset-[3px] [&_a:hover]:text-foreground"
                     >
                         {message}
                     </div>
                 ) : null}
                 {hasDescription ? (
-                    <div data-slot="alert-description" className="text-colorText">
+                    <div
+                        data-slot="alert-description"
+                        className="text-sm text-muted-foreground [&_a]:underline [&_a]:underline-offset-[3px] [&_a:hover]:text-foreground [&_p:not(:last-child)]:mb-4"
+                    >
                         {description}
                     </div>
                 ) : null}
             </div>
+            {action != null ? (
+                <div
+                    data-slot="alert-action"
+                    className="flex shrink-0 items-center gap-2 self-center"
+                >
+                    {action}
+                </div>
+            ) : null}
             {closable ? (
                 <button
                     type="button"
                     data-slot="alert-close"
                     aria-label="Close"
                     onClick={onClose}
-                    className="ml-2 shrink-0 cursor-pointer border-0 bg-transparent p-0 leading-none text-colorIcon transition-colors hover:text-colorIconHover [&_svg]:size-3"
+                    className="flex size-4 shrink-0 translate-y-0.5 cursor-pointer items-center justify-center border-0 bg-transparent p-0 text-muted-foreground transition-colors hover:text-foreground [&_svg]:size-4"
                 >
                     <X />
                 </button>

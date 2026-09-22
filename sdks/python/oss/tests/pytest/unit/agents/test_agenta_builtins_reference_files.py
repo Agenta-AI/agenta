@@ -29,7 +29,7 @@ from agenta.sdk.utils.types import AgentTemplateSchema
 
 # Repo-root-relative path to the frontend template registry. Walked up from this test file so it
 # does not depend on where the SDK checkout lives relative to the monorepo root.
-_FRONTEND_TEMPLATES_PATH = "web/oss/src/components/pages/agent-home/assets/templates.ts"
+_FRONTEND_TEMPLATES_PATH = "web/packages/agenta-entities/src/workflow/agentTemplates.ts"
 
 
 def _file(path: str) -> SkillFile:
@@ -68,7 +68,7 @@ def _frontend_template_keys() -> "set[str] | None":
             "cannot locate the template registry"
         )
     array_content = _array_body_after(content, marker_pos, marker)
-    return set(re.findall(r'key:\s*"([^"]+)"', array_content))
+    return set(re.findall(r'^ {8}key:\s*"([^"]+)"', array_content, re.MULTILINE))
 
 
 def _array_body_after(content: str, marker_pos: int, marker: str) -> str:
@@ -117,23 +117,18 @@ def test_build_an_agent_bundles_the_reference_files():
     assert {
         "references/config-schema.md",
         "references/trigger-inputs.md",
-        "references/agent-templates/index.md",
     } <= paths
 
 
-def test_every_template_entry_has_a_playbook_file():
-    paths = {bundled.path for bundled in BUILD_AN_AGENT_SKILL.files}
-    for entry in AGENT_TEMPLATE_ENTRIES:
-        assert f"references/agent-templates/{entry.key}.md" in paths
-    assert "changelog-writer" in {entry.key for entry in AGENT_TEMPLATE_ENTRIES}
-
-
-def test_index_lists_every_template_and_the_fallback():
-    content = _file("references/agent-templates/index.md").content
-    for entry in AGENT_TEMPLATE_ENTRIES:
-        assert f"references/agent-templates/{entry.key}.md" in content
-    # The router must always offer the no-match escape hatch.
-    assert "No match? Use the generic loop in SKILL.md." in content
+def test_builder_does_not_ship_template_reconstruction_playbooks():
+    # Packages are installed by the template loader. The generic configuration skill must
+    # not send the model through the old reconstruction path, including on the wire.
+    assert "## Templates" not in BUILD_AN_AGENT_SKILL.body
+    assert "references/agent-templates/" not in BUILD_AN_AGENT_SKILL.body
+    assert not any(
+        entry["path"].startswith("references/agent-templates/")
+        for entry in BUILD_AN_AGENT_SKILL.to_wire()["files"]
+    )
 
 
 def test_bundled_file_paths_revalidate():
@@ -211,8 +206,6 @@ def test_reference_files_ride_the_wire():
     assert {
         "references/config-schema.md",
         "references/trigger-inputs.md",
-        "references/agent-templates/index.md",
-        "references/agent-templates/changelog-writer.md",
     } <= wire_paths
 
 
@@ -220,6 +213,14 @@ def test_trigger_inputs_reference_documents_the_context_shape():
     content = _file("references/trigger-inputs.md").content
     for key in ("event", "subscription", "scope", "attributes", "inputs_fields"):
         assert key in content, f"trigger-inputs.md omits {key!r}"
+
+
+def test_trigger_inputs_reference_keeps_messages_task_only():
+    content = " ".join(_file("references/trigger-inputs.md").content.split())
+    assert "`messages` entry containing only the task" in content
+    assert "not schedule/trigger metadata, timing checks, or skip-run guards" in content
+    assert "Configure when to run in the schedule or trigger settings" in content
+    assert '"event": "$.event.attributes"' in content
 
 
 def test_config_schema_has_example_commit_revision_requests():
@@ -234,6 +235,32 @@ def test_config_schema_preserves_allow_all_integration_creation_guidance():
     content = _file("references/config-schema.md").content
     assert "A newly added integration always starts with every tool allowed" in content
     assert '`policy.permissions` to `{ "default": "allow", "tools": {} }`' in content
+
+
+def test_config_schema_states_the_shipped_mcp_new_tool_rule():
+    """The rule D88 settled, in the words the builder agent reads.
+
+    The reference told the agent that ``new_tool_permission`` "Defaults to `permission`", which
+    is the rule the shipped code does NOT implement: ``MCPPolicy.resolved_new_tool_permission``
+    returns ``new_tool_permission or "ask"`` once a table exists, and the runner's
+    ``mcpToolPermission`` "deliberately does NOT fall through to the whole-server permission".
+    An agent following the old sentence writes ``permission: "allow"`` beside a per-tool table
+    expecting unnamed tools to be allowed, and gets a gate on every one of them instead.
+    """
+    content = _file("references/config-schema.md").content
+
+    assert "With no value it is `ask`. It never falls back to `permission`." in content
+    assert (
+        "a tool the\ntable does not name follows `new_tool_permission`, and asks when that "
+        "field is absent." in content
+    )
+    # The whole-server permission still governs while there is no table, which is what keeps
+    # every configuration written before per-tool policy behaving as it did.
+    assert "Setting neither\nfield leaves the server exactly as it behaved" in content
+
+    # The replaced rule, in every spelling that would send an agent back to it.
+    assert "Defaults to `permission`" not in content
+    assert "and to `ask` when that is unset too" not in content
 
 
 def test_trigger_inputs_has_example_trigger_requests():

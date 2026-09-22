@@ -61,7 +61,8 @@ import {
     buildServiceUrlFromUri,
     isManagedServiceUrl,
     deriveWorkflowTypeFromRevision,
-    withLatestAgentFlags,
+    agentFlagsQueryOptions,
+    withAgentFlags,
 } from "./helpers"
 import {writePersistedAgentType} from "./persistedAgentType"
 
@@ -434,9 +435,13 @@ export interface WorkflowListRef {
     slug: string | null
     description: string | null
     flags: Workflow["flags"]
+    /** Artifact tags — `@ag.icon` is where an agent's chosen icon lives. */
+    tags: Workflow["tags"]
     deleted_at: string | null
     created_at: string | null
     updated_at: string | null
+    /** Creator user id — the "Created by" column and facet on the agents roster. */
+    created_by_id: string | null
 }
 
 /**
@@ -457,9 +462,11 @@ export function toWorkflowListRef(w: Workflow): WorkflowListRef {
         slug: w.slug ?? null,
         description: w.description ?? null,
         flags: w.flags,
+        tags: w.tags ?? null,
         deleted_at: w.deleted_at ?? null,
         created_at: w.created_at ?? null,
         updated_at: w.updated_at ?? null,
+        created_by_id: w.created_by_id ?? null,
     }
 }
 
@@ -567,29 +574,29 @@ export const nonArchivedAppWorkflowsAtom = atom<Workflow[]>((get) => {
     return refs.filter((ref) => !ref.deleted_at) as Workflow[]
 })
 
-const appWorkflowsWithAgentFlagsQueryAtom = atomWithQuery((get) => {
+/**
+ * The project's agent / not-agent classification — the SHARED map, not a per-list fetch.
+ *
+ * Runs independently of the artifact list above rather than after it. It used to be gated on that
+ * list resolving, which made two serial round trips of what is one question, and its key embedded
+ * every workflow's `updated_at`, so a single playground commit re-fetched the classification of
+ * every app in the project.
+ */
+export const appWorkflowsAgentFlagsQueryAtom = atomWithQuery((get) => {
     const projectId = get(workflowProjectIdAtom)
-    const appQuery = get(appWorkflowsListQueryAtom)
-    const workflows = (appQuery.data?.refs ?? []) as Workflow[]
-    const workflowVersionKey = workflows.map((workflow) => [workflow.id, workflow.updated_at])
-
     return {
-        queryKey: ["workflows", "apps", "agentFlags", projectId, workflowVersionKey],
-        queryFn: async (): Promise<Workflow[]> => {
-            if (!projectId || workflows.length === 0) return workflows
-            // Sidebar prompt/agent split needs every app's latest revision just for the is_agent
-            // badge — heavy and not on the playground critical path, so demote it. It still primes the
-            // per-app latest-revision + detail caches, so the critical current-app fetch can share it.
-            const latestRevisions = await fetchWorkflowsBatch(
-                projectId,
-                workflows.map((workflow) => workflow.id),
-                {lowPriority: true},
-            )
-            return withLatestAgentFlags(workflows, latestRevisions)
-        },
-        enabled: get(sessionAtom) && !!projectId && !appQuery.isPending,
-        staleTime: 30_000,
+        ...agentFlagsQueryOptions(projectId),
+        enabled: get(sessionAtom) && !!projectId,
     }
+})
+
+const EMPTY_AGENT_FLAGS: ReadonlyMap<string, boolean> = new Map()
+
+/** The app artifact list with `flags.is_agent` stamped on from the shared map. */
+export const appWorkflowsWithAgentFlagsAtom = atom<Workflow[]>((get) => {
+    const workflows = (get(appWorkflowsListQueryAtom).data?.refs ?? []) as Workflow[]
+    const agentFlags = get(appWorkflowsAgentFlagsQueryAtom).data ?? EMPTY_AGENT_FLAGS
+    return withAgentFlags(workflows, agentFlags)
 })
 
 // ============================================================================
@@ -938,8 +945,8 @@ export const appWorkflowsListQueryStateAtom = atom<ListQueryState<Workflow>>((ge
 
 export const promptWorkflowsListQueryStateAtom = atom<ListQueryState<Workflow>>((get) => {
     const appQuery = get(appWorkflowsListQueryAtom)
-    const agentFlagsQuery = get(appWorkflowsWithAgentFlagsQueryAtom)
-    const data = (agentFlagsQuery.data ?? []).filter(
+    const agentFlagsQuery = get(appWorkflowsAgentFlagsQueryAtom)
+    const data = get(appWorkflowsWithAgentFlagsAtom).filter(
         (workflow) => !workflow.deleted_at && !workflow.flags?.is_agent,
     )
     return {
@@ -952,15 +959,16 @@ export const promptWorkflowsListQueryStateAtom = atom<ListQueryState<Workflow>>(
 
 export const agentWorkflowsListQueryStateAtom = atom<ListQueryState<Workflow>>((get) => {
     const appQuery = get(appWorkflowsListQueryAtom)
-    const agentFlagsQuery = get(appWorkflowsWithAgentFlagsQueryAtom)
+    const agentFlagsQuery = get(appWorkflowsAgentFlagsQueryAtom)
     // `deleted_at` too, like the prompts list above: an archived agent kept listing in the rail
     // and in the session filter's agent facet, where picking it emptied a list it could not fill.
-    const data = (agentFlagsQuery.data ?? []).filter(
+    const data = get(appWorkflowsWithAgentFlagsAtom).filter(
         (workflow) => !workflow.deleted_at && workflow.flags?.is_agent === true,
     )
     return {
         data,
         isPending: (appQuery.isPending || agentFlagsQuery.isPending) ?? false,
+        isFetching: appQuery.isFetching || agentFlagsQuery.isFetching,
         isError: appQuery.isError || agentFlagsQuery.isError,
         error: appQuery.error ?? agentFlagsQuery.error ?? null,
     }
@@ -1067,13 +1075,17 @@ export const workflowLatestRevisionIdAtomFamily = atomFamily((workflowId: string
         ])
         const refs = listData?.refs
         if (refs && refs.length > 0) {
+            // Version first, timestamp only as a tie-break — the same rule as
+            // `isLaterWorkflowRevision`. Timestamps first picked an arbitrary revision out of a
+            // burst of commits that tie to the second.
             const sorted = [...refs]
                 .filter((r) => (r.version ?? 0) !== 0)
                 .sort((a, b) => {
+                    const byVersion = (b.version ?? 0) - (a.version ?? 0)
+                    if (byVersion !== 0) return byVersion
                     const aTime = a.created_at ? new Date(a.created_at).getTime() : 0
                     const bTime = b.created_at ? new Date(b.created_at).getTime() : 0
-                    if (bTime !== aTime) return bTime - aTime
-                    return (b.version ?? 0) - (a.version ?? 0)
+                    return bTime - aTime
                 })
             return sorted[0]?.id ?? null
         }
@@ -1223,6 +1235,33 @@ export function primeWorkflowArtifactCacheImperative(
         }
     } catch {
         // queryClientAtom may not be initialized yet (rare)
+    }
+}
+
+/**
+ * Apply a metadata edit to every cache that holds the artifact — the apps list ref, the artifact
+ * and the detail entries. No refetch: the server's `workflow-changed` watch event already
+ * invalidates these, and the patch only covers the gap until that lands.
+ */
+export function patchWorkflowArtifactCaches(
+    queryClient: QueryClient,
+    projectId: string,
+    workflowId: string,
+    patch: <T extends {id?: string | null}>(workflow: T) => T,
+): void {
+    const listKey = ["workflows", "apps", "list", projectId]
+    const entryKeys = [
+        ["workflows", "artifact", workflowId, projectId],
+        ["workflows", "detail", projectId, workflowId],
+    ]
+    const apply = <T extends {id?: string | null}>(workflow: T): T =>
+        workflow.id === workflowId ? patch(workflow) : workflow
+
+    const list = queryClient.getQueryData<WorkflowListRefsResponse>(listKey)
+    if (list) queryClient.setQueryData(listKey, {...list, refs: list.refs.map(apply)})
+    for (const key of entryKeys) {
+        const workflow = queryClient.getQueryData<Workflow | null>(key)
+        if (workflow) queryClient.setQueryData(key, apply(workflow))
     }
 }
 
@@ -2543,6 +2582,33 @@ export const discardWorkflowDraftAtom = atom(null, (_get, set, workflowId: strin
     set(workflowDraftAtomFamily(workflowId), null)
 })
 
+/**
+ * How many times a COMMIT has consumed this revision's draft.
+ *
+ * A draft going empty means two different things, and the value alone cannot tell them apart:
+ * the person discarded their edits, or a commit turned them into a new revision. Only the first
+ * is a discard. Surfaces that reset themselves on a discard — the configuration form remounts,
+ * to clear editor state that props do not reach — must not reset on a commit, and on a host that
+ * switches to the new revision AFTER the commit rather than during it, the clearing lands while
+ * the old revision is still the one on screen. The form then remounted under whatever was open
+ * over it, seconds after an auto-commit nobody asked for (D94).
+ */
+export const workflowDraftConsumedAtomFamily = atomFamily((_workflowId: string) => atom(0))
+
+/**
+ * Clear a draft that a commit has just turned into a revision.
+ *
+ * Same write as a discard, plus the fact that distinguishes it. Use this from a commit; use
+ * `discardWorkflowDraftAtom` when the person threw the edits away.
+ */
+export const consumeWorkflowDraftAtom = atom(null, (get, set, workflowId: string) => {
+    set(workflowDraftAtomFamily(workflowId), null)
+    set(
+        workflowDraftConsumedAtomFamily(workflowId),
+        get(workflowDraftConsumedAtomFamily(workflowId)) + 1,
+    )
+})
+
 // ============================================================================
 // LOCAL DRAFTS (browser-only clones of server revisions)
 // ============================================================================
@@ -2859,9 +2925,12 @@ export function seedCreatedWorkflowCache(
         slug: revision.slug ?? null,
         description: revision.description ?? null,
         flags: revision.flags,
+        // Artifact tags, not the revision's: a just-created app has none.
+        tags: null,
         deleted_at: revision.deleted_at ?? null,
         created_at: revision.created_at ?? null,
         updated_at: revision.updated_at ?? null,
+        created_by_id: revision.created_by_id ?? null,
     }
 
     store.set(workflowLocalServerDataAtomFamily(revision.id), revision)
@@ -3031,6 +3100,9 @@ export function invalidateAgentCommittedRevisionCache(options?: StoreOptions) {
         // (#6380) — the config had already moved on to a version you could not name.
         qc.invalidateQueries({queryKey: ["workflows", "revisionsByWorkflow"], exact: false})
         qc.invalidateQueries({queryKey: ["workflows", "revisions"], exact: false})
+        // The agent/prompt split is read off the latest revision's flags, and a commit can flip
+        // it. Its key no longer carries per-workflow timestamps, so it needs saying explicitly.
+        qc.invalidateQueries({queryKey: ["workflows", "apps", "agentFlags"], exact: false})
     } catch {
         // queryClientAtom may not be initialized yet
     }

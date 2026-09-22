@@ -12,6 +12,10 @@ import {
   type ToolCallbackContext,
 } from "../../protocol.ts";
 import { sandboxVisibleSecretValues, seedForRun } from "../../redaction.ts";
+import {
+  observeSubscription,
+  thrownFields,
+} from "../../subscription-events.ts";
 import { startPlatformCredentialLease } from "../../sessions/auth.ts";
 import {
   ApprovalResponder,
@@ -62,6 +66,10 @@ import {
   type AcpPromptBlock,
 } from "./attachments.ts";
 import { describeCodexSubscriptionAuthFault } from "./codex-assets.ts";
+import { linkAgentFiles } from "./agent-mount.ts";
+import {
+  recoverSubscriptionAuthFailure,
+} from "./subscription-recovery.ts";
 import {
   classifyRunError,
   CREDENTIAL_RACE_REPORTS_PER_SESSION,
@@ -79,7 +87,6 @@ import { PAUSED, PendingApprovalPauseController } from "./pause.ts";
 import {
   capturePiTranscriptCursor,
   findSwallowedPiError,
-  isOnlyHarnessRetryNotices,
 } from "./pi-error.ts";
 import { buildGatewayToolGate } from "./gateway-gate.ts";
 import { buildRelayExecutionGuard } from "./relay-guard.ts";
@@ -106,15 +113,53 @@ import {
 import {
   resolveRunOtlpTarget,
   runCredential,
-  serverPermissionsFromRequest,
+  mcpPermissionsFromRequest,
   shouldSuppressPausedToolCallUpdate,
 } from "./runtime-policy.ts";
 import { appendSessionTurn } from "./session-continuity-durable.ts";
 import { nextTurnIndex, sessionContinuityStore } from "./session-continuity.ts";
+import {
+  carriesGatewayRefusalMarker,
+  errorEventWithDetail,
+  parseGatewayErrorDetail,
+} from "../../gateway-error.ts";
+import { mcpHandshakeFailureMessage } from "./mcp-handshake.ts";
 import { reconstructHistoryIfNeeded } from "./reconstruct-history.ts";
 import { carriesApprovalReplyOnly } from "./session-identity.ts";
 import { buildTurnText, priorMessages } from "./transcript.ts";
 import { resolveRunUsage } from "./usage.ts";
+
+/**
+ * Codex is the one harness that says anything at all when an MCP server fails to start: a
+ * synthetic failed tool call titled `mcp__<server>__startup`. It is not a tool the model ran, so
+ * it must not enter the transcript as one — but it IS the server's own verdict from inside the
+ * sandbox, which the runner's acquire-time probe cannot see. Returns the server name so the frame
+ * becomes a notice instead of being discarded.
+ */
+function codexMcpStartupFailure(
+  harness: string,
+  update: unknown,
+): string | undefined {
+  if (harness !== "codex" || !update || typeof update !== "object")
+    return undefined;
+  const frame = update as Record<string, unknown>;
+  const id = frame.toolCallId;
+  const title = frame.title;
+  if (
+    frame.sessionUpdate !== "tool_call" ||
+    frame.kind !== "other" ||
+    frame.status !== "failed" ||
+    typeof id !== "string" ||
+    !id.startsWith("mcp_startup.") ||
+    typeof title !== "string" ||
+    !title.startsWith("mcp__") ||
+    !title.endsWith("__startup")
+  ) {
+    return undefined;
+  }
+  const serverName = title.slice("mcp__".length, -"__startup".length);
+  return serverName || undefined;
+}
 
 /**
  * Run one turn against an acquired environment: start a fresh otel run, wire this turn's pause
@@ -240,6 +285,56 @@ export async function runTurn(
   // stop this turn's relay on EVERY exit path (a cleared sink must never orphan it).
   let otel: ReturnType<typeof createSandboxAgentOtel> | undefined;
   let activeTurn: CurrentTurn | undefined;
+  /**
+   * Ask the subscription recovery what to do about a failure, or undefined when this run carries
+   * no subscription and when the failure is not about the login.
+   *
+   * Two call sites reach it, and BOTH are load-bearing. Pi does not throw a provider refusal: it
+   * records the refusal in its own transcript and ends the turn cleanly, so the ordinary path is
+   * the swallowed-error branch below and the `catch` is the exception. With the swallowed branch
+   * unwired, a dead sign-in surfaces as an HTTP 500 carrying Pi's internal sentence.
+   *
+   * IT NEVER REJECTS. The recovery reads and writes the login file, on Daytona through the
+   * sandbox's file API, and a sandbox that died mid-turn makes that throw. Both call sites run
+   * where a rejection would escape before the trace is flushed — one of them from inside the
+   * `catch` itself, which would replace the run's real error with a filesystem one. A recovery
+   * that cannot complete is simply no recovery: the turn keeps the classification it already had.
+   */
+  const subscriptionRecovery = async (
+    err: unknown,
+  ): Promise<
+    Awaited<ReturnType<typeof recoverSubscriptionAuthFailure>> | undefined
+  > => {
+    const subscription = plan.credentials.subscription;
+    const home = plan.credentials.subscriptionHome;
+    if (!subscription || !home || !env.subscriptionPublish) return undefined;
+    return recoverSubscriptionAuthFailure({
+      err,
+      subscription,
+      state: env.subscriptionPublish,
+      home,
+      isDaytona: plan.isDaytona,
+      sandbox: env.sandbox as never,
+      api: {
+        apiBase: apiBase(),
+        authorization: credential(),
+        log: logger,
+      },
+      // A recovered login is published by the session's one publisher, never by a second path.
+      ...(env.subscriptionPublisher
+        ? { publish: env.subscriptionPublisher.reconcile }
+        : {}),
+      log: logger,
+    }).catch((thrown) => {
+      observeSubscription(logger, "subscription.recovery", {
+        connection: subscription.id,
+        decision: "recover",
+        verdict: "threw",
+        ...thrownFields(thrown),
+      });
+      return undefined;
+    });
+  };
   const harnessTrace = createHarnessTracePort({
     env,
     request: () => request,
@@ -423,6 +518,17 @@ export async function runTurn(
     });
     await harnessTrace.start(run, runRedactor);
     const resultTraceId = harnessTrace.traceId(run);
+
+    // Servers already reported this turn, so the harness's own startup complaint (Codex, below)
+    // does not double the notice the acquire probe already emitted for the same server.
+    const reportedMcpFailures = new Set<string>();
+    // Replay the acquire's handshake outcome onto EVERY turn, not just the cold one that probed.
+    // A pooled session keeps running without the server that failed, and the person driving turn
+    // three has no other way to learn that. See `SessionEnvironment.mcpHandshakeFailures`.
+    for (const failure of env.mcpHandshakeFailures ?? []) {
+      reportedMcpFailures.add(failure.serverName);
+      run.emitEvent({ type: "mcp_server_failed", ...failure });
+    }
 
     let promptBlocks: AcpPromptBlock[] = [{ type: "text", text: turnText }];
     if (!opts.resume) {
@@ -616,6 +722,28 @@ export async function runTurn(
       pause,
       toolRelay: undefined,
       handleUpdate: (update) => {
+        const codexMcpFailure = codexMcpStartupFailure(plan.harness, update);
+        if (codexMcpFailure) {
+          // Never as a tool call (it is synthetic), always as the notice. Skipped when the
+          // acquire probe already named this server, so one broken server is one message.
+          if (!reportedMcpFailures.has(codexMcpFailure)) {
+            reportedMcpFailures.add(codexMcpFailure);
+            logger(
+              `[mcp] warn: server '${codexMcpFailure}' failed its handshake: ` +
+                `status=none reason=harness_startup_failed`,
+            );
+            run.emitEvent({
+              type: "mcp_server_failed",
+              serverName: codexMcpFailure,
+              reasonCode: "harness_startup_failed",
+              message: mcpHandshakeFailureMessage(
+                codexMcpFailure,
+                "harness_startup_failed",
+              ),
+            });
+          }
+          return;
+        }
         // Per-tool-call deadline: starts on the announcement, ends on a terminal status. Tracked
         // regardless of the pause-suppression below (a call already timed out must not linger just
         // because a later sibling frame gets suppressed).
@@ -863,7 +991,7 @@ export async function runTurn(
       }
       await Promise.all(settling);
     };
-    const serverPermissions = serverPermissionsFromRequest(request);
+    const mcpPermissions = mcpPermissionsFromRequest(request, logger);
     // The SAME name->spec index the relay execute loop hands to the relay execution guard, so
     // the approval card and the guard cannot disagree about a tool's permission/readOnly.
     const specsByName = toolSpecsByName(plan.tools.toolSpecs);
@@ -899,7 +1027,7 @@ export async function runTurn(
             input: frame.input,
           },
           run,
-          serverPermissions,
+          mcpPermissions,
           specsByName,
           plan.acpAgent === "codex",
         );
@@ -962,7 +1090,7 @@ export async function runTurn(
       run,
       responder,
       acpAgent: plan.acpAgent,
-      serverPermissions,
+      mcpPermissions,
       log: logger,
       onPause: () => pause.pause(),
       onPausedToolCall: (id) => pause.markPausedToolCall(id),
@@ -1036,6 +1164,26 @@ export async function runTurn(
         : undefined,
     });
 
+    // Repair `<cwd>/agent-files` if this session lost it. Once per turn, on EVERY turn: a warm
+    // reuse never re-acquires, so `mountLocalAgentCwd` — the only other place that links it — does
+    // not run, and a session that lost the link stayed broken for the life of its environment.
+    //
+    // Here rather than at the top of the function because of the INVARIANT above: no unconditional
+    // I/O may delay `attachPermissionResponder`. This is the first point past it.
+    //
+    // Per turn rather than per tool call, and that loses nothing. Writes made after a mid-turn
+    // deletion land on the session drive, which is durable, and the repair moves them onto the
+    // agent mount. They arrive one turn late instead of never, for one `lstat` per turn rather
+    // than one per tool call on a FUSE mount.
+    if (env.agentMountedPath && !plan.isDaytona) {
+      const agentFilesReady = await linkAgentFiles(plan.workspace.cwd, env.agentMountedPath, {
+        log: logger,
+      });
+      if (!agentFilesReady) {
+        throw new Error("agent-files could not be linked to the durable agent mount");
+      }
+    }
+
     // Non-Pi loopback tools use the correlation index; Pi's relay toolCallId is already exact.
     env.clientToolRelayRef.current = buildClientToolRelay({
       responder,
@@ -1108,6 +1256,8 @@ export async function runTurn(
             plan.tools.clientToolPauseDisposition,
           ),
           authorizer: approvedContent.authorizer,
+          // M11: the wake source's `wait` declares a signal and had no caller supplying one.
+          signal,
           gatewayPolicy: request.gatewayPolicy,
           gatewayGate,
         },
@@ -1441,7 +1591,7 @@ export async function runTurn(
     }
     await turn.toolRelay?.stop();
     if (stopReason === "cancelled") {
-      // `agent_end` publishes Pi's partial native trace. Ask the adapter to finish that lifecycle
+      // `agent_settled` publishes Pi's partial native trace. Ask the adapter to finish that lifecycle
       // before draining; the outer environment teardown would otherwise cancel Pi only after the
       // spool had already timed out and then sweep the late batch.
       await harnessTrace.cancelBeforeDrain();
@@ -1469,17 +1619,12 @@ export async function runTurn(
     }
     const nativeTraceBatches = traceFinish?.pickedUpBatches;
 
-    // A retried turn is empty too. pi-acp streams "Retrying (attempt 1/3, waiting 2s)..." as an
-    // assistant message chunk, so a provider refusal that Pi retries leaves `output()` non-empty
-    // with chatter alone — which used to skip the recovery below and ship that chatter as the
-    // turn's answer. See `isOnlyHarnessRetryNotices`.
-    const visibleOutput = run.output().trim();
+    // A provider can fail after useful text or tools. Only the newest assistant record
+    // after this turn's cursor decides whether a completed Pi prompt actually failed.
     const swallowedPiError =
       plan.isPi &&
       stopReason === "end_turn" &&
-      piTranscriptCursor &&
-      (!visibleOutput || isOnlyHarnessRetryNotices(visibleOutput)) &&
-      !run.events().some((e) => e.type === "tool_call")
+      piTranscriptCursor
         ? // The helper derives the transcript location from
           // `piSessionWorkspaceDir(plan.workspace.cwd)`, the same shared helper
           // `configurePiSessionWorkspace` used to point Pi at it. On Daytona the
@@ -1491,31 +1636,65 @@ export async function runTurn(
               })
             : findSwallowedPiError(plan.workspace.cwd, piTranscriptCursor))
         : undefined;
+    // A harness that folded the gateway's refusal into its ANSWER rather than raising it.
+    //
+    // OR28: Codex ends such a turn `end_turn` with the refusal as the assistant's only message,
+    // so the run was reported as a SUCCESS — HTTP 200, `stop_reason: end_turn`, the refusal
+    // sitting in the transcript as if the model had said it. That is the worst of the three
+    // harnesses: Pi and Claude at least fail. The marker the gateway stamps into every typed
+    // refusal is what identifies it; a plain 403 with no marker is left alone, because only the
+    // marker distinguishes our refusal from a model quoting one.
+    //
+    // The accumulated assistant text is the only place that refusal exists, and it has to be
+    // read here: the decision feeds the stop reason `finish()` is called with, so it cannot
+    // wait for `finish()`'s return value. Harness recovery chatter never reaches this text —
+    // the adapters keep retries off the assistant channel — so anything here is the answer.
+    const visibleOutput = run.output().trim();
+    const swallowedGatewayRefusal =
+      !swallowedPiError &&
+      stopReason !== "paused" &&
+      stopReason !== "cancelled" &&
+      carriesGatewayRefusalMarker(visibleOutput)
+        ? parseGatewayErrorDetail(visibleOutput)
+        : undefined;
     let swallowedError: string | undefined;
-    if (swallowedPiError) {
-      const classified = classifyRunError(
-        new Error(swallowedPiError),
-        plan.harness,
-        request.modelConnection?.provider,
-        {
-          connection: {
-            slug: request.connection?.slug,
-            deployment: request.modelConnection?.deployment,
-          },
-          // The recovery path needs the same signal as the catch below. Pi records the
-          // provider's refusal in its transcript and ends the turn cleanly, so a credential
-          // race that arrives THIS way is the identical failure wearing a different shape —
-          // and without the predicate it would still be reported as the user's key problem.
-          daytonaCredentialFresh: reportCredentialRace,
-        },
-      );
-      swallowedError = classified.message;
+    if (swallowedGatewayRefusal) {
+      swallowedError = swallowedGatewayRefusal.message;
       run.recordError(swallowedError, request.modelConnection?.provider);
       run.emitEvent({
         type: "error",
-        message: classified.message,
-        code: classified.code,
+        message: swallowedError,
+        code: "runner_error",
+        detail: swallowedGatewayRefusal,
       });
+    } else if (swallowedPiError) {
+      // THE ORDINARY PATH FOR A SUBSCRIPTION AUTH FAILURE ON PI. Pi does not throw a provider
+      // refusal; it writes the refusal into its transcript and ends the turn with `end_turn`, so
+      // the `catch` below never sees it. The recovery therefore has to run here as well.
+      const swallowedRecovery = await subscriptionRecovery(
+        new Error(swallowedPiError),
+      );
+      const classified =
+        swallowedRecovery?.classified ??
+        classifyRunError(
+          new Error(swallowedPiError),
+          plan.harness,
+          request.modelConnection?.provider,
+          {
+            connection: {
+              slug: request.connection?.slug,
+              deployment: request.modelConnection?.deployment,
+            },
+            // The recovery path needs the same signal as the catch below. Pi records the
+            // provider's refusal in its transcript and ends the turn cleanly, so a credential
+            // race that arrives THIS way is the identical failure wearing a different shape —
+            // and without the predicate it would still be reported as the user's key problem.
+            daytonaCredentialFresh: reportCredentialRace,
+          },
+        );
+      swallowedError = classified.message;
+      run.recordError(swallowedError, request.modelConnection?.provider);
+      run.emitEvent(errorEventWithDetail(classified.message, classified.code));
     }
     if (nativeTraceBatches === 0 && !swallowedError) {
       await harnessTrace.emitMissingBatchFallback(run);
@@ -1523,7 +1702,7 @@ export async function runTurn(
 
     // Before `finish()`, which emits the terminal `done` the API reconciles gates against.
     await settleInBandInteractions?.();
-    const output = run.finish(stopReason);
+    const output = run.finish(swallowedError ? "error" : stopReason);
     await run.flush();
     const turnEndedAt = new Date().toISOString();
 
@@ -1531,7 +1710,16 @@ export async function runTurn(
       // A failed turn may have left a partial turn in the native transcript: the prior record
       // is no longer a faithful resume point.
       invalidateContinuity(sessionId, plan.harness, deps);
-      return { ok: false, error: swallowedError };
+      // The envelope is attached HERE for the folded-refusal path, because its message has had
+      // the marker stripped out: `withGatewayErrorDetail` scans the text and would find nothing
+      // left to recover. The Pi path keeps its text intact and is recovered there as before.
+      return {
+        ok: false,
+        error: swallowedError,
+        ...(swallowedGatewayRefusal
+          ? { errorDetail: swallowedGatewayRefusal }
+          : {}),
+      };
     }
 
     // Which endings are a faithful resume point, and may therefore advance the in-memory resume
@@ -1603,7 +1791,7 @@ export async function runTurn(
       traceId: resultTraceId,
     } as AgentRunResult;
   } catch (err) {
-    const classified = classifyRunError(
+    let classified = classifyRunError(
       err,
       plan.harness,
       request.modelConnection?.provider,
@@ -1616,6 +1804,12 @@ export async function runTurn(
         daytonaCredentialFresh: reportCredentialRace,
       },
     );
+    // A hosted subscription run has no vault key, so the generic "add a key" advice would send the
+    // user after something this run never uses. The runner asks the provider whether the login is
+    // really dead and asks the API whether a newer one exists, so the frame that goes out carries
+    // subscription copy: either "sign in again" or "the sign-in was renewed, send it again".
+    const recovery = await subscriptionRecovery(err);
+    if (recovery) classified = recovery.classified;
     const error = classified.message;
     await harnessTrace.cancelBeforeDrain();
     const traceFinish = await harnessTrace.finish();
@@ -1627,18 +1821,14 @@ export async function runTurn(
     } else if (nativeTraceBatches === 0) {
       await harnessTrace.emitMissingBatchFallback(otel, error);
     }
-    otel?.emitEvent({
-      type: "error",
-      message: error,
-      code: classified.code,
-    });
+    otel?.emitEvent(errorEventWithDetail(error, classified.code));
     // An aborted turn may have left a partial turn in the native transcript.
     invalidateContinuity(sessionId, plan.harness, deps);
     // Same ordering as the happy path: settle the durable rows before the terminal record goes out.
     await settleInBandInteractions?.();
     // finish() must not throw uncaught — tracing must not mask the run error.
     try {
-      otel?.finish();
+      otel?.finish("error");
     } catch {}
     await otel?.flush().catch(() => {});
     return { ok: false, error };

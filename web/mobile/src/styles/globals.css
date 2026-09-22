@@ -12,8 +12,11 @@
    a border-color is `currentColor`, i.e. a bright line on a dark surface. 98 of the 115 vars the
    packages use were undefined here before this import. */
 @import "@agenta/ui/theme-variables.css";
-/* The surface ladder the shared panels are painted on — one definition, both apps. */
-@import "@agenta/ui/surfaces.css";
+/* The surface ladder the shared panels are painted on — one definition, both apps. In the
+   `components` layer, not bare: unlayered CSS outranks every Tailwind utility, so a utility on
+   the same element (`Kbd`'s tooltip re-skin over `ag-surface-chip`) could never win — a cap in
+   a light-mode tooltip drew white glyphs on the light chip. */
+@import "@agenta/ui/surfaces.css" layer(components);
 /* The Lexical editor's own theme + Prism code tokens. Mobile renders the SAME editor (the chat
    composer and the config panel's JSON/YAML views), so it needs the same stylesheets — without
    them code blocks and editor chrome render untokenised. */
@@ -33,6 +36,7 @@
    wrong" — one line per package is the cheap insurance. */
 @source "../../node_modules/@agenta/ui/src/**/*.{ts,tsx}";
 @source "../../node_modules/@agenta/entity-ui/src/**/*.{ts,tsx}";
+@source "../../node_modules/@agenta/automation-ui/src/**/*.{ts,tsx}";
 @source "../../node_modules/@agenta/playground-ui/src/**/*.{ts,tsx}";
 @source "../../node_modules/@agenta/playground/src/**/*.{ts,tsx}";
 @source "../../node_modules/@agenta/chat/src/**/*.{ts,tsx}";
@@ -52,6 +56,13 @@
 
 :root {
     --radius: 0.625rem;
+    /* The composer's send takes the primary fill here, not the desktop's lime accent. The button
+       reads these hooks itself (ComposerSendButton), and the theme tokens carry the dark values:
+       the glyph is the container colour, so it reads white on the light theme's ink and ink on
+       the dark theme's yellow — the pairing Home's send already uses. */
+    --ag-composer-send-bg: var(--colorPrimary);
+    --ag-composer-send-fg: var(--colorBgContainer);
+    --ag-composer-send-hover-bg: color-mix(in srgb, var(--colorPrimary) 85%, transparent);
 }
 
 @theme inline {
@@ -121,6 +132,20 @@
     --color-colorErrorBg: var(--colorErrorBg);
     --color-colorErrorBorder: var(--colorErrorBorder);
     --color-colorInfoBorder: var(--colorInfoBorder);
+    /* The rest of the status vocabulary the shared surfaces paint with. Unmapped, Tailwind v4
+       generates no rule at all: a refused field kept its ordinary text colour here while /w
+       painted it red, and the server tile had no fill. */
+    --color-colorErrorText: var(--colorErrorText);
+    --color-colorInfoBg: var(--colorInfoBg);
+    --color-colorWarningBorder: var(--colorWarningBorder);
+    --color-colorSuccessBorder: var(--colorSuccessBorder);
+    --color-colorBgBase: var(--colorBgBase);
+    /* The tinted panel surface and the single hero action per screen. Both had a value on /w
+       and no class on either side. */
+    --color-surface-paper: var(--ag-surface-paper);
+    --color-hero-action: var(--hero-action-bg);
+    --color-hero-action-hover: var(--hero-action-hover-bg);
+    --color-hero-action-foreground: var(--hero-action-text);
     /* Portaled overlays + status dots. The kit's Tooltip paints bg-colorBgSpotlight /
        text-colorTextLightSolid and its DropdownMenu bg-colorSplit separators; with these
        unmapped a tooltip rendered as bare text on no background. */
@@ -138,41 +163,63 @@
     /* antd's popup shadow (boxShadowSecondary), off the shared token layer — `shadow-overlay` is
        what every kit overlay (dropdown, popover, tooltip) elevates with. */
     --shadow-overlay: var(--ag-boxShadowSecondary);
+    /* The other two elevation steps the kit uses: `shadow-dialog` on modal content and
+       `shadow-tertiary` on cards. Both existed on /w only, so a shared card read flat here. */
+    --shadow-dialog: var(--ag-boxShadowSecondary);
+    --shadow-tertiary: var(--ag-boxShadowTertiary);
     /* `font-portal` re-declares the app font on portaled content, which escapes the app's font
        scope. Mobile has no custom face, so that is the default sans stack. */
     --font-portal: var(--font-sans);
+    /* The project code face. Same literals as oss/src/styles/theme/controlScale.ts, which
+       `pnpm tokens:check` compares against. */
+    --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, Monaco, monospace;
     /* @agenta/ui control scale (tailwind v4 sizing reads the spacing namespace). Literals are
        copied from oss/src/styles/theme/controlScale.ts and verified by `pnpm tokens:check`. */
     --spacing-control-check: 16px;
     --spacing-control-check-dash: 7px;
-    --spacing-control-sm: 24px;
-    --spacing-control: 28px;
-    --spacing-control-lg: 34px;
-    --spacing-btn-sm: 7px;
-    --spacing-btn: 15px;
-    --spacing-btn-lg: 15px;
-    --spacing-input-sm: 7px;
-    --spacing-input: 11px;
-    --spacing-input-lg: 11px;
-    --spacing-input-y-sm: 0px;
-    --spacing-input-y: 4px;
-    --spacing-input-y-lg: 7px;
-    --spacing-input-y-ghost-sm: 1px;
-    --spacing-input-y-ghost: 5px;
-    --spacing-input-y-ghost-lg: 8px;
+    --spacing-control-xs: 24px;
+    --spacing-control-sm: 28px;
+    --spacing-control: 32px;
+    --spacing-control-lg: 36px;
+    --spacing-avatar-sm: 24px;
+    --spacing-avatar: 28px;
+    --spacing-avatar-lg: 34px;
+    --spacing-btn-icon-xs: 12px;
+    --spacing-btn-icon-sm: 14px;
+    --spacing-btn-icon: 16px;
+    --spacing-btn-xs: 8px;
+    --spacing-btn-sm: 10px;
+    --spacing-btn: 10px;
+    --spacing-btn-lg: 10px;
+    --spacing-btn-icon-pad-sm: 6px;
+    --spacing-btn-icon-pad: 8px;
+    --spacing-btn-gap-sm: 4px;
+    --spacing-btn-gap: 6px;
+    --spacing-input-sm: 8px;
+    --spacing-input: 10px;
+    --spacing-input-lg: 10px;
+    --spacing-input-y-sm: 3px;
+    --spacing-input-y: 5px;
+    --spacing-input-y-lg: 5px;
+    --spacing-input-y-ghost-sm: 4px;
+    --spacing-input-y-ghost: 6px;
+    --spacing-input-y-ghost-lg: 6px;
     --spacing-control-dot: 8px;
     --spacing-switch-thumb: 18px;
     --spacing-switch-thumb-sm: 12px;
-    --radius-control-sm: 6px;
-    --radius-control: 8px;
+    --radius-control-xs: 8px;
+    --radius-control-sm: 8px;
+    --radius-control: 10px;
     --radius-control-lg: 10px;
     --radius-control-round: 50%;
-    --text-btn-sm: 14px;
-    --text-btn-sm--line-height: normal;
+    --text-btn-xs: 12px;
+    --text-btn-xs--line-height: 16px;
+    --text-btn-sm: 13px;
+    --text-btn-sm--line-height: 18px;
     --text-btn-md: 14px;
-    --text-btn-md--line-height: normal;
-    --text-btn-lg: 16px;
-    --text-btn-lg--line-height: normal;
+    --text-btn-md--line-height: 20px;
+    --text-btn-lg: 14px;
+    --text-btn-lg--line-height: 20px;
     --text-field-sm: 12px;
     --text-field-sm--line-height: 1.6666666666666667;
     --text-field-md: 14px;
@@ -264,8 +311,13 @@
     --animate-accordion-down: accordion-down 0.2s cubic-bezier(0.645, 0.045, 0.355, 1);
     --animate-accordion-up: accordion-up 0.2s cubic-bezier(0.645, 0.045, 0.355, 1);
     --animate-skeleton: skeleton 1.4s ease infinite;
-    --animate-spin-move: spin-move 1s linear infinite alternate;
     --animate-config-shimmer: config-shimmer 1.8s ease-in-out 2 forwards;
+    /* The live line's verb (activity fold, startup label): a light sweeps through the words. */
+    --animate-text-shimmer: text-shimmer 2.4s linear infinite;
+    /* The live line's three dots: each rises 3px and brightens in turn. */
+    /* Home's create-mode ring. The component lives in @agenta/home-ui, which ships no CSS. */
+    --animate-composer-ring: composer-ring-spin 3s linear infinite;
+    --animate-composer-ring-in: composer-ring-in 0.25s ease-out both;
 }
 
 @keyframes overlay-in {
@@ -396,11 +448,17 @@
         background-position: 0 50%;
     }
 }
-@keyframes spin-move {
+/* One full tile per cycle over a 200%-wide periodic gradient: the frame at the end of a loop
+   is the frame at its start, so the sweep never blinks back to the left. */
+@keyframes text-shimmer {
+    from {
+        background-position: 0% 0;
+    }
     to {
-        opacity: 1;
+        background-position: -200% 0;
     }
 }
+
 @keyframes config-shimmer {
     0% {
         mask-position: 180% 0;
@@ -410,12 +468,6 @@
         mask-position: -80% 0;
         -webkit-mask-position: -80% 0;
     }
-}
-
-/* Desktop surface classes the shared composer references (kbd hint chip). */
-.ag-surface-chip {
-    background: var(--ag-surface-chip);
-    border: 1px solid var(--ag-surface-chip-border);
 }
 
 /* antd Switch geometry: height and width differ for the same name, which one spacing
@@ -441,5 +493,30 @@
         @apply text-foreground;
         /* The rail's surface: iOS paints its status-bar strip from this, above the drawer. */
         background: var(--ag-sidebar-bg);
+    }
+}
+
+@keyframes composer-ring-spin {
+    from {
+        transform: translate(-50%, -50%) rotate(0deg);
+    }
+    to {
+        transform: translate(-50%, -50%) rotate(360deg);
+    }
+}
+@keyframes composer-ring-in {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+/* The ring still appears — it just stops turning. */
+@media (prefers-reduced-motion: reduce) {
+    .animate-composer-ring {
+        animation: none;
+        transform: translate(-50%, -50%);
     }
 }

@@ -8,6 +8,7 @@
  */
 import {
     buildAgentModelCandidates,
+    LlmEndpointProtocol,
     SecretKind,
     SecretManagementPolicy,
     type BuildAgentModelCandidatesArgs,
@@ -330,6 +331,69 @@ describe("an OpenAI-compatible connection under a harness that cannot reach open
         ])
     })
 
+    // The cases above are the LEGACY path: a record that declares no protocol, judged model by
+    // model. The cases below are the DECLARED path, and they sit here so the two read side by
+    // side. A declaration is the operator's own statement about the wire format, so it decides
+    // which harnesses the endpoint is offered under and the per-model vendor guess never runs.
+    // Codex reaches openai and consumes `custom` here, so the openai side has two harnesses.
+    const WITH_CODEX: HarnessCapabilitiesMap = {
+        ...SHIPPED,
+        codex: {
+            providers: ["openai"],
+            deployments: ["direct", "custom"],
+            connection_modes: ["agenta", "self_managed"],
+            model_selection: "provider/id",
+            models: {openai: ["gpt-5.5"]},
+        },
+    }
+    const CODEX_IDS = [...HARNESS_IDS, "codex"]
+
+    it("offers a declared anthropic endpoint under Claude Code, and under neither Pi nor Codex", () => {
+        // The same key with no declaration is offered under Pi as well, because an OpenAI-compatible
+        // route takes every model. The declaration is what removes the routes that cannot run.
+        const declared = custom("d1", "custom", ["gw/custom/anthropic/claude-fable-5"], {
+            name: "gw",
+            slug: "gw",
+            protocol: LlmEndpointProtocol.Anthropic,
+        })
+
+        expect(routes(declared, WITH_CODEX, CODEX_IDS)).toEqual([
+            ["claude", "gw/custom/anthropic/claude-fable-5", "anthropic"],
+        ])
+    })
+
+    it("keeps a declared openai endpoint on Pi and Codex even when its models are Anthropic-named", () => {
+        // The case the legacy vendor guess gets wrong, and the whole point of declaring: a gateway
+        // that serves `claude-fable-5` over the OpenAI wire format is not an Anthropic endpoint,
+        // so Claude Code must not be offered however the model is spelled.
+        const declared = custom("d2", "custom", ["gw/custom/anthropic/claude-fable-5"], {
+            name: "gw",
+            slug: "gw",
+            protocol: LlmEndpointProtocol.Openai,
+        })
+
+        expect(routes(declared, WITH_CODEX, CODEX_IDS)).toEqual([
+            ["pi_core", "gw/custom/anthropic/claude-fable-5", null],
+            ["codex", "gw/custom/anthropic/claude-fable-5", null],
+        ])
+    })
+
+    it("lets a declared anthropic endpoint hand Claude Code its OpenAI-named models too", () => {
+        // A mixed gateway, where the legacy path gives Claude Code the anthropic id alone. The
+        // declaration replaces the per-model guess outright rather than filtering after it.
+        const mixed = custom(
+            "d3",
+            "custom",
+            ["gw/custom/openai/gpt-4o-mini", "gw/custom/anthropic/claude-fable-5"],
+            {name: "gw", slug: "gw", protocol: LlmEndpointProtocol.Anthropic},
+        )
+
+        expect(routes(mixed, WITH_CODEX, CODEX_IDS)).toEqual([
+            ["claude", "gw/custom/openai/gpt-4o-mini", "anthropic"],
+            ["claude", "gw/custom/anthropic/claude-fable-5", "anthropic"],
+        ])
+    })
+
     it("reads an empty saved policy as no harness, not as an absent policy", () => {
         const none = custom("6", "custom", ["off/custom/openai/gpt-4o-mini"], {
             name: "off",
@@ -550,13 +614,19 @@ describe("buildConnectionPickerRows", () => {
             capabilities: CAPABILITIES,
             harnessIds: HARNESS_IDS,
             subscriptionPairs: [
-                {key: "anthropic:claude", provider: "anthropic", name: "Claude", harness: "claude"},
+                {
+                    key: "anthropic:claude",
+                    provider: "anthropic",
+                    name: "Claude (deployment login)",
+                    harness: "claude",
+                },
             ],
         })
 
-        // The plan's consumer name, never "Claude subscription" — the picker's olive tag is what
-        // says it is a subscription, so the name must not say it a second time.
-        expect(rows.map((row) => row.name)).toEqual(["Claude"])
+        // The plan's consumer name plus where the login comes from. Never "Claude subscription":
+        // the picker's olive tag already says it is a subscription, so the name says the one thing
+        // the tag cannot, which is that this login is the deployment's and not a hosted one.
+        expect(rows.map((row) => row.name)).toEqual(["Claude (deployment login)"])
         const subscription = rows[0]
         expect(subscription.kind).toBe("subscription")
         expect(subscription.iconKey).toBe("anthropic")
@@ -581,14 +651,24 @@ describe("buildConnectionPickerRows", () => {
             },
             harnessIds: [...HARNESS_IDS, "codex"],
             subscriptionPairs: [
-                {key: "anthropic:claude", provider: "anthropic", name: "Claude", harness: "claude"},
-                {key: "openai:codex", provider: "openai", name: "ChatGPT", harness: "codex"},
+                {
+                    key: "anthropic:claude",
+                    provider: "anthropic",
+                    name: "Claude (deployment login)",
+                    harness: "claude",
+                },
+                {
+                    key: "openai:codex",
+                    provider: "openai",
+                    name: "ChatGPT (deployment login)",
+                    harness: "codex",
+                },
             ],
         })
 
         expect(rows.map((row) => [row.name, row.key])).toEqual([
-            ["Claude", "subscription:anthropic"],
-            ["ChatGPT", "subscription:openai"],
+            ["Claude (deployment login)", "subscription:anthropic"],
+            ["ChatGPT (deployment login)", "subscription:openai"],
         ])
         // Every pair names its family; a self_managed pick without one fails server-side.
         expect(rows.every((row) => row.models.every((model) => model.provider))).toBe(true)
@@ -604,7 +684,12 @@ describe("buildConnectionPickerRows", () => {
             capabilities: CAPABILITIES,
             harnessIds: HARNESS_IDS,
             subscriptionPairs: [
-                {key: "anthropic:claude", provider: "anthropic", name: "Claude", harness: "claude"},
+                {
+                    key: "anthropic:claude",
+                    provider: "anthropic",
+                    name: "Claude (deployment login)",
+                    harness: "claude",
+                },
             ],
         }
 
@@ -656,7 +741,12 @@ describe("buildConnectionPickerRows", () => {
             capabilities: CAPABILITIES,
             harnessIds: HARNESS_IDS,
             subscriptionPairs: [
-                {key: "anthropic:claude", provider: "anthropic", name: "Claude", harness: "claude"},
+                {
+                    key: "anthropic:claude",
+                    provider: "anthropic",
+                    name: "Claude (deployment login)",
+                    harness: "claude",
+                },
             ],
         })
 
@@ -701,7 +791,12 @@ describe("selectedModelRowKey", () => {
             capabilities: CAPABILITIES,
             harnessIds: HARNESS_IDS,
             subscriptionPairs: [
-                {key: "anthropic:claude", provider: "anthropic", name: "Claude", harness: "claude"},
+                {
+                    key: "anthropic:claude",
+                    provider: "anthropic",
+                    name: "Claude (deployment login)",
+                    harness: "claude",
+                },
             ],
         })
 
@@ -751,7 +846,7 @@ describe("selectedModelRowKey", () => {
             }),
         )!
         expect(marked.model.mode).toBe("self_managed")
-        expect(marked.model.connectionName).toBe("Claude")
+        expect(marked.model.connectionName).toBe("Claude (deployment login)")
     })
 
     it("marks nothing when no model is stored", () => {
@@ -805,10 +900,21 @@ describe("pickerSelectionFrom", () => {
         })
     })
 
-    it("clears the slug for a subscription pick", () => {
+    it("keeps the slug on a hosted subscription pick", () => {
+        // A hosted subscription IS a stored record, and the slug is what names its sign-in.
+        // Dropping it here sent the run to whatever login the deployment happened to mount.
+        expect(
+            pickerSelectionFrom("gpt-5.6-sol", {
+                connectionSlug: "chatgpt",
+                connectionMode: "self_managed",
+                harness: "pi_core",
+            }),
+        ).toMatchObject({mode: "self_managed", slug: "chatgpt"})
+    })
+
+    it("leaves a mounted subscription pick slugless, because it names no record", () => {
         expect(
             pickerSelectionFrom("claude-fable-5", {
-                connectionSlug: "anthropic",
                 connectionMode: "self_managed",
                 harness: "claude",
             }),

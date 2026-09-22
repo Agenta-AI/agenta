@@ -50,7 +50,25 @@ export const APPROVED_EXECUTION_RESULT_UNKNOWN_PREFIX = APPROVED_EXECUTION_RESUL
     APPROVED_EXECUTION_RESULT_UNKNOWN.indexOf(":"),
 )
 
+/**
+ * The fields a `mcp_server_failed` record contributes to its replayed part.
+ *
+ * Deliberately the same allow-list the live egress applies (`_mcp_server_failed_part`,
+ * sdks/python/agenta/sdk/agents/adapters/vercel/stream.py), so a replayed turn and a streamed
+ * one hand `readMcpServerNotice` the identical payload. A field added on one side and not the
+ * other is silent, which is how `detail` — and with it the reconnect endpoint — was lost the
+ * first time (OR85).
+ */
+const MCP_SERVER_FAILED_FIELDS = [
+    "serverName",
+    "reasonCode",
+    "status",
+    "message",
+    "detail",
+] as const
+
 interface DraftMessage {
+    displayContent?: string | null
     id: string
     role: "user" | "assistant"
     parts: Part[]
@@ -377,6 +395,9 @@ function applyEvent(
 
     switch (type) {
         case "message": {
+            if (payload.display_content === null || typeof payload.display_content === "string") {
+                draft.displayContent = payload.display_content
+            }
             draft.parts.push({type: "text", text: str(payload.text)})
             const attachments = Array.isArray(payload.attachments) ? payload.attachments : []
             for (const raw of attachments) {
@@ -555,6 +576,27 @@ function applyEvent(
                 mediaType: str(payload.mediaType),
                 filename: str(payload.filename) || undefined,
             })
+            return
+        }
+        case "mcp_server_failed": {
+            // A configured MCP server that failed its handshake. The live stream projects the
+            // same runner event as a `data-mcp-server-failed` part
+            // (`_mcp_server_failed_part`, sdks/python/agenta/sdk/agents/adapters/vercel/stream.py)
+            // and the chat reads it from there (`model/mcpServerNotice.ts`). Replay must rebuild
+            // that part or the notice survives only until the durable log overtakes the live
+            // messages: `adoptServerTranscript` (hooks/useAgentConversation.ts) replaces the
+            // streamed transcript with this one as soon as the record watermark moves, which on a
+            // settled turn is seconds. Dropping it there also un-suppresses the harness's own
+            // "No such tool available" card, so the reader of a disconnected connection's turn is
+            // left with the one wording that says nothing about authorization and offers nothing
+            // to do (UI QA round 4, D2).
+            const notice: Part = {}
+            for (const key of MCP_SERVER_FAILED_FIELDS) {
+                if (payload[key] !== undefined && payload[key] !== null) notice[key] = payload[key]
+            }
+            if (typeof notice.serverName === "string" && notice.serverName.trim()) {
+                draft.parts.push({type: "data-mcp-server-failed", data: notice})
+            }
             return
         }
         case "error": {
@@ -762,6 +804,7 @@ export function transcriptToMessages(
             // and metrics bar light up on reload. traceId stays absent until the backend stamps one;
             // usage is present whenever the turn persisted a `usage` event.
             const metadata: Record<string, unknown> = {}
+            if (d.displayContent !== undefined) metadata.display_content = d.displayContent
             if (d.traceId) metadata.traceId = d.traceId
             if (d.usage) metadata.usage = d.usage
             if (d.paused) metadata.paused = true

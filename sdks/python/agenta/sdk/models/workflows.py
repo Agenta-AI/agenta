@@ -1,5 +1,6 @@
 # /agenta/sdk/models/running.py
 
+from os import environ
 from typing import Any, Dict, Optional, Union, List, Literal
 from uuid import UUID
 from urllib.parse import urlparse
@@ -223,6 +224,56 @@ class WorkflowRevisionData(BaseModel):
 class WorkflowServiceStatus(Status):
     type: Optional[str] = None
     stacktrace: Optional[Union[list[str], str]] = None
+    # A stable slug naming the CLASS of failure, for a client that must branch on it (for
+    # example to offer a "Sign in again" button). It is not the HTTP status: ``code`` above is
+    # the integer status, and one status covers many failure classes. Set only when the raised
+    # exception names one, so every other error body stays exactly as it was.
+    failure_code: Optional[str] = None
+
+
+def failure_code_of(exception: BaseException) -> Optional[str]:
+    """The stable failure slug an exception declares, or ``None``.
+
+    Two places build an error response from a raised exception: the running normalizer (which
+    catches a handler's own exception) and the invoke routing layer (which catches everything
+    else). Both fill :attr:`WorkflowServiceStatus.failure_code` from here so the same failure
+    cannot answer with a code on one path and without one on the other.
+
+    Only a non-empty string counts. Anything else names no class, which is what ``None`` says.
+    """
+    code = getattr(exception, "failure_code", None)
+    return code if isinstance(code, str) and code else None
+
+
+# Whether an error body returns its Python traceback to whoever made the request.
+#
+# Off. These bodies answer `POST /services/agent/v0/invoke`, which the playground calls from
+# a browser, so the traceback was shipped to a page: module paths, the service's own layout,
+# the local variables a frame's line quotes, and roughly two kilobytes of it per refusal.
+# None of that is the caller's to see, and the SDK already says so where it is explicit — a
+# configuration mistake "carries a 4xx and no stacktrace"
+# (`engines/running/errors.py::UnknownConnectionV0Error`).
+#
+# Nothing is lost operationally: the traceback is logged either way, which is where an
+# operator was going to read it. The switch exists for a developer running the service
+# locally against their own browser, and is read per call so setting it needs no restart and
+# a test can pin it.
+#
+# It lives here, beside `failure_code_of`, for the same reason that does: the running
+# normalizer and the invoke routing layer both build an error body from a raised exception,
+# and a traceback withheld on one path and returned on the other is the defect rather than
+# the fix (D68).
+_INCLUDE_STACKTRACE_ENV_VAR = "AGENTA_SDK_ERRORS_INCLUDE_STACKTRACE"
+_TRUTHY = frozenset({"1", "true", "yes", "on"})
+
+
+def returns_stacktrace() -> bool:
+    return (environ.get(_INCLUDE_STACKTRACE_ENV_VAR) or "").strip().lower() in _TRUTHY
+
+
+def returned_stacktrace(stacktrace: Optional[Any]) -> Optional[Any]:
+    """The traceback to put on an error body, which is normally none of it."""
+    return stacktrace if returns_stacktrace() else None
 
 
 class WorkflowRequestData(BaseModel):

@@ -1,19 +1,14 @@
 import {describe, expect, it} from "vitest"
 
-import {
-    applyManualOrder,
-    mergeManualOrder,
-    movedManualOrder,
-    withManualAgentRanks,
-} from "../../src/reorder/applyOrder"
-import {withRefsByRecency} from "../../src/dynamic/groups"
-import type {SidebarEntityRef, SidebarEntitySource} from "../../src/dynamic/types"
 import {SESSION_REORDER_ZONES} from "../../src/dynamic/sessionsSource"
 import {
-    SIDEBAR_AGENT_GROUP_ZONE,
-    SIDEBAR_AGENT_ORDER_ZONE,
-    SIDEBAR_STATUS_GROUP_ZONE,
-} from "../../src/reorder/manualOrder"
+    applyManualOrder,
+    applyManualOrderByActivity,
+    capManualOrder,
+    mergeManualOrder,
+    movedManualOrder,
+} from "../../src/reorder/applyOrder"
+import {SIDEBAR_AGENT_GROUP_ZONE, SIDEBAR_STATUS_GROUP_ZONE} from "../../src/reorder/manualOrder"
 
 const id = (row: {id: string}) => row.id
 const rows = (...ids: string[]) => ids.map((value) => ({id: value}))
@@ -84,38 +79,6 @@ describe("mergeManualOrder", () => {
     })
 })
 
-describe("withManualAgentRanks", () => {
-    const counts = new Map([
-        ["busy", 40],
-        ["quiet", 1],
-    ])
-
-    it("lifts an arranged agent above every session count", () => {
-        const ranks = withManualAgentRanks(counts, ["quiet"])
-        expect(ranks.get("quiet")!).toBeGreaterThan(ranks.get("busy")!)
-    })
-
-    it("preserves the arranged order", () => {
-        const ranks = withManualAgentRanks(counts, ["quiet", "busy"])
-        expect(ranks.get("quiet")!).toBeGreaterThan(ranks.get("busy")!)
-    })
-
-    it("hands back the same map when nothing is arranged", () => {
-        expect(withManualAgentRanks(counts, [])).toBe(counts)
-    })
-
-    it("puts arranged agents first through the real sorter", () => {
-        // Composition, not the helper alone: a sign error in the rank base only shows up here.
-        const source = {
-            status: "ready",
-            refs: [{id: "busy"}, {id: "quiet"}, {id: "unranked"}],
-        } as SidebarEntitySource
-        const ranks = withManualAgentRanks(counts, ["quiet"])
-        const sorted = withRefsByRecency(source, (ref: SidebarEntityRef) => ranks.get(ref.id))
-        expect(sorted.refs.map((ref) => ref.id)).toEqual(["quiet", "busy", "unranked"])
-    })
-})
-
 describe("movedManualOrder", () => {
     it("swaps with the neighbour in that direction", () => {
         expect(movedManualOrder(["a", "b", "c"], "b", -1)).toEqual(["b", "a", "c"])
@@ -140,11 +103,8 @@ describe("SESSION_REORDER_ZONES", () => {
         expect(SESSION_REORDER_ZONES.none).toBeUndefined()
     })
 
-    it("arranges agent headings apart from the Agents nav group", () => {
-        // The two agent lists answer different questions, so arranging one says nothing about
-        // the other. Sharing a zone made a drag in the rail silently reorder the nav group.
+    it("arranges agent headings in their own zone", () => {
         expect(SESSION_REORDER_ZONES.agent?.groupZone).toBe(SIDEBAR_AGENT_GROUP_ZONE)
-        expect(SESSION_REORDER_ZONES.agent?.groupZone).not.toBe(SIDEBAR_AGENT_ORDER_ZONE)
     })
 
     it("leaves every heading that is not an agent out of the agent order", () => {
@@ -168,10 +128,8 @@ describe("SESSION_REORDER_ZONES", () => {
     })
 
     it("keeps every zone it offers distinct from every other", () => {
-        // One shared zone is how the Agents nav group and the Sessions headings ended up
-        // reordering together.
+        // One shared zone is how two of these lists ended up reordering together.
         const zones = [
-            SIDEBAR_AGENT_ORDER_ZONE,
             SESSION_REORDER_ZONES.agent?.groupZone,
             SESSION_REORDER_ZONES.status?.groupZone,
             SESSION_REORDER_ZONES.agent?.rowZone?.("agent:abc123"),
@@ -193,5 +151,98 @@ describe("SESSION_REORDER_ZONES", () => {
             "sessions:status:running",
         )
         expect(SESSION_REORDER_ZONES.status?.rowZone?.("pinned")).toBeUndefined()
+    })
+})
+
+describe("capManualOrder", () => {
+    const order = ["a", "b", "c", "d", "e"]
+
+    it("returns the order untouched when it fits", () => {
+        expect(capManualOrder(order, ["a"], 5)).toEqual(order)
+    })
+
+    // The bug this exists for: a blind slice drops whatever sits past the cap, which after paging
+    // is a row on screen — and an unknown row then leads its bucket, reordering the list.
+    it("evicts off-screen ids before any visible one", () => {
+        // b and c are off screen and nearest the tail, so they go; a keeps its slot.
+        expect(capManualOrder(order, ["d", "e"], 3)).toEqual(["a", "d", "e"])
+    })
+
+    it("never drops a visible id", () => {
+        const capped = capManualOrder(order, ["c", "e"], 3)
+        expect(capped).toContain("c")
+        expect(capped).toContain("e")
+    })
+
+    it("falls back to trimming the tail when everything is visible", () => {
+        expect(capManualOrder(order, order, 3)).toEqual(["a", "b", "c"])
+    })
+})
+
+describe("applyManualOrderByActivity", () => {
+    interface Row {
+        id: string
+        at: string | null
+    }
+    const idOf = (row: Row) => row.id
+    const atOf = (row: Row) => row.at
+    const arranged = ["b", "a"]
+
+    it("sorts the arranged rows by the saved order", () => {
+        const rows: Row[] = [
+            {id: "a", at: "2026-09-02T00:00:00Z"},
+            {id: "b", at: "2026-09-01T00:00:00Z"},
+        ]
+        expect(applyManualOrderByActivity(rows, idOf, atOf, arranged).map(idOf)).toEqual(["b", "a"])
+    })
+
+    it("leads an unseen row that is newer than everything arranged", () => {
+        const rows: Row[] = [
+            {id: "a", at: "2026-09-02T00:00:00Z"},
+            {id: "b", at: "2026-09-01T00:00:00Z"},
+            {id: "new", at: "2026-09-03T00:00:00Z"},
+        ]
+        expect(applyManualOrderByActivity(rows, idOf, atOf, arranged).map(idOf)).toEqual([
+            "new",
+            "b",
+            "a",
+        ])
+    })
+
+    // A later page is OLDER than the head. Leading it would hoist stale rows over the arrangement.
+    it("trails the older rows a later page brings in", () => {
+        const rows: Row[] = [
+            {id: "a", at: "2026-09-02T00:00:00Z"},
+            {id: "b", at: "2026-09-01T00:00:00Z"},
+            {id: "old1", at: "2026-08-20T00:00:00Z"},
+            {id: "old2", at: "2026-08-19T00:00:00Z"},
+        ]
+        expect(applyManualOrderByActivity(rows, idOf, atOf, arranged).map(idOf)).toEqual([
+            "b",
+            "a",
+            "old1",
+            "old2",
+        ])
+    })
+
+    it("trails a row that cannot prove it is newer", () => {
+        const rows: Row[] = [
+            {id: "a", at: "2026-09-02T00:00:00Z"},
+            {id: "b", at: "2026-09-01T00:00:00Z"},
+            {id: "undated", at: null},
+        ]
+        expect(applyManualOrderByActivity(rows, idOf, atOf, arranged).map(idOf)).toEqual([
+            "b",
+            "a",
+            "undated",
+        ])
+    })
+
+    it("leaves the rows alone when nothing is arranged", () => {
+        const rows: Row[] = [
+            {id: "x", at: "2026-09-02T00:00:00Z"},
+            {id: "y", at: "2026-09-01T00:00:00Z"},
+        ]
+        expect(applyManualOrderByActivity(rows, idOf, atOf, []).map(idOf)).toEqual(["x", "y"])
     })
 })

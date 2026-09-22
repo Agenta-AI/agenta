@@ -23,6 +23,7 @@ import {
     type ProviderConnection,
 } from "./connections"
 import {fromLitellmModelId, toLitellmModelId} from "./litellmModelId"
+import {SUBSCRIPTION_PROVIDER_KIND} from "./subscriptionConnections"
 import {SecretKind} from "./types"
 
 /** One option in a picker group. Structurally the `ProviderGroup` option `@agenta/ui` renders. */
@@ -176,13 +177,17 @@ const modelsFor = (
 ): ConnectionModel[] => {
     if (connection.secretKind === SecretKind.CustomProvider) {
         const keys = connection.source.modelKeys ?? connection.models ?? []
-        return keys.map((model) => ({value: model, label: model}))
+        return keys.map((model) => ({
+            value: model,
+            label: connection.modelNames?.[model] ?? model,
+        }))
     }
 
     const models = connection.models ?? fallbackModels(connection, catalog, capabilities)
     return models.map((model) => {
         const value = toLitellmModelId(model, connection.kind)
-        const curated = curatedModelName(capabilities, connection.kind, model)
+        const curated =
+            curatedModelName(capabilities, connection.kind, model) ?? connection.modelNames?.[model]
         // Only a CURATED label carries an aside; a raw id's parentheses are part of the id.
         const {name, hint} = curated
             ? splitCuratedLabel(curated)
@@ -210,6 +215,10 @@ export const buildConnectionModelGroups = ({
     const groups: PromptModelGroup[] = []
 
     for (const connection of connections) {
+        // A hosted subscription holds no API key, so it can never back a litellm-run prompt.
+        // Offering it here persists a credential the run then fails to resolve.
+        if ((connection.secretKind as string) === SUBSCRIPTION_PROVIDER_KIND) continue
+
         const isStandard = connection.secretKind === SecretKind.ProviderKey
         const models = modelsFor(connection, catalog, capabilities).filter((model) => !!model.value)
         if (!models.length) continue

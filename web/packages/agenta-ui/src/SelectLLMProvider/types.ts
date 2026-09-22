@@ -46,6 +46,12 @@ export interface ProviderGroup {
     /** The tag's colour. Defaults to the neutral fill; a subscription takes the olive one. */
     tagTone?: "neutral" | "olive"
     /**
+     * The group is shown but cannot be opened or picked. Use it for a row the user still needs to
+     * see — a subscription whose sign-in expired — with `caption` saying why. A disabled group
+     * keeps its place in the cascade even with no options, and the keyboard walks past it.
+     */
+    disabled?: boolean
+    /**
      * The group's flyout, split into labelled runs. Absent leaves `options` a flat list; when
      * present the sections ARE the flyout and `options` only backs search and selection.
      */

@@ -1,6 +1,6 @@
 import {type ElementType, type ReactNode} from "react"
 
-import {Bot} from "lucide-react"
+import {RobotIcon} from "@phosphor-icons/react"
 
 import {agentAvatar} from "./AgentCard"
 import {useAgentIconChrome} from "./agentIcon"
@@ -77,7 +77,8 @@ export const AgentIdentity = ({
     // stylesheet order, so the fallback owns the white and the custom icon owns its own.
     const chrome = useAgentIconChrome(workflowId, {
         size: spec.glyph,
-        fallbackGlyph: spec.initialsFallback ? avatar.initials : <Bot className="size-[15px]" />,
+        // The nav rail's Agents glyph, so the chip and the sidebar entry read as one thing.
+        fallbackGlyph: spec.initialsFallback ? avatar.initials : <RobotIcon size={15} />,
         fallbackClassName: spec.initialsFallback ? "text-white" : AGENT_CHIP_FALLBACK,
     })
 

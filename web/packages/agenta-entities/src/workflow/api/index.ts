@@ -37,6 +37,7 @@ export {
     // Create
     createWorkflow,
     type CreateWorkflowPayload,
+    type WorkflowRoleFlags,
     // Create Variant
     createWorkflowVariantApi,
     type CreateWorkflowVariantPayload,
@@ -52,6 +53,7 @@ export {
     archiveWorkflowRevision,
     unarchiveWorkflow,
     // Batch
+    fetchWorkflowAgentFlags,
     fetchWorkflowsBatch,
     fetchWorkflowRevisionsByIdsBatch,
     // Schema
@@ -65,6 +67,12 @@ export {
     type WorkflowCatalogFlags,
     type WorkflowCatalogTemplatesResponse,
 } from "./api"
+
+export {
+    loadAgentTemplate,
+    type AgentTemplateLoadRequest,
+    type AgentTemplateLoadResult,
+} from "./agentTemplates"
 
 // Runner subscription status (agent service, direct call)
 export {

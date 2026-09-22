@@ -392,6 +392,19 @@ def test_a_runner_path_change_makes_the_journeys_mandatory():
     assert triggers.mandatory_journeys(["web/oss/src/app/page.tsx"]) == {}
 
 
+def test_a_subscription_change_makes_refresh_mandatory():
+    """A chat-only release run cannot bypass the vault write-back assertion."""
+    sys.path.insert(0, str(HERE))
+    triggers = importlib.import_module("path_triggers")
+    for path in (
+        "services/runner/src/engines/sandbox_agent/subscription-login/publisher.ts",
+        "api/oss/src/core/secrets/services.py",
+        "api/oss/src/dbs/postgres/secrets/dao.py",
+    ):
+        journeys = triggers.mandatory_journeys([path])
+        assert "refresh" in journeys, (path, journeys)
+
+
 def _session_control_result(status="PASS"):
     import session_control
 

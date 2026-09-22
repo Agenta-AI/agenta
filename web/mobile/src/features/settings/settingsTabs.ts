@@ -1,7 +1,7 @@
 import {useMemo} from "react"
 
 import type {SettingsAccess, SettingsTabKey} from "@agenta/settings"
-import {isBillingEnabled, isEE, isToolsEnabled} from "@agenta/shared/api"
+import {isBillingEnabled, isEE, isMcpGatewayEnabled, isToolsEnabled} from "@agenta/shared/api"
 import {useRouter} from "next/router"
 
 /** Tabs this app has a page for. The rest are listed nowhere rather than dead-ending. */
@@ -11,7 +11,7 @@ export const AVAILABLE_SETTINGS_TABS: SettingsTabKey[] = [
     "secrets",
     "webhooks",
     "tools",
-    "triggers",
+    "mcpEndpoints",
     "organizationGeneral",
     "workspace",
     "organization",
@@ -23,8 +23,10 @@ export const AVAILABLE_SETTINGS_TABS: SettingsTabKey[] = [
 ]
 
 /**
- * Read-only host: it renders lists but brings none of the create/edit dialogs, so every write
- * affordance stays off. View flags are optimistic — the API authorizes regardless, and each page
+ * Read-only host for most tabs: it renders lists but brings none of the create/edit dialogs,
+ * so those write affordances stay off. Tools and MCP servers are the exceptions — their
+ * sections moved to `@agenta/settings-ui` and carry their own dialogs, so this app renders
+ * the same surface the desktop does. View flags are optimistic — the API authorizes regardless, and each page
  * has an empty state — while edition comes from the same env the desktop reads.
  */
 export const useMobileSettingsAccess = (): SettingsAccess => {
@@ -33,16 +35,16 @@ export const useMobileSettingsAccess = (): SettingsAccess => {
     // `=== "ee"` misses.
     const enterprise = isEE()
     const billingEnabled = isBillingEnabled()
-    // One env var gates BOTH tabs, matching the desktop's useSettingsAccess.
     const toolsEnabled = isToolsEnabled()
+    const mcpGatewayEnabled = isMcpGatewayEnabled()
 
     return useMemo(
         () => ({
             // Names the tab "Usage & Billing" rather than "Usage" — this surface can now change
             // a subscription, not only report against one.
             billingEnabled,
+            canShowMcpEndpoints: mcpGatewayEnabled,
             canShowTools: toolsEnabled,
-            canShowTriggers: toolsEnabled,
             canViewApiKeys: true,
             canViewEvents: true,
             isEE: enterprise,
@@ -50,7 +52,7 @@ export const useMobileSettingsAccess = (): SettingsAccess => {
             // every other view flag here — their pages are read-only and the API authorizes.
             isOwner: true,
         }),
-        [enterprise, billingEnabled, toolsEnabled],
+        [enterprise, billingEnabled, toolsEnabled, mcpGatewayEnabled],
     )
 }
 
@@ -72,9 +74,10 @@ export const useActiveSettingsTab = (): SettingsTabKey => {
     const requested = fromQuery ?? fromPath
 
     if (!AVAILABLE_SETTINGS_TABS.includes(requested as SettingsTabKey)) return "preferences"
-    if ((requested === "tools" || requested === "triggers") && !access.canShowTools) {
-        return "preferences"
-    }
+    if (requested === "tools" && !access.canShowTools) return "preferences"
     if (requested === "billing" && !access.billingEnabled) return "preferences"
+    // A deployment serving no MCP gateway refuses every route behind this tab, so a deep
+    // link to it would render a surface whose every action fails.
+    if (requested === "mcpEndpoints" && !access.canShowMcpEndpoints) return "preferences"
     return requested as SettingsTabKey
 }

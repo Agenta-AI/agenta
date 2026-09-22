@@ -3,24 +3,12 @@ import * as React from "react"
 import * as AlertDialogPrimitive from "@radix-ui/react-alert-dialog"
 import {X} from "lucide-react"
 
-import {buttonVariants} from "./button"
+import {Button, buttonVariants} from "./button"
 import {cn} from "./utils"
 
 /**
- * AlertDialog — a Radix primitive in @agenta/ui, following shadcn's source conventions (no
- * `forwardRef`, `data-slot` on every part). Re-skinned to antd's confirm `Modal`
- * (`Modal.confirm` / a modal that forces a choice: no close X, dismiss only via an action).
- *
- * Shares Dialog's measured chrome (overlay = colorBgMask; content = colorBgElevated,
- * borderless, radius borderRadiusLG, contentPadding 20/24, shadow-dialog, width 520px,
- * centered). Action = primary Button, Cancel = outline Button (styled via buttonVariants).
- *
- * antd → @agenta/ui mapping:
- *   Modal.confirm({title, content, onOk, onCancel})
- *     → <AlertDialog><AlertDialogContent><AlertDialogHeader>
- *         <AlertDialogTitle/><AlertDialogDescription/></AlertDialogHeader>
- *       <AlertDialogFooter><AlertDialogCancel/><AlertDialogAction/></AlertDialogFooter>
- *       </AlertDialogContent></AlertDialog>
+ * AlertDialog — the shadcn confirm dialog on Radix; shares Dialog's chrome at a 384px width.
+ * Replaces antd Modal.confirm: Action = primary Button, Cancel = outline Button.
  */
 
 function AlertDialog(props: React.ComponentProps<typeof AlertDialogPrimitive.Root>) {
@@ -43,8 +31,8 @@ function AlertDialogOverlay({
         <AlertDialogPrimitive.Overlay
             data-slot="alert-dialog-overlay"
             className={cn(
-                // antd mask = colorBgMask over the whole viewport; fades in/out. (Same as Dialog.)
-                "fixed inset-0 z-50 bg-colorBgMask",
+                // Same mask as Dialog.
+                "fixed inset-0 isolate z-50 bg-black/10 supports-[backdrop-filter]:backdrop-blur-[4px]",
                 "data-[state=open]:animate-overlay-in data-[state=closed]:animate-overlay-out",
                 className,
             )}
@@ -57,37 +45,34 @@ function AlertDialogContent({
     className,
     container,
     children,
-    showCloseButton = true,
+    showCloseButton = false,
     ...props
 }: React.ComponentProps<typeof AlertDialogPrimitive.Content> & {
-    /** Portal target. Defaults to document.body; pass an element to render inline (e.g. a
-     * scroll container, or a forced-open parity story). */
+    /** Portal target; defaults to document.body. A given container (positioned) is the dialog's
+     * whole world: mask and dialog cover it, not the window. */
     container?: HTMLElement | null
-    /** antd `closable`. The app's confirm modals show a top-right close X (dismiss = cancel);
-     * default true to match them. Set false for a strict forced-choice alert. */
+    /** No close X by default (an alert forces a choice); opting in makes dismiss = cancel. */
     showCloseButton?: boolean
 }) {
     return (
         <AlertDialogPortal container={container}>
-            <AlertDialogOverlay />
-            {/* Center via a flex positioner, NOT a transform: the scale-only animate-dialog
-                keyframes set `transform`, which would drop a `-translate-*` centering offset
-                mid-zoom and make the modal jump. (Same pattern as DialogContent.) */}
+            <AlertDialogOverlay className={container ? "absolute" : undefined} />
+            {/* Flex-centred, not transform-centred: the zoom keyframes would overwrite a translate. */}
             <div
                 data-slot="alert-dialog-positioner"
-                className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none"
+                className={cn(
+                    "inset-0 z-50 flex items-center justify-center p-4 pointer-events-none",
+                    container ? "absolute" : "fixed",
+                )}
             >
                 <AlertDialogPrimitive.Content
                     data-slot="alert-dialog-content"
                     className={cn(
-                        // Same measured chrome as DialogContent (antd Modal). gap-3 (12px) matches
-                        // antd's rendered section rhythm (title→body and body→footer both 12px; box 132px).
-                        "relative pointer-events-auto",
-                        "box-border flex flex-col gap-3 w-full max-w-[520px]",
-                        // radius 16px = the app's EnhancedModal (`style={{borderRadius:16}}`), NOT
-                        // antd's raw borderRadiusLG (10px). Candidate token: control-xl.
-                        "bg-colorBgElevated text-colorText shadow-dialog rounded-[16px] font-portal",
-                        "py-5 px-6",
+                        // Same chrome as DialogContent.
+                        "relative pointer-events-auto font-portal",
+                        "box-border flex max-h-full w-full max-w-sm flex-col gap-4 overflow-y-auto",
+                        "rounded-xl bg-popover p-4 text-sm text-popover-foreground outline-none",
+                        "ring-1 ring-[color:color-mix(in_srgb,var(--ag-colorText)_10%,transparent)]",
                         "data-[state=open]:animate-dialog-in data-[state=closed]:animate-dialog-out",
                         className,
                     )}
@@ -95,19 +80,16 @@ function AlertDialogContent({
                 >
                     {children}
                     {showCloseButton ? (
-                        // Dismiss = cancel (antd close X behaviour). Same chrome as DialogContent's X.
-                        <AlertDialogPrimitive.Cancel
-                            data-slot="alert-dialog-close-x"
-                            className={cn(
-                                "absolute right-[13px] top-[13px] box-border p-0 bg-transparent border-0 font-[inherit]",
-                                "flex size-7 items-center justify-center rounded-control-sm",
-                                "text-colorIcon cursor-pointer outline-none transition-colors",
-                                "hover:bg-fill-quaternary hover:text-colorIconHover",
-                                "focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-[-3px] focus-visible:outline-focus-ring",
-                            )}
-                            aria-label="Close"
-                        >
-                            <X className="size-3.5" />
+                        // Dismiss = cancel.
+                        <AlertDialogPrimitive.Cancel data-slot="alert-dialog-close-x" asChild>
+                            <Button
+                                variant="ghost"
+                                size="icon-sm"
+                                className="absolute right-2 top-2"
+                                aria-label="Close"
+                            >
+                                <X />
+                            </Button>
                         </AlertDialogPrimitive.Cancel>
                     ) : null}
                 </AlertDialogPrimitive.Content>
@@ -130,9 +112,13 @@ function AlertDialogFooter({className, ...props}: React.ComponentProps<"div">) {
     return (
         <div
             data-slot="alert-dialog-footer"
-            // antd footer: buttons right-aligned; the 12px gap above comes from the content's
-            // gap-3. gap-2 here is the horizontal spacing between the footer buttons.
-            className={cn("flex flex-row items-center justify-end gap-2", className)}
+            // Same band as DialogFooter.
+            className={cn(
+                "-mx-4 -mb-4 flex flex-col-reverse gap-2 rounded-b-xl p-4 sm:flex-row sm:justify-end",
+                "border-0 border-t border-solid border-border",
+                "bg-[color:color-mix(in_srgb,var(--ag-colorFillTertiary)_50%,transparent)]",
+                className,
+            )}
             {...props}
         />
     )
@@ -145,8 +131,8 @@ function AlertDialogTitle({
     return (
         <AlertDialogPrimitive.Title
             data-slot="alert-dialog-title"
-            // antd `.ant-modal-title`: 16px/20px, weight 600, colorTextHeading.
-            className={cn("m-0 text-base font-semibold leading-5 text-colorTextHeading", className)}
+            // m-0 resets the UA <h2> margin (preflight off).
+            className={cn("m-0 text-base font-medium leading-none", className)}
             {...props}
         />
     )
@@ -159,8 +145,8 @@ function AlertDialogDescription({
     return (
         <AlertDialogPrimitive.Description
             data-slot="alert-dialog-description"
-            // antd `.ant-modal-body`: 12px/20px colorText.
-            className={cn("m-0 text-field-md text-colorText", className)}
+            // m-0 resets the UA <p> margin (preflight off).
+            className={cn("m-0 text-sm text-muted-foreground", className)}
             {...props}
         />
     )
@@ -168,13 +154,15 @@ function AlertDialogDescription({
 
 function AlertDialogAction({
     className,
+    asChild,
     ...props
 }: React.ComponentProps<typeof AlertDialogPrimitive.Action>) {
-    // antd confirm OK = primary Button.
+    // With `asChild` the child Button owns its look, so the default variant is not merged over it.
     return (
         <AlertDialogPrimitive.Action
             data-slot="alert-dialog-action"
-            className={cn(buttonVariants(), className)}
+            asChild={asChild}
+            className={cn(!asChild && buttonVariants(), className)}
             {...props}
         />
     )
@@ -182,13 +170,15 @@ function AlertDialogAction({
 
 function AlertDialogCancel({
     className,
+    asChild,
     ...props
 }: React.ComponentProps<typeof AlertDialogPrimitive.Cancel>) {
-    // antd confirm Cancel = outline (default) Button.
+    // Same `asChild` rule as Action.
     return (
         <AlertDialogPrimitive.Cancel
             data-slot="alert-dialog-cancel"
-            className={cn(buttonVariants({variant: "outline"}), className)}
+            asChild={asChild}
+            className={cn(!asChild && buttonVariants({variant: "outline"}), className)}
             {...props}
         />
     )

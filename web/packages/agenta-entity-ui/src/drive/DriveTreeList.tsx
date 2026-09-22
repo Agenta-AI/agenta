@@ -4,7 +4,7 @@
  * Purely presentational; every value it renders is owned by DriveExplorer's hooks (rows, virtualizer,
  * group scroll, uploads).
  */
-import {type Dispatch, type SetStateAction} from "react"
+import {type Dispatch, type ReactNode, type SetStateAction} from "react"
 
 import {revealFade} from "@agenta/entities/drive"
 import {parentOf, type FlatTreeRow} from "@agenta/entities/drive"
@@ -13,7 +13,7 @@ import {type DriveTreeViewport} from "@agenta/entities/drive"
 import {type MountUploadItem} from "@agenta/entities/drive"
 import {motion} from "motion/react"
 
-import {DriveItemContextMenu} from "./DriveItemContextMenu"
+import {DriveItemContextMenu, type DriveItemWriteActions} from "./DriveItemContextMenu"
 import {TreeLoadingRow, TreeRow} from "./DriveTreeRow"
 
 /** antd `Typography.Text` stand-in: the only prop this module used is `type="secondary"`. */
@@ -50,6 +50,9 @@ export function DriveTreeList({
     select,
     copyPath,
     download,
+    writes,
+    rootRow,
+    depthOffset = 0,
 }: {
     flatRows: FlatTreeRow[]
     /** The on-demand full-tree fetch (search) is in flight — the empty line says so. */
@@ -76,100 +79,115 @@ export function DriveTreeList({
     select: (path: string | null) => void
     copyPath: (path: string) => void
     download: (path: string, isFolder: boolean) => void
+    /** Row context-menu writes; omit on a read-only mount. */
+    writes?: DriveItemWriteActions
+    /** The static "All files" row above the virtualised rows. */
+    rootRow?: ReactNode
+    /** Extra indent per row: 1 when the root row is shown. */
+    depthOffset?: number
 }) {
     return flatRows.length === 0 ? (
-        <Text type="secondary" className="px-1 !text-xs">
-            {searchLoading ? "Searching all files…" : "No files match."}
-        </Text>
+        <>
+            {rootRow}
+            <Text type="secondary" className="px-2 !text-xs">
+                {searchLoading ? "Searching…" : "No matches"}
+            </Text>
+        </>
     ) : (
-        // Only the visible rows mount. Full pane width; each row handles its
-        // own horizontal overflow, so there's no tree-wide horizontal axis.
-        <div
-            style={{
-                height: treeVirtualizer.getTotalSize(),
-                position: "relative",
-                width: "100%",
-            }}
-        >
-            {treeVirtualizer.getVirtualItems().map((vRow) => {
-                const row = flatRows[vRow.index]
-                const {node, depth} = row
-                const parent = parentOf(node.path)
-                // One-shot entrance: only the rows of a level that resolved
-                // THIS render animate in (staggered by sibling order), so the
-                // skeleton→content swap settles gracefully. Empty on every
-                // other render → the virtualizer's scroll remounts don't replay.
-                const reveal =
-                    !row.loading && (justLoadedDirs.has(parent) || firstEverPaths.has(node.path))
-                // Folder rows are drop targets: spring-load + upload, with a
-                // tint while hovered.
-                const rowFolderDrop =
-                    node.isFolder && canUpload ? drop.folderDropProps(node.path) : undefined
-                return (
-                    <div
-                        key={vRow.key}
-                        data-index={vRow.index}
-                        ref={measureRow}
-                        className={
-                            drop.hoverPath === node.path
-                                ? "rounded bg-[var(--ant-color-primary-bg)]"
-                                : undefined
-                        }
-                        style={{
-                            position: "absolute",
-                            top: 0,
-                            left: 0,
-                            width: "100%",
-                            transform: `translateY(${vRow.start}px)`,
-                        }}
-                        {...rowFolderDrop}
-                    >
-                        <motion.div {...revealFade(reveal)}>
-                            {row.loading ? (
-                                <TreeLoadingRow depth={depth} width={row.loadingWidth} />
-                            ) : (
-                                <DriveItemContextMenu
-                                    path={node.path}
-                                    isFolder={node.isFolder}
-                                    onOpen={() => select(node.path)}
-                                    onCopyPath={copyPath}
-                                    onDownload={download}
-                                    className="w-full"
-                                >
-                                    <TreeRow
-                                        node={node}
-                                        depth={depth}
-                                        isOpen={shownExpanded.has(node.path)}
-                                        selected={node.path === selectedPath}
-                                        loading={
-                                            node.isFolder &&
-                                            shownExpanded.has(node.path) &&
-                                            node.children.length === 0 &&
-                                            isDirLoading(node.path)
-                                        }
-                                        showOrigin={showOrigin}
-                                        parent={parent}
-                                        scrollX={scrollXFor(parent)}
-                                        onMeasureContent={onMeasureContent}
-                                        pending={pendingUploadByPath.get(node.path)}
-                                        onRetryUpload={onRetryUpload}
-                                        onDismissUpload={onDismissUpload}
-                                        onToggle={(path) =>
-                                            setExpanded((prev) => {
-                                                const next = new Set(prev)
-                                                if (next.has(path)) next.delete(path)
-                                                else next.add(path)
-                                                return next
-                                            })
-                                        }
-                                        onSelect={select}
-                                    />
-                                </DriveItemContextMenu>
-                            )}
-                        </motion.div>
-                    </div>
-                )
-            })}
-        </div>
+        <>
+            {rootRow}
+            {/* Only the visible rows mount. Full pane width; each row handles its
+            own horizontal overflow, so there's no tree-wide horizontal axis. */}
+            <div
+                style={{
+                    height: treeVirtualizer.getTotalSize(),
+                    position: "relative",
+                    width: "100%",
+                }}
+            >
+                {treeVirtualizer.getVirtualItems().map((vRow) => {
+                    const row = flatRows[vRow.index]
+                    const {node} = row
+                    const depth = row.depth + depthOffset
+                    const parent = parentOf(node.path)
+                    // One-shot entrance: only the rows of a level that resolved
+                    // THIS render animate in (staggered by sibling order), so the
+                    // skeleton→content swap settles gracefully. Empty on every
+                    // other render → the virtualizer's scroll remounts don't replay.
+                    const reveal =
+                        !row.loading &&
+                        (justLoadedDirs.has(parent) || firstEverPaths.has(node.path))
+                    // Folder rows are drop targets: spring-load + upload, with a
+                    // tint while hovered.
+                    const rowFolderDrop =
+                        node.isFolder && canUpload ? drop.folderDropProps(node.path) : undefined
+                    return (
+                        <div
+                            key={vRow.key}
+                            data-index={vRow.index}
+                            ref={measureRow}
+                            className={
+                                drop.hoverPath === node.path
+                                    ? "rounded bg-[var(--ant-color-primary-bg)]"
+                                    : undefined
+                            }
+                            style={{
+                                position: "absolute",
+                                top: 0,
+                                left: 0,
+                                width: "100%",
+                                transform: `translateY(${vRow.start}px)`,
+                            }}
+                            {...rowFolderDrop}
+                        >
+                            <motion.div {...revealFade(reveal)}>
+                                {row.loading ? (
+                                    <TreeLoadingRow depth={depth} width={row.loadingWidth} />
+                                ) : (
+                                    <DriveItemContextMenu
+                                        path={node.path}
+                                        isFolder={node.isFolder}
+                                        onOpen={() => select(node.path)}
+                                        onCopyPath={copyPath}
+                                        onDownload={download}
+                                        writes={writes}
+                                        className="w-full"
+                                    >
+                                        <TreeRow
+                                            node={node}
+                                            depth={depth}
+                                            isOpen={shownExpanded.has(node.path)}
+                                            selected={node.path === selectedPath}
+                                            loading={
+                                                node.isFolder &&
+                                                shownExpanded.has(node.path) &&
+                                                node.children.length === 0 &&
+                                                isDirLoading(node.path)
+                                            }
+                                            showOrigin={showOrigin}
+                                            parent={parent}
+                                            scrollX={scrollXFor(parent)}
+                                            onMeasureContent={onMeasureContent}
+                                            pending={pendingUploadByPath.get(node.path)}
+                                            onRetryUpload={onRetryUpload}
+                                            onDismissUpload={onDismissUpload}
+                                            onToggle={(path) =>
+                                                setExpanded((prev) => {
+                                                    const next = new Set(prev)
+                                                    if (next.has(path)) next.delete(path)
+                                                    else next.add(path)
+                                                    return next
+                                                })
+                                            }
+                                            onSelect={select}
+                                        />
+                                    </DriveItemContextMenu>
+                                )}
+                            </motion.div>
+                        </div>
+                    )
+                })}
+            </div>
+        </>
     )
 }

@@ -7,12 +7,15 @@ import {
     AGENTS_SIDEBAR_KEY,
     PROMPTS_SIDEBAR_KEY,
     SIDEBAR_ENTITIES,
+    SESSIONS_SIDEBAR_KEY,
+    SIDEBAR_UNBOUNDED,
     defineSidebarEntity,
     livePollInterval,
     agentSessionCounts,
     localSessionRefsMatching,
     resolveChildren,
     sidebarSessionGroup,
+    sidebarSessionGroupAgentId,
     withRefsByRecency,
     type SessionSidebarRef,
     type SidebarEntity,
@@ -71,6 +74,23 @@ describe("resolveChildren", () => {
 
         expect(children).toHaveLength(15)
         expect(children.at(-1)?.title).toBe("Show all")
+    })
+
+    // Sessions renders every page it has loaded, so its cap is lifted rather than raised — and an
+    // uncapped entity has nothing left over to put behind a Show all.
+    it("renders every ref and no Show all when the entity is unbounded", () => {
+        const refs = Array.from({length: 120}, (_, index) => ref(`s${index}`, `Session ${index}`))
+        const children = resolveChildren(
+            entity({
+                maxItems: SIDEBAR_UNBOUNDED,
+                showAllLink: (projectURL) => `${projectURL}/sessions`,
+            }),
+            ready(refs),
+            "/w/w1/p/p1",
+        )
+
+        expect(children).toHaveLength(120)
+        expect(children.some((child) => child.title === "Show all")).toBe(false)
     })
 })
 
@@ -619,15 +639,115 @@ describe("agentSessionCounts", () => {
 describe("registered entity destinations", () => {
     const workflow = ref("01a03ed2-c322-7493-b2a2-29b8ae273530", "Ops Assistant")
 
-    it("opens an agent on its overview, not the playground", () => {
-        expect(SIDEBAR_ENTITIES[AGENTS_SIDEBAR_KEY].childLink(workflow, "/w/w1/p/p1")).toBe(
-            "/w/w1/p/p1/apps/01a03ed2-c322-7493-b2a2-29b8ae273530/overview",
-        )
+    it("registers no list under Agents — the rail draws it as a plain row", () => {
+        expect(SIDEBAR_ENTITIES[AGENTS_SIDEBAR_KEY]).toBeUndefined()
     })
 
     it("still opens a prompt on the playground", () => {
         expect(SIDEBAR_ENTITIES[PROMPTS_SIDEBAR_KEY].childLink(workflow, "/w/w1/p/p1")).toBe(
             "/w/w1/p/p1/apps/01a03ed2-c322-7493-b2a2-29b8ae273530/playground",
         )
+    })
+})
+
+// The "+" on an agent heading: it starts a session with THAT agent, and no other heading gets one.
+describe("sidebarSessionGroupAgentId", () => {
+    it("names the agent behind an agent heading under agent grouping", () => {
+        expect(sidebarSessionGroupAgentId("agent:a1", "agent")).toBe("a1")
+    })
+
+    it("gives Pinned and No-agent-yet nothing under agent grouping", () => {
+        expect(sidebarSessionGroupAgentId("pinned", "agent")).toBeUndefined()
+        expect(sidebarSessionGroupAgentId("agent:none", "agent")).toBeUndefined()
+    })
+
+    it("gives nothing under every other grouping, whatever the key says", () => {
+        for (const groupBy of ["none", "date", "status"] as const) {
+            expect(sidebarSessionGroupAgentId("agent:a1", groupBy)).toBeUndefined()
+            expect(sidebarSessionGroupAgentId("status:live", groupBy)).toBeUndefined()
+            expect(sidebarSessionGroupAgentId("recent", groupBy)).toBeUndefined()
+        }
+    })
+})
+
+describe("heading add (+)", () => {
+    const agentGroup = {key: "agent:a1", label: "Demo shoot", agentId: "a1"}
+    const clicks: string[] = []
+    // A host's seam, the way the mobile rail writes it: an agent heading gets one, no other does.
+    const withAdd = defineSidebarEntity("m", "project-sessions-link", {
+        kind: "app",
+        listAtom: null as never,
+        getLabel: (r: SidebarEntityRef) => r.name ?? r.id,
+        childPath: (r: SidebarEntityRef) => `/sessions/${r.id}`,
+        groupAdd: (group, projectURL) =>
+            group.agentId
+                ? {
+                      link: `${projectURL}/agents/${group.agentId}`,
+                      label: `New session with ${group.label}`,
+                      onClick: () => clicks.push(`${projectURL}:${group.agentId}`),
+                  }
+                : undefined,
+    })
+
+    it("forwards the seam onto the resolved entity, project URL and all", () => {
+        const add = withAdd.groupAddLink?.(agentGroup, "/w/w1/p/p1")
+
+        expect(add?.link).toBe("/w/w1/p/p1/agents/a1")
+        expect(add?.label).toBe("New session with Demo shoot")
+        add?.onClick?.({} as never)
+        expect(clicks).toEqual(["/w/w1/p/p1:a1"])
+    })
+
+    it("gives a heading that is not an agent no add at all", () => {
+        expect(
+            withAdd.groupAddLink?.({key: "pinned", label: "Pinned"}, "/w/w1/p/p1"),
+        ).toBeUndefined()
+        expect(
+            withAdd.groupAddLink?.({key: "agent:none", label: "No agent yet"}, "/w/w1/p/p1"),
+        ).toBeUndefined()
+    })
+
+    it("puts the add on the agent heading and on no other row", () => {
+        const grouped = entity({
+            getGroupKey: (r) => (r.id === "s1" ? "pinned" : "agent:a1"),
+            groupAddLink: withAdd.groupAddLink,
+        })
+        const refs = [ref("s1", "Morning poem"), ref("s2", "Daily update")]
+        const groups = [{key: "pinned", label: "Pinned"}, agentGroup]
+
+        const children = resolveChildren(grouped, ready(refs, {groups}), "/w/w1/p/p1")
+
+        expect(children.map((child) => [child.title, child.groupAdd?.link])).toEqual([
+            ["Pinned", undefined],
+            ["Morning poem", undefined],
+            ["Demo shoot", "/w/w1/p/p1/agents/a1"],
+            ["Daily update", undefined],
+        ])
+    })
+
+    it("keeps the add on a collapsed agent heading, so you can start a session without unfolding", () => {
+        const grouped = entity({getGroupKey: () => "agent:a1", groupAddLink: withAdd.groupAddLink})
+
+        const children = resolveChildren(
+            grouped,
+            ready([ref("s2", "Daily update")], {groups: [agentGroup], collapsedKeys: ["agent:a1"]}),
+            "/w/w1/p/p1",
+        )
+
+        expect(children).toHaveLength(1)
+        expect(children[0].groupAdd?.link).toBe("/w/w1/p/p1/agents/a1")
+    })
+
+    // The desktop rail registers no seam: its headings stay bare, whatever the grouping says.
+    it("gives an entity without the seam no add on any heading", () => {
+        expect(SIDEBAR_ENTITIES[SESSIONS_SIDEBAR_KEY].groupAddLink).toBeUndefined()
+
+        const children = resolveChildren(
+            entity({getGroupKey: () => "agent:a1"}),
+            ready([ref("s2", "Daily update")], {groups: [agentGroup]}),
+            "/w/w1/p/p1",
+        )
+
+        expect(children[0].groupAdd).toBeUndefined()
     })
 })

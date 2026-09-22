@@ -62,7 +62,7 @@ export const surface = {
     container: {light: "#ffffff", dark: "#141414"}, // [absorbs] --ag-c-FFFFFF, the #141414 literals
     elevated: {light: "#ffffff", dark: "#242424"}, // [override] [absorbs] 25+ light surfaces → one dark
     layout: {light: GROUND, dark: "#000000"}, // the warm page ground behind white cards
-    spotlight: {light: "rgba(36, 36, 36, 0.9)", dark: "#424242"},
+    spotlight: {light: "#242424", dark: "#424242"},
     mask: {light: "rgba(36, 36, 36, 0.45)", dark: "rgba(0, 0, 0, 0.45)"},
     containerDisabled: {light: "rgba(36, 36, 36, 0.04)", dark: "rgba(255, 255, 255, 0.08)"},
     infoBg: {light: "#e5f1f9", dark: "#111a2c"}, // antd's colorInfoBg (unified with antd render)
@@ -71,8 +71,13 @@ export const surface = {
     controlItemBgActive: {light: PAPER_SOFT, dark: "#57572a"},
     controlItemBgActiveHover: {light: HAIRLINE, dark: "#57572a"},
     infoBgHover: {light: "#d3e7f5", dark: "#111a2c"}, // one step down from infoBg
-    controlOutline: {light: "rgba(217, 217, 44, 0.35)", dark: "rgba(251, 251, 96, 0.29)"}, // antd input/select focus glow
-    errorOutline: {light: "rgba(217, 76, 74, 0.12)", dark: "rgba(238, 38, 56, 0.11)"}, // antd focus glow on error
+    // shadcn's `ring`: a neutral grey, never the brand colour — the faint ink in light (their
+    // neutral-400), the tertiary white in dark. `border-ring` is the focused control's edge.
+    ring: {light: INK_FAINT, dark: "rgba(255, 255, 255, 0.45)"},
+    // The control focus ring: `ring` at 50%.
+    controlOutline: {light: "rgba(163, 161, 159, 0.5)", dark: "rgba(255, 255, 255, 0.25)"},
+    // The invalid-control ring: destructive at 20%, 40% in dark.
+    errorOutline: {light: "rgba(217, 76, 74, 0.2)", dark: "rgba(238, 38, 56, 0.4)"},
     white: {light: "#ffffff", dark: "#ffffff"},
 } satisfies Record<string, Pair>
 
@@ -654,13 +659,16 @@ export const shell = {
     line: {light: HAIRLINE, dark: "#2c2c2c"},
     scrollThumb: {light: "rgba(36, 36, 36, 0.22)", dark: "rgba(255, 255, 255, 0.20)"},
     scrollThumbHover: {light: "rgba(36, 36, 36, 0.38)", dark: "rgba(255, 255, 255, 0.34)"},
-    // Selected nav row: a WHITE pill with a hairline on the warm rail (a yellow tint
-    // was reviewed and rejected). Dark keeps the shipped olive selection — #57572a is
-    // what v0.112.1 actually paints (antd derived it; this token only carried the
-    // hairline then, so its old #3e3d1a never shipped).
-    selectedBg: {light: "#ffffff", dark: "#57572a"},
-    selectedBorder: {light: HAIRLINE, dark: "transparent"},
-    selectedText: {light: INK, dark: "#d1d151"},
+    // Selected nav row: a raised pill with a hairline, one rule in both themes — white on
+    // the warm rail in light (a yellow tint was reviewed and rejected), the elevated
+    // surface on the near-black rail in dark. Dark used to paint an olive wash with
+    // accent text, which shouted across a rail whose whole job is to sit still; the
+    // shape now marks the row and the text stays the text.
+    selectedBg: {light: "#ffffff", dark: "#242424"},
+    // Softer than shell.line in dark: the frame hairline is drawn against the near-black
+    // rail, where this one sits on the pill itself and only has to close its edge.
+    selectedBorder: {light: HAIRLINE, dark: "#292929"},
+    selectedText: {light: INK, dark: "rgba(255, 255, 255, 0.85)"}, // = text.primary
 } satisfies Record<string, Pair>
 
 // Draft chip family (DraftTag). Gold in light; in dark the bg/border collapse to the

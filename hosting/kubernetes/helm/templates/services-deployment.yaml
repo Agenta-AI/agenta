@@ -11,6 +11,10 @@ metadata:
     app.kubernetes.io/component: services
 spec:
   replicas: {{ include "agenta.services.replicas" . }}
+  {{- with $services.strategy }}
+  strategy:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
   selector:
     matchLabels:
       {{- include "agenta.selectorLabels" . | nindent 6 }}
@@ -23,6 +27,9 @@ spec:
     spec:
       {{- include "agenta.imagePullSecrets" . | nindent 6 }}
       serviceAccountName: {{ include "agenta.serviceAccountName" . }}
+      {{- if hasKey $services "terminationGracePeriodSeconds" }}
+      terminationGracePeriodSeconds: {{ $services.terminationGracePeriodSeconds }}
+      {{- end }}
       {{- with $services.podSecurityContext }}
       securityContext:
         {{- toYaml . | nindent 8 }}
@@ -77,10 +84,23 @@ spec:
             - name: SCRIPT_NAME
               value: "/services"
             {{- include "agenta.agentRunner.servicesEnv" . | nindent 12 }}
+            {{- /* The agenta SDK runs in this container and applies the transport rule for
+                   gateway credentials; the runner re-applies it. Both need the same value. */}}
+            {{- include "agenta.gatewayInsecureHttpEnv" . | nindent 12 }}
             {{- range $key, $val := $services.env }}
             - name: {{ $key }}
               value: {{ $val | quote }}
             {{- end }}
+            {{- /* extraEnv is a raw list of explicit Kubernetes env entries, so valueFrom works
+                   and names here override earlier chart entries. envFrom pulls whole Secrets or
+                   ConfigMaps, but Kubernetes uses those values only for names absent from env. */}}
+            {{- with $services.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- with $services.envFrom }}
+          envFrom:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           startupProbe:
             httpGet:
               path: /health
@@ -103,6 +123,10 @@ spec:
             periodSeconds: 10
             timeoutSeconds: 5
             failureThreshold: 3
+          {{- with $services.lifecycle }}
+          lifecycle:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           {{- with $services.resources }}
           resources:
             {{- toYaml . | nindent 12 }}
