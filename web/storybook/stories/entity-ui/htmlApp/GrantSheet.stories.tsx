@@ -27,10 +27,12 @@ const Harness = ({
     requested,
     canWrite,
     appName = "Retro board",
+    pending = false,
 }: {
     requested: GrantLevel
     canWrite: boolean
     appName?: string
+    pending?: boolean
 }) => {
     const [open, setOpen] = useState(true)
     const [outcome, setOutcome] = useState<string>("(no answer yet)")
@@ -52,6 +54,7 @@ const Harness = ({
                 dir={APP_DIR}
                 requested={requested}
                 canWrite={canWrite}
+                pending={pending}
                 onCancel={() => {
                     setOutcome("cancelled → back to Preview")
                     setOpen(false)
@@ -82,6 +85,11 @@ export const ReadWritePreselected: Story = {
 export const WriteHidden: Story = {
     args: {requested: "read-write", canWrite: false},
     render: (args) => <Harness requested={args.requested} canWrite={args.canWrite} />,
+}
+
+export const LoadingManifest: Story = {
+    args: {requested: "read", canWrite: true, pending: true},
+    render: (args) => <Harness requested={args.requested} canWrite={args.canWrite} pending />,
 }
 
 /** Acceptance: Cancel closes the sheet and returns to Preview (click Cancel, then "Run…" again). */

@@ -28,6 +28,7 @@ export interface GrantSheetProps {
     requested: GrantLevel
     /** Whether the "Read and write files" option is offered at all. */
     canWrite: boolean
+    pending?: boolean
     onCancel: () => void
     onConfirm: (level: GrantLevel) => void
 }
@@ -38,6 +39,7 @@ export function GrantSheet({
     dir,
     requested,
     canWrite,
+    pending = false,
     onCancel,
     onConfirm,
 }: GrantSheetProps) {
@@ -90,8 +92,12 @@ export function GrantSheet({
                     <Button variant="outline" size="sm" onClick={onCancel}>
                         Cancel
                     </Button>
-                    <Button size="sm" onClick={() => onConfirm(level)}>
-                        Run
+                    <Button
+                        size="sm"
+                        disabled={pending}
+                        onClick={() => onConfirm(canWrite ? level : "read")}
+                    >
+                        {pending ? "Loading permissions…" : "Run"}
                     </Button>
                 </DialogFooter>
             </DialogContent>

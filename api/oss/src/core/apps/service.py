@@ -22,7 +22,8 @@ from uuid import UUID
 
 import yaml
 
-from oss.src.core.mounts.types import MountFileNotFound
+from oss.src.core.mounts.dtos import MountFileContent
+from oss.src.core.mounts.types import MountFileNotFound, MountPreconditionFailed
 
 BUNDLE_STARTERS_DIR = Path(__file__).parent / "starters"
 STARTER_SKILL_FILENAME = "SKILL.md"
@@ -418,21 +419,15 @@ class AppsService:
         if config_name:
             protected.add(config_name)
 
-        written: List[str] = []
-        skipped: List[str] = []
+        pending: dict[str, bytes] = {}
+        skipped: list[str] = []
 
-        async def put(rel: str, text: str) -> None:
+        def prepare(rel: str, text: str) -> None:
             path = f"{app_dir}/{rel}"
-            if update and rel in protected:
+            if update and current is not None and rel in protected:
                 skipped.append(path)
-                return
-            await self.mounts_service.write_file(
-                project_id=project_id,
-                mount_id=mount_id,
-                path=path,
-                content=text.encode("utf-8"),
-            )
-            written.append(path)
+            else:
+                pending[path] = text.encode("utf-8")
 
         for file in sorted(source_dir.iterdir()):
             if not file.is_file() or file.name in (
@@ -443,16 +438,122 @@ class AppsService:
             text = file.read_text(encoding="utf-8")
             if file.name == APP_MANIFEST_FILENAME:
                 text = _stamp_template(text, template)
-            await put(file.name, text)
+            prepare(file.name, text)
 
         defaults = source_dir / STARTER_CONFIG_DEFAULTS
         if config_name and defaults.is_file():
-            if update and existing is not None:
-                skipped.append(f"{app_dir}/{config_name}")
-            else:
-                await put(config_name, defaults.read_text(encoding="utf-8"))
+            prepare(config_name, defaults.read_text(encoding="utf-8"))
 
-        return CreateAppResult(paths=written, template=template, skipped=skipped)
+        before: dict[str, MountFileContent | None] = {}
+        for path in pending:
+            try:
+                previous = (
+                    current
+                    if path == manifest_path
+                    else await self.mounts_service.read_file(
+                        project_id=project_id, mount_id=mount_id, path=path
+                    )
+                )
+            except MountFileNotFound:
+                previous = None
+            if previous is not None and not update:
+                raise AppsError(
+                    "app_exists",
+                    f"{path} already exists.",
+                    next_step="Choose an empty app directory or use update=true intentionally.",
+                )
+            if previous is not None and not previous.etag:
+                raise AppsError(
+                    "unavailable",
+                    "Storage did not provide an etag for a file to update.",
+                    next_step="Restore storage etag support before updating the app.",
+                )
+            before[path] = previous
+
+        # Publish the manifest only after all starter files are in place.
+        order = [p for p in pending if p != manifest_path]
+        if manifest_path in pending:
+            order.append(manifest_path)
+        written: dict[str, str | None] = {}
+        try:
+            for path in order:
+                previous = before[path]
+                result = await self.mounts_service.write_file(
+                    project_id=project_id,
+                    mount_id=mount_id,
+                    path=path,
+                    content=pending[path],
+                    if_match=previous.etag if previous else None,
+                    if_none_match_any=previous is None,
+                )
+                written[path] = result.etag
+                if not result.etag:
+                    raise AppsError(
+                        "unavailable", "Storage did not return a write etag."
+                    )
+        except Exception as error:
+            unrestored = []
+            # A timeout can arrive after the store committed the last write.
+            if path not in written and not isinstance(error, MountPreconditionFailed):
+                try:
+                    observed = await self.mounts_service.read_file(
+                        project_id=project_id, mount_id=mount_id, path=path
+                    )
+                    previous = before[path]
+                    if previous is not None and observed.etag == previous.etag:
+                        pass
+                    else:
+                        unrestored.append(path)
+                except MountFileNotFound:
+                    pass
+                except Exception:
+                    unrestored.append(path)
+            if unrestored:
+                raise AppsError(
+                    "app_copy_incomplete",
+                    "The last write has an unknown outcome; copied files were preserved.",
+                    next_step="Inspect the listed paths before retrying the copy.",
+                    details={"paths": list(written) + unrestored},
+                ) from error
+            for path, etag in reversed(list(written.items())):
+                if not etag:
+                    unrestored.append(path)
+                    continue
+                try:
+                    previous = before[path]
+                    if previous is None:
+                        await self.mounts_service.delete_path(
+                            project_id=project_id,
+                            mount_id=mount_id,
+                            path=path,
+                            if_match=etag,
+                        )
+                    else:
+                        await self.mounts_service.write_file(
+                            project_id=project_id,
+                            mount_id=mount_id,
+                            path=path,
+                            content=previous.content.encode("utf-8"),
+                            if_match=etag,
+                        )
+                except Exception:
+                    unrestored.append(path)
+            if unrestored:
+                raise AppsError(
+                    "app_copy_incomplete",
+                    "The starter copy failed and some files could not be restored.",
+                    next_step="Inspect the listed paths before retrying; do not overwrite concurrent edits.",
+                    details={"paths": unrestored},
+                ) from error
+            if isinstance(error, MountPreconditionFailed):
+                raise AppsError(
+                    "conflict",
+                    "An app file changed during the copy.",
+                    next_step="Read the app files before retrying the copy.",
+                ) from error
+            raise
+
+        return CreateAppResult(paths=list(pending), template=template, skipped=skipped)
 
 
 def _normalise_dir(raw: str) -> str:

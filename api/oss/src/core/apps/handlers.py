@@ -165,6 +165,15 @@ async def handle_create_app(
         parsed = _parse(arguments)
     except AppsError as e:
         return _failure(e)
+    update = parsed.get("update", False)
+    if not isinstance(update, bool):
+        return _failure(
+            AppsError(
+                "invalid_arguments",
+                "update must be a boolean.",
+                next_step="Pass update as true or false, not a string or number.",
+            )
+        )
     session_id = _bound_session_id(parsed)
     mounts = _require_mounts(mounts_service, op="create_app")
     apps = AppsService(mounts_service=mounts)
@@ -178,7 +187,7 @@ async def handle_create_app(
             mount_id=mount.id,
             starter=str(parsed.get("starter") or ""),
             dir=str(parsed.get("dir") or ""),
-            update=bool(parsed.get("update") or False),
+            update=update,
         )
     except AppsError as e:
         return _failure(e)

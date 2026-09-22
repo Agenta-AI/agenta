@@ -83,6 +83,14 @@ describe("path helpers", () => {
         expect(normalizeAppDir("///")).toBe("")
     })
 
+    it("trims long slash runs without backtracking or changing interior slashes", () => {
+        const slashes = "/".repeat(100_000)
+        expect(normalizeAppDir(slashes)).toBe("")
+        expect(normalizeAppDir(`${slashes}apps/board${slashes}`)).toBe("apps/board")
+        expect(normalizeAppDir(`a${slashes}b`)).toBe(`a${slashes}b`)
+        expect(normalizeAppDir("")).toBe("")
+    })
+
     it("joinAppPath handles the root dir and the root path", () => {
         expect(joinAppPath("", "x")).toBe("x")
         expect(joinAppPath("d", "")).toBe("d")

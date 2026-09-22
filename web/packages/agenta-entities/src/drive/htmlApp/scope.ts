@@ -50,7 +50,11 @@ export const isScopeFailure = (x: unknown): x is ScopeFailure =>
 
 /** Strip leading/trailing slashes from the app dir so joins are predictable (`""` = mount root). */
 export function normalizeAppDir(dir: string): string {
-    return dir.replace(/^\/+/, "").replace(/\/+$/, "")
+    let start = 0
+    let end = dir.length
+    while (start < end && dir[start] === "/") start++
+    while (end > start && dir[end - 1] === "/") end--
+    return dir.slice(start, end)
 }
 
 /** `dir` + app-relative path → mount-relative path. `""` (root) only when `allowRoot`. */

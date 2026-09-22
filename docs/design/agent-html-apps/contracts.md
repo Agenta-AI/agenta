@@ -19,7 +19,7 @@ Source of truth (in `@agenta/entities`, exported from `@agenta/entities/drive`):
 
 ### How to propose a change
 
-Open a PR against `feat/agent-apps-contracts` that changes the TypeScript and this file together,
+Open a PR against the active release branch that changes the TypeScript and this file together,
 and say which lane needs it and why. Never fork a type locally ("my own `FsRequest` with one more
 field") — the point of the lane is that a change here breaks every consumer's typecheck at once,
 which is the review. Additive fields on messages are cheap; renames and new error codes need a
@@ -73,7 +73,9 @@ for a path — from `read`, `readJSON`, `list`, `stat` or a successful `write` �
 `If-Match` on the next `write`/`remove` of that path. If the server answers 412 the app gets
 `conflict` with the etag the server holds now; the usual recovery is to re-read (which refreshes
 the cached etag) and retry. `force: true` on the request skips the header and overwrites. A path
-the app has never read is written unconditionally. `externalWrite` on the mock is how a test or
+the app has never read uses `If-None-Match: *`, so its first write cannot overwrite an existing
+file. Removal without a cached etag remains unconditional; read the file first to protect it
+against concurrent changes. `externalWrite` on the mock is how a test or
 story simulates the agent editing a file underneath the app: the stored content changes, the
 cached etag does not, and a `changed` message is queued (delivered immediately when attached,
 flushed right after `hello` otherwise). `externalWrite(path, text, {silent: true})` skips the
@@ -135,7 +137,8 @@ in the type so v2 does not need a manifest migration. `template` is stamped by `
 
 ## API deltas (lane B)
 
-All under the existing mount files endpoints; nothing new is mounted.
+File operations use the existing mount files endpoints. `POST /mounts/{id}/apps/scope`
+issues an optional folder-scoped token for the trusted parent page.
 
 - `GET /mounts/{id}/files?read=p` → `{path, content, etag}`.
 - List entries gain `etag` (a string for files, `null` for folders).
@@ -164,7 +167,15 @@ Two ops on the agent's platform tool surface:
   Copies a starter into `dir`. Refuses when `dir/app.json` already exists unless `update=True`;
   with `update`, replaces the non-data files only (everything the manifest's `data` list does not
   name) so the user's content survives a template bump. Stamps `template` in the written
-  `app.json` (`board@1`, or `agent:retro-board@2` for an agent-authored starter).
+  `app.json` (`board@1`). Agent-authored starters can be listed but cannot yet be copied.
+  `update` accepts only JSON booleans. New copies refuse existing destination files. The service
+  prepares and checks all files first, writes them conditionally, and publishes `app.json` last.
+  On failure it attempts to restore only files whose etags still match its acknowledged writes.
+  A lost response with an ambiguous outcome preserves the copied files; matching bytes do not
+  prove write ownership. If safe restoration is not possible, `app_copy_incomplete` names the
+  paths that need inspection. This is compensation, not a
+  multi-file storage transaction; readers can observe in-progress updates, and conditional deletion
+  retains the storage caveat above.
 - `list_starters() -> list[{name, version, when, config_keys, data_files, access}]`
   Union of the bundled starters and any `agent-files/.apps/starters/*/SKILL.md` in the mount;
   `when` is the one-line "use this when…" from the SKILL.md front matter.
@@ -191,92 +202,39 @@ would block them anyway, and the kit must render identically in Storybook and in
 - CSP (`RUN_CSP`), injected as a `<meta http-equiv>` at the top of the document:
   `default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; form-action 'none'`.
 - Feature flag: `userScopedFlagAtom` with key `agent-apps` (`AGENT_APPS_FLAG`). Off means the
-  drive shows the folder as plain files.
+  drive shows the folder as plain files. The preference defaults to false per user. HTML apps
+  remain experimental; this release does not enable Run by default.
 
-## The egress surface
+## Network and filesystem boundaries
 
-"The app cannot reach the network" is the claim the whole design rests on, so it is worth stating
-exactly what enforces it, because `default-src 'none'` is not the whole answer.
+Custom app JavaScript is not guaranteed to be network-isolated. The current Run content security
+policy (CSP) restricts fetches and remote assets, and the sandbox restricts popups and access to
+the parent page. These restrictions are not a promise that every browser network channel is
+blocked. Treat files granted to an app as data its code can read and potentially transmit.
+Keep bundled starters self-contained. Do not put credentials in app files.
 
-| Channel                                 | Stopped by                            |
-| --------------------------------------- | ------------------------------------- |
-| `fetch`, XHR, WebSocket, EventSource    | `default-src 'none'`                  |
-| Image beacon (`new Image().src`)        | `img-src data: blob:`                 |
-| Remote fonts, styles, scripts           | `default-src 'none'`                  |
-| `window.open("https://…?d=" + data)`    | **no `allow-popups`**                 |
-| `<form action="https://…">`             | **`form-action 'none'`**              |
-| `RTCPeerConnection` (ICE / STUN / TURN) | **the stub deletes the constructors** |
-| Reaching the parent page or cookies     | no `allow-same-origin`                |
+The trusted parent enforces app-relative paths and the selected read or read-write grant.
+It keeps the optional scope token in memory and attaches `X-Agenta-App-Scope` to file requests.
+The iframe receives neither this token nor the user's authentication credentials. When supplied,
+the token narrows GET, PUT and DELETE on `/mounts/{id}/files` to the app directory and grant.
+It does not authorize upload, download, folder creation or export endpoints.
 
-The last three are the ones that surprise people. **CSP's fetch directives do not govern
-navigation**, and `navigate-to` never shipped in any browser, so no CSP value blocks a popup —
-only the sandbox attribute does. `form-action` likewise does not inherit from `default-src`; it
-has to be named or form submission is unrestricted.
+If token minting fails, Run may continue with ordinary authenticated requests without this
+header. That is intentional compatibility behavior, not an unconditional server-side folder
+boundary. Normal authentication and project permissions still apply. Agent-side `create_app`
+writes are separate from the UI's `EDIT_MOUNTS` permission and retain their existing policy.
 
-This was live: with `allow-popups`, an app could call `window.open` synchronously inside any click
-it already handled, ship the data in the query string, and `close()` the window immediately. It
-was verified against the real assembled document — with the flag the listening server logged the
-request and the stolen bytes, without it nothing arrived. `htmlApp.egress.test.ts` pins both
-constants so restoring either fails a test.
+Preview has no app bridge. It strips app scripts, keeps external links available, and applies
+`PREVIEW_CSP`, including `frame-src 'none'` and `object-src 'none'`. Its policy allows HTTPS
+styles, images and fonts. Do not describe Preview as network-isolated either.
 
-Two consequences worth carrying into later phases:
+## Grant confirmation
 
-- **An app that needs an external link does not get a popup.** The click arrives at the host as a
-  `nav` message and the host decides, which also means the person sees the destination.
-- **Any future relaxation of the CSP is an egress decision, not a convenience one.** "Let apps
-  load a chart library from a CDN" reopens this by adding a remote origin. The library shelf in
-  the canvas doc exists precisely so that never has to happen: builds are inlined at assembly.
-
-### WebRTC, and why this list is not the security model
-
-WebRTC is the row that changes how to read the rest of the table. ICE is not a fetch, so no CSP
-value governs it: measured against this exact sandbox and policy, a peer connection gathered a
-`srflx` candidate — a completed round trip to a public STUN server — and UDP reached a host and
-port of the app's choosing, while every HTTP-shaped channel above was blocked. `webrtc 'block'`
-in a `<meta>` policy had no effect. It is closed in the bridge stub, which runs before any app
-script, and the usual recovery (a clean constructor off a nested `about:blank` frame) fails
-because the sandbox has no `allow-same-origin`.
-
-Two exits were found this way: popups, then WebRTC. Each was found by thinking of one more.
-**Enumerating exits against a browser does not terminate** — the surface grows every release, and
-a blocklist is only as good as the last person who went looking. Treat this table as a record of
-what is closed, never as a proof that nothing is open.
-
-### Preview is a different document, with different flags
-
-Everything above describes **Run**. The Preview tab renders ordinary drive HTML and does not
-share those flags: it keeps `allow-popups allow-popups-to-escape-sandbox`, because an external
-link opening in a new tab is what people expect of a rendered document, and it has no bridge, so
-there is no `window.agenta` to steal from.
-
-What it does instead is strip every agent script — `<script>`, `on*` handlers, `javascript:`
-URLs, `iframe[srcdoc]` — so the only code that runs is the nav interceptor. For a while that
-stripping was taken as the reason the popup flags were harmless. It was not. The strip list never
-covered `<iframe src="data:text/html,…">`: the nested context inherits `allow-scripts` from the
-preview sandbox, so its script runs even though the outer document has none left. Preview shipped
-no CSP at all, so that script could simply `fetch` anywhere. Measured the same way as the rows
-above — the request arrived at a listening server with its query string intact.
-
-`<object data="data:text/html,…">` and `<embed>` open the same door, which is the point:
-lengthening the strip list would have moved the vector, not closed it. `PREVIEW_CSP` denies the
-capability instead. `frame-src 'none'` and `object-src 'none'` stop the nested contexts, and
-`default-src 'none'` covers `connect-src`, so a context that somehow loads still has nowhere to
-send anything. Re-run with the policy in place: nothing ran, nothing arrived.
-
-It is deliberately wider than `RUN_CSP` in one respect. `inlineAssets` folds in same-mount assets
-only and leaves external URLs alone, so drive HTML that links a remote stylesheet, image or font
-renders today; `style-src`, `img-src` and `font-src` keep `https:` so it keeps rendering.
-`connect-src` stays denied, which is the channel that mattered.
-
-The cost is that a page embedding a legitimate `<iframe>` (a video, a third-party widget) no
-longer renders that frame in Preview. Nothing in the drive templates does this today. If that
-becomes a real need, it is an egress decision like any other on this page, not a convenience one.
-
-That is why the folder rule is enforced on the server as well, and why that is the layer to trust:
-an app that cannot obtain bytes outside its folder makes the exit list stop being load-bearing.
-See `core/apps/scope_token.py`. The table above still matters, because an app can always leak the
-folder you granted it — but with the prefix check the damage is bounded by what the person chose
-to show it, rather than by whether this page got every path right.
+The grant sheet's selection belongs to the displayed app, directory, requested access and
+current write permission. A change to these values resets the selection before confirmation.
+Run cannot be confirmed while the manifest is loading. A confirmation never persists a write
+grant when the UI no longer offers write access. Stored grants remember both the selected level
+and the access offered, so a deliberate read-only choice is not treated as an unanswered request.
 
 ## Stub globals (lane E)
 
