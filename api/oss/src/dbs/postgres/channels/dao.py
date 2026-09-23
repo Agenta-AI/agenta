@@ -500,6 +500,24 @@ class ChannelsDAO(ChannelsDAOInterface):
                 ChannelAgentDBE.project_id == project_id,
             )
 
+            include_archived = bool(agent and agent.include_archived)
+
+            if not include_archived:
+                # Same soft-delete convention as elsewhere (e.g. the ingress
+                # lookup): a binding is live only if neither it nor its
+                # connection has been archived. Without the connection half
+                # of this, an archived connection's bindings kept showing up
+                # here (and thus in the agent picker) after disconnect.
+                stmt = stmt.where(ChannelAgentDBE.deleted_at.is_(None)).where(
+                    ~select(ChannelConnectionDBE.id)
+                    .where(
+                        ChannelConnectionDBE.project_id == ChannelAgentDBE.project_id,
+                        ChannelConnectionDBE.id == ChannelAgentDBE.connection_id,
+                        ChannelConnectionDBE.deleted_at.isnot(None),
+                    )
+                    .exists()
+                )
+
             if agent:
                 if agent.connection_id is not None:
                     stmt = stmt.filter(

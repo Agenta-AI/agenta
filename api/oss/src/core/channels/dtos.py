@@ -631,6 +631,13 @@ class ChannelAgentEdit(Identifier, Header, Metadata):
 class ChannelAgentQuery(BaseModel):
     connection_id: Optional[UUID] = None
     slug: Optional[str] = None
+    include_archived: Optional[bool] = Field(
+        default=None,
+        description=(
+            "When `true`, include archived bindings and bindings of archived "
+            "connections. Defaults to `false`."
+        ),
+    )
 
 
 # ---------------------------------------------------------------------------
