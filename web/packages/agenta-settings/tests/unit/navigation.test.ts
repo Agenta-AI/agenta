@@ -14,6 +14,7 @@ const baseAccess: SettingsAccess = {
     billingEnabled: true,
     canShowMcpEndpoints: true,
     canShowTools: true,
+    canShowChannels: true,
     canViewApiKeys: true,
     canViewEvents: true,
     isEE: true,
@@ -123,6 +124,7 @@ describe("settings sidebar scopes", () => {
             "secrets",
             "llms",
             "tools",
+            "channels",
             "webhooks",
             "mcpEndpoints",
         ])

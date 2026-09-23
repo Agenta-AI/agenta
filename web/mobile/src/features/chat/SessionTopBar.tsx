@@ -4,6 +4,7 @@ import {AgentPageHeader, AgentRevisionStatus} from "@agenta/playground-ui/agent-
 import {ShortcutsHelpButton} from "@agenta/ui/shortcuts"
 import {useAtomValue} from "jotai"
 
+import {AgentPublishButton} from "../agents/AgentPublishButton"
 import {NavDrawer} from "../nav/NavDrawer"
 
 /**
@@ -48,7 +49,18 @@ export const SessionTopBar = ({
                 ) : undefined
             }
             // The desktop puts this at the header's right edge too, not on the tab strip.
-            actions={<ShortcutsHelpButton />}
+            actions={
+                <>
+                    <ShortcutsHelpButton />
+                    {agentId ? (
+                        <AgentPublishButton
+                            agentId={agentId}
+                            workspaceId={workspaceId}
+                            projectId={projectId}
+                        />
+                    ) : null}
+                </>
+            }
         />
     )
 }

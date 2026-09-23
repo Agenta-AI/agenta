@@ -849,7 +849,9 @@ export function buildRunPlan(
         : acpAgent === "codex"
           ? "CODEX_HOME"
           : "PI_CODING_AGENT_DIR";
-    if (!process.env[subscriptionEnvVar]) {
+    // The mock harness answers from a scripted behaviour and never authenticates, so it has
+    // no login to read and the mount is not a precondition for it.
+    if (acpAgent !== "mock" && !process.env[subscriptionEnvVar]) {
       return { ok: false, error: LOCAL_SUBSCRIPTION_MOUNT_MISSING_MESSAGE };
     }
   }

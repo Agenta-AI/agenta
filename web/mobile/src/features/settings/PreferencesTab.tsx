@@ -1,20 +1,15 @@
-import {PreferencesPage, type ThemePickerProps} from "@agenta/settings-ui"
+import {PreferencesPage, usePreferenceBindings, type ThemePickerProps} from "@agenta/settings-ui"
 import {desktopEscapeHref, writeClassicModeCookie} from "@agenta/shared/hooks"
-import {
-    agentAppsEnabledAtom,
-    classicModeEnabledAtom,
-    playgroundInspectorEnabledAtom,
-} from "@agenta/shared/state"
-import {useAtom} from "jotai"
+import {classicModeEnabledAtom} from "@agenta/shared/state"
+import {useSetAtom} from "jotai"
 
 /**
  * Mobile binding for the shared preferences page; switches share storage with the desktop.
- * Classic mode is how a user leaves /m, so turning it on must navigate them there.
+ * Developer Mode (the classic-mode preference) is how a user leaves /m, so turning it on must
+ * navigate them there.
  */
 export const PreferencesTab = ({theme}: {theme: ThemePickerProps}) => {
-    const [classicMode, setClassicMode] = useAtom(classicModeEnabledAtom)
-    const [inspector, setInspector] = useAtom(playgroundInspectorEnabledAtom)
-    const [agentApps, setAgentApps] = useAtom(agentAppsEnabledAtom)
+    const setClassicMode = useSetAtom(classicModeEnabledAtom)
 
     const onClassicModeChange = (enabled: boolean) => {
         setClassicMode(enabled)
@@ -25,36 +20,15 @@ export const PreferencesTab = ({theme}: {theme: ThemePickerProps}) => {
         window.location.assign(desktopEscapeHref())
     }
 
+    const bindings = usePreferenceBindings()
+
     return (
         <PreferencesPage
             theme={theme}
-            flags={[
-                {
-                    key: "classic-mode",
-                    title: "Classic mode",
-                    description: "Use the full desktop app, with all platform areas.",
-                    enabled: classicMode,
-                    onChange: onClassicModeChange,
-                },
-                {
-                    key: "playground-inspector",
-                    title: "Playground inspector",
-                    description:
-                        "Show controls for inspecting Playground sessions and individual turns.",
-                    enabled: inspector,
-                    onChange: setInspector,
-                    badge: "DEBUG",
-                },
-                {
-                    key: "agent-apps",
-                    title: "Agent apps",
-                    description:
-                        "Offer Run on HTML files in an agent's drive, so a page can read and write its own folder.",
-                    enabled: agentApps,
-                    onChange: setAgentApps,
-                    badge: "BETA",
-                },
-            ]}
+            bindings={{
+                ...bindings,
+                "classic-mode": {...bindings["classic-mode"], onChange: onClassicModeChange},
+            }}
         />
     )
 }

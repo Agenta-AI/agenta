@@ -2,6 +2,8 @@ import {useMemo} from "react"
 
 import type {SettingsAccess} from "@agenta/settings"
 import {isBillingEnabled, isEE, isMcpGatewayEnabled, isToolsEnabled} from "@agenta/shared/api"
+import {channelsEnabledAtom} from "@agenta/shared/state"
+import {useAtomValue} from "jotai"
 
 import {useProjectPermissions} from "@/oss/hooks/useProjectPermissions"
 import {useOrgData} from "@/oss/state/org"
@@ -14,6 +16,7 @@ export const useSettingsAccess = (): SettingsAccess => {
     const {canViewApiKeys, canViewEvents} = useProjectPermissions()
     const isOwner = !!selectedOrg?.owner_id && selectedOrg.owner_id === user?.id
     const billingEnabled = isBillingEnabled()
+    const canShowChannels = useAtomValue(channelsEnabledAtom)
     const mcpGatewayEnabled = isMcpGatewayEnabled()
 
     return useMemo(
@@ -23,9 +26,17 @@ export const useSettingsAccess = (): SettingsAccess => {
             canShowTools: isToolsEnabled(),
             canViewApiKeys,
             canViewEvents,
+            canShowChannels,
             isEE: isEE(),
             isOwner,
         }),
-        [billingEnabled, mcpGatewayEnabled, canViewApiKeys, canViewEvents, isOwner],
+        [
+            billingEnabled,
+            mcpGatewayEnabled,
+            canViewApiKeys,
+            canViewEvents,
+            canShowChannels,
+            isOwner,
+        ],
     )
 }

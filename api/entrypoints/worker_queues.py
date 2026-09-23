@@ -1,10 +1,12 @@
 """
 worker_queues - list-parameterized entrypoint hosting the TaskIQ queue
-consumers (webhooks, triggers, interactions, evaluations) in one process.
+consumers (webhooks, triggers, interactions, evaluations, channels-inbox) in
+one process.
 
 Reads AGENTA_WORKER_QUEUES (subset of {webhooks, triggers, interactions,
-evaluations}); empty or unset selects all four. Each selected broker keeps its
-own queue_name/consumer_group_name/maxlen/retry config unchanged.
+evaluations, channels-inbox}); empty or unset selects all five. Each selected
+broker keeps its own queue_name/consumer_group_name/maxlen/retry config
+unchanged.
 
 Why this bypasses taskiq.cli.worker.run.run_worker: run_worker's
 ProcessManager forks a new OS process per broker (spawn on darwin) and
@@ -26,7 +28,7 @@ import signal
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
 from typing import List
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from taskiq import AsyncBroker, TaskiqEvents
 from taskiq.receiver import Receiver
@@ -48,6 +50,8 @@ from oss.src.core.evaluations.runtime.locks import run_worker_heartbeat
 from oss.src.core.evaluations.service import EvaluationsService
 from oss.src.core.evaluators.service import EvaluatorsService, SimpleEvaluatorsService
 from oss.src.core.queries.service import QueriesService
+from oss.src.core.sessions.commands.service import SessionCommandsService
+from oss.src.core.sessions.inputs.service import SessionInputsService
 from oss.src.core.sessions.context import make_session_context_resolver
 from oss.src.core.sessions.interactions.service import SessionInteractionsService
 from oss.src.core.sessions.records.service import RecordsService
@@ -70,6 +74,12 @@ from oss.src.dbs.postgres.queries.dbes import (
     QueryRevisionDBE,
     QueryVariantDBE,
 )
+from oss.src.core.secrets.services import VaultService
+from oss.src.dbs.postgres.secrets.dao import SecretsDAO
+from oss.src.dbs.postgres.sessions.commands.dao import SessionCommandsDAO
+from oss.src.dbs.postgres.sessions.executions.dao import SessionExecutionsDAO
+from oss.src.dbs.postgres.sessions.inputs.dao import SessionInputsDAO
+from oss.src.dbs.http.sessions.control_delivery_direct import DirectControlDelivery
 from oss.src.dbs.postgres.sessions.interactions.dao import SessionInteractionsDAO
 from oss.src.dbs.postgres.sessions.records.dao import RecordsDAO
 from oss.src.dbs.postgres.sessions.streams.dao import SessionStreamsDAO
@@ -94,10 +104,18 @@ from oss.src.dbs.postgres.workflows.dbes import (
     WorkflowRevisionDBE,
     WorkflowVariantDBE,
 )
+from entrypoints.channel_adapters import build_channel_adapter_registry
+from oss.src.core.channels.identity import ChannelIdentityService
+from oss.src.core.channels.queue import ChannelSessionQueue
+from oss.src.core.channels.service import ChannelsService
+from oss.src.dbs.postgres.channels.dao import ChannelsDAO
+from oss.src.dbs.postgres.channels.identity_dao import ChannelIdentityDAO
+from oss.src.tasks.asyncio.channels.inbox import InboxDispatcher
 from oss.src.tasks.asyncio.sessions.interactions_dispatcher import (
     InteractionsDispatcher,
 )
 from oss.src.tasks.asyncio.triggers.dispatcher import TriggersDispatcher
+from oss.src.tasks.taskiq.channels.inbox_worker import ChannelsInboxWorker
 from oss.src.tasks.taskiq.sessions.interactions_worker import InteractionsWorker
 from oss.src.tasks.taskiq.triggers.worker import TriggersWorker
 from oss.src.tasks.taskiq.webhooks.worker import WebhooksWorker
@@ -116,11 +134,18 @@ log = get_module_logger(__name__)
 
 ag.init(api_url=env.agenta.api_url)
 
-ALL_QUEUES = ("webhooks", "triggers", "interactions", "evaluations")
+ALL_QUEUES = (
+    "webhooks",
+    "triggers",
+    "interactions",
+    "evaluations",
+    "channels-inbox",
+)
 
 MAXLEN_QUEUES_WEBHOOKS = 100_000
 MAXLEN_QUEUES_TRIGGERS = 100_000
 MAXLEN_QUEUES_INTERACTIONS = 100_000
+MAXLEN_QUEUES_CHANNELS_INBOX = 100_000
 
 _WORKER_ID = str(uuid4())
 _worker_heartbeat_task: "asyncio.Task | None" = None
@@ -129,7 +154,7 @@ _worker_heartbeat_task: "asyncio.Task | None" = None
 def _selected_queues() -> List[str]:
     selected = env.agenta.workers.queues
     if not selected:
-        return list(ALL_QUEUES)
+        selected = list(ALL_QUEUES)
     unknown = set(selected) - set(ALL_QUEUES)
     if unknown:
         raise ValueError(
@@ -244,6 +269,139 @@ def _build_triggers_broker() -> tuple[AsyncBroker, int]:
     TriggersWorker(
         broker=broker, dispatcher=triggers_dispatcher, triggers_dao=triggers_dao
     )
+    return broker, 50  # max_async_tasks
+
+
+def _build_channels_service() -> ChannelsService:
+    transactions_engine = get_transactions_engine()
+
+    # Backfill needs the connection's credential decrypted, hence a vault.
+    return ChannelsService(
+        channels_dao=ChannelsDAO(engine=transactions_engine),
+        adapter_registry=build_channel_adapter_registry(),
+        vault_service=VaultService(secrets_dao=SecretsDAO()),
+    )
+
+
+def _build_channels_inbox_broker() -> tuple[AsyncBroker, int]:
+    broker = TrimOnAckRedisStreamBroker(
+        url=env.redis.uri_durable,
+        queue_name="queues:channels-inbox",
+        consumer_group_name="worker-channels-inbox",
+        consumer_name=stable_consumer_name("worker-channels-inbox"),
+        maxlen=MAXLEN_QUEUES_CHANNELS_INBOX,
+        approximate=True,
+    )
+
+    transactions_engine = get_transactions_engine()
+    workflows_dao = GitDAO(
+        ArtifactDBE=WorkflowArtifactDBE,
+        VariantDBE=WorkflowVariantDBE,
+        RevisionDBE=WorkflowRevisionDBE,
+    )
+    environments_dao = GitDAO(
+        ArtifactDBE=EnvironmentArtifactDBE,
+        VariantDBE=EnvironmentVariantDBE,
+        RevisionDBE=EnvironmentRevisionDBE,
+    )
+    workflows_service = WorkflowsService(workflows_dao=workflows_dao)
+    environments_service = EnvironmentsService(environments_dao=environments_dao)
+    embeds_service = EmbedsService(
+        workflows_service=workflows_service,
+        environments_service=environments_service,
+    )
+    workflows_service.environments_service = environments_service
+    workflows_service.embeds_service = embeds_service
+    environments_service.embeds_service = embeds_service
+
+    async def _dispatch_detached_run(
+        *, project_id, user_id, request, run_id=None
+    ) -> str:
+        result = await workflows_service.invoke_workflow_detached(
+            project_id=project_id,
+            user_id=user_id,
+            request=request,
+            run_id=run_id,
+        )
+        return result.run_id
+
+    # A channel's approval answer resumes the parked session the way a
+    # playground click does: through the interactions dispatcher.
+    interactions_dispatcher = InteractionsDispatcher(
+        workflows_service=workflows_service,
+        interactions_service=SessionInteractionsService(
+            interactions_dao=SessionInteractionsDAO(engine=transactions_engine),
+            watch_publisher=SessionsWatchPublisher(),
+        ),
+        records_service=RecordsService(
+            records_dao=RecordsDAO(engine=get_analytics_engine()),
+        ),
+        # The same session reads the API composition gives its dispatcher: an
+        # interaction without stored references resolves its workflow through
+        # the turn and the stream header, or the resume has no service URL.
+        turns_service=SessionTurnsService(
+            turns_dao=SessionTurnsDAO(engine=transactions_engine),
+        ),
+        streams_service=SessionStreamsService(
+            streams_dao=SessionStreamsDAO(engine=transactions_engine),
+            lock_engine=get_lock_engine(),
+        ),
+        dispatch_fn=_dispatch_detached_run,
+    )
+
+    commands_service = SessionCommandsService(
+        commands_dao=SessionCommandsDAO(engine=transactions_engine),
+        streams_service=interactions_dispatcher.streams_service,
+        interactions_service=interactions_dispatcher.interactions_service,
+        lock_engine=get_lock_engine(),
+        executions_dao=SessionExecutionsDAO(engine=transactions_engine),
+        delivery=DirectControlDelivery(
+            continue_interaction=lambda command: interactions_dispatcher.respond_many(
+                project_id=command.project_id,
+                user_id=command.created_by_id,
+                interaction_answers=[
+                    (UUID(item["interaction_id"]), item["answer"])
+                    for item in command.data["answers"]
+                ],
+                control_command_id=command.id,
+                continuation_execution_id=command.target_turn_id,
+            ),
+        ),
+    )
+
+    async def _respond_interaction(*, project_id, user_id, interaction_id, answer):
+        # Reuse the same atomic admission as the session approval endpoint.
+        # The interaction is the stable key across provider retries and two answers.
+        await commands_service.respond_interaction(
+            project_id=project_id,
+            user_id=user_id,
+            interaction_id=interaction_id,
+            answer=answer,
+            expected_execution_id=None,
+            idempotency_key=f"channels:{interaction_id}",
+        )
+
+    # A follow-up sent while the thread's turn runs joins the session queue,
+    # as in the playground; the API promotes it when the running turn settles.
+    session_queue = ChannelSessionQueue(
+        inputs_service=SessionInputsService(
+            inputs_dao=SessionInputsDAO(engine=transactions_engine),
+            streams_service=interactions_dispatcher.streams_service,
+            executions_dao=SessionExecutionsDAO(engine=transactions_engine),
+            interactions_dao=SessionInteractionsDAO(engine=transactions_engine),
+        ),
+    )
+
+    dispatcher = InboxDispatcher(
+        channels_service=_build_channels_service(),
+        workflows_service=workflows_service,
+        identity_service=ChannelIdentityService(
+            identity_dao=ChannelIdentityDAO(engine=transactions_engine),
+        ),
+        respond_interaction_fn=_respond_interaction,
+        session_queue=session_queue,
+    )
+    ChannelsInboxWorker(broker=broker, dispatcher=dispatcher)
     return broker, 50  # max_async_tasks
 
 
@@ -398,6 +556,7 @@ _BUILDERS = {
     "triggers": _build_triggers_broker,
     "interactions": _build_interactions_broker,
     "evaluations": _build_evaluations_broker,
+    "channels-inbox": _build_channels_inbox_broker,
 }
 
 
