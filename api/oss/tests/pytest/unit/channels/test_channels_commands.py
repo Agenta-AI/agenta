@@ -160,6 +160,44 @@ class TestParseCommand:
         parsed = parse_command(content=content, capabilities=_capabilities())
         assert parsed == ParsedCommand(command="new", arg=None)
 
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "TG-03 after /new: do you know my favourite colour?",
+            "open the /new page for me",
+            "see https://example.com/new for details",
+            "what does /sessions do?",
+        ],
+    )
+    def test_command_inside_prose_does_not_parse(self, text):
+        """Live QA 2026-09-23: a Telegram message mentioning "/new"
+        mid-sentence closed the conversation and got no reply. Only a
+        command that opens the message is one."""
+
+        caps = _capabilities(sigil="/")
+        assert parse_command(content=_content(text), capabilities=caps) is None
+
+    @pytest.mark.parametrize(
+        "text,expected",
+        [
+            ("  !new", ParsedCommand(command="new", arg=None)),
+            ("<@U09600ZF47P> !new", ParsedCommand(command="new", arg=None)),
+            ("<@U09600ZF47P|agenta> !use:abc", ParsedCommand(command="use", arg="abc")),
+            ("!new let us start over", ParsedCommand(command="new", arg=None)),
+        ],
+    )
+    def test_command_after_leading_mention_parses(self, text, expected):
+        assert parse_command(content=_content(text), capabilities=_capabilities()) == (
+            expected
+        )
+
+    def test_telegram_bot_suffix_parses(self):
+        caps = _capabilities(sigil="/")
+        assert parse_command(
+            content=_content("/new@taseteassbot"), capabilities=caps
+        ) == ParsedCommand(command="new", arg=None)
+        assert parse_command(content=_content("/newer"), capabilities=caps) is None
+
 
 # ---------------------------------------------------------------------------
 # !sessions

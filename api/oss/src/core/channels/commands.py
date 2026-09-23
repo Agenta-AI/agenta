@@ -30,6 +30,18 @@ COMMAND_STOP = "stop"
 COMMAND_SESSIONS = "sessions"
 COMMAND_USE = "use"
 
+# What a command may follow at the start of a message: bot mentions (Slack's
+# `<@U…>` / `<@U…|label>`, a Telegram-style `@name`) and, per channel, an
+# agent sigil naming who should run it (`~triage !new`).
+_MENTION = r"<@[^>]+>|@[A-Za-z0-9_]+"
+
+
+def _leading_addressing(agent_sigil: Optional[str]) -> str:
+    alternatives = _MENTION
+    if agent_sigil:
+        alternatives += "|" + re.escape(agent_sigil) + r"[\w.-]+"
+    return r"\s*(?:(?:" + alternatives + r")\s*)*"
+
 
 class ParsedCommand(BaseModel):
     """One `!command[:arg]` token found in a message's content."""
@@ -61,8 +73,13 @@ def parse_command(
     content: List[dict],
     capabilities: ChannelCapabilities,
 ) -> Optional[ParsedCommand]:
-    """The first `{sigil}{command}[:{arg}]` token across this message's text
-    parts, or None.
+    """The `{sigil}{command}[:{arg}]` token that OPENS this message, or None.
+
+    Only the start of the message counts, after any leading mentions of the
+    bot (`<@U…>` on Slack, `@name` on Telegram) or agent sigil (`~triage`). A sigil further in is prose:
+    "open the /new page" or a URL path must never close the conversation
+    (QA finding, 2026-09-23: a Telegram message mentioning "/new" mid-sentence
+    silently reset the chat). Telegram's `/new@botname` form is accepted.
 
     The sigil comes from `capabilities.addressing.sigils.command` — a channel
     declaring none offers no commands, so no sigil means no match, never a
@@ -77,23 +94,32 @@ def parse_command(
     if not sigil:
         return None
 
-    pattern = re.compile(re.escape(sigil) + r"([A-Za-z0-9_-]+)(?::(\S+))?")
+    pattern = re.compile(
+        _leading_addressing(capabilities.addressing.sigils.agent)
+        + re.escape(sigil)
+        + r"([A-Za-z0-9_-]+)(?::(\S+))?(?:@[A-Za-z0-9_]+)?(?=\s|$)"
+    )
 
-    for part in content:
-        if not isinstance(part, dict) or part.get("type") != "text":
-            continue
+    # The message's first non-empty text part is where it starts.
+    first = next(
+        (
+            part.get("text") or ""
+            for part in content
+            if isinstance(part, dict)
+            and part.get("type") == "text"
+            and (part.get("text") or "").strip()
+        ),
+        "",
+    )
+    match = pattern.match(first)
+    if not match:
+        return None
 
-        match = pattern.search(part.get("text") or "")
-        if not match:
-            continue
+    command = match.group(1)
+    if command not in capabilities.commands:
+        return None
 
-        command = match.group(1)
-        if command not in capabilities.commands:
-            continue
-
-        return ParsedCommand(command=command, arg=match.group(2))
-
-    return None
+    return ParsedCommand(command=command, arg=match.group(2))
 
 
 async def dispatch_sessions(

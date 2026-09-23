@@ -11,10 +11,15 @@ thread get-or-create) stays inside the service.
 """
 
 import asyncio
+from functools import partial
 from typing import Awaitable, Callable, Optional
 from uuid import UUID, uuid4, uuid5
 
 from oss.src.core.channels.commands import (
+    COMMAND_NEW,
+    COMMAND_SESSIONS,
+    COMMAND_STOP,
+    COMMAND_USE,
     CommandArgumentInvalid,
     CommandNotOffered,
     dispatch_command,
@@ -30,12 +35,18 @@ from oss.src.core.channels.dtos import (
     ChannelOutboxEventCreate,
     ChannelOutboxEventData,
     ChannelResolution,
+    ChannelThreadCreate,
+    ChannelThreadData,
     ChannelTriggerState,
     ChannelTurnInput,
 )
 from oss.src.core.channels.queue import ChannelQueueDecision, ChannelSessionQueue
 from oss.src.core.channels.render.dtos import RenderItem
-from oss.src.core.channels.render.render import render_busy, render_failed_start
+from oss.src.core.channels.render.render import (
+    render_busy,
+    render_failed_start,
+    render_notice,
+)
 from oss.src.core.channels.utils import canonical_json, compose_outbox_key
 from oss.src.core.workflows.dtos import (
     WorkflowServiceRequest,
@@ -286,8 +297,9 @@ class InboxDispatcher:
         )
         user_id = user_id or resolution.agent.created_by_id
 
+        sigil = capabilities.addressing.sigils.command or ""
         try:
-            await dispatch_command(
+            result = await dispatch_command(
                 channels_service=self.channels_service,
                 streams_service=self.streams_service,
                 project_id=project_id,
@@ -297,14 +309,87 @@ class InboxDispatcher:
                 parsed=parsed,
             )
         except (CommandNotOffered, CommandArgumentInvalid, ChannelThreadNotFound) as e:
-            # not a turn, and not silently dropped either — the addressing
-            # event's own log row is the record of the attempt.
             log.info(
                 "[INBOX DISPATCHER] command=%s rejected for event=%s: %s",
                 parsed.command,
                 event.id,
                 e,
             )
+            if isinstance(e, CommandArgumentInvalid):
+                ack = f"That command needs a session id, like {sigil}use:<id>."
+            elif isinstance(e, ChannelThreadNotFound):
+                ack = "That session is not part of this conversation."
+            else:
+                ack = "That command is not available here."
+        else:
+            ack = await self._command_ack(
+                project_id=project_id,
+                resolution=resolution,
+                command=parsed.command,
+                result=result,
+            )
+
+        # A command is not a turn, but it is never answered with silence
+        # (QA finding, 2026-09-23: `!new` closed the thread and posted
+        # nothing). Keyed on the event, so a redelivered task posts once.
+        await self._notify_not_started(
+            project_id=project_id,
+            resolution=resolution,
+            turn_id=str(uuid5(event.id, "command-ack")),
+            connection=await self.channels_service.fetch_connection(
+                project_id=project_id,
+                connection_id=connection_id,
+            ),
+            capabilities=capabilities,
+            render=partial(render_notice, text=ack),
+        )
+
+    async def _command_ack(
+        self,
+        *,
+        project_id: UUID,
+        resolution: ChannelResolution,
+        command: str,
+        result,
+    ) -> str:
+        if command == COMMAND_NEW:
+            # Open the fresh conversation now rather than on the next
+            # addressing: in a channel thread a follow-up without a mention is
+            # admitted only by an ACTIVE thread row, so a bare close left the
+            # user's next message in that thread unanswered.
+            # Best-effort: without it the next addressing still opens one.
+            closed = resolution.thread
+            try:
+                await self.channels_service.channels_dao.create_thread(
+                    project_id=project_id,
+                    user_id=None,
+                    thread=ChannelThreadCreate(
+                        space_id=closed.space_id,
+                        agent_id=closed.agent_id,
+                        external_key=closed.external_key,
+                        session_id=str(uuid4()),
+                        data=ChannelThreadData(
+                            external_locator=closed.data.external_locator,
+                        ),
+                    ),
+                )
+            except Exception:
+                log.error(
+                    "[INBOX DISPATCHER] could not open the new thread after !new "
+                    "thread=%s",
+                    closed.id,
+                    exc_info=True,
+                )
+            return "Started a new conversation."
+        if command == COMMAND_STOP:
+            return "Stopping the current run."
+        if command == COMMAND_SESSIONS:
+            count = len(result or [])
+            noun = "session" if count == 1 else "sessions"
+            return f"This conversation has {count} {noun}."
+        if command == COMMAND_USE:
+            return "Switching to an earlier session is not available yet."
+        return "Done."
 
     async def _run_backfill(
         self,

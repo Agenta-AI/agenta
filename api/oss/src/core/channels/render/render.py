@@ -121,6 +121,21 @@ def render_busy(*, capabilities: ChannelCapabilities) -> RenderItem:
     )
 
 
+def render_notice(*, capabilities: ChannelCapabilities, text: str) -> RenderItem:
+    """A short fixed reply that is not an agent answer, such as a command's
+    acknowledgment."""
+
+    return RenderItem(
+        parts=[
+            RenderPart(
+                type="text",
+                text=text,
+                format=_plain_or_declared(capabilities),
+            )
+        ]
+    )
+
+
 def _plain_or_declared(capabilities: ChannelCapabilities) -> str:
     """html channels escape plain parts themselves; markdown/plain channels
     take the declared format as before."""

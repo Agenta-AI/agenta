@@ -680,6 +680,80 @@ class TestCommandWiring:
         assert any("rejected" in record.message for record in caplog.records)
 
 
+class TestCommandAcknowledgment:
+    """Live QA 2026-09-23: `!new` closed the thread and posted nothing, and in
+    a channel thread the user's next unmentioned message was then ignored."""
+
+    def _wired(self, *, resolution, capabilities):
+        channels_service = _make_channels_service(
+            resolution=resolution, capabilities=capabilities
+        )
+        channels_service.close_thread = AsyncMock(return_value=resolution.thread)
+        channels_service.query_threads = AsyncMock(return_value=[resolution.thread])
+        dao = MagicMock()
+        dao.create_thread = AsyncMock()
+        dao.fetch_outbox_event_by_key = AsyncMock(return_value=None)
+        dao.record_outbox_event = AsyncMock(
+            side_effect=lambda *, project_id, event: _make_outbox_event(
+                thread_id=event.thread_id, connection_id=event.connection_id
+            )
+        )
+        dao.transition_outbox_event = AsyncMock()
+        channels_service.channels_dao = dao
+        adapter = MagicMock()
+        adapter.post_message = AsyncMock(return_value={"channel": "C1", "ts": "1.2"})
+        channels_service.adapter_registry.get = MagicMock(return_value=adapter)
+        return channels_service, dao, adapter
+
+    async def test_new_opens_a_fresh_active_thread_and_acknowledges(self):
+        event = _make_event()
+        event.data.processed.content = [{"type": "text", "text": "!new"}]
+        resolution = _make_resolution()
+        channels_service, dao, adapter = self._wired(
+            resolution=resolution, capabilities=_command_capabilities()
+        )
+
+        dispatcher = InboxDispatcher(
+            channels_service=channels_service, invoke_fn=AsyncMock()
+        )
+        await dispatcher.dispatch_event(
+            project_id=uuid4(), connection_id=event.connection_id, event=event
+        )
+
+        channels_service.close_thread.assert_awaited_once()
+        dao.create_thread.assert_awaited_once()
+        created = dao.create_thread.call_args.kwargs["thread"]
+        assert created.space_id == resolution.thread.space_id
+        assert created.agent_id == resolution.thread.agent_id
+        assert created.external_key == resolution.thread.external_key
+        assert created.session_id != resolution.thread.session_id
+        assert created.flags.is_active is True
+        adapter.post_message.assert_awaited_once()
+        posted = adapter.post_message.call_args.kwargs["content"]
+        assert posted[0]["text"] == "Started a new conversation."
+        channels_service.open_turn.assert_not_called()
+
+    async def test_rejected_command_is_answered_not_silent(self):
+        event = _make_event()
+        event.data.processed.content = [{"type": "text", "text": "!use:nope"}]
+        resolution = _make_resolution()
+        channels_service, _, adapter = self._wired(
+            resolution=resolution,
+            capabilities=_command_capabilities(commands=["use"]),
+        )
+
+        dispatcher = InboxDispatcher(
+            channels_service=channels_service, invoke_fn=AsyncMock()
+        )
+        await dispatcher.dispatch_event(
+            project_id=uuid4(), connection_id=event.connection_id, event=event
+        )
+
+        posted = adapter.post_message.call_args.kwargs["content"]
+        assert "!use:<id>" in posted[0]["text"]
+        channels_service.open_turn.assert_not_called()
+
+
 class TestBackfillWiring:
     """`dispatch_event` runs backfill after `resolve()` and before
     `compose_input`, guarded by the space's own flag."""
