@@ -7,7 +7,6 @@ import {useAtomValue} from "jotai"
 import {isHarnessBuiltinTool} from "../DrillInView/SchemaControls/toolUtils"
 
 import {useAgentIconChrome} from "./agentIcon"
-import {agentInstructionsText} from "./agentInstructions"
 
 /** The model an agent runs on, from either config shape. */
 const agentModel = (config: unknown): string | null => {
@@ -18,10 +17,9 @@ const agentModel = (config: unknown): string | null => {
 
 /** The first line of the agent's instructions, as a one-line summary. */
 const agentSummary = (config: unknown): string | null => {
-    const md = agentInstructionsText(
-        (config as {agent?: {instructions?: unknown}} | null)?.agent?.instructions,
-    )
-    if (!md?.trim()) return null
+    const md = (config as {agent?: {instructions?: {agents_md?: unknown}}} | null)?.agent
+        ?.instructions?.agents_md
+    if (typeof md !== "string" || !md.trim()) return null
     const line = md
         .trim()
         .split("\n")[0]

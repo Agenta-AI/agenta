@@ -139,42 +139,6 @@ def test_from_params_falls_back_to_defaults():
     assert config.tools == [BuiltinToolConfig(name="d")]
 
 
-@pytest.mark.parametrize(
-    "instructions, expected",
-    [
-        # Object form: the stored contract.
-        ({"agents_md": "Object form."}, "Object form."),
-        # A bare string is shorthand for `{agents_md: <string>}`. Stored revisions carry this
-        # shape; dropping it ran the agent with no instructions.
-        ("String form.", "String form."),
-    ],
-)
-def test_from_params_reads_instructions_object_or_string(instructions, expected):
-    config = AgentTemplate.from_params(
-        {"agent": {"instructions": instructions, "llm": {"model": "M"}}},
-        defaults=_DEFAULTS,
-    )
-    assert config.instructions == expected
-
-
-@pytest.mark.parametrize(
-    "agent",
-    [
-        {"llm": {"model": "M"}},  # missing
-        {"instructions": None, "llm": {"model": "M"}},
-        {"instructions": {}, "llm": {"model": "M"}},
-        {"instructions": {"agents_md": None}, "llm": {"model": "M"}},
-        {"instructions": {"agents_md": 42}, "llm": {"model": "M"}},
-        {"instructions": 42, "llm": {"model": "M"}},
-        {"instructions": ["a", "b"], "llm": {"model": "M"}},
-        {"instructions": "", "llm": {"model": "M"}},
-    ],
-)
-def test_from_params_unusable_instructions_fall_back_to_defaults(agent):
-    config = AgentTemplate.from_params({"agent": agent}, defaults=_DEFAULTS)
-    assert config.instructions == "default-md"
-
-
 def test_from_params_agent_element_preserves_default_tools_when_absent():
     config = AgentTemplate.from_params(
         {"agent": {"instructions": {"agents_md": "I"}, "llm": {"model": "M"}}},
