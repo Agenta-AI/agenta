@@ -31,7 +31,6 @@ from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from agenta.sdk.agents.flags import ORDERED_OPERATIONS_ENV, ordered_operations_enabled
 from agenta.sdk.agents.tools.errors import UnknownPlatformOpError
 from agenta.sdk.agents.tools.models import ToolCall
 from agenta.sdk.utils.types import CATALOG_TYPES
@@ -889,37 +888,6 @@ _QUERY_SPANS_INPUT_SCHEMA: Dict[str, Any] = {
 # variant — "update myself". ``workflow_revision.workflow_variant_id`` is bound from run context
 # and stripped from the model-visible schema, so the agent can only ever target itself, never a
 # different variant in the project. Defaults to approval.
-# One switch for the API and the model-facing catalog: the SDK runs inside the API
-# process, so both read the same variable. The ordered shape is the default; the variable
-# exists as an escape hatch back to the legacy `set`/`remove` surface.
-# The switch itself lives in `agenta.sdk.agents.flags`, a leaf module, because the
-# `build-an-agent` skill reads it too and an adapter cannot import this package (it reaches
-# the SDK singleton). Re-exported under the private names this module has always used.
-_ORDERED_OPERATIONS_ENV = ORDERED_OPERATIONS_ENV
-_ordered_operations_enabled = ordered_operations_enabled
-
-
-# The legacy description, for the flag-off surface. The wholesale-list sentence names the
-# build-kit exception because the server REFUSES a commit that carries a platform-kind tool
-# entry: telling the model to send its own build-kit tools back would earn that refusal.
-_COMMIT_REVISION_DESCRIPTION_LEGACY = (
-    "Commit a new revision to your own workflow variant (update yourself). "
-    "Editing files in your workspace does not change your configuration. That copy is "
-    "rebuilt, and the edits are lost. Change your instructions and configuration only "
-    "through this tool. "
-    "Send only the "
-    "fields you are changing under `workflow_revision.delta.set` (deep-merged onto your "
-    "current config) and any field paths to drop under `delta.remove`. Put agent-template "
-    "edits under `delta.set.parameters.agent`. Lists such as `tools`, `skills`, and `mcps` "
-    "are replaced wholesale, not merged entry-by-entry: send the complete list, meaning "
-    "your current entries plus your change, or you wipe the rest. Leave the playground's "
-    "own tools (commit_revision, test_run, read_config) OUT of that list: they are not "
-    "part of your configuration, and a commit that carries one is refused. "
-    "The variant you are running is targeted automatically. The response returns the new "
-    "revision id; existing schedules and subscriptions keep pointing at the old revision "
-    "until you re-point them. This changes the agent and requires approval."
-)
-
 # The normative tool description, contracts/change-set.md section 15. About 1.5 KB and 400
 # tokens; the 3.2 KB version measured the same success rate and cost 11-13 percent more.
 # It works BECAUSE three things hold: the wrapper normalizes the repeated-list mistake,
@@ -971,11 +939,7 @@ the error is retryable. `retryable` only tells you whether sending the SAME call
 work; it is false for most refusals, and that means correct the call rather than repeat
 it."""
 
-_COMMIT_REVISION_DESCRIPTION = (
-    _COMMIT_REVISION_DESCRIPTION_ORDERED
-    if _ordered_operations_enabled()
-    else _COMMIT_REVISION_DESCRIPTION_LEGACY
-)
+_COMMIT_REVISION_DESCRIPTION = _COMMIT_REVISION_DESCRIPTION_ORDERED
 
 _READ_CONFIG_DESCRIPTION = """Read your own configuration, or one part of it.
 
@@ -1118,77 +1082,35 @@ _COMMIT_REVISION_INPUT_SCHEMA: Dict[str, Any] = {
                     "type": "string",
                     "description": "Server-bound to the running variant; do not set.",
                 },
-                # Flag-off only. With ordered operations on, the server derives the
-                # message from the operations: free text was the site of every measured
-                # argument-corruption failure, and a derived message is always accurate.
-                **(
-                    {}
-                    if _ordered_operations_enabled()
-                    else {
-                        "message": {
-                            "type": "string",
-                            "description": "Commit message describing the change.",
-                        }
-                    }
-                ),
-                **(
-                    {
-                        "base_revision_id": {
-                            "type": "string",
-                            "description": (
-                                "The base_revision_id you read. Required for `operations`."
-                            ),
-                        }
-                    }
-                    if _ordered_operations_enabled()
-                    else {}
-                ),
-                # ONE delta arm is model-visible per deployment. With ordered operations on,
-                # `set` and `remove` leave this schema: a model that sees both picks a
-                # different arm from call to call, which is what made the approval cards
-                # inconsistent on one stack. The API still accepts the legacy form, so
-                # shipped callers are unaffected; this is the catalog surface only.
+                # No `message`: the server derives it from the operations. Free text was
+                # the site of every measured argument-corruption failure, and a derived
+                # message is always accurate.
+                "base_revision_id": {
+                    "type": "string",
+                    "description": (
+                        "The base_revision_id you read. Required for `operations`."
+                    ),
+                },
+                # Only the ordered arm is model-visible: a model that sees `set`/`remove`
+                # beside `operations` picks a different arm from call to call. The API still
+                # accepts the legacy form, so shipped callers are unaffected; this is the
+                # catalog surface only.
                 "delta": {
                     "type": "object",
                     "additionalProperties": False,
                     "description": (
                         "Ordered operations applied to your current revision, in array "
                         "order. If one fails, nothing is committed."
-                        if _ordered_operations_enabled()
-                        else "Change set applied to your current revision. `set` is "
-                        "deep-merged (omitted fields preserved); `remove` deletes the "
-                        "listed paths."
                     ),
-                    "properties": (
-                        {
-                            "operations": {
-                                "type": "array",
-                                "minItems": 1,
-                                "maxItems": 64,
-                                "items": _OPERATION_SCHEMA,
-                                "description": (
-                                    "Ordered operations, applied in array order."
-                                ),
-                            }
+                    "properties": {
+                        "operations": {
+                            "type": "array",
+                            "minItems": 1,
+                            "maxItems": 64,
+                            "items": _OPERATION_SCHEMA,
+                            "description": "Ordered operations, applied in array order.",
                         }
-                        if _ordered_operations_enabled()
-                        else {
-                            "set": _delta_set_schema(
-                                "Partial workflow revision data to merge. For "
-                                "agent-template updates, include parameters.agent with "
-                                "instructions, llm, tools, mcps, skills, harness, runner, "
-                                "or sandbox fields as needed."
-                            ),
-                            "remove": {
-                                "type": "array",
-                                "items": {"type": "string"},
-                                "description": (
-                                    "Dotted field paths to delete, e.g. "
-                                    "parameters.agent.tools."
-                                ),
-                            },
-                        }
-                    ),
+                    },
                 },
             },
             # `base_revision_id` is required WITH the ordered arm, and the schema has to say
@@ -1196,11 +1118,7 @@ _COMMIT_REVISION_INPUT_SCHEMA: Dict[str, Any] = {
             # a prose sentence sends the call anyway and spends the turn on the refusal.
             # `workflow_variant_id` is bound from run context and stripped from this list
             # along with the property, so the model never sees it required.
-            "required": (
-                ["workflow_variant_id", "base_revision_id", "delta"]
-                if _ordered_operations_enabled()
-                else ["workflow_variant_id", "delta"]
-            ),
+            "required": ["workflow_variant_id", "base_revision_id", "delta"],
         },
     },
     "required": ["workflow_revision"],
@@ -1593,30 +1511,25 @@ _TRIGGER_ID_INPUT_SCHEMA: Dict[str, Any] = {
 }
 
 
-# `read_config` and ordered operations are one feature: the read-then-edit loop. The flag
-# gates both, so a deployment never advertises the read without the write it feeds.
+# `read_config` and ordered operations are one feature: the read-then-edit loop.
 _READ_CONFIG_OPS: tuple = (
-    (
-        PlatformOp(
-            op="read_config",
-            description=_READ_CONFIG_DESCRIPTION,
-            # Handler mode: the logic runs behind a registered handler in the API process,
-            # reached through the generic `/tools/call`. There is no public read-config
-            # endpoint any more, because every detail of it was agent-shaped and no second
-            # consumer existed.
-            handler=f"{PLATFORM_OP_NAMESPACE}read_config",
-            input_schema=_READ_CONFIG_INPUT_SCHEMA,
-            context_bindings={
-                "target.workflow_variant_id": "$ctx.workflow.variant.id",
-                "target.run_is_draft": "$ctx.workflow.is_draft",
-            },
-            read_only=True,
-            timeout_ms=15000,
-            accepts_description=True,
-        ),
-    )
-    if _ordered_operations_enabled()
-    else ()
+    PlatformOp(
+        op="read_config",
+        description=_READ_CONFIG_DESCRIPTION,
+        # Handler mode: the logic runs behind a registered handler in the API process,
+        # reached through the generic `/tools/call`. There is no public read-config
+        # endpoint any more, because every detail of it was agent-shaped and no second
+        # consumer existed.
+        handler=f"{PLATFORM_OP_NAMESPACE}read_config",
+        input_schema=_READ_CONFIG_INPUT_SCHEMA,
+        context_bindings={
+            "target.workflow_variant_id": "$ctx.workflow.variant.id",
+            "target.run_is_draft": "$ctx.workflow.is_draft",
+        },
+        read_only=True,
+        timeout_ms=15000,
+        accepts_description=True,
+    ),
 )
 
 
