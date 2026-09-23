@@ -73,6 +73,7 @@ from oss.src.core.channels.types import (
     ChannelConnectionVerificationFailed,
     ChannelLocatorIncomplete,
     ChannelNotSupported,
+    ChannelSpaceJoinFailed,
     ChannelSpaceNotFound,
     ChannelThreadNotFound,
 )
@@ -1169,6 +1170,8 @@ class ChannelsRouter:
             )
         except ChannelConnectionNotFound as e:
             raise HTTPException(status_code=404, detail=e.message) from e
+        except ChannelSpaceJoinFailed as e:
+            raise HTTPException(status_code=400, detail=str(e)) from e
 
         return ChannelSpaceResponse(count=1 if space else 0, space=space)
 

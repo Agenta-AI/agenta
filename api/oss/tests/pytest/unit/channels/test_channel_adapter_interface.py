@@ -112,6 +112,8 @@ def test_every_method_parameter_after_self_is_keyword_only():
     # a channel whose setup is read-only defaults to doing nothing.
     # signal_activity: the platform's "working" signal (Telegram's typing
     # action), re-sent while a turn runs; a platform without one is a no-op.
+    # join_space: putting the bot in a space being added; a platform whose
+    # bot is already wherever it can be discovered has nothing to join.
     assert set(concrete_methods) == {
         "build_setup_document",
         "verify_connection",
@@ -121,6 +123,7 @@ def test_every_method_parameter_after_self_is_keyword_only():
         "revoke_installation",
         "signal_activity",
         "dismiss_choices",
+        "join_space",
     }
     assert len(methods) == len(ChannelAdapterInterface.__abstractmethods__) + len(
         concrete_methods

@@ -150,6 +150,15 @@ class ChannelConnectionVerificationFailed(ChannelsError):
         super().__init__(message)
 
 
+class ChannelSpaceJoinFailed(ChannelsError):
+    """The bot could not be put in the space being added. Nothing is written:
+    a space the bot is not in never receives a message."""
+
+    def __init__(self, *, channel: str, message: str):
+        self.channel = channel
+        super().__init__(message)
+
+
 class ChannelPolicyDenied(ChannelsError):
     """Raised when the effective policy forbids what was asked."""
 

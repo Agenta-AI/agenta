@@ -220,6 +220,16 @@ class ChannelAdapterInterface(ABC):
         pick-list rather than a paste-the-channel-id form. Returns
         candidates, not rows — nothing is persisted until an operator chooses."""
 
+    async def join_space(
+        self, *, connection: ChannelConnection, locator: Dict[str, Any]
+    ) -> None:
+        """Put the bot in the space being added, before its row is written.
+        Raises ChannelSpaceJoinFailed with a message the operator can act on.
+        Defaults to nothing: a channel whose bot is already wherever it can
+        be discovered has nothing to join."""
+
+        return None
+
     # --- history ---
 
     @abstractmethod

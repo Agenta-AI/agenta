@@ -1151,6 +1151,11 @@ class ChannelsService:
             space.data.external_locator,
         )
 
+        adapter = self.adapter_registry.get(connection.channel)
+        await adapter.join_space(
+            connection=connection, locator=space.data.external_locator
+        )
+
         return await self.channels_dao.create_space(
             project_id=project_id,
             user_id=user_id,

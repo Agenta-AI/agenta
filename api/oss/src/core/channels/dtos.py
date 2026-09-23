@@ -28,6 +28,15 @@ class ChannelSpaceKind(str, Enum):
     TOPIC = "topic"
 
 
+class ChannelSpaceMembership(str, Enum):
+    """Whether the bot is in a discovered space, and if not, who can put it
+    there. Unset where the platform reports no membership."""
+
+    MEMBER = "member"
+    JOINABLE = "joinable"  # the bot joins when the space is added
+    INVITE_REQUIRED = "invite_required"  # a member must invite the bot
+
+
 class ChannelEventKind(str, Enum):
     """The two kinds of thing an agent can be addressed by."""
 
@@ -663,6 +672,7 @@ class ChannelSpaceCandidate(BaseModel):
     #
     display_name: Optional[str] = None  # the platform's own name, for the list
     is_configured: bool = False  # a space row already exists for it
+    membership: Optional[ChannelSpaceMembership] = None
 
 
 # ---------------------------------------------------------------------------

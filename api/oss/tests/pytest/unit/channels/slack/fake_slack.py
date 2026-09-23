@@ -31,11 +31,13 @@ class FakeSlackWorkspace:
         ts_seed: float = 1000.0,
         team_id: str = "T-fake",
         bot_user_id: str = "UBOT1",
+        bot_username: str = "agenta",
         api_app_id: str = "A-fake",
     ) -> None:
         self.bot_token = bot_token
         self.team_id = team_id
         self.bot_user_id = bot_user_id
+        self.bot_username = bot_username
         self.api_app_id = api_app_id
         self.channels: Dict[str, Dict[str, Any]] = {
             entry["id"]: dict(entry) for entry in (channels or [])
@@ -141,7 +143,13 @@ class FakeSlackWorkspace:
         return ordered[:limit] if limit else ordered
 
 
-_READ_METHODS = {"conversations.list", "conversations.history", "conversations.replies"}
+_READ_METHODS = {
+    "conversations.list",
+    "conversations.history",
+    "conversations.replies",
+    "conversations.info",
+    "conversations.join",
+}
 
 
 class FakeSlackTransport(httpx.AsyncBaseTransport):
@@ -207,6 +215,7 @@ class FakeSlackTransport(httpx.AsyncBaseTransport):
             {
                 "team_id": self.workspace.team_id,
                 "user_id": self.workspace.bot_user_id,
+                "user": self.workspace.bot_username,
                 "api_app_id": self.workspace.api_app_id,
             }
         )
@@ -281,6 +290,24 @@ class FakeSlackTransport(httpx.AsyncBaseTransport):
         )
         return _ok_response({"messages": messages})
 
+    def _conversations_info(self, payload: Dict[str, Any]) -> httpx.Response:
+        entry = self.workspace.channels.get(payload.get("channel") or "")
+        # A bot token cannot see a private channel it is not in.
+        if entry is None or (entry.get("is_private") and not entry.get("is_member")):
+            return _error_response("channel_not_found")
+        return _ok_response({"channel": dict(entry)})
+
+    def _conversations_join(self, payload: Dict[str, Any]) -> httpx.Response:
+        entry = self.workspace.channels.get(payload.get("channel") or "")
+        if entry is None:
+            return _error_response("channel_not_found")
+        if entry.get("is_private"):
+            return _error_response("method_not_supported_for_channel_type")
+        if entry.get("is_archived"):
+            return _error_response("is_archived")
+        entry["is_member"] = True
+        return _ok_response({"channel": dict(entry)})
+
     _ROUTES = {
         "auth.test": _auth_test,
         "chat.postMessage": _chat_post_message,
@@ -288,6 +315,8 @@ class FakeSlackTransport(httpx.AsyncBaseTransport):
         "conversations.list": _conversations_list,
         "conversations.history": _conversations_history,
         "conversations.replies": _conversations_replies,
+        "conversations.info": _conversations_info,
+        "conversations.join": _conversations_join,
     }
 
 

@@ -35,11 +35,13 @@ from oss.src.core.channels.dtos import (
     ChannelSetupIdentity,
     ChannelSpaceCandidate,
     ChannelSpaceKind,
+    ChannelSpaceMembership,
 )
 from oss.src.core.channels.types import (
     ChannelConnectionIncomplete,
     ChannelConnectionVerificationFailed,
     ChannelSignatureInvalid,
+    ChannelSpaceJoinFailed,
 )
 from oss.src.utils.env import env
 from oss.src.utils.logging import get_module_logger
@@ -106,6 +108,20 @@ def _bot_token(connection: ChannelConnection) -> str:
 def _bot_user_id(connection: ChannelConnection) -> Optional[str]:
     data = connection.data if isinstance(connection.data, dict) else {}
     return data.get("bot_user_id")
+
+
+def _bot_handle(connection: ChannelConnection) -> str:
+    data = connection.data if isinstance(connection.data, dict) else {}
+    name = str(data.get("bot_username") or "").strip().lstrip("@")
+    return f"@{name or 'Agenta'}"
+
+
+def _invite_message(connection: ChannelConnection) -> str:
+    return (
+        "The app cannot join a private channel on its own. "
+        f"Run /invite {_bot_handle(connection)} in the channel in Slack, "
+        "then add it again."
+    )
 
 
 class SlackAdapter(ChannelAdapterInterface):
@@ -204,6 +220,8 @@ class SlackAdapter(ChannelAdapterInterface):
             "enterprise_id": enterprise_id,
             "team_id": team_id,
             "bot_user_id": body.get("user_id"),
+            # The bot user's handle, as `/invite @<handle>` takes it.
+            "bot_username": body.get("user"),
             "api_app_id": body.get("api_app_id"),
             # The workspace's display name. Not part of the identity key; it
             # gives the connection a human name when the caller sends none.
@@ -442,12 +460,66 @@ class SlackAdapter(ChannelAdapterInterface):
                             "channel": entry["id"],
                         },
                         display_name=entry.get("name"),
+                        membership=_membership_from_listing(entry),
                     )
                 )
             cursor = (response.get("response_metadata") or {}).get("next_cursor") or ""
             if not cursor:
                 break
         return candidates
+
+    async def join_space(
+        self, *, connection: ChannelConnection, locator: Dict[str, Any]
+    ) -> None:
+        channel = locator.get("channel")
+        if not channel:
+            raise ChannelSpaceJoinFailed(
+                channel=self.channel, message="The channel to add has no id."
+            )
+
+        try:
+            info = await self._call(
+                connection, "conversations.info", {"channel": channel}, as_query=True
+            )
+        except _SlackApiError as e:
+            if e.error == "channel_not_found":
+                # A bot token cannot see a private channel it is not in.
+                raise ChannelSpaceJoinFailed(
+                    channel=self.channel, message=_invite_message(connection)
+                ) from e
+            raise ChannelSpaceJoinFailed(
+                channel=self.channel,
+                message=f"Slack could not look up this channel: {e.error}",
+            ) from e
+
+        entry = info.get("channel") or {}
+        if entry.get("is_member"):
+            return
+        if entry.get("is_archived"):
+            raise ChannelSpaceJoinFailed(
+                channel=self.channel, message="This channel is archived in Slack."
+            )
+        if entry.get("is_private"):
+            raise ChannelSpaceJoinFailed(
+                channel=self.channel, message=_invite_message(connection)
+            )
+
+        try:
+            await self._call(
+                connection, "conversations.join", {"channel": channel}, as_query=True
+            )
+        except _SlackApiError as e:
+            if e.error == "missing_scope":
+                message = (
+                    "The Slack app lacks the channels:join permission. Reinstall "
+                    "the app (a custom app: add channels:join to its scopes "
+                    "first), then add the channel again."
+                )
+            elif e.error == "method_not_supported_for_channel_type":
+                message = _invite_message(connection)
+            else:
+                message = f"Slack refused to add the app to this channel: {e.error}"
+            raise ChannelSpaceJoinFailed(channel=self.channel, message=message) from e
 
     # --- history --- #
 
@@ -720,6 +792,14 @@ def _render_content(content: List[Dict[str, Any]]) -> tuple:
 def _team_of(connection: ChannelConnection) -> str:
     data = connection.data if isinstance(connection.data, dict) else {}
     return data.get("team_id", "")
+
+
+def _membership_from_listing(entry: Dict[str, Any]) -> ChannelSpaceMembership:
+    if entry.get("is_member"):
+        return ChannelSpaceMembership.MEMBER
+    if entry.get("is_private"):
+        return ChannelSpaceMembership.INVITE_REQUIRED
+    return ChannelSpaceMembership.JOINABLE
 
 
 def _space_kind_from_listing(entry: Dict[str, Any]) -> ChannelSpaceKind:

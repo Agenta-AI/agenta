@@ -13,6 +13,7 @@ from fastapi import FastAPI, HTTPException, Request
 from oss.src.apis.fastapi.channels.models import (
     ChannelConnectionCreateRequest,
     ChannelConnectionEditRequest,
+    ChannelSpaceCreateRequest,
 )
 from oss.src.apis.fastapi.channels.router import ChannelsRouter
 from oss.src.core.channels.dtos import (
@@ -20,9 +21,13 @@ from oss.src.core.channels.dtos import (
     ChannelConnectionCreate,
     ChannelConnectionEdit,
     ChannelSetup,
+    ChannelSpaceCreate,
+    ChannelSpaceData,
+    ChannelSpaceKind,
 )
 from oss.src.core.channels.types import (
     ChannelConnectionVerificationFailed,
+    ChannelSpaceJoinFailed,
 )
 
 pytestmark = pytest.mark.asyncio
@@ -107,6 +112,30 @@ async def test_create_channel_connection_maps_verification_failure_to_400():
             await router.create_channel_connection(request, body=body)
 
     assert exc_info.value.status_code == 400
+
+
+async def test_create_channel_space_maps_a_failed_join_to_400_with_the_reason():
+    service = AsyncMock()
+    service.create_space.side_effect = ChannelSpaceJoinFailed(
+        channel="slack", message="Run /invite @support-bot in the channel."
+    )
+    router = _router(service)
+    request = _make_request(uuid4(), uuid4())
+    body = ChannelSpaceCreateRequest(
+        space=ChannelSpaceCreate(
+            connection_id=uuid4(),
+            kind=ChannelSpaceKind.TOPIC,
+            external_key=uuid4(),
+            data=ChannelSpaceData(external_locator={"team": "T1", "channel": "C1"}),
+        )
+    )
+
+    with _patched_access(True):
+        with pytest.raises(HTTPException) as exc_info:
+            await router.create_channel_space(request, body=body)
+
+    assert exc_info.value.status_code == 400
+    assert "/invite @support-bot" in exc_info.value.detail
 
 
 async def test_edit_channel_connection_404s_on_a_missing_connection():
