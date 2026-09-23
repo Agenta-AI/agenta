@@ -30,7 +30,7 @@
  * because a reordering upstream would be silent here.
  */
 import type { AgentRunRequest } from "../protocol.ts";
-import { applyModel } from "../engines/sandbox_agent/model.ts";
+import { applyModel, harnessModelId } from "../engines/sandbox_agent/model.ts";
 import { resolveSkillDirs } from "../engines/skills.ts";
 import type { SessionEnvironment } from "../engines/sandbox_agent/runtime-contracts.ts";
 import { appliedResultForRequest } from "../engines/sandbox_agent/applied-state.ts";
@@ -199,9 +199,10 @@ export async function applyReconcilePlan(
           env.session,
           request.model,
           log,
-          { strict: true },
+          { strict: true, harness: env.plan.acpAgent },
         );
-        if (request.model && applied !== request.model) {
+        const wanted = harnessModelId(env.plan.acpAgent, request.model);
+        if (wanted && applied !== wanted) {
           log(
             `live-route: setModel did not install '${request.model}' (got '${applied ?? "default"}')`,
           );

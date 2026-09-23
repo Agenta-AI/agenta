@@ -2547,7 +2547,7 @@ describe("runSandboxAgent orchestration", () => {
     assert.equal(env.ANTHROPIC_CUSTOM_MODEL_OPTION, "anthropic.claude-x");
     assert.deepEqual(calls.applyModelArgs.at(-1), {
       model: "anthropic.claude-x",
-      options: { strict: true },
+      options: { strict: true, harness: "claude" },
     });
   });
 

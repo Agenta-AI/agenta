@@ -218,6 +218,30 @@ describe("applyReconcilePlan: refresh-workspace installs the INCOMING configurat
     assert.equal(committed.length, 0);
   });
 
+  it("installs a prefixed Claude model live on the bare id it asked for", async () => {
+    // Claude Code names models bare, so the applier asks for `claude-opus-5-5`. The check must
+    // compare against that id, or every prefixed live model change falls into a rebuild.
+    const env = makeEnv();
+    const request: AgentRunRequest = {
+      harness: "claude",
+      model: "anthropic/claude-opus-5-5",
+      messages: [],
+    } as never;
+    const plan = buildPlan([{ facet: "model", kind: "apply-live", reason: "r" }], ["model"]);
+
+    const calls: Array<{ strict?: boolean; harness?: string } | undefined> = [];
+    const applied = await applyReconcilePlan(env, request, plan, () => {}, {
+      applyModel: async (_session, _model, _log, options) => {
+        calls.push(options);
+        return "claude-opus-5-5";
+      },
+    });
+
+    assert.equal(applied, true);
+    assert.deepEqual(calls, [{ strict: true, harness: "claude" }]);
+    assert.equal(env.model, "claude-opus-5-5");
+  });
+
   it("refuses an apply-live action for a facet it cannot install (audit finding 7)", async () => {
     // The arm used to treat EVERY `apply-live` as a model change. The day another facet routes
     // here (the credential plan is the expected first), that would install the wrong thing and
