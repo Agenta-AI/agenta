@@ -419,16 +419,23 @@ describe("useServerSessionInputs", () => {
             await waitFor(() => expect(result.current.executionState).toBe("running"))
             const submit = result.current.submit
             await act(() => submit({id: "before-ready", text: "first", source: "local"}, policy))
-            expect(buildAgentRequest.mock.calls.at(-1)?.[2]).toEqual({sessionId: "session-1"})
+            expect(buildAgentRequest.mock.calls.at(-1)?.[2]).toEqual({
+                sessionId: "session-1",
+                secretSetup: true,
+            })
             rerender({ready: true})
             await act(() => submit({id: "ready", text: "next", source: "local"}, policy))
             expect(buildAgentRequest.mock.calls.at(-1)?.[2]).toEqual({
                 sessionId: "session-1",
                 sharedResponse: true,
+                secretSetup: true,
             })
             rerender({ready: false})
             await act(() => submit({id: "disconnected", text: "last", source: "local"}, policy))
-            expect(buildAgentRequest.mock.calls.at(-1)?.[2]).toEqual({sessionId: "session-1"})
+            expect(buildAgentRequest.mock.calls.at(-1)?.[2]).toEqual({
+                sessionId: "session-1",
+                secretSetup: true,
+            })
             expect(
                 fetchMock.mock.calls.map(([, init]) => JSON.parse(String(init?.body)).on_busy),
             ).toEqual([policy, policy, policy])
