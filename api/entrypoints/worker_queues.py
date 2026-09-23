@@ -51,6 +51,7 @@ from oss.src.core.evaluations.service import EvaluationsService
 from oss.src.core.evaluators.service import EvaluatorsService, SimpleEvaluatorsService
 from oss.src.core.queries.service import QueriesService
 from oss.src.core.sessions.commands.service import SessionCommandsService
+from oss.src.core.sessions.inputs.service import SessionInputsService
 from oss.src.core.sessions.context import make_session_context_resolver
 from oss.src.core.sessions.interactions.service import SessionInteractionsService
 from oss.src.core.sessions.records.service import RecordsService
@@ -77,6 +78,7 @@ from oss.src.core.secrets.services import VaultService
 from oss.src.dbs.postgres.secrets.dao import SecretsDAO
 from oss.src.dbs.postgres.sessions.commands.dao import SessionCommandsDAO
 from oss.src.dbs.postgres.sessions.executions.dao import SessionExecutionsDAO
+from oss.src.dbs.postgres.sessions.inputs.dao import SessionInputsDAO
 from oss.src.dbs.http.sessions.control_delivery_direct import DirectControlDelivery
 from oss.src.dbs.postgres.sessions.interactions.dao import SessionInteractionsDAO
 from oss.src.dbs.postgres.sessions.records.dao import RecordsDAO
@@ -104,6 +106,7 @@ from oss.src.dbs.postgres.workflows.dbes import (
 )
 from entrypoints.channel_adapters import build_channel_adapter_registry
 from oss.src.core.channels.identity import ChannelIdentityService
+from oss.src.core.channels.queue import ChannelSessionQueue
 from oss.src.core.channels.service import ChannelsService
 from oss.src.dbs.postgres.channels.dao import ChannelsDAO
 from oss.src.dbs.postgres.channels.identity_dao import ChannelIdentityDAO
@@ -378,6 +381,17 @@ def _build_channels_inbox_broker() -> tuple[AsyncBroker, int]:
             idempotency_key=f"channels:{interaction_id}",
         )
 
+    # A follow-up sent while the thread's turn runs joins the session queue,
+    # as in the playground; the API promotes it when the running turn settles.
+    session_queue = ChannelSessionQueue(
+        inputs_service=SessionInputsService(
+            inputs_dao=SessionInputsDAO(engine=transactions_engine),
+            streams_service=interactions_dispatcher.streams_service,
+            executions_dao=SessionExecutionsDAO(engine=transactions_engine),
+            interactions_dao=SessionInteractionsDAO(engine=transactions_engine),
+        ),
+    )
+
     dispatcher = InboxDispatcher(
         channels_service=_build_channels_service(),
         workflows_service=workflows_service,
@@ -385,6 +399,7 @@ def _build_channels_inbox_broker() -> tuple[AsyncBroker, int]:
             identity_dao=ChannelIdentityDAO(engine=transactions_engine),
         ),
         respond_interaction_fn=_respond_interaction,
+        session_queue=session_queue,
     )
     ChannelsInboxWorker(broker=broker, dispatcher=dispatcher)
     return broker, 50  # max_async_tasks

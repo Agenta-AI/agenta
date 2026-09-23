@@ -217,6 +217,7 @@ from oss.src.dbs.postgres.channels.dao import ChannelsDAO
 from oss.src.dbs.postgres.channels.identity_dao import ChannelIdentityDAO
 from entrypoints.channel_adapters import build_channel_adapter_registry
 from oss.src.core.channels.identity import ChannelIdentityService
+from oss.src.core.channels.queue import ChannelSessionQueue
 from oss.src.core.channels.service import ChannelsService
 from oss.src.apis.fastapi.channels.ingress import ChannelsIngressRouter
 from oss.src.apis.fastapi.channels.router import ChannelsRouter
@@ -1281,6 +1282,14 @@ _channels_inbox_dispatcher = InboxDispatcher(
     workflows_service=workflows_service,
     identity_service=channels_identity_service,
     streams_service=session_streams_service,
+    session_queue=ChannelSessionQueue(
+        inputs_service=SessionInputsService(
+            inputs_dao=session_inputs_dao,
+            streams_service=session_streams_service,
+            executions_dao=session_executions_dao,
+            interactions_dao=interactions_dao,
+        ),
+    ),
 )
 
 _channels_inbox_worker = ChannelsInboxWorker(

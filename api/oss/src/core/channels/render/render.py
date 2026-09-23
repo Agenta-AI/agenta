@@ -19,6 +19,9 @@ NO_ANSWER_TEXT = (
 FAILED_START_TEXT = (
     "The agent run could not be started. Check the agent's configuration in Agenta."
 )
+# The thread's turn is still running and this deployment cannot queue the
+# follow-up: said once, so the message is never silently refused.
+BUSY_TEXT = "I'm still working on your previous message. Send it again when I reply."
 # Appended to a partial answer while the turn is still running.
 PROGRESS_CURSOR = " …"
 
@@ -98,6 +101,20 @@ def render_failed_start(*, capabilities: ChannelCapabilities) -> RenderItem:
             RenderPart(
                 type="text",
                 text=FAILED_START_TEXT,
+                format=_plain_or_declared(capabilities),
+            )
+        ]
+    )
+
+
+def render_busy(*, capabilities: ChannelCapabilities) -> RenderItem:
+    """The follow-up could not run or be queued behind the running turn."""
+
+    return RenderItem(
+        parts=[
+            RenderPart(
+                type="text",
+                text=BUSY_TEXT,
                 format=_plain_or_declared(capabilities),
             )
         ]

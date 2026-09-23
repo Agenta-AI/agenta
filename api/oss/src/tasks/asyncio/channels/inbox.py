@@ -33,12 +33,15 @@ from oss.src.core.channels.dtos import (
     ChannelTriggerState,
     ChannelTurnInput,
 )
-from oss.src.core.channels.render.render import render_failed_start
+from oss.src.core.channels.queue import ChannelQueueDecision, ChannelSessionQueue
+from oss.src.core.channels.render.dtos import RenderItem
+from oss.src.core.channels.render.render import render_busy, render_failed_start
 from oss.src.core.channels.utils import canonical_json, compose_outbox_key
 from oss.src.core.workflows.dtos import (
     WorkflowServiceRequest,
     WorkflowServiceRequestData,
 )
+from oss.src.core.workflows.types import WorkflowDetachedStartFailed
 from oss.src.core.channels.fill import run_backfill
 from oss.src.core.channels.service import ChannelsService
 from oss.src.core.channels.types import (
@@ -56,13 +59,18 @@ from oss.src.utils.logging import get_module_logger
 
 log = get_module_logger(__name__)
 
-# Bounds the retry-on-refusal loop: a refused overlapping turn is retried
-# with backoff, never dropped, but a worker process must not spin forever
-# if the runner never accepts.
+# Bounds the retry-on-refusal loop. With the session queue wired, a refusal
+# re-admits the message, which queues it behind the turn that won the race;
+# without it, the refusal is retried with backoff and then answered once, so
+# a worker process never spins forever and the chat never hears silence.
 _MAX_INVOKE_ATTEMPTS = 5
 _RETRY_BACKOFF_SECONDS = 0.5
 
 InvokeFn = Callable[..., Awaitable[str]]
+
+# the runner's refusal of a second turn on a running session, as the workflow
+# service reports it in the first frame of a detached start
+_TURN_IN_USE_CODE = "session_turn_in_use"
 
 # answers one parked session interaction: (project_id, user_id, interaction_id, answer)
 RespondInteractionFn = Callable[..., Awaitable[None]]
@@ -71,11 +79,11 @@ RespondInteractionFn = Callable[..., Awaitable[None]]
 class TurnRefused(Exception):
     """Raised by an `invoke_fn` when the runner refuses an overlapping turn.
 
-    The real signal is `SessionTurnInUse` (a 409), owned by
-    `core/sessions/streams`, not a channels type. The default invoke function
-    (`_invoke_via_workflows_service`) recognises `SessionTurnInUse`
-    structurally (by class name) and re-raises it as this marker, so the
-    retry loop below never has to import `core/sessions/*` directly.
+    The real signal is `SessionTurnInUse`, owned by `core/sessions/streams`,
+    not a channels type. It reaches the default invoke function
+    (`_invoke_via_workflows_service`) either as that exception or, through
+    the workflow service, as a detached-start failure carrying its
+    `session_turn_in_use` code; both are re-raised as this marker.
     """
 
 
@@ -92,6 +100,7 @@ class InboxDispatcher:
         streams_service: Optional[SessionStreamsService] = None,
         invoke_fn: Optional[InvokeFn] = None,
         respond_interaction_fn: Optional[RespondInteractionFn] = None,
+        session_queue: Optional[ChannelSessionQueue] = None,
     ):
         self.channels_service = channels_service
         self.workflows_service = workflows_service
@@ -107,6 +116,9 @@ class InboxDispatcher:
         # typed reply) through the sessions respond path; None means this
         # deployment has no wiring for it and the click is logged and dropped
         self._respond_interaction_fn = respond_interaction_fn
+        # None means a follow-up to a running turn cannot be queued; it is
+        # retried, then answered with one "still working" reply.
+        self.session_queue = session_queue
 
     async def dispatch(
         self,
@@ -474,6 +486,43 @@ class InboxDispatcher:
             capabilities=capabilities,
         )
 
+    async def _queue_behind_running_turn(
+        self,
+        *,
+        project_id: UUID,
+        resolution: ChannelResolution,
+        turn_input: ChannelTurnInput,
+        trigger_id: UUID,
+        user_id: Optional[UUID],
+    ) -> ChannelQueueDecision:
+        """Admit the message to the thread session's queue, the way the
+        playground admits a message sent while a turn runs. A free session
+        answers RUN_NOW and nothing is written. The trigger id keys the
+        admission, so a redelivered task never queues the message twice."""
+
+        session_id = resolution.thread.session_id
+        if self.session_queue is None or not session_id:
+            return ChannelQueueDecision.UNAVAILABLE
+        try:
+            return await self.session_queue.admit(
+                project_id=project_id,
+                user_id=user_id or resolution.agent.created_by_id,
+                session_id=session_id,
+                request=self._build_request(
+                    resolution=resolution, turn_input=turn_input
+                ).model_dump(mode="json", exclude_none=True),
+                idempotency_key=f"channels:{trigger_id}",
+            )
+        except Exception:
+            # An admission that cannot answer must not lose the message: the
+            # invoke below either runs it or is refused into the retry path.
+            log.error(
+                "[INBOX DISPATCHER] session queue admission failed trigger=%s",
+                trigger_id,
+                exc_info=True,
+            )
+            return ChannelQueueDecision.UNAVAILABLE
+
     async def _invoke_with_retry(
         self,
         *,
@@ -486,13 +535,36 @@ class InboxDispatcher:
         connection: Optional[ChannelConnection] = None,
         capabilities: Optional[ChannelCapabilities] = None,
     ) -> None:
-        """Invoke once, retrying only on a refused overlapping turn — never
-        the `force` path, never coalescing. Any other failure settles the
-        trigger FAILED, tells the chat the run never started, and stops."""
+        """Queue behind a running turn, else invoke once, retrying only on a
+        refused overlapping turn — never the `force` path, never coalescing.
+        Any other failure settles the trigger FAILED, tells the chat the run
+        never started, and stops."""
 
         attempt = 0
         while True:
             attempt += 1
+            decision = await self._queue_behind_running_turn(
+                project_id=project_id,
+                resolution=resolution,
+                turn_input=turn_input,
+                trigger_id=trigger_id,
+                user_id=user_id,
+            )
+            if decision is ChannelQueueDecision.QUEUED:
+                # The offset stands: the message is the session's next turn,
+                # and that turn's events reach the chat through the thread's
+                # session like any other.
+                log.info(
+                    "[INBOX DISPATCHER] turn_id=%s queued behind the running turn",
+                    turn_id,
+                )
+                await self.channels_service.settle_turn(
+                    project_id=project_id,
+                    trigger_id=trigger_id,
+                    state=ChannelTriggerState.SETTLED,
+                    status=Status(code="202", message="Queued behind the running turn"),
+                )
+                return
             try:
                 # user_id is passed only when identity resolved a linked
                 # account; an injected invoke_fn keeps its four-argument shape.
@@ -517,6 +589,14 @@ class InboxDispatcher:
                         state=ChannelTriggerState.REFUSED,
                         status=Status(code="409", message="Turn refused"),
                     )
+                    await self._notify_not_started(
+                        project_id=project_id,
+                        resolution=resolution,
+                        turn_id=turn_id,
+                        connection=connection,
+                        capabilities=capabilities,
+                        render=render_busy,
+                    )
                     return
 
                 log.info(
@@ -539,12 +619,13 @@ class InboxDispatcher:
                     state=ChannelTriggerState.FAILED,
                     status=Status(code="500", message=str(e)),
                 )
-                await self._notify_failed_start(
+                await self._notify_not_started(
                     project_id=project_id,
                     resolution=resolution,
                     turn_id=turn_id,
                     connection=connection,
                     capabilities=capabilities,
+                    render=render_failed_start,
                 )
                 return
             else:
@@ -555,7 +636,7 @@ class InboxDispatcher:
                 )
                 return
 
-    async def _notify_failed_start(
+    async def _notify_not_started(
         self,
         *,
         project_id: UUID,
@@ -563,11 +644,13 @@ class InboxDispatcher:
         turn_id: str,
         connection: Optional[ChannelConnection],
         capabilities: Optional[ChannelCapabilities],
+        render: Callable[..., RenderItem],
     ) -> None:
-        """Tell the chat the run never started (QA finding, 2026-09-22: the
-        dispatcher settled FAILED before any turn-start event existed, so the
-        sessions outbox had nothing to render a failure from and the user got
-        silence).
+        """Tell the chat the run never started. `render` is the failed-start
+        notice, or the busy reply for a refusal that could not be queued.
+        (QA finding, 2026-09-22: the dispatcher settled the trigger before any
+        turn-start event existed, so the sessions outbox had nothing to render
+        from and the user got silence.)
 
         Same idempotency contract as the sessions outbox: the notice claims
         this turn's item 0 by outbox key, so a task redelivery finds the row
@@ -576,7 +659,7 @@ class InboxDispatcher:
         the sessions outbox owns that row, so it is left alone. Fixed text,
         never the exception: the invoke error is an internal detail.
 
-        Best-effort by design: the trigger is already settled FAILED, and a
+        Best-effort by design: the trigger is already settled, and a
         notification failure must not turn a handled error into a task retry
         that would re-invoke the turn.
         """
@@ -606,7 +689,7 @@ class InboxDispatcher:
             ):
                 return
 
-            item = render_failed_start(capabilities=capabilities)
+            item = render(capabilities=capabilities)
             content = [part.model_dump(exclude_none=True) for part in item.parts]
 
             adapter = self.channels_service.adapter_registry.get(connection.channel)
@@ -660,20 +743,7 @@ class InboxDispatcher:
                 "InboxDispatcher has no workflows_service and no invoke_fn override"
             )
 
-        references = {
-            key: ref.model_dump(mode="json", exclude_none=True)
-            for key, ref in resolution.agent.data.references.items()
-        }
-
-        request = WorkflowServiceRequest(
-            references=references,
-            session_id=resolution.thread.session_id,
-            data=WorkflowServiceRequestData(
-                inputs={
-                    "messages": [{"role": "user", "content": turn_input.content}],
-                }
-            ),
-        )
+        request = self._build_request(resolution=resolution, turn_input=turn_input)
 
         try:
             response = await self.workflows_service.invoke_workflow_detached(
@@ -687,8 +757,35 @@ class InboxDispatcher:
                 strict_start=True,
             )
         except Exception as e:
-            if type(e).__name__ == "SessionTurnInUse":
+            if type(e).__name__ == "SessionTurnInUse" or (
+                isinstance(e, WorkflowDetachedStartFailed)
+                and f"({_TURN_IN_USE_CODE})" in str(e)
+            ):
                 raise TurnRefused() from e
             raise
 
         return response.run_id
+
+    @staticmethod
+    def _build_request(
+        *,
+        resolution: ChannelResolution,
+        turn_input: ChannelTurnInput,
+    ) -> WorkflowServiceRequest:
+        """The turn's invoke request over the agent's bound references, on
+        the thread's session. A queued follow-up stores exactly this."""
+
+        references = {
+            key: ref.model_dump(mode="json", exclude_none=True)
+            for key, ref in resolution.agent.data.references.items()
+        }
+
+        return WorkflowServiceRequest(
+            references=references,
+            session_id=resolution.thread.session_id,
+            data=WorkflowServiceRequestData(
+                inputs={
+                    "messages": [{"role": "user", "content": turn_input.content}],
+                }
+            ),
+        )
