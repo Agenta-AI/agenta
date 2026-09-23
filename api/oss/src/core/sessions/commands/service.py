@@ -72,12 +72,8 @@ from oss.src.core.sessions.inputs.types import (
     SessionInputNotFound,
     SessionInputRemoved,
 )
-from oss.src.core.sessions.streams.dtos import (
-    SessionStreamCommandRequest,
-    SessionStreamCommandResponse,
-)
 from oss.src.core.sessions.streams.service import SessionStreamsService
-from oss.src.core.sessions.streams.types import SessionIdInvalid, SessionTurnMismatch
+from oss.src.core.sessions.streams.types import SessionIdInvalid
 from oss.src.dbs.redis.shared.engine import LockEngine
 from oss.src.dbs.redis.sessions.contract import (
     HEARTBEAT_INTERVAL_SECONDS,
@@ -337,30 +333,6 @@ class SessionCommandsService:
             input=item,
             execution_id=continuation.execution_id if continuation else target_id,
         )
-
-    async def request_cancel_legacy(
-        self,
-        *,
-        project_id: UUID,
-        user_id: UUID,
-        session_id: str,
-        expected_execution_id: Optional[str] = None,
-    ) -> SessionStreamCommandResponse:
-        """Use the heartbeat-carried Stop path kept for rollout rollback."""
-        try:
-            return await self._streams.command(
-                project_id=project_id,
-                user_id=user_id,
-                request=SessionStreamCommandRequest(
-                    session_id=session_id,
-                    expected_execution_id=expected_execution_id,
-                ),
-            )
-        except SessionTurnMismatch as error:
-            raise ExecutionExpectationFailed(
-                expected=error.expected_turn_id,
-                current=error.actual_turn_id,
-            ) from error
 
     async def request_cancel(
         self,

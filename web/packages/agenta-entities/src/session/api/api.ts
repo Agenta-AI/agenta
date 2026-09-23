@@ -1470,14 +1470,6 @@ export async function cancelSessionExecution({
             "[cancelSessionExecution]",
         )
         if (!validated) return null
-        if (!("command" in validated)) {
-            return {
-                command: {id: "", state: "applied"},
-                execution: {id: validated.turn_id ?? null, state: "idle"},
-                accepted: true,
-                conflict: false,
-            }
-        }
         return {
             command: validated.command,
             execution: {...validated.execution, id: validated.execution.id ?? null},

@@ -89,7 +89,7 @@ class RecordsService:
         *,
         events: List[SessionRecordEvent],
     ) -> None:
-        if self.executions_dao is None or not env.agenta.sessions.durable_stop:
+        if self.executions_dao is None:
             return
 
         endings: Dict[UUID, Set[Tuple[str, str]]] = {}
@@ -207,9 +207,6 @@ class RecordsService:
         A failed lookup quarantines nothing and appends everything. Losing a record is worse
         than showing one that should have been hidden, and the next delivery gets another go.
         """
-        if not env.agenta.sessions.durable_stop:
-            return events
-
         if self.executions_dao is not None:
             return await self._handle_by_execution_state(events=events)
 

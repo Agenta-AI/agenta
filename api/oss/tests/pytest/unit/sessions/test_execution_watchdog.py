@@ -35,7 +35,6 @@ from oss.src.tasks.asyncio.sessions.orphan_sweep import (
     _unsettled_turns,
     run_orphan_sweep,
 )
-from oss.src.utils.env import env
 
 _PROJECT_ID = UUID("00000000-0000-4000-8000-000000000001")
 
@@ -1151,8 +1150,6 @@ async def test_lost_turn_clear_loses_to_a_concurrent_turn_advance(anyio_backend)
 async def test_completion_lookup_failure_defers_settlement_and_cleanup(
     anyio_backend, monkeypatch
 ):
-    monkeypatch.setattr(env.agenta.sessions, "durable_stop", True)
-
     class _FailingCompletionLookup(_FakeRecordsService):
         async def runner_completed_turns(self, *, project_id, keys):
             raise RuntimeError("tracing db unreachable")
@@ -1198,7 +1195,6 @@ async def test_heartbeat_before_orphan_cas_prevents_settlement_and_records(
     anyio_backend,
     monkeypatch,
 ):
-    monkeypatch.setattr(env.agenta.sessions, "durable_stop", True)
     stream = _stale_running_row(
         session_id="sess-heartbeat-before-cas", turn_id="turn-current"
     )

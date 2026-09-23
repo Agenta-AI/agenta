@@ -41,11 +41,6 @@ _SESSION = "sess-late-tail"
 _TURN = "turn-abc"
 
 
-@pytest.fixture(autouse=True)
-def _durable_stop_enabled(monkeypatch):
-    monkeypatch.setattr(env.agenta.sessions, "durable_stop", True)
-
-
 class _StubDAO(RecordsDAOInterface):
     """Answers `settled_turns` from a fixed set and remembers what `append_many` was given.
 
@@ -206,31 +201,6 @@ def _quarantined(dao: _StubDAO) -> List[SessionRecordEvent]:
 # --------------------------------------------------------------------------- #
 
 
-async def test_a_thawed_runners_tail_remains_visible_with_durable_stop_off(
-    monkeypatch,
-):
-    """The live defect, in one test: four records land after the watchdog's ending."""
-    monkeypatch.setattr(env.agenta.sessions, "durable_stop", False)
-    dao = _StubDAO(watchdog_settled={(_SESSION, _TURN)})
-    service = RecordsService(
-        records_dao=dao,
-        executions_dao=_ExecutionSettlements(),
-    )
-
-    tail = [
-        _event("tool_call"),
-        _event("tool_result"),
-        _event("usage"),
-        _event("done", attributes={"type": "done", "stopReason": "cancelled"}),
-    ]
-    results = await service.append_many(events=tail)
-
-    # Flag-off retains the pre-milestone presentation: every late record remains visible.
-    assert len(results) == 4
-    assert _quarantined(dao) == []
-    assert all(row.quarantined_at is None for row in results)
-
-
 async def test_reject_policy_drops_a_late_tail(monkeypatch):
     monkeypatch.setattr(env.agenta.sessions, "late_output", "reject")
     dao = _StubDAO(watchdog_settled={(_SESSION, _TURN)})
@@ -243,7 +213,6 @@ async def test_reject_policy_drops_a_late_tail(monkeypatch):
 
 
 async def test_watchdog_winner_quarantines_the_runners_records(monkeypatch):
-    monkeypatch.setattr(env.agenta.sessions, "durable_stop", True)
     executions = _ExecutionSettlements()
     winner = await executions.settle(
         project_id=_PROJECT,
@@ -267,7 +236,6 @@ async def test_watchdog_winner_quarantines_the_runners_records(monkeypatch):
 
 
 async def test_watchdog_winner_rejects_the_runners_records_when_configured(monkeypatch):
-    monkeypatch.setattr(env.agenta.sessions, "durable_stop", True)
     monkeypatch.setattr(env.agenta.sessions, "late_output", "reject")
     executions = _ExecutionSettlements()
     await executions.settle(
@@ -287,7 +255,6 @@ async def test_watchdog_winner_rejects_the_runners_records_when_configured(monke
 
 
 async def test_runner_winner_quarantines_the_watchdogs_records(monkeypatch):
-    monkeypatch.setattr(env.agenta.sessions, "durable_stop", True)
     executions = _ExecutionSettlements()
     winner = await executions.settle(
         project_id=_PROJECT,
@@ -308,7 +275,6 @@ async def test_runner_winner_quarantines_the_watchdogs_records(monkeypatch):
 
 
 async def test_output_after_the_runners_own_stop_is_ordinary_history(monkeypatch):
-    monkeypatch.setattr(env.agenta.sessions, "durable_stop", True)
     executions = _ExecutionSettlements()
     dao = _StubDAO()
     service = RecordsService(records_dao=dao, executions_dao=executions)
@@ -322,7 +288,6 @@ async def test_output_after_the_runners_own_stop_is_ordinary_history(monkeypatch
 async def test_an_ordinary_completion_row_does_not_make_trailing_usage_late(
     monkeypatch,
 ):
-    monkeypatch.setattr(env.agenta.sessions, "durable_stop", True)
     executions = _ExecutionSettlements()
     await executions.settle(
         project_id=_PROJECT,
@@ -340,7 +305,6 @@ async def test_an_ordinary_completion_row_does_not_make_trailing_usage_late(
 
 
 async def test_execution_lookup_failure_appends_the_batch_unguarded(monkeypatch):
-    monkeypatch.setattr(env.agenta.sessions, "durable_stop", True)
     dao = _StubDAO()
     service = RecordsService(
         records_dao=dao,
@@ -356,7 +320,6 @@ async def test_execution_lookup_failure_appends_the_batch_unguarded(monkeypatch)
 
 
 async def test_runner_done_terminalizes_a_continuation_execution(monkeypatch):
-    monkeypatch.setattr(env.agenta.sessions, "durable_stop", True)
     executions = _ExecutionSettlements()
     executions.rows[(_SESSION, _TURN)] = SessionExecutionSettlement(
         project_id=_PROJECT,
@@ -375,7 +338,6 @@ async def test_runner_done_terminalizes_a_continuation_execution(monkeypatch):
 
 
 async def test_paused_or_quarantined_done_does_not_complete_a_continuation(monkeypatch):
-    monkeypatch.setattr(env.agenta.sessions, "durable_stop", True)
     executions = _ExecutionSettlements()
     executions.rows[(_SESSION, _TURN)] = SessionExecutionSettlement(
         project_id=_PROJECT,
@@ -409,7 +371,6 @@ async def test_paused_or_quarantined_done_does_not_complete_a_continuation(monke
 
 @pytest.mark.parametrize("stop_reason", ["cancelled", "error"])
 async def test_non_completing_done_does_not_claim_completion(monkeypatch, stop_reason):
-    monkeypatch.setattr(env.agenta.sessions, "durable_stop", True)
     executions = _ExecutionSettlements()
     executions.rows[(_SESSION, _TURN)] = SessionExecutionSettlement(
         project_id=_PROJECT,
@@ -441,7 +402,6 @@ async def test_non_completing_done_does_not_claim_completion(monkeypatch, stop_r
 
 
 async def test_ingest_marks_the_runners_terminal_record_written(monkeypatch):
-    monkeypatch.setattr(env.agenta.sessions, "durable_stop", True)
     executions = _ExecutionSettlements()
     await executions.settle(
         project_id=_PROJECT,
@@ -460,7 +420,6 @@ async def test_ingest_marks_the_runners_terminal_record_written(monkeypatch):
 
 
 async def test_ending_marker_failure_does_not_fail_record_ingest(monkeypatch):
-    monkeypatch.setattr(env.agenta.sessions, "durable_stop", True)
     executions = _ExecutionSettlements(mark_raises=True)
     await executions.settle(
         project_id=_PROJECT,

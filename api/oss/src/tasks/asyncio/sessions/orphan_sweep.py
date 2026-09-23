@@ -658,7 +658,6 @@ async def run_orphan_sweep(
             key = (project_id, session_id, turn_id)
             if (
                 key not in terminal_turns
-                and env.agenta.sessions.durable_stop
                 and commands_service is not None
                 and not await commands_service.settle_execution_lost(
                     project_id=project_id,
