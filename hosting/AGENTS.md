@@ -46,28 +46,20 @@ subscription logins. Because `run.sh` assembles the same set every time, a routi
 - `--compose-file <name>` appends an extra file (repeatable; bare name resolves in the edition
   dir like `-e`, or pass a path). Appended after the auto-included ones.
 
-### The mobile web app (`/m`) — on by default
+### The mobile web app (`/m`) — always on
 
-Every stack starts the `web-mobile` service, and a phone that opens the desktop app is
-redirected to `/m`. The compose files carry no profile for it and
-no env key is needed. Traefik routes ``Path(`/m`) || PathPrefix(`/m/`)`` to it; the nginx
-proxy has the same two `location` blocks.
+`/m` ships with every deployment, and there is no switch to leave it out. Every stack starts
+the `web-mobile` service; the compose files carry no profile for it and no env key is needed.
+Traefik routes ``Path(`/m`) || PathPrefix(`/m/`)`` to it; the nginx proxy has the same two
+`location` blocks. The only run without it is a backend-only one (`--no-web` /
+`--web-mode none`), which starts neither web app.
 
-One opt-out: `run.sh --no-mobile`, or `AGENTA_MOBILE_ENABLED=false` in the shell or in the
-resolved env file. The service starts with 0 replicas, and the web app reads the same key and
-stops sending anyone to `/m`, so phones stay on the desktop UI. `--no-web` / `--web-mode none`
-implies the same for backend-only runs. On a hand-rolled `docker compose up`, pass both
-`--scale web-mobile=0` and `AGENTA_MOBILE_ENABLED=false`. The web entrypoint mirrors the key
-into `__env.js` so the client-side hop obeys it too. The one exception is an OAuth callback the
-mobile app started: it is still handed to `/m`, because the sign-in state it needs lives there.
-
-The gate itself has no switch. A phone on a desktop route goes to `/m`, a user with Classic mode
+The gate has no switch either. A phone on a desktop route goes to `/m`, a user with Classic mode
 off goes to `/m` for the pages it has, a user with Classic mode on who opens `/m` goes back to
-`/w`, and a desktop browser may open `/m`. `AGENTA_MOBILE_GATE` and `AGENTA_MOBILE_REVERSE_GATE`
-are gone; a stale value in an env file changes nothing. Only the exact string `false` for
-`AGENTA_MOBILE_ENABLED` opts out, and it is read at request time, so a change plus a container
-recreate is enough, no rebuild. The dev stack pays a second Next dev server for `web-mobile`
-(about 0.5-1GB RAM); use `--no-mobile` on a small VM.
+`/w`, and a desktop browser may open `/m`. `AGENTA_MOBILE_GATE`, `AGENTA_MOBILE_REVERSE_GATE`
+and `AGENTA_MOBILE_ENABLED` are gone, and so is `run.sh --no-mobile`; a stale value in an env
+file changes nothing. The dev stack pays a second Next dev server for `web-mobile` (about
+0.5-1GB RAM).
 
 ### Restart one service (surgical)
 

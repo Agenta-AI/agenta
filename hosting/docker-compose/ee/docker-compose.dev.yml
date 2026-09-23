@@ -54,10 +54,7 @@ services:
         mem_limit: 8g
         mem_reservation: 3g
         # === EXECUTION ============================================ #
-        # Turbopack's dev middleware sandbox only exposes .env-file vars (not the
-        # container's process env), so mirror AGENTA_MOBILE_ENABLED into an env file the
-        # app loads. Prod standalone reads process.env at request time — dev-only.
-        command: sh -c 'echo "AGENTA_MOBILE_ENABLED=$${AGENTA_MOBILE_ENABLED:-true}" > /app/ee/.env.development.local && pnpm dev-ee'
+        command: sh -c 'pnpm dev-ee'
         # === STORAGE ============================================== #
         volumes:
             - ../../../web/ee/src:/app/ee/src
@@ -75,7 +72,6 @@ services:
             AGENTA_SERVICES_INTERNAL_KEY: ""
             DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
             WATCHPACK_POLLING: "true"
-            AGENTA_MOBILE_ENABLED: ${AGENTA_MOBILE_ENABLED:-true}
         # === NETWORK ============================================== #
         networks:
             - agenta-network
@@ -90,8 +86,7 @@ services:
     web-mobile:
         # === ACTIVATION =========================================== #
         # No profile: the mobile app (/m) starts with the stack, like api and web.
-        # Opt out with `run.sh --no-mobile`, or on a hand-rolled `docker compose up`
-        # with `--scale web-mobile=0` plus AGENTA_MOBILE_ENABLED=false.
+        # Always on: /m is part of every deployment.
         # === IMAGE ================================================ #
         image: agenta-ee-dev-web:latest
         # === EXECUTION ============================================ #

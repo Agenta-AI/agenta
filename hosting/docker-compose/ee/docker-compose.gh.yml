@@ -20,7 +20,6 @@ services:
             - ${ENV_FILE:-./.env.ee.gh}
         environment:
             - AGENTA_SERVICES_INTERNAL_KEY=
-            - AGENTA_MOBILE_ENABLED=${AGENTA_MOBILE_ENABLED:-true}
         # === NETWORK ============================================== #
         networks:
             - agenta-ee-gh-network
@@ -35,8 +34,7 @@ services:
     web-mobile:
         # === ACTIVATION =========================================== #
         # No profile: the mobile app (/m) starts with the stack, like api and web.
-        # Opt out with `run.sh --no-mobile`, or on a hand-rolled `docker compose up`
-        # with `--scale web-mobile=0` plus AGENTA_MOBILE_ENABLED=false.
+        # Always on: /m is part of every deployment.
         # === IMAGE ================================================ #
         # The mobile app is edition-agnostic OSS-repo code: one public image
         # serves both editions (no internal-ee variant).

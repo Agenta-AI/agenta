@@ -20,7 +20,11 @@ const doc = (ua: string, extra: Record<string, string> = {}) => ({
 const CLASSIC_ON = {cookie: "agenta-classic-mode=1"}
 
 /** The retired env keys. A stale value in an env file must change nothing. */
-const RETIRED_KEYS = ["AGENTA_MOBILE_GATE", "AGENTA_MOBILE_REVERSE_GATE"] as const
+const RETIRED_KEYS = [
+    "AGENTA_MOBILE_GATE",
+    "AGENTA_MOBILE_REVERSE_GATE",
+    "AGENTA_MOBILE_ENABLED",
+] as const
 const saved: Partial<Record<(typeof RETIRED_KEYS)[number], string | undefined>> = {}
 
 beforeEach(() => {
@@ -71,10 +75,9 @@ describe("mobile reverse gate proxy", () => {
         expect(res.headers.get("location")).toBeNull()
     })
 
-    it("ignores stale AGENTA_MOBILE_GATE and AGENTA_MOBILE_REVERSE_GATE values", () => {
+    it("ignores stale AGENTA_MOBILE_GATE, AGENTA_MOBILE_REVERSE_GATE and AGENTA_MOBILE_ENABLED values", () => {
         for (const value of ["false", "true"]) {
-            process.env.AGENTA_MOBILE_GATE = value
-            process.env.AGENTA_MOBILE_REVERSE_GATE = value
+            for (const key of RETIRED_KEYS) process.env[key] = value
             expect(proxy(req("/m/", doc(DESKTOP_UA))).headers.get("location")).toBeNull()
             expect(proxy(req("/m", doc(DESKTOP_UA, CLASSIC_ON))).headers.get("location")).toBe(
                 "http://localhost:3000/w",

@@ -252,19 +252,12 @@ export RAILWAY_ENVIRONMENT_NAME="staging"
 
 #### The mobile app (`/m`)
 
-A from-scratch `bootstrap.sh` run keeps the mobile web app **opt-in**, unlike the
-compose stack, which now starts `web-mobile` by default. Set the flag before
-`bootstrap.sh` and it creates a `web-mobile` service; the gateway already routes
-`/m` and `/m/*` to it. `configure.sh` then sets `AGENTA_MOBILE_ENABLED=true` on
-`web`, so phones are redirected to `/m`; without the service it sets `false`.
-
-```bash
-export AGENTA_RAILWAY_WITH_MOBILE=true
-```
-
-`bootstrap.sh` is the only place the flag is read. `configure.sh` and
-`deploy-from-images.sh` configure and deploy the service whenever it exists,
-so an existing deployment picks it up by re-running bootstrap with the flag.
+`bootstrap.sh` creates a `web-mobile` service with every environment, and the
+gateway routes `/m` and `/m/*` to it. There is no flag for it. A phone on a
+desktop route is sent to `/m`, and a laptop can open `/m` directly.
+An environment bootstrapped before `web-mobile` became standard has no such
+service; re-run `bootstrap.sh` to add it. `configure.sh` and
+`deploy-from-images.sh` configure and deploy it whenever it exists.
 `ghcr.io/agenta-ai/agenta-web-mobile` must be readable by Railway.
 
 ### Upgrade Existing Deployment

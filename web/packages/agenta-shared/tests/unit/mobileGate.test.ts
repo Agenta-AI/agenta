@@ -13,7 +13,6 @@ import {
     mapDesktopToMobile,
     mapMobileToDesktop,
     mobileRouteFor,
-    resolveMobileAppEnabled,
     type GateInput,
 } from "../../src/utils/mobileGate"
 import {SESSION_QUERY_PARAM} from "../../src/utils/sessionParam"
@@ -228,26 +227,6 @@ describe("mapMobileToDesktop", () => {
     })
 })
 
-describe("resolveMobileAppEnabled", () => {
-    // /m runs unless the deployment says it does not. Only the exact string "false" means that.
-    it("is on when the key is unset", () => {
-        expect(resolveMobileAppEnabled(undefined)).toBe(true)
-    })
-    it('is on for "true"', () => {
-        expect(resolveMobileAppEnabled("true")).toBe(true)
-    })
-    it('is off for "false"', () => {
-        expect(resolveMobileAppEnabled("false")).toBe(false)
-    })
-    it("stays on for an empty or unrecognized value", () => {
-        // An empty value comes from a compose `KEY=` line; anything else is a typo.
-        // Neither may silently hide the mobile app.
-        for (const raw of ["", "0", "off", "no", "FALSE", null]) {
-            expect(resolveMobileAppEnabled(raw)).toBe(true)
-        }
-    })
-})
-
 describe("decideDesktopGate — Classic mode vs the device gate", () => {
     /** A phone whose user has explicitly turned Classic mode on. */
     const onPhone = (classic: string | undefined, overrides: Partial<GateInput> = {}) => {
@@ -335,14 +314,6 @@ describe("decideDesktopGate — classic mode", () => {
         })
     })
 
-    it("passes when the deployment does not run /m — the preference has nowhere to go", () => {
-        expect(
-            decideDesktopGate(
-                classicOff({mobileAppEnabled: false, pathname: "/w/ws1/p/pr1/agents"}),
-            ),
-        ).toEqual({kind: "pass"})
-    })
-
     it("honors the opt-out cookie", () => {
         const i = classicOff({pathname: "/w/ws1/p/pr1/agents"})
         i.cookie = (name) =>
@@ -388,16 +359,6 @@ describe("decideDesktopGate — classic mode", () => {
 })
 
 describe("decideDesktopGate", () => {
-    it("passes when the deployment does not run /m, whatever the device", () => {
-        expect(
-            decideDesktopGate(
-                input({
-                    mobileAppEnabled: false,
-                    headers: docHeaders(MOBILE_UA),
-                }),
-            ),
-        ).toEqual({kind: "pass"})
-    })
     it("redirects a mobile document navigation into /m", () => {
         expect(
             decideDesktopGate(
@@ -465,15 +426,12 @@ describe("decideDesktopGate", () => {
             ),
         ).toEqual({kind: "pass"})
     })
-    // The handback runs before the enabled check, so a mobile SSO sign-in always completes. It
-    // used to sit below the gate-disabled return.
-    it("hands a mobile-started callback to /m even when the gate is disabled", () => {
+    it("hands a mobile-started callback to /m", () => {
         const i = input({
             pathname: "/auth/callback/google",
             search: "?code=abc&state=xyz",
             headers: docHeaders(MOBILE_UA),
         })
-        i.mobileAppEnabled = false
         i.cookie = (name) => (name === MOBILE_AUTH_CALLBACK_COOKIE ? "1" : undefined)
         expect(decideDesktopGate(i)).toEqual({
             kind: "redirect",
@@ -481,9 +439,8 @@ describe("decideDesktopGate", () => {
         })
     })
 
-    it("leaves an ordinary callback alone when the gate is disabled", () => {
+    it("leaves an ordinary callback alone", () => {
         const i = input({pathname: "/auth/callback/google", headers: docHeaders(MOBILE_UA)})
-        i.mobileAppEnabled = false
         expect(decideDesktopGate(i)).toEqual({kind: "pass"})
     })
 

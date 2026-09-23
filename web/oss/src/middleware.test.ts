@@ -34,8 +34,8 @@ describe("desktop gate middleware", () => {
         expect(phoneVisit("/w")).toBe("http://localhost:3000/m/")
     })
 
-    it("keeps everyone on /w when the deployment does not run /m", () => {
+    it("ignores AGENTA_MOBILE_ENABLED=false: /m always ships", () => {
         process.env.AGENTA_MOBILE_ENABLED = "false"
-        expect(phoneVisit("/w")).toBeNull()
+        expect(phoneVisit("/w")).toBe("http://localhost:3000/m/")
     })
 })

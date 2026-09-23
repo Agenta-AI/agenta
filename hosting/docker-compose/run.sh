@@ -21,11 +21,9 @@ NUKE=false  # Default to not nuking volumes
 DOWN=false  # Default to up; --down only stops containers
 WITH_TUNNEL=true  # Composio trigger-event tunnel; disable with --no-tunnel
 LOCAL_OVERRIDES=true  # Auto-include docker-compose.<stage>.*.local.yml; disable with --no-local-overrides
-# The mobile web app (/m) starts with every stack. --no-mobile, or
-# AGENTA_MOBILE_ENABLED=false in the shell or in the resolved env file, drops it (the
-# service is scaled to 0 replicas). Resolved after the env file is known.
+# The mobile web app (/m) starts with every stack that runs a web app. Only a backend-only
+# run (--no-web / --web-mode none) holds it back.
 WITH_MOBILE=true
-NO_MOBILE_FLAG=false
 declare -a EXTRA_COMPOSE_FILES=()  # Extra -f files from --compose-file (repeatable)
 declare -a RECREATE_SERVICES=()    # Services to surgically recreate via --recreate (repeatable)
 declare -a REBUILD_SERVICES=()     # Services to surgically rebuild + recreate via --rebuild (repeatable)
@@ -55,9 +53,6 @@ show_usage() {
     echo "  --web-local             Alias for --web-mode local"
     echo "  --web-mode <mode>       Web mode: docker|local|none (default: docker)"
     echo "  --web-url <URL>         Override AGENTA_WEB_URL"
-    echo "  --no-mobile             Do NOT start the mobile web app at /m. It starts by default on"
-    echo "                          every stack, incl. --dev, where the extra dev server costs"
-    echo "                          ~0.5-1GB RAM. Also keeps phones on the desktop app."
     echo "  --with-mobile           Deprecated no-op: /m starts by default now."
     echo ""
     echo "Environment:"
@@ -266,9 +261,6 @@ while [[ "$#" -gt 0 ]]; do
             # Deprecated: /m is on by default. Kept so old commands and scripts still run.
             WITH_MOBILE=true
             ;;
-        --no-mobile)
-            NO_MOBILE_FLAG=true
-            ;;
         --no-local-overrides)
             LOCAL_OVERRIDES=false
             ;;
@@ -434,30 +426,11 @@ Refusing to start: Docker Compose would silently fall back to its built-in defau
 Pass an existing --env-file (e.g. --env-file .env.$LICENSE.$STAGE.local) or create the file."
 fi
 
-# Resolve the mobile opt-out. A backend-only run (--no-web / --web-mode none) disables both
-# web clients. Otherwise precedence is --no-mobile, then AGENTA_MOBILE_ENABLED in the shell,
-# then the same key in the resolved env file. run.sh does not source the env file (compose
-# reads it directly), so this one key is read out of it explicitly — an operator who writes
-# the opt-out where every other setting lives must get the opt-out.
+# A backend-only run (--no-web / --web-mode none) starts neither web app. There is no desktop
+# app to route anyone, and in dev web-mobile runs the web dev image, which that run never builds.
 if [[ "$WEB_MODE" == "none" ]]; then
     WITH_MOBILE=false
-elif $NO_MOBILE_FLAG; then
-    WITH_MOBILE=false
-elif [[ -n "${AGENTA_MOBILE_ENABLED:-}" ]]; then
-    # Explicit if, not `[[ ]] && ...`: under `set -e` a trailing false test exits the script.
-    if [[ "$AGENTA_MOBILE_ENABLED" == "false" ]]; then
-        WITH_MOBILE=false
-    fi
-elif grep -Eq '^[[:space:]]*AGENTA_MOBILE_ENABLED[[:space:]]*=[[:space:]]*"?false"?[[:space:]]*$' "$ENV_FILE_PATH"; then
-    WITH_MOBILE=false
-fi
-
-if ! $WITH_MOBILE; then
-    echo "Mobile web app (/m) disabled: starting web-mobile with 0 replicas."
-    # The desktop app sends phones to /m unless AGENTA_MOBILE_ENABLED=false. Export it for
-    # compose interpolation, so --no-mobile can never redirect phones to a service that was
-    # deliberately scaled to zero.
-    export AGENTA_MOBILE_ENABLED=false
+    echo "Backend-only run: starting web-mobile with 0 replicas."
 fi
 
 # Export the ENV_FILE to the environment
@@ -501,7 +474,7 @@ if $WITH_TUNNEL; then
     COMPOSE_CMD+=" --profile with-tunnel"
 fi
 
-# The mobile app has no profile: it is part of the stack. Opting out means starting it
+# The mobile app has no profile: it is part of the stack. A backend-only run starts it
 # with 0 replicas, which is the only compose-native way to hold back one service of a
 # file that everything else in the stack shares. `--scale` is valid on `up` only, so it
 # is kept out of COMPOSE_CMD (which also drives `config`, `build`, `pull`, and `down`).

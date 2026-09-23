@@ -550,7 +550,7 @@
     "redisDurable":  { "$ref": "#/$defs/bundledRedis" },
     "api":               { "$ref": "#/$defs/component" },
     "web":               { "$ref": "#/$defs/component" },
-    "webMobile":         { "$ref": "#/$defs/component" },
+    "webMobile":         { "allOf": [ { "$ref": "#/$defs/component" }, { "not": { "required": ["enabled"] }, "description": "web-mobile (/m) always deploys; it has no enabled switch." } ] },
     "services":          { "$ref": "#/$defs/component" },
     "workerStreams":      { "$ref": "#/$defs/component" },
     "workerQueues":       { "$ref": "#/$defs/component" },

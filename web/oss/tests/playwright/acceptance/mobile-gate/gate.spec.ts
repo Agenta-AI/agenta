@@ -3,9 +3,6 @@ import {expect, test} from "@playwright/test"
 const IPHONE_UA =
     "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
 
-// A deployment that does not run the web-mobile service has no gate to test.
-const mobileAppEnabled = process.env.AGENTA_MOBILE_ENABLED !== "false"
-
 /**
  * A genuinely empty context. `storageState: undefined` reads as "no session" but does not clear
  * anything: an option set to undefined falls back to the config value, so these tests inherited
@@ -15,7 +12,6 @@ const mobileAppEnabled = process.env.AGENTA_MOBILE_ENABLED !== "false"
 const NO_SESSION = {cookies: [], origins: []}
 
 test.describe("mobile gate: forward direction", () => {
-    test.skip(!mobileAppEnabled, "stack runs without /m (AGENTA_MOBILE_ENABLED=false)")
     test.use({
         userAgent: IPHONE_UA,
         extraHTTPHeaders: {"sec-ch-ua-mobile": "?1"},
@@ -49,7 +45,6 @@ test.describe("mobile gate: forward direction", () => {
 })
 
 test.describe("mobile gate: reverse direction", () => {
-    test.skip(!mobileAppEnabled, "stack runs without /m (AGENTA_MOBILE_ENABLED=false)")
     test.use({storageState: NO_SESSION})
 
     test("a desktop browser can open /m", async ({page}) => {

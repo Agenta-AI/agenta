@@ -42,29 +42,6 @@ export interface GateInput {
     /** Case-insensitive header getter (NextRequest headers already are). */
     header: (name: string) => string | null
     cookie: (name: string) => string | undefined
-    /**
-     * Desktop app only: whether this deployment runs `/m` at all (AGENTA_MOBILE_ENABLED,
-     * resolved by the adapter at request time with `resolveMobileAppEnabled`). A deployment
-     * that does not run the web-mobile service sets it to false, and the desktop app then
-     * never sends anyone to `/m`. Unset means `/m` runs.
-     *
-     * One exception runs before this: an OAuth callback the mobile app started
-     * (`MOBILE_AUTH_CALLBACK_COOKIE`) is always handed to `/m`, where its state lives.
-     */
-    mobileAppEnabled?: boolean
-}
-
-/**
- * AGENTA_MOBILE_ENABLED → whether `/m` runs. Only the exact string "false" means it does not,
- * so an unset, empty, or misspelled value keeps the mobile app reachable. It is the same key
- * run.sh, Helm (`webMobile.enabled`) and the Railway scripts use to decide whether to start
- * the web-mobile service at all.
- *
- * The adapters read process.env INSIDE the request handler, never at module scope: on the
- * self-hosted standalone Node server, non-NEXT_PUBLIC env is resolved at runtime.
- */
-export function resolveMobileAppEnabled(raw: string | undefined | null): boolean {
-    return raw !== "false"
 }
 
 export type GateDecision =
@@ -288,7 +265,7 @@ export function decideDesktopGate(input: GateInput): GateDecision {
         // before the flag.
         const wantsDesktop = new URLSearchParams(input.search).get(VIEW_PARAM) === "desktop"
 
-        // BEFORE the enabled check: a provider redirect the MOBILE app started has to reach /m. The cookie is an explicit intent set by /m moments earlier,
+        // A provider redirect the MOBILE app started has to reach /m. The cookie is an explicit intent set by /m moments earlier,
         // not a device heuristic, and the OAuth state lives in /m's same-origin sessionStorage.
         // Gating this would strand a mobile SSO sign-in on the desktop route, where the state it
         // needs does not exist.
@@ -301,7 +278,6 @@ export function decideDesktopGate(input: GateInput): GateDecision {
             return {kind: "redirect", location: `/m${input.pathname}${input.search}`}
         }
 
-        if (input.mobileAppEnabled === false) return {kind: "pass"}
         if (!isDocumentNavigation(input)) return {kind: "pass"}
 
         // Escape hatch: "View desktop site" links carry ?view=desktop. It opts out of BOTH

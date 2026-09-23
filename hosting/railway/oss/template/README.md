@@ -180,8 +180,8 @@ deployments are irrelevant to clones — clones copy config, not deployments).
 - **Mobile app:** `web-mobile` serves `/m`. The gateway routes `/m` and `/m/*`
   to it with **no** prefix strip, because the Next app is built with
   `basePath: "/m"` and owns the prefix. A phone is redirected from a desktop
-  route to `/m`, and a reviewer on a laptop can open `/m` directly. `web` sets
-  `AGENTA_MOBILE_ENABLED=true` because the service exists.
+  route to `/m`, and a reviewer on a laptop can open `/m` directly. The
+  service is part of every environment.
 - **Healthchecks:** set only on `api` and `services`, which both serve
   `/health`. Two services have none on purpose, and `../scripts/configure.sh`
   clears the same two.
