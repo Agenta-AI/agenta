@@ -551,14 +551,6 @@ def _parse_sessions_watchdog_stale_heartbeat_seconds() -> int:
 class SessionsRecordsConfig(BaseModel):
     """Durable session-record ingest tuning (server-side history reconstruction)."""
 
-    # When a record body exceeds the cap, preserve its structure + partial content (trim only
-    # the large field values) instead of replacing the whole body with {"_truncated": True}.
-    # Off = legacy whole-body drop, which loses the record's type and id and leaves the
-    # replayed tool card unable to settle. Default ON since 2026-08-11.
-    smart_truncation: bool = (
-        os.getenv("AGENTA_RECORDS_SMART_TRUNCATION") or "true"
-    ).lower() in _TRUTHY
-
     # How long a record message the worker failed to write sits unacknowledged before the
     # worker claims it back and tries again.
     reclaim_idle_ms: int = Field(
