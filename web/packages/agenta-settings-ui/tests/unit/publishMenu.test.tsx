@@ -56,7 +56,7 @@ const connection = (overrides: Partial<ChannelConnection> = {}): ChannelConnecti
 })
 
 describe("buildPublishItems", () => {
-    it("offers Slack, Telegram and API in order, none live when nothing is connected", () => {
+    it("offers Slack, Telegram and API in order; API is live once the agent is saved", () => {
         const items = buildPublishItems({
             connections: EMPTY_CONNECTIONS,
             agentId: AGENT,
@@ -65,7 +65,7 @@ describe("buildPublishItems", () => {
         expect(items.map((item) => [item.key, item.live])).toEqual([
             ["slack", false],
             ["telegram", false],
-            ["api", false],
+            ["api", true],
         ])
     })
 
@@ -78,7 +78,27 @@ describe("buildPublishItems", () => {
         expect(items.filter((item) => item.live).map((item) => item.key)).toEqual([
             "slack",
             "telegram",
+            "api",
         ])
+    })
+
+    it("shows the API as Set up while the agent has no saved id (draft)", () => {
+        const [, , api] = buildPublishItems({
+            connections: EMPTY_CONNECTIONS,
+            agentId: undefined,
+            channelsEnabled: true,
+        })
+        expect(api).toMatchObject({key: "api", live: false})
+    })
+
+    it("lets the host override the API's live state explicitly", () => {
+        const [, , api] = buildPublishItems({
+            connections: EMPTY_CONNECTIONS,
+            agentId: AGENT,
+            channelsEnabled: true,
+            apiLive: false,
+        })
+        expect(api).toMatchObject({key: "api", live: false})
     })
 
     it("does not count pending, revoked or another agent's connection as live", () => {
@@ -173,6 +193,17 @@ describe("PublishMenu", () => {
         ])
         expect(container.querySelector('[data-testid="publish-live-summary"]')?.textContent).toBe(
             "Live in 2 places",
+        )
+    })
+
+    it("counts the API toward the live summary, e.g. Live in 3 places", async () => {
+        await render([
+            {key: "slack", live: true},
+            {key: "telegram", live: true},
+            {key: "api", live: true},
+        ])
+        expect(container.querySelector('[data-testid="publish-live-summary"]')?.textContent).toBe(
+            "Live in 3 places",
         )
     })
 

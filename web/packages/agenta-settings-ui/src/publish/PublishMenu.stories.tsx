@@ -5,7 +5,9 @@ import {PublishMenu} from "./PublishMenu"
 /**
  * **The agent header's Publish button.** One menu of the places an agent can be reached from:
  * Slack, Telegram and API. Each row shows "Set up" or "Live"; the header counts the live ones.
- * With the Channels preference off, the host passes only API.
+ * The API is live as soon as the agent has a saved revision — it can always be called — so it
+ * only shows "Set up" for a draft agent that has not been saved yet. With the Channels
+ * preference off, the host passes only API.
  */
 const meta = {
     title: "@agenta/settings-ui/Publish/PublishMenu",
@@ -17,6 +19,7 @@ const meta = {
 export default meta
 type Story = StoryObj<typeof meta>
 
+/** A draft agent: not saved yet, so nothing is live, including the API. */
 export const NothingLive: Story = {
     args: {
         items: [
@@ -27,22 +30,24 @@ export const NothingLive: Story = {
     },
 }
 
+/** A saved agent: the API is always live, Slack and Telegram are not yet set up. */
 export const SlackLive: Story = {
     args: {
         items: [
             {key: "slack", live: true},
             {key: "telegram", live: false},
-            {key: "api", live: false},
+            {key: "api", live: true},
         ],
     },
 }
 
-export const TwoPlacesLive: Story = {
+/** All three places live: "Live in 3 places". */
+export const AllLive: Story = {
     args: {
         items: [
             {key: "slack", live: true},
             {key: "telegram", live: true},
-            {key: "api", live: false},
+            {key: "api", live: true},
         ],
     },
 }
@@ -53,12 +58,12 @@ export const ChannelsLoading: Story = {
         items: [
             {key: "slack", live: false, disabled: true},
             {key: "telegram", live: false, disabled: true},
-            {key: "api", live: false},
+            {key: "api", live: true},
         ],
     },
 }
 
-/** The Channels preference is off: only API is offered. */
+/** The Channels preference is off: only API is offered, live once the agent is saved. */
 export const ChannelsHidden: Story = {
-    args: {items: [{key: "api", live: false}]},
+    args: {items: [{key: "api", live: true}]},
 }
