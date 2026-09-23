@@ -12,14 +12,15 @@ import {Suspense, lazy, useEffect, useRef, type ReactNode, type RefObject} from 
 import {quotesToMarkdown, type Quote} from "@agenta/shared/quotes"
 import {isOverlayOpen} from "@agenta/shared/utils"
 import {HeightCollapse} from "@agenta/ui/height-collapse"
+import {registerQuoteSubmit} from "@agenta/ui/quote-selection"
 import type {RichChatInputHandle, SlashCommandSection} from "@agenta/ui/rich-chat-input"
 import {Button, SimpleTooltip} from "@agenta/ui/ui"
 import {Paperclip} from "@phosphor-icons/react"
 
 import {acceptAttrFor} from "../assets/attachmentRules"
 import type {useComposerAttachments} from "../hooks/useComposerAttachments"
-import {useFilePalette} from "../hooks/useFilePalette"
 import {useComposerQuotes} from "../hooks/useComposerQuotes"
+import {useFilePalette} from "../hooks/useFilePalette"
 import {useHardwareKeyboard} from "../hooks/useHardwareKeyboard"
 
 import ComposerAttachments from "./ComposerAttachments"
@@ -170,6 +171,27 @@ export const ChatComposer = ({
             return send(quotesToMarkdown(staged, text))
         }
 
+    // The note box's Enter sends the whole message now, exactly as the Send button would: the
+    // typed draft, the tray and every staged quote. False (the quote stays staged) when it can't.
+    const ownInputRef = useRef<RichChatInputHandle | null>(null)
+    const editorRef = inputRef ?? ownInputRef
+    const submitNowRef = useRef<() => boolean>(() => false)
+    submitNowRef.current = () => {
+        const editor = editorRef.current
+        if (!editor || disabled || composerDisabled) return false
+        if (files.length > 0 && !attachmentsSettled) return false
+        const text = editor.getMarkdown()
+        editor.clear()
+        void withQuotes(onSubmit)(text)
+        return true
+    }
+    const selfServesQuotes = quotes === undefined
+    useEffect(() => {
+        const sessionId = attachments.sessionId
+        if (!selfServesQuotes || !sessionId) return
+        return registerQuoteSubmit(sessionId, () => submitNowRef.current())
+    }, [attachments.sessionId, selfServesQuotes])
+
     useEffect(() => {
         if (!streaming || !onStop || !stopShortcutEnabled) return
         const stopOnEscape = (event: KeyboardEvent) => {
@@ -207,7 +229,7 @@ export const ChatComposer = ({
                 </HeightCollapse>
             </div>
             <RichChatInput
-                ref={inputRef}
+                ref={editorRef}
                 autoFocus={autoFocus}
                 dictating={dictating}
                 dictationWave={

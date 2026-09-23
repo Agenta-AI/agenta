@@ -116,6 +116,7 @@ export const Note: Story = {
                     anchor={{top: 8, left: 240, bottom: 24}}
                     bounds={{width: 520, height: 260}}
                     onStage={() => {}}
+                    onSend={() => {}}
                     onCancel={() => {}}
                 />
             </Stage>
@@ -125,6 +126,7 @@ export const Note: Story = {
                     anchor={{top: 8, left: 240, bottom: 24}}
                     bounds={{width: 520, height: 260}}
                     onStage={() => {}}
+                    onSend={() => {}}
                     onCancel={() => {}}
                     touch
                 />
