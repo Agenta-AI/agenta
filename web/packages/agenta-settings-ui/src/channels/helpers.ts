@@ -232,3 +232,16 @@ export const fieldPatternError = (field: ChannelSetupField, value: string): stri
     }
     return matches ? null : field.patternError || `${field.label} is not valid.`
 }
+
+/**
+ * Whether a connection is live for the agent whose page is open: connected (not pending,
+ * not revoked) and answering as this agent.
+ */
+export const isLiveForAgent = (
+    connection: ChannelConnection | null | undefined,
+    agentId: string | undefined,
+): boolean => {
+    if (!connection || connection.status !== "connected") return false
+    const scope = connectionScope(connection, agentId)
+    return scope === "here" || scope === "unknown"
+}

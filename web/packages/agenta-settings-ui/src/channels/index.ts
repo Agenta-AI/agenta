@@ -1,4 +1,5 @@
 export {ChannelsPage, type ChannelsPageProps, type ChannelsPanelRenderProps} from "./ChannelsPage"
+export {useChannelPanel, type UseChannelPanelOptions} from "./useChannelPanel"
 export {ChannelConnectFlow, type ChannelConnectFlowProps} from "./ChannelConnectFlow"
 export {ChannelManagePanel, type ChannelManagePanelProps} from "./ChannelManagePanel"
 export {
@@ -11,6 +12,7 @@ export {
     connectionScope,
     errorMessage,
     hasAnyIssue,
+    isLiveForAgent,
     platformLabel,
     summarizeConnection,
     type ChannelRowSummary,

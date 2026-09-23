@@ -97,6 +97,8 @@ export {useToolsConnections, type CreateConnectionInput} from "@agenta/entities/
 // hosts (web/oss, /m) wire to the generated channels client.
 export {
     ChannelsPage,
+    useChannelPanel,
+    isLiveForAgent,
     ChannelConnectFlow,
     ChannelManagePanel,
     EMPTY_CONNECTIONS,
@@ -114,6 +116,7 @@ export {
     type ChannelsClientLike,
     type ChannelsPageProps,
     type ChannelsPanelRenderProps,
+    type UseChannelPanelOptions,
     type ChannelConnectFlowProps,
     type ChannelManagePanelProps,
     type ChannelRowSummary,
@@ -131,3 +134,14 @@ export type {
     ChannelsActions,
     HostedTelegramLink,
 } from "./channels"
+
+// The agent header's Publish menu: Slack, Telegram and API, each opening its own drawer.
+export {
+    PublishMenu,
+    buildPublishItems,
+    liveSummary,
+    type BuildPublishItemsOptions,
+    type PublishMenuItem,
+    type PublishMenuProps,
+    type PublishTarget,
+} from "./publish"

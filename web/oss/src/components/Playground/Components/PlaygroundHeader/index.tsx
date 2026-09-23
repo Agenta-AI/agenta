@@ -75,6 +75,11 @@ import type {BaseContainerProps} from "../types"
 
 import RunEvaluationButton from "./RunEvaluationButton"
 
+// Lazy: the Publish menu pulls the channels UI, which the playground's first paint does not need.
+const AgentPublishButton = dynamic(
+    () => import("@/oss/components/AgentPublish/AgentPublishButton"),
+    {ssr: false},
+)
 const SelectVariant = dynamic(() => import("../Menus/SelectVariant"), {
     ssr: false,
     loading: () => (
@@ -852,6 +857,13 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className}) => {
                                     </DropdownMenu>
                                 )}
                                 <ShortcutsHelpButton className="h-8 w-8 shrink-0 p-0" />
+                                {renameWorkflowId ? (
+                                    <AgentPublishButton
+                                        agentId={renameWorkflowId}
+                                        agentName={agentName || undefined}
+                                        agentDescription={currentWorkflow?.description}
+                                    />
+                                ) : null}
                             </>
                         )}
                     </>
