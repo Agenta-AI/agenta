@@ -490,6 +490,32 @@ async def test_fetch_channel_setup_delegates_and_builds_the_request_url():
     service.fetch_connection.assert_not_awaited()
 
 
+async def test_fetch_channel_setup_passes_the_app_identity_through():
+    from oss.src.core.channels.dtos import ChannelSetup, ChannelSetupIdentity
+
+    service = AsyncMock()
+    service.get_channel_setup.return_value = ChannelSetup()
+    router = _router(service)
+    request = _make_request(uuid4(), uuid4(), method="GET")
+
+    with _patched_access(True):
+        await router.fetch_channel_setup(
+            request,
+            channel="slack",
+            name="Product Copilot",
+            description="Answers product questions.",
+            handle="ProductCopilot",
+        )
+
+    assert service.get_channel_setup.await_args.kwargs[
+        "identity"
+    ] == ChannelSetupIdentity(
+        name="Product Copilot",
+        description="Answers product questions.",
+        handle="ProductCopilot",
+    )
+
+
 async def test_fetch_channel_setup_404s_on_an_unregistered_channel():
     from oss.src.core.channels.types import ChannelNotSupported
 

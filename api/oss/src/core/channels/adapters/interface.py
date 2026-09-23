@@ -9,6 +9,7 @@ from oss.src.core.channels.dtos import (
     ChannelInboundEvent,
     ChannelRequestContext,
     ChannelSetupDoc,
+    ChannelSetupIdentity,
     ChannelSpaceCandidate,
 )
 
@@ -32,12 +33,17 @@ class ChannelAdapterInterface(ABC):
     # --- setup ---
 
     async def build_setup_document(
-        self, *, request_url: str
+        self,
+        *,
+        request_url: str,
+        identity: Optional[ChannelSetupIdentity] = None,
     ) -> Optional[ChannelSetupDoc]:
         """What we generate for the operator to apply — a manifest, a
         package, whatever the platform's setup form takes. Defaults to
         nothing: a channel with no document to generate answers with none,
-        the same discipline as an empty capability slot."""
+        the same discipline as an empty capability slot. `identity` is how
+        the app built from the document presents itself; a document that
+        names nothing ignores it."""
 
         return None
 

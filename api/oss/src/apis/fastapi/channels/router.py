@@ -61,6 +61,7 @@ from oss.src.core.channels.dtos import (
     ChannelInboxEventQuery,
     ChannelOutboxEventQuery,
     ChannelSetup,
+    ChannelSetupIdentity,
     ChannelThreadQuery,
 )
 from oss.src.core.channels.types import (
@@ -617,11 +618,17 @@ class ChannelsRouter:
         request: Request,
         *,
         channel: str,
+        name: Optional[str] = None,
+        description: Optional[str] = None,
+        handle: Optional[str] = None,
     ) -> ChannelSetupResponse:
         """Reachable before any connection exists -- the manifest an
         operator needs to go build the platform app in the first place.
         `fetch_channel_connection_setup` stays the route for a connection
-        that already exists; this is the one that precedes it."""
+        that already exists; this is the one that precedes it.
+
+        `name`, `description` and `handle` are how the app the operator
+        builds presents itself; the adapter defaults and fits each one."""
 
         await self._check(request, Permission.EDIT_CHANNELS)
 
@@ -630,6 +637,11 @@ class ChannelsRouter:
         setup = await self.channels_service.get_channel_setup(
             channel=channel,
             request_url=request_url,
+            identity=ChannelSetupIdentity(
+                name=name,
+                description=description,
+                handle=handle,
+            ),
         )
 
         return ChannelSetupResponse(count=1, setup=setup)

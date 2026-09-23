@@ -36,6 +36,7 @@ from oss.src.core.channels.dtos import (
     ChannelResolution,
     ChannelSessionScope,
     ChannelSetup,
+    ChannelSetupIdentity,
     ChannelSpace,
     ChannelSpaceCandidate,
     ChannelSpaceCreate,
@@ -855,6 +856,7 @@ class ChannelsService:
         *,
         channel: str,
         request_url: str,
+        identity: Optional[ChannelSetupIdentity] = None,
     ) -> ChannelSetup:
         """The setup declaration reachable before any connection exists --
         the manifest an operator needs to go build the app in the first
@@ -863,7 +865,10 @@ class ChannelsService:
 
         adapter = self.adapter_registry.get(channel)
         capabilities = await adapter.fetch_capabilities(connection=None)
-        document = await adapter.build_setup_document(request_url=request_url)
+        document = await adapter.build_setup_document(
+            request_url=request_url,
+            identity=identity,
+        )
 
         return ChannelSetup(
             instructions=capabilities.setup.instructions,

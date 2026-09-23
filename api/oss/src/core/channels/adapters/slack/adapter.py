@@ -32,6 +32,7 @@ from oss.src.core.channels.dtos import (
     ChannelInboxEventProcessed,
     ChannelRequestContext,
     ChannelSetupDoc,
+    ChannelSetupIdentity,
     ChannelSpaceCandidate,
     ChannelSpaceKind,
 )
@@ -153,9 +154,18 @@ class SlackAdapter(ChannelAdapterInterface):
     # --- setup --- #
 
     async def build_setup_document(
-        self, *, request_url: str
+        self,
+        *,
+        request_url: str,
+        identity: Optional[ChannelSetupIdentity] = None,
     ) -> Optional[ChannelSetupDoc]:
-        manifest = build_slack_manifest(request_url=request_url)
+        identity = identity or ChannelSetupIdentity()
+        manifest = build_slack_manifest(
+            request_url=request_url,
+            name=identity.name,
+            description=identity.description,
+            handle=identity.handle,
+        )
         content = json.dumps(manifest, indent=2, sort_keys=True)
         link = "https://api.slack.com/apps?new_app=1&manifest_json=" + quote(content)
         return ChannelSetupDoc(

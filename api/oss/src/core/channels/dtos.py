@@ -222,6 +222,17 @@ class ChannelSetupDoc(BaseModel):
     link: Optional[str] = None
 
 
+class ChannelSetupIdentity(BaseModel):
+    """How the app an operator creates from the setup document presents
+    itself on the platform. Every field is optional; the adapter fills the
+    gaps and fits each value to the platform's limits."""
+
+    name: Optional[str] = None
+    description: Optional[str] = None
+    # the name people mention the bot by, without the "@"
+    handle: Optional[str] = None
+
+
 class ChannelSetup(BaseModel):
     instructions: List[str] = Field(default_factory=list)
     document: Optional[ChannelSetupDoc] = None

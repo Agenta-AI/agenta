@@ -26,6 +26,7 @@ from oss.src.core.channels.dtos import (
     ChannelKeyGrain,
     ChannelRequestContext,
     ChannelSetupDoc,
+    ChannelSetupIdentity,
     ChannelSpaceCandidate,
 )
 from oss.src.core.channels.types import ChannelSignatureInvalid
@@ -104,7 +105,10 @@ class BridgeAdapter(ChannelAdapterInterface):
     # --- setup --- #
 
     async def build_setup_document(
-        self, *, request_url: str
+        self,
+        *,
+        request_url: str,
+        identity: Optional[ChannelSetupIdentity] = None,
     ) -> Optional[ChannelSetupDoc]:
         """The GET path only -- reachable any number of times, so it must be
         structurally incapable of leaking the secret, not merely trusted not
