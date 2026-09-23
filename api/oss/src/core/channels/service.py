@@ -61,6 +61,7 @@ from oss.src.core.channels.types import (
     ChannelConnectionVerificationFailed,
     ChannelGrantRuleInvalid,
     ChannelsError,
+    ChannelSetupFieldInvalid,
     ChannelSpaceNotFound,
     ChannelThreadNotFound,
 )
@@ -124,6 +125,8 @@ class ChannelsService:
 
         adapter = self.adapter_registry.get(connection.channel)
         capabilities = await adapter.fetch_capabilities(connection=None)
+
+        _check_setup_field_patterns(capabilities=capabilities, connection=connection)
 
         # Only we can issue a bridge credential -- no platform does. When the
         # caller supplied none, mint one here rather than leaving the
@@ -2102,6 +2105,30 @@ class ChannelsService:
             #
             windowing=windowing,
         )
+
+
+def _check_setup_field_patterns(
+    *, capabilities: ChannelCapabilities, connection: ChannelConnectionCreate
+) -> None:
+    """Refuse a declared field whose value does not match its pattern, before
+    anything is verified or written. A wrong value that verifies anyway (a
+    Slack Client ID in the App ID field) would store a connection no event
+    ever matches."""
+
+    for field in capabilities.setup.fields:
+        if not field.pattern:
+            continue
+        source = connection.credentials if field.secret else connection.data
+        if not isinstance(source, dict) or source.get(field.name) is None:
+            continue
+        value = str(source[field.name]).strip()
+        if not re.fullmatch(field.pattern, value):
+            raise ChannelSetupFieldInvalid(
+                channel=connection.channel,
+                field=field.name,
+                message=field.pattern_error or f"{field.label} is not valid.",
+            )
+        source[field.name] = value
 
 
 def _compose_connection_data(

@@ -1,6 +1,8 @@
 from oss.src.core.channels.adapters.normalise import normalise_capabilities
 from oss.src.core.channels.dtos import ChannelCapabilities
 
+SLACK_APP_ID_PATTERN = r"^A[A-Z0-9]+$"
+
 SLACK_CAPABILITIES: dict = {
     "channel": "slack",
     "protocol": {"versions": ["0.1.0"]},
@@ -63,12 +65,20 @@ SLACK_CAPABILITIES: dict = {
             # Not secret: auth.test does not return it for a pasted bot
             # token, so the own-app flow asks for it alongside the two
             # secrets rather than leaving the connection key incomplete.
+            # The Client ID sits next to it and has been pasted here; the
+            # connection then never matches an event's api_app_id.
             {
                 "name": "api_app_id",
                 "label": "App ID",
                 "secret": False,
                 "required": True,
-                "help": "Settings -> Basic Information",
+                "help": "Settings -> Basic Information. Starts with A. Not the Client ID.",
+                "pattern": SLACK_APP_ID_PATTERN,
+                "pattern_error": (
+                    "This is not an App ID. Copy the App ID from Settings -> "
+                    "Basic Information; it starts with A. The Client ID does not "
+                    "go here."
+                ),
             },
         ],
     },

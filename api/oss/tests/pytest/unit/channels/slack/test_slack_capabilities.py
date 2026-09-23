@@ -50,6 +50,8 @@ EXPECTED = {
                 "secret": True,
                 "required": True,
                 "help": "Settings -> Install App",
+                "pattern": None,
+                "pattern_error": None,
             },
             {
                 "name": "signing_secret",
@@ -57,13 +59,21 @@ EXPECTED = {
                 "secret": True,
                 "required": True,
                 "help": "Settings -> Basic Information",
+                "pattern": None,
+                "pattern_error": None,
             },
             {
                 "name": "api_app_id",
                 "label": "App ID",
                 "secret": False,
                 "required": True,
-                "help": "Settings -> Basic Information",
+                "help": "Settings -> Basic Information. Starts with A. Not the Client ID.",
+                "pattern": r"^A[A-Z0-9]+$",
+                "pattern_error": (
+                    "This is not an App ID. Copy the App ID from Settings -> "
+                    "Basic Information; it starts with A. The Client ID does not "
+                    "go here."
+                ),
             },
         ],
     },

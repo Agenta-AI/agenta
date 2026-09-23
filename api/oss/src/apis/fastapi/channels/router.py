@@ -73,6 +73,7 @@ from oss.src.core.channels.types import (
     ChannelConnectionVerificationFailed,
     ChannelLocatorIncomplete,
     ChannelNotSupported,
+    ChannelSetupFieldInvalid,
     ChannelSpaceJoinFailed,
     ChannelSpaceNotFound,
     ChannelThreadNotFound,
@@ -817,6 +818,7 @@ class ChannelsRouter:
             ChannelConnectionIncomplete,
             ChannelConnectionKeyUndeclared,
             ChannelLocatorIncomplete,
+            ChannelSetupFieldInvalid,
         ) as e:
             # the platform's own verification error, surfaced as it gave it
             raise HTTPException(status_code=400, detail=str(e)) from e

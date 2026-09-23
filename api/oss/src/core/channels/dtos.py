@@ -219,6 +219,10 @@ class ChannelSetupField(BaseModel):
     secret: bool = False
     required: bool = True
     help: Optional[str] = None
+    # A regex the trimmed value must match; enforced on create, and offered to
+    # the form so it can say so before submitting.
+    pattern: Optional[str] = None
+    pattern_error: Optional[str] = None
 
 
 class ChannelSetupDoc(BaseModel):

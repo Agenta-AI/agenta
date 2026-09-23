@@ -150,6 +150,16 @@ class ChannelConnectionVerificationFailed(ChannelsError):
         super().__init__(message)
 
 
+class ChannelSetupFieldInvalid(ChannelsError):
+    """A declared setup field's value does not match its declared pattern.
+    Nothing is written or sent to the platform."""
+
+    def __init__(self, *, channel: str, field: str, message: str):
+        self.channel = channel
+        self.field = field
+        super().__init__(message)
+
+
 class ChannelSpaceJoinFailed(ChannelsError):
     """The bot could not be put in the space being added. Nothing is written:
     a space the bot is not in never receives a message."""

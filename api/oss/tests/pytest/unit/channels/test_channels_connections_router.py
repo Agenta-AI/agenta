@@ -27,6 +27,7 @@ from oss.src.core.channels.dtos import (
 )
 from oss.src.core.channels.types import (
     ChannelConnectionVerificationFailed,
+    ChannelSetupFieldInvalid,
     ChannelSpaceJoinFailed,
 )
 
@@ -112,6 +113,27 @@ async def test_create_channel_connection_maps_verification_failure_to_400():
             await router.create_channel_connection(request, body=body)
 
     assert exc_info.value.status_code == 400
+
+
+async def test_create_channel_connection_maps_an_invalid_setup_field_to_400():
+    service = AsyncMock()
+    service.create_connection.side_effect = ChannelSetupFieldInvalid(
+        channel="slack", field="api_app_id", message="This is not an App ID."
+    )
+    router = _router(service)
+    request = _make_request(uuid4(), uuid4())
+    body = ChannelConnectionCreateRequest(
+        connection=ChannelConnectionCreate(
+            channel="slack", external_key=uuid4(), slug="acme"
+        )
+    )
+
+    with _patched_access(True):
+        with pytest.raises(HTTPException) as exc_info:
+            await router.create_channel_connection(request, body=body)
+
+    assert exc_info.value.status_code == 400
+    assert exc_info.value.detail == "This is not an App ID."
 
 
 async def test_create_channel_space_maps_a_failed_join_to_400_with_the_reason():
