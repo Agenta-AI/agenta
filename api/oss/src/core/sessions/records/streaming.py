@@ -261,16 +261,11 @@ async def publish_record(
                     session_id=str(record_event.session_id),
                     original_bytes=len(raw_attributes),
                 )
-                # Smart truncation keeps the event shape + partial content so records stay
-                # reconstructable; legacy path drops the whole body. Flag-gated (additive).
-                new_attributes = (
-                    _truncate_attributes(
-                        record_event.attributes,
-                        MAX_ATTRIBUTES_BYTES,
-                        len(raw_attributes),
-                    )
-                    if env.agenta.sessions.records.smart_truncation
-                    else {"_truncated": True}
+                # Keep the event shape + partial content so records stay reconstructable.
+                new_attributes = _truncate_attributes(
+                    record_event.attributes,
+                    MAX_ATTRIBUTES_BYTES,
+                    len(raw_attributes),
                 )
                 truncated_event = record_event.model_copy(
                     update={"attributes": new_attributes}

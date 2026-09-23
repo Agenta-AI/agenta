@@ -79,8 +79,6 @@ jobs:
       agenta_web_url: ${{ needs.deploy.outputs.preview_url }}
       layers: all
       packages: all
-      mobile_gate_enabled: true
-      mobile_reverse_gate_enabled: false
     secrets: inherit
 
   cleanup:

@@ -23,11 +23,9 @@ import {
     interactionStatesFromWatchEvent,
     isApprovalNotPendingError,
     isSettledInteractionConflict,
-    recordInteractionAnswerAtom,
     respondInteractionAnswerAtom,
     respondInteractionAnswersAtom,
     resumeSessionContinuationAtom,
-    sessionDurableApprovalsCapabilityAtom,
     revalidateSessionMountsAtom,
     revalidateSessionInteractionsAtom,
     revalidateSessionRecordsAtom,
@@ -36,7 +34,6 @@ import {
 import {markTraceAsFresh} from "@agenta/entities/trace"
 import {
     agentShouldResumeAfterApproval,
-    approvalResolution,
     buildAgentRequest,
     buildRenderMap,
     isResumeSend,
@@ -53,7 +50,6 @@ import {prepareAfterContinuationPreflight} from "../assets/continuationPreflight
 import {
     displayMessageText,
     editedExecutionText,
-    outboundUserParts,
     readDisplayEdit,
     saveDisplayEdit,
 } from "../assets/displayContent"
@@ -66,7 +62,7 @@ import {
 } from "../assets/loadSession"
 import {mergePendingSendEchoRows} from "../assets/pendingSendEchoes"
 import {sideEffectingToolsInRange} from "../assets/rewind"
-import {submitApprovalForCapability} from "../assets/serverOwnedApproval"
+import {submitServerOwnedApproval} from "../assets/serverOwnedApproval"
 import {startupLabelFromDataPart} from "../assets/startupPhases"
 import {getMessageTraceId} from "../assets/trace"
 import {reconcileInteractionRowStates} from "../assets/transcriptToMessages"
@@ -97,7 +93,6 @@ import {
 } from "../state/sessionChats"
 import {
     acceptedRunBySession,
-    clearSessionFresh,
     clearSessionTurnId,
     composerDraftBySession,
     isSessionFresh,
@@ -153,8 +148,8 @@ export interface RewindPlan {
     confirm: () => void
 }
 
-/** Settle a parked client tool (#4920). The hook maps this onto `addToolOutput` (success or
- * error) and marks the resume live so the auto-resend fires. */
+/** Settle a parked client tool (#4920) through the server response endpoint (success or
+ * error). */
 export interface ToolOutputSettleInput {
     toolName: string
     toolCallId: string
@@ -227,10 +222,6 @@ export interface AgentConversation {
     stopped: boolean
     /** Messages held while a turn is in flight, in FIFO order. */
     queued: QueuedMessage[]
-    /** Queue is server-owned for this session. */
-    queueEnabled: boolean
-    /** Steer is server-owned and available as a second busy action. */
-    steerEnabled: boolean
     /** The server currently owns an execution, including one started in another browser. */
     inputBusy: boolean
     /** Submit the current composer value as a priority Steer input. */
@@ -358,23 +349,15 @@ export const useAgentConversation = ({
     // `null` means "no live gate" — voided by a stop, or spent once a resume really went out;
     // `undefined` means "no live marker", which falls back to the predicate's tail heuristics.
     const liveGateInteractionRef = useRef<LiveAgentInteraction | null | undefined>(null)
-    const recordInteractionAnswer = useSetAtom(recordInteractionAnswerAtom)
     const respondInteractionAnswer = useSetAtom(respondInteractionAnswerAtom)
     const respondInteractionAnswers = useSetAtom(respondInteractionAnswersAtom)
     const resumeSessionContinuation = useSetAtom(resumeSessionContinuationAtom)
-    const supportsDurableApprovals = useSetAtom(sessionDurableApprovalsCapabilityAtom)
-    const [recoverableContinuation, setRecoverableContinuation] = useState(false)
     // Execution id of the continuation the last durable answer started (respond body,
     // `execution.id`). The queue holds every send until that execution writes its terminal record:
     // the transcript-derived hold cannot cover the seconds between the answer and the
     // continuation's first record, and a transcript adopted inside that gap reads as settled.
     const [continuationExecutionId, setContinuationExecutionId] = useState<string | null>(null)
     const approvalResponseOwnerRef = useRef<string | null>(null)
-    const retryRecoverableContinuation = useCallback(async () => {
-        const resumed = await resumeSessionContinuation(sessionId)
-        if (resumed) setRecoverableContinuation(false)
-        return resumed
-    }, [resumeSessionContinuation, sessionId])
 
     // Did the runner acknowledge THIS turn? Its acceptance frame is transient, so it reaches
     // `onData` and never the transcript — this is the only place the answer survives. A stream that
@@ -523,18 +506,7 @@ export const useAgentConversation = ({
         shouldPreserve: () => busyRef.current,
     })
 
-    const {
-        messages,
-        sendMessage,
-        status,
-        stop,
-        regenerate,
-        setMessages,
-        addToolApprovalResponse,
-        addToolOutput,
-        error,
-        clearError,
-    } = useChat({
+    const {messages, status, stop, regenerate, setMessages, error, clearError} = useChat({
         chat,
         // Coalesce stream deltas to ~1 UI commit / 50ms so a fast token stream doesn't drive a
         // render per token; caps commit frequency independently of the per-commit memo win.
@@ -726,41 +698,7 @@ export const useAgentConversation = ({
         // Once per mounted session; `sessionId` is stable for this instance.
     }, [sessionId])
 
-    // Send one released queued message. Stable (only depends on `sendMessage`) so the queue's
-    // release effect doesn't churn on every token.
     const editedSourceRef = useRef<UIMessage | null>(readDisplayEdit(sessionId))
-    const sendQueued = useCallback(
-        (item: QueuedMessage) => {
-            // A real send means this session has run — drop the never-run marker so a later
-            // cache-cleared reopen hydrates from the server.
-            clearSessionFresh(sessionId)
-            clearSessionTurnId(sessionId)
-            // Any actual send supersedes a prior user-stop.
-            setStopped(false)
-            sendMessage({
-                role: "user",
-                parts: outboundUserParts(item),
-                ...(item.executionText !== undefined
-                    ? {metadata: {display_content: item.text}}
-                    : {}),
-            }).catch(ignoreStreamRejection)
-        },
-        [sendMessage, sessionId],
-    )
-    const markRunOwned = useCallback(
-        () => setSessionStatus({id: sessionId, status: "running"}),
-        [sessionId, setSessionStatus],
-    )
-
-    // Orphan detection for the queue's pre-resume hold: the tail is a RESTORED message (this
-    // mount never streamed it) shaped like "auto-resume imminent", and no gate was settled live
-    // in this mount. The SDK only evaluates `sendAutomaticallyWhen` on live events — never on
-    // mount — so this resume can't fire and must not hold the queue (AGE-3937).
-    const resumeOrphaned =
-        !liveGateInteractionRef.current &&
-        !!lastMessage &&
-        restoredIdsRef.current.has(lastMessage.id) &&
-        agentShouldResumeAfterApproval({messages})
 
     const serverInputs = useServerSessionInputs({
         entityId,
@@ -802,8 +740,6 @@ export const useAgentConversation = ({
         removeQueued,
         sendQueuedNow,
         ownsContinuation,
-        queueEnabled,
-        steerEnabled,
         serverBusy,
         hitlPending,
         editingId,
@@ -813,113 +749,66 @@ export const useAgentConversation = ({
         pendingSendRows,
         sendInFlight,
     } = useAgentChatQueue({
-        status,
         messages,
-        acceptedRunPending,
         stopped,
-        resumeOrphaned,
-        recoverable: recoverableContinuation,
-        retryContinuation: retryRecoverableContinuation,
         continuationExecutionId,
-        markRunOwned,
         // Not wired on this host yet: the composer lives below this hook and has no handle here,
         // so a late refusal keeps its flagged row instead of restoring the draft. Pass a restorer
         // in to unify it with the desktop.
         restoreRefusedSend,
         onSendAccepted,
         onSendFailed,
-        sendQueued,
-        sessionId,
         server: serverInputs,
     })
     // A preserve check that misses `sendInFlight` lets a navigation release and stop the chat in
     // the window between the message leaving and the turn being accepted.
     busyRef.current = busy || acceptedRunPending || sendInFlight
 
-    // The server capability chooses one owner. Feature-off servers keep the original ordered row
-    // transition + AI SDK gate release; durable servers own continuation after their 202.
+    // The server owns continuation after its 202.
     const handleApprovalResponse = useCallback(
         async (args: {id: string; approved: boolean}) => {
             approvalResponseOwnerRef.current = args.id
             liveGateInteractionRef.current = {kind: "approval", id: args.id}
-            const outcome = await submitApprovalForCapability({
-                durableApprovals: supportsDurableApprovals(sessionId),
-                submitDurable: () =>
+            const outcome = await submitServerOwnedApproval({
+                submit: () =>
                     respondInteractionAnswer({
                         sessionId,
                         toolCallId: args.id,
                         approved: args.approved,
                     }),
-                retireDurable: () => {
+                retire: () => {
                     liveGateInteractionRef.current = null
                 },
-                recordLegacy: () =>
-                    recordInteractionAnswer({
-                        sessionId,
-                        toolCallId: args.id,
-                        resolution: approvalResolution(args.id, args.approved),
-                    }),
-                releaseLegacy: () => addToolApprovalResponse(args),
             })
             if (approvalResponseOwnerRef.current === args.id) {
-                setRecoverableContinuation(outcome.recoverable)
                 setContinuationExecutionId(outcome.executionId ?? null)
             }
             return outcome
         },
-        [
-            addToolApprovalResponse,
-            recordInteractionAnswer,
-            respondInteractionAnswer,
-            sessionId,
-            supportsDurableApprovals,
-        ],
+        [respondInteractionAnswer, sessionId],
     )
 
     const handleApprovalResponses = useCallback(
         async (args: {ids: string[]; approved: boolean}) => {
             approvalResponseOwnerRef.current = args.ids[0]
             liveGateInteractionRef.current = {kind: "approval", id: args.ids[0]}
-            const outcome = await submitApprovalForCapability({
-                durableApprovals: supportsDurableApprovals(sessionId),
-                submitDurable: () =>
+            const outcome = await submitServerOwnedApproval({
+                submit: () =>
                     respondInteractionAnswers({
                         sessionId,
                         toolCallIds: args.ids,
                         approved: args.approved,
                     }),
-                retireDurable: () => {
+                retire: () => {
                     liveGateInteractionRef.current = null
-                },
-                recordLegacy: () =>
-                    Promise.all(
-                        args.ids.map((id) =>
-                            recordInteractionAnswer({
-                                sessionId,
-                                toolCallId: id,
-                                resolution: approvalResolution(id, args.approved),
-                            }),
-                        ),
-                    ).then(() => undefined),
-                releaseLegacy: () => {
-                    for (const id of args.ids) {
-                        addToolApprovalResponse({id, approved: args.approved})
-                    }
                 },
             })
             if (approvalResponseOwnerRef.current === args.ids[0]) {
-                setRecoverableContinuation(outcome.recoverable)
                 setContinuationExecutionId(outcome.executionId ?? null)
             }
             return outcome
         },
-        [
-            addToolApprovalResponse,
-            recordInteractionAnswer,
-            respondInteractionAnswers,
-            sessionId,
-            supportsDurableApprovals,
-        ],
+        [respondInteractionAnswers, sessionId],
     )
 
     // A resume really went out (the SDK's), so the gate it carried is spent. Retired HERE, where a
@@ -951,7 +840,6 @@ export const useAgentConversation = ({
     }
     useEffect(() => {
         if (pendingApprovalId) {
-            setRecoverableContinuation(false)
             setContinuationExecutionId(null)
         }
     }, [pendingApprovalId])
@@ -989,7 +877,7 @@ export const useAgentConversation = ({
         [setMessages],
     )
 
-    // Durable gates resume on the server; legacy gates still release the local SDK.
+    // Gates resume on the server.
     const sendToolOutput = useCallback(
         async ({toolName, toolCallId, output, errorText}: ToolOutputSettleInput) => {
             approvalResponseOwnerRef.current = toolCallId
@@ -1003,36 +891,15 @@ export const useAgentConversation = ({
             }
             const settle = (result: {recoverable: boolean; executionId?: string}) => {
                 if (approvalResponseOwnerRef.current !== toolCallId) return
-                setRecoverableContinuation(result.recoverable)
                 setContinuationExecutionId(result.executionId ?? null)
             }
 
             let outcome: {recoverable: boolean; executionId?: string}
             try {
-                outcome = await submitApprovalForCapability({
-                    durableApprovals: supportsDurableApprovals(sessionId),
-                    submitDurable: () =>
-                        respondInteractionAnswer({sessionId, toolCallId, resolution}),
-                    retireDurable: () => {
+                outcome = await submitServerOwnedApproval({
+                    submit: () => respondInteractionAnswer({sessionId, toolCallId, resolution}),
+                    retire: () => {
                         liveGateInteractionRef.current = null
-                    },
-                    recordLegacy: () =>
-                        recordInteractionAnswer({sessionId, toolCallId, resolution}),
-                    releaseLegacy: () => {
-                        if (errorText !== undefined) {
-                            addToolOutput({
-                                state: "output-error",
-                                tool: toolName as never,
-                                toolCallId,
-                                errorText,
-                            }).catch(ignoreStreamRejection)
-                        } else {
-                            addToolOutput({
-                                tool: toolName as never,
-                                toolCallId,
-                                output: (output ?? {}) as never,
-                            }).catch(ignoreStreamRejection)
-                        }
                     },
                 })
             } catch (error) {
@@ -1054,14 +921,7 @@ export const useAgentConversation = ({
             }
             settle(outcome)
         },
-        [
-            addToolOutput,
-            recordInteractionAnswer,
-            respondInteractionAnswer,
-            sessionId,
-            stampRunError,
-            supportsDurableApprovals,
-        ],
+        [respondInteractionAnswer, sessionId, stampRunError],
     )
 
     // Publish this session's run state (single source of truth for session-list status dots).
@@ -1435,8 +1295,6 @@ export const useAgentConversation = ({
         historyUnavailable,
         stopped,
         queued,
-        queueEnabled,
-        steerEnabled,
         inputBusy: serverBusy,
         steer: steerInput,
         hitlPending,

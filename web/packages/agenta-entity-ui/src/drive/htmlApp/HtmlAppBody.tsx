@@ -16,7 +16,6 @@ import {
     exceedsGrant,
     fetchMountFileBlob,
     getGrant,
-    isAgentFileUploadsEnabled,
     setGrant as storeGrant,
     type GrantLevel,
     type GrantRecord,
@@ -193,7 +192,7 @@ export function HtmlAppBody({
 
     const {manifest, loaded: manifestLoaded} = useAppManifest(runnable ? io : null, dir)
     const appName = manifest?.name ?? (dir ? (dir.split("/").pop() ?? dir) : path)
-    const canEditMounts = env.canEditMounts ?? (isAgentFileUploadsEnabled() && !!mountId)
+    const canEditMounts = env.canEditMounts ?? !!mountId
     /** What the app asks for. The sheet preselects it; the grant store records it. */
     const requestedAccess: GrantLevel = manifest?.access ?? "read"
 

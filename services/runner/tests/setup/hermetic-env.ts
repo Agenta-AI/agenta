@@ -10,7 +10,7 @@ import { writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { beforeEach } from "vitest";
+import { beforeEach, vi } from "vitest";
 
 import { resetRunnerConfigCache } from "../../src/config/runner-config.ts";
 
@@ -56,11 +56,13 @@ const SCRUBBED = [
 
 for (const name of SCRUBBED) delete process.env[name];
 
-// Server-side history reconstruction defaults ON, so any single-user-message turn with a
+// Server-side history reconstruction is always on, so any single-user-message turn with a
 // session id would reach for a live records endpoint mid-test. Engine suites are not
-// reconstruction tests: pin it off here. session-reconstruct-history.test.ts deletes the pin
-// in its own beforeEach to exercise the real default.
-process.env.AGENTA_SESSIONS_RECONSTRUCT = "false";
+// reconstruction tests: answer the records query with an empty log, which leaves the inbound
+// history untouched. The suites that test the query itself call `vi.unmock` on this module.
+vi.mock("../../src/sessions/records-query.ts", () => ({
+  fetchSessionRecords: async () => [],
+}));
 
 // Re-scrub per test: a prior test may have set one and not restored it. Also drop the memoized
 // runner config so the next `loadRunnerConfig()` re-parses the scrubbed environment.
@@ -68,6 +70,5 @@ beforeEach(() => {
   for (const name of SCRUBBED) delete process.env[name];
   // Restore the stub bundle so a prior test's override (to force a failed install) cannot leak.
   process.env.SANDBOX_AGENT_EXTENSION_BUNDLE = STUB_EXTENSION_BUNDLE;
-  process.env.AGENTA_SESSIONS_RECONSTRUCT = "false";
   resetRunnerConfigCache();
 });

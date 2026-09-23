@@ -123,9 +123,6 @@ def test_session_features_default_on_and_honor_overrides(
     try:
         with monkeypatch.context() as context:
             for name in (
-                "AGENTA_SESSIONS_DURABLE_APPROVALS",
-                "AGENTA_SESSIONS_QUEUE",
-                "AGENTA_SESSIONS_STEER",
                 "AGENTA_SESSIONS_SHARED_READER",
                 "AGENTA_SESSIONS_SEQUENCE_WRITES",
             ):
@@ -134,11 +131,7 @@ def test_session_features_default_on_and_honor_overrides(
                 else:
                     context.setenv(name, configured)
             importlib.reload(env)
-            sessions_config = env.SessionsConfig()
             redis_config = env.SessionsRedisConfig()
-            assert sessions_config.durable_approvals is expected
-            assert sessions_config.queue is expected
-            assert sessions_config.steer is expected
             assert redis_config.shared_reader is expected
             assert redis_config.sequence_writes is expected
     finally:
