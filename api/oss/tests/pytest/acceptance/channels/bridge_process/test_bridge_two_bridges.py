@@ -387,6 +387,8 @@ async def test_two_bridges_interleaved_each_resolve_to_their_own_agent_and_threa
             origin=ChannelEventOrigin.PUSHED,
             data=ChannelInboxEventData(
                 external_locator={"chat_id": "grp_1"},
+                # a group message opens a turn only when it addresses the bot
+                addressed=True,
                 processed=ChannelInboxEventProcessed(
                     content=[{"type": "text", "text": "hi from A"}],
                     sender={"id": "u1"},
@@ -403,6 +405,8 @@ async def test_two_bridges_interleaved_each_resolve_to_their_own_agent_and_threa
             origin=ChannelEventOrigin.PUSHED,
             data=ChannelInboxEventData(
                 external_locator={"room_id": "room_1"},
+                # a group message opens a turn only when it addresses the bot
+                addressed=True,
                 processed=ChannelInboxEventProcessed(
                     content=[{"type": "text", "text": "hi from B"}],
                     sender={"id": "u2"},

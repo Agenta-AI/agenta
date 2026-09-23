@@ -61,7 +61,10 @@ class TestAgentaChannelLive:
         space_id = _poll_for_space(authed_api, connection_slug=bot_slug)
         answer = _poll_for_answer(authed_api, space_id=space_id, contains=_ANSWER)
 
-        assert answer is not None, "no answer was posted within the timeout"
+        assert answer is not None, (
+            "no answer was posted within the timeout; the conversation held: "
+            f"{_conversation_summary(authed_api, space_id=space_id)}"
+        )
         # the reply is what the agent said, and only that: the inbound turn
         # is persisted into the same record log the answer is folded from
         assert _QUESTION not in _answer_text(answer), _answer_text(answer)
@@ -137,6 +140,14 @@ def _bind_default_agent(authed_api, *, connection_id, revision_id) -> str:
 def _answer_text(answer) -> str:
     content = answer.get("content") or []
     return " ".join(part.get("text") or "" for part in content)
+
+
+def _conversation_summary(authed_api, *, space_id) -> str:
+    response = authed_api("GET", f"/channels/agenta/conversations/{space_id}")
+    if response.status_code != 200:
+        return f"{response.status_code} {response.text[:500]}"
+    items = response.json().get("items", [])
+    return repr([(item.get("direction"), _answer_text(item)[:200]) for item in items])
 
 
 def _poll_for_space(authed_api, *, connection_slug, attempts=20, delay=0.5):
