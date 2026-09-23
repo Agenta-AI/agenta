@@ -13,8 +13,8 @@ import {
   allowedModels,
   applyModel,
   CLAUDE_TIER_ALIASES,
-  harnessModelId,
   ModelNotSettableError,
+  normalizeRequestModel,
   pickModel,
 } from "../../src/engines/sandbox_agent/model.ts";
 import {
@@ -22,6 +22,7 @@ import {
   codexConfigPinnedModel,
 } from "../../src/engines/sandbox_agent/codex-assets.ts";
 import { runSandboxAgent } from "../../src/engines/sandbox_agent.ts";
+import type { AgentRunRequest } from "../../src/protocol.ts";
 import { fakeHarness } from "../utils/sandbox-agent-harness.ts";
 
 describe("pickModel", () => {
@@ -311,55 +312,6 @@ describe("applyModel", () => {
     ]);
   });
 
-  it("strips anthropic/ for Claude before the first setModel, even when setModel accepts anything", async () => {
-    // Some Claude builds (local sandbox, subscription) take any string in setModel, so the
-    // prefixed id used to reach the Anthropic API verbatim and fail there.
-    for (const [requested, expected] of [
-      ["anthropic/claude-opus-5-5", "claude-opus-5-5"],
-      ["anthropic/claude-opus-5-5[1m]", "claude-opus-5-5[1m]"],
-      ["anthropic/opus[1m]", "opus[1m]"],
-      ["claude-opus-5-5", "claude-opus-5-5"],
-    ]) {
-      const calls: string[] = [];
-      const permissive = { setModel: async (id: string) => void calls.push(id) };
-      assert.equal(
-        await applyModel(permissive, requested, () => {}, { harness: "claude" }),
-        expected,
-      );
-      assert.deepEqual(calls, [expected], requested);
-    }
-  });
-
-  it("runs the tier fallback on the stripped id when the Claude build rejects it", async () => {
-    const calls: string[] = [];
-    const session = {
-      setModel: async (id: string) => {
-        calls.push(id);
-        if (id !== "opus[1m]") {
-          throw new Error(
-            "Unsupported value. Allowed values: default, opus[1m], claude-fable-5-1, sonnet, haiku",
-          );
-        }
-      },
-    };
-    assert.equal(
-      await applyModel(session, "anthropic/claude-opus-5-5", () => {}, { harness: "claude" }),
-      "opus[1m]",
-    );
-    assert.deepEqual(calls, ["claude-opus-5-5", "opus[1m]"]);
-  });
-
-  it("keeps the provider prefix for harnesses that name models by provider", async () => {
-    for (const harness of ["pi", "codex", undefined]) {
-      const calls: string[] = [];
-      const permissive = { setModel: async (id: string) => void calls.push(id) };
-      await applyModel(permissive, "anthropic/claude-opus-5-5", () => {}, { harness });
-      assert.deepEqual(calls, ["anthropic/claude-opus-5-5"], String(harness));
-    }
-    assert.equal(harnessModelId("claude", "openai/gpt-5.5"), "openai/gpt-5.5");
-    assert.equal(harnessModelId("claude", undefined), undefined);
-  });
-
   it("does not log an upgrade for a plain context-hint widening", async () => {
     const session = {
       setModel: async (id: string) => {
@@ -517,25 +469,6 @@ describe("a Codex run whose config declares the model", () => {
     );
   });
 
-  it("tells the model applier which harness it is selecting for", async () => {
-    const { calls, deps } = fakeHarness();
-
-    const result = await runSandboxAgent(
-      {
-        harness: "claude",
-        messages: [{ role: "user", content: "hello" }],
-        model: "anthropic/claude-opus-5-5",
-      },
-      undefined,
-      undefined,
-      deps,
-    );
-
-    assert.equal(result.ok, true);
-    assert.equal(calls.applyModelArgs.length, 1);
-    assert.equal(calls.applyModelArgs[0].options?.harness, "claude");
-  });
-
   it("still applies the model when the config declares none", async () => {
     const { calls, deps } = fakeHarness();
 
@@ -555,5 +488,54 @@ describe("a Codex run whose config declares the model", () => {
       calls.applyModelArgs.map((call) => call.model),
       ["gpt-5.5"],
     );
+  });
+});
+
+describe("normalizeRequestModel", () => {
+  const normalized = (request: AgentRunRequest) => {
+    normalizeRequestModel(request);
+    return request.model;
+  };
+
+  it("strips anthropic/ from a Claude model and keeps the context hint", () => {
+    assert.equal(normalized({ harness: "claude", model: "anthropic/claude-opus-5-5" }), "claude-opus-5-5");
+    assert.equal(normalized({ harness: "claude", model: "anthropic/claude-fable-5-1" }), "claude-fable-5-1");
+    assert.equal(normalized({ harness: "claude", model: "anthropic/opus[1m]" }), "opus[1m]");
+    assert.equal(
+      normalized({
+        harness: "claude",
+        model: "anthropic/claude-opus-5-5",
+        modelConnection: { provider: "anthropic", deployment: "direct" } as never,
+      }),
+      "claude-opus-5-5",
+    );
+  });
+
+  it("is idempotent and leaves bare, other-provider and missing models alone", () => {
+    const request: AgentRunRequest = { harness: "claude", model: "anthropic/claude-opus-5-5" };
+    normalizeRequestModel(request);
+    normalizeRequestModel(request);
+    assert.equal(request.model, "claude-opus-5-5");
+    assert.equal(normalized({ harness: "claude", model: "opus[1m]" }), "opus[1m]");
+    assert.equal(normalized({ harness: "claude", model: "openai/gpt-5.5" }), "openai/gpt-5.5");
+    assert.equal(normalized({ harness: "claude" }), undefined);
+  });
+
+  it("keeps the id for a custom deployment and for other harnesses", () => {
+    assert.equal(
+      normalized({
+        harness: "claude",
+        model: "anthropic/claude-opus-5-5",
+        modelConnection: { provider: "anthropic", deployment: "custom" } as never,
+      }),
+      "anthropic/claude-opus-5-5",
+    );
+    for (const harness of ["pi_core", "codex", undefined]) {
+      assert.equal(
+        normalized({ harness, model: "anthropic/claude-opus-5-5" }),
+        "anthropic/claude-opus-5-5",
+        String(harness),
+      );
+    }
   });
 });

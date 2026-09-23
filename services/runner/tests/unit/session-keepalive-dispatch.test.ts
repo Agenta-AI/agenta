@@ -279,6 +279,25 @@ describe("runWithKeepalive: park + hit", () => {
     assert.ok(typeof seen[0] === "string" && seen[0].length > 0);
   });
 
+  it("hands the engine a Claude model without its anthropic/ prefix", async () => {
+    // A gateway run passes the model to Claude Code through ANTHROPIC_MODEL, which Claude sends
+    // to the endpoint verbatim, so the bare id has to be in place before the engine reads it.
+    const made = makeEngine({});
+    const seen: Array<string | undefined> = [];
+    const inner = made.engine.runTurn;
+    made.engine.runTurn = async (env, req, emit, signal, opts) => {
+      seen.push(req.model);
+      return inner(env, req, emit, signal, opts);
+    };
+    await runWithKeepalive(
+      { ...turn1("prefixed-model-session"), model: "anthropic/claude-opus-5-5" },
+      undefined,
+      undefined,
+      makeCtx(made.engine),
+    );
+    assert.deepEqual(seen, ["claude-opus-5-5"]);
+  });
+
   it("calls the live-park hook once for Daytona, never for local", async () => {
     const daytona = makeEngine({ onParkedLive: true });
     const daytonaContext = makeCtx(daytona.engine);

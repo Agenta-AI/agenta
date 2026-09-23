@@ -80,7 +80,7 @@ export function fakeHarness(options: FakeOptions = {}) {
     permissionReplies: [] as Array<{ id: string; reply: string }>,
     applyModelArgs: [] as Array<{
       model: string | undefined;
-      options: { strict?: boolean; harness?: string } | undefined;
+      options: { strict?: boolean } | undefined;
     }>,
     runFinished: 0,
     runFlushed: 0,
