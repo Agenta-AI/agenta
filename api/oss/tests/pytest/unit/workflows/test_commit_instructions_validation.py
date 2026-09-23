@@ -16,8 +16,15 @@ from starlette.responses import JSONResponse
 
 from oss.src.apis.fastapi.workflows.exceptions import handle_workflow_exceptions
 from oss.src.core.tools.platform_handlers import handle_commit_revision
-from oss.src.core.workflows.dtos import WorkflowRevision, WorkflowRevisionCommit
+from oss.src.core.applications.dtos import SimpleApplicationCreate
+from oss.src.core.applications.service import SimpleApplicationsService
+from oss.src.core.workflows.dtos import (
+    SimpleWorkflowCreate,
+    WorkflowRevision,
+    WorkflowRevisionCommit,
+)
 from oss.src.core.workflows.service import (
+    SimpleWorkflowsService,
     WorkflowsService,
     _reject_unreadable_agent_instructions,
 )
@@ -187,3 +194,48 @@ class TestTheRefusalReachesTheCaller:
         assert result.content.code == "invalid_agent_instructions"
         assert "instructions.agents_md" in result.content.message
         dao.commit_revision.assert_not_awaited()
+
+
+class TestSimpleCreateLeavesNothingBehind:
+    """Simple create writes the artifact, variant, and a blank revision before the revision
+    that carries the data. The refusal must come before the first of those writes."""
+
+    @pytest.mark.asyncio
+    async def test_simple_workflow_create_refuses_before_any_write(self):
+        workflows_service = AsyncMock()
+        service = SimpleWorkflowsService(workflows_service=workflows_service)
+
+        with pytest.raises(InvalidAgentInstructionsError):
+            await service.create(
+                project_id=uuid4(),
+                user_id=uuid4(),
+                simple_workflow_create=SimpleWorkflowCreate(
+                    slug="instr-check",
+                    data={
+                        "uri": "agenta:builtin:agent:v0",
+                        **_data("You are a QA bot."),
+                    },
+                ),
+            )
+
+        workflows_service.create_workflow.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_simple_application_create_refuses_before_any_write(self):
+        applications_service = AsyncMock()
+        service = SimpleApplicationsService(applications_service=applications_service)
+
+        with pytest.raises(InvalidAgentInstructionsError):
+            await service.create(
+                project_id=uuid4(),
+                user_id=uuid4(),
+                simple_application_create=SimpleApplicationCreate(
+                    slug="instr-check",
+                    data={
+                        "uri": "agenta:builtin:agent:v0",
+                        **_data("You are a QA bot."),
+                    },
+                ),
+            )
+
+        applications_service.create_application.assert_not_awaited()

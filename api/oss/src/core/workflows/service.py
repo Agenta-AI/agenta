@@ -273,13 +273,15 @@ def _reject_unreadable_harness_kind(data: Optional[dict]) -> None:
         raise InvalidAgentHarnessError(value=kind, message=e.message) from e
 
 
-def _reject_unreadable_agent_instructions(data: Optional[dict]) -> None:
+def _reject_unreadable_agent_instructions(data: Any) -> None:
     """Refuse a commit whose agent instructions the runtime would read as "no prompt".
 
     Runs only when the commit carries ``parameters.agent.instructions`` at all: a workflow that
     is not an agent, and an agent with no instructions, commit exactly as before. The rule
     itself is the SDK's, which owns the agent template shape.
     """
+    if hasattr(data, "model_dump"):
+        data = data.model_dump(mode="json", exclude_none=True)
     if not isinstance(data, dict):
         return
     parameters = data.get("parameters")
@@ -2761,9 +2763,7 @@ class WorkflowsService:
         # Here, and not only on the checked commit, because every writer (the builder's
         # tool, the commit endpoint, simple application and workflow create/edit) builds
         # its revision through this method.
-        _reject_unreadable_agent_instructions(
-            data.model_dump(mode="json", exclude_none=True) if data else None
-        )
+        _reject_unreadable_agent_instructions(data)
 
         _revision_slug = workflow_revision_commit.slug or uuid4().hex[-12:]
         return RevisionCommit(
@@ -3900,6 +3900,10 @@ class SimpleWorkflowsService:
         #
         workflow_id: Optional[UUID] = None,
     ) -> Optional[SimpleWorkflow]:
+        # Before the artifact exists: refusing only at the final commit would leave the
+        # artifact, variant, and blank revision behind.
+        _reject_unreadable_agent_instructions(simple_workflow_create.data)
+
         simple_workflow_flags = SimpleWorkflowFlags(
             **WorkflowsService._dump_flags(simple_workflow_create.flags)
         )
