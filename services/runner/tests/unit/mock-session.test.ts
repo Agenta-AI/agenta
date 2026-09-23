@@ -9,6 +9,7 @@ import {
   createMockSession,
   wrapMockSandbox,
 } from "../../src/engines/sandbox_agent/mock-session.ts";
+import { openSession } from "../../src/environment/harness-session-lifecycle.ts";
 
 describe("createMockSession", () => {
   it("replays 'reply' through onEvent and resolves prompt() with end_turn", async () => {
@@ -82,7 +83,7 @@ describe("wrapMockSandbox", () => {
     if (cwd) rmSync(cwd, { recursive: true, force: true });
   });
 
-  it("overrides only createSession, leaving every other member real", async () => {
+  it("overrides the session-opening calls, leaving every other member real", async () => {
     cwd = mkdtempSync(join(tmpdir(), "agenta-mock-sandbox-"));
     mkdirSync(join(cwd, ".agenta"), { recursive: true });
     writeFileSync(
@@ -123,5 +124,51 @@ describe("wrapMockSandbox", () => {
       () => wrapped.createSession({ id: "sess-6", cwd }),
       /mock harness config not found/,
     );
+  });
+
+  // Live bug: a channel turn never parks (its caller hangs up), so the next turn is cold and holds
+  // the finished turn's `mock-native-*` id. The unwrapped resume reached the daemon, which has no
+  // `mock` agent to spawn, and the turn hung before create_session.
+  it("opens a cold follow-up turn fresh instead of resuming through the daemon", async () => {
+    cwd = mkdtempSync(join(tmpdir(), "agenta-mock-sandbox-"));
+    mkdirSync(join(cwd, ".agenta"), { recursive: true });
+    writeFileSync(
+      join(cwd, ".agenta", "mock.json"),
+      JSON.stringify({ behavior: "reply", kwargs: { text: "second" } }),
+      "utf-8",
+    );
+    const daemonCalls: string[] = [];
+    const realSandbox = {
+      async resumeSession() {
+        daemonCalls.push("resumeSession");
+        return new Promise(() => {});
+      },
+      async createSession() {
+        daemonCalls.push("createSession");
+        return new Promise(() => {});
+      },
+    };
+    const logs: string[] = [];
+
+    const opened = await openSession({
+      sandbox: wrapMockSandbox(realSandbox, false),
+      persist: { updateSession: async () => undefined },
+      acpAgent: "mock",
+      harness: "mock",
+      cwd,
+      sessionInit: {},
+      priorAgentSessionId: "mock-native-sess-7:mock",
+      nativeHistoryDurable: false,
+      localSessionId: "sess-7:mock",
+      continuitySessionKey: "sess-7",
+      log: (line: string) => logs.push(line),
+      timingLog: () => {},
+    } as never);
+
+    assert.deepEqual(daemonCalls, [], "no session call may reach the daemon for the mock");
+    assert.equal(opened.mode, "create");
+    assert.equal(opened.loadedFromContinuity, false);
+    assert.equal(opened.session.id, "sess-7:mock");
+    assert.ok(logs.some((line) => /keeps no native session/.test(line)));
   });
 });
