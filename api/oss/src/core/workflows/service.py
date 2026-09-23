@@ -2390,11 +2390,6 @@ class WorkflowsService:
 
         warnings: List[CommitWarning] = []
         head: Optional[WorkflowRevision] = None
-        # Read before the delta arm rebinds the commit, which clears `delta`.
-        is_ordered = (
-            workflow_revision_commit.delta is not None
-            and workflow_revision_commit.delta.operations is not None
-        )
         if workflow_revision_commit.delta is not None:
             resolution = await self._resolve_revision_delta(
                 project_id=project_id,
@@ -2437,14 +2432,6 @@ class WorkflowsService:
         # the data as sent. An unrunnable agent config must not become a revision.
         _reject_unreadable_harness_kind(candidate.data)
 
-        # The no-change answer belongs to the ordered-operations surface. With the flag off
-        # the commit path stays exactly today's: a legacy delta or a full-data commit that
-        # produces the stored configuration still creates a revision, because callers in
-        # the field read that new revision back and count on it existing.
-        answers_no_change = (
-            is_ordered or env.agenta.api.workflows.ordered_operations_enabled
-        )
-
         # There is ONE decision point, and it is inside the lock. Deciding here, before the
         # call, reads a head another writer can move afterwards: the caller was then told
         # `no_change` about a revision that was no longer the head, and the conflict the DAO
@@ -2457,11 +2444,7 @@ class WorkflowsService:
                 user_id=user_id,
                 workflow_revision_commit=workflow_revision_commit,
                 expected_head_revision_id=workflow_revision_commit.base_revision_id,
-                no_change_check=(
-                    self._no_change_check(candidate=candidate)
-                    if answers_no_change
-                    else None
-                ),
+                no_change_check=self._no_change_check(candidate=candidate),
                 platform_meta=platform_meta,
             )
         except RevisionConflict as e:
@@ -2898,13 +2881,6 @@ class WorkflowsService:
             else {}
         )
         is_ordered = delta.get("operations") is not None
-
-        # Off is today's surface exactly: an ordered delta is an unknown shape.
-        if is_ordered and not env.agenta.api.workflows.ordered_operations_enabled:
-            raise ChangeSetError(
-                Reason.INVALID_DELTA,
-                "ordered operations are not enabled on this deployment.",
-            )
 
         operations: list = delta.get("operations") or []
         warnings: list = []  # engine warnings; typed at the return

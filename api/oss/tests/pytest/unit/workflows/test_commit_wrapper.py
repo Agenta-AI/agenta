@@ -11,7 +11,7 @@ The payloads are built through the request model, so what these exercise is what
 caller can actually send.
 """
 
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock
 from uuid import uuid4
 
 import pytest
@@ -29,41 +29,6 @@ VARIANT_ID = uuid4()
 @pytest.fixture
 def service():
     return WorkflowsService(workflows_dao=AsyncMock())
-
-
-@pytest.fixture
-def ordered_on():
-    """The ordered arm ships behind a flag; the legacy arm is what runs with it off.
-
-    Patched through the service module's own `env` reference, not through a fresh import:
-    another test in the suite reloads the env module, which rebinds the name without
-    touching the object every already-imported module still holds.
-    """
-    from oss.src.core.workflows import service as service_module
-
-    with patch.object(
-        service_module.env.agenta.api.workflows,
-        "ordered_operations_enabled",
-        True,
-    ):
-        yield
-
-
-@pytest.fixture
-def ordered_off():
-    """The flag pinned off, whatever the suite is run with.
-
-    Both flag states are run in CI, so a test about flag-off behavior has to say so rather
-    than inherit whichever value the run happens to carry.
-    """
-    from oss.src.core.workflows import service as service_module
-
-    with patch.object(
-        service_module.env.agenta.api.workflows,
-        "ordered_operations_enabled",
-        False,
-    ):
-        yield
 
 
 def _commit(**delta):
@@ -119,7 +84,7 @@ def _apply(service, base, commit, scope_policy=None, agent_context=False):
 
 
 class TestDeltaForms:
-    def test_a_delta_carrying_both_forms_is_refused(self, service, ordered_on):
+    def test_a_delta_carrying_both_forms_is_refused(self, service):
         # It used to apply `operations` and drop `set` without a word, so a caller that
         # sent both was told everything landed.
         commit = _commit(
@@ -134,15 +99,13 @@ class TestDeltaForms:
 
         assert caught.value.reason == Reason.INVALID_DELTA
 
-    def test_an_empty_delta_is_refused(self, service, ordered_on):
+    def test_an_empty_delta_is_refused(self, service):
         with pytest.raises(ChangeSetError) as caught:
             _apply(service, {}, _commit())
 
         assert caught.value.reason == Reason.INVALID_DELTA
 
-    def test_an_unknown_field_beside_operations_never_reaches_the_engine(
-        self, ordered_on
-    ):
+    def test_an_unknown_field_beside_operations_never_reaches_the_engine(self):
         # The ordered envelope is closed: a stray key there is a modifier the caller
         # believes it sent and the server would never see.
         from pydantic import ValidationError
@@ -195,9 +158,7 @@ class TestDeltaForms:
 
         assert "llm" not in resolved["parameters"]["agent"]
 
-    def test_a_persisted_description_stays_out_of_the_derived_message(
-        self, service, ordered_on
-    ):
+    def test_a_persisted_description_stays_out_of_the_derived_message(self, service):
         # `RevisionCommit.description` is a revision field a direct HTTP caller may set.
         # The service used to feed it to the message derivation as if it were the agent's
         # ephemeral per-call note, which copied the caller's description verbatim into the
@@ -308,7 +269,7 @@ class TestPreviewResolution:
     """
 
     async def test_an_ordered_delta_without_a_base_resolves_for_a_preview(
-        self, service, ordered_on
+        self, service
     ):
         service.fetch_workflow_revision = AsyncMock(
             return_value=_head(uuid4(), data={"parameters": {"agent": {}}})
@@ -334,7 +295,7 @@ class TestPreviewResolution:
 
         assert resolution.commit.data.parameters["agent"]["instructions"] == "hi"
 
-    async def test_the_commit_path_still_requires_the_base(self, service, ordered_on):
+    async def test_the_commit_path_still_requires_the_base(self, service):
         service.fetch_workflow_revision = AsyncMock(
             return_value=_head(uuid4(), data={"parameters": {"agent": {}}})
         )
@@ -359,9 +320,7 @@ class TestPreviewResolution:
 
         assert caught.value.reason == Reason.INVALID_DELTA
 
-    async def test_a_preview_that_supplies_a_stale_base_is_still_refused(
-        self, service, ordered_on
-    ):
+    async def test_a_preview_that_supplies_a_stale_base_is_still_refused(self, service):
         # The id is optional for a preview, not ignored. A preview built on a head that
         # moved is not the preview the caller asked for.
         from oss.src.core.workflows.service import RevisionConflictError
@@ -399,7 +358,7 @@ class TestTheAgentWriteScope:
     privilege escalation, so both are refused, and the refusal names the boundary.
     """
 
-    def test_the_ordered_arm_refuses_a_harness_kind_write(self, service, ordered_on):
+    def test_the_ordered_arm_refuses_a_harness_kind_write(self, service):
         from oss.src.core.workflows.change_set import AGENT_COMMIT_SCOPE
 
         commit = _commit(
@@ -439,9 +398,7 @@ class TestTheAgentWriteScope:
         assert caught.value.reason == Reason.OUT_OF_SCOPE
         assert "sandbox.permissions" in caught.value.message
 
-    def test_the_ordered_arm_refuses_a_sandbox_credentials_write(
-        self, service, ordered_on
-    ):
+    def test_the_ordered_arm_refuses_a_sandbox_credentials_write(self, service):
         from oss.src.core.workflows.change_set import AGENT_COMMIT_SCOPE
 
         commit = _commit(
@@ -498,7 +455,7 @@ class TestTheAgentWriteScope:
 
         assert resolved["parameters"]["agent"]["instructions"] == "hi"
 
-    def test_the_unscoped_caller_may_still_write_both(self, service, ordered_on):
+    def test_the_unscoped_caller_may_still_write_both(self, service):
         # The human and SDK route is unchanged: it owns the whole revision.
         harness = _commit(
             operations=[
@@ -526,7 +483,7 @@ class TestTheAgentWriteScope:
 
 
 class TestExplicitNull:
-    def test_an_explicit_null_value_writes_null(self, service, ordered_on):
+    def test_an_explicit_null_value_writes_null(self, service):
         # `value` is optional, so dumping with `exclude_none` deleted an explicit null and
         # the engine then reported a missing value for an operation that had one.
         commit = _commit(
@@ -543,7 +500,7 @@ class TestExplicitNull:
 
         assert resolved["parameters"]["agent"]["llm"] is None
 
-    def test_an_omitted_value_is_still_missing(self, service, ordered_on):
+    def test_an_omitted_value_is_still_missing(self, service):
         # The other half of the same change: presence semantics must not invent a value
         # for an operation that never carried one.
         commit = _commit(operations=[{"operation": "set", "target": AGENT + ["llm"]}])
@@ -553,7 +510,7 @@ class TestExplicitNull:
 
         assert caught.value.reason == Reason.MISSING_OPERATION_VALUE
 
-    def test_an_operation_that_takes_no_value_is_unaffected(self, service, ordered_on):
+    def test_an_operation_that_takes_no_value_is_unaffected(self, service):
         commit = _commit(
             operations=[{"operation": "remove", "target": AGENT + ["llm"]}]
         )
@@ -669,7 +626,7 @@ class TestNoChange:
             candidate=service._build_revision_commit(workflow_revision_commit=commit),
         )
 
-    async def test_a_full_data_commit_is_compared_too(self, service, ordered_on):
+    async def test_a_full_data_commit_is_compared_too(self, service):
         # It used to skip the comparison outright: the check was reached only through the
         # delta branch, so an identical full-data commit always created a revision.
         data = {"parameters": {"agent": {"instructions": "hi"}}}
@@ -718,9 +675,7 @@ class TestNoChange:
         assert outcome.status == "committed"
         assert outcome.revision is committed
 
-    async def test_a_delta_that_rewrites_the_same_value_writes_nothing(
-        self, service, ordered_on
-    ):
+    async def test_a_delta_that_rewrites_the_same_value_writes_nothing(self, service):
         # The end-to-end shape of the same rule: a `set` to the value already stored
         # produces the head's tree, so the commit is answered without a revision. This is
         # what a cornered model does to manufacture a success.
@@ -805,7 +760,7 @@ class TestNoChange:
         service.commit_workflow_revision.assert_not_awaited()
 
     async def test_a_current_base_on_a_full_data_commit_still_answers_no_change(
-        self, service, ordered_on
+        self, service
     ):
         # The check must not refuse a caller whose base IS the head. That caller is
         # correct, and its commit changes nothing.
@@ -856,15 +811,8 @@ class TestNoChange:
         )
 
 
-class TestTheFlagOffCommitPath:
-    """With the flag off, a commit behaves exactly as it did before this project.
-
-    The no-change answer is part of the ordered-operations surface. Shipping it to every
-    caller would be a silent behavior change on the legacy arm: a caller that commits an
-    identical tree today gets a new revision back, reads its id, and points a deployment at
-    it. Answering `no_change` instead hands it the OLD revision, which is a different
-    revision than the one it just asked to create.
-    """
+class TestTheLegacyNoOpCommitPath:
+    """A legacy `set` delta that produces the stored configuration answers `no_change`."""
 
     @staticmethod
     def _identical(service, data):
@@ -885,48 +833,7 @@ class TestTheFlagOffCommitPath:
         _locked_commit(service, stored=stored, committed=committed)
         return stored, committed
 
-    async def test_a_legacy_no_op_set_still_creates_a_revision(
-        self, service, ordered_off
-    ):
-        data = {"parameters": {"agent": {"instructions": "hi"}}}
-        stored, committed = self._identical(service, data)
-
-        outcome = await service.commit_workflow_revision_checked(
-            project_id=uuid4(),
-            user_id=uuid4(),
-            workflow_revision_commit=_commit_on(stored.id, set=data),
-        )
-
-        assert outcome.status == "committed"
-        assert outcome.revision is committed
-        assert "no_change" not in [w.code for w in outcome.warnings]
-        service.commit_workflow_revision.assert_awaited_once()
-
-    async def test_an_identical_full_data_commit_still_creates_a_revision(
-        self, service, ordered_off
-    ):
-        data = {"parameters": {"agent": {"instructions": "hi"}}}
-        stored, committed = self._identical(service, data)
-
-        outcome = await service.commit_workflow_revision_checked(
-            project_id=uuid4(),
-            user_id=uuid4(),
-            workflow_revision_commit=WorkflowRevisionCommit(
-                workflow_variant_id=VARIANT_ID,
-                data=data,
-                base_revision_id=stored.id,
-            ),
-        )
-
-        assert outcome.status == "committed"
-        assert outcome.revision is committed
-        service.commit_workflow_revision.assert_awaited_once()
-
-    async def test_the_same_legacy_no_op_writes_nothing_once_the_flag_is_on(
-        self, service, ordered_on
-    ):
-        # The other side of the gate, on the identical payload: the flag is the only
-        # difference between this test and the first one in this class.
+    async def test_a_legacy_no_op_writes_nothing(self, service):
         data = {"parameters": {"agent": {"instructions": "hi"}}}
         stored, _ = self._identical(service, data)
 
@@ -943,13 +850,9 @@ class TestTheFlagOffCommitPath:
         )
 
 
-class TestTheFlagDecidesWhetherTheCommitTakesTheLock:
-    """The flag decides whether the commit path takes the variant lock at all.
-
-    The no-change comparison is only meaningful against a head that cannot move under it,
-    so asking for one makes the DAO take the variant lock. With the flag off the wrapper
-    hands none down, and that is what keeps the flag-off path byte-for-byte today's: no
-    lock, no serialization, no behavior change for callers who never opted in.
+class TestTheCommitTakesTheLock:
+    """Every commit hands the no-change comparison down, which makes the DAO take the
+    variant lock: the comparison is only meaningful against a head that cannot move under it.
 
     The DAO half of the same claim, which commits take the lock given what they are passed,
     is in `unit/git/test_commit_lock_scope.py` two lanes down.
@@ -972,17 +875,7 @@ class TestTheFlagDecidesWhetherTheCommitTakesTheLock:
 
         return service.commit_workflow_revision.await_args.kwargs["no_change_check"]
 
-    async def test_the_flag_off_path_hands_down_no_comparison(
-        self, service, ordered_off
-    ):
-        assert await self._comparison_handed_down(service) is None, (
-            "the flag-off path asked for the no-change comparison, which takes the "
-            "variant lock and changes today's behavior"
-        )
-
-    async def test_the_flag_on_path_hands_down_the_comparison(
-        self, service, ordered_on
-    ):
+    async def test_the_commit_path_hands_down_the_comparison(self, service):
         assert await self._comparison_handed_down(service) is not None
 
 
@@ -1034,9 +927,7 @@ class TestTheEmptyAuthorRoundTrip:
             self._canonical(service, {"parameters": {"agent": {}}})
         )
 
-    async def test_the_empty_author_round_trip_writes_nothing(
-        self, service, ordered_on
-    ):
+    async def test_the_empty_author_round_trip_writes_nothing(self, service):
         # End to end: the head has no instructions, the agent commits the stripped file.
         from oss.src.core.workflows.change_set import (
             PLATFORM_GUIDANCE_END,
@@ -1082,7 +973,7 @@ class TestAnIntentionalEmptyStillCommits:
     is a different pair entirely, and it commits.
     """
 
-    async def test_clearing_a_non_empty_field_commits(self, service, ordered_on):
+    async def test_clearing_a_non_empty_field_commits(self, service):
         stored_data = {
             "parameters": {"agent": {"instructions": {"agents_md": "Be concise."}}}
         }
@@ -1143,7 +1034,7 @@ class TestTheGeneralPathNeverRunsAgentPolicy:
         }
     }
 
-    def test_a_caller_keeps_its_own_commit_message(self, service, ordered_on):
+    def test_a_caller_keeps_its_own_commit_message(self, service):
         commit = _commit(
             operations=[
                 {"operation": "set", "target": AGENT + ["instructions"], "value": "hi"}
@@ -1168,7 +1059,7 @@ class TestTheGeneralPathNeverRunsAgentPolicy:
             _apply(service, {}, _commit(set=self.PLATFORM_TOOL), agent_context=True)
 
     def test_a_selector_is_corrected_for_the_agent_and_left_alone_otherwise(
-        self, service, ordered_on
+        self, service
     ):
         # The repeated list name before its own selector: one model made it in 12 percent
         # of its targets. A program that writes it wants the precise refusal instead.
@@ -1191,7 +1082,7 @@ class TestTheGeneralPathNeverRunsAgentPolicy:
         with pytest.raises(ChangeSetError):
             _apply(service, base, delta)
 
-    def test_the_scope_is_not_gated_by_the_switch(self, service, ordered_on):
+    def test_the_scope_is_not_gated_by_the_switch(self, service):
         # Enforcement stays in the engine and travels as `scope_policy`, so it applies to
         # whoever is given one. Gating it on `agent_context` would make the confinement a
         # property of a boolean the caller could be given wrongly, instead of a property
