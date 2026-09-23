@@ -13,7 +13,6 @@ import {useMemo, useState} from "react"
 
 import {driveCodeLanguage, resolveDriveFileKind, type DriveFileKind} from "@agenta/entities/drive"
 import {humanSize} from "@agenta/entities/drive"
-import {isExternalDriveHref, resolveDriveLink, resolveRelativePath} from "@agenta/entities/drive"
 import {type Mount} from "@agenta/entities/session"
 import {
     Button,
@@ -336,6 +335,7 @@ const HtmlBody = ({
                 content={content}
                 displayPath={displayPath}
                 onNavigate={onNavigate}
+                linkExists={linkExists}
                 previewOnly={previewOnly}
                 controlledView={controlledView}
                 onViewChange={onViewChange}
@@ -359,6 +359,8 @@ export const DriveHtmlApp = (props: {
     path: string
     displayPath?: string
     onNavigate?: (path: string) => void
+    /** Is this presented path in the tree already loaded? Picks between a link's readings. */
+    linkExists?: (path: string) => boolean
     view: "preview" | "run"
     onViewChange: (view: "preview" | "run") => void
 }) => {
