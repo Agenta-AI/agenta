@@ -45,13 +45,13 @@ export const nameForPastedFile = (file: PastedFileMeta, at = new Date()): string
 
 /** `a.png` → `a 2.png` → `a 3.png` until the name is free. Two images pasted together share a
  * dated name to the second, and two files copied together can share a real one. */
-const distinctFrom = (name: string, taken: Set<string>): string => {
-    if (!taken.has(name)) return name
+const distinctFrom = (name: string, taken: (candidate: string) => boolean): string => {
+    if (!taken(name)) return name
     const dot = name.lastIndexOf(".")
     const stem = dot > 0 ? name.slice(0, dot) : name
     const ext = dot > 0 ? name.slice(dot) : ""
     let n = 2
-    while (taken.has(`${stem} ${n}${ext}`)) n += 1
+    while (taken(`${stem} ${n}${ext}`)) n += 1
     return `${stem} ${n}${ext}`
 }
 
@@ -59,19 +59,28 @@ const distinctFrom = (name: string, taken: Set<string>): string => {
  * Resolve a paste event to its files. Text-only pastes yield nothing, so the caller can leave those
  * to whatever field has focus. MUST be called synchronously from the paste handler: the item list
  * only lives for the event.
+ *
+ * `isTaken` reports a name the destination already has. The dated name is only unique to the second,
+ * so two pastes inside one second would otherwise generate the same one and the second upload would
+ * overwrite the first. The caller owns that knowledge (the folder's listing, plus whatever it has
+ * already handed out), which keeps this function deterministic for a test.
  */
 export function readPastedFiles(
     clipboardData: DataTransfer | null,
     at = new Date(),
+    isTaken: (name: string) => boolean = () => false,
 ): DroppedFile[] {
     const items = Array.from(clipboardData?.items ?? []).filter((item) => item.kind === "file")
     const files = items.length
         ? items.map((item) => item.getAsFile()).filter((f): f is File => f !== null)
         : Array.from(clipboardData?.files ?? [])
-    const taken = new Set<string>()
+    const here = new Set<string>()
     return files.map((file) => {
-        const name = distinctFrom(nameForPastedFile(file, at), taken)
-        taken.add(name)
+        const name = distinctFrom(
+            nameForPastedFile(file, at),
+            (candidate) => here.has(candidate) || isTaken(candidate),
+        )
+        here.add(name)
         const named = name === file.name ? file : new File([file], name, {type: file.type})
         return {file: named, relativePath: name}
     })

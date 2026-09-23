@@ -295,11 +295,33 @@ export function DriveExplorer({
     const paneRef = useRef<HTMLDivElement>(null)
     const getPane = useCallback(() => paneRef.current, [])
     // ⌘V with the pane current: the clipboard's files land in the folder being viewed.
+    // A pasted bitmap's name is dated to the second, so the destination has to be asked whether a
+    // name is free: the folder's own listing, plus the names handed out since (an upload from a
+    // paste one second ago may not be in the tree yet).
+    const pastedNames = useRef(new Set<string>())
+    const isNameTaken = useCallback(
+        (name: string) => {
+            const full = currentFolder ? `${currentFolder}/${name}` : name
+            return pastedNames.current.has(full) || nodeByPath.has(full)
+        },
+        [currentFolder, nodeByPath],
+    )
     const onPasteFiles = useCallback(
-        (files: DroppedFile[]) => uploadIntoFolder(files, currentFolder),
+        (files: DroppedFile[]) => {
+            for (const f of files)
+                pastedNames.current.add(
+                    currentFolder ? `${currentFolder}/${f.relativePath}` : f.relativePath,
+                )
+            uploadIntoFolder(files, currentFolder)
+        },
         [uploadIntoFolder, currentFolder],
     )
-    useDrivePasteUpload({paneRef, enabled: chrome && canUpload, onFiles: onPasteFiles})
+    useDrivePasteUpload({
+        paneRef,
+        enabled: chrome && canUpload,
+        onFiles: onPasteFiles,
+        isNameTaken,
+    })
     const writes = useDriveWrites(drive, getPane)
     const siblingsOf = useCallback(
         (folder: string) =>

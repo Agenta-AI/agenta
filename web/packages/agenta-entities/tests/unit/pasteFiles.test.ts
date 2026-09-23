@@ -81,6 +81,19 @@ describe("readPastedFiles", () => {
         ).toEqual(["notes.md", "notes 2.md"])
     })
 
+    it("steps around a name the destination already holds", () => {
+        const shot = new File(["x"], "image.png", {type: "image/png"})
+        const taken = new Set([
+            "Pasted image 2026-09-20 at 15.30.45.png",
+            "Pasted image 2026-09-20 at 15.30.45 2.png",
+        ])
+        expect(
+            readPastedFiles(clipboard([shot]), at, (name) => taken.has(name)).map(
+                (f) => f.relativePath,
+            ),
+        ).toEqual(["Pasted image 2026-09-20 at 15.30.45 3.png"])
+    })
+
     it("falls back to the flat file list without items", () => {
         const doc = new File(["y"], "a.txt", {type: "text/plain"})
         expect(readPastedFiles(clipboard([doc], false), at)).toEqual([

@@ -14,11 +14,14 @@ export function useDrivePasteUpload({
     paneRef,
     enabled,
     onFiles,
+    isNameTaken,
 }: {
     paneRef: RefObject<HTMLElement | null>
     enabled: boolean
     /** Receives the pasted files; the caller picks the destination folder. */
     onFiles: (files: DroppedFile[]) => void
+    /** Does the destination folder already hold this name? Keeps a generated name from overwriting. */
+    isNameTaken?: (name: string) => boolean
 }) {
     useEffect(() => {
         if (!enabled) return
@@ -34,7 +37,7 @@ export function useDrivePasteUpload({
         const onPaste = (e: ClipboardEvent) => {
             if (!paneRef.current || e.defaultPrevented || isEditableTarget(e.target)) return
             if (!current) return
-            const files = readPastedFiles(e.clipboardData)
+            const files = readPastedFiles(e.clipboardData, new Date(), isNameTaken)
             if (!files.length) return
             e.preventDefault()
             onFiles(files)
@@ -47,5 +50,5 @@ export function useDrivePasteUpload({
             document.removeEventListener("focusin", track, true)
             document.removeEventListener("paste", onPaste)
         }
-    }, [paneRef, enabled, onFiles])
+    }, [paneRef, enabled, onFiles, isNameTaken])
 }
