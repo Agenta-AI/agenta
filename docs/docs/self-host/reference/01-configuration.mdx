@@ -977,7 +977,7 @@ Set them on the `api`, `worker-queues` and `worker-streams` containers. The Helm
 For the Telegram setup, see [Set up the hosted Telegram bot](/self-host/channels/telegram-hosted-bot).
 
 :::warning One replica for channel replies
-The `sessions` loop of `worker-streams` sends channel replies. Run it in exactly one replica. With two or more, a progress update can overwrite a final reply, and a Telegram reply can arrive twice. With the default `AGENTA_WORKER_STREAMS` (empty, which runs every loop), that means one `worker-streams` replica.
+The `sessions` loop of `worker-streams` sends channel replies. Run it in exactly one replica. With two or more, a progress update can overwrite a final reply, and a Telegram reply can arrive twice. With the default `AGENTA_WORKER_STREAMS` (empty, which runs every loop), that means one `worker-streams` replica. On Helm, a rolling update briefly runs two pods; set `workerStreams.strategy.type: Recreate` to avoid the overlap.
 :::
 
 ## alembic

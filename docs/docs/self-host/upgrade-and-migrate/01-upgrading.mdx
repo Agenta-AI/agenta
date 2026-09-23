@@ -62,16 +62,19 @@ The `webMobile.enabled` key is removed, and the `web-mobile` Deployment always r
 
 #### Railway
 
-`bootstrap.sh` now always creates the `web-mobile` service, and `AGENTA_RAILWAY_WITH_MOBILE` is ignored. An environment bootstrapped without mobile has no `web-mobile` service, and `configure.sh` (which `deploy-from-images.sh` and `upgrade.sh` run) stops with `Service 'web-mobile' is missing`. Re-run the bootstrap script first. It is idempotent and only adds what is missing:
+`bootstrap.sh` now always creates the `web-mobile` service, and `AGENTA_RAILWAY_WITH_MOBILE` is ignored. An environment bootstrapped without mobile has no `web-mobile` service, and `configure.sh` (which `deploy-from-images.sh` and `upgrade.sh` run) stops with `Service 'web-mobile' is missing`. Re-run the bootstrap script first, against the same project and environment as the deployment. It is idempotent and only adds what is missing. Both variables default to a `staging` environment of `agenta-oss-railway`, so set them explicitly:
 
 ```bash
+export RAILWAY_PROJECT_NAME="agenta-oss"
+export RAILWAY_ENVIRONMENT_NAME="production"
+
 ./hosting/railway/oss/scripts/bootstrap.sh
 ```
 
-`deploy-from-images.sh` redeploys `web-mobile` only when `AGENTA_WEB_MOBILE_IMAGE` is set. Export it with the other images, at the same tag:
+`deploy-from-images.sh` redeploys `web-mobile` only when `AGENTA_WEB_MOBILE_IMAGE` is set. Export it with the other images, at the same tag as they use:
 
 ```bash
-export AGENTA_WEB_MOBILE_IMAGE="ghcr.io/agenta-ai/agenta-web-mobile:latest"
+export AGENTA_WEB_MOBILE_IMAGE="ghcr.io/agenta-ai/agenta-web-mobile:v0.121.0"
 ```
 
 ### Channels
@@ -85,7 +88,7 @@ Channels connect an agent to Slack or Telegram. They need no feature flag on the
 
 Without them, users can still connect their own Slack app or Telegram bot. The variables and where to set them are listed in [Channels](/self-host/configuration#channels).
 
-Channel replies are sent by the `sessions` loop of `worker-streams`. Run that loop in exactly one `worker-streams` replica. With two or more, a progress update can overwrite a final reply, and a Telegram reply can arrive twice. The Helm chart and the Compose files run one replica by default.
+Channel replies are sent by the `sessions` loop of `worker-streams`. Run that loop in exactly one `worker-streams` replica. With two or more, a progress update can overwrite a final reply, and a Telegram reply can arrive twice. The Helm chart and the Compose files run one replica by default. On Helm, a rolling update briefly runs the old and the new pod together. To avoid that overlap, set `workerStreams.strategy.type: Recreate`; `worker-streams` then stops for a few seconds during each upgrade.
 
 If you run the workers with explicit selectors, add the two new loops: `sessions` to one `AGENTA_WORKER_STREAMS` list and `channels-inbox` to one `AGENTA_WORKER_QUEUES` list. An empty selector already runs every loop.
 

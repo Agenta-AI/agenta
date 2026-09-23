@@ -258,7 +258,7 @@ curl -X POST \
 
 The `Idempotency-Key` header is a string of at most 255 characters. A retry with the same key and the same answer returns the original result, so a client can retry safely after a network error. Reusing a key for a different answer returns `409` with the code `idempotency_key_reused`.
 
-A successful response is `202 Accepted`. The run continues in the background, in a new execution of the same session. The response below is trimmed; `interaction` carries the full interaction record.
+A successful response is `202 Accepted`. Once every pending interaction of the paused execution has an answer, the run continues in the background, in a new execution of the same session. The response below is trimmed; `interaction` carries the full interaction record.
 
 ```json
 {
@@ -279,7 +279,7 @@ A successful response is `202 Accepted`. The run continues in the background, in
 }
 ```
 
-`execution.state` is `awaiting_interactions`, and `command` is `null`, when the paused execution still has other pending interactions. The run continues once all of them are answered.
+When the paused execution still has other pending interactions, `execution.state` is `awaiting_interactions`, `command` is `null`, and no new execution starts. Answer the remaining interactions to continue the run.
 
 Related endpoints:
 
@@ -290,7 +290,7 @@ Related endpoints:
 | `POST /api/sessions/interactions/{interaction_id}/respond` | Answer a pending interaction.          |
 | `POST /api/sessions/interactions/transition`               | Move an interaction to another status. |
 
-An interaction has a `kind` of `user_approval`, `user_input`, or `client_tool`, and a `status` of `pending`, `responded`, `resolved`, or `cancelled`. Sending the same answer again returns the accepted result. Answering an interaction that was answered differently, or that is no longer `pending`, returns `409`.
+An interaction has a `kind` of `user_approval`, `user_input`, or `client_tool`, and a `status` of `pending`, `responded`, `resolved`, or `cancelled`. To retry a request, reuse its `Idempotency-Key`. Answering an interaction that was already answered differently, or that is no longer `pending`, returns `409`.
 
 ## Errors
 
