@@ -1,15 +1,14 @@
 /**
- * The inline note box, anchored under the highlighted span: the quote card, "What should change
- * about this part?", and a circular send. Enter stages the quote onto the composer; Esc, or a
- * click anywhere outside, cancels and drops the draft. Opens below the selection and flips above
- * when it does not fit.
+ * The inline note box, anchored under the highlighted span: the excerpt as a quiet left-ruled line,
+ * a one-line reply that grows as you type, and a small action to add it to the message. Enter
+ * stages the quote onto the composer (Shift+Enter breaks a line); Esc, or a click anywhere
+ * outside, cancels and drops the draft. Opens below the selection and flips above when it does not
+ * fit.
  */
 import {useEffect, useLayoutEffect, useRef, useState} from "react"
 
-import type {Quote} from "@agenta/shared/quotes"
-import {ArrowUp} from "@phosphor-icons/react"
-
-import {QuoteCard} from "./QuoteCard"
+import {truncateQuoteText, type Quote} from "@agenta/shared/quotes"
+import {ChatCircleText} from "@phosphor-icons/react"
 
 const GAP = 8
 const WIDTH = 320
@@ -64,7 +63,7 @@ export const QuoteNote = ({quote, anchor, bounds, onStage, onCancel, touch}: Quo
             data-quote-ignore="true"
             role="dialog"
             aria-label="Reply to the selected part"
-            className="absolute z-30 flex flex-col gap-2 rounded-[14px] border border-solid border-colorBorderSecondary bg-colorBgElevated p-2.5 shadow-xl"
+            className="absolute z-30 flex flex-col gap-2 rounded-xl border border-solid border-colorBorderSecondary bg-colorBgElevated px-3 py-2.5 shadow-lg"
             style={{top, left, width, opacity: height ? 1 : 0}}
             onKeyDown={(e) => {
                 if (e.key === "Escape") {
@@ -73,8 +72,10 @@ export const QuoteNote = ({quote, anchor, bounds, onStage, onCancel, touch}: Quo
                 }
             }}
         >
-            <QuoteCard quote={quote} onRemove={onCancel} />
-            <div className="relative">
+            <p className="m-0 line-clamp-2 border-0 border-l-2 border-solid border-colorBorder pl-2.5 text-xs leading-5 text-colorTextSecondary">
+                {truncateQuoteText(quote.text, 220)}
+            </p>
+            <div className="flex items-center gap-2">
                 <textarea
                     ref={inputRef}
                     value={note}
@@ -85,21 +86,22 @@ export const QuoteNote = ({quote, anchor, bounds, onStage, onCancel, touch}: Quo
                             onStage(note)
                         }
                     }}
-                    rows={touch ? 3 : 2}
-                    placeholder="What should change about this part?"
-                    className={`min-h-0 w-full resize-none rounded-md border border-solid border-colorBorder bg-colorBgContainer py-1.5 pl-2 font-[inherit] text-xs text-colorText outline-none placeholder:text-colorTextPlaceholder focus:border-colorPrimary ${
-                        touch ? "pr-10" : "pr-9"
+                    rows={1}
+                    placeholder="Reply to the agent"
+                    className={`max-h-24 min-h-0 flex-1 resize-none border-0 bg-transparent p-0 font-[inherit] leading-5 text-colorText outline-none [field-sizing:content] placeholder:text-colorTextPlaceholder ${
+                        touch ? "text-sm" : "text-xs"
                     }`}
                 />
                 <button
                     type="button"
-                    aria-label="Attach this quote"
+                    aria-label="Add to message"
+                    title="Add to message"
                     onClick={() => onStage(note)}
-                    className={`absolute bottom-2.5 right-2 flex shrink-0 cursor-pointer items-center justify-center rounded-full border-0 bg-colorPrimary text-white hover:opacity-90 ${
+                    className={`flex shrink-0 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent text-colorTextTertiary hover:bg-colorFillTertiary hover:text-colorText ${
                         touch ? "h-7 w-7" : "h-6 w-6"
                     }`}
                 >
-                    <ArrowUp size={touch ? 14 : 12} weight="bold" />
+                    <ChatCircleText size={touch ? 16 : 14} />
                 </button>
             </div>
         </div>
