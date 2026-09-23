@@ -65,6 +65,34 @@ async def test_discover_spaces_reports_whether_the_bot_is_in_each_channel():
     }
 
 
+async def test_discovered_channels_carry_the_workspace_real_connections_store():
+    """Live QA 2026-09-23: real connections keep the workspace id in
+    `connection_locator`, not a flat `team_id`. Discovery keyed every channel
+    on `team=""`, so a channel the bot answered in read as not added, and an
+    added channel never matched an inbound event (those carry the team)."""
+    from oss.src.core.channels.adapters.slack.capabilities import (
+        fetch_slack_capabilities,
+    )
+    from oss.src.core.channels.utils import ChannelKeyGrain, compose_external_key
+
+    adapter, _workspace, _transport = make_adapter_and_workspace(
+        channels=[{"id": "C1", "name": "qa", "is_member": True}]
+    )
+    connection = _connection(
+        team_id=None,
+        connection_locator={"api_app_id": "A1", "enterprise_id": "", "team_id": "T9"},
+    )
+
+    [candidate] = await adapter.discover_spaces(connection=connection)
+
+    assert candidate.external_locator == {"team": "T9", "channel": "C1"}
+    capabilities = fetch_slack_capabilities()
+    event_locator = {"team": "T9", "channel": "C1", "thread_ts": "1.2"}
+    assert compose_external_key(
+        capabilities, ChannelKeyGrain.SPACE, candidate.external_locator
+    ) == compose_external_key(capabilities, ChannelKeyGrain.SPACE, event_locator)
+
+
 # --- join_space ------------------------------------------------------------- #
 
 

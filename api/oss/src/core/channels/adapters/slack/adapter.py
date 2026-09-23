@@ -482,7 +482,10 @@ class SlackAdapter(ChannelAdapterInterface):
                     ChannelSpaceCandidate(
                         kind=_space_kind_from_listing(entry),
                         external_locator={
-                            "team": _team_of(connection),
+                            # an org-wide install lists channels across
+                            # workspaces; each names its own
+                            "team": entry.get("context_team_id")
+                            or _team_of(connection),
                             "channel": entry["id"],
                         },
                         display_name=entry.get("name"),
@@ -849,8 +852,16 @@ def _render_content(content: List[Dict[str, Any]]) -> tuple:
 
 
 def _team_of(connection: ChannelConnection) -> str:
+    """The workspace id events carry as `team_id`. Connections store it in
+    `connection_locator`; reading only a flat `team_id` returned "" for every
+    real connection, so discovered channels were keyed on `team=""`: a channel
+    the bot already answered in read as not added, and adding one created a
+    space that no inbound event ever matched (QA finding, 2026-09-23)."""
+
     data = connection.data if isinstance(connection.data, dict) else {}
-    return data.get("team_id", "")
+    locator = data.get("connection_locator")
+    locator = locator if isinstance(locator, dict) else {}
+    return data.get("team_id") or locator.get("team_id") or ""
 
 
 def _membership_from_listing(entry: Dict[str, Any]) -> ChannelSpaceMembership:
