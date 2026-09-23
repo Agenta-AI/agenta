@@ -1,5 +1,5 @@
 diff --git a/dist/acp.js b/dist/acp.js
-index ae6b27c7ff4c1f046d1aa51f943778a829ef4867..48326f812ebce6b6ecbed1c95ad5fd0ff2358731 100644
+index ae6b27c7ff4c1f046d1aa51f943778a829ef4867..c963944d07ac25ddc8d08a6aeba84a4ce5ab94f9 100644
 --- a/dist/acp.js
 +++ b/dist/acp.js
 @@ -698,6 +698,7 @@ class Connection {
@@ -38,7 +38,7 @@ index ae6b27c7ff4c1f046d1aa51f943778a829ef4867..48326f812ebce6b6ecbed1c95ad5fd0f
          }
      }
      async #processMessage(message) {
-@@ -874,6 +886,9 @@ class Connection {
+@@ -874,10 +886,17 @@ class Connection {
          }
      }
      async sendRequest(method, params) {
@@ -48,3 +48,11 @@ index ae6b27c7ff4c1f046d1aa51f943778a829ef4867..48326f812ebce6b6ecbed1c95ad5fd0f
          const id = this.#nextRequestId++;
          const responsePromise = new Promise((resolve, reject) => {
              this.#pendingResponses.set(id, { resolve, reject });
+         });
++        // The close handler can reject this before we return it below (the transport can die
++        // while #sendMessage is still in flight); without a handler attached immediately, Node
++        // reports that as an unhandled rejection even though the caller does end up awaiting it.
++        responsePromise.catch(() => { });
+         await this.#sendMessage({ jsonrpc: "2.0", id, method, params });
+         return responsePromise;
+     }
