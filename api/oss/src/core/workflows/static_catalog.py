@@ -204,7 +204,9 @@ def _request_secret_revision() -> WorkflowRevision:
                         "available, and let the user set it up here instead of asking "
                         "for the value. Never ask the user to paste a credential into "
                         "chat, and never inspect or print the value of a configured "
-                        "credential. If the user cancels the setup, stop the affected "
+                        "credential. Choose `name` and `env_var` yourself: the user can "
+                        "change both in the setup, so do not ask for them first. If the "
+                        "user cancels the setup, stop the affected "
                         "operation and do not ask for that secret again unless the user "
                         "asks to retry."
                     ),
@@ -280,7 +282,10 @@ def _request_input_revision() -> WorkflowRevision:
                         'expression). For a form with SEVERAL questions, set "x-ag-stepper": true on '
                         "requestedSchema to present one question at a time with a final "
                         "review step. NEVER request secrets "
-                        "(passwords, API keys, tokens); use request_connection for credentials. "
+                        "(passwords, API keys, tokens), and never ask about one through a form "
+                        "(its name, env var, or purpose). For a connected account use "
+                        "request_connection; for a custom secret use request_secret when you "
+                        "have it. "
                         "The result is {action: 'accept'|'decline'|'cancel', content?}: on "
                         "accept, `content` holds the user's values; respect a decline or "
                         "cancel — do not re-ask."

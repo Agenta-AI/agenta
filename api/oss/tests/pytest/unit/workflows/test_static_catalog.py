@@ -951,6 +951,8 @@ def test_request_input_catalog_entry_shape():
     assert set(schema["properties"]) == {"message", "requestedSchema"}
     assert schema["required"] == ["message", "requestedSchema"]
     assert schema["additionalProperties"] is False
+    # A form about a secret is refused by the chat, so the agent is sent to the secret flow.
+    assert "for a custom secret use request_secret" in tool["description"]
 
 
 def test_request_input_matches_golden_request_fixture():
@@ -1036,6 +1038,8 @@ def test_request_secret_catalog_entry_shape():
     )
     assert "Never ask the user to paste a credential into chat" in description
     assert "do not ask for that secret again" in description
+    # The secret setup edits the name and env var, so a form asking for them first is a detour.
+    assert "do not ask for them first" in description
 
 
 # ---------------------------------------------------------------------------
