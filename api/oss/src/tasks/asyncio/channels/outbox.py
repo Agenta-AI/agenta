@@ -23,6 +23,7 @@ from oss.src.core.sessions.interactions.dtos import SessionInteractionStatus
 from oss.src.core.channels.render.render import (
     extract_answer_text,
     render_indicator,
+    FAILED_START_TEXT,
     render_no_answer,
     render_progress,
     render_thinking,
@@ -383,6 +384,10 @@ class ChannelsOutboxWorker:
                 turn_id=turn_id,
                 item_index=0,
             )
+            if _holds_failed_start_notice(event):
+                # The dispatcher already told the chat this run never
+                # started; a second "failed" line would be the same news twice.
+                return
             await self._send(
                 project_id=project_id,
                 event=event,
@@ -729,6 +734,13 @@ class ChannelsOutboxStreamWorker(StreamConsumer):
                 # left un-acked: pending, retried on the next read
 
         return len(processed_ids), processed_ids
+
+
+def _holds_failed_start_notice(event: ChannelOutboxEvent) -> bool:
+    if event.state is not ChannelDeliveryState.SENT or event.data is None:
+        return False
+    content = (event.data.processed or {}).get("content") or []
+    return any(part.get("text") == FAILED_START_TEXT for part in content)
 
 
 def _delivery_key(event_key: UUID, content: List[Dict]) -> UUID:

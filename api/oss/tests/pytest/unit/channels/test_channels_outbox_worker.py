@@ -1627,3 +1627,58 @@ async def test_the_resolver_falls_back_to_the_sole_pending_row_without_a_token()
         )
         is None
     )
+
+
+@pytest.mark.asyncio
+async def test_a_failed_start_notice_is_not_followed_by_a_second_failure_line(
+    monkeypatch,
+):
+    """The dispatcher posted the failed-start notice on the turn's first
+    item. A late turn-ended with nothing to show must not add "the run
+    failed" on top: one failed trigger, one line in the chat."""
+
+    monkeypatch.setattr(
+        "oss.src.tasks.asyncio.channels.outbox._EMPTY_FOLD_BACKOFF_SECONDS", 0
+    )
+    from oss.src.core.channels.dtos import ChannelOutboxEventData
+    from oss.src.core.channels.render.render import FAILED_START_TEXT
+    from oss.src.core.channels.utils import compose_outbox_key
+
+    channels_dao = FakeChannelsDAO()
+    records_dao = _LateCommitRecordsDAO(empty_reads=99)
+    worker = _worker_over(channels_dao, records_dao)
+    connection, thread = await _seed_connection_and_thread(channels_dao, "sess-fs")
+
+    content = [{"type": "text", "text": FAILED_START_TEXT, "format": "plain"}]
+    row = await channels_dao.record_outbox_event(
+        project_id=PROJECT_ID,
+        event=ChannelOutboxEventCreate(
+            connection_id=connection.id,
+            thread_id=thread.id,
+            turn_id="turn-fs",
+            key=compose_outbox_key(thread_id=thread.id, turn_id="turn-fs", item=0),
+            data=ChannelOutboxEventData(),
+        ),
+    )
+    await channels_dao.transition_outbox_event(
+        project_id=PROJECT_ID,
+        event_id=row.id,
+        state=ChannelDeliveryState.SENT,
+        data=ChannelOutboxEventData(
+            external_locator={"message_id": "m-1"},
+            processed={"content": content},
+        ),
+    )
+
+    await worker.on_turn_started(
+        project_id=PROJECT_ID, thread=thread, turn_id="turn-fs"
+    )
+    await worker.on_turn_ended(
+        project_id=PROJECT_ID,
+        thread=thread,
+        turn_id="turn-fs",
+        session_id="sess-fs",
+    )
+
+    assert len(channels_dao.outbox) == 1
+    assert _delivered_text(channels_dao) == FAILED_START_TEXT

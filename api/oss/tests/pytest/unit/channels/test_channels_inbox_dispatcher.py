@@ -1174,3 +1174,114 @@ class TestFailedStartNotification:
         )
 
         self.adapter.post_message.assert_not_called()
+
+    async def test_a_redelivered_event_posts_the_notice_once(self):
+        """A retried task finds the trigger already claimed (open_turn -> None)
+        and neither re-invokes nor posts: one failed trigger, one notice."""
+
+        event = _make_event()
+        resolution = _make_resolution()
+        trigger = _make_trigger(thread_id=resolution.thread.id, event_id=event.id)
+        channels_service = self._service_with_delivery(
+            resolution=resolution, trigger=trigger
+        )
+        channels_service.open_turn = AsyncMock(side_effect=[trigger, None])
+        invoke_fn = AsyncMock(side_effect=RuntimeError("boom"))
+
+        dispatcher = InboxDispatcher(
+            channels_service=channels_service, invoke_fn=invoke_fn
+        )
+        for _ in range(2):
+            await dispatcher.dispatch_event(
+                project_id=uuid4(), connection_id=event.connection_id, event=event
+            )
+
+        invoke_fn.assert_awaited_once()
+        self.adapter.post_message.assert_awaited_once()
+
+    async def test_a_turn_whose_indicator_landed_gets_no_notice(self):
+        """A row with a receipt belongs to a turn that did start: the sessions
+        outbox owns it and tells the chat how the turn ended."""
+
+        event = _make_event()
+        resolution = _make_resolution()
+        trigger = _make_trigger(thread_id=resolution.thread.id, event_id=event.id)
+        indicator = _make_outbox_event(
+            thread_id=resolution.thread.id,
+            connection_id=resolution.space.connection_id,
+            state=ChannelDeliveryState.FAILED,
+        )
+        indicator.data = ChannelOutboxEventData(external_locator={"ts": "1.1"})
+        channels_service = self._service_with_delivery(
+            resolution=resolution, trigger=trigger, existing_event=indicator
+        )
+
+        dispatcher = InboxDispatcher(
+            channels_service=channels_service,
+            invoke_fn=AsyncMock(side_effect=RuntimeError("boom")),
+        )
+        await dispatcher.dispatch_event(
+            project_id=uuid4(), connection_id=event.connection_id, event=event
+        )
+
+        self.adapter.post_message.assert_not_called()
+
+    @pytest.mark.parametrize("channel", ["slack", "telegram", "agenta"])
+    async def test_the_notice_reaches_every_channel_in_its_thread(self, channel):
+        """Channel-agnostic: the notice goes through the connection's own
+        adapter, to the thread's locator, with the same fixed text."""
+
+        event = _make_event()
+        resolution = _make_resolution()
+        resolution.thread.data.external_locator = {"chat": "42"}
+        trigger = _make_trigger(thread_id=resolution.thread.id, event_id=event.id)
+        channels_service = self._service_with_delivery(
+            resolution=resolution, trigger=trigger
+        )
+        channels_service.fetch_connection = AsyncMock(
+            return_value=_make_connection(channel=channel)
+        )
+
+        dispatcher = InboxDispatcher(
+            channels_service=channels_service,
+            invoke_fn=AsyncMock(side_effect=RuntimeError("secret detail")),
+        )
+        await dispatcher.dispatch_event(
+            project_id=uuid4(), connection_id=event.connection_id, event=event
+        )
+
+        channels_service.adapter_registry.get.assert_called_with(channel)
+        _, post_kwargs = self.adapter.post_message.call_args
+        assert post_kwargs["locator"] == {"chat": "42"}
+        assert [part["text"] for part in post_kwargs["content"]] == [FAILED_START_TEXT]
+
+    async def test_the_default_invoke_treats_an_error_first_frame_as_a_failed_start(
+        self,
+    ):
+        """The workflows call runs in strict-start mode, so an explicit error
+        as the first frame raises (and so notifies) instead of settling a run
+        that will never emit a turn event."""
+
+        event = _make_event()
+        resolution = _make_resolution()
+        trigger = _make_trigger(thread_id=resolution.thread.id, event_id=event.id)
+        channels_service = self._service_with_delivery(
+            resolution=resolution, trigger=trigger
+        )
+        workflows_service = MagicMock()
+        workflows_service.invoke_workflow_detached = AsyncMock(
+            side_effect=RuntimeError("Workflow service rejected detached start")
+        )
+
+        dispatcher = InboxDispatcher(
+            channels_service=channels_service, workflows_service=workflows_service
+        )
+        await dispatcher.dispatch_event(
+            project_id=uuid4(), connection_id=event.connection_id, event=event
+        )
+
+        _, invoke_kwargs = workflows_service.invoke_workflow_detached.call_args
+        assert invoke_kwargs["strict_start"] is True
+        self.adapter.post_message.assert_awaited_once()
+        _, settle_kwargs = channels_service.settle_turn.call_args
+        assert settle_kwargs["state"] == ChannelTriggerState.FAILED

@@ -681,6 +681,10 @@ class InboxDispatcher:
                 user_id=user_id or resolution.agent.created_by_id,
                 request=request,
                 run_id=turn_id,
+                # A first frame that reports an error is a failed start, not
+                # an accepted run: otherwise the trigger settles and the chat
+                # hears nothing, because no turn event ever follows.
+                strict_start=True,
             )
         except Exception as e:
             if type(e).__name__ == "SessionTurnInUse":
