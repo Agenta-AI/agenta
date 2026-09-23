@@ -485,7 +485,7 @@ describe("useServerSessionInputs", () => {
         expect(buildAgentRequest).toHaveBeenCalledWith(
             "revision-1",
             [expect.objectContaining({id: "input-1", role: "user"})],
-            {sessionId: "session-1"},
+            {sessionId: "session-1", secretSetup: true},
         )
         expect(buildAgentRequest.mock.calls[0][1].at(-1).parts).toEqual([
             {type: "text", text: "run this next"},
