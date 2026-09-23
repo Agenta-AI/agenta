@@ -64,7 +64,8 @@
     "patchedDependencies": {
       "acp-http-client@0.4.2": "patches/acp-http-client@0.4.2.patch",
       "pi-acp@0.0.29": "patches/pi-acp@0.0.29.patch",
-      "sandbox-agent@0.4.2": "patches/sandbox-agent@0.4.2.patch"
+      "sandbox-agent@0.4.2": "patches/sandbox-agent@0.4.2.patch",
+      "@agentclientprotocol/sdk@0.16.1": "patches/@agentclientprotocol__sdk@0.16.1.patch"
     },
     "overrides": {
       "@hono/node-server": "1.19.15",

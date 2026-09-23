@@ -17,6 +17,9 @@ overrides:
   tar: 7.5.21
 
 patchedDependencies:
+  '@agentclientprotocol/sdk@0.16.1':
+    hash: 9261013b9326aca3b0814aa006730ed8589e1141c067d71d140e32184cd8dc3e
+    path: patches/@agentclientprotocol__sdk@0.16.1.patch
   acp-http-client@0.4.2:
     hash: a673c410af2021d9bb5f05c899522b66e6bcbe67134a92f506f0aef23fcf090d
     path: patches/acp-http-client@0.4.2.patch
@@ -2703,7 +2706,7 @@ snapshots:
       - '@anthropic-ai/sdk'
       - '@modelcontextprotocol/sdk'
 
-  '@agentclientprotocol/sdk@0.16.1(zod@4.6.5)':
+  '@agentclientprotocol/sdk@0.16.1(patch_hash=9261013b9326aca3b0814aa006730ed8589e1141c067d71d140e32184cd8dc3e)(zod@4.6.5)':
     dependencies:
       zod: 4.6.5
 
@@ -4144,7 +4147,7 @@ snapshots:
 
   acp-http-client@0.4.2(patch_hash=a673c410af2021d9bb5f05c899522b66e6bcbe67134a92f506f0aef23fcf090d)(zod@4.6.5):
     dependencies:
-      '@agentclientprotocol/sdk': 0.16.1(zod@4.6.5)
+      '@agentclientprotocol/sdk': 0.16.1(patch_hash=9261013b9326aca3b0814aa006730ed8589e1141c067d71d140e32184cd8dc3e)(zod@4.6.5)
     transitivePeerDependencies:
       - zod
 

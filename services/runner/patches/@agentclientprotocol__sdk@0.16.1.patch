@@ -1,0 +1,50 @@
+diff --git a/dist/acp.js b/dist/acp.js
+index ae6b27c7ff4c1f046d1aa51f943778a829ef4867..48326f812ebce6b6ecbed1c95ad5fd0ff2358731 100644
+--- a/dist/acp.js
++++ b/dist/acp.js
+@@ -698,6 +698,7 @@ class Connection {
+     #writeQueue = Promise.resolve();
+     #abortController = new AbortController();
+     #closedPromise;
++    #closeReason;
+     constructor(requestHandler, notificationHandler, stream) {
+         this.#requestHandler = requestHandler;
+         this.#notificationHandler = notificationHandler;
+@@ -737,6 +738,7 @@ class Connection {
+     }
+     async #receive() {
+         const reader = this.#stream.readable.getReader();
++        let closeReason;
+         try {
+             while (true) {
+                 const { value: message, done } = await reader.read();
+@@ -765,9 +767,19 @@ class Connection {
+                 }
+             }
+         }
++        catch (error) {
++            // An errored stream is how the transport reports that it is gone for good.
++            closeReason = error;
++        }
+         finally {
+             reader.releaseLock();
++            this.#closeReason = closeReason ?? new Error("ACP connection closed");
+             this.#abortController.abort();
++            // Nothing can answer these any more; left pending they would hang their callers.
++            for (const pendingResponse of this.#pendingResponses.values()) {
++                pendingResponse.reject(this.#closeReason);
++            }
++            this.#pendingResponses.clear();
+         }
+     }
+     async #processMessage(message) {
+@@ -874,6 +886,9 @@ class Connection {
+         }
+     }
+     async sendRequest(method, params) {
++        if (this.#abortController.signal.aborted) {
++            throw this.#closeReason ?? new Error("ACP connection closed");
++        }
+         const id = this.#nextRequestId++;
+         const responsePromise = new Promise((resolve, reject) => {
+             this.#pendingResponses.set(id, { resolve, reject });
