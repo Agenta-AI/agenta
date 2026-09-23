@@ -1630,6 +1630,75 @@ class TestForwardfillScopeOrder:
 
         assert [e.id for e in kept] == [addressing.id]
 
+    @pytest.mark.parametrize("restarted,expected", [(False, 2), (True, 1)])
+    async def test_a_restarted_channel_thread_drops_the_old_conversation(
+        self, restarted, expected
+    ):
+        """Live QA 2026-09-23: after `!new` in a Slack thread the new session
+        still read the pre-`!new` messages under the same thread key."""
+        from datetime import datetime, timedelta, timezone
+
+        from oss.src.core.channels.dtos import (
+            ChannelEffectivePolicy,
+            ChannelPolicyLevel,
+            ChannelResolution,
+            ChannelThreadFlags,
+        )
+        from oss.src.core.channels.service import _filter_thread_events
+
+        adapter = WellBehavedFakeAdapter()
+        capabilities = await adapter.fetch_capabilities()
+        space = _make_space(capabilities=capabilities).model_copy(
+            update={"kind": ChannelSpaceKind.TOPIC}
+        )
+        agent = _make_agent()
+        now = datetime.now(timezone.utc)
+        before = _make_event(text="my favourite animal is the otter").model_copy(
+            update={"created_at": now - timedelta(minutes=5)}
+        )
+        addressing = _make_event(text="do you know my animal?").model_copy(
+            update={"created_at": now + timedelta(seconds=1)}
+        )
+        thread_key = compose_external_key(
+            capabilities, ChannelKeyGrain.THREAD, addressing.data.external_locator
+        )
+        thread = ChannelThread(
+            id=uuid4(),
+            space_id=space.id,
+            agent_id=agent.id,
+            external_key=thread_key,
+            session_id="s",
+            data=ChannelThreadData(),
+            flags=ChannelThreadFlags(),
+            created_at=now,
+        )
+        policy = ChannelEffectivePolicy(
+            triggers=set(),
+            session_scope=ChannelSessionScope.THREAD,
+            backfill=False,
+            forwardfill=True,
+            decided_by={
+                "triggers": ChannelPolicyLevel.CHANNEL,
+                "session_scope": ChannelPolicyLevel.CHANNEL,
+                "backfill": ChannelPolicyLevel.CHANNEL,
+                "forwardfill": ChannelPolicyLevel.CHANNEL,
+            },
+        )
+        resolution = ChannelResolution(
+            space=space, agent=agent, thread=thread, policy=policy
+        )
+
+        kept = _filter_thread_events(
+            [before, addressing],
+            event_id=addressing.id,
+            resolution=resolution,
+            capabilities=capabilities,
+            restarted=restarted,
+        )
+
+        assert len(kept) == expected
+        assert kept[-1].id == addressing.id
+
 
 class TestApprovalAnswers:
     """An approval card's answer goes back to the turn that parked, not into a

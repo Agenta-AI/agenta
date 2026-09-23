@@ -1924,6 +1924,36 @@ class ChannelsService:
             connection_id=connection_id,
         )
 
+    async def _thread_was_restarted(
+        self, *, project_id: UUID, resolution: ChannelResolution
+    ) -> bool:
+        """Whether an earlier conversation ran under this thread's key, i.e.
+        the current one was started with `!new`. Only then does a channel
+        thread cut its backlog at the current conversation's start; a first
+        mention still sees the discussion that led to it."""
+
+        thread = resolution.thread
+        if (
+            resolution.space.kind is ChannelSpaceKind.PRIVATE
+            or resolution.policy.session_scope is ChannelSessionScope.MESSAGE
+            or thread.created_at is None
+        ):
+            return False
+        siblings = await self.channels_dao.query_threads(
+            project_id=project_id,
+            thread=ChannelThreadQuery(
+                space_id=thread.space_id,
+                agent_id=thread.agent_id,
+                external_key=thread.external_key,
+            ),
+        )
+        return any(
+            other.id != thread.id
+            and other.created_at is not None
+            and other.created_at < thread.created_at
+            for other in siblings or []
+        )
+
     async def compose_input(
         self,
         *,
@@ -1977,6 +2007,9 @@ class ChannelsService:
                 event_id=event_id,
                 resolution=resolution,
                 capabilities=capabilities,
+                restarted=await self._thread_was_restarted(
+                    project_id=project_id, resolution=resolution
+                ),
             )
 
         if capabilities is None:
@@ -2401,23 +2434,28 @@ def _filter_thread_events(
     event_id: UUID,
     resolution: ChannelResolution,
     capabilities: ChannelCapabilities,
+    restarted: bool = False,
 ) -> List[ChannelInboxEvent]:
     """The thread's own share of the space's range. Message scope first: a
     thread is one message there, whatever the space kind. A DM keeps what
     arrived since its current thread began, so `!new` really starts over.
-    Elsewhere, the events under the same thread key."""
+    Elsewhere, the events under the same thread key -- and, once `!new`
+    restarted that thread (`restarted`), only those since the restart (QA
+    finding, 2026-09-23: the new session still read the old conversation)."""
     if resolution.policy.session_scope is ChannelSessionScope.MESSAGE:
         return [stored for stored in events if stored.id == event_id]
     thread = resolution.thread
-    if resolution.space.kind is ChannelSpaceKind.PRIVATE:
-        since = thread.created_at
-        return [
+    since = thread.created_at
+    if resolution.space.kind is ChannelSpaceKind.PRIVATE or restarted:
+        events = [
             stored
             for stored in events
             if stored.id == event_id
             or since is None
             or (stored.created_at is not None and stored.created_at >= since)
         ]
+    if resolution.space.kind is ChannelSpaceKind.PRIVATE:
+        return events
     thread_key = thread.external_key
     kept = []
     for stored in events:
