@@ -395,8 +395,6 @@ export async function runTurn(
   }
 
   try {
-    // AGENTA_SESSIONS_RECONSTRUCT defaults on so minimal-history clients keep their conversation;
-    // only the literal "false" opts out. The compose default supplies an empty string, not "true".
     // Server-side history reconstruction rebuilds prior turns from the durable record log.
     // The server already persisted this turn, so reconstruction filters its turn id.
     // Reassign `request` so every downstream reader sees the same reconstructed history.

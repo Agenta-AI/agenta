@@ -7,6 +7,9 @@
 import { describe, it, beforeEach, vi } from "vitest";
 import assert from "node:assert/strict";
 
+// The hermetic setup stubs this module for the engine suites; this file tests the real one.
+vi.unmock("../../src/sessions/records-query.ts");
+
 const seenInits: RequestInit[] = [];
 
 vi.stubGlobal("fetch", async (_url: string, init?: RequestInit) => {
