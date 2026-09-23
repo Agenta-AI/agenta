@@ -12,7 +12,18 @@ from __future__ import annotations
 
 import json
 from enum import Enum
-from typing import Any, Callable, ClassVar, Dict, List, Literal, Optional, Tuple, Union
+from typing import (
+    Any,
+    Callable,
+    ClassVar,
+    Dict,
+    FrozenSet,
+    List,
+    Literal,
+    Optional,
+    Tuple,
+    Union,
+)
 
 from pydantic import (
     AliasChoices,
@@ -186,6 +197,10 @@ HARNESS_IDENTITIES: List[HarnessIdentity] = [
         name="Mock",
     ),
 ]
+
+# Harnesses that run when a config names them but that no list shown to users offers. ``mock`` is
+# the LLM-free test stand-in; tests select it by setting ``harness.kind`` explicitly.
+UNLISTED_HARNESS_KINDS: FrozenSet[str] = frozenset({HarnessKind.MOCK.value})
 
 
 PERMISSION_MODES = frozenset({"allow", "ask", "deny", "allow_reads"})
