@@ -14,9 +14,6 @@ import type {Quote} from "@agenta/shared/quotes"
 import {dropQuoteRange} from "./sources"
 
 const quotesBySession = new Map<string, Quote[]>()
-/** Quotes that already rode a message out. They are gone from the composer but keep their
- * highlight, so the span you replied to stays marked in the transcript. */
-const sentBySession = new Map<string, Quote[]>()
 const listeners = new Map<string, Set<() => void>>()
 
 const EMPTY: Quote[] = []
@@ -52,10 +49,11 @@ export const removeQuote = (sessionId: string, id: string) => {
     )
 }
 
-/** Consume the staged set on a send: it leaves the composer but keeps its highlight. */
+/** Consume the staged set on a send: it leaves the composer and its highlight goes with it. */
 export const clearQuotes = (sessionId: string) => {
-    const sent = getQuotes(sessionId).filter((quote) => quote.staged)
-    sentBySession.set(sessionId, [...(sentBySession.get(sessionId) ?? []), ...sent])
+    getQuotes(sessionId)
+        .filter((quote) => quote.staged)
+        .forEach((quote) => dropQuoteRange(quote.id))
     write(
         sessionId,
         getQuotes(sessionId).filter((quote) => !quote.staged),
@@ -64,11 +62,6 @@ export const clearQuotes = (sessionId: string) => {
 
 /** Put a set back after a send that never happened — the counterpart of `clearQuotes`. */
 export const restoreQuotes = (sessionId: string, quotes: Quote[]) => {
-    const sent = new Set(quotes.map((quote) => quote.id))
-    sentBySession.set(
-        sessionId,
-        (sentBySession.get(sessionId) ?? []).filter((quote) => !sent.has(quote.id)),
-    )
     write(sessionId, [...quotes, ...getQuotes(sessionId)])
 }
 
@@ -107,12 +100,9 @@ export const useSessionQuotes = (sessionId: string | null | undefined): Quote[] 
     return useSyncExternalStore(subscribe, snapshot, snapshot)
 }
 
-/** Everything that should still be painted in the transcript — staged and already sent. */
-export const useQuotesToPaint = (sessionId: string | null | undefined): Quote[] => {
-    const quotes = useSessionQuotes(sessionId)
-    const sent = sessionId ? (sentBySession.get(sessionId) ?? EMPTY) : EMPTY
-    return sent.length ? [...sent, ...quotes] : quotes
-}
+/** What is painted in the transcript: the quotes still held. A sent quote is not repainted. */
+export const useQuotesToPaint = (sessionId: string | null | undefined): Quote[] =>
+    useSessionQuotes(sessionId)
 
 /** Only what the composer should show as chips. */
 export const useStagedQuotes = (sessionId: string | null | undefined): Quote[] =>
@@ -121,8 +111,6 @@ export const useStagedQuotes = (sessionId: string | null | undefined): Quote[] =
 /** Drop every quote a permanently deleted session was holding. */
 export const clearSessionQuotes = (sessionId: string) => {
     getQuotes(sessionId).forEach((quote) => dropQuoteRange(quote.id))
-    ;(sentBySession.get(sessionId) ?? []).forEach((quote) => dropQuoteRange(quote.id))
-    sentBySession.delete(sessionId)
     quotesBySession.delete(sessionId)
     emit(sessionId)
 }
