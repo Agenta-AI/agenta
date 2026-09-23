@@ -24,6 +24,7 @@ from oss.src.core.channels.dtos import (
     ChannelThreadData,
 )
 from oss.src.core.channels.interfaces import ChannelsDAOInterface
+from oss.src.core.shared.dtos import Status
 from oss.src.core.channels.service import ChannelsService
 from oss.src.core.sessions.records.dtos import SessionRecord
 from oss.src.core.sessions.records.interfaces import RecordsDAOInterface
@@ -120,10 +121,16 @@ class FakeChannelsDAO(ChannelsDAOInterface):
         return row
 
     async def transition_outbox_event(
-        self, *, project_id, event_id, state, status=None, data=None
+        self, *, project_id, event_id, state, status=None, data=None, claim_token=None
     ):
         for key, row in self.outbox.items():
             if row.id == event_id:
+                if claim_token is not None and (
+                    row.status is None
+                    or row.status.code != "sending"
+                    or row.status.message != claim_token
+                ):
+                    return None
                 updated = row.model_copy(
                     update={
                         "state": state,
@@ -134,6 +141,54 @@ class FakeChannelsDAO(ChannelsDAOInterface):
                 )
                 self.outbox[key] = updated
                 return updated
+        return None
+
+    async def claim_outbox_delivery(
+        self,
+        *,
+        project_id,
+        event_id,
+        content,
+        claim_ttl_seconds,
+        overwrite_final=True,
+        delivery_key=None,
+    ):
+        """Same rule as the Postgres conditional UPDATE, in memory. Nothing
+        awaits between the check and the write, so it is atomic here too."""
+        for key, row in self.outbox.items():
+            if row.id != event_id:
+                continue
+            processed = (row.data.processed if row.data else None) or {}
+            if (
+                row.state == ChannelDeliveryState.SENT
+                and processed.get("content") == content
+            ):
+                return None
+            if (
+                row.status is not None
+                and row.status.code == "sending"
+                and row.updated_at is not None
+                and (datetime.now(timezone.utc) - row.updated_at).total_seconds()
+                < claim_ttl_seconds
+            ):
+                return None
+            if not overwrite_final and processed.get("final"):
+                return None
+            if (
+                delivery_key is not None
+                and row.status is not None
+                and row.status.code == "delivery_uncertain"
+                and row.status.type == delivery_key
+            ):
+                return None
+            claimed = row.model_copy(
+                update={
+                    "status": Status(code="sending", message=str(uuid4())),
+                    "updated_at": datetime.now(timezone.utc),
+                }
+            )
+            self.outbox[key] = claimed
+            return claimed
         return None
 
     async def claim_outbox_events(self, *, project_id=None, limit=100):
@@ -1228,11 +1283,21 @@ async def test_a_fold_still_empty_after_the_re_reads_tells_the_chat(
     )
 
 
+class _PlatformRejected(Exception):
+    """A platform answer that refused the call, shaped like the adapters' own
+    API errors: it carries the HTTP status, so the outbox knows nothing was
+    posted."""
+
+    def __init__(self, error: str, status_code: int = 200):
+        self.status_code = status_code
+        super().__init__(error)
+
+
 class _RefusingAdapter(WellBehavedFakeAdapter):
     """The platform rejects every post, the way Slack answers `channel_not_found`."""
 
     async def post_message(self, *, connection, locator, content, idempotency_key):
-        raise RuntimeError("channel_not_found")
+        raise _PlatformRejected("channel_not_found")
 
 
 @pytest.mark.asyncio
@@ -1257,7 +1322,7 @@ async def test_a_rejected_post_is_written_down_as_failed_with_the_reason():
         external_locator={"channel": "C1", "thread_ts": "42.1"},
     )
 
-    with pytest.raises(RuntimeError):
+    with pytest.raises(_PlatformRejected):
         await worker.on_turn_started(
             project_id=PROJECT_ID, thread=thread, turn_id="turn-failed"
         )
@@ -1280,7 +1345,7 @@ class _FlakyAdapter(WellBehavedFakeAdapter):
         self.calls += 1
         self.tokens.append(idempotency_key)
         if self.calls == 1:
-            raise RuntimeError("ratelimited")
+            raise _PlatformRejected("ratelimited", status_code=429)
         return await super().post_message(
             connection=connection,
             locator=locator,
@@ -1360,7 +1425,7 @@ async def test_a_failed_post_retries_with_the_same_token_and_ends_sent():
         external_locator={"channel": "C1", "thread_ts": "42.1"},
     )
 
-    with pytest.raises(RuntimeError):
+    with pytest.raises(_PlatformRejected):
         await worker.on_turn_started(
             project_id=PROJECT_ID, thread=thread, turn_id="turn-retry"
         )
@@ -1682,3 +1747,1050 @@ async def test_a_failed_start_notice_is_not_followed_by_a_second_failure_line(
 
     assert len(channels_dao.outbox) == 1
     assert _delivered_text(channels_dao) == FAILED_START_TEXT
+
+
+# --- delivery claim: two workers on one row post once ------------------------ #
+
+
+class _SlowNoEditPostCounter(_NoEditPostCounter):
+    """A no-edit channel whose post takes a moment, so two workers that both
+    passed a read-then-post check would both be inside the post at once."""
+
+    async def post_message(self, *, connection, locator, content, idempotency_key):
+        await asyncio.sleep(0.05)
+        return await super().post_message(
+            connection=connection,
+            locator=locator,
+            content=content,
+            idempotency_key=idempotency_key,
+        )
+
+
+def _no_edit_worker(channels_dao, records_dao, adapter) -> ChannelsOutboxWorker:
+    return ChannelsOutboxWorker(
+        channels_service=ChannelsService(
+            channels_dao=channels_dao,
+            adapter_registry=ChannelAdapterRegistry(adapters={"fake": adapter}),
+        ),
+        turns_service=SessionTurnsService(turns_dao=FakeTurnsDAO()),
+        records_service=RecordsService(records_dao),
+        interactions_service=_FakeInteractionsService(),
+    )
+
+
+@pytest.mark.asyncio
+async def test_two_concurrent_turn_ended_handlers_post_the_answer_once():
+    """Two consumers each receive one of the two turn_ended copies and run at
+    the same time. Before the claim, both read the row as not yet sent and
+    both posted: a duplicate reply on Telegram."""
+
+    channels_dao = FakeChannelsDAO()
+    adapter = _SlowNoEditPostCounter()
+    records_dao = FakeRecordsDAO()
+    # Two worker instances share one DAO, as two containers share Postgres.
+    first = _no_edit_worker(channels_dao, records_dao, adapter)
+    second = _no_edit_worker(channels_dao, records_dao, adapter)
+    session_id = "sess-race"
+    _, thread = await _seed_connection_and_thread(channels_dao, session_id)
+    records_dao.seed(
+        session_id=session_id,
+        turn_id="turn-race",
+        record_type="message",
+        attributes={"text": "answer"},
+    )
+
+    await asyncio.gather(
+        *(
+            worker.on_turn_ended(
+                project_id=PROJECT_ID,
+                thread=thread,
+                turn_id="turn-race",
+                session_id=session_id,
+            )
+            for worker in (first, second)
+        )
+    )
+
+    assert adapter.post_count == 1
+    row = next(iter(channels_dao.outbox.values()))
+    assert row.state == ChannelDeliveryState.SENT
+    assert row.status.code == "sent"  # the claim was released
+
+
+@pytest.mark.asyncio
+async def test_a_stale_claim_from_a_dead_worker_is_taken_over():
+    """A worker that died mid-post leaves the row `sending`. Once the claim is
+    older than its TTL the next delivery takes it over, so the reply is not
+    lost."""
+
+    channels_dao = FakeChannelsDAO()
+    adapter = _NoEditPostCounter()
+    records_dao = FakeRecordsDAO()
+    worker = _no_edit_worker(channels_dao, records_dao, adapter)
+    session_id = "sess-stale"
+    _, thread = await _seed_connection_and_thread(channels_dao, session_id)
+    records_dao.seed(
+        session_id=session_id,
+        turn_id="turn-stale",
+        record_type="message",
+        attributes={"text": "answer"},
+    )
+    row = await worker._get_or_create_item(
+        project_id=PROJECT_ID,
+        connection_id=thread.space_id,
+        thread_id=thread.id,
+        turn_id="turn-stale",
+        item_index=0,
+    )
+    from datetime import timedelta
+
+    channels_dao.outbox[row.key] = row.model_copy(
+        update={
+            "status": Status(code="sending"),
+            "updated_at": datetime.now(timezone.utc) - timedelta(minutes=5),
+        }
+    )
+
+    await worker.on_turn_ended(
+        project_id=PROJECT_ID,
+        thread=thread,
+        turn_id="turn-stale",
+        session_id=session_id,
+    )
+
+    assert adapter.post_count == 1
+    assert channels_dao.outbox[row.key].state == ChannelDeliveryState.SENT
+
+
+@pytest.mark.asyncio
+async def test_a_live_claim_that_never_releases_leaves_the_entry_for_redelivery(
+    monkeypatch,
+):
+    """The holder is alive but slow: wait a bounded time, then raise so the
+    stream entry stays pending and the reclaim pass retries it later, rather
+    than skipping a delivery nobody may finish."""
+
+    from oss.src.tasks.asyncio.channels import outbox as outbox_module
+
+    monkeypatch.setattr(outbox_module, "_CLAIM_WAIT_SECONDS", 0.05)
+    monkeypatch.setattr(outbox_module, "_CLAIM_POLL_SECONDS", 0.01)
+
+    channels_dao = FakeChannelsDAO()
+    adapter = _NoEditPostCounter()
+    records_dao = FakeRecordsDAO()
+    worker = _no_edit_worker(channels_dao, records_dao, adapter)
+    session_id = "sess-busy"
+    _, thread = await _seed_connection_and_thread(channels_dao, session_id)
+    records_dao.seed(
+        session_id=session_id,
+        turn_id="turn-busy",
+        record_type="message",
+        attributes={"text": "answer"},
+    )
+    row = await worker._get_or_create_item(
+        project_id=PROJECT_ID,
+        connection_id=thread.space_id,
+        thread_id=thread.id,
+        turn_id="turn-busy",
+        item_index=0,
+    )
+    channels_dao.outbox[row.key] = row.model_copy(
+        update={
+            "status": Status(code="sending"),
+            "updated_at": datetime.now(timezone.utc),
+        }
+    )
+
+    with pytest.raises(outbox_module.ChannelOutboxDeliveryBusy):
+        await worker.on_turn_ended(
+            project_id=PROJECT_ID,
+            thread=thread,
+            turn_id="turn-busy",
+            session_id=session_id,
+        )
+    assert adapter.post_count == 0
+
+
+class _SlowEditAdapter(WellBehavedFakeAdapter):
+    """An edit channel whose edits take a moment and are recorded in order."""
+
+    def __init__(self):
+        super().__init__()
+        self.edits: List[str] = []
+
+    async def edit_message(
+        self, *, connection, external_locator, content, idempotency_key
+    ):
+        await asyncio.sleep(0.05)
+        self.edits.append(" ".join(part.get("text") or "" for part in content))
+        return await super().edit_message(
+            connection=connection,
+            external_locator=external_locator,
+            content=content,
+            idempotency_key=idempotency_key,
+        )
+
+
+@pytest.mark.asyncio
+async def test_the_final_answer_waits_for_an_in_flight_edit_and_lands_last():
+    """A progress edit is mid-flight on one worker when the final answer
+    arrives on another. The final edit waits for the claim to be released
+    instead of skipping, so the chat ends on the answer."""
+
+    channels_dao = FakeChannelsDAO()
+    adapter = _SlowEditAdapter()
+    records_dao = FakeRecordsDAO()
+    worker = _progress_worker(channels_dao, records_dao, adapter)
+    session_id = "sess-final-waits"
+    connection, thread = await _seed_connection_and_thread(channels_dao, session_id)
+    await worker.on_turn_started(
+        project_id=PROJECT_ID, thread=thread, turn_id="turn-fw"
+    )
+    capabilities = await worker.channels_service.fetch_capabilities(
+        channel=connection.channel, connection=connection
+    )
+    row = next(iter(channels_dao.outbox.values()))
+
+    from oss.src.core.channels.render.render import render_progress
+
+    records_dao.seed(
+        session_id=session_id,
+        turn_id="turn-fw",
+        record_type="message",
+        attributes={"text": "the final answer"},
+    )
+    progress = asyncio.create_task(
+        worker._send(
+            project_id=PROJECT_ID,
+            event=row,
+            connection=connection,
+            capabilities=capabilities,
+            item=render_progress(capabilities=capabilities, text="partial"),
+            thread=thread,
+            wait_for_claim=False,
+        )
+    )
+    await asyncio.sleep(0.01)  # the progress edit now holds the claim
+    await worker.on_turn_ended(
+        project_id=PROJECT_ID,
+        thread=thread,
+        turn_id="turn-fw",
+        session_id=session_id,
+    )
+    await progress
+
+    assert len(adapter.edits) == 2
+    assert "final answer" in adapter.edits[-1]
+    final_row = channels_dao.outbox[row.key]
+    assert final_row.data.processed.get("final") is True
+
+
+@pytest.mark.asyncio
+async def test_a_late_progress_edit_never_overwrites_the_final_answer():
+    """A progress tick that folded before the turn ended can reach the row
+    after the answer was written. It must not replace the answer."""
+
+    channels_dao = FakeChannelsDAO()
+    adapter = _SlowEditAdapter()
+    records_dao = FakeRecordsDAO()
+    worker = _progress_worker(channels_dao, records_dao, adapter)
+    session_id = "sess-late-progress"
+    connection, thread = await _seed_connection_and_thread(channels_dao, session_id)
+    await worker.on_turn_started(
+        project_id=PROJECT_ID, thread=thread, turn_id="turn-lp"
+    )
+    records_dao.seed(
+        session_id=session_id,
+        turn_id="turn-lp",
+        record_type="message",
+        attributes={"text": "the final answer"},
+    )
+    await worker.on_turn_ended(
+        project_id=PROJECT_ID,
+        thread=thread,
+        turn_id="turn-lp",
+        session_id=session_id,
+    )
+    edits_after_final = list(adapter.edits)
+
+    from oss.src.core.channels.render.render import render_progress
+
+    capabilities = await worker.channels_service.fetch_capabilities(
+        channel=connection.channel, connection=connection
+    )
+    row = next(iter(channels_dao.outbox.values()))
+    await worker._send(
+        project_id=PROJECT_ID,
+        event=row,
+        connection=connection,
+        capabilities=capabilities,
+        item=render_progress(capabilities=capabilities, text="stale partial"),
+        thread=thread,
+        wait_for_claim=False,
+    )
+
+    assert adapter.edits == edits_after_final
+    assert "final answer" in _delivered_text(channels_dao)
+
+
+# --- stream redelivery -------------------------------------------------------- #
+
+
+class TestChannelsOutboxRedelivery:
+    def _stream_worker(self, worker):
+        return ChannelsOutboxStreamWorker(
+            outbox=worker,
+            redis_client=None,
+            stream_name="streams:sessions",
+            consumer_group="worker-sessions-channels-outbox",
+        )
+
+    def test_the_consumer_reclaims_pending_entries_with_a_bounded_budget(self, worker):
+        stream_worker = self._stream_worker(worker)
+
+        assert stream_worker.reclaim_pending is True
+        assert stream_worker.reclaim_min_idle_ms == 30_000
+        assert stream_worker.max_deliveries == 5
+        # Asked only for an entry over its delivery count. The bound is the
+        # entry's age: a fresh entry keeps retrying, an old one is dropped.
+        import time as time_module
+
+        fresh_id = f"{int(time_module.time() * 1000) - 60_000}-0".encode()
+        assert stream_worker.is_permanent_failure(fresh_id, {b"data": b"{}"}) is False
+        assert stream_worker.is_permanent_failure(b"1-0", {b"data": b"{}"}) is True
+
+    @pytest.mark.asyncio
+    async def test_a_failed_post_is_redelivered_and_the_retry_sends_it(
+        self, channels_dao, records_dao
+    ):
+        adapter = _FlakyAdapter()
+        worker = _progress_worker(channels_dao, records_dao, adapter)
+        stream_worker = self._stream_worker(worker)
+        session_id = "sess-redeliver"
+        _, _thread = await _seed_connection_and_thread(channels_dao, session_id)
+        batch = [
+            (
+                b"1-0",
+                {
+                    b"data": _turn_event_payload(
+                        kind="turn_started",
+                        project_id=PROJECT_ID,
+                        session_id=session_id,
+                        turn_id="turn-rd",
+                    )
+                },
+            )
+        ]
+
+        _, first = await stream_worker.process_batch(batch)
+        assert first == []  # left pending
+        row = next(iter(channels_dao.outbox.values()))
+        assert row.state == ChannelDeliveryState.FAILED
+
+        # the reclaim pass hands the same entry back
+        _, second = await stream_worker.process_batch(batch)
+        assert second == [b"1-0"]
+        row = next(iter(channels_dao.outbox.values()))
+        assert row.state == ChannelDeliveryState.SENT
+        for task in list(worker._progress_tasks):
+            await worker.stop_progress(task)
+
+    @pytest.mark.asyncio
+    async def test_a_redelivered_entry_whose_row_already_went_out_posts_nothing(
+        self, channels_dao, records_dao
+    ):
+        adapter = _NoEditPostCounter()
+        worker = _no_edit_worker(channels_dao, records_dao, adapter)
+        stream_worker = self._stream_worker(worker)
+        session_id = "sess-redelivered-sent"
+        await _seed_connection_and_thread(channels_dao, session_id)
+        records_dao.seed(
+            session_id=session_id,
+            turn_id="turn-rs",
+            record_type="message",
+            attributes={"text": "answer"},
+        )
+        batch = [
+            (
+                b"1-0",
+                {
+                    b"data": _turn_event_payload(
+                        kind="turn_ended",
+                        project_id=PROJECT_ID,
+                        session_id=session_id,
+                        turn_id="turn-rs",
+                    )
+                },
+            )
+        ]
+
+        await stream_worker.process_batch(batch)
+        _, again = await stream_worker.process_batch(batch)
+
+        assert again == [b"1-0"]
+        assert adapter.post_count == 1
+
+    @pytest.mark.asyncio
+    async def test_a_thread_whose_space_is_gone_is_acked_not_retried(
+        self, channels_dao, records_dao
+    ):
+        worker = _no_edit_worker(channels_dao, records_dao, _NoEditPostCounter())
+        stream_worker = self._stream_worker(worker)
+        session_id = "sess-no-space"
+        _, thread = await _seed_connection_and_thread(channels_dao, session_id)
+        channels_dao.spaces.pop(thread.space_id)
+        batch = [
+            (
+                b"1-0",
+                {
+                    b"data": _turn_event_payload(
+                        kind="turn_ended",
+                        project_id=PROJECT_ID,
+                        session_id=session_id,
+                        turn_id="turn-ns",
+                    )
+                },
+            )
+        ]
+
+        _, processed = await stream_worker.process_batch(batch)
+
+        assert processed == [b"1-0"]
+
+    @pytest.mark.asyncio
+    async def test_a_stale_reclaimed_entry_is_dropped_not_replayed(
+        self, worker, monkeypatch
+    ):
+        """Turning the reclaim pass on inherits whatever an earlier deploy left
+        pending. Found live: entries fifteen days old were redelivered, and a
+        turn_started among them would post a "Thinking…" nobody resolves.
+        Anything past the retry window is acknowledged and logged instead."""
+
+        import time as time_module
+
+        from oss.src.tasks.asyncio.shared.consumer import StreamConsumer
+
+        now_ms = int(time_module.time() * 1000)
+        fresh_id = f"{now_ms - 60_000}-0".encode()
+        stale_id = f"{now_ms - 15 * 24 * 3600 * 1000}-0".encode()
+        payload = {
+            b"data": _turn_event_payload(
+                kind="turn_started",
+                project_id=PROJECT_ID,
+                session_id="sess-any",
+                turn_id="turn-old",
+            )
+        }
+
+        async def _reclaimed(self):
+            return [(stale_id, payload), (fresh_id, payload)]
+
+        monkeypatch.setattr(StreamConsumer, "reclaim_batch", _reclaimed)
+        stream_worker = self._stream_worker(worker)
+        acked: List[bytes] = []
+
+        async def _ack(message_ids):
+            acked.extend(message_ids)
+
+        stream_worker.ack_and_delete = _ack
+
+        batch = await stream_worker.reclaim_batch()
+
+        assert [msg_id for msg_id, _ in batch] == [fresh_id]
+        assert acked == [stale_id]
+        assert stream_worker.dropped_messages == 1
+
+
+# --- review follow-ups: final ordering, busy progress ticks, fencing -------- #
+
+
+@pytest.mark.asyncio
+async def test_a_late_no_answer_notice_never_replaces_a_sent_answer():
+    """Two turn_ended handlers can fold different snapshots: one sees the
+    answer, the other (reading before the last record committed) sees none.
+    Whichever finishes last must not replace the answer with "no answer"."""
+
+    channels_dao = FakeChannelsDAO()
+    adapter = _SlowEditAdapter()
+    records_dao = FakeRecordsDAO()
+    worker = _progress_worker(channels_dao, records_dao, adapter)
+    session_id = "sess-no-answer-late"
+    connection, thread = await _seed_connection_and_thread(channels_dao, session_id)
+    records_dao.seed(
+        session_id=session_id,
+        turn_id="turn-nal",
+        record_type="message",
+        attributes={"text": "the real answer"},
+    )
+    await worker.on_turn_ended(
+        project_id=PROJECT_ID,
+        thread=thread,
+        turn_id="turn-nal",
+        session_id=session_id,
+    )
+    row = next(iter(channels_dao.outbox.values()))
+    capabilities = await worker.channels_service.fetch_capabilities(
+        channel=connection.channel, connection=connection
+    )
+
+    from oss.src.core.channels.render.render import render_no_answer
+
+    delivered = await worker._send(
+        project_id=PROJECT_ID,
+        event=row,
+        connection=connection,
+        capabilities=capabilities,
+        item=render_no_answer(capabilities=capabilities),
+        thread=thread,
+        final=True,
+        overwrite_final=False,
+    )
+
+    assert delivered is False
+    assert _delivered_text(channels_dao) == "the real answer"
+
+
+@pytest.mark.asyncio
+async def test_a_progress_tick_that_finds_the_row_busy_retries_the_same_text():
+    """A tick that skipped a busy row must not count its text as shown, or
+    later ticks with the same text skip it too and it never appears."""
+
+    channels_dao = FakeChannelsDAO()
+    records_dao = FakeRecordsDAO()
+    adapter = _ActivitySpy()
+    worker = _progress_worker(channels_dao, records_dao, adapter)
+    _, thread = await _seed_connection_and_thread(channels_dao, "sess-busy-tick")
+
+    await worker.on_turn_started(
+        project_id=PROJECT_ID,
+        thread=thread,
+        turn_id="turn-bt",
+        session_id="sess-busy-tick",
+    )
+    key, row = next(iter(channels_dao.outbox.items()))
+    sent_status = row.status
+    # another worker holds the row while the partial answer lands
+    channels_dao.outbox[key] = row.model_copy(
+        update={
+            "status": Status(code="sending", message="other-worker"),
+            "updated_at": datetime.now(timezone.utc),
+        }
+    )
+    records_dao.seed(
+        session_id="sess-busy-tick",
+        turn_id="turn-bt",
+        record_type="message",
+        attributes={"text": "the answer so far"},
+    )
+    await asyncio.sleep(0.05)
+    assert not _delivered_text(channels_dao).startswith("the answer so far")
+
+    # the other worker finishes; the same text must still reach the chat
+    channels_dao.outbox[key] = channels_dao.outbox[key].model_copy(
+        update={"status": sent_status}
+    )
+    await asyncio.sleep(0.05)
+    await worker.stop_progress("turn-bt")
+
+    assert _delivered_text(channels_dao).startswith("the answer so far")
+
+
+# --- second review: cancel mid-post, unknown outcomes, fencing -------------- #
+
+
+class _GatedNoEditAdapter(_NoEditPostCounter):
+    """A no-edit channel whose post blocks until the test opens the gate, so
+    the test can act while a post is in flight."""
+
+    def __init__(self):
+        super().__init__()
+        self.in_post = asyncio.Event()
+        self.gate = asyncio.Event()
+
+    async def post_message(self, *, connection, locator, content, idempotency_key):
+        self.in_post.set()
+        await self.gate.wait()
+        return await super().post_message(
+            connection=connection,
+            locator=locator,
+            content=content,
+            idempotency_key=idempotency_key,
+        )
+
+
+def _seed_answer(records_dao, session_id, turn_id, text="answer"):
+    records_dao.seed(
+        session_id=session_id,
+        turn_id=turn_id,
+        record_type="message",
+        attributes={"text": text},
+    )
+
+
+@pytest.mark.asyncio
+async def test_a_cancel_mid_post_still_writes_the_receipt_so_nobody_reposts():
+    """SIGTERM lands while the platform call is in flight. The post finishes
+    and its SENT write lands before the cancel propagates; before, the row
+    stayed `sending` and the next worker posted again once the lease ran out."""
+
+    channels_dao = FakeChannelsDAO()
+    adapter = _GatedNoEditAdapter()
+    records_dao = FakeRecordsDAO()
+    worker = _no_edit_worker(channels_dao, records_dao, adapter)
+    session_id = "sess-cancel"
+    _, thread = await _seed_connection_and_thread(channels_dao, session_id)
+    _seed_answer(records_dao, session_id, "turn-cancel")
+
+    task = asyncio.create_task(
+        worker.on_turn_ended(
+            project_id=PROJECT_ID,
+            thread=thread,
+            turn_id="turn-cancel",
+            session_id=session_id,
+        )
+    )
+    await adapter.in_post.wait()
+    task.cancel()
+    await asyncio.sleep(0)
+    adapter.gate.set()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+
+    row = next(iter(channels_dao.outbox.values()))
+    assert row.state == ChannelDeliveryState.SENT
+    assert row.status.code == "sent"
+
+    # the other copy of turn_ended, on another worker, finds it sent
+    await _no_edit_worker(channels_dao, records_dao, adapter).on_turn_ended(
+        project_id=PROJECT_ID,
+        thread=thread,
+        turn_id="turn-cancel",
+        session_id=session_id,
+    )
+    assert adapter.post_count == 1
+
+
+class _GatedEditAdapter(WellBehavedFakeAdapter):
+    def __init__(self):
+        super().__init__()
+        self.in_edit = asyncio.Event()
+        self.gate = asyncio.Event()
+        self.edits: List[str] = []
+
+    async def edit_message(
+        self, *, connection, external_locator, content, idempotency_key
+    ):
+        self.in_edit.set()
+        await self.gate.wait()
+        self.edits.append(" ".join(part.get("text") or "" for part in content))
+        return await super().edit_message(
+            connection=connection,
+            external_locator=external_locator,
+            content=content,
+            idempotency_key=idempotency_key,
+        )
+
+
+@pytest.mark.asyncio
+async def test_stopping_progress_mid_edit_leaves_the_row_released_not_claimed():
+    """stop_progress cancels the loop while an edit is in flight. The edit and
+    its receipt write finish first, so the row is not left `sending` for the
+    final answer to wait out."""
+
+    channels_dao = FakeChannelsDAO()
+    records_dao = FakeRecordsDAO()
+    adapter = _GatedEditAdapter()
+    adapter.gate.set()
+    worker = _progress_worker(channels_dao, records_dao, adapter)
+    _, thread = await _seed_connection_and_thread(channels_dao, "sess-stop-mid")
+    await worker.on_turn_started(
+        project_id=PROJECT_ID,
+        thread=thread,
+        turn_id="turn-sm",
+        session_id="sess-stop-mid",
+    )
+    adapter.gate.clear()
+    adapter.in_edit.clear()
+    _seed_answer(records_dao, "sess-stop-mid", "turn-sm", "partial")
+    await adapter.in_edit.wait()
+
+    stopping = asyncio.create_task(worker.stop_progress("turn-sm"))
+    await asyncio.sleep(0.01)
+    adapter.gate.set()
+    await stopping
+
+    row = next(iter(channels_dao.outbox.values()))
+    assert row.status.code == "sent"
+    assert adapter.edits and adapter.edits[-1].startswith("partial")
+
+
+class _TimingOutPostAdapter(_NoEditPostCounter):
+    def __init__(self, exc):
+        super().__init__()
+        self.exc = exc
+
+    async def post_message(self, *, connection, locator, content, idempotency_key):
+        self.post_count += 1
+        raise self.exc
+
+
+@pytest.mark.asyncio
+async def test_a_post_with_an_unknown_outcome_is_recorded_and_never_retried():
+    """A read timeout: the request went out and no answer came back. The post
+    may be in the chat, and Slack and Telegram take no idempotency key, so a
+    retry could show it twice. The row records it; nothing re-posts it."""
+
+    import httpx
+
+    channels_dao = FakeChannelsDAO()
+    adapter = _TimingOutPostAdapter(httpx.ReadTimeout("read timed out"))
+    records_dao = FakeRecordsDAO()
+    worker = _no_edit_worker(channels_dao, records_dao, adapter)
+    stream_worker = ChannelsOutboxStreamWorker(
+        outbox=worker,
+        redis_client=None,
+        stream_name="streams:sessions",
+        consumer_group="worker-sessions-channels-outbox",
+    )
+    session_id = "sess-unknown"
+    await _seed_connection_and_thread(channels_dao, session_id)
+    _seed_answer(records_dao, session_id, "turn-unknown")
+    batch = [
+        (
+            b"1-0",
+            {
+                b"data": _turn_event_payload(
+                    kind="turn_ended",
+                    project_id=PROJECT_ID,
+                    session_id=session_id,
+                    turn_id="turn-unknown",
+                )
+            },
+        )
+    ]
+
+    _, first = await stream_worker.process_batch(batch)
+    # both the redelivery and the second turn_ended copy
+    _, second = await stream_worker.process_batch(batch)
+
+    assert first == [b"1-0"]  # acknowledged: not left for a retry
+    assert second == [b"1-0"]
+    assert adapter.post_count == 1
+    row = next(iter(channels_dao.outbox.values()))
+    assert row.state == ChannelDeliveryState.FAILED
+    assert row.status.code == "delivery_uncertain"
+
+
+@pytest.mark.asyncio
+async def test_a_post_that_never_reached_the_platform_is_retried():
+    """A connect error: the request never left, so a retry cannot duplicate."""
+
+    import httpx
+
+    channels_dao = FakeChannelsDAO()
+    adapter = _TimingOutPostAdapter(httpx.ConnectError("connection refused"))
+    records_dao = FakeRecordsDAO()
+    worker = _no_edit_worker(channels_dao, records_dao, adapter)
+    session_id = "sess-connect"
+    _, thread = await _seed_connection_and_thread(channels_dao, session_id)
+    _seed_answer(records_dao, session_id, "turn-connect")
+
+    with pytest.raises(httpx.ConnectError):
+        await worker.on_turn_ended(
+            project_id=PROJECT_ID,
+            thread=thread,
+            turn_id="turn-connect",
+            session_id=session_id,
+        )
+    with pytest.raises(httpx.ConnectError):
+        await worker.on_turn_ended(
+            project_id=PROJECT_ID,
+            thread=thread,
+            turn_id="turn-connect",
+            session_id=session_id,
+        )
+
+    assert adapter.post_count == 2
+    row = next(iter(channels_dao.outbox.values()))
+    assert row.status.code == "delivery_failed"
+
+
+class _TakenOverMidSend(WellBehavedFakeAdapter):
+    """While this worker's post is in flight, another worker takes the row
+    over (the lease ran out): the row now carries the other worker's claim."""
+
+    def __init__(self, channels_dao, *, fail: bool = False):
+        super().__init__()
+        self._capabilities["rendering"]["controls"]["update"] = False
+        self.channels_dao = channels_dao
+        self.fail = fail
+
+    async def post_message(self, *, connection, locator, content, idempotency_key):
+        for key, row in list(self.channels_dao.outbox.items()):
+            self.channels_dao.outbox[key] = row.model_copy(
+                update={"status": Status(code="sending", message="other-worker")}
+            )
+        if self.fail:
+            raise _PlatformRejected("channel_not_found")
+        return await super().post_message(
+            connection=connection,
+            locator=locator,
+            content=content,
+            idempotency_key=idempotency_key,
+        )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("fail", [False, True], ids=["sent-write", "failed-write"])
+async def test_a_taken_over_worker_cannot_write_over_the_new_holder(fail):
+    channels_dao = FakeChannelsDAO()
+    adapter = _TakenOverMidSend(channels_dao, fail=fail)
+    records_dao = FakeRecordsDAO()
+    worker = _no_edit_worker(channels_dao, records_dao, adapter)
+    session_id = f"sess-takeover-{fail}"
+    _, thread = await _seed_connection_and_thread(channels_dao, session_id)
+    _seed_answer(records_dao, session_id, "turn-to")
+
+    try:
+        await worker.on_turn_ended(
+            project_id=PROJECT_ID,
+            thread=thread,
+            turn_id="turn-to",
+            session_id=session_id,
+        )
+    except _PlatformRejected:
+        pass
+
+    row = next(iter(channels_dao.outbox.values()))
+    assert row.status.code == "sending"
+    assert row.status.message == "other-worker"
+    assert row.state == ChannelDeliveryState.CREATED
+
+
+@pytest.mark.asyncio
+async def test_a_late_empty_turn_ended_never_replaces_the_sent_answer(monkeypatch):
+    """Through the caller: the second turn_ended copy folds nothing (it read
+    before the last record committed, or the records are gone) after the
+    first already sent the answer. on_turn_ended must leave the answer."""
+
+    from oss.src.tasks.asyncio.channels import outbox as outbox_module
+
+    monkeypatch.setattr(outbox_module, "_EMPTY_FOLD_ATTEMPTS", 1)
+
+    channels_dao = FakeChannelsDAO()
+    adapter = _SlowEditAdapter()
+    records_dao = FakeRecordsDAO()
+    worker = _progress_worker(channels_dao, records_dao, adapter)
+    session_id = "sess-late-empty"
+    _, thread = await _seed_connection_and_thread(channels_dao, session_id)
+    _seed_answer(records_dao, session_id, "turn-le", "the real answer")
+    await worker.on_turn_ended(
+        project_id=PROJECT_ID, thread=thread, turn_id="turn-le", session_id=session_id
+    )
+    assert _delivered_text(channels_dao) == "the real answer"
+
+    records_dao.records.clear()
+    await worker.on_turn_ended(
+        project_id=PROJECT_ID, thread=thread, turn_id="turn-le", session_id=session_id
+    )
+
+    assert _delivered_text(channels_dao) == "the real answer"
+
+
+# --- Telegram: an identical re-edit is a success (#7113) --------------------- #
+
+
+def _telegram_worker(channels_dao, records_dao, handler):
+    import httpx
+
+    from oss.src.core.channels.adapters.telegram.adapter import TelegramAdapter
+
+    adapter = TelegramAdapter(
+        http_client=httpx.AsyncClient(
+            base_url="https://api.telegram.org",
+            transport=httpx.MockTransport(handler),
+        )
+    )
+    return ChannelsOutboxWorker(
+        channels_service=ChannelsService(
+            channels_dao=channels_dao,
+            adapter_registry=ChannelAdapterRegistry(adapters={"telegram": adapter}),
+        ),
+        turns_service=SessionTurnsService(turns_dao=FakeTurnsDAO()),
+        records_service=RecordsService(records_dao),
+    )
+
+
+@pytest.mark.asyncio
+async def test_telegram_not_modified_on_one_chunk_marks_it_sent_and_posts_the_rest():
+    import json as json_module
+
+    import httpx
+
+    calls: List[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        method = request.url.path.rsplit("/", 1)[-1]
+        calls.append(method)
+        if method == "editMessageText":
+            return httpx.Response(
+                400,
+                json={
+                    "ok": False,
+                    "error_code": 400,
+                    "description": "Bad Request: message is not modified: "
+                    "specified new message content and reply markup are "
+                    "exactly the same as a current content and reply markup "
+                    "of the message",
+                },
+            )
+        payload = json_module.loads(request.content.decode() or "{}")
+        return httpx.Response(
+            200,
+            json={
+                "ok": True,
+                "result": {
+                    "message_id": 100 + len(calls),
+                    "chat": {"id": payload.get("chat_id")},
+                },
+            },
+        )
+
+    channels_dao = FakeChannelsDAO()
+    records_dao = FakeRecordsDAO()
+    worker = _telegram_worker(channels_dao, records_dao, handler)
+    connection = ChannelConnection(
+        id=uuid4(),
+        slug="telegram-connection",
+        channel="telegram",
+        external_key=uuid4(),
+        data={"bot_token": "123:abc"},
+    )
+    channels_dao.connections[connection.id] = connection
+    space = channels_dao.seed_space(connection_id=connection.id)
+    thread = channels_dao.seed_thread(
+        space_id=space.id,
+        session_id="sess-tg",
+        external_locator={"chat_id": 999},
+    )
+    # The first chunk already shows in the chat (its earlier edit landed but
+    # the row never recorded it), so Telegram answers "not modified".
+    row = await worker._get_or_create_item(
+        project_id=PROJECT_ID,
+        connection_id=connection.id,
+        thread_id=thread.id,
+        turn_id="turn-tg",
+        item_index=0,
+    )
+    channels_dao.outbox[row.key] = row.model_copy(
+        update={
+            "state": ChannelDeliveryState.FAILED,
+            "data": row.data.model_copy(
+                update={"external_locator": {"chat_id": 999, "message_id": 1}}
+            ),
+        }
+    )
+    _seed_answer(records_dao, "sess-tg", "turn-tg", "word " * 2000)
+
+    await worker.on_turn_ended(
+        project_id=PROJECT_ID, thread=thread, turn_id="turn-tg", session_id="sess-tg"
+    )
+
+    rows = list(channels_dao.outbox.values())
+    assert len(rows) >= 2
+    assert all(r.state == ChannelDeliveryState.SENT for r in rows)
+    assert calls[0] == "editMessageText"
+    assert calls.count("sendMessage") == len(rows) - 1
+
+
+class _UncertainIndicatorAdapter(_ActivitySpy):
+    """The indicator post times out after sending: it may be in the chat."""
+
+    def __init__(self):
+        super().__init__()
+        self.posts = 0
+
+    async def post_message(self, *, connection, locator, content, idempotency_key):
+        import httpx
+
+        self.posts += 1
+        raise httpx.ReadTimeout("read timed out")
+
+
+@pytest.mark.asyncio
+async def test_progress_never_posts_a_second_bubble_after_an_uncertain_indicator():
+    channels_dao = FakeChannelsDAO()
+    records_dao = FakeRecordsDAO()
+    adapter = _UncertainIndicatorAdapter()
+    worker = _progress_worker(channels_dao, records_dao, adapter)
+    _, thread = await _seed_connection_and_thread(channels_dao, "sess-uncertain-ind")
+
+    await worker.on_turn_started(
+        project_id=PROJECT_ID,
+        thread=thread,
+        turn_id="turn-ui",
+        session_id="sess-uncertain-ind",
+    )
+    _seed_answer(records_dao, "sess-uncertain-ind", "turn-ui", "partial")
+    await asyncio.sleep(0.05)
+    await worker.stop_progress("turn-ui")
+
+    assert adapter.posts == 1  # the indicator only; no tick posted a new message
+
+
+class _GatedClaimDAO(FakeChannelsDAO):
+    """Commits the claim, then holds the call open until the test opens the
+    gate: a cancel lands after the row is claimed, before the caller knows."""
+
+    def __init__(self):
+        super().__init__()
+        self.in_claim = asyncio.Event()
+        self.gate = asyncio.Event()
+        self.hold = False
+
+    async def claim_outbox_delivery(self, **kwargs):
+        claimed = await super().claim_outbox_delivery(**kwargs)
+        if self.hold:
+            self.in_claim.set()
+            await self.gate.wait()
+        return claimed
+
+
+@pytest.mark.asyncio
+async def test_a_cancel_during_the_claim_never_leaves_the_row_claimed():
+    channels_dao = _GatedClaimDAO()
+    records_dao = FakeRecordsDAO()
+    adapter = WellBehavedFakeAdapter()
+    worker = _progress_worker(channels_dao, records_dao, adapter)
+    connection, thread = await _seed_connection_and_thread(channels_dao, "sess-cc")
+    await worker.on_turn_started(
+        project_id=PROJECT_ID, thread=thread, turn_id="turn-cc", session_id="sess-cc"
+    )
+    await worker.stop_progress("turn-cc")
+    capabilities = await worker.channels_service.fetch_capabilities(
+        channel=connection.channel, connection=connection
+    )
+    row = next(iter(channels_dao.outbox.values()))
+
+    from oss.src.core.channels.render.render import render_progress
+
+    channels_dao.hold = True
+    task = asyncio.create_task(
+        worker._send(
+            project_id=PROJECT_ID,
+            event=row,
+            connection=connection,
+            capabilities=capabilities,
+            item=render_progress(capabilities=capabilities, text="partial"),
+            thread=thread,
+            wait_for_claim=False,
+        )
+    )
+    await channels_dao.in_claim.wait()
+    task.cancel()
+    await asyncio.sleep(0)
+    channels_dao.gate.set()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+
+    assert channels_dao.outbox[row.key].status.code == "sent"

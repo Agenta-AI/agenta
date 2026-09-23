@@ -6,6 +6,7 @@ outbox worker actually owns — the outbox row lifecycle and the thread lookup
 — goes through the real DAOs.
 """
 
+import asyncio
 import uuid
 from typing import Any, Dict, List, Optional
 from uuid import UUID
@@ -141,6 +142,8 @@ class _FakeRecordsDAO(RecordsDAOInterface):
                 record_type=record_type,
                 attributes=attributes,
                 turn_id=turn_id,
+                # the outbox folds only the agent's own records
+                record_source="agent",
             )
         )
 
@@ -394,3 +397,79 @@ async def test_turn_event_finds_the_channel_thread_by_session_id(outbox_scope):
     )
     assert len(rows) == 1
     assert rows[0].state == ChannelDeliveryState.SENT
+
+
+class _SlowNoEditAdapter(_LocalFakeAdapter):
+    """A no-edit channel (like Telegram) whose post takes a moment: every
+    delivery is a fresh message, so a second post is a duplicate the user
+    sees."""
+
+    def __init__(self):
+        super().__init__()
+        self._capabilities = self._capabilities.model_copy(deep=True)
+        self._capabilities.rendering.controls.update = False
+        self.posts = 0
+
+    async def post_message(self, *, connection, locator, content, idempotency_key):
+        self.posts += 1
+        await asyncio.sleep(0.05)
+        return await super().post_message(
+            connection=connection,
+            locator=locator,
+            content=content,
+            idempotency_key=idempotency_key,
+        )
+
+
+def _worker_with(scope, records_dao, adapter):
+    return ChannelsOutboxWorker(
+        channels_service=ChannelsService(
+            channels_dao=ChannelsDAO(engine=get_transactions_engine()),
+            adapter_registry=ChannelAdapterRegistry(adapters={"fake": adapter}),
+        ),
+        turns_service=SessionTurnsService(turns_dao=SessionTurnsDAO(engine=None)),
+        records_service=RecordsService(records_dao),
+    )
+
+
+async def test_two_workers_racing_on_one_turn_post_the_answer_once(outbox_scope):
+    """Two consumers each hold one copy of turn_ended and run at the same
+    time, each with its own DAO over real Postgres. The conditional UPDATE
+    lets exactly one of them post; the other finds the row sent."""
+
+    adapter = _SlowNoEditAdapter()
+    records_dao = _FakeRecordsDAO()
+    workers = [_worker_with(outbox_scope, records_dao, adapter) for _ in range(2)]
+
+    for round_index in range(5):
+        turn_id = f"turn-race-{round_index}"
+        records_dao.seed(
+            session_id=outbox_scope["session_id"],
+            turn_id=turn_id,
+            record_type="message",
+            attributes={"text": f"answer {round_index}"},
+        )
+        posts_before = adapter.posts
+
+        await asyncio.gather(
+            *(
+                worker.on_turn_ended(
+                    project_id=outbox_scope["project_id"],
+                    thread=outbox_scope["thread"],
+                    turn_id=turn_id,
+                    session_id=outbox_scope["session_id"],
+                )
+                for worker in workers
+            )
+        )
+
+        assert adapter.posts - posts_before == 1, f"round {round_index}"
+        posted = list(adapter._messages.values())[-1]
+        assert f"answer {round_index}" in str(posted)
+
+    rows = await outbox_scope["channels_dao"].query_outbox_events(
+        project_id=outbox_scope["project_id"]
+    )
+    assert len(rows) == 5
+    assert all(row.state == ChannelDeliveryState.SENT for row in rows)
+    assert all(row.status.code == "sent" for row in rows)

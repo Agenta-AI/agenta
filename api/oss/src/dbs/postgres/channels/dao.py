@@ -1,9 +1,9 @@
-from datetime import datetime, timezone
-from typing import List, Optional, Tuple
-from uuid import UUID
+from datetime import datetime, timedelta, timezone
+from typing import Any, Dict, List, Optional, Tuple
+from uuid import UUID, uuid4
 
-from sqlalchemy import func, or_, select, text, tuple_, update
-from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy import cast, false, func, literal, or_, select, text, tuple_, update
+from sqlalchemy.dialects.postgresql import JSONB, insert
 
 from oss.src.core.channels.dtos import (
     ChannelAgent,
@@ -1804,6 +1804,76 @@ class ChannelsDAO(ChannelsDAOInterface):
                 for dbe in result.scalars().all()
             ]
 
+    async def claim_outbox_delivery(
+        self,
+        *,
+        project_id: UUID,
+        #
+        event_id: UUID,
+        content: List[Dict[str, Any]],
+        claim_ttl_seconds: float,
+        overwrite_final: bool = True,
+        delivery_key: Optional[str] = None,
+    ) -> Optional[ChannelOutboxEvent]:
+        table = ChannelOutboxEventDBE
+        # `data` is JSON, not JSONB: cast it so the comparison is by value,
+        # independent of key order and whitespace.
+        processed = cast(table.data, JSONB)["processed"]
+        sent_content = processed["content"]
+        claim_code = table.status["code"].astext
+
+        already_sent = (table.state == ChannelDeliveryState.SENT) & func.coalesce(
+            sent_content == literal(content, type_=JSONB), false()
+        )
+        claim_live = func.coalesce(
+            (claim_code == "sending")
+            & (table.updated_at > func.now() - timedelta(seconds=claim_ttl_seconds)),
+            false(),
+        )
+
+        conditions = [
+            table.project_id == project_id,
+            table.id == event_id,
+            ~already_sent,
+            ~claim_live,
+        ]
+        if delivery_key is not None:
+            conditions.append(
+                ~func.coalesce(
+                    (claim_code == "delivery_uncertain")
+                    & (table.status["type"].astext == delivery_key),
+                    false(),
+                )
+            )
+        if not overwrite_final:
+            conditions.append(
+                ~func.coalesce(processed["final"].astext == "true", false())
+            )
+
+        # The token names this claim, so the writes that release it can be
+        # fenced to the worker that still holds it.
+        claim_status = Status(code="sending", message=str(uuid4())).model_dump(
+            mode="json", exclude_none=True
+        )
+
+        async with self.engine.session() as session:
+            stmt = (
+                update(table)
+                .where(*conditions)
+                .values(status=claim_status, updated_at=func.now())
+                .returning(table)
+            )
+
+            result = await session.execute(stmt)
+            event_dbe = result.scalar_one_or_none()
+
+            await session.commit()
+
+            if event_dbe is None:
+                return None
+
+            return map_outbox_event_dbe_to_dto(event_dbe=event_dbe)
+
     async def transition_outbox_event(
         self,
         *,
@@ -1813,6 +1883,7 @@ class ChannelsDAO(ChannelsDAOInterface):
         state: ChannelDeliveryState,
         status: Optional[Status] = None,
         data: Optional[ChannelOutboxEventData] = None,
+        claim_token: Optional[str] = None,
     ) -> Optional[ChannelOutboxEvent]:
         async with self.engine.session() as session:
             values = {
@@ -1833,6 +1904,11 @@ class ChannelsDAO(ChannelsDAOInterface):
                 .values(**values)
                 .returning(ChannelOutboxEventDBE)
             )
+            if claim_token is not None:
+                stmt = stmt.where(
+                    ChannelOutboxEventDBE.status["code"].astext == "sending",
+                    ChannelOutboxEventDBE.status["message"].astext == claim_token,
+                )
 
             result = await session.execute(stmt)
             event_dbe = result.scalar_one_or_none()
