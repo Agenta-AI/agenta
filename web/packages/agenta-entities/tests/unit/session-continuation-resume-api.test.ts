@@ -94,26 +94,6 @@ describe("fetchSessionDurableApprovalsCapability", () => {
         )
     })
 
-    it("returns queue capabilities from the same cached negotiation", async () => {
-        fetchStream.mockResolvedValue({
-            stream: null,
-            capabilities: {durable_approvals: false, queue: true, steer: true},
-        })
-        const scope = {projectId: "project-1", sessionId: "session-1"}
-
-        await expect(fetchSessionCapabilities(scope)).resolves.toEqual({
-            durableApprovals: false,
-            queue: true,
-            steer: true,
-        })
-        await expect(fetchSessionCapabilities(scope)).resolves.toEqual({
-            durableApprovals: false,
-            queue: true,
-            steer: true,
-        })
-        expect(fetchStream).toHaveBeenCalledOnce()
-    })
-
     it("shares one request per session until the session reconnects", async () => {
         fetchStream.mockResolvedValue({
             stream: null,

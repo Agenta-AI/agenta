@@ -84,7 +84,6 @@ const AgentComposerDock = ({
     onSubmit,
     onStop,
     stopping,
-    queueEnabled,
     stopShortcutEnabled,
     richInputRef,
     composer,
@@ -135,8 +134,6 @@ const AgentComposerDock = ({
     onSteer: (text: string) => void | Promise<void>
     onStop: () => void
     stopping: boolean
-    queueEnabled: boolean
-    steerEnabled: boolean
     stopShortcutEnabled: boolean
     richInputRef: RefObject<RichChatInputHandle | null>
     composer: ReturnType<typeof useComposerDraft>
@@ -153,7 +150,6 @@ const AgentComposerDock = ({
     const stoppable = isComposerRunStoppable({
         localStreaming: busy,
         serverBusy: queue.serverBusy,
-        serverControlEnabled: queueEnabled,
         waitingOnUser: hitlPending,
     })
     const {

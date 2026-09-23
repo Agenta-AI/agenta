@@ -210,10 +210,6 @@ export const useAgentChatSession = ({
     const setSharedSenderReady = useCallback((ready: boolean) => {
         sharedSenderReadyRef.current = ready
     }, [])
-    const retryContinuation = useCallback(
-        () => resumeSessionContinuation(sessionId),
-        [resumeSessionContinuation, sessionId],
-    )
 
     // Rebuilt every render and bound to the chat on every commit (below), so they always see the live
     // values — `entityId` included, which is why a run follows a revision switch or a self-commit
@@ -563,18 +559,6 @@ export const useAgentChatSession = ({
             supportsDurableApprovals,
         ],
     )
-
-    // Orphan detection for the queue's pre-resume hold: the tail is a RESTORED message (this
-    // mount never streamed it) shaped like "auto-resume imminent", and no gate was settled live
-    // in this mount. The SDK only evaluates `sendAutomaticallyWhen` on live events (approval
-    // response, tool output, stream finish) — never on mount — so this resume can't fire and
-    // must not hold the queue. Short-circuits cheap on the streaming hot path: any live send
-    // makes the tail non-restored.
-    const resumeOrphaned =
-        !liveGateInteractionRef.current &&
-        !!lastMessage &&
-        restoredIdsRef.current.has(lastMessage.id) &&
-        agentShouldResumeAfterApproval({messages})
 
     // Cache only the newest turn id observed by this page for guarded Stop.
     useEffect(() => {
@@ -946,8 +930,6 @@ export const useAgentChatSession = ({
         markLiveGate,
         answerApproval,
         answerApprovals,
-        retryContinuation,
-        resumeOrphaned,
         isSeen,
     }
 }

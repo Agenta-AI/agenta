@@ -53,7 +53,6 @@ import {prepareAfterContinuationPreflight} from "../assets/continuationPreflight
 import {
     displayMessageText,
     editedExecutionText,
-    outboundUserParts,
     readDisplayEdit,
     saveDisplayEdit,
 } from "../assets/displayContent"
@@ -97,7 +96,6 @@ import {
 } from "../state/sessionChats"
 import {
     acceptedRunBySession,
-    clearSessionFresh,
     clearSessionTurnId,
     composerDraftBySession,
     isSessionFresh,
@@ -227,10 +225,6 @@ export interface AgentConversation {
     stopped: boolean
     /** Messages held while a turn is in flight, in FIFO order. */
     queued: QueuedMessage[]
-    /** Queue is server-owned for this session. */
-    queueEnabled: boolean
-    /** Steer is server-owned and available as a second busy action. */
-    steerEnabled: boolean
     /** The server currently owns an execution, including one started in another browser. */
     inputBusy: boolean
     /** Submit the current composer value as a priority Steer input. */
@@ -363,18 +357,12 @@ export const useAgentConversation = ({
     const respondInteractionAnswers = useSetAtom(respondInteractionAnswersAtom)
     const resumeSessionContinuation = useSetAtom(resumeSessionContinuationAtom)
     const supportsDurableApprovals = useSetAtom(sessionDurableApprovalsCapabilityAtom)
-    const [recoverableContinuation, setRecoverableContinuation] = useState(false)
     // Execution id of the continuation the last durable answer started (respond body,
     // `execution.id`). The queue holds every send until that execution writes its terminal record:
     // the transcript-derived hold cannot cover the seconds between the answer and the
     // continuation's first record, and a transcript adopted inside that gap reads as settled.
     const [continuationExecutionId, setContinuationExecutionId] = useState<string | null>(null)
     const approvalResponseOwnerRef = useRef<string | null>(null)
-    const retryRecoverableContinuation = useCallback(async () => {
-        const resumed = await resumeSessionContinuation(sessionId)
-        if (resumed) setRecoverableContinuation(false)
-        return resumed
-    }, [resumeSessionContinuation, sessionId])
 
     // Did the runner acknowledge THIS turn? Its acceptance frame is transient, so it reaches
     // `onData` and never the transcript — this is the only place the answer survives. A stream that
@@ -525,7 +513,6 @@ export const useAgentConversation = ({
 
     const {
         messages,
-        sendMessage,
         status,
         stop,
         regenerate,
@@ -726,41 +713,7 @@ export const useAgentConversation = ({
         // Once per mounted session; `sessionId` is stable for this instance.
     }, [sessionId])
 
-    // Send one released queued message. Stable (only depends on `sendMessage`) so the queue's
-    // release effect doesn't churn on every token.
     const editedSourceRef = useRef<UIMessage | null>(readDisplayEdit(sessionId))
-    const sendQueued = useCallback(
-        (item: QueuedMessage) => {
-            // A real send means this session has run — drop the never-run marker so a later
-            // cache-cleared reopen hydrates from the server.
-            clearSessionFresh(sessionId)
-            clearSessionTurnId(sessionId)
-            // Any actual send supersedes a prior user-stop.
-            setStopped(false)
-            sendMessage({
-                role: "user",
-                parts: outboundUserParts(item),
-                ...(item.executionText !== undefined
-                    ? {metadata: {display_content: item.text}}
-                    : {}),
-            }).catch(ignoreStreamRejection)
-        },
-        [sendMessage, sessionId],
-    )
-    const markRunOwned = useCallback(
-        () => setSessionStatus({id: sessionId, status: "running"}),
-        [sessionId, setSessionStatus],
-    )
-
-    // Orphan detection for the queue's pre-resume hold: the tail is a RESTORED message (this
-    // mount never streamed it) shaped like "auto-resume imminent", and no gate was settled live
-    // in this mount. The SDK only evaluates `sendAutomaticallyWhen` on live events — never on
-    // mount — so this resume can't fire and must not hold the queue (AGE-3937).
-    const resumeOrphaned =
-        !liveGateInteractionRef.current &&
-        !!lastMessage &&
-        restoredIdsRef.current.has(lastMessage.id) &&
-        agentShouldResumeAfterApproval({messages})
 
     const serverInputs = useServerSessionInputs({
         entityId,
@@ -802,8 +755,6 @@ export const useAgentConversation = ({
         removeQueued,
         sendQueuedNow,
         ownsContinuation,
-        queueEnabled,
-        steerEnabled,
         serverBusy,
         hitlPending,
         editingId,
@@ -813,23 +764,15 @@ export const useAgentConversation = ({
         pendingSendRows,
         sendInFlight,
     } = useAgentChatQueue({
-        status,
         messages,
-        acceptedRunPending,
         stopped,
-        resumeOrphaned,
-        recoverable: recoverableContinuation,
-        retryContinuation: retryRecoverableContinuation,
         continuationExecutionId,
-        markRunOwned,
         // Not wired on this host yet: the composer lives below this hook and has no handle here,
         // so a late refusal keeps its flagged row instead of restoring the draft. Pass a restorer
         // in to unify it with the desktop.
         restoreRefusedSend,
         onSendAccepted,
         onSendFailed,
-        sendQueued,
-        sessionId,
         server: serverInputs,
     })
     // A preserve check that misses `sendInFlight` lets a navigation release and stop the chat in
@@ -862,7 +805,6 @@ export const useAgentConversation = ({
                 releaseLegacy: () => addToolApprovalResponse(args),
             })
             if (approvalResponseOwnerRef.current === args.id) {
-                setRecoverableContinuation(outcome.recoverable)
                 setContinuationExecutionId(outcome.executionId ?? null)
             }
             return outcome
@@ -908,7 +850,6 @@ export const useAgentConversation = ({
                 },
             })
             if (approvalResponseOwnerRef.current === args.ids[0]) {
-                setRecoverableContinuation(outcome.recoverable)
                 setContinuationExecutionId(outcome.executionId ?? null)
             }
             return outcome
@@ -951,7 +892,6 @@ export const useAgentConversation = ({
     }
     useEffect(() => {
         if (pendingApprovalId) {
-            setRecoverableContinuation(false)
             setContinuationExecutionId(null)
         }
     }, [pendingApprovalId])
@@ -1003,7 +943,6 @@ export const useAgentConversation = ({
             }
             const settle = (result: {recoverable: boolean; executionId?: string}) => {
                 if (approvalResponseOwnerRef.current !== toolCallId) return
-                setRecoverableContinuation(result.recoverable)
                 setContinuationExecutionId(result.executionId ?? null)
             }
 
@@ -1435,8 +1374,6 @@ export const useAgentConversation = ({
         historyUnavailable,
         stopped,
         queued,
-        queueEnabled,
-        steerEnabled,
         inputBusy: serverBusy,
         steer: steerInput,
         hitlPending,

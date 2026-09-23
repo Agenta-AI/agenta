@@ -10,8 +10,6 @@ import {
     describeAccepted,
     filesToParts,
     jumpGateOpen,
-    outboundUserParts,
-    restoreHeldRefusedSend,
     restoreRefusedSend as restoreRefusedSendInto,
     sideEffectingToolsInRange,
 } from "@agenta/chat/assets"
@@ -38,14 +36,12 @@ import {
     refusedSendRejections,
     ignoreStreamRejection,
     isEmptyAssistantTurn,
-    isSessionBusyRefusal,
     isVisiblePart,
     REFUSED_SEND_REASON,
 } from "@agenta/chat/model"
 import {getInteractionAvailability, getLivePendingApprovals} from "@agenta/chat/model"
 import {withoutSharedSenderAcceptanceMessages} from "@agenta/chat/model"
 import {hasSessionChat, sessionMessagesAtom, setSessionStatusAtom} from "@agenta/chat/state"
-import {clearSessionFresh} from "@agenta/chat/state"
 import {
     contextWindowForModel,
     harnessCapabilitiesAtomFamily,
@@ -158,7 +154,6 @@ const AgentConversation = ({
         acceptedRunPending,
         turnDeliverySource,
         settleSharedTurn,
-        sendMessage,
         regenerate,
         setMessages,
         messagesRef,
@@ -174,8 +169,6 @@ const AgentConversation = ({
         markLiveGate,
         answerApproval,
         answerApprovals,
-        retryContinuation,
-        resumeOrphaned,
         isSeen,
         runningElsewhere: livenessRunningElsewhere,
         sharedReaderAdvertised,
@@ -277,18 +270,12 @@ const AgentConversation = ({
     // composer until connected — see `gateActive` on `useAgentModelKeyStatus` for the full chain.
     const modelKey = useAgentModelKeyStatus(entityId)
     const modelBlocked = modelKey.gateActive
-    const [recoverableContinuation, setRecoverableContinuation] = useState(false)
     // Execution id of the continuation the last durable answer started (respond body,
     // `execution.id`). The queue holds every send until that execution writes its terminal record:
     // the transcript-derived hold cannot cover the seconds between the answer and the
     // continuation's first record, and a transcript adopted inside that gap reads as settled.
     const [continuationExecutionId, setContinuationExecutionId] = useState<string | null>(null)
     const approvalResponseOwnerRef = useRef<string | null>(null)
-    const retryRecoverableContinuation = useCallback(async () => {
-        const resumed = await retryContinuation()
-        if (resumed) setRecoverableContinuation(false)
-        return resumed
-    }, [retryContinuation])
 
     // Context-window denominator for the token-budget indicator: the SDK model catalog's own
     // `context_window`, delivered on the (global) harness-capabilities document — never hardcoded.
@@ -410,33 +397,7 @@ const AgentConversation = ({
         }
     }, [status, serverInputs.refresh])
 
-    // Send one released queued message. Stable (only depends on `sendMessage`) so the queue's
-    // release effect doesn't churn on every token.
     const editedSourceRef = useRef<UIMessage | null>(readDisplayEdit(sessionId))
-    const sendQueued = useCallback(
-        (item: QueuedMessage) => {
-            scrollIntent.follow()
-            // A real send means this session has run — drop the never-run marker so a later
-            // cache-cleared reopen hydrates from the server.
-            clearSessionFresh(sessionId)
-            // Any actual send supersedes a prior user-stop, so clear the marker here (covers the
-            // queue-release path; the manual path also clears it in handleSubmit) — otherwise the
-            // "Stopped" tag would smear onto the freshly-sent turn.
-            setStopped(false)
-            sendMessage({
-                role: "user",
-                parts: outboundUserParts(item),
-                ...(item.executionText !== undefined
-                    ? {metadata: {display_content: item.text}}
-                    : {}),
-            }).catch(ignoreStreamRejection)
-        },
-        [sendMessage, sessionId],
-    )
-    const markRunOwned = useCallback(
-        () => setSessionStatus({id: sessionId, status: "running"}),
-        [sessionId, setSessionStatus],
-    )
 
     // A refusal that arrived after the send promise resolved. Hand the text back through the same
     // channel a rejected send uses, so both refusal shapes recover identically.
@@ -480,29 +441,18 @@ const AgentConversation = ({
         removeQueued,
         sendQueuedNow,
         ownsContinuation,
-        queueEnabled,
-        steerEnabled,
         serverBusy,
         hitlPending,
         editingId,
         beginEdit,
         cancelEdit,
         commitEdit,
-        takeLastSent,
         pendingSendRows,
     } = useAgentChatQueue({
-        status,
         messages,
-        acceptedRunPending,
         stopped,
-        resumeOrphaned,
-        recoverable: recoverableContinuation,
-        retryContinuation: retryRecoverableContinuation,
         continuationExecutionId,
-        markRunOwned,
         restoreRefusedSend: restoreLateRefusedSend,
-        sendQueued,
-        sessionId,
         server: serverInputs,
     })
 
@@ -541,7 +491,6 @@ const AgentConversation = ({
                 steer: (text) => submit({text}),
             })
             if (approvalResponseOwnerRef.current === args.id) {
-                setRecoverableContinuation(outcome?.recoverable === true)
                 setContinuationExecutionId(outcome?.executionId ?? null)
             }
             return outcome
@@ -554,7 +503,6 @@ const AgentConversation = ({
             approvalResponseOwnerRef.current = args.toolCallId
             const outcome = await answerClientTool(args)
             if (approvalResponseOwnerRef.current === args.toolCallId) {
-                setRecoverableContinuation(outcome.recoverable)
                 setContinuationExecutionId(outcome.executionId ?? null)
             }
         },
@@ -567,7 +515,6 @@ const AgentConversation = ({
             markLiveGate({kind: "approval", id: ids[0]})
             const outcome = await answerApprovals(ids, approved)
             if (approvalResponseOwnerRef.current === ids[0]) {
-                setRecoverableContinuation(outcome?.recoverable === true)
                 setContinuationExecutionId(outcome?.executionId ?? null)
             }
             return outcome
@@ -587,7 +534,6 @@ const AgentConversation = ({
     }
     useEffect(() => {
         if (pendingApprovalId) {
-            setRecoverableContinuation(false)
             setContinuationExecutionId(null)
         }
     }, [pendingApprovalId])
@@ -635,28 +581,6 @@ const AgentConversation = ({
             }),
         [messages],
     )
-    const refusedSendRef = useRef<QueuedMessage | undefined>(undefined)
-    const restoreRefusedSend = useCallback(
-        () => restoreHeldRefusedSend(refusedSendRef, richInputRef.current, restoreAttachments),
-        [restoreAttachments],
-    )
-    // Restore a refused send after the editor's synchronous submit clear.
-    useEffect(() => {
-        if (!error || !isSessionBusyRefusal(error)) return
-        if (!refusedSendRef.current) refusedSendRef.current = takeLastSent()
-        requestAnimationFrame(() => {
-            restoreRefusedSend()
-        })
-    }, [error, restoreRefusedSend, takeLastSent])
-
-    const handleComposerChange = useCallback(
-        (text: string) => {
-            composer.handleComposerChange(text)
-            if (!text.trim()) restoreRefusedSend()
-        },
-        [composer.handleComposerChange, restoreRefusedSend],
-    )
-
     useEffect(() => {
         const status: SessionRunStatus = error
             ? "error"
@@ -1154,11 +1078,9 @@ const AgentConversation = ({
                                         onSteer={(text) => handleSubmit(text, [], "steer")}
                                         onStop={handleStop}
                                         stopping={stopping}
-                                        queueEnabled={queueEnabled}
-                                        steerEnabled={steerEnabled}
                                         stopShortcutEnabled={activeSessionId === sessionId}
                                         richInputRef={richInputRef}
-                                        composer={{...composer, handleComposerChange}}
+                                        composer={composer}
                                         attachments={attachments}
                                         onboardingChat={onboardingChat}
                                         voice={voice}

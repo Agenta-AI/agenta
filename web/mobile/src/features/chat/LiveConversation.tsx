@@ -918,8 +918,6 @@ export const LiveConversation = ({
                             })}
                             stopping={stopping}
                             onStop={stopHere}
-                            queueEnabled={conversation.queueEnabled}
-                            steerEnabled={conversation.steerEnabled}
                             inputBusy={conversation.inputBusy}
                             inputRef={composerRef}
                             // Same gate the rail's `+` uses: starting one needs an agent.

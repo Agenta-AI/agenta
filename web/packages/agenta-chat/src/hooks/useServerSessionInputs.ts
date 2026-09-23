@@ -1,7 +1,6 @@
 import {useCallback, useEffect, useRef, useState} from "react"
 
 import {
-    fetchSessionCapabilitiesAtom,
     fetchSessionSnapshotAtom,
     removePendingSessionInputAtom,
     sendPendingSessionInputNowAtom,
@@ -44,7 +43,6 @@ export interface ServerInputWatcher {
 }
 
 export interface ServerSessionInputs {
-    capabilities: SessionPendingInputView["capabilities"]
     executionState: SessionPendingInputView["executionState"]
     busy: boolean
     queued: QueuedMessage[]
@@ -57,7 +55,6 @@ export interface ServerSessionInputs {
     sendNow: (id: string) => Promise<void>
     edit: (id: string, item: {text: string; fileParts?: FileUIPart[]}) => Promise<void>
     refresh: () => Promise<void>
-    resolveCapabilities: () => Promise<SessionPendingInputView["capabilities"]>
 }
 
 const emptyView = reduceSessionPendingInputs(null)
@@ -233,7 +230,6 @@ export const useServerSessionInputs = ({
     const scopeRef = useRef(scope)
     scopeRef.current = scope
     const fetchSnapshot = useSetAtom(fetchSessionSnapshotAtom)
-    const fetchCapabilities = useSetAtom(fetchSessionCapabilitiesAtom)
     const removeInput = useSetAtom(removePendingSessionInputAtom)
     const sendInputNow = useSetAtom(sendPendingSessionInputNowAtom)
     const updateInput = useSetAtom(updatePendingSessionInputAtom)
@@ -269,9 +265,6 @@ export const useServerSessionInputs = ({
             return loadInFlightRef.current.promise
         }
         const promise = (async () => {
-            const capabilities = await fetchCapabilities(sessionId)
-            if (!capabilities) return null
-            if (!capabilities.queue) return emptyView
             const snapshot = await fetchSnapshot(sessionId)
             return snapshot ? reduceSessionPendingInputs(snapshot) : null
         })()
@@ -282,7 +275,7 @@ export const useServerSessionInputs = ({
         }
         void promise.then(clear, clear)
         return promise
-    }, [fetchCapabilities, fetchSnapshot, sessionId, scope])
+    }, [fetchSnapshot, sessionId, scope])
 
     const refresh = useCallback(async () => {
         const next = await load()
@@ -301,21 +294,12 @@ export const useServerSessionInputs = ({
         }
     }, [load, scope])
 
-    // Pending-input events arrive in a later increment. Until then, a small capability-gated
-    // snapshot poll gives every mounted browser the same durable order.
+    // Pending-input events arrive in a later increment. Until then, a small snapshot poll gives
+    // every mounted browser the same durable order.
     useEffect(() => {
-        if (!view.capabilities.queue) return
         const timer = setInterval(() => void refresh(), 2_000)
         return () => clearInterval(timer)
-    }, [refresh, view.capabilities.queue])
-
-    const resolveCapabilities = useCallback(async () => {
-        const capabilities = await fetchCapabilities(sessionId)
-        if (!capabilities || scopeRef.current !== scope) {
-            throw new Error("Session capabilities are unavailable. Please try again.")
-        }
-        return {queue: capabilities.queue, steer: capabilities.steer}
-    }, [fetchCapabilities, sessionId, scope])
+    }, [refresh])
 
     const submit = useCallback(
         async (
@@ -422,7 +406,6 @@ export const useServerSessionInputs = ({
 
     const edit = useCallback(
         async (id: string, item: {text: string; fileParts?: FileUIPart[]}) => {
-            if (!view.capabilities.queue) throw new Error("Queue editing is not available.")
             const updated = await updateInput({
                 sessionId,
                 inputId: id,
@@ -437,24 +420,20 @@ export const useServerSessionInputs = ({
             if (!updated) throw new Error("The queued message could not be updated. Try again.")
             await refresh()
         },
-        [refresh, sessionId, updateInput, view.capabilities.queue],
+        [refresh, sessionId, updateInput],
     )
 
     const sendNow = useCallback(
         async (id: string) => {
-            if (!view.capabilities.queue || !view.capabilities.steer) {
-                throw new Error("Send Now is not available for this session.")
-            }
             if (!(await sendInputNow({sessionId, inputId: id}))) {
                 throw new Error("The queued message could not be sent. Try again.")
             }
             await refresh()
         },
-        [refresh, sendInputNow, sessionId, view.capabilities.queue, view.capabilities.steer],
+        [refresh, sendInputNow, sessionId],
     )
 
     return {
-        capabilities: view.capabilities,
         executionState: view.executionState,
         busy: locallyBusy || view.executionState !== "idle",
         queued: view.queued,
@@ -463,6 +442,5 @@ export const useServerSessionInputs = ({
         sendNow,
         edit,
         refresh,
-        resolveCapabilities,
     }
 }

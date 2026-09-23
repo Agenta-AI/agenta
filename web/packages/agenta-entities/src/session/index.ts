@@ -110,7 +110,6 @@ export {
     type Mount,
 } from "./core/schema"
 export {
-    fetchSessionCapabilitiesAtom,
     fetchSessionSnapshotAtom,
     removePendingSessionInputAtom,
     sendPendingSessionInputNowAtom,

@@ -231,8 +231,8 @@ _SESSION_ID_RE = re.compile(r"^[a-zA-Z0-9_\-]{1,128}$")
 def _session_capabilities() -> SessionCapabilities:
     return SessionCapabilities(
         durable_approvals=env.agenta.sessions.durable_approvals,
-        queue=env.agenta.sessions.queue,
-        steer=env.agenta.sessions.queue and env.agenta.sessions.steer,
+        queue=True,
+        steer=True,
     )
 
 
@@ -1111,8 +1111,7 @@ class RecordsRouter:
         # window where the watchdog could see no `done`, expose recovery, and replay work that
         # had already finished while the records worker was still settling core state.
         if (
-            (env.agenta.sessions.durable_approvals or env.agenta.sessions.queue)
-            and self.commands_service is not None
+            self.commands_service is not None
             and body.record_type == TERMINAL_RECORD_TYPE
             and body.turn_id
             and (body.attributes or {}).get("stopReason")

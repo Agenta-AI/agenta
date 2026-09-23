@@ -37,12 +37,12 @@ describe("session pending-input API", () => {
             execution_state: {state: "running"},
             pending: {inputs: [], interactions: []},
             read: {latest_sequence: 0, history_complete: true},
-            capabilities: {queue: true, steer: false},
+            capabilities: {durable_approvals: true},
         })
 
         await expect(
             readSnapshot({projectId: "project-1", sessionId: "session/1"}),
-        ).resolves.toMatchObject({capabilities: {queue: true, steer: false}})
+        ).resolves.toMatchObject({capabilities: {durable_approvals: true}})
         expect(fetchSnapshot).toHaveBeenCalledWith(
             {session_id: "session/1"},
             expect.objectContaining({queryParams: {project_id: "project-1"}}),
@@ -56,7 +56,7 @@ describe("session pending-input API", () => {
             execution_state: {state: "idle"},
             pending: {inputs: [], interactions: []},
             read: null,
-            capabilities: {queue: true, steer: true},
+            capabilities: {durable_approvals: true},
         })
 
         await expect(
@@ -66,7 +66,7 @@ describe("session pending-input API", () => {
             execution: null,
             read: null,
             execution_state: {state: "idle"},
-            capabilities: {queue: true, steer: true},
+            capabilities: {durable_approvals: true},
         })
     })
 
