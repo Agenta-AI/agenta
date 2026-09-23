@@ -7,10 +7,8 @@ import pytest
 from fastapi import HTTPException
 
 from oss.src.apis.fastapi.sessions import router as router_module
-from oss.src.apis.fastapi.sessions.models import SessionCancelRequest
 from oss.src.apis.fastapi.sessions.router import SessionControlRouter
 from oss.src.core.sessions.commands.dtos import SessionCommandState
-from oss.src.core.sessions.streams.dtos import CommandMode, SessionStreamCommandResponse
 from oss.src.utils.env import env
 from oss.src.utils.env import _parse_sessions_late_output
 from oss.src.utils.env import _parse_sessions_watchdog_stale_heartbeat_seconds
@@ -29,22 +27,12 @@ def test_unknown_late_output_policy_falls_back_to_quarantine(monkeypatch):
     assert value == "quarantine"
 
 
-@pytest.mark.parametrize(
-    ("durable_stop", "expected"),
-    [(None, 90), ("", 90), ("false", 300), ("true", 90)],
-)
-def test_watchdog_default_respects_durable_stop_setting(
-    monkeypatch, durable_stop, expected
-):
-    if durable_stop is None:
-        monkeypatch.delenv("AGENTA_SESSIONS_DURABLE_STOP", raising=False)
-    else:
-        monkeypatch.setenv("AGENTA_SESSIONS_DURABLE_STOP", durable_stop)
+def test_watchdog_default_is_three_missed_heartbeats(monkeypatch):
     monkeypatch.delenv(
         "AGENTA_SESSIONS_WATCHDOG_STALE_HEARTBEAT_SECONDS", raising=False
     )
 
-    assert _parse_sessions_watchdog_stale_heartbeat_seconds() == expected
+    assert _parse_sessions_watchdog_stale_heartbeat_seconds() == 90
 
 
 def _request():
@@ -54,51 +42,7 @@ def _request():
     )
 
 
-async def test_cancel_route_uses_legacy_path_when_durable_stop_is_off(monkeypatch):
-    monkeypatch.setattr(env.agenta.sessions, "durable_stop", False)
-    monkeypatch.setattr(
-        router_module, "check_action_access", AsyncMock(return_value=True)
-    )
-    service = SimpleNamespace(
-        request_cancel_legacy=AsyncMock(
-            return_value=SessionStreamCommandResponse(
-                mode=CommandMode.cancel,
-                session_id="session-1",
-                turn_id="turn-1",
-                detached=True,
-            )
-        ),
-        request_cancel=AsyncMock(),
-    )
-
-    response = await SessionControlRouter(
-        commands_service=service
-    ).cancel_session_execution(
-        _request(),
-        "session-1",
-        SessionCancelRequest(expected_execution_id="turn-1"),
-    )
-
-    service.request_cancel_legacy.assert_awaited_once_with(
-        project_id=_PROJECT,
-        user_id=_USER,
-        session_id="session-1",
-        expected_execution_id="turn-1",
-    )
-    service.request_cancel.assert_not_awaited()
-    assert response.status_code == 200
-    assert json.loads(response.body) == {
-        "mode": "cancel",
-        "session_id": "session-1",
-        "turn_id": "turn-1",
-        "watcher_id": None,
-        "detached": True,
-        "cancelled_turn_ids": [],
-    }
-
-
-async def test_cancel_route_uses_durable_path_when_flag_is_on(monkeypatch):
-    monkeypatch.setattr(env.agenta.sessions, "durable_stop", True)
+async def test_cancel_route_admits_a_durable_stop(monkeypatch):
     monkeypatch.setattr(
         router_module, "check_action_access", AsyncMock(return_value=True)
     )
@@ -107,7 +51,6 @@ async def test_cancel_route_uses_durable_path_when_flag_is_on(monkeypatch):
         state=SessionCommandState.pending,
     )
     service = SimpleNamespace(
-        request_cancel_legacy=AsyncMock(),
         request_cancel=AsyncMock(
             return_value=SimpleNamespace(
                 command=command,
@@ -122,7 +65,6 @@ async def test_cancel_route_uses_durable_path_when_flag_is_on(monkeypatch):
     ).cancel_session_execution(_request(), "session-1")
 
     service.request_cancel.assert_awaited_once()
-    service.request_cancel_legacy.assert_not_awaited()
     assert response.status_code == 202
 
 
@@ -137,7 +79,6 @@ def test_runner_token_rejects_non_ascii_credentials_as_unauthorized(monkeypatch)
 
 
 async def test_cancel_rejects_an_overlength_idempotency_key(monkeypatch):
-    monkeypatch.setattr(env.agenta.sessions, "durable_stop", True)
     monkeypatch.setattr(
         router_module, "check_action_access", AsyncMock(return_value=True)
     )

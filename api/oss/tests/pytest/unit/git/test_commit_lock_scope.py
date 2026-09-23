@@ -2,8 +2,8 @@
 
 The lock is not free: it serializes every writer on a variant, and a caller that waits past
 `lock_timeout` gets a 503 instead of a commit. So the rule is that a commit takes it only
-when a guard needs it, and the claim that the flag-off path behaves byte-for-byte as it did
-before this project rests entirely on that path taking no lock at all.
+when a guard needs it, and the claim that commits outside the checked wrapper behave
+byte-for-byte as they did before this project rests entirely on that path taking no lock at all.
 
 That claim was resting on reading `needs_lock`, not on a test. Reading a condition is how
 `SET LOCAL lock_timeout` shipped with a bind parameter through 1911 green tests: the code
@@ -133,8 +133,8 @@ def _refuses_nothing(stored_head):
 
 class TestWhichCommitsTakeTheLock:
     async def test_a_plain_commit_takes_no_lock(self, dao_factory):
-        # The path every caller outside the checked wrapper takes, including the flag-off
-        # commit path. Serializing them would be a behavior change nobody asked for.
+        # The path every caller outside the checked wrapper takes. Serializing them would be
+        # a behavior change nobody asked for.
         session = _RecordingSession()
 
         await dao_factory(session).commit_revision(

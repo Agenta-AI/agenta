@@ -12,6 +12,7 @@ import {projectIdAtom} from "@agenta/shared/state"
 import type {FileUIPart, UIMessage} from "ai"
 import {useAtomValue, useSetAtom} from "jotai"
 
+import {buildRequestWithinDeadline, PREPARE_NOT_READY_MESSAGE} from "../assets/boundedRequest"
 import {outboundUserParts} from "../assets/displayContent"
 import {attachmentIdForPart} from "../assets/files"
 import {reduceSessionPendingInputs, type SessionPendingInputView} from "../assets/pendingInputs"
@@ -334,15 +335,25 @@ export const useServerSessionInputs = ({
                     : {}),
                 parts: outboundUserParts(message),
             }
-            const request = await buildAgentRequest(
-                entityIdRef.current,
-                [...messagesRef.current, outbound],
-                {
+            // Bounded, not instant: a null build means the workflow has not loaded its invocation
+            // URL yet, which the first send to a new agent races (#6042).
+            const request = await buildRequestWithinDeadline(() =>
+                buildAgentRequest(entityIdRef.current, [...messagesRef.current, outbound], {
                     sessionId,
                     ...(isSharedReaderReadyRef.current?.() ? {sharedResponse: true} : {}),
-                },
-            )
-            if (!request) throw new Error("The agent is not ready to accept input.")
+                }),
+            ).catch((error: unknown) => {
+                if (error instanceof Error && error.message === PREPARE_NOT_READY_MESSAGE) {
+                    throw new Error("The agent is not ready to accept input.")
+                }
+                throw error
+            })
+            // The build can wait for the invocation URL. A session switched meanwhile would get a
+            // request mixing the new scope's entity and messages with this send's session id.
+            // Only the scope is checked, not the mount: durable admission may outlive a remount.
+            if (scopeRef.current !== scope) {
+                throw new Error("The session changed before the message was sent.")
+            }
 
             const response = await fetch(request.invocationUrl, {
                 method: "POST",
@@ -407,7 +418,7 @@ export const useServerSessionInputs = ({
                 .catch(() => undefined)
             return "running"
         },
-        [mount, refresh, sessionId],
+        [mount, refresh, scope, sessionId],
     )
 
     const remove = useCallback(

@@ -260,7 +260,6 @@ async def test_snapshot_carries_the_queue_half_when_the_inputs_service_is_wired(
 
     with (
         patch.object(env.sessions, "shared_reader", True),
-        patch.object(env.agenta.sessions, "durable_approvals", True),
         patch.object(env.agenta.sessions, "queue", True),
         patch.object(env.agenta.sessions, "steer", True),
         patch(

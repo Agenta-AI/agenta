@@ -3,9 +3,6 @@ import {expect, test} from "@playwright/test"
 const IPHONE_UA =
     "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
 
-const gateEnabled = process.env.AGENTA_MOBILE_GATE !== "false"
-const reverseGateEnabled = process.env.AGENTA_MOBILE_REVERSE_GATE !== "false"
-
 /**
  * A genuinely empty context. `storageState: undefined` reads as "no session" but does not clear
  * anything: an option set to undefined falls back to the config value, so these tests inherited
@@ -15,7 +12,6 @@ const reverseGateEnabled = process.env.AGENTA_MOBILE_REVERSE_GATE !== "false"
 const NO_SESSION = {cookies: [], origins: []}
 
 test.describe("mobile gate: forward direction", () => {
-    test.skip(!gateEnabled, "mobile gate opted out (AGENTA_MOBILE_GATE=false)")
     test.use({
         userAgent: IPHONE_UA,
         extraHTTPHeaders: {"sec-ch-ua-mobile": "?1"},
@@ -49,19 +45,10 @@ test.describe("mobile gate: forward direction", () => {
 })
 
 test.describe("mobile gate: reverse direction", () => {
-    test.skip(
-        !reverseGateEnabled,
-        "reverse mobile gate opted out (AGENTA_MOBILE_REVERSE_GATE=false)",
-    )
     test.use({storageState: NO_SESSION})
 
-    test("desktop UA on /m is sent to the desktop app", async ({page}) => {
+    test("a desktop browser can open /m", async ({page}) => {
         await page.goto("/m/")
-        expect(new URL(page.url()).pathname.startsWith("/m")).toBe(false)
-    })
-
-    test("desktop UA on a mobile session URL lands on the session drawer link", async ({page}) => {
-        await page.goto("/m/w/ws1/p/pr1/sessions/abc")
-        await expect(page).toHaveURL(/\/w\/ws1\/p\/pr1\/observability\?session=abc/)
+        expect(new URL(page.url()).pathname.startsWith("/m")).toBe(true)
     })
 })

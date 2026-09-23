@@ -7,13 +7,12 @@ import {
     prepareAfterContinuationPreflight,
     resolveStopExecution,
     startupLabelFromDataPart,
-    submitApprovalForCapability,
+    submitServerOwnedApproval,
 } from "@agenta/chat/assets"
 import type {ClientToolOutputHandler} from "@agenta/chat/clientTools"
 import {useFileActivityDetector, useSessionChat} from "@agenta/chat/hooks"
 import {
     classifyAgentRunError,
-    ignoreStreamRejection,
     createUserStoppedState,
     isSessionTurnStopping,
     reduceUserStoppedState,
@@ -45,11 +44,9 @@ import {
     cancelSessionExecution,
     invalidateSessionListQueries,
     killSession,
-    recordInteractionAnswerAtom,
     respondInteractionAnswerAtom,
     respondInteractionAnswersAtom,
     resumeSessionContinuationAtom,
-    sessionDurableApprovalsCapabilityAtom,
     revalidateSessionMountsAtom,
     revalidateSessionRecordsAtom,
 } from "@agenta/entities/session"
@@ -57,7 +54,6 @@ import {markTraceAsFresh} from "@agenta/entities/trace"
 import {invalidateAgentCommittedRevisionCache, workflowMolecule} from "@agenta/entities/workflow"
 import {
     agentShouldResumeAfterApproval,
-    approvalResolution,
     buildAgentRequest,
     buildTurnCapture,
     isHitlPending,
@@ -150,11 +146,9 @@ export const useAgentChatSession = ({
     const revalidateSessionMounts = useSetAtom(revalidateSessionMountsAtom)
     const revalidateSessionRecords = useSetAtom(revalidateSessionRecordsAtom)
     const setSessionStatus = useSetAtom(setSessionStatusAtom)
-    const recordInteractionAnswer = useSetAtom(recordInteractionAnswerAtom)
     const respondInteractionAnswer = useSetAtom(respondInteractionAnswerAtom)
     const respondInteractionAnswers = useSetAtom(respondInteractionAnswersAtom)
     const resumeSessionContinuation = useSetAtom(resumeSessionContinuationAtom)
-    const supportsDurableApprovals = useSetAtom(sessionDurableApprovalsCapabilityAtom)
     const queryClient = useQueryClient()
     // Only a gate settled in this mount may trigger an automatic resume; hydrated answers stay inert.
     // `null` means "no live gate" — voided by a stop, or spent once a resume really went out;
@@ -341,7 +335,6 @@ export const useAgentChatSession = ({
         regenerate: regenerateChatMessage,
         setMessages,
         addToolApprovalResponse,
-        addToolOutput,
         error,
         clearError,
     } = useChat({
@@ -439,69 +432,34 @@ export const useAgentChatSession = ({
         liveGateInteractionRef.current = interaction
     }, [])
 
-    /** Choose the durable dispatcher only when the server advertises it. */
     const answerApproval = useCallback(
         async (approvalId: string, approved: boolean) => {
-            return submitApprovalForCapability({
-                durableApprovals: supportsDurableApprovals(sessionId),
-                submitDurable: () =>
+            return submitServerOwnedApproval({
+                submit: () =>
                     respondInteractionAnswer({
                         sessionId,
                         toolCallId: approvalId,
                         approved,
                     }),
-                retireDurable: () => {
+                retire: () => {
                     // A lost HTTP response may still follow a committed continuation.
                     liveGateInteractionRef.current = null
                 },
-                recordLegacy: () =>
-                    recordInteractionAnswer({
-                        sessionId,
-                        toolCallId: approvalId,
-                        resolution: approvalResolution(approvalId, approved),
-                    }),
-                releaseLegacy: () => addToolApprovalResponse({id: approvalId, approved}),
             })
         },
-        [
-            addToolApprovalResponse,
-            recordInteractionAnswer,
-            respondInteractionAnswer,
-            sessionId,
-            supportsDurableApprovals,
-        ],
+        [respondInteractionAnswer, sessionId],
     )
 
     const answerApprovals = useCallback(
         async (toolCallIds: string[], approved: boolean) => {
-            return submitApprovalForCapability({
-                durableApprovals: supportsDurableApprovals(sessionId),
-                submitDurable: () => respondInteractionAnswers({sessionId, toolCallIds, approved}),
-                retireDurable: () => {
+            return submitServerOwnedApproval({
+                submit: () => respondInteractionAnswers({sessionId, toolCallIds, approved}),
+                retire: () => {
                     liveGateInteractionRef.current = null
-                },
-                recordLegacy: () =>
-                    Promise.all(
-                        toolCallIds.map((approvalId) =>
-                            recordInteractionAnswer({
-                                sessionId,
-                                toolCallId: approvalId,
-                                resolution: approvalResolution(approvalId, approved),
-                            }),
-                        ),
-                    ).then(() => undefined),
-                releaseLegacy: () => {
-                    for (const id of toolCallIds) addToolApprovalResponse({id, approved})
                 },
             })
         },
-        [
-            addToolApprovalResponse,
-            recordInteractionAnswer,
-            respondInteractionAnswers,
-            sessionId,
-            supportsDurableApprovals,
-        ],
+        [respondInteractionAnswers, sessionId],
     )
 
     // A resume really went out (the SDK's), so the gate it carried is spent. Retired HERE, where a
@@ -513,7 +471,7 @@ export const useAgentChatSession = ({
         if (isResumeSend({from, to: status})) liveGateInteractionRef.current = null
     }, [status])
 
-    // Durable gates resume on the server; legacy gates still release the local SDK.
+    // Gates resume on the server.
     const handleClientToolOutput = useCallback(
         async ({
             toolName,
@@ -529,39 +487,15 @@ export const useAgentChatSession = ({
                     ? {outcome: "error", error: errorText}
                     : {outcome: "completed", output: output ?? {}}),
             }
-            const outcome = await submitApprovalForCapability({
-                durableApprovals: supportsDurableApprovals(sessionId),
-                submitDurable: () => respondInteractionAnswer({sessionId, toolCallId, resolution}),
-                retireDurable: () => {
+            const outcome = await submitServerOwnedApproval({
+                submit: () => respondInteractionAnswer({sessionId, toolCallId, resolution}),
+                retire: () => {
                     liveGateInteractionRef.current = null
-                },
-                recordLegacy: () => recordInteractionAnswer({sessionId, toolCallId, resolution}),
-                releaseLegacy: () => {
-                    if (errorText !== undefined) {
-                        addToolOutput({
-                            state: "output-error",
-                            tool: toolName as never,
-                            toolCallId,
-                            errorText,
-                        }).catch(ignoreStreamRejection)
-                    } else {
-                        addToolOutput({
-                            tool: toolName as never,
-                            toolCallId,
-                            output: (output ?? {}) as never,
-                        }).catch(ignoreStreamRejection)
-                    }
                 },
             })
             return outcome
         },
-        [
-            addToolOutput,
-            recordInteractionAnswer,
-            respondInteractionAnswer,
-            sessionId,
-            supportsDurableApprovals,
-        ],
+        [respondInteractionAnswer, sessionId],
     )
 
     // Orphan detection for the queue's pre-resume hold: the tail is a RESTORED message (this

@@ -116,12 +116,10 @@ WORKLOADS = (
     ("alembic", "alembic", False),
 )
 
-# The two workloads that are off by default, and what turns them on.
+# The workload that is off by default, and what turns it on. web-mobile always deploys.
 ALL_WORKLOADS_ON = [
     "--set",
     "store.enabled=true",
-    "--set",
-    "webMobile.enabled=true",
 ]
 
 

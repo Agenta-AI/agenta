@@ -1,4 +1,3 @@
-from os import environ
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 from uuid import uuid4
@@ -35,33 +34,6 @@ from oss.src.core.workflows.dtos import WorkflowRevision, WorkflowRevisionData
 from oss.src.core.workflows.service import WorkflowsService
 from oss.src.core.workflows.static_catalog import StaticWorkflowCatalog
 
-# The build kit has two shapes, one per state of the ordered-operations switch: with the
-# switch on, the catalog defines `read_config` and the kit carries the read half of the
-# read-then-edit loop. Both are written out in full, and the switch is read here rather
-# than through the catalog, so this stays a statement about the flag instead of a copy of
-# the code it checks.
-EXPECTED_BUILD_KIT_OPS_WITHOUT_READ_CONFIG = (
-    "discover_tools",
-    "search_skills",
-    "check_skill_updates",
-    "apply_skill_update",
-    "commit_revision",
-    "test_run",
-    "rename_session",
-    "rename_agent",
-    "discover_triggers",
-    "create_schedule",
-    "create_subscription",
-    "list_schedules",
-    "list_deliveries",
-    "test_subscription",
-    "list_subscriptions",
-    "remove_schedule",
-    "remove_subscription",
-    "list_starters",
-    "create_app",
-)
-
 EXPECTED_BUILD_KIT_OPS_WITH_READ_CONFIG = (
     "discover_tools",
     "search_skills",
@@ -86,30 +58,7 @@ EXPECTED_BUILD_KIT_OPS_WITH_READ_CONFIG = (
 )
 
 
-def _ordered_operations_enabled() -> bool:
-    # Spelled out rather than imported, so the expectation cannot move with the code under
-    # test. The default (on) and the accepted spellings are pinned equal in
-    # `unit/workflows/test_ordered_operations_flag.py`.
-    value = environ.get("AGENTA_WORKFLOWS_ORDERED_OPERATIONS_ENABLED", "").strip()
-    if not value:
-        return True
-    return value.lower() in {
-        "true",
-        "1",
-        "t",
-        "y",
-        "yes",
-        "on",
-        "enable",
-        "enabled",
-    }
-
-
-EXPECTED_DEFAULT_BUILD_KIT_OPS = (
-    EXPECTED_BUILD_KIT_OPS_WITH_READ_CONFIG
-    if _ordered_operations_enabled()
-    else EXPECTED_BUILD_KIT_OPS_WITHOUT_READ_CONFIG
-)
+EXPECTED_DEFAULT_BUILD_KIT_OPS = EXPECTED_BUILD_KIT_OPS_WITH_READ_CONFIG
 
 CUT_BUILD_KIT_OPS = (
     "annotate_trace",

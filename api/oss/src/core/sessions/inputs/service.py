@@ -213,11 +213,7 @@ class SessionInputsService:
         )
         busy = busy or queued_behind_interaction
         resumed_execution_id: Optional[str] = None
-        if (
-            not busy
-            and (env.agenta.sessions.durable_approvals or env.agenta.sessions.queue)
-            and self._continuation_resumer is not None
-        ):
+        if not busy and self._continuation_resumer is not None:
             resumed_execution_id = await self._continuation_resumer(
                 project_id=project_id,
                 session_id=session_id,

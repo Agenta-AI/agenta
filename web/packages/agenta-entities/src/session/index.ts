@@ -23,7 +23,6 @@ export {
     setSessionHeader,
     fetchSessionStream,
     fetchSessionCapabilities,
-    fetchSessionDurableApprovalsCapability,
     removePendingSessionInput,
     sendPendingSessionInputNow,
     updatePendingSessionInput,
@@ -168,11 +167,9 @@ export {
     APPROVAL_NOT_PENDING,
     ApprovalNotPendingError,
     isApprovalNotPendingError,
-    recordInteractionAnswerAtom,
     respondInteractionAnswerAtom,
     respondInteractionAnswersAtom,
     resumeSessionContinuationAtom,
-    sessionDurableApprovalsCapabilityAtom,
 } from "./state/interactionAnswer"
 export {
     sessionMountsQueryFamily,
