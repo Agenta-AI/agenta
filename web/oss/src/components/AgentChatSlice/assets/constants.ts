@@ -1,9 +1,5 @@
 import {getEnv} from "@/oss/lib/helpers/dynamicEnv"
 
-/** Whether the agent chat slice page is enabled. On by default; opt out with `NEXT_PUBLIC_AGENT_CHAT_SLICE=false`. */
-export const isAgentChatSliceEnabled = (): boolean =>
-    (getEnv("NEXT_PUBLIC_AGENT_CHAT_SLICE") || "").toLowerCase() !== "false"
-
 /**
  * When "true", the chat Stop button also kills the session (tears down the live sandbox + halts
  * server-side compute) on top of aborting the client stream. Off by default: kill ends the current
