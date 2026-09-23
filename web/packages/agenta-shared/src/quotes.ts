@@ -165,7 +165,8 @@ export const quotesToMarkdown = (quotes: Quote[], text = ""): string => {
     const blocks = quotes.map((quote) => {
         const head =
             quote.source.kind === "file"
-                ? `**${quote.source.fileName}**${
+                ? // The drive path, not the bare name: it is what the agent opens the file by.
+                  `**\`${quote.source.displayPath || quote.source.path}\`**${
                       formatLineRange(quote.source.startLine, quote.source.endLine)
                           ? ` (${formatLineRange(quote.source.startLine, quote.source.endLine)})`
                           : ""
