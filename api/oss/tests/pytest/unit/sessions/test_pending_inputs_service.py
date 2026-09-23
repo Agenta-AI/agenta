@@ -323,32 +323,6 @@ async def test_no_recoverable_continuation_keeps_idle_input_executable(monkeypat
 
 
 @pytest.mark.asyncio
-async def test_queue_flag_off_keeps_the_idle_path_without_a_continuation_probe(
-    monkeypatch,
-):
-    monkeypatch.setattr(env.agenta.sessions, "queue", False)
-    monkeypatch.setattr(env.agenta.sessions, "durable_approvals", False)
-    continuation_resumer = AsyncMock(return_value="continuation-1")
-    service = SessionInputsService(
-        inputs_dao=MemoryInputsDAO(),
-        streams_service=Streams(running=False),
-        continuation_resumer=continuation_resumer,
-    )
-
-    admitted = await service.admit(
-        project_id=uuid4(),
-        user_id=uuid4(),
-        session_id="session-1",
-        content={"message": "old path"},
-        policy="queue",
-        idempotency_key="key-1",
-    )
-
-    assert admitted.action == "execute"
-    continuation_resumer.assert_not_awaited()
-
-
-@pytest.mark.asyncio
 async def test_steer_targets_the_execution_reopened_by_continuation_resume(monkeypatch):
     monkeypatch.setattr(env.agenta.sessions, "queue", True)
     monkeypatch.setattr(env.agenta.sessions, "steer", True)

@@ -124,7 +124,8 @@ class SessionResponse(BaseModel):
 
 
 class SessionCapabilities(BaseModel):
-    durable_approvals: bool = False
+    # Always true; kept for one release so older clients that branch on it keep working.
+    durable_approvals: bool = True
     queue: bool = False
     steer: bool = False
 

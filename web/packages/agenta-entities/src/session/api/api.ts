@@ -256,7 +256,6 @@ const SESSION_CAPABILITY_TIMEOUT_SECONDS = 2
 const SESSION_CAPABILITY_NEGATIVE_RETRY_MS = 30_000
 
 export interface SessionFeatureCapabilities {
-    durableApprovals: boolean
     queue: boolean
     steer: boolean
 }
@@ -283,7 +282,7 @@ export function invalidateSessionDurableApprovalsCapability(
 }
 
 const hasSessionCapability = (capabilities: SessionFeatureCapabilities): boolean =>
-    capabilities.durableApprovals || capabilities.queue || capabilities.steer
+    capabilities.queue || capabilities.steer
 
 const cachedSessionCapabilities = (key: string): SessionFeatureCapabilities | null => {
     const cached = durableApprovalsCapabilityCache.get(key)
@@ -313,7 +312,7 @@ export const fetchSessionCapabilities = async ({
     const request = (async () => {
         let capabilities: SessionFeatureCapabilities | null = null
         try {
-            const data = await callFern("[fetchSessionDurableApprovalsCapability]", () =>
+            const data = await callFern("[fetchSessionCapabilities]", () =>
                 getSessionsClient().fetchSessionStream(
                     {session_id: sessionId},
                     {
@@ -327,12 +326,11 @@ export const fetchSessionCapabilities = async ({
                 ? safeParseWithLogging(
                       sessionStreamResponseSchema,
                       data,
-                      "[fetchSessionDurableApprovalsCapability]",
+                      "[fetchSessionCapabilities]",
                   )
                 : null
             capabilities = validated
                 ? {
-                      durableApprovals: validated.capabilities.durable_approvals,
                       queue: validated.capabilities.queue,
                       steer: validated.capabilities.steer,
                   }
@@ -929,15 +927,6 @@ export async function fetchSessionStream({
         "[fetchSessionStream]",
     )
     return validated?.stream ?? null
-}
-
-/** Resolve the approval owner before mutating either the server gate or the local transcript. */
-export async function fetchSessionDurableApprovalsCapability(
-    params: SessionScopedParams,
-): Promise<boolean> {
-    const capabilities = await fetchSessionCapabilities(params)
-    if (!capabilities) throw new Error("Session capabilities are unavailable. Please try again.")
-    return capabilities.durableApprovals
 }
 
 export interface CommandSessionStreamParams extends SessionScopedParams {

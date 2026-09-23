@@ -357,7 +357,6 @@ async def test_execution_lookup_failure_appends_the_batch_unguarded(monkeypatch)
 
 async def test_runner_done_terminalizes_a_continuation_execution(monkeypatch):
     monkeypatch.setattr(env.agenta.sessions, "durable_stop", True)
-    monkeypatch.setattr(env.agenta.sessions, "durable_approvals", True)
     executions = _ExecutionSettlements()
     executions.rows[(_SESSION, _TURN)] = SessionExecutionSettlement(
         project_id=_PROJECT,
@@ -377,7 +376,6 @@ async def test_runner_done_terminalizes_a_continuation_execution(monkeypatch):
 
 async def test_paused_or_quarantined_done_does_not_complete_a_continuation(monkeypatch):
     monkeypatch.setattr(env.agenta.sessions, "durable_stop", True)
-    monkeypatch.setattr(env.agenta.sessions, "durable_approvals", True)
     executions = _ExecutionSettlements()
     executions.rows[(_SESSION, _TURN)] = SessionExecutionSettlement(
         project_id=_PROJECT,
@@ -412,7 +410,6 @@ async def test_paused_or_quarantined_done_does_not_complete_a_continuation(monke
 @pytest.mark.parametrize("stop_reason", ["cancelled", "error"])
 async def test_non_completing_done_does_not_claim_completion(monkeypatch, stop_reason):
     monkeypatch.setattr(env.agenta.sessions, "durable_stop", True)
-    monkeypatch.setattr(env.agenta.sessions, "durable_approvals", True)
     executions = _ExecutionSettlements()
     executions.rows[(_SESSION, _TURN)] = SessionExecutionSettlement(
         project_id=_PROJECT,

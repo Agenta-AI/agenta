@@ -538,11 +538,7 @@ async def run_orphan_sweep(
         # Reconcile that durable proof before clearing its stale heartbeat; otherwise the next
         # Send would see a recoverable continuation and replay already-completed work.
         completion_failures: Set[Tuple[UUID, str, str]] = set()
-        if (
-            records_service is not None
-            and commands_service is not None
-            and (env.agenta.sessions.durable_approvals or env.agenta.sessions.queue)
-        ):
+        if records_service is not None and commands_service is not None:
             runner_completed, completion_failures = await _runner_completed_executions(
                 records_service=records_service,
                 candidates=claimed,

@@ -22,24 +22,14 @@ import type {UIMessage} from "ai"
 import {createStore, Provider} from "jotai"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
-const {
-    capabilitiesViaAtom,
-    snapshotViaAtom,
-    resumeContinuation,
-    durableApprovalCapability,
-    respondAnswer,
-} = vi.hoisted(() => ({
-    capabilitiesViaAtom: vi.fn(),
-    snapshotViaAtom: vi.fn(),
-    resumeContinuation: vi.fn(),
-    durableApprovalCapability: vi.fn(),
-    respondAnswer: vi.fn(),
-}))
-
-const approvalRecord = vi.hoisted(() => ({
-    defer: false,
-    resolve: undefined as (() => void) | undefined,
-}))
+const {capabilitiesViaAtom, snapshotViaAtom, resumeContinuation, respondAnswer} = vi.hoisted(
+    () => ({
+        capabilitiesViaAtom: vi.fn(),
+        snapshotViaAtom: vi.fn(),
+        resumeContinuation: vi.fn(),
+        respondAnswer: vi.fn(),
+    }),
+)
 
 vi.mock("@agenta/playground/agent-chat", async (importOriginal) => {
     const actual = await importOriginal<typeof import("@agenta/playground/agent-chat")>()
@@ -64,12 +54,6 @@ vi.mock("@agenta/entities/session", async (importOriginal) => {
         ...actual,
         revalidateSessionMountsAtom: atom(null, () => {}),
         revalidateSessionRecordsAtom: atom(null, () => {}),
-        recordInteractionAnswerAtom: atom(null, async () => {
-            if (!approvalRecord.defer) return
-            await new Promise<void>((resolve) => {
-                approvalRecord.resolve = resolve
-            })
-        }),
         // The hydration seam's records fetch: "no server history" for these tests.
         fetchSessionRecordsAtom: atom(null, () => ({records: null, refreshed: null})),
         fetchSessionInteractionStatesAtom: atom(null, () => new Map()),
@@ -82,7 +66,6 @@ vi.mock("@agenta/entities/session", async (importOriginal) => {
             snapshotViaAtom(sessionId),
         ),
         resumeSessionContinuationAtom: atom(null, () => resumeContinuation()),
-        sessionDurableApprovalsCapabilityAtom: atom(null, () => durableApprovalCapability()),
         respondInteractionAnswerAtom: atom(null, (_get, _set, args) => respondAnswer(args)),
     }
 })
@@ -319,12 +302,9 @@ const mount = (store: ReturnType<typeof createStore>, entityId: string, sessionI
     )
 
 beforeEach(() => {
-    durableApprovalCapability.mockReset().mockResolvedValue(false)
     respondAnswer
         .mockReset()
         .mockResolvedValue({durable: true, recoverable: false, executionId: "questionnaire-child"})
-    approvalRecord.defer = false
-    approvalRecord.resolve = undefined
     FakeEventSource.instances = []
     vi.stubGlobal("EventSource", FakeEventSource)
     fetchMock.mockReset()
@@ -345,7 +325,7 @@ beforeEach(() => {
     snapshotViaAtom.mockReset()
     snapshotViaAtom.mockResolvedValue(null)
     capabilitiesViaAtom.mockReset()
-    capabilitiesViaAtom.mockResolvedValue({durableApprovals: false, queue: false, steer: false})
+    capabilitiesViaAtom.mockResolvedValue({queue: false, steer: false})
     resumeContinuation.mockReset()
     resumeContinuation.mockResolvedValue(false)
     vi.mocked(buildAgentRequest).mockClear()
@@ -430,7 +410,6 @@ describe("useAgentConversation", () => {
 
     it("keeps a Steer draft when durable admission is refused", async () => {
         capabilitiesViaAtom.mockResolvedValue({
-            durableApprovals: true,
             queue: true,
             steer: true,
         })
@@ -575,34 +554,12 @@ describe("useAgentConversation", () => {
         expect(getSessionTurnId(sessionId)).toBeUndefined()
     })
 
-    it("clears the parked turn guard when an approval automatically resumes", async () => {
-        fetchMock
-            .mockResolvedValueOnce(approvalResponse())
-            .mockResolvedValueOnce(streamResponse("done"))
-        const store = createStore()
-        const sessionId = nextSessionId()
-        markSessionFresh(sessionId)
-        const {result} = mount(store, "rev-1", sessionId)
-
-        await act(async () => {
-            await result.current.send({text: "needs approval"})
-        })
-        await waitFor(() => expect(result.current.approvals.open).toBe(true), {timeout: 5000})
-        setSessionTurnId(sessionId, "parked-turn")
-
-        act(() => result.current.approvals.respond(true))
-
-        await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2), {timeout: 5000})
-        expect(getSessionTurnId(sessionId)).toBeUndefined()
-    })
-
     it("reports an already-answered gate on the dock, not on the transcript", async () => {
         // The other path into the same refusal. `sendToolOutput` had no handler at all, so a
         // replayed client-tool answer threw into nothing; the dock's `settle` awaits through
         // `Promise.allSettled` and puts the reason on its own card, which is where a reader is
         // looking when they press Approve. Two surfaces, one refusal, and the transcript stays out
         // of it: the run has not failed.
-        durableApprovalCapability.mockResolvedValue(true)
         respondAnswer.mockRejectedValue(new ApprovalNotPendingError())
         fetchMock.mockResolvedValueOnce(approvalResponse())
         const store = createStore()
@@ -628,136 +585,6 @@ describe("useAgentConversation", () => {
         expect(result.current.error).toBeUndefined()
         expect(result.current.turns.at(-1)?.status.showError).not.toBe(true)
         expect(result.current.runStatus).not.toBe("error")
-    })
-
-    it("voids an approval resume before its delayed interaction write releases", async () => {
-        approvalRecord.defer = true
-        fetchMock
-            .mockResolvedValueOnce(approvalResponse())
-            .mockResolvedValueOnce(streamResponse("unexpected resume"))
-        const store = createStore()
-        const sessionId = nextSessionId()
-        markSessionFresh(sessionId)
-        const {result} = mount(store, "rev-1", sessionId)
-
-        await act(async () => {
-            await result.current.send({text: "needs approval"})
-        })
-        await waitFor(() => expect(result.current.approvals.open).toBe(true), {timeout: 5000})
-
-        act(() => result.current.approvals.respond(true))
-        await waitFor(() => expect(approvalRecord.resolve).toBeTypeOf("function"), {timeout: 5000})
-        act(() => result.current.voidPendingResume())
-        await act(async () => {
-            approvalRecord.resolve?.()
-            await Promise.resolve()
-        })
-        await new Promise((resolve) => setTimeout(resolve, 100))
-
-        expect(fetchMock).toHaveBeenCalledTimes(1)
-    })
-
-    it("resumes a secret request with the adopted revision even before the host prop catches up", async () => {
-        const chunks = [
-            {type: "start", messageId: "secret-assistant"},
-            {type: "start-step"},
-            {type: "tool-input-start", toolCallId: "secret-call", toolName: "request_secret"},
-            {
-                type: "tool-input-available",
-                toolCallId: "secret-call",
-                toolName: "request_secret",
-                input: {name: "Deploy token", env_var: "DEPLOY_TOKEN", reason: "Deploy the app"},
-            },
-            {type: "finish-step"},
-            {type: "finish"},
-        ]
-        fetchMock.mockResolvedValueOnce(
-            new Response(
-                chunks.map((c) => `data: ${JSON.stringify(c)}\n\n`).join("") + "data: [DONE]\n\n",
-                {headers: {"content-type": "text/event-stream"}},
-            ),
-        )
-        fetchMock.mockResolvedValue(streamResponse("Continuing with the secret"))
-        const store = createStore()
-        const sessionId = nextSessionId()
-        markSessionFresh(sessionId)
-        const {result, rerender} = mount(store, "rev-before", sessionId)
-        await act(async () => {
-            await result.current.send({text: "Deploy it"})
-        })
-        await waitFor(() => expect(result.current.hitlPending).toBe(true))
-        act(() => {
-            result.current.adoptRevision("rev-with-secret")
-        })
-        rerender({entityId: "rev-before"})
-        act(() => {
-            result.current.sendToolOutput({
-                toolName: "request_secret",
-                toolCallId: "secret-call",
-                output: {
-                    status: "configured",
-                    secret: {slug: "deploy-token"},
-                    env_var: "DEPLOY_TOKEN",
-                    revision_id: "rev-with-secret",
-                },
-            })
-        })
-        await waitFor(() => expect(vi.mocked(buildAgentRequest)).toHaveBeenCalledTimes(2))
-        expect(vi.mocked(buildAgentRequest).mock.calls[1][0]).toBe("rev-with-secret")
-        expect(vi.mocked(buildAgentRequest).mock.calls[1][2]?.sessionId).toBe(sessionId)
-        await waitFor(() => expect(result.current.status).toBe("ready"))
-        expect(result.current.hitlPending).toBe(false)
-    })
-
-    it("surfaces and retries a failed secret resume with the adopted revision and session", async () => {
-        const chunks = [
-            {type: "start", messageId: "secret-error-assistant"},
-            {type: "start-step"},
-            {type: "tool-input-start", toolCallId: "secret-error-call", toolName: "request_secret"},
-            {
-                type: "tool-input-available",
-                toolCallId: "secret-error-call",
-                toolName: "request_secret",
-                input: {name: "Deploy token", env_var: "DEPLOY_TOKEN", reason: "Deploy the app"},
-            },
-            {type: "finish-step"},
-            {type: "finish"},
-        ]
-        fetchMock.mockResolvedValueOnce(
-            new Response(
-                chunks.map((c) => `data: ${JSON.stringify(c)}\n\n`).join("") + "data: [DONE]\n\n",
-                {headers: {"content-type": "text/event-stream"}},
-            ),
-        )
-        fetchMock.mockResolvedValueOnce(new Response("Service unavailable", {status: 503}))
-        fetchMock.mockResolvedValueOnce(streamResponse("Recovered"))
-        const store = createStore()
-        const sessionId = nextSessionId()
-        markSessionFresh(sessionId)
-        const {result} = mount(store, "rev-before", sessionId)
-        await act(async () => {
-            await result.current.send({text: "Deploy it"})
-        })
-        await waitFor(() => expect(result.current.hitlPending).toBe(true))
-        act(() => {
-            result.current.adoptRevision("rev-with-secret")
-            result.current.sendToolOutput({
-                toolName: "request_secret",
-                toolCallId: "secret-error-call",
-                output: {
-                    status: "configured",
-                    secret: {slug: "deploy-token"},
-                    env_var: "DEPLOY_TOKEN",
-                    revision_id: "rev-with-secret",
-                },
-            })
-        })
-        await waitFor(() => expect(result.current.error?.message).toContain("Service unavailable"))
-        await waitFor(() => expect(result.current.turns.at(-1)?.status.showError).toBe(true))
-        act(() => result.current.regenerate(result.current.messages.at(-1)!.id))
-        await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3))
-        expect(vi.mocked(buildAgentRequest).mock.calls.at(-1)?.[0]).toBe("rev-with-secret")
-        expect(vi.mocked(buildAgentRequest).mock.calls.at(-1)?.[2]?.sessionId).toBe(sessionId)
     })
 
     it("survives a revision switch mid-stream instead of aborting the turn", async () => {
@@ -1348,46 +1175,9 @@ describe("useAgentConversation", () => {
 })
 
 describe("server-owned client-tool answers", () => {
-    it("waits for initial capabilities before submitting a questionnaire answer", async () => {
-        let resolve!: (enabled: boolean) => void
-        durableApprovalCapability.mockImplementation(
-            () =>
-                new Promise<boolean>((done) => {
-                    resolve = done
-                }),
-        )
-        const store = createStore()
-        const sessionId = nextSessionId()
-        markSessionFresh(sessionId)
-        const {result} = mount(store, "rev-1", sessionId)
-        const answer = {
-            toolName: "request_input",
-            toolCallId: "questionnaire",
-            output: {action: "accept", content: {goal: "Correctness"}},
-        }
-        let pending!: Promise<void>
-        act(() => {
-            pending = result.current.sendToolOutput(answer)
-        })
-        await act(async () => {
-            await Promise.resolve()
-        })
-        expect(respondAnswer).not.toHaveBeenCalled()
-        expect(resumeContinuation).not.toHaveBeenCalled()
-        expect(fetchMock).not.toHaveBeenCalled()
-        await act(async () => {
-            resolve(true)
-            await pending
-        })
-        expect(respondAnswer).toHaveBeenCalledOnce()
-        expect(resumeContinuation).not.toHaveBeenCalled()
-        expect(fetchMock).not.toHaveBeenCalled()
-    })
-
     it.each([false, true])(
         "submits client-tool answer durably without a competing local resume (error=%s)",
         async (failed) => {
-            durableApprovalCapability.mockResolvedValue(true)
             resumeContinuation.mockResolvedValue(true)
             const store = createStore()
             const sessionId = nextSessionId()
@@ -1449,7 +1239,6 @@ describe("server-owned client-tool answers", () => {
         // Narrower than it reads: the route accepts a repeat of the SAME answer under the same
         // idempotency key, and accepts a row already answered with the same resolution, so a plain
         // replay never conflicts at all.
-        durableApprovalCapability.mockResolvedValue(true)
         respondAnswer.mockRejectedValue(
             conflict("execution_terminal", "The interaction is no longer pending."),
         )
@@ -1470,7 +1259,6 @@ describe("server-owned client-tool answers", () => {
         // different execution, so the reader's decision did not land where they thought and the
         // callout is exactly where they should learn it. Keying the settled branch on 409 rather
         // than on the body's code would have swallowed this one.
-        durableApprovalCapability.mockResolvedValue(true)
         respondAnswer.mockRejectedValue(
             conflict("execution_mismatch", "The interaction belongs to a different execution."),
         )
@@ -1491,7 +1279,6 @@ describe("server-owned client-tool answers", () => {
     })
 
     it("shows a reused idempotency key too, which is a different answer under one key", async () => {
-        durableApprovalCapability.mockResolvedValue(true)
         respondAnswer.mockRejectedValue(
             conflict(
                 "idempotency_key_reused",
@@ -1513,7 +1300,6 @@ describe("server-owned client-tool answers", () => {
     // Next error overlay reading "This approval is no longer pending. Refresh and retry." and
     // production got a silently dead approval. The mobile dock has always read it as settled.
     it("treats an answer for an already-settled gate as settled, not as a failure", async () => {
-        durableApprovalCapability.mockResolvedValue(true)
         respondAnswer.mockRejectedValue(new ApprovalNotPendingError())
         const store = createStore()
         const sessionId = nextSessionId()
@@ -1538,7 +1324,6 @@ describe("server-owned client-tool answers", () => {
     it("puts a real submission failure on the transcript instead of nowhere", async () => {
         // The other half of the same missing handler: a refusal that is not "already answered"
         // has to reach the reader, and the run-failure callout is where this conversation says so.
-        durableApprovalCapability.mockResolvedValue(true)
         respondAnswer.mockRejectedValue(new Error("Approval could not be submitted."))
         const store = createStore()
         const sessionId = nextSessionId()

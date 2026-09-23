@@ -331,8 +331,7 @@ class WorkflowsService:
         session_id = request.session_id
         meta = request.meta or {}
         if (
-            not env.agenta.sessions.durable_approvals
-            or not session_id
+            not session_id
             or meta.get("control_command_id")
             or self._session_continuation_resumer is None
         ):

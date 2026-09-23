@@ -1152,7 +1152,6 @@ async def test_completion_lookup_failure_defers_settlement_and_cleanup(
     anyio_backend, monkeypatch
 ):
     monkeypatch.setattr(env.agenta.sessions, "durable_stop", True)
-    monkeypatch.setattr(env.agenta.sessions, "durable_approvals", True)
 
     class _FailingCompletionLookup(_FakeRecordsService):
         async def runner_completed_turns(self, *, project_id, keys):

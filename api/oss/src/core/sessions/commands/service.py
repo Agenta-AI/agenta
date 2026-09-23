@@ -981,8 +981,6 @@ class SessionCommandsService:
     async def resume_recoverable_continuation(
         self, *, project_id: UUID, session_id: str
     ) -> Optional[str]:
-        if not (env.agenta.sessions.durable_approvals or env.agenta.sessions.queue):
-            return None
         command = await self._dao.fetch_resumable_continuation(
             project_id=project_id,
             session_id=session_id,
@@ -990,9 +988,6 @@ class SessionCommandsService:
         if command is None:
             return None
         if (
-            command.kind == SessionCommandKind.continue_interaction
-            and not env.agenta.sessions.durable_approvals
-        ) or (
             command.kind == SessionCommandKind.continue_input
             and not env.agenta.sessions.queue
         ):
@@ -1480,12 +1475,10 @@ class SessionCommandsService:
                 SessionCommandKind.continue_interaction,
                 SessionCommandKind.continue_input,
             ):
-                capability_enabled = (
-                    env.agenta.sessions.durable_approvals
-                    if command.kind == SessionCommandKind.continue_interaction
-                    else env.agenta.sessions.queue
-                )
-                if not capability_enabled:
+                if (
+                    command.kind == SessionCommandKind.continue_input
+                    and not env.agenta.sessions.queue
+                ):
                     continue
                 if command.claim_count < max_deliveries:
                     await self._deliver(command)
@@ -1628,10 +1621,7 @@ class SessionCommandsService:
         if (
             execution is not None
             and (
-                (
-                    execution.source_interaction_id is not None
-                    and env.agenta.sessions.durable_approvals
-                )
+                execution.source_interaction_id is not None
                 or (
                     execution.source_interaction_id is None
                     and execution.parent_execution_id is not None
