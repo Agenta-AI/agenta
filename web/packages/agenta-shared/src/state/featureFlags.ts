@@ -1,5 +1,5 @@
 /**
- * Per-user experimental settings — the "Experiments" switches in Settings › Preferences.
+ * Per-user experimental settings — the "Feature Flags" and "Debugging" switches in Settings › Preferences.
  *
  * They live here, not in an app, because a flag is read where the feature is (a package) and
  * written where the settings page is (every app). Both surfaces on a browser share one atom

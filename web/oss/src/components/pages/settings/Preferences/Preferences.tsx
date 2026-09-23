@@ -1,30 +1,12 @@
-import {PreferencesPage} from "@agenta/settings-ui"
-import {
-    agentaChannelSurfaceEnabledAtom,
-    agentAppsEnabledAtom,
-    channelDebugEnabledAtom,
-    channelsEnabledAtom,
-    classicModeEnabledAtom,
-    playgroundInspectorEnabledAtom,
-} from "@agenta/shared/state"
-import {useAtom} from "jotai"
+import {PreferencesPage, usePreferenceBindings} from "@agenta/settings-ui"
 
 import {THEME_OPTIONS} from "@/oss/components/Layout/assets/themeOptions"
 import {ThemeMode, useAppTheme} from "@/oss/components/Layout/ThemeContextProvider"
 
-/** OSS binding: this app's theme control and its experiment flags on the shared page. */
+/** OSS binding: this app's theme control on the shared page; every switch keeps its shared atom. */
 const Preferences = () => {
     const {themeMode, toggleAppTheme} = useAppTheme()
-    const [classicModeEnabled, setClassicModeEnabled] = useAtom(classicModeEnabledAtom)
-    const [agentAppsEnabled, setAgentAppsEnabled] = useAtom(agentAppsEnabledAtom)
-    const [playgroundInspectorEnabled, setPlaygroundInspectorEnabled] = useAtom(
-        playgroundInspectorEnabledAtom,
-    )
-    const [agentaChannelSurfaceEnabled, setAgentaChannelSurfaceEnabled] = useAtom(
-        agentaChannelSurfaceEnabledAtom,
-    )
-    const [channelDebugEnabled, setChannelDebugEnabled] = useAtom(channelDebugEnabledAtom)
-    const [channelsEnabled, setChannelsEnabled] = useAtom(channelsEnabledAtom)
+    const bindings = usePreferenceBindings()
 
     return (
         <PreferencesPage
@@ -33,58 +15,7 @@ const Preferences = () => {
                 mode: themeMode,
                 onSelect: (mode) => toggleAppTheme(mode as ThemeMode),
             }}
-            flags={[
-                {
-                    key: "classic-mode",
-                    title: "Classic mode",
-                    description: "Show all platform areas in the navigation.",
-                    enabled: classicModeEnabled,
-                    onChange: setClassicModeEnabled,
-                },
-                {
-                    key: "playground-inspector",
-                    title: "Playground inspector",
-                    description:
-                        "Show controls for inspecting Playground sessions and individual turns.",
-                    enabled: playgroundInspectorEnabled,
-                    onChange: setPlaygroundInspectorEnabled,
-                    badge: "DEBUG",
-                },
-                {
-                    key: "agenta-channel-surface",
-                    title: "Agenta channel probe",
-                    description: "Show the temporary in-browser channel conversation probe.",
-                    enabled: agentaChannelSurfaceEnabled,
-                    onChange: setAgentaChannelSurfaceEnabled,
-                    badge: "DEBUG",
-                },
-                {
-                    key: "channels",
-                    title: "Show Channels",
-                    description:
-                        "Show Channels on agent pages and in Settings. Existing connections keep replying when hidden. Disconnect a connection to stop its replies.",
-                    enabled: channelsEnabled,
-                    onChange: setChannelsEnabled,
-                },
-                {
-                    key: "channel-debug",
-                    title: "Channel debug",
-                    description:
-                        "Show channel spaces, threads and raw inbox/outbox events on the Channels settings page.",
-                    enabled: channelDebugEnabled,
-                    onChange: setChannelDebugEnabled,
-                    badge: "DEBUG",
-                },
-                {
-                    key: "agent-apps",
-                    title: "Agent apps",
-                    description:
-                        "Offer Run on HTML files in an agent's drive, so a page can read and write its own folder.",
-                    enabled: agentAppsEnabled,
-                    onChange: setAgentAppsEnabled,
-                    badge: "BETA",
-                },
-            ]}
+            bindings={bindings}
         />
     )
 }

@@ -1,7 +1,17 @@
 export type {ConfirmDestructive, DestructiveConfirmProps} from "./confirm"
 export {default as SettingsPageShell, type SettingsPageShellProps} from "./SettingsPageShell"
 export {ThemePicker, type ThemePickerProps, type ThemeChoice} from "./ThemePicker"
-export {PreferencesPage, type PreferencesPageProps, type PreferenceFlag} from "./PreferencesPage"
+export {
+    PreferencesPage,
+    PREFERENCE_SECTIONS,
+    usePreferenceBindings,
+    type PreferencesPageProps,
+    type PreferenceBinding,
+    type PreferenceBindings,
+    type PreferenceItem,
+    type PreferenceKey,
+    type PreferenceSection,
+} from "./PreferencesPage"
 export {AccountPage, type AccountPageProps} from "./AccountPage"
 export {ApiKeysPage, type ApiKeysPageProps} from "./ApiKeysPage"
 export {NamedSecretTable, type NamedSecretTableProps} from "./secrets/NamedSecretTable"
