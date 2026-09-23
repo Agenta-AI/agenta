@@ -1196,6 +1196,19 @@ async def test_revoke_installation_still_returns_a_notice_if_slack_rejects_the_c
     assert notice is not None
 
 
+async def test_revoke_installation_is_best_effort_without_a_bot_token():
+    """A hosted row read without its vault credentials has no bot_token.
+    The revoke is best-effort, so that is a skipped call, not an error."""
+
+    adapter, transport = _adapter_with_stub([])
+    connection = _hosted_connection().model_copy(update={"data": {"team_id": "T1"}})
+
+    notice = await adapter.revoke_installation(connection=connection)
+
+    assert notice is not None
+    assert transport.requests == []
+
+
 async def test_parse_event_top_level_message_roots_its_own_thread():
     """A top-level message carries no thread_ts. Slack's own threading model
     keys the thread it starts by the message's own ts — without that fallback

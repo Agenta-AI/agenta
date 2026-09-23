@@ -914,7 +914,8 @@ class ChannelsRouter:
             )
 
         platform_notice = await self.channels_service.describe_connection_teardown(
-            connection=connection
+            project_id=UUID(request.state.project_id),
+            connection=connection,
         )
 
         return ChannelConnectionTeardownResponse(

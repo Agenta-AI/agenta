@@ -124,7 +124,9 @@ async def test_teardown_notice_is_generic_when_the_adapter_declines_to_override(
     service = _service(dao=MagicMock(), adapter=adapter)
     connection = _connection(flags=ChannelConnectionFlags(is_hosted=False))
 
-    notice = await service.describe_connection_teardown(connection=connection)
+    notice = await service.describe_connection_teardown(
+        project_id=uuid4(), connection=connection
+    )
 
     assert "never own the customer's app" in notice
     assert adapter.revoke_calls == [connection]
@@ -135,6 +137,40 @@ async def test_teardown_notice_comes_from_the_adapter_when_it_revokes():
     service = _service(dao=MagicMock(), adapter=adapter)
     connection = _connection()
 
-    notice = await service.describe_connection_teardown(connection=connection)
+    notice = await service.describe_connection_teardown(
+        project_id=uuid4(), connection=connection
+    )
 
     assert notice == "Revoked on Slack's side too."
+
+
+async def test_teardown_never_fails_an_archive_that_already_happened():
+    """The row is archived before the notice is built. A revoke that raises
+    (a hosted row whose token lives behind a vault reference) must not turn
+    the finished disconnect into a 500 the client reads as a failure."""
+
+    class _RaisingAdapter(_MinimalAdapter):
+        async def revoke_installation(self, *, connection):
+            raise RuntimeError("missing bot_token")
+
+    service = _service(dao=MagicMock(), adapter=_RaisingAdapter())
+
+    notice = await service.describe_connection_teardown(
+        project_id=uuid4(), connection=_connection()
+    )
+
+    assert "Archived on our side" in notice
+
+
+async def test_teardown_revokes_with_the_vault_credentials_the_row_references():
+    adapter = _MinimalAdapter(revoke_notice="Revoked.")
+    service = _service(dao=MagicMock(), adapter=adapter)
+    hydrated = _connection(data={"team_id": "T1", "bot_token": "xoxb-vault"})
+    service._hydrate_connection = AsyncMock(return_value=hydrated)
+    connection = _connection(data={"team_id": "T1", "credential_secret_id": "s"})
+
+    await service.describe_connection_teardown(
+        project_id=uuid4(), connection=connection
+    )
+
+    assert adapter.revoke_calls == [hydrated]

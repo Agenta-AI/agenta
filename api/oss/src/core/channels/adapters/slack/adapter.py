@@ -393,7 +393,7 @@ class SlackAdapter(ChannelAdapterInterface):
 
         try:
             await self._call(connection, "auth.revoke", {})
-        except _SlackApiError:
+        except (_SlackApiError, ChannelConnectionIncomplete, httpx.HTTPError):
             pass
 
         return (

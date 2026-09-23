@@ -453,15 +453,39 @@ class ChannelsService:
         )
 
     async def describe_connection_teardown(
-        self, *, connection: ChannelConnection
+        self,
+        *,
+        project_id: UUID,
+        connection: ChannelConnection,
     ) -> str:
         """The archive-response notice. An adapter that owns its app (a
         hosted connection) revokes the installation and returns its own
         wording; every other adapter defaults to None and gets the generic
-        customer-owned notice -- core never branches on "hosted" itself."""
+        customer-owned notice -- core never branches on "hosted" itself.
+
+        Runs after the row is already archived, so it must never raise: a
+        failure here turned a completed disconnect into a 500 the client
+        read as "nothing happened". The revoke needs the credentials the
+        stored row only references, hence the hydration; the hydrated copy
+        stays local and never reaches the response."""
 
         adapter = self.adapter_registry.get(connection.channel)
-        notice = await adapter.revoke_installation(connection=connection)
+        try:
+            hydrated = await self._hydrate_connection(
+                project_id=project_id, connection=connection
+            )
+            notice = await adapter.revoke_installation(
+                connection=hydrated or connection
+            )
+        except Exception:  # pylint: disable=broad-exception-caught
+            log.warning(
+                "channels: platform revoke failed after archiving connection=%s "
+                "channel=%s",
+                connection.id,
+                connection.channel,
+                exc_info=True,
+            )
+            notice = None
         if notice is not None:
             return notice
 
