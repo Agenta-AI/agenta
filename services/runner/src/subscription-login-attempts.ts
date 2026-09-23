@@ -300,10 +300,47 @@ let shared: SubscriptionLoginAttempts | undefined;
 export function subscriptionLoginAttempts(): SubscriptionLoginAttempts {
   if (!shared) {
     const login: DeviceCodeLogin = async (options) => {
-      const { loginOpenAICodexDeviceCode } = await import(
-        "@earendil-works/pi-ai/oauth"
-      );
-      return loginOpenAICodexDeviceCode(options);
+      const { openaiCodexOAuth } = (await import(
+        "@earendil-works/pi-ai/bun-oauth"
+      )) as unknown as {
+        openaiCodexOAuth: {
+          login: (interaction: {
+            signal: AbortSignal;
+            prompt: (prompt: unknown) => Promise<string>;
+            notify: (event: {
+              type: string;
+              userCode: string;
+              verificationUri: string;
+              intervalSeconds?: number;
+              expiresInSeconds?: number;
+            }) => void;
+          }) => Promise<{ access: string; refresh: string; expires: number; [key: string]: unknown }>;
+        };
+      };
+      return openaiCodexOAuth.login({
+        signal: options.signal ?? new AbortController().signal,
+        prompt: async () => {
+          throw new Error(
+            "device-code login does not require interactive prompts",
+          );
+        },
+        notify: (event: {
+          type: string;
+          userCode: string;
+          verificationUri: string;
+          intervalSeconds?: number;
+          expiresInSeconds?: number;
+        }) => {
+          if (event.type === "device_code") {
+            options.onDeviceCode({
+              userCode: event.userCode,
+              verificationUri: event.verificationUri,
+              intervalSeconds: event.intervalSeconds,
+              expiresInSeconds: event.expiresInSeconds,
+            });
+          }
+        },
+      });
     };
     shared = new SubscriptionLoginAttempts(login);
   }

@@ -74,10 +74,13 @@ export type SubscriptionRefreshFn = (refreshToken: string) => Promise<{
 export const defaultSubscriptionRefresh: SubscriptionRefreshFn = async (
   refreshToken,
 ) => {
-  const { refreshOpenAICodexToken } = await import(
-    "@earendil-works/pi-ai/oauth"
+  const { openaiCodexOAuth } = (await import(
+    "@earendil-works/pi-ai/bun-oauth"
+  )) as unknown as { openaiCodexOAuth: { refresh: (credential: { type: "oauth"; refresh: string; access: string; expires: number }, signal: AbortSignal) => Promise<{ access: string; refresh: string; expires: number; [key: string]: unknown }> } };
+  return openaiCodexOAuth.refresh(
+    { type: "oauth", refresh: refreshToken, access: "", expires: 0 },
+    new AbortController().signal,
   );
-  return refreshOpenAICodexToken(refreshToken);
 };
 
 /** What the provider said about this refresh token, reduced to what the runner can act on. */
