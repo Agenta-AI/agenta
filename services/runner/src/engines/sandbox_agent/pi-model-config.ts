@@ -166,6 +166,62 @@ function entryFromBuiltin(id: string, builtin: PiBuiltinModel): PiModelEntry {
 }
 
 /**
+ * Models that are newer than the pinned Pi catalog, keyed by `<provider>/<id>`, each described as
+ * the built-in model of the same line it inherits from plus the facts that differ. Without an entry
+ * the fallback below registers the id with no metadata, and Pi then prices every turn at $0, runs
+ * without reasoning, and assumes its default context window.
+ *
+ * Prices are per million tokens and must match the SDK's curated catalog additions
+ * (`sdks/python/agenta/sdk/agents/data/pi_models.curated.json`); a unit test holds the two
+ * together. Drop an entry once a Pi bump carries the model, since a built-in id is never
+ * registered.
+ */
+interface PiModelAheadOfCatalog {
+  /** The built-in id on the same provider whose metadata this model inherits. */
+  inheritsFrom: string;
+  cost: Record<string, number>;
+  contextWindow?: number;
+  /** `compat` keys to drop from the inherited definition. */
+  withoutCompat?: string[];
+}
+
+export const PI_MODELS_AHEAD_OF_CATALOG: Record<string, PiModelAheadOfCatalog> = {
+  // Opus 5.5 keeps Opus 5's thinking and sampling rules (adaptive only, no temperature, 1M context,
+  // 128K output). `supportsMidConvoEffort` makes Pi send `thinking.block_binding` and a pinned
+  // effort, which Opus 5.5 has not been verified to accept, so it gets the plain adaptive path.
+  "anthropic/claude-opus-5-5": {
+    inheritsFrom: "claude-opus-5",
+    cost: { input: 4, output: 20, cacheRead: 0.2, cacheWrite: 5 },
+    withoutCompat: ["supportsMidConvoEffort"],
+  },
+  "xai/grok-4.7": {
+    inheritsFrom: "grok-4.6",
+    cost: { input: 2, output: 6, cacheRead: 0.5, cacheWrite: 0 },
+    contextWindow: 500000,
+  },
+};
+
+function entryAheadOfCatalog(
+  provider: string,
+  modelId: string,
+  builtins: PiBuiltinModel[],
+): PiModelEntry | undefined {
+  const known = PI_MODELS_AHEAD_OF_CATALOG[`${provider}/${modelId}`];
+  if (!known) return undefined;
+  const base = builtins.find((builtin) => builtin.id === known.inheritsFrom);
+  if (!base) return undefined;
+  const entry = entryFromBuiltin(modelId, base);
+  if (entry.compat && known.withoutCompat) {
+    entry.compat = Object.fromEntries(
+      Object.entries(entry.compat).filter(([key]) => !known.withoutCompat?.includes(key)),
+    );
+  }
+  entry.cost = { ...known.cost };
+  if (known.contextWindow !== undefined) entry.contextWindow = known.contextWindow;
+  return entry;
+}
+
+/**
  * Plan the registration of a requested model that Pi's built-in registry does not carry.
  *
  * Returns `undefined` — register nothing — for every case that does not need it:
@@ -178,9 +234,9 @@ function entryFromBuiltin(id: string, builtin: PiBuiltinModel): PiModelEntry {
  *     catalog model must produce no entry at all.
  *
  * Metadata comes from Pi's own table wherever it can: the routing-variant base model when there is
- * one, else the provider's request dialect (`compat`) from any built-in sibling so the call is
- * shaped the way that provider expects. What cannot be derived is simply left out and Pi defaults
- * it.
+ * one, then a model listed in `PI_MODELS_AHEAD_OF_CATALOG`, else the provider's request dialect
+ * (`compat`) from any built-in sibling so the call is shaped the way that provider expects. What
+ * cannot be derived is simply left out and Pi defaults it.
  */
 export function buildPiModelRegistrationPlan(
   request: AgentRunRequest,
@@ -210,6 +266,9 @@ export function buildPiModelRegistrationPlan(
       models: [entryFromBuiltin(modelId, base)],
     };
   }
+
+  const ahead = entryAheadOfCatalog(provider, modelId, builtins);
+  if (ahead) return { builtinProvider: provider, models: [ahead] };
 
   // No base model to inherit from: carry only the provider's request dialect, which is a property
   // of the endpoint rather than of any one model, so the call is at least shaped correctly.

@@ -1,11 +1,11 @@
 import {useObservability} from "@agenta/observability"
 import {openTraceDrawerAtom} from "@agenta/observability/traceDrawer"
 import {ObservabilityList, TraceRow} from "@agenta/observability-ui"
+import {LoadError} from "@agenta/ui/components/presentational"
 import {useSetAtom} from "jotai"
 
 import {
     ObservabilityEmpty,
-    ObservabilityError,
     ObservabilityFiltered,
     ObservabilityListSkeleton,
 } from "./states/ObservabilityStates"
@@ -70,8 +70,8 @@ export const TracesList = () => {
             loadMore={fetchMoreTraces}
             error={
                 isRateLimited ? (
-                    <ObservabilityError
-                        message={rateLimitMessage ?? "Too many requests."}
+                    <LoadError
+                        title={rateLimitMessage ?? "Too many requests."}
                         onRetry={fetchTraces}
                     />
                 ) : undefined

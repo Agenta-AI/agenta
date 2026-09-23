@@ -658,7 +658,13 @@ async def test_first_message_display_and_run_only_build_kit(enabled):
         ops = {t.get("op") for t in agent["tools"]}
         assert any(t.get("name") == "Request input" for t in agent["tools"])
         assert "create_schedule" not in ops
-        assert len(agent["skills"]) == 2
+        skill_names = [
+            skill.get("name")
+            or skill["@ag.embed"]["@ag.references"]["workflow"]["slug"]
+            for skill in agent["skills"]
+        ]
+        assert len(skill_names) == 3
+        assert skill_names[-2:] == ["build-an-agent", "agenta-apps"]
     else:
         assert call["parameters"] is None
 

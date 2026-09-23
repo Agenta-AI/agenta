@@ -5,12 +5,16 @@
  */
 import { describe, it } from "vitest";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 
 import {
   allowedFromError,
   allowedModels,
   applyModel,
+  CLAUDE_TIER_ALIASES,
   ModelNotSettableError,
+  normalizeRequestModel,
   pickModel,
 } from "../../src/engines/sandbox_agent/model.ts";
 import {
@@ -18,6 +22,7 @@ import {
   codexConfigPinnedModel,
 } from "../../src/engines/sandbox_agent/codex-assets.ts";
 import { runSandboxAgent } from "../../src/engines/sandbox_agent.ts";
+import type { AgentRunRequest } from "../../src/protocol.ts";
 import { fakeHarness } from "../utils/sandbox-agent-harness.ts";
 
 describe("pickModel", () => {
@@ -55,6 +60,89 @@ describe("pickModel", () => {
     // Aliases the harness already exposes bare still match exactly, unaffected by the new tier.
     assert.equal(pickModel(allowed, "opus"), "opus");
     assert.equal(pickModel(allowed, "haiku"), "haiku");
+  });
+
+  it("resolves claude-fable-5-1 against both option sets the pinned Claude build reports", () => {
+    // Captured from @anthropic-ai/claude-agent-sdk 0.3.280 supportedModels(): an API-key session
+    // offers the bare id, a subscription session only the [1m] variant.
+    const apiKey = ["default", "opus[1m]", "claude-fable-5-1", "sonnet", "haiku"];
+    const subscription = ["default", "opus[1m]", "claude-fable-5-1[1m]", "sonnet", "haiku"];
+    assert.equal(pickModel(apiKey, "claude-fable-5-1"), "claude-fable-5-1");
+    assert.equal(pickModel(subscription, "claude-fable-5-1"), "claude-fable-5-1[1m]");
+  });
+
+  it("upgrades a saved claude-fable-5 to Fable 5.1, which the pinned build offers instead", () => {
+    const apiKey = ["default", "opus[1m]", "claude-fable-5-1", "sonnet", "haiku"];
+    const subscription = ["default", "opus[1m]", "claude-fable-5-1[1m]", "sonnet", "haiku"];
+    for (const saved of ["claude-fable-5", "anthropic/claude-fable-5", "claude-fable-5[1m]"]) {
+      assert.equal(pickModel(apiKey, saved), "claude-fable-5-1", saved);
+      assert.equal(pickModel(subscription, saved), "claude-fable-5-1[1m]", saved);
+    }
+    // A build that still offers Fable 5 keeps it: the upgrade applies only once nothing matched.
+    assert.equal(pickModel(["claude-fable-5", "claude-fable-5-1"], "claude-fable-5"), "claude-fable-5");
+    // No successor on offer: still no match, so the strict path fails loud.
+    assert.equal(pickModel(["default", "sonnet"], "claude-fable-5"), undefined);
+  });
+
+  it("runs a concrete Claude id on its tier alias when the build does not offer the id", () => {
+    // Captured from the pinned build on staging: an API-key session offers `opus[1m]` but not
+    // `claude-opus-5-5`, so a saved concrete id failed with ModelNotSettableError.
+    const apiKey = ["default", "opus[1m]", "claude-fable-5-1", "sonnet", "haiku"];
+    const subscription = ["default", "opus[1m]", "claude-fable-5-1[1m]", "sonnet", "haiku"];
+    const cases: Array<[string, string]> = [
+      ["claude-opus-5-5", "opus[1m]"],
+      ["anthropic/claude-opus-5-5", "opus[1m]"],
+      ["claude-opus-5-5[1m]", "opus[1m]"],
+      ["anthropic/claude-opus-5-5[1m]", "opus[1m]"],
+      ["claude-sonnet-5", "sonnet"],
+      ["anthropic/claude-sonnet-5", "sonnet"],
+      ["claude-sonnet-5[1m]", "sonnet"],
+      ["claude-haiku-4-5", "haiku"],
+      ["anthropic/claude-haiku-4-5", "haiku"],
+      ["claude-haiku-4-5[1m]", "haiku"],
+    ];
+    for (const [saved, alias] of cases) {
+      assert.equal(pickModel(apiKey, saved), alias, `api key: ${saved}`);
+      assert.equal(pickModel(subscription, saved), alias, `subscription: ${saved}`);
+    }
+  });
+
+  it("prefers the requested context variant, then the bare alias, within a tier", () => {
+    const both = ["default", "opus", "opus[1m]", "sonnet"];
+    assert.equal(pickModel(both, "claude-opus-5-5"), "opus");
+    assert.equal(pickModel(both, "claude-opus-5-5[1m]"), "opus[1m]");
+    assert.equal(pickModel(["default", "opus", "sonnet"], "anthropic/claude-opus-5-5"), "opus");
+  });
+
+  it("keeps an exact offered id over its tier alias", () => {
+    const offered = ["default", "opus[1m]", "claude-opus-5-5", "sonnet", "haiku"];
+    assert.equal(pickModel(offered, "claude-opus-5-5"), "claude-opus-5-5");
+    assert.equal(pickModel(offered, "anthropic/claude-opus-5-5"), "claude-opus-5-5");
+    assert.equal(
+      pickModel(["default", "claude-opus-5-5[1m]", "opus[1m]"], "claude-opus-5-5"),
+      "claude-opus-5-5[1m]",
+    );
+  });
+
+  it("finds no tier alias when the build offers nothing in that tier", () => {
+    assert.equal(pickModel(["default", "sonnet", "haiku"], "claude-opus-5-5"), undefined);
+    // Pi's provider-prefixed ids are never a tier alias.
+    assert.equal(pickModel(["anthropic/opus", "anthropic/claude-opus-5"], "claude-opus-5-5"), undefined);
+  });
+
+  it("mirrors the tier entries of the SDK's MODEL_ID_ALIASES", () => {
+    const source = readFileSync(
+      join(import.meta.dirname, "../../../../sdks/python/agenta/sdk/agents/capabilities.py"),
+      "utf8",
+    );
+    const block = /^MODEL_ID_ALIASES[^{]*\{([^}]*)\}/m.exec(source)?.[1];
+    assert.ok(block, "MODEL_ID_ALIASES not found in capabilities.py");
+    const sdkTiers: Record<string, string> = {};
+    for (const [, prefix, alias] of block.matchAll(/"anthropic\/([^"]+)":\s*"([^"]+)"/g)) {
+      // Tier entries are open prefixes (`claude-opus-`); the rest name one retired model.
+      if (prefix.endsWith("-")) sdkTiers[prefix] = alias.replace(/\[[^[\]]*\]$/, "");
+    }
+    assert.deepEqual(sdkTiers, CLAUDE_TIER_ALIASES);
   });
 
   it("does not fall back from a hinted request to a bare id (never shrinks context)", () => {
@@ -174,6 +262,67 @@ describe("applyModel", () => {
 
     assert.equal(await applyModel(session, "gpt-5.5"), "openai-codex/gpt-5.5");
     assert.deepEqual(calls, ["gpt-5.5", "openai-codex/gpt-5.5"]);
+  });
+
+  it("runs a saved claude-fable-5 config on Fable 5.1 instead of failing (strict default)", async () => {
+    const calls: string[] = [];
+    const session = {
+      setModel: async (id: string) => {
+        calls.push(id);
+        if (id !== "claude-fable-5-1[1m]") {
+          throw new Error(
+            "Unsupported value. Allowed values: default, opus[1m], claude-fable-5-1[1m], sonnet, haiku",
+          );
+        }
+      },
+    };
+
+    const logs: string[] = [];
+    assert.equal(
+      await applyModel(session, "claude-fable-5", (m) => logs.push(m)),
+      "claude-fable-5-1[1m]",
+    );
+    assert.deepEqual(calls, ["claude-fable-5", "claude-fable-5-1[1m]"]);
+    assert.deepEqual(logs, [
+      "model 'claude-fable-5' is retired by this harness; upgraded to 'claude-fable-5-1[1m]'",
+    ]);
+  });
+
+  it("runs a saved claude-opus-5-5 on the API-key build's opus[1m] and logs it", async () => {
+    const calls: string[] = [];
+    const session = {
+      setModel: async (id: string) => {
+        calls.push(id);
+        if (id !== "opus[1m]") {
+          throw new Error(
+            "Unsupported value. Allowed values: default, opus[1m], claude-fable-5-1, sonnet, haiku",
+          );
+        }
+      },
+    };
+
+    const logs: string[] = [];
+    assert.equal(
+      await applyModel(session, "anthropic/claude-opus-5-5", (m) => logs.push(m)),
+      "opus[1m]",
+    );
+    assert.deepEqual(calls, ["anthropic/claude-opus-5-5", "opus[1m]"]);
+    assert.deepEqual(logs, [
+      "model 'anthropic/claude-opus-5-5' is not offered by this harness; running its tier alias 'opus[1m]'",
+    ]);
+  });
+
+  it("does not log an upgrade for a plain context-hint widening", async () => {
+    const session = {
+      setModel: async (id: string) => {
+        if (id !== "sonnet[1m]") {
+          throw new Error("Unsupported value. Allowed values: default, sonnet[1m]");
+        }
+      },
+    };
+    const logs: string[] = [];
+    assert.equal(await applyModel(session, "sonnet", (m) => logs.push(m)), "sonnet[1m]");
+    assert.deepEqual(logs, []);
   });
 
   it("fails loudly (strict default) when the requested model cannot be resolved", async () => {
@@ -339,5 +488,54 @@ describe("a Codex run whose config declares the model", () => {
       calls.applyModelArgs.map((call) => call.model),
       ["gpt-5.5"],
     );
+  });
+});
+
+describe("normalizeRequestModel", () => {
+  const normalized = (request: AgentRunRequest) => {
+    normalizeRequestModel(request);
+    return request.model;
+  };
+
+  it("strips anthropic/ from a Claude model and keeps the context hint", () => {
+    assert.equal(normalized({ harness: "claude", model: "anthropic/claude-opus-5-5" }), "claude-opus-5-5");
+    assert.equal(normalized({ harness: "claude", model: "anthropic/claude-fable-5-1" }), "claude-fable-5-1");
+    assert.equal(normalized({ harness: "claude", model: "anthropic/opus[1m]" }), "opus[1m]");
+    assert.equal(
+      normalized({
+        harness: "claude",
+        model: "anthropic/claude-opus-5-5",
+        modelConnection: { provider: "anthropic", deployment: "direct" } as never,
+      }),
+      "claude-opus-5-5",
+    );
+  });
+
+  it("is idempotent and leaves bare, other-provider and missing models alone", () => {
+    const request: AgentRunRequest = { harness: "claude", model: "anthropic/claude-opus-5-5" };
+    normalizeRequestModel(request);
+    normalizeRequestModel(request);
+    assert.equal(request.model, "claude-opus-5-5");
+    assert.equal(normalized({ harness: "claude", model: "opus[1m]" }), "opus[1m]");
+    assert.equal(normalized({ harness: "claude", model: "openai/gpt-5.5" }), "openai/gpt-5.5");
+    assert.equal(normalized({ harness: "claude" }), undefined);
+  });
+
+  it("keeps the id for a custom deployment and for other harnesses", () => {
+    assert.equal(
+      normalized({
+        harness: "claude",
+        model: "anthropic/claude-opus-5-5",
+        modelConnection: { provider: "anthropic", deployment: "custom" } as never,
+      }),
+      "anthropic/claude-opus-5-5",
+    );
+    for (const harness of ["pi_core", "codex", undefined]) {
+      assert.equal(
+        normalized({ harness, model: "anthropic/claude-opus-5-5" }),
+        "anthropic/claude-opus-5-5",
+        String(harness),
+      );
+    }
   });
 });

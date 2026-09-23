@@ -9,6 +9,7 @@ import {
     useSessionsList,
 } from "@agenta/sessions/state"
 import {SessionListLoadMore, type SessionMenuEntry} from "@agenta/sessions-ui"
+import {LoadError} from "@agenta/ui/components/presentational"
 import {useMediaQuery} from "@agenta/ui/hooks"
 import {ListTable, type ListTableColumn, type ListTableGroup} from "@agenta/ui/list-table"
 import {Button, SimpleTooltip} from "@agenta/ui/ui"
@@ -18,7 +19,6 @@ import {Plus} from "lucide-react"
 import {deriveSessionGroups, type SessionGrouping} from "./sessionListView"
 import {SessionRowCells} from "./SessionRowCells"
 import {SessionsEmpty} from "./states/SessionsEmpty"
-import {SessionsError} from "./states/SessionsError"
 import {SessionsNoMatch} from "./states/SessionsNoMatch"
 
 /**
@@ -202,7 +202,8 @@ export const SessionListTable = ({
         [agentNames, group, onNewSession],
     )
 
-    if (list.isError) return <SessionsError onRetry={list.refetch} />
+    if (list.isError)
+        return <LoadError framed title="Could not load sessions" onRetry={list.refetch} />
 
     return (
         // Say that these rows are a previous query's while a new one resolves. Typing in the

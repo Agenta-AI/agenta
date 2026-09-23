@@ -32,7 +32,7 @@ Agenta ships three harnesses: Claude Code, Pi, and Codex. All three run the loop
 | Harness | Models it accepts |
 |---|---|
 | Claude Code | Anthropic's Claude models, from Anthropic directly, from AWS Bedrock or Google Vertex AI, or through a gateway of your own. |
-| Pi | Models from several providers, including OpenAI, Anthropic, Google Gemini, Mistral, Groq, MiniMax, Together AI, and OpenRouter, plus any OpenAI-compatible endpoint. |
+| Pi | Models from several providers, including OpenAI, Anthropic, Google Gemini, Mistral, Groq, MiniMax, Together AI, OpenRouter, and xAI, plus any OpenAI-compatible endpoint. |
 | Codex | Five OpenAI models: GPT-5.6 Sol, Terra, and Luna, plus GPT-5.5 and GPT-5.2. Codex reaches OpenAI directly, not through Bedrock, Vertex AI, or a gateway. |
 
 All three also accept the [MCP servers](/guides/add-an-mcp-server) you connect to a project, so the tools an agent gets from a server do not change when you switch harness. One exception: a server that sends its tool list in pages gives a Codex agent only the first page, because Codex does not ask for the rest. Pi and Claude Code do.
@@ -53,7 +53,7 @@ To make these choices for an agent, see [Choose a harness and model](/guides/cho
 
 ## Where models come from
 
-Agenta works with models from OpenAI, Anthropic, Google Gemini, Azure, AWS Bedrock, Mistral AI, Cohere, Groq, Together AI, DeepInfra, Perplexity AI, Anyscale, OpenRouter, and MiniMax. It also works with any OpenAI-compatible endpoint, and with models you host yourself through Ollama.
+Agenta works with models from OpenAI, Anthropic, Google Gemini, Azure, AWS Bedrock, Mistral AI, Cohere, Groq, Together AI, DeepInfra, Perplexity AI, Anyscale, OpenRouter, MiniMax, and xAI. It also works with any OpenAI-compatible endpoint, and with models you host yourself through Ollama.
 
 :::info
 The models an agent can use depend on the harness you selected. Each harness accepts its own set of models.

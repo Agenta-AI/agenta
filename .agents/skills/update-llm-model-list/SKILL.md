@@ -76,6 +76,11 @@ Alternatively, run the pytest unit test directly (requires agenta installed):
 pytest sdks/python/oss/tests/pytest/unit/test_supported_llm_models.py -v
 ```
 
+The test suite pins the price map bundled with the locked litellm (`LITELLM_LOCAL_MODEL_COST_MAP=True`
+in the root conftest), so CI does not change when upstream edits its map. That snapshot lags the live
+map. To audit against the live map, which is what production loads at startup, run the test with
+`LITELLM_LOCAL_MODEL_COST_MAP=False`.
+
 ---
 
 ## Step 2 — Find models missing from Agenta (big-3 audit)

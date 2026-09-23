@@ -1,9 +1,10 @@
-import type {UIMessage} from "ai"
+import type {FileUIPart, UIMessage} from "ai"
 import {describe, expect, it} from "vitest"
 import {
     displayMessage,
     displayMessageText,
     editedExecutionText,
+    outboundUserParts,
 } from "../../../src/assets/displayContent"
 
 const source: UIMessage = {
@@ -46,4 +47,41 @@ it("keeps setup once when the visible request is edited", () => {
         }),
     ).toBe("Revised request")
     expect(editedExecutionText(source, "Ordinary edit")).toBeUndefined()
+})
+
+describe("outboundUserParts", () => {
+    const attachment: FileUIPart = {
+        type: "file",
+        url: "https://files.test/report.pdf",
+        mediaType: "application/pdf",
+    }
+
+    // The SDK keeps any text that is not None, so an empty string reaches the model as an empty
+    // text content block and Anthropic-family models refuse the turn (v0.119.1 risk map, entry 5).
+    it("carries no text part when an attachment-only send has no text", () => {
+        expect(outboundUserParts({text: "", fileParts: [attachment]})).toEqual([attachment])
+    })
+
+    it("puts the text before the files when there is text", () => {
+        expect(outboundUserParts({text: "look at this", fileParts: [attachment]})).toEqual([
+            {type: "text", text: "look at this"},
+            attachment,
+        ])
+    })
+
+    it("sends the execution text in place of the displayed one", () => {
+        expect(outboundUserParts({text: "shown", executionText: "sent"})).toEqual([
+            {type: "text", text: "sent"},
+        ])
+    })
+
+    it("drops an execution text that is itself empty", () => {
+        expect(outboundUserParts({text: "", executionText: "", fileParts: [attachment]})).toEqual([
+            attachment,
+        ])
+    })
+
+    it("carries nothing at all for an empty send", () => {
+        expect(outboundUserParts({text: ""})).toEqual([])
+    })
 })

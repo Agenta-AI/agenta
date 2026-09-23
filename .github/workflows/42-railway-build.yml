@@ -3,6 +3,10 @@ name: "42 - railway build"
 on:
   workflow_call:
     inputs:
+      source_sha:
+        description: "Exact PR head to build; control workflow remains trusted"
+        type: string
+        default: ""
       pr_number:
         description: "PR number"
         required: true
@@ -21,6 +25,10 @@ on:
         value: ${{ jobs.prepare.outputs.pr_number }}
   workflow_dispatch:
     inputs:
+      source_sha:
+        description: "Exact commit to build"
+        type: string
+        default: ""
       pr_number:
         description: "PR number"
         required: true
@@ -36,7 +44,12 @@ permissions:
   packages: write
 
 concurrency:
-  group: railway-preview-build-${{ inputs.pr_number || github.ref_name }}
+  # `github.workflow` resolves to the CALLING workflow, so the automatic
+  # preview build (14) and a manual /preview build (46) for the same PR get
+  # separate groups. A /preview must never cancel an in-progress CI build,
+  # which would skip its deploy/tests/cleanup. Image tags carry run id and
+  # attempt, so distinct groups cannot collide on artifacts.
+  group: railway-preview-build-${{ github.workflow }}-${{ inputs.pr_number || github.ref_name }}
   cancel-in-progress: true
 
 jobs:
@@ -49,15 +62,29 @@ jobs:
       build_images: ${{ steps.meta.outputs.build_images }}
     steps:
       - uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.source_sha || github.sha }}
+          persist-credentials: false
 
       - name: Determine build metadata
         id: meta
+        env:
+          PR: ${{ inputs.pr_number }}
+          INPUT_TAG: ${{ inputs.image_tag }}
+          SOURCE_SHA: ${{ inputs.source_sha }}
         run: |
-          PR="${{ inputs.pr_number }}"
-          INPUT_TAG="${{ inputs.image_tag }}"
           SHA="$(git rev-parse --short HEAD)"
+          if [ -n "$SOURCE_SHA" ]; then
+            [[ "$SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]] || exit 1
+            [[ "$PR" =~ ^[1-9][0-9]*$ ]] || exit 1
+            [ "$(git rev-parse HEAD)" = "$SOURCE_SHA" ] || exit 1
+            [ -z "$INPUT_TAG" ] || { echo 'Exact-head builds cannot accept arbitrary tags'; exit 1; }
+          fi
 
-          if [ -n "$INPUT_TAG" ]; then
+          if [ -n "$SOURCE_SHA" ]; then
+            TAG="pr-${PR}-${SOURCE_SHA}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+            BUILD_IMAGES=true
+          elif [ -n "$INPUT_TAG" ]; then
             TAG="$INPUT_TAG"
             BUILD_IMAGES=false
           elif [ -n "$PR" ]; then
@@ -147,6 +174,9 @@ jobs:
             platform: linux/arm64
     steps:
       - uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.source_sha || github.sha }}
+          persist-credentials: false
 
       - name: Log in to GHCR
         uses: docker/login-action@v3
@@ -241,6 +271,9 @@ jobs:
           - seaweedfs
     steps:
       - uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.source_sha || github.sha }}
+          persist-credentials: false
 
       # Drift between the legacy deploy-time wrapper generation
       # (deploy-from-images.sh / deploy-gateway.sh) and these image sources

@@ -5,6 +5,11 @@
 > revisions here — it ends at `park00000000` and never advances. Author new tracing
 > migrations in `tracing_oss/` (shared, runs in both editions) or `tracing_ee/` (EE-only).
 > See `docs/designs/oss-ee-convergence/migration-chains-and-edition-switch.md`.
+>
+> The commands below still describe the alembic mechanics, but they name the active
+> `tracing_ee` chain. Swap the `-w` working directory for
+> `/app/oss/databases/postgres/migrations/tracing_oss` when the change is shared schema,
+> which is most of them — the parked `.../tracing` chain should not advance.
 
 Generic single-database configuration with an async dbapi.
 
@@ -19,7 +24,7 @@ Note that autogenerate sometimes does not detect all database changes and it is 
 To make migrations after creating a new table schema or modifying a current column in a table, run the following commands:
 
 ```bash
-docker exec -e PYTHONPATH=/app -w /app/ee/databases/postgres/migrations/core agenta-ee-dev-api-1 alembic -c alembic.ini revision --autogenerate -m "migration message"
+docker exec -e PYTHONPATH=/app -w /app/ee/databases/postgres/migrations/tracing_ee agenta-ee-dev-api-1 alembic -c alembic.ini revision --autogenerate -m "migration message"
 ```
 
 The above command will create a script that contains the changes that was made to the database schema. Kindly update "migration message" with a message that is clear to indicate what change was made. Here are some examples:
@@ -31,11 +36,11 @@ The above command will create a script that contains the changes that was made t
 ### Applying Migrations
 
 ```bash
-docker exec -e PYTHONPATH=/app -w /app/ee/databases/postgres/migrations/core agenta-ee-dev-api-1 alembic -c alembic.ini upgrade head
+docker exec -e PYTHONPATH=/app -w /app/ee/databases/postgres/migrations/tracing_ee agenta-ee-dev-api-1 alembic -c alembic.ini upgrade head
 ```
 
 The above command will be used to apply the changes in the script created to the database table(s). If you'd like to revert the migration, run the following command:
 
 ```bash
-docker exec -e PYTHONPATH=/app -w /app/ee/databases/postgres/migrations/core agenta-ee-dev-api-1 alembic -c alembic.ini downgrade head
+docker exec -e PYTHONPATH=/app -w /app/ee/databases/postgres/migrations/tracing_ee agenta-ee-dev-api-1 alembic -c alembic.ini downgrade -1
 ```

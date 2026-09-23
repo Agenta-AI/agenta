@@ -7,5 +7,8 @@ export const SecretKind = {
     WebhookProvider: "webhook_provider",
     CustomSecret: "custom_secret",
     ChannelSecret: "channel_secret",
+    SubscriptionProvider: "subscription_provider",
+    OauthProvider: "oauth_provider",
+    OauthGrant: "oauth_grant",
 } as const;
 export type SecretKind = (typeof SecretKind)[keyof typeof SecretKind];

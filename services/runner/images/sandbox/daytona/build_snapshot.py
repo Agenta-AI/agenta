@@ -18,10 +18,12 @@ built snapshot through its own DAYTONA_SNAPSHOT_CODE / DAYTONA_SNAPSHOT variable
 recipe runs the shared tool recipe (install-agent-tools.sh), which includes python3 and
 typescript/ts-node.
 
-Run: DAYTONA_API_KEY=... DAYTONA_TARGET=eu uv run build_snapshot.py [--force]
+Run: DAYTONA_API_KEY=... DAYTONA_TARGET=eu uv run build_snapshot.py [--name NAME] [--force]
 
-The snapshot name is pinned, so Daytona keeps serving whatever was built under it. Whenever this
-recipe changes, every Daytona account using it must rerun the build with --force; see README.md.
+Daytona keeps serving whatever was built under a name. Whenever this recipe changes, rerun the
+build with --force in every Daytona account that uses it; see README.md. --force first builds a
+trial snapshot under a temporary name, so a recipe that fails one of the assertions below never
+costs the live snapshot. Only after the trial passes is the live one deleted and rebuilt.
 
 Licensing (see services/runner/docker/README.md):
     This script is the build recipe we ship, NOT a snapshot we distribute. Whoever
@@ -30,9 +32,11 @@ Licensing (see services/runner/docker/README.md):
     Claude-containing image, so this is compliant even though the `-full` base bundles
     Claude.
 
-    Cleaner-provenance follow-up (needs a live Daytona build to verify): base on a
-    daemon-only sandbox-agent image and install Claude from Anthropic at build, then
-    pin that only after confirming the daemon-only tag also ships the ACP adapters.
+    2026-09-22: the Claude ACP adapter is reinstalled at build time on top of the
+    -full base, pinned to the runner's claude-agent-acp version (same treatment as
+    Codex, D-005), so the Daytona sandbox serves the same Claude model set as the
+    runner. The snapshot remains a private artifact built in the operator's own
+    Daytona account, so this stays a build recipe we ship, not an image we distribute.
 """
 
 import base64
@@ -41,6 +45,7 @@ import json
 import os
 import sys
 import time
+import uuid
 from pathlib import Path
 
 from daytona import (
@@ -70,6 +75,14 @@ PI_ACP_PACKAGE_JSON = f"{PI_ACP_INSTALL_DIR}/pi/node_modules/pi-acp/package.json
 # parks warm. Keep this version in agreement with the runner image.
 CODEX_ACP_VERSION = "1.1.7"
 CODEX_ACP_PACKAGE_JSON = f"{PI_ACP_INSTALL_DIR}/codex/node_modules/@agentclientprotocol/codex-acp/package.json"
+
+# Claude ACP adapter. Same disease and cure as Codex: the `-full` base bakes an unpinned,
+# stale Claude adapter (its bundled @anthropic-ai/claude-agent-sdk model table predates
+# Opus 5.5). Pin it to the SAME @agentclientprotocol/claude-agent-acp version the runner
+# pins (`services/runner/package.json`), so local and Daytona sandboxes serve the same
+# Claude model set. Keep this version in agreement with the runner.
+CLAUDE_ACP_VERSION = "0.81.0"
+CLAUDE_ACP_PACKAGE_JSON = f"{PI_ACP_INSTALL_DIR}/claude/node_modules/@agentclientprotocol/claude-agent-acp/package.json"
 
 # The approval-patch anchor is single-sourced with the runner image so the two can never drift.
 PATCH_SPEC = json.loads(
@@ -190,33 +203,132 @@ def install_agent_tools_commands() -> list[str]:
     ]
 
 
+# A snapshot in one of these states never served a sandbox, so replacing it cannot break a run.
+FAILED_SNAPSHOT_STATES = frozenset({"error", "build_failed"})
+
+
+def parse_args(argv: list[str]) -> tuple[str, bool]:
+    """`--name NAME` (default: the runner's pinned name) and `--force`."""
+    name = SNAPSHOT_NAME
+    force = False
+    args = iter(argv)
+    for arg in args:
+        if arg == "--force":
+            force = True
+        elif arg == "--name":
+            name = next(args, "")
+            if not name:
+                raise SystemExit("--name needs a snapshot name")
+        elif arg.startswith("--name="):
+            name = arg.removeprefix("--name=")
+            if not name:
+                raise SystemExit("--name needs a snapshot name")
+        else:
+            raise SystemExit(f"unknown argument: {arg}")
+    return name, force
+
+
+def trial_name(name: str) -> str:
+    # The random suffix keeps two concurrent refreshes from cleaning up each other's trial.
+    stamp = time.strftime("%Y%m%d%H%M%S", time.gmtime())
+    return f"{name}-candidate-{stamp}-{uuid.uuid4().hex[:6]}"
+
+
+def plan_build(name: str, force: bool, existing_state: object | None) -> str:
+    """What to do with `name`: "build", "skip", "replace-failed", or "trial-then-replace".
+
+    A usable snapshot is replaced only after a trial build of the same recipe has passed every
+    assertion: runners may be starting sandboxes from it, and deleting it first would leave
+    them with no snapshot at all if the new recipe fails.
+    """
+    if existing_state is None:
+        return "build"
+    if not force:
+        return "skip"
+    if str(getattr(existing_state, "value", existing_state)) in FAILED_SNAPSHOT_STATES:
+        return "replace-failed"
+    return "trial-then-replace"
+
+
+def wait_until_deleted(daytona: Daytona, name: str) -> None:
+    deadline = time.monotonic() + 120
+    while True:
+        try:
+            daytona.snapshot.get(name)
+        except DaytonaNotFoundError:
+            return
+        if time.monotonic() >= deadline:
+            raise TimeoutError(f"Timed out waiting for snapshot '{name}' to delete")
+        time.sleep(2)
+
+
+def delete_snapshot(daytona: Daytona, name: str) -> None:
+    daytona.snapshot.delete(daytona.snapshot.get(name))
+    wait_until_deleted(daytona, name)
+
+
+def discard_snapshot(daytona: Daytona, name: str) -> None:
+    """Best-effort cleanup of a snapshot no runner uses; a leftover is only clutter."""
+    try:
+        delete_snapshot(daytona, name)
+    except DaytonaNotFoundError:
+        pass
+    except Exception as exc:  # noqa: BLE001
+        print(f"could not delete snapshot '{name}' ({exc}); delete it in Daytona.")
+
+
 def main() -> None:
-    force = "--force" in sys.argv
+    name, force = parse_args(sys.argv[1:])
     daytona = Daytona(DaytonaConfig())
 
     try:
-        existing = daytona.snapshot.get(SNAPSHOT_NAME)
+        existing = daytona.snapshot.get(name)
     except DaytonaNotFoundError:
         existing = None
 
-    if existing and not force:
-        print(f"snapshot '{SNAPSHOT_NAME}' already exists; pass --force to rebuild.")
+    action = plan_build(name, force, existing.state if existing else None)
+    if action == "skip":
+        print(
+            f"snapshot '{name}' already exists (state: {existing.state}); pass --force to "
+            "rebuild it (a trial build runs first, so a failing recipe leaves it untouched)."
+        )
         return
-    if existing:
-        print(f"deleting existing snapshot '{SNAPSHOT_NAME}'...")
-        daytona.snapshot.delete(existing)
-        deadline = time.monotonic() + 120
-        while True:
-            try:
-                daytona.snapshot.get(SNAPSHOT_NAME)
-            except DaytonaNotFoundError:
-                break
-            if time.monotonic() >= deadline:
-                raise TimeoutError(
-                    "Timed out waiting for the old Daytona snapshot to delete"
-                )
-            time.sleep(2)
+    if action == "replace-failed":
+        print(f"deleting failed snapshot '{name}' (state: {existing.state})...")
+        delete_snapshot(daytona, name)
+        build_snapshot(daytona, name)
+        return
+    if action == "build":
+        build_snapshot(daytona, name)
+        if name != SNAPSHOT_NAME:
+            print(f"Point the runner at it: AGENTA_RUNNER_DAYTONA_SNAPSHOT={name}")
+        return
 
+    trial = trial_name(name)
+    print(f"'{name}' is live; building a trial snapshot '{trial}' first...")
+    try:
+        build_snapshot(daytona, trial)
+    except Exception as exc:
+        discard_snapshot(daytona, trial)
+        raise SystemExit(
+            f"trial build failed ({exc}); the live snapshot '{name}' was not touched."
+        ) from exc
+
+    print(f"trial passed; replacing '{name}'...")
+    try:
+        delete_snapshot(daytona, name)
+        build_snapshot(daytona, name)
+    except Exception as exc:
+        raise SystemExit(
+            f"replacing '{name}' failed ({exc}); it may be gone. The trial snapshot "
+            f"'{trial}' passed every check and was kept. Point the runner at it and restart "
+            f"the runner:\n    AGENTA_RUNNER_DAYTONA_SNAPSHOT={trial}"
+        ) from exc
+    discard_snapshot(daytona, trial)
+
+
+def build_snapshot(daytona: Daytona, name: str) -> None:
+    """Build `name` from the recipe; raises when any build step or assertion fails."""
     # Add Pi globally so it is on PATH for the non-root sandbox user. The full base
     # already bakes Claude, Codex, and OpenCode, so verify their native binaries
     # instead of reinstalling them.
@@ -267,14 +379,27 @@ def main() -> None:
             f"&& echo codex-acp-version={CODEX_ACP_VERSION}",
             # Patches AND verifies in one step; see the docstring for why it is not two.
             codex_approval_patch_command(),
+            # Same treatment for Claude: replace the base's stale adapter with the
+            # runner's pinned claude-agent-acp, then assert version and model table.
+            f"RUN sandbox-agent install-agent claude --reinstall "
+            f"--agent-process-version {CLAUDE_ACP_VERSION}",
+            f'RUN test "$(node -p "require(\'{CLAUDE_ACP_PACKAGE_JSON}\').version")" '
+            f'= "{CLAUDE_ACP_VERSION}" '
+            f"&& echo claude-acp-version={CLAUDE_ACP_VERSION}",
+            # The bundled SDK binary must actually carry Opus 5.5 and Fable 5.1 (both in the
+            # published Claude catalog); fail the build otherwise.
+            f"RUN BIN=$(find {PI_ACP_INSTALL_DIR}/claude -type f -name claude | head -1) "
+            '&& test -n "$BIN" && grep -aq claude-opus-5-5 "$BIN" '
+            '&& grep -aq claude-fable-5-1 "$BIN" '
+            "&& echo claude-model-table-has-opus-5-5-and-fable-5-1",
         ]
     )
 
-    print(f"building snapshot '{SNAPSHOT_NAME}' from {SANDBOX_AGENT_IMAGE} (+ pi)...")
+    print(f"building snapshot '{name}' from {SANDBOX_AGENT_IMAGE} (+ pi)...")
     started = time.monotonic()
     daytona.snapshot.create(
         CreateSnapshotParams(
-            name=SNAPSHOT_NAME,
+            name=name,
             image=image,
             resources=Resources(
                 cpu=int(os.getenv("AGENTA_RUNNER_DAYTONA_SANDBOX_CPU", "2")),
@@ -284,7 +409,7 @@ def main() -> None:
         ),
         on_logs=print,
     )
-    print(f"\nsnapshot '{SNAPSHOT_NAME}' built in {time.monotonic() - started:.1f}s")
+    print(f"\nsnapshot '{name}' built in {time.monotonic() - started:.1f}s")
 
 
 if __name__ == "__main__":

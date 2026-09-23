@@ -188,7 +188,7 @@ function makeCtx(engine: KeepaliveEngine): KeepaliveContext {
     pool: new SessionPool<SessionEnvironment>({ poolMax: 8 }, () => {}),
     config,
     // The propagation hold is real in production — it is what keeps applied state from advancing
-    // over a value the egress layer has probably not picked up yet. Ten seconds per rotation test
+    // over a value the egress layer has probably not picked up yet. Thirty seconds per rotation test
     // would buy the assertions nothing, so the seam exists and the tests use it.
     credentialWait: async () => {},
   };
@@ -1131,6 +1131,58 @@ describe("the disagreement counters stay quiet", () => {
     // never to a restart, which behind a reference would install the same placeholder and deliver
     // nothing while reporting success.
     assert.equal(mechanismForRotation(unbounded), "rebuild-sandbox");
+  });
+
+  it("a Daytona rotation holds the turn for the full measured propagation before it runs", async () => {
+    // The hold is the only thing between a rotated vault value and a turn that goes out on the
+    // OLD key. Measured on staging (2026-09-23): a turn held 10s still used the old value; one
+    // dispatched 28s after the rotation used the new one. So the turn must wait the 30s bound,
+    // and it must wait BEFORE it runs, not beside it.
+    const { port, deliveries } = makeCredentialPort();
+    const { engine, calls } = makeEngine({ credentialPort: port });
+    const holds: Array<{ ms: number; deliveries: number; turns: number }> = [];
+    let releaseHold!: () => void;
+    const ctx: KeepaliveContext = {
+      ...makeCtx(engine),
+      credentialWait: (ms) => {
+        holds.push({
+          ms,
+          deliveries: deliveries.length,
+          turns: calls.turns.length,
+        });
+        return new Promise<void>((resolve) => {
+          releaseHold = resolve;
+        });
+      },
+    };
+    await runWithKeepalive(
+      withSecret("sk-a", turn1),
+      undefined,
+      undefined,
+      ctx,
+    );
+    const rotated = runWithKeepalive(
+      withSecret("sk-b", turn2()),
+      undefined,
+      undefined,
+      ctx,
+    );
+    while (holds.length === 0) await new Promise((r) => setTimeout(r, 0));
+
+    // The value is written first and the hold starts after: a hold taken before the update
+    // would expire before the new value had even been sent to the provider.
+    assert.deepEqual(holds, [{ ms: 30_000, deliveries: 1, turns: 1 }]);
+    // Nothing runs while the hold is pending: a hold that is not awaited is no hold at all.
+    for (let i = 0; i < 20; i++) await new Promise((r) => setTimeout(r, 0));
+    assert.equal(
+      calls.turns.length,
+      1,
+      "the rotated turn must wait out the hold",
+    );
+
+    releaseHold();
+    await rotated;
+    assert.equal(calls.turns.length, 2);
   });
 
   it("keeps the STRONGER repair when a rotation and a runtime change collide", () => {

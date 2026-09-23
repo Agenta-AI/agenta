@@ -30,15 +30,19 @@ Because the api container now makes the call, the relay's own outbound guard dec
 
 An upgrade reuses your existing `.env` file, which has none of the new lines, so your deployment runs on the code defaults. Those defaults refuse an MCP server that is on a private network or answers over plain HTTP. The env templates shipped with 0.119.0 set them permissively instead, so a fresh install and an upgraded install behave differently until you add the lines yourself.
 
-If an MCP server in one of your projects is on `http://` or on a private address, add these to your env file:
+If an MCP server in one of your projects is on `http://` or on a private address, add this to your env file:
 
 ```bash
 # Let the relay call MCP servers on plain HTTP and on private addresses.
-# Code default: false. The 0.119.0 env templates ship true.
+# Code default: false. The 0.119.x env templates ship true.
 AGENTA_GATEWAYS_INSECURE_EGRESS_ALLOWED=true
+```
 
+A second setting applies only if your own Agenta deployment is reached over plain HTTP at an address that is not loopback, such as an IP address or a LAN name. It governs the hop into Agenta, not the hop out to an MCP server, and without it a gateway-routed run fails with `gateway_insecure_endpoint`:
+
+```bash
 # Let gateway credentials travel when your own deployment is reached over plain HTTP
-# at a non-loopback address. Code default: false. The 0.119.0 env templates ship true.
+# at a non-loopback address. Code default: false. The 0.119.x env templates ship true.
 AGENTA_GATEWAYS_INSECURE_HTTP_ALLOWED=true
 ```
 
@@ -52,18 +56,20 @@ docker compose -f hosting/docker-compose/oss/docker-compose.gh.yml \
   --profile with-web --profile with-traefik up -d
 ```
 
-For Helm, the chart has no dedicated values for these settings. Set them through `api.extraEnv`, `services.extraEnv` and `agentRunner.extraEnv`. See [Agenta gateways](/self-host/configuration#agenta-gateways).
+For Helm, set `gatewayEgress.insecureAllowed` and `gatewayEgress.insecureHttpAllowed` in your values file. The chart ships both commented out, so an upgrade that touches no values file keeps the code defaults and both guards stay on. The chart renders each key you do set into the containers that read it. See [Agenta gateways](/self-host/configuration#agenta-gateways).
 
-### Saving an MCP server URL follows a different setting in this version
+Two more things change for Helm in this release. The chart now implements all five gateway keys, so a key you added under `api.extraEnv`, `services.extraEnv` or `agentRunner.extraEnv` to work around their absence now duplicates the one the chart renders. Remove the `extraEnv` copy. And the schema now rejects an unknown key under `mcpGateway`, `llmGateway`, `gatewayEgress` or `gatewayCredentials`, where 0.119.0 accepted and ignored it, so `helm upgrade` fails on a typo it used to swallow. For the same reason a real key that used to do nothing now takes effect: if you set `mcpGateway.enabled: false` against 0.119.0 and saw no change, it now turns the MCP gateway off.
 
-In 0.119.0, the check that runs when someone saves a custom MCP server URL reads the older `AGENTA_INSECURE_EGRESS_ALLOWED` rather than the gateway setting above. The two production templates, `env.oss.gh.example` and `env.ee.gh.example`, set it to `false`, so on such a deployment the save is refused with a `400`:
+### Saving an MCP server URL on 0.119.0
+
+This applies only while you are on 0.119.0. In that version, the check that runs when someone saves a custom MCP server URL reads `AGENTA_INSECURE_EGRESS_ALLOWED`, the setting that governs webhooks, rather than the gateway setting above. The two production templates, `env.oss.gh.example` and `env.ee.gh.example`, set it to `false`, so on such a deployment a plain-HTTP or literal-private-IP URL is refused with a `400`:
 
 ```text
 endpoint.data.route.base_url is invalid: URL must use https.
 endpoint.data.route.base_url is invalid: URL resolves to a blocked IP range.
 ```
 
-To save a plain-HTTP or private-address MCP server URL on that deployment, set `AGENTA_INSECURE_EGRESS_ALLOWED=true` as well. Doing so also widens what webhooks, workflow hooks, custom model provider endpoints and OIDC issuer probes may reach. A later release makes the save-time check follow the gateway setting, and this step is then no longer needed.
+From 0.119.1, that check follows `AGENTA_GATEWAYS_INSECURE_EGRESS_ALLOWED`, the same setting the relay uses at call time. Upgrade to 0.119.1 rather than setting `AGENTA_INSECURE_EGRESS_ALLOWED=true`: that variable has no effect on MCP saves from 0.119.1, and setting it widens what webhooks, workflow hooks, custom model provider endpoints and OIDC issuer probes may reach. If you set it to `true` on 0.119.0 for this reason alone, set it back after upgrading.
 
 A server that is already saved keeps working. This check runs only when a URL is saved.
 

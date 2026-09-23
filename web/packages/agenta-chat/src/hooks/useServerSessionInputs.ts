@@ -12,6 +12,7 @@ import {projectIdAtom} from "@agenta/shared/state"
 import type {FileUIPart, UIMessage} from "ai"
 import {useAtomValue, useSetAtom} from "jotai"
 
+import {outboundUserParts} from "../assets/displayContent"
 import {attachmentIdForPart} from "../assets/files"
 import {reduceSessionPendingInputs, type SessionPendingInputView} from "../assets/pendingInputs"
 import {startupLabelFromDataPart} from "../assets/startupPhases"
@@ -331,12 +332,7 @@ export const useServerSessionInputs = ({
                 ...(message.executionText !== undefined
                     ? {metadata: {display_content: message.text}}
                     : {}),
-                parts: [
-                    ...(message.text
-                        ? [{type: "text" as const, text: message.executionText ?? message.text}]
-                        : []),
-                    ...(message.fileParts ?? []),
-                ],
+                parts: outboundUserParts(message),
             }
             const request = await buildAgentRequest(
                 entityIdRef.current,

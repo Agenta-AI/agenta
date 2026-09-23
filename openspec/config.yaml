@@ -2,6 +2,8 @@ schema: spec-driven
 context: |
   Agenta is a workspace for AI coworkers and automations.
   These changes are proposed behavior, not shipped capabilities.
+  Keep unrelated changes in separate change directories. Read each change's proposal and design for its scope and status.
+  The remaining context applies only to the agent-template changes, not to CI or hosting changes:
   PR #6944 contains specifications only. Do not implement tasks in this PR.
   Version one loads one agent through the existing template UI and ends at first-message delivery.
   /m is the new default application for desktop and mobile, not a mobile-only host.

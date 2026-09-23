@@ -36,6 +36,7 @@ from agenta.sdk.engines.running.utils import (
     normalize_snippet_data,
 )
 
+from oss.src.core.apps.assembly import AGENTA_APPS_SKILL, AGENTA_APPS_SLUG
 from oss.src.core.workflows.build_kit import (
     AGENTA_BUILTIN_AGENT_URI,
     BUILD_KIT_WORKFLOW_DESCRIPTION,
@@ -145,7 +146,8 @@ def _client_tool_revision() -> WorkflowRevision:
                                     "A gateway target to connect instead of an external "
                                     "integration: a model provider on the LLM plane, or a "
                                     "server on the MCP plane. Use this after a model or tool "
-                                    "call was refused for an unregistered target."
+                                    "call was refused for an unregistered target. Omit when "
+                                    "connecting an external integration (use 'integration')."
                                 ),
                                 "properties": {
                                     "plane": {
@@ -172,16 +174,11 @@ def _client_tool_revision() -> WorkflowRevision:
                             },
                         },
                         "required": [],
-                        "oneOf": [
-                            {
-                                "required": ["integration"],
-                                "not": {"required": ["target"]},
-                            },
-                            {
-                                "required": ["target"],
-                                "not": {"required": ["integration"]},
-                            },
-                        ],
+                        # "Exactly one of integration or target" lives in the descriptions, not in
+                        # a root-level oneOf. OpenAI rejects any tool whose parameter root carries
+                        # oneOf/anyOf/allOf/enum/const/not (`invalid_function_parameters`), and
+                        # xAI reads a root-level union branch as the root itself. Either refusal
+                        # fails every turn, because the build kit declares this tool on all of them.
                         "additionalProperties": False,
                     },
                     "render": {"kind": "connect"},
@@ -367,6 +364,14 @@ _STATIC_WORKFLOWS: Dict[str, Dict[str, Any]] = {
         "latest": "v1",
         "versions": {
             "v1": _build_kit_revision,
+        },
+    },
+    AGENTA_APPS_SLUG: {
+        "kind": "skill",
+        "embeddable": True,
+        "latest": "v1",
+        "versions": {
+            "v1": _skill_revision(AGENTA_APPS_SKILL),
         },
     },
 }

@@ -68,6 +68,13 @@ describe("conciseError", () => {
     );
   });
 
+  it("names xAI for a failed Grok run instead of the OpenAI fallback", () => {
+    assert.equal(
+      conciseError(new Error("401 unauthorized"), "pi_core", "xai"),
+      "pi_core: model authentication failed — add the project's xAI key to the project vault, or log in (OAuth).",
+    );
+  });
+
   it("falls back to the harness default when no provider is resolved", () => {
     // Un-migrated caller (no provider on the wire): keep the old harness-derived behavior.
     assert.equal(

@@ -53,6 +53,7 @@ import {prepareAfterContinuationPreflight} from "../assets/continuationPreflight
 import {
     displayMessageText,
     editedExecutionText,
+    outboundUserParts,
     readDisplayEdit,
     saveDisplayEdit,
 } from "../assets/displayContent"
@@ -738,10 +739,7 @@ export const useAgentConversation = ({
             setStopped(false)
             sendMessage({
                 role: "user",
-                parts: [
-                    {type: "text", text: item.executionText ?? item.text},
-                    ...(item.fileParts ?? []),
-                ],
+                parts: outboundUserParts(item),
                 ...(item.executionText !== undefined
                     ? {metadata: {display_content: item.text}}
                     : {}),

@@ -42,8 +42,11 @@ const scopedKey = (userId: string, key: string) => `agenta:settings:${userId}:${
  *
  * Reads the default and writes nothing while the user is unknown: a preference written under no
  * user would be inherited by the next person to sign in on this browser.
+ *
+ * Exported for packages that own a flag's key (e.g. `AGENT_APPS_FLAG` in `@agenta/entities`):
+ * call it ONCE at module level — every call builds its own atom family.
  */
-const userScopedFlagAtom = (key: string, defaultValue = false) => {
+export const userScopedFlagAtom = (key: string, defaultValue = false) => {
     const family = atomFamily((userId: string) =>
         atomWithStorage<boolean>(scopedKey(userId, key), defaultValue),
     )
@@ -73,3 +76,6 @@ export const channelsEnabledAtom = userScopedFlagAtom("channels", true)
 
 /** Debug switch for the log and diagnostic sections of the Channels settings tab. */
 export const channelDebugEnabledAtom = userScopedFlagAtom("channel-debug")
+
+/** Experimental switch for Run on HTML files in the drive; key mirrors `AGENT_APPS_FLAG`. */
+export const agentAppsEnabledAtom = userScopedFlagAtom("agent-apps")

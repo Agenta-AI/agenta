@@ -24,14 +24,18 @@
 name: "48 - railway clone preview test"
 
 on:
-  pull_request:
-    paths:
-      - '.github/workflows/48-railway-clone-preview-test.yml'
-      - 'hosting/railway/oss/scripts/preview-clone-create.sh'
-      - 'hosting/railway/oss/scripts/preview-clone-destroy.sh'
-      - 'hosting/railway/oss/template/lib-graphql.sh'
+  # Real clone cycles are opt-in. Workflow 14 already validates each PR's
+  # deployment; workflow 50 covers lifecycle regressions without cloud spend.
   workflow_dispatch:
     inputs:
+      lifecycle_pr:
+        description: "Opt-in lifecycle acceptance: PR number (empty runs legacy clone cycles)"
+        required: false
+        type: string
+      comment_id:
+        description: "Real unedited /preview comment on that PR"
+        required: false
+        type: string
       cycles:
         description: "Number of consecutive full cycles"
         required: false
@@ -45,6 +49,9 @@ on:
 
 permissions:
   contents: read
+  packages: write
+  pull-requests: write
+  actions: read
 
 # Serialize runs: parallel cycles would contend for the template project and
 # for the token's hourly API budget.
@@ -57,6 +64,7 @@ env:
 
 jobs:
   clone-cycles:
+    if: inputs.lifecycle_pr == ''
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
@@ -109,3 +117,42 @@ jobs:
             echo "Failed cycles: ${failed}/${CYCLES}. Total API calls: $(wc -l < "$RW_CALLS_FILE")."
           } >> "$GITHUB_STEP_SUMMARY"
           [ "$failed" -eq 0 ]
+
+  lifecycle-proof:
+    if: inputs.lifecycle_pr != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      - uses: docker/setup-buildx-action@v4
+      - name: Exercise real comment, readiness, expiry and finalizer
+        env:
+          GH_TOKEN: ${{ github.token }}
+          LIFECYCLE_PR: ${{ inputs.lifecycle_pr }}
+          COMMENT_ID: ${{ inputs.comment_id }}
+          IMAGE_TAG: ${{ inputs.patch_tag }}
+          AGENTA_AUTH_KEY: ${{ secrets.AGENTA_TEST_OSS_AUTH_KEY }}
+          RAILWAY_TEMPLATE_PROJECT: ${{ vars.RAILWAY_TEMPLATE_PROJECT || 'agenta-oss-clone-spike' }}
+          RAILWAY_TEMPLATE_ENV: ${{ vars.RAILWAY_TEMPLATE_ENV || 'pr-template' }}
+        run: python3 hosting/railway/oss/scripts/verify_preview_lifecycle.py
+      - name: Remove proof environment even if acceptance failed
+        if: always()
+        env:
+          RAILWAY_PREVIEW_ENV_NAME: pr-clone-lifecycle-${{ github.run_id }}
+          RAILWAY_TEMPLATE_PROJECT: ${{ vars.RAILWAY_TEMPLATE_PROJECT || 'agenta-oss-clone-spike' }}
+          RAILWAY_TEMPLATE_ENV: ${{ vars.RAILWAY_TEMPLATE_ENV || 'pr-template' }}
+        run: bash hosting/railway/oss/scripts/preview-clone-destroy.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: railway-lifecycle-evidence
+          path: railway-lifecycle-evidence.json
+          if-no-files-found: warn
+          retention-days: 14

@@ -78,6 +78,14 @@ def _agent_catalog_ids() -> set:
 
 _AGENT_CATALOG_IDS: set = _agent_catalog_ids()
 
+# Ids checked against litellm's live price map when they were added, but carried neither by the
+# map bundled with the pinned litellm (the tests pin it, see conftest.py) nor by the agent
+# catalog. Remove an id once a litellm bump indexes it.
+_KNOWN_LIVE_MAP_ONLY = {
+    "gpt-5.6-cyber",
+    "xai/grok-4.20-0309-non-reasoning",
+}
+
 
 @pytest.mark.skipif(not LITELLM_AVAILABLE, reason="litellm not installed")
 @pytest.mark.parametrize("model,provider", list(_all_models()))
@@ -93,7 +101,13 @@ def test_model_exists_in_litellm(model: str, provider: str) -> None:
         pytest.xfail(
             f"'{model}' not yet in this litellm build's model_cost (OpenRouter lag)"
         )
-    if not found and model in _AGENT_CATALOG_IDS:
+    if not found and model in _KNOWN_LIVE_MAP_ONLY:
+        pytest.xfail(
+            f"'{model}' is only in litellm's live price map, not the one bundled with this build"
+        )
+    if not found and (
+        model in _AGENT_CATALOG_IDS or f"{provider}/{model}" in _AGENT_CATALOG_IDS
+    ):
         # Corroborated by the agent catalog, so the id is real and this litellm build simply
         # has not indexed it yet. Cost data will be missing until the pin moves.
         pytest.xfail(

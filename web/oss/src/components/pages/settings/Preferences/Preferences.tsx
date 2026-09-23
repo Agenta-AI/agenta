@@ -1,6 +1,7 @@
 import {PreferencesPage} from "@agenta/settings-ui"
 import {
     agentaChannelSurfaceEnabledAtom,
+    agentAppsEnabledAtom,
     channelDebugEnabledAtom,
     channelsEnabledAtom,
     classicModeEnabledAtom,
@@ -15,6 +16,7 @@ import {ThemeMode, useAppTheme} from "@/oss/components/Layout/ThemeContextProvid
 const Preferences = () => {
     const {themeMode, toggleAppTheme} = useAppTheme()
     const [classicModeEnabled, setClassicModeEnabled] = useAtom(classicModeEnabledAtom)
+    const [agentAppsEnabled, setAgentAppsEnabled] = useAtom(agentAppsEnabledAtom)
     const [playgroundInspectorEnabled, setPlaygroundInspectorEnabled] = useAtom(
         playgroundInspectorEnabledAtom,
     )
@@ -72,6 +74,15 @@ const Preferences = () => {
                     enabled: channelDebugEnabled,
                     onChange: setChannelDebugEnabled,
                     badge: "DEBUG",
+                },
+                {
+                    key: "agent-apps",
+                    title: "Agent apps",
+                    description:
+                        "Offer Run on HTML files in an agent's drive, so a page can read and write its own folder.",
+                    enabled: agentAppsEnabled,
+                    onChange: setAgentAppsEnabled,
+                    badge: "BETA",
                 },
             ]}
         />

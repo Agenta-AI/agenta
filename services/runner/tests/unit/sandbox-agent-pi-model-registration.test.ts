@@ -23,6 +23,7 @@ import { join } from "node:path";
 
 import type { AgentRunRequest } from "../../src/protocol.ts";
 import {
+  PI_MODELS_AHEAD_OF_CATALOG,
   buildPiModelRegistrationPlan,
   describePiModelsJsonPlan,
   isPiModelRegistrationPlan,
@@ -279,6 +280,82 @@ describe("Pi's real built-in registry (the table the pinned harness runs)", () =
       ),
       undefined,
     );
+  });
+});
+
+describe("models newer than the pinned Pi catalog", () => {
+  it("prices Opus 5.5 at its own rate and keeps Opus 5's adaptive thinking", async () => {
+    const registry = await loadPiBuiltinRegistry();
+    assert.ok(registry);
+    // Still unknown to the pinned catalog; once a Pi bump carries it, drop the entry.
+    assert.equal(
+      registry.models("anthropic").some((model) => model.id === "claude-opus-5-5"),
+      false,
+    );
+
+    const entry = buildPiModelRegistrationPlan(
+      piRequest("anthropic/claude-opus-5-5"),
+      registry,
+    )?.models[0];
+
+    assert.equal(entry?.id, "claude-opus-5-5");
+    assert.deepEqual(entry?.cost, { input: 4, output: 20, cacheRead: 0.2, cacheWrite: 5 });
+    assert.equal(entry?.reasoning, true);
+    assert.equal(entry?.contextWindow, 1000000);
+    assert.equal(entry?.maxTokens, 128000);
+    // Thinking cannot be switched off on Opus 5.5, so Pi must never send `disabled`.
+    assert.equal(entry?.thinkingLevelMap?.off, null);
+    assert.equal(entry?.compat?.forceAdaptiveThinking, true);
+    assert.equal(entry?.compat?.supportsTemperature, false);
+    assert.equal("supportsMidConvoEffort" in (entry?.compat ?? {}), false);
+  });
+
+  it("prices Grok 4.7 and keeps Grok 4.6's reasoning setup", async () => {
+    const registry = await loadPiBuiltinRegistry();
+    assert.ok(registry);
+
+    const entry = buildPiModelRegistrationPlan(piRequest("xai/grok-4.7"), registry)?.models[0];
+    const base = registry.models("xai").find((model) => model.id === "grok-4.6");
+
+    assert.equal(entry?.id, "grok-4.7");
+    assert.deepEqual(entry?.cost, { input: 2, output: 6, cacheRead: 0.5, cacheWrite: 0 });
+    assert.equal(entry?.reasoning, true);
+    assert.deepEqual(entry?.thinkingLevelMap, base?.thinkingLevelMap);
+    assert.equal(entry?.contextWindow, 500000);
+  });
+
+  it("matches the SDK's curated additions, so the picker and the run agree on price", () => {
+    const curated = JSON.parse(
+      readFileSync(
+        join(
+          import.meta.dirname,
+          "../../../../sdks/python/agenta/sdk/agents/data/pi_models.curated.json",
+        ),
+        "utf8",
+      ),
+    ) as {
+      additions: Array<{
+        id: string;
+        pricing: Record<string, number>;
+        context_window: number;
+      }>;
+    };
+    const additions = new Map(curated.additions.map((entry) => [entry.id, entry]));
+
+    for (const [id, known] of Object.entries(PI_MODELS_AHEAD_OF_CATALOG)) {
+      const addition = additions.get(id);
+      assert.ok(addition, `${id} has no SDK catalog addition`);
+      assert.deepEqual(
+        known.cost,
+        {
+          input: addition.pricing.input_per_mtok,
+          output: addition.pricing.output_per_mtok,
+          cacheRead: addition.pricing.cache_read_per_mtok,
+          cacheWrite: addition.pricing.cache_write_per_mtok,
+        },
+        id,
+      );
+    }
   });
 });
 

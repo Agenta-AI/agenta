@@ -13,6 +13,12 @@ class SessionInputsDAOInterface(ABC):
         pass
 
     @abstractmethod
+    async def release_dispatch(
+        self, *, project_id: UUID, session_id: str, input_id: UUID, execution_id: str
+    ) -> bool:
+        pass
+
+    @abstractmethod
     def transaction(self) -> AsyncContextManager[Any]:
         pass
 

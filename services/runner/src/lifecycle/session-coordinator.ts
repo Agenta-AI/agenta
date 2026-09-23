@@ -98,6 +98,7 @@ import {
 } from "./reconciliation-router.ts";
 import { normalizeDesiredState } from "./desired-state.ts";
 import { formatPlan, type ReconcilePlan } from "./reconcile-plan.ts";
+import { normalizeRequestModel } from "../engines/sandbox_agent/model.ts";
 
 export function klog(message: string): void {
   process.stderr.write(`[keepalive] ${message}\n`);
@@ -243,6 +244,8 @@ export async function runWithKeepalive(
   ctx: KeepaliveContext,
 ): Promise<AgentRunResult> {
   const { engine, pool, config, clientGone, credential, credentialWait } = ctx;
+  // Before the fingerprint, the live model change and the env all read it (see the helper).
+  normalizeRequestModel(request);
   const turnCredential = credential ? { credential } : {};
   const sessionId = request.sessionId?.trim();
   // Every execution carries an id: callers that omit `turnId` get one minted here, so the

@@ -1,0 +1,60 @@
+import {Meta} from "@storybook/addon-docs/blocks"
+
+<Meta title="@agenta/entity-ui/Drive/HtmlApp/Overview" />
+
+# Agent HTML apps — Run mode
+
+An HTML file in an agent drive can be **run**, not just previewed: the file's folder becomes the
+app dir, the page renders in a sandboxed iframe (no `allow-same-origin`), and it reaches its own
+files through `window.agenta.fs`, a `MessagePort` the host hands it on load. The contract lives in
+`@agenta/entities/drive` (`protocol.ts`, `manifest.ts`, `mockHost.ts`); these stories run on
+`createMockHtmlAppHost`, the behavioural reference lane A's real host must match.
+
+Everything here is behind `userScopedFlagAtom("agent-apps")`. Flag off, the viewer is byte-for-byte
+the Preview | Source it was (locked by `tests/unit/htmlApp.assemble.test.ts`).
+
+## Pieces
+
+| Piece                 | What it does                                                                                                                                                                                                                              |
+| --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `assemblePreview`     | Today's Preview: inline same-mount CSS + images, strip every script vector, add the nav interceptor.                                                                                                                                      |
+| `assembleRunDocument` | Run: the same inlining, author scripts kept (same-folder `<script src>` inlined, external dropped with a note), then CSP meta → `#agenta-tokens` → `#agenta-kit` → bridge stub prepended to `<head>`. No interceptor: nav rides the port. |
+| `HtmlAppBody`         | Preview \| Source \| Run. Run needs a drive and a grant; the env context injects host factory, mount io, kit CSS, token resolver, grant store.                                                                                            |
+| `GrantSheet`          | "Run _name_?" — Read files / Read and write files, preselected from `app.json`'s `access`; the write option only where the drive's upload gate allows edits. A hidden third section is reserved.                                          |
+| `RunView`             | The iframe + status strip: dot, `Running · read + write · dir`, ‹ back, Refresh ▾ (Reload files), "Files changed" pill, error badge → list → Copy. Attaches the host on load, detaches on unmount, pushes theme tokens on theme change.   |
+| `useAppManifest`      | Reads `<dir>/app.json` (absent → defaults: `read`, `index.html`, kit on).                                                                                                                                                                 |
+| `useChangedHint`      | Diffs the app dir's listing query (etag → mtime → size) on refetches not caused by the app's own write and calls `host.notifyChanged`; `onWrite` bumps the listing through `refreshMountListing`.                                         |
+
+## Stories ↔ acceptance steps
+
+| Story                                 | Stands for                                                                                                    |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| **HtmlAppBody / FlagOff**             | Flag off ⇒ Preview \| Source unchanged; no Run, no sheet, no host.                                            |
+| **HtmlAppBody / FlagOn**              | Flag on ⇒ Run offered; picking it opens the grant sheet, confirming mounts RunView.                           |
+| **HtmlAppBody / FlagOnGranted**       | A stored grant skips the sheet.                                                                               |
+| **HtmlAppBody / Loading**             | Slow drive ⇒ assembling skeleton, never a frozen pane.                                                        |
+| **HtmlAppBody / Unavailable**         | No drive (composer attachment) ⇒ Run not offered, Preview/Source intact.                                      |
+| **GrantSheet / ReadPreselected**      | Manifest `access: "read"` (or no manifest).                                                                   |
+| **GrantSheet / ReadWritePreselected** | Manifest `access: "read-write"` and the user may edit mounts.                                                 |
+| **GrantSheet / WriteHidden**          | Upload gate off ⇒ write option absent, request narrowed to read.                                              |
+| **GrantSheet / Cancel**               | Cancel ⇒ back to Preview.                                                                                     |
+| **RunView / RunningReadOnly**         | `read` grant: strip label, write refused with `read_only`.                                                    |
+| **RunView / RunningReadWrite**        | `read-write` grant: writes land.                                                                              |
+| **RunView / ErrorStrip**              | A bridge rejection + a script error: badge count, expandable list, Copy.                                      |
+| **RunView / ConflictRetried**         | `externalWrite` after a read ⇒ `conflict` (with the server's etag); re-read then retry succeeds.              |
+| **RunView / ChangedHintPending**      | Agent edit underneath ⇒ "Files changed · Reload" pill; the mock queues `changed` for the iframe.              |
+| **RunView / NavigationBackStack**     | `guide.html` inside the dir ⇒ fetched, assembled, ‹ back; `../notes.md` ⇒ handed to the drive (`onNavigate`). |
+| **RunView / NotFoundData**            | Missing `board.json` ⇒ the app's own empty state + the read reported in the strip.                            |
+| **RunView / TooLarge**                | Read over 4 MB ⇒ `too_large`.                                                                                 |
+
+## What runs for real
+
+The Run document carries the real `BRIDGE_STUB` and `KIT_CSS`, so the app in the iframe talks to
+the host over the port exactly as it does in the drive. Stories swap only the host: `HtmlAppEnv.createHost`
+injects `createMockHtmlAppHost` in place of `createHtmlAppHost`, and `io` serves the mock's files.
+The RunView driver buttons send what the stub would (`host.handle(FsRequest)`, a nav href, a
+script error) so each strip state is one click away.
+
+Every story renders under the Theme toolbar in light and dark: the strip uses semantic token
+classes, and the app document receives the kit tokens resolved from the root's `--ag-*` variables.
+There is no `AntdVsAgenta` pair — these components have no antd predecessor.

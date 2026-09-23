@@ -8,9 +8,11 @@ export {userAtom, setUserAtom} from "./user"
 export {
     activeUserIdAtom,
     agentaChannelSurfaceEnabledAtom,
+    agentAppsEnabledAtom,
     channelDebugEnabledAtom,
     channelsEnabledAtom,
     playgroundInspectorEnabledAtom,
+    userScopedFlagAtom,
 } from "./featureFlags"
 export {
     advancedNavHiddenAtom,

@@ -207,7 +207,9 @@ def test_claude_models_are_the_alias_set_under_anthropic():
     assert models["anthropic"] == list(CLAUDE_MODEL_ALIASES)
     # Exact harness config values, not provider-prefixed ids or friendly aliases.
     assert "opus[1m]" in models["anthropic"]
-    assert "claude-fable-5" in models["anthropic"]
+    assert "claude-fable-5-1" in models["anthropic"]
+    # The pinned Claude Code build no longer offers Fable 5 as a selectable model.
+    assert "claude-fable-5" not in models["anthropic"]
     assert "fable" not in models["anthropic"]
     assert all("/" not in alias for alias in models["anthropic"])
 

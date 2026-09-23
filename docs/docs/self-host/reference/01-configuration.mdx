@@ -823,13 +823,11 @@ The old per-surface names (`AGENTA_WEBHOOKS_ALLOW_INSECURE`, `AGENTA_WEBHOOK_ALL
 deprecated aliases and still work, but new configuration should use the canonical name.
 :::
 
-:::note This variable also gates saving an MCP server URL
-In 0.119.0, the check that runs when someone saves a custom MCP server URL reads
-`AGENTA_INSECURE_EGRESS_ALLOWED`, not the gateway's own
-`AGENTA_GATEWAYS_INSECURE_EGRESS_ALLOWED` below. On a deployment built from
-`env.oss.gh.example` or `env.ee.gh.example`, which set it to `false`, a plain-HTTP or
-literal private-IP MCP server URL is refused at save time with a `400`, even though the
-relay is configured to call it. See
+:::note This variable does not gate saving an MCP server URL
+Saving a custom MCP server URL is checked under `AGENTA_GATEWAYS_INSECURE_EGRESS_ALLOWED`
+and `AGENTA_MCP_GATEWAY_HOST_ALLOWLIST` below, which are also what the relay enforces when
+it calls the server. In 0.119.0 only, that save-time check read
+`AGENTA_INSECURE_EGRESS_ALLOWED` instead. See
 [Use an MCP server on a private network or over plain HTTP](/self-host/app-tools-and-triggers#use-an-mcp-server-on-a-private-network-or-over-plain-http).
 :::
 
@@ -848,17 +846,23 @@ Two of these ship a value in the Docker Compose env templates that differs from 
 the code applies when the variable is absent. An upgraded deployment keeps its existing env
 file, which has none of these lines, so it runs on the code defaults until you add them.
 
-| Env var | Code default | `env.oss.dev.example` / `env.ee.dev.example` | `env.oss.gh.example` / `env.ee.gh.example` |
-|---|---|---|---|
-| `AGENTA_MCP_GATEWAY_ENABLED` | `true` | `true` | `true` |
-| `AGENTA_LLM_GATEWAY_ENABLED` | `false` | `false` | `false` |
-| `AGENTA_MCP_GATEWAY_HOST_ALLOWLIST` | empty | commented out | commented out |
-| `AGENTA_GATEWAYS_INSECURE_EGRESS_ALLOWED` | `false` | `true` | `true` |
-| `AGENTA_GATEWAYS_INSECURE_HTTP_ALLOWED` | `false` | `true` | `true` |
-| `AGENTA_GATEWAYS_CREDENTIALS_TTL_SECONDS` | `43200` | unset | unset |
+| Env var | Code default | `env.oss.dev.example` / `env.ee.dev.example` | `env.oss.gh.example` / `env.ee.gh.example` | Helm `values.yaml` |
+|---|---|---|---|---|
+| `AGENTA_MCP_GATEWAY_ENABLED` | `true` | `true` | `true` | `true` |
+| `AGENTA_LLM_GATEWAY_ENABLED` | `false` | `false` | `false` | `false` |
+| `AGENTA_MCP_GATEWAY_HOST_ALLOWLIST` | empty | commented out | commented out | empty |
+| `AGENTA_GATEWAYS_INSECURE_EGRESS_ALLOWED` | `false` | `true` | `true` | unset |
+| `AGENTA_GATEWAYS_INSECURE_HTTP_ALLOWED` | `false` | `true` | `true` | unset |
+| `AGENTA_GATEWAYS_CREDENTIALS_TTL_SECONDS` | `43200` | unset | unset | unset |
+
+A Compose install and a Helm install differ here. The `.gh` templates open both guards, because
+you edit that file once at install time and it is yours from then on. The chart leaves both
+`gatewayEgress` keys commented out, so the code defaults apply and a `helm upgrade` that
+touches no values file cannot change either guard. Set them yourself if you need them.
 
 :::note Kubernetes / Helm
-The chart renders every gateway value in this table into the containers that read it.
+The chart renders every gateway value in this table into the containers that read it. A key you
+leave unset renders no environment variable at all, so the application's own default applies.
 `gatewayEgress.insecureHttpAllowed` is rendered into the services and agent runner containers;
 the API does not read that setting.
 :::
@@ -924,8 +928,10 @@ Leave `AGENTA_GATEWAYS_INSECURE_EGRESS_ALLOWED` at `false` on a deployment where
 do not trust can create MCP connections. Open egress lets any project aim an MCP connection
 at an address inside the network the api container sits on.
 
-This setting governs what the relay may call. It does not govern what the API accepts when
-someone saves an MCP server URL. See
+This setting and the allowlist also govern what the API accepts when someone saves an MCP
+server URL, so a URL that saves is one the relay is willing to call. The save-time check
+resolves no hostnames, so it refuses a literal private IP address but defers a hostname to
+the call-time check. See
 [Use an MCP server on a private network or over plain HTTP](/self-host/app-tools-and-triggers#use-an-mcp-server-on-a-private-network-or-over-plain-http).
 :::
 
@@ -1061,6 +1067,7 @@ own `AGENTA_RUNNER_DAYTONA_SNAPSHOT`; see the [runner Daytona section](#daytona)
 | `OPENROUTER_API_KEY` | `llm.openrouter` | `llm.openrouter` |
 | `PERPLEXITYAI_API_KEY` | `llm.perplexityai` | `llm.perplexityai` |
 | `TOGETHERAI_API_KEY` | `llm.togetherai` | `llm.togetherai` |
+| `XAI_API_KEY` | `llm.xai` | `llm.xai` |
 
 ## loops
 
