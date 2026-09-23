@@ -100,6 +100,21 @@ export const useSessionQuotes = (sessionId: string | null | undefined): Quote[] 
     return useSyncExternalStore(subscribe, snapshot, snapshot)
 }
 
+/** Each session's composer registers how to send its message now; the note box's Enter uses it. */
+const submitters = new Map<string, () => boolean>()
+
+/** Register the composer's "send the message now" for a session; returns the unregister. */
+export const registerQuoteSubmit = (sessionId: string, submit: () => boolean) => {
+    submitters.set(sessionId, submit)
+    return () => {
+        if (submitters.get(sessionId) === submit) submitters.delete(sessionId)
+    }
+}
+
+/** Send the session's message now. False when no composer can (none mounted, or it is disabled). */
+export const submitSessionMessage = (sessionId: string): boolean =>
+    submitters.get(sessionId)?.() ?? false
+
 /** Only what the composer should show as chips. */
 export const useStagedQuotes = (sessionId: string | null | undefined): Quote[] =>
     useSessionQuotes(sessionId).filter((quote) => quote.staged)

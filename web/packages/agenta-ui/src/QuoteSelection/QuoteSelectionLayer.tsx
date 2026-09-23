@@ -16,7 +16,7 @@ import {hasCoarsePointer} from "../hooks/useVisualViewport"
 import {QuoteNote} from "./QuoteNote"
 import {QuoteToolbar} from "./QuoteToolbar"
 import {dropQuoteRange, setQuoteRange} from "./sources"
-import {addQuote, useSessionQuotes} from "./store"
+import {addQuote, submitSessionMessage, useSessionQuotes} from "./store"
 import {useQuoteHighlights} from "./useQuoteHighlights"
 import {rectIn, useQuoteSelection, type QuoteCandidate} from "./useQuoteSelection"
 
@@ -162,6 +162,11 @@ export const QuoteSelectionLayer = ({
                     bounds={bounds}
                     touch={touch ?? hasCoarsePointer()}
                     onStage={stage}
+                    // Staged first, so the composer's send picks it up with everything else held.
+                    onSend={(note) => {
+                        stage(note)
+                        submitSessionMessage(sessionId)
+                    }}
                     onCancel={closeDraft}
                 />
             ) : null}

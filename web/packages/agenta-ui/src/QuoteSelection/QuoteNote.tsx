@@ -1,14 +1,14 @@
 /**
  * The inline note box, anchored under the highlighted span: the excerpt as a quiet left-ruled line,
- * a one-line reply that grows as you type, and a small action to add it to the message. Enter
- * stages the quote onto the composer (Shift+Enter breaks a line); Esc, or a click anywhere
- * outside, cancels and drops the draft. Opens below the selection and flips above when it does not
+ * a one-line reply that grows as you type, and a small send. Enter sends the reply now; ⌘/Ctrl+Enter
+ * adds it to the composer instead, to go out with other quotes; Shift+Enter breaks a line. Esc, or
+ * a click anywhere outside, cancels and drops the draft. Opens below the selection and flips above when it does not
  * fit.
  */
 import {useEffect, useLayoutEffect, useRef, useState} from "react"
 
 import {truncateQuoteText, type Quote} from "@agenta/shared/quotes"
-import {ChatCircleText} from "@phosphor-icons/react"
+import {ArrowUp} from "@phosphor-icons/react"
 
 const GAP = 8
 const WIDTH = 320
@@ -17,12 +17,23 @@ export interface QuoteNoteProps {
     quote: Quote
     anchor: {top: number; left: number; bottom: number}
     bounds: {width: number; height: number}
+    /** Add the quote to the composer, to go out with the message. */
     onStage: (note: string) => void
+    /** Send the reply now. */
+    onSend: (note: string) => void
     onCancel: () => void
     touch?: boolean
 }
 
-export const QuoteNote = ({quote, anchor, bounds, onStage, onCancel, touch}: QuoteNoteProps) => {
+export const QuoteNote = ({
+    quote,
+    anchor,
+    bounds,
+    onStage,
+    onSend,
+    onCancel,
+    touch,
+}: QuoteNoteProps) => {
     const ref = useRef<HTMLDivElement>(null)
     const inputRef = useRef<HTMLTextAreaElement>(null)
     const [note, setNote] = useState("")
@@ -81,10 +92,10 @@ export const QuoteNote = ({quote, anchor, bounds, onStage, onCancel, touch}: Quo
                     value={note}
                     onChange={(e) => setNote(e.target.value)}
                     onKeyDown={(e) => {
-                        if (e.key === "Enter" && !e.shiftKey) {
-                            e.preventDefault()
-                            onStage(note)
-                        }
+                        if (e.key !== "Enter" || e.shiftKey || e.nativeEvent.isComposing) return
+                        e.preventDefault()
+                        if (e.metaKey || e.ctrlKey) onStage(note)
+                        else onSend(note)
                     }}
                     rows={1}
                     placeholder="Reply to the agent"
@@ -94,14 +105,14 @@ export const QuoteNote = ({quote, anchor, bounds, onStage, onCancel, touch}: Quo
                 />
                 <button
                     type="button"
-                    aria-label="Add to message"
-                    title="Add to message"
-                    onClick={() => onStage(note)}
+                    aria-label="Send"
+                    title="Send · ⌘/Ctrl+Enter adds it to your message instead"
+                    onClick={() => onSend(note)}
                     className={`flex shrink-0 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent text-colorTextTertiary hover:bg-colorFillTertiary hover:text-colorText ${
                         touch ? "h-7 w-7" : "h-6 w-6"
                     }`}
                 >
-                    <ChatCircleText size={touch ? 16 : 14} />
+                    <ArrowUp size={touch ? 16 : 14} weight="bold" />
                 </button>
             </div>
         </div>
