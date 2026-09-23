@@ -79,6 +79,10 @@ import { noteExecutionSettled } from "../../sessions/execution-registry.ts";
 import { isUserStopAbort } from "../../sessions/stop-signal.ts";
 import { cancelHarnessTurn } from "./cancel-turn.ts";
 import {
+  followsUnansweredUserTurn,
+  SUPERSEDED_TURN_NOTE,
+} from "./superseded-turn.ts";
+import {
   reapLeakedExecChildren,
   reapResultHasCleanupMiss,
 } from "./reap-exec.ts";
@@ -594,6 +598,18 @@ export async function runTurn(
       typeof request.turnContext !== "string"
     ) {
       throw new Error("turnContext must be a string when provided.");
+    }
+    // A message that follows an unanswered one (a steer or Stop before the model replied) gets a
+    // note saying it replaces the earlier request. See `superseded-turn.ts`. A slash command is
+    // left alone: Claude ACP only treats a prompt as a local command when it leads the prompt.
+    if (
+      !opts.resume &&
+      !approvalReplyOnly &&
+      plan.acpAgent === "claude" &&
+      !promptText.trimStart().startsWith("/") &&
+      followsUnansweredUserTurn(request.messages)
+    ) {
+      promptBlocks.unshift({ type: "text", text: SUPERSEDED_TURN_NOTE });
     }
     const turnContext = request.turnContext?.trim();
     if (turnContext) {
