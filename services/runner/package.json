@@ -61,6 +61,7 @@
       "@sandbox-agent/cli-linux-arm64",
       "esbuild"
     ],
+    "_patchedDependenciesComment": "@agentclientprotocol/sdk@0.16.1 patch: backports the later SDK behavior of failing pending requests when the connection closes (fixed upstream in 0.29 and 1.x). It exists because acp-http-client (pinned via sandbox-agent 0.4.2) requires ^0.16.1, and even acp-http-client 0.5.0-rc still does. Drop the patch once sandbox-agent/acp-http-client move to an SDK >= 0.29.",
     "patchedDependencies": {
       "acp-http-client@0.4.2": "patches/acp-http-client@0.4.2.patch",
       "pi-acp@0.0.29": "patches/pi-acp@0.0.29.patch",
