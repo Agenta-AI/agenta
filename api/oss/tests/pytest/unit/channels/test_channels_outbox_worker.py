@@ -121,10 +121,16 @@ class FakeChannelsDAO(ChannelsDAOInterface):
         return row
 
     async def transition_outbox_event(
-        self, *, project_id, event_id, state, status=None, data=None
+        self, *, project_id, event_id, state, status=None, data=None, claim_token=None
     ):
         for key, row in self.outbox.items():
             if row.id == event_id:
+                if claim_token is not None and (
+                    row.status is None
+                    or row.status.code != "sending"
+                    or row.status.message != claim_token
+                ):
+                    return None
                 updated = row.model_copy(
                     update={
                         "state": state,
@@ -169,7 +175,7 @@ class FakeChannelsDAO(ChannelsDAOInterface):
                 return None
             claimed = row.model_copy(
                 update={
-                    "status": Status(code="sending"),
+                    "status": Status(code="sending", message=str(uuid4())),
                     "updated_at": datetime.now(timezone.utc),
                 }
             )
@@ -2170,3 +2176,97 @@ class TestChannelsOutboxRedelivery:
         assert [msg_id for msg_id, _ in batch] == [fresh_id]
         assert acked == [stale_id]
         assert stream_worker.dropped_messages == 1
+
+
+# --- review follow-ups: final ordering, busy progress ticks, fencing -------- #
+
+
+@pytest.mark.asyncio
+async def test_a_late_no_answer_notice_never_replaces_a_sent_answer():
+    """Two turn_ended handlers can fold different snapshots: one sees the
+    answer, the other (reading before the last record committed) sees none.
+    Whichever finishes last must not replace the answer with "no answer"."""
+
+    channels_dao = FakeChannelsDAO()
+    adapter = _SlowEditAdapter()
+    records_dao = FakeRecordsDAO()
+    worker = _progress_worker(channels_dao, records_dao, adapter)
+    session_id = "sess-no-answer-late"
+    connection, thread = await _seed_connection_and_thread(channels_dao, session_id)
+    records_dao.seed(
+        session_id=session_id,
+        turn_id="turn-nal",
+        record_type="message",
+        attributes={"text": "the real answer"},
+    )
+    await worker.on_turn_ended(
+        project_id=PROJECT_ID,
+        thread=thread,
+        turn_id="turn-nal",
+        session_id=session_id,
+    )
+    row = next(iter(channels_dao.outbox.values()))
+    capabilities = await worker.channels_service.fetch_capabilities(
+        channel=connection.channel, connection=connection
+    )
+
+    from oss.src.core.channels.render.render import render_no_answer
+
+    delivered = await worker._send(
+        project_id=PROJECT_ID,
+        event=row,
+        connection=connection,
+        capabilities=capabilities,
+        item=render_no_answer(capabilities=capabilities),
+        thread=thread,
+        final=True,
+        overwrite_final=False,
+    )
+
+    assert delivered is False
+    assert _delivered_text(channels_dao) == "the real answer"
+
+
+@pytest.mark.asyncio
+async def test_a_progress_tick_that_finds_the_row_busy_retries_the_same_text():
+    """A tick that skipped a busy row must not count its text as shown, or
+    later ticks with the same text skip it too and it never appears."""
+
+    channels_dao = FakeChannelsDAO()
+    records_dao = FakeRecordsDAO()
+    adapter = _ActivitySpy()
+    worker = _progress_worker(channels_dao, records_dao, adapter)
+    _, thread = await _seed_connection_and_thread(channels_dao, "sess-busy-tick")
+
+    await worker.on_turn_started(
+        project_id=PROJECT_ID,
+        thread=thread,
+        turn_id="turn-bt",
+        session_id="sess-busy-tick",
+    )
+    key, row = next(iter(channels_dao.outbox.items()))
+    sent_status = row.status
+    # another worker holds the row while the partial answer lands
+    channels_dao.outbox[key] = row.model_copy(
+        update={
+            "status": Status(code="sending", message="other-worker"),
+            "updated_at": datetime.now(timezone.utc),
+        }
+    )
+    records_dao.seed(
+        session_id="sess-busy-tick",
+        turn_id="turn-bt",
+        record_type="message",
+        attributes={"text": "the answer so far"},
+    )
+    await asyncio.sleep(0.05)
+    assert not _delivered_text(channels_dao).startswith("the answer so far")
+
+    # the other worker finishes; the same text must still reach the chat
+    channels_dao.outbox[key] = channels_dao.outbox[key].model_copy(
+        update={"status": sent_status}
+    )
+    await asyncio.sleep(0.05)
+    await worker.stop_progress("turn-bt")
+
+    assert _delivered_text(channels_dao).startswith("the answer so far")

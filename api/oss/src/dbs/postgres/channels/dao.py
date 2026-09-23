@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Tuple
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from sqlalchemy import cast, false, func, literal, or_, select, text, tuple_, update
 from sqlalchemy.dialects.postgresql import JSONB, insert
@@ -1841,7 +1841,11 @@ class ChannelsDAO(ChannelsDAOInterface):
                 ~func.coalesce(processed["final"].astext == "true", false())
             )
 
-        claim_status = Status(code="sending").model_dump(mode="json", exclude_none=True)
+        # The token names this claim, so the writes that release it can be
+        # fenced to the worker that still holds it.
+        claim_status = Status(code="sending", message=str(uuid4())).model_dump(
+            mode="json", exclude_none=True
+        )
 
         async with self.engine.session() as session:
             stmt = (
@@ -1870,6 +1874,7 @@ class ChannelsDAO(ChannelsDAOInterface):
         state: ChannelDeliveryState,
         status: Optional[Status] = None,
         data: Optional[ChannelOutboxEventData] = None,
+        claim_token: Optional[str] = None,
     ) -> Optional[ChannelOutboxEvent]:
         async with self.engine.session() as session:
             values = {
@@ -1890,6 +1895,11 @@ class ChannelsDAO(ChannelsDAOInterface):
                 .values(**values)
                 .returning(ChannelOutboxEventDBE)
             )
+            if claim_token is not None:
+                stmt = stmt.where(
+                    ChannelOutboxEventDBE.status["code"].astext == "sending",
+                    ChannelOutboxEventDBE.status["message"].astext == claim_token,
+                )
 
             result = await session.execute(stmt)
             event_dbe = result.scalar_one_or_none()

@@ -727,8 +727,8 @@ class ChannelsDAOInterface(ABC):
 
         One conditional UPDATE: it succeeds only when the row is not already
         SENT with exactly this content and no other worker holds a live claim
-        (status code `sending`, stamped less than `claim_ttl_seconds` ago by
-        the database clock). A claim older than that belongs to a worker that
+        (status code `sending` with a fresh token in `status.message`, stamped
+        less than `claim_ttl_seconds` ago by the database clock). A claim older than that belongs to a worker that
         died mid-post and is taken over. With `overwrite_final=False` a row
         whose sent content is a turn's final answer is not claimable, so a
         late progress edit never overwrites the answer.
@@ -749,11 +749,16 @@ class ChannelsDAOInterface(ABC):
         state: ChannelDeliveryState,
         status: Optional[Status] = None,
         data: Optional[ChannelOutboxEventData] = None,
+        claim_token: Optional[str] = None,
     ) -> Optional[ChannelOutboxEvent]:
         """Advance the row in place — SENT with a locator, or FAILED/ABANDONED.
 
         `data` is how the receipt lands. One posted message is one row for
         its whole life, so this is an update and never an insert.
+
+        With `claim_token` (the `status.message` of a `claim_outbox_delivery`
+        row), the update applies only while that claim still holds the row,
+        and returns None once another worker has taken it over.
         """
         ...
 

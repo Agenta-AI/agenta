@@ -329,3 +329,51 @@ async def test_claim_outbox_delivery_keeps_a_final_answer_from_non_final_edits(
         )
         is not None
     )
+
+
+async def test_a_taken_over_claim_cannot_write_its_receipt(channels_scope):
+    """Worker A stalls past the claim TTL and worker B takes the row over.
+    When A resumes, its receipt write is fenced out; B's lands."""
+
+    dao = ChannelsDAO(engine=channels_scope["engine"])
+    project_id = channels_scope["project_id"]
+    row = await _new_outbox_row(dao, channels_scope)
+
+    first = await dao.claim_outbox_delivery(
+        project_id=project_id, event_id=row.id, content=_CONTENT, claim_ttl_seconds=60
+    )
+    async with channels_scope["engine"].session() as session:
+        await session.execute(
+            text(
+                "UPDATE channel_outbox_events "
+                "SET updated_at = now() - interval '5 minutes' WHERE id = :id"
+            ),
+            {"id": row.id},
+        )
+        await session.commit()
+    second = await dao.claim_outbox_delivery(
+        project_id=project_id, event_id=row.id, content=_CONTENT, claim_ttl_seconds=60
+    )
+    assert second is not None
+    assert second.status.message != first.status.message
+
+    stale_write = await dao.transition_outbox_event(
+        project_id=project_id,
+        event_id=row.id,
+        state=ChannelDeliveryState.SENT,
+        status=Status(code="sent"),
+        data=ChannelOutboxEventData(external_locator={"ts": "from-a"}),
+        claim_token=first.status.message,
+    )
+    assert stale_write is None
+
+    fresh_write = await dao.transition_outbox_event(
+        project_id=project_id,
+        event_id=row.id,
+        state=ChannelDeliveryState.SENT,
+        status=Status(code="sent"),
+        data=ChannelOutboxEventData(external_locator={"ts": "from-b"}),
+        claim_token=second.status.message,
+    )
+    assert fresh_write is not None
+    assert fresh_write.data.external_locator == {"ts": "from-b"}
