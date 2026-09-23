@@ -749,8 +749,13 @@ class ChannelsDAOInterface(ABC):
         *,
         channel: str,
         external_key: UUID,
+        include_archived: bool = False,
     ) -> Optional[Tuple[UUID, UUID]]:
         """Resolve a connection's composed identity to (project_id, connection_id).
+
+        Archived rows are skipped unless `include_archived`: ingress must not
+        route to a disconnected connection, but the unique key covers archived
+        rows, so the create paths look them up to restore rather than collide.
 
         Deliberately cross-project, and the ONLY unscoped method here. An inbound
         platform event carries no tenant, so this lookup *recovers* the project

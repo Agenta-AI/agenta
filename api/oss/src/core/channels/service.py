@@ -174,47 +174,18 @@ class ChannelsService:
             capabilities, ChannelKeyGrain.CONNECTION, locator_input
         )
 
-        # Customer-owned Telegram reconnects use the ordinary create endpoint.
-        # Reuse the same project's archived bot row instead of letting the
-        # external-identity constraint turn the reconnect into a conflict.
-        if connection.channel == "telegram":
-            existing = (
-                await self.channels_dao.get_project_and_connection_by_external_key(
-                    channel=connection.channel,
-                    external_key=connection.external_key,
-                )
-            )
-            if existing is not None:
-                existing_project_id, existing_connection_id = existing
-                if existing_project_id != project_id:
-                    raise ChannelConnectionIdentityConflict(channel=connection.channel)
-                existing_connection = await self.channels_dao.fetch_connection(
-                    project_id=project_id,
-                    connection_id=existing_connection_id,
-                )
-                if existing_connection is not None:
-                    reconnected = await self.edit_connection(
-                        project_id=project_id,
-                        user_id=user_id,
-                        connection=ChannelConnectionEdit(
-                            id=existing_connection.id,
-                            credentials=connection.credentials,
-                        ),
-                    )
-                    if reconnected is None:
-                        raise ChannelConnectionNotFound(
-                            connection_id=existing_connection.id
-                        )
-                    if reconnected.deleted_at is None:
-                        return reconnected
-                    restored = await self.unarchive_connection(
-                        project_id=project_id,
-                        user_id=user_id,
-                        connection_id=reconnected.id,
-                    )
-                    if restored is None:
-                        raise ChannelConnectionNotFound(connection_id=reconnected.id)
-                    return restored
+        # The external-key constraint covers archived rows, so a reconnect
+        # after a disconnect must restore the archived row, never insert.
+        reused = await self._reuse_existing_identity(
+            project_id=project_id,
+            user_id=user_id,
+            connection=connection,
+            capabilities=capabilities,
+            locator_input=locator_input,
+            one_time_secret=one_time_secret,
+        )
+        if reused is not None:
+            return reused
 
         _fill_connection_name_and_slug(connection, discovered=discovered)
 
@@ -253,6 +224,21 @@ class ChannelsService:
                 await self._discard_credential_secret(
                     project_id=project_id, secret_id=credential_secret_id
                 )
+            # A concurrent create (or disconnect) took the identity between the
+            # lookup and the insert: take the restore path once, now that the
+            # row it collided with is committed and visible.
+            if _is_external_key_conflict(e):
+                connection.credentials = activation_credentials
+                reused = await self._reuse_existing_identity(
+                    project_id=project_id,
+                    user_id=user_id,
+                    connection=connection,
+                    capabilities=capabilities,
+                    locator_input=locator_input,
+                    one_time_secret=one_time_secret,
+                )
+                if reused is not None:
+                    return reused
             raise _connection_conflict(
                 channel=connection.channel, slug=connection.slug, error=e
             ) from e
@@ -301,6 +287,95 @@ class ChannelsService:
             **created.model_dump(), one_time_secret=one_time_secret
         )
 
+    async def _reuse_existing_identity(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        connection: ChannelConnectionCreate,
+        capabilities: ChannelCapabilities,
+        locator_input: Dict[str, Any],
+        one_time_secret: Optional[str],
+    ) -> Optional[ChannelConnection]:
+        """The row a create would collide with, brought up to date and
+        returned; None when nothing holds the identity and the insert should
+        go ahead.
+
+        An archived row in this project is restored in place: same id, so the
+        grants, spaces and threads that point at it come back, with the new
+        credential, the freshly discovered data and the agents archived with
+        it. An active row in this project is reused only for Telegram (a
+        customer bot reconnect); for any other channel the insert is left to
+        report the duplicate. A row in another
+        project, archived or not, is refused: an identity never moves between
+        tenants.
+        """
+
+        existing = await self.channels_dao.get_project_and_connection_by_external_key(
+            channel=connection.channel,
+            external_key=connection.external_key,
+            include_archived=True,
+        )
+        if existing is None:
+            return None
+
+        existing_project_id, existing_connection_id = existing
+        if existing_project_id != project_id:
+            raise ChannelConnectionIdentityConflict(channel=connection.channel)
+
+        existing_connection = await self.channels_dao.fetch_connection(
+            project_id=project_id,
+            connection_id=existing_connection_id,
+        )
+        if existing_connection is None:
+            return None
+
+        archived = existing_connection.deleted_at is not None
+        if not archived and connection.channel != "telegram":
+            return None
+
+        edit: Dict[str, Any] = {
+            "id": existing_connection.id,
+            "data": _compose_connection_data(
+                capabilities=capabilities,
+                locator_input=locator_input,
+                credential_secret_id=None,
+            ),
+            "flags": ChannelConnectionFlags(
+                is_active=True,
+                is_verified=True,
+                is_hosted=bool(connection.flags.is_hosted),
+            ),
+        }
+        if connection.credentials:
+            edit["credentials"] = connection.credentials
+        if connection.name:
+            edit["name"] = connection.name
+
+        reconnected = await self.edit_connection(
+            project_id=project_id,
+            user_id=user_id,
+            connection=ChannelConnectionEdit(**edit),
+        )
+        if reconnected is None:
+            raise ChannelConnectionNotFound(connection_id=existing_connection.id)
+
+        if reconnected.deleted_at is not None:
+            reconnected = await self.unarchive_connection(
+                project_id=project_id,
+                user_id=user_id,
+                connection_id=reconnected.id,
+            )
+            if reconnected is None:
+                raise ChannelConnectionNotFound(connection_id=existing_connection.id)
+
+        if one_time_secret is None:
+            return reconnected
+
+        return ChannelConnectionCreated(
+            **reconnected.model_dump(), one_time_secret=one_time_secret
+        )
+
     async def install_connection(
         self,
         *,
@@ -337,93 +412,112 @@ class ChannelsService:
             capabilities, ChannelKeyGrain.CONNECTION, locator_input
         )
 
-        existing = await self.channels_dao.get_project_and_connection_by_external_key(
-            channel=connection.channel,
-            external_key=external_key,
-        )
-        if existing is not None and existing[0] != project_id:
-            raise ChannelConnectionIdentityConflict(channel=connection.channel)
+        credentials = dict(connection.credentials or {})
 
-        existing_connection = (
-            await self.channels_dao.fetch_connection(
-                project_id=project_id, connection_id=existing[1]
+        # Two callbacks for one install (a double click, a retried redirect)
+        # can both miss the lookup; the loser of the insert takes the upsert
+        # path once, against the row the winner committed.
+        for attempt in range(2):
+            existing = (
+                await self.channels_dao.get_project_and_connection_by_external_key(
+                    channel=connection.channel,
+                    external_key=external_key,
+                    include_archived=True,
+                )
             )
-            if existing is not None
-            else None
-        )
-        existing_data = (
-            existing_connection.data
-            if existing_connection and isinstance(existing_connection.data, dict)
-            else {}
-        )
+            if existing is not None and existing[0] != project_id:
+                raise ChannelConnectionIdentityConflict(channel=connection.channel)
 
-        secret = await self._rotate_credential_secret(
-            project_id=project_id,
-            channel=connection.channel,
-            slug=connection.slug,
-            credentials=connection.credentials or {},
-            existing_secret_id=(
-                UUID(existing_data["credential_secret_id"])
-                if existing_data.get("credential_secret_id")
+            existing_connection = (
+                await self.channels_dao.fetch_connection(
+                    project_id=project_id, connection_id=existing[1]
+                )
+                if existing is not None
                 else None
-            ),
-        )
-        data = _compose_connection_data(
-            capabilities=capabilities,
-            locator_input=locator_input,
-            credential_secret_id=secret.id,
-        )
-        connection.credentials = None
+            )
+            existing_data = (
+                existing_connection.data
+                if existing_connection and isinstance(existing_connection.data, dict)
+                else {}
+            )
 
-        if existing_connection is not None:
-            # A reinstall restores service -- is_active resets to true even
-            # if `app_uninstalled` had flipped it off since the last install.
-            edited = await self.channels_dao.edit_connection(
+            secret = await self._rotate_credential_secret(
                 project_id=project_id,
-                user_id=user_id,
-                connection=ChannelConnectionEdit(
-                    id=existing_connection.id,
-                    slug=existing_connection.slug,
-                    name=existing_connection.name,
-                    description=existing_connection.description,
-                    tags=existing_connection.tags,
-                    meta=existing_connection.meta,
-                    data=data,
-                    flags=ChannelConnectionFlags(
-                        is_active=True,
-                        is_verified=True,
-                        is_hosted=True,
-                    ),
+                channel=connection.channel,
+                slug=connection.slug,
+                credentials=credentials,
+                existing_secret_id=(
+                    UUID(existing_data["credential_secret_id"])
+                    if existing_data.get("credential_secret_id")
+                    else None
                 ),
             )
-            if edited is None:
-                raise ChannelConnectionNotFound(connection_id=existing_connection.id)
-            if edited.deleted_at is not None:
-                restored = await self.unarchive_connection(
+            data = _compose_connection_data(
+                capabilities=capabilities,
+                locator_input=locator_input,
+                credential_secret_id=secret.id,
+            )
+            connection.credentials = None
+
+            if existing_connection is not None:
+                # A reinstall restores service -- is_active resets to true even
+                # if `app_uninstalled` had flipped it off since the last install.
+                edited = await self.channels_dao.edit_connection(
                     project_id=project_id,
                     user_id=user_id,
-                    connection_id=edited.id,
+                    connection=ChannelConnectionEdit(
+                        id=existing_connection.id,
+                        slug=existing_connection.slug,
+                        name=existing_connection.name,
+                        description=existing_connection.description,
+                        tags=existing_connection.tags,
+                        meta=existing_connection.meta,
+                        data=data,
+                        flags=ChannelConnectionFlags(
+                            is_active=True,
+                            is_verified=True,
+                            is_hosted=True,
+                        ),
+                    ),
                 )
-                if restored is None:
-                    raise ChannelConnectionNotFound(connection_id=edited.id)
-                return restored
-            return edited
+                if edited is None:
+                    raise ChannelConnectionNotFound(
+                        connection_id=existing_connection.id
+                    )
+                if edited.deleted_at is not None:
+                    restored = await self.unarchive_connection(
+                        project_id=project_id,
+                        user_id=user_id,
+                        connection_id=edited.id,
+                    )
+                    if restored is None:
+                        raise ChannelConnectionNotFound(connection_id=edited.id)
+                    return restored
+                return edited
 
-        connection.external_key = external_key
-        _fill_connection_name_and_slug(connection, discovered=discovered)
-        connection.data = data
+            connection.external_key = external_key
+            _fill_connection_name_and_slug(connection, discovered=discovered)
+            connection.data = data
 
-        try:
-            return await self.channels_dao.create_connection(
-                project_id=project_id,
-                user_id=user_id,
-                #
-                connection=connection,
-            )
-        except IntegrityError as e:
-            raise _connection_conflict(
-                channel=connection.channel, slug=connection.slug, error=e
-            ) from e
+            try:
+                return await self.channels_dao.create_connection(
+                    project_id=project_id,
+                    user_id=user_id,
+                    #
+                    connection=connection,
+                )
+            except IntegrityError as e:
+                # a fresh install wrote a fresh secret; the row that won owns its own
+                await self._discard_credential_secret(
+                    project_id=project_id, secret_id=secret.id
+                )
+                if attempt == 0 and _is_external_key_conflict(e):
+                    continue
+                raise _connection_conflict(
+                    channel=connection.channel, slug=connection.slug, error=e
+                ) from e
+
+        raise ChannelsError("unreachable: install_connection retry loop exhausted")
 
     async def deactivate_connection(
         self,
@@ -2246,6 +2340,12 @@ def _fill_connection_name_and_slug(
 def _derive_connection_slug(name: str) -> str:
     base = re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")[:40] or "connection"
     return f"{base}-{token_secrets.token_hex(_SLUG_SUFFIX_HEX // 2)}"
+
+
+def _is_external_key_conflict(error: IntegrityError) -> bool:
+    return "uq_channel_connections_external_key" in str(
+        getattr(error, "orig", None) or error
+    )
 
 
 def _connection_conflict(

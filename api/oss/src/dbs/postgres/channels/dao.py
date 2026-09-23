@@ -1896,6 +1896,7 @@ class ChannelsDAO(ChannelsDAOInterface):
         *,
         channel: str,
         external_key: UUID,
+        include_archived: bool = False,
     ) -> Optional[Tuple[UUID, UUID]]:
         # Deliberately unscoped: an inbound platform event carries no tenant,
         # so this recovers (project_id, connection_id) before anything else
@@ -1909,8 +1910,11 @@ class ChannelsDAO(ChannelsDAOInterface):
             ).where(
                 ChannelConnectionDBE.channel == channel,
                 ChannelConnectionDBE.external_key == external_key,
-                ChannelConnectionDBE.deleted_at.is_(None),
             )
+            # The unique key spans archived rows too, so a write path that
+            # must not collide with it has to see them; ingress must not.
+            if not include_archived:
+                stmt = stmt.where(ChannelConnectionDBE.deleted_at.is_(None))
 
             row = (await session.execute(stmt)).one_or_none()
 

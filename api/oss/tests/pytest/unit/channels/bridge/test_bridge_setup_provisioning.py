@@ -68,6 +68,7 @@ def _fake_dao():
     dao.create_connection = AsyncMock(
         side_effect=lambda **kw: _as_connection(kw["connection"])
     )
+    dao.get_project_and_connection_by_external_key = AsyncMock(return_value=None)
     return dao
 
 

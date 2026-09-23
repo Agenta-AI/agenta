@@ -123,6 +123,18 @@ class _FakeConnectionsDAO:
 
     def __init__(self):
         self._store: Dict[UUID, ChannelConnection] = {}
+        self._projects: Dict[UUID, UUID] = {}
+
+    async def get_project_and_connection_by_external_key(
+        self, *, channel, external_key, include_archived=False
+    ):
+        for row in self._store.values():
+            if row.channel != channel or row.external_key != external_key:
+                continue
+            if row.deleted_at is not None and not include_archived:
+                continue
+            return (self._projects[row.id], row.id)
+        return None
 
     async def create_connection(self, *, project_id, user_id, connection):
         row = ChannelConnection(
@@ -138,6 +150,7 @@ class _FakeConnectionsDAO:
             flags=connection.flags,
         )
         self._store[row.id] = row
+        self._projects[row.id] = project_id
         return row
 
     async def fetch_connection(self, *, project_id, connection_id):

@@ -138,8 +138,11 @@ def _fake_dao(
     dao.edit_connection = AsyncMock(side_effect=_edit)
     dao.fetch_connection = AsyncMock(return_value=existing)
 
-    async def _lookup(*, channel, external_key):
+    async def _lookup(*, channel, external_key, include_archived=False):
+        # faithful to the real query: an archived row is invisible unless asked for
         if existing is None:
+            return None
+        if existing.deleted_at is not None and not include_archived:
             return None
         return (existing_project_id, existing.id)
 

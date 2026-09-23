@@ -857,6 +857,8 @@ class ChannelsRouter:
         ) as e:
             # the platform's own verification error, surfaced as it gave it
             raise HTTPException(status_code=400, detail=str(e)) from e
+        except ChannelConnectionIdentityConflict as e:
+            raise HTTPException(status_code=409, detail=str(e)) from e
 
         setup = None
         one_time_secret = getattr(connection, "one_time_secret", None)
