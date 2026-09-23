@@ -19,7 +19,15 @@ import {projectIdAtom} from "@/oss/state/project"
  * The agent page's Channels section on desktop: the shared designed screen, wired to the
  * real channels API through `buildAgentChannelsActions`, in an antd Drawer.
  */
-const AgentChannelsCard = ({appId, agentName}: {appId: string; agentName?: string}) => {
+const AgentChannelsCard = ({
+    appId,
+    agentName,
+    agentDescription,
+}: {
+    appId: string
+    agentName?: string
+    agentDescription?: string | null
+}) => {
     const apps = useAtomValue(appsAtom)
     const [connections, setConnections] = useState<ChannelConnections>(EMPTY_CONNECTIONS)
     const [loading, setLoading] = useState(true)
@@ -105,6 +113,7 @@ const AgentChannelsCard = ({appId, agentName}: {appId: string; agentName?: strin
         <ChannelsPage
             agentId={appId}
             agentName={agentName}
+            agentDescription={agentDescription}
             connections={connections}
             loading={loading}
             loadError={loadError}

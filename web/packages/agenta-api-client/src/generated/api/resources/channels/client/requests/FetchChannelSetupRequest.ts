@@ -8,4 +8,7 @@
  */
 export interface FetchChannelSetupRequest {
     channel: string;
+    name?: string | null;
+    description?: string | null;
+    handle?: string | null;
 }

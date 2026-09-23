@@ -394,6 +394,9 @@ export class ChannelsClient {
      * `fetch_channel_connection_setup` stays the route for a connection
      * that already exists; this is the one that precedes it.
      *
+     * `name`, `description` and `handle` are how the app the operator
+     * builds presents itself; the adapter defaults and fits each one.
+     *
      * @param {AgentaApi.FetchChannelSetupRequest} request
      * @param {ChannelsClient.RequestOptions} requestOptions - Request-specific configuration.
      *
@@ -415,7 +418,12 @@ export class ChannelsClient {
         request: AgentaApi.FetchChannelSetupRequest,
         requestOptions?: ChannelsClient.RequestOptions,
     ): Promise<core.WithRawResponse<AgentaApi.ChannelSetupResponse>> {
-        const { channel } = request;
+        const { channel, name, description, handle } = request;
+        const _queryParams: Record<string, unknown> = {
+            name,
+            description,
+            handle,
+        };
         const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
         const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
             _authRequest.headers,
@@ -431,7 +439,7 @@ export class ChannelsClient {
             ),
             method: "GET",
             headers: _headers,
-            queryParameters: requestOptions?.queryParams,
+            queryParameters: { ..._queryParams, ...requestOptions?.queryParams },
             timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 30) * 1000,
             maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
             withCredentials: true,

@@ -4,6 +4,7 @@ import type {
     ChannelConnection,
     ChannelConnections,
     ChannelPlatform,
+    ChannelSetupIdentity,
     ChannelSetupInfo,
     ChannelSpace,
     ChannelSpaceCandidate,
@@ -460,9 +461,12 @@ export const buildAgentChannelsActions = ({
         return out
     }
 
-    const loadSetup = async (platform: ChannelPlatform): Promise<ChannelSetupInfo> => {
+    const loadSetup = async (
+        platform: ChannelPlatform,
+        identity?: ChannelSetupIdentity,
+    ): Promise<ChannelSetupInfo> => {
         const res = await client
-            .fetchChannelSetup({channel: channelKey(platform, false)}, scope())
+            .fetchChannelSetup({channel: channelKey(platform, false), ...identity}, scope())
             .catch(rethrow(`Could not load the ${platform} setup.`))
         const setup = asRecord(asRecord(res).setup)
         return {

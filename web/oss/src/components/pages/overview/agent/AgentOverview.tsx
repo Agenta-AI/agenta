@@ -24,6 +24,8 @@ interface Props {
     appId: string
     /** Used only in the composer's placeholder, so a null name degrades to a generic prompt. */
     agentName?: string
+    /** Seeds the description of a new Slack app. */
+    agentDescription?: string | null
 }
 
 /**
@@ -42,7 +44,7 @@ interface Props {
  * which put two scrollbars on one page and left the rail and the reading column disagreeing
  * about where the top was.
  */
-const AgentOverview = ({appId, agentName}: Props) => {
+const AgentOverview = ({appId, agentName, agentDescription}: Props) => {
     const startSession = useStartAgentSession()
     const channelsEnabled = useAtomValue(channelsEnabledAtom)
 
@@ -79,7 +81,11 @@ const AgentOverview = ({appId, agentName}: Props) => {
             agentId={appId}
             channels={
                 channelsEnabled ? (
-                    <AgentChannelsCard appId={appId} agentName={agentName ?? undefined} />
+                    <AgentChannelsCard
+                        appId={appId}
+                        agentName={agentName ?? undefined}
+                        agentDescription={agentDescription}
+                    />
                 ) : null
             }
             sessionsHref={sessionsHref ?? ""}

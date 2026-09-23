@@ -159,6 +159,29 @@ export const EMPTY_CONNECTIONS: ChannelConnections = {slack: null, telegram: nul
 
 export const DIRECT_MESSAGES_CHAT = {name: "Direct messages", type: "dm" as const}
 
+/** Slack's manifest limits (docs.slack.dev/reference/app-manifest); the backend enforces them too. */
+export const SLACK_APP_NAME_MAX = 35
+export const SLACK_BOT_HANDLE_MAX = 80
+export const SLACK_APP_DESCRIPTION_MAX = 140
+
+/** Keep only the characters Slack allows in a bot handle. Case is kept, so the handle reads like
+ * the name it came from. */
+export const slackHandleFrom = (value: string): string =>
+    value.replace(/[^A-Za-z0-9._-]/g, "").slice(0, SLACK_BOT_HANDLE_MAX)
+
+/** The name, handle and description a new Slack app starts with, from the agent it answers as. */
+export const defaultSlackIdentity = (agentName: string, agentDescription?: string | null) => {
+    const name = agentName.trim().slice(0, SLACK_APP_NAME_MAX).trim()
+    const description = (agentDescription ?? "").replace(/\s+/g, " ").trim()
+    return {
+        name,
+        handle: slackHandleFrom(name),
+        description: (description || `Talk to ${name || "your agent"} in Slack.`)
+            .slice(0, SLACK_APP_DESCRIPTION_MAX)
+            .trim(),
+    }
+}
+
 /** A readable message from a rejected action, for the UI's error states. */
 export const errorMessage = (error: unknown, fallback: string): string => {
     if (error instanceof Error && error.message.trim()) return error.message

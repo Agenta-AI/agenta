@@ -44,6 +44,8 @@ export interface ChannelsPageProps {
     /** The agent whose page this is; decides "connected here" versus "connected to X". */
     agentId?: string
     agentName?: string
+    /** Seeds the description of a new Slack app. */
+    agentDescription?: string | null
     workspaceName?: string
     /** The project's connections, as loaded by the host. */
     connections?: ChannelConnections
@@ -64,6 +66,7 @@ const PLATFORMS: ChannelPlatform[] = ["slack", "telegram"]
 export const ChannelsPage = ({
     agentId,
     agentName = "your agent",
+    agentDescription,
     workspaceName = "your workspace",
     connections = EMPTY_CONNECTIONS,
     loading = false,
@@ -252,6 +255,7 @@ export const ChannelsPage = ({
                           <ChannelConnectFlow
                               platform={activePlatform}
                               agentName={agentName}
+                              agentDescription={agentDescription}
                               workspaceName={workspaceName}
                               hostedHandle={hostedHandle}
                               actions={actions}

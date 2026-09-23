@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import React, {act, useState} from "react"
+
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, expect, it, vi} from "vitest"
 
@@ -10,7 +11,15 @@ vi.mock("@agenta/ui/ui", () => ({
             {children}
         </button>
     ),
-    Input: () => <input />,
+    Input: (props: React.ComponentProps<"input">) => <input {...props} />,
+    InputAffix: ({
+        onValueChange,
+        prefix: _prefix,
+        ...props
+    }: React.ComponentProps<"input"> & {onValueChange: (value: string) => void}) => (
+        <input {...props} onChange={(e) => onValueChange(e.target.value)} />
+    ),
+    Textarea: (props: React.ComponentProps<"textarea">) => <textarea {...props} />,
     PasswordInput: () => <input />,
     Spinner: () => <span />,
     Segmented: ({onChange}: {onChange: (value: string) => void}) => (
@@ -21,8 +30,8 @@ vi.mock("../../src/channels/icons", () => ({AgentaMark: () => null, platformLogo
 vi.mock("../../src/channels/qr", () => ({QrCode: () => null}))
 import {ChannelConnectFlow} from "../../src/channels/ChannelConnectFlow"
 import {ChannelsPage} from "../../src/channels/ChannelsPage"
-import type {ChannelConnections, ChannelsActions} from "../../src/channels/types"
 import {NOOP_ACTIONS} from "../../src/channels/helpers"
+import type {ChannelConnections, ChannelsActions} from "../../src/channels/types"
 
 vi.mock("../../src/channels/ChannelManagePanel", () => ({
     ChannelManagePanel: () => <div>Connected management</div>,
@@ -274,4 +283,77 @@ it("finishes Slack assignment when a poll publishes the installed connection", a
     await advance(2500)
     expect(connectHere).toHaveBeenCalledWith("slack", "installed")
     expect(container.textContent).toContain("Connected management")
+})
+
+const typeInto = async (testId: string, value: string) => {
+    const el = container.querySelector<HTMLInputElement | HTMLTextAreaElement>(
+        `[data-testid="${testId}"]`,
+    )
+    expect(el, testId).toBeTruthy()
+    const proto = el instanceof HTMLTextAreaElement ? HTMLTextAreaElement : HTMLInputElement
+    const setter = Object.getOwnPropertyDescriptor(proto.prototype, "value")!.set!
+    await act(async () => {
+        setter.call(el, value)
+        el!.dispatchEvent(new Event("input", {bubbles: true}))
+    })
+}
+const valueOf = (testId: string) =>
+    container.querySelector<HTMLInputElement | HTMLTextAreaElement>(`[data-testid="${testId}"]`)!
+        .value
+
+const openSlackNaming = async (loadSetup: ChannelsActions["loadSetup"], description?: string) => {
+    await act(async () =>
+        root.render(
+            <ChannelConnectFlow
+                platform="slack"
+                agentName="Product Copilot"
+                agentDescription={description}
+                onConnected={vi.fn()}
+                actions={{...NOOP_ACTIONS, loadSetup}}
+            />,
+        ),
+    )
+    await click("choose-custom")
+    const newApp = Array.from(container.querySelectorAll("button")).find((b) =>
+        b.textContent?.startsWith("New app"),
+    )
+    await act(async () => newApp!.click())
+}
+
+it("names a new Slack app from the agent and builds the manifest from it", async () => {
+    const loadSetup = vi.fn(async () => ({
+        manifest: '{"display_information":{"name":"Product Copilot"}}',
+        fields: [],
+        hostedAvailable: false,
+    }))
+    await openSlackNaming(loadSetup, "Answers product questions.")
+
+    expect(valueOf("channels-slack-app-name")).toBe("Product Copilot")
+    expect(valueOf("channels-slack-app-handle")).toBe("ProductCopilot")
+    expect(valueOf("channels-slack-app-description")).toBe("Answers product questions.")
+    expect(container.textContent).toContain("15/35")
+
+    await typeInto("channels-slack-app-name", "Support Desk")
+    expect(valueOf("channels-slack-app-handle")).toBe("SupportDesk")
+
+    await click("Next")
+    expect(loadSetup).toHaveBeenLastCalledWith("slack", {
+        name: "Support Desk",
+        handle: "SupportDesk",
+        description: "Answers product questions.",
+    })
+    expect(container.textContent).toContain("Copy the manifest")
+})
+
+it("stops deriving the handle once it is edited, and strips what Slack refuses", async () => {
+    const loadSetup = vi.fn(async () => ({manifest: null, fields: [], hostedAvailable: false}))
+    await openSlackNaming(loadSetup)
+
+    expect(valueOf("channels-slack-app-description")).toBe("Talk to Product Copilot in Slack.")
+
+    await typeInto("channels-slack-app-handle", "@copilot bot!")
+    expect(valueOf("channels-slack-app-handle")).toBe("copilotbot")
+
+    await typeInto("channels-slack-app-name", "Something Else")
+    expect(valueOf("channels-slack-app-handle")).toBe("copilotbot")
 })

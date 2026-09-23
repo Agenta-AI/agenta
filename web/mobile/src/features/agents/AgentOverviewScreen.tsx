@@ -115,6 +115,7 @@ export const AgentOverviewScreen = ({
                                     <AgentChannelsCard
                                         appId={agentId}
                                         agentName={name}
+                                        agentDescription={description}
                                         resolveAgentName={resolveAgentName}
                                     />
                                 ) : null

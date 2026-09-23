@@ -31,10 +31,13 @@ const buildSlackInstallUrl = (projectId: string): string => {
 export const AgentChannelsCard = ({
     appId,
     agentName,
+    agentDescription,
     resolveAgentName,
 }: {
     appId: string
     agentName?: string
+    /** Seeds the description of a new Slack app. */
+    agentDescription?: string | null
     /** Resolve an agent id to its display name; null when the roster does not hold it. */
     resolveAgentName?: (id: string) => string | null
 }) => {
@@ -119,6 +122,7 @@ export const AgentChannelsCard = ({
         <ChannelsPage
             agentId={appId}
             agentName={agentName}
+            agentDescription={agentDescription}
             connections={connections}
             loading={loading}
             loadError={loadError}

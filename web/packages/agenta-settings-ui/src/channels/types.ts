@@ -111,6 +111,14 @@ export interface ChannelSetupField {
     help?: string | null
 }
 
+/** How a custom app presents itself on the platform; the backend fits each value to its limits. */
+export interface ChannelSetupIdentity {
+    name?: string
+    description?: string
+    /** The name people mention the bot by, without the "@". */
+    handle?: string
+}
+
 /** What the backend declares for connecting a custom app/bot on a platform. */
 export interface ChannelSetupInfo {
     /** The manifest (Slack) or null when the platform has none. */
@@ -127,8 +135,12 @@ export interface ChannelSetupInfo {
 export interface ChannelsActions {
     /** Re-read the connections (with their answering agent) from the backend. */
     reload: () => Promise<ChannelConnections>
-    /** Load the custom-app declaration (manifest + fields) for a platform. */
-    loadSetup: (platform: ChannelPlatform) => Promise<ChannelSetupInfo>
+    /** Load the custom-app declaration (manifest + fields) for a platform. `identity` names
+     * the app the manifest creates; the backend defaults whatever is left out. */
+    loadSetup: (
+        platform: ChannelPlatform,
+        identity?: ChannelSetupIdentity,
+    ) => Promise<ChannelSetupInfo>
     /** Mint the hosted-Telegram bind link; also ensures the project's hosted connection
      * and points it at the current agent. */
     connectHostedTelegram: () => Promise<HostedTelegramLink>

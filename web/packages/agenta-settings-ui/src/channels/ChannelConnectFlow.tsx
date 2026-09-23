@@ -1,9 +1,27 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
-import {Alert, Button, Input, PasswordInput, Segmented, Spinner} from "@agenta/ui/ui"
-import {ArrowSquareOut, CaretRight, Check, Copy, FileText, Plug} from "@phosphor-icons/react"
+import {
+    Alert,
+    Button,
+    Input,
+    InputAffix,
+    PasswordInput,
+    Segmented,
+    Spinner,
+    Textarea,
+} from "@agenta/ui/ui"
+import {ArrowSquareOut, At, CaretRight, Check, Copy, FileText, Plug, X} from "@phosphor-icons/react"
 
-import {NOOP_ACTIONS, errorMessage, platformLabel} from "./helpers"
+import {
+    NOOP_ACTIONS,
+    SLACK_APP_DESCRIPTION_MAX,
+    SLACK_APP_NAME_MAX,
+    SLACK_BOT_HANDLE_MAX,
+    defaultSlackIdentity,
+    errorMessage,
+    platformLabel,
+    slackHandleFrom,
+} from "./helpers"
 import {AgentaMark, platformLogo} from "./icons"
 import {QrCode} from "./qr"
 import type {
@@ -29,6 +47,8 @@ import type {
 export interface ChannelConnectFlowProps {
     platform: ChannelPlatform
     agentName: string
+    /** Seeds the description of a new Slack app. */
+    agentDescription?: string | null
     workspaceName?: string
     /** The hosted bot/app handle to show, e.g. "@newagentabot". */
     hostedHandle?: string
@@ -44,7 +64,7 @@ export interface ChannelConnectFlowProps {
 /** Where a self-hosted deployment learns to run the Agenta Telegram bot itself. */
 const TELEGRAM_HOSTED_DOCS = "https://docs.agenta.ai/self-host/channels/telegram-hosted-bot"
 
-type SlackCustomStep = "choose" | "guide" | "creds"
+type SlackCustomStep = "choose" | "name" | "guide" | "creds"
 type TelegramHostedStep = "preparing" | "qr" | "waiting" | "linked" | "expired" | "unavailable"
 
 const STEP_MARKER =
@@ -90,6 +110,7 @@ const copyText = async (text: string): Promise<boolean> => {
 export const ChannelConnectFlow = ({
     platform,
     agentName,
+    agentDescription,
     workspaceName = "your workspace",
     hostedHandle = "@agenta",
     actions = NOOP_ACTIONS,
@@ -111,6 +132,17 @@ export const ChannelConnectFlow = ({
     const [slackStep, setSlackStep] = useState<SlackCustomStep>("choose")
     const [copied, setCopied] = useState(false)
     const [manifestOpen, setManifestOpen] = useState(false)
+
+    // --- custom Slack app: how it presents itself --------------------------- //
+    const [slackIdentity, setSlackIdentity] = useState(() =>
+        defaultSlackIdentity(agentName, agentDescription),
+    )
+    // The handle follows the name until the user edits it by hand.
+    const [handleEdited, setHandleEdited] = useState(false)
+    // The manifest built from that identity. Kept apart from `setup`, whose first load (no
+    // identity) may land after this one and must not overwrite it.
+    const [namedManifest, setNamedManifest] = useState<string | null>(null)
+    const [manifestLoading, setManifestLoading] = useState(false)
 
     // --- hosted Slack ---------------------------------------------------------- //
     const [authorizing, setAuthorizing] = useState(false)
@@ -330,6 +362,30 @@ export const ChannelConnectFlow = ({
         }
     }, [isSlack, mode, authorizing, slackInstallUrl, actions, pollIntervalMs])
 
+    // --- custom Slack: build the manifest for the chosen identity -------------- //
+    const identityValid = Boolean(slackIdentity.name.trim() && slackIdentity.handle)
+
+    const buildNamedManifest = async () => {
+        setError(null)
+        setManifestLoading(true)
+        try {
+            const info = await actions.loadSetup(platform, {
+                name: slackIdentity.name.trim(),
+                handle: slackIdentity.handle,
+                description: slackIdentity.description.trim() || undefined,
+            })
+            if (!alive.current) return
+            setNamedManifest(info.manifest)
+            setManifestOpen(false)
+            setSlackStep("guide")
+        } catch (e) {
+            if (!alive.current) return
+            setError(errorMessage(e, `Could not load the ${name} setup.`))
+        } finally {
+            if (alive.current) setManifestLoading(false)
+        }
+    }
+
     // --- custom: submit the declared fields ----------------------------------- //
     const fields: ChannelSetupField[] = setup?.fields ?? []
     const fieldsValid = fields.every((field) => !field.required || values[field.name]?.trim())
@@ -532,7 +588,7 @@ export const ChannelConnectFlow = ({
                                         title: "New app",
                                         body: `Start from a manifest we fill in for ${agentName}`,
                                         icon: <FileText size={20} />,
-                                        onClick: () => setSlackStep("guide"),
+                                        onClick: () => setSlackStep("name"),
                                     },
                                     {
                                         title: "Existing app",
@@ -576,6 +632,107 @@ export const ChannelConnectFlow = ({
                         </>
                     ) : null}
 
+                    {slackStep === "name" ? (
+                        <div
+                            className="flex flex-col gap-4 rounded-lg border border-solid border-colorBorderSecondary p-4"
+                            data-testid="channels-slack-identity"
+                        >
+                            <div className="flex items-center gap-2.5">
+                                <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-md border border-solid border-colorBorderSecondary bg-colorBgContainer">
+                                    {platformLogo("slack", 18)}
+                                </span>
+                                <h3 className="m-0 min-w-0 flex-1 text-[15px] font-semibold text-colorText">
+                                    Name your Slack app
+                                </h3>
+                                <Button
+                                    variant="ghost"
+                                    size="icon-sm"
+                                    aria-label="Close"
+                                    onClick={() => setSlackStep("choose")}
+                                >
+                                    <X size={14} />
+                                </Button>
+                            </div>
+                            <p className="m-0 rounded-md bg-colorFillQuaternary p-3 text-xs leading-relaxed text-colorTextSecondary">
+                                This is how the app shows up in Slack. People mention it as @
+                                {slackIdentity.handle || "handle"} to talk to {agentName}.
+                            </p>
+                            <IdentityField
+                                label="Name"
+                                length={slackIdentity.name.length}
+                                max={SLACK_APP_NAME_MAX}
+                            >
+                                <Input
+                                    value={slackIdentity.name}
+                                    maxLength={SLACK_APP_NAME_MAX}
+                                    onChange={(e) => {
+                                        const next = e.target.value
+                                        setSlackIdentity((current) => ({
+                                            ...current,
+                                            name: next,
+                                            handle: handleEdited
+                                                ? current.handle
+                                                : slackHandleFrom(next),
+                                        }))
+                                    }}
+                                    data-testid="channels-slack-app-name"
+                                />
+                            </IdentityField>
+                            <IdentityField
+                                label="Handle"
+                                length={slackIdentity.handle.length}
+                                max={SLACK_BOT_HANDLE_MAX}
+                                help="Letters, numbers, periods, hyphens and underscores."
+                            >
+                                <InputAffix
+                                    prefix={<At size={14} className="text-colorTextTertiary" />}
+                                    value={slackIdentity.handle}
+                                    maxLength={SLACK_BOT_HANDLE_MAX}
+                                    onValueChange={(next) => {
+                                        setHandleEdited(true)
+                                        setSlackIdentity((current) => ({
+                                            ...current,
+                                            handle: slackHandleFrom(next),
+                                        }))
+                                    }}
+                                    data-testid="channels-slack-app-handle"
+                                />
+                            </IdentityField>
+                            <IdentityField
+                                label="Description"
+                                length={slackIdentity.description.length}
+                                max={SLACK_APP_DESCRIPTION_MAX}
+                            >
+                                <Textarea
+                                    value={slackIdentity.description}
+                                    maxLength={SLACK_APP_DESCRIPTION_MAX}
+                                    rows={3}
+                                    onChange={(e) => {
+                                        const next = e.target.value
+                                        setSlackIdentity((current) => ({
+                                            ...current,
+                                            description: next,
+                                        }))
+                                    }}
+                                    data-testid="channels-slack-app-description"
+                                />
+                            </IdentityField>
+                            <div className="grid grid-cols-2 gap-2.5 pt-1">
+                                <Button variant="outline" onClick={() => setSlackStep("choose")}>
+                                    Back
+                                </Button>
+                                <Button
+                                    variant="default"
+                                    disabled={!identityValid || manifestLoading}
+                                    onClick={() => void buildNamedManifest()}
+                                    data-testid="channels-slack-identity-next"
+                                >
+                                    {manifestLoading ? "Preparing…" : "Next"}
+                                </Button>
+                            </div>
+                        </div>
+                    ) : null}
+
                     {slackStep === "guide" ? (
                         <>
                             <div className="flex flex-col gap-1">
@@ -596,10 +753,10 @@ export const ChannelConnectFlow = ({
                                     <Button
                                         variant="default"
                                         size="sm"
-                                        disabled={!setup?.manifest}
+                                        disabled={!namedManifest}
                                         onClick={async () => {
-                                            if (!setup?.manifest) return
-                                            const ok = await copyText(setup.manifest)
+                                            if (!namedManifest) return
+                                            const ok = await copyText(namedManifest)
                                             setCopied(ok)
                                             if (!ok) setManifestOpen(true)
                                             feedbackLater(() => setCopied(false), 1800)
@@ -615,25 +772,20 @@ export const ChannelConnectFlow = ({
                                     <Button
                                         variant="outline"
                                         size="sm"
-                                        disabled={!setup?.manifest}
+                                        disabled={!namedManifest}
                                         onClick={() => setManifestOpen((open) => !open)}
                                     >
                                         {manifestOpen ? "Hide manifest" : "Review manifest"}
                                     </Button>
                                 </div>
-                                {setupLoading ? (
-                                    <div className="flex items-center gap-2 text-xs text-colorTextSecondary">
-                                        <Spinner size="small" /> Loading the manifest…
-                                    </div>
-                                ) : null}
-                                {!setupLoading && setup && !setup.manifest ? (
+                                {!namedManifest ? (
                                     <span className="text-xs text-colorWarning">
                                         No manifest is available for this deployment.
                                     </span>
                                 ) : null}
-                                {manifestOpen && setup?.manifest ? (
+                                {manifestOpen && namedManifest ? (
                                     <pre className="m-0 max-h-56 overflow-auto rounded-md border border-solid border-colorBorderSecondary bg-colorFillQuaternary p-2 text-[11px] leading-snug text-colorText">
-                                        {setup.manifest}
+                                        {namedManifest}
                                     </pre>
                                 ) : null}
                             </StepRow>
@@ -664,7 +816,7 @@ export const ChannelConnectFlow = ({
                             />
 
                             <div className="grid grid-cols-2 gap-2.5 pt-1">
-                                <Button variant="outline" onClick={() => setSlackStep("choose")}>
+                                <Button variant="outline" onClick={() => setSlackStep("name")}>
                                     Back
                                 </Button>
                                 <Button variant="default" onClick={() => setSlackStep("creds")}>
@@ -912,6 +1064,31 @@ export const ChannelConnectFlow = ({
         </div>
     )
 }
+
+const IdentityField = ({
+    label,
+    length,
+    max,
+    help,
+    children,
+}: {
+    label: string
+    length: number
+    max: number
+    help?: string
+    children: React.ReactNode
+}) => (
+    <label className="flex flex-col gap-1.5">
+        <span className="flex items-baseline justify-between">
+            <span className="text-[13px] font-medium text-colorText">{label}</span>
+            <span className="text-xs tabular-nums text-colorTextTertiary">
+                {length}/{max}
+            </span>
+        </span>
+        {children}
+        {help ? <span className="text-xs text-colorTextTertiary">{help}</span> : null}
+    </label>
+)
 
 const SetupFieldInput = ({
     field,
