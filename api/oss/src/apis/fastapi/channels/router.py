@@ -8,6 +8,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 
 from oss.src.utils.env import env
 from oss.src.utils.exceptions import intercept_exceptions
+from oss.src.utils.logging import get_module_logger
 
 from oss.src.apis.fastapi.channels.models import (
     AgentaConversationItem,
@@ -108,6 +109,9 @@ def handle_channel_adapter_exceptions():
         return wrapper
 
     return decorator
+
+
+log = get_module_logger(__name__)
 
 
 def _slack_callback_url() -> str:
@@ -751,27 +755,37 @@ class ChannelsRouter:
                 ),
             )
 
-        exchange = await slack_oauth.exchange_code(
-            code=code, redirect_uri=_slack_callback_url()
-        )
-        if not exchange.ok or not exchange.access_token:
-            return HTMLResponse(
-                status_code=400,
-                content=_slack_install_card(
-                    success=False,
-                    message=exchange.error or "Slack rejected the installation.",
-                ),
-            )
-
-        scopes = [scope for scope in (exchange.scope or "").split(",") if scope]
-
         try:
+            exchange = await slack_oauth.exchange_code(
+                code=code, redirect_uri=_slack_callback_url()
+            )
+            if not exchange.ok or not exchange.access_token:
+                return HTMLResponse(
+                    status_code=400,
+                    content=_slack_install_card(
+                        success=False,
+                        message=exchange.error or "Slack rejected the installation.",
+                    ),
+                )
+            if not exchange.app_id:
+                # Part of the connection key, and auth.test does not return
+                # it for a bot token -- oauth.v2.access is the only source.
+                return HTMLResponse(
+                    status_code=502,
+                    content=_slack_install_card(
+                        success=False,
+                        message="Slack did not return the app ID for this install.",
+                    ),
+                )
+
+            scopes = [scope for scope in (exchange.scope or "").split(",") if scope]
+
             await self.channels_service.install_connection(
                 project_id=project_id,
                 user_id=user_id,
                 connection=ChannelConnectionCreate(
                     channel="slack",
-                    data={"scopes": scopes},
+                    data={"scopes": scopes, "api_app_id": exchange.app_id},
                     credentials={"bot_token": exchange.access_token},
                     flags=ChannelConnectionFlags(is_hosted=True),
                 ),
@@ -785,6 +799,17 @@ class ChannelsRouter:
             return HTMLResponse(
                 status_code=409,
                 content=_slack_install_card(success=False, message=str(e)),
+            )
+        except Exception:
+            # The browser lands here straight from Slack; a raw JSON 500
+            # strands the operator on an API URL with nothing to act on.
+            log.exception("channels: hosted Slack install callback failed")
+            return HTMLResponse(
+                status_code=500,
+                content=_slack_install_card(
+                    success=False,
+                    message="Something went wrong connecting Slack. Nothing was saved. Try again.",
+                ),
             )
 
         return HTMLResponse(

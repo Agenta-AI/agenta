@@ -216,3 +216,237 @@ async def test_callback_exchanges_and_installs_on_a_valid_state_and_code(monkeyp
     call_kwargs = service.install_connection.await_args.kwargs
     assert call_kwargs["connection"].credentials == {"bot_token": "xoxb-good"}
     assert call_kwargs["connection"].flags.is_hosted is True
+    assert call_kwargs["connection"].data["api_app_id"] == "A1"
+
+
+# --- slack_install_callback: the real seam, router -> service -> adapter ------ #
+#
+# Replays the shapes Slack returned on the live install that 500'd: the app ID
+# arrives only on oauth.v2.access, while auth.test for a bot token carries no
+# api_app_id at all. Every layer between the route and the DAO is real, so a
+# connection key that cannot be composed fails here the way it failed live.
+
+_LIVE_APP_ID = "A0C15EGPNCQ"
+_LIVE_TEAM_ID = "T07UJM0ME8N"
+
+
+def _live_oauth_v2_access_body() -> dict:
+    from oss.src.core.channels.adapters.slack.manifest import SLACK_BOT_SCOPES
+
+    return {
+        "ok": True,
+        "app_id": _LIVE_APP_ID,
+        "authed_user": {"id": "U0INSTALLER"},
+        "scope": ",".join(SLACK_BOT_SCOPES),
+        "token_type": "bot",
+        "access_token": "xoxb-unit-test-not-a-token",
+        "bot_user_id": "U0BOTUSER",
+        "team": {"id": _LIVE_TEAM_ID, "name": "Agenta QA"},
+        "enterprise": None,
+        "is_enterprise_install": False,
+    }
+
+
+def _live_auth_test_body() -> dict:
+    return {
+        "ok": True,
+        "url": "https://agenta-qa.slack.com/",
+        "team": "Agenta QA",
+        "user": "agenta_qa_bot_2",
+        "team_id": _LIVE_TEAM_ID,
+        "user_id": "U0BOTUSER",
+        "bot_id": "B0BOTID",
+        "is_enterprise_install": False,
+    }
+
+
+def _slack_transport(*, oauth_body: dict, auth_body: dict):
+    import httpx
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/oauth.v2.access"):
+            return httpx.Response(200, json=oauth_body)
+        if request.url.path.endswith("/auth.test"):
+            return httpx.Response(200, json=auth_body)
+        return httpx.Response(404, json={"ok": False, "error": "unknown_method"})
+
+    return httpx.MockTransport(handler)
+
+
+class _Secret:
+    def __init__(self, id):
+        self.id = id
+
+
+class _Vault:
+    async def create_secret(self, *, project_id, create_secret_dto):
+        return _Secret(uuid4())
+
+    async def update_secret(self, *, secret_id, project_id, update_secret_dto):
+        return _Secret(secret_id)
+
+
+def _real_service(*, transport):
+    import httpx
+    from unittest.mock import MagicMock
+
+    from oss.src.core.channels.adapters.registry import ChannelAdapterRegistry
+    from oss.src.core.channels.adapters.slack.adapter import SlackAdapter
+    from oss.src.core.channels.dtos import ChannelConnection
+    from oss.src.core.channels.service import ChannelsService
+
+    def _as_connection(created):
+        return ChannelConnection(
+            id=uuid4(),
+            channel=created.channel,
+            external_key=created.external_key,
+            slug=created.slug,
+            name=created.name,
+            data=created.data,
+            flags=created.flags,
+        )
+
+    dao = MagicMock()
+    dao.get_project_and_connection_by_external_key = AsyncMock(return_value=None)
+    dao.create_connection = AsyncMock(
+        side_effect=lambda **kw: _as_connection(kw["connection"])
+    )
+    adapter = SlackAdapter(
+        http_client=httpx.AsyncClient(
+            base_url="https://slack.com/api", transport=transport
+        )
+    )
+    service = ChannelsService(
+        channels_dao=dao,
+        adapter_registry=ChannelAdapterRegistry(adapters={"slack": adapter}),
+        vault_service=_Vault(),
+    )
+    return service, dao
+
+
+def _patch_exchange_transport(monkeypatch, transport):
+    import httpx
+
+    original = slack_oauth.exchange_code
+
+    async def _exchange(**kwargs):
+        async with httpx.AsyncClient(transport=transport) as client:
+            return await original(http_client=client, **kwargs)
+
+    monkeypatch.setattr(slack_oauth, "exchange_code", _exchange)
+
+
+async def test_callback_installs_the_live_payload_shape_end_to_end(monkeypatch):
+    transport = _slack_transport(
+        oauth_body=_live_oauth_v2_access_body(), auth_body=_live_auth_test_body()
+    )
+    service, dao = _real_service(transport=transport)
+    _patch_exchange_transport(monkeypatch, transport)
+    router = _router(service=service)
+    state = make_oauth_state(
+        project_id=uuid4(), user_id=uuid4(), secret_key=env.agenta.crypt_key
+    )
+
+    response = await router.slack_install_callback(
+        _make_request(), code="live-code", state=state, error=None
+    )
+
+    assert response.status_code == 200, response.body
+    dao.create_connection.assert_awaited_once()
+    created = dao.create_connection.await_args.kwargs["connection"]
+    assert created.data["connection_locator"] == {
+        "api_app_id": _LIVE_APP_ID,
+        "enterprise_id": "",
+        "team_id": _LIVE_TEAM_ID,
+    }
+    assert created.flags.is_hosted is True
+    assert created.credentials is None
+
+
+async def test_callback_refuses_an_exchange_without_an_app_id(monkeypatch):
+    oauth_body = _live_oauth_v2_access_body()
+    oauth_body.pop("app_id")
+    transport = _slack_transport(
+        oauth_body=oauth_body, auth_body=_live_auth_test_body()
+    )
+    service, dao = _real_service(transport=transport)
+    _patch_exchange_transport(monkeypatch, transport)
+    router = _router(service=service)
+    state = make_oauth_state(
+        project_id=uuid4(), user_id=uuid4(), secret_key=env.agenta.crypt_key
+    )
+
+    response = await router.slack_install_callback(
+        _make_request(), code="live-code", state=state, error=None
+    )
+
+    assert response.status_code == 502
+    assert response.media_type == "text/html"
+    dao.create_connection.assert_not_awaited()
+
+
+async def test_callback_shows_slacks_error_for_a_stale_code(monkeypatch):
+    transport = _slack_transport(
+        oauth_body={"ok": False, "error": "invalid_code"},
+        auth_body=_live_auth_test_body(),
+    )
+    service, dao = _real_service(transport=transport)
+    _patch_exchange_transport(monkeypatch, transport)
+    router = _router(service=service)
+    state = make_oauth_state(
+        project_id=uuid4(), user_id=uuid4(), secret_key=env.agenta.crypt_key
+    )
+
+    response = await router.slack_install_callback(
+        _make_request(), code="stale-code", state=state, error=None
+    )
+
+    assert response.status_code == 400
+    assert b"invalid_code" in response.body
+    dao.create_connection.assert_not_awaited()
+
+
+async def test_callback_renders_a_card_not_a_raw_500_on_an_unexpected_failure(
+    monkeypatch,
+):
+    service = AsyncMock()
+    service.install_connection.side_effect = RuntimeError("db exploded")
+    router = _router(service=service)
+    monkeypatch.setattr(
+        slack_oauth,
+        "exchange_code",
+        AsyncMock(
+            return_value=slack_oauth.SlackOAuthExchangeResult(
+                ok=True, app_id="A1", access_token="xoxb-x", scope="chat:write"
+            )
+        ),
+    )
+    state = make_oauth_state(
+        project_id=uuid4(), user_id=uuid4(), secret_key=env.agenta.crypt_key
+    )
+
+    response = await router.slack_install_callback(
+        _make_request(), code="c", state=state, error=None
+    )
+
+    assert response.status_code == 500
+    assert response.media_type == "text/html"
+    assert b"Return to Agenta" in response.body
+    assert b"db exploded" not in response.body
+
+
+async def test_callback_renders_a_card_when_the_exchange_itself_raises(monkeypatch):
+    router = _router()
+    monkeypatch.setattr(
+        slack_oauth, "exchange_code", AsyncMock(side_effect=ValueError("not json"))
+    )
+    state = make_oauth_state(
+        project_id=uuid4(), user_id=uuid4(), secret_key=env.agenta.crypt_key
+    )
+
+    response = await router.slack_install_callback(
+        _make_request(), code="c", state=state, error=None
+    )
+
+    assert response.status_code == 500
+    assert response.media_type == "text/html"
