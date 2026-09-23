@@ -2,9 +2,8 @@
  * Seam that lets the runner rebuild prior conversation from the durable record log instead of
  * trusting a full inbound history — the server side of "client sends only the last message".
  *
- * Flag-gated (`AGENTA_SESSIONS_RECONSTRUCT`, ON unless set to the literal "false") and a strict
- * no-op until BOTH the flag is on AND the client actually sent a minimal history
- * (`carriesMinimalHistory`). When it does not apply, the inbound history is left untouched.
+ * A strict no-op unless the client actually sent a minimal history (`carriesMinimalHistory`).
+ * When it does not apply, the inbound history is left untouched.
  *
  * When it DOES apply it is no longer best-effort, because the client kept no copy of the
  * conversation: an unreadable log, or one known to have dropped a record, fails the turn rather
@@ -40,14 +39,6 @@ function isLegacyWholeBodyTruncation(row: { attributes?: unknown }): boolean {
   );
 }
 
-// Compose passes `${AGENTA_SESSIONS_RECONSTRUCT:-}`, so an empty value must mean on just like an
-// absent value. Only the literal "false" disables reconstruction.
-function reconstructEnabled(): boolean {
-  return (
-    String(process.env.AGENTA_SESSIONS_RECONSTRUCT ?? "").trim().toLowerCase() !== "false"
-  );
-}
-
 /**
  * Returns a request whose `messages` are `[...reconstructed prior turns, ...inbound]` when
  * reconstruction applies, else `null` to keep the inbound history as-is.
@@ -75,9 +66,9 @@ export async function reconstructHistoryIfNeeded(
     );
   };
 
-  if (!reconstructEnabled() || !sessionId) {
+  if (!sessionId) {
     if (approvalReplyOnly) {
-      refuse(!sessionId ? "no session id" : "reconstruction is disabled");
+      refuse("no session id");
     }
     return null;
   }
