@@ -17,11 +17,18 @@ export interface AgentInvokeSnippetInput {
     stream: boolean
 }
 
+/** Drop trailing slashes with a linear scan; a `/\/+$/` regex backtracks polynomially. */
+export const trimTrailingSlashes = (value: string): string => {
+    let end = value.length
+    while (end > 0 && value[end - 1] === "/") end--
+    return value.slice(0, end)
+}
+
 export const agentInvokeUrl = ({
     host,
     projectId,
 }: Pick<AgentInvokeSnippetInput, "host" | "projectId">) =>
-    `${host.replace(/\/+$/, "")}/services/agent/v0/invoke?project_id=${projectId}`
+    `${trimTrailingSlashes(host)}/services/agent/v0/invoke?project_id=${projectId}`
 
 export const agentInvokeBody = (agentId: string) => ({
     references: {workflow: {id: agentId}},
@@ -32,7 +39,7 @@ export const acceptHeader = (stream: boolean) => (stream ? "text/event-stream" :
 
 /** The origin the agent service is served from: the API URL without its `/api` suffix. */
 export const agentHostFromApiUrl = (apiUrl: string | null | undefined): string => {
-    const trimmed = (apiUrl ?? "").trim().replace(/\/+$/, "")
-    if (trimmed) return trimmed.replace(/\/api$/, "")
+    const trimmed = trimTrailingSlashes((apiUrl ?? "").trim())
+    if (trimmed) return trimmed.endsWith("/api") ? trimmed.slice(0, -"/api".length) : trimmed
     return typeof window !== "undefined" ? window.location.origin : ""
 }
