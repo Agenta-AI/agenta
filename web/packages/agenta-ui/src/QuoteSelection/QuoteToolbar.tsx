@@ -5,8 +5,6 @@
  */
 import {useLayoutEffect, useRef, useState} from "react"
 
-import {ChatCircleText, Copy} from "@phosphor-icons/react"
-
 const GAP = 8
 
 export interface QuoteToolbarProps {
@@ -54,11 +52,10 @@ export const QuoteToolbar = ({anchor, bounds, onCopy, onReply, touch}: QuoteTool
             <button
                 type="button"
                 onClick={onCopy}
-                className={`flex cursor-pointer items-center gap-1 rounded-md border-0 bg-transparent px-2 font-medium text-colorText hover:bg-colorFillTertiary ${
-                    touch ? "h-8 text-xs" : "h-6 text-[11px]"
+                className={`flex cursor-pointer items-center rounded-md border-0 bg-transparent px-2 font-medium text-colorText hover:bg-colorFillTertiary ${
+                    touch ? "h-6 text-[11px]" : "h-5 text-[11px]"
                 }`}
             >
-                <Copy size={touch ? 14 : 12} />
                 Copy
             </button>
             <span className="h-3 w-px bg-colorBorderSecondary" aria-hidden />
@@ -66,11 +63,10 @@ export const QuoteToolbar = ({anchor, bounds, onCopy, onReply, touch}: QuoteTool
                 type="button"
                 onClick={onReply}
                 autoFocus
-                className={`flex cursor-pointer items-center gap-1 rounded-md border-0 bg-transparent px-2 font-medium text-colorPrimary hover:bg-colorFillTertiary ${
-                    touch ? "h-8 text-xs" : "h-6 text-[11px]"
+                className={`flex cursor-pointer items-center rounded-md border-0 bg-transparent px-2 font-medium text-colorText hover:bg-colorFillTertiary ${
+                    touch ? "h-6 text-[11px]" : "h-5 text-[11px]"
                 }`}
             >
-                <ChatCircleText size={touch ? 14 : 12} />
                 Reply
             </button>
         </div>
