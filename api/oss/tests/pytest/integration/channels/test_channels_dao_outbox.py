@@ -377,3 +377,51 @@ async def test_a_taken_over_claim_cannot_write_its_receipt(channels_scope):
     )
     assert fresh_write is not None
     assert fresh_write.data.external_locator == {"ts": "from-b"}
+
+
+async def test_claim_outbox_delivery_refuses_a_delivery_whose_outcome_is_unknown(
+    channels_scope,
+):
+    """A post that timed out after sending may be in the chat. The same
+    delivery (same key) is never claimed again; a different one still is."""
+
+    dao = ChannelsDAO(engine=channels_scope["engine"])
+    project_id = channels_scope["project_id"]
+    row = await _new_outbox_row(dao, channels_scope)
+    key = str(uuid.uuid4())
+
+    claimed = await dao.claim_outbox_delivery(
+        project_id=project_id,
+        event_id=row.id,
+        content=_CONTENT,
+        claim_ttl_seconds=60,
+        delivery_key=key,
+    )
+    await dao.transition_outbox_event(
+        project_id=project_id,
+        event_id=row.id,
+        state=ChannelDeliveryState.FAILED,
+        status=Status(code="delivery_uncertain", type=key, message="read timeout"),
+        claim_token=claimed.status.message,
+    )
+
+    assert (
+        await dao.claim_outbox_delivery(
+            project_id=project_id,
+            event_id=row.id,
+            content=_CONTENT,
+            claim_ttl_seconds=60,
+            delivery_key=key,
+        )
+        is None
+    )
+    assert (
+        await dao.claim_outbox_delivery(
+            project_id=project_id,
+            event_id=row.id,
+            content=[{"type": "text", "text": "a different delivery"}],
+            claim_ttl_seconds=60,
+            delivery_key=str(uuid.uuid4()),
+        )
+        is not None
+    )

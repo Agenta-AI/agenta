@@ -44,6 +44,7 @@ from oss.src.core.channels.dtos import (
 from oss.src.core.channels.types import (
     ChannelConnectionIncomplete,
     ChannelConnectionVerificationFailed,
+    ChannelDeliveryUncertain,
     ChannelSignatureInvalid,
     ChannelSpaceJoinFailed,
 )
@@ -441,16 +442,25 @@ class SlackAdapter(ChannelAdapterInterface):
         text, blocks = _render_content(content)
         receipts = []
         for chunk in split_for_max_chars(text, max_chars=MAX_CHARS) or [""]:
-            response = await self._call_with_blocks_fallback(
-                connection,
-                "chat.postMessage",
-                {
-                    "channel": locator["channel"],
-                    "thread_ts": locator.get("thread_ts"),
-                    "text": chunk,
-                    "blocks": blocks if chunk == text else None,
-                },
-            )
+            try:
+                response = await self._call_with_blocks_fallback(
+                    connection,
+                    "chat.postMessage",
+                    {
+                        "channel": locator["channel"],
+                        "thread_ts": locator.get("thread_ts"),
+                        "text": chunk,
+                        "blocks": blocks if chunk == text else None,
+                    },
+                )
+            except Exception as exc:
+                if receipts:
+                    # Earlier chunks are already in the thread; a retry would
+                    # post them again.
+                    raise ChannelDeliveryUncertain(
+                        channel=self.channel, detail=str(exc)[:200]
+                    ) from exc
+                raise
             receipts.append({"channel": response["channel"], "ts": response["ts"]})
         # The last chunk's receipt is what edit_message targets.
         return receipts[-1]

@@ -722,16 +722,21 @@ class ChannelsDAOInterface(ABC):
         content: List[Dict[str, Any]],
         claim_ttl_seconds: float,
         overwrite_final: bool = True,
+        delivery_key: Optional[str] = None,
     ) -> Optional[ChannelOutboxEvent]:
         """Take the right to deliver `content` on this row, atomically.
 
         One conditional UPDATE: it succeeds only when the row is not already
         SENT with exactly this content and no other worker holds a live claim
         (status code `sending` with a fresh token in `status.message`, stamped
-        less than `claim_ttl_seconds` ago by the database clock). A claim older than that belongs to a worker that
-        died mid-post and is taken over. With `overwrite_final=False` a row
-        whose sent content is a turn's final answer is not claimable, so a
-        late progress edit never overwrites the answer.
+        less than `claim_ttl_seconds` ago by the database clock). A claim
+        older than that belongs to a worker that died mid-post and is taken
+        over. With `overwrite_final=False` a row whose sent content is a
+        turn's final answer is not claimable, so a late progress edit never
+        overwrites the answer. With `delivery_key`, a row whose last attempt
+        at that same delivery ended with an unknown outcome (status code
+        `delivery_uncertain`, the key in `status.type`) is not claimable: the
+        post may already be in the chat.
 
         Returns the claimed row (fresh, so the caller posts or edits against
         the current receipt), or None when another worker owns the delivery.

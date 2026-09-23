@@ -1813,6 +1813,7 @@ class ChannelsDAO(ChannelsDAOInterface):
         content: List[Dict[str, Any]],
         claim_ttl_seconds: float,
         overwrite_final: bool = True,
+        delivery_key: Optional[str] = None,
     ) -> Optional[ChannelOutboxEvent]:
         table = ChannelOutboxEventDBE
         # `data` is JSON, not JSONB: cast it so the comparison is by value,
@@ -1836,6 +1837,14 @@ class ChannelsDAO(ChannelsDAOInterface):
             ~already_sent,
             ~claim_live,
         ]
+        if delivery_key is not None:
+            conditions.append(
+                ~func.coalesce(
+                    (claim_code == "delivery_uncertain")
+                    & (table.status["type"].astext == delivery_key),
+                    false(),
+                )
+            )
         if not overwrite_final:
             conditions.append(
                 ~func.coalesce(processed["final"].astext == "true", false())

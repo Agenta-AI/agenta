@@ -34,6 +34,7 @@ from oss.src.core.channels.types import (
     ChannelConnectionVerificationFailed,
     ChannelSignatureInvalid,
     ChannelCredentialRevoked,
+    ChannelDeliveryUncertain,
 )
 from oss.src.utils.env import env
 from oss.src.utils.logging import get_module_logger
@@ -341,7 +342,16 @@ class TelegramAdapter(ChannelAdapterInterface):
             # The keyboard belongs on the last chunk, the one the answer ends on.
             if reply_markup and chunk is chunks[-1]:
                 params["reply_markup"] = reply_markup
-            result = await self._call(connection, "sendMessage", params)
+            try:
+                result = await self._call(connection, "sendMessage", params)
+            except Exception as exc:
+                if receipts:
+                    # Earlier chunks are already in the chat; a retry would
+                    # post them again.
+                    raise ChannelDeliveryUncertain(
+                        channel=self.channel, detail=str(exc)[:200]
+                    ) from exc
+                raise
             message = result.get("result") or {}
             receipts.append(
                 {
@@ -367,7 +377,13 @@ class TelegramAdapter(ChannelAdapterInterface):
             "parse_mode": "HTML",
         }
         params["reply_markup"] = reply_markup or {"inline_keyboard": []}
-        result = await self._call(connection, "editMessageText", params)
+        try:
+            result = await self._call(connection, "editMessageText", params)
+        except _TelegramApiError as exc:
+            # The message already shows exactly this: the edit's goal holds.
+            if "message is not modified" not in exc.description.lower():
+                raise
+            result = {"result": True}
         message = result.get("result")
         # editMessageText returns True (not a message) when nothing changed;
         # keep the locator we were given in that case.

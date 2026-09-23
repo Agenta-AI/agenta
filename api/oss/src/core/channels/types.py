@@ -140,6 +140,17 @@ class ChannelCredentialRevoked(ChannelsError):
         super().__init__(f"{channel}: the credential was revoked {detail}".strip())
 
 
+class ChannelDeliveryUncertain(ChannelsError):
+    """A post may have reached the chat even though the call failed: a later
+    chunk failed after an earlier one was accepted. Slack and Telegram have no
+    idempotency key for new messages, so a retry could show it twice."""
+
+    def __init__(self, *, channel: str, detail: str = ""):
+        self.channel = channel
+        self.detail = detail
+        super().__init__(f"{channel}: delivery outcome unknown {detail}".strip())
+
+
 class ChannelConnectionVerificationFailed(ChannelsError):
     """Raised by `verify_connection` when the platform rejects a credential.
     Nothing is written on this path — surfaced as the platform said it,

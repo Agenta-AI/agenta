@@ -5,6 +5,7 @@ from typing import Dict, List, Optional, Tuple
 from uuid import UUID
 
 from agenta.sdk.agents.fold import fold
+import httpx
 from redis.asyncio import Redis
 
 from oss.src.core.channels.dtos import (
@@ -38,7 +39,11 @@ from oss.src.core.sessions.interactions.service import SessionInteractionsServic
 from oss.src.core.sessions.turns.service import SessionTurnsService
 from oss.src.tasks.asyncio.sessions.streaming import deserialize_turn_event
 from oss.src.tasks.asyncio.shared.consumer import StreamConsumer
-from oss.src.core.channels.types import ChannelCredentialRevoked
+from oss.src.core.channels.types import (
+    ChannelCredentialRevoked,
+    ChannelDeliveryUncertain,
+    ChannelsError,
+)
 from oss.src.core.shared.dtos import Status
 from oss.src.utils.logging import get_module_logger
 
@@ -308,20 +313,17 @@ class ChannelsOutboxWorker:
                         continue
                     else:
                         item = render_thinking(capabilities=capabilities, tick=tick)
-                    # Shielded: stop_progress cancels this loop, and a cancel
-                    # landing mid-edit would leave the row claimed until the
-                    # claim goes stale, holding the final answer back. The
-                    # final edit waits for this one to release the row.
-                    delivered = await _shielded(
-                        self._send(
-                            project_id=project_id,
-                            event=event,
-                            connection=connection,
-                            capabilities=capabilities,
-                            item=item,
-                            thread=thread,
-                            wait_for_claim=False,
-                        )
+                    # stop_progress may cancel this mid-edit; _send finishes a
+                    # started edit and its receipt write before the cancel
+                    # lands, so the final answer never finds the row stuck.
+                    delivered = await self._send(
+                        project_id=project_id,
+                        event=event,
+                        connection=connection,
+                        capabilities=capabilities,
+                        item=item,
+                        thread=thread,
+                        wait_for_claim=False,
                     )
                     # Only text that reached the chat counts as shown: a tick
                     # that found the row busy leaves it for the next tick.
@@ -563,32 +565,65 @@ class ChannelsOutboxWorker:
         # overlap runs two consumers. Only the worker that claims the row
         # posts; the claimed row is re-read, so an edit targets the receipt
         # another worker may have written meanwhile.
+        delivery_key = _delivery_key(event.key, content)
         claimed, already_delivered = await self._claim_delivery(
             project_id=project_id,
             event=event,
             content=content,
             overwrite_final=overwrite_final,
+            delivery_key=delivery_key,
             wait=wait_for_claim,
         )
         if claimed is None:
             return already_delivered
-        event = claimed
+
+        # Once the row is ours, the post and its receipt write run to the end
+        # even if this task is cancelled (SIGTERM, stop_progress). A cancel
+        # between them would leave the row `sending` with the message already
+        # in the chat, and the next worker would post it again after the lease.
+        return await _finish_even_if_cancelled(
+            self._deliver(
+                project_id=project_id,
+                event=claimed,
+                connection=connection,
+                capabilities=capabilities,
+                content=content,
+                thread=thread,
+                final=final,
+                delivery_key=delivery_key,
+            )
+        )
+
+    async def _deliver(
+        self,
+        *,
+        project_id: UUID,
+        event: ChannelOutboxEvent,
+        connection: ChannelConnection,
+        capabilities: ChannelCapabilities,
+        content: List[Dict],
+        thread: ChannelThread,
+        final: bool,
+        delivery_key: UUID,
+    ) -> bool:
+        dao = self.channels_service.channels_dao
         # Fences every write below: a worker whose claim went stale and was
         # taken over cannot overwrite the new holder's receipt.
-        claim_token = claimed.status.message if claimed.status else None
-
-        # One wire token per (row, content): a retry of the same content after a
-        # FAILED write reuses it, so a post the platform accepted but whose reply
-        # timed out is never duplicated; an edit to new content mints a new one.
-        idempotency_key = _delivery_key(event.key, content)
+        claim_token = event.status.message if event.status else None
 
         adapter = self.channels_service.adapter_registry.get(connection.channel)
 
         has_receipt = bool(event.data.external_locator)
         can_edit = capabilities.rendering.controls.update
+        creates_message = not (has_receipt and can_edit)
+
+        # Passed through for adapters that honour it. Slack and Telegram do
+        # not: neither API takes an idempotency key for a new message, so a
+        # post whose outcome is unknown is never retried (see below).
+        idempotency_key = delivery_key
 
         try:
-            if has_receipt and can_edit:
+            if not creates_message:
                 receipt = await adapter.edit_message(
                     connection=connection,
                     external_locator=event.data.external_locator,
@@ -619,7 +654,7 @@ class ChannelsOutboxWorker:
             # The platform refused the credential itself: switch the
             # connection off so the agent page shows "token revoked" and
             # offers an update, and stop retrying a call that cannot pass.
-            await self.channels_service.channels_dao.transition_outbox_event(
+            await dao.transition_outbox_event(
                 project_id=project_id,
                 event_id=event.id,
                 state=ChannelDeliveryState.FAILED,
@@ -637,11 +672,34 @@ class ChannelsOutboxWorker:
             )
             return False
         except Exception as exc:
+            if creates_message and _outcome_unknown(exc):
+                # The platform may have shown the message (a read timeout, a
+                # 5xx, a later chunk failing after an earlier one landed). A
+                # repost could show it twice, which is worse than a missing
+                # reply, so this delivery is recorded and never retried: the
+                # key in `status.type` makes the claim refuse it.
+                await dao.transition_outbox_event(
+                    project_id=project_id,
+                    event_id=event.id,
+                    state=ChannelDeliveryState.FAILED,
+                    status=Status(
+                        code="delivery_uncertain",
+                        type=str(delivery_key),
+                        message=str(exc)[:500],
+                    ),
+                    claim_token=claim_token,
+                )
+                log.error(
+                    "[SESSIONS-OUTBOX] post outcome unknown; not retrying row=%s: %s",
+                    event.id,
+                    str(exc)[:200],
+                )
+                return False
             # The row said CREATED forever after a rejected post, which reads
             # as "not attempted yet" from outside (F87). Write the failure
             # down with the platform's reason, then let the caller's retry
             # and logging see the error as before.
-            await self.channels_service.channels_dao.transition_outbox_event(
+            await dao.transition_outbox_event(
                 project_id=project_id,
                 event_id=event.id,
                 state=ChannelDeliveryState.FAILED,
@@ -650,7 +708,7 @@ class ChannelsOutboxWorker:
             )
             raise
 
-        recorded = await self.channels_service.channels_dao.transition_outbox_event(
+        recorded = await dao.transition_outbox_event(
             project_id=project_id,
             event_id=event.id,
             claim_token=claim_token,
@@ -681,6 +739,7 @@ class ChannelsOutboxWorker:
         event: ChannelOutboxEvent,
         content: List[Dict],
         overwrite_final: bool,
+        delivery_key: UUID,
         wait: bool,
     ) -> Tuple[Optional[ChannelOutboxEvent], bool]:
         """`(claimed row, None-reason)`: the row when this delivery is ours to
@@ -701,6 +760,7 @@ class ChannelsOutboxWorker:
                 content=content,
                 claim_ttl_seconds=_CLAIM_TTL_SECONDS,
                 overwrite_final=overwrite_final,
+                delivery_key=str(delivery_key),
             )
             if claimed is not None:
                 return claimed, False
@@ -713,6 +773,8 @@ class ChannelsOutboxWorker:
             if _sent_with(current, content):
                 return None, True
             if not overwrite_final and _holds_final(current):
+                return None, False
+            if _uncertain_with(current, delivery_key):
                 return None, False
             if not wait:
                 return None, False
@@ -834,12 +896,10 @@ class ChannelsOutboxStreamWorker(StreamConsumer):
         if not batch:
             return batch
 
-        now_ms = time.time() * 1000
         fresh: List[Tuple[bytes, Dict[bytes, bytes]]] = []
         stale: List[Tuple[bytes, Dict[bytes, bytes]]] = []
         for msg_id, data in batch:
-            age_ms = now_ms - _entry_time_ms(msg_id)
-            if age_ms > self.max_redelivery_age_seconds * 1000:
+            if self._past_retry_window(msg_id):
                 stale.append((msg_id, data))
             else:
                 fresh.append((msg_id, data))
@@ -858,15 +918,25 @@ class ChannelsOutboxStreamWorker(StreamConsumer):
 
         return fresh
 
+    def _past_retry_window(self, msg_id: bytes) -> bool:
+        """The one retry bound for this consumer: an entry is retried (every
+        `reclaim_min_idle_ms` or so) until it is `max_redelivery_age_seconds`
+        old, then dropped. A delivery count would turn a short platform
+        outage into a lost reply after a couple of minutes."""
+
+        age_ms = time.time() * 1000 - _entry_time_ms(msg_id)
+        return age_ms > self.max_redelivery_age_seconds * 1000
+
     def is_permanent_failure(
         self,
         msg_id: bytes,
         data: Dict[bytes, bytes],
     ) -> bool:
-        # Asked only once an entry has used up `max_deliveries`. A chat reply
-        # minutes late is worth less than a group that keeps retrying it
-        # forever; the row already records the platform's reason as FAILED.
-        return True
+        # The base consumer asks this only for an entry that has used up
+        # `max_deliveries`, and drops it on True. Here the delivery count is
+        # not the bound, the entry's age is: past `max_deliveries` an entry
+        # keeps being retried until it leaves the retry window.
+        return self._past_retry_window(msg_id)
 
     def describe_message(self, data: Dict[bytes, bytes]) -> Optional[str]:
         try:
@@ -923,26 +993,63 @@ class ChannelsOutboxStreamWorker(StreamConsumer):
         return len(processed_ids), processed_ids
 
 
-async def _shielded(coroutine):
-    """Await `coroutine` so that cancelling the caller does not cancel it.
-    A failure still raises to an uncancelled caller; once the caller is gone
-    the row itself records it (FAILED), so the task's result is only
-    collected here to keep asyncio from reporting it as never retrieved."""
+async def _finish_even_if_cancelled(coroutine):
+    """Run `coroutine` to completion, then re-raise a cancel that arrived
+    meanwhile. For work that must not stop halfway, bounded by the adapters'
+    HTTP timeouts."""
 
     task = asyncio.ensure_future(coroutine)
-    task.add_done_callback(_collect_result)
-    return await asyncio.shield(task)
+    cancelled = False
+    while not task.done():
+        try:
+            await asyncio.shield(task)
+        except asyncio.CancelledError:
+            if task.cancelled():
+                raise
+            cancelled = True
+        except Exception:
+            if not cancelled:
+                raise
+    if cancelled:
+        if not task.cancelled():
+            task.exception()  # collected: the cancel wins, the row holds the failure
+        raise asyncio.CancelledError()
+    return task.result()
 
 
-def _collect_result(task: asyncio.Task) -> None:
-    if not task.cancelled():
-        task.exception()
+def _outcome_unknown(exc: BaseException) -> bool:
+    """Whether a failed post may still have reached the chat. Only a request
+    that surely never got a platform answer, or one the platform answered
+    with a rejection below 500 (a 4xx, including a 429 rate limit), is known
+    not to have posted."""
+
+    if isinstance(exc, ChannelDeliveryUncertain):
+        return True
+    if isinstance(exc, (httpx.ConnectError, httpx.ConnectTimeout, httpx.PoolTimeout)):
+        return False
+    if isinstance(exc, httpx.HTTPError):
+        return True  # read/write timeouts, dropped connections: sent, no answer
+    status_code = getattr(exc, "status_code", None)
+    if isinstance(status_code, int):
+        return status_code >= 500
+    if isinstance(exc, ChannelsError):
+        return False  # raised before any call (missing field, bad locator)
+    return True
 
 
 def _sent_with(event: ChannelOutboxEvent, content: List[Dict]) -> bool:
     if event.state is not ChannelDeliveryState.SENT or event.data is None:
         return False
     return (event.data.processed or {}).get("content") == content
+
+
+def _uncertain_with(event: ChannelOutboxEvent, delivery_key: UUID) -> bool:
+    status = event.status
+    return (
+        status is not None
+        and status.code == "delivery_uncertain"
+        and status.type == str(delivery_key)
+    )
 
 
 def _holds_final(event: ChannelOutboxEvent) -> bool:

@@ -1446,3 +1446,34 @@ async def test_a_failed_lookup_keeps_the_bare_id(monkeypatch):
 
     assert event is not None
     assert event.processed.sender == {"id": "U8"}
+
+
+@pytest.mark.asyncio
+async def test_a_later_chunk_failing_after_an_earlier_one_landed_is_uncertain():
+    """The first chunk is in the thread; a retry would post it again, and
+    chat.postMessage takes no idempotency key."""
+
+    from oss.src.core.channels.adapters.slack.adapter import SlackAdapter
+    from oss.src.core.channels.types import ChannelDeliveryUncertain
+
+    calls = []
+
+    def handler(request):
+        calls.append(request)
+        if len(calls) == 1:
+            return httpx.Response(200, json={"ok": True, "channel": "C1", "ts": "1.1"})
+        raise httpx.ReadTimeout("read timed out", request=request)
+
+    adapter = SlackAdapter(
+        http_client=httpx.AsyncClient(
+            base_url="https://slack.com/api/", transport=httpx.MockTransport(handler)
+        )
+    )
+    with pytest.raises(ChannelDeliveryUncertain):
+        await adapter.post_message(
+            connection=_connection(),
+            locator={"channel": "C1", "thread_ts": "1.0"},
+            content=[{"type": "text", "text": "word " * 2000}],
+            idempotency_key=uuid4(),
+        )
+    assert len(calls) == 2

@@ -663,3 +663,99 @@ async def test_revoke_installation_swallows_a_transport_error():
     adapter = _adapter_with_raising_transport()
     notice = await adapter.revoke_installation(connection=_connection())
     assert "removed from Telegram" in notice
+
+
+def _adapter_answering(handler):
+    client = httpx.AsyncClient(
+        base_url="https://api.telegram.org", transport=httpx.MockTransport(handler)
+    )
+    return TelegramAdapter(http_client=client)
+
+
+@pytest.mark.asyncio
+async def test_edit_message_not_modified_is_a_success():
+    """#7113: an edit whose text the message already has is not a failure;
+    the chat already shows what the edit asked for."""
+
+    def handler(request):
+        return httpx.Response(
+            400,
+            json={
+                "ok": False,
+                "error_code": 400,
+                "description": "Bad Request: message is not modified: specified "
+                "new message content and reply markup are exactly the same",
+            },
+        )
+
+    receipt = await _adapter_answering(handler).edit_message(
+        connection=_connection(),
+        external_locator={"chat_id": 999, "message_id": 7777},
+        content=[{"type": "text", "text": "done"}],
+        idempotency_key=uuid4(),
+    )
+    assert receipt == {"chat_id": 999, "message_id": 7777}
+
+
+@pytest.mark.asyncio
+async def test_edit_message_other_rejections_still_raise():
+    def handler(request):
+        return httpx.Response(
+            400,
+            json={"ok": False, "description": "Bad Request: message to edit not found"},
+        )
+
+    with pytest.raises(Exception, match="message to edit not found"):
+        await _adapter_answering(handler).edit_message(
+            connection=_connection(),
+            external_locator={"chat_id": 999, "message_id": 7777},
+            content=[{"type": "text", "text": "done"}],
+            idempotency_key=uuid4(),
+        )
+
+
+@pytest.mark.asyncio
+async def test_a_later_chunk_failing_after_an_earlier_one_landed_is_uncertain():
+    """The first chunk is in the chat; a retry would post it again."""
+
+    from oss.src.core.channels.types import ChannelDeliveryUncertain
+
+    calls = []
+
+    def handler(request):
+        calls.append(request)
+        if len(calls) == 1:
+            return httpx.Response(
+                200,
+                json={"ok": True, "result": {"message_id": 1, "chat": {"id": 999}}},
+            )
+        return httpx.Response(502, text="bad gateway")
+
+    with pytest.raises(ChannelDeliveryUncertain):
+        await _adapter_answering(handler).post_message(
+            connection=_connection(),
+            locator={"chat_id": 999},
+            content=[{"type": "text", "text": "word " * 2000}],
+            idempotency_key=uuid4(),
+        )
+    assert len(calls) == 2
+
+
+@pytest.mark.asyncio
+async def test_a_first_chunk_rejection_is_not_uncertain():
+    from oss.src.core.channels.types import ChannelDeliveryUncertain
+
+    def handler(request):
+        return httpx.Response(
+            429, json={"ok": False, "description": "Too Many Requests: retry after 3"}
+        )
+
+    with pytest.raises(Exception) as caught:
+        await _adapter_answering(handler).post_message(
+            connection=_connection(),
+            locator={"chat_id": 999},
+            content=[{"type": "text", "text": "hi"}],
+            idempotency_key=uuid4(),
+        )
+    assert not isinstance(caught.value, ChannelDeliveryUncertain)
+    assert caught.value.status_code == 429
