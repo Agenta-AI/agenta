@@ -167,23 +167,6 @@ const approvalTurnRecords = (sessionId: string, userText: string): SessionRecord
     sessionRecord(sessionId, "agent", {type: "done", stopReason: "paused"}, "turn-1"),
 ]
 
-/** A turn that ended waiting on the client-side `request_secret` tool. */
-const secretTurnRecords = (sessionId: string, toolCallId: string): SessionRecord[] => [
-    sessionRecord(sessionId, "user", {type: "message", text: "Deploy it"}, "turn-1"),
-    sessionRecord(
-        sessionId,
-        "agent",
-        {
-            type: "tool_call",
-            id: toolCallId,
-            name: "request_secret",
-            input: {name: "Deploy token", env_var: "DEPLOY_TOKEN", reason: "Deploy the app"},
-        },
-        "turn-1",
-    ),
-    sessionRecord(sessionId, "agent", {type: "done"}, "turn-1"),
-]
-
 /** Serve `records` as the saved log once the durable invoke for them has been made. */
 const saveOnInvoke = (records: () => SessionRecord[]) => async () => {
     recordLog.records = records()
