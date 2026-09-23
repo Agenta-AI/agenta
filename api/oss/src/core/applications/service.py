@@ -1306,6 +1306,9 @@ class SimpleApplicationsService:
         #
         simple_application_edit: SimpleApplicationEdit,
     ) -> Optional[SimpleApplication]:
+        # Before any write: a refusal at the final commit would leave earlier writes behind.
+        _reject_unreadable_agent_instructions(simple_application_edit.data)
+
         application = await self.applications_service.fetch_application(
             project_id=project_id,
             #

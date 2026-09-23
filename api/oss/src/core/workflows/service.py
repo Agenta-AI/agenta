@@ -3674,6 +3674,9 @@ class SimpleWorkflowsService:
         if not request_fingerprint.strip():
             raise ValueError("request_fingerprint must not be empty")
 
+        # Before any write: a refusal at the final commit would leave earlier writes behind.
+        _reject_unreadable_agent_instructions(simple_workflow_create.data)
+
         workflow_id = resource_identity(
             project_id,
             namespace,
@@ -4127,6 +4130,9 @@ class SimpleWorkflowsService:
         #
         simple_workflow_edit: SimpleWorkflowEdit,
     ) -> Optional[SimpleWorkflow]:
+        # Before any write: a refusal at the final commit would leave earlier writes behind.
+        _reject_unreadable_agent_instructions(simple_workflow_edit.data)
+
         workflow_ref = Reference(id=simple_workflow_edit.id)
 
         workflow: Optional[Workflow] = await self.workflows_service.fetch_workflow(

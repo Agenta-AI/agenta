@@ -16,10 +16,14 @@ from starlette.responses import JSONResponse
 
 from oss.src.apis.fastapi.workflows.exceptions import handle_workflow_exceptions
 from oss.src.core.tools.platform_handlers import handle_commit_revision
-from oss.src.core.applications.dtos import SimpleApplicationCreate
+from oss.src.core.applications.dtos import (
+    SimpleApplicationCreate,
+    SimpleApplicationEdit,
+)
 from oss.src.core.applications.service import SimpleApplicationsService
 from oss.src.core.workflows.dtos import (
     SimpleWorkflowCreate,
+    SimpleWorkflowEdit,
     WorkflowRevision,
     WorkflowRevisionCommit,
 )
@@ -239,3 +243,63 @@ class TestSimpleCreateLeavesNothingBehind:
             )
 
         applications_service.create_application.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_idempotent_create_refuses_before_any_write(self):
+        workflows_service = AsyncMock()
+        service = SimpleWorkflowsService(workflows_service=workflows_service)
+
+        with pytest.raises(InvalidAgentInstructionsError):
+            await service.create_idempotent(
+                project_id=uuid4(),
+                user_id=uuid4(),
+                namespace="ns",
+                request_key="key",
+                request_fingerprint="fp",
+                component="agent",
+                simple_workflow_create=SimpleWorkflowCreate(
+                    slug="instr-check",
+                    data={
+                        "uri": "agenta:builtin:agent:v0",
+                        **_data("You are a QA bot."),
+                    },
+                ),
+            )
+
+        workflows_service.create_workflow.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_simple_workflow_edit_refuses_before_any_write(self):
+        workflows_service = AsyncMock()
+        service = SimpleWorkflowsService(workflows_service=workflows_service)
+
+        with pytest.raises(InvalidAgentInstructionsError):
+            await service.edit(
+                project_id=uuid4(),
+                user_id=uuid4(),
+                simple_workflow_edit=SimpleWorkflowEdit(
+                    id=uuid4(),
+                    data={"uri": "agenta:builtin:agent:v0", **_data(42)},
+                ),
+            )
+
+        workflows_service.fetch_workflow.assert_not_awaited()
+        workflows_service.edit_workflow.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_simple_application_edit_refuses_before_any_write(self):
+        applications_service = AsyncMock()
+        service = SimpleApplicationsService(applications_service=applications_service)
+
+        with pytest.raises(InvalidAgentInstructionsError):
+            await service.edit(
+                project_id=uuid4(),
+                user_id=uuid4(),
+                simple_application_edit=SimpleApplicationEdit(
+                    id=uuid4(),
+                    data={"uri": "agenta:builtin:agent:v0", **_data(["x"])},
+                ),
+            )
+
+        applications_service.fetch_application.assert_not_awaited()
+        applications_service.edit_application.assert_not_awaited()
