@@ -142,6 +142,8 @@ export function AgentSecretAttachmentModal({
     const [error, setError] = useState<string | null>(null)
     // Set once the modal has picked its opening choice, or the user has picked one.
     const choiceMade = useRef(false)
+    // Cached rows can predate a secret made elsewhere; the opening choice waits for the refetch.
+    const [vaultFresh, setVaultFresh] = useState(false)
     const nameRef = useRef<HTMLInputElement>(null)
     const valueRef = useRef<HTMLTextAreaElement>(null)
     // A seeded name means the value is the only thing left to type.
@@ -168,7 +170,14 @@ export function AgentSecretAttachmentModal({
         // its own; a secret created in Settings or another tab stays invisible until a reload.
         // `refetchVault` is keyed on the query result and changes identity on every fetch, so
         // it must stay out of the deps or this effect refetches forever.
-        refetchVault()
+        let current = true
+        setVaultFresh(false)
+        void Promise.resolve(refetchVault()).finally(() => {
+            if (current) setVaultFresh(true)
+        })
+        return () => {
+            current = false
+        }
     }, [open])
 
     useEffect(() => {
@@ -215,12 +224,12 @@ export function AgentSecretAttachmentModal({
     // Opening choice, once the vault has loaded: the matching secret, else a new one when
     // there is nothing to pick from.
     useEffect(() => {
-        if (!open || loading || choiceMade.current) return
+        if (!open || loading || !vaultFresh || choiceMade.current) return
         const match = matchRequestedSecret(textSecrets, request)
         if (match?.slug) selectSecret(match.slug)
         else if (canCreateSecret && textSecrets.length === 0) selectSecret(NEW_SECRET)
         else choiceMade.current = true
-    }, [open, loading, textSecrets])
+    }, [open, loading, vaultFresh, textSecrets])
 
     const creating = selectedSlug === NEW_SECRET
 
