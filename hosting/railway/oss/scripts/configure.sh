@@ -406,23 +406,28 @@ main() {
         "SENDGRID_API_KEY=${SENDGRID_API_KEY:-}"
 
     # bootstrap.sh creates web-mobile with every environment. An environment
-    # bootstrapped before that may still lack it, so configure it only when it
-    # exists; re-running bootstrap.sh adds it. It runs the same entrypoint as
-    # web and takes the same runtime config.
-    if railway service web-mobile >/dev/null 2>&1; then
-        set_vars web-mobile \
-            AGENTA_WEB_URL="https://${public_domain_ref}" \
-            AGENTA_API_URL="https://${public_domain_ref}/api" \
-            AGENTA_SERVICES_URL="https://${public_domain_ref}/services" \
-            AGENTA_AUTH_KEY="$AGENTA_AUTH_KEY" \
-            AGENTA_CRYPT_KEY="$AGENTA_CRYPT_KEY"
-
-        set_optional_vars web-mobile \
-            "POSTHOG_API_KEY=${POSTHOG_API_KEY:-}" \
-            "SENDGRID_API_KEY=${SENDGRID_API_KEY:-}"
-
-        unset_vars web-mobile AGENTA_MOBILE_GATE AGENTA_MOBILE_REVERSE_GATE AGENTA_MOBILE_ENABLED AGENTA_LICENSE PORT SCRIPT_NAME REDIS_URI REDIS_URI_VOLATILE REDIS_URI_DURABLE SUPERTOKENS_CONNECTION_URI AGENTA_API_INTERNAL_URL ALEMBIC_CFG_PATH_CORE ALEMBIC_CFG_PATH_TRACING
+    # bootstrapped before that may still lack it; the web image now redirects
+    # phones to /m unconditionally (no gate), so a missing web-mobile there is
+    # a broken deploy, not a supported opt-out. Require it and point at the
+    # fix instead of silently configuring web without it.
+    if ! railway service web-mobile >/dev/null 2>&1; then
+        printf "Service 'web-mobile' is missing from the Railway environment, but web now redirects phones to /m unconditionally.\n" >&2
+        printf "Fix: re-run bootstrap.sh for this environment to create web-mobile, then re-run configure.sh.\n" >&2
+        exit 1
     fi
+
+    set_vars web-mobile \
+        AGENTA_WEB_URL="https://${public_domain_ref}" \
+        AGENTA_API_URL="https://${public_domain_ref}/api" \
+        AGENTA_SERVICES_URL="https://${public_domain_ref}/services" \
+        AGENTA_AUTH_KEY="$AGENTA_AUTH_KEY" \
+        AGENTA_CRYPT_KEY="$AGENTA_CRYPT_KEY"
+
+    set_optional_vars web-mobile \
+        "POSTHOG_API_KEY=${POSTHOG_API_KEY:-}" \
+        "SENDGRID_API_KEY=${SENDGRID_API_KEY:-}"
+
+    unset_vars web-mobile AGENTA_MOBILE_GATE AGENTA_MOBILE_REVERSE_GATE AGENTA_MOBILE_ENABLED AGENTA_LICENSE PORT SCRIPT_NAME REDIS_URI REDIS_URI_VOLATILE REDIS_URI_DURABLE SUPERTOKENS_CONNECTION_URI AGENTA_API_INTERNAL_URL ALEMBIC_CFG_PATH_CORE ALEMBIC_CFG_PATH_TRACING
 
     set_vars api \
         AGENTA_WEB_URL="https://${public_domain_ref}" \
