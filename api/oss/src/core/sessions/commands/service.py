@@ -72,12 +72,8 @@ from oss.src.core.sessions.inputs.types import (
     SessionInputNotFound,
     SessionInputRemoved,
 )
-from oss.src.core.sessions.streams.dtos import (
-    SessionStreamCommandRequest,
-    SessionStreamCommandResponse,
-)
 from oss.src.core.sessions.streams.service import SessionStreamsService
-from oss.src.core.sessions.streams.types import SessionIdInvalid, SessionTurnMismatch
+from oss.src.core.sessions.streams.types import SessionIdInvalid
 from oss.src.dbs.redis.shared.engine import LockEngine
 from oss.src.dbs.redis.sessions.contract import (
     HEARTBEAT_INTERVAL_SECONDS,
@@ -335,30 +331,6 @@ class SessionCommandsService:
             input=item,
             execution_id=continuation.execution_id if continuation else target_id,
         )
-
-    async def request_cancel_legacy(
-        self,
-        *,
-        project_id: UUID,
-        user_id: UUID,
-        session_id: str,
-        expected_execution_id: Optional[str] = None,
-    ) -> SessionStreamCommandResponse:
-        """Use the heartbeat-carried Stop path kept for rollout rollback."""
-        try:
-            return await self._streams.command(
-                project_id=project_id,
-                user_id=user_id,
-                request=SessionStreamCommandRequest(
-                    session_id=session_id,
-                    expected_execution_id=expected_execution_id,
-                ),
-            )
-        except SessionTurnMismatch as error:
-            raise ExecutionExpectationFailed(
-                expected=error.expected_turn_id,
-                current=error.actual_turn_id,
-            ) from error
 
     async def request_cancel(
         self,
@@ -985,11 +957,6 @@ class SessionCommandsService:
         )
         if command is None:
             return None
-        if (
-            command.kind == SessionCommandKind.continue_interaction
-            and not env.agenta.sessions.durable_approvals
-        ):
-            return None
         execution_id = command.target_turn_id
         if execution_id is None or self._executions is None:
             return execution_id
@@ -1473,11 +1440,6 @@ class SessionCommandsService:
                 SessionCommandKind.continue_interaction,
                 SessionCommandKind.continue_input,
             ):
-                if (
-                    command.kind == SessionCommandKind.continue_interaction
-                    and not env.agenta.sessions.durable_approvals
-                ):
-                    continue
                 if command.claim_count < max_deliveries:
                     await self._deliver(command)
                     continue
@@ -1619,10 +1581,7 @@ class SessionCommandsService:
         if (
             execution is not None
             and (
-                (
-                    execution.source_interaction_id is not None
-                    and env.agenta.sessions.durable_approvals
-                )
+                execution.source_interaction_id is not None
                 or (
                     execution.source_interaction_id is None
                     and execution.parent_execution_id is not None

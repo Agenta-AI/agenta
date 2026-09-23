@@ -57,10 +57,6 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- $v := (default dict .Values.web).enabled -}}
 {{- if kindIs "invalid" $v }}true{{- else }}{{- $v -}}{{- end }}
 {{- end }}
-{{- define "agenta.webMobile.enabled" -}}
-{{- $v := (default dict .Values.webMobile).enabled -}}
-{{- if kindIs "invalid" $v }}true{{- else }}{{- $v -}}{{- end }}
-{{- end }}
 {{- define "agenta.services.enabled" -}}
 {{- $v := (default dict .Values.services).enabled -}}
 {{- if kindIs "invalid" $v }}true{{- else }}{{- $v -}}{{- end }}

@@ -252,106 +252,6 @@ export async function sendPendingSessionInputNow({
     )
 }
 
-const SESSION_CAPABILITY_TIMEOUT_SECONDS = 2
-const SESSION_CAPABILITY_NEGATIVE_RETRY_MS = 30_000
-
-export interface SessionFeatureCapabilities {
-    durableApprovals: boolean
-}
-
-interface SessionCapabilityCacheEntry {
-    result?: SessionFeatureCapabilities
-    retryAt?: number
-    request?: Promise<SessionFeatureCapabilities | null>
-}
-
-const durableApprovalsCapabilityCache = new Map<string, SessionCapabilityCacheEntry>()
-
-const durableApprovalsCapabilityKey = ({projectId, sessionId}: SessionScopedParams): string =>
-    JSON.stringify([projectId, sessionId])
-
-export function invalidateSessionDurableApprovalsCapability(
-    params?: Pick<SessionScopedParams, "projectId" | "sessionId">,
-): void {
-    if (!params) {
-        durableApprovalsCapabilityCache.clear()
-        return
-    }
-    durableApprovalsCapabilityCache.delete(durableApprovalsCapabilityKey(params))
-}
-
-const hasSessionCapability = (capabilities: SessionFeatureCapabilities): boolean =>
-    capabilities.durableApprovals
-
-const cachedSessionCapabilities = (key: string): SessionFeatureCapabilities | null => {
-    const cached = durableApprovalsCapabilityCache.get(key)
-    if (!cached?.result) return null
-    if (hasSessionCapability(cached.result) || Date.now() < (cached.retryAt ?? 0)) {
-        return cached.result
-    }
-    return null
-}
-
-export const fetchSessionCapabilities = async ({
-    sessionId,
-    projectId,
-    appId,
-    abortSignal,
-}: SessionScopedParams): Promise<SessionFeatureCapabilities | null> => {
-    if (!projectId || !sessionId) return null
-
-    const key = durableApprovalsCapabilityKey({projectId, sessionId})
-    const cached = cachedSessionCapabilities(key)
-    if (cached) return cached
-
-    const existing = durableApprovalsCapabilityCache.get(key)
-    if (existing?.request) return existing.request
-
-    const entry: SessionCapabilityCacheEntry = {}
-    const request = (async () => {
-        let capabilities: SessionFeatureCapabilities | null = null
-        try {
-            const data = await callFern("[fetchSessionDurableApprovalsCapability]", () =>
-                getSessionsClient().fetchSessionStream(
-                    {session_id: sessionId},
-                    {
-                        ...projectScopedRequest(projectId, appId, abortSignal),
-                        timeoutInSeconds: SESSION_CAPABILITY_TIMEOUT_SECONDS,
-                        maxRetries: 0,
-                    },
-                ),
-            )
-            const validated = data
-                ? safeParseWithLogging(
-                      sessionStreamResponseSchema,
-                      data,
-                      "[fetchSessionDurableApprovalsCapability]",
-                  )
-                : null
-            capabilities = validated
-                ? {
-                      durableApprovals: validated.capabilities.durable_approvals,
-                  }
-                : null
-        } catch {
-            capabilities = null
-        }
-
-        if (durableApprovalsCapabilityCache.get(key) === entry) {
-            entry.result = capabilities ?? undefined
-            entry.retryAt =
-                !capabilities || hasSessionCapability(capabilities)
-                    ? undefined
-                    : Date.now() + SESSION_CAPABILITY_NEGATIVE_RETRY_MS
-            entry.request = undefined
-        }
-        return capabilities
-    })()
-    entry.request = request
-    durableApprovalsCapabilityCache.set(key, entry)
-    return request
-}
-
 export interface QueryInteractionsParams extends Omit<SessionScopedParams, "sessionId"> {
     /** Omit for a PROJECT-WIDE query — the backend treats `session_id` as optional, so one call
      * returns every matching interaction across the project (the pending-approvals badge
@@ -927,15 +827,6 @@ export async function fetchSessionStream({
     return validated?.stream ?? null
 }
 
-/** Resolve the approval owner before mutating either the server gate or the local transcript. */
-export async function fetchSessionDurableApprovalsCapability(
-    params: SessionScopedParams,
-): Promise<boolean> {
-    const capabilities = await fetchSessionCapabilities(params)
-    if (!capabilities) throw new Error("Session capabilities are unavailable. Please try again.")
-    return capabilities.durableApprovals
-}
-
 export interface CommandSessionStreamParams extends SessionScopedParams {
     /** Steal the run lock from whoever holds it. */
     force?: boolean
@@ -1477,14 +1368,6 @@ export async function cancelSessionExecution({
             "[cancelSessionExecution]",
         )
         if (!validated) return null
-        if (!("command" in validated)) {
-            return {
-                command: {id: "", state: "applied"},
-                execution: {id: validated.turn_id ?? null, state: "idle"},
-                accepted: true,
-                conflict: false,
-            }
-        }
         return {
             command: validated.command,
             execution: {...validated.execution, id: validated.execution.id ?? null},

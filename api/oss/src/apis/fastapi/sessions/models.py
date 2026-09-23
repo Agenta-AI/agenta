@@ -124,9 +124,10 @@ class SessionResponse(BaseModel):
 
 
 class SessionCapabilities(BaseModel):
-    durable_approvals: bool = False
-    # Queue and steer are always on. Both fields stay, pinned true, for one release so open
-    # tabs on an older web bundle still read them; remove them in the release after.
+    # Durable approvals, queue and steer are always on. The fields stay, pinned true, for
+    # one release so open tabs on an older web bundle still read them; remove them in the
+    # release after.
+    durable_approvals: bool = True
     queue: bool = True
     steer: bool = True
 

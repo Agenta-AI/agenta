@@ -284,8 +284,6 @@ export const pendingInputAdmissionResponseSchema = z.object({
  * The queue half is `execution_state` and `pending.inputs`. `execution_state` is the session's
  * CURRENT lifecycle, derived server-side from the stream row, which is a different question from
  * `execution`: that names the last turn, this says whether anything is running right now.
- * `capabilities` mirrors the streams endpoint from the same server helper, so the two can never
- * disagree.
  */
 export const sessionSnapshotSchema = z.object({
     session: sessionStreamSchema.nullish().default(null),
@@ -301,11 +299,6 @@ export const sessionSnapshotSchema = z.object({
         interactions: z.array(sessionInteractionSchema).default([]),
     }),
     read: sessionRecordsReadStateSchema.nullish().default(null),
-    capabilities: z
-        .object({
-            durable_approvals: z.boolean().optional().default(false),
-        })
-        .default({durable_approvals: false}),
 })
 
 export const sessionStreamsResponseSchema = z.object({
@@ -324,12 +317,6 @@ export const sessionsQueryResponseSchema = z.object({
 
 export const sessionStreamResponseSchema = z.object({
     stream: sessionStreamSchema.nullish(),
-    capabilities: z
-        .object({
-            durable_approvals: z.boolean().optional().default(false),
-        })
-        .optional()
-        .default({durable_approvals: false}),
 })
 
 /** Control-call result for the prompt × force command matrix. */
@@ -342,16 +329,13 @@ export const sessionStreamCommandResponseSchema = z.object({
     cancelled_turn_ids: z.array(z.string()).nullish(),
 })
 
-export const sessionCancelExecutionResponseSchema = z.union([
-    z.object({
-        command: z.object({id: z.string(), state: z.string()}),
-        execution: z.object({
-            id: z.string().nullish(),
-            state: z.enum(["stopping", "idle"]),
-        }),
+export const sessionCancelExecutionResponseSchema = z.object({
+    command: z.object({id: z.string(), state: z.string()}),
+    execution: z.object({
+        id: z.string().nullish(),
+        state: z.enum(["stopping", "idle"]),
     }),
-    sessionStreamCommandResponseSchema,
-])
+})
 
 export type SessionStream = z.infer<typeof sessionStreamSchema>
 export type SessionLiveFrame = z.infer<typeof sessionLiveFrameSchema>

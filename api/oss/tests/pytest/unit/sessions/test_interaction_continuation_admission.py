@@ -123,11 +123,6 @@ class _Commands:
         return self.command
 
 
-@pytest.fixture(autouse=True)
-def _durable_approvals_enabled(monkeypatch):
-    monkeypatch.setattr(env.agenta.sessions, "durable_approvals", True)
-
-
 class _Interactions:
     def __init__(self, interaction):
         self.interactions = [interaction]
@@ -975,37 +970,6 @@ async def test_watchdog_keeps_lost_continuation_recoverable():
 
 
 @pytest.mark.asyncio
-async def test_watchdog_does_not_recover_continuation_when_approvals_are_disabled(
-    monkeypatch,
-):
-    monkeypatch.setattr(env.agenta.sessions, "durable_approvals", False)
-    project_id = uuid4()
-    executions = _Executions(
-        project_id=project_id, session_id="session-1", source_id="source-1"
-    )
-    executions.continuation = executions.continuation.model_copy(
-        update={"state": SessionExecutionState.running}
-    )
-    service = SessionCommandsService(
-        commands_dao=_Commands(),
-        streams_service=None,
-        interactions_service=None,
-        lock_engine=None,
-        delivery=_Unreachable(),
-        executions_dao=executions,
-    )
-
-    assert await service.settle_execution_lost(
-        project_id=project_id,
-        session_id="session-1",
-        execution_id="continuation-1",
-        settled_at=datetime.now(timezone.utc),
-    )
-    assert executions.continuation.state == SessionExecutionState.terminal
-    assert executions.continuation.terminal_outcome == SessionCommandOutcome.lost.value
-
-
-@pytest.mark.asyncio
 async def test_persisted_completion_terminalizes_continuation_before_recovery():
     project_id = uuid4()
     executions = _Executions(
@@ -1186,47 +1150,6 @@ async def test_completion_handles_a_lost_input_delivery_reservation(monkeypatch)
     )
     assert items.items[0].state == PendingInputState.promoted
     assert executions.continuation.state == SessionExecutionState.recoverable
-
-
-@pytest.mark.asyncio
-async def test_recovery_hooks_are_disabled_with_durable_approvals(monkeypatch):
-    monkeypatch.setattr(env.agenta.sessions, "durable_approvals", False)
-    project_id = uuid4()
-    interaction_id = uuid4()
-    commands = _Commands()
-    commands.command = _continuation_command(project_id, interaction_id)
-    commands.abandoned = [commands.command]
-    delivery = _Unreachable()
-    service = SessionCommandsService(
-        commands_dao=commands,
-        streams_service=None,
-        interactions_service=_Interactions(
-            SessionInteraction(
-                id=interaction_id,
-                project_id=project_id,
-                session_id="session-1",
-                turn_id="source-1",
-                token="approval-1",
-                kind=SessionInteractionKind.user_approval,
-                status=SessionInteractionStatus.responded,
-                data=SessionInteractionData(resolution={"approved": True}),
-            )
-        ),
-        lock_engine=None,
-        delivery=delivery,
-        executions_dao=_Executions(
-            project_id=project_id, session_id="session-1", source_id="source-1"
-        ),
-    )
-
-    assert (
-        await service.resume_recoverable_continuation(
-            project_id=project_id, session_id="session-1"
-        )
-        is None
-    )
-    assert await service.settle_abandoned_commands(now=datetime.now(timezone.utc)) == 0
-    assert delivery.delivered == []
 
 
 class _StartedThenUnreachable:

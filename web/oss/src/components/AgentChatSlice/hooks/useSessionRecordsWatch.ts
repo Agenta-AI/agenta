@@ -1,7 +1,6 @@
 import {useRef} from "react"
 
 import {shouldRefreshLegacyObserverLiveness} from "@agenta/chat/model"
-import {invalidateSessionDurableApprovalsCapability} from "@agenta/entities/session"
 import {useWatchEventSource} from "@agenta/sessions/watch"
 import {useQueryClient} from "@tanstack/react-query"
 
@@ -63,12 +62,7 @@ export const useSessionRecordsWatch = ({
         enabled,
         refreshSession,
         on: {
-            ready: () => {
-                if (projectId) {
-                    invalidateSessionDurableApprovalsCapability({projectId, sessionId})
-                }
-                onReady()
-            },
+            ready: onReady,
             "records-changed": () => {
                 onRecordsChanged()
                 refreshLegacyObserverLiveness()

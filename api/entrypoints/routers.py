@@ -256,7 +256,6 @@ from oss.src.core.sessions.service import SessionsService
 from oss.src.tasks.asyncio.sessions.interactions_dispatcher import (
     InteractionsDispatcher,
 )
-from oss.src.tasks.taskiq.sessions.interactions_worker import InteractionsWorker
 
 # Records DAO (analytics DB)
 from oss.src.dbs.postgres.sessions.records.dao import RecordsDAO
@@ -962,7 +961,7 @@ triggers_service = TriggersService(
 
 
 # Detached workflow start: hand the run to the runner and return on the started handshake
-# (no awaiting the run). Shared by both detached consumers (triggers + interactions respond).
+# (no awaiting the run). Shared by both detached consumers (triggers + interaction continuations).
 async def _dispatch_detached_run(*, project_id, user_id, request, run_id=None) -> str:
     result = await workflows_service.invoke_workflow_detached(
         project_id=project_id,
@@ -973,16 +972,6 @@ async def _dispatch_detached_run(*, project_id, user_id, request, run_id=None) -
     return result.run_id
 
 
-# Producer side of the interactions pipeline: the respond route enqueues
-# `interactions.respond` tasks here; entrypoints/worker_queues.py consumes them.
-_interactions_broker = ProducerOnlyRedisStreamBroker(
-    url=env.redis.uri_durable,
-    queue_name="queues:interactions",
-    consumer_group_name="api-interactions-producer",
-    maxlen=100_000,
-    approximate=True,
-)
-
 _interactions_dispatcher = InteractionsDispatcher(
     workflows_service=workflows_service,
     interactions_service=interactions_service,
@@ -992,11 +981,6 @@ _interactions_dispatcher = InteractionsDispatcher(
     turns_service=session_turns_service,
     streams_service=session_streams_service,
     dispatch_fn=_dispatch_detached_run,
-)
-
-_interactions_worker = InteractionsWorker(
-    broker=_interactions_broker,
-    dispatcher=_interactions_dispatcher,
 )
 
 # Producer side of the inbound dispatch pipeline: the ingress route enqueues
@@ -1429,7 +1413,6 @@ sessions = SessionsRouter(
     streams_service=session_streams_service,
     records_service=records_service,
     interactions_service=interactions_service,
-    workflows_service=workflows_service,
     attachments_service=session_attachments_service,
     session_mounts_service=session_mounts_service,
     mounts_service=mounts_service,
@@ -1437,8 +1420,6 @@ sessions = SessionsRouter(
     sessions_service=sessions_service,
     commands_service=session_commands_service,
     inputs_service=session_inputs_service,
-    respond_task=_interactions_worker.respond_interaction,
-    interactions_dispatcher=_interactions_dispatcher,
 )
 
 # PLATFORM ADMIN ---------------------------------------------------------------

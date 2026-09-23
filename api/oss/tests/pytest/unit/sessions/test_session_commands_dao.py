@@ -45,7 +45,6 @@ from oss.src.dbs.postgres.sessions.streams.dao import SessionStreamsDAO
 import oss.src.dbs.postgres.shared.engine as engine_module
 from oss.src.dbs.postgres.shared.engine import get_transactions_engine
 import oss.src.models.db_models  # noqa: F401
-from oss.src.utils.env import env
 
 
 pytestmark = pytest.mark.integration
@@ -1247,7 +1246,6 @@ async def test_executing_continuation_refuses_a_competing_send(
     in when a released message tore down the warm sandbox and turned the approved call into
     "Command aborted".
     """
-    monkeypatch.setattr(env.agenta.sessions, "durable_approvals", True)
     await _seed_live_continuation(command_scope, token="live-executing")
     service = _commands_service(command_scope)
 
@@ -1266,7 +1264,6 @@ async def test_parked_continuation_still_accepts_a_send(command_scope, monkeypat
     The park writes a pending interaction row against the continuation's own execution, so the
     same `running` row in Postgres must not be read as ownership. This is review finding N2.
     """
-    monkeypatch.setattr(env.agenta.sessions, "durable_approvals", True)
     await _seed_live_continuation(command_scope, token="live-parked")
     await _park_continuation_on_its_own_gate(command_scope, token="live-parked-gate")
     service = _commands_service(command_scope)
