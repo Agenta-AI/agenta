@@ -47,13 +47,15 @@ const readyRequest = {
 }
 
 const renderInputs = () =>
-    renderHook(() =>
-        useServerSessionInputs({
-            entityId: "revision-1",
-            sessionId: "session-1",
-            messages: [] as UIMessage[],
-            locallyBusy: false,
-        }),
+    renderHook(
+        ({sessionId}: {sessionId: string}) =>
+            useServerSessionInputs({
+                entityId: "revision-1",
+                sessionId,
+                messages: [] as UIMessage[],
+                locallyBusy: false,
+            }),
+        {initialProps: {sessionId: "session-1"}},
     )
 
 describe("durable send before the invocation URL has loaded", () => {
@@ -112,6 +114,30 @@ describe("durable send before the invocation URL has loaded", () => {
         })
 
         await expect(outcome).rejects.toThrow("The agent is not ready to accept input.")
+        expect(fetchMock).not.toHaveBeenCalled()
+    })
+
+    it("does not send when the session changes while the URL loads", async () => {
+        let invocationUrlLoaded = false
+        buildAgentRequest.mockImplementation(async () =>
+            invocationUrlLoaded ? readyRequest : null,
+        )
+        const {result, rerender} = renderInputs()
+
+        let outcome: Promise<unknown> = Promise.resolve()
+        await act(async () => {
+            outcome = result.current.submit({id: "first", text: "hello", source: "local"}, "queue")
+            outcome.catch(() => undefined)
+            await vi.advanceTimersByTimeAsync(1_000)
+        })
+
+        rerender({sessionId: "session-2"})
+        invocationUrlLoaded = true
+        await act(async () => {
+            await vi.advanceTimersByTimeAsync(1_000)
+        })
+
+        await expect(outcome).rejects.toThrow("The session changed before the message was sent.")
         expect(fetchMock).not.toHaveBeenCalled()
     })
 })

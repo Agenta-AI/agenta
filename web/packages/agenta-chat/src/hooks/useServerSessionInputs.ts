@@ -348,6 +348,12 @@ export const useServerSessionInputs = ({
                 }
                 throw error
             })
+            // The build can wait for the invocation URL. A session switched meanwhile would get a
+            // request mixing the new scope's entity and messages with this send's session id.
+            // Only the scope is checked, not the mount: durable admission may outlive a remount.
+            if (scopeRef.current !== scope) {
+                throw new Error("The session changed before the message was sent.")
+            }
 
             const response = await fetch(request.invocationUrl, {
                 method: "POST",
@@ -412,7 +418,7 @@ export const useServerSessionInputs = ({
                 .catch(() => undefined)
             return "running"
         },
-        [mount, refresh, sessionId],
+        [mount, refresh, scope, sessionId],
     )
 
     const remove = useCallback(
