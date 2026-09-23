@@ -114,6 +114,16 @@ def handle_channel_adapter_exceptions():
 log = get_module_logger(__name__)
 
 
+def _channel_events_url(channel: str) -> str:
+    """The public ingress URL a platform app must call. Server-owned, like the
+    OAuth callback: `request.base_url` carries the scheme the API process sees,
+    which behind the TLS-terminating proxy is `http`, and Slack refuses an
+    http Request URL (QA finding, 2026-09-23: the generated manifest said
+    http://). The Telegram webhook is built from the same setting."""
+
+    return f"{env.agenta.api_url.rstrip('/')}/channels/{channel}/events/"
+
+
 def _slack_callback_url() -> str:
     """Server-owned, not derived from the request -- Slack requires an exact
     match against the redirect URI registered for the app, so it has to be
@@ -638,7 +648,7 @@ class ChannelsRouter:
 
         await self._check(request, Permission.EDIT_CHANNELS)
 
-        request_url = f"{str(request.base_url).rstrip('/')}/channels/{channel}/events/"
+        request_url = _channel_events_url(channel)
 
         setup = await self.channels_service.get_channel_setup(
             channel=channel,
@@ -854,10 +864,7 @@ class ChannelsRouter:
             # bridge-only today: the one adapter that mints its own
             # credential. Not dispatched through the adapter registry --
             # this builder is deliberately not part of the shared interface.
-            request_url = (
-                f"{str(request.base_url).rstrip('/')}"
-                f"/channels/{connection.channel}/events/"
-            )
+            request_url = _channel_events_url(connection.channel)
             document = build_bridge_create_document(
                 request_url=request_url, secret=one_time_secret
             )
@@ -1014,9 +1021,7 @@ class ChannelsRouter:
                 detail="Channel connection not found",
             )
 
-        request_url = (
-            f"{str(request.base_url).rstrip('/')}/channels/{connection.channel}/events/"
-        )
+        request_url = _channel_events_url(connection.channel)
 
         try:
             setup = await self.channels_service.get_connection_setup(

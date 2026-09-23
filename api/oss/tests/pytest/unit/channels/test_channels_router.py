@@ -732,3 +732,25 @@ async def test_list_telegram_hosted_bindings_reads_the_project_scoped_list():
     binding_service.list_connection_bindings.assert_awaited_once_with(
         project_id=project_id, connection_id=connection_id
     )
+
+
+async def test_the_setup_request_url_is_the_public_https_api_url(monkeypatch):
+    """Live QA 2026-09-23: behind the TLS-terminating proxy the API process
+    sees http, and the manifest built from `request.base_url` told Slack to
+    call http://..., which Slack refuses. The URL comes from AGENTA_API_URL."""
+    from oss.src.core.channels.dtos import ChannelSetup
+    from oss.src.utils.env import env
+
+    monkeypatch.setattr(env.agenta, "api_url", "https://agenta.example.com/api")
+    service = AsyncMock()
+    service.get_channel_setup.return_value = ChannelSetup()
+    router = _router(service)
+    request = _make_request(uuid4(), uuid4(), method="GET")
+
+    with _patched_access(True):
+        await router.fetch_channel_setup(request, channel="slack")
+
+    assert (
+        service.get_channel_setup.await_args.kwargs["request_url"]
+        == "https://agenta.example.com/api/channels/slack/events/"
+    )
