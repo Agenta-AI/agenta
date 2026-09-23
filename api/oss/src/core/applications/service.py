@@ -33,7 +33,10 @@ from oss.src.core.git.types import (
     validate_variant_refs_sufficient,
     validate_retrieve_refs_consistent,
 )
-from oss.src.core.workflows.service import WorkflowsService
+from oss.src.core.workflows.service import (
+    WorkflowsService,
+    _reject_unreadable_agent_instructions,
+)
 
 # Resolution is now handled by EmbedsService
 from oss.src.core.embeds.dtos import ResolutionInfo, ErrorPolicy
@@ -1071,6 +1074,10 @@ class SimpleApplicationsService:
         #
         application_id: Optional[UUID] = None,
     ) -> Optional[SimpleApplication]:
+        # Before the artifact exists: refusing only at the final commit would leave the
+        # artifact, variant, and blank revision behind.
+        _reject_unreadable_agent_instructions(simple_application_create.data)
+
         simple_application_flags = (
             SimpleApplicationFlags(**_dump_flags(simple_application_create.flags))
             if simple_application_create.flags
@@ -1305,6 +1312,9 @@ class SimpleApplicationsService:
         #
         simple_application_edit: SimpleApplicationEdit,
     ) -> Optional[SimpleApplication]:
+        # Before any write: a refusal at the final commit would leave earlier writes behind.
+        _reject_unreadable_agent_instructions(simple_application_edit.data)
+
         application = await self.applications_service.fetch_application(
             project_id=project_id,
             #

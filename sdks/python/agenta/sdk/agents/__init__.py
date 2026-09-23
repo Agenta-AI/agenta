@@ -59,6 +59,9 @@ from .connections import (
 from .dtos import (
     AgentTemplate,
     AgentTemplateShapeError,
+    AGENT_INSTRUCTIONS_SHAPE_HINT,
+    InvalidAgentInstructionsError,
+    validate_agent_instructions,
     Event,
     AgentResult,
     ClaudeAgentTemplate,
@@ -290,6 +293,9 @@ __all__ = [
     "InvalidHarnessKindError",
     "InvalidPermissionDefaultError",
     "AgentTemplateShapeError",
+    "AGENT_INSTRUCTIONS_SHAPE_HINT",
+    "InvalidAgentInstructionsError",
+    "validate_agent_instructions",
     # Adapters
     "SandboxAgentBackend",
     "LocalBackend",

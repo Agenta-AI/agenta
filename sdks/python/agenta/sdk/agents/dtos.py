@@ -218,6 +218,58 @@ class AgentTemplateShapeError(ErrorStatus):
         super().__init__(code=self.code, type=self.type, message=message)
 
 
+AGENT_INSTRUCTIONS_SHAPE_HINT = (
+    'instructions must be an object with an agents_md string, e.g. {"agents_md": "..."}. '
+    "Write the full AGENTS.md text in instructions.agents_md."
+)
+
+
+class InvalidAgentInstructionsError(ErrorStatus, ValueError):
+    """``parameters.agent.instructions`` is present but is not ``{"agents_md": "<text>"}``.
+
+    The runtime reads the prompt ONLY from ``instructions.agents_md``. Any other shape (a bare
+    string, a list, an object without a string ``agents_md``) was read as "no instructions",
+    so the agent ran with an empty prompt and nothing reported it.
+    """
+
+    code: int = 400
+    type: str = f"{ERRORS_BASE_URL}#v0:agent:invalid-instructions"
+
+    def __init__(self, value: Any) -> None:
+        super().__init__(
+            code=self.code,
+            type=self.type,
+            message=(
+                f"{AGENT_INSTRUCTIONS_SHAPE_HINT} Got {_describe_instructions(value)}."
+            ),
+        )
+        self.value = value
+
+
+def _describe_instructions(value: Any) -> str:
+    if isinstance(value, dict):
+        if "agents_md" not in value:
+            return "an object without agents_md"
+        return f"agents_md of type {type(value['agents_md']).__name__}"
+    return f"a {type(value).__name__}"
+
+
+def validate_agent_instructions(instructions: Any) -> None:
+    """Refuse an ``instructions`` value the runtime cannot read a prompt from.
+
+    ``None`` (absent or explicit null) passes: an agent with no instructions is a valid
+    configuration and many stored agents have none. Anything else must be an object whose
+    ``agents_md`` is a string (empty allowed); other keys on the object are left alone.
+    """
+    if instructions is None:
+        return
+    if isinstance(instructions, dict) and isinstance(
+        instructions.get("agents_md"), str
+    ):
+        return
+    raise InvalidAgentInstructionsError(instructions)
+
+
 # ---------------------------------------------------------------------------
 # Sandbox permission (Layer 2: the sandbox security boundary)
 # ---------------------------------------------------------------------------

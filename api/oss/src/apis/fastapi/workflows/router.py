@@ -2371,6 +2371,7 @@ class SimpleWorkflowsRouter:
         )
 
     @intercept_exceptions()
+    @handle_workflow_exceptions()
     async def edit_simple_workflow(
         self,
         request: Request,

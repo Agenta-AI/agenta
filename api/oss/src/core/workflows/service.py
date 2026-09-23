@@ -38,7 +38,12 @@ from agenta.sdk.engines.running.utils import (
     retrieve_interface,
 )
 from agenta.sdk.engines.tracing.propagation import inject
-from agenta.sdk.agents import HarnessKind, InvalidHarnessKindError
+from agenta.sdk.agents import (
+    HarnessKind,
+    InvalidHarnessKindError,
+    InvalidAgentInstructionsError as AgentInstructionsShapeError,
+    validate_agent_instructions,
+)
 
 from oss.src.core.git.interfaces import GitDAOInterface
 from oss.src.core.sessions.watch.interfaces import SessionsWatchPublisherInterface
@@ -150,6 +155,7 @@ from oss.src.core.workflows.static_catalog import normalize_static_version
 from oss.src.core.workflows.dtos import WorkflowServiceDetachedResponse
 from oss.src.core.workflows.types import (
     InvalidAgentHarnessError,
+    InvalidAgentInstructionsError,
     StaticWorkflowSlug,
     WorkflowServiceUrlMissing,
     WorkflowDetachedStartFailed,
@@ -265,6 +271,32 @@ def _reject_unreadable_harness_kind(data: Optional[dict]) -> None:
         HarnessKind.coerce(kind)
     except InvalidHarnessKindError as e:
         raise InvalidAgentHarnessError(value=kind, message=e.message) from e
+
+
+def _reject_unreadable_agent_instructions(data: Any) -> None:
+    """Refuse a commit whose agent instructions the runtime would read as "no prompt".
+
+    Runs only when the commit carries ``parameters.agent.instructions`` at all: a workflow that
+    is not an agent, and an agent with no instructions, commit exactly as before. The rule
+    itself is the SDK's, which owns the agent template shape.
+    """
+    if hasattr(data, "model_dump"):
+        data = data.model_dump(mode="json", exclude_none=True)
+    if not isinstance(data, dict):
+        return
+    parameters = data.get("parameters")
+    if not isinstance(parameters, dict):
+        return
+    agent = parameters.get("agent")
+    if not isinstance(agent, dict):
+        return
+    instructions = agent.get("instructions")
+    try:
+        validate_agent_instructions(instructions)
+    except AgentInstructionsShapeError as e:
+        raise InvalidAgentInstructionsError(
+            received_type=type(instructions).__name__, message=e.message
+        ) from e
 
 
 def _validate_persisted_shape(data: dict) -> None:
@@ -2734,6 +2766,11 @@ class WorkflowsService:
             if schemas_dict:
                 data = data.model_copy(update={"schemas": JsonSchemas(**schemas_dict)})
 
+        # Here, and not only on the checked commit, because every writer (the builder's
+        # tool, the commit endpoint, simple application and workflow create/edit) builds
+        # its revision through this method.
+        _reject_unreadable_agent_instructions(data)
+
         _revision_slug = workflow_revision_commit.slug or uuid4().hex[-12:]
         return RevisionCommit(
             **workflow_revision_commit.model_dump(
@@ -3643,6 +3680,9 @@ class SimpleWorkflowsService:
         if not request_fingerprint.strip():
             raise ValueError("request_fingerprint must not be empty")
 
+        # Before any write: a refusal at the final commit would leave earlier writes behind.
+        _reject_unreadable_agent_instructions(simple_workflow_create.data)
+
         workflow_id = resource_identity(
             project_id,
             namespace,
@@ -3869,6 +3909,10 @@ class SimpleWorkflowsService:
         #
         workflow_id: Optional[UUID] = None,
     ) -> Optional[SimpleWorkflow]:
+        # Before the artifact exists: refusing only at the final commit would leave the
+        # artifact, variant, and blank revision behind.
+        _reject_unreadable_agent_instructions(simple_workflow_create.data)
+
         simple_workflow_flags = SimpleWorkflowFlags(
             **WorkflowsService._dump_flags(simple_workflow_create.flags)
         )
@@ -4092,6 +4136,9 @@ class SimpleWorkflowsService:
         #
         simple_workflow_edit: SimpleWorkflowEdit,
     ) -> Optional[SimpleWorkflow]:
+        # Before any write: a refusal at the final commit would leave earlier writes behind.
+        _reject_unreadable_agent_instructions(simple_workflow_edit.data)
+
         workflow_ref = Reference(id=simple_workflow_edit.id)
 
         workflow: Optional[Workflow] = await self.workflows_service.fetch_workflow(
