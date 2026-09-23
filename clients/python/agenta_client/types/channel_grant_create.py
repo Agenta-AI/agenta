@@ -7,7 +7,9 @@ import typing
 import pydantic
 from ..core.pydantic_utilities import IS_PYDANTIC_V2, UniversalBaseModel, update_forward_refs
 from .channel_grant_data import ChannelGrantData
+from .channel_grant_effect import ChannelGrantEffect
 from .channel_grant_flags import ChannelGrantFlags
+from .channel_space_kind import ChannelSpaceKind
 
 
 class ChannelGrantCreate(UniversalBaseModel):
@@ -17,7 +19,9 @@ class ChannelGrantCreate(UniversalBaseModel):
     name: typing.Optional[str] = None
     description: typing.Optional[str] = None
     agent_id: str
-    space_id: str
+    effect: ChannelGrantEffect
+    kind: typing.Optional[ChannelSpaceKind] = None
+    space_id: typing.Optional[str] = None
     data: ChannelGrantData
     
     if IS_PYDANTIC_V2:

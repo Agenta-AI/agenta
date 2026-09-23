@@ -4,10 +4,12 @@ import typing
 
 import pydantic
 from ..core.pydantic_utilities import IS_PYDANTIC_V2, UniversalBaseModel
+from .channel_space_kind import ChannelSpaceKind
 
 
 class ChannelGrantQuery(UniversalBaseModel):
     agent_id: typing.Optional[str] = None
+    kind: typing.Optional[ChannelSpaceKind] = None
     space_id: typing.Optional[str] = None
     
     if IS_PYDANTIC_V2:
