@@ -2701,3 +2701,96 @@ async def test_telegram_not_modified_on_one_chunk_marks_it_sent_and_posts_the_re
     assert all(r.state == ChannelDeliveryState.SENT for r in rows)
     assert calls[0] == "editMessageText"
     assert calls.count("sendMessage") == len(rows) - 1
+
+
+class _UncertainIndicatorAdapter(_ActivitySpy):
+    """The indicator post times out after sending: it may be in the chat."""
+
+    def __init__(self):
+        super().__init__()
+        self.posts = 0
+
+    async def post_message(self, *, connection, locator, content, idempotency_key):
+        import httpx
+
+        self.posts += 1
+        raise httpx.ReadTimeout("read timed out")
+
+
+@pytest.mark.asyncio
+async def test_progress_never_posts_a_second_bubble_after_an_uncertain_indicator():
+    channels_dao = FakeChannelsDAO()
+    records_dao = FakeRecordsDAO()
+    adapter = _UncertainIndicatorAdapter()
+    worker = _progress_worker(channels_dao, records_dao, adapter)
+    _, thread = await _seed_connection_and_thread(channels_dao, "sess-uncertain-ind")
+
+    await worker.on_turn_started(
+        project_id=PROJECT_ID,
+        thread=thread,
+        turn_id="turn-ui",
+        session_id="sess-uncertain-ind",
+    )
+    _seed_answer(records_dao, "sess-uncertain-ind", "turn-ui", "partial")
+    await asyncio.sleep(0.05)
+    await worker.stop_progress("turn-ui")
+
+    assert adapter.posts == 1  # the indicator only; no tick posted a new message
+
+
+class _GatedClaimDAO(FakeChannelsDAO):
+    """Commits the claim, then holds the call open until the test opens the
+    gate: a cancel lands after the row is claimed, before the caller knows."""
+
+    def __init__(self):
+        super().__init__()
+        self.in_claim = asyncio.Event()
+        self.gate = asyncio.Event()
+        self.hold = False
+
+    async def claim_outbox_delivery(self, **kwargs):
+        claimed = await super().claim_outbox_delivery(**kwargs)
+        if self.hold:
+            self.in_claim.set()
+            await self.gate.wait()
+        return claimed
+
+
+@pytest.mark.asyncio
+async def test_a_cancel_during_the_claim_never_leaves_the_row_claimed():
+    channels_dao = _GatedClaimDAO()
+    records_dao = FakeRecordsDAO()
+    adapter = WellBehavedFakeAdapter()
+    worker = _progress_worker(channels_dao, records_dao, adapter)
+    connection, thread = await _seed_connection_and_thread(channels_dao, "sess-cc")
+    await worker.on_turn_started(
+        project_id=PROJECT_ID, thread=thread, turn_id="turn-cc", session_id="sess-cc"
+    )
+    await worker.stop_progress("turn-cc")
+    capabilities = await worker.channels_service.fetch_capabilities(
+        channel=connection.channel, connection=connection
+    )
+    row = next(iter(channels_dao.outbox.values()))
+
+    from oss.src.core.channels.render.render import render_progress
+
+    channels_dao.hold = True
+    task = asyncio.create_task(
+        worker._send(
+            project_id=PROJECT_ID,
+            event=row,
+            connection=connection,
+            capabilities=capabilities,
+            item=render_progress(capabilities=capabilities, text="partial"),
+            thread=thread,
+            wait_for_claim=False,
+        )
+    )
+    await channels_dao.in_claim.wait()
+    task.cancel()
+    await asyncio.sleep(0)
+    channels_dao.gate.set()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+
+    assert channels_dao.outbox[row.key].status.code == "sent"

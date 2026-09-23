@@ -313,8 +313,14 @@ class ChannelsOutboxWorker:
                         continue
                     else:
                         item = render_thinking(capabilities=capabilities, tick=tick)
+                    if not (event.data and event.data.external_locator):
+                        # Progress only edits the indicator. Without its
+                        # receipt (the post failed, or its outcome is unknown
+                        # and it may be in the chat) a tick would post a
+                        # second bubble.
+                        continue
                     # stop_progress may cancel this mid-edit; _send finishes a
-                    # started edit and its receipt write before the cancel
+                    # started claim, edit and receipt write before the cancel
                     # lands, so the final answer never finds the row stuck.
                     delivered = await self._send(
                         project_id=project_id,
@@ -566,23 +572,19 @@ class ChannelsOutboxWorker:
         # posts; the claimed row is re-read, so an edit targets the receipt
         # another worker may have written meanwhile.
         delivery_key = _delivery_key(event.key, content)
-        claimed, already_delivered = await self._claim_delivery(
-            project_id=project_id,
-            event=event,
-            content=content,
-            overwrite_final=overwrite_final,
-            delivery_key=delivery_key,
-            wait=wait_for_claim,
-        )
-        if claimed is None:
-            return already_delivered
 
-        # Once the row is ours, the post and its receipt write run to the end
-        # even if this task is cancelled (SIGTERM, stop_progress). A cancel
-        # between them would leave the row `sending` with the message already
-        # in the chat, and the next worker would post it again after the lease.
-        return await _finish_even_if_cancelled(
-            self._deliver(
+        async def claim_then_deliver() -> bool:
+            claimed, already_delivered = await self._claim_delivery(
+                project_id=project_id,
+                event=event,
+                content=content,
+                overwrite_final=overwrite_final,
+                delivery_key=delivery_key,
+                wait=wait_for_claim,
+            )
+            if claimed is None:
+                return already_delivered
+            return await self._deliver(
                 project_id=project_id,
                 event=claimed,
                 connection=connection,
@@ -592,7 +594,15 @@ class ChannelsOutboxWorker:
                 final=final,
                 delivery_key=delivery_key,
             )
-        )
+
+        # The claim, the post and its receipt write run to the end even if
+        # this task is cancelled (SIGTERM, stop_progress). A cancel between
+        # them would leave the row `sending`: after the post, with the message
+        # already in the chat, the next worker would post it again once the
+        # lease ran out; after the claim alone, the next delivery would wait
+        # the lease out. The extra delay a cancel sees is bounded by the claim
+        # wait (none for progress edits) and the adapters' HTTP timeouts.
+        return await _finish_even_if_cancelled(claim_then_deliver())
 
     async def _deliver(
         self,
