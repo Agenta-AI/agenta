@@ -427,7 +427,7 @@ describe("runSandboxAgent orchestration", () => {
 
       const result = await runSandboxAgent(request, undefined, undefined, deps);
 
-      assert.equal(result.ok, true, JSON.stringify(result));
+      assert.equal(result.ok, true);
       assert.equal(platformCredentialForRequest(request), "Secret initial");
       assert.equal(calls.otelOptions.authorization(), "Secret refreshed");
       assert.deepEqual(refreshRequests, [
@@ -2547,8 +2547,78 @@ describe("runSandboxAgent orchestration", () => {
     assert.equal(env.ANTHROPIC_CUSTOM_MODEL_OPTION, "anthropic.claude-x");
     assert.deepEqual(calls.applyModelArgs.at(-1), {
       model: "anthropic.claude-x",
-      options: { strict: true, harness: "claude" },
+      options: { strict: true },
     });
+  });
+
+  it("gives Claude the bare model id on a gateway run, in the env and in setModel", async () => {
+    // Regression: on a gateway run ANTHROPIC_MODEL / ANTHROPIC_CUSTOM_MODEL_OPTION carried
+    // `anthropic/claude-opus-5-5`, Claude Code accepted it in setModel because the custom option
+    // listed it, and sent it verbatim to the endpoint, which answered "model may not exist".
+    const { calls, deps } = fakeHarness();
+
+    const result = await runSandboxAgent(
+      {
+        harness: "claude",
+        messages: [{ role: "user", content: "hello" }],
+        model: "anthropic/claude-opus-5-5",
+        modelConnection: {
+          provider: "anthropic",
+          deployment: "direct",
+          credentialMode: "none",
+          credentials: [],
+          endpoint: {
+            baseUrl: "https://gateway.example.com/gateways/llms/standard/anthropic",
+          },
+          gatewayCredentials: {
+            header: "X-AG-Credentials",
+            value: "ApiKey mock-gateway-credentials",
+          },
+        },
+      } as AgentRunRequest,
+      undefined,
+      undefined,
+      deps,
+    );
+
+    assert.equal(result.ok, true);
+    const env = calls.providerArgs[1] as Record<string, string>;
+    assert.equal(env.ANTHROPIC_MODEL, "claude-opus-5-5");
+    assert.equal(env.ANTHROPIC_CUSTOM_MODEL_OPTION, "claude-opus-5-5");
+    assert.equal(calls.applyModelArgs.at(-1)?.model, "claude-opus-5-5");
+  });
+
+  it("keeps a custom Claude deployment's model id as the user named it", async () => {
+    const { calls, deps } = fakeHarness();
+
+    const result = await runSandboxAgent(
+      {
+        harness: "claude",
+        messages: [{ role: "user", content: "hello" }],
+        model: "anthropic/claude-opus-5-5",
+        modelConnection: {
+          provider: "anthropic",
+          deployment: "custom",
+          credentialMode: "env",
+          endpoint: { baseUrl: "https://llm-proxy.example.com" },
+          credentials: [
+            {
+              binding: { kind: "environment", name: "ANTHROPIC_API_KEY" },
+              value: "sk-ant-test",
+              usage: "local_use",
+            },
+          ],
+        },
+      } as AgentRunRequest,
+      undefined,
+      undefined,
+      deps,
+    );
+
+    assert.equal(result.ok, true, JSON.stringify(result));
+    const env = calls.providerArgs[1] as Record<string, string>;
+    assert.equal(env.ANTHROPIC_MODEL, "anthropic/claude-opus-5-5");
+    assert.equal(calls.applyModelArgs.at(-1)?.model, "anthropic/claude-opus-5-5");
   });
 
   it("sets Claude Vertex env and selected model pass-through", async () => {
