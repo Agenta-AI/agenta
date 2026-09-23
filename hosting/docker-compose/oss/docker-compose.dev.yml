@@ -503,7 +503,7 @@ services:
             AGENTA_RUNNER_DAYTONA_OPAQUE_SECRETS: ${AGENTA_RUNNER_DAYTONA_OPAQUE_SECRETS:-}
             # This service has no env_file (see above), so the session flags must be listed
             # here or they can never be set. Defaults ON: absent or empty means on, and only
-            # the literal "false" disables.
+            # the literal "false" disables. Do not disable for last-message-only requests.
             AGENTA_RECORDS_DURABLE: ${AGENTA_RECORDS_DURABLE:-}
             AGENTA_RUNNER_LIVE_FRAMES: ${AGENTA_RUNNER_LIVE_FRAMES:-true}
             # Also unreachable without an explicit entry (no env_file), and the runner is
