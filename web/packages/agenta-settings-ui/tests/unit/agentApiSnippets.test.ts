@@ -1,7 +1,11 @@
 import {describe, expect, it} from "vitest"
 
-import {AGENT_INVOKE_DOCS_URL, agentHostFromApiUrl, agentInvokeBody} from "./request"
-import {buildAgentSnippets, type AgentSnippetLang} from "./snippets"
+import {
+    AGENT_INVOKE_DOCS_URL,
+    agentHostFromApiUrl,
+    agentInvokeBody,
+} from "../../src/publish/snippets/request"
+import {buildAgentSnippets, type AgentSnippetLang} from "../../src/publish/snippets/snippets"
 
 const input = {
     host: "https://eu.cloud.agenta.ai",

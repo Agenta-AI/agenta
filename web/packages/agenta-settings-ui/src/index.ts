@@ -138,8 +138,17 @@ export type {
 // The agent header's Publish menu: Slack, Telegram and API, each opening its own drawer.
 export {
     PublishMenu,
+    AgentPublish,
+    AgentApiPanel,
+    AGENT_INVOKE_DOCS_URL,
+    agentHostFromApiUrl,
+    buildAgentSnippets,
     buildPublishItems,
     liveSummary,
+    type AgentApiPanelProps,
+    type AgentPublishProps,
+    type AgentSnippetLang,
+    type ApiKeyFieldProps,
     type BuildPublishItemsOptions,
     type PublishMenuItem,
     type PublishMenuProps,
