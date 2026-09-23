@@ -638,7 +638,7 @@ class ChannelsClient:
         client.channels.create_channel_grant(
             grant=ChannelGrantCreate(
                 agent_id="agent_id",
-                space_id="space_id",
+                effect="allow",
                 data=ChannelGrantData(),
             ),
         )
@@ -1675,7 +1675,7 @@ class AsyncChannelsClient:
             await client.channels.create_channel_grant(
                 grant=ChannelGrantCreate(
                     agent_id="agent_id",
-                    space_id="space_id",
+                    effect="allow",
                     data=ChannelGrantData(),
                 ),
             )

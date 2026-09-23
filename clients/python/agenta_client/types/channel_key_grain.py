@@ -2,4 +2,4 @@
 
 import typing
 
-ChannelKeyGrain = typing.Union[typing.Literal["space", "thread"], typing.Any]
+ChannelKeyGrain = typing.Union[typing.Literal["connection", "space", "thread"], typing.Any]
