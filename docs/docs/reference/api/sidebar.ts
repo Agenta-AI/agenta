@@ -526,6 +526,12 @@ const sidebar: SidebarsConfig = {
         },
         {
           type: "doc",
+          id: "reference/api/load-agent-template",
+          label: "Load Template",
+          className: "api-method post",
+        },
+        {
+          type: "doc",
           id: "reference/api/create-simple-workflow",
           label: "Create Simple Workflow",
           className: "api-method post",
@@ -2696,13 +2702,13 @@ const sidebar: SidebarsConfig = {
           type: "doc",
           id: "reference/api/set-session-stream-header",
           label: "Set Session Stream Header",
-          className: "api-method put",
+          className: "api-method post",
         },
         {
           type: "doc",
           id: "reference/api/set-session-stream-header",
           label: "Set Session Stream Header",
-          className: "api-method post",
+          className: "api-method put",
         },
         {
           type: "doc",
@@ -3016,6 +3022,12 @@ const sidebar: SidebarsConfig = {
           type: "doc",
           id: "reference/api/unarchive-mount",
           label: "Unarchive Mount",
+          className: "api-method post",
+        },
+        {
+          type: "doc",
+          id: "reference/api/mint-app-scope-token",
+          label: "Mint App Scope Token",
           className: "api-method post",
         },
         {
