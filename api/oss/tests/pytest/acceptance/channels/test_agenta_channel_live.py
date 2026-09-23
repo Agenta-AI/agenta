@@ -7,9 +7,13 @@ so the turn is a real turn -- a real run plan, a real ACP session, real turn
 records -- with a deterministic answer and no model call.
 """
 
+import os
 from uuid import uuid4
 
 import pytest
+import requests
+
+from utils.constants import BASE_TIMEOUT
 
 pytestmark = pytest.mark.acceptance
 
@@ -19,7 +23,7 @@ _QUESTION = "hello from the acceptance check"
 
 @pytest.mark.usefixtures("cls_account")
 class TestAgentaChannelLive:
-    def test_post_invoke_and_read_the_answer_back(self, authed_api):
+    def test_post_invoke_and_read_the_answer_back(self, authed_api, cls_account):
         bot_slug = f"agenta-acceptance-{uuid4().hex[:8]}"
 
         revision_id = _create_mock_agent_application(authed_api)
@@ -61,6 +65,9 @@ class TestAgentaChannelLive:
         space_id = _poll_for_space(authed_api, connection_slug=bot_slug)
         answer = _poll_for_answer(authed_api, space_id=space_id, contains=_ANSWER)
 
+        if answer is None:
+            _skip_if_local_sandbox_refused(cls_account)
+
         assert answer is not None, (
             "no answer was posted within the timeout; the conversation held: "
             f"{_conversation_summary(authed_api, space_id=space_id)}"
@@ -68,6 +75,110 @@ class TestAgentaChannelLive:
         # the reply is what the agent said, and only that: the inbound turn
         # is persisted into the same record log the answer is folded from
         assert _QUESTION not in _answer_text(answer), _answer_text(answer)
+
+
+# The runner's refusal for a sandbox kind the deployment has not enabled
+# (`AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS`). Staging enables only Daytona.
+_SANDBOX_NOT_ALLOWED_TYPE = "v0:agent:sandbox-provider-not-allowed"
+
+
+def _mock_agent_parameters() -> dict:
+    return {
+        "agent": {
+            "harness": {
+                "kind": "mock",
+                "extras": {
+                    "behavior": "reply",
+                    "kwargs": {"text": _ANSWER},
+                },
+            },
+            "sandbox": {"kind": "local"},
+            # the schema default seeds a real provider model, and
+            # the mock never calls one -- self_managed keeps the
+            # run out of the vault entirely
+            "llm": {
+                "provider": "mock",
+                "model": "mock-1",
+                "connection": {"mode": "self_managed"},
+            },
+        }
+    }
+
+
+def _services_url(api_url: str) -> str:
+    """The agent service's origin: `AGENTA_SERVICES_URL` where the run sets it,
+    else the API URL with its `/api` suffix swapped for `/services`, which is
+    how every deployment shape mounts the two."""
+
+    configured = os.getenv("AGENTA_SERVICES_URL")
+    if configured:
+        return configured.rstrip("/")
+    base = api_url.rstrip("/")
+    if base.endswith("/api"):
+        base = base[: -len("/api")]
+    return f"{base}/services"
+
+
+def _skip_if_local_sandbox_refused(account) -> None:
+    """Skip when the deployment refuses the mock agent's local sandbox.
+
+    The channel reports that refusal as a failed start, which is correct, so the
+    answer never arrives. Asking the agent service directly with the same
+    parameters tells that apart from a real routing or invoke defect: only the
+    refusal skips, and anything else falls through to the assertion.
+    """
+
+    try:
+        response = requests.post(
+            f"{_services_url(account['api_url'])}/agent/v0/invoke",
+            json={
+                "session_id": str(uuid4()),
+                "data": {
+                    "inputs": {
+                        "messages": [
+                            {
+                                "id": str(uuid4()),
+                                "role": "user",
+                                "parts": [{"type": "text", "text": _QUESTION}],
+                            }
+                        ]
+                    },
+                    "parameters": _mock_agent_parameters(),
+                },
+            },
+            headers={
+                "Authorization": account["credentials"],
+                "Accept": "text/event-stream",
+            },
+            timeout=BASE_TIMEOUT,
+            # a deployment that accepts the sandbox answers with a stream; only
+            # the status line is read before the connection is closed
+            stream=True,
+        )
+    except requests.RequestException:
+        # an unreachable probe proves nothing; the channel assertion reports
+        return
+
+    try:
+        if response.status_code != 403:
+            return
+        payload = response.json()
+    except (ValueError, requests.RequestException):
+        return
+    finally:
+        response.close()
+
+    status = payload.get("status") if isinstance(payload, dict) else None
+    if not isinstance(status, dict):
+        return
+
+    # the type is a docs URL whose fragment names the error
+    error_type = str(status.get("type") or "").rsplit("#", 1)[-1]
+    if error_type == _SANDBOX_NOT_ALLOWED_TYPE:
+        pytest.skip(
+            "the deployment does not enable the local sandbox the mock agent runs "
+            f"on: {status.get('message', '')}"
+        )
 
 
 def _create_mock_agent_application(authed_api) -> str:
@@ -84,26 +195,7 @@ def _create_mock_agent_application(authed_api) -> str:
                 "name": f"Mock Agent {slug}",
                 "data": {
                     "uri": "agenta:builtin:agent:v0",
-                    "parameters": {
-                        "agent": {
-                            "harness": {
-                                "kind": "mock",
-                                "extras": {
-                                    "behavior": "reply",
-                                    "kwargs": {"text": _ANSWER},
-                                },
-                            },
-                            "sandbox": {"kind": "local"},
-                            # the schema default seeds a real provider model, and
-                            # the mock never calls one -- self_managed keeps the
-                            # run out of the vault entirely
-                            "llm": {
-                                "provider": "mock",
-                                "model": "mock-1",
-                                "connection": {"mode": "self_managed"},
-                            },
-                        }
-                    },
+                    "parameters": _mock_agent_parameters(),
                 },
             }
         },
