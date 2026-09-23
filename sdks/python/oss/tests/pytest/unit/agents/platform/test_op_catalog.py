@@ -15,7 +15,6 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 
 import jsonschema
 import pytest
@@ -35,20 +34,6 @@ from agenta.sdk.agents.tools import (
     ToolCall,
     UnknownPlatformOpError,
 )
-
-
-def _ordered_operations_enabled() -> bool:
-    """Read the flag independently of the code under test.
-
-    Calling the catalog's own helper would derive the expectation from the thing being
-    asserted: a helper that always returned True would move both sides together and the
-    test would still pass. The default and the spellings are spelled out here for the same
-    reason.
-    """
-    value = (os.getenv("AGENTA_WORKFLOWS_ORDERED_OPERATIONS_ENABLED") or "").strip()
-    if not value:
-        return True
-    return value.lower() in {"true", "1", "t", "y", "yes", "on", "enable", "enabled"}
 
 
 def _resolver(connection):
@@ -574,48 +559,27 @@ async def test_commit_revision_binds_self_and_strips_bound_field(connection):
     workflow_revision = spec.input_schema["properties"]["workflow_revision"]
     assert "workflow_variant_id" not in workflow_revision["properties"]
     # The ordered arm REQUIRES the base revision id: the server refuses a delta that omits
-    # it, so a schema that marks it optional buys a refused call and a wasted turn. Its
-    # absence from the flag-off list is equally deliberate: a legacy delta may omit it, and
-    # sending it is how a caller opts in to the staleness check.
-    assert workflow_revision["required"] == (
-        ["base_revision_id", "delta"] if _ordered_operations_enabled() else ["delta"]
-    )
+    # it, so a schema that marks it optional buys a refused call and a wasted turn.
+    assert workflow_revision["required"] == ["base_revision_id", "delta"]
     delta = workflow_revision["properties"]["delta"]
 
-    # The rest of the surface depends on the ordered-operations flag: with it on, the
-    # server derives the message and the ordered arm appears. Both states are pinned, so
-    # this test is honest whichever way the suite runs.
+    # The server derives the message, so `message` is not model-visible.
     # `description` is the ephemeral per-call note in its tolerated second position, not a
     # payload field: the runner lifts it out and it is never stored (read-config.md 12).
-    if _ordered_operations_enabled():
-        assert set(workflow_revision["properties"]) == {
-            "base_revision_id",
-            "delta",
-            "description",
-        }
-        # ONE arm is visible per deployment. A model that sees both picks a different one
-        # from call to call, and the approval card then varies for the same kind of edit.
-        # The endpoint still accepts the legacy form; only this surface narrows.
-        assert set(delta["properties"]) == {"operations"}
-    else:
-        assert set(workflow_revision["properties"]) == {
-            "message",
-            "delta",
-            "description",
-        }
-        assert set(delta["properties"]) == {"set", "remove"}
-        assert "parameters.agent" in delta["properties"]["set"]["description"]
+    assert set(workflow_revision["properties"]) == {
+        "base_revision_id",
+        "delta",
+        "description",
+    }
+    # Only the ordered arm is visible. A model that sees both picks a different one from
+    # call to call, and the approval card then varies for the same kind of edit. The
+    # endpoint still accepts the legacy form; only this surface narrows.
+    assert set(delta["properties"]) == {"operations"}
 
-    if _ordered_operations_enabled():
-        # Ordered operations change one entry at a time, so the wholesale-list warning is
-        # obsolete; the description teaches the read-then-commit loop instead.
-        assert "base_revision_id" in spec.description
-        assert "playground's own tools" in spec.description
-    else:
-        # Lists (tools, skills, mcps) replace wholesale on deep-merge; the description must
-        # warn the model to resend the complete list or it wipes its own build-kit tools (B2).
-        assert "wholesale" in spec.description
-        assert "revision id" in spec.description
+    # Ordered operations change one entry at a time; the description teaches the
+    # read-then-commit loop.
+    assert "base_revision_id" in spec.description
+    assert "playground's own tools" in spec.description
 
 
 async def test_commit_revision_is_not_read_only(connection):
@@ -656,77 +620,16 @@ def _has_embed_branch(items):
     )
 
 
-# With ordered operations on, `delta.set` leaves the commit schema, so the three cases below
-# have no surface to inspect there. They are not lost: `test_run` keeps `delta.set` in both
-# states, and case (d) pins the same three properties on it.
-legacy_delta_only = pytest.mark.skipif(
-    _ordered_operations_enabled(),
-    reason="delta.set is not model-visible on commit_revision when ordered operations are on",
-)
-
-
-def _commit_agent_subtree():
-    schema = get_platform_op("commit_revision").resolved_input_schema()
-    delta = schema["properties"]["workflow_revision"]["properties"]["delta"]
-    return delta["properties"]["set"]["properties"]["parameters"]["properties"]["agent"]
-
-
 def _test_run_agent_subtree():
     schema = get_platform_op("test_run").resolved_input_schema()
     delta = schema["properties"]["delta"]
     return delta["properties"]["set"]["properties"]["parameters"]["properties"]["agent"]
 
 
-@legacy_delta_only
-def test_commit_revision_delta_set_carries_agent_template_shape():
-    # (a) The agent-template shape is reachable under delta.set.parameters.agent, so the tool schema
-    # itself (not just prose) tells the model what a `parameters.agent` payload looks like. The
-    # harness `kind` enum is a concrete, low-drift landmark inside it.
-    agent = _commit_agent_subtree()
-    assert agent["type"] == "object"
-    assert set(agent["properties"]) >= {
-        "instructions",
-        "llm",
-        "tools",
-        "mcps",
-        "skills",
-        "harness",
-        "runner",
-        "sandbox",
-    }
-    harness_kind = agent["properties"]["harness"]["properties"]["kind"]
-    assert "pi_core" in harness_kind["enum"]
-    assert "claude" in harness_kind["enum"]
-    # The inline skill-template ref was expanded (its typed fields are present), not left as a marker.
-    skills_items = agent["properties"]["skills"]["items"]
-    assert "x-ag-type-ref" not in json.dumps(agent)
-    assert _has_embed_branch(skills_items)
-
-
-@legacy_delta_only
-def test_commit_revision_delta_set_agent_subtree_has_no_required():
-    # (b) A delta is a deep partial: EVERY field is optional, so no `required` array may survive
-    # anywhere under the agent subtree, or a schema-following harness would think it must resend
-    # every required field just to change one.
-    agent = _commit_agent_subtree()
-    assert list(_iter_required_lists(agent)) == []
-
-
-@legacy_delta_only
-def test_commit_revision_delta_set_list_items_accept_embeds():
-    # (c) tools/skills/mcps may hold `@ag.embed` build-kit entries; since the model re-sends the
-    # whole list, each item schema must accept the embed shape or the embeds get mangled.
-    agent = _commit_agent_subtree()
-    for field in ("tools", "skills", "mcps"):
-        items = agent["properties"][field]["items"]
-        assert "anyOf" in items, field
-        assert _has_embed_branch(items), field
-
-
 def test_test_run_delta_set_matches_commit_revision():
     # (d) test_run's uncommitted delta gets the same typed, deep-partial, embed-tolerant shape.
-    # With ordered operations on this is the only place that shape is pinned, because
-    # `delta.set` is no longer model-visible on commit_revision.
+    # This is the only place that shape is pinned, because `delta.set` is not
+    # model-visible on commit_revision.
     agent = _test_run_agent_subtree()
     assert set(agent["properties"]) >= {"instructions", "llm", "harness", "sandbox"}
     assert "pi_core" in agent["properties"]["harness"]["properties"]["kind"]["enum"]
@@ -922,13 +825,6 @@ async def test_disabling_handlers_cannot_silently_remove_config_editing(
     # Dropped silently, the model has no commit tool AND no error to report, so it
     # improvises: it writes workspace files and says it succeeded. That is the exact
     # failure this whole feature exists to prevent, so it fails at resolution instead.
-    if op == "read_config" and not _ordered_operations_enabled():
-        # `read_config` enters the catalog only with ordered operations on, which is the
-        # flag gating this whole surface. `commit_revision` does NOT (it is in the build
-        # kit unconditionally), which is why that half of this cell runs in both states and
-        # is the one that decides the upgrade blast radius.
-        pytest.skip("read_config is not in the catalog with ordered operations off")
-
     monkeypatch.setenv("AGENTA_AGENT_ENABLE_PLATFORM_HANDLERS", "false")
 
     with pytest.raises(GatewayToolResolutionError) as caught:

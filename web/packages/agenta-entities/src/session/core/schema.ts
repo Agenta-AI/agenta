@@ -303,11 +303,10 @@ export const sessionSnapshotSchema = z.object({
     read: sessionRecordsReadStateSchema.nullish().default(null),
     capabilities: z
         .object({
-            durable_approvals: z.boolean().optional().default(false),
             queue: z.boolean().optional().default(false),
             steer: z.boolean().optional().default(false),
         })
-        .default({durable_approvals: false, queue: false, steer: false}),
+        .default({queue: false, steer: false}),
 })
 
 export const sessionStreamsResponseSchema = z.object({
@@ -328,12 +327,11 @@ export const sessionStreamResponseSchema = z.object({
     stream: sessionStreamSchema.nullish(),
     capabilities: z
         .object({
-            durable_approvals: z.boolean().optional().default(false),
             queue: z.boolean().optional().default(false),
             steer: z.boolean().optional().default(false),
         })
         .optional()
-        .default({durable_approvals: false, queue: false, steer: false}),
+        .default({queue: false, steer: false}),
 })
 
 /** Control-call result for the prompt × force command matrix. */
@@ -346,16 +344,13 @@ export const sessionStreamCommandResponseSchema = z.object({
     cancelled_turn_ids: z.array(z.string()).nullish(),
 })
 
-export const sessionCancelExecutionResponseSchema = z.union([
-    z.object({
-        command: z.object({id: z.string(), state: z.string()}),
-        execution: z.object({
-            id: z.string().nullish(),
-            state: z.enum(["stopping", "idle"]),
-        }),
+export const sessionCancelExecutionResponseSchema = z.object({
+    command: z.object({id: z.string(), state: z.string()}),
+    execution: z.object({
+        id: z.string().nullish(),
+        state: z.enum(["stopping", "idle"]),
     }),
-    sessionStreamCommandResponseSchema,
-])
+})
 
 export type SessionStream = z.infer<typeof sessionStreamSchema>
 export type SessionLiveFrame = z.infer<typeof sessionLiveFrameSchema>
