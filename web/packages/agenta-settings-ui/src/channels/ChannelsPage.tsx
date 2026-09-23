@@ -228,8 +228,23 @@ export const ChannelsPage = ({
                                   if (!active.connectionId) {
                                       throw new Error("This connection has no id yet.")
                                   }
-                                  await actions.disconnect(activePlatform, active.connectionId)
-                                  await actions.reload()
+                                  const connectionId = active.connectionId
+                                  let failure: unknown = null
+                                  try {
+                                      await actions.disconnect(activePlatform, connectionId)
+                                  } catch (error) {
+                                      failure = error
+                                  }
+                                  // Re-read even after a failure: the backend can archive the
+                                  // row and still answer with an error, and the row must show
+                                  // what is actually there rather than what the call claimed.
+                                  const next = await actions.reload().catch(() => null)
+                                  if (failure) {
+                                      const gone =
+                                          next !== null &&
+                                          next[activePlatform]?.connectionId !== connectionId
+                                      if (!gone) throw failure
+                                  }
                                   close()
                               }}
                           />

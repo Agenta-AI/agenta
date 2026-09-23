@@ -125,7 +125,13 @@ export const ChannelManagePanel = ({
 
     const [confirming, setConfirming] = useState(false)
     const [busy, setBusy] = useState<"disconnect" | "connect-here" | null>(null)
-    const [error, setError] = useState<string | null>(null)
+    // Which action failed decides where its message shows: next to the button that ran it.
+    // The panel is taller than a phone sheet, so a message at the top of the panel is off
+    // screen when the user is at the Disconnect button at the bottom.
+    const [error, setError] = useState<{
+        kind: "disconnect" | "connect-here"
+        message: string
+    } | null>(null)
 
     const revoked = connection.status === "revoked"
     const scope = connectionScope(connection, agentId)
@@ -340,14 +346,15 @@ export const ChannelManagePanel = ({
         try {
             await action()
         } catch (e) {
-            setError(
-                errorMessage(
+            setError({
+                kind,
+                message: errorMessage(
                     e,
                     kind === "disconnect"
                         ? `Could not disconnect ${name}. Try again.`
                         : `Could not connect ${name} to ${agentName}. Try again.`,
                 ),
-            )
+            })
         } finally {
             setBusy(null)
         }
@@ -487,7 +494,9 @@ export const ChannelManagePanel = ({
 
     return (
         <div className="flex flex-col gap-5">
-            {error ? <Alert type="error" showIcon message={error} /> : null}
+            {error?.kind === "connect-here" ? (
+                <Alert type="error" showIcon message={error.message} />
+            ) : null}
 
             {revoked && !elsewhere ? (
                 <div
@@ -882,6 +891,9 @@ export const ChannelManagePanel = ({
                     </Accordion>
 
                     <div className={`flex flex-col gap-2 pt-4 ${DIVIDED}`}>
+                        {error?.kind === "disconnect" ? (
+                            <Alert type="error" showIcon message={error.message} />
+                        ) : null}
                         {confirming ? (
                             <div className="flex flex-col gap-3 rounded-lg border border-solid border-colorBorderSecondary p-3">
                                 <span className="text-xs leading-relaxed text-colorTextSecondary">
