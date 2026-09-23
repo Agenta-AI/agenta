@@ -1,9 +1,11 @@
+import {agentInstructionsText} from "./agentInstructions"
+
 /**
  * Reduce an agent revision's `parameters` to the handful of facts an overview row can state.
  *
  * Shape (verified against stored revisions): `parameters.agent` carries `llm{model,provider}`,
  * `harness{kind}`, `sandbox{kind}`, `runner{kind,permissions{default}}`,
- * `instructions{agents_md}` and the flat `tools` / `mcps` / `skills` arrays.
+ * `instructions{agents_md}` (or a bare string, see `agentInstructionsText`) and the flat `tools` / `mcps` / `skills` arrays.
  *
  * Everything is optional on purpose: a revision written before a field existed, or an agent that
  * never set one, yields `null` and the row says so rather than the card failing to render.
@@ -70,7 +72,7 @@ export function prettifyKind(kind: string | null): string | null {
 export function agentConfigSummary(parameters: unknown): AgentConfigSummary {
     const agent = nested(parameters, "agent") ?? (isRecord(parameters) ? parameters : {})
 
-    const instructions = str(nested(agent, "instructions")?.agents_md)
+    const instructions = str(agentInstructionsText(agent.instructions))
 
     return {
         model: str(nested(agent, "llm")?.model),

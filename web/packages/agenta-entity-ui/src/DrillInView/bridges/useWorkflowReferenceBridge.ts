@@ -41,6 +41,7 @@ import {atom, getDefaultStore, useAtomValue, useSetAtom, useStore} from "jotai"
 import {atomFamily} from "jotai-family"
 import {atomWithQuery} from "jotai-tanstack-query"
 
+import {agentInstructionsText} from "../../agent/agentInstructions"
 import {describeSkill} from "../SchemaControls/agentTemplate/itemDescriptors"
 import {connectionFromConfig, modelIdFromConfig} from "../SchemaControls/connectionUtils"
 import {integrationPermissionSummary} from "../SchemaControls/integrationPolicy"
@@ -234,10 +235,7 @@ function subagentDetailOf(revision: Workflow): SubagentDetail {
     const skills = (cfg && Array.isArray(cfg.skills) ? (cfg.skills as unknown[]) : [])
         .map((skill) => describeSkill(skill).name)
         .filter(Boolean)
-    const agentsMd =
-        cfg && isPlainRecord(cfg.instructions) && typeof cfg.instructions.agents_md === "string"
-            ? cfg.instructions.agents_md
-            : null
+    const agentsMd = cfg ? agentInstructionsText(cfg.instructions) : null
     return {
         workflowId: workflowIdOf(revision) ?? undefined,
         description: typeof revision.description === "string" ? revision.description : undefined,

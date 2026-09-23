@@ -1641,6 +1641,21 @@ def _parse_sandbox_credentials(
         ) from exc
 
 
+def _agents_md(instructions: Any) -> Optional[str]:
+    """The AGENTS.md text from ``instructions``: the object form ``{agents_md: "..."}``, or a
+    bare string as shorthand for it.
+
+    Revisions written through the API with a plain-string ``instructions`` exist in stored data;
+    reading only the object form ran those agents with no instructions at all. Any other type
+    yields ``None`` so the caller falls back to the defaults."""
+    if isinstance(instructions, str):
+        return instructions
+    if isinstance(instructions, dict):
+        agents_md = instructions.get("agents_md")
+        return agents_md if isinstance(agents_md, str) else None
+    return None
+
+
 def _parse_agent_fields(
     params: Dict[str, Any],
     defaults: AgentTemplate,
@@ -1655,10 +1670,7 @@ def _parse_agent_fields(
     )
     if has_template:
         agent = _template(params)
-        instructions = agent.get("instructions")
-        agents_md = (
-            instructions.get("agents_md") if isinstance(instructions, dict) else None
-        )
+        agents_md = _agents_md(agent.get("instructions"))
         llm = agent.get("llm")
         model = _model_from_llm(llm) if isinstance(llm, dict) else None
         return (
