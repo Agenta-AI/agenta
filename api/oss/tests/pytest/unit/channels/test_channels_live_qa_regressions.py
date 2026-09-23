@@ -203,3 +203,24 @@ async def test_bound_elsewhere_message_is_not_an_expired_link():
     assert "another Agenta project" in text
     assert "Disconnect" in text
     assert "not valid" not in text
+
+
+def test_a_command_title_is_shown_verbatim():
+    """Live QA 2026-09-23: Claude's Bash tool titles the call with the command
+    itself, and `.capitalize()` lower-cased it, so the card read
+    `Ls -la ... "no agent-files found"` for a command that says "No"."""
+
+    command = 'ls -la /data/Agent_Files 2>/dev/null || echo "No agent-files found"'
+    item = render_turn_result(
+        capabilities=fetch_telegram_capabilities(),
+        folded={
+            "stop_reason": "paused",
+            "pending_interaction": {
+                "id": "approval",
+                "tool": command,
+                "payload": {"toolCall": {"rawInput": {"command": command}}},
+            },
+        },
+    )[0]
+
+    assert item.parts[0].title == f"Approval needed: {command}"
