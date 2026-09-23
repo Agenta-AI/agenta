@@ -109,3 +109,5 @@ Returns the ordered list of revisions committed to a variant. Each entry include
 Artifacts and variants are soft-deleted. `POST /{resource}/{id}/archive` sets `deleted_at`; `POST /{resource}/{id}/unarchive` clears it. Archived items are hidden from `/query` responses unless the request body sets `include_archived: true`. See [Query Pattern](/reference/api-guide/query-pattern#archive-and-unarchive).
 
 Archiving an artifact hides its variants and revisions. Revision IDs remain resolvable so historical traces stay intact.
+
+Invoking an archived application, evaluator or workflow fails with status `410`, and `status.type` ends in `#v0:references:archived`. This applies whether the invoke names the target directly or through an environment. Unarchive the target to invoke it again.

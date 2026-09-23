@@ -32,9 +32,9 @@ A gated tool, user-input request, or client tool can end a turn with `stop_reaso
 Resume in either way:
 
 - replay the paused assistant message with the answer represented as a tool result; or
-- call `POST /api/sessions/interactions/{interaction_id}/respond`.
+- call `POST /api/sessions/interactions/{interaction_id}/respond` with an `Idempotency-Key` header. It returns `202`.
 
-Do not answer the same interaction twice. A non-pending interaction returns `409`.
+A retry with the same key and the same answer is safe. A different answer to an interaction that was already answered, or to one that is no longer pending, returns `409`.
 
 ## Stop an execution
 

@@ -16,6 +16,87 @@ Agenta follows semantic versioning with new releases every week. Stay updated by
 The multi-organization release flips OSS from invite-only to open signup. If your instance is reachable beyond a trusted network, set `AGENTA_ACCESS_ALLOWED_OWNER_EMAILS` (and optionally `AGENTA_ACCESS_ALLOWED_DOMAINS`) before upgrading. See [Migrate to Multi-Organization OSS](/self-host/upgrades/multi-org-migration).
 :::
 
+## Upgrading to 0.121.0
+
+This release removes a set of environment variables and a Helm key, makes the mobile app (`/m`) part of every deployment, and changes three API behaviors. Read each subsection that matches your deployment. The standard upgrade process below still applies.
+
+### Removed environment variables
+
+The variables below no longer exist. Agenta ignores them, and the behavior in the right column is always on. If your env file, Helm values or Railway variables set one of them, delete it. The change affects you only if you had set one to `false`; at its default each one already behaved as described.
+
+| Variable                                      | Behavior that is now always on                                                                                                                                                    |
+| --------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `AGENTA_MOBILE_GATE`                          | A phone that opens a desktop route is redirected to `/m`. A user with **Developer Mode** off (in **Settings > Preferences**) is also sent to `/m` for the pages that exist there. |
+| `AGENTA_MOBILE_REVERSE_GATE`                  | A desktop browser may open `/m`. It is not sent back to `/w`.                                                                                                                     |
+| `AGENTA_MOBILE_ENABLED`                       | The `web-mobile` service runs on every deployment. See [The mobile app always ships](#the-mobile-app-always-ships).                                                               |
+| `AGENTA_SESSIONS_QUEUE`                       | Agent messages go through the durable session queue. A message sent while a turn runs is queued instead of refused.                                                               |
+| `AGENTA_SESSIONS_STEER`                       | A message sent while a turn runs can be delivered into that turn.                                                                                                                 |
+| `AGENTA_SESSIONS_DURABLE_APPROVALS`           | Approval requests are stored in the database. Answering one through the API needs an `Idempotency-Key` header (see [API behavior changes](#api-behavior-changes)).                |
+| `AGENTA_SESSIONS_DURABLE_STOP`                | **Stop** is stored as a durable command and delivered to the runner.                                                                                                              |
+| `AGENTA_RECORDS_DURABLE`                      | The runner retries a failed session record write.                                                                                                                                 |
+| `AGENTA_RECORDS_SMART_TRUNCATION`             | A session record that is too large is truncated with its structure kept, instead of losing its body.                                                                              |
+| `AGENTA_SESSIONS_RECONSTRUCT`                 | The runner rebuilds the conversation history of a turn from the stored session records.                                                                                           |
+| `NEXT_PUBLIC_SESSIONS_LAST_MESSAGE_ONLY`      | The web app sends only the newest message of each turn. The runner rebuilds the rest (see the previous row).                                                                      |
+| `NEXT_PUBLIC_AGENT_CHAT_SLICE`                | The streaming agent chat page is used.                                                                                                                                            |
+| `NEXT_PUBLIC_AGENT_TEMPLATE_BUILDER`          | Choosing an agent template opens the playground with the template loaded.                                                                                                         |
+| `NEXT_PUBLIC_AGENT_PLAYGROUND_ONBOARDING`     | Agent onboarding runs inside the playground.                                                                                                                                      |
+| `NEXT_PUBLIC_AGENT_FILE_UPLOADS`              | File attachments in the agent chat and uploads in the file drive are shown. They need the [durable object store](/self-host/configuration#store-durable-object-store).            |
+| `NEXT_PUBLIC_AGENT_CONNECT_STEP`              | Creating an agent from the start page first asks the user to connect the accounts the agent needs.                                                                                |
+| `AGENTA_WORKFLOWS_ORDERED_OPERATIONS_ENABLED` | Workflow commits accept ordered operations. A commit that leaves the configuration unchanged creates no new revision.                                                             |
+
+The runner rebuilds history from the records that the `records` loop of `worker-streams` stores. If you run `worker-streams` with an explicit `AGENTA_WORKER_STREAMS` list, make sure one instance includes `records`, or agents lose the earlier turns of a conversation.
+
+### The mobile app always ships
+
+The mobile web app is served at `/m` and has no off switch. The web app redirects phones to it, so `/m` must be reachable on every deployment.
+
+#### Docker Compose
+
+The `web-mobile` service starts with the stack. `run.sh --no-mobile` is removed, and `run.sh` stops with `Unknown parameter` if a script still passes it. Do not scale `web-mobile` to zero: phones would be redirected to a route with nothing behind it.
+
+If you run your own reverse proxy instead of the bundled Traefik or nginx, route `/m` and every path under `/m/` to the `web-mobile` service on port `3000`, before the catch-all route to `web`.
+
+#### Helm
+
+The `webMobile.enabled` key is removed, and the `web-mobile` Deployment always renders. `webMobile.enabled: false` in a values file now fails schema validation, so `helm upgrade` stops. `webMobile.enabled: true` is accepted and does nothing. Delete the key from your values file before you upgrade.
+
+#### Railway
+
+`bootstrap.sh` now always creates the `web-mobile` service, and `AGENTA_RAILWAY_WITH_MOBILE` is ignored. An environment bootstrapped without mobile has no `web-mobile` service, and `configure.sh` (which `deploy-from-images.sh` and `upgrade.sh` run) stops with `Service 'web-mobile' is missing`. Re-run the bootstrap script first. It is idempotent and only adds what is missing:
+
+```bash
+./hosting/railway/oss/scripts/bootstrap.sh
+```
+
+`deploy-from-images.sh` redeploys `web-mobile` only when `AGENTA_WEB_MOBILE_IMAGE` is set. Export it with the other images, at the same tag:
+
+```bash
+export AGENTA_WEB_MOBILE_IMAGE="ghcr.io/agenta-ai/agenta-web-mobile:latest"
+```
+
+### Channels
+
+Channels connect an agent to Slack or Telegram. They need no feature flag on the server. Six environment variables are optional and turn on the hosted integrations, where users connect without creating their own Slack app or Telegram bot:
+
+| Variable                                                                                      | Hosted integration                                                                                                                            |
+| --------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `SLACK_CLIENT_ID`, `SLACK_CLIENT_SECRET`, `SLACK_SIGNING_SECRET`                              | The hosted Slack app install. It stays off until all three are set.                                                                           |
+| `TELEGRAM_HOSTED_BOT_TOKEN`, `TELEGRAM_HOSTED_BOT_USERNAME`, `TELEGRAM_HOSTED_WEBHOOK_SECRET` | The shared Telegram bot. It stays off until all three are set. See [Set up the hosted Telegram bot](/self-host/channels/telegram-hosted-bot). |
+
+Without them, users can still connect their own Slack app or Telegram bot. The variables and where to set them are listed in [Channels](/self-host/configuration#channels).
+
+Channel replies are sent by the `sessions` loop of `worker-streams`. Run that loop in exactly one `worker-streams` replica. With two or more, a progress update can overwrite a final reply, and a Telegram reply can arrive twice. The Helm chart and the Compose files run one replica by default.
+
+If you run the workers with explicit selectors, add the two new loops: `sessions` to one `AGENTA_WORKER_STREAMS` list and `channels-inbox` to one `AGENTA_WORKER_QUEUES` list. An empty selector already runs every loop.
+
+On Enterprise Edition, the default roles include the new permissions `view_channels`, `edit_channels` and `run_channels`. If you replace the role catalog with [`AGENTA_ACCESS_ROLES`](/self-host/dynamic-access-controls), add them to your roles, or members without them get `403` on Channels.
+
+### API behavior changes
+
+- **Invoking an archived target returns `410`.** An invoke that references an archived application, evaluator or agent (by reference or through an environment) now fails with status `410` and a `status.type` ending in `#v0:references:archived`. Before, the archived target still ran. This affects environment deployments of deleted apps, evaluations that use an archived evaluator, and triggers or channels bound to an archived agent. Unarchive the target, or point the caller at a live one.
+- **Answering an interaction needs an `Idempotency-Key` header.** `POST /api/sessions/interactions/{interaction_id}/respond` returns `422` without the header and `202` with a continuation body on success. See [Invoke an agent](/reference/agents/invoke-an-agent#continuing-a-conversation).
+- **Posting to the Agenta channel needs the `run_channels` permission.** On Enterprise Edition, an API key whose owner has the viewer or annotator role can no longer post to the Agenta channel of an agent.
+
 ## Upgrading to 0.119.0
 
 This section applies if your projects use MCP servers, or if you plan to add one. Skip it otherwise, and follow the standard upgrade process below.

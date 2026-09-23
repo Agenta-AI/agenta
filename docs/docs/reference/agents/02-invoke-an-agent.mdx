@@ -237,7 +237,51 @@ A turn that stops for an approval ends with `stop_reason: "paused"`. Two ways to
 POST /api/sessions/interactions/{interaction_id}/respond
 ```
 
-with a body of `{"answer": {...}}`. Related endpoints:
+The request needs an `Idempotency-Key` header. A request without one returns `422`.
+
+```bash
+IDEMPOTENCY_KEY=$(uuidgen)  # reuse the same value when you retry
+
+curl -X POST \
+  "https://eu.cloud.agenta.ai/api/sessions/interactions/019d952f-0000-0000-0000-000000000002/respond" \
+  -H "Authorization: ApiKey $AGENTA_API_KEY" \
+  -H "Content-Type: application/json" \
+  -H "Idempotency-Key: $IDEMPOTENCY_KEY" \
+  -d '{"answer": {"approved": true}}'
+```
+
+| Body field              | Type   | Required                   | Description                                                                                                                |
+| ----------------------- | ------ | -------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `answer`                | object | One of `answer`, `answers` | The answer for the interaction in the path. For a `user_approval`, `{"approved": <bool>}`, with an optional `message`.     |
+| `answers`               | array  | One of `answer`, `answers` | Up to 100 `{"interaction_id", "answer"}` items for the same paused execution. It must include the interaction in the path. |
+| `expected_execution_id` | string | No                         | The execution you expect the interaction to belong to. A mismatch returns `409`.                                           |
+
+The `Idempotency-Key` header is a string of at most 255 characters. A retry with the same key and the same answer returns the original result, so a client can retry safely after a network error. Reusing a key for a different answer returns `409` with the code `idempotency_key_reused`.
+
+A successful response is `202 Accepted`. The run continues in the background, in a new execution of the same session. The response below is trimmed; `interaction` carries the full interaction record.
+
+```json
+{
+  "interaction": {
+    "id": "019d952f-0000-0000-0000-000000000002",
+    "session_id": "019d952f-0000-0000-0000-000000000001",
+    "kind": "user_approval",
+    "status": "responded"
+  },
+  "command": {
+    "id": "019d952f-0000-0000-0000-000000000003",
+    "state": "pending"
+  },
+  "execution": {
+    "id": "019d952f-0000-0000-0000-000000000004",
+    "state": "pending_delivery"
+  }
+}
+```
+
+`execution.state` is `awaiting_interactions`, and `command` is `null`, when the paused execution still has other pending interactions. The run continues once all of them are answered.
+
+Related endpoints:
 
 | Method and path                                            | Purpose                                |
 | ---------------------------------------------------------- | -------------------------------------- |
@@ -246,7 +290,7 @@ with a body of `{"answer": {...}}`. Related endpoints:
 | `POST /api/sessions/interactions/{interaction_id}/respond` | Answer a pending interaction.          |
 | `POST /api/sessions/interactions/transition`               | Move an interaction to another status. |
 
-An interaction has a `kind` of `user_approval`, `user_input`, or `client_tool`, and a `status` of `pending`, `responded`, `resolved`, or `cancelled`. Responding to an interaction that is not `pending` returns `409`.
+An interaction has a `kind` of `user_approval`, `user_input`, or `client_tool`, and a `status` of `pending`, `responded`, `resolved`, or `cancelled`. Sending the same answer again returns the accepted result. Answering an interaction that was answered differently, or that is no longer `pending`, returns `409`.
 
 ## Errors
 
@@ -256,4 +300,5 @@ An interaction has a `kind` of `user_approval`, `user_input`, or `client_tool`, 
 | `401`                          | Missing or invalid credential.                                                                                                                                                                                                                                                                  |
 | `403`                          | The credential may not run services in that project.                                                                                                                                                                                                                                            |
 | `406`                          | `Accept` asked for a stream but the handler produced a batch response, or the reverse.                                                                                                                                                                                                          |
+| `410`                          | The agent, or the application or evaluator it references, is archived. `status.type` ends in `#v0:references:archived`. Unarchive it to invoke it again.                                                                                                                                        |
 | `4xx` / `5xx` in `status.code` | A run that fails returns a JSON body with the real status, even when a stream was requested.                                                                                                                                                                                                    |
