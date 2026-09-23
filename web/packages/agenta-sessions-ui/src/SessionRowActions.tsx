@@ -85,6 +85,17 @@ const SessionRowActions = ({
 
     useEffect(() => cancelPendingNav, [cancelPendingNav])
 
+    // A touch long-press opens the context menu, and some browsers still click on release.
+    const contextMenuPressRef = useRef(false)
+    const onContextMenuOpenChange = useCallback(
+        (next: boolean) => {
+            if (!next) return
+            contextMenuPressRef.current = true
+            cancelPendingNav()
+        },
+        [cancelPendingNav],
+    )
+
     const target = useMemo(
         () => ({
             sessionId: session.sessionId,
@@ -168,6 +179,11 @@ const SessionRowActions = ({
             onClick: (event: ReactMouseEvent<HTMLAnchorElement>) => {
                 onClick?.(event)
                 if (event.defaultPrevented) return
+                // `detail > 0`: a pointer click. Keyboard Enter never follows a long-press.
+                if (contextMenuPressRef.current && event.detail > 0) {
+                    event.preventDefault()
+                    return
+                }
                 // Let the browser own modifier- and middle-clicks (new tab, new window).
                 if (
                     event.button !== 0 ||
@@ -196,9 +212,16 @@ const SessionRowActions = ({
         )
 
     return (
-        <SessionRowContextMenu entries={entries} onSelect={onContextSelect}>
+        <SessionRowContextMenu
+            entries={entries}
+            onSelect={onContextSelect}
+            onOpenChange={onContextMenuOpenChange}
+        >
             <span
                 className="group/row flex w-full min-w-0 items-center"
+                onPointerDown={() => {
+                    contextMenuPressRef.current = false
+                }}
                 onDoubleClick={(event) => {
                     event.preventDefault()
                     cancelPendingNav()
