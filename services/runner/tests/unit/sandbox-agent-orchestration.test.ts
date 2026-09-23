@@ -316,6 +316,29 @@ describe("runSandboxAgent orchestration", () => {
     }
   });
 
+  it("claude: leaves a slash command that follows an unanswered message unframed", async () => {
+    const { calls, deps } = fakeHarness();
+    const request: AgentRunRequest = {
+      harness: "claude",
+      messages: [
+        { role: "user", content: "run sleep 20" },
+        { role: "user", content: "/context" },
+      ],
+    };
+    const acquired = await acquireEnvironment(request, deps);
+    assert.equal(acquired.ok, true);
+    if (!acquired.ok) return;
+    try {
+      const result = await runTurn(acquired.env, request, undefined, undefined, {
+        continuation: true,
+      });
+      assert.equal(result.ok, true);
+      assert.deepEqual(calls.promptBlocks, [{ type: "text", text: "/context" }]);
+    } finally {
+      await acquired.env.destroy();
+    }
+  });
+
   for (const harness of ["pi_core", "codex"] as const) {
     it(`${harness}: leaves a message that follows an unanswered one unframed`, async () => {
       const { calls, deps } = fakeHarness();

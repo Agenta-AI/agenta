@@ -600,11 +600,13 @@ export async function runTurn(
       throw new Error("turnContext must be a string when provided.");
     }
     // A message that follows an unanswered one (a steer or Stop before the model replied) gets a
-    // note saying it replaces the earlier request. See `superseded-turn.ts`.
+    // note saying it replaces the earlier request. See `superseded-turn.ts`. A slash command is
+    // left alone: Claude ACP only treats a prompt as a local command when it leads the prompt.
     if (
       !opts.resume &&
       !approvalReplyOnly &&
       plan.acpAgent === "claude" &&
+      !promptText.trimStart().startsWith("/") &&
       followsUnansweredUserTurn(request.messages)
     ) {
       promptBlocks.unshift({ type: "text", text: SUPERSEDED_TURN_NOTE });
