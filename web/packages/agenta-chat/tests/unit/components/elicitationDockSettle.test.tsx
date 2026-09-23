@@ -438,6 +438,45 @@ describe("autofocus", () => {
         expect((screen.getByLabelText("Your name") as HTMLInputElement).selectionStart).toBe(3)
     })
 
+    /** A composer outside the card, focused the way it is while the user types. */
+    const typingInComposer = () => {
+        const composer = document.createElement("textarea")
+        document.body.appendChild(composer)
+        composer.focus()
+        return composer
+    }
+    /** Both focus effects run inside a requestAnimationFrame. */
+    const nextFrame = () => new Promise((resolve) => requestAnimationFrame(() => resolve(null)))
+
+    it("leaves focus in the composer when a pickable card appears", async () => {
+        const composer = typingInComposer()
+        try {
+            setup(ONE_QUESTION)
+            await nextFrame()
+            await nextFrame()
+            expect(document.activeElement).toBe(composer)
+        } finally {
+            composer.remove()
+        }
+    })
+
+    it("leaves focus in the composer when a free-text card appears", async () => {
+        const composer = typingInComposer()
+        try {
+            setup(TYPED)
+            await nextFrame()
+            await nextFrame()
+            expect(document.activeElement).toBe(composer)
+        } finally {
+            composer.remove()
+        }
+    })
+
+    it("takes focus when nothing else holds it", async () => {
+        setup(ONE_QUESTION)
+        await waitFor(() => expect(document.activeElement).toBe(screen.getByRole("group")))
+    })
+
     it("leaves focus on the card for a pickable step, so digits still work", async () => {
         setup()
         fireEvent.change(screen.getByLabelText("Your name"), {target: {value: "Ada"}})
@@ -637,9 +676,220 @@ it("shows a failed durable answer and permits retry without a second in-flight s
     onOutput
         .mockRejectedValueOnce(new Error("Answer could not be saved"))
         .mockResolvedValue(undefined)
-    fireEvent.click(screen.getByRole("button", {name: "Send answers"}))
+    // A one-question pick-one form has no Send button: the row is the submission, and the retry.
+    fireEvent.click(screen.getByRole("radio", {name: /Blue/}))
     await waitFor(() => expect(screen.getByText("Answer could not be saved")).toBeTruthy())
-    fireEvent.click(screen.getByRole("button", {name: "Send answers"}))
+    fireEvent.click(screen.getByRole("radio", {name: /Blue/}))
     await waitFor(() => expect(onOutput).toHaveBeenCalledTimes(2))
     expect(screen.queryByText("Answer could not be saved")).toBeNull()
+})
+
+describe("a one-question pick-one form", () => {
+    const ONE_YES_NO = {
+        message: "Confirm",
+        requestedSchema: {
+            type: "object",
+            properties: {proceed: {type: "boolean", title: "Proceed?"}},
+        },
+    }
+
+    it("settles on the click itself and offers no Send button", () => {
+        const {onOutput} = setup(ONE_QUESTION)
+
+        expect(screen.queryByRole("button", {name: "Send answers"})).toBeNull()
+        fireEvent.click(screen.getByRole("radio", {name: /Blue/}))
+
+        expect(onOutput).toHaveBeenCalledTimes(1)
+        expect(onOutput.mock.calls[0][0].output).toMatchObject({
+            action: "accept",
+            content: {colour: "Blue"},
+        })
+    })
+
+    it("does the same for a yes/no question", () => {
+        const {onOutput} = setup(ONE_YES_NO)
+
+        expect(screen.queryByRole("button", {name: "Send answers"})).toBeNull()
+        fireEvent.click(screen.getByRole("radio", {name: /No/}))
+
+        expect(onOutput.mock.calls[0][0].output).toMatchObject({content: {proceed: false}})
+    })
+
+    // The card can appear under someone typing in the composer. One stray key must never send.
+    it("only selects on a digit, then sends on Enter", () => {
+        const {onOutput} = setup(ONE_QUESTION)
+        const card = screen.getByRole("group")
+
+        fireEvent.keyDown(card, {key: "1"})
+
+        expect(onOutput).not.toHaveBeenCalled()
+        expect(screen.getByRole("radio", {name: /Red/}).getAttribute("aria-checked")).toBe("true")
+        expect(screen.getByRole("button", {name: "Send answers"})).toBeTruthy()
+
+        fireEvent.keyDown(card, {key: "Enter"})
+
+        expect(onOutput).toHaveBeenCalledTimes(1)
+        expect(onOutput.mock.calls[0][0].output).toMatchObject({content: {colour: "Red"}})
+    })
+
+    it("moves the selection with the arrows without sending it", () => {
+        const {onOutput} = setup(ONE_QUESTION)
+        const card = screen.getByRole("group")
+
+        fireEvent.keyDown(card, {key: "ArrowDown"})
+
+        expect(onOutput).not.toHaveBeenCalled()
+        expect(screen.getByRole("radio", {name: /Blue/}).getAttribute("aria-checked")).toBe("true")
+
+        fireEvent.keyDown(card, {key: "Enter", metaKey: true})
+
+        expect(onOutput.mock.calls[0][0].output).toMatchObject({content: {colour: "Blue"}})
+    })
+
+    it("only selects on Space", () => {
+        const {onOutput} = setup(ONE_QUESTION)
+
+        fireEvent.keyDown(screen.getByRole("group"), {key: " "})
+
+        expect(onOutput).not.toHaveBeenCalled()
+        expect(screen.getByRole("radio", {name: /Red/}).getAttribute("aria-checked")).toBe("true")
+    })
+
+    it("selects the lit row on a first Enter and sends only on the second", () => {
+        const {onOutput} = setup(ONE_QUESTION)
+        const card = screen.getByRole("group")
+
+        fireEvent.keyDown(card, {key: "Enter"})
+        expect(onOutput).not.toHaveBeenCalled()
+
+        fireEvent.keyDown(card, {key: "Enter"})
+        expect(onOutput.mock.calls[0][0].output).toMatchObject({content: {colour: "Red"}})
+    })
+
+    it("only selects a yes/no answer on a digit, too", () => {
+        const {onOutput} = setup(ONE_YES_NO)
+        const card = screen.getByRole("group")
+
+        fireEvent.keyDown(card, {key: "2"})
+        expect(onOutput).not.toHaveBeenCalled()
+
+        fireEvent.keyDown(card, {key: "Enter"})
+        expect(onOutput.mock.calls[0][0].output).toMatchObject({content: {proceed: false}})
+    })
+
+    it("shows the validation message on Cmd+Enter with nothing selected", () => {
+        const {onOutput} = setup({
+            ...ONE_QUESTION,
+            requestedSchema: {...ONE_QUESTION.requestedSchema, required: ["colour"]},
+        })
+
+        fireEvent.keyDown(screen.getByRole("group"), {key: "Enter", metaKey: true})
+
+        expect(onOutput).not.toHaveBeenCalled()
+        expect(screen.getByText("Pick one to continue")).toBeTruthy()
+    })
+
+    it("declines an optional question on Skip", () => {
+        const {onOutput} = setup(ONE_QUESTION)
+
+        fireEvent.click(screen.getByRole("button", {name: "Skip"}))
+
+        expect(onOutput.mock.calls[0][0].output).toMatchObject({action: "decline"})
+    })
+
+    it("shows the pick in flight and swallows a second click", () => {
+        const {onOutput} = setup(ONE_QUESTION)
+        onOutput.mockReturnValue(new Promise(() => undefined))
+
+        const blue = screen.getByRole("radio", {name: /Blue/})
+        fireEvent.click(blue)
+        expect(screen.getByLabelText("Sending")).toBeTruthy()
+        expect(blue.getAttribute("aria-disabled")).toBe("true")
+
+        fireEvent.click(screen.getByRole("radio", {name: /Red/}))
+        fireEvent.click(blue)
+        expect(onOutput).toHaveBeenCalledTimes(1)
+        expect((screen.getByRole("button", {name: "Skip"}) as HTMLButtonElement).disabled).toBe(
+            true,
+        )
+    })
+
+    it("brings Send back for the typed Other row", () => {
+        const {onOutput} = setup(ONE_QUESTION)
+
+        const other = screen.getByPlaceholderText("Other — type a value")
+        fireEvent.click(other.closest('[role="radio"]') as HTMLElement)
+        expect(screen.getByRole("button", {name: "Send answers"})).toBeTruthy()
+
+        fireEvent.change(other, {target: {value: "Teal"}})
+        fireEvent.click(screen.getByRole("button", {name: "Send answers"}))
+
+        expect(onOutput.mock.calls[0][0].output).toMatchObject({content: {colour: "Teal"}})
+    })
+
+    it("leaves an IME's Enter to the composition", () => {
+        const {onOutput} = setup(ONE_QUESTION)
+
+        const other = screen.getByPlaceholderText("Other — type a value")
+        fireEvent.change(other, {target: {value: "みど"}})
+        fireEvent.keyDown(other, {key: "Enter", isComposing: true})
+
+        expect(onOutput).not.toHaveBeenCalled()
+    })
+
+    it("leaves Safari's IME Enter to the composition too, which reports only keyCode 229", () => {
+        const {onOutput} = setup(ONE_QUESTION)
+
+        const other = screen.getByPlaceholderText("Other — type a value")
+        fireEvent.change(other, {target: {value: "みど"}})
+        fireEvent.keyDown(other, {key: "Enter", keyCode: 229})
+
+        expect(onOutput).not.toHaveBeenCalled()
+    })
+
+    it("sends the typed Other value on Enter", () => {
+        const {onOutput} = setup(ONE_QUESTION)
+
+        const other = screen.getByPlaceholderText("Other — type a value")
+        fireEvent.change(other, {target: {value: "Teal"}})
+        fireEvent.keyDown(other, {key: "Enter"})
+
+        expect(onOutput.mock.calls[0][0].output).toMatchObject({content: {colour: "Teal"}})
+    })
+
+    it("keeps explicit submission for a one-question multi-select", () => {
+        const {onOutput} = setup({
+            message: "Pick",
+            requestedSchema: {
+                type: "object",
+                properties: {
+                    colours: {
+                        type: "array",
+                        title: "Colours",
+                        items: {type: "string", enum: ["Red", "Blue"]},
+                    },
+                },
+            },
+        })
+
+        fireEvent.click(screen.getByRole("checkbox", {name: /Blue/}))
+        expect(onOutput).not.toHaveBeenCalled()
+        fireEvent.click(screen.getByRole("button", {name: "Send answers"}))
+        expect(onOutput.mock.calls[0][0].output).toMatchObject({content: {colours: ["Blue"]}})
+    })
+
+    it("keeps explicit submission for a one-question free-text form", () => {
+        const {onOutput} = setup({
+            message: "One detail",
+            requestedSchema: {
+                type: "object",
+                properties: {name: {type: "string", title: "Your name"}},
+            },
+        })
+
+        fireEvent.change(screen.getByLabelText("Your name"), {target: {value: "Ada"}})
+        expect(onOutput).not.toHaveBeenCalled()
+        fireEvent.click(screen.getByRole("button", {name: "Send answers"}))
+        expect(onOutput.mock.calls[0][0].output).toMatchObject({content: {name: "Ada"}})
+    })
 })

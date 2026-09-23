@@ -76,8 +76,12 @@ export type GatewayConnectionToolConfig = AgentaApi.GatewayConnectionToolConfig
 export type GatewayConnectionRef = AgentaApi.GatewayConnectionRef
 export type GatewayConnectionPolicy = AgentaApi.GatewayConnectionPolicy
 export type GatewayPermissions = AgentaApi.GatewayPermissions
-/** The four policy values, sourced from the wire so a fifth cannot appear without a compile error. */
-export type GatewayPermission = AgentaApi.GatewayPermissions["default"]
+/** The four policy values, sourced from the wire so a fifth cannot appear without a compile error.
+ *
+ *  `NonNullable` because the wire field is optional: the SDK model defaults it to `"inherit"`, so
+ *  an absent `default` means inherit rather than "no value". This type names the four values
+ *  themselves, and absence is resolved where the wire shape is parsed, not carried around in it. */
+export type GatewayPermission = NonNullable<AgentaApi.GatewayPermissions["default"]>
 
 // ---------------------------------------------------------------------------
 // Tool execution

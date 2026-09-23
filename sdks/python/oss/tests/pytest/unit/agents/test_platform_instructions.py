@@ -66,6 +66,64 @@ def test_the_base_never_names_a_config_tool_it_cannot_promise():
     assert "`request_secret` is available" in AGENTA_PLATFORM_BASE
 
 
+# The agent-level app layout --------------------------------------------------------------
+
+
+def _section(text: str, header: str, next_header: str) -> str:
+    return text[text.index(header) : text.index(next_header)]
+
+
+def test_the_apps_folder_is_introduced_beside_the_tools_folder():
+    # `.apps/` is the agent's own app records. It lives next to `.tools/`, so the paragraph
+    # sits inside "Installing tools", after the `.tools/` material and before the section ends.
+    installing = _section(AGENTA_PLATFORM_BASE, "## Installing tools", "## Credentials")
+    assert "`agent-files/.apps/`" in installing
+    assert installing.index("`agent-files/.tools/`") < installing.index(
+        "`agent-files/.apps/`"
+    )
+    assert installing.index("`agent-files/.apps/`") < installing.index(
+        "Never keep the only copy of anything"
+    )
+    assert "`agent-files/.apps/`" not in _section(
+        AGENTA_PLATFORM_BASE, "## Files and storage", "## Installing tools"
+    )
+
+
+def test_the_apps_paragraph_names_the_records_and_the_data_rule():
+    installing = _section(AGENTA_PLATFORM_BASE, "## Installing tools", "## Credentials")
+    for record in (
+        "`layout.json`",
+        "`registry/<session-id>.json`",
+        "`notes/<date>-<slug>.md`",
+    ):
+        assert record in installing, record
+    assert "dimmed in the Files pane, not hidden" in installing
+    assert "Never store app data files there" in installing
+    assert "`apps/<slug>/`" in installing
+    assert "`agent-files/apps/<slug>/`" in installing
+    # The skill owns the exact write rules; the base only points at it.
+    assert "The agenta-apps skill says exactly what to write" in installing
+    assert "leave `.apps/` alone" in installing
+
+
+def test_the_base_section_order_is_unchanged_by_the_apps_paragraph():
+    # The paragraph is an insertion, not a reflow: no header added, removed, or moved.
+    headers = [
+        line for line in AGENTA_PLATFORM_BASE.splitlines() if line.startswith("## ")
+    ]
+    assert headers == [
+        "## Agenta platform",
+        "## Who you are, underneath the configuration",
+        "## How you work",
+        "## How you talk",
+        "## Files and storage",
+        "## Installing tools",
+        "## Credentials",
+        "## GitHub and other code work",
+        "## What does not work here",
+    ]
+
+
 # The session block ------------------------------------------------------------------------
 
 

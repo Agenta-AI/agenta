@@ -6,7 +6,7 @@ Agenta `sandbox-agent` runner path.
 We ship the recipe, not a built snapshot. The operator runs it in their own Daytona account:
 
 ```bash
-DAYTONA_API_KEY=... DAYTONA_TARGET=eu uv run build_snapshot.py --force
+DAYTONA_API_KEY=... DAYTONA_TARGET=eu uv run build_snapshot.py
 ```
 
 Configure the runner service with:
@@ -71,15 +71,37 @@ do not forward Pi extension dialogs as ACP permission requests.
 
 ## Refreshing an existing snapshot
 
-The snapshot name is pinned, so Daytona keeps serving whatever you built under it. When this recipe
-changes, rebuild it in each Daytona account that uses it:
+Daytona keeps serving whatever you built under a name. When this recipe changes, rebuild it in each
+Daytona account that uses it:
 
 ```bash
 DAYTONA_API_KEY=... DAYTONA_TARGET=eu uv run build_snapshot.py --force
 ```
 
-`--force` is required: without it the script sees the existing snapshot and exits. Sandboxes already
-running keep the old contents; only sandboxes created after the rebuild pick up the change.
+`--force` on a working snapshot replaces it in three steps:
+
+1. It builds a trial snapshot, `<name>-candidate-<timestamp>-<random>`, from the same recipe, running every
+   build assertion. If the trial fails, the script deletes it and exits; the live snapshot is not
+   touched.
+2. Once the trial passes, it deletes the live snapshot and rebuilds it under its real name. New
+   Daytona sandboxes cannot start while this rebuild runs, so rebuild in a quiet window. If the
+   rebuild fails, the script keeps the trial and prints the setting that points the runner at it:
+   `AGENTA_RUNNER_DAYTONA_SNAPSHOT=<trial name>`. Set it and restart the runner.
+3. When the real snapshot is active, it deletes the trial.
+
+Deleting a trial is best effort in both places: if Daytona refuses the delete, the script prints
+a warning naming the trial, and you delete it in Daytona. A leftover trial is clutter, not a risk,
+because no runner points at it.
+
+A snapshot whose build failed (`error` or `build_failed`) never served a sandbox, so `--force`
+replaces it directly. Without `--force`, the script builds nothing when the name already exists.
+Sandboxes already running keep the old contents; only sandboxes created after the rebuild pick up
+the change.
+
+To build beside the live snapshot instead, pass `--name <new-name>`, then set
+`AGENTA_RUNNER_DAYTONA_SNAPSHOT` to that name and restart the runner.
+
+The build decisions have unit tests that need no Daytona account: `uv run test_build_snapshot.py`.
 
 ## Pi installation
 

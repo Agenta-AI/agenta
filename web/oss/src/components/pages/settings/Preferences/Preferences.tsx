@@ -1,5 +1,9 @@
 import {PreferencesPage} from "@agenta/settings-ui"
-import {classicModeEnabledAtom, playgroundInspectorEnabledAtom} from "@agenta/shared/state"
+import {
+    agentAppsEnabledAtom,
+    classicModeEnabledAtom,
+    playgroundInspectorEnabledAtom,
+} from "@agenta/shared/state"
 import {useAtom} from "jotai"
 
 import {THEME_OPTIONS} from "@/oss/components/Layout/assets/themeOptions"
@@ -9,6 +13,7 @@ import {ThemeMode, useAppTheme} from "@/oss/components/Layout/ThemeContextProvid
 const Preferences = () => {
     const {themeMode, toggleAppTheme} = useAppTheme()
     const [classicModeEnabled, setClassicModeEnabled] = useAtom(classicModeEnabledAtom)
+    const [agentAppsEnabled, setAgentAppsEnabled] = useAtom(agentAppsEnabledAtom)
     const [playgroundInspectorEnabled, setPlaygroundInspectorEnabled] = useAtom(
         playgroundInspectorEnabledAtom,
     )
@@ -36,6 +41,15 @@ const Preferences = () => {
                     enabled: playgroundInspectorEnabled,
                     onChange: setPlaygroundInspectorEnabled,
                     badge: "DEBUG",
+                },
+                {
+                    key: "agent-apps",
+                    title: "Agent apps",
+                    description:
+                        "Offer Run on HTML files in an agent's drive, so a page can read and write its own folder.",
+                    enabled: agentAppsEnabled,
+                    onChange: setAgentAppsEnabled,
+                    badge: "BETA",
                 },
             ]}
         />

@@ -3,7 +3,7 @@
   "_generator": {
     "source": "@earendil-works/pi-ai@0.85.1",
     "generated_by": ".agents/skills/sync-model-catalog/generate_pi_models.mjs",
-    "generated_at": "2026-09-07T18:24:57.260Z",
+    "generated_at": "2026-09-22T15:14:19.077Z",
     "note": "Generated file. Do not hand-edit. Curated fields live in pi_models.curated.json."
   },
   "models": [
@@ -10415,6 +10415,69 @@
       "context_window": 262144,
       "modalities": [
         "text"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
+      "id": "xai/grok-4.3",
+      "provider": "xai",
+      "source": "pi_generated",
+      "name": "Grok 4.3",
+      "pricing": {
+        "input_per_mtok": 1.25,
+        "output_per_mtok": 2.5,
+        "currency": "USD",
+        "cache_read_per_mtok": 0.2,
+        "cache_write_per_mtok": 0
+      },
+      "context_window": 1000000,
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
+      "id": "xai/grok-4.5",
+      "provider": "xai",
+      "source": "pi_generated",
+      "name": "Grok 4.5",
+      "pricing": {
+        "input_per_mtok": 2,
+        "output_per_mtok": 6,
+        "currency": "USD",
+        "cache_read_per_mtok": 0.3,
+        "cache_write_per_mtok": 0
+      },
+      "context_window": 500000,
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "label": null,
+      "description": null,
+      "ratings": null
+    },
+    {
+      "id": "xai/grok-4.6",
+      "provider": "xai",
+      "source": "pi_generated",
+      "name": "Grok 4.6",
+      "pricing": {
+        "input_per_mtok": 2,
+        "output_per_mtok": 6,
+        "currency": "USD",
+        "cache_read_per_mtok": 0.5,
+        "cache_write_per_mtok": 0
+      },
+      "context_window": 500000,
+      "modalities": [
+        "text",
+        "image"
       ],
       "label": null,
       "description": null,

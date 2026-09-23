@@ -13,6 +13,8 @@ from agenta.sdk.agents.platform.workflow import (
     REQUEST_SECRET_WORKFLOW_SLUG,
 )
 
+from oss.src.core.apps.assembly import AGENTA_APPS_SKILL, AGENTA_APPS_SLUG
+
 BUILD_KIT_WORKFLOW_SLUG = "__ag__build_kit"
 BUILD_KIT_WORKFLOW_NAME = "Playground build kit"
 BUILD_KIT_WORKFLOW_DESCRIPTION = (
@@ -56,6 +58,9 @@ _BUILD_KIT_OP_PERMISSIONS = {
     "list_subscriptions": "allow",
     "remove_schedule": "ask",
     "remove_subscription": "ask",
+    # Both act on the session's own drive, which `write_files: allow` already opens.
+    "list_starters": "allow",
+    "create_app": "allow",
 }
 
 # Cut ops stay catalog opt-ins. `annotate_trace` and `query_spans` left the kit on 2026-09-07:
@@ -81,6 +86,10 @@ DEFAULT_BUILD_KIT_OPS: tuple[str, ...] = (
     "list_subscriptions",
     "remove_schedule",
     "remove_subscription",
+    # Agent HTML apps. Unconditional: the overlay has no drive or feature gate, and the
+    # web flag only hides Run, so without it the app is still a previewable HTML file.
+    "list_starters",
+    "create_app",
 )
 
 # (slug, name) pairs — reserved static client tools embedded in every build kit, in order.
@@ -138,7 +147,12 @@ def build_agent_template_overlay() -> Dict[str, Any]:
                 BUILD_AN_AGENT_SLUG,
                 name=BUILD_AN_AGENT_SKILL.name,
                 selector_path="parameters.skill",
-            )
+            ),
+            _workflow_embed(
+                AGENTA_APPS_SLUG,
+                name=AGENTA_APPS_SKILL.name,
+                selector_path="parameters.skill",
+            ),
         ],
         "sandbox": {
             "permissions": {
