@@ -18,7 +18,7 @@ import {Key, PencilSimple, Plus, Trash} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
 import {createPortal} from "react-dom"
 
-import {AgentSecretAttachmentDrawer} from "../../../secret"
+import {AgentSecretAttachmentModal} from "../../../secret"
 
 export interface AgentSecretsSectionProps {
     revisionId?: string | null
@@ -45,7 +45,7 @@ export function AgentSecretsSection({
     const artifactName = useAtomValue(workflowMolecule.selectors.artifactName(revisionId ?? ""))
     const workflowDirty = useAtomValue(workflowMolecule.selectors.isDirty(revisionId ?? ""))
     const dirty = workflowDirty || localDraftDirty
-    const [drawerOpen, setDrawerOpen] = useState(false)
+    const [modalOpen, setModalOpen] = useState(false)
     const [editingIndex, setEditingIndex] = useState<number | null>(null)
     const [removeIndex, setRemoveIndex] = useState<number | null>(null)
     const [removing, setRemoving] = useState(false)
@@ -76,7 +76,7 @@ export function AgentSecretsSection({
     }
 
     const commitBinding: React.ComponentProps<
-        typeof AgentSecretAttachmentDrawer
+        typeof AgentSecretAttachmentModal
     >["commitBinding"] = async ({secretSlug, envVar, editIndex}) => {
         const next = [...bindings]
         const value: AgentSecretBinding = {
@@ -111,7 +111,7 @@ export function AgentSecretsSection({
             disabled={!canAttach}
             onClick={() => {
                 setEditingIndex(null)
-                setDrawerOpen(true)
+                setModalOpen(true)
             }}
         >
             <Plus size={13} /> Attach
@@ -178,7 +178,7 @@ export function AgentSecretsSection({
                                         disabled={disabled || !canEditSecrets || dirty}
                                         onClick={() => {
                                             setEditingIndex(index)
-                                            setDrawerOpen(true)
+                                            setModalOpen(true)
                                         }}
                                     >
                                         <PencilSimple size={14} />
@@ -204,9 +204,9 @@ export function AgentSecretsSection({
             )}
 
             {revisionId ? (
-                <AgentSecretAttachmentDrawer
-                    open={drawerOpen}
-                    onClose={() => setDrawerOpen(false)}
+                <AgentSecretAttachmentModal
+                    open={modalOpen}
+                    onClose={() => setModalOpen(false)}
                     target={{revisionId, label: targetLabel}}
                     bindings={bindings}
                     baseRevisionId={revisionId}
