@@ -1,0 +1,74 @@
+---
+id: mint-app-scope-token
+title: "Mint App Scope Token"
+description: "Issue a folder-scoped token for a running HTML app."
+sidebar_label: "Mint App Scope Token"
+hide_title: true
+hide_table_of_contents: true
+api: eJztVk1vGzcQ/SuDObXAWnKDnvZUNTEQIXFj2GovtuCMdkdaxrskQ3Itq8L+92LIXWsVfwRID73UJ2v5OJyZ9+aRewy08Zhf47lpdfC4zLBkXzhlgzIac5x73zIQrE1dsjvxhbFcQjB3rGFtHBC4VmulN/B+cf4RyNrJjb7Ri4ph5czWswPydz5ijWbYVqwhVAyWnTcaNo508EBatgIVBXufCUADhUBFxR5UgGCA79ntbvTKqXLDUFBdgzcxlGd3zw4K0uB43XrJ11KowLTBq5IjKBUwgXkAo+tdDAeanCQJ24rCjRaYxJWca8dU7qAin8kxjdJBilQeNhS4BJOqqPmea1ixrJG/41IKzUE2n2ydCgyaufQ3+uzdfHF7/unPPxZXGfADFaHeAfkYJAFV8FyvoTTsJ5ihsexISJiXmKOcf0vW3kYCbmP/MUNLjhoO7ITDPWpqWMDC5a0qMUMlHEovMEPHX1vluMQ8uJYz9EXFDWG+x7Czss8Hp/QGM1wb11DAHNs2Rgkq1AKIIoF5iV23TPHYh99NuZMg34YvjA6sgyyRtbUqYjXTL150tR+dbp3UGhR7+VUq91xKQwrvlMMuw9j353Cs20b0LAzEmgciRNpDkI9xt0h9TW0thUZ412VDPLP6wkU4atp1TG0UZWbtlbBxmfqA347OzN/1I/LS8MhAyMTA51K5zyKuSN2J45qCuucJdp0k5dhbo31q0JvT09ino7Ou2jg567aGyx6MP0xBUtcrJCwioMuQH6xy7G8pjOBKB96wG+HPEgxmQTb9S4aPSfweZ8OkjDJNGQwnPEvoYwePuyyultgLY38bfGowKRh5VAaky+R6KoAPxnrYGnen9GZg99c3b54S+hfVqox0wZlzxv04myUHUrGTKnDjnwJqUxytkt59Wkc/OW59lz2huFse2k/O0W7Mj0kJCpmN37xG5Tl7TxvGx2AvQ2MzYCGrndibbZP0+uV5/NBlWISHUZhHaQy4t9LLh/Bd+UhvUvo9biSXA0WJoZdb8S5R8NxhA+T9YnHxJGDSR8OhMnIJWBNdJtp5jtPoFX66H+y+m5K1fhpdBjNMt2K6GFpXyw6yKrKYflYhWJ9Pp9xOitq05YQ2rANNSCXgUmIUrVNhF4PMLuYfePeeqWSH+fVyDLgS8SU5HcMeKSCrPrA0pb+kZm2ojFN/J430N1WVdknVIuvLww1z9kCNrfnxhjgoozeK3sIl0NqMJTGLVcHsYv7UocdLMl5URDUNKcZlzL7p16FN4itNHC4MTM1vjyuShzQ/HXM6+WVyKp+EwIb06IhzpQPMrIVoPLDo3eoozf1h8v9/jv1Xz7FexWIaU1uTirYWdbHvB/I6vbs8ZpiPXmAykzKNcSqXGVYyxPk17vcr8vynq7tOPn9t2cmYLTO8J6doJdq9FrF7+b/EfE2151ek8dNl71s/w0v5DqOoZQ7vqW7lF2Z4x7vxszG6ejXM+b5ffptOOonee9j+5CoSg0k7ZkXBNryKXY7s7eLT1QIzXPXvycaUssfRVjyZtilVEyuPRhO/7bEmvWnl9sgxxZS/fwCyQW3R
+sidebar_class_name: "post api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Mint App Scope Token"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/mounts/{mount_id}/apps/scope"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Issue a folder-scoped token for a running HTML app.
+
+The browser asks for one when the person grants an app access, then attaches it to every
+bridge call so the server can refuse a path outside the folder. It only ever narrows what
+the caller already has, so minting is gated on the level being asked for: read-write needs
+EDIT_MOUNTS, exactly as the write itself does.
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./mint-app-scope-token.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./mint-app-scope-token.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./mint-app-scope-token.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      
