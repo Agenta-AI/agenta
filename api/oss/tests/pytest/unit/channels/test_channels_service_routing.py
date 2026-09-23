@@ -1978,3 +1978,42 @@ def test_attribution_names_the_sender_by_name_username_or_id():
     }
     assert _attribution_part({}, channel="slack") is None
     assert _attribution_part({"id": ""}, channel="agenta") is None
+
+
+class TestDiscoveryMarksConfiguredSpaces:
+    async def test_a_space_first_met_through_a_message_reads_as_added(self):
+        """Live QA 2026-09-23: a space created on first contact stores that
+        message's locator (thread_ts included), so comparing locators never
+        matched the bare channel discovery returns and the channel the bot
+        answered in read as not added. Space keys match."""
+        from oss.src.core.channels.dtos import ChannelSpaceCandidate
+
+        adapter = WellBehavedFakeAdapter()
+        capabilities = await adapter.fetch_capabilities()
+        space = _make_space(capabilities=capabilities)  # locator has thread_ts
+        dao = _make_fake_dao()
+        dao.query_spaces = AsyncMock(return_value=[space])
+        adapter.discover_spaces = AsyncMock(
+            return_value=[
+                ChannelSpaceCandidate(
+                    kind=ChannelSpaceKind.TOPIC,
+                    external_locator={"team": "T1", "channel": "C1"},
+                    display_name="qa",
+                ),
+                ChannelSpaceCandidate(
+                    kind=ChannelSpaceKind.TOPIC,
+                    external_locator={"team": "T1", "channel": "C2"},
+                    display_name="other",
+                ),
+            ]
+        )
+        service = _make_service(dao=dao, adapter=adapter)
+
+        candidates = await service.discover_spaces(
+            project_id=uuid4(), connection_id=uuid4()
+        )
+
+        assert {c.display_name: c.is_configured for c in candidates} == {
+            "qa": True,
+            "other": False,
+        }

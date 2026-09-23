@@ -60,6 +60,7 @@ from oss.src.core.channels.types import (
     ChannelConnectionNotFound,
     ChannelConnectionVerificationFailed,
     ChannelGrantRuleInvalid,
+    ChannelLocatorIncomplete,
     ChannelsError,
     ChannelSetupFieldInvalid,
     ChannelSpaceNotFound,
@@ -1245,12 +1246,26 @@ class ChannelsService:
             project_id=project_id,
             space=ChannelSpaceQuery(connection_id=connection_id),
         )
+        # Compare space KEYS, not locators: a space first met through a
+        # message stores that message's locator, thread_ts included, so it
+        # never equalled the bare channel locator discovery returns and the
+        # channel read as not added (QA finding, 2026-09-23).
+        capabilities = await self.fetch_capabilities(
+            channel=connection.channel, connection=connection
+        )
+        configured_keys = {space.external_key for space in configured}
         configured_locators = {
             _canonical_locator(space.data.external_locator) for space in configured
         }
 
         for candidate in candidates:
-            candidate.is_configured = (
+            try:
+                key = compose_external_key(
+                    capabilities, ChannelKeyGrain.SPACE, candidate.external_locator
+                )
+            except ChannelLocatorIncomplete:
+                key = None
+            candidate.is_configured = key in configured_keys or (
                 _canonical_locator(candidate.external_locator) in configured_locators
             )
 
