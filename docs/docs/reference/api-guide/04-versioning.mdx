@@ -110,4 +110,4 @@ Artifacts and variants are soft-deleted. `POST /{resource}/{id}/archive` sets `d
 
 Archiving an artifact hides its variants and revisions. Revision IDs remain resolvable so historical traces stay intact.
 
-Invoking an archived application, evaluator or workflow fails with status `410`, and `status.type` ends in `#v0:references:archived`. This applies whether the invoke names the target directly or through an environment. Unarchive the target to invoke it again.
+An invoke that names an archived application by its id alone, with no variant or revision reference and no inline configuration, fails with status `410`, and `status.type` ends in `#v0:references:archived`. Unarchive the application to invoke it again. An invoke that names a variant or revision of an archived application, or that carries an inline configuration, still runs. That gap is tracked in [#7110](https://github.com/Agenta-AI/agenta/issues/7110).

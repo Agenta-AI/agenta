@@ -96,7 +96,7 @@ On Enterprise Edition, the default roles include the new permissions `view_chann
 
 ### API behavior changes
 
-- **Invoking an archived target returns `410`.** An invoke that references an archived application, evaluator or agent (by reference or through an environment) now fails with status `410` and a `status.type` ending in `#v0:references:archived`. Before, the archived target still ran. This affects environment deployments of deleted apps, evaluations that use an archived evaluator, and triggers or channels bound to an archived agent. Unarchive the target, or point the caller at a live one.
+- **An app-only reference to an archived app returns `410`.** An invoke that names an archived application by its id alone, with no variant or revision reference and no inline configuration, now fails with status `410` and a `status.type` ending in `#v0:references:archived`. Before, it ran. Unarchive the application, or point the caller at a live one. Invokes that name a variant or revision, or carry an inline configuration, still run on an archived application, as before; see [#7110](https://github.com/Agenta-AI/agenta/issues/7110).
 - **Answering an interaction needs an `Idempotency-Key` header.** `POST /api/sessions/interactions/{interaction_id}/respond` returns `422` without the header and `202` with a continuation body on success. See [Invoke an agent](/reference/agents/invoke-an-agent#continuing-a-conversation).
 - **Posting to the Agenta channel needs the `run_channels` permission.** On Enterprise Edition, an API key whose owner has the viewer or annotator role can no longer post to the Agenta channel of an agent.
 
