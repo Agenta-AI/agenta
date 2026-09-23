@@ -163,7 +163,7 @@ def _skip_if_local_sandbox_refused(account) -> None:
         if response.status_code != 403:
             return
         payload = response.json()
-    except ValueError:
+    except (ValueError, requests.RequestException):
         return
     finally:
         response.close()
