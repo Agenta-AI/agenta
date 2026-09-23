@@ -1470,7 +1470,7 @@ async function acquireEnvironmentOnce(
         environment.session,
         wantedModel,
         logger,
-        { strict: strictModel },
+        { strict: strictModel, harness: plan.acpAgent },
       );
     }
     if (plan.acpAgent === "codex") {

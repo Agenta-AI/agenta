@@ -121,6 +121,23 @@ export function pickModel(allowed: string[], wanted?: string): string | undefine
   return upgraded ?? pickTierAlias(allowed, wanted);
 }
 
+/**
+ * The id to ask a harness for. Claude Code names models bare (`claude-opus-5-5`, `opus[1m]`) and
+ * never accepts a provider-prefixed id, but some builds' `setModel` takes any string without
+ * checking it, so a saved `anthropic/claude-opus-5-5` reached the Anthropic API verbatim and the
+ * turn failed there. Stripping the prefix first lets the exact, `[1m]`, retired and tier matching
+ * all run on the id Claude Code actually knows. Other harnesses keep the id as given.
+ */
+export function harnessModelId(harness: string | undefined, id: string): string;
+export function harnessModelId(
+  harness: string | undefined,
+  id: string | undefined,
+): string | undefined;
+export function harnessModelId(harness: string | undefined, id: string | undefined) {
+  if (harness !== "claude" || !id) return id;
+  return id.startsWith("anthropic/") ? id.slice("anthropic/".length) : id;
+}
+
 /** Enumerate the harness's selectable model ids from the session config options. */
 export async function allowedModels(session: any): Promise<string[]> {
   try {
@@ -158,13 +175,17 @@ export function allowedFromError(err: unknown): string[] {
  * the requested id and the valid options, so a user who picks a model either gets it or sees a
  * loud failure; non-strict logs one line and keeps the harness default (the legacy opt-out for
  * `AGENTA_AGENT_MODEL_STRICT=false`). This is the F-007 fix.
+ *
+ * `options.harness` names the ACP agent; it decides the id the first attempt uses (see
+ * `harnessModelId`).
  */
 export async function applyModel(
   session: any,
-  wanted?: string,
+  requested?: string,
   log: Log = () => {},
-  options: { strict?: boolean } = {},
+  options: { strict?: boolean; harness?: string } = {},
 ): Promise<string | undefined> {
+  const wanted = harnessModelId(options.harness, requested);
   if (!wanted) return undefined;
   const strict = options.strict ?? true;
   try {
