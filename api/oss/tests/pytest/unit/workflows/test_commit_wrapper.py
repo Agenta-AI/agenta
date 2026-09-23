@@ -573,7 +573,7 @@ def _locked_commit(service, *, stored, committed=None):
 
 class TestNoChange:
     async def test_an_identical_tree_writes_nothing(self, service):
-        data = {"parameters": {"agent": {"instructions": "hi"}}}
+        data = {"parameters": {"agent": {"instructions": {"agents_md": "hi"}}}}
         commit = WorkflowRevisionCommit(
             workflow_variant_id=VARIANT_ID,
             data=data,
@@ -589,10 +589,10 @@ class TestNoChange:
     async def test_a_different_tree_commits(self, service):
         commit = WorkflowRevisionCommit(
             workflow_variant_id=VARIANT_ID,
-            data={"parameters": {"agent": {"instructions": "new"}}},
+            data={"parameters": {"agent": {"instructions": {"agents_md": "new"}}}},
         )
         stored = _stored(
-            data={"parameters": {"agent": {"instructions": "old"}}},
+            data={"parameters": {"agent": {"instructions": {"agents_md": "old"}}}},
             flags=service._build_revision_commit(workflow_revision_commit=commit).flags,
         )
 
@@ -602,7 +602,7 @@ class TestNoChange:
         # The reason the comparison covers a record and not a tree: flag inference can
         # change between deployments, and comparing data alone would answer `no_change`
         # for a commit that does change behavior, leaving the new flags unwritten.
-        data = {"parameters": {"agent": {"instructions": "hi"}}}
+        data = {"parameters": {"agent": {"instructions": {"agents_md": "hi"}}}}
         commit = WorkflowRevisionCommit(
             workflow_variant_id=VARIANT_ID,
             data=data,
@@ -629,7 +629,7 @@ class TestNoChange:
     async def test_a_full_data_commit_is_compared_too(self, service):
         # It used to skip the comparison outright: the check was reached only through the
         # delta branch, so an identical full-data commit always created a revision.
-        data = {"parameters": {"agent": {"instructions": "hi"}}}
+        data = {"parameters": {"agent": {"instructions": {"agents_md": "hi"}}}}
         commit = WorkflowRevisionCommit(workflow_variant_id=VARIANT_ID, data=data)
         stored = _stored(
             data=data,
@@ -658,9 +658,11 @@ class TestNoChange:
     async def test_a_real_change_still_commits(self, service):
         commit = WorkflowRevisionCommit(
             workflow_variant_id=VARIANT_ID,
-            data={"parameters": {"agent": {"instructions": "new"}}},
+            data={"parameters": {"agent": {"instructions": {"agents_md": "new"}}}},
         )
-        stored = _stored(data={"parameters": {"agent": {"instructions": "old"}}})
+        stored = _stored(
+            data={"parameters": {"agent": {"instructions": {"agents_md": "old"}}}}
+        )
         committed = _head(uuid4())
         service.fetch_workflow_revision = AsyncMock(return_value=_head(stored.id))
         service.workflows_dao.fetch_revision.return_value = stored
@@ -681,7 +683,7 @@ class TestNoChange:
         # what a cornered model does to manufacture a success.
         from oss.src.apis.fastapi.workflows.models import WorkflowRevisionCommitRequest
 
-        data = {"parameters": {"agent": {"instructions": "hi"}}}
+        data = {"parameters": {"agent": {"instructions": {"agents_md": "hi"}}}}
         stored = _stored(
             data=data,
             flags=service._build_revision_commit(
@@ -720,7 +722,7 @@ class TestNoChange:
         # would tell it its base was current. It was not.
         from oss.src.core.workflows.service import RevisionConflictError
 
-        data = {"parameters": {"agent": {"instructions": "hi"}}}
+        data = {"parameters": {"agent": {"instructions": {"agents_md": "hi"}}}}
         commit = _commit(set=data)
         service.fetch_workflow_revision = AsyncMock(
             return_value=_head(uuid4(), data=data)
@@ -739,7 +741,7 @@ class TestNoChange:
         # `no_change` would confirm a base that had already moved.
         from oss.src.core.workflows.service import RevisionConflictError
 
-        data = {"parameters": {"agent": {"instructions": "hi"}}}
+        data = {"parameters": {"agent": {"instructions": {"agents_md": "hi"}}}}
         commit = WorkflowRevisionCommit(
             workflow_variant_id=VARIANT_ID,
             data=data,
@@ -764,7 +766,7 @@ class TestNoChange:
     ):
         # The check must not refuse a caller whose base IS the head. That caller is
         # correct, and its commit changes nothing.
-        data = {"parameters": {"agent": {"instructions": "hi"}}}
+        data = {"parameters": {"agent": {"instructions": {"agents_md": "hi"}}}}
         stored = _stored(
             data=data,
             flags=service._build_revision_commit(
@@ -796,7 +798,7 @@ class TestNoChange:
     async def test_a_metadata_only_commit_writes_nothing(self, service):
         # `message` is commit metadata, not configuration: it stays out of the record, so
         # a new message over an identical tree creates no revision.
-        data = {"parameters": {"agent": {"instructions": "hi"}}}
+        data = {"parameters": {"agent": {"instructions": {"agents_md": "hi"}}}}
         commit = WorkflowRevisionCommit(
             workflow_variant_id=VARIANT_ID,
             data=data,
@@ -834,7 +836,7 @@ class TestTheLegacyNoOpCommitPath:
         return stored, committed
 
     async def test_a_legacy_no_op_writes_nothing(self, service):
-        data = {"parameters": {"agent": {"instructions": "hi"}}}
+        data = {"parameters": {"agent": {"instructions": {"agents_md": "hi"}}}}
         stored, _ = self._identical(service, data)
 
         outcome = await service.commit_workflow_revision_checked(
@@ -860,7 +862,10 @@ class TestTheCommitTakesTheLock:
 
     @staticmethod
     async def _comparison_handed_down(service):
-        head = _head(uuid4(), data={"parameters": {"agent": {"instructions": "old"}}})
+        head = _head(
+            uuid4(),
+            data={"parameters": {"agent": {"instructions": {"agents_md": "old"}}}},
+        )
         service.fetch_workflow_revision = AsyncMock(return_value=head)
         service.commit_workflow_revision = AsyncMock(return_value=head)
 
@@ -869,7 +874,7 @@ class TestTheCommitTakesTheLock:
             user_id=uuid4(),
             workflow_revision_commit=WorkflowRevisionCommit(
                 workflow_variant_id=VARIANT_ID,
-                data={"parameters": {"agent": {"instructions": "new"}}},
+                data={"parameters": {"agent": {"instructions": {"agents_md": "new"}}}},
             ),
         )
 
