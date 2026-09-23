@@ -293,6 +293,7 @@ def world(ag_env, admin_api):
         other = _client(api_url, other_account["api_keys"]["key"])
 
         seeded = _seed(owner)
+        hosted = _probe_hosted_config(owner, connection_id=seeded["connection"]["id"])
         assert seeded["project_id"] == owner_project_id
 
         yield {
@@ -300,6 +301,7 @@ def world(ag_env, admin_api):
             "viewer": viewer,
             "other": other,
             "other_project_id": _first_id(other_account["projects"]),
+            "hosted": hosted,
             **seeded,
         }
     finally:
@@ -314,6 +316,52 @@ def world(ag_env, admin_api):
 # Paths and bodies are templates over the seeded world; a write carries a
 # body that validates, so a 403/404 is the handler's answer, never a 422.
 # --------------------------------------------------------------------------- #
+
+
+_TELEGRAM_HOSTED_OFF = "The hosted Telegram bot is not configured"
+
+
+def _probe_hosted_config(owner, *, connection_id):
+    """Which optional hosted integrations this deployment runs. The catalog
+    lists every adapter whether or not its hosted app is configured, so the
+    owner's own call to a hosted route is the only wire-level answer: 404
+    with the not-configured detail means off.
+
+    Only the hosted Telegram bindings read depends on it. Every other hosted
+    route (Slack install, Telegram bind link) checks EDIT_CHANNELS before its
+    configuration, so a viewer's 403 holds either way, and the Slack callback
+    is public and out of scope here."""
+
+    resp = owner(
+        "GET",
+        "/channels/catalog/channels/telegram_hosted/bindings/",
+        params={"connection_id": connection_id},
+    )
+    if resp.status_code == 200:
+        return {"telegram_hosted": True}
+    assert resp.status_code == 404 and _TELEGRAM_HOSTED_OFF in resp.text, (
+        f"unexpected hosted Telegram probe answer: {resp.status_code} {resp.text}"
+    )
+    return {"telegram_hosted": False}
+
+
+# Read routes that answer 404 for every caller when the named hosted
+# integration is not configured on the deployment.
+_HOSTED_ONLY_READS = {"list_telegram_hosted_bindings": "telegram_hosted"}
+
+
+def _read_is_off(w, operation_id):
+    integration = _HOSTED_ONLY_READS.get(operation_id)
+    return integration is not None and not w["hosted"][integration]
+
+
+def _assert_off(resp, operation_id):
+    """A read of an unconfigured hosted integration: a 404 naming the missing
+    configuration, never a 200 carrying rows."""
+
+    assert resp.status_code == 404 and _TELEGRAM_HOSTED_OFF in resp.text, (
+        f"{operation_id} with hosted Telegram off: {resp.status_code} {resp.text}"
+    )
 
 
 def _reads(w):
@@ -649,6 +697,9 @@ class TestViewerRole:
         failures = []
         for route in _reads(world):
             resp = _call(world["viewer"], route)
+            if _read_is_off(world, route[0]):
+                _assert_off(resp, route[0])
+                continue
             if resp.status_code != 200:
                 failures.append(f"{route[0]}: {resp.status_code} {resp.text[:200]}")
         assert not failures, "viewer was refused a read:\n" + "\n".join(failures)
@@ -775,6 +826,9 @@ class TestOtherProject:
 
         for route in routes:
             resp = _call(world["other"], route)
+            if _read_is_off(world, route[0]):
+                _assert_off(resp, route[0])
+                continue
             assert resp.status_code == 200, f"{route[0]}: {resp.text}"
             rows = resp.json().get(_FOREIGN_COLLECTIONS[route[0]]) or []
             leaked = {row.get("id") for row in rows} & owner_ids
