@@ -5,7 +5,6 @@ description: "Run an agent on a schedule or whenever something happens in an app
 ---
 
 ```mdx-code-block
-import Image from "@theme/IdealImage";
 import { Stream } from "@cloudflare/stream-react";
 ```
 
@@ -26,7 +25,7 @@ Open the agent and tell it in the chat what the job is: what to do and where to 
 
 Go to `Sidebar > Automations` and click `New automation`.
 
-{/* TODO video: <Stream controls autoplay muted loop src="REPLACE_WITH_STREAM_ID" height="400px" /> */}
+<Stream controls autoplay muted loop src="f32acd7ba24a22793626d625f83498fb" height="400px" />
 
 ### 1. Give it a name
 
@@ -57,14 +56,7 @@ A new automation is set to run every weekday at 9:00 UTC. To change that, pick h
 All times are in UTC (the world's reference time), not your local time. In summer, 9:00 UTC is 11:00 in Berlin and 5:00 in New York.
 :::
 
-{/* TODO image:
-<Image
-  style={{ display: "block", margin: "24px 0" }}
-  img={require("/images/agents/agenta-automation-schedule-wide.png")}
-  alt="The schedule builder with a weekly cadence, Mon to Fri selected, and 09:00 UTC"
-  loading="lazy"
-/>
-*/}
+<Stream controls autoplay muted loop src="28e50ba6169b9c9a3c0773826e9c9843" height="400px" />
 
 #### If you chose "When something happens"
 
@@ -74,7 +66,7 @@ If your app is not there yet, click `Connect another app…`. Search for the app
 
 Now click the app, then click the event you want to watch (for example, "issue opened"). Some events ask for a few details first, such as which repository to watch. Fill them in and click `Done`.
 
-{/* TODO video: <Stream controls autoplay muted loop src="REPLACE_WITH_STREAM_ID" height="400px" /> */}
+<Stream controls autoplay muted loop src="f0fcbe8b948279df7a7816c684e34707" height="400px" />
 
 ### 4. Write the message
 
@@ -89,8 +81,6 @@ Click `Create automation`.
 ## Check the automation's history
 
 Every run is saved, together with the full conversation the agent had. Open the automation and click the `Run history` card.
-
-{/* TODO video: <Stream controls autoplay muted loop src="REPLACE_WITH_STREAM_ID" height="400px" /> */}
 
 ## Related
 
