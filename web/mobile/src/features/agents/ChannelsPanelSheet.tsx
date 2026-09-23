@@ -9,6 +9,7 @@ export const ChannelsPanelSheet = ({
     subtitle,
     onClose,
     children,
+    wide,
 }: ChannelsPanelRenderProps) => (
     <Sheet
         open={open}
@@ -18,7 +19,11 @@ export const ChannelsPanelSheet = ({
     >
         {/* `responsive` is this app's form-panel idiom: a bottom sheet on a phone, the
             right-edge drawer from lg up — where the desktop shows its own Drawer. */}
-        <SheetContent side="responsive">
+        <SheetContent
+            side="responsive"
+            // Code needs the room: the phone sheet spans the screen, the lg drawer widens.
+            className={wide ? "max-w-none lg:w-[720px]" : undefined}
+        >
             <SheetHeader>
                 <SheetTitle>{title}</SheetTitle>
                 {subtitle ? <SheetDescription>{subtitle}</SheetDescription> : null}

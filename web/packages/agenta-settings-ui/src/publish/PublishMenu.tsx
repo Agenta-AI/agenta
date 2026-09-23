@@ -60,7 +60,12 @@ export const PublishMenu = ({items, onSelect, disabled, className}: PublishMenuP
             ) : null}
             <DropdownMenu>
                 <DropdownMenuTrigger asChild disabled={disabled}>
-                    <Button size="sm" data-testid="publish-button">
+                    <Button
+                        size="sm"
+                        // The design's one yellow action per screen: the hero-action token.
+                        className="bg-hero-action text-hero-action-foreground hover:bg-hero-action-hover"
+                        data-testid="publish-button"
+                    >
                         Publish
                         <CaretDown size={12} />
                     </Button>

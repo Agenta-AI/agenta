@@ -148,7 +148,6 @@ export {
     type AgentApiPanelProps,
     type AgentPublishProps,
     type AgentSnippetLang,
-    type ApiKeyFieldProps,
     type BuildPublishItemsOptions,
     type PublishMenuItem,
     type PublishMenuProps,

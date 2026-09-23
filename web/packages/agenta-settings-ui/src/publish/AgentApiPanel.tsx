@@ -1,137 +1,147 @@
-import {useMemo, useState} from "react"
+import {useId, useMemo, useState} from "react"
 
 import {createApiKey} from "@agenta/settings"
 import {message} from "@agenta/ui/app-message"
 import {CopyButton} from "@agenta/ui/components/presentational"
-import {Input, LoadingButton, Tabs, TabsContent, TabsList, TabsTrigger} from "@agenta/ui/ui"
+import {Input, LoadingButton, Segmented, Switch} from "@agenta/ui/ui"
+import {ArrowSquareOut} from "@phosphor-icons/react"
 
-import {AGENT_INVOKE_DOCS_URL} from "./snippets/request"
+import {AGENT_INVOKE_DOCS_URL, agentInvokeUrl} from "./snippets/request"
 import {buildAgentSnippets, type AgentSnippetLang} from "./snippets/snippets"
-
-export interface ApiKeyFieldProps {
-    value: string
-    onChange: (value: string) => void
-}
 
 export interface AgentApiPanelProps {
     agentId: string
     projectId: string
     /** The Agenta origin, without `/api`. */
     host: string
-    /** Needed by the built-in API key field to create a key. */
+    /** Needed to create an API key for this project. */
     workspaceId?: string | null
 }
 
-const LANGS: {key: AgentSnippetLang; label: string}[] = [
-    {key: "python", label: "Python"},
-    {key: "typescript", label: "TypeScript"},
-    {key: "bash", label: "cURL"},
+const LANGS: {value: AgentSnippetLang; label: string}[] = [
+    {value: "python", label: "Python"},
+    {value: "typescript", label: "TypeScript"},
+    {value: "bash", label: "cURL"},
 ]
 
-const PlainCode = ({code}: {code: string}) => (
-    <pre className="m-0 overflow-x-auto whitespace-pre rounded-lg border border-solid border-colorBorderSecondary bg-colorFillQuaternary p-3 font-mono text-xs leading-relaxed text-colorText">
-        {code}
-    </pre>
+const FieldLabel = ({children, htmlFor}: {children: React.ReactNode; htmlFor?: string}) => (
+    <label htmlFor={htmlFor} className="text-xs font-medium text-colorTextSecondary">
+        {children}
+    </label>
 )
 
-/** The classic "Use API" key field: paste a key, or generate one for this project. */
-const ApiKeyField = ({
-    value,
-    onChange,
-    workspaceId,
-    projectId,
-}: ApiKeyFieldProps & {workspaceId?: string | null; projectId: string}) => {
-    const [loading, setLoading] = useState(false)
-    const generate = async () => {
+/**
+ * Publish > API: how to call the agent over HTTP. The endpoint, an API key, then one snippet
+ * per language that streams by default and switches to a single JSON response. The snippets
+ * follow the "Invoke an agent" docs and reference only the workflow, so they always run the
+ * default variant's latest revision.
+ */
+export const AgentApiPanel = ({agentId, projectId, host, workspaceId}: AgentApiPanelProps) => {
+    const keyInputId = useId()
+    const [lang, setLang] = useState<AgentSnippetLang>("python")
+    const [stream, setStream] = useState(true)
+    const [apiKeyValue, setApiKeyValue] = useState("")
+    const [creating, setCreating] = useState(false)
+    const apiKey = apiKeyValue || "YOUR_API_KEY"
+
+    const endpoint = agentInvokeUrl({host, projectId})
+    const code = useMemo(() => {
+        const [streaming, json] = buildAgentSnippets(lang, {host, projectId, agentId, apiKey})
+        return (stream ? streaming : json).code
+    }, [lang, stream, host, projectId, agentId, apiKey])
+
+    const create = async () => {
         if (!workspaceId) {
             message.error("Could not determine project/workspace. Please try refreshing.")
             return
         }
-        setLoading(true)
+        setCreating(true)
         try {
-            onChange(await createApiKey(workspaceId, projectId))
+            setApiKeyValue(await createApiKey(workspaceId, projectId))
             message.success("Successfully generated API Key")
         } catch {
             message.error("Unable to generate API Key")
         } finally {
-            setLoading(false)
+            setCreating(false)
         }
     }
-    return (
-        <div className="flex flex-col gap-1">
-            <span className="text-sm font-medium text-colorText">Create or enter your API key</span>
-            <div className="flex flex-wrap items-center gap-2">
-                <Input
-                    className="w-full max-w-[300px]"
-                    placeholder="Enter existing API key"
-                    value={value}
-                    onChange={(event) => onChange(event.target.value)}
-                />
-                <LoadingButton variant="outline" loading={loading} onClick={generate}>
-                    Generate API Key
-                </LoadingButton>
-            </div>
-        </div>
-    )
-}
-
-/**
- * Publish > API: how to call the agent over HTTP. An API key field, then Python / TypeScript /
- * cURL tabs, each with a streaming and a JSON snippet that follow the "Invoke an agent" docs.
- * The snippets reference only the workflow, so they always run the default variant's latest
- * revision.
- */
-export const AgentApiPanel = ({agentId, projectId, host, workspaceId}: AgentApiPanelProps) => {
-    const [lang, setLang] = useState<AgentSnippetLang>("python")
-    const [apiKeyValue, setApiKeyValue] = useState("")
-    const apiKey = apiKeyValue || "YOUR_API_KEY"
-
-    const snippets = useMemo(
-        () => buildAgentSnippets(lang, {host, projectId, agentId, apiKey}),
-        [lang, host, projectId, agentId, apiKey],
-    )
-
-    const field = {value: apiKeyValue, onChange: setApiKeyValue}
 
     return (
-        <div className="flex flex-col gap-4" data-testid="agent-api-panel">
-            <div className="flex flex-col gap-3">
-                <ApiKeyField {...field} workspaceId={workspaceId} projectId={projectId} />
-                <a
-                    href={AGENT_INVOKE_DOCS_URL}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-sm text-colorPrimary"
-                >
-                    Invoke an agent
-                </a>
+        <div className="flex min-w-0 flex-col gap-5" data-testid="agent-api-panel">
+            <div className="flex flex-col gap-1.5">
+                <FieldLabel>Endpoint</FieldLabel>
+                <div className="flex min-w-0 items-center gap-2 rounded-lg border border-solid border-colorBorderSecondary bg-colorFillQuaternary py-1 pl-2 pr-1">
+                    <span className="shrink-0 rounded bg-colorFillSecondary px-1.5 py-0.5 font-mono text-[11px] font-semibold text-colorText">
+                        POST
+                    </span>
+                    <span
+                        className="min-w-0 flex-1 truncate font-mono text-xs text-colorText"
+                        title={endpoint}
+                        data-testid="agent-api-endpoint"
+                    >
+                        {endpoint}
+                    </span>
+                    <CopyButton buttonText={null} text={endpoint} icon={true} />
+                </div>
             </div>
-            <Tabs value={lang} onValueChange={(value) => setLang(value as AgentSnippetLang)}>
-                <TabsList>
-                    {LANGS.map((item) => (
-                        <TabsTrigger key={item.key} value={item.key}>
-                            {item.label}
-                        </TabsTrigger>
-                    ))}
-                </TabsList>
-                <TabsContent value={lang} className="flex flex-col gap-6 pt-2">
-                    {snippets.map((snippet) => (
-                        <div
-                            key={snippet.key}
-                            className="flex min-w-0 flex-col gap-2"
-                            data-testid={`agent-api-snippet-${snippet.key}`}
-                        >
-                            <div className="flex items-center justify-between">
-                                <span className="text-sm font-medium text-colorText">
-                                    {snippet.title}
-                                </span>
-                                <CopyButton buttonText={null} text={snippet.code} icon={true} />
-                            </div>
-                            <PlainCode code={snippet.code} />
-                        </div>
-                    ))}
-                </TabsContent>
-            </Tabs>
+
+            <div className="flex flex-col gap-1.5">
+                <FieldLabel htmlFor={keyInputId}>API key</FieldLabel>
+                <div className="flex min-w-0 items-center gap-2">
+                    <Input
+                        id={keyInputId}
+                        className="min-w-0 flex-1"
+                        placeholder="Enter existing API key"
+                        value={apiKeyValue}
+                        onChange={(event) => setApiKeyValue(event.target.value)}
+                    />
+                    <LoadingButton variant="outline" loading={creating} onClick={create}>
+                        Create API key
+                    </LoadingButton>
+                </div>
+            </div>
+
+            <div className="flex flex-col gap-2">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                    <Segmented
+                        size="sm"
+                        options={LANGS}
+                        value={lang}
+                        onChange={(value) => setLang(value as AgentSnippetLang)}
+                        data-testid="agent-api-lang"
+                    />
+                    <label className="flex cursor-pointer items-center gap-2 text-xs text-colorText">
+                        <Switch
+                            size="sm"
+                            checked={stream}
+                            onCheckedChange={setStream}
+                            data-testid="agent-api-stream"
+                        />
+                        Streaming
+                    </label>
+                </div>
+                <div className="relative min-w-0">
+                    <pre
+                        className="m-0 max-h-[420px] overflow-auto whitespace-pre rounded-lg border border-solid border-colorBorderSecondary bg-colorFillQuaternary p-3 pr-12 font-mono text-xs leading-relaxed text-colorText"
+                        data-testid="agent-api-snippet"
+                    >
+                        {code}
+                    </pre>
+                    <div className="absolute right-1.5 top-1.5">
+                        <CopyButton buttonText={null} text={code} icon={true} />
+                    </div>
+                </div>
+            </div>
+
+            <a
+                href={AGENT_INVOKE_DOCS_URL}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex w-fit items-center gap-1 text-sm font-medium text-[var(--ag-c-1677FF)] no-underline hover:underline"
+            >
+                Read the docs
+                <ArrowSquareOut size={14} />
+            </a>
         </div>
     )
 }

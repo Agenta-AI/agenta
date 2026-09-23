@@ -86,6 +86,7 @@ export const renderChannelsDrawer = ({
     subtitle,
     onClose,
     children,
+    wide,
 }: ChannelsPanelRenderProps) => (
     <Drawer
         open={open}
@@ -98,7 +99,7 @@ export const renderChannelsDrawer = ({
             </div>
         }
         onClose={onClose}
-        width={460}
+        width={wide ? 720 : 460}
         destroyOnClose
     >
         {children}

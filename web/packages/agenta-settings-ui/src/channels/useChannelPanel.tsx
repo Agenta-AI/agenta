@@ -16,6 +16,8 @@ export interface ChannelsPanelRenderProps {
     subtitle?: string
     onClose: () => void
     children: React.ReactNode
+    /** A wider container for code (Publish > API); the channel panels leave it unset. */
+    wide?: boolean
 }
 
 export interface UseChannelPanelOptions {

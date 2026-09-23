@@ -7,7 +7,7 @@ export {
 } from "./PublishMenu"
 export {buildPublishItems, type BuildPublishItemsOptions} from "./items"
 export {AgentPublish, type AgentPublishProps} from "./AgentPublish"
-export {AgentApiPanel, type AgentApiPanelProps, type ApiKeyFieldProps} from "./AgentApiPanel"
+export {AgentApiPanel, type AgentApiPanelProps} from "./AgentApiPanel"
 export {
     AGENT_INVOKE_DOCS_URL,
     agentHostFromApiUrl,

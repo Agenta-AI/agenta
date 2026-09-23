@@ -9,37 +9,34 @@ vi.mock("@agenta/ui/app-message", () => ({message: {success: vi.fn(), error: vi.
 vi.mock("@agenta/ui/components/presentational", () => ({
     CopyButton: ({text}: {text: string}) => <button data-copy={text}>copy</button>,
 }))
-vi.mock("@agenta/ui/ui", () => {
-    const Ctx = React.createContext<{value: string; set: (v: string) => void}>({
-        value: "",
-        set: () => undefined,
-    })
-    return {
-        Input: (props: React.ComponentProps<"input">) => <input {...props} />,
-        LoadingButton: ({children, onClick}: React.ComponentProps<"button">) => (
-            <button onClick={onClick}>{children}</button>
-        ),
-        Tabs: ({
-            value,
-            onValueChange,
-            children,
-        }: {
-            value: string
-            onValueChange: (v: string) => void
-            children: React.ReactNode
-        }) => <Ctx.Provider value={{value, set: onValueChange}}>{children}</Ctx.Provider>,
-        TabsList: ({children}: {children: React.ReactNode}) => <div>{children}</div>,
-        TabsTrigger: ({value, children}: {value: string; children: React.ReactNode}) => {
-            const ctx = React.useContext(Ctx)
-            return (
-                <button role="tab" onClick={() => ctx.set(value)}>
-                    {children}
+vi.mock("@agenta/ui/ui", () => ({
+    Input: (props: React.ComponentProps<"input">) => <input {...props} />,
+    LoadingButton: ({children, onClick}: React.ComponentProps<"button">) => (
+        <button onClick={onClick}>{children}</button>
+    ),
+    Segmented: ({
+        options,
+        onChange,
+    }: {
+        options: {value: string; label: string}[]
+        onChange: (value: string) => void
+    }) => (
+        <div>
+            {options.map((option) => (
+                <button key={option.value} role="tab" onClick={() => onChange(option.value)}>
+                    {option.label}
                 </button>
-            )
-        },
-        TabsContent: ({children}: {children: React.ReactNode}) => <div>{children}</div>,
-    }
-})
+            ))}
+        </div>
+    ),
+    Switch: ({
+        checked,
+        onCheckedChange,
+    }: {
+        checked: boolean
+        onCheckedChange: (value: boolean) => void
+    }) => <button role="switch" aria-checked={checked} onClick={() => onCheckedChange(!checked)} />,
+}))
 
 import {AgentApiPanel} from "../../src/publish/AgentApiPanel"
 
@@ -67,38 +64,42 @@ const render = async () =>
             />,
         ),
     )
-const snippet = (key: string) =>
-    container.querySelector(`[data-testid="agent-api-snippet-${key}"] pre`)?.textContent ?? ""
+const snippet = () =>
+    container.querySelector('[data-testid="agent-api-snippet"]')?.textContent ?? ""
+const button = (text: string) =>
+    [...container.querySelectorAll("button")].find((el) => el.textContent === text) as HTMLElement
 
-it("shows the streaming snippet first, then the JSON one, targeting the agent's workflow", async () => {
+it("shows the endpoint and streams by default, against the agent's workflow", async () => {
     await render()
-    const keys = [...container.querySelectorAll("[data-testid^=agent-api-snippet-]")].map((el) =>
-        el.getAttribute("data-testid"),
+    expect(container.querySelector('[data-testid="agent-api-endpoint"]')?.textContent).toBe(
+        "https://h/services/agent/v0/invoke?project_id=proj-1",
     )
-    expect(keys).toEqual(["agent-api-snippet-stream", "agent-api-snippet-json"])
-    expect(snippet("stream")).toContain("stream=True")
-    expect(snippet("stream")).toContain('"workflow": {\n            "id": "agent-1"')
-    expect(snippet("json")).toContain('"Accept": "application/json"')
-    expect(snippet("json")).toContain("https://h/services/agent/v0/invoke?project_id=proj-1")
-    expect(container.querySelector("a")?.getAttribute("href")).toBe(
+    expect(snippet()).toContain("stream=True")
+    expect(snippet()).toContain('"Accept": "text/event-stream"')
+    expect(snippet()).toContain('"workflow": {\n            "id": "agent-1"')
+    const docs = container.querySelector("a")
+    expect(docs?.textContent).toBe("Read the docs")
+    expect(docs?.getAttribute("href")).toBe(
         "https://agenta.ai/docs/reference/agents/invoke-an-agent",
     )
 })
 
-it("switches language and fills a generated key into the snippets", async () => {
+it("switches to the JSON response and to another language", async () => {
     await render()
-    const curlTab = [...container.querySelectorAll('[role="tab"]')].find(
-        (tab) => tab.textContent === "cURL",
-    ) as HTMLElement
-    await act(async () => curlTab.click())
-    expect(snippet("stream")).toMatch(/^curl -N -X POST/)
-    expect(snippet("stream")).toContain("ApiKey YOUR_API_KEY")
+    await act(async () => (container.querySelector('[role="switch"]') as HTMLElement).click())
+    expect(snippet()).toContain('"Accept": "application/json"')
+    expect(snippet()).not.toContain("text/event-stream")
 
-    const generate = [...container.querySelectorAll("button")].find(
-        (button) => button.textContent === "Generate API Key",
-    ) as HTMLElement
-    await act(async () => generate.click())
+    await act(async () => button("cURL").click())
+    expect(snippet()).toMatch(/^curl -X POST/)
+    await act(async () => (container.querySelector('[role="switch"]') as HTMLElement).click())
+    expect(snippet()).toMatch(/^curl -N -X POST/)
+})
+
+it("fills a created API key into the snippet", async () => {
+    await render()
+    expect(snippet()).toContain("ApiKey YOUR_API_KEY")
+    await act(async () => button("Create API key").click())
     expect(createApiKey).toHaveBeenCalledWith("ws-1", "proj-1")
-    expect(snippet("stream")).toContain("ApiKey NEW_KEY")
-    expect(snippet("json")).toContain("ApiKey NEW_KEY")
+    expect(snippet()).toContain("ApiKey NEW_KEY")
 })

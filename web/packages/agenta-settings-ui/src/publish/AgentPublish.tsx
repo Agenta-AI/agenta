@@ -82,6 +82,7 @@ export const AgentPublish = ({
                 ? renderPanel({
                       open: true,
                       title: "API",
+                      wide: true,
                       onClose: () => setApiOpen(false),
                       children: (
                           <AgentApiPanel
