@@ -1312,12 +1312,15 @@ class ChannelsRouter:
     ) -> ChannelGrantResponse:
         await self._check(request, Permission.EDIT_CHANNELS)
 
-        grant = await self.channels_service.create_grant(
-            project_id=UUID(request.state.project_id),
-            user_id=UUID(str(request.state.user_id)),
-            #
-            grant=body.grant,
-        )
+        try:
+            grant = await self.channels_service.create_grant(
+                project_id=UUID(request.state.project_id),
+                user_id=UUID(str(request.state.user_id)),
+                #
+                grant=body.grant,
+            )
+        except (ChannelAgentNotFound, ChannelSpaceNotFound) as e:
+            raise HTTPException(status_code=404, detail=e.message) from e
         return ChannelGrantResponse(count=1 if grant else 0, grant=grant)
 
     @intercept_exceptions()

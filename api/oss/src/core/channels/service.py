@@ -1266,6 +1266,23 @@ class ChannelsService:
         #
         grant: ChannelGrantCreate,
     ) -> ChannelGrant:
+        # Nothing in the schema ties a grant's agent_id or space_id to a row,
+        # so the service does: a grant only names rows of its own project.
+        agent = await self.channels_dao.fetch_agent(
+            project_id=project_id,
+            agent_id=grant.agent_id,
+        )
+        if agent is None:
+            raise ChannelAgentNotFound(agent_id=grant.agent_id)
+
+        if grant.space_id is not None:
+            space = await self.channels_dao.fetch_space(
+                project_id=project_id,
+                space_id=grant.space_id,
+            )
+            if space is None:
+                raise ChannelSpaceNotFound(space_id=grant.space_id)
+
         return await self.channels_dao.create_grant(
             project_id=project_id,
             user_id=user_id,
