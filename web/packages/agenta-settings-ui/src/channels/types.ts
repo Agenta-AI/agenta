@@ -35,6 +35,11 @@ export interface ChannelSpace {
     kind: ChannelSpaceKind
     /** The display name; "Direct messages" for a private chat. */
     name: string
+    /** The platform's id for the place (a Slack channel id, a Telegram chat id), when known. */
+    externalId?: string | null
+    /** True when the backend stored no name, e.g. a place first seen through a message; `name`
+     * is then a stand-in built from `externalId` that a discovered name should replace. */
+    unnamed?: boolean
 }
 
 /**
@@ -91,6 +96,8 @@ export interface ChannelConnection {
     handle?: string | null
     /** The Slack workspace the app is installed in, as Slack reported it; null when unknown. */
     workspaceName?: string | null
+    /** The Slack app's id (A0…); tells two apps apart when neither stored a bot name. */
+    appId?: string | null
 }
 
 /**

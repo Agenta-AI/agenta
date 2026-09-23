@@ -119,17 +119,49 @@ const randomUuid = (): string => {
     return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`
 }
 
+/** The platform id in a space locator: a Slack `channel`, a Telegram `chat_id`. */
+export const locatorId = (locator: Row): string | null => {
+    const value = locator.channel ?? locator.chat_id
+    if (typeof value === "number" && Number.isFinite(value)) return String(value)
+    return asString(value)
+}
+
+/** What a place with no stored name is called: its platform id, else a plain noun. */
+export const unnamedSpaceLabel = (kind: ChannelSpaceKind, externalId: string | null): string => {
+    if (!externalId) return kind === "topic" ? "Unnamed channel" : "Unnamed group"
+    // Slack channel ids start with C (public), G (private) or D (a DM); Telegram's are numbers.
+    return /^\d|^-\d/.test(externalId) ? `Group ${externalId}` : `#${externalId}`
+}
+
 /** Map a backend space row to the design's shape. A private space is always "Direct messages". */
 export const mapSpaceRow = (row: Row): ChannelSpace | null => {
     const id = asString(row.id)
     if (!id || row.deleted_at) return null
     const kind = asSpaceKind(row.kind)
     const name = asString(row.name) ?? asString(row.description)
-    return {
-        id,
-        kind,
-        name: kind === "private" ? "Direct messages" : (name ?? "Untitled"),
+    const externalId = locatorId(asRecord(asRecord(row.data).external_locator))
+    if (kind === "private") return {id, kind, name: "Direct messages", externalId}
+    // A place first seen through a message is stored without a name; the panel swaps in the
+    // name discovery reports, and until then the platform id tells two such places apart.
+    return name
+        ? {id, kind, name, externalId}
+        : {id, kind, name: unnamedSpaceLabel(kind, externalId), externalId, unnamed: true}
+}
+
+/** Fill the unnamed places with the names discovery reports for the same platform id. */
+export const nameSpacesFrom = (
+    spaces: ChannelSpace[],
+    candidates: ChannelSpaceCandidate[],
+): ChannelSpace[] => {
+    const names = new Map<string, string>()
+    for (const candidate of candidates) {
+        const id = locatorId(candidate.externalLocator)
+        if (id && candidate.displayName) names.set(id, candidate.displayName)
     }
+    return spaces.map((space) => {
+        const discovered = space.unnamed && space.externalId ? names.get(space.externalId) : null
+        return discovered ? {...space, name: discovered, unnamed: false} : space
+    })
 }
 
 /** The card's chat type for a space kind: only "is it a DM" changes the row's copy. */
@@ -170,6 +202,7 @@ export const mapConnectionRow = (row: Row): ChannelConnection | null => {
             return name ? `@${name.replace(/^@/, "")}` : null
         })(),
         workspaceName: asString(asRecord(row.data).team_name),
+        appId: asString(asRecord(row.data).api_app_id),
     }
 }
 
@@ -269,7 +302,9 @@ export const buildAgentChannelsActions = ({
         return asArray(asRecord(res).candidates).map((row) => ({
             kind: asSpaceKind(row.kind),
             externalLocator: asRecord(row.external_locator),
-            displayName: asString(row.display_name) ?? asString(row.kind) ?? "Untitled",
+            displayName:
+                asString(row.display_name) ??
+                unnamedSpaceLabel(asSpaceKind(row.kind), locatorId(asRecord(row.external_locator))),
             isConfigured: row.is_configured === true,
             membership: asSpaceMembership(row.membership),
         }))

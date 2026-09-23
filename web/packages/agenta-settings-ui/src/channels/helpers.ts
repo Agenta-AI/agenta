@@ -14,7 +14,11 @@ export const platformLabel = (platform: ChannelPlatform): string =>
 export const botHandle = (connection: ChannelConnection, hostedHandle = "@agenta"): string => {
     if (connection.handle) return connection.handle
     if (connection.kind === "hosted") return hostedHandle
-    return connection.platform === "slack" ? "your Slack app" : "your bot"
+    // A Slack app installed before bot names were stored has only its app id to go by.
+    if (connection.platform === "slack") {
+        return connection.appId ? `Slack app ${connection.appId}` : "your Slack app"
+    }
+    return "your bot"
 }
 
 /** How one of several connections on a platform is told apart: its handle, and on Slack the
@@ -27,6 +31,27 @@ export const connectionLabel = (
     return connection.platform === "slack" && connection.workspaceName
         ? `${handle} · ${connection.workspaceName}`
         : handle
+}
+
+/**
+ * The connection a Disconnect confirmation names: the bot or app, and on Slack the workspace,
+ * so with several connections on one platform the question says which one goes. Falls back to
+ * the platform when the connection has nothing of its own to be called by.
+ */
+export const disconnectSubject = (connection: ChannelConnection): string => {
+    const platform = platformLabel(connection.platform)
+    const own =
+        connection.handle ??
+        (connection.kind === "hosted"
+            ? null
+            : connection.platform === "slack" && connection.appId
+              ? `Slack app ${connection.appId}`
+              : null)
+    const workspace = connection.platform === "slack" ? connection.workspaceName : null
+    if (own && workspace) return `${own} in ${workspace}`
+    if (own) return own
+    if (workspace) return `${platform} in ${workspace}`
+    return platform
 }
 
 /**

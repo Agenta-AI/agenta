@@ -11,11 +11,13 @@ import {
     Warning,
 } from "@phosphor-icons/react"
 
+import {nameSpacesFrom} from "./actions"
 import {
     NOOP_ACTIONS,
     answeringAgentName,
     botHandle,
     connectionScope,
+    disconnectSubject,
     errorMessage,
     platformLabel,
     slackInviteHandle,
@@ -145,11 +147,23 @@ export const ChannelManagePanel = ({
     const loadSpaces = useCallback(async () => {
         if (!connectionId) return
         setSpacesError(null)
+        let listed: ChannelSpace[]
         try {
-            setSpaces(await actions.listSpaces(connectionId))
+            listed = await actions.listSpaces(connectionId)
         } catch (e) {
             setSpaces([])
             setSpacesError(errorMessage(e, `Could not load where ${name} answers.`))
+            return
+        }
+        setSpaces(listed)
+        // A place first seen through a message has no stored name. Discovery knows it, so ask
+        // once; if that fails the row keeps its platform-id stand-in.
+        if (!listed.some((space) => space.unnamed)) return
+        try {
+            const discovered = await actions.discoverSpaces(connectionId)
+            setSpaces(nameSpacesFrom(listed, discovered))
+        } catch {
+            /* keep the stand-in names */
         }
     }, [actions, connectionId, name])
 
@@ -883,8 +897,8 @@ export const ChannelManagePanel = ({
                         {confirming ? (
                             <div className="flex flex-col gap-3 rounded-lg border border-solid border-colorBorderSecondary p-3">
                                 <span className="text-xs leading-relaxed text-colorTextSecondary">
-                                    Disconnect {name}? {agentName} stops answering there. Past
-                                    conversations stay in Agenta.
+                                    Disconnect {disconnectSubject(connection)}? {agentName} stops
+                                    answering there. Past conversations stay in Agenta.
                                 </span>
                                 <div className="flex gap-2">
                                     <Button
