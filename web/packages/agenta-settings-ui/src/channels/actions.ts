@@ -169,6 +169,7 @@ export const mapConnectionRow = (row: Row): ChannelConnection | null => {
             const name = asString(asRecord(row.data).bot_username)
             return name ? `@${name.replace(/^@/, "")}` : null
         })(),
+        workspaceName: asString(asRecord(row.data).team_name),
     }
 }
 
@@ -459,10 +460,21 @@ export const buildAgentChannelsActions = ({
             return here + (c.status === "connected" ? 2 : c.status === "pending" ? 1 : 0)
         }
         const out: ChannelConnections = {slack: null, telegram: null}
+        const mine: Record<ChannelPlatform, ChannelConnection[]> = {slack: [], telegram: []}
         for (const connection of rows) {
             const current = out[connection.platform]
             if (!current || rank(connection) > rank(current)) out[connection.platform] = connection
+            if (connection.agent?.id === appId) mine[connection.platform].push(connection)
         }
+        // The summarized connection leads its platform's list; the rest keep the backend order.
+        const lead = (platform: ChannelPlatform) => {
+            const primary = out[platform]
+            const list = mine[platform]
+            return primary && list.includes(primary)
+                ? [primary, ...list.filter((c) => c !== primary)]
+                : list
+        }
+        out.agentConnections = {slack: lead("slack"), telegram: lead("telegram")}
         return out
     }
 

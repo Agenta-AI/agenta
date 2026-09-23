@@ -28,7 +28,7 @@ import type {ChannelConnection, ChannelConnections} from "./types"
 
 /**
  * **The manage view for a connected channel.** What is connected, where it answers, the two
- * behavior switches, who may message it, the shipped defaults under Advanced, and disconnect.
+ * behavior switches, who may message it, and disconnect.
  *
  * Every mutation is real. Each rejects with a message the panel shows, the panel stays open, and
  * the row that failed re-reads its own state, so nothing on screen claims a change the backend
@@ -138,9 +138,8 @@ export const ConnectedHere: Story = {
         docs: {
             description: {
                 story:
-                    "The plain case. The summary names the hosted bot, the account and the " +
-                    "status; below it the chats it answers in, the two switches, who may " +
-                    "message it, and the shipped defaults under Advanced.",
+                    "The plain case. The summary names the hosted bot and the account; below " +
+                    "it the chats it answers in, the two switches, and who may message it.",
             },
         },
     },

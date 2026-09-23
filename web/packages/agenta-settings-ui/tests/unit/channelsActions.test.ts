@@ -73,6 +73,35 @@ describe("Channels connection state", () => {
         expect((await actions.reload()).telegram?.connectionId).toBe("connection-1")
     })
 
+    it("lists every connection that answers as this agent, the summarized one first", async () => {
+        const {client, actions} = fixture()
+        client.queryChannelConnections.mockResolvedValue({
+            connections: [
+                connection({id: "other", channel: "telegram", flags: {is_active: true}}),
+                connection({id: "mine-revoked", channel: "telegram", flags: {is_active: false}}),
+                connection(),
+                connection({
+                    id: "slack-1",
+                    channel: "slack",
+                    flags: {is_active: true},
+                    data: {team_name: "Acme"},
+                }),
+            ],
+        })
+        client.queryChannelAgents.mockImplementation(
+            async ({agent: {connection_id}}: {agent: {connection_id: string}}) => ({
+                agents: [agent(connection_id === "other" ? "other-app" : "app-1")],
+            }),
+        )
+        const next = await actions.reload()
+        expect(next.telegram?.connectionId).toBe("connection-1")
+        expect(next.agentConnections?.telegram.map((c) => c.connectionId)).toEqual([
+            "connection-1",
+            "mine-revoked",
+        ])
+        expect(next.agentConnections?.slack.map((c) => c.workspaceName)).toEqual(["Acme"])
+    })
+
     it("retargets only when necessary and scopes the write to this project", async () => {
         const {client, actions} = fixture()
         await actions.connectHere("telegram", "connection-1")

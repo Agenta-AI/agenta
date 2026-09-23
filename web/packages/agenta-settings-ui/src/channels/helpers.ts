@@ -17,6 +17,32 @@ export const botHandle = (connection: ChannelConnection, hostedHandle = "@agenta
     return connection.platform === "slack" ? "your Slack app" : "your bot"
 }
 
+/** How one of several connections on a platform is told apart: its handle, and on Slack the
+ * workspace it is installed in. */
+export const connectionLabel = (
+    connection: ChannelConnection,
+    hostedHandle = "@agenta",
+): string => {
+    const handle = botHandle(connection, hostedHandle)
+    return connection.platform === "slack" && connection.workspaceName
+        ? `${handle} · ${connection.workspaceName}`
+        : handle
+}
+
+/**
+ * Every connection on a platform that answers as the agent whose page is open, the summarized
+ * one first. A pending hosted link answers nowhere yet, so it is left out. Falls back to the
+ * summarized connection alone when the host did not list them.
+ */
+export const agentConnectionsOf = (
+    connections: ChannelConnections,
+    platform: ChannelPlatform,
+): ChannelConnection[] => {
+    const primary = connections[platform]
+    const all = connections.agentConnections?.[platform] ?? (primary ? [primary] : [])
+    return all.filter((connection) => connection.status !== "pending")
+}
+
 /** The handle `/invite` takes in Slack: what Slack reported for the bot, else "@Agenta". */
 export const slackInviteHandle = (connection: ChannelConnection): string =>
     connection.handle || "@Agenta"

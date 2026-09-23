@@ -1,17 +1,6 @@
 import {useCallback, useEffect, useState} from "react"
 
-import {
-    Accordion,
-    AccordionContent,
-    AccordionItem,
-    AccordionTrigger,
-    Alert,
-    Button,
-    Input,
-    PasswordInput,
-    Spinner,
-    Switch,
-} from "@agenta/ui/ui"
+import {Alert, Button, Input, PasswordInput, Spinner, Switch} from "@agenta/ui/ui"
 import {
     ArrowsLeftRight,
     ChatCircle,
@@ -43,8 +32,9 @@ import type {
 
 /**
  * The manage view for a connected channel: what is connected, where it answers, the two
- * behavior switches, who may message it, the read-only advanced defaults, and disconnect.
- * Shared by desktop + /m.
+ * behavior switches, who may message it, and disconnect. Shared by desktop + /m. It shows only
+ * what the user can change or needs to know: fixed defaults and a status nobody can toggle
+ * are left out.
  *
  * Every mutation is real and goes through `ChannelsActions`. A rejected call leaves the panel
  * open, shows the message it carried, and the row it belongs to re-reads its own state, so the
@@ -370,20 +360,6 @@ export const ChannelManagePanel = ({
         }
     }
 
-    const statusRow = (
-        <span
-            className={`inline-flex items-center gap-1.5 ${revoked ? "text-colorError" : ""}`}
-            data-testid="channels-status"
-        >
-            <span
-                className={`inline-block h-1.5 w-1.5 rounded-full ${
-                    revoked ? "bg-colorError" : "bg-colorSuccess"
-                }`}
-            />
-            {revoked ? (isSlack ? "Uninstalled" : "Token revoked") : "Active"}
-        </span>
-    )
-
     const summaryRows: {label: string; value: React.ReactNode}[] = [
         {
             label: "Bot",
@@ -396,7 +372,7 @@ export const ChannelManagePanel = ({
             }`,
         },
         isSlack
-            ? {label: "Workspace", value: workspaceName}
+            ? {label: "Workspace", value: connection.workspaceName || workspaceName}
             : {label: "Account", value: "Linked to you"},
         ...(canUpdateToken
             ? [
@@ -420,7 +396,6 @@ export const ChannelManagePanel = ({
                   },
               ]
             : []),
-        {label: "Status", value: statusRow},
         ...(connectedOn ? [{label: "Connected", value: connectedOn}] : []),
     ]
 
@@ -439,16 +414,21 @@ export const ChannelManagePanel = ({
         },
     ]
 
-    const advancedRows: [string, string, string][] = [
-        [
-            "Message triggers",
-            "What makes the agent respond in a channel",
-            isSlack ? "@mention only" : "Mention or reply",
-        ],
-        ["Session memory", "How far a conversation is remembered", "Per thread"],
-        ["Read earlier messages", "Include messages sent before the agent was added", "Off"],
-        ["Read while thinking", "Include messages that arrive while it is answering", "On"],
-    ]
+    // Every private chat is its own space (one per person who messaged the bot), but they are
+    // all "Direct messages" to the reader: one row stands for them.
+    const places: ChannelSpace[] | null =
+        spaces === null
+            ? null
+            : [
+                  ...(spaces.some((space) => space.kind === "private")
+                      ? [{id: "direct-messages", kind: "private" as const, name: "Direct messages"}]
+                      : []),
+                  ...spaces.filter((space) => space.kind !== "private"),
+              ]
+    // A place whose kind a behavior switch turned off stays listed, marked off, so the switch
+    // visibly changes where the agent answers.
+    const placeOff = (kind: ChannelSpaceKind): boolean =>
+        behavior !== null && (kind === "private" ? !behavior.dm : !behavior.group)
 
     const tokenForm = tokenOpen ? (
         <div
@@ -645,29 +625,41 @@ export const ChannelManagePanel = ({
                         />
                         {spacesError ? <Alert type="error" showIcon message={spacesError} /> : null}
                         <div className={CARD}>
-                            {spaces === null ? (
+                            {places === null ? (
                                 <div className="flex items-center gap-2 px-3 py-2.5 text-xs text-colorTextSecondary">
                                     <Spinner size="small" /> Loading…
                                 </div>
-                            ) : spaces.length === 0 ? (
+                            ) : places.length === 0 ? (
                                 <div className="px-3 py-2.5 text-xs text-colorTextSecondary">
                                     Nothing yet. {isSlack ? "Add a channel" : "Open a chat"} and it
                                     appears here.
                                 </div>
                             ) : (
-                                spaces.map((space, i) => (
+                                places.map((space, i) => (
                                     <div
                                         key={space.id}
                                         className={`flex items-center gap-2.5 px-3 py-2.5 ${
                                             i ? DIVIDED : ""
                                         }`}
+                                        data-testid="channels-space"
                                     >
                                         <span className="flex flex-shrink-0 text-colorTextSecondary">
                                             {spaceIcon(space.kind, isSlack)}
                                         </span>
-                                        <span className="truncate text-[13px] text-colorText">
+                                        <span
+                                            className={`flex-1 truncate text-[13px] ${
+                                                placeOff(space.kind)
+                                                    ? "text-colorTextTertiary"
+                                                    : "text-colorText"
+                                            }`}
+                                        >
                                             {space.name}
                                         </span>
+                                        {placeOff(space.kind) ? (
+                                            <span className="flex-shrink-0 text-xs text-colorTextTertiary">
+                                                Off
+                                            </span>
+                                        ) : null}
                                     </div>
                                 ))
                             )}
@@ -883,35 +875,6 @@ export const ChannelManagePanel = ({
                             ) : null}
                         </div>
                     )}
-
-                    {/* --- the shipped defaults, read-only --- */}
-                    <Accordion type="single" collapsible>
-                        <AccordionItem value="advanced">
-                            <AccordionTrigger>Advanced</AccordionTrigger>
-                            <AccordionContent>
-                                <div className="flex flex-col">
-                                    {advancedRows.map(([title, help, value], i) => (
-                                        <div
-                                            key={title}
-                                            className={`flex items-center gap-3 px-3 py-2.5 ${
-                                                i ? DIVIDED : ""
-                                            }`}
-                                        >
-                                            <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                                                <span className="text-[13px] text-colorText">
-                                                    {title}
-                                                </span>
-                                                <span className="text-xs text-colorTextSecondary">
-                                                    {help}
-                                                </span>
-                                            </span>
-                                            <span className={CHIP}>{value}</span>
-                                        </div>
-                                    ))}
-                                </div>
-                            </AccordionContent>
-                        </AccordionItem>
-                    </Accordion>
 
                     <div className={`flex flex-col gap-2 pt-4 ${DIVIDED}`}>
                         {error?.kind === "disconnect" ? (

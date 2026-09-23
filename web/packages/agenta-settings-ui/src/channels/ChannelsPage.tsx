@@ -5,6 +5,8 @@ import {CaretRight} from "@phosphor-icons/react"
 import {
     EMPTY_CONNECTIONS,
     NOOP_ACTIONS,
+    agentConnectionsOf,
+    connectionLabel,
     hasAnyIssue,
     platformLabel,
     summarizeConnection,
@@ -127,6 +129,14 @@ export const ChannelsPage = ({
                     {PLATFORMS.map((platform) => {
                         const connection = connections[platform]
                         const summary = summarizeConnection(platform, connection, agentId)
+                        // Several connections answer as this agent: name each one.
+                        const mine = agentConnectionsOf(connections, platform)
+                        const sub =
+                            mine.length > 1 &&
+                            summary.action === "manage" &&
+                            !summary.needsAttention
+                                ? mine.map((c) => connectionLabel(c, hostedHandle)).join(", ")
+                                : summary.sub
                         return (
                             <button
                                 key={platform}
@@ -149,11 +159,7 @@ export const ChannelsPage = ({
                                         ) : null}
                                     </span>
                                     <span className={`truncate text-xs ${summary.subClass}`}>
-                                        {loading
-                                            ? "Loading…"
-                                            : loadError
-                                              ? "Unavailable"
-                                              : summary.sub}
+                                        {loading ? "Loading…" : loadError ? "Unavailable" : sub}
                                     </span>
                                 </span>
                                 {loading || loadError ? null : summary.action === "manage" ? (

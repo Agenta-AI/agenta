@@ -105,3 +105,55 @@ it("keeps failed-save feedback after refreshing behavior grants", async () => {
     )
     expect(container.textContent).toContain("Setting save failed")
 })
+it("shows every private chat as one Direct messages row", async () => {
+    const listSpaces = vi.fn().mockResolvedValue([
+        {id: "dm-1", kind: "private", name: "Direct messages"},
+        {id: "dm-2", kind: "private", name: "Direct messages"},
+        {id: "group-1", kind: "group", name: "Team"},
+    ])
+    await render({listSpaces})
+    const rows = [...container.querySelectorAll('[data-testid="channels-space"]')].map(
+        (row) => row.textContent,
+    )
+    expect(rows).toEqual(["Direct messages", "Team"])
+})
+it("marks Direct messages off once the switch turns them off", async () => {
+    let behavior = {dm: true, group: true}
+    const readBehavior = vi.fn(async () => behavior)
+    const writeBehavior = vi.fn(async (_p: unknown, _c: unknown, next: typeof behavior) => {
+        behavior = next
+    })
+    const listSpaces = vi
+        .fn()
+        .mockResolvedValue([{id: "dm-1", kind: "private", name: "Direct messages"}])
+    await render({readBehavior, writeBehavior, listSpaces})
+    const row = () => container.querySelector('[data-testid="channels-space"]')?.textContent
+    expect(row()).toBe("Direct messages")
+    await act(async () =>
+        (
+            container.querySelector('[data-testid="channels-behavior-dm"]') as HTMLButtonElement
+        ).click(),
+    )
+    expect(writeBehavior).toHaveBeenCalledWith(
+        "telegram",
+        "connection",
+        expect.objectContaining({dm: false, group: true}),
+    )
+    expect(row()).toBe("Direct messagesOff")
+})
+it("shows no read-only settings: no Advanced defaults and no Status row", async () => {
+    await render({})
+    const text = container.textContent ?? ""
+    for (const gone of [
+        "Advanced",
+        "Session memory",
+        "Read earlier messages",
+        "Read while thinking",
+        "Message triggers",
+        "Status",
+        "Active",
+    ]) {
+        expect(text).not.toContain(gone)
+    }
+    expect(container.querySelector('[data-testid="channels-status"]')).toBeNull()
+})

@@ -236,6 +236,39 @@ class TestResolveRouting:
         _, kwargs = dao.query_matching_grants.call_args
         assert kwargs["kind"] == ChannelSpaceKind.PRIVATE
 
+    async def test_kind_deny_on_private_refuses_a_dm(self):
+        """The manage panel's "Direct messages" switch, off, is a kind-level
+        DENY on private spaces: a DM to the agent is refused."""
+
+        adapter = WellBehavedFakeAdapter()
+        agent = _make_agent(slug="triage")
+
+        dao = _make_fake_dao()
+        dao.fetch_agent_by_slug = AsyncMock(return_value=agent)
+        dao.query_matching_grants = AsyncMock(
+            return_value=[
+                ChannelGrant(
+                    id=uuid4(),
+                    agent_id=agent.id,
+                    effect=ChannelGrantEffect.DENY,
+                    kind=ChannelSpaceKind.PRIVATE,
+                    data=ChannelGrantData(),
+                )
+            ]
+        )
+
+        service = _make_service(dao=dao, adapter=adapter)
+        event = _make_event(text="~triage hello", space_kind=ChannelSpaceKind.PRIVATE)
+
+        result = await service.resolve(
+            project_id=uuid4(), connection_id=uuid4(), event=event
+        )
+
+        assert result is None
+        dao.create_thread.assert_not_called()
+        _, kwargs = dao.query_matching_grants.call_args
+        assert kwargs["kind"] == ChannelSpaceKind.PRIVATE
+
     async def test_id_deny_beats_kind_allow_in_resolve(self):
         """A narrow id-scoped DENY refuses even where a broader kind-level
         ALLOW would otherwise admit -- deny wins regardless of specificity."""

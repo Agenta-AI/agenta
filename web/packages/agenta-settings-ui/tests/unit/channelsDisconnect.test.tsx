@@ -168,3 +168,95 @@ it("closes the panel after a clean disconnect", async () => {
 
     expect(container.querySelector('[data-testid="panel"]')).toBeNull()
 })
+
+const TELEGRAM_A: ChannelConnection = {
+    platform: "telegram",
+    kind: "custom",
+    status: "connected",
+    connectionId: "bot-a",
+    handle: "@bot_a",
+    agent: {id: "agent", name: "QA"},
+    dm: "allow",
+    group: "allow",
+    chats: [],
+}
+const TELEGRAM_B: ChannelConnection = {...TELEGRAM_A, connectionId: "bot-b", handle: "@bot_b"}
+
+it("lists each of the agent's connections on a platform and disconnects only the selected one", async () => {
+    const disconnect = vi.fn().mockResolvedValue(undefined)
+    const reload = vi.fn().mockResolvedValue({
+        slack: null,
+        telegram: TELEGRAM_B,
+        agentConnections: {slack: [], telegram: [TELEGRAM_B]},
+    })
+    await act(async () =>
+        root.render(
+            <Host
+                initial={{
+                    slack: null,
+                    telegram: TELEGRAM_A,
+                    agentConnections: {slack: [], telegram: [TELEGRAM_A, TELEGRAM_B]},
+                }}
+                actions={{...NOOP_ACTIONS, disconnect, reload}}
+            />,
+        ),
+    )
+    // The card names both bots.
+    const row = container.querySelector('[data-testid="channels-row-telegram"]') as HTMLElement
+    expect(row.textContent).toContain("@bot_a, @bot_b")
+    await act(async () => row.click())
+
+    expect(container.querySelector('[data-testid="channels-connection-list"]')).not.toBeNull()
+    expect(container.querySelector('[data-testid="channels-connection-bot-a"]')).not.toBeNull()
+    expect(container.querySelector('[data-testid="channels-connection-bot-b"]')).not.toBeNull()
+
+    await click("Disconnect Telegram")
+    const confirm = [...container.querySelectorAll("button")].find(
+        (b) => b.textContent === "Disconnect",
+    )!
+    await act(async () => confirm.click())
+
+    expect(disconnect).toHaveBeenCalledWith("telegram", "bot-a")
+    expect(disconnect).toHaveBeenCalledTimes(1)
+    // The panel stays open on the bot that is left; the archived one is gone from view.
+    expect(container.querySelector('[data-testid="panel"]')).not.toBeNull()
+    expect(container.querySelector('[data-testid="channels-connection-bot-a"]')).toBeNull()
+    // One connection left: no switcher, the manage view is the single-connection one.
+    expect(container.querySelector('[data-testid="channels-connection-list"]')).toBeNull()
+    expect(container.textContent).toContain("@bot_b")
+})
+
+it("switches the manage view to the connection picked in the list", async () => {
+    const disconnect = vi.fn().mockResolvedValue(undefined)
+    await act(async () =>
+        root.render(
+            <Host
+                initial={{
+                    slack: null,
+                    telegram: TELEGRAM_A,
+                    agentConnections: {slack: [], telegram: [TELEGRAM_A, TELEGRAM_B]},
+                }}
+                actions={{...NOOP_ACTIONS, disconnect}}
+            />,
+        ),
+    )
+    await act(async () =>
+        (container.querySelector('[data-testid="channels-row-telegram"]') as HTMLElement).click(),
+    )
+    await act(async () =>
+        (
+            container.querySelector('[data-testid="channels-connection-bot-b"]') as HTMLElement
+        ).click(),
+    )
+    expect(
+        container
+            .querySelector('[data-testid="channels-connection-bot-b"]')
+            ?.getAttribute("aria-pressed"),
+    ).toBe("true")
+    await click("Disconnect Telegram")
+    const confirm = [...container.querySelectorAll("button")].find(
+        (b) => b.textContent === "Disconnect",
+    )!
+    await act(async () => confirm.click())
+    expect(disconnect).toHaveBeenCalledWith("telegram", "bot-b")
+})

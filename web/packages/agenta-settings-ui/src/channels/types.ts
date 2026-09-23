@@ -89,12 +89,22 @@ export interface ChannelConnection {
     connectedAt?: string | null
     /** The bot/app handle this connection uses, e.g. "@newagentabot"; null when unknown. */
     handle?: string | null
+    /** The Slack workspace the app is installed in, as Slack reported it; null when unknown. */
+    workspaceName?: string | null
 }
 
-/** The project's connections, one per platform. `null` means "not connected". */
+/**
+ * The project's connections, one per platform. `null` means "not connected".
+ *
+ * `slack` / `telegram` hold the connection each entry point summarizes. An agent may answer
+ * through more than one connection on a platform (two Slack workspaces, two Telegram bots);
+ * `agentConnections` lists every one of them, the summarized one included, so the manage
+ * panel can show and disconnect each separately. Absent when the host did not resolve it.
+ */
 export interface ChannelConnections {
     slack: ChannelConnection | null
     telegram: ChannelConnection | null
+    agentConnections?: Record<ChannelPlatform, ChannelConnection[]>
 }
 
 /**
