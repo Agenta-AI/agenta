@@ -100,10 +100,7 @@ const modelHubTests = () => {
         "should configure a standard provider key and verify it is listed",
         {tag: tagsLight},
         async ({page, testProviderHelpers}, testInfo) => {
-            // Captured before configuring so the "then" step can assert the count went
-            // down. Counting rows instead does not work: the table is virtualised, so the
-            // DOM holds only the rows currently in view.
-            let configureNowCountBefore = 0
+            let configuredProviderRowKey: string | null = null
 
             await scenarios.given("the user is authenticated", async () => {
                 await expectAuthenticatedSession(page)
@@ -134,9 +131,12 @@ const modelHubTests = () => {
                         "All standard providers are already configured — skipping standard provider key test",
                     )
 
-                    configureNowCountBefore = await standardProvidersSection
-                        .getByRole("button", {name: "Configure now"})
-                        .count()
+                    configuredProviderRowKey = await configureNowButton
+                        .locator("xpath=ancestor::*[@data-row-key][1]")
+                        .getAttribute("data-row-key")
+                    if (!configuredProviderRowKey) {
+                        throw new Error("The provider row has no data-row-key")
+                    }
 
                     await configureNowButton.click()
 
@@ -158,17 +158,11 @@ const modelHubTests = () => {
                         .locator("xpath=ancestor::section[1]")
                         .first()
 
-                    const configureNowButtons = standardProvidersSection.getByRole("button", {
-                        name: "Configure now",
-                    })
-
-                    // One more provider is configured than before, so one fewer row offers
-                    // "Configure now". Comparing against a row count does not work here —
-                    // the table is virtualised, so the number of rows in the DOM depends on
-                    // the viewport rather than on how many providers exist.
-                    await expect
-                        .poll(() => configureNowButtons.count(), {timeout: 15000})
-                        .toBeLessThan(configureNowCountBefore)
+                    const configuredProviderRow = standardProvidersSection.locator(
+                        `[data-row-key="${configuredProviderRowKey}"]`,
+                    )
+                    await expect(configuredProviderRow).toBeVisible({timeout: 15000})
+                    await expect(configuredProviderRow).not.toContainText("Configure now")
                 },
             )
 
@@ -180,13 +174,9 @@ const modelHubTests = () => {
                         .locator("xpath=ancestor::section[1]")
                         .first()
 
-                    // Deleting is no longer a visible danger button — it is an entry in the
-                    // row's actions menu. That menu only renders for rows that already have
-                    // a key, so "the first row with an actions button" IS a configured row.
-                    const configuredRow = standardProvidersSection
-                        .locator("[data-row-key]")
-                        .filter({has: page.locator("button")})
-                        .first()
+                    const configuredRow = standardProvidersSection.locator(
+                        `[data-row-key="${configuredProviderRowKey}"]`,
+                    )
                     await expect(configuredRow).toBeVisible({timeout: 15000})
                     await configuredRow.locator("button").last().click()
 
