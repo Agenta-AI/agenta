@@ -43,36 +43,27 @@ export interface GateInput {
     header: (name: string) => string | null
     cookie: (name: string) => string | undefined
     /**
-     * AGENTA_MOBILE_GATE — every automatic hop between the desktop app and `/m`, whether the
-     * device heuristic or the Classic mode preference asks for it. Resolved by the adapter at
-     * request time with `resolveGateEnabled`. DEFAULT ON: a deployment without `/m` opts out
-     * with `AGENTA_MOBILE_GATE=false`, and nothing is redirected in either direction.
+     * Desktop app only: whether this deployment runs `/m` at all (AGENTA_MOBILE_ENABLED,
+     * resolved by the adapter at request time with `resolveMobileAppEnabled`). A deployment
+     * that does not run the web-mobile service sets it to false, and the desktop app then
+     * never sends anyone to `/m`. Unset means `/m` runs.
      *
-     * One exception runs before this flag: an OAuth callback the mobile app started
+     * One exception runs before this: an OAuth callback the mobile app started
      * (`MOBILE_AUTH_CALLBACK_COOKIE`) is always handed to `/m`, where its state lives.
      */
-    gateEnabled: boolean
-    /**
-     * AGENTA_MOBILE_REVERSE_GATE, mobile-app only. `false` keeps the forward gate (mobile
-     * devices → /m) while letting anything reach /m: tablets and desktop-UA browsers report
-     * as non-mobile, so the bounce blocks deliberate visits. Defaults to on.
-     */
-    reverseGateEnabled?: boolean
+    mobileAppEnabled?: boolean
 }
 
 /**
- * Env → flag, for both gates. DEFAULT ON: only the exact string "false" turns a
- * gate off, so an unset, empty, or misspelled value keeps the mobile app
- * reachable. Both gates ship on so that no deployment (cloud, self-hosted
- * compose, Railway, local dev) needs an env key to give phones /m; the keys are
- * an opt-OUT.
+ * AGENTA_MOBILE_ENABLED → whether `/m` runs. Only the exact string "false" means it does not,
+ * so an unset, empty, or misspelled value keeps the mobile app reachable. It is the same key
+ * run.sh, Helm (`webMobile.enabled`) and the Railway scripts use to decide whether to start
+ * the web-mobile service at all.
  *
- * The adapters read process.env INSIDE the request handler, never at module
- * scope: on the self-hosted standalone Node server, non-NEXT_PUBLIC env is
- * resolved at runtime, so flipping the key and recreating the container is
- * enough — no rebuild.
+ * The adapters read process.env INSIDE the request handler, never at module scope: on the
+ * self-hosted standalone Node server, non-NEXT_PUBLIC env is resolved at runtime.
  */
-export function resolveGateEnabled(raw: string | undefined | null): boolean {
+export function resolveMobileAppEnabled(raw: string | undefined | null): boolean {
     return raw !== "false"
 }
 
@@ -277,7 +268,7 @@ export function desktopRouteFor(pathname: string, search = ""): string | null {
     return null
 }
 
-/** The same map for the reverse DEVICE gate, which must always name somewhere to go. */
+/** The same map for the Classic mode return from /m, which must always name somewhere to go. */
 export function mapMobileToDesktop(pathname: string, search = ""): string {
     return desktopRouteFor(pathname, search) ?? "/w"
 }
@@ -297,12 +288,10 @@ export function decideDesktopGate(input: GateInput): GateDecision {
         // before the flag.
         const wantsDesktop = new URLSearchParams(input.search).get(VIEW_PARAM) === "desktop"
 
-        // BEFORE the flag: a provider redirect the MOBILE app started has to reach /m whether or
-        // not the device gate is on. The cookie is an explicit intent set by /m moments earlier,
+        // BEFORE the enabled check: a provider redirect the MOBILE app started has to reach /m. The cookie is an explicit intent set by /m moments earlier,
         // not a device heuristic, and the OAuth state lives in /m's same-origin sessionStorage.
-        // A deployment that opts out with AGENTA_MOBILE_GATE=false still runs /m, so gating this
-        // strands every mobile SSO sign-in on the desktop route, where the state it needs does
-        // not exist.
+        // Gating this would strand a mobile SSO sign-in on the desktop route, where the state it
+        // needs does not exist.
         if (
             !wantsDesktop &&
             isDocumentNavigation(input) &&
@@ -312,7 +301,7 @@ export function decideDesktopGate(input: GateInput): GateDecision {
             return {kind: "redirect", location: `/m${input.pathname}${input.search}`}
         }
 
-        if (!input.gateEnabled) return {kind: "pass"}
+        if (input.mobileAppEnabled === false) return {kind: "pass"}
         if (!isDocumentNavigation(input)) return {kind: "pass"}
 
         // Escape hatch: "View desktop site" links carry ?view=desktop. It opts out of BOTH
@@ -355,10 +344,14 @@ export function decideDesktopGate(input: GateInput): GateDecision {
     }
 }
 
-/** Reverse gate: runs in the MOBILE app. Sees only /m traffic behind Traefik. */
+/**
+ * Reverse direction: runs in the MOBILE app. Sees only /m traffic behind Traefik.
+ *
+ * It never looks at the device: a desktop browser may open /m. It only returns a user who
+ * turned Classic mode on to the desktop app.
+ */
 export function decideMobileGate(input: GateInput): GateDecision {
     try {
-        if (!input.gateEnabled) return {kind: "pass"}
         if (!isDocumentNavigation(input)) return {kind: "pass"}
 
         // Escape hatch: "Open mobile version" links carry ?view=mobile.
@@ -376,24 +369,12 @@ export function decideMobileGate(input: GateInput): GateDecision {
         if (AUTH_CALLBACK_RE.test(input.pathname)) return {kind: "pass"}
         if (input.cookie(MOBILE_OPTIN_COOKIE)) return {kind: "pass"}
 
-        const classic = input.cookie(CLASSIC_MODE_COOKIE)
-        // Classic mode off means /m is where this user belongs, so the device heuristic must
-        // not bounce them out of it. Without this the two gates ping-pong forever on a
-        // desktop UA: the desktop gate sends them here for the preference, this one sends
-        // them back for the device, and the cookie that started it never changes.
-        if (classic === "0") return {kind: "pass"}
-        // Mirror image: the desktop gate already ranks Classic mode above the device
-        // heuristic (`wantsClassic`), so without the same precedence here a phone whose user
-        // asked for the full app is passed through below and parked on /m.
-        if (classic === "1") {
+        // The desktop gate ranks Classic mode above the device heuristic (`wantsClassic`), so a
+        // user who asked for the full app is returned to it, phone included.
+        if (input.cookie(CLASSIC_MODE_COOKIE) === "1") {
             return {kind: "redirect", location: mapMobileToDesktop(input.pathname, input.search)}
         }
-
-        // Checked after ?view=mobile so the opt-in cookie is still set if the bounce is re-enabled.
-        if (input.reverseGateEnabled === false) return {kind: "pass"}
-        if (isMobileDevice(input.header)) return {kind: "pass"}
-
-        return {kind: "redirect", location: mapMobileToDesktop(input.pathname, input.search)}
+        return {kind: "pass"}
     } catch {
         return {kind: "pass"}
     }

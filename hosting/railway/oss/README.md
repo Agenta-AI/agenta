@@ -255,17 +255,11 @@ export RAILWAY_ENVIRONMENT_NAME="staging"
 A from-scratch `bootstrap.sh` run keeps the mobile web app **opt-in**, unlike the
 compose stack, which now starts `web-mobile` by default. Set the flag before
 `bootstrap.sh` and it creates a `web-mobile` service; the gateway already routes
-`/m` and `/m/*` to it. The two gate keys below are optional now: both gates
-default on, so set them only to opt out (`false`).
+`/m` and `/m/*` to it. `configure.sh` then sets `AGENTA_MOBILE_ENABLED=true` on
+`web`, so phones are redirected to `/m`; without the service it sets `false`.
 
 ```bash
 export AGENTA_RAILWAY_WITH_MOBILE=true
-# The device gate is on by default; this line only makes it explicit. A phone
-# landing on a desktop route goes to /m. Set it to false to turn the gate off.
-export AGENTA_MOBILE_GATE=true
-# Let desktop browsers open /m directly instead of being bounced back. This one
-# IS a change from the default, and preview environments want it:
-export AGENTA_MOBILE_REVERSE_GATE=false
 ```
 
 `bootstrap.sh` is the only place the flag is read. `configure.sh` and

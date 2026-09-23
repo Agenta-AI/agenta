@@ -30,8 +30,8 @@ services:
     web-mobile:
         # === ACTIVATION =========================================== #
         # No profile: the mobile app (/m) starts with the stack, like api and web.
-        # Opt out with `run.sh --no-mobile`, or with `--scale web-mobile=0` on a
-        # hand-rolled `docker compose up`.
+        # Opt out with `run.sh --no-mobile`, or on a hand-rolled `docker compose up`
+        # with `--scale web-mobile=0` plus AGENTA_MOBILE_ENABLED=false.
         # === IMAGE ================================================ #
         build:
             context: ../../../web

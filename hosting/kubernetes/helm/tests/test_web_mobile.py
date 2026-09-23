@@ -79,9 +79,11 @@ def container(deployment: dict) -> dict:
     return deployment["spec"]["template"]["spec"]["containers"][0]
 
 
-def env_value(deployment: dict, name: str) -> str:
-    entry = next(item for item in container(deployment)["env"] if item["name"] == name)
-    return entry["value"]
+def env_value(deployment: dict, name: str) -> str | None:
+    entry = next(
+        (item for item in container(deployment)["env"] if item["name"] == name), None
+    )
+    return entry["value"] if entry else None
 
 
 def ingress_paths(docs: list[dict]) -> list[dict]:
@@ -101,9 +103,15 @@ def main() -> int:
     assert mobile_container["command"] == ["/app/entrypoint.sh"]
     assert mobile_container["args"] == ["node", "mobile/server.js"]
     assert mobile_service["spec"]["ports"][0]["port"] == 3000
-    assert env_value(desktop_deployment, "AGENTA_MOBILE_GATE") == "true"
-    assert env_value(mobile_deployment, "AGENTA_MOBILE_GATE") == "true"
-    assert env_value(mobile_deployment, "AGENTA_MOBILE_REVERSE_GATE") == "true"
+    assert env_value(desktop_deployment, "AGENTA_MOBILE_ENABLED") == "true"
+    # The gate keys are gone; the mobile app reads no gate setting at all.
+    for key in (
+        "AGENTA_MOBILE_GATE",
+        "AGENTA_MOBILE_REVERSE_GATE",
+        "AGENTA_MOBILE_ENABLED",
+    ):
+        assert env_value(mobile_deployment, key) is None
+    assert env_value(desktop_deployment, "AGENTA_MOBILE_GATE") is None
     for probe in ("startupProbe", "livenessProbe", "readinessProbe"):
         assert mobile_container[probe]["httpGet"]["path"] == "/m/__env.js"
 
@@ -153,7 +161,9 @@ def main() -> int:
     assert not components(disabled_docs, "web-mobile")
     assert all(path["path"] != "/m" for path in ingress_paths(disabled_docs))
     assert (
-        env_value(component(disabled_docs, "Deployment", "web"), "AGENTA_MOBILE_GATE")
+        env_value(
+            component(disabled_docs, "Deployment", "web"), "AGENTA_MOBILE_ENABLED"
+        )
         == "false"
     )
 

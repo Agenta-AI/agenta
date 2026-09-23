@@ -57,7 +57,7 @@ show_usage() {
     echo "  --web-url <URL>         Override AGENTA_WEB_URL"
     echo "  --no-mobile             Do NOT start the mobile web app at /m. It starts by default on"
     echo "                          every stack, incl. --dev, where the extra dev server costs"
-    echo "                          ~0.5-1GB RAM. Also disables the desktop redirect gate."
+    echo "                          ~0.5-1GB RAM. Also keeps phones on the desktop app."
     echo "  --with-mobile           Deprecated no-op: /m starts by default now."
     echo ""
     echo "Environment:"
@@ -454,10 +454,10 @@ fi
 
 if ! $WITH_MOBILE; then
     echo "Mobile web app (/m) disabled: starting web-mobile with 0 replicas."
-    # The desktop middleware defaults its phone gate on. Override compose interpolation when
-    # the target service is absent, so --no-mobile / AGENTA_MOBILE_ENABLED=false can never
-    # redirect phones to a backend that was deliberately scaled to zero.
-    export AGENTA_MOBILE_GATE=false
+    # The desktop app sends phones to /m unless AGENTA_MOBILE_ENABLED=false. Export it for
+    # compose interpolation, so --no-mobile can never redirect phones to a service that was
+    # deliberately scaled to zero.
+    export AGENTA_MOBILE_ENABLED=false
 fi
 
 # Export the ENV_FILE to the environment

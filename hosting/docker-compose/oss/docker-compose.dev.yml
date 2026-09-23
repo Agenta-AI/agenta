@@ -48,9 +48,9 @@ services:
         image: agenta-oss-dev-web:latest
         # === EXECUTION ============================================ #
         # Turbopack's dev middleware sandbox only exposes .env-file vars (not the
-        # container's process env), so mirror the gate flag into an env file the
+        # container's process env), so mirror AGENTA_MOBILE_ENABLED into an env file the
         # app loads. Prod standalone reads process.env at request time — dev-only.
-        command: sh -c 'echo "AGENTA_MOBILE_GATE=$${AGENTA_MOBILE_GATE:-true}" > /app/oss/.env.development.local && pnpm dev-oss'
+        command: sh -c 'echo "AGENTA_MOBILE_ENABLED=$${AGENTA_MOBILE_ENABLED:-true}" > /app/oss/.env.development.local && pnpm dev-oss'
         # === STORAGE ============================================== #
         volumes:
             #
@@ -67,7 +67,7 @@ services:
             AGENTA_SERVICES_INTERNAL_KEY: ""
             DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
             WATCHPACK_POLLING: "true"
-            AGENTA_MOBILE_GATE: ${AGENTA_MOBILE_GATE:-true}
+            AGENTA_MOBILE_ENABLED: ${AGENTA_MOBILE_ENABLED:-true}
         # === NETWORK ============================================== #
         networks:
             - agenta-network
@@ -82,15 +82,15 @@ services:
     web-mobile:
         # === ACTIVATION =========================================== #
         # No profile: the mobile app (/m) starts with the stack, like api and web.
-        # Opt out with `run.sh --no-mobile`, or with `--scale web-mobile=0` on a
-        # hand-rolled `docker compose up`.
+        # Opt out with `run.sh --no-mobile`, or on a hand-rolled `docker compose up`
+        # with `--scale web-mobile=0` plus AGENTA_MOBILE_ENABLED=false.
         # === IMAGE ================================================ #
         image: agenta-oss-dev-web:latest
         # === EXECUTION ============================================ #
         # Same dev-sandbox env mirroring as the web service (see comment there). The mobile
         # dev server reads this file for config, and its allowed hot-reload origins derive
         # from AGENTA_WEB_URL, so that variable is mirrored here too.
-        command: sh -c 'printf "AGENTA_MOBILE_GATE=%s\nAGENTA_MOBILE_REVERSE_GATE=%s\nAGENTA_WEB_URL=%s\n" "$${AGENTA_MOBILE_GATE:-true}" "$${AGENTA_MOBILE_REVERSE_GATE:-true}" "$${AGENTA_WEB_URL:-}" > /app/mobile/.env.development.local && pnpm dev-mobile'
+        command: sh -c 'printf "AGENTA_WEB_URL=%s\n" "$${AGENTA_WEB_URL:-}" > /app/mobile/.env.development.local && pnpm dev-mobile'
         # === STORAGE ============================================== #
         volumes:
             - ../../../web/packages:/app/packages
@@ -105,8 +105,6 @@ services:
             AGENTA_SERVICES_INTERNAL_KEY: ""
             DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
             WATCHPACK_POLLING: "true"
-            AGENTA_MOBILE_GATE: ${AGENTA_MOBILE_GATE:-true}
-            AGENTA_MOBILE_REVERSE_GATE: ${AGENTA_MOBILE_REVERSE_GATE:-true}
         # === NETWORK ============================================== #
         networks:
             - agenta-network

@@ -1,7 +1,7 @@
 import {
     GATE_COOKIE_MAX_AGE,
     decideDesktopGate,
-    resolveGateEnabled,
+    resolveMobileAppEnabled,
 } from "@agenta/shared/utils/mobileGate"
 import {NextRequest, NextResponse} from "next/server"
 
@@ -9,9 +9,10 @@ import {NextRequest, NextResponse} from "next/server"
  * Forward gate: desktop routes are redirected into the /m app, for two reasons: the device
  * heuristic and the Classic mode preference.
  *
- * AGENTA_MOBILE_GATE covers both. DEFAULT ON; "false" opts out of every redirect.
+ * AGENTA_MOBILE_ENABLED=false (a deployment that does not run the web-mobile service) turns
+ * both off, so nobody is sent to an /m that does not exist.
  *
- * The flag is read inside the handler at request time: on the self-hosted
+ * The key is read inside the handler at request time: on the self-hosted
  * standalone Node server, non-NEXT_PUBLIC process.env is resolved at runtime
  * (the client-only DefinePlugin in next.config.ts does not touch this
  * compiler), so flipping the env + recreating the container is enough — no
@@ -29,7 +30,7 @@ export function middleware(request: NextRequest) {
         method: request.method,
         header: (name) => request.headers.get(name),
         cookie: (name) => request.cookies.get(name)?.value,
-        gateEnabled: resolveGateEnabled(process.env.AGENTA_MOBILE_GATE),
+        mobileAppEnabled: resolveMobileAppEnabled(process.env.AGENTA_MOBILE_ENABLED),
     })
 
     if (decision.kind === "redirect") {

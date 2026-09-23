@@ -17,106 +17,75 @@ const doc = (ua: string, extra: Record<string, string> = {}) => ({
     ...extra,
 })
 
-let savedFlag: string | undefined
-let savedReverseFlag: string | undefined
+const CLASSIC_ON = {cookie: "agenta-classic-mode=1"}
+
+/** The retired env keys. A stale value in an env file must change nothing. */
+const RETIRED_KEYS = ["AGENTA_MOBILE_GATE", "AGENTA_MOBILE_REVERSE_GATE"] as const
+const saved: Partial<Record<(typeof RETIRED_KEYS)[number], string | undefined>> = {}
 
 beforeEach(() => {
-    savedFlag = process.env.AGENTA_MOBILE_GATE
-    savedReverseFlag = process.env.AGENTA_MOBILE_REVERSE_GATE
-    // Both gates default ON, so the suite runs with neither key set — the same
-    // state as a deployment that configures nothing.
-    delete process.env.AGENTA_MOBILE_GATE
-    delete process.env.AGENTA_MOBILE_REVERSE_GATE
+    for (const key of RETIRED_KEYS) {
+        saved[key] = process.env[key]
+        delete process.env[key]
+    }
 })
 
 afterEach(() => {
-    if (savedFlag === undefined) delete process.env.AGENTA_MOBILE_GATE
-    else process.env.AGENTA_MOBILE_GATE = savedFlag
-    if (savedReverseFlag === undefined) delete process.env.AGENTA_MOBILE_REVERSE_GATE
-    else process.env.AGENTA_MOBILE_REVERSE_GATE = savedReverseFlag
+    for (const key of RETIRED_KEYS) {
+        if (saved[key] === undefined) delete process.env[key]
+        else process.env[key] = saved[key]
+    }
 })
 
 describe("mobile reverse gate proxy", () => {
-    it("gates by default, with no env key set", () => {
-        const res = proxy(req("/m/", doc(DESKTOP_UA)))
-        expect(res.status).toBe(307)
-        expect(res.headers.get("location")).toBe("http://localhost:3000/w")
-    })
-
-    it("still gates with the flag explicitly on", () => {
-        process.env.AGENTA_MOBILE_GATE = "true"
-        const res = proxy(req("/m/", doc(DESKTOP_UA)))
-        expect(res.headers.get("location")).toBe("http://localhost:3000/w")
-    })
-
-    it("passes everything through when the flag is off", () => {
-        process.env.AGENTA_MOBILE_GATE = "false"
-        const res = proxy(req("/m/", doc(DESKTOP_UA)))
-        expect(res.headers.get("location")).toBeNull()
-    })
-
-    it("keeps gating for an empty or unrecognized flag value", () => {
-        // Only the exact string "false" opts out; a typo must not hide the gate.
-        for (const raw of ["", "0", "off", "FALSE"]) {
-            process.env.AGENTA_MOBILE_GATE = raw
-            expect(proxy(req("/m/", doc(DESKTOP_UA))).headers.get("location")).toBe(
-                "http://localhost:3000/w",
-            )
-        }
-    })
-
-    it("keeps the reverse bounce for an unrecognized reverse-gate value", () => {
-        for (const raw of ["", "0", "FALSE"]) {
-            process.env.AGENTA_MOBILE_REVERSE_GATE = raw
-            expect(proxy(req("/m/", doc(DESKTOP_UA))).headers.get("location")).toBe(
-                "http://localhost:3000/w",
-            )
-        }
-    })
-
-    it("passes desktop UAs when AGENTA_MOBILE_REVERSE_GATE=false", () => {
-        process.env.AGENTA_MOBILE_REVERSE_GATE = "false"
+    it("lets a desktop browser stay on /m", () => {
         expect(proxy(req("/m/", doc(DESKTOP_UA))).headers.get("location")).toBeNull()
-        // An iPad on default Safari settings sends the macOS desktop UA.
         expect(
-            proxy(req("/m/w/ws1/p/pr1/sessions", doc(DESKTOP_UA))).headers.get("location"),
+            proxy(req("/m/w/ws1/p/pr1/sessions/abc", doc(DESKTOP_UA))).headers.get("location"),
         ).toBeNull()
     })
 
-    it("?view=mobile still sets the opt-in cookie with the reverse gate off", () => {
-        process.env.AGENTA_MOBILE_REVERSE_GATE = "false"
-        const res = proxy(req("/m/?view=mobile", doc(DESKTOP_UA)))
-        expect(res.headers.get("set-cookie") ?? "").toContain("agenta-mobile-optin=1")
+    it("lets a phone stay on /m", () => {
+        expect(proxy(req("/m/", doc(MOBILE_UA))).headers.get("location")).toBeNull()
     })
 
-    it("redirects a desktop UA on a mobile session URL to the desktop equivalent", () => {
-        // Unit tests hit the handler without the Next server, so the /m
-        // basePath is still present in nextUrl — the proxy strips it
-        // defensively (at runtime Next strips it before the handler runs).
-        const res = proxy(req("/m/w/ws1/p/pr1/sessions/abc", doc(DESKTOP_UA)))
-        expect(res.status).toBe(307)
-        expect(res.headers.get("location")).toBe(
-            "http://localhost:3000/w/ws1/p/pr1/observability?session=abc",
+    it("returns a Classic-mode-on user to the desktop equivalent, phone included", () => {
+        // Unit tests hit the handler without the Next server, so the /m basePath is still
+        // present in nextUrl; the proxy strips it defensively.
+        for (const ua of [DESKTOP_UA, MOBILE_UA]) {
+            const res = proxy(req("/m/w/ws1/p/pr1/sessions/abc", doc(ua, CLASSIC_ON)))
+            expect(res.status).toBe(307)
+            expect(res.headers.get("location")).toBe(
+                "http://localhost:3000/w/ws1/p/pr1/observability?session=abc",
+            )
+            expect(proxy(req("/m", doc(ua, CLASSIC_ON))).headers.get("location")).toBe(
+                "http://localhost:3000/w",
+            )
+        }
+    })
+
+    it("keeps a Classic-mode-on user on /m when they opted in", () => {
+        const res = proxy(
+            req("/m/", doc(DESKTOP_UA, {cookie: "agenta-classic-mode=1; agenta-mobile-optin=1"})),
         )
-    })
-
-    it("redirects the mobile root to /w for desktop UAs", () => {
-        const res = proxy(req("/m", doc(DESKTOP_UA)))
-        expect(res.headers.get("location")).toBe("http://localhost:3000/w")
-    })
-
-    it("lets mobile devices through (sec-ch-ua-mobile wins over UA)", () => {
-        const res = proxy(req("/m/", doc(DESKTOP_UA, {"sec-ch-ua-mobile": "?1"})))
         expect(res.headers.get("location")).toBeNull()
     })
 
-    it("honors the opt-in cookie for desktop UAs", () => {
-        const res = proxy(req("/m/", doc(DESKTOP_UA, {cookie: "agenta-mobile-optin=1"})))
-        expect(res.headers.get("location")).toBeNull()
+    it("ignores stale AGENTA_MOBILE_GATE and AGENTA_MOBILE_REVERSE_GATE values", () => {
+        for (const value of ["false", "true"]) {
+            process.env.AGENTA_MOBILE_GATE = value
+            process.env.AGENTA_MOBILE_REVERSE_GATE = value
+            expect(proxy(req("/m/", doc(DESKTOP_UA))).headers.get("location")).toBeNull()
+            expect(proxy(req("/m", doc(DESKTOP_UA, CLASSIC_ON))).headers.get("location")).toBe(
+                "http://localhost:3000/w",
+            )
+        }
     })
 
     it("does not redirect non-document requests", () => {
-        const res = proxy(req("/m/", {"user-agent": DESKTOP_UA, "sec-fetch-dest": "empty"}))
+        const res = proxy(
+            req("/m/", {"user-agent": DESKTOP_UA, "sec-fetch-dest": "empty", ...CLASSIC_ON}),
+        )
         expect(res.headers.get("location")).toBeNull()
     })
 
@@ -130,18 +99,7 @@ describe("mobile reverse gate proxy", () => {
     })
 
     it("never bounces an OAuth callback landing off /m", () => {
-        const res = proxy(req("/m/auth/callback/google?code=abc", doc(DESKTOP_UA)))
+        const res = proxy(req("/m/auth/callback/google?code=abc", doc(DESKTOP_UA, CLASSIC_ON)))
         expect(res.headers.get("location")).toBeNull()
-    })
-
-    it("still bounces the mobile sign-in page for desktop UAs", () => {
-        const res = proxy(req("/m/auth", doc(DESKTOP_UA)))
-        expect(res.headers.get("location")).toBe("http://localhost:3000/auth")
-    })
-
-    it("mobile UA passes untouched (no cookie, no redirect)", () => {
-        const res = proxy(req("/m/", doc(MOBILE_UA)))
-        expect(res.headers.get("location")).toBeNull()
-        expect(res.headers.get("set-cookie")).toBeNull()
     })
 })

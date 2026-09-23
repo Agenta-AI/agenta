@@ -45,8 +45,8 @@ export const processEnv = {
     NEXT_PUBLIC_AGENTA_ENABLED_SANDBOX_PROVIDERS:
         process.env.NEXT_PUBLIC_AGENTA_ENABLED_SANDBOX_PROVIDERS,
     NEXT_PUBLIC_SESSIONS_LAST_MESSAGE_ONLY: process.env.NEXT_PUBLIC_SESSIONS_LAST_MESSAGE_ONLY,
-    // Client half of AGENTA_MOBILE_GATE; entrypoint.sh mirrors it into __env.js.
-    NEXT_PUBLIC_AGENTA_MOBILE_GATE: process.env.NEXT_PUBLIC_AGENTA_MOBILE_GATE,
+    // Client half of AGENTA_MOBILE_ENABLED; entrypoint.sh mirrors it into __env.js.
+    NEXT_PUBLIC_AGENTA_MOBILE_ENABLED: process.env.NEXT_PUBLIC_AGENTA_MOBILE_ENABLED,
 }
 
 /**
