@@ -1298,3 +1298,84 @@ async def test_a_subtype_that_still_carries_a_persons_message_stays(subtype):
 
     assert event is not None
     assert event.processed.content[0]["text"] == "here is the file"
+
+
+# --- rendering, live QA 2026-09-23 --------------------------------------------
+
+
+def test_markdown_answer_renders_as_a_markdown_block():
+    """The agent writes standard Markdown. A `mrkdwn` section showed
+    `## heading`, `**bold**` and `[label](url)` literally; Slack's `markdown`
+    block renders them (verified live: header, rich_text and table blocks)."""
+
+    answer = "## Fruit report\n\n**bold** and [Agenta](https://agenta.ai)"
+    text, blocks = _render_content([{"type": "text", "text": answer}])
+
+    assert blocks == [{"type": "markdown", "text": answer}]
+    assert text == answer
+
+
+def test_approval_card_renders_title_scope_and_arguments():
+    """Live QA 2026-09-23: the card part was dropped and Slack showed bare
+    Approve/Deny buttons with empty text, so the user approved blind."""
+
+    content = [
+        {
+            "type": "card",
+            "title": "Approval needed: Write qa-approval.txt",
+            "text": "Approve allows this tool call once. Deny prevents it.",
+            "arguments": {"file_path": "/tmp/qa-approval.txt", "api_key": "sk-1"},
+        },
+        {"type": "button", "id": "0", "label": "Approve", "value": "i:approve"},
+        {"type": "button", "id": "1", "label": "Deny", "value": "i:deny"},
+    ]
+
+    text, blocks = _render_content(content)
+
+    assert [b["type"] for b in blocks] == ["markdown", "actions"]
+    card = blocks[0]["text"]
+    assert card.startswith("**Approval needed: Write qa-approval.txt**")
+    assert "Approve allows this tool call once" in card
+    assert "/tmp/qa-approval.txt" in card
+    assert "sk-1" not in card and "[REDACTED]" in card
+    assert card.count("```") == 2
+    assert [e["value"] for e in blocks[1]["elements"]] == ["i:approve", "i:deny"]
+    assert "Approval needed" in text
+
+
+def test_a_fence_inside_an_argument_cannot_close_the_code_block():
+    _, blocks = _render_content(
+        [{"type": "card", "title": "t", "arguments": {"content": "```\nx\n```"}}]
+    )
+    assert blocks[0]["text"].count("```") == 2
+
+
+async def test_dismiss_choices_rewrites_the_card_without_its_buttons():
+    """A clickable card after the answer reads as still pending. Telegram
+    cleared its keyboard; Slack kept both buttons live."""
+
+    adapter, transport = _adapter_with_stub([{"ok": True, "channel": "C1", "ts": "9"}])
+    content = [
+        {"type": "card", "title": "Approval needed: Write x", "arguments": {}},
+        {"type": "button", "id": "0", "label": "Approve", "value": "i:approve"},
+    ]
+
+    await adapter.dismiss_choices(
+        connection=_connection(),
+        external_locator={"channel": "C1", "ts": "9"},
+        content=content,
+    )
+
+    sent = json.loads(transport.requests[0].content)
+    assert transport.requests[0].url.path.endswith("chat.update")
+    assert sent["ts"] == "9"
+    assert [b["type"] for b in sent["blocks"]] == ["markdown"]
+    assert "Approval needed: Write x" in sent["blocks"][0]["text"]
+
+
+async def test_dismiss_choices_without_content_calls_nothing():
+    adapter, transport = _adapter_with_stub([])
+    await adapter.dismiss_choices(
+        connection=_connection(), external_locator={"channel": "C1", "ts": "9"}
+    )
+    assert transport.requests == []

@@ -2097,6 +2097,7 @@ class ChannelsService:
         await adapter.dismiss_choices(
             connection=connection,
             external_locator=event.data.external_locator,
+            content=content,
         )
 
     async def enqueue_output(self, *, project_id, thread_id, turn_id, items):

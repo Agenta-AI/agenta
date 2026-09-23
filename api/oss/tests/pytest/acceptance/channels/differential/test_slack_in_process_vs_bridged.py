@@ -512,5 +512,5 @@ async def test_button_degradation_agrees_between_in_process_and_bridged_slack(ar
     assert slack_message["text"] == bridge_message["text"]
     assert "1. Option 0" in slack_message["text"]
     # degraded means numbered text, never a Block Kit actions block
-    assert slack_message["blocks"][0]["type"] == "section"
-    assert bridge_message["blocks"][0]["type"] == "section"
+    assert slack_message["blocks"][0]["type"] == "markdown"
+    assert bridge_message["blocks"][0]["type"] == "markdown"

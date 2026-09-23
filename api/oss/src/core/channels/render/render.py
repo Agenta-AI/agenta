@@ -278,8 +278,45 @@ def _render_text(
     ]
 
 
+_FENCE = "```"
+
+
 def _split_text(text: str, max_chars: int) -> List[str]:
+    """Split Markdown into chunks of at most `max_chars`, each readable on
+    its own: break at a paragraph, line or word boundary (never mid-word, as
+    the fixed-width split did: "The q" / "uick brown fox", QA 2026-09-23),
+    and when a chunk ends inside a code fence, close it there and reopen it
+    at the start of the next chunk."""
+
     if max_chars <= 0 or len(text) <= max_chars:
         return [text]
 
-    return [text[i : i + max_chars] for i in range(0, len(text), max_chars)]
+    close_cost = len(_FENCE) + 1  # "\n```" closing this one
+    chunks: List[str] = []
+    rest = text
+    in_fence = False
+    while rest:
+        prefix = _FENCE + "\n" if in_fence else ""
+        fenced = in_fence or _FENCE in rest[:max_chars]
+        budget = max_chars - len(prefix) - (close_cost if fenced else 0)
+        if budget < 1:
+            # a limit too small to carry fence markers: plain fixed split
+            budget = max_chars - len(prefix)
+        if len(prefix) + len(rest) <= max_chars:
+            chunks.append(prefix + rest)
+            break
+        window = rest[:budget]
+        cut = max(window.rfind("\n\n"), -1)
+        if cut < budget // 2:
+            cut = window.rfind("\n")
+        if cut < budget // 2:
+            cut = max(window.rfind(" "), window.rfind("\t"))
+        if cut <= 0:
+            cut = budget
+        piece, rest = rest[:cut], rest[cut:].lstrip("\n ")
+        body = prefix + piece
+        in_fence = body.count(_FENCE) % 2 == 1
+        if in_fence:
+            body = body.rstrip("\n") + "\n" + _FENCE
+        chunks.append(body)
+    return chunks

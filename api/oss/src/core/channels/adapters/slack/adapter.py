@@ -22,6 +22,7 @@ from oss.src.core.channels.adapters.slack.mapping import (
     split_for_max_chars,
 )
 from oss.src.core.channels.adapters.slack.oauth import hosted_app_configured
+from oss.src.core.channels.render.approval import approval_details
 from oss.src.core.channels.adapters.slack.signature import verify_slack_signature
 from oss.src.core.channels.dtos import (
     ChannelCapabilities,
@@ -406,6 +407,31 @@ class SlackAdapter(ChannelAdapterInterface):
         )
         return {"channel": response["channel"], "ts": response["ts"]}
 
+    async def dismiss_choices(
+        self,
+        *,
+        connection: ChannelConnection,
+        external_locator: Dict[str, Any],
+        content: Optional[List[Dict[str, Any]]] = None,
+    ) -> None:
+        """Re-render the answered card without its buttons: a clickable card
+        after the answer reads as still pending. The message text stays."""
+
+        if not content:
+            return
+        remaining = [part for part in content if part.get("type") != "button"]
+        text, blocks = _render_content(remaining)
+        await self._call_with_blocks_fallback(
+            connection,
+            "chat.update",
+            {
+                "channel": external_locator["channel"],
+                "ts": external_locator["ts"],
+                "text": text,
+                "blocks": blocks,
+            },
+        )
+
     # --- teardown --- #
 
     async def revoke_installation(
@@ -753,21 +779,48 @@ def _connection_discriminator(payload: Dict[str, Any]) -> Tuple[str, str]:
     return ("", team_id or "")
 
 
+def _card_to_markdown(card: Dict[str, Any]) -> str:
+    """An approval card as Markdown: bold title, the scope line, and the
+    redacted arguments as a code block. The tool name and arguments live only
+    on the card part, so dropping it posted bare Approve/Deny buttons and the
+    user approved blind (QA finding, 2026-09-23)."""
+
+    lines: List[str] = []
+    if card.get("title"):
+        lines.append(f"**{card['title']}**")
+    if card.get("text"):
+        lines.append(card["text"])
+    details = approval_details(card.get("arguments"))
+    head, _, body = details.partition("\n")
+    if body:
+        # a literal fence inside an argument would close the block early
+        body = body.replace("```", "`\u200b``")
+        lines.append(f"{head}\n```\n{body}\n```")
+    else:
+        lines.append(details)
+    return "\n\n".join(lines)
+
+
 def _render_content(content: List[Dict[str, Any]]) -> tuple:
     """Flatten our internal content parts into (fallback text, Block Kit
-    blocks). Buttons degrade to numbered text above BUTTONS_MAX."""
+    blocks). Buttons degrade to numbered text above BUTTONS_MAX.
+
+    The agent writes standard Markdown, which Slack's `mrkdwn` does not
+    speak: headings, `**bold**`, `[label](url)` and tables arrived as literal
+    characters. A `markdown` block takes standard Markdown and Slack renders
+    it natively (header, rich text, table)."""
 
     buttons = [item for item in content if item.get("type") == "button"]
-    texts = [item.get("text", "") for item in content if item.get("type") == "text"]
+    segments: List[str] = []
+    for item in content:
+        if item.get("type") == "text" and item.get("text"):
+            segments.append(item["text"])
+        elif item.get("type") == "card":
+            segments.append(_card_to_markdown(item))
 
-    text = "\n".join(t for t in texts if t)
+    has_card = any(item.get("type") == "card" for item in content)
+    text = ("\n\n" if has_card else "\n").join(segments)
     blocks: List[Dict[str, Any]] = []
-
-    # `if texts:` let an all-empty text list emit a section with empty mrkdwn,
-    # which Slack rejects wholesale as invalid_blocks -- the fallback `" "`
-    # below guards only the text field, not the blocks (QA, 2026-08-17).
-    if text:
-        blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": text}})
 
     if buttons:
         options = [
@@ -780,11 +833,17 @@ def _render_content(content: List[Dict[str, Any]]) -> tuple:
             for b in buttons
         ]
         rendered = render_buttons_or_degrade(options, buttons_max=BUTTONS_MAX)
-        if rendered["type"] == "buttons":
-            blocks.append({"type": "actions", "elements": rendered["elements"]})
-        else:
+        if rendered["type"] != "buttons":
             text = f"{text}\n{rendered['text']}" if text else rendered["text"]
-            blocks = [{"type": "section", "text": {"type": "mrkdwn", "text": text}}]
+            buttons = []
+
+    # An empty markdown block is rejected wholesale as invalid_blocks, which
+    # the fallback `" "` below guards only for the text field (QA, 2026-08-17).
+    if text:
+        blocks.append({"type": "markdown", "text": text})
+
+    if buttons:
+        blocks.append({"type": "actions", "elements": rendered["elements"]})
 
     return text or " ", blocks
 

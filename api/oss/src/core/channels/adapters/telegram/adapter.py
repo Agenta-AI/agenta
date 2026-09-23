@@ -358,7 +358,11 @@ class TelegramAdapter(ChannelAdapterInterface):
         }
 
     async def dismiss_choices(
-        self, *, connection: ChannelConnection, external_locator: Dict[str, Any]
+        self,
+        *,
+        connection: ChannelConnection,
+        external_locator: Dict[str, Any],
+        content: Optional[List[Dict[str, Any]]] = None,
     ) -> None:
         try:
             await self._call(

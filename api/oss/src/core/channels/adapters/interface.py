@@ -193,9 +193,15 @@ class ChannelAdapterInterface(ABC):
         where the declaration says `rendering.controls.update`."""
 
     async def dismiss_choices(
-        self, *, connection: ChannelConnection, external_locator: Dict[str, Any]
+        self,
+        *,
+        connection: ChannelConnection,
+        external_locator: Dict[str, Any],
+        content: Optional[List[Dict[str, Any]]] = None,
     ) -> None:
-        """Remove resolved message controls without changing the message text."""
+        """Remove resolved message controls without changing the message text.
+        `content` is the message as it was posted, for platforms (Slack) that
+        can only drop buttons by re-sending the rest of the message."""
         return None
 
     async def signal_activity(

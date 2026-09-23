@@ -222,3 +222,41 @@ def test_the_approval_card_names_the_interaction_it_answers():
 
     assert item.choice is not None
     assert item.interaction_id == "int-9"
+
+
+# --- chunking, live QA 2026-09-23 ---------------------------------------------
+
+
+def test_split_breaks_at_line_boundaries_never_mid_word():
+    """Live QA: a 120-line answer split every 3000 characters mid-word
+    ("The q" / "uick brown fox") in Slack."""
+    from oss.src.core.channels.render.render import _split_text
+
+    lines = [
+        f"{i}. The quick brown fox jumps over the lazy dog number {i}."
+        for i in range(1, 121)
+    ]
+    chunks = _split_text("\n".join(lines), 3000)
+
+    assert len(chunks) > 1
+    assert all(len(chunk) <= 3000 for chunk in chunks)
+    assert [line for chunk in chunks for line in chunk.split("\n")] == lines
+
+
+def test_split_closes_and_reopens_a_code_fence_across_chunks():
+    from oss.src.core.channels.render.render import _split_text
+
+    text = "intro\n```python\n" + "\n".join(f"x{i} = {i}" for i in range(400))
+    text += "\n```\nafter"
+    chunks = _split_text(text, 1000)
+
+    assert len(chunks) > 1
+    assert all(len(chunk) <= 1000 for chunk in chunks)
+    assert all(chunk.count("```") % 2 == 0 for chunk in chunks)
+    assert chunks[1].startswith("```\n")
+
+
+def test_split_of_one_unbroken_word_still_respects_the_limit():
+    from oss.src.core.channels.render.render import _split_text
+
+    assert _split_text("a" * 25, 10) == ["a" * 10, "a" * 10, "a" * 5]
