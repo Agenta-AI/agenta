@@ -19,6 +19,7 @@ import {
     SLACK_BOT_HANDLE_MAX,
     defaultSlackIdentity,
     errorMessage,
+    fieldPatternError,
     platformLabel,
     slackHandleFrom,
 } from "./helpers"
@@ -388,7 +389,11 @@ export const ChannelConnectFlow = ({
 
     // --- custom: submit the declared fields ----------------------------------- //
     const fields: ChannelSetupField[] = setup?.fields ?? []
-    const fieldsValid = fields.every((field) => !field.required || values[field.name]?.trim())
+    const fieldsValid = fields.every(
+        (field) =>
+            (!field.required || values[field.name]?.trim()) &&
+            !fieldPatternError(field, values[field.name] ?? ""),
+    )
 
     const submitCustom = async () => {
         setSaving(true)
@@ -1098,29 +1103,43 @@ const SetupFieldInput = ({
     field: ChannelSetupField
     value: string
     onChange: (value: string) => void
-}) => (
-    <label className="flex flex-col gap-1.5">
-        <span className="flex items-baseline justify-between">
-            <span className="text-[13px] font-medium text-colorText">{field.label}</span>
-            {field.required ? (
-                <span className="text-xs text-colorTextTertiary">Required</span>
+}) => {
+    const patternError = fieldPatternError(field, value)
+    return (
+        <label className="flex flex-col gap-1.5">
+            <span className="flex items-baseline justify-between">
+                <span className="text-[13px] font-medium text-colorText">{field.label}</span>
+                {field.required ? (
+                    <span className="text-xs text-colorTextTertiary">Required</span>
+                ) : null}
+            </span>
+            {field.help ? (
+                <span className="text-xs text-colorTextSecondary">{field.help}</span>
             ) : null}
-        </span>
-        {field.help ? <span className="text-xs text-colorTextSecondary">{field.help}</span> : null}
-        {field.secret ? (
-            <PasswordInput
-                value={value}
-                onChange={(e) => onChange(e.target.value)}
-                className="font-mono text-xs"
-                data-testid={`channels-field-${field.name}`}
-            />
-        ) : (
-            <Input
-                value={value}
-                onChange={(e) => onChange(e.target.value)}
-                className="font-mono text-xs"
-                data-testid={`channels-field-${field.name}`}
-            />
-        )}
-    </label>
-)
+            {field.secret ? (
+                <PasswordInput
+                    value={value}
+                    onChange={(e) => onChange(e.target.value)}
+                    className="font-mono text-xs"
+                    data-testid={`channels-field-${field.name}`}
+                />
+            ) : (
+                <Input
+                    value={value}
+                    onChange={(e) => onChange(e.target.value)}
+                    className="font-mono text-xs"
+                    data-testid={`channels-field-${field.name}`}
+                    aria-invalid={patternError ? true : undefined}
+                />
+            )}
+            {patternError ? (
+                <span
+                    className="text-xs text-colorError"
+                    data-testid={`channels-field-${field.name}-error`}
+                >
+                    {patternError}
+                </span>
+            ) : null}
+        </label>
+    )
+}

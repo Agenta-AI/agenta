@@ -9,6 +9,7 @@ import type {
     ChannelSpace,
     ChannelSpaceCandidate,
     ChannelSpaceKind,
+    ChannelSpaceMembership,
     ChannelsActions,
     HostedTelegramLink,
 } from "./types"
@@ -96,6 +97,9 @@ const SPACE_KINDS: ChannelSpaceKind[] = ["private", "group", "topic"]
 
 const asSpaceKind = (value: unknown): ChannelSpaceKind =>
     value === "private" || value === "topic" ? value : "group"
+
+const asSpaceMembership = (value: unknown): ChannelSpaceMembership | null =>
+    value === "member" || value === "joinable" || value === "invite_required" ? value : null
 
 /**
  * A v4 uuid, without `crypto.randomUUID`.
@@ -266,6 +270,7 @@ export const buildAgentChannelsActions = ({
             externalLocator: asRecord(row.external_locator),
             displayName: asString(row.display_name) ?? asString(row.kind) ?? "Untitled",
             isConfigured: row.is_configured === true,
+            membership: asSpaceMembership(row.membership),
         }))
     }
 
@@ -477,6 +482,8 @@ export const buildAgentChannelsActions = ({
                 secret: field.secret === true,
                 required: field.required !== false,
                 help: asString(field.help),
+                pattern: asString(field.pattern),
+                patternError: asString(field.pattern_error),
             })),
             hostedAvailable: setup.hosted_available === true,
         }

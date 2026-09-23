@@ -37,6 +37,12 @@ export interface ChannelSpace {
     name: string
 }
 
+/**
+ * Whether the bot is in a discovered place: already a member, joins when the place is
+ * added, or needs a member to invite it on the platform.
+ */
+export type ChannelSpaceMembership = "member" | "joinable" | "invite_required"
+
 /** A place the connected app can see but that has no space row yet. */
 export interface ChannelSpaceCandidate {
     kind: ChannelSpaceKind
@@ -45,6 +51,8 @@ export interface ChannelSpaceCandidate {
     displayName: string
     /** True when a space row already backs it, so adding it again would be a no-op. */
     isConfigured: boolean
+    /** Null when the platform does not report membership. */
+    membership: ChannelSpaceMembership | null
 }
 
 /**
@@ -109,6 +117,10 @@ export interface ChannelSetupField {
     secret: boolean
     required: boolean
     help?: string | null
+    /** A regex the trimmed value must match; the backend enforces it too. */
+    pattern?: string | null
+    /** What to say when the value does not match `pattern`. */
+    patternError?: string | null
 }
 
 /** How a custom app presents itself on the platform; the backend fits each value to its limits. */

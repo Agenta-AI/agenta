@@ -29,6 +29,7 @@ import {
     connectionScope,
     errorMessage,
     platformLabel,
+    slackInviteHandle,
 } from "./helpers"
 import type {
     ChannelBehaviorState,
@@ -122,6 +123,7 @@ export const ChannelManagePanel = ({
     const name = platformLabel(connection.platform)
     const connectionId = connection.connectionId
     const handle = botHandle(connection, hostedHandle)
+    const inviteHandle = slackInviteHandle(connection)
 
     const [confirming, setConfirming] = useState(false)
     const [busy, setBusy] = useState<"disconnect" | "connect-here" | null>(null)
@@ -166,12 +168,15 @@ export const ChannelManagePanel = ({
     const [candidates, setCandidates] = useState<ChannelSpaceCandidate[] | null>(null)
     const [pickerError, setPickerError] = useState<string | null>(null)
     const [addingName, setAddingName] = useState<string | null>(null)
+    // A private channel the bot is not in: only a Slack member can invite it.
+    const [inviteFor, setInviteFor] = useState<string | null>(null)
 
     const openPicker = async () => {
         if (!connectionId) return
         setPickerOpen(true)
         setCandidates(null)
         setPickerError(null)
+        setInviteFor(null)
         try {
             setCandidates(await actions.discoverSpaces(connectionId))
         } catch (e) {
@@ -182,8 +187,13 @@ export const ChannelManagePanel = ({
 
     const addCandidate = async (candidate: ChannelSpaceCandidate) => {
         if (!connectionId) return
-        setAddingName(candidate.displayName)
         setPickerError(null)
+        if (candidate.membership === "invite_required") {
+            setInviteFor(candidate.displayName)
+            return
+        }
+        setInviteFor(null)
+        setAddingName(candidate.displayName)
         try {
             await actions.addSpace(connectionId, candidate)
             setPickerOpen(false)
@@ -668,10 +678,19 @@ export const ChannelManagePanel = ({
                                     data-testid="channels-space-picker"
                                 >
                                     <span className="text-xs text-colorTextSecondary">
-                                        Pick a channel the app was added to.
+                                        Pick a channel. The app joins public channels itself. For a
+                                        private channel, run /invite {inviteHandle} in it first.
                                     </span>
                                     {pickerError ? (
                                         <Alert type="error" showIcon message={pickerError} />
+                                    ) : null}
+                                    {inviteFor ? (
+                                        <Alert
+                                            type="info"
+                                            showIcon
+                                            message={`#${inviteFor.replace(/^#/, "")} is private. Run /invite ${inviteHandle} in it in Slack, then add it again.`}
+                                            data-testid="channels-space-invite-hint"
+                                        />
                                     ) : null}
                                     {candidates === null ? (
                                         <div className="flex items-center gap-2 text-xs text-colorTextSecondary">
@@ -679,8 +698,7 @@ export const ChannelManagePanel = ({
                                         </div>
                                     ) : candidates.filter((c) => !c.isConfigured).length === 0 ? (
                                         <span className="text-xs text-colorTextTertiary">
-                                            No new channels. Add the app to a channel in Slack
-                                            first.
+                                            No new channels.
                                         </span>
                                     ) : (
                                         <div className="flex flex-col gap-1.5">
@@ -700,6 +718,11 @@ export const ChannelManagePanel = ({
                                                         <span className="flex-1 truncate text-[13px] text-colorText">
                                                             {candidate.displayName}
                                                         </span>
+                                                        {candidate.membership === "member" ? (
+                                                            <span className="flex-shrink-0 text-xs text-colorTextTertiary">
+                                                                In channel
+                                                            </span>
+                                                        ) : null}
                                                         {addingName === candidate.displayName ? (
                                                             <Spinner size="small" />
                                                         ) : null}

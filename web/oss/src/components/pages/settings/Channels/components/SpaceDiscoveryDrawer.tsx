@@ -1,7 +1,8 @@
 import {useState} from "react"
 
+import {clientErrorMessage, mapConnectionRow, slackInviteHandle} from "@agenta/settings-ui"
 import type {AgentaApi} from "@agentaai/api-client"
-import {Button, Drawer, Empty, List, Select, Skeleton, Tag, Typography, message} from "antd"
+import {Alert, Button, Drawer, Empty, List, Select, Skeleton, Tag, Typography, message} from "antd"
 
 import {useChannelConnectionsQuery, useChannelSpaceActions} from "@/oss/state/channels"
 
@@ -15,7 +16,8 @@ export interface SpaceDiscoveryDrawerProps {
  * can see, `is_configured` distinguishing rows already backed by a
  * `channel_spaces` row. Choosing an unconfigured candidate calls
  * `create_channel_space`; choosing a configured one just closes (the space
- * list itself is the entry to its detail screen — no duplicate created).
+ * list itself is the entry to its detail screen — no duplicate created). Adding a public
+ * Slack channel makes the bot join it; a private one needs a `/invite` in Slack first.
  */
 export default function SpaceDiscoveryDrawer({open, onClose}: SpaceDiscoveryDrawerProps) {
     const {connections} = useChannelConnectionsQuery()
@@ -24,9 +26,16 @@ export default function SpaceDiscoveryDrawer({open, onClose}: SpaceDiscoveryDraw
     const [candidates, setCandidates] = useState<AgentaApi.ChannelSpaceCandidate[]>([])
     const [isLoading, setIsLoading] = useState(false)
     const [creatingKey, setCreatingKey] = useState<string | null>(null)
+    const [inviteFor, setInviteFor] = useState<string | null>(null)
+
+    const selected = connections.find((c) => c.id === connectionId)
+    const selectedRow = selected ? mapConnectionRow(selected as Record<string, unknown>) : null
+    const isSlack = selected?.channel === "slack"
+    const inviteHandle = selectedRow ? slackInviteHandle(selectedRow) : "@Agenta"
 
     const handleDiscover = async (nextConnectionId: string) => {
         setConnectionId(nextConnectionId)
+        setInviteFor(null)
         setIsLoading(true)
         try {
             const res = await discover(nextConnectionId)
@@ -44,6 +53,11 @@ export default function SpaceDiscoveryDrawer({open, onClose}: SpaceDiscoveryDraw
             return
         }
         if (!connectionId) return
+        if (candidate.membership === "invite_required") {
+            setInviteFor(candidate.display_name || candidate.kind)
+            return
+        }
+        setInviteFor(null)
         const key = JSON.stringify(candidate.external_locator)
         setCreatingKey(key)
         try {
@@ -58,8 +72,8 @@ export default function SpaceDiscoveryDrawer({open, onClose}: SpaceDiscoveryDraw
             })
             message.success("Space created")
             onClose()
-        } catch {
-            message.error("Failed to create space")
+        } catch (error) {
+            message.error(clientErrorMessage(error, "Failed to create space"))
         } finally {
             setCreatingKey(null)
         }
@@ -77,6 +91,19 @@ export default function SpaceDiscoveryDrawer({open, onClose}: SpaceDiscoveryDraw
                     }))}
                     onChange={handleDiscover}
                 />
+                {isSlack ? (
+                    <Typography.Text type="secondary">
+                        The app joins public channels itself. For a private channel, run /invite{" "}
+                        {inviteHandle} in it first.
+                    </Typography.Text>
+                ) : null}
+                {inviteFor ? (
+                    <Alert
+                        type="info"
+                        showIcon
+                        message={`#${inviteFor} is private. Run /invite ${inviteHandle} in it in Slack, then add it again.`}
+                    />
+                ) : null}
                 {isLoading ? (
                     <Skeleton active paragraph={{rows: 4}} />
                 ) : candidates.length === 0 ? (
@@ -110,6 +137,9 @@ export default function SpaceDiscoveryDrawer({open, onClose}: SpaceDiscoveryDraw
                                     ) : (
                                         <Tag>Not configured</Tag>
                                     )}
+                                    {candidate.membership === "member" ? (
+                                        <Tag>In channel</Tag>
+                                    ) : null}
                                 </div>
                             </List.Item>
                         )}

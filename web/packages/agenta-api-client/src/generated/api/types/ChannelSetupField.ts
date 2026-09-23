@@ -6,4 +6,6 @@ export interface ChannelSetupField {
     secret?: boolean | undefined;
     required?: boolean | undefined;
     help?: (string | null) | undefined;
+    pattern?: (string | null) | undefined;
+    pattern_error?: (string | null) | undefined;
 }

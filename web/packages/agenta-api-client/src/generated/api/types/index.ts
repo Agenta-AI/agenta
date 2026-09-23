@@ -185,6 +185,7 @@ export * from "./ChannelSpaceData.js";
 export * from "./ChannelSpaceEdit.js";
 export * from "./ChannelSpaceFlags.js";
 export * from "./ChannelSpaceKind.js";
+export * from "./ChannelSpaceMembership.js";
 export * from "./ChannelSpaceQuery.js";
 export * from "./ChannelSpaceResponse.js";
 export * from "./ChannelSpacesResponse.js";

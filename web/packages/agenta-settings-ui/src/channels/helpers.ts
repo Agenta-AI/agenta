@@ -3,6 +3,7 @@ import type {
     ChannelConnections,
     ChannelPlatform,
     ChannelScope,
+    ChannelSetupField,
     ChannelsActions,
 } from "./types"
 
@@ -15,6 +16,10 @@ export const botHandle = (connection: ChannelConnection, hostedHandle = "@agenta
     if (connection.kind === "hosted") return hostedHandle
     return connection.platform === "slack" ? "your Slack app" : "your bot"
 }
+
+/** The handle `/invite` takes in Slack: what Slack reported for the bot, else "@Agenta". */
+export const slackInviteHandle = (connection: ChannelConnection): string =>
+    connection.handle || "@Agenta"
 
 /**
  * Where a connection points, relative to the agent whose page is open:
@@ -212,4 +217,18 @@ export const NOOP_ACTIONS: ChannelsActions = {
     readAllowedUsers: async () => [],
     writeAllowedUsers: async () => {},
     updateCredentials: async () => {},
+}
+
+/** The field's declared pattern error when a non-empty value does not match it. */
+export const fieldPatternError = (field: ChannelSetupField, value: string): string | null => {
+    const trimmed = value.trim()
+    if (!field.pattern || !trimmed) return null
+    let matches = true
+    try {
+        matches = new RegExp(field.pattern).test(trimmed)
+    } catch {
+        // An unparseable pattern is the backend's to enforce; never block the form on it.
+        return null
+    }
+    return matches ? null : field.patternError || `${field.label} is not valid.`
 }

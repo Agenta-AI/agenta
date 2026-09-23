@@ -169,25 +169,35 @@ export const TELEGRAM_SPACES: ChannelSpace[] = [
     {id: "sp-tg-ops", kind: "group", name: "Ops team"},
 ]
 
-/** What the Slack app can see: two rooms it was added to that have no space row yet. */
+/** What the Slack app can see: one room already configured, three that are not. */
 export const SLACK_CANDIDATES: ChannelSpaceCandidate[] = [
     {
         kind: "topic",
         externalLocator: {channel: "C0SUPPORT"},
         displayName: "#support",
         isConfigured: true,
+        membership: "member",
     },
     {
         kind: "topic",
         externalLocator: {channel: "C0PRODUCT"},
         displayName: "#product",
         isConfigured: false,
+        membership: "joinable",
     },
     {
         kind: "topic",
         externalLocator: {channel: "C0SALES"},
         displayName: "#sales-questions",
         isConfigured: false,
+        membership: "member",
+    },
+    {
+        kind: "topic",
+        externalLocator: {channel: "C0LEADS"},
+        displayName: "#leadership",
+        isConfigured: false,
+        membership: "invite_required",
     },
 ]
 
