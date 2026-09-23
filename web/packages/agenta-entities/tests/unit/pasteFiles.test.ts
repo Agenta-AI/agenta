@@ -49,6 +49,38 @@ describe("readPastedFiles", () => {
         expect(out[1].file).toBe(doc)
     })
 
+    it("keeps the name of a file copied from the OS, even when it is image.png", () => {
+        const onDisk = new File(["x"], "image.png", {type: "image/png"})
+        Object.defineProperty(onDisk, "lastModified", {value: new Date(2026, 0, 2).getTime()})
+        expect(readPastedFiles(clipboard([onDisk]), at)).toEqual([
+            {file: onDisk, relativePath: "image.png"},
+        ])
+    })
+
+    it("numbers apart names that repeat inside one paste", () => {
+        const one = new File(["1"], "image.png", {type: "image/png"})
+        const two = new File(["2"], "image.png", {type: "image/png"})
+        const three = new File(["3"], "image.png", {type: "image/png"})
+        expect(
+            readPastedFiles(clipboard([one, two, three]), at).map((f) => f.relativePath),
+        ).toEqual([
+            "Pasted image 2026-09-20 at 15.30.45.png",
+            "Pasted image 2026-09-20 at 15.30.45 2.png",
+            "Pasted image 2026-09-20 at 15.30.45 3.png",
+        ])
+    })
+
+    it("numbers apart two copied files that share a real name", () => {
+        const mk = (body: string) => {
+            const f = new File([body], "notes.md", {type: "text/markdown"})
+            Object.defineProperty(f, "lastModified", {value: new Date(2026, 0, 2).getTime()})
+            return f
+        }
+        expect(
+            readPastedFiles(clipboard([mk("a"), mk("b")]), at).map((f) => f.relativePath),
+        ).toEqual(["notes.md", "notes 2.md"])
+    })
+
     it("falls back to the flat file list without items", () => {
         const doc = new File(["y"], "a.txt", {type: "text/plain"})
         expect(readPastedFiles(clipboard([doc], false), at)).toEqual([
