@@ -54,7 +54,6 @@ vi.mock("@agenta/entities/session", async (importOriginal) => {
         querySessionTranscript: vi.fn(async () => []),
         fetchSessionCapabilitiesAtom: atom(null, async () => null),
         fetchSessionSnapshotAtom: atom(null, async () => null),
-        sessionDurableApprovalsCapabilityAtom: atom(null, async () => false),
     }
 })
 

@@ -3,11 +3,11 @@ import {QueryClient} from "@tanstack/react-query"
 import {createStore} from "jotai"
 import {queryClientAtom} from "jotai-tanstack-query"
 import {beforeEach, expect, it, vi} from "vitest"
+
 const {respond, transition} = vi.hoisted(() => ({respond: vi.fn(), transition: vi.fn()}))
 vi.mock("../../src/session/api/api", () => ({
     respondInteraction: respond,
     transitionInteraction: transition,
-    fetchSessionDurableApprovalsCapability: vi.fn(),
     resumeSessionContinuation: vi.fn(),
 }))
 vi.mock("../../src/session/state/interactionStatus", async () => {

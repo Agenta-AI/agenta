@@ -2,10 +2,10 @@
 import {createElement, createRef, Fragment, useMemo, useRef, useState, type RefObject} from "react"
 
 import {projectIdAtom} from "@agenta/shared/state"
-import {createStore, Provider} from "jotai"
 import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 import {act, cleanup, fireEvent, render, renderHook, screen, waitFor} from "@testing-library/react"
 import type {UIMessage} from "ai"
+import {createStore, Provider} from "jotai"
 import {afterEach, beforeAll, beforeEach, describe, expect, it, vi} from "vitest"
 
 import {DEFAULT_ATTACHMENT_LIMITS} from "../../../src/assets/attachmentRules"
@@ -14,11 +14,11 @@ import {ChatComposer} from "../../../src/components/ChatComposer"
 import QueuedMessagesDock from "../../../src/components/QueuedMessagesDock"
 import {useAgentChatQueue} from "../../../src/hooks/useAgentChatQueue"
 import type {useComposerAttachments} from "../../../src/hooks/useComposerAttachments"
-import {describeRefusedSend} from "../../../src/model/error"
 import {
     useServerSessionInputs,
     type ServerSessionInputs,
 } from "../../../src/hooks/useServerSessionInputs"
+import {describeRefusedSend} from "../../../src/model/error"
 
 const {
     buildAgentRequest,
@@ -93,7 +93,7 @@ beforeAll(async () => {
 beforeEach(() => {
     buildAgentRequest.mockReset()
     fetchCapabilities.mockReset()
-    fetchCapabilities.mockResolvedValue({durableApprovals: true, queue: true, steer: true})
+    fetchCapabilities.mockResolvedValue({queue: true, steer: true})
     fetchSnapshot.mockReset()
     removeInput.mockReset()
     sendInputNow.mockReset()
@@ -334,7 +334,7 @@ describe("useServerSessionInputs", () => {
     it("reloads capabilities when project scope becomes available", async () => {
         const store = createStore()
         fetchCapabilities.mockImplementation(async () =>
-            store.get(projectIdAtom) ? {queue: true, steer: true, durableApprovals: true} : null,
+            store.get(projectIdAtom) ? {queue: true, steer: true} : null,
         )
         fetchSnapshot.mockResolvedValue(runningSnapshot([]))
         const {result} = renderHook(
@@ -356,7 +356,6 @@ describe("useServerSessionInputs", () => {
 
     it("does not request a queue snapshot when the capability is absent", async () => {
         fetchCapabilities.mockResolvedValue({
-            durableApprovals: false,
             queue: false,
             steer: false,
         })
@@ -535,7 +534,7 @@ describe("useServerSessionInputs", () => {
     // An empty text part reaches the model as an empty text content block, which Anthropic-family
     // models refuse (v0.119.1 risk map, entry 5).
     it("sends an attachment-only input with no text part", async () => {
-        fetchCapabilities.mockResolvedValue({durableApprovals: true, queue: true, steer: true})
+        fetchCapabilities.mockResolvedValue({queue: true, steer: true})
         fetchSnapshot.mockResolvedValue({
             session: {
                 id: "11111111-1111-4111-8111-111111111111",
@@ -886,7 +885,7 @@ describe("selected queued input Send Now", () => {
     })
 
     it("does not call the action when the server capability is disabled", async () => {
-        fetchCapabilities.mockResolvedValue({durableApprovals: false, queue: false, steer: false})
+        fetchCapabilities.mockResolvedValue({queue: false, steer: false})
         const {result} = renderHook(() =>
             useServerSessionInputs({
                 entityId: "revision-1",
