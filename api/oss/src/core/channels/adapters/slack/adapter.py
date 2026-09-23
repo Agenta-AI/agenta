@@ -1,5 +1,8 @@
+import asyncio
 import json
 import os
+import re
+import time
 from typing import Any, Dict, List, Optional, Tuple
 from urllib.parse import parse_qs, quote
 from uuid import UUID
@@ -125,10 +128,34 @@ def _invite_message(connection: ChannelConnection) -> str:
     )
 
 
+# Who wrote a message, by (connection, user id): Slack events carry only the
+# user id, so without a lookup every turn read "From user U07… (Slack id U07…)"
+# and the agent could not call anyone by name (QA finding, 2026-09-23).
+_SENDER_CACHE: Dict[Tuple[str, str], Tuple[float, Dict[str, str]]] = {}
+_SENDER_TTL_SECONDS = 3600
+_SENDER_MISS_TTL_SECONDS = 300
+# users.info runs on the webhook's ack path, which Slack gives three seconds.
+_SENDER_LOOKUP_TIMEOUT_SECONDS = 1.5
+
+
+def _profile_fields(user: Dict[str, Any]) -> Dict[str, str]:
+    profile = user.get("profile") if isinstance(user.get("profile"), dict) else {}
+    name = (
+        user.get("real_name")
+        or profile.get("real_name")
+        or profile.get("display_name")
+        or ""
+    )
+    username = user.get("name") or ""
+    return {k: v for k, v in (("name", name), ("username", username)) if v}
+
+
 class SlackAdapter(ChannelAdapterInterface):
     """ChannelAdapterInterface for Slack."""
 
     channel = "slack"
+    # Unit tests turn this off (no network); see tests' conftest.
+    resolve_sender_names = True
 
     def __init__(self, *, http_client: Optional[httpx.AsyncClient] = None) -> None:
         self._client = http_client or httpx.AsyncClient(base_url=_SLACK_API_BASE)
@@ -330,6 +357,8 @@ class SlackAdapter(ChannelAdapterInterface):
 
         text = event.get("text") or ""
         agent, command, _arg = extract_sigils(text)
+        addressed = bool(agent or mentions_user(text, bot_user_id))
+        sender = await self._sender(connection, event)
         event_ts = event.get("ts") or ""
         # A top-level message carries no thread_ts; per Slack's own threading
         # model it roots a thread keyed by its own ts. Without this fallback
@@ -340,6 +369,14 @@ class SlackAdapter(ChannelAdapterInterface):
 
         locator = build_locator(team=team_id, channel=channel_id, thread_ts=thread_ts)
 
+        # The bot's own mention as a readable handle: `<@U09…>` is noise to the
+        # agent and made every session title start with it.
+        if bot_user_id:
+            text = re.sub(
+                rf"<@{re.escape(bot_user_id)}(?:\|[^>]*)?>",
+                _bot_handle(connection) if connection else "@Agenta",
+                text,
+            )
         content: List[Dict[str, Any]] = [{"type": "text", "text": text}]
 
         return ChannelInboundEvent(
@@ -349,15 +386,47 @@ class SlackAdapter(ChannelAdapterInterface):
             external_locator=locator,
             processed=ChannelInboxEventProcessed(
                 content=content,
-                sender={"id": event.get("user") or ""},
+                sender=sender,
             ),
             # Addressed when the message names an agent by sigil (~agent) or
             # natively @-mentions the bot (<@bot_user_id>, the form Slack
             # delivers a real @Agenta as). A command alone is not a mention:
             # the COMMAND trigger admits it, or not, on its own; folding it in
-            # here let `!new` through a mention-only policy.
-            addressed=bool(agent or mentions_user(text, bot_user_id)),
+            # here let `!new` through a mention-only policy. Read from the raw
+            # text, before the mention is rendered as a handle.
+            addressed=addressed,
         )
+
+    async def _sender(
+        self, connection: Optional[ChannelConnection], event: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """The sender id plus, when Slack can tell us, a name and handle.
+        Best-effort: any failure leaves the bare id, never fails the event."""
+
+        user_id = event.get("user") or ""
+        sender: Dict[str, Any] = {"id": user_id}
+        profile = event.get("user_profile")
+        if isinstance(profile, dict):
+            return {**sender, **_profile_fields({"profile": profile, **profile})}
+        if not (self.resolve_sender_names and connection is not None and user_id):
+            return sender
+
+        key = (str(connection.id), user_id)
+        cached = _SENDER_CACHE.get(key)
+        now = time.monotonic()
+        if cached and cached[0] > now:
+            return {**sender, **cached[1]}
+        try:
+            body = await asyncio.wait_for(
+                self._call(connection, "users.info", {"user": user_id}, as_query=True),
+                timeout=_SENDER_LOOKUP_TIMEOUT_SECONDS,
+            )
+            fields = _profile_fields(body.get("user") or {})
+            _SENDER_CACHE[key] = (now + _SENDER_TTL_SECONDS, fields)
+        except Exception:  # noqa: BLE001 - a name is never load-bearing
+            fields = {}
+            _SENDER_CACHE[key] = (now + _SENDER_MISS_TTL_SECONDS, fields)
+        return {**sender, **fields}
 
     # --- egress --- #
 

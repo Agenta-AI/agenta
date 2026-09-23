@@ -33,7 +33,7 @@ COMMAND_USE = "use"
 # What a command may follow at the start of a message: bot mentions (Slack's
 # `<@U…>` / `<@U…|label>`, a Telegram-style `@name`) and, per channel, an
 # agent sigil naming who should run it (`~triage !new`).
-_MENTION = r"<@[^>]+>|@[A-Za-z0-9_]+"
+_MENTION = r"<@[^>]+>|@[\w.-]+"
 
 
 def _leading_addressing(agent_sigil: Optional[str]) -> str:

@@ -1379,3 +1379,70 @@ async def test_dismiss_choices_without_content_calls_nothing():
         connection=_connection(), external_locator={"channel": "C1", "ts": "9"}
     )
     assert transport.requests == []
+
+
+# --- sender names and the bot's own mention, live QA 2026-09-23 --------------
+
+
+async def test_the_bots_own_mention_reaches_the_agent_as_a_handle():
+    """`<@U09…>` opened every Slack turn and every session title."""
+    adapter = SlackAdapter()
+    connection = _connection(bot_user_id="UBOT1", bot_username="agenta_bot")
+    body = _event_callback(
+        {"channel": "C1", "user": "U1", "text": "<@UBOT1> hello", "ts": "5.5"}
+    )
+
+    event = await adapter.parse_event(body=body, connection=connection)
+
+    assert event.addressed is True
+    assert event.processed.content[0]["text"] == "@agenta_bot hello"
+
+
+async def test_a_user_profile_on_the_event_names_the_sender():
+    adapter = SlackAdapter()
+    body = _event_callback(
+        {
+            "channel": "C1",
+            "user": "U1",
+            "text": "hi",
+            "ts": "6.6",
+            "user_profile": {"real_name": "Ada Lovelace", "name": "ada"},
+        }
+    )
+
+    event = await adapter.parse_event(body=body, connection=_connection())
+
+    assert event.processed.sender == {
+        "id": "U1",
+        "name": "Ada Lovelace",
+        "username": "ada",
+    }
+
+
+async def test_the_sender_is_looked_up_once_and_cached(monkeypatch):
+    monkeypatch.setattr(SlackAdapter, "resolve_sender_names", True)
+    adapter, transport = _adapter_with_stub(
+        [{"ok": True, "user": {"name": "mahmoud", "real_name": "Mahmoud Mabrouk"}}]
+    )
+    connection = _connection()
+    for ts in ("7.1", "7.2"):
+        body = _event_callback({"channel": "C1", "user": "U7", "text": "x", "ts": ts})
+        event = await adapter.parse_event(body=body, connection=connection)
+        assert event.processed.sender == {
+            "id": "U7",
+            "name": "Mahmoud Mabrouk",
+            "username": "mahmoud",
+        }
+
+    assert [r.url.path.rsplit("/", 1)[-1] for r in transport.requests] == ["users.info"]
+
+
+async def test_a_failed_lookup_keeps_the_bare_id(monkeypatch):
+    monkeypatch.setattr(SlackAdapter, "resolve_sender_names", True)
+    adapter, _ = _adapter_with_stub([{"ok": False, "error": "missing_scope"}])
+    body = _event_callback({"channel": "C1", "user": "U8", "text": "x", "ts": "8.1"})
+
+    event = await adapter.parse_event(body=body, connection=_connection())
+
+    assert event is not None
+    assert event.processed.sender == {"id": "U8"}
