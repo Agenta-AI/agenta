@@ -1,12 +1,15 @@
 import re
 from typing import Any, Dict, List, Optional
 
-# Scopes match exactly what adapter.py calls: chat:write (post/edit),
+# Scopes: what adapter.py calls -- chat:write (post/edit),
 # channels:history/groups:history/im:history/mpim:history (fetch_history +
 # discover_spaces read), channels:read/groups:read/im:read/mpim:read
 # (discover_spaces listing), channels:join (join_space: the bot joins a public
 # channel when it is added), app_mentions:read (required by the app_mention
-# bot event below; Slack rejects the manifest without it). No slash command registered in-thread —
+# bot event below; Slack rejects the manifest without it). im:write, files:*,
+# reactions:write and users:read(.email) are requested up front so opening
+# DMs, handling files, reacting and resolving users need no reinstall later.
+# No slash command registered in-thread —
 # slash commands cannot be invoked in threads.
 #
 # Shared with the hosted install's authorize URL (oauth.py) -- one list, so
@@ -24,6 +27,12 @@ SLACK_BOT_SCOPES: List[str] = [
     "mpim:read",
     "channels:join",
     "app_mentions:read",
+    "im:write",
+    "files:read",
+    "files:write",
+    "reactions:write",
+    "users:read",
+    "users:read.email",
 ]
 
 

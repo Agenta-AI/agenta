@@ -143,3 +143,33 @@ def test_manifest_requests_channels_join_for_adding_public_channels():
 
     assert "channels:join" in manifest["oauth_config"]["scopes"]["bot"]
     assert manifest["oauth_config"]["scopes"]["bot"] == SLACK_BOT_SCOPES
+
+
+def test_manifest_requests_the_default_bot_scopes():
+    """Requested at install so DMs, files, reactions and user lookups need no
+    reinstall; the hosted authorize URL reads the same list."""
+    scopes = set(
+        build_slack_manifest(request_url="https://example.test/events/")[
+            "oauth_config"
+        ]["scopes"]["bot"]
+    )
+
+    assert {
+        "chat:write",
+        "channels:history",
+        "groups:history",
+        "im:history",
+        "mpim:history",
+        "channels:read",
+        "groups:read",
+        "im:read",
+        "mpim:read",
+        "app_mentions:read",
+        "channels:join",
+        "im:write",
+        "files:read",
+        "files:write",
+        "reactions:write",
+        "users:read",
+        "users:read.email",
+    } <= scopes
