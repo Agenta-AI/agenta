@@ -24,6 +24,7 @@ import {useRouter} from "next/router"
 
 import InlineRenameInput from "./InlineRenameInput"
 import {isMenuDivider} from "./menu"
+import {SessionRowContextMenu} from "./SessionRowContextMenu"
 import {useInlineRename} from "./useInlineRename"
 import type {SessionRowChrome} from "./useSessionRowChrome"
 
@@ -50,8 +51,8 @@ const KEBAB_CLASS =
  * shared modal, because a rail row is already the thing you are naming. Every other surface keeps
  * the modal — this intercepts the action here instead of changing the shared verb.
  *
- * The kebab is the only way in; no right-click menu, so a rail row keeps the browser's own.
- * It shows on hover on a pointer device, and stays visible on touch (`pointer-coarse`).
+ * Two ways in, one set of verbs: the kebab, which shows on hover on a pointer device and stays
+ * visible on touch (`pointer-coarse`), and a right-click (long-press on touch) anywhere on the row.
  */
 const SessionRowActions = ({
     session,
@@ -130,6 +131,16 @@ const SessionRowActions = ({
         [rename, runAction],
     )
 
+    // The right-click menu's select. Rename is handed back as a function so it runs once the
+    // menu has closed — see `useDeferredMenuSelect`; the kebab's own close is handled above.
+    const onContextSelect = useCallback(
+        (key: string) => {
+            if (key === RENAME) return () => rename.start()
+            runAction({key})
+        },
+        [rename, runAction],
+    )
+
     // The row's link stretches a ::before over the whole item — swallow presses on the controls
     // so they don't also navigate into the session.
     const swallow = useCallback((event: React.MouseEvent) => {
@@ -185,81 +196,89 @@ const SessionRowActions = ({
         )
 
     return (
-        <span
-            className="group/row flex w-full min-w-0 items-center"
-            onDoubleClick={(event) => {
-                event.preventDefault()
-                cancelPendingNav()
-                // Archived rows cannot be renamed — the menu drops the verb, so the
-                // double-click shortcut into it has to go too.
-                if (!session.archived) rename.start()
-            }}
-        >
-            {/* font-normal overrides NavMenu's selected-row `font-medium`, this rail only. */}
-            <span className="min-w-0 flex-1 truncate font-normal">{linkWithHeldNavigation}</span>
+        <SessionRowContextMenu entries={entries} onSelect={onContextSelect}>
             <span
-                // -mr-2 pulls the kebab out past ROW_BASE's px-3 so it sits at the row's
-                // right edge. Only session rows are wrapped, so no other nav row shifts.
-                // w-6, not w-7: at 28 the 20px button sat 2px left of the group carets and the
-                // filter trigger above it, and the rail's right-hand controls read as a column.
-                className="relative z-[1] -mr-2 flex h-5 w-6 shrink-0 items-center justify-center"
-                onClick={swallow}
+                className="group/row flex w-full min-w-0 items-center"
+                onDoubleClick={(event) => {
+                    event.preventDefault()
+                    cancelPendingNav()
+                    // Archived rows cannot be renamed — the menu drops the verb, so the
+                    // double-click shortcut into it has to go too.
+                    if (!session.archived) rename.start()
+                }}
             >
-                {armed ? (
-                    <DropdownMenu open={open} onOpenChange={setOpen}>
-                        <DropdownMenuTrigger asChild>
-                            <button
-                                type="button"
-                                aria-label={`Actions for ${session.name || "Untitled session"}`}
-                                data-open={open || undefined}
-                                className={KEBAB_CLASS}
+                {/* font-normal overrides NavMenu's selected-row `font-medium`, this rail only. */}
+                <span className="min-w-0 flex-1 truncate font-normal">
+                    {linkWithHeldNavigation}
+                </span>
+                <span
+                    // -mr-2 pulls the kebab out past ROW_BASE's px-3 so it sits at the row's
+                    // right edge. Only session rows are wrapped, so no other nav row shifts.
+                    // w-6, not w-7: at 28 the 20px button sat 2px left of the group carets and the
+                    // filter trigger above it, and the rail's right-hand controls read as a column.
+                    className="relative z-[1] -mr-2 flex h-5 w-6 shrink-0 items-center justify-center"
+                    onClick={swallow}
+                >
+                    {armed ? (
+                        <DropdownMenu open={open} onOpenChange={setOpen}>
+                            <DropdownMenuTrigger asChild>
+                                <button
+                                    type="button"
+                                    aria-label={`Actions for ${session.name || "Untitled session"}`}
+                                    data-open={open || undefined}
+                                    className={KEBAB_CLASS}
+                                >
+                                    <DotsThreeVerticalIcon size={16} weight="bold" />
+                                </button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent
+                                align="end"
+                                side="bottom"
+                                className="min-w-[168px]"
                             >
-                                <DotsThreeVerticalIcon size={16} weight="bold" />
-                            </button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" side="bottom" className="min-w-[168px]">
-                            {entries.map((entry, index) =>
-                                isMenuDivider(entry) ? (
-                                    <DropdownMenuSeparator key={`divider-${index}`} />
-                                ) : (
-                                    <DropdownMenuItem
-                                        key={entry.key}
-                                        disabled={entry.disabled}
-                                        variant={entry.danger ? "destructive" : undefined}
-                                        onSelect={() => onSelect(entry.key)}
-                                    >
-                                        {entry.icon ? (
-                                            <span className="flex shrink-0 items-center">
-                                                {entry.icon}
-                                            </span>
-                                        ) : null}
-                                        {entry.label}
-                                    </DropdownMenuItem>
-                                ),
-                            )}
-                        </DropdownMenuContent>
-                    </DropdownMenu>
-                ) : (
-                    <button
-                        type="button"
-                        aria-label={`Actions for ${session.name || "Untitled session"}`}
-                        aria-haspopup="menu"
-                        aria-expanded={false}
-                        className={KEBAB_CLASS}
-                        onPointerDown={(event) => {
-                            // Radix's trigger opens on pointer-down; the first press matches it.
-                            if (event.button !== 0 || event.ctrlKey) return
-                            arm()
-                        }}
-                        onKeyDown={(event) => {
-                            if (event.key === "Enter" || event.key === " ") arm()
-                        }}
-                    >
-                        <DotsThreeVerticalIcon size={16} weight="bold" />
-                    </button>
-                )}
+                                {entries.map((entry, index) =>
+                                    isMenuDivider(entry) ? (
+                                        <DropdownMenuSeparator key={`divider-${index}`} />
+                                    ) : (
+                                        <DropdownMenuItem
+                                            key={entry.key}
+                                            disabled={entry.disabled}
+                                            variant={entry.danger ? "destructive" : undefined}
+                                            onSelect={() => onSelect(entry.key)}
+                                        >
+                                            {entry.icon ? (
+                                                <span className="flex shrink-0 items-center">
+                                                    {entry.icon}
+                                                </span>
+                                            ) : null}
+                                            {entry.label}
+                                        </DropdownMenuItem>
+                                    ),
+                                )}
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+                    ) : (
+                        <button
+                            type="button"
+                            aria-label={`Actions for ${session.name || "Untitled session"}`}
+                            aria-haspopup="menu"
+                            aria-expanded={false}
+                            className={KEBAB_CLASS}
+                            onPointerDown={(event) => {
+                                // Radix's trigger opens on pointer-down; the first press matches it.
+                                if (event.button !== 0 || event.ctrlKey) return
+                                arm()
+                            }}
+                            onKeyDown={(event) => {
+                                if (event.key === "Enter" || event.key === " ") arm()
+                            }}
+                        >
+                            <DotsThreeVerticalIcon size={16} weight="bold" />
+                        </button>
+                    )}
+                </span>
             </span>
-        </span>
+        </SessionRowContextMenu>
     )
 }
 
