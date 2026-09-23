@@ -49,9 +49,11 @@ export const PublishMenu = ({items, onSelect, disabled, className}: PublishMenuP
 
     return (
         <div className={`flex shrink-0 items-center gap-2 ${className ?? ""}`}>
+            {/* A phone header has no room for the sentence beside the agent name and revision, so
+            below `sm` the count moves onto the button as a dot and a number. */}
             {liveCount > 0 ? (
                 <span
-                    className="inline-flex items-center gap-1.5 whitespace-nowrap text-xs text-colorTextSecondary"
+                    className="hidden items-center gap-1.5 whitespace-nowrap text-xs text-colorTextSecondary sm:inline-flex"
                     data-testid="publish-live-summary"
                 >
                     <span className="inline-block h-1.5 w-1.5 rounded-full bg-colorSuccess" />
@@ -65,7 +67,22 @@ export const PublishMenu = ({items, onSelect, disabled, className}: PublishMenuP
                         // The design's one yellow action per screen: the hero-action token.
                         className="bg-hero-action text-hero-action-foreground hover:bg-hero-action-hover"
                         data-testid="publish-button"
+                        aria-label={
+                            liveCount > 0
+                                ? `Publish, ${liveSummary(liveCount).toLowerCase()}`
+                                : undefined
+                        }
                     >
+                        {liveCount > 0 ? (
+                            <span
+                                aria-hidden
+                                className="inline-flex items-center gap-1 text-xs tabular-nums sm:hidden"
+                                data-testid="publish-live-count"
+                            >
+                                <span className="inline-block h-1.5 w-1.5 rounded-full bg-colorSuccess" />
+                                {liveCount}
+                            </span>
+                        ) : null}
                         Publish
                         <CaretDown size={12} />
                     </Button>

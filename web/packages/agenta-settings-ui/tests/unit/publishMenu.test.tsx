@@ -170,7 +170,7 @@ describe("PublishMenu", () => {
             {key: "api", live: false},
         ])
         expect(container.querySelector('[data-testid="publish-button"]')?.textContent).toBe(
-            "Publish",
+            "1Publish",
         )
         const rows = [...container.querySelectorAll('[role="menuitem"]')].map(
             (row) => row.textContent,
@@ -205,6 +205,36 @@ describe("PublishMenu", () => {
         expect(container.querySelector('[data-testid="publish-live-summary"]')?.textContent).toBe(
             "Live in 3 places",
         )
+    })
+
+    it("keeps the sentence off a phone header and puts a compact count on the button", async () => {
+        await render([
+            {key: "slack", live: true},
+            {key: "telegram", live: true},
+            {key: "api", live: true},
+        ])
+        const summary = container.querySelector('[data-testid="publish-live-summary"]')
+        // Hidden below `sm`, shown from it: the phone header has no room for the sentence.
+        expect(summary?.className).toMatch(/(^|\s)hidden(\s|$)/)
+        expect(summary?.className).toContain("sm:inline-flex")
+
+        const count = container.querySelector('[data-testid="publish-live-count"]')
+        expect(count?.textContent).toBe("3")
+        expect(count?.className).toContain("sm:hidden")
+        expect(
+            container.querySelector('[data-testid="publish-button"]')?.getAttribute("aria-label"),
+        ).toBe("Publish, live in 3 places")
+    })
+
+    it("shows no count on the button when nothing is live", async () => {
+        await render([
+            {key: "slack", live: false},
+            {key: "api", live: false},
+        ])
+        expect(container.querySelector('[data-testid="publish-live-count"]')).toBeNull()
+        const button = container.querySelector('[data-testid="publish-button"]')
+        expect(button?.textContent).toBe("Publish")
+        expect(button?.hasAttribute("aria-label")).toBe(false)
     })
 
     it("reports the chosen target and ignores a disabled one", async () => {
