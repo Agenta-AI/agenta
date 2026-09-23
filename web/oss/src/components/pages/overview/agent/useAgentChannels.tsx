@@ -99,7 +99,7 @@ export const renderChannelsDrawer = ({
             </div>
         }
         onClose={onClose}
-        width={wide ? 720 : 460}
+        size={wide ? 720 : 460}
         destroyOnClose
     >
         {children}
