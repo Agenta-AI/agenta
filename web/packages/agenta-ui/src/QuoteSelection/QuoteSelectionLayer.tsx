@@ -16,7 +16,7 @@ import {hasCoarsePointer} from "../hooks/useVisualViewport"
 import {QuoteNote} from "./QuoteNote"
 import {QuoteToolbar} from "./QuoteToolbar"
 import {dropQuoteRange, setQuoteRange} from "./sources"
-import {addQuote, useQuotesToPaint, useSessionQuotes} from "./store"
+import {addQuote, useSessionQuotes} from "./store"
 import {useQuoteHighlights} from "./useQuoteHighlights"
 import {rectIn, useQuoteSelection, type QuoteCandidate} from "./useQuoteSelection"
 
@@ -48,7 +48,6 @@ export const QuoteSelectionLayer = ({
     const [draft, setDraft] = useState<{quote: Quote; candidate: QuoteCandidate} | null>(null)
     const [announced, setAnnounced] = useState("")
     const quotes = useSessionQuotes(sessionId)
-    const toPaint = useQuotesToPaint(sessionId)
     const returnFocusRef = useRef<HTMLElement | null>(null)
     // Read by the scroll tracker, so it can bind once per note instead of once per scroll frame.
     const draftRangeRef = useRef<Range | null>(null)
@@ -71,8 +70,9 @@ export const QuoteSelectionLayer = ({
         onReply: beginReply,
     })
 
-    // The draft paints too, so the span stays marked while the note is being written.
-    const painted = useMemo(() => (draft ? [...toPaint, draft.quote] : toPaint), [toPaint, draft])
+    // Only the open draft is painted — the native selection is gone once the note takes focus, so
+    // this is what keeps the span visible while you write. A staged quote lives on as its chip.
+    const painted = useMemo(() => (draft ? [draft.quote] : []), [draft])
     useQuoteHighlights(rootRef, painted, enabled)
 
     // The open note rides with its span: its box is positioned against the root, so leaving the
@@ -128,7 +128,8 @@ export const QuoteSelectionLayer = ({
         const quote: Quote = {...draft.quote, note, staged: true}
         addQuote(sessionId, quote)
         setAnnounced(`Quote added. ${quotes.filter((q) => q.staged).length + 1} attached.`)
-        // The staged quote keeps the draft's id, so its highlight range carries straight over.
+        // Staged, the quote is its chip; the span it came from is no longer marked.
+        dropQuoteRange(draft.quote.id)
         setDraft(null)
         returnFocusRef.current?.focus?.()
         window.getSelection()?.removeAllRanges()
