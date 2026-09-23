@@ -8,7 +8,6 @@ import {
 } from "@agenta/chat/assets"
 import {
     describeAccepted,
-    filesToParts,
     jumpGateOpen,
     restoreRefusedSend as restoreRefusedSendInto,
     sideEffectingToolsInRange,
@@ -67,7 +66,6 @@ import {TEMPLATE_STRIP_MODE} from "@/oss/components/pages/agent-home/assets/cons
 import {useProjectPermissions} from "@/oss/hooks/useProjectPermissions"
 
 import {answerThenSteer} from "./assets/answerThenSteer"
-import {isAgentFileUploadsEnabled} from "./assets/constants"
 import {CONTENT_VISIBILITY_ENABLED} from "./assets/conversationLayout"
 import {runWithInFlightSubmit} from "./assets/inFlightSubmit"
 import AgentComposerDock from "./components/AgentComposerDock"
@@ -297,12 +295,8 @@ const AgentConversation = ({
     const audioPerceivable = Boolean(modelModalities?.includes("audio"))
 
     // Pending attachments for this session + the whole-panel drop target.
-    const attachments = useComposerAttachments({
-        sessionId,
-        uploadsEnabled: isAgentFileUploadsEnabled(),
-    })
+    const attachments = useComposerAttachments({sessionId})
     const {
-        uploadsEnabled,
         files,
         viewingUid,
         setViewingUid,
@@ -347,7 +341,7 @@ const AgentConversation = ({
      * accepting files into an input you cannot send from is a dead end.
      */
     const composerDisabled = onboardingActive ? ideHandoffActive : modelBlocked
-    const attachmentsBlocked = () => !uploadsEnabled || voiceRecorder.active || composerDisabled
+    const attachmentsBlocked = () => voiceRecorder.active || composerDisabled
     const dropTarget = attachments.bindDropTarget(attachmentsBlocked)
 
     // First-run seed + its overlay-gated auto-start. `handleSubmit` is declared below, so the
@@ -749,34 +743,6 @@ const AgentConversation = ({
             if (!attachmentsSettled) return
             const stagedUids = files.map((file) => file.uid)
 
-            if (!uploadsEnabled) {
-                // Voice and upload flags are independent; this seam preserves the inline recorder path.
-                const inlineFiles = [
-                    ...files
-                        .map((file) => file.originFileObj as File | undefined)
-                        .filter((file): file is File => Boolean(file)),
-                    ...extraFiles,
-                ]
-                let fileParts: FileUIPart[] | undefined
-                if (inlineFiles.length) {
-                    const {parts, rejections: unreadable} = await filesToParts(inlineFiles)
-                    // Hold the send rather than quietly dropping bytes the user staged, and say which
-                    // file failed through the same inline channel the other attachment refusals use.
-                    if (unreadable.length) {
-                        attachments.setRejections(
-                            unreadable.map(({name}) => ({
-                                name,
-                                reason: "couldn't be read — remove it and attach it again",
-                            })),
-                        )
-                        return
-                    }
-                    fileParts = parts
-                }
-                await finishSubmit(trimmed, fileParts, stagedUids, files, policy)
-                return
-            }
-
             // A take sent outright never entered the tray, so it uploads here before the send.
             const uploadedExtras = extraFiles.length
                 ? await attachments.uploadExtraFiles(extraFiles)
@@ -953,13 +919,11 @@ const AgentConversation = ({
                     {quickLookHost}
                     {/* Previews a SENT attachment; the tray's own drawer is below. */}
                     <MessageAttachmentViewer />
-                    {uploadsEnabled ? (
-                        <AttachmentViewerDrawer
-                            uploads={files}
-                            openUid={viewingUid}
-                            onClose={() => setViewingUid(null)}
-                        />
-                    ) : null}
+                    <AttachmentViewerDrawer
+                        uploads={files}
+                        openUid={viewingUid}
+                        onClose={() => setViewingUid(null)}
+                    />
                     {/* Resizable [chat | right panel] split. The panel (turn inspector OR session content)
                 pushes the chat aside rather than overlaying it, and collapses to 0 when closed. */}
                     <RightPanelSplit
@@ -1099,9 +1063,7 @@ const AgentConversation = ({
                                 busy={busy}
                                 hidden={buildMode || inspectorOpen}
                                 onOpenFiles={openFilesPane}
-                                onStageFiles={
-                                    uploadsEnabled ? (files) => setFilesStaged(files) : undefined
-                                }
+                                onStageFiles={(files) => setFilesStaged(files)}
                             />
                         </div>
                     </RightPanelSplit>

@@ -15,7 +15,6 @@ import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 import {useAtom} from "jotai"
 import {useRouter} from "next/router"
 
-import {CONNECT_STEP_MODE} from "@/lib/connectStep"
 import {newId} from "@/lib/ids"
 
 import {templateSetupDraftAtom} from "../agents/templateSetupDraft"
@@ -133,7 +132,6 @@ export const FirstRunScreen = ({
 
     /** Open the step for a template; its prompt carries the hero AND sits in the locked editor. */
     const openStepFor = (template: AgentStarterTemplate): boolean => {
-        if (!CONNECT_STEP_MODE) return false
         const seed =
             (arrival?.templateKey === template.key ? arrival.text : undefined) ??
             templateBuilderMessage(template)

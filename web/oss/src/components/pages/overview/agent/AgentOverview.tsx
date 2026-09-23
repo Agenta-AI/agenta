@@ -93,12 +93,10 @@ const AgentOverview = ({appId, agentName}: Props) => {
                     }
                     // Leading, like the playground's — the footer's right edge belongs to send.
                     prefix={
-                        attachments.enabled ? (
-                            <SeedAttachButton
-                                files={attachments.files}
-                                onChange={attachments.setFiles}
-                            />
-                        ) : null
+                        <SeedAttachButton
+                            files={attachments.files}
+                            onChange={attachments.setFiles}
+                        />
                     }
                     size="comfortable"
                     minHeightClassName="min-h-20"

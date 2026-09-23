@@ -2,27 +2,6 @@ import {STRIP_COPY} from "@/oss/components/TemplateStrip/assets/constants"
 import {getEnv} from "@/oss/lib/helpers/dynamicEnv"
 
 /**
- * Template behavior toggle (`NEXT_PUBLIC_AGENT_TEMPLATE_BUILDER`). On by default: clicking a
- * template (Home or the gallery) opens the playground seeded with the template's builder
- * instruction (the agent-builder flow; no direct config write). Set to "false" to fall back to
- * the config-definition drawer flow. Default-on requires the build kit to reach ephemeral
- * drafts, delivered via the `__ag__build_kit` static workflow
- * (docs/design/build-kit-overlay-delivery/).
- */
-export const TEMPLATE_BUILDER_MODE =
-    (getEnv("NEXT_PUBLIC_AGENT_TEMPLATE_BUILDER") || "").toLowerCase() !== "false"
-
-/**
- * Playground-native onboarding toggle (`NEXT_PUBLIC_AGENT_PLAYGROUND_ONBOARDING`). On by default: the
- * project-scoped `/playground` route lands on an ephemeral agent (onboarding lives INSIDE the
- * playground) and commits it in place on send — no redirect. Set to `false` to keep onboarding on the
- * agent-home page, navigating to the app playground after create. Additive: both flows coexist so we
- * can A/B the seamless single-page experience against the redirect flow.
- */
-export const PLAYGROUND_NATIVE_ONBOARDING =
-    (getEnv("NEXT_PUBLIC_AGENT_PLAYGROUND_ONBOARDING") || "").toLowerCase() !== "false"
-
-/**
  * Template-strip experience toggle (`NEXT_PUBLIC_AGENT_TEMPLATE_STRIP`). On by default: Home,
  * playground onboarding, and every agent's empty chat render the shared `<TemplateStrip />`:
  * always visible, filterable in place, card click fills the composer + shows a provenance
@@ -32,15 +11,6 @@ export const PLAYGROUND_NATIVE_ONBOARDING =
  */
 export const TEMPLATE_STRIP_MODE =
     (getEnv("NEXT_PUBLIC_AGENT_TEMPLATE_STRIP") || "").toLowerCase() !== "false"
-
-/**
- * Pre-create connect step (`NEXT_PUBLIC_AGENT_CONNECT_STEP`). On by default: describing an agent
- * or picking a template opens the setup card — the accounts it will need, connected before it is
- * created — instead of creating immediately (#6043). Set to "false" to restore instant create on
- * every path, so the step can be A/B'd against it.
- */
-export const CONNECT_STEP_MODE =
-    (getEnv("NEXT_PUBLIC_AGENT_CONNECT_STEP") || "").toLowerCase() !== "false"
 
 /** Browse-surface layout (`NEXT_PUBLIC_AGENT_BROWSE_RAIL`). OFF by default: sessions, agents and
  * the templates gallery use the one-row toolbar (#5833/#5846). Set to "true" for the filter rail.
