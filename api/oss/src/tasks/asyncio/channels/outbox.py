@@ -1,4 +1,5 @@
 import asyncio
+import time
 from datetime import datetime, timezone
 from typing import Dict, List, Optional, Tuple
 from uuid import UUID
@@ -65,6 +66,13 @@ _PROGRESS_MAX_SECONDS = 20 * 60
 _CLAIM_TTL_SECONDS = 60.0
 _CLAIM_WAIT_SECONDS = 15.0
 _CLAIM_POLL_SECONDS = 0.25
+
+
+# A reclaimed stream entry older than this is dropped, not retried: the normal
+# retry window is `max_deliveries` x the reclaim idle time (about 2.5 minutes),
+# so anything older is a backlog left by an earlier deploy, and replaying it
+# would post a weeks-old "Thinking…" or answer into a live chat.
+_MAX_REDELIVERY_AGE_SECONDS = 10 * 60
 
 
 class ChannelOutboxDeliveryBusy(Exception):
@@ -772,6 +780,7 @@ class ChannelsOutboxStreamWorker(StreamConsumer):
         max_batch_mb: int = 50,
         reclaim_min_idle_ms: int = 30_000,
         max_deliveries: int = 5,
+        max_redelivery_age_seconds: float = _MAX_REDELIVERY_AGE_SECONDS,
     ):
         super().__init__(
             redis_client=redis_client,
@@ -790,6 +799,36 @@ class ChannelsOutboxStreamWorker(StreamConsumer):
             max_deliveries=max_deliveries,
         )
         self.outbox = outbox
+        self.max_redelivery_age_seconds = max_redelivery_age_seconds
+
+    async def reclaim_batch(self) -> List[Tuple[bytes, Dict[bytes, bytes]]]:
+        batch = await super().reclaim_batch()
+        if not batch:
+            return batch
+
+        now_ms = time.time() * 1000
+        fresh: List[Tuple[bytes, Dict[bytes, bytes]]] = []
+        stale: List[Tuple[bytes, Dict[bytes, bytes]]] = []
+        for msg_id, data in batch:
+            age_ms = now_ms - _entry_time_ms(msg_id)
+            if age_ms > self.max_redelivery_age_seconds * 1000:
+                stale.append((msg_id, data))
+            else:
+                fresh.append((msg_id, data))
+
+        if stale:
+            self.dropped_messages += len(stale)
+            log.warning(
+                "[SESSIONS-OUTBOX] Dropping stale unacknowledged turn events",
+                count=len(stale),
+                messages=[
+                    self.describe_message(data) or repr(msg_id)
+                    for msg_id, data in stale
+                ],
+            )
+            await self.ack_and_delete([msg_id for msg_id, _ in stale])
+
+        return fresh
 
     def is_permanent_failure(
         self,
@@ -882,6 +921,15 @@ def _holds_final(event: ChannelOutboxEvent) -> bool:
     if event.state is not ChannelDeliveryState.SENT or event.data is None:
         return False
     return bool((event.data.processed or {}).get("final"))
+
+
+def _entry_time_ms(msg_id: bytes) -> int:
+    """A Redis stream id is `<milliseconds>-<sequence>`."""
+    raw = msg_id.decode() if isinstance(msg_id, bytes) else str(msg_id)
+    try:
+        return int(raw.split("-", 1)[0])
+    except ValueError:
+        return 0
 
 
 def _holds_failed_start_notice(event: ChannelOutboxEvent) -> bool:

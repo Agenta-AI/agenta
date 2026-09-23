@@ -2127,3 +2127,46 @@ class TestChannelsOutboxRedelivery:
         _, processed = await stream_worker.process_batch(batch)
 
         assert processed == [b"1-0"]
+
+    @pytest.mark.asyncio
+    async def test_a_stale_reclaimed_entry_is_dropped_not_replayed(
+        self, worker, monkeypatch
+    ):
+        """Turning the reclaim pass on inherits whatever an earlier deploy left
+        pending. Found live: entries fifteen days old were redelivered, and a
+        turn_started among them would post a "Thinking…" nobody resolves.
+        Anything past the retry window is acknowledged and logged instead."""
+
+        import time as time_module
+
+        from oss.src.tasks.asyncio.shared.consumer import StreamConsumer
+
+        now_ms = int(time_module.time() * 1000)
+        fresh_id = f"{now_ms - 60_000}-0".encode()
+        stale_id = f"{now_ms - 15 * 24 * 3600 * 1000}-0".encode()
+        payload = {
+            b"data": _turn_event_payload(
+                kind="turn_started",
+                project_id=PROJECT_ID,
+                session_id="sess-any",
+                turn_id="turn-old",
+            )
+        }
+
+        async def _reclaimed(self):
+            return [(stale_id, payload), (fresh_id, payload)]
+
+        monkeypatch.setattr(StreamConsumer, "reclaim_batch", _reclaimed)
+        stream_worker = self._stream_worker(worker)
+        acked: List[bytes] = []
+
+        async def _ack(message_ids):
+            acked.extend(message_ids)
+
+        stream_worker.ack_and_delete = _ack
+
+        batch = await stream_worker.reclaim_batch()
+
+        assert [msg_id for msg_id, _ in batch] == [fresh_id]
+        assert acked == [stale_id]
+        assert stream_worker.dropped_messages == 1
