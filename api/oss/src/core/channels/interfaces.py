@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 from uuid import UUID
 
 from oss.src.core.channels.dtos import (
@@ -709,6 +709,33 @@ class ChannelsDAOInterface(ABC):
         `project_id` is Optional here and only here on the write side, because a
         single sweeper serves every project — the same cross-project shape, and
         the same justification, as `fetch_active_schedules` in triggers.
+        """
+        ...
+
+    @abstractmethod
+    async def claim_outbox_delivery(
+        self,
+        *,
+        project_id: UUID,
+        #
+        event_id: UUID,
+        content: List[Dict[str, Any]],
+        claim_ttl_seconds: float,
+        overwrite_final: bool = True,
+    ) -> Optional[ChannelOutboxEvent]:
+        """Take the right to deliver `content` on this row, atomically.
+
+        One conditional UPDATE: it succeeds only when the row is not already
+        SENT with exactly this content and no other worker holds a live claim
+        (status code `sending`, stamped less than `claim_ttl_seconds` ago by
+        the database clock). A claim older than that belongs to a worker that
+        died mid-post and is taken over. With `overwrite_final=False` a row
+        whose sent content is a turn's final answer is not claimable, so a
+        late progress edit never overwrites the answer.
+
+        Returns the claimed row (fresh, so the caller posts or edits against
+        the current receipt), or None when another worker owns the delivery.
+        The next `transition_outbox_event` releases the claim.
         """
         ...
 

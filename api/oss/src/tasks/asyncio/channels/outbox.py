@@ -57,6 +57,19 @@ _PROGRESS_INTERVAL_SECONDS = 2.0
 _ACTIVITY_EVERY_TICKS = 2
 _PROGRESS_MAX_SECONDS = 20 * 60
 
+# Delivery claims. A post or edit holds its row for at most this long: well
+# past the adapters' HTTP timeouts, so only a worker that died mid-post leaves
+# a claim this old, and the next delivery takes it over. A worker that finds
+# the row claimed by another polls briefly (the holder usually finishes in a
+# second), then gives up and leaves its stream entry pending for redelivery.
+_CLAIM_TTL_SECONDS = 60.0
+_CLAIM_WAIT_SECONDS = 15.0
+_CLAIM_POLL_SECONDS = 0.25
+
+
+class ChannelOutboxDeliveryBusy(Exception):
+    """Another worker still holds this row's delivery claim."""
+
 
 class ChannelsOutboxWorker:
     """Fold, render, post, receipt — one turn at a time.
@@ -66,7 +79,7 @@ class ChannelsOutboxWorker:
 
     Reaches `channels_service.channels_dao` directly for the outbox
     read/write methods (`fetch_outbox_event_by_key`, `record_outbox_event`,
-    `transition_outbox_event`, `claim_outbox_events`) — `ChannelsService
+    `claim_outbox_delivery`, `transition_outbox_event`) — `ChannelsService
     .enqueue_output`/`.deliver` are still `NotImplementedError` stubs owned
     elsewhere, so this worker does not call them.
     """
@@ -288,13 +301,20 @@ class ChannelsOutboxWorker:
                         continue
                     else:
                         item = render_thinking(capabilities=capabilities, tick=tick)
-                    await self._send(
-                        project_id=project_id,
-                        event=event,
-                        connection=connection,
-                        capabilities=capabilities,
-                        item=item,
-                        thread=thread,
+                    # Shielded: stop_progress cancels this loop, and a cancel
+                    # landing mid-edit would leave the row claimed until the
+                    # claim goes stale, holding the final answer back. The
+                    # final edit waits for this one to release the row.
+                    await _shielded(
+                        self._send(
+                            project_id=project_id,
+                            event=event,
+                            connection=connection,
+                            capabilities=capabilities,
+                            item=item,
+                            thread=thread,
+                            wait_for_claim=False,
+                        )
                     )
                 except asyncio.CancelledError:
                     raise
@@ -395,6 +415,7 @@ class ChannelsOutboxWorker:
                 capabilities=capabilities,
                 item=render_no_answer(capabilities=capabilities),
                 thread=thread,
+                final=True,
             )
             return
 
@@ -457,6 +478,7 @@ class ChannelsOutboxWorker:
                 capabilities=capabilities,
                 item=item,
                 thread=thread,
+                final=True,
             )
 
     async def _resolve_interaction_row_id(
@@ -504,19 +526,33 @@ class ChannelsOutboxWorker:
         capabilities: ChannelCapabilities,
         item: RenderItem,
         thread: ChannelThread,
+        final: bool = False,
+        wait_for_claim: bool = True,
     ) -> None:
+        """Deliver `item` on this row at most once per (row, content).
+
+        `final` marks a turn's answer: it may overwrite anything, and once
+        sent nothing that is not final overwrites it. `wait_for_claim=False`
+        is for progress edits, which skip a busy row rather than queue."""
+
         content = [part.model_dump(exclude_none=True) for part in item.parts]
 
-        # Idempotent delivery. turn_ended is published by two sources
-        # (SessionTurnsService.complete_turn and the records worker post-commit),
-        # so on_turn_ended can run twice for one turn. If this row already went
-        # out with exactly this content, skip it: on a channel that posts a fresh
-        # message per delivery (no in-place edit, e.g. Telegram) a second send is
-        # a duplicate message the user sees, and on an edit channel it is a
-        # wasted "message is not modified" call that overwrites the SENT row.
-        if event.state is ChannelDeliveryState.SENT and event.data is not None:
-            if (event.data.processed or {}).get("content") == content:
-                return
+        # Two workers can hold the same delivery: turn_ended is published by
+        # two sources (SessionTurnsService.complete_turn and the records worker
+        # post-commit), a pending stream entry is redelivered, and a deploy
+        # overlap runs two consumers. Only the worker that claims the row
+        # posts; the claimed row is re-read, so an edit targets the receipt
+        # another worker may have written meanwhile.
+        claimed = await self._claim_delivery(
+            project_id=project_id,
+            event=event,
+            content=content,
+            final=final,
+            wait=wait_for_claim,
+        )
+        if claimed is None:
+            return
+        event = claimed
 
         # One wire token per (row, content): a retry of the same content after a
         # FAILED write reuses it, so a post the platform accepted but whose reply
@@ -597,9 +633,58 @@ class ChannelsOutboxWorker:
             status=Status(code="sent"),
             data=ChannelOutboxEventData(
                 external_locator=receipt,
-                processed={"content": content},
+                processed=(
+                    {"content": content, "final": True}
+                    if final
+                    else {"content": content}
+                ),
             ),
         )
+
+    async def _claim_delivery(
+        self,
+        *,
+        project_id: UUID,
+        event: ChannelOutboxEvent,
+        content: List[Dict],
+        final: bool,
+        wait: bool,
+    ) -> Optional[ChannelOutboxEvent]:
+        """The claimed row, or None when this delivery is not ours to make:
+        the row already went out with this content, or (for anything not
+        final) it already holds the turn's answer. A row another worker is
+        still sending is polled for a bounded time; past it, raise so the
+        stream entry stays pending and is redelivered."""
+
+        dao = self.channels_service.channels_dao
+        loop = asyncio.get_running_loop()
+        deadline = loop.time() + _CLAIM_WAIT_SECONDS
+
+        while True:
+            claimed = await dao.claim_outbox_delivery(
+                project_id=project_id,
+                event_id=event.id,
+                content=content,
+                claim_ttl_seconds=_CLAIM_TTL_SECONDS,
+                overwrite_final=final,
+            )
+            if claimed is not None:
+                return claimed
+
+            current = await dao.fetch_outbox_event(
+                project_id=project_id, event_id=event.id
+            )
+            if current is None or _sent_with(current, content):
+                return None
+            if not final and _holds_final(current):
+                return None
+            if not wait:
+                return None
+            if loop.time() >= deadline:
+                raise ChannelOutboxDeliveryBusy(
+                    f"outbox row {event.id} is still claimed by another worker"
+                )
+            await asyncio.sleep(_CLAIM_POLL_SECONDS)
 
     # --- helpers -------------------------------------------------------------#
 
@@ -685,6 +770,8 @@ class ChannelsOutboxStreamWorker(StreamConsumer):
         max_block_ms: int = 5000,
         max_delay_ms: int = 250,
         max_batch_mb: int = 50,
+        reclaim_min_idle_ms: int = 30_000,
+        max_deliveries: int = 5,
     ):
         super().__init__(
             redis_client=redis_client,
@@ -695,8 +782,31 @@ class ChannelsOutboxStreamWorker(StreamConsumer):
             max_block_ms=max_block_ms,
             max_delay_ms=max_delay_ms,
             max_batch_mb=max_batch_mb,
+            # A failed post is left pending; without the reclaim pass nothing
+            # ever reads it again and the reply is lost. Redelivery is safe
+            # because a delivery is claimed per (row, content).
+            reclaim_pending=True,
+            reclaim_min_idle_ms=reclaim_min_idle_ms,
+            max_deliveries=max_deliveries,
         )
         self.outbox = outbox
+
+    def is_permanent_failure(
+        self,
+        msg_id: bytes,
+        data: Dict[bytes, bytes],
+    ) -> bool:
+        # Asked only once an entry has used up `max_deliveries`. A chat reply
+        # minutes late is worth less than a group that keeps retrying it
+        # forever; the row already records the platform's reason as FAILED.
+        return True
+
+    def describe_message(self, data: Dict[bytes, bytes]) -> Optional[str]:
+        try:
+            turn_event = deserialize_turn_event(payload=data[b"data"])
+        except Exception:
+            return None
+        return f"{turn_event.kind} turn={turn_event.turn_id}"
 
     async def process_batch(
         self,
@@ -724,6 +834,16 @@ class ChannelsOutboxStreamWorker(StreamConsumer):
                     kind=turn_event.kind,
                 )
                 processed_ids.append(msg_id)
+            except (ChannelSpaceNotFound, ChannelConnectionNotFound) as exc:
+                # The thread's space or connection is gone: no retry can
+                # deliver this, so acknowledge it instead of redelivering.
+                log.warning(
+                    "[SESSIONS-OUTBOX] Dropping turn event with nowhere to deliver",
+                    msg_id=repr(msg_id),
+                    turn_id=turn_event.turn_id,
+                    reason=str(exc)[:200],
+                )
+                processed_ids.append(msg_id)
             except Exception:
                 log.error(
                     "[SESSIONS-OUTBOX] Failed to handle turn event",
@@ -731,9 +851,37 @@ class ChannelsOutboxStreamWorker(StreamConsumer):
                     turn_id=turn_event.turn_id,
                     exc_info=True,
                 )
-                # left un-acked: pending, retried on the next read
+                # left un-acked: pending, redelivered by the reclaim pass
 
         return len(processed_ids), processed_ids
+
+
+async def _shielded(coroutine) -> None:
+    """Await `coroutine` so that cancelling the caller does not cancel it.
+    A failure still raises to an uncancelled caller; once the caller is gone
+    the row itself records it (FAILED), so the task's result is only
+    collected here to keep asyncio from reporting it as never retrieved."""
+
+    task = asyncio.ensure_future(coroutine)
+    task.add_done_callback(_collect_result)
+    await asyncio.shield(task)
+
+
+def _collect_result(task: asyncio.Task) -> None:
+    if not task.cancelled():
+        task.exception()
+
+
+def _sent_with(event: ChannelOutboxEvent, content: List[Dict]) -> bool:
+    if event.state is not ChannelDeliveryState.SENT or event.data is None:
+        return False
+    return (event.data.processed or {}).get("content") == content
+
+
+def _holds_final(event: ChannelOutboxEvent) -> bool:
+    if event.state is not ChannelDeliveryState.SENT or event.data is None:
+        return False
+    return bool((event.data.processed or {}).get("final"))
 
 
 def _holds_failed_start_notice(event: ChannelOutboxEvent) -> bool:
