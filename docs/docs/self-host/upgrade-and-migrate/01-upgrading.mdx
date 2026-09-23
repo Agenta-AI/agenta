@@ -62,19 +62,27 @@ The `webMobile.enabled` key is removed, and the `web-mobile` Deployment always r
 
 #### Railway
 
-`bootstrap.sh` now always creates the `web-mobile` service, and `AGENTA_RAILWAY_WITH_MOBILE` is ignored. An environment bootstrapped without mobile has no `web-mobile` service, and `configure.sh` (which `deploy-from-images.sh` and `upgrade.sh` run) stops with `Service 'web-mobile' is missing`. Re-run the bootstrap script first, against the same project and environment as the deployment. It is idempotent and only adds what is missing. Both variables default to a `staging` environment of `agenta-oss-railway`, so set them explicitly:
+`bootstrap.sh` now always creates the `web-mobile` service, and `AGENTA_RAILWAY_WITH_MOBILE` is ignored. An environment bootstrapped without mobile has no `web-mobile` service, and `configure.sh` stops with `Service 'web-mobile' is missing`. Both `deploy-from-images.sh` and `upgrade.sh` run `configure.sh`, so both stop.
+
+Re-run the bootstrap script first, against the same project and environment as the deployment. It is idempotent and only adds what is missing. The project and environment default to the `staging` environment of `agenta-oss-railway`, and the new service gets `AGENTA_WEB_MOBILE_IMAGE` (default `latest`), so set all three:
 
 ```bash
 export RAILWAY_PROJECT_NAME="agenta-oss"
 export RAILWAY_ENVIRONMENT_NAME="production"
+export AGENTA_WEB_MOBILE_IMAGE="ghcr.io/agenta-ai/agenta-web-mobile:v0.121.0"
 
 ./hosting/railway/oss/scripts/bootstrap.sh
 ```
 
-`deploy-from-images.sh` redeploys `web-mobile` only when `AGENTA_WEB_MOBILE_IMAGE` is set. Export it with the other images, at the same tag as they use:
+Then deploy with `deploy-from-images.sh`, with every image at the same tag. It redeploys `web-mobile` only when `AGENTA_WEB_MOBILE_IMAGE` is set. `upgrade.sh` builds from source and does not deploy `web-mobile` at all.
 
 ```bash
-export AGENTA_WEB_MOBILE_IMAGE="ghcr.io/agenta-ai/agenta-web-mobile:v0.121.0"
+export AGENTA_API_IMAGE="ghcr.io/agenta-ai/agenta-api:v0.121.0"
+export AGENTA_WEB_IMAGE="ghcr.io/agenta-ai/agenta-web:v0.121.0"
+export AGENTA_SERVICES_IMAGE="ghcr.io/agenta-ai/agenta-services:v0.121.0"
+export AGENTA_RUNNER_IMAGE="ghcr.io/agenta-ai/agenta-runner:v0.121.0"
+
+./hosting/railway/oss/scripts/deploy-from-images.sh
 ```
 
 ### Channels
