@@ -5,6 +5,7 @@ import {
     firstAgentModelForConnection,
     buildAgentModelCandidates,
     resolveAgentModelSelection,
+    selectableAgentHarnesses,
     type AgentModelCandidate,
 } from "../../src/secret/core/agentModelCandidates"
 import type {ProviderConnection} from "../../src/secret/core/connections"
@@ -213,5 +214,13 @@ describe("a custom endpoint's declared protocol", () => {
         expect(
             routes(endpoint("5", ["claude-fable-5"], {protocol: "openai", harnesses: ["claude"]})),
         ).toEqual([])
+    })
+})
+
+describe("selectableAgentHarnesses", () => {
+    it("hides the mock test harness and the removed pi_agenta from every picker", () => {
+        expect(
+            selectableAgentHarnesses(["pi_core", "mock", "claude", "pi_agenta", "codex"]),
+        ).toEqual(["pi_core", "claude", "codex"])
     })
 })

@@ -82,6 +82,7 @@ export {
     isAgentDeploymentProviderKind,
     resolveAgentModelSelection,
     selectableAgentHarnesses,
+    HIDDEN_AGENT_HARNESSES,
     soleAgentHarnessProviderFamily,
     CustomProviderKind,
     CustomSecretFormat,
