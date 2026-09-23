@@ -305,6 +305,8 @@ export const useComposerAttachments = ({
     }, [])
 
     return {
+        /** The session this tray belongs to — the composer reads the same session's quotes. */
+        sessionId,
         uploadsEnabled,
         files,
         rejections,

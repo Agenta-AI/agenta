@@ -9,7 +9,7 @@
  */
 import {Suspense, lazy, useEffect, useRef, type ReactNode, type RefObject} from "react"
 
-import type {Quote} from "@agenta/shared/quotes"
+import {quotesToMarkdown, type Quote} from "@agenta/shared/quotes"
 import {isOverlayOpen} from "@agenta/shared/utils"
 import {HeightCollapse} from "@agenta/ui/height-collapse"
 import type {RichChatInputHandle, SlashCommandSection} from "@agenta/ui/rich-chat-input"
@@ -19,6 +19,7 @@ import {Paperclip} from "@phosphor-icons/react"
 import {acceptAttrFor} from "../assets/attachmentRules"
 import type {useComposerAttachments} from "../hooks/useComposerAttachments"
 import {useFilePalette} from "../hooks/useFilePalette"
+import {useComposerQuotes} from "../hooks/useComposerQuotes"
 import {useHardwareKeyboard} from "../hooks/useHardwareKeyboard"
 
 import ComposerAttachments from "./ComposerAttachments"
@@ -155,6 +156,20 @@ export const ChatComposer = ({
     const hasKeyboard = useHardwareKeyboard()
     const filePalette = useFilePalette({enabled: fileMentions})
 
+    // Quote-to-reply: a host may pass its own set; otherwise the composer reads the session's
+    // staged quotes and ships them as a blockquote lead-in, so no host send path has to know.
+    const sessionQuotes = useComposerQuotes(quotes === undefined ? attachments.sessionId : null)
+    const shownQuotes = quotes ?? sessionQuotes.quotes
+    const removeQuote = onRemoveQuote ?? sessionQuotes.remove
+    const withQuotes =
+        (send: (text: string) => void | Promise<void>) =>
+        (text: string): void | Promise<void> => {
+            const staged = quotes === undefined ? sessionQuotes.peek() : []
+            if (!staged.length) return send(text)
+            sessionQuotes.clear()
+            return send(quotesToMarkdown(staged, text))
+        }
+
     useEffect(() => {
         if (!streaming || !onStop || !stopShortcutEnabled) return
         const stopOnEscape = (event: KeyboardEvent) => {
@@ -205,7 +220,7 @@ export const ChatComposer = ({
                 }
                 className={className}
                 maxHeightClassName={maxHeightClassName}
-                onSubmit={onSubmit}
+                onSubmit={withQuotes(onSubmit)}
                 disabled={disabled}
                 hideSendButton={hideSendButton}
                 hideShortcutHints={hideShortcutHints ?? !hasKeyboard}
@@ -214,7 +229,7 @@ export const ChatComposer = ({
                 submitOnEnter={hasKeyboard}
                 placeholder={
                     placeholder ??
-                    (quotes && quotes.length > 0
+                    (shownQuotes.length > 0
                         ? "What should change about the quoted part?"
                         : waitingOnUser
                           ? // The parked interaction is docked directly above, so point at it rather
@@ -232,14 +247,17 @@ export const ChatComposer = ({
                     if (!attachmentsBlocked?.()) addFiles(Array.from(pasted))
                 }}
                 // A quote carries a reply on its own, so it can be sent with no text at all.
-                sendForceEnabled={files.length > 0 || (quotes?.length ?? 0) > 0}
+                sendForceEnabled={files.length > 0 || shownQuotes.length > 0}
                 sendDisabled={files.length > 0 && !attachmentsSettled}
                 sendDisabledReason={uploadBlockReason}
                 sending={sending}
                 streaming={streaming}
                 stopping={stopping}
                 onStop={onStop}
-                busyActions={busyActions}
+                busyActions={busyActions?.map((action) => ({
+                    ...action,
+                    onSubmit: withQuotes(action.onSubmit),
+                }))}
                 prefix={
                     // Tight: these are one cluster of composer tools, not separate controls.
                     <div className="flex items-center gap-0.5">
@@ -268,9 +286,10 @@ export const ChatComposer = ({
                             </SimpleTooltip>
                         )}
                         {/* Design puts the quote count on the action row, not over the chips. */}
-                        {quotes && quotes.length > 0 ? (
+                        {shownQuotes.length > 0 ? (
                             <span className="ml-1 text-[11px] text-colorTextTertiary">
-                                {quotes.length} {quotes.length === 1 ? "quote" : "quotes"} attached
+                                {shownQuotes.length}{" "}
+                                {shownQuotes.length === 1 ? "quote" : "quotes"} attached
                             </span>
                         ) : null}
                     </div>
@@ -278,10 +297,10 @@ export const ChatComposer = ({
                 header={
                     <>
                         {headerExtra}
-                        <HeightCollapse open={(quotes?.length ?? 0) > 0}>
+                        <HeightCollapse open={shownQuotes.length > 0}>
                             <ComposerQuotes
-                                quotes={quotes ?? []}
-                                onRemove={onRemoveQuote ?? (() => {})}
+                                quotes={shownQuotes}
+                                onRemove={removeQuote}
                                 touch={!hasKeyboard}
                             />
                         </HeightCollapse>
