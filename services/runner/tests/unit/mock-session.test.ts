@@ -129,7 +129,7 @@ describe("wrapMockSandbox", () => {
   // Live bug: a channel turn never parks (its caller hangs up), so the next turn is cold and holds
   // the finished turn's `mock-native-*` id. The unwrapped resume reached the daemon, which has no
   // `mock` agent to spawn, and the turn hung before create_session.
-  it("opens a cold follow-up turn fresh instead of resuming through the daemon", async () => {
+  it("opens and closes a cold follow-up turn without reaching the daemon", async () => {
     cwd = mkdtempSync(join(tmpdir(), "agenta-mock-sandbox-"));
     mkdirSync(join(cwd, ".agenta"), { recursive: true });
     writeFileSync(
@@ -145,6 +145,10 @@ describe("wrapMockSandbox", () => {
       },
       async createSession() {
         daemonCalls.push("createSession");
+        return new Promise(() => {});
+      },
+      async destroySession() {
+        daemonCalls.push("destroySession");
         return new Promise(() => {});
       },
     };
@@ -165,6 +169,7 @@ describe("wrapMockSandbox", () => {
       timingLog: () => {},
     } as never);
 
+    await wrapMockSandbox(realSandbox, false).destroySession(opened.session.id);
     assert.deepEqual(daemonCalls, [], "no session call may reach the daemon for the mock");
     assert.equal(opened.mode, "create");
     assert.equal(opened.loadedFromContinuity, false);

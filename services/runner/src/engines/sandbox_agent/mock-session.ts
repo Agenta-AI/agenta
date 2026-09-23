@@ -61,10 +61,11 @@ export function createMockSession(id: string, config: MockConfig): MockSession {
 /**
  * Override the session-opening calls on an already-real, already-acquired sandbox handle.
  *
- * `resumeSession` is refused, never forwarded: the daemon has no `mock` agent to spawn, so a real
- * resume fails every ACP write with "failed to start agent process". A cold turn after a finished
- * one always holds an eligible `mock-native-*` id and tries it. Refusing sends `openSession` to
- * `createSession`, which is also the honest answer: the mock keeps no native conversation.
+ * Nothing that names a session may reach the daemon: it has no `mock` agent to spawn, so every
+ * ACP write fails with "failed to start agent process". `resumeSession` is refused, because a
+ * cold turn after a finished one always holds an eligible `mock-native-*` id; refusing sends
+ * `openSession` to `createSession`, which is also the honest answer, since the mock keeps no
+ * native conversation. `destroySession` is a no-op: the session lives in this process only.
  */
 export function wrapMockSandbox(sandbox: any, isDaytona: boolean): any {
   return new Proxy(sandbox, {
@@ -79,6 +80,9 @@ export function wrapMockSandbox(sandbox: any, isDaytona: boolean): any {
         return async () => {
           throw new Error("the mock harness keeps no native session to load");
         };
+      }
+      if (prop === "destroySession") {
+        return async () => undefined;
       }
       return Reflect.get(target, prop, receiver);
     },
