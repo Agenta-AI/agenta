@@ -59,6 +59,7 @@ import {
 import deepEqual from "fast-deep-equal"
 import {useAtom, useAtomValue, useStore} from "jotai"
 
+import {agentInstructionsText} from "../../agent/agentInstructions"
 import {ChangedPathsProvider} from "../../drawers/shared"
 import {useOptionalDrillIn} from "../components/MoleculeDrillInContext"
 
@@ -632,12 +633,13 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
     )
     useAutoExpandOnPopulate(sectionCounts, setSectionOpenByKey)
 
-    // ``instructions.agents_md`` is the one instruction document (flat on the template).
+    // ``instructions.agents_md`` is the one instruction document (flat on the template). A bare
+    // string is read as shorthand for it; saving writes the object form back.
     const instructions =
         config.instructions && typeof config.instructions === "object"
             ? (config.instructions as Record<string, unknown>)
             : {}
-    const agentsMd = (instructions.agents_md as string | null | undefined) ?? null
+    const agentsMd = agentInstructionsText(config.instructions)
 
     const hasInstructions = Boolean(props.instructions)
     const hasTools = Boolean(props.tools)

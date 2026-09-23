@@ -47,6 +47,7 @@ export {
     type AgentConfigSummary,
     type AgentConfigToolsCopy,
 } from "./agentConfigSummary"
+export {agentInstructionsText} from "./agentInstructions"
 export {agentLatestRevisionAtomFamily} from "./state"
 export {AgentCardGrid, type AgentCardGridProps} from "./AgentCardGrid"
 export {AgentRosterGrid, type AgentRosterEntry, type AgentRosterGridProps} from "./AgentRosterGrid"
