@@ -21,9 +21,9 @@ import {
 } from "./agentActivityView"
 import {AgentAutomationsCard} from "./AgentAutomationsCard"
 import {AgentComposer} from "./AgentComposer"
-import {AgentPhoneChannels} from "./AgentPhoneChannels"
 import {AgentConfigCard} from "./AgentConfigCard"
 import {AgentDriveCard} from "./AgentDriveCard"
+import {AgentPhoneChannels} from "./AgentPhoneChannels"
 
 /**
  * The overview's body, on the shared two-column arrangement: the composer over the activity
