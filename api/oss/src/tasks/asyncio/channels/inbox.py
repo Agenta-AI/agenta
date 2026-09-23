@@ -188,11 +188,15 @@ class InboxDispatcher:
             resolution=resolution,
         )
         approved = (resolution.resolved_token or "").rsplit(":", 1)[-1] == "approve"
+        # The decision only. An answer's `message` is replayed to the agent as
+        # a user turn after the tool result, and here it could only ever be the
+        # button label: the agent read the user saying "Approve" and replied to
+        # it ("What would you like me to approve?", live QA 2026-09-23).
         await self._respond_interaction_fn(
             project_id=project_id,
             user_id=user_id or resolution.agent.created_by_id,
             interaction_id=UUID(interaction_id),
-            answer={"approved": approved, "message": resolution.resolved_choice},
+            answer={"approved": approved},
         )
         # Clear only the answered card; a continuation may already have parked
         # on a newer interaction while the response admission was returning.

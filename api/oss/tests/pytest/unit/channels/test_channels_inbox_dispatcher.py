@@ -1101,7 +1101,9 @@ class TestApprovalAnswer:
         respond_fn.assert_awaited_once()
         kwargs = respond_fn.call_args.kwargs
         assert str(kwargs["interaction_id"]) == "11111111-1111-4111-8111-111111111111"
-        assert kwargs["answer"] == {"approved": approved, "message": label}
+        # the decision only: a `message` would reach the agent as the user
+        # saying the button label
+        assert kwargs["answer"] == {"approved": approved}
         # answered once: the pending choice is cleared so a second click is inert
         channels_service.set_pending_choice.assert_awaited_once()
         assert (
