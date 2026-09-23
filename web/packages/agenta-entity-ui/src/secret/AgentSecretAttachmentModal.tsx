@@ -165,13 +165,14 @@ export function AgentSecretAttachmentModal({
         })
 
     useEffect(() => {
+        // Reset on close too, so a reopen never reads the last cycle's freshness.
+        setVaultFresh(false)
         if (!open) return
         // The vault query keeps a live subscriber for the whole page, so nothing refetches it on
         // its own; a secret created in Settings or another tab stays invisible until a reload.
         // `refetchVault` is keyed on the query result and changes identity on every fetch, so
         // it must stay out of the deps or this effect refetches forever.
         let current = true
-        setVaultFresh(false)
         void Promise.resolve(refetchVault()).finally(() => {
             if (current) setVaultFresh(true)
         })
