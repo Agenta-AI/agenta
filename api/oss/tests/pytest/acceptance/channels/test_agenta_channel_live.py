@@ -128,42 +128,53 @@ def _skip_if_local_sandbox_refused(account) -> None:
     refusal skips, and anything else falls through to the assertion.
     """
 
-    response = requests.post(
-        f"{_services_url(account['api_url'])}/agent/v0/invoke",
-        json={
-            "session_id": str(uuid4()),
-            "data": {
-                "inputs": {
-                    "messages": [
-                        {
-                            "id": str(uuid4()),
-                            "role": "user",
-                            "parts": [{"type": "text", "text": _QUESTION}],
-                        }
-                    ]
+    try:
+        response = requests.post(
+            f"{_services_url(account['api_url'])}/agent/v0/invoke",
+            json={
+                "session_id": str(uuid4()),
+                "data": {
+                    "inputs": {
+                        "messages": [
+                            {
+                                "id": str(uuid4()),
+                                "role": "user",
+                                "parts": [{"type": "text", "text": _QUESTION}],
+                            }
+                        ]
+                    },
+                    "parameters": _mock_agent_parameters(),
                 },
-                "parameters": _mock_agent_parameters(),
             },
-        },
-        headers={
-            "Authorization": account["credentials"],
-            "Accept": "text/event-stream",
-        },
-        timeout=BASE_TIMEOUT,
-        # a deployment that accepts the sandbox answers with a stream; only
-        # the status line is read before the connection is closed
-        stream=True,
-    )
+            headers={
+                "Authorization": account["credentials"],
+                "Accept": "text/event-stream",
+            },
+            timeout=BASE_TIMEOUT,
+            # a deployment that accepts the sandbox answers with a stream; only
+            # the status line is read before the connection is closed
+            stream=True,
+        )
+    except requests.RequestException:
+        # an unreachable probe proves nothing; the channel assertion reports
+        return
+
     try:
         if response.status_code != 403:
             return
-        status = (response.json() or {}).get("status") or {}
+        payload = response.json()
     except ValueError:
         return
     finally:
         response.close()
 
-    if str(status.get("type", "")).endswith(_SANDBOX_NOT_ALLOWED_TYPE):
+    status = payload.get("status") if isinstance(payload, dict) else None
+    if not isinstance(status, dict):
+        return
+
+    # the type is a docs URL whose fragment names the error
+    error_type = str(status.get("type") or "").rsplit("#", 1)[-1]
+    if error_type == _SANDBOX_NOT_ALLOWED_TYPE:
         pytest.skip(
             "the deployment does not enable the local sandbox the mock agent runs "
             f"on: {status.get('message', '')}"
