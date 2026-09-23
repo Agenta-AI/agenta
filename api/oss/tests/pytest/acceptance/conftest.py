@@ -10,6 +10,10 @@ from oss.tests.pytest.utils.postgres import require_core_uri
 
 @pytest.fixture(autouse=True)
 def _require_db_adjacent_acceptance_database(request):
+    # Acceptance cases marked `integration` read the deployment's Postgres directly. An
+    # unreachable database fails them, unless the environment declared it has no route to
+    # it (AGENTA_TEST_NO_DATABASE, set by the Railway job), in which case they skip with
+    # that reason.
     if request.node.get_closest_marker("integration"):
         require_core_uri()
 

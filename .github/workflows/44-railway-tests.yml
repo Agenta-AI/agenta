@@ -399,18 +399,17 @@ jobs:
       AGENTA_AUTH_KEY: ${{ secrets.AGENTA_TEST_OSS_AUTH_KEY }}
       AGENTA_TEST_REQUIRE_MOUNT_STORAGE: "true"
       # This job tests a deployed Railway stack over HTTP and has no route to its Postgres.
-      # The integration layer refuses an unreachable database rather than skipping, because a
-      # layer that skips what it cannot reach reports a green run of nothing (D97). Declaring
-      # the absence makes the skip visible in the run's own output instead, and leaves the
-      # refusal in place everywhere the absence is not declared.
+      # The integration layer, and the acceptance cases that read the database directly
+      # (the ones marked `integration`), refuse an unreachable database rather than skipping,
+      # because a layer that skips what it cannot reach reports a green run of nothing (D97).
+      # Declaring the absence makes the skip visible in the run's own output instead (a
+      # "declared skips" count in the terminal and the job summary), and leaves the refusal in
+      # place everywhere the absence is not declared, including a local run with a stale port.
       #
-      # Scoped to the integration layer, because this env block is job-level and the job is a
-      # matrix over unit, integration and acceptance. Declared for all three it would be a
-      # standing offer to any layer that later grows a database-bound case, and the acceptance
-      # layer has an undeclared skip of its own (issue 6939) that must not quietly inherit
-      # this one. The empty string is how a workflow says "not set": the reader treats it, and
-      # `0`, `false` and `no`, as no declaration at all.
-      AGENTA_TEST_NO_DATABASE: ${{ matrix.layer == 'integration' && '1' || '' }}
+      # Not declared for the unit layer, which has no database-bound cases of this kind. The
+      # empty string is how a workflow says "not set": the reader treats it, and `0`, `false`
+      # and `no`, as no declaration at all.
+      AGENTA_TEST_NO_DATABASE: ${{ contains(fromJSON('["integration","acceptance"]'), matrix.layer) && '1' || '' }}
     steps:
       - uses: actions/checkout@v6
 
