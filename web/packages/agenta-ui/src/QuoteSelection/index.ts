@@ -14,7 +14,6 @@ export {
     restoreQuotes,
     subscribeQuotes,
     updateQuote,
-    useQuotesToPaint,
     useSessionQuotes,
     useStagedQuotes,
 } from "./store"

@@ -100,10 +100,6 @@ export const useSessionQuotes = (sessionId: string | null | undefined): Quote[] 
     return useSyncExternalStore(subscribe, snapshot, snapshot)
 }
 
-/** What is painted in the transcript: the quotes still held. A sent quote is not repainted. */
-export const useQuotesToPaint = (sessionId: string | null | undefined): Quote[] =>
-    useSessionQuotes(sessionId)
-
 /** Only what the composer should show as chips. */
 export const useStagedQuotes = (sessionId: string | null | undefined): Quote[] =>
     useSessionQuotes(sessionId).filter((quote) => quote.staged)
