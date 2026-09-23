@@ -4,10 +4,6 @@ export const processEnv = {
     NEXT_PUBLIC_AGENTA_API_URL: process.env.NEXT_PUBLIC_AGENTA_API_URL,
     NEXT_PUBLIC_POSTHOG_API_KEY: process.env.NEXT_PUBLIC_POSTHOG_API_KEY,
     NEXT_PUBLIC_CRISP_WEBSITE_ID: process.env.NEXT_PUBLIC_CRISP_WEBSITE_ID,
-    // Playground-native onboarding: on by default, the project-scoped `/playground` route lands on an
-    // ephemeral agent (templates + "what do you want to build?" composer) and commits it in place on
-    // send — no redirect. Set to "false" to keep the agent-home + redirect onboarding.
-    NEXT_PUBLIC_AGENT_PLAYGROUND_ONBOARDING: process.env.NEXT_PUBLIC_AGENT_PLAYGROUND_ONBOARDING,
     // Agent chat Stop button: when "true", clicking Stop also kills the session (tears down the
     // live sandbox + halts server-side compute) instead of only aborting the client stream. Off by
     // default — kill ends the current run + cancels pending approvals; durable state and the

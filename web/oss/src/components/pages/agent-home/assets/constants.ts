@@ -2,16 +2,6 @@ import {STRIP_COPY} from "@/oss/components/TemplateStrip/assets/constants"
 import {getEnv} from "@/oss/lib/helpers/dynamicEnv"
 
 /**
- * Playground-native onboarding toggle (`NEXT_PUBLIC_AGENT_PLAYGROUND_ONBOARDING`). On by default: the
- * project-scoped `/playground` route lands on an ephemeral agent (onboarding lives INSIDE the
- * playground) and commits it in place on send — no redirect. Set to `false` to keep onboarding on the
- * agent-home page, navigating to the app playground after create. Additive: both flows coexist so we
- * can A/B the seamless single-page experience against the redirect flow.
- */
-export const PLAYGROUND_NATIVE_ONBOARDING =
-    (getEnv("NEXT_PUBLIC_AGENT_PLAYGROUND_ONBOARDING") || "").toLowerCase() !== "false"
-
-/**
  * Template-strip experience toggle (`NEXT_PUBLIC_AGENT_TEMPLATE_STRIP`). On by default: Home,
  * playground onboarding, and every agent's empty chat render the shared `<TemplateStrip />`:
  * always visible, filterable in place, card click fills the composer + shows a provenance
