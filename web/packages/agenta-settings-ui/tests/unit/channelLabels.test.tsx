@@ -61,6 +61,18 @@ describe("connection labels", () => {
         expect(connectionLabel(second)).toBe("Slack app A0SLACK2 · Agenta")
     })
 
+    it("reads the app id from the routing locator of an older install", () => {
+        const row = mapConnectionRow(
+            slackRow({
+                data: {
+                    team_name: "Agenta",
+                    connection_locator: {team_id: "T1", api_app_id: "A095VSRP683"},
+                },
+            }),
+        )!
+        expect(connectionLabel(row)).toBe("Slack app A095VSRP683 · Agenta")
+    })
+
     it("prefers the stored bot name over the app id", () => {
         const row = mapConnectionRow(
             slackRow({data: {team_name: "Agenta", api_app_id: "A0X", bot_username: "qa_bot"}}),
@@ -270,17 +282,15 @@ describe("ChannelManagePanel", () => {
 
     it("keeps the id stand-in when discovery fails", async () => {
         await render(connection({platform: "slack"}), {
-            listSpaces: vi
-                .fn()
-                .mockResolvedValue([
-                    {
-                        id: "s2",
-                        kind: "topic",
-                        name: "#C0RELEASE",
-                        externalId: "C0RELEASE",
-                        unnamed: true,
-                    },
-                ]),
+            listSpaces: vi.fn().mockResolvedValue([
+                {
+                    id: "s2",
+                    kind: "topic",
+                    name: "#C0RELEASE",
+                    externalId: "C0RELEASE",
+                    unnamed: true,
+                },
+            ]),
             discoverSpaces: vi.fn().mockRejectedValue(new Error("nope")),
         })
         const rows = [...container.querySelectorAll('[data-testid="channels-space"]')].map(

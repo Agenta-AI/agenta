@@ -202,7 +202,10 @@ export const mapConnectionRow = (row: Row): ChannelConnection | null => {
             return name ? `@${name.replace(/^@/, "")}` : null
         })(),
         workspaceName: asString(asRecord(row.data).team_name),
-        appId: asString(asRecord(row.data).api_app_id),
+        // New installs keep it flat on `data`; every install has it in the routing locator.
+        appId:
+            asString(asRecord(row.data).api_app_id) ??
+            asString(asRecord(asRecord(row.data).connection_locator).api_app_id),
     }
 }
 
