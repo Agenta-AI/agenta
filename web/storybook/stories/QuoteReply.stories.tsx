@@ -1,6 +1,6 @@
 import {ComposerQuotes} from "@agenta/chat/components"
 import type {Quote} from "@agenta/shared/quotes"
-import {QuoteCard, QuoteNote, QuoteToolbar} from "@agenta/ui/quote-selection"
+import {QuoteNote, QuoteToolbar} from "@agenta/ui/quote-selection"
 import type {Meta, StoryObj} from "@storybook/nextjs"
 
 /**
@@ -106,7 +106,7 @@ export const Toolbar: Story = {
     ),
 }
 
-/** The inline note box, and the quote card it is built around. */
+/** The inline note box, on a message quote and a file quote. */
 export const Note: Story = {
     render: () => (
         <>
@@ -119,11 +119,15 @@ export const Note: Story = {
                     onCancel={() => {}}
                 />
             </Stage>
-            <Stage label="Quote card — live and stale" height={180}>
-                <div className="flex flex-col gap-2">
-                    <QuoteCard quote={messageQuote} onRemove={() => {}} />
-                    <QuoteCard quote={staleQuote} onRemove={() => {}} />
-                </div>
+            <Stage label="Note box on a message quote (touch)" height={260}>
+                <QuoteNote
+                    quote={messageQuote}
+                    anchor={{top: 8, left: 240, bottom: 24}}
+                    bounds={{width: 520, height: 260}}
+                    onStage={() => {}}
+                    onCancel={() => {}}
+                    touch
+                />
             </Stage>
         </>
     ),
