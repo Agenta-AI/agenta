@@ -4,12 +4,6 @@ export const processEnv = {
     NEXT_PUBLIC_AGENTA_API_URL: process.env.NEXT_PUBLIC_AGENTA_API_URL,
     NEXT_PUBLIC_POSTHOG_API_KEY: process.env.NEXT_PUBLIC_POSTHOG_API_KEY,
     NEXT_PUBLIC_CRISP_WEBSITE_ID: process.env.NEXT_PUBLIC_CRISP_WEBSITE_ID,
-    // Agent-home template behavior: off by default (config-definition drawer flow). Set to "true" to
-    // instead skip the drawer and open the playground seeded with the template's builder instruction
-    // (Mahmoud's agent-builder flow). On by default since the build-kit overlay ships as the __ag__build_kit static workflow
-    // (docs/design/build-kit-overlay-delivery/); that flow needs the build kit, which the new creation
-    // path can't deliver yet.
-    NEXT_PUBLIC_AGENT_TEMPLATE_BUILDER: process.env.NEXT_PUBLIC_AGENT_TEMPLATE_BUILDER,
     // Playground-native onboarding: on by default, the project-scoped `/playground` route lands on an
     // ephemeral agent (templates + "what do you want to build?" composer) and commits it in place on
     // send — no redirect. Set to "false" to keep the agent-home + redirect onboarding.
