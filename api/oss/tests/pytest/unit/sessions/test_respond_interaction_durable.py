@@ -18,7 +18,6 @@ from oss.src.core.sessions.interactions.dtos import (
     SessionInteractionKind,
     SessionInteractionStatus,
 )
-from oss.src.utils.env import env
 
 
 async def test_durable_response_returns_202_and_stable_refs(monkeypatch):
@@ -335,25 +334,10 @@ async def test_batch_without_path_anchor_returns_422(monkeypatch):
     interactions.fetch_interaction.assert_not_awaited()
 
 
-@pytest.mark.parametrize(
-    ("queue_enabled", "steer_enabled", "expected_queue", "expected_steer"),
-    [
-        (True, True, True, True),
-        (True, False, True, False),
-        (False, True, False, False),
-    ],
-)
-async def test_session_stream_response_advertises_capabilities(
-    monkeypatch,
-    queue_enabled,
-    steer_enabled,
-    expected_queue,
-    expected_steer,
-):
+@pytest.mark.asyncio
+async def test_session_stream_response_advertises_capabilities(monkeypatch):
     project_id = uuid4()
     service = SimpleNamespace(fetch=AsyncMock(return_value=None))
-    monkeypatch.setattr(env.agenta.sessions, "queue", queue_enabled)
-    monkeypatch.setattr(env.agenta.sessions, "steer", steer_enabled)
     monkeypatch.setattr(
         router_module, "check_action_access", AsyncMock(return_value=True)
     )
@@ -370,5 +354,6 @@ async def test_session_stream_response_advertises_capabilities(
     )
 
     assert response.capabilities.durable_approvals is True
-    assert response.capabilities.queue is expected_queue
-    assert response.capabilities.steer is expected_steer
+    # Kept pinned true for one release so older web bundles still read them.
+    assert response.capabilities.queue is True
+    assert response.capabilities.steer is True

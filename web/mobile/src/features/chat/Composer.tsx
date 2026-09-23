@@ -49,7 +49,6 @@ export const Composer = ({
     streaming = false,
     stopping = false,
     onStop,
-    queueEnabled = false,
     inputBusy = streaming,
     inputRef,
     placeholder,
@@ -80,8 +79,6 @@ export const Composer = ({
     /** The durable Stop request has not settled yet. */
     stopping?: boolean
     onStop?: () => void
-    queueEnabled?: boolean
-    steerEnabled?: boolean
     inputBusy?: boolean
     /** Lets the host write into the input — a rewind puts the rewound message back to edit. */
     inputRef?: MutableRefObject<RichChatInputHandle | null>
@@ -143,7 +140,6 @@ export const Composer = ({
     const stoppable = isComposerRunStoppable({
         localStreaming: streaming,
         serverBusy: inputBusy,
-        serverControlEnabled: queueEnabled,
         waitingOnUser,
     })
 

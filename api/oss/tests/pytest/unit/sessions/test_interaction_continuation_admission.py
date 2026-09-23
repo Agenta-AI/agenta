@@ -970,41 +970,6 @@ async def test_watchdog_keeps_lost_continuation_recoverable():
 
 
 @pytest.mark.asyncio
-async def test_watchdog_does_not_recover_input_continuation_when_queue_is_disabled(
-    monkeypatch,
-):
-    monkeypatch.setattr(env.agenta.sessions, "queue", False)
-    project_id = uuid4()
-    executions = _Executions(
-        project_id=project_id, session_id="session-1", source_id="source-1"
-    )
-    executions.continuation = executions.continuation.model_copy(
-        update={
-            "state": SessionExecutionState.running,
-            "parent_execution_id": "source-1",
-            "source_interaction_id": None,
-        }
-    )
-    service = SessionCommandsService(
-        commands_dao=_Commands(),
-        streams_service=None,
-        interactions_service=None,
-        lock_engine=None,
-        delivery=_Unreachable(),
-        executions_dao=executions,
-    )
-
-    assert await service.settle_execution_lost(
-        project_id=project_id,
-        session_id="session-1",
-        execution_id="continuation-1",
-        settled_at=datetime.now(timezone.utc),
-    )
-    assert executions.continuation.state == SessionExecutionState.terminal
-    assert executions.continuation.terminal_outcome == SessionCommandOutcome.lost.value
-
-
-@pytest.mark.asyncio
 async def test_persisted_completion_terminalizes_continuation_before_recovery():
     project_id = uuid4()
     executions = _Executions(
@@ -1034,7 +999,6 @@ async def test_persisted_completion_terminalizes_continuation_before_recovery():
 
 @pytest.mark.asyncio
 async def test_completion_promotes_exactly_one_pending_input_once(monkeypatch):
-    monkeypatch.setattr(env.agenta.sessions, "queue", True)
     project_id = uuid4()
     user_id = uuid4()
     executions = _Executions(
@@ -1105,7 +1069,6 @@ async def test_completion_promotes_exactly_one_pending_input_once(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_done_record_admits_promoted_input_within_one_second(monkeypatch):
-    monkeypatch.setattr(env.agenta.sessions, "queue", True)
     project_id = uuid4()
     source_reconciled = False
     admitted_at = None
@@ -1162,7 +1125,6 @@ async def test_done_record_admits_promoted_input_within_one_second(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_completion_handles_a_lost_input_delivery_reservation(monkeypatch):
-    monkeypatch.setattr(env.agenta.sessions, "queue", True)
     project_id = uuid4()
     executions = _Executions(
         project_id=project_id, session_id="session-1", source_id="source-1"
@@ -1370,8 +1332,6 @@ def _stop_service(*, project_id, command_data, inputs):
 
 @pytest.mark.asyncio
 async def test_manual_stop_pauses_pending_steer(monkeypatch):
-    monkeypatch.setattr(env.agenta.sessions, "queue", True)
-    monkeypatch.setattr(env.agenta.sessions, "steer", True)
     project_id = uuid4()
     steered = _pending_input(project_id, policy="steer", position=0)
     inputs = _Inputs([steered])
@@ -1397,8 +1357,6 @@ async def test_manual_stop_pauses_pending_steer(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_steer_stop_promotes_its_saved_input_before_queue(monkeypatch):
-    monkeypatch.setattr(env.agenta.sessions, "queue", True)
-    monkeypatch.setattr(env.agenta.sessions, "steer", True)
     project_id = uuid4()
     queued = _pending_input(project_id, policy="queue", position=1)
     steered = _pending_input(project_id, policy="steer", position=0)
@@ -1428,8 +1386,6 @@ async def test_steer_stop_promotes_its_saved_input_before_queue(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_steer_handles_a_lost_input_delivery_reservation(monkeypatch):
-    monkeypatch.setattr(env.agenta.sessions, "queue", True)
-    monkeypatch.setattr(env.agenta.sessions, "steer", True)
     project_id = uuid4()
     steered = _pending_input(project_id, policy="steer", position=0)
     inputs = _Inputs([steered])

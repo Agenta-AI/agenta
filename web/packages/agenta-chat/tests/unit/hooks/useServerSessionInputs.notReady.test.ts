@@ -21,11 +21,6 @@ vi.mock("@agenta/entities/session", async (importOriginal) => {
     const {atom} = await import("jotai")
     return {
         ...(await importOriginal<typeof import("@agenta/entities/session")>()),
-        fetchSessionCapabilitiesAtom: atom(null, async () => ({
-            durableApprovals: true,
-            queue: true,
-            steer: true,
-        })),
         fetchSessionSnapshotAtom: atom(null, (_get, _set, sessionId: string) =>
             fetchSnapshot(sessionId),
         ),

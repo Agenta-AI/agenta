@@ -284,8 +284,6 @@ export const pendingInputAdmissionResponseSchema = z.object({
  * The queue half is `execution_state` and `pending.inputs`. `execution_state` is the session's
  * CURRENT lifecycle, derived server-side from the stream row, which is a different question from
  * `execution`: that names the last turn, this says whether anything is running right now.
- * `capabilities` mirrors the streams endpoint from the same server helper, so the two can never
- * disagree.
  */
 export const sessionSnapshotSchema = z.object({
     session: sessionStreamSchema.nullish().default(null),
@@ -301,12 +299,6 @@ export const sessionSnapshotSchema = z.object({
         interactions: z.array(sessionInteractionSchema).default([]),
     }),
     read: sessionRecordsReadStateSchema.nullish().default(null),
-    capabilities: z
-        .object({
-            queue: z.boolean().optional().default(false),
-            steer: z.boolean().optional().default(false),
-        })
-        .default({queue: false, steer: false}),
 })
 
 export const sessionStreamsResponseSchema = z.object({
@@ -325,13 +317,6 @@ export const sessionsQueryResponseSchema = z.object({
 
 export const sessionStreamResponseSchema = z.object({
     stream: sessionStreamSchema.nullish(),
-    capabilities: z
-        .object({
-            queue: z.boolean().optional().default(false),
-            steer: z.boolean().optional().default(false),
-        })
-        .optional()
-        .default({queue: false, steer: false}),
 })
 
 /** Control-call result for the prompt × force command matrix. */

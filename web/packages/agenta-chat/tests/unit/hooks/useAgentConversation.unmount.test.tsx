@@ -52,7 +52,6 @@ vi.mock("@agenta/entities/session", async (importOriginal) => {
         fetchSessionInteractionStatesAtom: atom(null, () => new Map()),
         fetchSessionSnapshot: vi.fn(async () => null),
         querySessionTranscript: vi.fn(async () => []),
-        fetchSessionCapabilitiesAtom: atom(null, async () => null),
         fetchSessionSnapshotAtom: atom(null, async () => null),
     }
 })

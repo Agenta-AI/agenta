@@ -10,10 +10,8 @@ from oss.src.core.sessions.interactions.dtos import SessionInteractionStatus
 from oss.src.core.sessions.inputs.dtos import PendingInput, PendingInputState
 from oss.src.core.sessions.inputs.service import SessionInputsService
 from oss.src.core.sessions.inputs.types import (
-    SessionInputBusy,
     SessionInputIdempotencyConflict,
 )
-from oss.src.utils.env import env
 
 
 class MemoryInputsDAO:
@@ -201,26 +199,7 @@ async def test_claim_for_execution_rejects_a_different_execution():
 
 
 @pytest.mark.asyncio
-async def test_busy_queue_is_rejected_when_switch_is_off(monkeypatch):
-    monkeypatch.setattr(env.agenta.sessions, "queue", False)
-    service = SessionInputsService(
-        inputs_dao=MemoryInputsDAO(), streams_service=Streams()
-    )
-
-    with pytest.raises(SessionInputBusy):
-        await service.admit(
-            project_id=uuid4(),
-            user_id=uuid4(),
-            session_id="session-1",
-            content={"message": "later"},
-            policy="queue",
-            idempotency_key="key-1",
-        )
-
-
-@pytest.mark.asyncio
 async def test_busy_queue_is_durable_and_removable(monkeypatch):
-    monkeypatch.setattr(env.agenta.sessions, "queue", True)
     project_id = uuid4()
     user_id = uuid4()
     dao = MemoryInputsDAO()
@@ -254,7 +233,6 @@ async def test_busy_queue_is_durable_and_removable(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_idle_input_executes_without_being_queued(monkeypatch):
-    monkeypatch.setattr(env.agenta.sessions, "queue", True)
     dao = MemoryInputsDAO()
     service = SessionInputsService(
         inputs_dao=dao, streams_service=Streams(running=False)
@@ -275,7 +253,6 @@ async def test_idle_input_executes_without_being_queued(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_detached_executing_continuation_keeps_input_in_the_queue(monkeypatch):
-    monkeypatch.setattr(env.agenta.sessions, "queue", True)
     continuation_resumer = AsyncMock(return_value="continuation-1")
     dao = MemoryInputsDAO()
     service = SessionInputsService(
@@ -300,7 +277,6 @@ async def test_detached_executing_continuation_keeps_input_in_the_queue(monkeypa
 
 @pytest.mark.asyncio
 async def test_no_recoverable_continuation_keeps_idle_input_executable(monkeypatch):
-    monkeypatch.setattr(env.agenta.sessions, "queue", True)
     continuation_resumer = AsyncMock(return_value=None)
     dao = MemoryInputsDAO()
     service = SessionInputsService(
@@ -324,8 +300,6 @@ async def test_no_recoverable_continuation_keeps_idle_input_executable(monkeypat
 
 @pytest.mark.asyncio
 async def test_steer_targets_the_execution_reopened_by_continuation_resume(monkeypatch):
-    monkeypatch.setattr(env.agenta.sessions, "queue", True)
-    monkeypatch.setattr(env.agenta.sessions, "steer", True)
     continuation_resumer = AsyncMock(return_value="continuation-2")
     executions = SimpleNamespace(
         lock_for_control=AsyncMock(return_value=SimpleNamespace(terminal_outcome=None))
@@ -357,7 +331,6 @@ async def test_steer_targets_the_execution_reopened_by_continuation_resume(monke
 async def test_queue_idempotency_returns_same_input_and_rejects_conflicting_reuse(
     monkeypatch,
 ):
-    monkeypatch.setattr(env.agenta.sessions, "queue", True)
     project_id = uuid4()
     service = SessionInputsService(
         inputs_dao=MemoryInputsDAO(), streams_service=Streams()
@@ -381,7 +354,6 @@ async def test_queue_idempotency_returns_same_input_and_rejects_conflicting_reus
 
 @pytest.mark.asyncio
 async def test_idle_retry_returns_the_existing_promoted_input(monkeypatch):
-    monkeypatch.setattr(env.agenta.sessions, "queue", True)
     project_id = uuid4()
     dao = MemoryInputsDAO()
     streams = Streams()
@@ -411,8 +383,6 @@ async def test_idle_retry_returns_the_existing_promoted_input(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_steer_is_saved_ahead_of_queued_input(monkeypatch):
-    monkeypatch.setattr(env.agenta.sessions, "queue", True)
-    monkeypatch.setattr(env.agenta.sessions, "steer", True)
     project_id = uuid4()
     dao = MemoryInputsDAO()
     service = SessionInputsService(inputs_dao=dao, streams_service=Streams())
@@ -444,7 +414,6 @@ async def test_steer_is_saved_ahead_of_queued_input(monkeypatch):
 async def test_queue_waits_for_unanswered_approval_even_after_execution_settles(
     monkeypatch, terminal_outcome
 ):
-    monkeypatch.setattr(env.agenta.sessions, "queue", True)
     pending = SimpleNamespace(status=SessionInteractionStatus.pending)
     interactions = SimpleNamespace(
         fetch_turn_interactions=AsyncMock(return_value=[pending])
@@ -484,8 +453,6 @@ async def test_queue_waits_for_unanswered_approval_even_after_execution_settles(
 
 @pytest.mark.asyncio
 async def test_steer_can_replace_unanswered_approval(monkeypatch):
-    monkeypatch.setattr(env.agenta.sessions, "queue", True)
-    monkeypatch.setattr(env.agenta.sessions, "steer", True)
     interactions = SimpleNamespace(fetch_turn_interactions=AsyncMock())
     dao = MemoryInputsDAO()
     service = SessionInputsService(
@@ -512,7 +479,6 @@ async def test_steer_can_replace_unanswered_approval(monkeypatch):
     "status", [SessionInteractionStatus.resolved, SessionInteractionStatus.cancelled]
 )
 async def test_idle_queue_does_not_wait_on_old_answered_approval(monkeypatch, status):
-    monkeypatch.setattr(env.agenta.sessions, "queue", True)
     interactions = SimpleNamespace(
         fetch_turn_interactions=AsyncMock(return_value=[SimpleNamespace(status=status)])
     )
@@ -537,7 +503,6 @@ async def test_idle_queue_does_not_wait_on_old_answered_approval(monkeypatch, st
 async def test_approval_winning_queue_lock_keeps_input_behind_its_continuation(
     monkeypatch,
 ):
-    monkeypatch.setattr(env.agenta.sessions, "queue", True)
     interactions = SimpleNamespace(
         fetch_turn_interactions=AsyncMock(
             side_effect=[

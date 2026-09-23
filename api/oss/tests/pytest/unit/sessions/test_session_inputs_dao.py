@@ -49,7 +49,6 @@ from oss.src.dbs.postgres.sessions.inputs.dao import SessionInputsDAO
 import oss.src.dbs.postgres.shared.engine as engine_module
 from oss.src.dbs.postgres.shared.engine import get_transactions_engine
 import oss.src.models.db_models  # noqa: F401
-from oss.src.utils.env import env
 
 
 pytestmark = pytest.mark.integration
@@ -290,7 +289,6 @@ async def _pending_command(scope, *, data=None):
 async def test_completion_promotes_one_fifo_input_in_the_settlement_transaction(
     input_scope, monkeypatch
 ):
-    monkeypatch.setattr(env.agenta.sessions, "queue", True)
     inputs = SessionInputsDAO(engine=input_scope["engine"])
     first = await inputs.create_input(
         user_id=input_scope["user_id"],
@@ -351,7 +349,6 @@ async def test_completion_promotes_one_fifo_input_in_the_settlement_transaction(
 async def test_admission_rechecks_settlement_under_the_execution_lock(
     input_scope, monkeypatch
 ):
-    monkeypatch.setattr(env.agenta.sessions, "queue", True)
     inputs = SessionInputsDAO(engine=input_scope["engine"])
     executions = SessionExecutionsDAO(engine=input_scope["engine"])
     streams = _SettlementRaceStreams()
@@ -401,7 +398,6 @@ async def test_admission_rechecks_settlement_under_the_execution_lock(
 async def test_admission_queues_behind_running_input_promoted_by_settlement(
     input_scope, monkeypatch
 ):
-    monkeypatch.setattr(env.agenta.sessions, "queue", True)
     inputs = SessionInputsDAO(engine=input_scope["engine"])
     older = await inputs.create_input(
         user_id=input_scope["user_id"],
@@ -480,8 +476,6 @@ async def test_admission_queues_behind_running_input_promoted_by_settlement(
 async def test_manual_stop_commits_without_promoting_pending_input(
     input_scope, monkeypatch
 ):
-    monkeypatch.setattr(env.agenta.sessions, "queue", True)
-    monkeypatch.setattr(env.agenta.sessions, "steer", True)
     inputs = SessionInputsDAO(engine=input_scope["engine"])
     pending = await inputs.create_input(
         user_id=input_scope["user_id"],
@@ -513,7 +507,6 @@ async def test_manual_stop_commits_without_promoting_pending_input(
 async def test_concurrent_idempotent_admission_returns_one_postgres_row(
     input_scope, monkeypatch
 ):
-    monkeypatch.setattr(env.agenta.sessions, "queue", True)
     service = SessionInputsService(
         inputs_dao=SessionInputsDAO(engine=input_scope["engine"]),
         streams_service=_BusyStreams(),
@@ -544,7 +537,6 @@ async def test_concurrent_idempotent_admission_returns_one_postgres_row(
 
 
 async def test_conflicting_key_returns_the_409_envelope(input_scope, monkeypatch):
-    monkeypatch.setattr(env.agenta.sessions, "queue", True)
     monkeypatch.setattr(
         router_module, "check_action_access", AsyncMock(return_value=True)
     )
@@ -586,7 +578,6 @@ async def test_conflicting_key_returns_the_409_envelope(input_scope, monkeypatch
 
 
 async def test_promoted_input_cannot_be_removed(input_scope, monkeypatch):
-    monkeypatch.setattr(env.agenta.sessions, "queue", True)
     inputs = SessionInputsDAO(engine=input_scope["engine"])
     item = await inputs.create_input(
         user_id=input_scope["user_id"],
@@ -611,8 +602,6 @@ async def test_promoted_input_cannot_be_removed(input_scope, monkeypatch):
 async def test_steer_is_committed_before_failed_stop_and_stays_first(
     input_scope, monkeypatch
 ):
-    monkeypatch.setattr(env.agenta.sessions, "queue", True)
-    monkeypatch.setattr(env.agenta.sessions, "steer", True)
     dao = SessionInputsDAO(engine=input_scope["engine"])
     await dao.create_input(
         user_id=input_scope["user_id"],
@@ -659,8 +648,6 @@ async def test_steer_is_committed_before_failed_stop_and_stays_first(
 
 
 async def test_steer_stop_promotes_only_the_bound_input(input_scope, monkeypatch):
-    monkeypatch.setattr(env.agenta.sessions, "queue", True)
-    monkeypatch.setattr(env.agenta.sessions, "steer", True)
     inputs = SessionInputsDAO(engine=input_scope["engine"])
     older = await inputs.create_input(
         user_id=input_scope["user_id"],
@@ -737,8 +724,6 @@ async def test_steer_stop_promotes_only_the_bound_input(input_scope, monkeypatch
 
 
 async def test_steer_bind_wins_before_stop_settlement(input_scope, monkeypatch):
-    monkeypatch.setattr(env.agenta.sessions, "queue", True)
-    monkeypatch.setattr(env.agenta.sessions, "steer", True)
     monkeypatch.setattr(
         commands_service_module,
         "get_running_owner",
@@ -802,8 +787,6 @@ async def test_steer_bind_wins_before_stop_settlement(input_scope, monkeypatch):
 
 
 async def test_stop_settlement_wins_before_steer_bind(input_scope, monkeypatch):
-    monkeypatch.setattr(env.agenta.sessions, "queue", True)
-    monkeypatch.setattr(env.agenta.sessions, "steer", True)
     monkeypatch.setattr(
         commands_service_module,
         "get_running_owner",
@@ -875,8 +858,6 @@ async def test_stop_settlement_wins_before_steer_bind(input_scope, monkeypatch):
 async def test_admission_follows_approval_continuation_before_stream_header_catches_up(
     input_scope, monkeypatch, policy, state
 ):
-    monkeypatch.setattr(env.agenta.sessions, "queue", True)
-    monkeypatch.setattr(env.agenta.sessions, "steer", True)
     inputs = SessionInputsDAO(engine=input_scope["engine"])
     executions = SessionExecutionsDAO(engine=input_scope["engine"])
     scope = {
@@ -938,8 +919,6 @@ async def test_admission_follows_approval_continuation_before_stream_header_catc
 async def test_send_now_preserves_selected_row_and_remaining_order(
     input_scope, monkeypatch, idle
 ):
-    monkeypatch.setattr(env.agenta.sessions, "queue", True)
-    monkeypatch.setattr(env.agenta.sessions, "steer", True)
     inputs = SessionInputsDAO(engine=input_scope["engine"])
     executions = SessionExecutionsDAO(engine=input_scope["engine"])
     service = _cancel_service(input_scope, inputs, executions=executions)
@@ -1020,8 +999,6 @@ async def test_send_now_preserves_selected_row_and_remaining_order(
 
 
 async def test_send_now_does_not_resurrect_removed_input(input_scope, monkeypatch):
-    monkeypatch.setattr(env.agenta.sessions, "queue", True)
-    monkeypatch.setattr(env.agenta.sessions, "steer", True)
     inputs = SessionInputsDAO(engine=input_scope["engine"])
     row = await inputs.create_input(
         user_id=input_scope["user_id"],
@@ -1061,8 +1038,6 @@ async def test_send_now_does_not_resurrect_removed_input(input_scope, monkeypatc
 async def test_send_now_stop_promotes_selected_once_and_holds_other_rows(
     input_scope, monkeypatch
 ):
-    monkeypatch.setattr(env.agenta.sessions, "queue", True)
-    monkeypatch.setattr(env.agenta.sessions, "steer", True)
     inputs = SessionInputsDAO(engine=input_scope["engine"])
     executions = SessionExecutionsDAO(engine=input_scope["engine"])
     service = _cancel_service(input_scope, inputs, executions=executions)
@@ -1124,8 +1099,6 @@ async def test_send_now_stop_promotes_selected_once_and_holds_other_rows(
 
 
 async def test_competing_send_now_keeps_losing_row_unchanged(input_scope, monkeypatch):
-    monkeypatch.setattr(env.agenta.sessions, "queue", True)
-    monkeypatch.setattr(env.agenta.sessions, "steer", True)
     inputs = SessionInputsDAO(engine=input_scope["engine"])
     service = _cancel_service(
         input_scope,
@@ -1173,8 +1146,6 @@ async def test_competing_send_now_keeps_losing_row_unchanged(input_scope, monkey
 async def test_send_now_route_rejects_cross_session_and_removed_rows(
     input_scope, monkeypatch
 ):
-    monkeypatch.setattr(env.agenta.sessions, "queue", True)
-    monkeypatch.setattr(env.agenta.sessions, "steer", True)
     monkeypatch.setattr(
         router_module, "check_action_access", AsyncMock(return_value=True)
     )
@@ -1215,8 +1186,6 @@ async def test_send_now_route_rejects_cross_session_and_removed_rows(
 async def test_send_now_parked_input_continuation_advances_when_runner_not_held(
     input_scope, monkeypatch
 ):
-    monkeypatch.setattr(env.agenta.sessions, "queue", True)
-    monkeypatch.setattr(env.agenta.sessions, "steer", True)
     monkeypatch.setattr(
         commands_service_module, "get_running_owner", AsyncMock(return_value=None)
     )
@@ -1302,8 +1271,6 @@ async def test_send_now_parked_input_continuation_advances_when_runner_not_held(
 
 
 async def test_send_now_reservation_blocks_concurrent_removal(input_scope, monkeypatch):
-    monkeypatch.setattr(env.agenta.sessions, "queue", True)
-    monkeypatch.setattr(env.agenta.sessions, "steer", True)
     inputs = SessionInputsDAO(engine=input_scope["engine"])
     executions = SessionExecutionsDAO(engine=input_scope["engine"])
     service = _cancel_service(input_scope, inputs, executions=executions)

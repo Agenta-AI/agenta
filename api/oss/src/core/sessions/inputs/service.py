@@ -26,7 +26,6 @@ from oss.src.core.sessions.interactions.interfaces import (
 )
 from oss.src.core.sessions.executions.interfaces import SessionExecutionsDAOInterface
 from oss.src.core.sessions.streams.service import SessionStreamsService
-from oss.src.utils.env import env
 
 
 def input_fingerprint(*, content: Dict[str, Any], policy: str) -> str:
@@ -202,7 +201,6 @@ class SessionInputsService:
         # A parked approval has no running heartbeat but still owns Queue.
         queued_behind_interaction = bool(
             policy == "queue"
-            and env.agenta.sessions.queue
             and stream
             and stream.turn_id
             and await self._has_pending_interaction(
@@ -225,11 +223,7 @@ class SessionInputsService:
         current_execution_id = resumed_execution_id or (
             stream.turn_id if stream else None
         )
-        queue_enabled = env.agenta.sessions.queue
-        steer_enabled = queue_enabled and env.agenta.sessions.steer
-        if policy == "steer" and not steer_enabled:
-            raise SessionInputBusy(current_execution_id=current_execution_id)
-        if policy not in ("queue", "steer") or not queue_enabled:
+        if policy not in ("queue", "steer"):
             raise SessionInputBusy(current_execution_id=current_execution_id)
         if not idempotency_key:
             raise ValueError("Idempotency-Key is required when queueing input.")
@@ -426,8 +420,6 @@ class SessionInputsService:
     async def list_pending(
         self, *, project_id: UUID, session_id: str
     ) -> List[PendingInput]:
-        if not env.agenta.sessions.queue:
-            return []
         return await self._dao.list_pending(
             project_id=project_id, session_id=session_id
         )

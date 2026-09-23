@@ -22,11 +22,9 @@ export {
     querySessions,
     setSessionHeader,
     fetchSessionStream,
-    fetchSessionCapabilities,
     removePendingSessionInput,
     sendPendingSessionInputNow,
     updatePendingSessionInput,
-    invalidateSessionDurableApprovalsCapability,
     commandSessionStream,
     cancelSessionExecution,
     cancelSessionStream,
@@ -49,7 +47,6 @@ export {
     type QuerySessionsPageParams,
     type QuerySessionsParams,
     type SessionScopedParams,
-    type SessionFeatureCapabilities,
     type QueryInteractionsParams,
     type InteractionScopedParams,
     type RespondInteractionParams,
@@ -109,7 +106,6 @@ export {
     type Mount,
 } from "./core/schema"
 export {
-    fetchSessionCapabilitiesAtom,
     fetchSessionSnapshotAtom,
     removePendingSessionInputAtom,
     sendPendingSessionInputNowAtom,

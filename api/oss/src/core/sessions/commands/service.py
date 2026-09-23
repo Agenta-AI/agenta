@@ -187,8 +187,6 @@ class SessionCommandsService:
     ) -> PendingInputAdmission:
         if not validate_session_id(session_id):
             raise SessionIdInvalid(session_id)
-        if not (env.agenta.sessions.queue and env.agenta.sessions.steer):
-            raise SessionInputBusy()
         if self._inputs is None or self._executions is None:
             raise SessionInputBusy()
         received_at = datetime.now(timezone.utc)
@@ -959,11 +957,6 @@ class SessionCommandsService:
         )
         if command is None:
             return None
-        if (
-            command.kind == SessionCommandKind.continue_input
-            and not env.agenta.sessions.queue
-        ):
-            return None
         execution_id = command.target_turn_id
         if execution_id is None or self._executions is None:
             return execution_id
@@ -1447,11 +1440,6 @@ class SessionCommandsService:
                 SessionCommandKind.continue_interaction,
                 SessionCommandKind.continue_input,
             ):
-                if (
-                    command.kind == SessionCommandKind.continue_input
-                    and not env.agenta.sessions.queue
-                ):
-                    continue
                 if command.claim_count < max_deliveries:
                     await self._deliver(command)
                     continue
@@ -1597,7 +1585,6 @@ class SessionCommandsService:
                 or (
                     execution.source_interaction_id is None
                     and execution.parent_execution_id is not None
-                    and env.agenta.sessions.queue
                 )
             )
             and execution.terminal_outcome is None
@@ -1658,7 +1645,7 @@ class SessionCommandsService:
                 settled_by="runner",
                 transaction=transaction,
             )
-            if result.won and env.agenta.sessions.queue:
+            if result.won:
                 admission = await self._promote_next_input(
                     project_id=project_id,
                     session_id=session_id,
@@ -1999,8 +1986,6 @@ class SessionCommandsService:
                                 SessionCommandOutcome.stopped,
                                 SessionCommandOutcome.not_running,
                             )
-                            and env.agenta.sessions.queue
-                            and env.agenta.sessions.steer
                             and isinstance(steer_input_id, str)
                         ):
                             input_admission = await self._promote_next_input(

@@ -225,8 +225,8 @@ _SESSION_ID_RE = re.compile(r"^[a-zA-Z0-9_\-]{1,128}$")
 def _session_capabilities() -> SessionCapabilities:
     return SessionCapabilities(
         durable_approvals=True,
-        queue=env.agenta.sessions.queue,
-        steer=env.agenta.sessions.queue and env.agenta.sessions.steer,
+        queue=True,
+        steer=True,
     )
 
 
