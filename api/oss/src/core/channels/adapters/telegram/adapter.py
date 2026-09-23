@@ -284,6 +284,30 @@ class TelegramAdapter(ChannelAdapterInterface):
             addressed=addressed,
         )
 
+    # --- teardown --- #
+
+    async def revoke_installation(
+        self, *, connection: ChannelConnection
+    ) -> Optional[str]:
+        """activate_connection pointed this bot's webhook at our ingress, so
+        archiving the connection must unregister it too -- otherwise Telegram
+        keeps trying that URL and queues updates for it, and a later
+        reconnect (to this project or a different one) is greeted with a
+        burst of stale messages instead of starting clean. Best-effort:
+        deleteWebhook failing must never block an archive that already
+        happened."""
+
+        try:
+            await self._call(connection, "deleteWebhook", {})
+        except (_TelegramApiError, ChannelConnectionIncomplete, httpx.HTTPError):
+            pass
+
+        return (
+            "Archived on our side, and the webhook was removed from "
+            "Telegram too -- messages sent while disconnected will not be "
+            "queued for delivery."
+        )
+
     # --- egress --- #
 
     async def post_message(

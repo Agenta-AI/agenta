@@ -994,13 +994,15 @@ class ChannelsRouter:
                 detail="Channel connection not found",
             )
 
+        platform_notice = await self.channels_service.describe_connection_restore(
+            project_id=UUID(request.state.project_id),
+            connection=connection,
+        )
+
         return ChannelConnectionTeardownResponse(
             count=1,
             connection=connection,
-            platform_notice=(
-                "Unarchived on our side only; nothing changed on the platform "
-                "either way."
-            ),
+            platform_notice=platform_notice,
         )
 
     @intercept_exceptions()

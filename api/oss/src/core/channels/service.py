@@ -890,6 +890,70 @@ class ChannelsService:
             connection_id=connection_id,
         )
 
+    async def describe_connection_restore(
+        self,
+        *,
+        project_id: UUID,
+        connection: ChannelConnection,
+    ) -> str:
+        """The unarchive-response notice. `archive_connection` tears down any
+        platform registration the adapter owns (Telegram's webhook, via
+        `revoke_installation`); a bare unarchive -- the restore path that
+        does not resubmit credentials, unlike a `create_connection` reconnect
+        or an `edit_connection` rotation -- must re-register it, or the
+        connection looks live on our side while Telegram has no webhook to
+        deliver to.
+
+        Only Telegram has a write-time setup call, so this is gated on the
+        channel the same way `edit_connection`'s rotation re-activation is --
+        activate_connection is a no-op for every other channel and hydrating
+        a secret to feed it would be wasted work. Runs after the row is
+        already unarchived, so it must never raise: a failure here turned a
+        completed restore into a 500 the client read as "nothing happened"."""
+
+        if connection.channel != "telegram":
+            return (
+                "Unarchived on our side only; nothing changed on the "
+                "platform either way."
+            )
+
+        adapter = self.adapter_registry.get(connection.channel)
+        try:
+            hydrated = await self._hydrate_connection(
+                project_id=project_id, connection=connection
+            )
+            hydrated_data = (
+                hydrated.data if hydrated and isinstance(hydrated.data, dict) else {}
+            )
+            activation_credentials = {
+                field: hydrated_data[field]
+                for field in ("bot_token", "webhook_secret")
+                if field in hydrated_data
+            }
+            await adapter.activate_connection(
+                connection=hydrated or connection,
+                credentials=activation_credentials,
+            )
+        except Exception:  # pylint: disable=broad-exception-caught
+            log.warning(
+                "channels: platform re-registration failed after "
+                "unarchiving connection=%s channel=%s",
+                connection.id,
+                connection.channel,
+                exc_info=True,
+            )
+            return (
+                "Unarchived on our side, but re-registering the webhook "
+                "with Telegram failed -- it will not receive messages "
+                "until you edit and re-save the connection."
+            )
+
+        return (
+            "Unarchived on our side, and the webhook was re-registered "
+            "with Telegram -- any messages sent while disconnected were "
+            "dropped, not queued for replay."
+        )
+
     async def delete_connection(
         self,
         *,

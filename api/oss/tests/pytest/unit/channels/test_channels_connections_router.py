@@ -218,6 +218,32 @@ async def test_archive_channel_connection_states_nothing_changed_on_the_platform
     )
 
 
+async def test_unarchive_channel_connection_delegates_the_restore_notice():
+    connection = _connection()
+    service = AsyncMock()
+    service.unarchive_connection.return_value = connection
+    service.describe_connection_restore.return_value = (
+        "Unarchived on our side, and the webhook was re-registered with "
+        "Telegram -- any messages sent while disconnected were dropped, "
+        "not queued for replay."
+    )
+    router = _router(service)
+    project_id = uuid4()
+    request = _make_request(project_id, uuid4())
+
+    with _patched_access(True):
+        response = await router.unarchive_channel_connection(
+            request, connection_id=connection.id
+        )
+
+    assert response.connection.id == connection.id
+    assert "re-registered" in response.platform_notice
+    service.unarchive_connection.assert_awaited_once()
+    service.describe_connection_restore.assert_awaited_once_with(
+        project_id=project_id, connection=connection
+    )
+
+
 async def test_unarchive_channel_connection_404s_on_a_missing_connection():
     service = AsyncMock()
     service.unarchive_connection.return_value = None

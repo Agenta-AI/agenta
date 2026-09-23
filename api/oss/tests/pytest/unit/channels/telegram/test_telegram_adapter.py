@@ -629,3 +629,37 @@ async def test_parse_event_keeps_the_senders_name_and_username():
         "name": "Test User",
         "username": "testuser",
     }
+
+
+# --- teardown ------------------------------------------------------------------ #
+
+
+@pytest.mark.asyncio
+async def test_revoke_installation_calls_delete_webhook_and_returns_a_notice():
+    adapter, seen = _adapter_with_capture()
+    notice = await adapter.revoke_installation(connection=_connection())
+    assert [r.url.path for r in seen] == ["/bot123:abc/deleteWebhook"]
+    assert "removed from Telegram" in notice
+
+
+@pytest.mark.asyncio
+async def test_revoke_installation_swallows_a_bot_api_error():
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"ok": False, "description": "Unauthorized"})
+
+    client = httpx.AsyncClient(
+        base_url="https://api.telegram.org", transport=httpx.MockTransport(handler)
+    )
+    adapter = TelegramAdapter(http_client=client)
+    # Must not raise: the connection is already archived by the time this
+    # runs, so a dead or revoked bot token cannot turn the archive into a
+    # failure the caller sees.
+    notice = await adapter.revoke_installation(connection=_connection())
+    assert "removed from Telegram" in notice
+
+
+@pytest.mark.asyncio
+async def test_revoke_installation_swallows_a_transport_error():
+    adapter = _adapter_with_raising_transport()
+    notice = await adapter.revoke_installation(connection=_connection())
+    assert "removed from Telegram" in notice
