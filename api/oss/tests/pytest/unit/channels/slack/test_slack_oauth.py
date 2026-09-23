@@ -71,6 +71,9 @@ def test_authorize_url_carries_client_id_scope_redirect_and_state(monkeypatch):
     ]
     assert "chat:write" in params["scope"][0]
     assert "channels:history" in params["scope"][0]
+    # join_space calls conversations.join; a hosted install without it cannot
+    # add the bot to a public channel.
+    assert "channels:join" in params["scope"][0].split(",")
 
 
 # --- exchange_code ---------------------------------------------------------- #

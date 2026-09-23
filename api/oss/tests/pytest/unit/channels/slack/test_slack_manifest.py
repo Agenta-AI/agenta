@@ -7,6 +7,7 @@ from oss.src.core.channels.adapters.slack.manifest import (
     SLACK_APP_DESCRIPTION_MAX,
     SLACK_APP_NAME_MAX,
     SLACK_BOT_DISPLAY_NAME_MAX,
+    SLACK_BOT_SCOPES,
     build_slack_manifest,
 )
 from oss.src.core.channels.dtos import ChannelSetupIdentity
@@ -133,3 +134,12 @@ async def test_setup_document_uses_the_given_identity():
         "description": "Helps.",
     }
     assert manifest["features"]["bot_user"]["display_name"] == "SupportBot"
+
+
+def test_manifest_requests_channels_join_for_adding_public_channels():
+    """Adding a public channel makes the bot join it via conversations.join,
+    which needs channels:join."""
+    manifest = build_slack_manifest(request_url="https://example.test/events/")
+
+    assert "channels:join" in manifest["oauth_config"]["scopes"]["bot"]
+    assert manifest["oauth_config"]["scopes"]["bot"] == SLACK_BOT_SCOPES
