@@ -102,6 +102,12 @@ def build_slack_manifest(
                     "message.mpim",
                     "message.groups",
                     "app_mention",
+                    # Deactivation signals the adapter's detect_deactivation
+                    # matches on (adapter.py's _DEACTIVATION_EVENT_TYPES).
+                    # Both are account-level events Slack delivers to any app
+                    # with Event Subscriptions enabled -- no bot scope needed.
+                    "app_uninstalled",
+                    "tokens_revoked",
                 ],
             },
             "interactivity": {
