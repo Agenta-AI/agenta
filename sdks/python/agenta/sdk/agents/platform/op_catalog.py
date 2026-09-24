@@ -190,6 +190,11 @@ class PlatformOp(BaseModel):
     static_body: Optional[Dict[str, Any]] = None
     # Catalog hint for the runner's ``allow_reads`` policy; no hint counts as a write.
     read_only: bool = False
+    # The op's own permission when the author set none on the tool, applied only under the
+    # agent-wide ``allow_reads`` mode. An author's per-tool choice or any other agent-wide mode
+    # wins, and the runner's operator kill switch still comes first. ``deny`` is not offered: an
+    # op nobody may run does not belong in the catalog.
+    default_permission: Optional[Literal["allow", "ask"]] = None
     # Per-op execution budget for long-running server-side handlers. Emitted as `timeoutMs`.
     timeout_ms: Optional[int] = Field(default=None, gt=0)
     # Builder ops opt in to the ephemeral per-call ``description`` (R12). The model writes one
