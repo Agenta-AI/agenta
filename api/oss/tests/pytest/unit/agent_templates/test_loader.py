@@ -737,3 +737,22 @@ async def test_foreign_or_missing_staged_attachment_fails_before_resource_creati
         await loader.load(project_id=PROJECT_ID, user_id=USER_ID, command=command)
     assert events == []
     assert starts.calls == []
+
+
+def test_permission_fingerprint_preserves_legacy_retries(monkeypatch):
+    from oss.src.core.agent_templates import loader as module
+
+    captured = []
+
+    def capture(data):
+        captured.append(data)
+        return "fingerprint"
+
+    monkeypatch.setattr(module, "request_fingerprint", capture)
+    command = _command()
+    module.template_request_fingerprint(command)
+    assert "ui_op_permissions" not in captured[-1]
+    module.template_request_fingerprint(
+        command.model_copy(update={"ui_op_permissions": {"create_schedule": "ask"}})
+    )
+    assert captured[-1]["ui_op_permissions"] == {"create_schedule": "ask"}

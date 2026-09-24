@@ -12,7 +12,8 @@
 - Permission panel, shared drawer, descriptors and settings: 34 tests passed.
 - Frontend `pnpm lint-fix`: all 28 workspace tasks passed.
 - Entity UI, playground and mobile TypeScript checks passed.
-- Storybook production build passed with bundle-size warnings.
+- Storybook production build passed with bundle-size warnings. Chromium rendered Allow all, Allow reads and Deactivate in both light and dark themes without page errors.
+- Template-loader regression suite: 18 tests passed, including preservation of pre-upgrade retry fingerprints.
 - `git diff --check` passed.
 
 The frontend render tests must run with `NODE_ENV=test`. This workspace exports a production environment by default; the first broad run could not load React's test APIs. Focused suites passed with the test environment set explicitly.

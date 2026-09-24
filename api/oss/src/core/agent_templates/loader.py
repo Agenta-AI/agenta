@@ -63,7 +63,12 @@ def template_request_fingerprint(command: TemplateLoadCommand) -> str:
         {
             "ui_build_kit_enabled": command.ui_build_kit_enabled,
             "ui_disabled_ops": sorted(set(command.ui_disabled_ops)),
-            "ui_op_permissions": command.ui_op_permissions,
+            # Preserve fingerprints of retryable requests made before this field existed.
+            **(
+                {"ui_op_permissions": command.ui_op_permissions}
+                if command.ui_op_permissions
+                else {}
+            ),
             "source": command.source.model_dump(mode="json", exclude_none=True),
             "base_revision": command.base_revision.model_dump(
                 mode="json", exclude_none=True

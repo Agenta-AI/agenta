@@ -42,7 +42,7 @@ The Build kit panel SHALL offer a kit-level choice with exactly these options: A
 #### Scenario: Pick Deactivate
 
 - **WHEN** the person picks Deactivate
-- **THEN** the next playground run receives no build kit tools, skills or sandbox permissions, and the panel shows that the assistant can no longer create files, run code or edit the agent here.
+- **THEN** the next playground run receives no build kit tools, skills or sandbox permissions, and the panel explains that the kit is off while the agent's own tools remain available.
 
 #### Scenario: One tool differs
 
