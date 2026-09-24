@@ -44,6 +44,10 @@ export const clearQuotes = (sessionId: string) =>
         getQuotes(sessionId).filter((quote) => !quote.staged),
     )
 
+/** Put a consumed set back after a send that did not go out. */
+export const restoreQuotes = (sessionId: string, quotes: Quote[]) =>
+    write(sessionId, [...quotes, ...getQuotes(sessionId)])
+
 /** Drop everything a permanently deleted session held. */
 export const clearSessionQuotes = (sessionId: string) => write(sessionId, [])
 
