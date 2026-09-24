@@ -32,30 +32,6 @@ export interface LevelState<T = unknown> {
     config: HierarchyLevel<T>
 }
 
-/**
- * Options for path builder hook
- */
-export interface UsePathBuilderOptions<TSelection = EntitySelectionResult> {
-    /** Resolved adapter */
-    adapter: EntitySelectionAdapter<TSelection>
-    /** Current level states */
-    levels: LevelState[]
-    /** Callback when selection is complete */
-    onSelect?: (selection: TSelection) => void
-}
-
-/**
- * Result from path builder hook
- */
-export interface UsePathBuilderResult<TSelection = EntitySelectionResult> {
-    /** Current selection path */
-    path: SelectionPathItem[]
-    /** Complete selection (null if not all levels selected) */
-    selection: TSelection | null
-    /** Whether selection is complete */
-    isComplete: boolean
-}
-
 // ============================================================================
 // UTILITY: buildPath
 // ============================================================================
@@ -125,16 +101,4 @@ export function isPathComplete<TSelection = EntitySelectionResult>(
     adapter: EntitySelectionAdapter<TSelection>,
 ): boolean {
     return adapter.isComplete(path)
-}
-
-/**
- * Options for a selection callback
- */
-export interface UseSelectionCallbackOptions<TSelection = EntitySelectionResult> {
-    /** Resolved adapter */
-    adapter: EntitySelectionAdapter<TSelection>
-    /** Current path (breadcrumb) */
-    currentPath: SelectionPathItem[]
-    /** Callback when selection is complete */
-    onSelect?: (selection: TSelection) => void
 }

@@ -128,8 +128,6 @@ export type {
     CommitCreateFieldsConfig,
     AgentChangesSummaryProps,
     UseEntityCommitReturn,
-    UseBoundCommitOptions,
-    UseBoundCommitReturn,
 } from "./commit"
 export type {CommitDeployOption} from "./types"
 
@@ -187,10 +185,8 @@ export {EnhancedModal, type EnhancedModalProps, type EnhancedModalStyles} from "
 // Hook factories for creating entity action hooks
 export {
     createEntityActionHook,
-    createTypedEntityActionHook,
     type CreateEntityActionHookConfig,
     type UseEntityActionReturn,
-    type UseTypedEntityActionReturn,
 } from "./shared"
 
 // ============================================================================

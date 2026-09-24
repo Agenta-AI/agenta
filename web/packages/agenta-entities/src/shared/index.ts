@@ -155,9 +155,6 @@ export {
     // ID & batch utilities
     generateLocalId,
     batchUpdate,
-    // Relation utilities
-    getChildIds,
-    getChildData,
     // Latest entity query factory
     createLatestEntityQueryFactory,
     type CreateLatestEntityQueryConfig,
@@ -256,8 +253,6 @@ export {
 export type {
     // Registry types
     RelationRegistry,
-    // Extension types
-    MoleculeWithRelationAtoms,
     // Relation types
     EntityRelation,
     ListQueryState,

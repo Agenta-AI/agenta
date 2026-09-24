@@ -24,7 +24,7 @@ export type {
 
 // Hooks
 export {useEntityCommit} from "./hooks"
-export type {UseEntityCommitReturn, UseBoundCommitOptions, UseBoundCommitReturn} from "./hooks"
+export type {UseEntityCommitReturn} from "./hooks"
 
 // State atoms
 export {
