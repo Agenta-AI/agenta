@@ -66,7 +66,7 @@ Agenta SHALL NOT attach an Agenta credit line or payment method to a customer's 
 - **THEN** the screen SHALL say that Meta bills their business directly and link Meta's pricing page
 
 ### Requirement: Disconnect
-Archiving a WhatsApp connection SHALL stop routing its events and SHALL attempt, best effort, to unsubscribe the app from the business account webhooks.
+Archiving a WhatsApp connection SHALL stop routing its events and SHALL tell the operator to remove the callback URL in their Meta app. Agenta SHALL NOT unsubscribe the app from the business account, because the same Meta app may serve the business's other tools.
 
 #### Scenario: Events after archive
 - **WHEN** Meta delivers an event for an archived connection

@@ -15,7 +15,7 @@ Every WhatsApp conversation SHALL be a private space keyed on the business phone
 
 #### Scenario: Group message
 - **WHEN** an event arrives from a group conversation
-- **THEN** Agenta SHALL store it and SHALL NOT start a turn
+- **THEN** Agenta SHALL ignore it and SHALL NOT start a turn
 
 ### Requirement: Native turn indicator without placeholder text
 When a turn starts, Agenta SHALL mark the triggering message as read and show the WhatsApp typing indicator. It SHALL NOT post a placeholder text message. It SHALL refresh the typing indicator every 20 seconds while the turn runs.
@@ -32,7 +32,7 @@ If a turn has produced no answer after 30 seconds, Agenta SHALL send one fixed "
 - **THEN** the customer SHALL receive exactly one working message followed by the answer
 
 ### Requirement: Answers as new messages within limits
-Agenta SHALL deliver the final answer as new messages. It SHALL split text longer than 4096 characters at paragraph, line, or word boundaries, and it SHALL space parts to one customer at least 6 seconds apart. Agenta SHALL NOT attempt to edit or delete a sent WhatsApp message.
+Agenta SHALL deliver the final answer as new messages. It SHALL split text longer than 4096 characters at paragraph, line, or word boundaries. Agenta SHALL NOT attempt to edit or delete a sent WhatsApp message.
 
 #### Scenario: Long answer
 - **WHEN** the answer is 9,000 characters long
@@ -58,7 +58,7 @@ Agenta SHALL render a pending choice with up to 3 options as reply buttons, with
 - **THEN** Agenta SHALL resolve the pending choice as Approve
 
 ### Requirement: Images and documents
-Agenta SHALL accept inbound images and documents, pass them to the agent as attachments, and send images and documents the agent returns. Files larger than Meta's limit for their type SHALL be replaced by a short text notice. Audio, video, and sticker messages SHALL receive one fixed reply saying which message types the agent can read.
+Agenta SHALL accept inbound images and documents and pass them to the agent as attachments. A file larger than the deployment's attachment limit SHALL reach the agent as a short text notice instead. Audio, video, and sticker messages SHALL receive one fixed reply saying which message types the agent can read. Sending files the agent produces is deferred until an agent can return a file on any channel.
 
 #### Scenario: Customer sends a PDF
 - **WHEN** a customer sends a 2 MB PDF invoice with a question
@@ -69,8 +69,8 @@ Agenta SHALL accept inbound images and documents, pass them to the agent as atta
 - **THEN** Agenta SHALL reply that it can read text, images, and documents, and SHALL NOT start a turn
 
 ### Requirement: Delivery status
-Agenta SHALL record Meta's sent, delivered, read, and failed statuses against the outbox receipt for each message. A failed status SHALL mark the delivery failed with Meta's error code.
+Agenta SHALL log Meta's failed delivery statuses with the error code. Sent, delivered and read statuses SHALL be acknowledged and ignored. Recording statuses on the outbox row is deferred.
 
 #### Scenario: Message fails after acceptance
 - **WHEN** Meta reports a failed status for an accepted message
-- **THEN** the session SHALL show the delivery as failed with the error code
+- **THEN** Agenta SHALL log the message ID and Meta's error code, and SHALL NOT start a turn

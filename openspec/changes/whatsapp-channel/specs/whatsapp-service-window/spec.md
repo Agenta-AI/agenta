@@ -25,7 +25,7 @@ Before sending a free-form message, Agenta SHALL check the window. If the window
 - **THEN** Agenta SHALL mark the delivery held with `window_closed` and SHALL NOT retry it as free-form
 
 ### Requirement: Optional re-open template
-An editor MAY select one approved template on the connection to re-open closed conversations. When a reply is held and a template is configured, Agenta SHALL send the template once per held reply. When the customer answers, Agenta SHALL deliver the held reply. Without a configured template, Agenta SHALL send nothing.
+An editor MAY select one approved template on the connection to re-open closed conversations. When a reply is held and a template is configured, Agenta SHALL send the template once, for the first reply held since the customer last wrote. When the customer writes again, with or without a template, Agenta SHALL deliver the held replies, oldest first, before it answers the new message. Without a configured template, Agenta SHALL send nothing until the customer writes.
 
 #### Scenario: Template configured
 - **WHEN** a reply is held and the connection has an approved re-open template

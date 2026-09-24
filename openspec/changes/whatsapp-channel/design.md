@@ -53,7 +53,7 @@ Sources are listed at the end.
 
 ### D1. Connect: bring your own number first, Embedded Signup second, no shared number
 
-Phase 1 is a paste form with the phone number ID, a permanent system-user access token, and the app secret. `verify_connection` reads the phone number's details (display name, verified name, quality rating) with the token and fails if it cannot. It also returns the WhatsApp Business Account ID. `activate_connection` subscribes the app to the account's webhooks. Agenta shows the webhook URL and a generated verify token for the customer to paste into their Meta app. The connection keys on `phone_number_id`.
+Phase 1 is a paste form with the phone number ID, a permanent system-user access token, and the app secret. `verify_connection` reads the phone number's display name and verified name with the token and fails if it cannot. Agenta shows the webhook URL and a generated verify token for the customer to paste into their Meta app. The connection keys on `phone_number_id`.
 
 Phase 2 adds Embedded Signup. Agenta becomes a Meta Tech Provider: business verification of Agenta's Meta business, app review for `whatsapp_business_management` and `whatsapp_business_messaging`, and one Meta app per region. The popup returns a code that the backend exchanges for a business token. The connection keys on the same `phone_number_id`. Both paths share one adapter. Only setup and the token source differ, the way `telegram_hosted` differs from `telegram`.
 
@@ -126,21 +126,47 @@ Alternatives:
 - **Focused business agents only (option A).** A short notice and a required checkbox on the connect screen, plus a clause in Agenta's terms. Rejected by Mahmoud on 2026-09-24: it adds rules and wording Agenta does not need, and the EU measures currently force access.
 - **Automatically check the agent's prompt.** Rejected. Unreliable and intrusive.
 
+## As built (v1)
+
+The code follows the decisions above with these small core changes and documented limits. Each limit trades rare-case machinery for a narrower contract.
+
+Core changes, all declared by the adapter's capabilities so Slack and Telegram are unchanged:
+
+- `rendering.controls.indicator = "native"`: the outbox sends no "Thinking…" message. It signals typing when the turn starts, refreshes it every 20 seconds, and sends one working message after 30 seconds, on its own outbox row so a redelivered event cannot send it twice.
+- `conversation.reply_window_seconds` and a `HELD` delivery state. The window is derived from the space's latest inbound message, so no new field is stored. A held row is only claimable by the release path.
+- `parse_event` may return a list. The WhatsApp route verifies each business number in a batched body on its own and skips numbers not connected here.
+- `conversation.opt_out` and a space flag `is_opted_out` for STOP and START.
+- Two adapter hooks with no-op defaults: `reopen_conversation` (the template) and `fetch_media` (inbound files).
+
+Documented limits:
+
+- Delivery statuses are logged, with failed ones at warning level and Meta's code. They are not written back to the outbox row. Error 131047 in a send response holds the reply; a 131047 that only arrives later as a status is logged. The window check before sending makes that case rare.
+- The pair rate limit (131056) is retried twice after 6 seconds. There is no fixed spacing between the parts of a long answer, because Meta allows short bursts.
+- Held replies go out whenever the customer writes again, with or without a template, before the new message is answered. The customer's message then runs a normal turn.
+- The re-open template is sent once for the first reply held since the customer last wrote, not once per held part.
+- Group messages are ignored, not stored.
+- The operator registers the webhook in Meta by pasting the callback URL and verify token. Agenta does not call `subscribed_apps`, and disconnecting does not unsubscribe the app, because the same Meta app may serve the business's other tools. Disconnect shows a notice instead.
+- The verify token is `<phone_number_id>.<random>` and is kept in the connection data, not the vault, because the operator needs to see it again. The GET handshake finds the connection from the phone number ID in the token.
+- Inbound images and documents become session attachments, so the deployment's attachment limits apply (10 MB by default), not Meta's 100 MB.
+- Sending files the agent produces is deferred: no channel can return a file from an agent yet.
+- A turn already running when the customer sends STOP still delivers its answer.
+- A real Meta number has not been tested yet. The code is tested against a fake Graph API that answers like Meta's for every call the adapter makes.
+
 ## Adapter mapping
 
 | Interface method | WhatsApp behavior |
 | --- | --- |
-| `fetch_capabilities` | Static. `spaces.private` only, `controls.update` false, `buttons.max` 3, list max 10, text `markdown` converted to WhatsApp formatting, `max_chars` 4096, files per D6, no backfill, forwardfill on. |
+| `fetch_capabilities` | Static. `spaces.private` only, `controls.update` false, `buttons.max` 10 (the adapter sends reply buttons for up to 3 options and a list for 4 to 10), text `markdown` converted to WhatsApp formatting, `max_chars` 4096, files per D6, no backfill, forwardfill on. |
 | `verify_connection` | Read the phone number with the token. Return display name, WhatsApp Business Account ID, and quality rating. |
-| `activate_connection` | Subscribe the app to the business account webhooks. Store the verify token. |
+| `activate_connection` | Not used. The operator registers the webhook in Meta. |
 | `connection_locator` | `metadata.phone_number_id` from the body. |
 | `verify_signature` | HMAC-SHA256 of the raw body with the connection's app secret (phase 1) or the deployment app secret (phase 2), compared in constant time with `X-Hub-Signature-256`. |
 | `parse_event` | One event per `messages[]` item. Statuses update delivery receipts and are not routed. `interactive.button_reply` and `list_reply` become `ACTION` events. Always `private` and `addressed`. |
-| `post_message` | `/messages` with text, interactive, image, or document. Returns `{phone_number_id, wa_id, message_id}`. |
+| `post_message` | `/messages` with text or interactive. Returns `{wa_id, message_id}`. |
 | `edit_message` | Not offered. Declared off. |
 | `signal_activity` | Typing indicator on the last inbound message ID. |
 | `discover_spaces`, `fetch_history` | Return nothing. |
-| `revoke_installation` | Unsubscribe the app from the business account webhooks. |
+| `revoke_installation` | Returns a notice to remove the callback URL in Meta. |
 
 Ingress adds `GET /channels/whatsapp/events/` for the verify handshake. It looks up the verify token among WhatsApp connections and echoes `hub.challenge` as plain text. `POST /channels/whatsapp/events/` handles events. One webhook body can carry several messages, so `parse_event` is extended to return a list for this adapter, or the ingress splits the body before parsing.
 
