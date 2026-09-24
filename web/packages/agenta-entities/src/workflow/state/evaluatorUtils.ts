@@ -25,17 +25,10 @@ import {inspectWorkflow} from "../api"
 import type {EvaluatorCatalogPresetsResponse} from "../api/templates"
 import {fetchEvaluatorCatalogPresets} from "../api/templates"
 import type {Workflow} from "../core"
-import {
-    buildWorkflowUri,
-    parseWorkflowKeyFromUri,
-    resolveOutputSchemaProperties,
-} from "../core"
+import {buildWorkflowUri, parseWorkflowKeyFromUri, resolveOutputSchemaProperties} from "../core"
 
 import {evaluatorTemplatesDataAtom} from "./evaluatorTemplateAtoms"
-import {
-    buildServiceUrlFromUri,
-    filterNonDeterministicEvaluatorWorkflows,
-} from "./helpers"
+import {buildServiceUrlFromUri, filterNonDeterministicEvaluatorWorkflows} from "./helpers"
 import {
     workflowProjectIdAtom,
     workflowLocalServerDataAtomFamily,

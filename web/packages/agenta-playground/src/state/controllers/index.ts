@@ -4,10 +4,7 @@
  * Re-exports all playground state controllers.
  */
 
-export {
-    playgroundController,
-    setOnSelectionChangeCallback,
-} from "./playgroundController"
+export {playgroundController, setOnSelectionChangeCallback} from "./playgroundController"
 export type {ConnectToTestsetPayload, OpenFromTraceResult} from "./playgroundController"
 export {outputConnectionController} from "./outputConnectionController"
 export {entitySelectorController} from "./entitySelectorController"
