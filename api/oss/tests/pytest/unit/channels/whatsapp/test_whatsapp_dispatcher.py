@@ -4,6 +4,7 @@ and documents to the agent as session attachments. The channels service is
 stubbed like the rest of the dispatcher suite; the adapter is the real one
 over the fake Graph API, so replies are asserted on what Meta received."""
 
+from datetime import datetime, timezone
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
@@ -107,10 +108,11 @@ def world(dao, graph):
     )
 
 
-def _event(content, kind=ChannelEventKind.MESSAGE):
+def _event(content, kind=ChannelEventKind.MESSAGE, sent_at=None):
     return ChannelInboxEvent(
-        # time-ordered, like the inbox's own ids
+        # time-ordered, like the inbox's own ids and arrival times
         id=uuid_utils.uuid7(),
+        created_at=datetime.now(timezone.utc),
         connection_id=uuid4(),
         external_id=f"wamid.{uuid4().hex[:6]}",
         kind=kind,
@@ -118,12 +120,13 @@ def _event(content, kind=ChannelEventKind.MESSAGE):
         data=ChannelInboxEventData(
             external_locator={"wa_id": p.CUSTOMER},
             processed=ChannelInboxEventProcessed(content=content, sender={}),
+            sent_at=sent_at,
         ),
     )
 
 
-def _text(text):
-    return _event([{"type": "text", "text": text}])
+def _text(text, sent_at=None):
+    return _event([{"type": "text", "text": text}], sent_at=sent_at)
 
 
 async def _dispatch(world, event, *, attachments=None):
@@ -211,6 +214,25 @@ async def test_stop_and_start_apply_in_the_order_the_customer_sent_them(world, g
 
     assert world.space.flags.is_opted_out is True
     assert graph.texts_to(p.CUSTOMER) == [OPTED_OUT_TEXT]
+
+
+async def test_a_start_sent_before_a_stop_but_stored_after_it_does_not_win(
+    world, graph
+):
+    """Meta retried the START and it reached us after the STOP: the
+    customer's own clock decides."""
+
+    from datetime import timedelta
+
+    now = datetime.now(timezone.utc)
+    stop = _text("STOP", sent_at=now)
+    late_start = _text("START", sent_at=now - timedelta(minutes=1))
+
+    await _dispatch(world, stop)
+    invoke = await _dispatch(world, late_start)
+
+    assert world.space.flags.is_opted_out is True
+    invoke.assert_not_called()
 
 
 async def test_stop_inside_a_sentence_is_a_normal_message(world, graph):

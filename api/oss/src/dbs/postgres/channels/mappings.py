@@ -285,7 +285,7 @@ def map_space_dto_to_dbe_edit(
     # space never resets them, whatever its flags say.
     stored = dict(space_dbe.flags or {})
     flags = space.flags.model_dump()
-    for key in ("is_opted_out", "consent_event_id"):
+    for key in ("is_opted_out", "consent_sent_at"):
         if key in stored:
             flags[key] = stored[key]
     space_dbe.flags = flags

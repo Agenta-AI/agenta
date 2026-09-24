@@ -1,3 +1,4 @@
+from datetime import datetime
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional, Tuple
 from uuid import UUID
@@ -307,15 +308,16 @@ class ChannelsDAOInterface(ABC):
         project_id: UUID,
         space_id: UUID,
         opted_out: bool,
-        event_id: UUID,
+        sent_at: datetime,
     ) -> Optional[ChannelSpace]:
         """Set flags.is_opted_out when the person sends STOP or START. Its own
         write for the same reason as `mark_space_backfilled`: the writer is the
         person on the platform, and it must not clobber an operator's edit.
 
-        Fenced on `event_id` (time-ordered): a STOP or START older than the
-        last one applied changes nothing and returns None, so a redelivered
-        START can never undo a later STOP."""
+        Fenced on `sent_at`, when the person sent it: a STOP or START sent
+        before the last one applied changes nothing and returns None, so a
+        delayed or redelivered START can never undo a later STOP. On a tie,
+        STOP wins."""
         ...
 
     @abstractmethod

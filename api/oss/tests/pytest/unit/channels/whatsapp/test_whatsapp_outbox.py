@@ -598,3 +598,55 @@ async def test_two_workers_holding_parts_of_one_answer_send_one_template(
     )
 
     assert [m["type"] for m in graph.sent] == ["template"]
+
+
+async def test_a_held_reply_another_worker_is_still_sending_holds_back_the_answer(
+    service, dao, graph, records, monkeypatch
+):
+    """The row stays claimed past the wait: turn_ended fails and is retried
+    later rather than letting the new answer overtake the held one."""
+
+    from oss.src.core.shared.dtos import Status
+    from oss.src.tasks.asyncio.channels import outbox as outbox_module
+
+    monkeypatch.setattr(outbox_module, "_CLAIM_WAIT_SECONDS", 0.2)
+    worker = _worker(service, records)
+    _, space, thread = dao.seed_whatsapp()
+    dao.customer_wrote(space, ago=timedelta(days=2))
+    _answer(records, thread, "t1", "held answer")
+    await _end(worker, thread, "t1")
+    dao.customer_wrote(space, message_id="wamid.BACK")
+    [held] = dao.rows(ChannelDeliveryState.HELD)
+    dao.outbox[held.key] = held.model_copy(  # another worker's live claim
+        update={
+            "status": Status(code="sending", message="other"),
+            "updated_at": datetime.now(timezone.utc),
+        }
+    )
+
+    _answer(records, thread, "t2", "new answer")
+    with pytest.raises(outbox_module.ChannelOutboxDeliveryBusy):
+        await _end(worker, thread, "t2")
+
+    assert graph.texts_to(p.CUSTOMER) == []
+
+
+async def test_a_refused_held_part_does_not_strand_the_parts_after_it(
+    service, dao, graph, records
+):
+    worker = _worker(service, records)
+    _, space, thread = dao.seed_whatsapp()
+    dao.customer_wrote(space, ago=timedelta(days=2))
+    paragraph = ("word " * 199).strip() + "."
+    _answer(records, thread, "t1", "\n\n".join([paragraph] * 6))  # two parts
+    await _end(worker, thread, "t1")
+    assert len(dao.rows(ChannelDeliveryState.HELD)) == 2
+    dao.customer_wrote(space, message_id="wamid.BACK")
+    graph.fail_next(131026)  # Meta refuses the first part for good
+
+    _answer(records, thread, "t2", "new answer")
+    await _end(worker, thread, "t2")
+
+    texts = graph.texts_to(p.CUSTOMER)
+    assert len(texts) == 2 and texts[-1] == "new answer"
+    assert dao.rows(ChannelDeliveryState.HELD) == []

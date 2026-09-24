@@ -12,12 +12,12 @@ from oss.src.dbs.postgres.channels.mappings import map_space_dto_to_dbe_edit
 
 
 def test_an_operator_edit_keeps_the_opt_out_and_its_fence():
-    consent_event_id = str(uuid4())
+    consent_sent_at = "2026-09-24T18:00:00.000000Z"
     space_dbe = SimpleNamespace(
         flags={
             "is_active": True,
             "is_opted_out": True,
-            "consent_event_id": consent_event_id,
+            "consent_sent_at": consent_sent_at,
         }
     )
 
@@ -34,4 +34,4 @@ def test_an_operator_edit_keeps_the_opt_out_and_its_fence():
 
     assert space_dbe.flags["is_active"] is False
     assert space_dbe.flags["is_opted_out"] is True
-    assert space_dbe.flags["consent_event_id"] == consent_event_id
+    assert space_dbe.flags["consent_sent_at"] == consent_sent_at

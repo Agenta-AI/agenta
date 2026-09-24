@@ -3,7 +3,19 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Tuple
 from uuid import UUID, uuid4
 
-from sqlalchemy import cast, false, func, literal, or_, select, text, tuple_, update
+from sqlalchemy import (
+    and_,
+    cast,
+    false,
+    func,
+    literal,
+    or_,
+    select,
+    text,
+    true,
+    tuple_,
+    update,
+)
 from sqlalchemy.dialects.postgresql import JSONB, insert
 
 from oss.src.core.channels.dtos import (
@@ -812,28 +824,30 @@ class ChannelsDAO(ChannelsDAOInterface):
         project_id: UUID,
         space_id: UUID,
         opted_out: bool,
-        event_id: UUID,
+        sent_at: datetime,
     ) -> Optional[ChannelSpace]:
         # One conditional UPDATE: the fence and the write cannot interleave with
-        # another consent event. uuid7 text sorts by time.
+        # another consent event. A fixed-width UTC stamp sorts as text.
+        stamp = sent_at.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
         flags = cast(ChannelSpaceDBE.flags, JSONB)
-        applied = flags["consent_event_id"].astext
+        applied = flags["consent_sent_at"].astext
         stmt = (
             update(ChannelSpaceDBE)
             .where(
                 ChannelSpaceDBE.project_id == project_id,
                 ChannelSpaceDBE.id == space_id,
-                or_(applied.is_(None), applied < str(event_id)),
+                or_(
+                    applied.is_(None),
+                    applied < stamp,
+                    and_(applied == stamp, true() if opted_out else false()),
+                ),
             )
             .values(
                 flags=func.coalesce(flags, cast(literal("{}"), JSONB)).op("||")(
                     cast(
                         literal(
                             json.dumps(
-                                {
-                                    "is_opted_out": opted_out,
-                                    "consent_event_id": str(event_id),
-                                }
+                                {"is_opted_out": opted_out, "consent_sent_at": stamp}
                             )
                         ),
                         JSONB,

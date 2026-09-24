@@ -643,10 +643,10 @@ class InboxDispatcher:
                 project_id=project_id,
                 space_id=space.id,
                 opted_out=opting_out,
-                event_id=event.id,
+                sent_at=event.data.sent_at or event.created_at,
             )
             if applied is None:
-                return True  # older than the last STOP or START: a redelivery
+                return True  # sent before the last STOP or START applied
             if opting_out != opted_out:
                 await self._notify_not_started(
                     project_id=project_id,

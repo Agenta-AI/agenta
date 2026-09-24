@@ -439,17 +439,26 @@ class ChannelsOutboxWorker:
                     final=bool(processed.get("final")),
                     include_held=True,
                 )
+            except ChannelOutboxDeliveryBusy:
+                # Another worker is still sending it: fail this turn event so
+                # it is retried, rather than let the new answer overtake it.
+                raise
             except Exception as exc:  # noqa: BLE001
-                # The row now says FAILED with the platform's reason. A held
-                # reply that cannot go out never blocks the new answer.
+                # The platform refused it; the row now says FAILED with the
+                # reason. It is not retried, and it never blocks the parts
+                # after it or the new answer.
                 log.warning(
                     "[SESSIONS-OUTBOX] held reply not released row=%s: %s",
                     event.id,
                     str(exc)[:200],
                 )
-                return
+                continue
             if not delivered:
-                return
+                current = await self.channels_service.channels_dao.fetch_outbox_event(
+                    project_id=project_id, event_id=event.id
+                )
+                if current is not None and current.state is ChannelDeliveryState.HELD:
+                    return  # held again: the window closed, so would the rest
 
     async def _signal_native(
         self,
