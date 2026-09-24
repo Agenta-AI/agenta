@@ -14,6 +14,7 @@ from oss.src.core.agent_templates.dtos import TemplateLoadResult
 from oss.src.core.agent_templates.loader import AgentTemplateLoader
 from oss.src.core.shared.idempotency import request_key_hash
 from oss.src.utils.exceptions import intercept_exceptions
+from oss.src.utils.context import get_auth_scope
 from oss.src.utils.logging import get_module_logger
 
 
@@ -98,6 +99,7 @@ class AgentTemplatesRouter:
             result = await self._loader.load(
                 project_id=project_id,
                 user_id=user_id,
+                scope=get_auth_scope(),
                 command=payload.to_domain(request_key=request_key),
             )
         except Exception as exc:

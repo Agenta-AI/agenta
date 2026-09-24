@@ -25,6 +25,9 @@ from oss.src.core.agent_templates.provenance import (
     read_template_origin,
     template_origin_meta,
 )
+from oss.src.core.gateways.llms.service import LLMGatewayService
+from oss.src.core.gateways.llms.types import LLMEndpointNotFoundError
+from oss.src.core.gateways.types import GatewayEndpointInactiveError
 from oss.src.core.mounts.dtos import MountFileSeed
 from oss.src.core.mounts.service import MountsService
 from oss.src.core.sessions.attachments.service import SessionAttachmentsService
@@ -43,6 +46,7 @@ from oss.src.core.workflows.dtos import (
     Workflow,
 )
 from oss.src.core.workflows.service import SimpleWorkflowsService
+from oss.src.utils.context import AuthScope
 
 
 _TEMPLATE_LOAD_NAMESPACE = "agent-template-load"
@@ -99,6 +103,7 @@ class AgentTemplateLoader:
         compiler: TemplateCompiler,
         skills_service: SkillsService,
         simple_workflows_service: SimpleWorkflowsService,
+        llm_gateway_service: LLMGatewayService,
         mounts_service: MountsService | None = None,
         session_starts_service: SessionStartsService | None = None,
         attachments_service: SessionAttachmentsService | None = None,
@@ -112,6 +117,7 @@ class AgentTemplateLoader:
         self._mounts_service = mounts_service
         self._session_starts_service = session_starts_service
         self._attachments_service = attachments_service
+        self._llm_gateway_service = llm_gateway_service
 
     @staticmethod
     def _request_key(command: TemplateLoadCommand) -> str:
@@ -186,6 +192,7 @@ class AgentTemplateLoader:
         *,
         project_id: UUID,
         user_id: UUID,
+        scope: AuthScope,
         command: TemplateLoadCommand,
     ) -> PreparedTemplateLoad:
         request_key = self._request_key(command)
@@ -242,6 +249,9 @@ class AgentTemplateLoader:
             bindings=bindings,
             installed_skills=planned_skills,
             first_message=first_message,
+        )
+        await self._validate_model_connection(
+            parameters=compiled.revision_data.parameters, scope=scope
         )
         origin_meta = template_origin_meta(resolved)
         expected_origin = origin_meta["_ag"]["template_origin"]
@@ -319,11 +329,44 @@ class AgentTemplateLoader:
             replayed=outcome.replayed,
         )
 
+    async def _validate_model_connection(
+        self, *, parameters: dict[str, Any] | None, scope: AuthScope
+    ) -> None:
+        if not isinstance(parameters, dict):
+            return
+
+        agent = parameters.get("agent")
+        llm = agent.get("llm") if isinstance(agent, dict) else None
+        connection = llm.get("connection") if isinstance(llm, dict) else None
+        if not isinstance(llm, dict) or not isinstance(connection, dict):
+            return
+        if connection.get("mode") != "agenta" or not connection.get("slug"):
+            return
+
+        model = llm.get("model")
+        if not isinstance(model, str) or not model:
+            return
+        provider_key = model.split("/", 1)[0] if "/" in model else model
+        try:
+            await self._llm_gateway_service.resolve_agent_connection(
+                scope=scope,
+                model=model,
+                provider_key=provider_key,
+                connection_slug=connection["slug"],
+            )
+        except (LLMEndpointNotFoundError, GatewayEndpointInactiveError) as exc:
+            raise TemplatePackageInvalid(
+                "model_connection_invalid",
+                "The template names an unavailable model connection.",
+                details={"connection_slug": connection["slug"]},
+            ) from exc
+
     async def load(
         self,
         *,
         project_id: UUID,
         user_id: UUID,
+        scope: AuthScope,
         command: TemplateLoadCommand,
     ) -> TemplateLoadResult:
         """Create every declared resource before handing off the first turn."""
@@ -355,6 +398,7 @@ class AgentTemplateLoader:
         prepared = await self.prepare(
             project_id=project_id,
             user_id=user_id,
+            scope=scope,
             command=command,
         )
         await self._mounts_service.materialize_entries_if_absent(

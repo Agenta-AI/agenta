@@ -17,10 +17,25 @@ from oss.src.core.agent_templates.exceptions import (
 )
 from oss.src.core.sessions.inputs.types import SessionInputIdempotencyConflict
 from oss.src.core.sessions.starts.types import SessionStartNotDurable
+from oss.src.utils.context import AuthScope
 
 
 PROJECT_ID = uuid4()
 USER_ID = uuid4()
+
+
+@pytest.fixture(autouse=True)
+def auth_scope(monkeypatch):
+    monkeypatch.setattr(
+        router_module,
+        "get_auth_scope",
+        lambda: AuthScope(
+            organization_id=uuid4(),
+            workspace_id=uuid4(),
+            project_id=PROJECT_ID,
+            user_id=USER_ID,
+        ),
+    )
 
 
 def _body():
@@ -194,6 +209,50 @@ async def test_domain_failures_have_stable_transport_errors(
     assert {"code", "message", "retryable", "details"} <= set(response.json())
     if response.json()["retryable"]:
         assert response.json()["next_step"]
+
+
+@pytest.mark.asyncio
+async def test_post_dispatch_start_failure_requires_a_new_request_key(monkeypatch):
+    loader = AsyncMock()
+    loader.load.side_effect = SessionStartNotDurable(retryable=False)
+    monkeypatch.setattr(
+        router_module, "check_action_access", AsyncMock(return_value=True)
+    )
+
+    response = await _post(_app(loader))
+
+    assert response.status_code == 503
+    assert response.json()["retryable"] is False
+    assert response.json()["next_step"] == (
+        "Start a new template load with a new Idempotency-Key."
+    )
+
+
+@pytest.mark.asyncio
+async def test_invalid_model_connection_has_non_retryable_package_error(monkeypatch):
+    loader = AsyncMock()
+    loader.load.side_effect = TemplatePackageInvalid(
+        "model_connection_invalid",
+        "The template names an unavailable model connection.",
+        details={"connection_slug": "missing-connection"},
+    )
+    monkeypatch.setattr(
+        router_module, "check_action_access", AsyncMock(return_value=True)
+    )
+
+    response = await _post(_app(loader))
+
+    assert response.status_code == 422
+    assert response.json() == {
+        "code": "template_package_invalid",
+        "message": "The template names an unavailable model connection.",
+        "retryable": False,
+        "details": {
+            "reason": "model_connection_invalid",
+            "connection_slug": "missing-connection",
+        },
+    }
+    assert "next_step" not in response.json()
 
 
 @pytest.mark.asyncio

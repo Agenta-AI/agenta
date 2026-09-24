@@ -482,6 +482,25 @@ async def test_a_durable_run_keeps_the_claim_even_when_the_invoke_raised():
 
 
 @pytest.mark.asyncio
+async def test_dispatched_start_failure_is_not_retryable_with_same_key():
+    inputs = _ClaimFlag()
+    executions = AsyncMock()
+    executions.fetch_execution.return_value = None
+    workflows = AsyncMock()
+    workflows.invoke_workflow_detached.side_effect = WorkflowDetachedStartFailed(
+        "workflow rejected the model connection"
+    )
+
+    with pytest.raises(SessionStartNotDurable) as raised:
+        await _service(
+            inputs=inputs, executions=executions, workflows=workflows
+        ).start_once(**_args())
+
+    assert raised.value.retryable is False
+    assert inputs.claimed is True
+
+
+@pytest.mark.asyncio
 async def test_a_failing_release_still_raises_the_start_error():
     inputs = AsyncMock()
     inputs.claim_for_execution.side_effect = lambda **kw: _input(kw["content"])

@@ -309,7 +309,8 @@ class SessionStartsService:
                             input_id=claimed.id,
                             execution_id=execution_id,
                         )
-                    raise SessionStartNotDurable() from error
+                        raise SessionStartNotDurable() from error
+                    raise SessionStartNotDurable(retryable=False) from error
                 raise SessionStartNotDurable()
 
             return SessionStartResult(

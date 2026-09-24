@@ -23,6 +23,7 @@ def _response(
     code: str,
     message: str,
     retryable: bool = False,
+    next_step: str | None = None,
     details: dict | None = None,
 ) -> JSONResponse:
     content = {
@@ -31,8 +32,8 @@ def _response(
         "retryable": retryable,
         "details": details or {},
     }
-    if retryable:
-        content["next_step"] = (
+    if retryable or next_step:
+        content["next_step"] = next_step or (
             "Retry with the same Idempotency-Key; do not submit a new request."
         )
     return JSONResponse(
@@ -71,7 +72,8 @@ def template_load_error_response(exc: Exception) -> JSONResponse | None:
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             code="template_handoff_not_durable",
             message="The initial session start was not durably recorded.",
-            retryable=True,
+            retryable=exc.retryable,
+            next_step=exc.next_step,
         )
     if isinstance(
         exc,

@@ -48,6 +48,17 @@ PROJECT_ID = uuid4()
 USER_ID = uuid4()
 
 
+def _scope():
+    from oss.src.utils.context import AuthScope
+
+    return AuthScope(
+        organization_id=uuid4(),
+        workspace_id=uuid4(),
+        project_id=PROJECT_ID,
+        user_id=USER_ID,
+    )
+
+
 def _base_revision() -> WorkflowRevisionData:
     return WorkflowRevisionData(
         uri="agenta:workflow:agent:v0",
@@ -131,6 +142,11 @@ class _Resolver:
         if pin is None:
             return self.current
         return self.snapshots[(pin.version, pin.digest)]
+
+
+class _NoopLLMGateway:
+    async def resolve_agent_connection(self, **kwargs):
+        return None
 
 
 class _Parser:
@@ -307,6 +323,7 @@ def _loader(
     skill_fail=False,
     mount_fail_once=False,
     start_fail_once=False,
+    llm_gateway_service=None,
 ):
     events = []
     skills = _Skills(events, fail=skill_fail)
@@ -323,6 +340,7 @@ def _loader(
         simple_workflows_service=workflows,
         mounts_service=mounts,
         session_starts_service=starts,
+        llm_gateway_service=llm_gateway_service or _NoopLLMGateway(),
     )
     return loader, events, skills, workflows, resolver, mounts, starts
 
@@ -334,6 +352,7 @@ async def test_prepare_finishes_preflight_then_creates_agent_before_skills():
     result = await loader.prepare(
         project_id=PROJECT_ID,
         user_id=USER_ID,
+        scope=_scope(),
         command=_command(),
     )
 
@@ -373,6 +392,7 @@ async def test_source_or_package_failure_leaves_no_resources():
         await loader.prepare(
             project_id=PROJECT_ID,
             user_id=USER_ID,
+            scope=_scope(),
             command=_command(),
         )
 
@@ -390,6 +410,7 @@ async def test_binding_validation_failure_happens_before_skill_or_agent_writes()
         await loader.prepare(
             project_id=PROJECT_ID,
             user_id=USER_ID,
+            scope=_scope(),
             command=_command(),
         )
 
@@ -409,10 +430,55 @@ async def test_native_configuration_validation_happens_before_resource_writes():
         await loader.prepare(
             project_id=PROJECT_ID,
             user_id=USER_ID,
+            scope=_scope(),
             command=command,
         )
 
     assert events == ["source", "parse", "bindings", "plan-skill"]
+    assert not skills.records
+    assert not workflows.records
+
+
+@pytest.mark.asyncio
+async def test_unknown_model_connection_fails_before_resource_writes():
+    base_revision = _base_revision().model_copy(deep=True)
+    base_revision.parameters["agent"]["llm"]["connection"] = {
+        "mode": "agenta",
+        "slug": "missing-connection",
+    }
+    command = _command().model_copy(update={"base_revision": base_revision})
+
+    class _LLMGateway:
+        def __init__(self):
+            self.kwargs = None
+
+        async def resolve_agent_connection(self, **kwargs):
+            self.kwargs = kwargs
+            assert kwargs["connection_slug"] == "missing-connection"
+            from oss.src.core.gateways.dtos import GatewayEndpointNamespace
+            from oss.src.core.gateways.llms.types import LLMEndpointNotFoundError
+
+            raise LLMEndpointNotFoundError(
+                namespace=GatewayEndpointNamespace.CUSTOM,
+                name="missing-connection",
+            )
+
+    gateway = _LLMGateway()
+    loader, events, skills, workflows, _, _, _ = _loader(llm_gateway_service=gateway)
+    scope = _scope()
+
+    with pytest.raises(TemplatePackageInvalid, match="model connection"):
+        await loader.prepare(
+            project_id=PROJECT_ID,
+            user_id=USER_ID,
+            scope=scope,
+            command=command,
+        )
+
+    assert events == ["source", "parse", "bindings", "plan-skill"]
+    assert gateway.kwargs["scope"] == scope
+    assert gateway.kwargs["model"] == "openai/gpt-5"
+    assert gateway.kwargs["provider_key"] == "openai"
     assert not skills.records
     assert not workflows.records
 
@@ -425,6 +491,7 @@ async def test_skill_failure_leaves_only_the_recoverable_agent_root():
         await loader.prepare(
             project_id=PROJECT_ID,
             user_id=USER_ID,
+            scope=_scope(),
             command=_command(),
         )
 
@@ -447,6 +514,7 @@ async def test_same_key_replay_uses_stored_source_pin_without_duplicates():
     first = await loader.prepare(
         project_id=PROJECT_ID,
         user_id=USER_ID,
+        scope=_scope(),
         command=command,
     )
     resolver.current = ResolvedTemplateSource(
@@ -458,6 +526,7 @@ async def test_same_key_replay_uses_stored_source_pin_without_duplicates():
     second = await loader.prepare(
         project_id=PROJECT_ID,
         user_id=USER_ID,
+        scope=_scope(),
         command=command,
     )
 
@@ -477,12 +546,14 @@ async def test_same_key_with_changed_payload_conflicts_before_new_writes():
     await loader.prepare(
         project_id=PROJECT_ID,
         user_id=USER_ID,
+        scope=_scope(),
         command=_command(),
     )
     with pytest.raises(TemplateCreateConflict):
         await loader.prepare(
             project_id=PROJECT_ID,
             user_id=USER_ID,
+            scope=_scope(),
             command=_command(initial_message="Use different setup text."),
         )
 
@@ -499,11 +570,13 @@ async def test_different_request_keys_create_distinct_agents():
     first = await loader.prepare(
         project_id=PROJECT_ID,
         user_id=USER_ID,
+        scope=_scope(),
         command=_command(request_key="request-1"),
     )
     second = await loader.prepare(
         project_id=PROJECT_ID,
         user_id=USER_ID,
+        scope=_scope(),
         command=_command(request_key="request-2"),
     )
 
@@ -519,6 +592,7 @@ async def test_load_materializes_workspace_before_starting_the_session():
     result = await loader.load(
         project_id=PROJECT_ID,
         user_id=USER_ID,
+        scope=_scope(),
         command=_command(),
     )
 
@@ -549,6 +623,7 @@ async def test_workspace_failure_prevents_handoff_and_retry_recovers():
         await loader.load(
             project_id=PROJECT_ID,
             user_id=USER_ID,
+            scope=_scope(),
             command=_command(),
         )
     assert starts.calls == []
@@ -556,6 +631,7 @@ async def test_workspace_failure_prevents_handoff_and_retry_recovers():
     result = await loader.load(
         project_id=PROJECT_ID,
         user_id=USER_ID,
+        scope=_scope(),
         command=_command(),
     )
 
@@ -574,11 +650,13 @@ async def test_session_failure_retries_after_all_resources_without_duplicates():
         await loader.load(
             project_id=PROJECT_ID,
             user_id=USER_ID,
+            scope=_scope(),
             command=_command(),
         )
     result = await loader.load(
         project_id=PROJECT_ID,
         user_id=USER_ID,
+        scope=_scope(),
         command=_command(),
     )
 
@@ -597,6 +675,7 @@ async def test_load_replay_pins_source_and_returns_same_public_ids():
     first = await loader.load(
         project_id=PROJECT_ID,
         user_id=USER_ID,
+        scope=_scope(),
         command=command,
     )
     resolver.current = ResolvedTemplateSource(
@@ -608,6 +687,7 @@ async def test_load_replay_pins_source_and_returns_same_public_ids():
     replay = await loader.load(
         project_id=PROJECT_ID,
         user_id=USER_ID,
+        scope=_scope(),
         command=command,
     )
 
@@ -645,7 +725,9 @@ async def test_first_message_display_and_run_only_build_kit(enabled):
             "ui_disabled_ops": ["create_schedule"],
         }
     )
-    await loader.load(project_id=PROJECT_ID, user_id=USER_ID, command=command)
+    await loader.load(
+        project_id=PROJECT_ID, user_id=USER_ID, scope=_scope(), command=command
+    )
     saved = next(iter(workflows.records.values())).data.parameters["agent"]
     assert len(saved["skills"]) == 1
     assert not any(t.get("name") == "Request input" for t in saved["tools"])
@@ -688,7 +770,9 @@ async def test_staged_attachment_is_copied_to_started_session_before_dispatch():
     command = _command().model_copy(
         update={"staging_session_id": "staging", "attachment_ids": [source_id]}
     )
-    await loader.load(project_id=PROJECT_ID, user_id=USER_ID, command=command)
+    await loader.load(
+        project_id=PROJECT_ID, user_id=USER_ID, scope=_scope(), command=command
+    )
     attachments.fetch_attachment_content.assert_awaited_once_with(
         project_id=PROJECT_ID,
         session_id="staging",
@@ -720,6 +804,8 @@ async def test_foreign_or_missing_staged_attachment_fails_before_resource_creati
         update={"staging_session_id": "foreign", "attachment_ids": [attachment_id]}
     )
     with pytest.raises(TemplatePackageInvalid, match="unavailable"):
-        await loader.load(project_id=PROJECT_ID, user_id=USER_ID, command=command)
+        await loader.load(
+            project_id=PROJECT_ID, user_id=USER_ID, scope=_scope(), command=command
+        )
     assert events == []
     assert starts.calls == []

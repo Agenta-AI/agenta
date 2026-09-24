@@ -1404,6 +1404,7 @@ agent_template_loader = AgentTemplateLoader(
     mounts_service=mounts_service,
     session_starts_service=session_starts_service,
     attachments_service=session_attachments_service,
+    llm_gateway_service=llm_gateway_service,
 )
 agent_templates = AgentTemplatesRouter(loader=agent_template_loader)
 workflows_service.set_session_continuation_resumer(
