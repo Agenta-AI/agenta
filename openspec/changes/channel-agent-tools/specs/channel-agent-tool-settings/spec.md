@@ -2,20 +2,20 @@
 
 ## Purpose
 
-Give admins three per-bot controls over what a connected agent may do with the channel tools, with permissive defaults.
+Give admins per-bot controls over what a connected agent may do with the channel tools, with permissive defaults.
 
 ## ADDED Requirements
 
 ### Requirement: Three settings per connected bot
-Each connected bot SHALL store three settings: "Can post outside the conversation" (default on), "Can message people directly" (default on), and "Channels it can search and read" (default: every channel the bot is in). A bot saved before this change SHALL read as having the defaults.
+Each connected bot SHALL store the settings "Can post outside the conversation" (default on) and "Channels it can search and read" (default: every channel the bot is in). It SHALL also store "Can message people directly" (default on) if direct messages stay in version one, which is pending a decision. A bot saved before this change SHALL read as having the defaults.
 
 #### Scenario: New Slack connection
 - **WHEN** an admin connects a Slack workspace and binds it to an agent
-- **THEN** the agent SHALL be allowed to post to every channel the bot is in, message any person in the workspace, and read and search every channel the bot is in.
+- **THEN** the agent SHALL be allowed to post to every channel the bot is in and read and search every channel the bot is in.
 
 #### Scenario: Existing bot
 - **WHEN** a bot bound before this change is loaded
-- **THEN** its settings SHALL read as the three defaults without a data migration step by the admin.
+- **THEN** its settings SHALL read as the defaults without a data migration step by the admin.
 
 ### Requirement: Posting setting
 When "Can post outside the conversation" is off, `send_channel_message` SHALL refuse every destination, and `list_channel_destinations` SHALL report that no destination accepts posts. The agent's normal replies inside the conversation that woke it SHALL NOT be affected.
@@ -33,7 +33,7 @@ When "Can post outside the conversation" is off, `send_channel_message` SHALL re
 - **THEN** the agent SHALL still answer in that thread.
 
 ### Requirement: Direct message setting
-"Can message people directly" SHALL gate sends to a person. A send to a person SHALL need both this setting and the posting setting. When either is off, the list SHALL omit people and the send tool SHALL refuse person destinations.
+Pending decision: this setting exists only if direct messages to people stay in version one. If they are left out, this requirement is removed and the Advanced section SHALL show only the other two controls. If they stay, "Can message people directly" SHALL gate sends to a person. A send to a person SHALL need both this setting and the posting setting. When either is off, the list SHALL omit people and the send tool SHALL refuse person destinations.
 
 #### Scenario: Direct messages turned off
 - **WHEN** direct messages are off and posting is on
@@ -55,11 +55,11 @@ When "Can post outside the conversation" is off, `send_channel_message` SHALL re
 - **THEN** read and search SHALL refuse every destination, and the list SHALL report no readable channel.
 
 ### Requirement: Controls in the Advanced section
-The Channels settings panel for each connected bot SHALL show the three controls in a collapsible section named "Advanced", on desktop and on `/m`. "Can message people directly" SHALL be disabled while "Can post outside the conversation" is off. On Telegram, the controls SHALL explain that the bot can message only people who wrote to it first and can read only messages it has seen since it joined. A failed save SHALL show the error and re-read the stored value.
+The Channels settings panel for each connected bot SHALL show its channel tool controls in a collapsible section named "Advanced", on desktop and on `/m`. "Can message people directly" SHALL be disabled while "Can post outside the conversation" is off. On Telegram, the controls SHALL explain that the bot can read only messages it received, and, if direct messages stay, that it can message only people who wrote to it first. A failed save SHALL show the error and re-read the stored value.
 
 #### Scenario: Admin opens the Advanced section
 - **WHEN** an admin opens a connected Slack bot's Advanced section for the first time
-- **THEN** both switches SHALL be on and the channel list SHALL show "All channels the bot is in".
+- **THEN** every switch SHALL be on and the channel list SHALL show "All channels the bot is in".
 
 #### Scenario: Admin picks channels
 - **WHEN** the admin chooses "Only these channels"
@@ -70,7 +70,7 @@ The Channels settings panel for each connected bot SHALL show the three controls
 - **THEN** the panel SHALL show the error and display the value the backend still holds.
 
 ### Requirement: Future per-person allow-list is out of scope
-Version one SHALL NOT offer a per-person or per-channel posting allow-list. The settings model SHALL leave room to add one later without changing the three existing settings.
+Version one SHALL NOT offer a per-person or per-channel posting allow-list. The settings model SHALL leave room to add one later without changing the existing settings.
 
 #### Scenario: Admin looks for a people allow-list
 - **WHEN** an admin opens the Advanced section in version one

@@ -42,7 +42,7 @@ The baseline describes the channels pull request stack through [PR #6737](https:
 2. Read the [channel agent tools proposal](changes/channel-agent-tools/proposal.md) for listing destinations, sending, reading, and searching. Its [implementation plan](changes/channel-agent-tools/plan.md) lists the phases, files, and tests.
 3. Read each proposal's design for implementation choices, risks, verification, and estimates:
    - [Native Slack handle design](changes/slack-native-agent-handles/design.md), estimated at 9-15 engineer-days.
-   - [Channel agent tools design](changes/channel-agent-tools/design.md), estimated at 17-24 engineer-days.
+   - [Channel agent tools design](changes/channel-agent-tools/design.md), estimated at 11-17 engineer-days without direct messages, 13-19 with them.
 4. Check the implementation tasks. Every task remains unchecked:
    - [Native Slack handle tasks](changes/slack-native-agent-handles/tasks.md).
    - [Channel agent tools tasks](changes/channel-agent-tools/tasks.md).
@@ -64,14 +64,14 @@ A Slack user group provides the mention handle. It is not a new Slack bot user. 
 
 | Capability | Current behavior | Proposed delta |
 | --- | --- | --- |
-| Tool access | No channel operations are platform tools. | [Four platform tools with a server-bound caller and checks on every call](changes/channel-agent-tools/specs/channel-agent-tool-access/spec.md) |
-| Bot settings | The manage panel has "Answers in", "Behavior", and a Telegram allow-list. | [Three per-bot controls under a new Advanced section](changes/channel-agent-tools/specs/channel-agent-tool-settings/spec.md) |
-| Destination discovery | Configuration APIs can discover spaces, but agents cannot list their targets. | [Opaque channel and person destinations on Slack and Telegram](changes/channel-agent-tools/specs/channel-destination-discovery/spec.md) |
+| Tool access | No channel operations are platform tools. | [Four tools in the Agenta tools kit, a send default of `allow`, and checks on every call](changes/channel-agent-tools/specs/channel-agent-tool-access/spec.md) |
+| Bot settings | The manage panel has "Answers in", "Behavior", and a Telegram allow-list. | [Per-bot controls under a new Advanced section](changes/channel-agent-tools/specs/channel-agent-tool-settings/spec.md) |
+| Destination discovery | Configuration APIs can discover spaces, but agents cannot list their targets. | [Opaque channel destinations on Slack and Telegram; people pending a decision](changes/channel-agent-tools/specs/channel-destination-discovery/spec.md) |
 | Proactive delivery | Outbox delivery begins from a session-linked ChannelThread. | [Sends outside the conversation with a truthful delivery record](changes/channel-agent-tools/specs/channel-message-delivery/spec.md) |
-| Reading | Slack has a one-time fetch of up to 50 messages before a first turn. Telegram has no history read. | [Read a channel or thread from a local history with bounded Slack backfill](changes/channel-agent-tools/specs/channel-conversation-reading/spec.md) |
-| Search | None. | [Lexical search over the local history with coverage](changes/channel-agent-tools/specs/channel-message-search/spec.md) |
+| Reading | No agent-facing read. | [Stored messages first, then live Slack history; Telegram stored only](changes/channel-agent-tools/specs/channel-conversation-reading/spec.md) |
+| Search | None. | [Full-text search over stored messages](changes/channel-agent-tools/specs/channel-message-search/spec.md) |
 
-The tools never receive bot credentials, raw provider IDs, project IDs, connection IDs, or channel-agent IDs from the model. Scheduling is out of scope: an automation that runs the agent uses the ordinary send tool.
+The tools never receive bot credentials, raw provider IDs, project IDs, connection IDs, or channel-agent IDs from the model. Scheduling and the one-time history copy are out of scope for v1.
 
 ## OpenSpec layout
 
@@ -89,17 +89,17 @@ openspec status --change slack-native-agent-handles
 openspec status --change channel-agent-tools
 ```
 
-The current behavior comes from code inspection, not live Slack or Telegram testing. Native empty-member group mentions, customized progress identity, Slack direct-message setup, provider receipt-loss behavior, and history backfill coverage remain explicit validation work. No external workspace is changed by these documents.
+The current behavior comes from code inspection, not live Slack or Telegram testing. Native empty-member group mentions, customized progress identity, Slack direct-message setup, provider receipt-loss behavior, and Slack's history limits for the hosted app remain explicit validation work. No external workspace is changed by these documents.
 
 ## Review decisions
 
 - Native Slack handles use one workspace installation in one Agenta project.
-- Agent-facing channel operations are platform tools, not direct adapter or gateway calls. They are added at run time to every run of an agent bound to an active bot, without changing its saved configuration.
+- Agent-facing channel operations are platform tools in the Agenta tools kit, active when the agent is connected to a bot. The kit specification owns how they are added to a run.
 - The send tool defaults to `allow`. An author's per-tool `ask` or `deny`, or an agent-wide `ask` or `deny` mode, still wins.
-- Three per-bot settings replace per-destination grants: posting outside the conversation (on), messaging people directly (on), and the channels it may read and search (all by default).
-- On Slack the agent may post to any channel the bot is in, message anyone in the workspace, and read every channel the bot is in. There is no allow-list in v1.
-- On Telegram the agent can reach only chats that sent the bot an update and people who wrote to it first. Reading and search cover only observed messages.
-- Proactive direct messages use a separate private channel session. They do not move a shared source session.
-- Read and search use a local history. Slack backfill is bounded and rate-aware.
-- Scheduling belongs to the automation product and is not part of this change.
+- Per-bot settings replace per-destination grants: posting outside the conversation (on) and the channels it may read and search (all by default).
+- On Slack the agent may post to any channel the bot is in and read every channel the bot is in. There is no allow-list in v1.
+- Read serves stored messages first, then live Slack history. Search covers stored messages only. No new message table.
+- On Telegram the agent can reach only chats that sent the bot an update, and it can read only messages the bot received.
+- Direct messages to people are pending a decision.
+- Scheduling belongs to the automation product. The one-time history copy is future work.
 - Provider delivery is not described as exactly once when an accepted post can lose its receipt.

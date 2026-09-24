@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Let a connected agent post to a channel or a person outside the conversation that woke it, with a durable record and a truthful outcome.
+Let a connected agent post outside the conversation that woke it, with a durable record and a truthful outcome.
 
 ## ADDED Requirements
 
@@ -62,7 +62,7 @@ The provider identity of a sent message SHALL come from the connection, the same
 - **THEN** Agenta SHALL reject the call because the field is not in the schema.
 
 ### Requirement: A proactive direct message uses its own private session
-A send to a person SHALL post in the person's private conversation with the bot. On Slack, Agenta SHALL open that conversation if it does not exist. On Telegram, it exists because the person wrote first. Agenta SHALL use the agent's active thread in that private conversation, or create one with a new session. It SHALL NOT move, copy, or link the source session. The private session's next turn SHALL see the text the agent sent.
+Pending decision: Mahmoud has not yet decided whether direct messages to people are in version one. If they are left out, this requirement is removed and the send tool SHALL accept channel destinations only. If they stay, a send to a person SHALL post in the person's private conversation with the bot. On Slack, Agenta SHALL open that conversation if it does not exist. On Telegram, it exists because the person wrote first. Agenta SHALL use the agent's active thread in that private conversation, or create one with a new session. It SHALL NOT move, copy, or link the source session. The private session's next turn SHALL see the text the agent sent.
 
 #### Scenario: Channel conversation leads to a direct message
 - **WHEN** an agent working in a shared Slack channel sends a direct message to a person

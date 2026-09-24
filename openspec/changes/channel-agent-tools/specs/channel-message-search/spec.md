@@ -2,12 +2,12 @@
 
 ## Purpose
 
-Let a connected agent search what its readable channels said, without widening access and with honest coverage.
+Let a connected agent search the messages Agenta stored from its readable channels, without widening access and with an honest statement of what was searched.
 
 ## ADDED Requirements
 
-### Requirement: Search readable channels
-`search_channel_messages` SHALL search the local message history of the channels the running agent may read at call time. It SHALL accept a text query and optional channel destination IDs, a sender (a person destination ID), an inclusive time range, a limit of at most 50, and a cursor. Without destination IDs it SHALL search every readable channel of every bot bound to the agent. Access SHALL be checked when the query runs, not when a message was stored.
+### Requirement: Search stored messages of readable channels
+`search_channel_messages` SHALL search the stored inbox messages of the channels the running agent may read at call time. It SHALL accept a text query, optional channel destination IDs, an inclusive time range, a limit of at most 50, and a cursor. Without destination IDs it SHALL search every readable channel of every bot bound to the agent. Access SHALL be checked when the query runs, not when a message was stored. Search SHALL exclude direct messages, button clicks, and answers consumed by an approval.
 
 #### Scenario: Search everything readable
 - **WHEN** the agent searches "refund policy" with no destination IDs
@@ -25,8 +25,19 @@ Let a connected agent search what its readable channels said, without widening a
 - **WHEN** a search runs
 - **THEN** it SHALL NOT return messages from direct-message conversations.
 
+### Requirement: Search states what it searched
+Each search result SHALL state, for each channel it searched, "Searched messages since the bot joined this channel." Search SHALL NOT call Slack or Telegram. Once retention has deleted a channel's older messages, the statement SHALL follow the wording the retention specification defines.
+
+#### Scenario: Message from before the bot joined
+- **WHEN** the only match is a Slack message posted before the bot joined
+- **THEN** the search SHALL return no match and SHALL state that it searched messages since the bot joined.
+
+#### Scenario: Telegram group
+- **WHEN** a searched channel is a Telegram group
+- **THEN** the search SHALL cover only messages the bot received there.
+
 ### Requirement: Search results
-Each result SHALL include the message ID, the channel destination ID and name, the thread ID when there is one, the sender's display name, a text excerpt, and the time. Results SHALL be ordered by relevance, then time, then message ID, and the cursor SHALL neither skip nor repeat results with equal rank and time. The response SHALL include coverage for each channel it searched.
+Each result SHALL include the message ID, the channel destination ID and name, the thread ID when there is one, the sender's display name when known, a text excerpt, and the time. Results SHALL be ordered by relevance, then time, then message ID. The cursor SHALL neither skip nor repeat results with equal rank and time. The bot's own posts SHALL NOT be searched in version one.
 
 #### Scenario: Equal timestamps
 - **WHEN** several matches share the same rank and timestamp
@@ -37,22 +48,11 @@ Each result SHALL include the message ID, the channel destination ID and name, t
 - **THEN** Agenta SHALL return that thread.
 
 #### Scenario: Sender name unknown
-- **WHEN** Agenta cannot resolve a sender's display name
-- **THEN** the result SHALL omit the name and SHALL NOT show the raw provider user ID.
+- **WHEN** Agenta holds only a provider user ID for a sender
+- **THEN** the result SHALL omit the name and SHALL NOT show the raw ID.
 
-### Requirement: Search covers only stored history
-Search SHALL use only Agenta's local history. It SHALL NOT call the provider's search API. Slack results SHALL cover what backfill and live events stored. Telegram results SHALL cover only observed messages. Each response SHALL say so through its coverage.
-
-#### Scenario: Slack channel with partial backfill
-- **WHEN** a searched Slack channel's backfill is partial
-- **THEN** the coverage for that channel SHALL say `partial` and give the oldest time covered.
-
-#### Scenario: Telegram group
-- **WHEN** a searched channel is a Telegram group
-- **THEN** its coverage SHALL say `observed_only`.
-
-### Requirement: Lexical search in version one
-Version one SHALL provide text search in PostgreSQL. It SHALL NOT need an embedding model, a vector store, or any extra credential, so it works on a self-hosted deployment as installed.
+### Requirement: Lexical search in PostgreSQL
+Version one SHALL use a PostgreSQL full-text index over the stored message text. It SHALL NOT need an embedding model, a vector store, a Slack user token, or any extra credential.
 
 #### Scenario: Self-hosted deployment
 - **WHEN** an agent searches on a self-hosted deployment with no embedding provider
