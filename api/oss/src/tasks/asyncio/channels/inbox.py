@@ -26,6 +26,7 @@ from oss.src.core.channels.commands import (
     parse_command,
 )
 from oss.src.core.channels.dtos import (
+    CHANNEL_TRIGGER_NEVER_SENT,
     ChannelCapabilities,
     ChannelConnection,
     ChannelDeliveryState,
@@ -52,7 +53,10 @@ from oss.src.core.workflows.dtos import (
     WorkflowServiceRequest,
     WorkflowServiceRequestData,
 )
-from oss.src.core.workflows.types import WorkflowDetachedStartFailed
+from oss.src.core.workflows.types import (
+    WorkflowDetachedStartFailed,
+    WorkflowDetachedStartNeverSent,
+)
 from oss.src.core.channels.fill import run_backfill
 from oss.src.core.channels.service import ChannelsService
 from oss.src.core.channels.types import (
@@ -186,6 +190,14 @@ class InboxDispatcher:
             connection_id=connection_id,
             event=event,
             resolution=resolution,
+        )
+        # The answer belongs to the parked interaction, never to a later turn
+        # as conversation. Marked before the response is admitted: a failure
+        # here retries the task with nothing admitted yet, while a failure
+        # after admission could only be logged, and the answer would reach
+        # the agent again on the next mention. Idempotent on a retry.
+        await self.channels_service.mark_event_consumed(
+            project_id=project_id, event_id=event.id
         )
         approved = (resolution.resolved_token or "").rsplit(":", 1)[-1] == "approve"
         # The decision only. An answer's `message` is replayed to the agent as
@@ -539,6 +551,16 @@ class InboxDispatcher:
             capabilities=capabilities,
         )
 
+        # Everything that can still fail runs before the trigger is claimed: a
+        # claimed trigger makes the task retry return early, so a failure
+        # between the claim and the invoke would drop the mention for good.
+        user_id = await self._invoking_user_id(
+            project_id=project_id,
+            connection_id=connection_id,
+            event=event,
+            resolution=resolution,
+        )
+
         turn_id = str(uuid4())
 
         trigger = await self.channels_service.open_turn(
@@ -556,13 +578,6 @@ class InboxDispatcher:
                 resolution.thread.id,
             )
             return
-
-        user_id = await self._invoking_user_id(
-            project_id=project_id,
-            connection_id=connection_id,
-            event=event,
-            resolution=resolution,
-        )
 
         await self._invoke_with_retry(
             project_id=project_id,
@@ -702,11 +717,20 @@ class InboxDispatcher:
                     e,
                     exc_info=True,
                 )
+                # Only a start that provably never reached the workflow
+                # service keeps the offset where it was, so the next turn
+                # carries this one's messages. Any other failure (a response
+                # lost after the POST landed) may have run: replaying its
+                # input could repeat what the agent already did.
+                never_sent = isinstance(e, WorkflowDetachedStartNeverSent)
                 await self.channels_service.settle_turn(
                     project_id=project_id,
                     trigger_id=trigger_id,
                     state=ChannelTriggerState.FAILED,
-                    status=Status(code="500", message=str(e)),
+                    status=Status(
+                        code=CHANNEL_TRIGGER_NEVER_SENT if never_sent else "500",
+                        message=str(e),
+                    ),
                 )
                 await self._notify_not_started(
                     project_id=project_id,

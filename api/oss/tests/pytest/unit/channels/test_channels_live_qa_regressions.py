@@ -82,7 +82,9 @@ async def test_dismiss_controls_edits_only_keyboard():
 @pytest.mark.parametrize("fail_admission", [False, True])
 async def test_controls_are_removed_only_after_admission(fail_admission):
     service = SimpleNamespace(
-        set_pending_choice=AsyncMock(), dismiss_approval_choices=AsyncMock()
+        set_pending_choice=AsyncMock(),
+        dismiss_approval_choices=AsyncMock(),
+        mark_event_consumed=AsyncMock(),
     )
     respond = AsyncMock(
         side_effect=RuntimeError("not admitted") if fail_admission else None
@@ -116,6 +118,10 @@ async def test_controls_are_removed_only_after_admission(fail_admission):
             service.set_pending_choice.await_args.kwargs["expected_interaction_id"]
             == resolution.answered_interaction_id
         )
+    # marked before admission, so a failed mark retries with nothing admitted
+    service.mark_event_consumed.assert_awaited_once_with(
+        project_id=args["project_id"], event_id=args["event"].id
+    )
 
 
 @pytest.mark.asyncio
@@ -123,6 +129,7 @@ async def test_ui_failure_does_not_retry_an_admitted_decision():
     service = SimpleNamespace(
         set_pending_choice=AsyncMock(),
         dismiss_approval_choices=AsyncMock(side_effect=httpx.ReadTimeout("timeout")),
+        mark_event_consumed=AsyncMock(),
     )
     respond = AsyncMock()
     dispatcher = InboxDispatcher(
@@ -224,3 +231,37 @@ def test_a_command_title_is_shown_verbatim():
     )[0]
 
     assert item.parts[0].title == f"Approval needed: {command}"
+
+
+@pytest.mark.asyncio
+async def test_a_failed_consumed_mark_admits_nothing():
+    """The mark comes first: if it fails, the task retries with the decision
+    still unanswered, rather than admitting it and leaving the typed answer
+    to reach the agent again as conversation."""
+    service = SimpleNamespace(
+        set_pending_choice=AsyncMock(),
+        dismiss_approval_choices=AsyncMock(),
+        mark_event_consumed=AsyncMock(side_effect=httpx.ReadTimeout("timeout")),
+    )
+    respond = AsyncMock()
+    dispatcher = InboxDispatcher(
+        channels_service=service, respond_interaction_fn=respond
+    )
+    dispatcher._invoking_user_id = AsyncMock(return_value=uuid4())
+    resolution = SimpleNamespace(
+        answered_interaction_id=str(uuid4()),
+        resolved_token="approve",
+        resolved_choice="Approve",
+        thread=SimpleNamespace(id=uuid4()),
+        agent=SimpleNamespace(created_by_id=uuid4()),
+    )
+
+    with pytest.raises(httpx.ReadTimeout):
+        await dispatcher._answer_interaction(
+            project_id=uuid4(),
+            connection_id=uuid4(),
+            event=SimpleNamespace(id=uuid4()),
+            resolution=resolution,
+        )
+
+    respond.assert_not_awaited()

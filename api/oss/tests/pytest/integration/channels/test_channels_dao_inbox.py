@@ -156,3 +156,58 @@ async def test_query_events_since_range_excludes_the_offset_itself(channels_scop
     )
 
     assert [row.external_id for row in rows] == ["second"]
+
+
+async def test_query_events_since_stops_at_the_addressing_event(channels_scope):
+    """A turn's range ends at its own mention: what arrived after it belongs
+    to the next turn."""
+    dao = ChannelsDAO(engine=channels_scope["engine"])
+    project_id = channels_scope["project_id"]
+    connection_id = channels_scope["connection_id"]
+
+    rows = []
+    for name in ("before", "mention", "after"):
+        rows.append(
+            await dao.record_inbox_event(
+                project_id=project_id,
+                event=_event(connection_id=connection_id, external_id=name),
+            )
+        )
+    space_id = rows[0].id
+    for row in rows:
+        await dao.attach_event_to_space(
+            project_id=project_id, event_id=row.id, space_id=space_id
+        )
+
+    bounded = await dao.query_events_since(
+        project_id=project_id,
+        space_id=space_id,
+        after_event_id=None,
+        through_event_id=rows[1].id,
+    )
+
+    assert [row.external_id for row in bounded] == ["before", "mention"]
+
+
+async def test_mark_inbox_event_consumed_sets_the_flag_once(channels_scope):
+    dao = ChannelsDAO(engine=channels_scope["engine"])
+    project_id = channels_scope["project_id"]
+    connection_id = channels_scope["connection_id"]
+
+    event = await dao.record_inbox_event(
+        project_id=project_id,
+        event=_event(connection_id=connection_id, external_id="Approve"),
+    )
+    assert event.flags.is_consumed is False
+
+    marked = await dao.mark_inbox_event_consumed(
+        project_id=project_id, event_id=event.id
+    )
+    again = await dao.mark_inbox_event_consumed(
+        project_id=project_id, event_id=event.id
+    )
+
+    assert marked.flags.is_consumed is True
+    assert again.flags.is_consumed is True
+    rows = await dao.query_inbox_events(project_id=project_id)
+    assert rows[0].flags.is_consumed is True

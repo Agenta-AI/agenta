@@ -168,6 +168,7 @@ def _make_channels_service(
     )
     service.open_turn = AsyncMock(return_value=trigger)
     service.settle_turn = AsyncMock()
+    service.mark_event_consumed = AsyncMock()
     return service
 
 

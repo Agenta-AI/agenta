@@ -569,6 +569,7 @@ class ChannelsDAOInterface(ABC):
         #
         space_id: UUID,
         after_event_id: Optional[UUID],
+        through_event_id: Optional[UUID] = None,
         #
         limit: Optional[int] = None,
     ) -> List[ChannelInboxEvent]:
@@ -576,9 +577,23 @@ class ChannelsDAOInterface(ABC):
 
         `WHERE (origin, id) > (PUSHED, :after_event_id) ORDER BY origin, id`, or
         the whole log when `after_event_id` is None (a thread nobody has
-        addressed yet, which reads as "from the beginning"). Consumes nothing and
-        claims nothing: two threads can read the same range concurrently.
+        addressed yet, which reads as "from the beginning"). With
+        `through_event_id`, nothing after that PUSHED event: a turn's range
+        stops at its own addressing message. Consumes nothing and claims
+        nothing: two threads can read the same range concurrently.
         """
+        ...
+
+    @abstractmethod
+    async def mark_inbox_event_consumed(
+        self,
+        *,
+        project_id: UUID,
+        #
+        event_id: UUID,
+    ) -> Optional[ChannelInboxEvent]:
+        """Set flags.is_consumed: the event answered a parked interaction and
+        is never composed into a turn as conversation. Idempotent."""
         ...
 
     @abstractmethod
@@ -601,10 +616,17 @@ class ChannelsDAOInterface(ABC):
         project_id: UUID,
         #
         thread_id: UUID,
+        before_event_id: Optional[UUID] = None,
     ) -> Optional[ChannelInboxTrigger]:
-        """This agent's consumer offset — `ORDER BY id DESC LIMIT 1`.
+        """This agent's consumer offset: the trigger with the latest event
+        among those whose turn may have reached the agent. A REFUSED trigger,
+        or a FAILED one whose status code is `CHANNEL_TRIGGER_NEVER_SENT`,
+        provably never did and does not count, so its messages carry into the
+        next turn. Any other FAILED trigger counts: its start may have run.
 
-        None means never addressed, which is the case that triggers backfill.
+        With `before_event_id`, only triggers on earlier events: the offset
+        for a turn addressed by that event. None means no such turn: read
+        from the start.
         """
         ...
 

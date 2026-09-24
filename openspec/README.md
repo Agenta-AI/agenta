@@ -6,6 +6,12 @@
 
 Implemented in PR #7058. Delete automatic previews after tests and let authorized maintainers request a one-hour preview with a `/preview` comment on the pull request. See [validation status and limits](changes/railway-preview-cost-controls/validation.md) before treating provider acceptance or default-branch activation as complete.
 
+## Channels: mention-only threads
+
+[Proposal](changes/channels-mention-only-threads/proposal.md), [turn trigger specification](changes/channels-mention-only-threads/specs/channel-turn-triggers/spec.md), [routing delta](changes/channels-mention-only-threads/specs/slack-agent-routing/spec.md), [design](changes/channels-mention-only-threads/design.md), and [tasks](changes/channels-mention-only-threads/tasks.md).
+
+Implemented in PR #7128. In a Slack channel thread, a Slack group DM or a Telegram group, the bot answers only when it is mentioned, given a command, or answered on a pending choice. In a Telegram group, a reply to one of the bot's messages also counts. The next turn carries every message posted since the agent's last turn, up to its own mention, and every mention runs, at most once per thread (context under sub-second concurrent arrival is best effort). A 1:1 DM still answers every message.
+
 ## Agent template specifications
 
 These OpenSpec changes are proposals for PR #6944. No runtime implementation is included, and no change has been archived as a shipped capability.

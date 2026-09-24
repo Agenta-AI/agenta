@@ -354,6 +354,9 @@ class FakeChannelsDAO(ChannelsDAOInterface):
     async def fetch_latest_trigger(self, **kwargs):
         raise NotImplementedError
 
+    async def mark_inbox_event_consumed(self, **kwargs):
+        raise NotImplementedError
+
     async def record_inbox_trigger(self, **kwargs):
         raise NotImplementedError
 
