@@ -41,7 +41,7 @@ All phases ship in one pull request, on branch `feat/channel-agent-tools`. [plan
 
 ## 6. Release validation
 
-- [ ] 6.1 Run the live Slack and Telegram QA in [plan.md](plan.md) on fresh connections and save sanitized evidence.
+- [x] 6.1 Run the live Slack and Telegram QA in [plan.md](plan.md) on fresh connections and save sanitized evidence. Ran on a local EE stack with Claude Haiku as the agent and the Slack QA app connected as a customer app. Not run live: the hosted Slack app's history rate limit (the QA app is not subject to it; covered by unit tests), a successful post to a real Telegram group (adding the bot to a group needs a person; the failed-post path ran), the hosted Telegram bot, and a send whose Slack request times out (covered by unit tests).
 - [ ] 6.2 Check the assumptions about the Agenta tools kit and the retention specification once both are approved.
 - [ ] 6.3 Run `openspec validate --all --strict --no-interactive`; archive the change only after the implementation, live validation, and product acceptance are complete.
 
