@@ -7,6 +7,8 @@
 - SDK platform catalog, descriptions and built-in reference files: 99 tests passed.
 - Frontend policy, agent persistence, template loading and overlay suites: 29 tests passed.
 - Frontend request construction: 42 tests passed.
+- Overlay API response contract: 4 tests passed.
+- SDK wire contracts with refreshed instruction snapshot: 77 tests passed.
 - Permission panel, shared drawer, descriptors and settings: 34 tests passed.
 - Frontend `pnpm lint-fix`: all 28 workspace tasks passed.
 - Entity UI, playground and mobile TypeScript checks passed.
@@ -15,7 +17,7 @@
 
 The frontend render tests must run with `NODE_ENV=test`. This workspace exports a production environment by default; the first broad run could not load React's test APIs. Focused suites passed with the test environment set explicitly.
 
-Ruff formatting passed. A broad root Ruff check found pre-existing legacy typing and router warnings. Unrelated automatic rewrites were not included. The new policy file uses current typing conventions.
+Repository-wide Ruff 0.15.12 lint and formatting checks passed (2,784 files checked). An initial explicit-file check bypassed repository exclusions; unrelated automatic rewrites were removed.
 
 The generated TypeScript request and response contracts were synchronized directly and the client compiled. Full Fern generation was not run: its local generator requires Docker, which is unavailable here.
 
