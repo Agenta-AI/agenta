@@ -6,23 +6,27 @@ Let a connected agent use channel tools from any run while the server, not the m
 
 ## ADDED Requirements
 
-### Requirement: Channel tools are part of the Agenta tools kit
-Agenta SHALL offer `list_channel_destinations`, `send_channel_message`, `read_channel_messages`, and `search_channel_messages` as platform tools. Listing, reading, and searching SHALL be read-only. Sending SHALL be a write. The four tools SHALL be part of the Agenta tools kit and SHALL be active when the running agent is connected to an active, verified bot. The kit specification SHALL own how the tools are added to a run, how an author's own entry for the same tool is handled, and how an author turns them off. Channels SHALL provide the condition the kit reads: whether the run's workflow artifact matches an active, verified bot. The bot settings SHALL gate every call whether or not the kit is active.
+### Requirement: Channel tools and the tools kit condition
+Agenta SHALL offer `list_channel_destinations`, `send_channel_message`, `read_channel_messages`, and `search_channel_messages` as platform tools. Listing, reading, and searching SHALL be read-only. Sending SHALL be a write. The tools SHALL work when an author adds them to an agent's tools as `{"type": "platform", "op": "<name>"}`. The SDK op catalog SHALL group the four tools as `CHANNEL_TOOL_OPS`, the channel group of the Agenta tools kit. Channels SHALL provide the condition the kit reads: `POST /api/channels/tools/availability` SHALL return `{"available": true}` when the run's workflow artifact matches an active, verified bot, and `{"available": false}` otherwise. The kit specification SHALL own how the tools are added to a run automatically and how an author turns them off. The bot settings SHALL gate every call however the tool got into the run.
+
+#### Scenario: Author adds a channel tool
+- **WHEN** an author adds `{"type": "platform", "op": "send_channel_message"}` to a connected agent's tools
+- **THEN** the agent SHALL be able to call the tool in its runs.
 
 #### Scenario: Connected agent
 - **WHEN** an agent is connected to an active Slack bot
-- **THEN** Channels SHALL report the channel tools as available for that agent's runs.
+- **THEN** the availability route SHALL report the channel tools as available for that agent's runs.
 
 #### Scenario: Bot disconnected
 - **WHEN** the agent's only bot is disconnected or archived
-- **THEN** Channels SHALL report the channel tools as unavailable, and any call that still arrives SHALL be refused.
+- **THEN** the availability route SHALL report the channel tools as unavailable, and any call that still arrives SHALL be refused.
 
 #### Scenario: Posting switched off
-- **WHEN** the kit makes the send tool available but the bot's posting setting is off
+- **WHEN** the send tool is in the run but the bot's posting setting is off
 - **THEN** every send SHALL be refused without calling the provider.
 
 ### Requirement: Sending is allowed by default
-`send_channel_message` SHALL default to `allow`, so the agent posts without an approval prompt. The default SHALL be expressed the way the Agenta tools kit expresses per-tool defaults. It SHALL apply only when the author set no permission on the tool and the agent-wide permission mode is the default `allow_reads`. A per-tool `ask` or `deny` set by the author SHALL win. An agent-wide `ask` or `deny` mode SHALL win. The operator kill switch SHALL still stop the tool. The other three tools SHALL run without a prompt because they are read-only.
+`send_channel_message` SHALL default to `allow`, so the agent posts without an approval prompt. The default SHALL be carried by the optional `PlatformOp.default_permission` field. The SDK platform resolver SHALL apply it only when the author set no permission on the tool and the agent-wide permission mode is the default `allow_reads`. A per-tool `ask` or `deny` set by the author SHALL win. An agent-wide `ask` or `deny` mode SHALL win. The operator kill switch SHALL still stop the tool. The other three tools SHALL run without a prompt because they are read-only.
 
 #### Scenario: Default posts without a prompt
 - **WHEN** a connected agent with no author permission on the send tool calls it under the default mode
@@ -38,7 +42,7 @@ Agenta SHALL offer `list_channel_destinations`, `send_channel_message`, `read_ch
 
 #### Scenario: Author denies the tool
 - **WHEN** the author lists `send_channel_message` with permission `deny`
-- **THEN** every send SHALL be refused, and the kit SHALL NOT override it.
+- **THEN** every send SHALL be refused, and the default SHALL NOT override it.
 
 #### Scenario: Automation cannot answer an approval
 - **WHEN** an automation runs an agent whose send tool is set to `ask` and nobody can answer
@@ -53,7 +57,7 @@ Each channel tool call SHALL carry the running agent's workflow artifact ID from
 
 #### Scenario: Model adds a routing field
 - **WHEN** the tool arguments contain a field that is not in the tool's schema, such as a connection ID
-- **THEN** Agenta SHALL reject the call before reading or changing any channel data.
+- **THEN** Agenta SHALL reject the call with HTTP 422 before reading or changing any channel data.
 
 #### Scenario: Agent has no connected bot
 - **WHEN** an agent with channel tools runs but no active bot is bound to it
@@ -78,8 +82,19 @@ Every call SHALL re-resolve the running agent's bots, the connection state, the 
 - **WHEN** the run's credential belongs to a project member without `run_channels`
 - **THEN** every channel tool route SHALL return forbidden.
 
+### Requirement: Refusals are readable and not-found reveals nothing
+A refusal SHALL return HTTP 409 with a message written for the model. Refusals SHALL cover: no bot connected, an ambiguous binding, posting off, reading off, and a direct-message space. An unknown or foreign reference SHALL return HTTP 404 and SHALL NOT reveal anything about what it refers to.
+
+#### Scenario: Reading turned off
+- **WHEN** the agent reads a channel that the bot's readable list excludes
+- **THEN** Agenta SHALL return HTTP 409 with a message that reading this channel is turned off in the bot's Channels settings.
+
+#### Scenario: Unknown destination
+- **WHEN** the agent passes a destination ID that does not resolve for it
+- **THEN** Agenta SHALL return HTTP 404 with no platform, name, or other detail.
+
 ### Requirement: Project isolation
-Every channel tool call SHALL stay inside the authenticated project and the running agent's bots. A destination, thread, message, or person ID from another project, or from a bot the agent is not bound to, SHALL be treated as not found. The response SHALL NOT reveal its platform, name, or existence.
+Every channel tool call SHALL stay inside the authenticated project and the running agent's bots. A destination, thread, or message ID from another project, or from a bot the agent is not bound to, SHALL be treated as not found. The response SHALL NOT reveal its platform, name, or existence.
 
 #### Scenario: Destination ID from another project
 - **WHEN** a call names a destination ID issued in another project
