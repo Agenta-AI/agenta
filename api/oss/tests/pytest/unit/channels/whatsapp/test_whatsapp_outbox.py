@@ -650,3 +650,36 @@ async def test_a_refused_held_part_does_not_strand_the_parts_after_it(
     texts = graph.texts_to(p.CUSTOMER)
     assert len(texts) == 2 and texts[-1] == "new answer"
     assert dao.rows(ChannelDeliveryState.HELD) == []
+
+
+async def test_a_database_error_during_release_holds_back_the_answer(
+    service, dao, graph, records, monkeypatch
+):
+    """The claim itself failed, so the reply is still HELD: the turn event
+    fails for a retry instead of the new answer going first."""
+
+    worker = _worker(service, records)
+    _, space, thread = dao.seed_whatsapp()
+    dao.customer_wrote(space, ago=timedelta(days=2))
+    _answer(records, thread, "t1", "held answer")
+    await _end(worker, thread, "t1")
+    dao.customer_wrote(space, message_id="wamid.BACK")
+
+    real_claim = dao.claim_outbox_delivery
+    calls = {"n": 0}
+
+    async def flaky_claim(**kwargs):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise TimeoutError("connection pool exhausted")
+        return await real_claim(**kwargs)
+
+    monkeypatch.setattr(dao, "claim_outbox_delivery", flaky_claim)
+    _answer(records, thread, "t2", "new answer")
+    with pytest.raises(TimeoutError):
+        await _end(worker, thread, "t2")
+    assert graph.texts_to(p.CUSTOMER) == []
+
+    await _end(worker, thread, "t2")  # the stream retries the event
+
+    assert graph.texts_to(p.CUSTOMER) == ["held answer", "new answer"]

@@ -444,9 +444,17 @@ class ChannelsOutboxWorker:
                 # it is retried, rather than let the new answer overtake it.
                 raise
             except Exception as exc:  # noqa: BLE001
-                # The platform refused it; the row now says FAILED with the
-                # reason. It is not retried, and it never blocks the parts
-                # after it or the new answer.
+                current = await self.channels_service.channels_dao.fetch_outbox_event(
+                    project_id=project_id, event_id=event.id
+                )
+                if current is None or current.state is not ChannelDeliveryState.FAILED:
+                    # Not a platform refusal (the row is still HELD, say the
+                    # claim itself failed): fail this turn event so it is
+                    # retried, rather than let the new answer overtake it.
+                    raise
+                # The platform refused it; the row says FAILED with the reason.
+                # It is not retried, and it never blocks the parts after it or
+                # the new answer.
                 log.warning(
                     "[SESSIONS-OUTBOX] held reply not released row=%s: %s",
                     event.id,
