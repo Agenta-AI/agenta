@@ -55,6 +55,7 @@ from oss.src.core.channels.dtos import (
 __all__ = [
     "ChannelDestinationsQueryRequest",
     "ChannelMessageSendRequest",
+    "ChannelMessagesReadRequest",
     "ChannelToolsAvailabilityRequest",
     "ChannelToolsAvailabilityResponse",
     "AgentaConversationItem",
@@ -185,3 +186,10 @@ class ChannelMessageSendRequest(_ChannelToolRequest):
     destination_id: str = Field(max_length=256)
     text: str = Field(min_length=1, max_length=40000)
     thread_id: Optional[str] = Field(default=None, max_length=256)
+
+
+class ChannelMessagesReadRequest(_ChannelToolRequest):
+    destination_id: str = Field(max_length=256)
+    thread_id: Optional[str] = Field(default=None, max_length=256)
+    limit: Optional[int] = Field(default=None, ge=1, le=200)
+    cursor: Optional[str] = Field(default=None, max_length=256)

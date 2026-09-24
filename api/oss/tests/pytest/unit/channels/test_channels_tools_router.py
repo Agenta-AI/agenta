@@ -79,6 +79,10 @@ ROUTES = [
     ("/tools/availability", {"artifact_id": ARTIFACT_ID}),
     ("/tools/destinations/query", {"artifact_id": ARTIFACT_ID}),
     ("/tools/messages/send", SEND_BODY),
+    (
+        "/tools/messages/read",
+        {"artifact_id": ARTIFACT_ID, "destination_id": f"dst_{uuid4().hex}"},
+    ),
 ]
 
 
@@ -203,3 +207,21 @@ def test_send_returns_the_sanitized_reason(service):
     kwargs = service.send_message.call_args.kwargs
     assert kwargs["session_id"] == "session-1"
     assert kwargs["tool_call_id"] == "toolu_1"
+
+
+def test_read_rejects_a_limit_over_200(service):
+    client, patcher = _client(service)
+    try:
+        response = client.post(
+            "/tools/messages/read",
+            json={
+                "artifact_id": ARTIFACT_ID,
+                "destination_id": f"dst_{uuid4().hex}",
+                "limit": 201,
+            },
+        )
+    finally:
+        patcher.stop()
+
+    assert response.status_code == 422
+    service.read_messages.assert_not_called()

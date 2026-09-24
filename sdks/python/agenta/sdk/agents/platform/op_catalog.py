@@ -1662,6 +1662,38 @@ _CHANNEL_SEND_INPUT_SCHEMA: Dict[str, Any] = {
     "required": ["destination_id", "text"],
 }
 
+_CHANNEL_READ_DESCRIPTION = (
+    "Read a Slack channel's or Telegram group's recent messages, oldest first, or one Slack "
+    "thread's root and replies when you pass its thread_id. Default 50 messages, at most 200; "
+    "pass the returned cursor to read older ones. Messages Agenta stored come first; on Slack, "
+    "older ones are fetched live. Read the result's notes: they say what could not be read."
+)
+
+_CHANNEL_READ_INPUT_SCHEMA: Dict[str, Any] = {
+    "type": "object",
+    "additionalProperties": False,
+    "properties": {
+        "destination_id": {
+            "type": "string",
+            "maxLength": 256,
+            "description": "An opaque destination_id from list_channel_destinations.",
+        },
+        "thread_id": {
+            "type": "string",
+            "maxLength": 256,
+            "description": "Optional. Read this Slack thread instead of the channel.",
+        },
+        "limit": {"type": "integer", "minimum": 1, "maximum": 200},
+        "cursor": {
+            "type": "string",
+            "maxLength": 256,
+            "description": "The cursor from the previous page, to read older messages.",
+        },
+        "artifact_id": _BOUND_FROM_RUN_SCHEMA,
+    },
+    "required": ["destination_id"],
+}
+
 _CHANNEL_TOOL_OPS: tuple = (
     PlatformOp(
         op="list_channel_destinations",
@@ -1689,6 +1721,15 @@ _CHANNEL_TOOL_OPS: tuple = (
         # Posting is the point of the tool, so it runs without a prompt by default. The
         # bot's "Can post outside the conversation" setting is the admin's off switch.
         default_permission="allow",
+    ),
+    PlatformOp(
+        op="read_channel_messages",
+        description=_CHANNEL_READ_DESCRIPTION,
+        method="POST",
+        path="/api/channels/tools/messages/read",
+        input_schema=_CHANNEL_READ_INPUT_SCHEMA,
+        context_bindings={"artifact_id": "$ctx.workflow.artifact.id"},
+        read_only=True,
     ),
 )
 

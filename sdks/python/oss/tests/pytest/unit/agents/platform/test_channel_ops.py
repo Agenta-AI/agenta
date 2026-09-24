@@ -71,3 +71,22 @@ async def test_send_channel_message_defaults_to_allow(connection):
 
     assert default.permission == "allow"
     assert resolution.tool_specs[0].permission is None
+
+
+@pytest.mark.asyncio
+async def test_read_channel_messages_is_read_only_and_hides_artifact_binding(
+    connection,
+):
+    spec = await _spec(connection, "read_channel_messages")
+
+    assert spec.read_only is True
+    assert spec.permission is None
+    assert spec.call.path == "/api/channels/tools/messages/read"
+    assert spec.call.context == {"artifact_id": "$ctx.workflow.artifact.id"}
+    schema = get_platform_op("read_channel_messages").resolved_input_schema()
+    assert set(schema["properties"]) == {
+        "destination_id",
+        "thread_id",
+        "limit",
+        "cursor",
+    }

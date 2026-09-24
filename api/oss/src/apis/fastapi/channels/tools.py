@@ -15,12 +15,14 @@ from oss.src.apis.fastapi.channels.models import (
     ChannelToolsAvailabilityResponse,
     ChannelDestinationsQueryRequest,
     ChannelMessageSendRequest,
+    ChannelMessagesReadRequest,
 )
 from oss.src.apis.fastapi.shared.exceptions import FORBIDDEN_EXCEPTION
 from oss.src.core.access.permissions.service import check_action_access
 from oss.src.core.access.permissions.types import Permission
 from oss.src.core.channels.tools.dtos import (
     ChannelDestinationsPage,
+    ChannelMessagesPage,
     ChannelSendResult,
 )
 from oss.src.core.channels.tools.types import (
@@ -81,6 +83,13 @@ class ChannelToolsRouter:
             methods=["POST"],
             operation_id="send_channel_message",
             response_model=ChannelSendResult,
+        )
+        self.router.add_api_route(
+            "/tools/messages/read",
+            self.read_channel_messages,
+            methods=["POST"],
+            operation_id="read_channel_messages",
+            response_model=ChannelMessagesPage,
         )
 
     async def _check(self, request: Request) -> UUID:
@@ -144,4 +153,22 @@ class ChannelToolsRouter:
             destination_id=body.destination_id,
             text=body.text,
             thread_id=body.thread_id,
+        )
+
+    @intercept_exceptions()
+    @handle_channel_tools_exceptions()
+    async def read_channel_messages(
+        self,
+        request: Request,
+        *,
+        body: ChannelMessagesReadRequest,
+    ) -> ChannelMessagesPage:
+        project_id = await self._check(request)
+        return await self.tools_service.read_messages(
+            project_id=project_id,
+            artifact_id=body.artifact_id,
+            destination_id=body.destination_id,
+            thread_id=body.thread_id,
+            limit=body.limit,
+            cursor=body.cursor,
         )
