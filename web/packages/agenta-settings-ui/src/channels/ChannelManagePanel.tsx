@@ -12,6 +12,7 @@ import {
 } from "@phosphor-icons/react"
 
 import {nameSpacesFrom} from "./actions"
+import {ChannelAdvancedSection} from "./ChannelAdvancedSection"
 import {
     NOOP_ACTIONS,
     answeringAgentName,
@@ -34,7 +35,7 @@ import type {
 
 /**
  * The manage view for a connected channel: what is connected, where it answers, the two
- * behavior switches, who may message it, and disconnect. Shared by desktop + /m. It shows only
+ * behavior switches, who may message it, the Advanced channel tool settings, and disconnect. Shared by desktop + /m. It shows only
  * what the user can change or needs to know: fixed defaults and a status nobody can toggle
  * are left out.
  *
@@ -889,6 +890,14 @@ export const ChannelManagePanel = ({
                             ) : null}
                         </div>
                     )}
+
+                    {connectionId ? (
+                        <ChannelAdvancedSection
+                            platform={connection.platform}
+                            connectionId={connectionId}
+                            actions={actions}
+                        />
+                    ) : null}
 
                     <div className={`flex flex-col gap-2 pt-4 ${DIVIDED}`}>
                         {error?.kind === "disconnect" ? (
