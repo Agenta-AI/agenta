@@ -116,6 +116,8 @@ def test_every_method_parameter_after_self_is_keyword_only():
     # bot is already wherever it can be discovered has nothing to join.
     # list_member_spaces: the channel tools' destination list; a platform
     # whose bot cannot list its chats (Telegram) says so by raising.
+    # read_history: the channel read tool's live page; a platform whose bots
+    # cannot read history (Telegram) says so by raising.
     assert set(concrete_methods) == {
         "build_setup_document",
         "verify_connection",
@@ -127,6 +129,7 @@ def test_every_method_parameter_after_self_is_keyword_only():
         "dismiss_choices",
         "join_space",
         "list_member_spaces",
+        "read_history",
     }
     assert len(methods) == len(ChannelAdapterInterface.__abstractmethods__) + len(
         concrete_methods

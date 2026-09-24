@@ -187,3 +187,13 @@ class ChannelPolicyDenied(ChannelsError):
         self.field = field
         self.level = level
         super().__init__(f"Denied by {level.value} policy: {field}")
+
+
+class ChannelRateLimited(ChannelsError):
+    """The platform refused a read for now (Slack HTTP 429). `retry_after` is
+    the platform's own wait in seconds, when it said."""
+
+    def __init__(self, *, channel: str, retry_after: Optional[int] = None):
+        self.channel = channel
+        self.retry_after = retry_after
+        super().__init__(f"{channel}: rate limited, retry after {retry_after}s")

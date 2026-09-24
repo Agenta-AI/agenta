@@ -6,6 +6,7 @@ from oss.src.core.channels.dtos import (
     ChannelCapabilities,
     ChannelConnection,
     ChannelConnectionCreate,
+    ChannelHistoryMessage,
     ChannelInboundEvent,
     ChannelRequestContext,
     ChannelSetupDoc,
@@ -257,3 +258,19 @@ class ChannelAdapterInterface(ABC):
         `fill.backfill.supported`. A permission refusal raises rather than
         returning empty — an empty fetch is a legitimate result and the two must
         stay distinguishable."""
+
+    async def read_history(
+        self,
+        *,
+        connection: ChannelConnection,
+        locator: Dict[str, Any],
+        thread_ts: Optional[str] = None,
+        latest: Optional[str] = None,
+        limit: int,
+    ) -> List[ChannelHistoryMessage]:
+        """One live page of a channel's (or a thread's) history strictly
+        before `latest`, oldest first, for the channel read tool. Nothing is
+        stored. Raises ChannelRateLimited when the platform says to wait, and
+        ChannelNotSupported where bots cannot read history (Telegram)."""
+
+        raise ChannelNotSupported(channel=self.channel)

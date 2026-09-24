@@ -116,14 +116,21 @@ class FakeSlackWorkspace:
             message["blocks"] = blocks
         return message
 
-    def history(self, *, channel: str, limit: int) -> List[Dict[str, Any]]:
+    def history(
+        self, *, channel: str, limit: int, latest: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
         """Top-level channel messages, oldest first, threaded replies excluded —
-        matching `conversations.history`."""
+        matching `conversations.history`. With `latest` (exclusive), the
+        `limit` newest messages before it, newest first, as Slack pages."""
 
         bucket = self.messages.get(channel, {})
         top_level = [
             m for m in bucket.values() if m.get("thread_ts") in (None, m["ts"])
         ]
+        if latest:
+            before = [m for m in top_level if float(m["ts"]) < float(latest)]
+            before.reverse()
+            return before[:limit] if limit else before
         return top_level[:limit] if limit else top_level
 
     def replies(
@@ -287,7 +294,9 @@ class FakeSlackTransport(httpx.AsyncBaseTransport):
             return _error_response("channel_not_found")
 
         messages = self.workspace.history(
-            channel=channel, limit=payload.get("limit") or 0
+            channel=channel,
+            limit=payload.get("limit") or 0,
+            latest=str(payload["latest"]) if payload.get("latest") else None,
         )
         return _ok_response({"messages": messages})
 

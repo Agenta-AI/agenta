@@ -953,6 +953,18 @@ class ChannelInboundEvent(BaseModel):
     addressed: bool = False
 
 
+class ChannelHistoryMessage(BaseModel):
+    """One message read live from the platform for the channel read tool.
+    Returned, never stored."""
+
+    message_ref: str
+    thread_ref: Optional[str] = None
+    sent_at: Optional[datetime] = None
+    text: str = ""
+    sender: Dict[str, Any] = Field(default_factory=dict)
+    from_bot: bool = False  # this connection's own bot
+
+
 class ChannelResolution(BaseModel):
     """Who runs, and under what policy. Composition of the input is separate."""
 

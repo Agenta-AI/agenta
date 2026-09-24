@@ -33,6 +33,7 @@ from oss.src.core.channels.dtos import (
     ChannelConnection,
     ChannelConnectionCreate,
     ChannelEventKind,
+    ChannelHistoryMessage,
     ChannelInboundEvent,
     ChannelInboxEventProcessed,
     ChannelRequestContext,
@@ -43,6 +44,7 @@ from oss.src.core.channels.dtos import (
     ChannelSpaceMembership,
 )
 from oss.src.core.channels.types import (
+    ChannelRateLimited,
     ChannelConnectionIncomplete,
     ChannelConnectionVerificationFailed,
     ChannelDeliveryUncertain,
@@ -720,6 +722,65 @@ class SlackAdapter(ChannelAdapterInterface):
             )
         return events
 
+    async def read_history(
+        self,
+        *,
+        connection: ChannelConnection,
+        locator: Dict[str, Any],
+        thread_ts: Optional[str] = None,
+        latest: Optional[str] = None,
+        limit: int,
+    ) -> List[ChannelHistoryMessage]:
+        # Slack caps a page for commercially distributed apps outside the
+        # Marketplace (the hosted app) at about 15 messages and one call per
+        # minute; it returns fewer, or a 429 the caller turns into a note.
+        params: Dict[str, Any] = {
+            "channel": locator["channel"],
+            "limit": limit,
+            "latest": latest,
+            "inclusive": False if latest else None,
+        }
+        if thread_ts:
+            method = "conversations.replies"
+            params["ts"] = thread_ts
+        else:
+            method = "conversations.history"
+
+        try:
+            response = await self._call(connection, method, params, as_query=True)
+        except _SlackApiError as e:
+            if e.status_code == 429 or e.error == "ratelimited":
+                raise ChannelRateLimited(
+                    channel=self.channel, retry_after=e.retry_after
+                ) from e
+            if e.error == "missing_scope" or e.status_code == 403:
+                raise ChannelBackfillRefused(reason=e.error) from e
+            raise
+
+        bot_user_id = _bot_user_id(connection)
+        messages: List[ChannelHistoryMessage] = []
+        for message in response.get("messages", []):
+            ts = message.get("ts")
+            if not ts or (latest and float(ts) >= float(latest)):
+                continue
+            from_bot = bool(bot_user_id) and message.get("user") == bot_user_id
+            messages.append(
+                ChannelHistoryMessage(
+                    message_ref=ts,
+                    thread_ref=message.get("thread_ts") or ts,
+                    sent_at=slack_time(ts),
+                    text=message.get("text") or "",
+                    sender=(
+                        {}
+                        if from_bot or not message.get("user")
+                        else await self._sender(connection, message)
+                    ),
+                    from_bot=from_bot,
+                )
+            )
+        messages.sort(key=lambda m: float(m.message_ref))
+        return messages
+
     # --- test seam (optional; mirrors contract suite's fake) --- #
 
     def inspect_posted(self, locator: Dict[str, Any]) -> List[Dict[str, Any]]:
@@ -786,15 +847,26 @@ class SlackAdapter(ChannelAdapterInterface):
             raise _SlackApiError(
                 error=body.get("error", "unknown_error"),
                 status_code=response.status_code,
+                retry_after=_retry_after(response.headers.get("retry-after")),
             )
         return body
 
 
 class _SlackApiError(Exception):
-    def __init__(self, *, error: str, status_code: int):
+    def __init__(
+        self, *, error: str, status_code: int, retry_after: Optional[int] = None
+    ):
         self.error = error
         self.status_code = status_code
+        self.retry_after = retry_after
         super().__init__(f"Slack API error: {error}")
+
+
+def _retry_after(value: Optional[str]) -> Optional[int]:
+    try:
+        return int(value) if value else None
+    except ValueError:
+        return None
 
 
 def _parse_json(body: bytes) -> Dict[str, Any]:
