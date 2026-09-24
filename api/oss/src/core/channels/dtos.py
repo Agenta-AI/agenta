@@ -374,9 +374,23 @@ RESOLVABLE_AGENT_REFERENCE_KEYS = frozenset(
 )
 
 
+class ChannelAgentToolSettings(BaseModel):
+    """What the channel agent tools may do through this bot. Permissive by
+    default: a bot saved before this block existed reads as these values."""
+
+    # send_channel_message may post to any destination of this bot; replies
+    # inside the conversation that woke the agent are not affected
+    can_post_outside_conversation: bool = True
+    # the space keys read and search may cover; None is every channel the bot
+    # is in, [] turns read and search off. Keys, not row ids: the settings page
+    # picks from discovered channels, which have no row until first contact.
+    readable_space_keys: Optional[List[UUID]] = None
+
+
 class ChannelAgentData(BaseModel):
     references: Dict[str, Reference]  # the bound workflow/variant/revision
     policy: Optional[ChannelPolicy] = None
+    tools: ChannelAgentToolSettings = Field(default_factory=ChannelAgentToolSettings)
 
     @field_validator("references")
     @classmethod
@@ -596,6 +610,7 @@ class ChannelAgentDataEdit(BaseModel):
 
     references: Optional[Dict[str, Reference]] = None
     policy: Optional[ChannelPolicy] = None
+    tools: Optional[ChannelAgentToolSettings] = None
 
     @model_validator(mode="before")
     @classmethod

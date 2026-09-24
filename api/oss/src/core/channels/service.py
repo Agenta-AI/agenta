@@ -2743,7 +2743,9 @@ def _layer_agent_edit(
         "description": existing.description,
         "tags": existing.tags,
         "meta": existing.meta,
-        "data": ChannelAgentDataEdit(references=data.references, policy=data.policy),
+        "data": ChannelAgentDataEdit(
+            references=data.references, policy=data.policy, tools=data.tools
+        ),
         "flags": flags,
     }
     for field in ("name", "description", "tags", "meta"):
