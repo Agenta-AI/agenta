@@ -19,7 +19,7 @@ secret/
 │   └── index.ts
 ├── state/
 │   ├── atoms.ts          # query/mutation atoms + migration atom + action atoms
-│   ├── useVaultSecret.ts # React hook (preserved name and return shape from OSS)
+│   ├── useVaultSecret.ts # React hook
 │   └── index.ts
 ├── README.md             # this file
 └── index.ts              # public surface
@@ -43,19 +43,6 @@ Secret deliberately does **not** expose any of that surface. Vault is:
 
 Bolting on `draft`, `isDirty`, `discard`, or `useController` here would produce dead methods. The molecule pattern is composable: use the slots your entity actually exercises, document the absent slots, move on.
 
-## Where the canonical shapes live
-
-| Concern | Canonical home | Re-exported by |
-|---|---|---|
-| `User` (auth identity) | `@agenta/shared/types/user` | `@/oss/lib/Types` |
-| `LlmProvider` (form/UI shape) | `@agenta/shared/types/llmProvider` | — |
-| `llmAvailableProviders`, `llmAvailableProvidersToken` | `@agenta/shared/utils/llmProviders` | — |
-| `removeEmptyFromObjects` | `@agenta/shared/utils/objectUtils` | `@/oss/lib/helpers/utils` |
-| `userAtom` (primitive, package-readable) | `@agenta/shared/state/user` | populated by OSS `UserListener` |
-| `projectIdAtom` (primitive) | `@agenta/shared/state/project` | populated by OSS app-state wiring |
-| `SecretDTO*`, enums, `PROVIDER_KINDS`, `PROVIDER_LABELS` | `@agenta/entities/secret/core/types` | `@/oss/lib/Types` (transitional re-export) |
-| `transformSecret`, `transformCustomProviderPayloadData`, `getEnvNameMap` | `@agenta/entities/secret/core/transforms` | — |
-
 ## Invariants (preserve these on any future change)
 
 1. **Query key identity.** `["vault", "secrets", user?.id, projectId]` — exact tuple. Adding/removing/reordering elements invalidates existing cache entries and risks cache double-up if any transitional shim exists.
@@ -66,7 +53,7 @@ Bolting on `draft`, `isDirty`, `discard`, or `useController` here would produce 
    - On `!user` (logout), the hook resets the atom to `{migrating: false, migrated: false}` — re-arms migration for the next sign-in in the same session.
    - Success path: `{migrating: false, migrated: true}`. Failure path: rollback to `{migrating: false, migrated: false}`.
 
-3. **`useVaultSecret` return shape.** Preserved verbatim from OSS so that consumer migration is import-path-only:
+3. **`useVaultSecret` return shape.**
 
    ```ts
    {
@@ -79,8 +66,6 @@ Bolting on `draft`, `isDirty`, `discard`, or `useController` here would produce 
      handleModifyCustomVaultSecret(provider): Promise<void>
    }
    ```
-
-   Renaming the hook or restructuring the return turns 9 mechanical edits into 9 small rewrites — exactly the regression risk that big-bang migration trades against.
 
 4. **Failure-prone step.** The localStorage-to-vault migration runs once with side effects (writes to server, writes to localStorage backup, removes the legacy key). On a fresh profile with seeded `localStorage[llmAvailableProvidersToken]`, validate that:
    - It fires exactly once.
@@ -122,15 +107,3 @@ import {standardSecretsAtom, customSecretsAtom} from "@agenta/entities/secret"
 const standard = useAtomValue(standardSecretsAtom)
 const custom = useAtomValue(customSecretsAtom)
 ```
-
-## Migration history
-
-This module replaces the OSS vault stack:
-
-- `web/oss/src/services/vault/api/index.ts` — moved to `secret/api/api.ts`
-- `web/oss/src/state/app/atoms/vault.ts` — moved to `secret/state/atoms.ts`
-- `web/oss/src/state/app/hooks/useVaultSecret.ts` — moved to `secret/state/useVaultSecret.ts`
-- `web/oss/src/hooks/useVaultSecret.ts` — deleted (was a re-export shim)
-- `web/oss/src/lib/helpers/llmProviders.ts` — split: types/constants to `@agenta/shared`, transforms to `secret/core/transforms.ts`
-
-Design doc: see `~/.gstack/projects/Agenta-AI-agenta/ardaerzin-claude-cool-davinci-1f9b59-design-20260508-014901-vault-to-entities-secret.md` (Status: APPROVED).

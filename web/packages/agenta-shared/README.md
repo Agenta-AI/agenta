@@ -131,7 +131,6 @@ import {
   setValueAtPath,
   deleteValueAtPath,
   parsePath,
-  pathToString,
 } from '@agenta/shared'
 
 const data = { user: { profile: { name: 'Alice' } } }
@@ -154,13 +153,11 @@ getValueAtPath(testcase, ['messages', 'content']) // 'hello'
 
 ### Typed Path Utilities
 
-Extract and combine paths with type information for UI selection components:
+Extract paths with type information for UI selection components:
 
 ```typescript
 import {
   extractTypedPaths,
-  combineTypedPaths,
-  buildTestcaseColumnPaths,
   type TypedPathInfo,
 } from '@agenta/shared'
 
@@ -172,19 +169,6 @@ const paths = extractTypedPaths(data, { source: 'output', maxDepth: 3 })
 //   { path: 'user.name', label: 'name', valueType: 'string', source: 'output' },
 //   { path: 'user.age', label: 'age', valueType: 'number', source: 'output' },
 //   { path: 'items', label: 'items', valueType: 'array', source: 'output' },
-// ]
-
-// Combine paths from multiple sources with deduplication
-const combinedPaths = combineTypedPaths(schemaPaths, runtimePaths, testcasePaths)
-
-// Build paths from testcase columns
-const columnPaths = buildTestcaseColumnPaths([
-  { key: 'prompt', name: 'Prompt', type: 'string' },
-  { key: 'expected', name: 'Expected Output' },
-])
-// [
-//   { path: 'testcase.prompt', label: 'Prompt', source: 'testcase', valueType: 'string' },
-//   { path: 'testcase.expected', label: 'Expected Output', source: 'testcase' },
 // ]
 ```
 

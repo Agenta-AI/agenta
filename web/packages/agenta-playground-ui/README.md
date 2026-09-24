@@ -25,28 +25,18 @@ This is an internal workspace package. Add it to your `package.json`:
 ### Basic Setup
 
 ```typescript
-import { PlaygroundContent, PlaygroundUIProvider } from '@agenta/playground-ui'
+import { PlaygroundUIProvider } from '@agenta/playground-ui'
 
 function PlaygroundPage() {
   return (
-    <PlaygroundUIProvider value={uiProviders}>
-      <PlaygroundContent />
+    <PlaygroundUIProvider providers={uiProviders}>
+      {children}
     </PlaygroundUIProvider>
   )
 }
 ```
 
 ### Component Examples
-
-#### Using PlaygroundContent
-
-Main playground layout with config panel and testcase panel.
-
-```tsx
-import { PlaygroundContent } from '@agenta/playground-ui'
-
-<PlaygroundContent />
-```
 
 #### Using EntitySelector
 
@@ -60,31 +50,20 @@ import { EntitySelector, EntitySelectorProvider } from '@agenta/playground-ui'
 </EntitySelectorProvider>
 ```
 
-#### Using InputMappingModal
-
-Configure input mappings between runnables.
-
-```tsx
-import { InputMappingModalWrapper } from '@agenta/playground-ui'
-
-<InputMappingModalWrapper />
-```
-
 ### Context Providers
 
 #### PlaygroundUIProvider
 
-Injects OSS/EE-specific components:
+Injects app-layer components:
 
 ```typescript
 const uiProviders = {
   EntityDrillInView: MyDrillInComponent,
   SharedGenerationResultUtils: MyResultUtils,
-  LoadTestsetModal: MyTestsetModal,
   CommitVariantChangesButton: MyCommitButton,
 }
 
-<PlaygroundUIProvider value={uiProviders}>
+<PlaygroundUIProvider providers={uiProviders}>
   {children}
 </PlaygroundUIProvider>
 ```
@@ -100,24 +79,18 @@ import {
   usePlaygroundUI,
 
   // Components
-  PlaygroundContent,
-  ConfigPanel,
-  TestcasePanel,
   EntitySelector,
-  InputMappingModalWrapper,
-  TestsetSelectionModal,
-  LoadableEntityPanel,
-  ExecutionMetrics,
+  EntitySelectorProvider,
+  ControlsBar,
+  PlaygroundOutputs,
+  ToolCallView,
 } from '@agenta/playground-ui'
 ```
 
 ### Subpath Exports
 
-```typescript
-import { EntitySelector } from '@agenta/playground-ui/entity-selector'
-import { InputMappingModal } from '@agenta/playground-ui/input-mapping'
-import { LoadableEntityPanel } from '@agenta/playground-ui/loadable'
-```
+See `package.json` `exports` for the full list (e.g. `@agenta/playground-ui/execution-items`,
+`@agenta/playground-ui/commit`, `@agenta/playground-ui/agent-page-header`).
 
 ## Architecture
 
@@ -154,96 +127,20 @@ const nodes = useAtomValue(playgroundController.selectors.nodes())
 
 ```text
 src/
-├── index.ts                  # Main exports
-├── context/                  # UI context for OSS/EE injection
-│   └── PlaygroundUIContext.tsx
-└── components/
-    ├── PlaygroundContent/    # Main orchestrator (784 lines)
-    │   └── PlaygroundContent.tsx
-    ├── ConfigPanel/          # Left panel - configuration
-    │   ├── ConfigPanel.tsx
-    │   └── components/
-    │       ├── ConfigPanelHeader.tsx
-    │       ├── DataSourceSection.tsx
-    │       ├── DownstreamMappingsSection.tsx
-    │       ├── InputsDataSection.tsx
-    │       └── OutputMappingSection.tsx
-    ├── ConfigurationSection/ # Schema-driven config drill-in
-    ├── TestcasePanel/        # Right panel - execution (815 lines)
-    ├── EntitySelector/       # Entity selection modal
-    │   └── EntitySelector.tsx
-    ├── InputMappingModal/    # Input mapping configuration
-    │   ├── InputMappingModal.tsx
-    │   ├── components/
-    │   │   ├── MappingLegend.tsx
-    │   │   ├── ObjectMappingRow.tsx
-    │   │   ├── PathSelector.tsx
-    │   │   ├── ScalarMappingRow.tsx
-    │   │   └── TestRunPreview.tsx
-    │   ├── hooks/
-    │   │   └── useMappingState.ts
-    │   └── utils.tsx
-    ├── TestsetSelectionModal/
-    │   ├── TestsetSelectionModal.tsx
-    │   └── components/
-    ├── LoadableEntityPanel/
-    ├── RunnableColumnsLayout/
-    └── ExecutionMetrics/
+├── index.ts          # Main exports
+├── context/          # UI context for app-layer injection (PlaygroundUIContext.tsx)
+├── components/       # Execution items, outputs, entity selector, agent headers, ...
+├── hooks/            # Execution cell, layout, loading hooks
+├── state/            # UI-only atoms (feature flags, focus drawer)
+└── utils/
 ```
 
 ## Main Components
 
-### PlaygroundContent
-
-Main orchestrator component with two-column layout:
-
-- **Left**: Configuration panel (prompt, model, parameters)
-- **Right**: Testcase panel (inputs, run, outputs)
-- Coordinates modals (testset selection, input mapping, entity selection)
-- Manages loadable/runnable synchronization
-
-### ConfigPanel
-
-Displays configuration for a runnable entity:
-
-- **ConfigPanelHeader**: Entity info, version badge, commit button
-- **ConfigurationSection**: Schema-driven drill-in for config
-- **InputsDataSection**: Expected vs Provided inputs, extra columns
-- **DataSourceSection**: Testset connection (primary nodes)
-- **DownstreamMappingsSection**: Input mappings (downstream nodes)
-
-### TestcasePanel
-
-Handles testcase execution:
-
-- Displays testcase data in rows
-- Run buttons for individual and batch execution
-- Output display with chain results for multi-node DAGs
-- Execution metrics (latency, tokens, cost)
-
 ### EntitySelector
 
-Modal for selecting playground entities:
-
-- **AppRevisionSelector**: App -> Variant -> Revision hierarchy
-- **EvaluatorRevisionSelector**: Evaluator -> Variant -> Revision
-- **TestcaseSelector**: Testcase ID input
-- **SpanSelector**: Span ID input
-
-Uses `EntityPicker` from `@agenta/entity-ui` for hierarchical selection.
-
-### InputMappingModal
-
-Configure input mappings between runnables in a chain:
-
-- Auto-mapping with manual override support
-- Test run capability for path discovery
-- Scalar and object mapping modes
-- Path selection from upstream outputs and testcase columns
-
-### ConfigurationSection
-
-Schema-driven configuration UI using `SchemaPropertyRenderer` from `@agenta/entity-ui`.
+Modal for selecting playground entities (workflow revisions, evaluator revisions, testcases,
+spans). Uses `EntityPicker` from `@agenta/entity-ui` for hierarchical selection.
 
 ## Component Composition Patterns
 
@@ -300,22 +197,6 @@ const handleAdd = useCallback(() => {
 
 ### Performance Optimization
 
-Child panel components use `React.memo` to prevent unnecessary re-renders:
-
-```typescript
-// ConfigPanel, TestcasePanel, RunnableColumnsLayout are all wrapped with memo
-export const ConfigPanel = memo(function ConfigPanel({ ... }) {
-    // Component implementation
-})
-```
-
-**Why memo matters for playground:**
-
-- `PlaygroundContent` subscribes to multiple atoms (nodes, connections, testset state)
-- Without memo, child panels re-render whenever ANY parent atom changes
-- With memo, child panels only re-render when their specific props change
-- This is critical during execution when results update frequently
-
 **Performance-aware state patterns:**
 
 ```typescript
@@ -330,7 +211,7 @@ const { nodes, connections } = usePlaygroundState() // Object ref changes on any
 
 ### Injectable UI Context
 
-OSS/EE-specific components are injected via context:
+App-layer components are injected via context:
 
 ```typescript
 const { EntityDrillInView, CommitVariantChangesButton } = usePlaygroundUI()
@@ -361,29 +242,3 @@ pnpm build
 # Lint
 pnpm lint
 ```
-
-## Future Improvements
-
-### Completed Extractions
-
-See [Component Code Review](../../../docs/handovers/playground-ui-code-review.md):
-
-- ✅ Extracted `ExecutionMetricsDisplay` to `@agenta/ui`
-- ✅ Extracted path utilities to `@agenta/shared`
-- ✅ Extracted `PathSelectorDropdown` to `@agenta/ui`
-- ✅ Extracted `MappingStatusTag` to `@agenta/ui`
-- ✅ Broke down `TestcasePanel` (815 → 222 lines)
-- ✅ Broke down `PlaygroundContent` (790 → 503 lines)
-
-### Completed State Separation Work
-
-The following state separation improvements have been implemented:
-
-- ✅ Testset connection logic moved to `connectToTestset` and `importTestcases` compound actions
-- ✅ Row management logic (first row init) moved to `addRowWithInit` compound action
-- ✅ Extra column management unified via `addExtraColumn` and `removeExtraColumn` compound actions
-- ✅ Output mapping column management unified via `addOutputMappingColumn` compound action
-- ✅ Child panels wrapped with `React.memo` for performance optimization
-
-UI components now use single compound action calls instead of multi-step dual dispatch patterns.
-See `@agenta/playground` README for the full compound actions API.

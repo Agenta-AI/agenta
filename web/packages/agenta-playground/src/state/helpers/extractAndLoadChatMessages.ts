@@ -233,7 +233,7 @@ export const extractAndLoadChatMessagesAtom = atom(
 
         // Resolve messages from testcase rows.
         // Testcase data can arrive in two shapes:
-        // 1. Flat: { messages: [...], ... }  — from the legacy LoadTestsetButton path
+        // 1. Flat: { messages: [...], ... }
         // 2. Nested: { data: { messages: [...] }, ... }  — from testcaseMolecule.get.data()
         const resolveMessages = (row: Record<string, unknown>): unknown => {
             if (row.messages !== undefined) return row.messages

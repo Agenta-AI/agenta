@@ -30,7 +30,7 @@ const nextConfig: NextConfig = {
     output: "standalone",
     // Workspace packages ship TS source (main: ./src/index.ts) — Next must
     // transpile the full dependency closure (chat → entities/playground/shared;
-    // entities → sdk/api-client/shared/ui). Same mechanism as web/oss.
+    // entities → sdk/api-client/shared/ui).
     transpilePackages: [
         "@agenta/auth",
         "@agenta/auth-ui",
@@ -59,8 +59,7 @@ const nextConfig: NextConfig = {
     reactStrictMode: true,
     pageExtensions: ["ts", "tsx"],
     productionBrowserSourceMaps: true,
-    // Workspace root, so standalone output nests as .next/standalone/mobile/
-    // (same pattern as web/oss).
+    // Workspace root, so standalone output nests as .next/standalone/mobile/.
     outputFileTracingRoot: path.resolve(__dirname, ".."),
     // Next 16.3.1 loads the ESM SWC helpers at runtime, but its standalone tracer
     // currently keeps only the CommonJS helper files. Include the ESM helpers so
@@ -68,7 +67,7 @@ const nextConfig: NextConfig = {
     outputFileTracingIncludes: {
         "/*": ["../node_modules/.pnpm/@swc+helpers@*/node_modules/@swc/helpers/esm/**/*"],
     },
-    // Same policy as web/oss: the type gate runs as a dedicated turbo task, not inside
+    // The type gate runs as a dedicated turbo task, not inside
     // `next build`. (Next 16 removed the `eslint` option; `next build` no longer lints.)
     typescript: {
         ignoreBuildErrors: true,
@@ -96,7 +95,7 @@ const nextConfig: NextConfig = {
                 // `__env.js` is per-deployment RUNTIME config (regenerated on each
                 // container start by web/entrypoint.sh), not an immutable build
                 // asset — force it uncacheable. `source` is basePath-relative,
-                // so this matches /m/__env.js. Mirrors web/oss/next.config.ts.
+                // so this matches /m/__env.js.
                 source: "/__env.js",
                 headers: [{key: "Cache-Control", value: "no-store, must-revalidate"}],
             },

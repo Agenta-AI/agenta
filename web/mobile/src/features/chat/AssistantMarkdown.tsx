@@ -11,8 +11,7 @@ import type {IconMap} from "streamdown"
  * reaches for is not part of the generated token bridge, so code/table chrome is re-surfaced
  * onto `muted`, and long unbroken tokens wrap instead of widening the viewport.
  *
- * From `sm:` the prose steps up to the desktop app's 14px body (oss AgentChatSlice/markdown.tsx),
- * so a wide window reads at the same scale as /w instead of staying phone-sized.
+ * From `sm:` the prose steps up to a 14px body, so a wide window does not stay phone-sized.
  */
 export const proseClassName = [
     // 20/22px leading, two over the size's own: prose that reads at length wants the air.

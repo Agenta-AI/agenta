@@ -172,7 +172,6 @@ export const ObservabilityScreen = ({
                             )}
                         </div>
                         <DeleteTraceModal />
-                        {/* Same drawer web/oss renders — a tapped trace opens here too now. */}
                     </PageLayout>
                 </ScreenScaffold>
             </AppShell>

@@ -26,7 +26,7 @@ export interface PendingTask {
  * A brand-new session exists only on this device until its first turn lands, so the message
  * cannot be sent from Home — the conversation engine mounts on the chat route and owns the
  * transport. Home stashes the task here and navigates; the chat screen sends it once and
- * clears the slot. Mirrors the desktop `agentFirstRunSeedAtom` hand-off into the playground.
+ * clears the slot.
  */
 export const pendingTasksAtom = atom<Record<string, PendingTask>>({})
 

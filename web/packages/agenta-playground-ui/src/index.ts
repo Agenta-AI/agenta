@@ -6,24 +6,18 @@
  *
  * ## Usage
  *
- * The package requires a provider to inject OSS/EE-specific components:
+ * The package requires a provider to inject app-layer components:
  *
  * ```tsx
- * import { PlaygroundUIProvider, PlaygroundContent } from "@agenta/playground-ui"
- * import { playgroundController } from "@agenta/playground"
- * import { EntityDrillInView } from "@/oss/components/DrillInView"
+ * import { PlaygroundUIProvider } from "@agenta/playground-ui"
  *
- * export function PlaygroundTest() {
- *   return (
- *     <PlaygroundUIProvider providers={{
- *       EntityDrillInView,
- *       SharedGenerationResultUtils,
- *       CommitVariantChangesButton: dynamic(() => import("...CommitVariantChangesButton")),
- *     }}>
- *       <PlaygroundContent />
- *     </PlaygroundUIProvider>
- *   )
- * }
+ * <PlaygroundUIProvider providers={{
+ *   EntityDrillInView,
+ *   SharedGenerationResultUtils,
+ *   CommitVariantChangesButton,
+ * }}>
+ *   {children}
+ * </PlaygroundUIProvider>
  * ```
  *
  * ## State Management

@@ -13,14 +13,13 @@ export interface RenderedTranscript {
 /**
  * Should a delivered server transcript replace what the screen renders?
  *
- * The rule itself is the shared one (`shouldAdoptServerTranscript`, which desktop's
- * `useSessionHydration` also calls) — the record log grew past our watermark, and the snapshot
- * isn't shorter than what we show. Only the two inputs mobile has no direct equivalent for are
- * filled in here:
+ * The rule itself is the shared one (`shouldAdoptServerTranscript`) — the record log grew past
+ * our watermark, and the snapshot isn't shorter than what we show. Only two inputs are filled
+ * in here:
  *   - `busy` is always false: mobile is read-only, it never holds a live `useChat` stream that
  *     could outrank the durable log.
- *   - the watermark is the hook's in-memory one, not desktop's persisted
- *     `agenta:agent-chat:record-counts` — mobile caches no transcript, so it re-syncs on open.
+ *   - the watermark is the hook's in-memory one — mobile caches no transcript, so it re-syncs
+ *     on open.
  */
 export const shouldAdoptTranscript = (transcript: unknown, rendered: RenderedTranscript): boolean =>
     isSessionTranscript(transcript) &&

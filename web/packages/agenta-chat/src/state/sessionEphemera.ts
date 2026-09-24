@@ -1,13 +1,3 @@
-// Copied verbatim from web/oss/src/components/AgentChatSlice/state/sessionEphemera.ts
-// (2026-07-25); the OSS original remains authoritative for the desktop chat until the re-plumb
-// PR deletes it. Keep byte-parity if either side changes.
-// Adaptations:
-//  (a) `attachmentsBySession` holds the staged upload-tray entries (`StagedUpload`)
-//      instead of the desktop's upload-widget file type — the package must not depend on that
-//      desktop UI toolkit.
-//  (b) the desktop's per-session virtualized-list scroll/row-height snapshot map and its cleanup
-//      in `clearSessionEphemera` are OMITTED entirely — that state is desktop-only, and the
-//      package must not depend on the desktop's list-virtualization library either.
 import {freshSessionIds} from "@agenta/entities/session"
 
 import type {StagedUpload} from "../model"

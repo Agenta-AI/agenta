@@ -21,7 +21,6 @@ const buildSlackInstallUrl = (projectId: string): string => {
 /**
  * An agent's channel connections and the real actions on them, wired to the channels API.
  * Every reload lands in this hook's state, so the entry point and its open panel agree.
- * Same logic as the desktop host (`web/oss/.../overview/agent/useAgentChannels`).
  */
 export const useAgentChannels = (
     appId: string,
