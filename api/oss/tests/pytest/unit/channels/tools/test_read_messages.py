@@ -115,7 +115,7 @@ async def test_stored_messages_merge_people_and_bot_oldest_first():
     assert [m.from_bot for m in page.messages] == [False, False, True, False]
     assert page.messages[0].sender_name == "Ada"
     assert _history_calls(transport) == []  # the page was full from storage
-    assert decode_space_ref("cur", page.cursor) == (space.id, "2000.000000")
+    assert page.cursor is not None
 
 
 async def test_default_limit_is_50_and_max_is_200():
@@ -141,9 +141,9 @@ async def test_slack_pages_past_stored_messages_with_one_live_call():
     assert [m.text for m in page.messages] == ["before the bot", "stored"]
     calls = _history_calls(transport)
     assert len(calls) == 1
-    assert calls[0].url.params["latest"] == stored_ts
+    assert float(calls[0].url.params["latest"]) == float(stored_ts)
     assert decode_space_ref("msg", page.messages[0].message_id)[1] == older
-    assert page.cursor is None  # the live page came back short: nothing older
+    assert page.cursor is None  # Slack said there is nothing older
 
 
 async def test_live_messages_are_not_stored():
@@ -169,7 +169,7 @@ async def test_rate_limit_returns_stored_messages_and_retry_note():
 
     assert [m.text for m in page.messages] == ["stored"]
     assert any("Try again in 40 seconds" in note for note in page.notes)
-    assert decode_space_ref("cur", page.cursor)[1] == "5000.000000"
+    assert page.cursor is not None  # the older part can be tried again
 
 
 async def test_result_notes_stored_messages_may_miss_edits():
@@ -181,20 +181,73 @@ async def test_result_notes_stored_messages_may_miss_edits():
     assert any("edits or deletions" in note for note in page.notes)
 
 
-async def test_thread_read_returns_root_and_replies():
+async def test_thread_read_pages_the_whole_thread_from_the_root():
+    service, _, workspace, transport, artifact_id, spaces = _slack()
+    root = workspace.seed_message(channel="C1", text="root", user="U1")
+    for i in range(5):
+        workspace.seed_message(channel="C1", text=f"r{i}", user="U2", thread_ts=root)
+    workspace.seed_message(channel="C1", text="elsewhere", user="U1")
+    thread_id = encode_space_ref("thr", spaces["C1"].id, root)
+
+    first = await _read(
+        service, artifact_id, spaces["C1"], thread_id=thread_id, limit=4
+    )
+    rest = await _read(
+        service,
+        artifact_id,
+        spaces["C1"],
+        thread_id=thread_id,
+        limit=4,
+        cursor=first.cursor,
+    )
+
+    texts = [m.text for m in first.messages + rest.messages]
+    assert texts == ["root", "r0", "r1", "r2", "r3", "r4"]
+    assert rest.cursor is None
+    assert {m.thread_id for m in first.messages} == {thread_id}
+    assert _history_calls(transport)[0].url.path.endswith("conversations.replies")
+
+
+async def test_thread_read_falls_back_to_stored_when_slack_limits():
     service, dao, _, transport, artifact_id, spaces = _slack()
     dao.seed_inbox(space=spaces["C1"], text="root", ts="6000.000000")
     dao.seed_inbox(
         space=spaces["C1"], text="reply", ts="6001.000000", thread_ts="6000.000000"
     )
     dao.seed_inbox(space=spaces["C1"], text="elsewhere", ts="6002.000000")
+    transport.force_error("conversations.replies", error="ratelimited", status_code=429)
     thread_id = encode_space_ref("thr", spaces["C1"].id, "6000.000000")
 
     page = await _read(service, artifact_id, spaces["C1"], thread_id=thread_id)
 
     assert [m.text for m in page.messages] == ["root", "reply"]
-    assert {m.thread_id for m in page.messages} == {thread_id}
-    assert _history_calls(transport)[0].url.path.endswith("conversations.replies")
+    assert any("about a minute" in note for note in page.notes)
+
+
+async def test_channel_pages_walk_stored_then_live_without_repeats():
+    service, dao, workspace, _, artifact_id, spaces = _slack()
+    live_ts = [
+        workspace.seed_message(channel="C1", text=f"old {i}", user="U7")
+        for i in range(4)
+    ]
+    for i in range(3):
+        ts = workspace.seed_message(channel="C1", text=f"new {i}", user="U1")
+        dao.seed_inbox(space=spaces["C1"], text=f"new {i}", ts=ts)
+    dao.seed_sent(space=spaces["C1"], text="bot", ts="99999.000000")
+
+    seen, cursor = [], None
+    for _ in range(10):
+        page = await _read(service, artifact_id, spaces["C1"], limit=2, cursor=cursor)
+        seen += [m.text for m in page.messages]
+        cursor = page.cursor
+        if not cursor:
+            break
+
+    assert sorted(seen) == sorted(
+        ["bot", "new 0", "new 1", "new 2", "old 0", "old 1", "old 2", "old 3"]
+    )
+    assert len(seen) == len(set(seen))
+    assert len(live_ts) == 4
 
 
 async def test_unreadable_channel_is_refused_without_calling_slack():

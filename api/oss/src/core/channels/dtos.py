@@ -953,6 +953,15 @@ class ChannelInboundEvent(BaseModel):
     addressed: bool = False
 
 
+class ChannelHistoryPage(BaseModel):
+    """One live history page. `next_cursor` is the platform's own, for a
+    thread read that pages forward."""
+
+    messages: List["ChannelHistoryMessage"] = Field(default_factory=list)
+    has_more: bool = False
+    next_cursor: Optional[str] = None
+
+
 class ChannelHistoryMessage(BaseModel):
     """One message read live from the platform for the channel read tool.
     Returned, never stored."""

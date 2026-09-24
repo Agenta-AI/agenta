@@ -303,3 +303,49 @@ async def test_telegram_thread_ids_are_refused():
             group,
             thread_id=encode_space_ref("thr", group.id, "1"),
         )
+
+
+async def test_a_row_another_request_created_is_never_posted_again():
+    """A concurrent retry gets the first request's row back from the insert;
+    only the request that created the row posts, whatever time has passed."""
+    from uuid import uuid5
+
+    from oss.src.core.channels.dtos import (
+        ChannelOutboxEventCreate,
+        ChannelOutboxEventData,
+    )
+
+    service, dao, _, transport, artifact_id, spaces = _slack()
+    key = uuid5(tools_service_module._SEND_KEYS, "session-1:toolu_1")
+    await dao.record_outbox_event(
+        project_id=PROJECT_ID,
+        event=ChannelOutboxEventCreate(
+            connection_id=spaces["C1"].connection_id,
+            space_id=spaces["C1"].id,
+            turn_id="toolu_1",
+            key=key,
+            data=ChannelOutboxEventData(processed={"attempt": "first-request"}),
+        ),
+    )
+    original_fetch = dao.fetch_outbox_event_by_key
+
+    async def raced(**kwargs):  # the retry looked before the first insert landed
+        return None
+
+    dao.fetch_outbox_event_by_key = raced
+    try:
+        result = await _send(service, artifact_id, spaces["C1"])
+    finally:
+        dao.fetch_outbox_event_by_key = original_fetch
+
+    assert result.state == "unknown"
+    assert _posts(transport) == []
+
+
+async def test_slack_internal_error_is_unknown_not_failed():
+    service, _, _, transport, artifact_id, spaces = _slack()
+    transport.force_error("chat.postMessage", error="internal_error")
+
+    result = await _send(service, artifact_id, spaces["C1"])
+
+    assert result.state == "unknown"

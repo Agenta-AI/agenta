@@ -4,8 +4,7 @@ reaches, and a builder for the service over it.
 Plain duck typing, not the DAO interface: a call this fake does not answer
 fails with AttributeError, which points at the tool service overreaching."""
 
-from copy import deepcopy
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from typing import Dict, List, Optional
 from uuid import UUID, uuid4
 
@@ -33,7 +32,6 @@ from oss.src.core.channels.dtos import (
 )
 from oss.src.core.channels.service import ChannelsService
 from oss.src.core.channels.tools.service import ChannelToolsService
-from oss.src.core.shared.dtos import Status
 
 PROJECT_ID = uuid4()
 
@@ -241,9 +239,9 @@ class FakeToolsDAO:
                 thread_ts is None
                 or e.data.external_locator.get("thread_ts") == thread_ts
             )
-            and (before is None or e.sent_at < before)
+            and _older(e.sent_at, e.id, before)
         ]
-        rows.sort(key=lambda e: e.sent_at, reverse=True)
+        rows.sort(key=lambda e: (e.sent_at, str(e.id)), reverse=True)
         return rows[:limit]
 
     async def query_space_outbox_messages(
@@ -254,9 +252,9 @@ class FakeToolsDAO:
             for row, thread in self.sent
             if row.space_id == space_id
             and (thread_ts is None or thread == thread_ts)
-            and (before is None or row.created_at < before)
+            and _older(row.created_at, row.id, before)
         ]
-        rows.sort(key=lambda pair: pair[0].created_at, reverse=True)
+        rows.sort(key=lambda pair: (pair[0].created_at, str(pair[0].id)), reverse=True)
         return rows[:limit]
 
     async def search_space_inbox_messages(
@@ -309,35 +307,6 @@ class FakeToolsDAO:
     async def fetch_outbox_event(self, *, project_id, event_id):
         return self._by_id(event_id)
 
-    async def claim_outbox_delivery(
-        self,
-        *,
-        project_id,
-        event_id,
-        content,
-        claim_ttl_seconds,
-        overwrite_final=True,
-        delivery_key=None,
-    ):
-        row = self._by_id(event_id)
-        if row is None or row.state is ChannelDeliveryState.SENT:
-            return None
-        if (
-            row.status is not None
-            and row.status.code == "sending"
-            and row.updated_at
-            > datetime.now(timezone.utc) - timedelta(seconds=claim_ttl_seconds)
-        ):
-            return None
-        claimed = row.model_copy(
-            update={
-                "status": Status(code="sending", message=str(uuid4())),
-                "updated_at": datetime.now(timezone.utc),
-            }
-        )
-        self.outbox[row.key] = claimed
-        return deepcopy(claimed)
-
     async def transition_outbox_event(
         self, *, project_id, event_id, state, status=None, data=None, claim_token=None
     ):
@@ -358,6 +327,16 @@ class FakeToolsDAO:
         updated = row.model_copy(update=update)
         self.outbox[row.key] = updated
         return updated
+
+
+def _older(at, row_id, before) -> bool:
+    """The DAO's keyset bound: strictly older in (time, id) order."""
+    if before is None:
+        return True
+    bound_at, bound_id = before
+    if bound_id is None:
+        return at < bound_at
+    return (at, str(row_id)) < (bound_at, str(bound_id))
 
 
 def build_tools_service(dao: FakeToolsDAO, adapters: dict, **kwargs):

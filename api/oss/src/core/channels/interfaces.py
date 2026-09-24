@@ -525,7 +525,7 @@ class ChannelsDAOInterface(ABC):
         project_id: UUID,
         space_id: UUID,
         thread_ts: Optional[str] = None,
-        before: Optional[datetime] = None,
+        before: Optional[Tuple[datetime, Optional[UUID]]] = None,
         limit: int,
     ) -> List[ChannelInboxEvent]:
         """A space's stored messages, newest first by provider time: message
@@ -538,7 +538,7 @@ class ChannelsDAOInterface(ABC):
         project_id: UUID,
         space_id: UUID,
         thread_ts: Optional[str] = None,
-        before: Optional[datetime] = None,
+        before: Optional[Tuple[datetime, Optional[UUID]]] = None,
         limit: int,
     ) -> List[Tuple[ChannelOutboxEvent, Optional[str]]]:
         """The bot's sent posts in a space, newest first, each with its

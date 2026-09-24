@@ -121,7 +121,7 @@ async def test_before_cursor_pages_older_without_gaps(channels_scope):
     older = await dao.query_space_inbox_messages(
         project_id=channels_scope["project_id"],
         space_id=space.id,
-        before=page[-1].sent_at,
+        before=(page[-1].sent_at, page[-1].id),
         limit=10,
     )
 
@@ -212,3 +212,34 @@ async def test_bot_posts_carry_their_thread(channels_scope):
         "101.1",
         "102.1",
     ]
+
+
+async def test_messages_in_the_same_second_page_without_loss(channels_scope):
+    """Telegram dates have one-second precision: a cursor on time alone would
+    drop the rest of a second at a page boundary."""
+    dao = ChannelsDAO(engine=channels_scope["engine"])
+    space = await _space(dao, channels_scope)
+    for name in ("a", "b", "c", "d"):
+        await _inbox(dao, channels_scope, space, name, minutes=1)
+
+    seen = []
+    before = None
+    while True:
+        page = await dao.query_space_inbox_messages(
+            project_id=channels_scope["project_id"],
+            space_id=space.id,
+            before=before,
+            limit=3,
+        )
+        if not page:
+            break
+        seen += page
+        before = (page[-1].sent_at, page[-1].id)
+
+    assert sorted(r.data.processed.content[0]["text"] for r in seen) == [
+        "a",
+        "b",
+        "c",
+        "d",
+    ]
+    assert len({r.id for r in seen}) == 4

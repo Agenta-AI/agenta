@@ -6,7 +6,7 @@ from oss.src.core.channels.dtos import (
     ChannelCapabilities,
     ChannelConnection,
     ChannelConnectionCreate,
-    ChannelHistoryMessage,
+    ChannelHistoryPage,
     ChannelInboundEvent,
     ChannelRequestContext,
     ChannelSetupDoc,
@@ -266,11 +266,14 @@ class ChannelAdapterInterface(ABC):
         locator: Dict[str, Any],
         thread_ts: Optional[str] = None,
         latest: Optional[str] = None,
+        cursor: Optional[str] = None,
         limit: int,
-    ) -> List[ChannelHistoryMessage]:
-        """One live page of a channel's (or a thread's) history strictly
-        before `latest`, oldest first, for the channel read tool. Nothing is
-        stored. Raises ChannelRateLimited when the platform says to wait, and
+    ) -> ChannelHistoryPage:
+        """One live history page for the channel read tool, oldest first.
+        A channel page holds the newest messages strictly before `latest`; a
+        thread page (`thread_ts`) holds the root and replies from the start,
+        paging forward with `cursor`. Nothing is stored. Raises
+        ChannelRateLimited when the platform says to wait, and
         ChannelNotSupported where bots cannot read history (Telegram)."""
 
         raise ChannelNotSupported(channel=self.channel)

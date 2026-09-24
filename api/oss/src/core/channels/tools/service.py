@@ -8,9 +8,9 @@ settings, and only then touches a destination.
 
 import time
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
-from uuid import UUID, uuid5
+from uuid import UUID, uuid4, uuid5
 
 from oss.src.core.channels.dtos import (
     ChannelAgent,
@@ -82,10 +82,6 @@ LIST_MAX_LIMIT = 100
 # lost on restart: it only spares Slack a listing call on every tool call.
 _MEMBER_TTL_SECONDS = 120.0
 _MEMBER_CACHE: Dict[UUID, Tuple[float, List[ChannelSpaceCandidate]]] = {}
-
-# A send holds its delivery row this long; only a request that died mid-post
-# leaves a claim this old, and its outcome is reported as unknown, never retried.
-_SEND_CLAIM_TTL_SECONDS = 60.0
 
 _SEND_KEYS = uuid5(UUID("5f7b5d52-3f1f-4f4e-9d38-6f8f4c1c7a10"), "channel-tool-send")
 
@@ -428,7 +424,11 @@ class ChannelToolsService:
         if existing is not None:
             return _send_result(existing)
 
-        content = [{"type": "text", "text": text}]
+        # One attempt per tool call, by construction: only the request whose
+        # insert created the row posts. The nonce tells it apart from a
+        # concurrent retry that got the same row back; the retry reports the
+        # row's state (unknown while the first request is still posting).
+        nonce = str(uuid4())
         row = await self.channels_dao.record_outbox_event(
             project_id=project_id,
             event=ChannelOutboxEventCreate(
@@ -436,30 +436,18 @@ class ChannelToolsService:
                 space_id=space.id,
                 turn_id=tool_call_id,
                 key=key,
-                data=ChannelOutboxEventData(),
+                data=ChannelOutboxEventData(processed={"attempt": nonce}),
             ),
         )
-        # The claim makes this request the only poster: a concurrent retry
-        # that inserted nothing finds the row claimed and reports unknown.
-        claimed = await self.channels_dao.claim_outbox_delivery(
-            project_id=project_id,
-            event_id=row.id,
-            content=content,
-            claim_ttl_seconds=_SEND_CLAIM_TTL_SECONDS,
-            delivery_key=str(key),
-        )
-        if claimed is None:
-            current = await self.channels_dao.fetch_outbox_event(
-                project_id=project_id, event_id=row.id
-            )
-            return _send_result(current or row)
+        if (row.data.processed or {}).get("attempt") != nonce:
+            return _send_result(row)
 
         return await self._post(
             project_id=project_id,
             bot=bot,
-            row=claimed,
+            row=row,
             locator=locator,
-            content=content,
+            content=[{"type": "text", "text": text}],
         )
 
     async def _post(
@@ -471,7 +459,6 @@ class ChannelToolsService:
         locator: Dict[str, Any],
         content: List[Dict[str, Any]],
     ) -> ChannelSendResult:
-        claim_token = row.status.message if row.status else None
         adapter = self.channels_service.adapter_registry.get(bot.connection.channel)
 
         async def settle(state, status, data=None) -> ChannelSendResult:
@@ -481,7 +468,6 @@ class ChannelToolsService:
                 state=state,
                 status=status,
                 data=data,
-                claim_token=claim_token,
             )
             return _send_result(
                 settled
@@ -545,9 +531,8 @@ class ChannelToolsService:
         limit: Optional[int] = None,
         cursor: Optional[str] = None,
     ) -> ChannelMessagesPage:
-        """The most recent messages of a channel, or one thread, oldest first.
-        Stored messages come first; on Slack, when they run short, one live
-        history page fills in what is older. Live messages are not stored."""
+        """A channel's most recent messages, or one Slack thread, oldest
+        first. See `_read_channel` and `_read_thread`."""
 
         destination = await self._resolve_destination(
             project_id=project_id,
@@ -557,88 +542,155 @@ class ChannelToolsService:
         bot, space = destination.bot, destination.space
         if not bot.can_read(space):
             raise ChannelToolsRefused(READ_OFF_MESSAGE)
-
-        thread_ts = None
-        if thread_id is not None:
-            thread = decode_space_ref("thr", thread_id)
-            if thread is None or thread[0] != space.id:
-                raise ChannelToolsNotFound("Thread not found in this destination.")
-            thread_ts = thread[1]
-
         size = min(max(limit or READ_DEFAULT_LIMIT, 1), READ_MAX_LIMIT)
-        before_ts = _cursor_ts(cursor, space.id)
-        before = slack_time(before_ts) if before_ts else None
 
-        stored = await self._stored_messages(
+        if thread_id is None:
+            return await self._read_channel(
+                project_id=project_id, bot=bot, space=space, size=size, cursor=cursor
+            )
+        thread = decode_space_ref("thr", thread_id)
+        if thread is None or thread[0] != space.id:
+            raise ChannelToolsNotFound("Thread not found in this destination.")
+        if not bot.is_slack:
+            raise ChannelToolsRefused("Telegram groups have no threads.")
+        return await self._read_thread(
             project_id=project_id,
+            bot=bot,
             space=space,
-            thread_ts=thread_ts,
-            before=before,
-            limit=size,
+            thread_ts=thread[1],
+            size=size,
+            cursor=cursor,
+        )
+
+    async def _read_channel(
+        self,
+        *,
+        project_id: UUID,
+        bot: ChannelBot,
+        space: ChannelSpace,
+        size: int,
+        cursor: Optional[str],
+    ) -> ChannelMessagesPage:
+        """Stored messages first, newest page first; on Slack, when they run
+        short, one live history page before the oldest of them. Live messages
+        are not stored. Every source is read in one (time, id) order and the
+        cursor carries both, so pages neither repeat nor skip."""
+
+        before = _decode_cursor(cursor, space.id, "at")
+        stored = await self._stored_items(
+            project_id=project_id, space=space, before=before, limit=size
         )
         notes = [STORED_NOTE] if stored else []
-        oldest_ts = stored[-1][0] if stored else before_ts
         more = len(stored) == size
+        live: List[_Item] = []
 
-        live: List[Tuple[str, ChannelMessage]] = []
         if not bot.is_slack:
             notes.append(TELEGRAM_READ_NOTE)
         elif len(stored) < size:
-            adapter = self.channels_service.adapter_registry.get(bot.connection.channel)
-            capabilities = await self._capabilities(bot)
-            wanted = size - len(stored)
+            oldest = stored[-1].at if stored else (before[0] if before else None)
             try:
-                page = await adapter.read_history(
+                page = await self._adapter(bot).read_history(
                     connection=bot.connection,
-                    locator=_space_locator(capabilities, space),
-                    thread_ts=thread_ts,
-                    latest=oldest_ts,
-                    limit=wanted,
+                    locator=_space_locator(await self._capabilities(bot), space),
+                    latest=slack_ts(oldest) if oldest else None,
+                    limit=size - len(stored),
                 )
             except ChannelRateLimited as e:
-                wait = f"{e.retry_after} seconds" if e.retry_after else "about a minute"
-                notes.append(
-                    "Slack limits this app to about one history request per "
-                    f"minute. Try again in {wait}."
-                )
-                more = oldest_ts is not None
+                notes.append(_rate_limit_note(e))
+                more = True
             except ChannelBackfillRefused as e:
                 notes.append(f"Slack refused to read older history here ({e.reason}).")
             else:
-                seen = {ts for ts, _ in stored}
+                seen = {item.identity for item in stored}
                 live = [
-                    (m.message_ref, _live_message(space.id, m))
-                    for m in page
-                    if m.message_ref not in seen
+                    _live_item(space.id, m)
+                    for m in page.messages
+                    if ("ref", m.message_ref) not in seen
                 ]
-                more = len(page) >= wanted
-                if live and thread_ts is None:
+                more = page.has_more
+                if live:
                     notes.append(LIVE_CHANNEL_NOTE)
 
-        messages = stored + live
-        messages.sort(key=lambda item: float(item[0]))
-        next_ts = messages[0][0] if messages else oldest_ts
+        items = sorted(stored + live, key=_item_order)
+        next_cursor = None
+        if more:
+            last = items[0] if items else None
+            at = (
+                last.at
+                if last
+                else (before[0] if before else datetime.now(timezone.utc))
+            )
+            next_cursor = _encode_cursor(
+                space.id, "at", at, last.row_id if last else None
+            )
         return ChannelMessagesPage(
-            messages=[message for _, message in messages],
-            cursor=(
-                encode_space_ref("cur", space.id, next_ts) if more and next_ts else None
-            ),
+            messages=[item.message for item in items],
+            cursor=next_cursor,
             notes=notes,
         )
 
-    async def _stored_messages(
+    async def _read_thread(
+        self,
+        *,
+        project_id: UUID,
+        bot: ChannelBot,
+        space: ChannelSpace,
+        thread_ts: str,
+        size: int,
+        cursor: Optional[str],
+    ) -> ChannelMessagesPage:
+        """A Slack thread from its root forward, read live (Slack pages a
+        thread from the start), with the bot's posts and current text. When
+        Slack will not answer, the stored part of the thread instead."""
+
+        slack_cursor = _decode_cursor(cursor, space.id, "slack")
+        try:
+            page = await self._adapter(bot).read_history(
+                connection=bot.connection,
+                locator=_space_locator(await self._capabilities(bot), space),
+                thread_ts=thread_ts,
+                cursor=slack_cursor,
+                limit=size,
+            )
+        except (ChannelRateLimited, ChannelBackfillRefused) as e:
+            stored = await self._stored_items(
+                project_id=project_id,
+                space=space,
+                thread_ts=thread_ts,
+                before=None,
+                limit=size,
+            )
+            notes = [STORED_NOTE] if stored else []
+            notes.append(
+                _rate_limit_note(e)
+                if isinstance(e, ChannelRateLimited)
+                else f"Slack refused to read this thread ({e.reason})."
+            )
+            return ChannelMessagesPage(
+                messages=[item.message for item in sorted(stored, key=_item_order)],
+                notes=notes,
+            )
+        return ChannelMessagesPage(
+            messages=[_live_item(space.id, m).message for m in page.messages],
+            cursor=(
+                _encode_cursor(space.id, "slack", page.next_cursor)
+                if page.has_more and page.next_cursor
+                else None
+            ),
+        )
+
+    async def _stored_items(
         self,
         *,
         project_id: UUID,
         space: ChannelSpace,
-        thread_ts: Optional[str],
-        before: Optional[datetime],
+        before: Optional[Tuple[datetime, Optional[UUID]]],
         limit: int,
-    ) -> List[Tuple[str, ChannelMessage]]:
+        thread_ts: Optional[str] = None,
+    ) -> List["_Item"]:
         """People's messages from the inbox and the bot's posts from the
-        outbox, newest first, each keyed by its provider time as a Slack-style
-        timestamp. A bot post stored in both is kept once, from the outbox,
-        which holds its final text."""
+        outbox, newest first by (time, id). A bot post stored in both is kept
+        once, from the outbox, which holds its final text."""
 
         inbox = await self.channels_dao.query_space_inbox_messages(
             project_id=project_id,
@@ -654,17 +706,18 @@ class ChannelToolsService:
             before=before,
             limit=limit,
         )
+        bot_items = [_bot_item(space.id, row, thread) for row, thread in outbox]
+        posted = {item.identity for item in bot_items}
+        person_items = [
+            item
+            for item in (_person_item(space.id, event) for event in inbox)
+            if item.identity not in posted
+        ]
+        items = sorted(person_items + bot_items, key=_item_order, reverse=True)
+        return items[:limit]
 
-        merged: Dict[str, Tuple[str, ChannelMessage]] = {}
-        for event in inbox:
-            key, message = _stored_person_message(space.id, event)
-            merged.setdefault(key, (key, message))
-        for row, row_thread in outbox:
-            key, message = _stored_bot_message(space.id, row, row_thread)
-            merged[key] = (key, message)
-
-        ordered = sorted(merged.values(), key=lambda item: float(item[0]), reverse=True)
-        return ordered[:limit]
+    def _adapter(self, bot: ChannelBot):
+        return self.channels_service.adapter_registry.get(bot.connection.channel)
 
     # --- search ----------------------------------------------------------- #
 
@@ -736,7 +789,7 @@ class ChannelToolsService:
         results = []
         for event in rows[:size]:
             destination = by_space[event.space_id]
-            _, message = _stored_person_message(event.space_id, event)
+            message = _person_item(event.space_id, event).message
             results.append(
                 ChannelSearchResultItem(
                     message_id=message.message_id,
@@ -918,20 +971,53 @@ def _send_result(row: ChannelOutboxEvent) -> ChannelSendResult:
     )
 
 
-def _cursor_ts(cursor: Optional[str], space_id: UUID) -> Optional[str]:
+@dataclass(frozen=True)
+class _Item:
+    """One message on its way into a read: where it sorts (time, then the
+    stored row id; live messages have none), and what identifies it across
+    sources (the provider reference when there is one)."""
+
+    at: datetime
+    row_id: Optional[UUID]
+    identity: Tuple[str, str]
+    message: ChannelMessage
+
+
+def _item_order(item: "_Item"):
+    return (item.at, str(item.row_id) if item.row_id else "")
+
+
+def _encode_cursor(space_id: UUID, kind: str, *parts: Any) -> str:
+    values = [p.isoformat() if isinstance(p, datetime) else str(p or "") for p in parts]
+    return encode_space_ref("cur", space_id, "|".join([kind, *values]))
+
+
+def _decode_cursor(cursor: Optional[str], space_id: UUID, kind: str):
+    """The cursor's position when it belongs to this space and this kind of
+    read; anything else starts from the newest messages."""
+
     decoded = decode_space_ref("cur", cursor) if cursor else None
-    if decoded is None or decoded[0] != space_id or slack_time(decoded[1]) is None:
+    if decoded is None or decoded[0] != space_id:
         return None
-    return decoded[1]
+    parts = decoded[1].split("|")
+    if parts[0] != kind:
+        return None
+    if kind == "slack":
+        return parts[1] or None if len(parts) == 2 else None
+    try:
+        at = datetime.fromisoformat(parts[1])
+        row_id = UUID(parts[2]) if len(parts) > 2 and parts[2] else None
+    except (IndexError, ValueError):
+        return None
+    return at, row_id
 
 
-def _time_key(ref: Optional[str], when: Optional[datetime]) -> str:
-    """A Slack-style timestamp for ordering and cursors: the Slack `ts` itself
-    when the message has one, else its time in the same shape."""
-
-    if ref and slack_time(ref) is not None and "." in ref:
-        return ref
-    return slack_ts(when) if when else "0.000000"
+def _rate_limit_note(error: ChannelRateLimited) -> str:
+    wait = f"{error.retry_after} seconds" if error.retry_after else "about a minute"
+    return (
+        "Slack limits this app to about one history request per minute. "
+        f"Try again in {wait}."
+    )
 
 
 def _sender_name(sender: Dict[str, Any]) -> Optional[str]:
@@ -948,57 +1034,76 @@ def _content_text(content: List[Dict[str, Any]]) -> str:
     return "\n".join(parts)
 
 
-def _stored_person_message(
-    space_id: UUID, event: ChannelInboxEvent
-) -> Tuple[str, ChannelMessage]:
+def _person_item(space_id: UUID, event: ChannelInboxEvent) -> _Item:
     processed = event.data.processed
     ref = processed.message_ref
-    key = _time_key(ref, event.sent_at or event.created_at)
+    at = event.sent_at or event.created_at or datetime.now(timezone.utc)
     thread_ref = (event.data.external_locator or {}).get("thread_ts")
-    return key, ChannelMessage(
-        message_id=encode_space_ref("msg", space_id, ref or str(event.id)),
-        thread_id=encode_space_ref("thr", space_id, thread_ref) if thread_ref else None,
-        sender_name=_sender_name(processed.sender or {}),
-        text=_content_text(processed.content),
-        sent_at=event.sent_at or event.created_at,
+    return _Item(
+        at=at,
+        row_id=event.id,
+        identity=("ref", ref) if ref else ("row", str(event.id)),
+        message=ChannelMessage(
+            message_id=encode_space_ref("msg", space_id, ref or str(event.id)),
+            thread_id=(
+                encode_space_ref("thr", space_id, thread_ref) if thread_ref else None
+            ),
+            sender_name=_sender_name(processed.sender or {}),
+            text=_content_text(processed.content),
+            sent_at=at,
+        ),
     )
 
 
-def _stored_bot_message(
+def _bot_item(
     space_id: UUID, row: ChannelOutboxEvent, thread_ref: Optional[str]
-) -> Tuple[str, ChannelMessage]:
+) -> _Item:
+    """The bot's post sorts by its row's creation time, the order the outbox
+    query reads in; it shows Slack's own time when the receipt has one."""
+
     receipt = (row.data.external_locator if row.data else None) or {}
     processed = (row.data.processed if row.data else None) or {}
     ref = receipt.get("ts") or (
         str(receipt["message_id"]) if receipt.get("message_id") is not None else None
     )
-    sent_at = slack_time(receipt.get("ts")) or row.created_at
+    at = row.created_at or datetime.now(timezone.utc)
     slack = "ts" in receipt
-    return _time_key(receipt.get("ts"), sent_at), ChannelMessage(
-        message_id=encode_space_ref("msg", space_id, ref or str(row.id)),
-        thread_id=(
-            encode_space_ref("thr", space_id, thread_ref)
-            if slack and thread_ref
-            else None
+    return _Item(
+        at=at,
+        row_id=row.id,
+        identity=("ref", ref) if ref else ("row", str(row.id)),
+        message=ChannelMessage(
+            message_id=encode_space_ref("msg", space_id, ref or str(row.id)),
+            thread_id=(
+                encode_space_ref("thr", space_id, thread_ref)
+                if slack and thread_ref
+                else None
+            ),
+            from_bot=True,
+            text=_content_text(processed.get("content") or []),
+            sent_at=slack_time(receipt.get("ts")) or at,
         ),
-        from_bot=True,
-        text=_content_text(processed.get("content") or []),
-        sent_at=sent_at,
     )
 
 
-def _live_message(space_id: UUID, message: ChannelHistoryMessage) -> ChannelMessage:
-    return ChannelMessage(
-        message_id=encode_space_ref("msg", space_id, message.message_ref),
-        thread_id=(
-            encode_space_ref("thr", space_id, message.thread_ref)
-            if message.thread_ref
-            else None
+def _live_item(space_id: UUID, message: ChannelHistoryMessage) -> _Item:
+    at = message.sent_at or datetime.now(timezone.utc)
+    return _Item(
+        at=at,
+        row_id=None,
+        identity=("ref", message.message_ref),
+        message=ChannelMessage(
+            message_id=encode_space_ref("msg", space_id, message.message_ref),
+            thread_id=(
+                encode_space_ref("thr", space_id, message.thread_ref)
+                if message.thread_ref
+                else None
+            ),
+            sender_name=_sender_name(message.sender),
+            from_bot=message.from_bot,
+            text=message.text,
+            sent_at=at,
         ),
-        sender_name=_sender_name(message.sender),
-        from_bot=message.from_bot,
-        text=message.text,
-        sent_at=message.sent_at,
     )
 
 

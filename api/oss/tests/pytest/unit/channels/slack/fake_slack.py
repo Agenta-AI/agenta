@@ -293,12 +293,13 @@ class FakeSlackTransport(httpx.AsyncBaseTransport):
         if channel not in self.workspace.channels:
             return _error_response("channel_not_found")
 
-        messages = self.workspace.history(
-            channel=channel,
-            limit=payload.get("limit") or 0,
-            latest=str(payload["latest"]) if payload.get("latest") else None,
+        limit = payload.get("limit") or 0
+        latest = str(payload["latest"]) if payload.get("latest") else None
+        messages = self.workspace.history(channel=channel, limit=limit, latest=latest)
+        everything = self.workspace.history(channel=channel, limit=0, latest=latest)
+        return _ok_response(
+            {"messages": messages, "has_more": bool(limit) and len(everything) > limit}
         )
-        return _ok_response({"messages": messages})
 
     def _conversations_replies(self, payload: Dict[str, Any]) -> httpx.Response:
         channel = payload.get("channel")
@@ -308,10 +309,22 @@ class FakeSlackTransport(httpx.AsyncBaseTransport):
         if channel not in self.workspace.channels:
             return _error_response("channel_not_found")
 
-        messages = self.workspace.replies(
-            channel=channel, thread_ts=thread_ts, limit=payload.get("limit") or 0
+        everything = self.workspace.replies(
+            channel=channel, thread_ts=thread_ts, limit=0
         )
-        return _ok_response({"messages": messages})
+        limit = payload.get("limit") or len(everything) or 1
+        start = int(payload.get("cursor") or 0)
+        page = everything[start : start + limit]
+        more = start + limit < len(everything)
+        return _ok_response(
+            {
+                "messages": page,
+                "has_more": more,
+                "response_metadata": {
+                    "next_cursor": str(start + limit) if more else ""
+                },
+            }
+        )
 
     def _conversations_info(self, payload: Dict[str, Any]) -> httpx.Response:
         entry = self.workspace.channels.get(payload.get("channel") or "")

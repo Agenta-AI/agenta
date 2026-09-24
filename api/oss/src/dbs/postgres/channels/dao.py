@@ -1380,7 +1380,7 @@ class ChannelsDAO(ChannelsDAOInterface):
         project_id: UUID,
         space_id: UUID,
         thread_ts: Optional[str] = None,
-        before: Optional[datetime] = None,
+        before: Optional[Tuple[datetime, Optional[UUID]]] = None,
         limit: int,
     ) -> List[ChannelInboxEvent]:
         table = ChannelInboxEventDBE
@@ -1395,7 +1395,7 @@ class ChannelsDAO(ChannelsDAOInterface):
                 == thread_ts
             )
         if before is not None:
-            stmt = stmt.where(table.sent_at < before)
+            stmt = stmt.where(_before(table.sent_at, table.id, before))
         stmt = stmt.order_by(table.sent_at.desc(), table.id.desc()).limit(limit)
 
         async with self.engine.session() as session:
@@ -1411,7 +1411,7 @@ class ChannelsDAO(ChannelsDAOInterface):
         project_id: UUID,
         space_id: UUID,
         thread_ts: Optional[str] = None,
-        before: Optional[datetime] = None,
+        before: Optional[Tuple[datetime, Optional[UUID]]] = None,
         limit: int,
     ) -> List[Tuple[ChannelOutboxEvent, Optional[str]]]:
         """The bot's sent posts in a space, newest first, each with the thread
@@ -1441,7 +1441,7 @@ class ChannelsDAO(ChannelsDAOInterface):
         if thread_ts is not None:
             stmt = stmt.where(thread_of == thread_ts)
         if before is not None:
-            stmt = stmt.where(outbox.created_at < before)
+            stmt = stmt.where(_before(outbox.created_at, outbox.id, before))
         stmt = stmt.order_by(outbox.created_at.desc(), outbox.id.desc()).limit(limit)
 
         async with self.engine.session() as session:
@@ -2178,6 +2178,17 @@ class ChannelsDAO(ChannelsDAOInterface):
                 return None
 
             return (row[0], row[1])
+
+
+def _before(time_column, id_column, before: Tuple[datetime, Optional[UUID]]):
+    """Strictly older than a read cursor, in the same (time, id) order the
+    query sorts by, so a page boundary never repeats or skips a row that
+    shares its time. A cursor with no id bounds by time alone."""
+
+    at, row_id = before
+    if row_id is None:
+        return time_column < at
+    return tuple_(time_column, id_column) < tuple_(at, row_id)
 
 
 # The indexed expression of `ix_channel_inbox_events_search`
