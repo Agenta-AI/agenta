@@ -24,6 +24,10 @@ When "Can post outside the conversation" is off, `send_channel_message` SHALL re
 - **WHEN** posting is off and the agent calls the send tool for a channel
 - **THEN** Agenta SHALL refuse the send and SHALL NOT call the provider.
 
+#### Scenario: Switching off the automatically added send tool
+- **WHEN** an admin wants a connected agent never to post outside the conversation
+- **THEN** turning posting off SHALL make every send refused, even though the tool is still added to each run.
+
 #### Scenario: Replies still work
 - **WHEN** posting is off and someone mentions the agent in a Slack thread
 - **THEN** the agent SHALL still answer in that thread.

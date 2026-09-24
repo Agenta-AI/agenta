@@ -2,11 +2,11 @@
 
 **Goal:** Let an agent connected to Slack or Telegram list where it can post, post to a channel or a person, read a channel's recent history, and search its channels, under three per-bot settings.
 
-**Architecture:** Four endpoint-mode platform tools call new authenticated routes under `/api/channels/tools/`. The runner binds the agent's identity, session, and tool call ID. A `ChannelToolsService` in `api/oss/src/core/channels/tools/` resolves the agent's bots, applies the bot settings on every call, and posts through the existing outbox and adapters. A local `channel_messages` history, fed by live events, sends, and a rate-aware Slack backfill worker, serves reading and search.
+**Architecture:** Four endpoint-mode platform tools call new authenticated routes under `/api/channels/tools/`. The SDK agent handler adds them to every run of an agent bound to an active bot, and the send tool defaults to `allow`. The runner binds the agent's identity, session, and tool call ID. A `ChannelToolsService` in `api/oss/src/core/channels/tools/` resolves the agent's bots, applies the bot settings on every call, and posts through the existing outbox and adapters. A local `channel_messages` history, fed by live events, sends, and a rate-aware Slack backfill worker, serves reading and search.
 
 **Tech stack:** Python 3 with FastAPI, Pydantic, SQLAlchemy, Alembic, and Taskiq (API); PostgreSQL full-text search; httpx against the Slack Web API and the Telegram Bot API; TypeScript with Vitest (runner); React with Vitest and Storybook (`@agenta/settings-ui`).
 
-Read [design.md](design.md) first. Each phase ships as its own pull request, in this order. Phases 1 and 2 give the agent a working send path. Phase 3 lets admins control it before phases 4 and 5 add the larger read and search surface.
+Read [design.md](design.md) first. Each phase ships as its own pull request, in this order. Phases 1 and 2 give the agent a working send path. Phase 3 gives admins the switches. Phase 3 depends only on phase 1, so it can merge before phase 2. It must not ship in a later release than phase 2: the send tool is added to every connected agent and posts without a prompt, so admins need the posting switch from the first day it exists. Phases 4 and 5 then add the larger read and search surface.
 
 ## Conventions used in every task
 
@@ -27,7 +27,7 @@ Every task follows five steps: (1) write the failing test, (2) run it and see it
 
 ## Phase 1: Destinations, bot settings, and the list tool
 
-PR title: `feat(api): channel destinations and the list_channel_destinations tool`. Size: M, 7 tasks, about 3-4 days.
+PR title: `feat(api): channel destinations and the list_channel_destinations tool`. Size: M, 8 tasks, about 4-5 days.
 
 ### Task 1.1: Bot settings block
 
@@ -100,7 +100,7 @@ PR title: `feat(api): channel destinations and the list_channel_destinations too
 ### Task 1.7: Tool router and SDK catalog entry
 
 - Create: `api/oss/src/apis/fastapi/channels/tools.py` (`ChannelToolsRouter` with `POST /tools/destinations/query`; every handler checks `Permission.RUN_CHANNELS`; request models use `extra="forbid"`).
-- Modify: `api/oss/src/apis/fastapi/channels/models.py`, `api/entrypoints/routers.py` (build `ChannelToolsService` and mount the router under `/channels` next to `ChannelsRouter`), `sdks/python/agenta/sdk/agents/platform/op_catalog.py` (add `list_channel_destinations`: `POST /api/channels/tools/destinations/query`, `read_only=True`, `context_bindings={"workflow.artifact_id": "$ctx.workflow.artifact.id"}`, closed input schema).
+- Modify: `api/oss/src/apis/fastapi/channels/models.py`, `api/entrypoints/routers.py` (build `ChannelToolsService` and mount the router under `/channels` next to `ChannelsRouter`), `sdks/python/agenta/sdk/agents/platform/op_catalog.py` (add `list_channel_destinations`: `POST /api/channels/tools/destinations/query`, `read_only=True`, `context_bindings={"workflow.artifact_id": "$ctx.workflow.artifact.id"}`, closed input schema; add a `CHANNEL_TOOL_OPS` tuple that later phases extend).
 - Test: create `api/oss/tests/pytest/unit/channels/test_channels_tools_router.py` (the mocked-request pattern of `test_channels_router.py`) and `sdks/python/oss/tests/pytest/unit/agents/platform/test_channel_ops.py`.
 
 1. Write `test_tools_routes_require_run_channels`, `test_destinations_query_rejects_unknown_fields`, `test_destinations_response_has_no_raw_provider_ids`, and, in the SDK file, `test_list_channel_destinations_is_read_only_and_hides_artifact_binding`.
@@ -109,11 +109,23 @@ PR title: `feat(api): channel destinations and the list_channel_destinations too
 4. Run both commands, plus `oss/tests/pytest/unit/agents/platform/test_op_catalog.py` in the SDK. All pass.
 5. Commit: `feat(api,sdk): expose list_channel_destinations as a platform tool`.
 
+### Task 1.8: Add the channel tools to every run of a connected agent
+
+- Create: `sdks/python/agenta/sdk/agents/platform/channel_tools.py` (`read_channel_tools_availability(workflow_id)` calls `POST /api/channels/tools/availability` with the platform connection's credential; `add_channel_tools(tools, available)` appends a `PlatformToolConfig(op=...)` for each op in `CHANNEL_TOOL_OPS` that the author did not already declare).
+- Modify: `sdks/python/agenta/sdk/agents/handler.py` (new `AgentComposition.resolve_channel_tools` field next to `resolve_session_context` at line 332; in `_agent`, compute the artifact with `_agent_artifact_id(comp.run_context(), request.references)` and call the hook under one deadline, as `_bounded_session_context` does at line 136, before `comp.resolve_tools(...)` at line 386), `api/oss/src/apis/fastapi/channels/tools.py` (`POST /tools/availability` returns `{"available": bool}` for the artifact), `api/oss/src/core/channels/tools/service.py` (`is_available` reuses `resolve_bots` from task 1.5).
+- Test: create `sdks/python/oss/tests/pytest/unit/agents/test_channel_tools_injection.py`. Extend `api/oss/tests/pytest/unit/channels/test_channels_tools_router.py`.
+
+1. Write `test_connected_agent_gets_every_channel_op`, `test_unconnected_agent_gets_none`, `test_author_declared_op_is_kept_as_authored_and_not_duplicated` (an explicit `send_channel_message` with `permission="ask"` stays single and keeps `ask`), `test_availability_timeout_adds_nothing_and_logs`, `test_saved_template_is_not_mutated`, and, in the router file, `test_availability_is_false_after_disconnect`.
+2. Run `cd sdks/python && uv run --no-sync python run-tests.py oss/tests/pytest/unit/agents/test_channel_tools_injection.py`. It fails on import.
+3. Implement the hook, the helper, and the route.
+4. Run the same command, the router test, and `oss/tests/pytest/unit/agents/test_agent_composition_seam.py` in the SDK. All pass.
+5. Commit: `feat(sdk,api): add channel tools to runs of connected agents`.
+
 ---
 
 ## Phase 2: The send tool and the delivery record
 
-PR title: `feat(api): send_channel_message with a durable delivery record`. Size: L, 7 tasks, about 4-5 days.
+PR title: `feat(api): send_channel_message with a durable delivery record`. Size: L, 8 tasks, about 4-5 days.
 
 ### Task 2.1: Tool call ID in the runner's run context
 
@@ -182,12 +194,23 @@ PR title: `feat(api): send_channel_message with a durable delivery record`. Size
 4. Run the same command. It passes.
 5. Commit: `fix(api): enable the Slack messages tab so people can answer the bot`.
 
-### Task 2.7: Send route and SDK catalog entry
+### Task 2.7: Per-operation default permission
 
-- Modify: `api/oss/src/apis/fastapi/channels/tools.py` (`POST /tools/messages/send`), `api/oss/src/apis/fastapi/channels/models.py`, `sdks/python/agenta/sdk/agents/platform/op_catalog.py` (add `send_channel_message`, `read_only=False`, binding `workflow.artifact_id`, `session_id` from `$ctx.session.id`, and `tool_call_id` from `$ctx.tool.call_id`; text `maxLength` 40,000).
+- Modify: `sdks/python/agenta/sdk/agents/platform/op_catalog.py` (add `default_permission: Optional[Literal["allow", "ask"]] = None` to `PlatformOp`, next to `read_only` at line 191), `sdks/python/agenta/sdk/agents/tools/interfaces.py` (`PlatformToolResolver.resolve` gains a `permission_default` keyword), `sdks/python/agenta/sdk/agents/tools/resolver.py` (pass `permission_default` at line 340), `sdks/python/agenta/sdk/agents/platform/platform_tools.py` (at line 130 emit `tool_config.permission` when set, else `op.default_permission` only when `permission_default == "allow_reads"`, else `None`).
+- Test: create `sdks/python/oss/tests/pytest/unit/agents/platform/test_platform_default_permission.py`.
+
+1. Write `test_op_default_applies_when_author_set_nothing_under_allow_reads` (a test op with `default_permission="allow"` resolves with `permission == "allow"`), `test_author_ask_wins_over_op_default`, `test_author_deny_wins_over_op_default`, `test_agent_wide_ask_mode_ignores_op_default` (the spec permission is `None`, so the runner applies `ask`), and `test_ops_without_default_are_unchanged`.
+2. Run `cd sdks/python && uv run --no-sync python run-tests.py oss/tests/pytest/unit/agents/platform/test_platform_default_permission.py`. It fails because the field is unknown.
+3. Implement.
+4. Run the same command, plus `oss/tests/pytest/unit/agents/platform/test_op_catalog.py` and `oss/tests/pytest/unit/agents/tools/test_permission_parity.py`. All pass.
+5. Commit: `feat(sdk): per-operation default permission for platform tools`.
+
+### Task 2.8: Send route and SDK catalog entry
+
+- Modify: `api/oss/src/apis/fastapi/channels/tools.py` (`POST /tools/messages/send`), `api/oss/src/apis/fastapi/channels/models.py`, `sdks/python/agenta/sdk/agents/platform/op_catalog.py` (add `send_channel_message`, `read_only=False`, `default_permission="allow"`, binding `workflow.artifact_id`, `session_id` from `$ctx.session.id`, and `tool_call_id` from `$ctx.tool.call_id`; text `maxLength` 40,000; add it to `CHANNEL_TOOL_OPS`).
 - Test: extend `api/oss/tests/pytest/unit/channels/test_channels_tools_router.py` and `sdks/python/oss/tests/pytest/unit/agents/platform/test_channel_ops.py`.
 
-1. Write `test_send_rejects_username_and_icon_fields` and `test_send_returns_sanitized_reason_without_token` (router), and `test_send_channel_message_is_a_write_and_hides_session_and_tool_call` (SDK).
+1. Write `test_send_rejects_username_and_icon_fields` and `test_send_returns_sanitized_reason_without_token` (router), and `test_send_channel_message_is_a_write_and_hides_session_and_tool_call` and `test_send_channel_message_defaults_to_allow` (SDK).
 2. Run both files with the commands from task 1.7. The new cases fail.
 3. Implement.
 4. Run both files. They pass.
@@ -322,7 +345,7 @@ PR title: `feat(api): channel message history and read_channel_messages`. Size: 
 
 ### Task 4.8: `read_channel_messages`
 
-- Modify: `api/oss/src/core/channels/tools/service.py` (`read_messages`, with a one-page inline `conversations.replies` fetch for an unfetched thread), `tools/dtos.py`, `api/oss/src/apis/fastapi/channels/tools.py` (`POST /tools/messages/read`), `models.py`, `sdks/python/agenta/sdk/agents/platform/op_catalog.py` (add `read_channel_messages`, `read_only=True`).
+- Modify: `api/oss/src/core/channels/tools/service.py` (`read_messages`, with a one-page inline `conversations.replies` fetch for an unfetched thread), `tools/dtos.py`, `api/oss/src/apis/fastapi/channels/tools.py` (`POST /tools/messages/read`), `models.py`, `sdks/python/agenta/sdk/agents/platform/op_catalog.py` (add `read_channel_messages`, `read_only=True`; add it to `CHANNEL_TOOL_OPS`).
 - Test: create `api/oss/tests/pytest/unit/channels/tools/test_read_messages.py`. Extend `test_channels_tools_router.py` and `test_channel_ops.py`.
 
 1. Write `test_default_limit_is_50_and_max_is_200`, `test_messages_are_oldest_first_with_older_cursor`, `test_thread_read_fetches_unfetched_thread_once`, `test_unreadable_channel_is_refused`, `test_person_destination_is_refused`, `test_deleted_messages_are_not_returned`, `test_bot_messages_are_marked`, `test_telegram_coverage_is_observed_only_with_privacy_note`, and `test_partial_backfill_reports_partial`.
@@ -351,7 +374,7 @@ PR title: `feat(api): search_channel_messages`. Size: M, 2 tasks, about 2-3 days
 
 ### Task 5.2: `search_channel_messages`
 
-- Modify: `api/oss/src/core/channels/tools/service.py` (`search_messages`: compute readable spaces at call time, intersect with the requested destinations, attach coverage for each channel), `tools/dtos.py`, `api/oss/src/apis/fastapi/channels/tools.py` (`POST /tools/messages/search`), `models.py`, `sdks/python/agenta/sdk/agents/platform/op_catalog.py` (add `search_channel_messages`, `read_only=True`, limit at most 50).
+- Modify: `api/oss/src/core/channels/tools/service.py` (`search_messages`: compute readable spaces at call time, intersect with the requested destinations, attach coverage for each channel), `tools/dtos.py`, `api/oss/src/apis/fastapi/channels/tools.py` (`POST /tools/messages/search`), `models.py`, `sdks/python/agenta/sdk/agents/platform/op_catalog.py` (add `search_channel_messages`, `read_only=True`, limit at most 50; add it to `CHANNEL_TOOL_OPS`).
 - Test: create `api/oss/tests/pytest/unit/channels/tools/test_search_messages.py`. Extend `test_channels_tools_router.py` and `test_channel_ops.py`.
 
 1. Write `test_search_without_destinations_covers_all_readable_channels`, `test_narrowed_channel_is_excluded_immediately`, `test_foreign_destination_returns_no_matches`, `test_direct_messages_are_never_searched`, `test_response_has_coverage_for_each_channel`, and `test_unknown_sender_name_is_omitted_not_raw`.
@@ -364,21 +387,25 @@ PR title: `feat(api): search_channel_messages`. Size: M, 2 tasks, about 2-3 days
 
 ## Verification: live QA
 
-Run after phase 5 on a local EE stack (`load-env hosting/docker-compose/ee/.env.ee.dev` and `bash ./hosting/docker-compose/run.sh --ee --dev --build`). Use a fresh Slack workspace with a custom app built from the generated manifest, the hosted Slack app if available, a fresh Telegram bot, and the hosted Telegram bot. Give the agent all four tools and set send to `ask`. Record an MP4 of each flow and keep sanitized request and response evidence under `~/`, not `/tmp`.
+Run after phase 5 on a local EE stack (`load-env hosting/docker-compose/ee/.env.ee.dev` and `bash ./hosting/docker-compose/run.sh --ee --dev --build`). Use a fresh Slack workspace with a custom app built from the generated manifest, the hosted Slack app if available, a fresh Telegram bot, and the hosted Telegram bot. Do not add any channel tool to the agent's configuration: the tools must appear on their own once the bot is connected. Record an MP4 of each flow and keep sanitized request and response evidence under `~/`, not `/tmp`.
 
 **Slack**
 
-1. Invite the bot to one public and one private channel. Ask the agent in Agenta chat: "Where can you post?" The list shows both channels and workspace people, and no channel the bot is not in.
-2. "Post 'QA hello' in #qa-public." The approval card appears. After approval the message is in Slack, and the result says `sent` with a thread ID.
-3. "Reply in that thread with 'follow-up'." It lands in the thread.
-4. "DM <a member who never talked to the bot> 'ping'." The DM arrives. The person replies in the DM thread. The agent answers in a new private session that knows it sent "ping" and does not know the Agenta chat's content.
-5. Mention the agent in #qa-public and ask it to DM someone. The DM contains only the sent text.
-6. "Read the last 100 messages in #qa-private." The result matches Slack, includes the bot's own posts, and reports coverage. Edit and delete a message, then read again. The changes show.
-7. "Search for 'QA hello'." It finds the message.
-8. In Advanced, turn off "Can post outside the conversation". A send is refused, and a mention in a thread is still answered. Turn it on and turn off direct messages. The list has no people, and a DM is refused.
-9. Narrow reading to #qa-public. A read or search of #qa-private is refused at once.
-10. Invite the bot to a channel with more than 1,000 messages. Watch the worker logs for bounded pages, a `Retry-After` wait if Slack sends one, and coverage moving to `complete` or `partial`.
-11. Kill the worker mid-backfill and restart it. The backfill resumes with no duplicate rows.
+1. Connect the bot, then open the agent in the playground without editing its tools. The model is offered the four channel tools, and the saved configuration has no new revision. Disconnect the bot, run again, and the tools are gone. Reconnect it.
+2. Invite the bot to one public and one private channel. Ask the agent in Agenta chat: "Where can you post?" The list shows both channels and workspace people, and no channel the bot is not in.
+3. "Post 'QA hello' in #qa-public." No approval card appears. The message is in Slack, and the result says `sent` with a thread ID.
+4. In the agent's tools, add `send_channel_message` with permission `ask` and post again. The approval card appears and nothing is posted until it is approved. The run shows one send tool, not two. Remove the entry again.
+5. Set the agent-wide permission mode to `ask` and post. The approval card appears. Set it back.
+6. Run an automation (a schedule) that asks the agent to post to #qa-public. It posts with no prompt.
+7. "Reply in the thread from step 3 with 'follow-up'." It lands in the thread.
+8. "DM <a member who never talked to the bot> 'ping'." The DM arrives. The person replies in the DM thread. The agent answers in a new private session that knows it sent "ping" and does not know the Agenta chat's content.
+9. Mention the agent in #qa-public and ask it to DM someone. The DM contains only the sent text.
+10. "Read the last 100 messages in #qa-private." The result matches Slack, includes the bot's own posts, and reports coverage. Edit and delete a message, then read again. The changes show.
+11. "Search for 'QA hello'." It finds the message.
+12. In Advanced, turn off "Can post outside the conversation". A send is refused, and a mention in a thread is still answered. Turn it on and turn off direct messages. The list has no people, and a DM is refused.
+13. Narrow reading to #qa-public. A read or search of #qa-private is refused at once.
+14. Invite the bot to a channel with more than 1,000 messages. Watch the worker logs for bounded pages, a `Retry-After` wait if Slack sends one, and coverage moving to `complete` or `partial`.
+15. Kill the worker mid-backfill and restart it. The backfill resumes with no duplicate rows.
 
 **Telegram**
 
@@ -397,6 +424,8 @@ Run after phase 5 on a local EE stack (`load-env hosting/docker-compose/ee/.env.
 ## Risks
 
 - **Slack's history limits for non-Marketplace apps** can slow backfill to about one page of 15 messages a minute for the hosted app. Check the app's status before release and tune the bounds. Customer-built apps are not affected.
+- **Posting without a human in the loop** follows from the `allow` default and the automatic addition. A prompt injection in any channel the bot reads can make the agent post elsewhere or message anyone. Mitigations are the Advanced settings, a per-tool or agent-wide `ask`, the operator kill switch, and the delivery record.
+- **Every agent run pays one availability call** to add the channel tools. It is bounded by a deadline and fails toward no tools.
 - **Private-to-public leaks** follow from the permissive default. The only mitigation in v1 is the read list. Say so in the release notes.
 - **Runs without a session** fail the send closed, because the idempotency key needs `$ctx.session.id`. Confirm that automation runs always carry a session.
 - **The old UI test** that forbids an Advanced section (task 3.3) encodes an earlier decision to hide read-only defaults. The new section must keep that rule.

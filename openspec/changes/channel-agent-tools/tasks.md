@@ -11,6 +11,7 @@ These tasks describe future implementation. All remain unchecked. Mahmoud approv
 - [ ] 1.5 Match the bound run artifact to its bots; verify application, workflow, variant, and revision references, archived connections, and the refusal for two bots on one connection.
 - [ ] 1.6 Implement `list_channel_destinations` for Slack and Telegram; verify the setting effects, the Telegram limits, hosted-bot scoping, and the directory cache.
 - [ ] 1.7 Add the authenticated tool router and the SDK catalog entry; verify `run_channels`, closed input schemas, hidden bindings, and that no raw provider ID is returned.
+- [ ] 1.8 Add the channel tools at run time to every run of an agent bound to an active bot; verify playground and automation runs, no duplicate of an author-listed tool, the author's permission kept, no tools after disconnect, and a failed check adding nothing.
 
 ## 2. The send tool and the delivery record
 
@@ -20,7 +21,8 @@ These tasks describe future implementation. All remain unchecked. Mahmoud approv
 - [ ] 2.4 Implement channel sends; verify the setting refusals, the thread check, the retry, the unknown outcome, and a revoked credential.
 - [ ] 2.5 Implement person sends with a private session; verify Slack opens the conversation, Telegram reuses the private chat, the source session is untouched, and the next private turn sees the sent text.
 - [ ] 2.6 Enable the Slack messages tab in the app manifest; verify the generated manifest.
-- [ ] 2.7 Add the send route and the SDK catalog entry; verify the session and tool call bindings are hidden from the model.
+- [ ] 2.7 Add an optional per-operation default permission to platform ops, applied only when the author set none and the agent-wide mode is `allow_reads`; verify that an author `ask` or `deny` and an agent-wide `ask` win.
+- [ ] 2.8 Add the send route and the SDK catalog entry with a default of `allow`; verify the session and tool call bindings are hidden from the model.
 
 ## 3. Settings UI
 

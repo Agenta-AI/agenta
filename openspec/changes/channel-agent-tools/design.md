@@ -40,7 +40,20 @@ Add four catalog entries. Each is an endpoint-mode `PlatformOp` over a new authe
 
 Every operation binds `$ctx.workflow.artifact.id`. The send also binds `$ctx.session.id` and a new `$ctx.tool.call_id`. The runner fails a call closed when a bound value is missing (`assembleBody`), so the ops bind only what every agent run has. A playground draft can lack a revision ID, so the revision is not bound. The project comes from the caller's credential, as for every other route. The routes require `RUN_CHANNELS` on the caller.
 
-The tools are platform tools the agent author adds to the agent's tool list, like `create_schedule` today. Connecting a bot does not change the agent's configuration. With the runner's default `allow_reads` mode, list, read, and search run without a prompt and send asks. An author can set the send tool to `allow`, which an unattended automation needs.
+**The tools are added automatically at run time.** When a run's agent is bound to an active, verified bot, the SDK agent handler adds the four channel operations to that run's tool list before it resolves tools. The saved agent configuration does not change and no revision is created. The tools disappear on the first run after the bot is disconnected. The three bot settings (decision 3) still gate every call.
+
+- **Where.** Every agent run, whether a channel turn, a playground turn, or an automation, goes through `make_agent_handler` in `sdks/python/agenta/sdk/agents/handler.py`, which resolves `agent_template.tools` in one place (`comp.resolve_tools(...)`, line 386). A new composition hook, `resolve_channel_tools`, runs just before that call. It asks the API `POST /api/channels/tools/availability` whether the run's artifact (`_agent_artifact_id`, line 186) has an active bot, and it adds a `PlatformToolConfig` for each channel op the author did not already declare. It runs under one deadline, like the session-context read (`_bounded_session_context`, line 136). A timeout or error adds nothing and is logged, so a run never gains tools from a failed check.
+- **No duplicates.** A channel op the author already listed is left exactly as authored, including its permission. The hook only fills in the missing ones.
+- **Removing a tool.** In v1 the Advanced settings are the way to switch the capability off: posting off refuses every send, and an empty read list refuses every read and search. An author who wants the send tool gone from one agent can list it explicitly with permission `deny`, and the explicit entry wins over the automatic one. There is no separate "do not add" flag in v1.
+- **Why not write the tools into the agent configuration on connect:** that would create revisions nobody asked for, need cleanup on disconnect, and miss agents connected through the API. Run-time addition has none of these problems.
+
+**The send tool defaults to `allow`.** By default the agent posts without an approval prompt. Today a write platform op asks under the runner's `allow_reads` default (`effective_permission`, `sdks/python/agenta/sdk/agents/tools/models.py:142`, mirrored by `defaultPermission` in `services/runner/src/permission-plan.ts:329`). There is no per-op default today: `PlatformOp` has only the `read_only` hint (`op_catalog.py:191`), and the platform resolver copies the author's permission as is (`platform_tools.py:130`). The change adds one optional field, `PlatformOp.default_permission`, and uses it in the SDK's platform resolver only:
+
+- The resolver (`AgentaPlatformToolResolver.resolve`) receives the agent-wide `permission_default`. `ToolResolver.resolve` already has it and passes it on at `sdks/python/agenta/sdk/agents/tools/resolver.py:340`.
+- The resolver emits `permission = tool_config.permission` when the author set one. Otherwise, only when the agent-wide mode is `allow_reads`, it emits `op.default_permission`.
+- The runner's ladder in `effectivePermission` (`permission-plan.ts:147`) is unchanged. The operator kill switch still comes first, and the spec permission comes next.
+
+The result: with no author choice, `send_channel_message` runs as `allow`. A per-tool `ask` or `deny` set by the author wins, because it is copied through unchanged. An agent-wide mode of `ask` or `deny` also wins, because the op default applies only under `allow_reads`. No runner change is needed. The other three ops are read-only and already run without a prompt.
 
 Why not publish Slack and Telegram gateway actions: that would copy bot credentials into the tool gateway, skip the Channels settings, and expose provider-shaped IDs. Why not let the model pass a `channel_agent_id` or `connection_id`: holding an internal ID is not authorization.
 
@@ -178,6 +191,7 @@ The panel is shared by desktop and `/m`, so both get the controls. An existing t
 ## Risks / Trade-offs
 
 - **Slack's history limits for distributed apps.** Since 2025, Slack caps `conversations.history` and `conversations.replies` at about one request per minute and 15 messages per page for commercially distributed apps that are not in the Slack Marketplace. Internal (customer-built) apps keep the normal tier. If the hosted Agenta app falls in the capped group, a 1,000-message backfill takes over an hour per channel. The bounds are configurable, and coverage reports `partial` honestly. The hosted app's status needs checking before release.
+- **An agent can post without a human seeing it first.** The send tool defaults to `allow`, and the tools are added to every run of a connected agent, including automations. A bad prompt or a prompt injection can therefore post to any channel the bot is in or message anyone in the workspace, with no approval card. Mitigations: the posting and direct-message settings, a per-tool `ask` or `deny` set by the author, an agent-wide `ask` mode, the operator kill switch, and the durable delivery record, which shows every post afterward.
 - **Private channel content reaches wider audiences.** By default an agent can read a private channel it was invited to and post what it learned to a public channel. That is Mahmoud's chosen default. The admin control is the read list.
 - **Directory sync on large workspaces.** `users.list` is a Tier 2 method. Sync is paged, cached with a time-to-live, and filtered by `query`. It never runs on every call.
 - **Lost receipts.** A Slack or Telegram post can succeed after the request times out. The send reports `unknown` and never retries. The agent may tell the user it is unsure.
@@ -190,7 +204,7 @@ The panel is shared by desktop and `/m`, so both get the controls. An existing t
 
 1. Add `ChannelAgentData.tools`, the `channel_people` table, and the outbox columns in one additive migration (`oss000000036`). Existing rows read `tools` as the defaults. Existing outbox rows get `origin = turn` and their `space_id` from their thread.
 2. Add `channel_messages` and the history queue (`oss000000037`).
-3. Ship the routes and catalog entries. Nothing changes for an agent until its author adds the tools.
+3. Ship the routes and catalog entries. Once the availability route and the handler hook ship, every agent with an active bot gains the tools on its next run. Admins who want to hold posting back should turn off posting in the Advanced section before that release.
 4. Rollback removes the catalog entries and stops the history worker. Outbox rows and history rows stay readable. No external message is deleted.
 
 ## Verification Plan
@@ -201,13 +215,13 @@ Unit tests cover settings defaults, reference matching, destination encoding, ev
 
 | Component | Engineer-days |
 | --- | ---: |
-| Destinations, people directory, bot settings, list tool | 3-4 |
-| Send tool, outbox extension, tool call ID, private DM session | 4-5 |
+| Destinations, people directory, bot settings, list tool, automatic tool addition | 4-5 |
+| Send tool, outbox extension, tool call ID, private DM session, default `allow` | 4-5 |
 | Settings UI (Advanced section) | 1-2 |
 | Message history, Slack edits, backfill worker, read tool | 4-6 |
 | Search index and search tool | 2-3 |
 | Live QA on Slack and Telegram, fixes | 2-3 |
-| Total | 16-23 |
+| Total | 17-24 |
 
 This excludes Slack Marketplace review time, the native Slack handle change, and the future per-person allow-list.
 

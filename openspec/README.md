@@ -42,7 +42,7 @@ The baseline describes the channels pull request stack through [PR #6737](https:
 2. Read the [channel agent tools proposal](changes/channel-agent-tools/proposal.md) for listing destinations, sending, reading, and searching. Its [implementation plan](changes/channel-agent-tools/plan.md) lists the phases, files, and tests.
 3. Read each proposal's design for implementation choices, risks, verification, and estimates:
    - [Native Slack handle design](changes/slack-native-agent-handles/design.md), estimated at 9-15 engineer-days.
-   - [Channel agent tools design](changes/channel-agent-tools/design.md), estimated at 16-23 engineer-days.
+   - [Channel agent tools design](changes/channel-agent-tools/design.md), estimated at 17-24 engineer-days.
 4. Check the implementation tasks. Every task remains unchecked:
    - [Native Slack handle tasks](changes/slack-native-agent-handles/tasks.md).
    - [Channel agent tools tasks](changes/channel-agent-tools/tasks.md).
@@ -94,7 +94,8 @@ The current behavior comes from code inspection, not live Slack or Telegram test
 ## Review decisions
 
 - Native Slack handles use one workspace installation in one Agenta project.
-- Agent-facing channel operations are platform tools the agent author adds, not direct adapter or gateway calls. The send tool follows the agent's normal tool permission.
+- Agent-facing channel operations are platform tools, not direct adapter or gateway calls. They are added at run time to every run of an agent bound to an active bot, without changing its saved configuration.
+- The send tool defaults to `allow`. An author's per-tool `ask` or `deny`, or an agent-wide `ask` or `deny` mode, still wins.
 - Three per-bot settings replace per-destination grants: posting outside the conversation (on), messaging people directly (on), and the channels it may read and search (all by default).
 - On Slack the agent may post to any channel the bot is in, message anyone in the workspace, and read every channel the bot is in. There is no allow-list in v1.
 - On Telegram the agent can reach only chats that sent the bot an update and people who wrote to it first. Reading and search cover only observed messages.
