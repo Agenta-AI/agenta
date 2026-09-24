@@ -3,8 +3,9 @@ import {useCallback} from "react"
 import {revealConfigPaneAtom} from "@agenta/chat/state"
 import {AgentOverviewBody} from "@agenta/entity-ui/agent"
 import {sessionRouteModes} from "@agenta/sessions/state"
+import {channelsEnabledAtom} from "@agenta/shared/state"
 import {RichChatInput} from "@agenta/ui/rich-chat-input"
-import {useSetAtom} from "jotai"
+import {useAtomValue, useSetAtom} from "jotai"
 
 import {useStartAgentSession} from "@/oss/components/AgentChatSlice/hooks/useStartAgentSession"
 import {useSessionCardVerbs} from "@/oss/components/pages/sessions/components/useSessionCardVerbs"
@@ -17,10 +18,14 @@ import UsageSummary from "@/oss/components/UsageSummary"
 import {usePlaygroundNavigation} from "@/oss/hooks/usePlaygroundNavigation"
 import useURL from "@/oss/hooks/useURL"
 
+import AgentChannelsCard from "./AgentChannelsCard"
+
 interface Props {
     appId: string
     /** Used only in the composer's placeholder, so a null name degrades to a generic prompt. */
     agentName?: string
+    /** Seeds the description of a new Slack app. */
+    agentDescription?: string | null
 }
 
 /**
@@ -39,8 +44,9 @@ interface Props {
  * which put two scrollbars on one page and left the rail and the reading column disagreeing
  * about where the top was.
  */
-const AgentOverview = ({appId, agentName}: Props) => {
+const AgentOverview = ({appId, agentName, agentDescription}: Props) => {
     const startSession = useStartAgentSession()
+    const channelsEnabled = useAtomValue(channelsEnabledAtom)
 
     // "View all" stays on this agent's rail rather than dropping you on the project list with a
     // filter you then have to trust.
@@ -73,6 +79,15 @@ const AgentOverview = ({appId, agentName}: Props) => {
     return (
         <AgentOverviewBody
             agentId={appId}
+            channels={
+                channelsEnabled ? (
+                    <AgentChannelsCard
+                        appId={appId}
+                        agentName={agentName ?? undefined}
+                        agentDescription={agentDescription}
+                    />
+                ) : null
+            }
             sessionsHref={sessionsHref ?? ""}
             automationSessionsHref={automationSessionsHref}
             onEditConfig={openConfig}
@@ -93,12 +108,10 @@ const AgentOverview = ({appId, agentName}: Props) => {
                     }
                     // Leading, like the playground's — the footer's right edge belongs to send.
                     prefix={
-                        attachments.enabled ? (
-                            <SeedAttachButton
-                                files={attachments.files}
-                                onChange={attachments.setFiles}
-                            />
-                        ) : null
+                        <SeedAttachButton
+                            files={attachments.files}
+                            onChange={attachments.setFiles}
+                        />
                     }
                     size="comfortable"
                     minHeightClassName="min-h-20"

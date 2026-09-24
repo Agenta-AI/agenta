@@ -10,8 +10,20 @@ translates them to and from its engine's own shapes at its edge.
 
 from __future__ import annotations
 
+import json
 from enum import Enum
-from typing import Any, Callable, ClassVar, Dict, List, Literal, Optional, Tuple, Union
+from typing import (
+    Any,
+    Callable,
+    ClassVar,
+    Dict,
+    FrozenSet,
+    List,
+    Literal,
+    Optional,
+    Tuple,
+    Union,
+)
 
 from pydantic import (
     AliasChoices,
@@ -76,11 +88,14 @@ class HarnessKind(str, Enum):
     """The coding agent program a run drives. A backend declares which it supports.
 
     ``pi_core`` is Pi; ``claude`` drives Claude Code; ``codex`` drives Codex.
+    ``mock`` drives no real coding agent at all: it is a deterministic, LLM-free, network-free
+    stand-in for testing, selecting a named behavior the runner resolves in-process.
     """
 
     PI = "pi_core"
     CLAUDE = "claude"
     CODEX = "codex"
+    MOCK = "mock"
 
     @classmethod
     def coerce(cls, value: "HarnessKind | str") -> "HarnessKind":
@@ -176,7 +191,16 @@ HARNESS_IDENTITIES: List[HarnessIdentity] = [
         slug=f"agenta:harness:{HarnessKind.CODEX.value}:v0",
         name="Codex",
     ),
+    HarnessIdentity(
+        value=HarnessKind.MOCK.value,
+        slug=f"agenta:harness:{HarnessKind.MOCK.value}:v0",
+        name="Mock",
+    ),
 ]
+
+# Harnesses that run when a config names them but that no list shown to users offers. ``mock`` is
+# the LLM-free test stand-in; tests select it by setting ``harness.kind`` explicitly.
+UNLISTED_HARNESS_KINDS: FrozenSet[str] = frozenset({HarnessKind.MOCK.value})
 
 
 PERMISSION_MODES = frozenset({"allow", "ask", "deny", "allow_reads"})
@@ -207,6 +231,58 @@ class AgentTemplateShapeError(ErrorStatus):
 
     def __init__(self, message: str) -> None:
         super().__init__(code=self.code, type=self.type, message=message)
+
+
+AGENT_INSTRUCTIONS_SHAPE_HINT = (
+    'instructions must be an object with an agents_md string, e.g. {"agents_md": "..."}. '
+    "Write the full AGENTS.md text in instructions.agents_md."
+)
+
+
+class InvalidAgentInstructionsError(ErrorStatus, ValueError):
+    """``parameters.agent.instructions`` is present but is not ``{"agents_md": "<text>"}``.
+
+    The runtime reads the prompt ONLY from ``instructions.agents_md``. Any other shape (a bare
+    string, a list, an object without a string ``agents_md``) was read as "no instructions",
+    so the agent ran with an empty prompt and nothing reported it.
+    """
+
+    code: int = 400
+    type: str = f"{ERRORS_BASE_URL}#v0:agent:invalid-instructions"
+
+    def __init__(self, value: Any) -> None:
+        super().__init__(
+            code=self.code,
+            type=self.type,
+            message=(
+                f"{AGENT_INSTRUCTIONS_SHAPE_HINT} Got {_describe_instructions(value)}."
+            ),
+        )
+        self.value = value
+
+
+def _describe_instructions(value: Any) -> str:
+    if isinstance(value, dict):
+        if "agents_md" not in value:
+            return "an object without agents_md"
+        return f"agents_md of type {type(value['agents_md']).__name__}"
+    return f"a {type(value).__name__}"
+
+
+def validate_agent_instructions(instructions: Any) -> None:
+    """Refuse an ``instructions`` value the runtime cannot read a prompt from.
+
+    ``None`` (absent or explicit null) passes: an agent with no instructions is a valid
+    configuration and many stored agents have none. Anything else must be an object whose
+    ``agents_md`` is a string (empty allowed); other keys on the object are left alone.
+    """
+    if instructions is None:
+        return
+    if isinstance(instructions, dict) and isinstance(
+        instructions.get("agents_md"), str
+    ):
+        return
+    raise InvalidAgentInstructionsError(instructions)
 
 
 # ---------------------------------------------------------------------------
@@ -1244,6 +1320,30 @@ class CodexAgentTemplate(HarnessAgentTemplate):
         if not files:
             return {}
         return {"harnessFiles": files}
+
+
+class MockAgentTemplate(HarnessAgentTemplate):
+    """The mock harness's config. No real coding agent, no tools, no network. ``behavior``
+    names the deterministic behavior the runner resolves in-process; ``behavior_kwargs`` is a
+    free-form bag passed through verbatim. Neither is validated or privileged here: resolving
+    the name is the runner's job, matching the ``mock_v0`` service-level selector pattern."""
+
+    harness: ClassVar[HarnessKind] = HarnessKind.MOCK
+
+    behavior: Optional[str] = None
+    behavior_kwargs: Dict[str, Any] = Field(default_factory=dict)
+
+    def wire_tools(self) -> Dict[str, Any]:
+        return {}
+
+    def wire_harness_files(self) -> Dict[str, Any]:
+        """Render the behavior selection into a ``.agenta/mock.json`` file the runner drops in
+        the cwd; the mock reads its own config from its cwd, the same generic mechanism as the
+        Claude and Codex settings files."""
+        content = json.dumps(
+            {"behavior": self.behavior, "kwargs": self.behavior_kwargs}
+        )
+        return {"harnessFiles": [{"path": ".agenta/mock.json", "content": content}]}
 
 
 # ---------------------------------------------------------------------------

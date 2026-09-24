@@ -959,6 +959,27 @@ The variable is read by the services and runner containers. The api container do
 it, so set it in the env file the services and runner containers load, and recreate those two.
 :::
 
+## Channels
+
+Channels connect an agent to Slack or Telegram. They need no environment variable: users can connect their own Slack app or Telegram bot. The variables below are optional and turn on the hosted integrations, where one app or bot owned by the deployment serves every project. Each hosted integration stays off until all three of its variables are set.
+
+Set them on the `api`, `worker-queues` and `worker-streams` containers. The Helm chart has no keys for them; add them with `api.extraEnv`, `workerQueues.extraEnv` and `workerStreams.extraEnv`.
+
+| Env var                          | env.py path                        | values.yaml path |
+| -------------------------------- | ---------------------------------- | ---------------- |
+| `SLACK_CLIENT_ID`                | `channels.slack.client_id`         | _(not mapped)_   |
+| `SLACK_CLIENT_SECRET`            | `channels.slack.client_secret`     | _(not mapped)_   |
+| `SLACK_SIGNING_SECRET`           | `channels.slack.signing_secret`    | _(not mapped)_   |
+| `TELEGRAM_HOSTED_BOT_TOKEN`      | `channels.telegram.bot_token`      | _(not mapped)_   |
+| `TELEGRAM_HOSTED_BOT_USERNAME`   | `channels.telegram.bot_username`   | _(not mapped)_   |
+| `TELEGRAM_HOSTED_WEBHOOK_SECRET` | `channels.telegram.webhook_secret` | _(not mapped)_   |
+
+For the Telegram setup, see [Set up the hosted Telegram bot](/self-host/channels/telegram-hosted-bot).
+
+:::warning One replica for channel replies
+The `sessions` loop of `worker-streams` sends channel replies. Run it in exactly one replica. With two or more, a progress update can overwrite a final reply, and a Telegram reply can arrive twice. With the default `AGENTA_WORKER_STREAMS` (empty, which runs every loop), that means one `worker-streams` replica. On Helm, a rolling update briefly runs two pods; set `workerStreams.strategy.type: Recreate` to avoid the overlap.
+:::
+
 ## alembic
 
 | Env var | env.py path | values.yaml path |
@@ -1205,3 +1226,7 @@ future major release.
 | `AGENTA_SEND_EMAIL_FROM_ADDRESS` | `SMTP_FROM_EMAIL` (preferred) or `SENDGRID_FROM_EMAIL` fallback |
 | `STRIPE_TARGET` | `STRIPE_WEBHOOK_TARGET` |
 | `SUPERTOKENS_CONNECTION_URI` | `SUPERTOKENS_URI_CORE` |
+
+## Removed environment variables
+
+Some variables were removed without a replacement. Agenta ignores them, and the behavior they used to switch is always on. For the list removed in 0.121.0 and what each one did, see [Upgrading to 0.121.0](/self-host/upgrading#upgrading-to-01210).

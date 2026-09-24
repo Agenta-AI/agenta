@@ -106,9 +106,9 @@ export interface AgentStarterTemplate {
     /** Pre-filled playground message, auto-sent on entering a Ready playground. */
     seedMessage: string
     /**
-     * Optional initial instruction for the agent-BUILDER flow (`NEXT_PUBLIC_AGENT_TEMPLATE_BUILDER`):
-     * the message seeded into a blank agent's playground chat so the builder configures it. Falls back
-     * to a derived phrasing (see {@link templateBuilderMessage}) when omitted.
+     * Optional initial instruction for the agent-BUILDER flow: the message seeded into a blank
+     * agent's playground chat so the builder configures it. Falls back to a derived phrasing (see
+     * {@link templateBuilderMessage}) when omitted.
      */
     builderMessage?: string
     /** Default model (Agenta-managed · Pi). */

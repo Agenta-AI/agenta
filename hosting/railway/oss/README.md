@@ -252,25 +252,12 @@ export RAILWAY_ENVIRONMENT_NAME="staging"
 
 #### The mobile app (`/m`)
 
-A from-scratch `bootstrap.sh` run keeps the mobile web app **opt-in**, unlike the
-compose stack, which now starts `web-mobile` by default. Set the flag before
-`bootstrap.sh` and it creates a `web-mobile` service; the gateway already routes
-`/m` and `/m/*` to it. The two gate keys below are optional now: both gates
-default on, so set them only to opt out (`false`).
-
-```bash
-export AGENTA_RAILWAY_WITH_MOBILE=true
-# The device gate is on by default; this line only makes it explicit. A phone
-# landing on a desktop route goes to /m. Set it to false to turn the gate off.
-export AGENTA_MOBILE_GATE=true
-# Let desktop browsers open /m directly instead of being bounced back. This one
-# IS a change from the default, and preview environments want it:
-export AGENTA_MOBILE_REVERSE_GATE=false
-```
-
-`bootstrap.sh` is the only place the flag is read. `configure.sh` and
-`deploy-from-images.sh` configure and deploy the service whenever it exists,
-so an existing deployment picks it up by re-running bootstrap with the flag.
+`bootstrap.sh` creates a `web-mobile` service with every environment, and the
+gateway routes `/m` and `/m/*` to it. There is no flag for it. A phone on a
+desktop route is sent to `/m`, and a laptop can open `/m` directly.
+An environment bootstrapped before `web-mobile` became standard has no such
+service; re-run `bootstrap.sh` to add it. `configure.sh` and
+`deploy-from-images.sh` configure and deploy it whenever it exists.
 `ghcr.io/agenta-ai/agenta-web-mobile` must be readable by Railway.
 
 ### Upgrade Existing Deployment

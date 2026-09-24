@@ -21,11 +21,6 @@ POSTGRES_PASSWORD="${POSTGRES_PASSWORD:-}"
 AGENTA_STORE_ACCESS_KEY="${AGENTA_STORE_ACCESS_KEY:-}"
 AGENTA_STORE_SECRET_KEY="${AGENTA_STORE_SECRET_KEY:-}"
 AGENTA_STORE_BUCKET="${AGENTA_STORE_BUCKET:-agenta-store}"
-# Mobile device gate. Same names and defaults as the compose stack: the gate is
-# off unless the operator turns it on, and the mobile app bounces desktop
-# browsers off /m unless the reverse gate is turned off.
-AGENTA_MOBILE_GATE="${AGENTA_MOBILE_GATE:-false}"
-AGENTA_MOBILE_REVERSE_GATE="${AGENTA_MOBILE_REVERSE_GATE:-true}"
 AGENTA_STORE_SIGNING_KEY="${AGENTA_STORE_SIGNING_KEY:-}"
 # RSA key the API signs its store web-identity token with; the bundled SeaweedFS verifies it
 # against the API's JWKS.
@@ -410,29 +405,29 @@ main() {
         "POSTHOG_API_KEY=${POSTHOG_API_KEY:-}" \
         "SENDGRID_API_KEY=${SENDGRID_API_KEY:-}"
 
-    set_vars web \
-        AGENTA_MOBILE_GATE="$AGENTA_MOBILE_GATE"
-
-    # The mobile app is opt-in (bootstrap.sh creates web-mobile only when
-    # AGENTA_RAILWAY_WITH_MOBILE=true), so configure it only when it exists —
-    # same idiom as the optional redis service below. It runs the same
-    # entrypoint as web and takes the same runtime config.
-    if railway service web-mobile >/dev/null 2>&1; then
-        set_vars web-mobile \
-            AGENTA_WEB_URL="https://${public_domain_ref}" \
-            AGENTA_API_URL="https://${public_domain_ref}/api" \
-            AGENTA_SERVICES_URL="https://${public_domain_ref}/services" \
-            AGENTA_AUTH_KEY="$AGENTA_AUTH_KEY" \
-            AGENTA_CRYPT_KEY="$AGENTA_CRYPT_KEY" \
-            AGENTA_MOBILE_GATE="$AGENTA_MOBILE_GATE" \
-            AGENTA_MOBILE_REVERSE_GATE="$AGENTA_MOBILE_REVERSE_GATE"
-
-        set_optional_vars web-mobile \
-            "POSTHOG_API_KEY=${POSTHOG_API_KEY:-}" \
-            "SENDGRID_API_KEY=${SENDGRID_API_KEY:-}"
-
-        unset_vars web-mobile AGENTA_LICENSE PORT SCRIPT_NAME REDIS_URI REDIS_URI_VOLATILE REDIS_URI_DURABLE SUPERTOKENS_CONNECTION_URI AGENTA_API_INTERNAL_URL ALEMBIC_CFG_PATH_CORE ALEMBIC_CFG_PATH_TRACING
+    # bootstrap.sh creates web-mobile with every environment. An environment
+    # bootstrapped before that may still lack it; the web image now redirects
+    # phones to /m unconditionally (no gate), so a missing web-mobile there is
+    # a broken deploy, not a supported opt-out. Require it and point at the
+    # fix instead of silently configuring web without it.
+    if ! railway service web-mobile >/dev/null 2>&1; then
+        printf "Service 'web-mobile' is missing from the Railway environment, but web now redirects phones to /m unconditionally.\n" >&2
+        printf "Fix: re-run bootstrap.sh for this environment to create web-mobile, then re-run configure.sh.\n" >&2
+        exit 1
     fi
+
+    set_vars web-mobile \
+        AGENTA_WEB_URL="https://${public_domain_ref}" \
+        AGENTA_API_URL="https://${public_domain_ref}/api" \
+        AGENTA_SERVICES_URL="https://${public_domain_ref}/services" \
+        AGENTA_AUTH_KEY="$AGENTA_AUTH_KEY" \
+        AGENTA_CRYPT_KEY="$AGENTA_CRYPT_KEY"
+
+    set_optional_vars web-mobile \
+        "POSTHOG_API_KEY=${POSTHOG_API_KEY:-}" \
+        "SENDGRID_API_KEY=${SENDGRID_API_KEY:-}"
+
+    unset_vars web-mobile AGENTA_MOBILE_GATE AGENTA_MOBILE_REVERSE_GATE AGENTA_MOBILE_ENABLED AGENTA_LICENSE PORT SCRIPT_NAME REDIS_URI REDIS_URI_VOLATILE REDIS_URI_DURABLE SUPERTOKENS_CONNECTION_URI AGENTA_API_INTERNAL_URL ALEMBIC_CFG_PATH_CORE ALEMBIC_CFG_PATH_TRACING
 
     set_vars api \
         AGENTA_WEB_URL="https://${public_domain_ref}" \
@@ -565,7 +560,8 @@ main() {
 
     unset_vars alembic AGENTA_LICENSE REDIS_URI REDIS_URI_VOLATILE REDIS_URI_DURABLE SUPERTOKENS_CONNECTION_URI ALEMBIC_CFG_PATH_CORE ALEMBIC_CFG_PATH_TRACING AGENTA_API_INTERNAL_URL PORT SCRIPT_NAME
 
-    unset_vars web AGENTA_LICENSE PORT SCRIPT_NAME REDIS_URI REDIS_URI_VOLATILE REDIS_URI_DURABLE SUPERTOKENS_CONNECTION_URI AGENTA_API_INTERNAL_URL ALEMBIC_CFG_PATH_CORE ALEMBIC_CFG_PATH_TRACING
+    # The old gate keys are gone; clear any stale value.
+    unset_vars web AGENTA_MOBILE_GATE AGENTA_MOBILE_REVERSE_GATE AGENTA_MOBILE_ENABLED AGENTA_LICENSE PORT SCRIPT_NAME REDIS_URI REDIS_URI_VOLATILE REDIS_URI_DURABLE SUPERTOKENS_CONNECTION_URI AGENTA_API_INTERNAL_URL ALEMBIC_CFG_PATH_CORE ALEMBIC_CFG_PATH_TRACING
 
     set_vars supertokens \
         POSTGRES_URI_SUPERTOKENS="$pg_sync_supertokens" \

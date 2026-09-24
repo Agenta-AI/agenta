@@ -9,7 +9,7 @@ gains the slug+name structure. These tests pin that contract.
 
 from __future__ import annotations
 
-from agenta.sdk.agents import HARNESS_IDENTITIES, HarnessKind
+from agenta.sdk.agents import HARNESS_IDENTITIES, UNLISTED_HARNESS_KINDS, HarnessKind
 from agenta.sdk.utils.types import CATALOG_TYPES
 
 
@@ -31,7 +31,7 @@ def test_identity_value_is_the_bare_harness_string():
     # The identity's `value` is the bare HarnessKind value (the runtime/wire selector), NOT the
     # slug — so the wire/runner contract is unchanged.
     values = {identity.value for identity in HARNESS_IDENTITIES}
-    assert values == {"pi_core", "claude", "codex"}
+    assert values == {"pi_core", "claude", "codex", "mock"}
 
 
 def _harness_kind_field():
@@ -50,11 +50,16 @@ def test_agent_template_harness_field_carries_enum_and_oneOf_from_the_registry()
 
     assert harness["type"] == "string"
     assert harness["default"] == "pi_core"
-    assert harness["enum"] == [identity.value for identity in HARNESS_IDENTITIES]
+    listed = [
+        identity
+        for identity in HARNESS_IDENTITIES
+        if identity.value not in UNLISTED_HARNESS_KINDS
+    ]
+    assert harness["enum"] == [identity.value for identity in listed]
 
     one_of = harness["oneOf"]
-    assert len(one_of) == len(HARNESS_IDENTITIES)
-    for entry, identity in zip(one_of, HARNESS_IDENTITIES):
+    assert len(one_of) == len(listed)
+    for entry, identity in zip(one_of, listed):
         assert entry["const"] == identity.value
         assert entry["title"] == identity.name
         assert entry["x-ag-harness-slug"] == identity.slug
@@ -65,3 +70,13 @@ def test_harness_oneOf_const_values_match_the_enum():
     # either shape offers the same harnesses.
     harness = _harness_kind_field()
     assert [entry["const"] for entry in harness["oneOf"]] == harness["enum"]
+
+
+def test_the_mock_test_harness_is_not_offered_by_the_schema():
+    # `mock` is a test stand-in: it keeps its identity (so a config naming it runs) but no
+    # schema-driven control lists it.
+    assert UNLISTED_HARNESS_KINDS == {HarnessKind.MOCK.value}
+    harness = _harness_kind_field()
+    assert harness["enum"] == ["pi_core", "claude", "codex"]
+    assert "mock" not in {entry["const"] for entry in harness["oneOf"]}
+    assert HarnessKind.coerce("mock") is HarnessKind.MOCK

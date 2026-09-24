@@ -162,8 +162,6 @@ describe("runTurn: a broken record log does not kill a live approval resume", ()
     // The turn's side-channel writes (session ownership, interaction resolve) are fire-and-forget;
     // answer them locally so the suite never reaches for the network.
     vi.stubGlobal("fetch", async () => new Response("{}", { status: 200 }));
-    // The hermetic setup pins reconstruction off for the engine suites; this file needs it on.
-    vi.stubEnv("AGENTA_SESSIONS_RECONSTRUCT", "true");
     // Mark the log broken so reconstruction throws before it even queries (the same failure a
     // 500 from the records endpoint produces, without a network stub).
     noteRecordsIncomplete(SESSION_ID);

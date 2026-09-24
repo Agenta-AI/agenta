@@ -6,6 +6,7 @@ export const SecretKind = {
     SsoProvider: "sso_provider",
     WebhookProvider: "webhook_provider",
     CustomSecret: "custom_secret",
+    ChannelSecret: "channel_secret",
     SubscriptionProvider: "subscription_provider",
     OauthProvider: "oauth_provider",
     OauthGrant: "oauth_grant",

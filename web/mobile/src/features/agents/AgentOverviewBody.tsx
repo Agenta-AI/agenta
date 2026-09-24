@@ -1,8 +1,9 @@
-import {useCallback, useMemo} from "react"
+import {useCallback, useMemo, type ReactNode} from "react"
 
 import {AgentOverviewLayout} from "@agenta/entity-ui/agent"
 import {resetSessionFiltersAtom, sessionSearchAtom, useSessionsList} from "@agenta/sessions/state"
 import {useFilterMenuView} from "@agenta/ui/filter-menu"
+import {useMediaQuery} from "@agenta/ui/hooks"
 import {useSetAtom} from "jotai"
 
 import {useScrollFade} from "@/lib/useScrollFade"
@@ -22,6 +23,7 @@ import {AgentAutomationsCard} from "./AgentAutomationsCard"
 import {AgentComposer} from "./AgentComposer"
 import {AgentConfigCard} from "./AgentConfigCard"
 import {AgentDriveCard} from "./AgentDriveCard"
+import {AgentPhoneChannels} from "./AgentPhoneChannels"
 
 /**
  * The overview's body, on the shared two-column arrangement: the composer over the activity
@@ -35,6 +37,7 @@ export const AgentOverviewBody = ({
     agentNames,
     verbs,
     onEditConfig,
+    channels,
 }: {
     agentId: string
     agentName: string
@@ -43,7 +46,10 @@ export const AgentOverviewBody = ({
     agentNames: ReadonlyMap<string, string>
     verbs: SessionRowVerbs
     onEditConfig: () => void
+    /** The Channels connect card, host-owned (it wires to the channels API). */
+    channels?: ReactNode
 }) => {
+    const wide = useMediaQuery("(min-width: 1024px)")
     // The grouping is a preference; the tab, the window and the status are the question of the moment.
     const [view, setView] = useFilterMenuView<AgentActivityView>({
         key: "agenta:agent-overview:view",
@@ -89,6 +95,7 @@ export const AgentOverviewBody = ({
             main={
                 <>
                     <AgentComposer agentId={agentId} agentName={agentName} base={base} />
+                    {!wide ? <AgentPhoneChannels>{channels}</AgentPhoneChannels> : null}
                     <div className="mt-3 flex min-h-0 flex-1 flex-col">
                         <AgentActivityTabs
                             tab={view.tab}
@@ -130,6 +137,7 @@ export const AgentOverviewBody = ({
                 // configuration (see [[AgentOverviewTitle]]).
                 <div className="hidden w-full flex-col gap-3.5 lg:flex">
                     <AgentConfigCard agentId={agentId} onEdit={onEditConfig} />
+                    {wide ? channels : null}
                     <AgentDriveCard agentId={agentId} base={base} />
                     <AgentAutomationsCard agentId={agentId} agentNames={agentNames} base={base} />
                 </div>

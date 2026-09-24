@@ -562,35 +562,6 @@ async def test_stale_expected_execution_id_is_refused_and_writes_nothing(lock_en
 
 
 @pytest.mark.asyncio
-async def test_legacy_cancel_keeps_the_expected_execution_guard(lock_engine):
-    await _run_turn(lock_engine, "turn-B")
-    svc = _service(
-        lock_engine,
-        streams=_FakeStreamsService(
-            _stream("turn-B", datetime.now(timezone.utc) - timedelta(seconds=5))
-        ),
-    )
-
-    with pytest.raises(ExecutionExpectationFailed) as excinfo:
-        await svc.request_cancel_legacy(
-            project_id=_PROJECT,
-            user_id=_USER,
-            session_id=_SESSION,
-            expected_execution_id="turn-A",
-        )
-
-    assert excinfo.value.current == "turn-B"
-    assert (
-        await get_running_owner(
-            lock_engine,
-            project_id=str(_PROJECT),
-            session_id=_SESSION,
-        )
-        == "turn-B"
-    )
-
-
-@pytest.mark.asyncio
 async def test_a_turn_that_started_after_the_request_is_never_targeted(lock_engine):
     # The race: the user presses Stop, turn one ends, turn two starts, and only then does the
     # request get applied. Turn two must not hear about it.

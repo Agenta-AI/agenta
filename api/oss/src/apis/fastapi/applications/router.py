@@ -11,6 +11,7 @@ from oss.src.core.events.utils import publish_revision_event
 
 from oss.src.core.git.utils import build_retrieval_info
 from oss.src.apis.fastapi.git.exceptions import handle_git_exceptions
+from oss.src.apis.fastapi.workflows.exceptions import handle_workflow_exceptions
 from oss.src.core.shared.dtos import (
     Reference,
 )
@@ -1357,6 +1358,12 @@ class ApplicationsRouter:
             application_revision_ref=application_revision_ref,
             #
             resolve=application_revision_retrieve_request.resolve or False,
+            #
+            include_archived=(
+                application_revision_retrieve_request.include_archived
+                if application_revision_retrieve_request.include_archived is not None
+                else True
+            ),
         )
 
         if environment_lookup_requested and not application_revision:
@@ -1384,6 +1391,7 @@ class ApplicationsRouter:
 
     @intercept_exceptions()
     @handle_git_exceptions()
+    @handle_workflow_exceptions()
     async def create_application_revision(
         self,
         request: Request,
@@ -1628,6 +1636,7 @@ class ApplicationsRouter:
         return response
 
     @intercept_exceptions()
+    @handle_workflow_exceptions()
     async def commit_application_revision(
         self,
         request: Request,
@@ -1842,6 +1851,7 @@ class SimpleApplicationsRouter:
     # SIMPLE APPLICATIONS ------------------------------------------------------
 
     @intercept_exceptions()
+    @handle_workflow_exceptions()
     async def create_simple_application(
         self,
         request: Request,
@@ -1936,6 +1946,7 @@ class SimpleApplicationsRouter:
         return simple_application_response
 
     @intercept_exceptions()
+    @handle_workflow_exceptions()
     async def edit_simple_application(
         self,
         request: Request,

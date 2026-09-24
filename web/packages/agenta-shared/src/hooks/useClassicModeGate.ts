@@ -7,7 +7,6 @@ import {useEffect} from "react"
 
 import {useAtomValue} from "jotai"
 
-import {getEnv} from "../api/env"
 import {
     advancedNavHiddenAtom,
     readSettledAdvancedNavHidden,
@@ -37,16 +36,6 @@ const writeCookie = (name: string, value: string) => {
 const clearCookie = (name: string) => {
     document.cookie = `${name}=; path=/; max-age=0; samesite=lax`
 }
-
-/**
- * The same opt-out the middleware reads, on the client half.
- *
- * `AGENTA_MOBILE_GATE` is a bare (non-`NEXT_PUBLIC_`) variable resolved server-side, so the
- * browser cannot see it; `entrypoint.sh` mirrors it into `__env.js` under this name. Without the
- * mirror, a deployment without `/m` would stop the middleware and leave the client redirecting
- * into a route that does not exist.
- */
-const mobileGateEnabled = () => getEnv("NEXT_PUBLIC_AGENTA_MOBILE_GATE") !== "false"
 
 /**
  * Publish the preference now, rather than waiting for the sync effect below.
@@ -130,7 +119,6 @@ export const useClassicModeRedirect = (enabled = true, route?: string) => {
 
     useEffect(() => {
         if (!enabled || typeof window === "undefined") return
-        if (!mobileGateEnabled()) return
         // No user means no preference to read, and `null` means it is not known yet. Redirecting
         // on either is a navigation this effect cannot take back.
         if (!userId || !advancedNavHidden) return

@@ -6,7 +6,6 @@ import type {QueuedMessage} from "../hooks/useAgentChatQueue"
 import {attachmentContentUrl} from "./transcriptToMessages"
 
 export interface SessionPendingInputView {
-    capabilities: {queue: boolean; steer: boolean}
     executionState: "idle" | "running" | "stopping"
     queued: QueuedMessage[]
 }
@@ -104,10 +103,6 @@ export const pendingInputToQueuedMessage = (input: PendingSessionInput): QueuedM
 export const reduceSessionPendingInputs = (
     snapshot: SessionSnapshot | null,
 ): SessionPendingInputView => ({
-    capabilities: {
-        queue: snapshot?.capabilities.queue ?? false,
-        steer: snapshot?.capabilities.steer ?? false,
-    },
     executionState: snapshot?.execution_state.state ?? "idle",
     queued: (snapshot?.pending.inputs ?? [])
         .filter((input) => input.state === "pending" || input.state === "promoted")

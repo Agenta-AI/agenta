@@ -12,7 +12,6 @@ export {
     getAgentaApiUrl,
     getAgentaWebUrl,
     isSandboxLocalEnabled,
-    isSessionsLastMessageOnlyEnabled,
     getEnabledSandboxProviders,
     processEnv,
 } from "./env"

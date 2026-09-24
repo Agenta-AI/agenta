@@ -21,6 +21,7 @@ import {
 import { join } from "node:path";
 
 import type { AgentEvent, AgentRunRequest } from "../../src/protocol.ts";
+import { SUPERSEDED_TURN_NOTE } from "../../src/engines/sandbox_agent/superseded-turn.ts";
 import {
   createSandboxAgentOtel,
   TOOL_NOT_EXECUTED_PAUSED,
@@ -280,6 +281,85 @@ describe("runSandboxAgent orchestration", () => {
           JSON.stringify(next.messages).includes("first turn"),
           false,
         );
+      } finally {
+        await acquired.env.destroy();
+      }
+    });
+  }
+
+  it("claude: frames a message that follows an unanswered one as replacing it", async () => {
+    const { calls, deps } = fakeHarness();
+    const request: AgentRunRequest = {
+      harness: "claude",
+      turnContext: "This is not the first turn.",
+      messages: [
+        { role: "user", content: "run sleep 20" },
+        { role: "user", content: "Reply with exactly: STEERED" },
+      ],
+    };
+    const acquired = await acquireEnvironment(request, deps);
+    assert.equal(acquired.ok, true);
+    if (!acquired.ok) return;
+    try {
+      const result = await runTurn(acquired.env, request, undefined, undefined, {
+        continuation: true,
+      });
+      assert.equal(result.ok, true);
+      assert.deepEqual(calls.promptBlocks, [
+        { type: "text", text: request.turnContext },
+        { type: "text", text: SUPERSEDED_TURN_NOTE },
+        { type: "text", text: "Reply with exactly: STEERED" },
+      ]);
+      assert.equal(JSON.stringify(calls.runStart.messages).includes("no reply"), false);
+    } finally {
+      await acquired.env.destroy();
+    }
+  });
+
+  it("claude: leaves a slash command that follows an unanswered message unframed", async () => {
+    const { calls, deps } = fakeHarness();
+    const request: AgentRunRequest = {
+      harness: "claude",
+      messages: [
+        { role: "user", content: "run sleep 20" },
+        { role: "user", content: "/context" },
+      ],
+    };
+    const acquired = await acquireEnvironment(request, deps);
+    assert.equal(acquired.ok, true);
+    if (!acquired.ok) return;
+    try {
+      const result = await runTurn(acquired.env, request, undefined, undefined, {
+        continuation: true,
+      });
+      assert.equal(result.ok, true);
+      assert.deepEqual(calls.promptBlocks, [{ type: "text", text: "/context" }]);
+    } finally {
+      await acquired.env.destroy();
+    }
+  });
+
+  for (const harness of ["pi_core", "codex"] as const) {
+    it(`${harness}: leaves a message that follows an unanswered one unframed`, async () => {
+      const { calls, deps } = fakeHarness();
+      const request: AgentRunRequest = {
+        harness,
+        messages: [
+          { role: "user", content: "run sleep 20" },
+          { role: "user", content: "Reply with exactly: STEERED" },
+        ],
+      };
+      const acquired = await acquireEnvironment(request, deps);
+      assert.equal(acquired.ok, true);
+      if (!acquired.ok) return;
+      try {
+        const result = await runTurn(acquired.env, request, undefined, undefined, {
+          continuation: true,
+        });
+        assert.equal(result.ok, true);
+        assert.deepEqual(calls.promptBlocks, [
+          { type: "text", text: "Reply with exactly: STEERED" },
+        ]);
       } finally {
         await acquired.env.destroy();
       }

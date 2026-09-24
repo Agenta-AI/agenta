@@ -10,6 +10,7 @@
  */
 import {AccessClient} from "@agentaai/api-client/resources/access"
 import {ApplicationsClient} from "@agentaai/api-client/resources/applications"
+import {ChannelsClient} from "@agentaai/api-client/resources/channels"
 import {EvaluationsClient} from "@agentaai/api-client/resources/evaluations"
 import {EventsClient} from "@agentaai/api-client/resources/events"
 import {KeysClient} from "@agentaai/api-client/resources/keys"
@@ -149,4 +150,9 @@ let _mountsLowPriority: MountsClient | undefined
  * background mount file listing that must yield to render-critical traffic. */
 export function getLowPriorityMountsClient(): MountsClient {
     return (_mountsLowPriority ??= new MountsClient(withLowPriorityFetch(buildClientOptions())))
+}
+
+let _channels: ChannelsClient | undefined
+export function getChannelsClient(): ChannelsClient {
+    return (_channels ??= new ChannelsClient(buildClientOptions()))
 }

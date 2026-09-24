@@ -39,7 +39,7 @@ import {ONBOARDING_SESSION_DEFAULT, onboardingSessionAtom} from "@/oss/state/onb
 import {urlAtom} from "@/oss/state/url"
 import {writePlaygroundSelectionToQuery} from "@/oss/state/url/playground"
 
-import {CONNECT_STEP_MODE, TEMPLATE_STRIP_MODE} from "../assets/constants"
+import {TEMPLATE_STRIP_MODE} from "../assets/constants"
 import {useCreateAgent} from "../hooks/useCreateAgent"
 
 import OnboardingConfigPanel from "./OnboardingConfigPanel"
@@ -291,7 +291,7 @@ export function useAgentOnboarding(active: boolean): AgentOnboardingResult {
             if (!entityId || committing || realEntityId) return
             // The step earns its interruption only when it has an account to ask about; with
             // nothing detected it would block on a card that says "Nothing required."
-            if (CONNECT_STEP_MODE && setupStep.open({seedMessage, name, template})) return
+            if (setupStep.open({seedMessage, name, template})) return
             runCommit(seedMessage, name, undefined, template)
         },
         [entityId, committing, realEntityId, runCommit, setupStep.open],
@@ -328,7 +328,7 @@ export function useAgentOnboarding(active: boolean): AgentOnboardingResult {
                       committing,
                       committingSeed,
                       commit,
-                      setup: CONNECT_STEP_MODE ? {...setupStep, close: cancelSetup} : null,
+                      setup: {...setupStep, close: cancelSetup},
                       commitWithSetup,
                       browseAll,
                       setBrowseAll,

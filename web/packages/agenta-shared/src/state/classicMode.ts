@@ -198,7 +198,7 @@ export const readSettledClassicModeCookie = (user: User | null): "0" | "1" | nul
     return isSimplifiedCohort(user) ? "0" : null
 }
 
-/** The one atom both apps' Preferences pages bind their "Classic mode" switch to. */
+/** The one atom both apps' Preferences pages bind their "Developer Mode" switch to. */
 export const classicModeEnabledAtom = atom(
     (get) => !get(advancedNavHiddenAtom),
     (_get, set, next: boolean) => {

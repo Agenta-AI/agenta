@@ -43,9 +43,15 @@ export interface BuildAgentModelCandidatesArgs {
     pairModelSelection?: Record<string, string[] | undefined> | null
 }
 
-// "pi_agenta" is a removed experiment; filter it defensively in case an older API still lists it.
+/**
+ * Harnesses no picker offers. `pi_agenta` is a removed experiment, kept so a web build in front of
+ * an older API that still lists it never shows it. `mock` is the LLM-free test harness, which an
+ * older API still lists; tests select it by id, never from a picker.
+ */
+export const HIDDEN_AGENT_HARNESSES: ReadonlySet<string> = new Set(["pi_agenta", "mock"])
+
 export const selectableAgentHarnesses = (harnessIds: string[]): string[] =>
-    harnessIds.filter((id) => id !== "pi_agenta")
+    harnessIds.filter((id) => !HIDDEN_AGENT_HARNESSES.has(id))
 
 /**
  * A model key with its storage namespace removed.

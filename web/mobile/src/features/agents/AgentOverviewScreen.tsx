@@ -2,6 +2,7 @@ import {useCallback, useMemo} from "react"
 
 import {revealConfigPaneAtom} from "@agenta/chat/state"
 import {agentWorkflowsListQueryStateAtom, type Workflow} from "@agenta/entities/workflow"
+import {channelsEnabledAtom} from "@agenta/shared/state"
 import {pageContentWidthClass} from "@agenta/ui/components/page-width"
 import {useAtomValue, useSetAtom} from "jotai"
 
@@ -15,6 +16,7 @@ import {NavDrawer} from "../nav/NavDrawer"
 import {SessionAutomationDrawers} from "../sessions/SessionAutomationDrawers"
 import {useSessionRowMenu} from "../sessions/useSessionRowMenu"
 
+import {AgentChannelsCard} from "./AgentChannelsCard"
 import {AgentOverviewBody} from "./AgentOverviewBody"
 import {AgentOverviewTitle} from "./AgentOverviewTitle"
 
@@ -29,6 +31,7 @@ export const AgentOverviewScreen = ({
     agentId: string
 }) => {
     useBindProjectContext(projectId)
+    const channelsEnabled = useAtomValue(channelsEnabledAtom)
     const base = `/w/${workspaceId}/p/${projectId}`
 
     const agentsQuery = useAtomValue(agentWorkflowsListQueryStateAtom)
@@ -40,6 +43,11 @@ export const AgentOverviewScreen = ({
         () => new Map(agents.map((entry) => [entry.id, entry.name || entry.slug || "Agent"])),
         [agents],
     )
+
+    // The Channels card resolves the agent a connection answers as, from the same roster the
+    // body's rows read; a connection pointed at an agent this project no longer holds is
+    // unknown, hence null.
+    const resolveAgentName = useCallback((id: string) => agentNames.get(id) ?? null, [agentNames])
 
     // The shared row verbs — rename, pin, archive, delete — bound here, resolved by the rows.
     const sessionMenu = useSessionRowMenu(base)
@@ -102,6 +110,16 @@ export const AgentOverviewScreen = ({
                             agentName={name}
                             base={base}
                             agentNames={agentNames}
+                            channels={
+                                channelsEnabled ? (
+                                    <AgentChannelsCard
+                                        appId={agentId}
+                                        agentName={name}
+                                        agentDescription={description}
+                                        resolveAgentName={resolveAgentName}
+                                    />
+                                ) : null
+                            }
                             verbs={verbs}
                             onEditConfig={onEditConfig}
                         />
