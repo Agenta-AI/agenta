@@ -1,20 +1,16 @@
-import {queryInteractions, type SessionInteraction} from "@agenta/entities/session"
+import type {SessionInteraction} from "@agenta/entities/session"
+import {actionableInteractionsQueryOptions} from "@agenta/sessions/state"
 import {useQuery} from "@tanstack/react-query"
 
 import {useLivenessPoll} from "./useLivenessPoll"
 
-export const actionableInteractionsQueryKey = (projectId: string) =>
-    ["mobile", "actionable-interactions", projectId] as const
-
 /** Poll pending project HITL requests while a gate exists or a turn can create one. */
 export const useActionableInteractions = (projectId: string) => {
     const liveness = useLivenessPoll(projectId)
+    // The shared flight: the sidebar, the card list and the tab rail read these rows under this key.
     return useQuery<SessionInteraction[] | null>({
-        queryKey: actionableInteractionsQueryKey(projectId),
-        queryFn: ({signal}) =>
-            queryInteractions({projectId, actionableOnly: true, abortSignal: signal}),
+        ...actionableInteractionsQueryOptions(projectId),
         enabled: Boolean(projectId),
-        staleTime: 10_000,
         refetchInterval: (query) => {
             if ((query.state.data?.length ?? 0) > 0) return 15_000
             // Only running turns can mint new gates.

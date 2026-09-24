@@ -33,6 +33,7 @@ import {
 } from "./driveFileSource"
 import {DriveCodeBlock, DriveMarkdown} from "./driveMarkdown"
 import {HtmlAppBody} from "./htmlApp"
+import {useDriveAnchorClickCapture} from "./useDriveLinkClick"
 
 // The host's code viewer (see `registerDriveCodeBlock`). The desktop registers a Lexical +
 // lazy-Shiki block — an ~8.7 MB chunk it keeps out of first load — so the indirection is also
@@ -125,13 +126,21 @@ const TextBody = ({
     mount,
     path,
     kind,
+    displayPath,
+    onNavigate,
+    linkExists,
 }: {
     mount: Mount | null
     path: string
     kind: DriveFileKind
+    displayPath?: string
+    onNavigate?: (path: string) => void
+    linkExists?: (path: string) => boolean
 }) => {
     const contentQuery = useDriveFileText(mount, path)
     const content = contentQuery.data
+    // A link to a neighbouring file opens it here; the host's renderer keeps web links.
+    const onClickCapture = useDriveAnchorClickCapture(displayPath ?? path, onNavigate, linkExists)
 
     if (contentQuery.isPending)
         return (
@@ -152,7 +161,7 @@ const TextBody = ({
     if (kind === "markdown")
         return (
             <Inset flush>
-                <div className="min-h-0 flex-1 overflow-y-auto p-3">
+                <div className="min-h-0 flex-1 overflow-y-auto p-3" onClickCapture={onClickCapture}>
                     <DriveMarkdown content={content} className="!text-xs" />
                 </div>
             </Inset>
@@ -281,6 +290,7 @@ const HtmlBody = ({
     path,
     displayPath,
     onNavigate,
+    linkExists,
     previewOnly = false,
     controlledView,
     onViewChange,
@@ -292,6 +302,8 @@ const HtmlBody = ({
     displayPath?: string
     /** Open another drive file (an internal link click resolves to its path). */
     onNavigate?: (path: string) => void
+    /** Is this presented path in the tree already loaded? Picks between a link's readings. */
+    linkExists?: (path: string) => boolean
     /** Just the rendered document; the host offers the source itself. */
     previewOnly?: boolean
     /** Host-owned tabs: the rendered document or the running app, no tab row. */
@@ -323,6 +335,7 @@ const HtmlBody = ({
                 content={content}
                 displayPath={displayPath}
                 onNavigate={onNavigate}
+                linkExists={linkExists}
                 previewOnly={previewOnly}
                 controlledView={controlledView}
                 onViewChange={onViewChange}
@@ -337,6 +350,7 @@ export const DriveHtmlPreview = (props: {
     path: string
     displayPath?: string
     onNavigate?: (path: string) => void
+    linkExists?: (path: string) => boolean
 }) => <HtmlBody {...props} previewOnly />
 
 /** Preview or Run under the Files pane's own Source | Preview | Run toolbar. */
@@ -345,6 +359,8 @@ export const DriveHtmlApp = (props: {
     path: string
     displayPath?: string
     onNavigate?: (path: string) => void
+    /** Is this presented path in the tree already loaded? Picks between a link's readings. */
+    linkExists?: (path: string) => boolean
     view: "preview" | "run"
     onViewChange: (view: "preview" | "run") => void
 }) => {
@@ -465,14 +481,17 @@ export function DriveFileBody({
     size,
     displayPath,
     onNavigate,
+    linkExists,
 }: {
     mount: Mount | null
     path: string
     size?: number | null
-    /** Presented path + a navigate callback — used by the HTML preview to route internal links to
-     * other drive files. */
+    /** Presented path + a navigate callback — used by the markdown and HTML previews to route
+     * internal links to other drive files. */
     displayPath?: string
     onNavigate?: (path: string) => void
+    /** Is this presented path in the tree already loaded? Picks between a link's readings. */
+    linkExists?: (path: string) => boolean
 }) {
     const kind = resolveDriveFileKind(path)
 
@@ -498,7 +517,16 @@ export function DriveFileBody({
     switch (kind) {
         case "markdown":
         case "text":
-            return <TextBody mount={mount} path={path} kind={kind} />
+            return (
+                <TextBody
+                    mount={mount}
+                    path={path}
+                    kind={kind}
+                    displayPath={displayPath}
+                    onNavigate={onNavigate}
+                    linkExists={linkExists}
+                />
+            )
         case "code":
         case "json":
             return <CodeBody mount={mount} path={path} />
@@ -511,6 +539,7 @@ export function DriveFileBody({
                     path={path}
                     displayPath={displayPath}
                     onNavigate={onNavigate}
+                    linkExists={linkExists}
                 />
             )
         case "image":

@@ -1,8 +1,8 @@
 import {useState} from "react"
 
 import {
-    AgentSecretAttachmentDrawer,
-    type AgentSecretAttachmentDrawerProps,
+    AgentSecretAttachmentModal,
+    type AgentSecretAttachmentModalProps,
 } from "@agenta/entity-ui/secret"
 import {userAtom} from "@agenta/shared/state"
 import {Button} from "@agenta/ui/ui"
@@ -54,7 +54,7 @@ const seeded = (secrets = SECRETS) => ({
     },
 })
 
-const baseProps: AgentSecretAttachmentDrawerProps = {
+const baseProps: AgentSecretAttachmentModalProps = {
     open: true,
     onClose: () => undefined,
     target: {revisionId: "revision-story", label: "Repository assistant / Draft"},
@@ -64,10 +64,10 @@ const baseProps: AgentSecretAttachmentDrawerProps = {
 }
 
 const meta = {
-    title: "@agenta/entity-ui/Secret/AgentSecretAttachmentDrawer",
-    component: AgentSecretAttachmentDrawer,
+    title: "@agenta/entity-ui/Secret/AgentSecretAttachmentModal",
+    component: AgentSecretAttachmentModal,
     parameters: {layout: "fullscreen", ...seeded()},
-} satisfies Meta<typeof AgentSecretAttachmentDrawer>
+} satisfies Meta<typeof AgentSecretAttachmentModal>
 
 export default meta
 type Story = StoryObj<typeof meta>
@@ -119,12 +119,12 @@ export const UnsavedAgentChanges: Story = {args: {...baseProps, dirty: true}}
 function RetryableFailureStory() {
     const [attempts, setAttempts] = useState(0)
     return (
-        <AgentSecretAttachmentDrawer
+        <AgentSecretAttachmentModal
             {...baseProps}
             commitBinding={async () => {
                 setAttempts((count) => count + 1)
                 throw new Error(
-                    `The agent revision changed while this drawer was open (attempt ${attempts + 1}).`,
+                    `The agent revision changed while this modal was open (attempt ${attempts + 1}).`,
                 )
             }}
         />
@@ -142,14 +142,10 @@ function ToggleStory() {
     return (
         <div className="p-6">
             <Button onClick={() => setOpen(true)}>Attach secret</Button>
-            <AgentSecretAttachmentDrawer
-                {...baseProps}
-                open={open}
-                onClose={() => setOpen(false)}
-            />
+            <AgentSecretAttachmentModal {...baseProps} open={open} onClose={() => setOpen(false)} />
         </div>
     )
 }
 
-/** Native drawer lifecycle, including its real close transition. */
+/** Native modal lifecycle, including its real close transition. */
 export const Closed: Story = {args: baseProps, render: () => <ToggleStory />}

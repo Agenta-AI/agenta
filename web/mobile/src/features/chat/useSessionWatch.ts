@@ -1,11 +1,11 @@
 import {useEffect, useRef, useState} from "react"
 
 import {shouldRefreshLegacyObserverLiveness} from "@agenta/chat/model"
+import {actionableInteractionsQueryKey} from "@agenta/sessions/state"
 import {useQueryClient} from "@tanstack/react-query"
 
 import {tryRefreshSession} from "@/lib/auth"
 
-import {actionableInteractionsQueryKey} from "../sessions/useActionableInteractions"
 import {livenessQueryKey} from "../sessions/useLivenessPoll"
 
 import {sessionWatchUrl, watchRetryDelayMs} from "./watchRelay"

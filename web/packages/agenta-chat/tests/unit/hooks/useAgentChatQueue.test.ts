@@ -16,6 +16,24 @@ import {
 const userTurn = (id: string, text: string): UIMessage =>
     ({id, role: "user", parts: [{type: "text", text}]}) as UIMessage
 
+/** An assistant tail paused on a parked client tool (a question form the dock owns). */
+const assistantAwaitingQuestion = (id: string): UIMessage =>
+    ({
+        id,
+        role: "assistant",
+        parts: [
+            {
+                type: "tool-__ag__request_input",
+                state: "input-available",
+                toolCallId: `${id}-question`,
+                input: {
+                    message: "A few details",
+                    requestedSchema: {type: "object", properties: {name: {type: "string"}}},
+                },
+            },
+        ],
+    }) as unknown as UIMessage
+
 /** An assistant tail paused on a HITL tool gate (the dock-actionable state). */
 const assistantAwaitingApproval = (id: string): UIMessage =>
     ({
@@ -133,8 +151,76 @@ describe("useAgentChatQueue", () => {
             2,
             expect.objectContaining({text: "change direction"}),
             "steer",
+            expect.anything(),
         )
         expect(result.current.queued).toHaveLength(0)
+    })
+
+    it("admits Steer while the run is parked on a client tool, before the snapshot says busy", async () => {
+        // A question dismissed from the composer resumes the run server-side, but the parked run
+        // reads `idle` and the next poll is seconds out. The transcript already says the turn is
+        // parked on us, and the message steering in behind that dismiss rides on it.
+        const server: ServerQueueAdapter = {
+            busy: false,
+            queued: [],
+            submit: vi.fn().mockResolvedValue(undefined),
+            remove: vi.fn().mockResolvedValue(undefined),
+        }
+        const idle = setup({...settledEmpty, server})
+        await act(async () => {
+            await expect(
+                idle.result.current.steer({text: "nothing to steer into"}),
+            ).rejects.toThrow("not ready to accept a Steer input")
+        })
+
+        const parked = setup({
+            messages: [userTurn("u1", "go"), assistantAwaitingQuestion("a1")],
+            stopped: false,
+            server,
+        })
+        await act(async () => {
+            await parked.result.current.steer({text: "answered in chat instead"})
+        })
+
+        expect(server.submit).toHaveBeenCalledWith(
+            expect.objectContaining({text: "answered in chat instead"}),
+            "steer",
+            expect.anything(),
+        )
+    })
+
+    it("refuses Steer while an APPROVAL is parked, so the message keeps queueing behind the gate", async () => {
+        // A message typed over an approval is as likely to be consent as a redirect, so the gate
+        // stays the only way to answer it. Reading "parked on the user" as steerable would have
+        // admitted one straight past the queue.
+        const server: ServerQueueAdapter = {
+            busy: false,
+            queued: [],
+            submit: vi.fn().mockResolvedValue(undefined),
+            remove: vi.fn().mockResolvedValue(undefined),
+        }
+        const {result} = setup({
+            messages: [userTurn("u1", "go"), assistantAwaitingApproval("a1")],
+            stopped: false,
+            server,
+        })
+
+        await act(async () => {
+            await expect(result.current.steer({text: "yes go ahead"})).rejects.toThrow(
+                "not ready to accept a Steer input",
+            )
+        })
+        expect(server.submit).not.toHaveBeenCalled()
+
+        // The same message still queues, which is what the approval dock expects.
+        await act(async () => {
+            await result.current.submit({text: "yes go ahead"})
+        })
+        expect(server.submit).toHaveBeenCalledWith(
+            expect.objectContaining({text: "yes go ahead"}),
+            "queue",
+            expect.anything(),
+        )
     })
 
     it("lets the server admit a send from an idle snapshot", async () => {
@@ -587,6 +673,79 @@ const echoText = (result: {current: {pendingSendRows: UIMessage[]}}) =>
     )
 
 describe("useAgentChatQueue durable send echoes", () => {
+    it("keeps a steer as a transcript echo, never a dock row", async () => {
+        // A steer is on its way INTO the running turn. Read as a held message it would flash up
+        // in the queue dock ("waits for your answer") between the 202 and the turn saving it as a
+        // user row — the very seam the dismiss-then-steer over a parked question sits on.
+        const {server, watchers} = durableServer("queued")
+        server.busy = true
+        const parked: HarnessProps = {
+            messages: [userTurn("u1", "go")],
+            stopped: false,
+            server,
+        }
+        const {result, rerender} = setup(parked)
+
+        await act(async () => {
+            await result.current.steer({text: "answered in chat instead"})
+        })
+        expect(echoText(result)).toEqual(["answered in chat instead"])
+
+        act(() => watchers[0].onParked?.("input-steer"))
+        const steered: QueuedMessage = {
+            id: "input-steer",
+            text: "answered in chat instead",
+            policy: "steer",
+            source: "server",
+            editable: false,
+        }
+        rerender({...parked, server: {...server, queued: [steered]}})
+
+        expect(result.current.queued).toEqual([])
+        expect(echoText(result)).toEqual(["answered in chat instead"])
+
+        // The run saved it: the real user row retires the echo.
+        rerender({
+            ...parked,
+            messages: [userTurn("u1", "go"), userTurn("u2", "answered in chat instead")],
+            server: {...server, queued: []},
+        })
+        expect(echoText(result)).toEqual([])
+    })
+
+    it("shows a parked steer in the dock again once its echo stops covering it", async () => {
+        // The turn ended without consuming the input. Hidden forever, the message would be
+        // unreachable — no row to remove, send now, or even see.
+        const {server, watchers} = durableServer("queued")
+        server.busy = true
+        const parked: HarnessProps = {
+            messages: [userTurn("u1", "go")],
+            stopped: false,
+            server,
+        }
+        const {result, rerender} = setup(parked)
+
+        await act(async () => {
+            await result.current.steer({text: "answered in chat instead"})
+        })
+        act(() => watchers[0].onParked?.("input-steer"))
+        const steered: QueuedMessage = {
+            id: "input-steer",
+            text: "answered in chat instead",
+            policy: "steer",
+            source: "server",
+            editable: false,
+        }
+        const withRow = {...parked, server: {...server, queued: [steered]}}
+        rerender(withRow)
+        expect(result.current.queued).toEqual([])
+
+        act(() => watchers[0].onSettled?.())
+        rerender({...withRow, server: {...server, queued: [steered]}})
+
+        expect(result.current.queued).toEqual([steered])
+    })
+
     it("shows a durable send before the request resolves", async () => {
         let admit!: (value: "running") => void
         const {server} = durableServer()

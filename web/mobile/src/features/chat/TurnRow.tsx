@@ -66,6 +66,7 @@ const TurnRowInner = ({
     sessionId,
     remoteRunning = false,
     waitingOnUser = false,
+    resuming = false,
     runId,
     firstTurn = false,
 }: {
@@ -82,6 +83,8 @@ const TurnRowInner = ({
     remoteRunning?: boolean
     /** The run is parked on the reader: the last turn's fold line says so. */
     waitingOnUser?: boolean
+    /** The reader answered and the transcript still shows the ask — the fold reads as work. */
+    resuming?: boolean
     /** Keys the clock and fold to the run, so the placeholder turn's carry to the real one. */
     runId?: string
     /** The session's first response: the one that narrates the agent's startup. */
@@ -199,6 +202,7 @@ const TurnRowInner = ({
                 streaming={live}
                 answerStarted={activity.answer !== null}
                 waitingOnUser={turn.isLast && waitingOnUser}
+                resuming={turn.isLast && resuming}
                 traceId={traceId}
                 streamedHere={streamedHereRef.current}
                 firstTurn={firstTurn}
@@ -233,7 +237,7 @@ const TurnRowInner = ({
             {/* The turn's meta line sits under the answer, revealed on hover or focus like the
                 desktop's; the row keeps its height so nothing shifts when it appears. Not while
                 the run is parked on the reader: the turn is not over, only waiting. */}
-            {!live && !(turn.isLast && waitingOnUser) ? (
+            {!live && !(turn.isLast && (waitingOnUser || resuming)) ? (
                 <div
                     className={`flex min-h-6 items-center gap-1 ${
                         inspectorEnabled ? "" : turnToolbarRevealClass

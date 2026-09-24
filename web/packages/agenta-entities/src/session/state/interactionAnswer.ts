@@ -99,7 +99,8 @@ export const respondInteractionAnswerAtom = atom(
                     : `approval:${row.id}:${params.approved ? "approve" : "deny"}`,
         })
         if (!result) throw new Error("Approval could not be submitted.")
-        await queryClient.invalidateQueries({queryKey: rowsQueryKey})
+        // Not awaited: it resolves only after the refetch, and a stale row is guarded by the 409.
+        void queryClient.invalidateQueries({queryKey: rowsQueryKey})
         return {
             durable: result.accepted,
             recoverable: result.execution?.state === "recoverable",
@@ -156,7 +157,8 @@ export const respondInteractionAnswersAtom = atom(
             idempotencyKey: `approval-batch:${sortedIds[0]}:${sortedIds.length}:${decision}`,
         })
         if (!result) throw new Error("Approvals could not be submitted.")
-        await queryClient.invalidateQueries({queryKey: rowsQueryKey})
+        // Not awaited — see the single-answer atom above.
+        void queryClient.invalidateQueries({queryKey: rowsQueryKey})
         return {
             durable: result.accepted,
             recoverable: result.execution?.state === "recoverable",

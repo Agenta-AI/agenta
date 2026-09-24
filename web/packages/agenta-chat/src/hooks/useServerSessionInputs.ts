@@ -24,6 +24,11 @@ import {useMountGeneration} from "./useMountGeneration"
 /** "queued" parks the input and the dock owns it; "running" starts a turn the transcript adopts. */
 export type ServerInputAdmission = "queued" | "running"
 
+/** Snapshot poll cadence while a turn runs or an input is parked. */
+const ACTIVE_SNAPSHOT_POLL_MS = 2_000
+/** Idle with an empty queue: only a send changes it, and the transcript watch reports that. */
+const IDLE_SNAPSHOT_POLL_MS = 15_000
+
 /** Reports what became of ONE send, so its echo can retire on evidence about itself. */
 export interface ServerInputWatcher {
     /** The run stream named the turn this send started. */
@@ -207,6 +212,7 @@ export const useServerSessionInputs = ({
     sessionId,
     messages,
     locallyBusy,
+    remotelyBusy = false,
     isSharedReaderReady,
     onExecuted,
     onStartupPhase,
@@ -215,6 +221,8 @@ export const useServerSessionInputs = ({
     sessionId: string
     messages: UIMessage[]
     locallyBusy: boolean
+    /** Another browser is running this session (the host's project liveness poll). */
+    remotelyBusy?: boolean
     /** Read current transport readiness when admitting input, including after reconnect. */
     isSharedReaderReady?: () => boolean
     /**
@@ -295,12 +303,16 @@ export const useServerSessionInputs = ({
         }
     }, [load, scope])
 
-    // Pending-input events arrive in a later increment. Until then, a small snapshot poll gives
-    // every mounted browser the same durable order.
+    // A snapshot poll gives every browser the same durable order; tight only while there is work.
+    const tracking =
+        locallyBusy || remotelyBusy || view.executionState !== "idle" || view.queued.length > 0
     useEffect(() => {
-        const timer = setInterval(() => void refresh(), 2_000)
+        const timer = setInterval(
+            () => void refresh(),
+            tracking ? ACTIVE_SNAPSHOT_POLL_MS : IDLE_SNAPSHOT_POLL_MS,
+        )
         return () => clearInterval(timer)
-    }, [refresh])
+    }, [refresh, tracking])
 
     const submit = useCallback(
         async (
@@ -325,6 +337,8 @@ export const useServerSessionInputs = ({
                 buildAgentRequest(entityIdRef.current, [...messagesRef.current, outbound], {
                     sessionId,
                     ...(isSharedReaderReadyRef.current?.() ? {sharedResponse: true} : {}),
+                    // Same host as the resume path: the dock can answer a secret ask (#7001).
+                    secretSetup: true,
                 }),
             ).catch((error: unknown) => {
                 if (error instanceof Error && error.message === PREPARE_NOT_READY_MESSAGE) {
@@ -446,7 +460,8 @@ export const useServerSessionInputs = ({
 
     return {
         executionState: view.executionState,
-        busy: locallyBusy || view.executionState !== "idle",
+        // `remotelyBusy` too: `executionState` learns of another browser's run only on the next poll.
+        busy: locallyBusy || remotelyBusy || view.executionState !== "idle",
         queued: view.queued,
         submit,
         remove,

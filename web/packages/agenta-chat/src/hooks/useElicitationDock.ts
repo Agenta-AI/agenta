@@ -10,9 +10,13 @@
  * What IS kept from that hook is the closing latch, which is load-bearing: without it the card's
  * content vanishes the instant the call settles, and the host animates a collapse around an empty box.
  */
-import {useEffect, useMemo, useRef} from "react"
+import {useCallback, useEffect, useMemo, useRef} from "react"
 
-import {buildDegradationErrorText, parseElicitationPayload} from "@agenta/shared/utils"
+import {
+    buildCancelResult,
+    buildDegradationErrorText,
+    parseElicitationPayload,
+} from "@agenta/shared/utils"
 import type {UIMessage} from "ai"
 
 import type {ClientToolOutputHandler} from "../clientTools/ClientToolPart"
@@ -21,6 +25,9 @@ import {
     hasEarlierElicitationDegradation,
 } from "../clientTools/elicitationInteractions"
 import type {ClientToolMeta} from "../skin"
+
+import {discardElicitationDraft} from "./useElicitationStepper"
+import {useSettlingIds} from "./useSettlingIds"
 
 export interface UseElicitationDockArgs {
     messages: UIMessage[]
@@ -48,6 +55,20 @@ export interface ElicitationDockState {
     queue: ClientToolMeta[]
     /** Whether the dock may bind its keyboard shortcuts (see `approvalsPending`). */
     shortcutsEnabled: boolean
+    /**
+     * Settle every parked question as its card's ✕ would — a cancel, saved answers dropped —
+     * from outside the cards. The host calls this when the user sends a chat message over the
+     * dock: the message is the better answer, so the forms go and the message follows them in.
+     * Every parked call, not just the front: the dock closes on dismiss, and a straggler left
+     * unsettled would block the run behind a card nobody can see. Resolves once the writes land;
+     * rejects (and re-opens the dock) when one fails, whether the handler threw or reported
+     * `false`. A no-op while nothing is parked.
+     */
+    dismiss: () => Promise<void>
+    /** The cards' settle channel: `onOutput` wrapped to close the dock as the answer leaves. */
+    settle: ClientToolOutputHandler
+    /** Calls answered here whose transcript rows have not arrived. */
+    settlingIds: ReadonlySet<string>
 }
 
 /** Fully arrived. `input-streaming` and the `{}` input-refresh announce (sdk `vercel/stream.py`)
@@ -95,10 +116,54 @@ export const useElicitationDock = ({
         })
     }, [front, degradedEarlierInTurn, onOutput])
 
+    // `pending` through a ref: the host calls `dismiss` from a send handler with a stale closure.
+    const pendingRef = useRef(pending)
+    pendingRef.current = pending
+    const {settlingIds, mark, forget, isSettling, settle} = useSettlingIds(pending, onOutput)
+
+    const dismiss = useCallback(async () => {
+        // No settle channel means nothing can be written, so nothing is dismissed. Checked before
+        // the markers go up: closing the dock over a question that is still parked would hide it.
+        if (!onOutput) return
+        const targets = pendingRef.current.filter(
+            (meta) => !meta.settled && !isSettling(meta.toolCallId),
+        )
+        if (targets.length === 0) return
+        mark(targets.map((meta) => meta.toolCallId))
+        try {
+            const landed = await Promise.all(
+                targets.map((meta) =>
+                    onOutput?.({
+                        toolName: meta.toolName,
+                        toolCallId: meta.toolCallId,
+                        output: buildCancelResult("Dismissed the request.") as unknown as Record<
+                            string,
+                            unknown
+                        >,
+                    }),
+                ),
+            )
+            if (landed.some((result) => result === false))
+                throw new Error("The question couldn't be dismissed.")
+            // Only once they landed: a failed write re-opens the dock, and the cards must find the
+            // answers the user had already typed.
+            for (const meta of targets) discardElicitationDraft(meta.toolCallId)
+        } catch (error) {
+            // The questions are still live: give the dock back.
+            forget(targets.map((meta) => meta.toolCallId))
+            throw error
+        }
+    }, [onOutput, mark, forget, isSettling])
+
+    // A card whose answer is out can never be the front one the actions address.
+    const live = useMemo(
+        () => pending.filter((meta) => !settlingIds.has(meta.toolCallId)),
+        [pending, settlingIds],
+    )
     // Hold the last non-empty view so a host can animate the dock closed around content already gone.
-    const open = pending.length > 0
+    const open = live.length > 0
     const shownRef = useRef<ClientToolMeta[]>([])
-    if (open) shownRef.current = pending
+    if (open) shownRef.current = live
     const shown = shownRef.current
 
     return {
@@ -106,5 +171,8 @@ export const useElicitationDock = ({
         front: shown[0] ?? null,
         queue: shown,
         shortcutsEnabled: !approvalsPending,
+        dismiss,
+        settle,
+        settlingIds,
     }
 }

@@ -9,6 +9,9 @@ import {
 import {generateId} from "@agenta/shared/utils"
 import type {FileUIPart, UIMessage} from "ai"
 
+import {getPendingConnectInteractions} from "../clientTools/connectInteractions"
+import {getPendingElicitationInteractions} from "../clientTools/elicitationInteractions"
+
 import type {ComposerAttachment} from "./useComposerAttachments"
 import {usePendingSendEchoes} from "./usePendingSendEchoes"
 
@@ -150,6 +153,15 @@ export const useAgentChatQueue = ({
     // A stop voids the approval gate, so the aborted turn's lingering `approval-requested` part
     // must not read as "awaiting".
     const hitlPending = !stopped && isHitlPending(messages)
+    // Parked CLIENT TOOLS only, not approvals. The steer guard below reads this, and an approval
+    // gate must keep sending a typed message to the queue: answering it is what the dock's buttons
+    // are for, and a message is as likely to be consent as a redirect.
+    const parkedClientTools =
+        !stopped &&
+        (getPendingElicitationInteractions(messages).length > 0 ||
+            getPendingConnectInteractions(messages).length > 0)
+    const parkedClientToolsRef = useRef(parkedClientTools)
+    parkedClientToolsRef.current = parkedClientTools
 
     const restoreRefusedSendRef = useRef(restoreRefusedSend)
     restoreRefusedSendRef.current = restoreRefusedSend
@@ -160,33 +172,39 @@ export const useAgentChatQueue = ({
 
     // Echo rows for durable sends, which the AI SDK chat never receives. Owned by its own hook so
     // this one keeps to admission and editing.
+    //
+    // Retirement reads EVERY durable row, including the ones the dock hides below: a queued send's
+    // echo retires precisely because its row is now in the snapshot, so filtering here would leave
+    // it waiting forever.
     const dockedInputIds = useMemo(
         () => new Set(server.queued.map((item) => item.id)),
         [server.queued],
     )
     const echoes = usePendingSendEchoes({messages, dockedInputIds})
 
+    // A steer this tab sent is on its way INTO the running turn, not held behind it, so while its
+    // echo is on screen the dock leaves the row out rather than showing the same message twice.
+    // Derived from the live echoes, so the row comes back the moment the echo stops covering it —
+    // an input the turn ended without consuming is visible again, and removable.
+    const dockedServerQueued = useMemo(
+        () => server.queued.filter((item) => !echoes.dockCoveredIds.has(item.id)),
+        [server.queued, echoes.dockCoveredIds],
+    )
+
     const [editingId, setEditingId] = useState<string | null>(null)
     const stashRef = useRef("")
     const editSessionRef = useRef<{id: string; server: boolean} | null>(null)
 
-    const submit = useCallback(
-        (item: {
-            text: string
-            executionText?: string
-            fileParts?: FileUIPart[]
-            stagedFiles?: ComposerAttachment[]
-        }) => {
-            const message: QueuedMessage = {
-                ...item,
-                id: generateId(),
-                ...(item.executionText !== undefined ? {editable: false} : {}),
-            }
+    // One durable admission for both policies, so a steer gets the same echo and refusal
+    // recovery a queued send has.
+    const submitDurable = useCallback(
+        (message: QueuedMessage, policy: "queue" | "steer"): Promise<void> => {
             // Show it before the request leaves. Every exit is driven by evidence about this
-            // send: the turn it started, the dock row it became, or its failure.
-            echoes.add(message)
+            // send: the turn it started, the dock row (queue) or parked input (steer) it
+            // became, or its failure.
+            echoes.add({...message, policy})
             return server
-                .submit(message, "queue", {
+                .submit(message, policy, {
                     onAccepted: (executionId) => {
                         echoes.markAccepted(message.id, executionId)
                         onSendAcceptedRef.current?.(message, executionId)
@@ -227,13 +245,33 @@ export const useAgentChatQueue = ({
                     // ends.
                     onSettled: () => echoes.markFailed(message.id),
                 })
-                .then(undefined, (error: unknown) => {
-                    echoes.drop(message.id)
-                    onSendFailedRef.current?.(message)
-                    throw error
-                })
+                .then(
+                    () => undefined,
+                    (error: unknown) => {
+                        echoes.drop(message.id)
+                        onSendFailedRef.current?.(message)
+                        throw error
+                    },
+                )
         },
         [echoes, server],
+    )
+
+    const submit = useCallback(
+        (item: {
+            text: string
+            executionText?: string
+            fileParts?: FileUIPart[]
+            stagedFiles?: ComposerAttachment[]
+        }) => {
+            const message: QueuedMessage = {
+                ...item,
+                id: generateId(),
+                ...(item.executionText !== undefined ? {editable: false} : {}),
+            }
+            return submitDurable(message, "queue")
+        },
+        [submitDurable],
     )
 
     const removeQueued = useCallback(
@@ -252,7 +290,13 @@ export const useAgentChatQueue = ({
             fileParts?: FileUIPart[]
             stagedFiles?: ComposerAttachment[]
         }) => {
-            if (!serverBusyRef.current) {
+            // A run parked on a client tool counts as busy. Its heartbeat is not in the snapshot
+            // (a parked run reads `idle`), but the turn is still open server-side: the host's
+            // dismiss-then-steer over a parked question or connection resumes it, and the steer
+            // lands in the resumed turn. Read through a ref, not the transcript: the call comes
+            // straight after the dismiss write, before anything has re-rendered. Approvals are
+            // deliberately excluded — see `parkedClientTools`.
+            if (!(serverBusyRef.current || parkedClientToolsRef.current)) {
                 throw new Error("The session is not ready to accept a Steer input.")
             }
             const message: QueuedMessage = {
@@ -260,9 +304,9 @@ export const useAgentChatQueue = ({
                 id: generateId(),
                 ...(item.executionText !== undefined ? {editable: false} : {}),
             }
-            await server.submit(message, "steer")
+            await submitDurable(message, "steer")
         },
-        [server],
+        [submitDurable],
     )
 
     // ── Editing a held message ────────────────────────────────────────────────────────────────
@@ -347,7 +391,7 @@ export const useAgentChatQueue = ({
     )
 
     return {
-        queued: server.queued,
+        queued: dockedServerQueued,
         /** Sent-but-not-yet-saved user rows; merge with `mergePendingSendEchoRows`. */
         pendingSendRows: echoes.rows,
         /** A send of this mount is on its way: admitted, not yet named by the runner or refused.
