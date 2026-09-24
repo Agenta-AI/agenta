@@ -144,8 +144,10 @@ export const QuoteSelectionLayer = ({
                     bounds={bounds}
                     touch={touch ?? hasCoarsePointer()}
                     onCopy={() => {
-                        void navigator.clipboard?.writeText(candidate.text)
+                        // The selection as it reads, line breaks and all — not the normalised excerpt.
+                        void navigator.clipboard?.writeText(candidate.range.toString())
                         dismiss()
+                        window.getSelection()?.removeAllRanges()
                     }}
                     onReply={() => {
                         beginReply(candidate)

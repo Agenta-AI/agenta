@@ -150,11 +150,18 @@ export const useQuoteSelection = ({
             frame = requestAnimationFrame(evaluate)
         }
 
-        /** A new press starts a fresh selection — drop the old pill and hold off until release. */
+        /**
+         * A press anywhere but the pill closes it AND the selection it belongs to. Leaving the
+         * selection up meant a press that does not collapse it (the scrollbar, a gap, a button)
+         * re-offered the pill on release, and the page jumped back to it.
+         */
         const onPointerDown = (e: PointerEvent) => {
             if (e.button !== 0 || isOwnUi(e.target as Node)) return
             dragging = true
-            if (candidateRef.current) setCandidate(null)
+            if (candidateRef.current) {
+                setCandidate(null)
+                window.getSelection()?.removeAllRanges()
+            }
         }
 
         const onPointerUp = () => {
