@@ -10,11 +10,13 @@ import {
     type AgentStarterTemplate,
 } from "@agenta/entities/workflow"
 import {AgentSetupCard, useAgentSetupStep} from "@agenta/entity-ui/onboarding"
+import {classifyAgentIntent} from "@agenta/shared/analytics"
 import {HeightCollapse} from "@agenta/ui/height-collapse"
 import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 import {useAtom} from "jotai"
 import {useRouter} from "next/router"
 
+import {captureIntent} from "@/features/analytics/client"
 import {newId} from "@/lib/ids"
 
 import {templateSetupDraftAtom} from "../agents/templateSetupDraft"
@@ -142,6 +144,17 @@ export const FirstRunScreen = ({
     }
 
     const pickTemplate = (template: AgentStarterTemplate) => {
+        captureIntent({
+            source: "template",
+            properties: {
+                template: template.name,
+                templateId: template.key,
+                templateCategory: template.category,
+                mode: "strip",
+                surface: "onboarding",
+            },
+            intentValue: template.category || template.name,
+        })
         if (openStepFor(template)) return
         if (!entityId) return
         void newAgent.createFromPrompt({
@@ -174,6 +187,9 @@ export const FirstRunScreen = ({
     }, [arrivedTemplate, entityId])
 
     const create = async (text: string, setup?: AgentSetupSelection) => {
+        if (text.trim()) {
+            captureIntent({source: "composer", intentValue: classifyAgentIntent(text)})
+        }
         const staged = attachments.files
         const parts = staged.length > 0 ? stagedFilesToParts(staged, sessionId) : arrival?.parts
         // The outcome comes back as a value, not off `newAgent.error`: that flag belongs to THIS
@@ -271,7 +287,10 @@ export const FirstRunScreen = ({
                 <HeightCollapse open={offerOpen} fade slideY={12}>
                     <FirstRunTemplates
                         onPick={pickTemplate}
-                        onBrowseAll={() => void router.push(`${base}/templates`)}
+                        onBrowseAll={() => {
+                            captureIntent({source: "browse_templates"})
+                            void router.push(`${base}/templates`)
+                        }}
                         disabled={newAgent.creating}
                     />
                 </HeightCollapse>

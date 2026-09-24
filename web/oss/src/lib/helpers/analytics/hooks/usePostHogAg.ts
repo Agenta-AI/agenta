@@ -1,10 +1,11 @@
 import {useCallback, useMemo, useRef} from "react"
 
+import {analyticsIdentity, generateOrRetrieveDistinctId} from "@agenta/shared/analytics"
 import {useAtom} from "jotai"
 import {type PostHog} from "posthog-js"
 
 import useIsomorphicLayoutEffect from "@/oss/hooks/useIsomorphicLayoutEffect"
-import {generateOrRetrieveDistinctId, isDemo} from "@/oss/lib/helpers/utils"
+import {isDemo} from "@/oss/lib/helpers/utils"
 import {useProfileData} from "@/oss/state/profile"
 
 import {getEnv} from "../../dynamicEnv"
@@ -20,26 +21,14 @@ export const usePostHogAg = (): ExtendedPostHog | null => {
     const {user} = useProfileData()
     const [posthog] = useAtom(posthogAtom)
     const baseDistinctId = useMemo(() => generateOrRetrieveDistinctId(), [])
-    const analyticsId = isDemo() && user?.email ? user.email : baseDistinctId
+    const {id: analyticsId, properties: personProps} = useMemo(
+        () => analyticsIdentity(user, isDemo(), baseDistinctId),
+        [user, baseDistinctId],
+    )
     const identifiedRef = useRef<string | null>(null)
     const personPropsIdentifiedRef = useRef<string | null>(null)
     const aliasedRef = useRef(false)
 
-    const personProps = useMemo(() => {
-        if (!user?.email && !user?.username) return undefined
-
-        const props: Record<string, unknown> = {}
-
-        if (user.email) {
-            props.email = user.email
-        }
-
-        if (user.username) {
-            props.username = user.username
-        }
-
-        return props
-    }, [user?.email, user?.username])
     const identifiedPersonPropsKey = useMemo(() => {
         return personProps ? `${analyticsId}:${JSON.stringify(personProps)}` : null
     }, [analyticsId, personProps])

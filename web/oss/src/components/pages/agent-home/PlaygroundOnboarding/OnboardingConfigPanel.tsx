@@ -5,12 +5,11 @@ import {
     templateBuilderMessage,
     type AgentStarterTemplate,
 } from "@agenta/entities/workflow"
+import {captureFirstAgentIntent} from "@agenta/shared/analytics"
 import {ArrowLeft, ArrowRight} from "@phosphor-icons/react"
 import {Typography} from "antd"
 
 import {usePostHogAg} from "@/oss/lib/helpers/analytics/hooks/usePostHogAg"
-
-import {captureFirstAgentIntent} from "../assets/onboardingAnalytics"
 
 import {useOnboardingContext} from "./OnboardingContext"
 
