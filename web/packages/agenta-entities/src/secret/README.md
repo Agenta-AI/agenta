@@ -73,7 +73,7 @@ Bolting on `draft`, `isDirty`, `discard`, or `useController` here would produce 
      loading: boolean
      secrets: LlmProvider[]
      customRowSecrets: LlmProvider[]
-     mutate: () => void
+     mutate: () => Promise<unknown>
      handleModifyVaultSecret(provider): Promise<void>
      handleDeleteVaultSecret(provider): Promise<void>
      handleModifyCustomVaultSecret(provider): Promise<void>
