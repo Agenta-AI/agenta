@@ -76,11 +76,7 @@ export {
 // STATE — drawer + selection atoms
 // ---------------------------------------------------------------------------
 
-export {
-    connectionDrawerAtom,
-    toolCatalogDrawerOpenAtom,
-    toolExecutionDrawerAtom,
-} from "./state"
+export {connectionDrawerAtom, toolCatalogDrawerOpenAtom, toolExecutionDrawerAtom} from "./state"
 export type {ConnectionDrawerState, ExecutionDrawerState} from "./state"
 
 // ---------------------------------------------------------------------------

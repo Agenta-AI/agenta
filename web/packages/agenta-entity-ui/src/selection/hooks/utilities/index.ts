@@ -31,9 +31,4 @@ export {
 } from "./useLevelData"
 
 // Path builder utilities
-export {
-    buildPath,
-    buildPathItem,
-    isPathComplete,
-    type LevelState,
-} from "./usePathBuilder"
+export {buildPath, buildPathItem, isPathComplete, type LevelState} from "./usePathBuilder"

@@ -114,11 +114,7 @@ export {
 export type {JsonParseResult, LogicalType} from "./jsonDetection"
 
 // Editor language detection utilities
-export {
-    detectEditorLanguage,
-    getContentLanguage,
-    type EditorLanguage,
-} from "./editorLanguage"
+export {detectEditorLanguage, getContentLanguage, type EditorLanguage} from "./editorLanguage"
 
 // OpenAPI schema utilities
 export {dereferenceSchema, type DereferencedSchemaResult} from "./openapi"

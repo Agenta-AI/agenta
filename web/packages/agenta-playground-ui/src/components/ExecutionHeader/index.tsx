@@ -40,11 +40,7 @@ export interface ExecutionHeaderProps {
  * - With entityId: shows collapse toggle, runs only this entity's rows
  * - Without entityId: runs all entities, aggregates results across all
  */
-const ExecutionHeader = ({
-    entityId,
-    className,
-    renderTestsetActions,
-}: ExecutionHeaderProps) => {
+const ExecutionHeader = ({entityId, className, renderTestsetActions}: ExecutionHeaderProps) => {
     const isComparisonView = !entityId
     const isChatMode = useAtomValue(executionController.selectors.isChatMode) ?? false
     // Per-entity agent detection: an agent panel owns its own composer, so the

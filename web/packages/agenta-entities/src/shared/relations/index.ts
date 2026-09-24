@@ -38,8 +38,5 @@ export type {
 } from "../molecule/types"
 
 // Binding utilities
-export {
-    loadableBindingRelation,
-    parseLoadableId,
-} from "./bindings"
+export {loadableBindingRelation, parseLoadableId} from "./bindings"
 export type {BindingFormat, ParsedBindingId} from "./bindings"

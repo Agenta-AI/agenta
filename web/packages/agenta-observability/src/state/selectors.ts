@@ -90,8 +90,7 @@ export const getTraceOutputs = (span?: TraceSpanNode): unknown => {
 }
 
 // General attribute helpers ----------------------------------------------------
-const getAgMetaConfiguration = (span?: TraceSpanNode) =>
-    getAg(span)?.meta?.configuration ?? null
+const getAgMetaConfiguration = (span?: TraceSpanNode) => getAg(span)?.meta?.configuration ?? null
 
 export const getAgData = (span?: TraceSpanNode) => getAg(span)?.data ?? null
 

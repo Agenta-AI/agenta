@@ -33,4 +33,3 @@ export const useLivenessPoll = (projectId: string) =>
  */
 export const useLivenessUpdatedAt = (projectId: string): number =>
     useLivenessPoll(projectId).dataUpdatedAt
-
