@@ -18,7 +18,8 @@ Status: Draft for Mahmoud's review. Nothing here is implemented. This version re
 - Add three controls under a new **Advanced** section of each connected bot in the Channels settings: "Can post outside the conversation" (on by default), "Can message people directly" (on by default), and "Channels it can search and read" (all channels by default; an admin can narrow the list).
 - Keep a local copy of channel messages so the read and search tools can serve them. On Slack, backfill a bounded amount of history for every readable channel and respect Slack's rate limits. On Telegram, keep only what the bot observed.
 - Keep the safety rules of the first draft: opaque destination IDs, the running agent's identity bound on the server, no credentials visible to the model, a durable delivery record with truthful `sent`, `unknown`, or `failed` states, a private session for every proactive direct message, project isolation, and authorization checked again at every call.
-- The send tool follows the agent's normal tool permission (`ask` or `allow`), like any other write tool. Nothing special is added for approval.
+- Add the four tools automatically to every run of an agent that is bound to an active bot, whether the run is a channel turn, a playground turn, or an automation. The saved agent configuration does not change. A tool the author listed explicitly keeps the author's settings.
+- Make the send tool default to `allow`, so the agent posts without an approval prompt. An author who sets it to `ask` or `deny`, or sets the whole agent to `ask`, still gets that behavior.
 
 ## What this change removes from the first draft
 
@@ -44,7 +45,7 @@ None. The current baseline specifications describe installation, routing, reply 
 
 ## Impact
 
-- **SDK**: four new operations in the platform tool catalog (`sdks/python/agenta/sdk/agents/platform/op_catalog.py`).
+- **SDK**: four new operations in the platform tool catalog (`sdks/python/agenta/sdk/agents/platform/op_catalog.py`), an optional per-operation default permission, and a hook in the agent handler (`sdks/python/agenta/sdk/agents/handler.py`) that adds the channel tools to a connected agent's run.
 - **Runner**: one new hidden run-context value, the tool call ID, used to make a send idempotent (`services/runner/src/tools/relay.ts`).
 - **API**: new authenticated tool routes under `/channels/tools/`, a tool service under `api/oss/src/core/channels/tools/`, new tables for people and messages, a nullable-thread extension of the outbox table, a history backfill worker, and Slack adapter methods for membership, people, direct conversations, paged history, and message edits.
 - **Settings UI**: a new Advanced section in `web/packages/agenta-settings-ui/src/channels/ChannelManagePanel.tsx`, shared by the desktop app and `/m`.
