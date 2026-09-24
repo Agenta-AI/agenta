@@ -27,8 +27,7 @@ export interface UseApprovalDockArgs {
 }
 
 export interface ApprovalDock {
-    /** At least one gate is still the user's to act on — the dock should be visible. A gate we
-     *  answered leaves at once, so hosts gate on this, not on their own pending set. */
+    /** A gate is still the user's to act on; hosts gate on this, not on their own pending set. */
     open: boolean
     /** The gate to act on now (index 0 of the latched shown set); null when nothing is pending. */
     current: PendingApproval | null
@@ -40,8 +39,7 @@ export interface ApprovalDock {
     answered: boolean
     /** The answer is durable, but delivery needs the user's next Send to retry. */
     recoverable: boolean
-    /** Gates answered here whose transcript rows have not arrived. Empty again once they do, or
-     *  once the answer comes back failed or recoverable. */
+    /** Gates answered here whose transcript rows have not arrived (restored on failure). */
     settledIds: ReadonlySet<string>
     errorText: string | null
     /** Answer the current gate. */
@@ -64,8 +62,7 @@ export const useApprovalDock = ({
     const approvals = useMemo(() => getPendingApprovals(messages), [messages])
     const hasPending = approvals.length > 0
 
-    // Gates we answered, hidden until the transcript catches up — otherwise the card sits there
-    // for the respond round trip plus a records poll. Restored if the answer needs reading.
+    // Answered gates, hidden until the transcript catches up; restored if the answer needs reading.
     const [settledIds, setSettledIds] = useState<ReadonlySet<string>>(() => new Set())
     const forgetSettled = useCallback((ids: readonly string[]) => {
         setSettledIds((prev) => {
@@ -74,7 +71,7 @@ export const useApprovalDock = ({
             return next
         })
     }, [])
-    // The gate is really gone now, so the marker must go too, or the set grows unbounded.
+    // The transcript caught up, so the marker has nothing left to hide.
     useEffect(() => {
         setSettledIds((prev) => {
             if (prev.size === 0) return prev
@@ -94,8 +91,7 @@ export const useApprovalDock = ({
     const resolving =
         resolvingIds !== null && approvals.some((a) => resolvingIds.includes(a.approvalId))
     // Latch the last non-empty set so the card stays visible while the dock animates closed AND
-    // so a multi-gate resolve doesn't step through the batch. Keyed on what is really parked, not
-    // on `open`: an optimistic close must keep the answered card in case the answer needs reading.
+    // so a multi-gate resolve doesn't step through the batch.
     const shownRef = useRef(approvals)
     if (hasPending && !resolving) shownRef.current = approvals
     const shown = shownRef.current
@@ -123,10 +119,7 @@ export const useApprovalDock = ({
             const ownerId = ids[0]
             const results = await Promise.allSettled(responses)
             if (currentIdRef.current !== ownerId) return
-            // A host without `respondAll` answers one gate per response, so an outcome belongs to
-            // ONE id; a batch is a single response for the whole set. Restoring by outcome rather
-            // than wholesale is what keeps a fan-out's successful gates from coming back
-            // actionable because a sibling failed.
+            // One outcome per id in a fan-out; a `respondAll` batch is one outcome for the whole set.
             const matching = (keep: (result: (typeof results)[number]) => boolean) =>
                 results.length === ids.length ? ids.filter((_, index) => keep(results[index])) : ids
             const failed = results.find(
@@ -173,8 +166,7 @@ export const useApprovalDock = ({
             if (responding || !current) return
             setResponding(true)
             setErrorText(null)
-            // `resolvingIds` freezes the card so a failure lands back on the gate it answered;
-            // `settledIds` hides it meanwhile.
+            // Frozen so a failure lands back on the gate it answered.
             setResolvingIds([current.approvalId])
             setSettledIds((prev) => new Set(prev).add(current.approvalId))
             void settle([onRespond({id: current.approvalId, approved})], [current.approvalId])

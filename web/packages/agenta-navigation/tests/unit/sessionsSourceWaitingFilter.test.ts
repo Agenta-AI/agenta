@@ -38,8 +38,7 @@ vi.mock("@agenta/sessions/state", async () => {
     const {atom} = await import("jotai")
     return {
         pinnedSessionIdsAtom: atom([] as string[]),
-        // The source reads the gated ids through the shared flight the card list and the tab rail
-        // use, so the stub has to be the same shape: a query options object over `queryInteractions`.
+        // The source reads through the shared flight, so the stub is its options over `queryInteractions`.
         actionableInteractionsQueryOptions: (projectId: string) => ({
             queryKey: ["sessions-page", "actionable-interactions", projectId],
             queryFn: () => queryInteractions({projectId, actionableOnly: true}),

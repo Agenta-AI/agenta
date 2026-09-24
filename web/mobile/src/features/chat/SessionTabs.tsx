@@ -39,12 +39,15 @@ export const SessionTabs = ({
     projectId,
     workspaceId,
     agentId,
+    agentResolving = false,
 }: {
     sessionId: string
     projectId: string
     workspaceId: string
-    /** Scope the rail to this agent's sessions. Absent while the session's agent resolves. */
+    /** Scope the rail to this agent's sessions. Absent while resolving, or with no agent. */
     agentId?: string | null
+    /** A null `agentId` is not yet the answer. */
+    agentResolving?: boolean
 }) => {
     const router = useRouter()
     const base = `/w/${workspaceId}/p/${projectId}`
@@ -102,11 +105,8 @@ export const SessionTabs = ({
         </>
     )
 
-    // The rail's list queries key on the agent. Mounted with `agentId` still null they asked
-    // for the whole project, then re-keyed and asked again when the agent landed — two reads
-    // and an aborted one per open. Until the agent resolves (off the session header, ~50 ms)
-    // the strip stands in with the same controls, so nothing shifts when the tabs arrive.
-    if (!agentId) {
+    // Held back while resolving: an unscoped rail would re-key and refetch once the agent lands.
+    if (!agentId && agentResolving) {
         return (
             <>
                 <PageTitle title={query.data?.name} />
@@ -124,7 +124,7 @@ export const SessionTabs = ({
             <PageTitle title={query.data?.name} />
             <SessionTabRail
                 className={chatMaximized ? "md:hidden" : undefined}
-                agentId={agentId}
+                agentId={agentId ?? undefined}
                 policy={{origin: "exclude-trigger", expansions: []}}
                 limit={12}
                 withPinned
@@ -151,7 +151,7 @@ export const SessionTabs = ({
                 // Starting a session needs an agent to start it with.
                 // A blank session to type into — NOT the agent's overview, which is where this
                 // used to land.
-                onNew={() => startBlank(agentId)}
+                onNew={agentId ? () => startBlank(agentId) : undefined}
                 leadingExtra={leadingExtra}
                 extra={extra}
             />

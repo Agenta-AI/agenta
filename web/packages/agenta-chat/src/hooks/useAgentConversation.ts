@@ -706,8 +706,7 @@ export const useAgentConversation = ({
         sessionId,
         messages,
         locallyBusy: busy,
-        // A turn this client did not start still moves the queue, so the snapshot stays tight
-        // while the project poll says the session is running.
+        // Another browser's run moves the queue too.
         remotelyBusy: sharedReaderRunning && remoteRunIsFresh,
         isSharedReaderReady: () => sharedSenderReadyRef.current,
         // A send admitted here renders from the shared reader, so `onData` never sees these.

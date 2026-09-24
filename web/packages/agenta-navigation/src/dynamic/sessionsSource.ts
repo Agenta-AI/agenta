@@ -274,17 +274,12 @@ const sidebarWaitingIdsQueryAtomFamily = atomFamily((scopeId: string) =>
         const status = get(sidebarSessionFiltersAtomFamily(scopeId)).status
         // "Idle" needs the set too — to SUBTRACT it. A gated session is waiting, not idle.
         const needed = status === "waiting" || status === "idle"
-        // Read during the atom's own evaluation: the jotai getter is valid here and nowhere
-        // else, least of all inside a `queryFn` TanStack runs minutes later.
+        // Read here: the jotai getter is not valid inside a `queryFn` TanStack runs later.
         const queryClient = get(queryClientAtom)
         return {
             queryKey: ["sidebar-sessions-waiting", projectId],
             queryFn: async () => {
-                // Through the shared gates query, not a request of its own: the card list and
-                // the tab rail read the same rows under the same key, so one flight serves all
-                // three and a fresh copy inside its stale window costs nothing. Deliberately
-                // WITHOUT this query's signal: the flight is shared, so aborting the sidebar
-                // would abort the request the other two are waiting on.
+                // The shared gates flight, without this query's signal: aborting it would abort theirs.
                 const rows = await queryClient.fetchQuery(
                     actionableInteractionsQueryOptions(projectId ?? ""),
                 )

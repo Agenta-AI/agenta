@@ -99,12 +99,7 @@ export const respondInteractionAnswerAtom = atom(
                     : `approval:${row.id}:${params.approved ? "approve" : "deny"}`,
         })
         if (!result) throw new Error("Approval could not be submitted.")
-        // NOT awaited. `invalidateQueries` resolves only once the active row query has REFETCHED,
-        // so awaiting it put a whole round trip between the server's answer and the card closing —
-        // on top of the respond call, which already waits for the runner to pick the turn up. The
-        // row is settled server-side the moment `respondInteraction` returns; the refetch only
-        // catches the local cache up, and every reader of a stale row is guarded (a second submit
-        // carries the same idempotency key and the route answers 409).
+        // Not awaited: it resolves only after the refetch, and a stale row is guarded by the 409.
         void queryClient.invalidateQueries({queryKey: rowsQueryKey})
         return {
             durable: result.accepted,

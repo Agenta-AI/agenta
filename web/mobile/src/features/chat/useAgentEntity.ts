@@ -57,15 +57,9 @@ export const boundReferenceId = (
 
 /**
  * Resolve the entity the conversation engine invokes: session → owning agent (the workflow
- * reference the session's own stream row carries, off the header the tab bar fetches anyway) →
- * that agent's LATEST revision id. The engine's request builder reads everything else
- * (invocation URL, config, references) off the workflow molecule, which self-fetches by this
- * revision id.
- *
- * This used to read the agent off a project-wide `/sessions/query` — every session in the
- * project, to find one row — and that list was the first link in the chain the transcript waited
- * on. The stream row fills its `references` on the first turn, so the header is a single-row read
- * that already answers it, shared with the title, and the first request the chat screen makes.
+ * reference on the session's own stream row, shared with the tab bar's header read) → that
+ * agent's LATEST revision id. The engine's request builder reads everything else (invocation URL,
+ * config, references) off the workflow molecule, which self-fetches by this revision id.
  *
  * Null while resolving or for a session with no turns yet (no references → nothing to invoke);
  * the composer disables itself on null. `fallbackAgentId` covers exactly that case for a
@@ -93,10 +87,7 @@ export const useAgentEntity = (
         refetchOnWindowFocus: false,
     })
 
-    // A header with no row is a session with no turns yet — but it can also be a copy cached
-    // (30 s) from before that session's first turn landed. Re-read ONCE per missing session, as
-    // the list read did for the same reason: a session with no turns is a real answer, so never
-    // retry past that.
+    // No row may be a header cached before the first turn landed: re-read once, never more.
     const {isSuccess, isFetching, refetch} = header
     const missedRef = useRef<string | null>(null)
     const missing = isSuccess && !row && !fallbackAgentId
@@ -106,8 +97,7 @@ export const useAgentEntity = (
         void refetch()
     }, [missing, sessionId, refetch])
 
-    // A route-supplied agent IS the answer, so do not gate the screen on a read that by
-    // definition cannot know a session the client minted a moment ago.
+    // A route-supplied agent IS the answer; a just-minted session is not in the header yet.
     const awaitingHeader = (header.isPending || (missing && isFetching)) && !fallbackAgentId
 
     return {

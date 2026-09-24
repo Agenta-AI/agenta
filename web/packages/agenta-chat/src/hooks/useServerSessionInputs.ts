@@ -24,10 +24,10 @@ import {useMountGeneration} from "./useMountGeneration"
 /** "queued" parks the input and the dock owns it; "running" starts a turn the transcript adopts. */
 export type ServerInputAdmission = "queued" | "running"
 
-/** Snapshot poll cadence while a turn runs or an input is parked: the queue can move any second. */
-export const ACTIVE_SNAPSHOT_POLL_MS = 2_000
-/** Cadence for an idle session with an empty queue: only another browser's send changes it. */
-export const IDLE_SNAPSHOT_POLL_MS = 15_000
+/** Snapshot poll cadence while a turn runs or an input is parked. */
+const ACTIVE_SNAPSHOT_POLL_MS = 2_000
+/** Idle with an empty queue: only a send changes it, and the transcript watch reports that. */
+const IDLE_SNAPSHOT_POLL_MS = 15_000
 
 /** Reports what became of ONE send, so its echo can retire on evidence about itself. */
 export interface ServerInputWatcher {
@@ -221,12 +221,7 @@ export const useServerSessionInputs = ({
     sessionId: string
     messages: UIMessage[]
     locallyBusy: boolean
-    /**
-     * Someone else is running this session (the project liveness poll, which the host already
-     * reads). Without it the tight cadence could only be entered from the snapshot this poll
-     * itself fetches, so a send from ANOTHER browser stayed invisible here for a whole idle
-     * interval — the dock and `busy` lag exactly when a second client is active.
-     */
+    /** Another browser is running this session (the host's project liveness poll). */
     remotelyBusy?: boolean
     /** Read current transport readiness when admitting input, including after reconnect. */
     isSharedReaderReady?: () => boolean
@@ -308,12 +303,7 @@ export const useServerSessionInputs = ({
         }
     }, [load, scope])
 
-    // Pending-input events arrive in a later increment. Until then, a small snapshot poll gives
-    // every mounted browser the same durable order. Tight only while there is something for it to
-    // track — a turn in flight or a parked input — and slow otherwise: an idle session with an
-    // empty queue changes only when someone sends, which the transcript's own watch reports.
-    // Polling every 2 s for the life of every open session was, by itself, the steadiest source of
-    // API traffic the chat produced.
+    // A snapshot poll gives every browser the same durable order; tight only while there is work.
     const tracking =
         locallyBusy || remotelyBusy || view.executionState !== "idle" || view.queued.length > 0
     useEffect(() => {
@@ -468,9 +458,7 @@ export const useServerSessionInputs = ({
 
     return {
         executionState: view.executionState,
-        // `remotelyBusy` too, for the same reason `tracking` reads it: the snapshot is how
-        // `executionState` learns about another browser's run, so leaving it out here reported
-        // the session idle for exactly the interval the poll was waiting out.
+        // `remotelyBusy` too: `executionState` learns of another browser's run only on the next poll.
         busy: locallyBusy || remotelyBusy || view.executionState !== "idle",
         queued: view.queued,
         submit,

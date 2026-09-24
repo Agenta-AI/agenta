@@ -17,11 +17,14 @@ import {useStartBlankSession} from "./useStartBlankSession"
  */
 export const SessionsPane = ({
     agentId,
+    agentResolving = false,
     base,
     activeSessionId,
 }: {
-    /** Scope to this agent's sessions. Absent while the session's agent is still resolving. */
+    /** Scope to this agent's sessions. Absent while resolving, or for a session with no agent. */
     agentId?: string | null
+    /** A null `agentId` is not yet the answer. */
+    agentResolving?: boolean
     /** `/w/:workspace/p/:project` */
     base: string
     activeSessionId: string
@@ -55,13 +58,10 @@ export const SessionsPane = ({
                 ) : null}
             </div>
             <div className="ag-scroll-quiet min-h-0 flex-1 overflow-y-auto px-2">
-                {/* Not mounted until the agent is known. With `agentId` still null the list asked
-                    for the whole project, then re-keyed and asked again the moment the agent
-                    landed — every open cost two list reads and an aborted one. The agent now
-                    resolves off the session header (~50 ms), so the skeleton is a blink. */}
-                {agentId ? (
+                {/* Held back while resolving: an unscoped list would re-key and refetch once the agent lands. */}
+                {agentId || !agentResolving ? (
                     <SessionCardList
-                        agentId={agentId}
+                        agentId={agentId ?? undefined}
                         policy={{origin: "exclude-trigger", expansions: []}}
                         limit={20}
                         withPinned

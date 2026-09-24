@@ -59,18 +59,12 @@ export const ChatScreen = ({
     // sends (the server uses the saved config), but config-derived UI (always-allow) never
     // qualifies. Home/Sessions bind it too; chat must not depend on having visited them.
     useBindProjectContext(projectId)
-    // The transcript is what this screen exists to show, and it needs nothing but the session id
-    // — yet it used to be the LAST request of the open: the conversation hook that reads it
-    // mounts only once the agent has resolved (header → revision), and its own reader waits for
-    // the session snapshot on top. Warm the shared records cache the moment the route names the
-    // session, so every later read is a hit and the transcript races the agent chain instead of
-    // queueing behind it. Gated on the bound project: the cache keys on it.
+    // Warm the transcript as soon as the route names the session, so it races the agent chain.
     const boundProjectId = useAtomValue(projectIdAtom)
     const prefetchRecords = useSetAtom(fetchSessionRecordsAtom)
     useEffect(() => {
         if (!sessionId || boundProjectId !== projectId) return
-        // A session this client minted a moment ago has no records to read — the conversation
-        // hook skips that guaranteed-empty query for the same reason.
+        // A session minted here a moment ago has no records to read.
         if (isSessionFresh(sessionId)) return
         void prefetchRecords(sessionId).catch(() => undefined)
     }, [boundProjectId, prefetchRecords, projectId, sessionId])
@@ -144,6 +138,7 @@ export const ChatScreen = ({
             // is what unmounted the pane.
             entityId={heldEntityId}
             agentId={heldAgentId}
+            agentResolving={resolving}
             sessionId={sessionId}
             workspaceId={workspaceId}
             projectId={projectId}
@@ -228,7 +223,6 @@ const ReplayScreen = ({
                     sessionId={sessionId}
                     remoteRunning={running}
                     waitingOnUser={pendingCount > 0}
-                    resuming={false}
                     pending={running && !!visibleTurns[visibleTurns.length - 1]?.isUser}
                 />
             </ContentRail>

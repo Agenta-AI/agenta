@@ -60,11 +60,7 @@ export interface UseSessionCardListArgs {
     limit?: number
     /** Pinned sessions lead the list, and are excluded from the recent rows below them. */
     withPinned?: boolean
-    /**
-     * This card sits BESIDE the thing the screen is for (the chat's sessions pane, its tab rail,
-     * its history menu), so its reads may queue behind that thing's. A card that is the surface's
-     * own content leaves this off.
-     */
+    /** The card sits beside the screen's content (the chat pane, the tab rail), not as it. */
     lowPriority?: boolean
 }
 
@@ -104,8 +100,6 @@ export const useSessionCardList = ({
     )
     const useWaiting = waitingIds.length > 0
 
-    // All three reads share the card's own priority — a card beside a transcript lets the
-    // transcript's request go first; a card that IS the content does not.
     const waitingQuery = useSessionList({
         originPolicy: policy.origin,
         expansions: policy.expansions,

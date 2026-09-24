@@ -27,10 +27,7 @@ const SESSION_RECORDS_STALE_MS = 15_000
 const sessionRecordsQueryOptions = (projectId: string, sessionId: string) => ({
     // Widened to QueryKey so fetchQuery/atomWithQuery and the persister agree on one key type.
     queryKey: sessionRecordsQueryKey(projectId, sessionId) as QueryKey,
-    // Low priority ONLY when a copy is already on hand (a disk restore or a stale cache being
-    // revalidated behind a painted transcript). The first read of a session is the transcript
-    // itself — the one request the open exists for — and demoting it unconditionally let every
-    // list and dock read ahead of it on the connection.
+    // Low priority only behind a painted copy; the first read is the open's critical path.
     queryFn: ({signal, client, queryKey}: QueryFunctionContext) =>
         querySessionRecords({
             sessionId,

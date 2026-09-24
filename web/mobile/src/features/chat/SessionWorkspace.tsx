@@ -75,6 +75,7 @@ const CatalogDrawer = dynamic(
 export const SessionWorkspace = ({
     entityId,
     agentId,
+    agentResolving = false,
     sessionId,
     workspaceId,
     projectId,
@@ -86,6 +87,8 @@ export const SessionWorkspace = ({
     /** The revision being configured. Absent = nothing to build yet (a session with no turns). */
     entityId: string | null
     agentId?: string | null
+    /** The session's agent is still being read; a null `agentId` is not yet the answer. */
+    agentResolving?: boolean
     sessionId: string
     workspaceId: string
     projectId: string
@@ -302,7 +305,12 @@ export const SessionWorkspace = ({
                 </div>
             ) : null}
             {configSlide.keepMounted && paneKind === "sessions" ? (
-                <SessionsPane agentId={agentId} base={base} activeSessionId={sessionId} />
+                <SessionsPane
+                    agentId={agentId}
+                    agentResolving={agentResolving}
+                    base={base}
+                    activeSessionId={sessionId}
+                />
             ) : null}
         </>
     )
@@ -408,6 +416,7 @@ export const SessionWorkspace = ({
                                                         projectId={projectId}
                                                         workspaceId={workspaceId}
                                                         agentId={agentId}
+                                                        agentResolving={agentResolving}
                                                     />
                                                 )}
                                                 <div className="min-h-0 flex-1">{chat}</div>

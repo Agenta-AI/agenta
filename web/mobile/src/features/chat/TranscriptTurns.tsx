@@ -11,7 +11,7 @@ export const TranscriptTurns = ({
     sessionId,
     remoteRunning,
     waitingOnUser,
-    resuming,
+    resuming = false,
     pending,
     onClientToolOutput,
     onRewind,
@@ -21,7 +21,7 @@ export const TranscriptTurns = ({
     remoteRunning: boolean
     waitingOnUser: boolean
     /** An answered ask the transcript has not caught up with yet. */
-    resuming: boolean
+    resuming?: boolean
     /** The request is in and no assistant turn exists yet. */
     pending: boolean
     onClientToolOutput?: ClientToolOutputHandler
