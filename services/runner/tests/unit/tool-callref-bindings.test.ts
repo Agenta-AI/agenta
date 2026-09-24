@@ -292,7 +292,9 @@ describe("startToolRelay callRef context bindings", () => {
     await relayOnce({ spec, args: {}, runContext: RUN_CONTEXT });
     await relayOnce({ spec, args: {}, runContext: RUN_CONTEXT });
 
-    const ids = calls.map((c) => JSON.parse(c.init.body as string).tool_call_id);
+    const ids = calls.map(
+      (c) => JSON.parse(c.init.body as string).tool_call_id,
+    );
     assert.deepEqual(ids, ["call-1", "call-1"]);
   });
 
@@ -314,6 +316,9 @@ describe("startToolRelay callRef context bindings", () => {
       runContext: RUN_CONTEXT,
     });
 
-    assert.equal(JSON.parse(calls[0].init.body as string).tool_call_id, "call-1");
+    assert.equal(
+      JSON.parse(calls[0].init.body as string).tool_call_id,
+      "call-1",
+    );
   });
 });
