@@ -88,6 +88,12 @@ class ChannelTriggerState(str, Enum):
     FAILED = "failed"
 
 
+# The status code of a FAILED trigger whose start provably never reached the
+# workflow service. Only such a turn, or a REFUSED one, leaves the offset where
+# it was; any other failure may have run, so the next turn moves past it.
+CHANNEL_TRIGGER_NEVER_SENT = "never_sent"
+
+
 class ChannelDeliveryState(str, Enum):
     """Where one outbound message is in its life. CREATED, not PENDING: the row
     is inserted before the post is attempted."""
@@ -309,7 +315,10 @@ class ChannelThreadFlags(BaseModel):
 
 
 class ChannelInboxEventFlags(BaseModel):
-    """Empty today; the typed model makes the first flag a DTO change."""
+    # consumed as a control answer (an approval's typed reply or its button
+    # click): it went to the parked interaction, so it is never sent to the
+    # agent again as conversation
+    is_consumed: bool = False
 
 
 class ChannelInboxTriggerFlags(BaseModel):

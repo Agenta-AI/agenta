@@ -2138,13 +2138,22 @@ class ChannelsService:
         event_id: UUID,
         capabilities: Optional[ChannelCapabilities] = None,
     ) -> ChannelTurnInput:
-        """What the agent sees.
+        """What the agent sees: the thread's messages since the agent's last
+        turn there, up to and including the addressing event.
 
         ``event_id`` is the addressing event's own id: ``ChannelResolution``
         carries no event reference, and the offset write in ``open_turn``
         needs the exact row, not "whatever is latest" (a second event can
         race in between resolve and open_turn). The worker holds the id
         already, since it is what triggered resolve() in the first place.
+
+        Every addressed event gets its own turn; nothing here skips one.
+        The range is `(latest counted trigger on an earlier event, this
+        event]`. Dispatches are not serialised, so when messages in one
+        thread arrive within about a second and are dispatched out of order,
+        a message can reach two turns as context, or none (it was not yet
+        attached to the space when the range was read). No turn is dropped
+        or run twice: the `(thread, event)` trigger is unique.
 
         Forwardfill off skips the range read, not the log write.
         """
@@ -2154,7 +2163,20 @@ class ChannelsService:
             channels_dao=self.channels_dao,
             thread_id=resolution.thread.id,
             space_id=resolution.space.id,
+            event_id=event_id,
         )
+
+        # An answer to a parked choice went to that interaction; a click is a
+        # token, never words. Neither is conversation for a later turn.
+        events = [
+            stored
+            for stored in events
+            if stored.id == event_id
+            or (
+                not stored.flags.is_consumed
+                and stored.kind is not ChannelEventKind.ACTION
+            )
+        ]
 
         if not resolution.policy.forwardfill:
             # the turn takes the addressing event alone
@@ -2217,6 +2239,13 @@ class ChannelsService:
         return ChannelTurnInput(
             content=content,
             is_backfilled=resolution.space.flags.is_backfilled,
+        )
+
+    async def mark_event_consumed(self, *, project_id: UUID, event_id: UUID) -> None:
+        """The event answered a parked interaction: keep it out of every
+        later turn's input."""
+        await self.channels_dao.mark_inbox_event_consumed(
+            project_id=project_id, event_id=event_id
         )
 
     async def open_turn(

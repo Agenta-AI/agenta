@@ -9,8 +9,8 @@ of `PULLED` rows, because a successful fetch can legitimately return
 nothing, and that must stay distinguishable from never having fetched.
 
 `select_forwardfill_range` is the range read `compose_input` performs: this
-thread's latest trigger for the offset, then the space's events after it,
-ordered `(origin, id)`. The caller keeps the forwardfill policy branch —
+thread's latest trigger before the addressing event for the offset, then the
+space's events after it up to that event, ordered `(origin, id)`. The caller keeps the forwardfill policy branch —
 with forwardfill off it narrows this range to the addressing event alone.
 """
 
@@ -119,9 +119,15 @@ async def select_forwardfill_range(
     channels_dao: ChannelsDAOInterface,
     thread_id: UUID,
     space_id: UUID,
+    event_id: Optional[UUID] = None,
 ) -> List[ChannelInboxEvent]:
-    """This thread's latest trigger for the offset, then the space's events
-    after it, ordered `(origin, id)` — the drain as a range query.
+    """The space's events between this thread's offset and the addressing
+    event, ordered `(origin, id)` — the drain as a range query.
+
+    With `event_id` (the addressing event), the offset is the latest trigger
+    on an EARLIER event, and the range stops at `event_id`: whatever arrived
+    after the mention belongs to the next turn, and a turn that recorded its
+    trigger first on a later event does not hide this one's messages.
 
     No trigger row yet reads as "from the beginning", which is what makes
     the first turn in a thread see the backfilled rows ahead of anything
@@ -131,10 +137,12 @@ async def select_forwardfill_range(
     latest_trigger = await channels_dao.fetch_latest_trigger(
         project_id=project_id,
         thread_id=thread_id,
+        before_event_id=event_id,
     )
 
     return await channels_dao.query_events_since(
         project_id=project_id,
         space_id=space_id,
         after_event_id=latest_trigger.event_id if latest_trigger else None,
+        through_event_id=event_id,
     )

@@ -51,7 +51,11 @@ from oss.src.core.channels.adapters.registry import ChannelAdapterRegistry
 from oss.src.core.channels.types import ChannelConnectionNotFound
 from oss.src.core.channels.utils import ChannelKeyGrain, compose_external_key
 
+from oss.src.core.channels.dtos import CHANNEL_TRIGGER_NEVER_SENT
+from oss.src.core.shared.dtos import Status
+
 from .contract.fakes import WellBehavedFakeAdapter
+from .turn_harness import InMemoryChannels, texts
 
 
 def _without_attribution(content):
@@ -2153,6 +2157,95 @@ class TestDiscoveryMarksConfiguredSpaces:
             "qa": True,
             "other": False,
         }
+
+
+# --- context since the last turn -------------------------------------------- #
+
+
+class TestContextSinceTheLastTurn:
+    """What a mention carries: every message posted in the thread since the
+    agent's LAST turn, and only those. Each message runs through `resolve`,
+    `compose_input`, `open_turn` and `settle_turn` over the in-memory inbox;
+    interleavings and failures are in test_channels_turn_context.py."""
+
+    async def test_each_mention_receives_exactly_the_messages_since_the_last_turn(
+        self,
+    ):
+        """Mahmoud's spec (2026-09-24): M1, five unaddressed messages, M2,
+        three unaddressed messages, M3. M2's turn gets the five plus M2;
+        M3's turn gets the three plus M3 -- none of the five, not M1, not M2."""
+        log = InMemoryChannels()
+
+        first = await log.post("M1", addressed=True)
+        between_one_and_two = [f"a{i}" for i in range(1, 6)]
+        for text in between_one_and_two:
+            assert await log.post(text) is None
+        second = await log.post("M2", addressed=True)
+        between_two_and_three = [f"b{i}" for i in range(1, 4)]
+        for text in between_two_and_three:
+            assert await log.post(text) is None
+        third = await log.post("M3", addressed=True)
+
+        assert first == ["M1"]
+        assert second == [*between_one_and_two, "M2"]
+        assert third == [*between_two_and_three, "M3"]
+        # one thread, one session: three turns, not eleven
+        assert len(log.threads) == 1
+        assert len(log.triggers) == 3
+
+    @pytest.mark.parametrize(
+        "fate,code",
+        [
+            (ChannelTriggerState.REFUSED, "409"),
+            (ChannelTriggerState.FAILED, CHANNEL_TRIGGER_NEVER_SENT),
+        ],
+    )
+    async def test_a_turn_that_never_ran_leaves_its_context_for_the_next(
+        self, fate, code
+    ):
+        """A REFUSED turn, or one whose start never reached the workflow
+        service, never reached the agent: the next mention still carries
+        what came before it."""
+        log = InMemoryChannels()
+
+        assert await log.post("M1", addressed=True) == ["M1"]
+        assert await log.post("before the failure") is None
+        m2 = log.store("M2", addressed=True)
+        resolution = await log.resolve(m2)
+        assert texts((await log.compose(resolution, m2)).content) == [
+            "before the failure",
+            "M2",
+        ]
+        await log.open_and_settle(resolution, m2, state=fate, status=Status(code=code))
+        assert await log.post("after the failure") is None
+        third = await log.post("M3", addressed=True)
+
+        assert third == ["before the failure", "M2", "after the failure", "M3"]
+
+    async def test_a_failure_that_may_have_run_moves_the_offset(self):
+        """A FAILED turn without the never-sent code may have reached the
+        runner (a response lost after the POST landed). Replaying its input
+        could repeat what the agent did, so the next turn starts after it."""
+        log = InMemoryChannels()
+
+        await log.post("M1", addressed=True)
+        await log.post("a")
+        m2 = log.store("M2", addressed=True)
+        resolution = await log.resolve(m2)
+        await log.compose(resolution, m2)
+        await log.open_and_settle(
+            resolution, m2, state=ChannelTriggerState.FAILED, status=Status(code="500")
+        )
+        await log.post("b")
+
+        assert await log.post("M3", addressed=True) == ["b", "M3"]
+
+    async def test_a_group_dm_carries_the_unaddressed_messages_as_context(self):
+        log = InMemoryChannels(space_kind=ChannelSpaceKind.GROUP)
+
+        assert await log.post("M1", addressed=True) == ["M1"]
+        assert await log.post("side chatter") is None
+        assert await log.post("M2", addressed=True) == ["side chatter", "M2"]
 
 
 class TestTelegramGroupsAreMentionOnly:

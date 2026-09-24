@@ -2,10 +2,23 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Tuple
 from uuid import UUID, uuid4
 
-from sqlalchemy import cast, false, func, literal, or_, select, text, tuple_, update
+from sqlalchemy import (
+    and_,
+    cast,
+    false,
+    func,
+    literal,
+    not_,
+    or_,
+    select,
+    text,
+    tuple_,
+    update,
+)
 from sqlalchemy.dialects.postgresql import JSONB, insert
 
 from oss.src.core.channels.dtos import (
+    CHANNEL_TRIGGER_NEVER_SENT,
     ChannelAgent,
     ChannelAgentCreate,
     ChannelAgentEdit,
@@ -799,6 +812,37 @@ class ChannelsDAO(ChannelsDAOInterface):
 
             return map_space_dbe_to_dto(space_dbe=space_dbe)
 
+    async def mark_inbox_event_consumed(
+        self,
+        *,
+        project_id: UUID,
+        #
+        event_id: UUID,
+    ) -> Optional[ChannelInboxEvent]:
+        async with self.engine.session() as session:
+            stmt = select(ChannelInboxEventDBE).where(
+                ChannelInboxEventDBE.project_id == project_id,
+                ChannelInboxEventDBE.id == event_id,
+            )
+
+            result = await session.execute(stmt)
+
+            event_dbe = result.scalar_one_or_none()
+
+            if not event_dbe:
+                return None
+
+            flags = dict(event_dbe.flags or {})
+            if not flags.get("is_consumed"):
+                event_dbe.flags = {**flags, "is_consumed": True}
+                event_dbe.updated_at = datetime.now(timezone.utc)
+
+                await session.commit()
+
+                await session.refresh(event_dbe)
+
+            return map_inbox_event_dbe_to_dto(event_dbe=event_dbe)
+
     async def attach_event_to_space(
         self,
         *,
@@ -1444,6 +1488,7 @@ class ChannelsDAO(ChannelsDAOInterface):
         #
         space_id: UUID,
         after_event_id: Optional[UUID],
+        through_event_id: Optional[UUID] = None,
         #
         limit: Optional[int] = None,
     ) -> List[ChannelInboxEvent]:
@@ -1452,6 +1497,17 @@ class ChannelsDAO(ChannelsDAOInterface):
                 ChannelInboxEventDBE.project_id == project_id,
                 ChannelInboxEventDBE.space_id == space_id,
             )
+
+            if through_event_id is not None:
+                # the addressing event is PUSHED; anything that arrived after
+                # it belongs to the next turn
+                stmt = stmt.where(
+                    tuple_(
+                        ChannelInboxEventDBE.origin,
+                        ChannelInboxEventDBE.id,
+                    )
+                    <= ("pushed", through_event_id)
+                )
 
             if after_event_id is not None:
                 # PUSHED is the only origin an addressing offset can hold;
@@ -1539,17 +1595,31 @@ class ChannelsDAO(ChannelsDAOInterface):
         project_id: UUID,
         #
         thread_id: UUID,
+        before_event_id: Optional[UUID] = None,
     ) -> Optional[ChannelInboxTrigger]:
+        """The offset a turn reads from. Only a turn that provably never
+        reached the agent leaves it in place: REFUSED (the runner turned the
+        start away), or FAILED with `CHANNEL_TRIGGER_NEVER_SENT` (the start
+        never reached the workflow service). Any other FAILED turn may have
+        run, so it moves the offset like a settled one. Ordered by event, not
+        by trigger id: two turns can record their triggers out of order."""
+        never_admitted = or_(
+            ChannelInboxTriggerDBE.state == ChannelTriggerState.REFUSED,
+            and_(
+                ChannelInboxTriggerDBE.state == ChannelTriggerState.FAILED,
+                func.coalesce(ChannelInboxTriggerDBE.status["code"].astext, "")
+                == CHANNEL_TRIGGER_NEVER_SENT,
+            ),
+        )
         async with self.engine.session() as session:
-            stmt = (
-                select(ChannelInboxTriggerDBE)
-                .where(
-                    ChannelInboxTriggerDBE.project_id == project_id,
-                    ChannelInboxTriggerDBE.thread_id == thread_id,
-                )
-                .order_by(ChannelInboxTriggerDBE.id.desc())
-                .limit(1)
+            stmt = select(ChannelInboxTriggerDBE).where(
+                ChannelInboxTriggerDBE.project_id == project_id,
+                ChannelInboxTriggerDBE.thread_id == thread_id,
+                not_(never_admitted),
             )
+            if before_event_id is not None:
+                stmt = stmt.where(ChannelInboxTriggerDBE.event_id < before_event_id)
+            stmt = stmt.order_by(ChannelInboxTriggerDBE.event_id.desc()).limit(1)
 
             result = await session.execute(stmt)
 
