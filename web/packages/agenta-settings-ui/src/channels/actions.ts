@@ -4,6 +4,7 @@ import type {
     ChannelConnection,
     ChannelConnections,
     ChannelPlatform,
+    ChannelReadableChannel,
     ChannelSetupIdentity,
     ChannelSetupInfo,
     ChannelSpace,
@@ -11,6 +12,7 @@ import type {
     ChannelSpaceKind,
     ChannelSpaceMembership,
     ChannelsActions,
+    ChannelToolSettings,
     HostedTelegramLink,
 } from "./types"
 
@@ -119,6 +121,21 @@ const randomUuid = (): string => {
     return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`
 }
 
+/**
+ * A bot's channel tool settings from its `data.tools`. A bot stored before the block existed
+ * has none, and each missing field reads as its default.
+ */
+export const toolSettingsOf = (agent: Row): ChannelToolSettings => {
+    const tools = asRecord(asRecord(agent.data).tools)
+    const keys = tools.readable_space_keys
+    return {
+        canPostOutsideConversation: tools.can_post_outside_conversation !== false,
+        readableSpaceKeys: Array.isArray(keys)
+            ? keys.map((key) => asString(key)).filter((key): key is string => key !== null)
+            : null,
+    }
+}
+
 /** The platform id in a space locator: a Slack `channel`, a Telegram `chat_id`. */
 export const locatorId = (locator: Row): string | null => {
     const value = locator.channel ?? locator.chat_id
@@ -140,12 +157,14 @@ export const mapSpaceRow = (row: Row): ChannelSpace | null => {
     const kind = asSpaceKind(row.kind)
     const name = asString(row.name) ?? asString(row.description)
     const externalId = locatorId(asRecord(asRecord(row.data).external_locator))
-    if (kind === "private") return {id, kind, name: "Direct messages", externalId}
+    const externalKey = asString(row.external_key)
+    const keyed = externalKey ? {externalKey} : {}
+    if (kind === "private") return {id, kind, name: "Direct messages", externalId, ...keyed}
     // A place first seen through a message is stored without a name; the panel swaps in the
     // name discovery reports, and until then the platform id tells two such places apart.
     return name
-        ? {id, kind, name, externalId}
-        : {id, kind, name: unnamedSpaceLabel(kind, externalId), externalId, unnamed: true}
+        ? {id, kind, name, externalId, ...keyed}
+        : {id, kind, name: unnamedSpaceLabel(kind, externalId), externalId, unnamed: true, ...keyed}
 }
 
 /** Fill the unnamed places with the names discovery reports for the same platform id. */
@@ -310,6 +329,7 @@ export const buildAgentChannelsActions = ({
                 unnamedSpaceLabel(asSpaceKind(row.kind), locatorId(asRecord(row.external_locator))),
             isConfigured: row.is_configured === true,
             membership: asSpaceMembership(row.membership),
+            externalKey: asString(row.external_key),
         }))
     }
 
@@ -440,6 +460,69 @@ export const buildAgentChannelsActions = ({
                 scope(),
             )
             .catch(rethrow("The platform rejected the new credentials."))
+    }
+
+    const answeringAgent = async (connectionId: string): Promise<Row> => {
+        const answering = answeringAgentRow(
+            await agentsOf(connectionId).catch(rethrow("Could not read this bot's settings.")),
+        )
+        if (!answering) throw new Error("This connection answers as no agent yet.")
+        return answering
+    }
+
+    const readToolSettings = async (connectionId: string): Promise<ChannelToolSettings> =>
+        toolSettingsOf(await answeringAgent(connectionId))
+
+    const writeToolSettings = async (
+        connectionId: string,
+        next: ChannelToolSettings,
+    ): Promise<void> => {
+        const agentId = await channelAgentId(connectionId)
+        // The edit layers `data` over the stored row, so sending only `tools` leaves the
+        // references and the policy as they are.
+        await client
+            .editChannelAgent(
+                {
+                    agent_id: agentId,
+                    agent: {
+                        id: agentId,
+                        data: {
+                            tools: {
+                                can_post_outside_conversation: next.canPostOutsideConversation,
+                                readable_space_keys: next.readableSpaceKeys,
+                            },
+                        },
+                    },
+                },
+                scope(),
+            )
+            .catch(rethrow("Could not save this setting."))
+    }
+
+    /** Slack lists the channels the app can see and says which ones the bot is in. A Telegram
+     * bot cannot list its chats, so its stored groups stand in. */
+    const listReadableChannels = async (
+        platform: ChannelPlatform,
+        connectionId: string,
+    ): Promise<ChannelReadableChannel[]> => {
+        if (platform === "slack") {
+            return (await discoverSpaces(connectionId)).flatMap((candidate) =>
+                candidate.membership === "member" && candidate.externalKey
+                    ? [
+                          {
+                              key: candidate.externalKey,
+                              name: candidate.displayName,
+                              kind: candidate.kind,
+                          },
+                      ]
+                    : [],
+            )
+        }
+        return (await listSpaces(connectionId)).flatMap((space) =>
+            space.kind !== "private" && space.externalKey
+                ? [{key: space.externalKey, name: space.name, kind: space.kind}]
+                : [],
+        )
     }
 
     const countHostedTelegramBindings = async (connectionId: string): Promise<number> => {
@@ -611,5 +694,8 @@ export const buildAgentChannelsActions = ({
         readAllowedUsers,
         writeAllowedUsers,
         updateCredentials,
+        readToolSettings,
+        writeToolSettings,
+        listReadableChannels,
     }
 }

@@ -11,5 +11,6 @@ export interface ChannelSpaceCandidate {
     external_locator: Record<string, unknown>;
     display_name?: (string | null) | undefined;
     is_configured?: boolean | undefined;
+    external_key?: (string | null) | undefined;
     membership?: (AgentaApi.ChannelSpaceMembership | null) | undefined;
 }

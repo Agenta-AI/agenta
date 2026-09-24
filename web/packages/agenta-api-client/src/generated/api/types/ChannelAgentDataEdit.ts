@@ -9,4 +9,5 @@ import type * as AgentaApi from "../index.js";
 export interface ChannelAgentDataEdit {
     references?: (Record<string, AgentaApi.Reference | null> | null) | undefined;
     policy?: (AgentaApi.ChannelPolicy | null) | undefined;
+    tools?: (AgentaApi.ChannelAgentToolSettings | null) | undefined;
 }

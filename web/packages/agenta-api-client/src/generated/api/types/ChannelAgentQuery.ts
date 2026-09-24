@@ -3,4 +3,6 @@
 export interface ChannelAgentQuery {
     connection_id?: (string | null) | undefined;
     slug?: (string | null) | undefined;
+    /** When `true`, include archived bindings and bindings of archived connections. Defaults to `false`. */
+    include_archived?: (boolean | null) | undefined;
 }
