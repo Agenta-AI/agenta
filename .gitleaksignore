@@ -319,3 +319,5 @@ a7cf435e35ff3274b27e851fd49ec0385c1b2ddf:docs/design/hosted-subscription-connect
 # so the earlier commit still trips the scan. Regenerate these lines if the branch is rebased.
 eed2ad997ebc4ee3395067ee281ed40b76d226fe:api/oss/tests/pytest/unit/secrets/test_dtos.py:generic-api-key:633
 eed2ad997ebc4ee3395067ee281ed40b76d226fe:api/oss/tests/pytest/unit/secrets/test_dtos.py:generic-api-key:635
+# A made-up verify token in a Storybook fixture for the WhatsApp manage panel (PR #7132); replaced in a later commit.
+81ef0808a9841fdbc5b4bacae42909b3256398d8:web/packages/agenta-settings-ui/src/channels/storyFixtures.tsx:generic-api-key:158

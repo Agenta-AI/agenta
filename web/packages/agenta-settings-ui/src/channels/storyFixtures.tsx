@@ -155,7 +155,7 @@ export const whatsappHere: ChannelConnection = {
     connectedAt: "2026-08-21T10:12:00.000Z",
     handle: "+1 555 0100",
     webhookUrl: "https://cloud.agenta.ai/api/channels/whatsapp/events/",
-    webhookVerifyToken: "3f9a1c7e5b2d8f40",
+    webhookVerifyToken: "1065550100.example-verify-token",
 }
 
 export const telegramElsewhere: ChannelConnection = {
