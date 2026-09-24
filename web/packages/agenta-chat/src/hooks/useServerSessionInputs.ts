@@ -337,6 +337,8 @@ export const useServerSessionInputs = ({
                 buildAgentRequest(entityIdRef.current, [...messagesRef.current, outbound], {
                     sessionId,
                     ...(isSharedReaderReadyRef.current?.() ? {sharedResponse: true} : {}),
+                    // Same host as the resume path: the dock can answer a secret ask (#7001).
+                    secretSetup: true,
                 }),
             ).catch((error: unknown) => {
                 if (error instanceof Error && error.message === PREPARE_NOT_READY_MESSAGE) {

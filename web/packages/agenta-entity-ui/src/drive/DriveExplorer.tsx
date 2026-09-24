@@ -47,6 +47,7 @@ import {DriveEditorSkeleton} from "./DriveEditorFrame"
 import {DriveExplorerSkeleton} from "./DriveExplorerSkeleton"
 import {DriveEmptyState, DriveErrorState} from "./DriveExplorerStates"
 import {DriveFilePreview} from "./DriveFilePreview"
+import {type DriveFolderMenuProps} from "./DriveFolderMenu"
 import {DriveHeader} from "./DriveHeader"
 import {
     type DriveItemWriteActions,
@@ -62,6 +63,7 @@ import {TreeRow} from "./DriveTreeRow"
 import {FolderView} from "./FolderView"
 import {DriveHtmlApp} from "./renderers"
 import {useDriveDownloadAll} from "./useDriveDownloadAll"
+import {useDrivePasteUpload} from "./useDrivePasteUpload"
 import {useDriveTreeData} from "./useDriveTreeData"
 import {useDriveWrites} from "./useDriveWrites"
 import {useSelectionReveal} from "./useSelectionReveal"
@@ -265,6 +267,8 @@ export function DriveExplorer({
         setShowGitignored,
     })
     const selectedNode = selectedPath != null ? nodeByPath.get(selectedPath) : undefined
+    // A link inside a file picks its reading against the tree already in memory — never a fetch.
+    const linkExists = useCallback((path: string) => nodeByPath.has(path), [nodeByPath])
     // The root and any node flagged a folder render the grid; everything else the preview. In lazy
     // mode a not-yet-loaded selection is treated as a FILE (the preview reads by path), so an initial
     // file target shows its preview immediately instead of a wrong "empty folder" flash.
@@ -290,6 +294,34 @@ export function DriveExplorer({
     // The pane's own box: confirms render inside it, not over the whole window.
     const paneRef = useRef<HTMLDivElement>(null)
     const getPane = useCallback(() => paneRef.current, [])
+    // ⌘V with the pane current: the clipboard's files land in the folder being viewed.
+    // A pasted bitmap's name is dated to the second, so the destination has to be asked whether a
+    // name is free: the folder's own listing, plus the names handed out since (an upload from a
+    // paste one second ago may not be in the tree yet).
+    const pastedNames = useRef(new Set<string>())
+    const isNameTaken = useCallback(
+        (name: string) => {
+            const full = currentFolder ? `${currentFolder}/${name}` : name
+            return pastedNames.current.has(full) || nodeByPath.has(full)
+        },
+        [currentFolder, nodeByPath],
+    )
+    const onPasteFiles = useCallback(
+        (files: DroppedFile[]) => {
+            for (const f of files)
+                pastedNames.current.add(
+                    currentFolder ? `${currentFolder}/${f.relativePath}` : f.relativePath,
+                )
+            uploadIntoFolder(files, currentFolder)
+        },
+        [uploadIntoFolder, currentFolder],
+    )
+    useDrivePasteUpload({
+        paneRef,
+        enabled: chrome && canUpload,
+        onFiles: onPasteFiles,
+        isNameTaken,
+    })
     const writes = useDriveWrites(drive, getPane)
     const siblingsOf = useCallback(
         (folder: string) =>
@@ -509,6 +541,24 @@ export function DriveExplorer({
     } else if (drive.fileCount === 0) {
         body = <DriveEmptyState scope={scope} />
     } else {
+        // The folder's verbs — row 2's ⋯ and the blank-space right-click menu share them.
+        const folderMenu: DriveFolderMenuProps | undefined =
+            chrome && selectedIsFolder
+                ? {
+                      actions: canWrite
+                          ? {
+                                onNewFolder: () => void startNew("folder", selectedPath ?? ""),
+                                onNewFile: () => void startNew("file", selectedPath ?? ""),
+                                onUpload: staged.length ? commitStaged : openUploadPicker,
+                                stagedCount: staged.length,
+                            }
+                          : undefined,
+                      onCopyPath: onCopyCurrentPath,
+                      onDownloadAll: onDownloadCurrent,
+                      downloadingAll,
+                  }
+                : undefined
+
         // Row 2 follows the selection.
         const contentHeader = !chrome ? null : selectedIsFolder ? (
             <DriveToolbar
@@ -517,19 +567,7 @@ export function DriveExplorer({
                 setView={setView}
                 sort={sort}
                 setSort={setSort}
-                actions={
-                    canWrite
-                        ? {
-                              onNewFolder: () => void startNew("folder", selectedPath ?? ""),
-                              onNewFile: () => void startNew("file", selectedPath ?? ""),
-                              onUpload: staged.length ? commitStaged : openUploadPicker,
-                              stagedCount: staged.length,
-                          }
-                        : undefined
-                }
-                onCopyPath={onCopyCurrentPath}
-                onDownloadAll={onDownloadCurrent}
-                downloadingAll={downloadingAll}
+                {...folderMenu}
             />
         ) : editableMarkdown ? (
             <DriveToolbar
@@ -610,6 +648,7 @@ export function DriveExplorer({
                     sort={sort}
                     selectedPath={selectedPath}
                     writes={itemWrites}
+                    folderMenu={folderMenu}
                     editing={nameEditView}
                     loading={
                         selectedPath !== "" &&
@@ -641,6 +680,9 @@ export function DriveExplorer({
                     loading={editor.loading}
                     failed={editor.failed}
                     onSave={onSave}
+                    displayPath={selectedPath}
+                    onNavigate={select}
+                    linkExists={linkExists}
                 />
             ) : htmlPreview ? (
                 <DriveHtmlApp
@@ -650,6 +692,7 @@ export function DriveExplorer({
                     onNavigate={select}
                     view={htmlBodyView}
                     onViewChange={setHtmlView}
+                    linkExists={linkExists}
                 />
             ) : editableCode ? (
                 <DriveCodeEditor
@@ -672,6 +715,7 @@ export function DriveExplorer({
                     size={selected?.size ?? undefined}
                     hideHeader={chrome}
                     onSelect={select}
+                    linkExists={linkExists}
                 />
             )
         body = (

@@ -28,6 +28,7 @@ export const DriveFilePreview = ({
     hideHeader,
     detailsOpen,
     onSelect,
+    linkExists,
 }: {
     mount: Mount | null
     /** Path relative to `mount` — used for reading (content/meta/download). */
@@ -46,6 +47,8 @@ export const DriveFilePreview = ({
     detailsOpen?: boolean
     /** Navigate to a folder (breadcrumb) or file — same selection callback the tree uses. */
     onSelect: (path: string) => void
+    /** Is this presented path in the tree already loaded? Picks between a link's readings. */
+    linkExists?: (path: string) => boolean
 }) => {
     const shown = displayPath ?? path
     const name = shown.split("/").pop() ?? shown
@@ -142,6 +145,7 @@ export const DriveFilePreview = ({
                     size={size}
                     displayPath={shown}
                     onNavigate={onSelect}
+                    linkExists={linkExists}
                 />
             </div>
         </div>

@@ -16,6 +16,7 @@ import {
     exceedsGrant,
     fetchMountFileBlob,
     getGrant,
+    resolveDriveLink,
     setGrant as storeGrant,
     type GrantLevel,
     type GrantRecord,
@@ -29,7 +30,7 @@ import {useAtomValue} from "jotai"
 
 import {DriveCodeBlock} from "../driveMarkdown"
 
-import {assemblePreview, blobToDataUri, dirOf, resolveRel, type AssembleIo} from "./assemble"
+import {assemblePreview, blobToDataUri, dirOf, type AssembleIo} from "./assemble"
 import {GrantSheet} from "./GrantSheet"
 import {KIT_CSS} from "./kit"
 import {RunView, resolveHostKitTokens} from "./RunView"
@@ -136,6 +137,8 @@ export interface HtmlAppBodyProps {
     displayPath?: string
     /** Open another drive file (an internal link click resolves to its path). */
     onNavigate?: (path: string) => void
+    /** Is this presented path in the tree already loaded? Picks between a link's readings. */
+    linkExists?: (path: string) => boolean
     /** Just the rendered document; the host offers the source itself. */
     previewOnly?: boolean
     /** The pane is on screen (a hidden tab pauses the app via `host.setVisible`). */
@@ -154,6 +157,7 @@ export function HtmlAppBody({
     content,
     displayPath,
     onNavigate,
+    linkExists,
     previewOnly = false,
     visible = true,
     controlledView,
@@ -214,17 +218,17 @@ export function HtmlAppBody({
     // against the presented folder; only messages from THIS iframe are trusted.
     useEffect(() => {
         if (!onNavigate) return
-        const displayDir = dirOf(displayPath ?? path)
+        const base = displayPath ?? path
         const onMessage = (e: MessageEvent) => {
             if (e.source !== frameRef.current?.contentWindow) return
             const data = e.data as {type?: string; href?: string} | null
             if (!data || data.type !== "ag-html-nav" || typeof data.href !== "string") return
-            const clean = data.href.split(/[?#]/)[0]
-            if (clean) onNavigate(resolveRel(displayDir, clean))
+            const target = resolveDriveLink(data.href, base, linkExists)
+            if (target) onNavigate(target)
         }
         window.addEventListener("message", onMessage)
         return () => window.removeEventListener("message", onMessage)
-    }, [onNavigate, displayPath, path])
+    }, [onNavigate, linkExists, displayPath, path])
 
     // ---- Run ------------------------------------------------------------------------------
 
