@@ -16,7 +16,7 @@ export interface AgentPublishProps {
     workspaceId?: string | null
     /** The Agenta origin, without `/api`, that the API snippets call. */
     host: string
-    /** The Channels UI preference. Off hides Slack and Telegram; API stays. */
+    /** The Channels UI preference. Off hides the chat channels; API stays. */
     channelsEnabled: boolean
     /** The project's channel connections and the real actions on them, loaded by the host. */
     connections: ChannelConnections
@@ -29,7 +29,7 @@ export interface AgentPublishProps {
 
 /**
  * The agent header's Publish control, identical on the /w playground and the /m session
- * workspace: the button, its Slack / Telegram / API menu with Set up or Live per row, the
+ * workspace: the button, its Slack / Telegram / WhatsApp / API menu with Set up or Live per row, the
  * "Live in N places" count, the channels' connect and manage panels, and the API panel.
  * Hosts pass only data and the panel container.
  */

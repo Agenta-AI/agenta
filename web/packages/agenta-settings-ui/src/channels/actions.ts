@@ -1,3 +1,4 @@
+import {platformLabel} from "./helpers"
 import type {
     ChannelBehaviorState,
     ChannelChatType,
@@ -78,10 +79,11 @@ const asString = (value: unknown): string | null =>
 
 /** The backend channel key for a platform and install mode. */
 export const channelKey = (platform: ChannelPlatform, hosted: boolean): string =>
-    platform === "telegram" ? (hosted ? "telegram_hosted" : "telegram") : "slack"
+    platform === "telegram" ? (hosted ? "telegram_hosted" : "telegram") : platform
 
 const platformOf = (channel: string): ChannelPlatform | null =>
-    channel.startsWith("telegram") ? "telegram" : channel.startsWith("slack") ? "slack" : null
+    (["telegram", "slack", "whatsapp"] as const).find((platform) => channel.startsWith(platform)) ??
+    null
 
 /** The first reference id in a channel agent's `data.references` (the app it answers as). */
 export const referencedAppId = (agent: Row): string | null => {
@@ -188,6 +190,7 @@ export const mapConnectionRow = (row: Row): ChannelConnection | null => {
     const platform = platformOf(channel)
     if (!platform) return null
     const flags = asRecord(row.flags)
+    const data = asRecord(row.data)
     return {
         connectionId: asString(row.id) ?? undefined,
         platform,
@@ -198,14 +201,16 @@ export const mapConnectionRow = (row: Row): ChannelConnection | null => {
         chats: [],
         connectedAt: asString(row.created_at),
         handle: (() => {
-            const name = asString(asRecord(row.data).bot_username)
+            // A WhatsApp connection is known by its business phone number.
+            if (platform === "whatsapp") return asString(data.display_phone_number)
+            const name = asString(data.bot_username)
             return name ? `@${name.replace(/^@/, "")}` : null
         })(),
-        workspaceName: asString(asRecord(row.data).team_name),
+        workspaceName: asString(data.team_name),
         // New installs keep it flat on `data`; every install has it in the routing locator.
-        appId:
-            asString(asRecord(row.data).api_app_id) ??
-            asString(asRecord(asRecord(row.data).connection_locator).api_app_id),
+        appId: asString(data.api_app_id) ?? asString(asRecord(data.connection_locator).api_app_id),
+        webhookUrl: asString(data.webhook_url),
+        webhookVerifyToken: asString(data.webhook_verify_token),
     }
 }
 
@@ -497,8 +502,12 @@ export const buildAgentChannelsActions = ({
             const here = c.agent === undefined || c.agent?.id === appId ? 4 : 0
             return here + (c.status === "connected" ? 2 : c.status === "pending" ? 1 : 0)
         }
-        const out: ChannelConnections = {slack: null, telegram: null}
-        const mine: Record<ChannelPlatform, ChannelConnection[]> = {slack: [], telegram: []}
+        const out: ChannelConnections = {slack: null, telegram: null, whatsapp: null}
+        const mine: Record<ChannelPlatform, ChannelConnection[]> = {
+            slack: [],
+            telegram: [],
+            whatsapp: [],
+        }
         for (const connection of rows) {
             const current = out[connection.platform]
             if (!current || rank(connection) > rank(current)) out[connection.platform] = connection
@@ -512,7 +521,11 @@ export const buildAgentChannelsActions = ({
                 ? [primary, ...list.filter((c) => c !== primary)]
                 : list
         }
-        out.agentConnections = {slack: lead("slack"), telegram: lead("telegram")}
+        out.agentConnections = {
+            slack: lead("slack"),
+            telegram: lead("telegram"),
+            whatsapp: lead("whatsapp"),
+        }
         return out
     }
 
@@ -554,7 +567,7 @@ export const buildAgentChannelsActions = ({
     const connectCustom = async (
         platform: ChannelPlatform,
         values: Record<string, string>,
-    ): Promise<void> => {
+    ): Promise<ChannelConnection | null> => {
         const setup = await loadSetup(platform)
         const data: Record<string, string> = {}
         const credentials: Record<string, string> = {}
@@ -569,14 +582,14 @@ export const buildAgentChannelsActions = ({
                 {connection: {channel: channelKey(platform, false), data, credentials}},
                 scope(),
             )
-            .catch(
-                rethrow(`${platform === "slack" ? "Slack" : "Telegram"} rejected the credentials.`),
-            )
-        const connectionId = asString(asRecord(asRecord(res).connection).id)
+            .catch(rethrow(`${platformLabel(platform)} rejected the credentials.`))
+        const row = asRecord(asRecord(res).connection)
+        const connectionId = asString(row.id)
         if (!connectionId) throw new Error("The connection was created without an id.")
         await pointHere(connectionId).catch(
             rethrow("The connection was created, but could not be pointed at this agent."),
         )
+        return mapConnectionRow(row)
     }
 
     const connectHere = async (_platform: ChannelPlatform, connectionId: string) =>

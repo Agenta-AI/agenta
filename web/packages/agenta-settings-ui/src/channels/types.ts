@@ -6,7 +6,7 @@
  * api-client themselves, so the same UI runs on desktop, on /m, and in Storybook.
  */
 
-export type ChannelPlatform = "slack" | "telegram"
+export type ChannelPlatform = "slack" | "telegram" | "whatsapp"
 
 /** hosted = Agenta-owned app/bot (one click, the default); custom = the customer's own app/bot. */
 export type ChannelInstallMode = "hosted" | "custom"
@@ -98,12 +98,15 @@ export interface ChannelConnection {
     workspaceName?: string | null
     /** The Slack app's id (A0…); tells two apps apart when neither stored a bot name. */
     appId?: string | null
+    /** WhatsApp only: the callback URL and verify token to paste into Meta's App Dashboard. */
+    webhookUrl?: string | null
+    webhookVerifyToken?: string | null
 }
 
 /**
  * The project's connections, one per platform. `null` means "not connected".
  *
- * `slack` / `telegram` hold the connection each entry point summarizes. An agent may answer
+ * `slack` / `telegram` / `whatsapp` hold the connection each entry point summarizes. An agent may answer
  * through more than one connection on a platform (two Slack workspaces, two Telegram bots);
  * `agentConnections` lists every one of them, the summarized one included, so the manage
  * panel can show and disconnect each separately. Absent when the host did not resolve it.
@@ -111,6 +114,7 @@ export interface ChannelConnection {
 export interface ChannelConnections {
     slack: ChannelConnection | null
     telegram: ChannelConnection | null
+    whatsapp: ChannelConnection | null
     agentConnections?: Record<ChannelPlatform, ChannelConnection[]>
 }
 
@@ -179,8 +183,11 @@ export interface ChannelsActions {
      * this deployment has no hosted Slack app. */
     hostedSlackInstallUrl: () => Promise<string | null>
     /** Create a custom-app connection from the declared field values, then point it at the
-     * current agent. */
-    connectCustom: (platform: ChannelPlatform, values: Record<string, string>) => Promise<void>
+     * current agent. Resolves to the created connection, or null when the host has none. */
+    connectCustom: (
+        platform: ChannelPlatform,
+        values: Record<string, string>,
+    ) => Promise<ChannelConnection | null>
     /** Point an existing connection at the current agent ("connect here"). */
     connectHere: (platform: ChannelPlatform, connectionId: string) => Promise<void>
     /** Disconnect (archive) a connection. */

@@ -26,6 +26,7 @@ import {
 import {AgentaMark, platformLogo} from "./icons"
 import {QrCode} from "./qr"
 import type {
+    ChannelConnection,
     ChannelInstallMode,
     ChannelPlatform,
     ChannelSetupField,
@@ -33,6 +34,7 @@ import type {
     ChannelsActions,
     HostedTelegramLink,
 } from "./types"
+import {WhatsAppWebhook, copyText} from "./WhatsAppWebhook"
 
 /**
  * The connect flow for one platform, shared by the desktop drawer and the /m sheet.
@@ -61,6 +63,10 @@ export interface ChannelConnectFlowProps {
     /** Polling cadence for the hosted waits, ms. Exposed for tests and stories. */
     pollIntervalMs?: number
 }
+
+const META_APPS_URL = "https://developers.facebook.com/apps"
+const WHATSAPP_PRICING_URL =
+    "https://developers.facebook.com/documentation/business-messaging/whatsapp/pricing"
 
 /** Where a self-hosted deployment learns to run the Agenta Telegram bot itself. */
 const TELEGRAM_HOSTED_DOCS = "https://docs.agenta.ai/self-host/channels/telegram-hosted-bot"
@@ -99,15 +105,6 @@ const StepRow = ({
     </div>
 )
 
-const copyText = async (text: string): Promise<boolean> => {
-    try {
-        await navigator.clipboard.writeText(text)
-        return true
-    } catch {
-        return false
-    }
-}
-
 export const ChannelConnectFlow = ({
     platform,
     agentName,
@@ -120,9 +117,14 @@ export const ChannelConnectFlow = ({
     pollIntervalMs = 2500,
 }: ChannelConnectFlowProps) => {
     const isSlack = platform === "slack"
+    const isTelegram = platform === "telegram"
+    // WhatsApp has no Agenta-hosted number: the customer always brings their own.
+    const isWhatsApp = platform === "whatsapp"
     const name = platformLabel(platform)
 
-    const [mode, setMode] = useState<ChannelInstallMode>(initialMode)
+    const [mode, setMode] = useState<ChannelInstallMode>(isWhatsApp ? "custom" : initialMode)
+    // A new WhatsApp connection, held on screen until its webhook values are copied into Meta.
+    const [whatsAppConnection, setWhatsAppConnection] = useState<ChannelConnection | null>(null)
     const [error, setError] = useState<string | null>(null)
 
     // --- custom app/bot: the declared setup ---------------------------------- //
@@ -254,14 +256,19 @@ export const ChannelConnectFlow = ({
     }, [actions])
 
     useEffect(() => {
-        if (isSlack || mode !== "hosted" || tgLink || tgStep !== "preparing") return
+        if (!isTelegram || mode !== "hosted" || tgLink || tgStep !== "preparing") return
         void mintTelegramLink()
-    }, [isSlack, mode, tgLink, tgStep, mintTelegramLink])
+    }, [isTelegram, mode, tgLink, tgStep, mintTelegramLink])
 
     // Poll the bindings while the link is on screen (QR or waiting): a scan from a phone
     // never clicks the button, so the QR step must detect the /start too.
     useEffect(() => {
-        if (isSlack || mode !== "hosted" || (tgStep !== "waiting" && tgStep !== "qr") || !tgLink)
+        if (
+            !isTelegram ||
+            mode !== "hosted" ||
+            (tgStep !== "waiting" && tgStep !== "qr") ||
+            !tgLink
+        )
             return
         let cancelled = false
         const deadline = tgExpiresAt
@@ -289,7 +296,7 @@ export const ChannelConnectFlow = ({
             cancelled = true
             clearTimeout(timer.current)
         }
-    }, [isSlack, mode, tgStep, tgLink, tgBaseline, tgExpiresAt, actions, pollIntervalMs])
+    }, [isTelegram, mode, tgStep, tgLink, tgBaseline, tgExpiresAt, actions, pollIntervalMs])
 
     // --- hosted Slack: open the install, then wait for the connection --------- //
     const startSlackInstall = async () => {
@@ -399,8 +406,10 @@ export const ChannelConnectFlow = ({
         setSaving(true)
         setError(null)
         try {
-            await actions.connectCustom(platform, values)
-            await onConnected()
+            const created = await actions.connectCustom(platform, values)
+            if (!alive.current) return
+            if (isWhatsApp && created?.webhookUrl) setWhatsAppConnection(created)
+            else await onConnected()
         } catch (e) {
             if (!alive.current) return
             setError(errorMessage(e, `${name} rejected the credentials.`))
@@ -450,7 +459,9 @@ export const ChannelConnectFlow = ({
                     <p className="m-0 text-[13px] leading-relaxed text-colorTextSecondary">
                         {isSlack
                             ? `Let your team talk to ${agentName} from Slack.`
-                            : `Talk to ${agentName} from Telegram on any device.`}
+                            : isWhatsApp
+                              ? `Let people message ${agentName} on your WhatsApp Business number.`
+                              : `Talk to ${agentName} from Telegram on any device.`}
                     </p>
                 </div>
                 <div className="flex flex-shrink-0 gap-2">
@@ -473,18 +484,20 @@ export const ChannelConnectFlow = ({
                 />
             ) : null}
 
-            <Segmented
-                block
-                options={modeOptions}
-                value={mode}
-                onChange={(value) => {
-                    clearTimeout(timer.current)
-                    setMode(value as ChannelInstallMode)
-                    setError(null)
-                    setAuthorizing(false)
-                    setSaving(false)
-                }}
-            />
+            {isWhatsApp ? null : (
+                <Segmented
+                    block
+                    options={modeOptions}
+                    value={mode}
+                    onChange={(value) => {
+                        clearTimeout(timer.current)
+                        setMode(value as ChannelInstallMode)
+                        setError(null)
+                        setAuthorizing(false)
+                        setSaving(false)
+                    }}
+                />
+            )}
 
             {/* SLACK · hosted */}
             {isSlack && mode === "hosted" ? (
@@ -862,7 +875,7 @@ export const ChannelConnectFlow = ({
             ) : null}
 
             {/* TELEGRAM · hosted */}
-            {!isSlack && mode === "hosted" ? (
+            {isTelegram && mode === "hosted" ? (
                 <div className="flex flex-col gap-4">
                     {tgStep === "preparing" ? (
                         <div className="flex items-center justify-center gap-2 py-6 text-[13px] text-colorTextSecondary">
@@ -1023,7 +1036,7 @@ export const ChannelConnectFlow = ({
             ) : null}
 
             {/* TELEGRAM · custom */}
-            {!isSlack && mode === "custom" ? (
+            {isTelegram && mode === "custom" ? (
                 <div className="flex flex-col gap-5">
                     <StepRow
                         index={1}
@@ -1054,6 +1067,74 @@ export const ChannelConnectFlow = ({
                         data-testid="channels-connect-custom"
                     >
                         Connect to Telegram
+                    </Button>
+                </div>
+            ) : null}
+
+            {/* WHATSAPP · your own number */}
+            {isWhatsApp && !whatsAppConnection ? (
+                <div className="flex flex-col gap-5">
+                    <StepRow
+                        index={1}
+                        title="Create a Meta app with WhatsApp"
+                        body="In Meta’s App Dashboard, create a Business app and add the WhatsApp product."
+                    >
+                        <div>
+                            <Button variant="outline" size="sm" asChild>
+                                <a href={META_APPS_URL} target="_blank" rel="noreferrer">
+                                    <ArrowSquareOut size={13} />
+                                    Open Meta App Dashboard
+                                </a>
+                            </Button>
+                        </div>
+                    </StepRow>
+                    <StepRow
+                        index={2}
+                        title="Copy three values"
+                        body="The phone number ID from WhatsApp > API Setup, a permanent token for a system user from Meta Business Settings, and the app secret from App settings > Basic."
+                    />
+                    <StepRow
+                        index={3}
+                        title="Paste them here"
+                        body="We check them with Meta before saving. Secrets stay masked after you save."
+                    >
+                        {fieldsForm}
+                    </StepRow>
+                    <p className="m-0 text-xs leading-relaxed text-colorTextSecondary">
+                        Meta bills your business directly for WhatsApp messages.{" "}
+                        <a
+                            href={WHATSAPP_PRICING_URL}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-colorPrimary"
+                        >
+                            WhatsApp pricing
+                        </a>
+                    </p>
+                    <Button
+                        variant="default"
+                        className="w-full"
+                        disabled={!fieldsValid || saving || fields.length === 0}
+                        onClick={submitCustom}
+                        data-testid="channels-connect-custom"
+                    >
+                        Connect to WhatsApp
+                    </Button>
+                </div>
+            ) : null}
+
+            {isWhatsApp && whatsAppConnection ? (
+                <div className="flex flex-col gap-4">
+                    <div
+                        className="flex items-center gap-2 rounded-md border border-solid border-colorBorderSecondary bg-colorBgContainer p-3 text-[13px] text-colorText"
+                        data-testid="channels-whatsapp-connected"
+                    >
+                        <Check size={14} weight="bold" className="text-colorSuccess" />
+                        Connected. One step left in Meta.
+                    </div>
+                    <WhatsAppWebhook connection={whatsAppConnection} />
+                    <Button variant="default" className="w-full" onClick={() => void onConnected()}>
+                        Done
                     </Button>
                 </div>
             ) : null}

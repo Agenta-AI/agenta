@@ -50,7 +50,8 @@ export const PREFERENCE_SECTIONS: PreferenceSection[] = [
             {
                 key: "channels",
                 title: "Channels",
-                description: "Show Slack and Telegram channels on agent pages and in Settings.",
+                description:
+                    "Show Slack, Telegram and WhatsApp channels on agent pages and in Settings.",
             },
             {
                 key: "agent-apps",

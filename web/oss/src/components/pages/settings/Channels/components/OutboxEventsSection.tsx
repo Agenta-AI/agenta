@@ -16,6 +16,8 @@ const STATE_COLOR: Record<string, string> = {
     sent: "green",
     failed: "red",
     abandoned: "orange",
+    // Kept because the WhatsApp 24-hour window closed; sent when the customer writes again.
+    held: "gold",
 }
 
 /** Read-only outbox event log (debugging surface). No create action — the

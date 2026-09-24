@@ -56,7 +56,7 @@ const connection = (overrides: Partial<ChannelConnection> = {}): ChannelConnecti
 })
 
 describe("buildPublishItems", () => {
-    it("offers Slack, Telegram and API in order; API is live once the agent is saved", () => {
+    it("offers Slack, Telegram, WhatsApp and API in order; API is live once the agent is saved", () => {
         const items = buildPublishItems({
             connections: EMPTY_CONNECTIONS,
             agentId: AGENT,
@@ -65,6 +65,7 @@ describe("buildPublishItems", () => {
         expect(items.map((item) => [item.key, item.live])).toEqual([
             ["slack", false],
             ["telegram", false],
+            ["whatsapp", false],
             ["api", true],
         ])
     })
@@ -73,6 +74,7 @@ describe("buildPublishItems", () => {
         const connections: ChannelConnections = {
             slack: connection(),
             telegram: connection({platform: "telegram"}),
+            whatsapp: null,
         }
         const items = buildPublishItems({connections, agentId: AGENT, channelsEnabled: true})
         expect(items.filter((item) => item.live).map((item) => item.key)).toEqual([
@@ -83,7 +85,7 @@ describe("buildPublishItems", () => {
     })
 
     it("shows the API as Set up while the agent has no saved id (draft)", () => {
-        const [, , api] = buildPublishItems({
+        const [, , , api] = buildPublishItems({
             connections: EMPTY_CONNECTIONS,
             agentId: undefined,
             channelsEnabled: true,
@@ -92,7 +94,7 @@ describe("buildPublishItems", () => {
     })
 
     it("lets the host override the API's live state explicitly", () => {
-        const [, , api] = buildPublishItems({
+        const [, , , api] = buildPublishItems({
             connections: EMPTY_CONNECTIONS,
             agentId: AGENT,
             channelsEnabled: true,
@@ -110,7 +112,7 @@ describe("buildPublishItems", () => {
         ]
         for (const slack of cases) {
             const [item] = buildPublishItems({
-                connections: {slack, telegram: null},
+                connections: {slack, telegram: null, whatsapp: null},
                 agentId: AGENT,
                 channelsEnabled: true,
             })
@@ -120,7 +122,7 @@ describe("buildPublishItems", () => {
 
     it("hides Slack and Telegram when Channels is off, and keeps API", () => {
         const items = buildPublishItems({
-            connections: {slack: connection(), telegram: null},
+            connections: {slack: connection(), telegram: null, whatsapp: null},
             agentId: AGENT,
             channelsEnabled: false,
         })
@@ -137,6 +139,7 @@ describe("buildPublishItems", () => {
         expect(items.map((item) => [item.key, !!item.disabled])).toEqual([
             ["slack", true],
             ["telegram", true],
+            ["whatsapp", true],
             ["api", false],
         ])
     })

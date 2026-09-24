@@ -4,7 +4,7 @@ import {Button} from "@agenta/ui/ui"
 
 import {ChannelConnectFlow} from "./ChannelConnectFlow"
 import {ChannelsPage} from "./ChannelsPage"
-import {DIRECT_MESSAGES_CHAT, EMPTY_CONNECTIONS} from "./helpers"
+import {CHANNEL_PLATFORMS, DIRECT_MESSAGES_CHAT, EMPTY_CONNECTIONS, platformLabel} from "./helpers"
 import type {
     ChannelBehaviorState,
     ChannelConnection,
@@ -57,6 +57,49 @@ export const TELEGRAM_SETUP: ChannelSetupInfo = {
     ],
 }
 
+export const WHATSAPP_SETUP: ChannelSetupInfo = {
+    manifest: null,
+    hostedAvailable: false,
+    fields: [
+        {
+            name: "phone_number_id",
+            label: "Phone number ID",
+            secret: false,
+            required: true,
+            help: "WhatsApp > API Setup in your Meta app",
+            pattern: "^\\d+$",
+            patternError: "A phone number ID is digits only.",
+        },
+        {
+            name: "access_token",
+            label: "Access token",
+            secret: true,
+            required: true,
+            help: "A permanent system-user token",
+        },
+        {
+            name: "app_secret",
+            label: "App secret",
+            secret: true,
+            required: true,
+            help: "App settings > Basic in your Meta app",
+        },
+        {
+            name: "reopen_template",
+            label: "Re-open template (optional)",
+            secret: false,
+            required: false,
+        },
+        {
+            name: "reopen_template_language",
+            label: "Template language (optional)",
+            secret: false,
+            required: false,
+            help: "The template's language code. Defaults to en_US.",
+        },
+    ],
+}
+
 const SLACK_MANIFEST = `display_information:
   name: Support agent
 features:
@@ -98,6 +141,21 @@ export const telegramHere: ChannelConnection = {
     chats: [DIRECT_MESSAGES_CHAT, {name: "Support squad", type: "group"}],
     agent: {id: AGENT_ID, name: AGENT_NAME},
     connectedAt: "2026-08-21T10:12:00.000Z",
+}
+
+export const whatsappHere: ChannelConnection = {
+    connectionId: "cx-whatsapp",
+    platform: "whatsapp",
+    kind: "custom",
+    status: "connected",
+    dm: "allow",
+    group: "allow",
+    chats: [DIRECT_MESSAGES_CHAT],
+    agent: {id: AGENT_ID, name: AGENT_NAME},
+    connectedAt: "2026-08-21T10:12:00.000Z",
+    handle: "+1 555 0100",
+    webhookUrl: "https://cloud.agenta.ai/api/channels/whatsapp/events/",
+    webhookVerifyToken: "3f9a1c7e5b2d8f40",
 }
 
 export const telegramElsewhere: ChannelConnection = {
@@ -338,11 +396,14 @@ export const createChannelStoryActions = (
             await delay(latencyMs)
             if (connectCustomError) throw new Error(connectCustomError)
             const connection: ChannelConnection = {
-                ...(platform === "slack" ? slackCustomHere : telegramHere),
+                ...{slack: slackCustomHere, telegram: telegramHere, whatsapp: whatsappHere}[
+                    platform
+                ],
                 kind: "custom",
                 agent: {id: AGENT_ID, name: AGENT_NAME},
             }
             write({...store, [platform]: connection})
+            return connection
         },
         connectHere: async (platform) => {
             await delay(latencyMs)
@@ -409,7 +470,7 @@ export const createChannelStoryActions = (
             await delay(latencyMs)
             if (credentialsError) throw new Error(credentialsError)
             // A good token brings the connection back: the panel re-reads it as active.
-            for (const platform of ["slack", "telegram"] as const) {
+            for (const platform of CHANNEL_PLATFORMS) {
                 const current = store[platform]
                 if (current?.connectionId === connectionId && current.status === "revoked") {
                     write({...store, [platform]: {...current, status: "connected"}})
@@ -505,7 +566,7 @@ export const ConnectFlowHost = ({
     // One actions object per run: the flow keeps it in effect dependencies, and a fresh one
     // also resets the fake bind clock when the reader re-opens the panel.
     const [run, setRun] = useState(() => ({id: 0, ...createChannelStoryActions(options)}))
-    const name = platform === "slack" ? "Slack" : "Telegram"
+    const name = platformLabel(platform)
 
     if (!open) {
         return (
