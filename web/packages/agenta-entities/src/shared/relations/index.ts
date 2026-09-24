@@ -29,9 +29,6 @@
 export {entityRelationRegistry, createRelationRegistry} from "./registry"
 export type {RelationRegistry} from "./registry"
 
-// Relation atom types
-export type {MoleculeWithRelationAtoms} from "./extendWithRelations"
-
 // Re-export relation types from molecule/types
 export type {
     EntityRelation,

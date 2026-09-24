@@ -74,9 +74,6 @@ export {
     generateLocalId,
     // Batch utilities
     batchUpdate,
-    // Composition utilities (advanced)
-    getChildIds,
-    getChildData,
 } from "./helpers"
 
 // Latest entity query factory

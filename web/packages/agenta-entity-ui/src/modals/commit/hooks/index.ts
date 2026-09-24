@@ -3,8 +3,4 @@
  */
 
 export {useEntityCommit} from "./useEntityCommit"
-export type {
-    UseEntityCommitReturn,
-    UseBoundCommitOptions,
-    UseBoundCommitReturn,
-} from "./useEntityCommit"
+export type {UseEntityCommitReturn} from "./useEntityCommit"

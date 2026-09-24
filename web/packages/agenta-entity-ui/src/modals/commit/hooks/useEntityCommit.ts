@@ -62,48 +62,6 @@ export interface UseEntityCommitReturn {
     isOpen: boolean
 }
 
-/**
- * Options for useBoundCommit hook
- */
-export interface UseBoundCommitOptions {
-    /** Entity type */
-    type: EntityType
-    /** Entity ID - if falsy, commit action will be null */
-    id: string | null | undefined
-    /** Display name for the entity */
-    name?: string
-    /** Whether commit is allowed (e.g., hasChanges) - if false, commit action will be null */
-    canCommit?: boolean
-    /** Optional metadata to pass to the commit context (e.g., loadableId for playground) */
-    metadata?: Record<string, unknown>
-}
-
-/**
- * Return type for useBoundCommit hook
- */
-export interface UseBoundCommitReturn {
-    /**
-     * Commit action - null if entity ID is missing or canCommit is false
-     * When non-null, can be called directly or passed to onClick
-     */
-    commit: (() => void) | null
-
-    /**
-     * Whether a commit operation is in progress
-     */
-    isCommitting: boolean
-
-    /**
-     * Whether the commit modal is open
-     */
-    isOpen: boolean
-
-    /**
-     * Whether commit is available (id exists and canCommit is true)
-     */
-    canCommit: boolean
-}
-
 // ============================================================================
 // BASE HOOK (using factory)
 // ============================================================================

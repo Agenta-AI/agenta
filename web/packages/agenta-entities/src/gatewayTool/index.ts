@@ -5,10 +5,6 @@
  * family. API calls go through the Fern-generated `@agentaai/api-client`
  * (resolved via `@agenta/sdk`) so request/response shapes stay in sync with
  * the backend OpenAPI definition.
- *
- * Lifted from `web/oss/src/features/gateway-tools/` (the hand-rolled
- * services + hooks layer is going away; the OSS feature folder shrinks to
- * just orchestration glue).
  */
 
 // ---------------------------------------------------------------------------

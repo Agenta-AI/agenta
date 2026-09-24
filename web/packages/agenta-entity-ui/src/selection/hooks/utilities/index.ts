@@ -36,7 +36,4 @@ export {
     buildPathItem,
     isPathComplete,
     type LevelState,
-    type UsePathBuilderOptions,
-    type UsePathBuilderResult,
-    type UseSelectionCallbackOptions,
 } from "./usePathBuilder"

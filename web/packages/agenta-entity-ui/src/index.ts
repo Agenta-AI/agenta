@@ -271,8 +271,6 @@ export {
     // Commit modal hooks
     useEntityCommit,
     type UseEntityCommitReturn,
-    type UseBoundCommitOptions,
-    type UseBoundCommitReturn,
     type EntityCommitModalProps,
     type CommitSubmitParams,
     type CommitSubmitResult,

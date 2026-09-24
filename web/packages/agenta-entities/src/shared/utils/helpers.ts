@@ -7,65 +7,7 @@
 import {generateId} from "@agenta/shared/utils"
 import {getDefaultStore} from "jotai/vanilla"
 
-import type {
-    Molecule,
-    MoleculeRelation,
-    StoreOptions,
-} from "../molecule/types"
-
-// ============================================================================
-// MOLECULE COMPOSITION
-// ============================================================================
-
-/**
- * Get child IDs from parent data using a relation config.
- */
-export function getChildIds<TParent, TChild>(
-    parent: TParent | null,
-    relation: MoleculeRelation<TParent, TChild>,
-): string[] {
-    if (!parent) return []
-
-    if (typeof relation.childIdsPath === "function") {
-        return relation.childIdsPath(parent)
-    }
-
-    // Dot-path navigation - traverse unknown object structure
-    const path = relation.childIdsPath.split(".")
-    let value: unknown = parent
-    for (const key of path) {
-        if (typeof value !== "object" || value === null) return []
-        value = (value as Record<string, unknown>)[key]
-        if (value === undefined) return []
-    }
-
-    return Array.isArray(value) ? value : []
-}
-
-/**
- * Get embedded child data from parent using a relation config.
- */
-export function getChildData<TParent, TChild>(
-    parent: TParent | null,
-    relation: MoleculeRelation<TParent, TChild>,
-): TChild[] {
-    if (!parent || !relation.childDataPath) return []
-
-    if (typeof relation.childDataPath === "function") {
-        return relation.childDataPath(parent) ?? []
-    }
-
-    // Dot-path navigation - traverse unknown object structure
-    const path = relation.childDataPath.split(".")
-    let value: unknown = parent
-    for (const key of path) {
-        if (typeof value !== "object" || value === null) return []
-        value = (value as Record<string, unknown>)[key]
-        if (value === undefined) return []
-    }
-
-    return Array.isArray(value) ? value : []
-}
+import type {Molecule, StoreOptions} from "../molecule/types"
 
 // ============================================================================
 // ID UTILITIES
