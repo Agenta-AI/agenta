@@ -706,11 +706,7 @@ export const LiveConversation = ({
                 ref={quoteRootRef}
                 className="relative flex grow flex-col gap-3 p-4 pt-6 pb-[calc(1rem+env(safe-area-inset-bottom))]"
             >
-                <QuoteSelectionLayer
-                    rootRef={quoteRootRef}
-                    sessionId={sessionId}
-                    touch
-                />
+                <QuoteSelectionLayer rootRef={quoteRootRef} sessionId={sessionId} touch />
                 {/* A held or failed Home task stays visible until accepted. */}
                 {heldTaskText ? (
                     <div className={`${mobileTurnRowClass} justify-end`}>

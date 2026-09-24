@@ -74,10 +74,7 @@ export function DriveCodeEditor({
             onKeyDown={onKeyDown}
             {...quotable}
         >
-            <QuoteSelectionLayer
-                rootRef={quoteRootRef}
-                sessionId={quoteSessionId}
-            />
+            <QuoteSelectionLayer rootRef={quoteRootRef} sessionId={quoteSessionId} />
             <EditorProvider
                 key={editorId}
                 id={editorId}

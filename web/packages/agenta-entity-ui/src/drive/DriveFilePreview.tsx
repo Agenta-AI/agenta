@@ -144,10 +144,7 @@ export const DriveFilePreview = ({
             )}
 
             <div ref={quoteRootRef} className="relative flex min-h-0 flex-1 flex-col p-4 pt-3">
-                <QuoteSelectionLayer
-                    rootRef={quoteRootRef}
-                    sessionId={quoteSessionId}
-                />
+                <QuoteSelectionLayer rootRef={quoteRootRef} sessionId={quoteSessionId} />
                 <DriveFileContentViewer
                     mount={mount}
                     path={path}

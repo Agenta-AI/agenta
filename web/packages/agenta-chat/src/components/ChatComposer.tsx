@@ -305,8 +305,7 @@ export const ChatComposer = ({
                         {/* Design puts the quote count on the action row, not over the chips. */}
                         {quotes.length > 0 ? (
                             <span className="ml-1 text-[11px] text-colorTextTertiary">
-                                {quotes.length}{" "}
-                                {quotes.length === 1 ? "quote" : "quotes"} attached
+                                {quotes.length} {quotes.length === 1 ? "quote" : "quotes"} attached
                             </span>
                         ) : null}
                     </div>
