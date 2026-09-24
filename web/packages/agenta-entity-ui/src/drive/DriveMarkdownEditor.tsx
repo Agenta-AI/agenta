@@ -64,10 +64,7 @@ export function DriveMarkdownEditor({
                 onKeyDown={onKeyDown}
                 {...quotable}
             >
-                <QuoteSelectionLayer
-                    rootRef={quoteRootRef}
-                    sessionId={quoteSessionId}
-                />
+                <QuoteSelectionLayer rootRef={quoteRootRef} sessionId={quoteSessionId} />
                 <MarkdownEditor
                     value={value}
                     onChange={onChange}

@@ -38,7 +38,8 @@ export const QUOTE_EXCERPT_CAP = 2000
 /** What a chip or a quote card shows before it truncates. */
 export const QUOTE_DISPLAY_CAP = 120
 
-/** Collapse whitespace runs and trim; both sides of a match use it. */export const normalizeQuoteText = (text: string): string => text.replace(/\s+/g, " ").trim()
+/** Collapse whitespace runs and trim; both sides of a match use it. */ export const normalizeQuoteText =
+    (text: string): string => text.replace(/\s+/g, " ").trim()
 
 /** Truncate for display, on a word boundary where one is close enough to the cut. */
 export const truncateQuoteText = (text: string, cap = QUOTE_DISPLAY_CAP): string => {
@@ -57,26 +58,27 @@ export interface QuoteLocation {
     endLine: number
 }
 
-/** A whitespace-collapsed view of `source`, mapped back to original indices for line numbers. */const collapseWithIndex = (source: string): {text: string; map: number[]} => {
-    const out: string[] = []
-    const map: number[] = []
-    let pendingSpace = false
-    for (let i = 0; i < source.length; i++) {
-        const ch = source[i]
-        if (/\s/.test(ch)) {
-            pendingSpace = out.length > 0
-            continue
-        }
-        if (pendingSpace) {
-            out.push(" ")
+/** A whitespace-collapsed view of `source`, mapped back to original indices for line numbers. */ const collapseWithIndex =
+    (source: string): {text: string; map: number[]} => {
+        const out: string[] = []
+        const map: number[] = []
+        let pendingSpace = false
+        for (let i = 0; i < source.length; i++) {
+            const ch = source[i]
+            if (/\s/.test(ch)) {
+                pendingSpace = out.length > 0
+                continue
+            }
+            if (pendingSpace) {
+                out.push(" ")
+                map.push(i)
+                pendingSpace = false
+            }
+            out.push(ch)
             map.push(i)
-            pendingSpace = false
         }
-        out.push(ch)
-        map.push(i)
+        return {text: out.join(""), map}
     }
-    return {text: out.join(""), map}
-}
 
 const lineAt = (source: string, index: number): number => {
     let line = 1
@@ -84,27 +86,28 @@ const lineAt = (source: string, index: number): number => {
     return line
 }
 
-/** Locate `selected` in `source`: exact first, then whitespace-normalised; null if absent. */export const findInSource = (source: string, selected: string): QuoteLocation | null => {
-    if (!source || !selected) return null
+/** Locate `selected` in `source`: exact first, then whitespace-normalised; null if absent. */ export const findInSource =
+    (source: string, selected: string): QuoteLocation | null => {
+        if (!source || !selected) return null
 
-    const exact = source.indexOf(selected)
-    if (exact !== -1) {
-        return {
-            index: exact,
-            startLine: lineAt(source, exact),
-            endLine: lineAt(source, exact + selected.length - 1),
+        const exact = source.indexOf(selected)
+        if (exact !== -1) {
+            return {
+                index: exact,
+                startLine: lineAt(source, exact),
+                endLine: lineAt(source, exact + selected.length - 1),
+            }
         }
-    }
 
-    const needle = normalizeQuoteText(selected)
-    if (!needle) return null
-    const {text, map} = collapseWithIndex(source)
-    const hit = text.indexOf(needle)
-    if (hit === -1) return null
-    const start = map[hit]
-    const end = map[Math.min(hit + needle.length - 1, map.length - 1)]
-    return {index: start, startLine: lineAt(source, start), endLine: lineAt(source, end)}
-}
+        const needle = normalizeQuoteText(selected)
+        if (!needle) return null
+        const {text, map} = collapseWithIndex(source)
+        const hit = text.indexOf(needle)
+        if (hit === -1) return null
+        const start = map[hit]
+        const end = map[Math.min(hit + needle.length - 1, map.length - 1)]
+        return {index: start, startLine: lineAt(source, start), endLine: lineAt(source, end)}
+    }
 
 /** "L34–L36", "L34", or "" when the excerpt was never located. */
 export const formatLineRange = (start?: number, end?: number): string => {
@@ -119,26 +122,27 @@ const capExcerpt = (text: string): string => {
     return `${text.slice(0, QUOTE_EXCERPT_CAP).trimEnd()}\n… (excerpt truncated)`
 }
 
-/** Staged quotes as markdown blockquotes ahead of the message text. */export const quotesToMarkdown = (quotes: Quote[], text = ""): string => {
-    if (quotes.length === 0) return text
-    const blocks = quotes.map((quote) => {
-        const head =
-            quote.source.kind === "file"
-                ? // The drive path, not the bare name: it is what the agent opens the file by.
-                  `**\`${quote.source.displayPath || quote.source.path}\`**${
-                      formatLineRange(quote.source.startLine, quote.source.endLine)
-                          ? ` (${formatLineRange(quote.source.startLine, quote.source.endLine)})`
-                          : ""
-                  }`
-                : "**Agent reply**"
-        const body = capExcerpt(quote.text)
-            .split("\n")
-            .map((line) => `> ${line}`)
-            .join("\n")
-        const note = quote.note.trim()
-        // Two trailing spaces: a hard break between the origin line and the excerpt.
-        return [`> ${head}  `, body, note ? `\n${note}` : ""].filter(Boolean).join("\n")
-    })
-    const trimmed = text.trim()
-    return trimmed ? `${blocks.join("\n\n")}\n\n${trimmed}` : blocks.join("\n\n")
-}
+/** Staged quotes as markdown blockquotes ahead of the message text. */ export const quotesToMarkdown =
+    (quotes: Quote[], text = ""): string => {
+        if (quotes.length === 0) return text
+        const blocks = quotes.map((quote) => {
+            const head =
+                quote.source.kind === "file"
+                    ? // The drive path, not the bare name: it is what the agent opens the file by.
+                      `**\`${quote.source.displayPath || quote.source.path}\`**${
+                          formatLineRange(quote.source.startLine, quote.source.endLine)
+                              ? ` (${formatLineRange(quote.source.startLine, quote.source.endLine)})`
+                              : ""
+                      }`
+                    : "**Agent reply**"
+            const body = capExcerpt(quote.text)
+                .split("\n")
+                .map((line) => `> ${line}`)
+                .join("\n")
+            const note = quote.note.trim()
+            // Two trailing spaces: a hard break between the origin line and the excerpt.
+            return [`> ${head}  `, body, note ? `\n${note}` : ""].filter(Boolean).join("\n")
+        })
+        const trimmed = text.trim()
+        return trimmed ? `${blocks.join("\n\n")}\n\n${trimmed}` : blocks.join("\n\n")
+    }
