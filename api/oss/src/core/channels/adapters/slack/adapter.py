@@ -157,6 +157,7 @@ class SlackAdapter(ChannelAdapterInterface):
     channel = "slack"
     # Unit tests turn this off (no network); see tests' conftest.
     resolve_sender_names = True
+    _member_page_size = _LISTING_PAGE_SIZE
 
     def __init__(self, *, http_client: Optional[httpx.AsyncClient] = None) -> None:
         self._client = http_client or httpx.AsyncClient(base_url=_SLACK_API_BASE)
@@ -575,6 +576,44 @@ class SlackAdapter(ChannelAdapterInterface):
             if not cursor:
                 break
         return candidates
+
+    async def list_member_spaces(
+        self, *, connection: ChannelConnection
+    ) -> List[ChannelSpaceCandidate]:
+        # users.conversations returns only the bot's own channels, where
+        # conversations.list pages the whole workspace to find them.
+        spaces: List[ChannelSpaceCandidate] = []
+        cursor = ""
+        while True:
+            params: Dict[str, Any] = {
+                "types": "public_channel,private_channel",
+                "exclude_archived": True,
+                "limit": self._member_page_size,
+            }
+            if cursor:
+                params["cursor"] = cursor
+            response = await self._call(
+                connection, "users.conversations", params, as_query=True
+            )
+            for entry in response.get("channels", []):
+                if entry.get("is_im") or entry.get("is_mpim"):
+                    continue
+                spaces.append(
+                    ChannelSpaceCandidate(
+                        kind=ChannelSpaceKind.TOPIC,
+                        external_locator={
+                            "team": entry.get("context_team_id")
+                            or _team_of(connection),
+                            "channel": entry["id"],
+                        },
+                        display_name=entry.get("name"),
+                        membership=ChannelSpaceMembership.MEMBER,
+                    )
+                )
+            cursor = (response.get("response_metadata") or {}).get("next_cursor") or ""
+            if not cursor:
+                break
+        return spaces
 
     async def join_space(
         self, *, connection: ChannelConnection, locator: Dict[str, Any]

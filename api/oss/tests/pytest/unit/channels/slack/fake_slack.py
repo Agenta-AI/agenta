@@ -144,6 +144,7 @@ class FakeSlackWorkspace:
 
 
 _READ_METHODS = {
+    "users.conversations",
     "conversations.list",
     "conversations.history",
     "conversations.replies",
@@ -265,6 +266,19 @@ class FakeSlackTransport(httpx.AsyncBaseTransport):
             }
         )
 
+    def _users_conversations(self, payload: Dict[str, Any]) -> httpx.Response:
+        limit = payload.get("limit") or 100
+        cursor = payload.get("cursor") or ""
+        mine = [c for c in self.workspace.channels.values() if c.get("is_member")]
+
+        start = int(cursor) if cursor else 0
+        page = mine[start : start + limit]
+        next_cursor = str(start + limit) if start + limit < len(mine) else ""
+
+        return _ok_response(
+            {"channels": page, "response_metadata": {"next_cursor": next_cursor}}
+        )
+
     def _conversations_history(self, payload: Dict[str, Any]) -> httpx.Response:
         channel = payload.get("channel")
         if not channel:
@@ -312,6 +326,7 @@ class FakeSlackTransport(httpx.AsyncBaseTransport):
         "auth.test": _auth_test,
         "chat.postMessage": _chat_post_message,
         "chat.update": _chat_update,
+        "users.conversations": _users_conversations,
         "conversations.list": _conversations_list,
         "conversations.history": _conversations_history,
         "conversations.replies": _conversations_replies,

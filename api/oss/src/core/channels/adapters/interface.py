@@ -12,6 +12,7 @@ from oss.src.core.channels.dtos import (
     ChannelSetupIdentity,
     ChannelSpaceCandidate,
 )
+from oss.src.core.channels.types import ChannelNotSupported
 
 
 class ChannelAdapterInterface(ABC):
@@ -225,6 +226,16 @@ class ChannelAdapterInterface(ABC):
         """Which places this install can actually see, so configuration is a
         pick-list rather than a paste-the-channel-id form. Returns
         candidates, not rows — nothing is persisted until an operator chooses."""
+
+    async def list_member_spaces(
+        self, *, connection: ChannelConnection
+    ) -> List[ChannelSpaceCandidate]:
+        """The channels the bot is a member of, for the agent's destination
+        list. Group conversations only: never direct messages or group DMs.
+        Raises ChannelNotSupported where the platform cannot list them
+        (a Telegram bot cannot list its chats)."""
+
+        raise ChannelNotSupported(channel=self.channel)
 
     async def join_space(
         self, *, connection: ChannelConnection, locator: Dict[str, Any]

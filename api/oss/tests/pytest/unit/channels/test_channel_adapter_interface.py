@@ -114,6 +114,8 @@ def test_every_method_parameter_after_self_is_keyword_only():
     # action), re-sent while a turn runs; a platform without one is a no-op.
     # join_space: putting the bot in a space being added; a platform whose
     # bot is already wherever it can be discovered has nothing to join.
+    # list_member_spaces: the channel tools' destination list; a platform
+    # whose bot cannot list its chats (Telegram) says so by raising.
     assert set(concrete_methods) == {
         "build_setup_document",
         "verify_connection",
@@ -124,6 +126,7 @@ def test_every_method_parameter_after_self_is_keyword_only():
         "signal_activity",
         "dismiss_choices",
         "join_space",
+        "list_member_spaces",
     }
     assert len(methods) == len(ChannelAdapterInterface.__abstractmethods__) + len(
         concrete_methods
