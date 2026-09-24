@@ -66,6 +66,10 @@ A Slack user group provides the mention handle. It is not a new Slack bot user. 
 
 The proposed tools never receive bot credentials, raw provider locators, project IDs, connection IDs, or channel-agent IDs from the model. Exact scheduled messages store approved text. Recurring generated messages continue to use the agent scheduler and ordinary send tool.
 
+## Channel message retention
+
+[Proposal](changes/channel-message-retention/proposal.md), [behavior specification](changes/channel-message-retention/specs/channel-message-retention/spec.md), [design](changes/channel-message-retention/design.md), [tasks](changes/channel-message-retention/tasks.md) and [implementation plan](changes/channel-message-retention/plan.md). Draft for Mahmoud's review. Nothing is implemented. Delete stored channel messages after a retention period, and a disconnected bot's messages after a grace period.
+
 ## OpenSpec layout
 
 `specs/` records the observed Slack baseline. `changes/slack-native-agent-handles/` contains one proposal with five capability deltas. `changes/channel-agent-tools/` contains a separate proposal with five new capability deltas.
