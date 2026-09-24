@@ -243,3 +243,36 @@ async def test_messages_in_the_same_second_page_without_loss(channels_scope):
         "d",
     ]
     assert len({r.id for r in seen}) == 4
+
+
+async def test_a_fetched_copy_of_the_bots_post_is_left_out(channels_scope):
+    """The outbox serves the bot's own posts; a copy a history fetch stored in
+    the inbox must not come back, or the two sources would overlap."""
+    dao = ChannelsDAO(engine=channels_scope["engine"])
+    space = await _space(dao, channels_scope)
+    await _sent(dao, channels_scope, space, ts="1756728000.000000")
+    await dao.record_inbox_event(
+        project_id=channels_scope["project_id"],
+        event=ChannelInboxEventCreate(
+            connection_id=channels_scope["connection_id"],
+            external_id="C1:1756728000.000000",
+            kind=ChannelEventKind.MESSAGE,
+            origin=ChannelEventOrigin.PULLED,
+            space_id=space.id,
+            data=ChannelInboxEventData(
+                external_locator={"team": "T1", "channel": "C1"},
+                processed=ChannelInboxEventProcessed(
+                    content=[{"type": "text", "text": "bot copy"}],
+                    sender={"id": "UBOT"},
+                    message_ref="1756728000.000000",
+                ),
+            ),
+        ),
+    )
+    await _inbox(dao, channels_scope, space, "person", minutes=1)
+
+    rows = await dao.query_space_inbox_messages(
+        project_id=channels_scope["project_id"], space_id=space.id, limit=10
+    )
+
+    assert [r.data.processed.content[0]["text"] for r in rows] == ["person"]

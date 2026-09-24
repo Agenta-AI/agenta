@@ -116,13 +116,14 @@ class FakeToolsDAO:
         thread_ts: Optional[str] = None,
         sender: Optional[dict] = None,
         kind: ChannelEventKind = ChannelEventKind.MESSAGE,
+        origin: ChannelEventOrigin = ChannelEventOrigin.PUSHED,
     ) -> ChannelInboxEvent:
         event = ChannelInboxEvent(
             id=uuid4(),
             connection_id=space.connection_id,
             external_id=f"{ts}:{text}",
             kind=kind,
-            origin=ChannelEventOrigin.PUSHED,
+            origin=origin,
             space_id=space.id,
             sent_at=slack_time(ts),
             data=ChannelInboxEventData(
@@ -153,10 +154,11 @@ class FakeToolsDAO:
         text: str,
         ts: str,
         thread_ts: Optional[str] = None,
+        created_at=None,
     ) -> ChannelOutboxEvent:
         row = ChannelOutboxEvent(
             id=uuid4(),
-            created_at=slack_time(ts),
+            created_at=created_at or slack_time(ts),
             connection_id=space.connection_id,
             space_id=space.id,
             turn_id="turn",
@@ -230,11 +232,20 @@ class FakeToolsDAO:
     async def query_space_inbox_messages(
         self, *, project_id, space_id, thread_ts=None, before=None, limit
     ):
+        posted = {
+            (row.data.external_locator or {}).get("ts")
+            for row, _ in self.sent
+            if row.space_id == space_id
+        }
         rows = [
             e
             for e in self.inbox
             if e.space_id == space_id
             and e.kind is ChannelEventKind.MESSAGE
+            and (
+                e.origin is ChannelEventOrigin.PUSHED
+                or e.data.processed.message_ref not in posted
+            )
             and (
                 thread_ts is None
                 or e.data.external_locator.get("thread_ts") == thread_ts

@@ -336,3 +336,66 @@ async def test_telegram_returns_stored_only_with_history_note():
     assert any("Telegram does not let bots read chat history" in n for n in page.notes)
     assert page.cursor is None
     assert calls == []
+
+
+async def test_a_bot_post_fetched_into_the_inbox_is_shown_once_and_hides_nothing():
+    """The bot's post was created at 10 and posted at 30; a fetched copy of it
+    sits in the inbox at 30, and a person spoke at 20. Paging one message at a
+    time must show each of the two messages exactly once."""
+    from oss.src.core.channels.adapters.slack.mapping import slack_time
+    from oss.src.core.channels.dtos import ChannelEventOrigin
+
+    service, dao, _, transport, artifact_id, spaces = _slack()
+    space = spaces["C1"]
+    dao.seed_sent(
+        space=space, text="bot post", ts="30.000000", created_at=slack_time("10.0")
+    )
+    dao.seed_inbox(
+        space=space, text="bot post", ts="30.000000", origin=ChannelEventOrigin.PULLED
+    )
+    dao.seed_inbox(space=space, text="person", ts="20.000000")
+    transport.force_error("conversations.history", error="missing_scope")
+    transport.force_error("conversations.history", error="missing_scope")
+    transport.force_error("conversations.history", error="missing_scope")
+
+    seen, cursor = [], None
+    for _ in range(5):
+        page = await _read(service, artifact_id, space, limit=1, cursor=cursor)
+        seen += [m.text for m in page.messages]
+        cursor = page.cursor
+        if not cursor:
+            break
+
+    assert sorted(seen) == ["bot post", "person"]
+
+
+async def test_a_rate_limited_thread_page_keeps_its_cursor():
+    service, _, workspace, transport, artifact_id, spaces = _slack()
+    root = workspace.seed_message(channel="C1", text="root", user="U1")
+    for i in range(4):
+        workspace.seed_message(channel="C1", text=f"r{i}", user="U2", thread_ts=root)
+    thread_id = encode_space_ref("thr", spaces["C1"].id, root)
+    first = await _read(
+        service, artifact_id, spaces["C1"], thread_id=thread_id, limit=2
+    )
+    transport.force_error("conversations.replies", error="ratelimited", status_code=429)
+
+    limited = await _read(
+        service,
+        artifact_id,
+        spaces["C1"],
+        thread_id=thread_id,
+        limit=2,
+        cursor=first.cursor,
+    )
+    resumed = await _read(
+        service,
+        artifact_id,
+        spaces["C1"],
+        thread_id=thread_id,
+        limit=2,
+        cursor=limited.cursor,
+    )
+
+    assert limited.messages == [] and limited.cursor == first.cursor
+    assert [m.text for m in resumed.messages] == ["r1", "r2"]

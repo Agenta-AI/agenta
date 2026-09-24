@@ -21,6 +21,7 @@ from sqlalchemy.dialects.postgresql import JSONB, insert
 from oss.src.core.channels.dtos import (
     CHANNEL_TRIGGER_NEVER_SENT,
     ChannelEventKind,
+    ChannelEventOrigin,
     ChannelAgent,
     ChannelAgentCreate,
     ChannelAgentEdit,
@@ -1384,10 +1385,26 @@ class ChannelsDAO(ChannelsDAOInterface):
         limit: int,
     ) -> List[ChannelInboxEvent]:
         table = ChannelInboxEventDBE
+        outbox = ChannelOutboxEventDBE
+        # A fetched history page can hold a copy of the bot's own post, which
+        # the outbox already serves. Leaving it out here, not after paging,
+        # keeps the two sources disjoint, so each pages on its own order.
+        posted_by_bot = (
+            select(outbox.id)
+            .where(
+                outbox.project_id == table.project_id,
+                outbox.space_id == table.space_id,
+                outbox.state == ChannelDeliveryState.SENT,
+                func.json_extract_path_text(outbox.data, "external_locator", "ts")
+                == func.json_extract_path_text(table.data, "processed", "message_ref"),
+            )
+            .exists()
+        )
         stmt = select(table).where(
             table.project_id == project_id,
             table.space_id == space_id,
             table.kind == ChannelEventKind.MESSAGE.value,
+            (table.origin == ChannelEventOrigin.PUSHED) | ~posted_by_bot,
         )
         if thread_ts is not None:
             stmt = stmt.where(

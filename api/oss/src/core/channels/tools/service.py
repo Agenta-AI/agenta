@@ -108,6 +108,10 @@ LIVE_CHANNEL_NOTE = (
     "Older messages come live from Slack's channel history, which lists thread "
     "replies only inside their thread; read a thread with its thread_id."
 )
+THREAD_PARTIAL_NOTE = (
+    "Only the part of this thread Agenta stored is shown; read it again later "
+    "for the whole thread."
+)
 TELEGRAM_READ_NOTE = (
     "Telegram does not let bots read chat history, so this shows only messages "
     "the bot received. In groups where the bot's privacy mode is on, that is "
@@ -653,6 +657,14 @@ class ChannelToolsService:
                 limit=size,
             )
         except (ChannelRateLimited, ChannelBackfillRefused) as e:
+            note = (
+                _rate_limit_note(e)
+                if isinstance(e, ChannelRateLimited)
+                else f"Slack refused to read this thread ({e.reason})."
+            )
+            if slack_cursor:
+                # a later page: hand the same cursor back, so a retry resumes
+                return ChannelMessagesPage(cursor=cursor, notes=[note])
             stored = await self._stored_items(
                 project_id=project_id,
                 space=space,
@@ -660,15 +672,10 @@ class ChannelToolsService:
                 before=None,
                 limit=size,
             )
-            notes = [STORED_NOTE] if stored else []
-            notes.append(
-                _rate_limit_note(e)
-                if isinstance(e, ChannelRateLimited)
-                else f"Slack refused to read this thread ({e.reason})."
-            )
+            notes = [STORED_NOTE, THREAD_PARTIAL_NOTE] if stored else []
             return ChannelMessagesPage(
                 messages=[item.message for item in sorted(stored, key=_item_order)],
-                notes=notes,
+                notes=notes + [note],
             )
         return ChannelMessagesPage(
             messages=[_live_item(space.id, m).message for m in page.messages],
@@ -689,8 +696,9 @@ class ChannelToolsService:
         thread_ts: Optional[str] = None,
     ) -> List["_Item"]:
         """People's messages from the inbox and the bot's posts from the
-        outbox, newest first by (time, id). A bot post stored in both is kept
-        once, from the outbox, which holds its final text."""
+        outbox, newest first by (time, id). The inbox query leaves out copies
+        of the bot's own posts, so the two sources never overlap and each
+        pages on its own order."""
 
         inbox = await self.channels_dao.query_space_inbox_messages(
             project_id=project_id,
@@ -706,15 +714,10 @@ class ChannelToolsService:
             before=before,
             limit=limit,
         )
-        bot_items = [_bot_item(space.id, row, thread) for row, thread in outbox]
-        posted = {item.identity for item in bot_items}
-        person_items = [
-            item
-            for item in (_person_item(space.id, event) for event in inbox)
-            if item.identity not in posted
+        items = [_person_item(space.id, event) for event in inbox] + [
+            _bot_item(space.id, row, thread) for row, thread in outbox
         ]
-        items = sorted(person_items + bot_items, key=_item_order, reverse=True)
-        return items[:limit]
+        return sorted(items, key=_item_order, reverse=True)[:limit]
 
     def _adapter(self, bot: ChannelBot):
         return self.channels_service.adapter_registry.get(bot.connection.channel)
