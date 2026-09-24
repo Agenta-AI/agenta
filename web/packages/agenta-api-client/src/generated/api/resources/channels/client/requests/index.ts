@@ -11,6 +11,8 @@ export type { ChannelGrantQueryRequest } from "./ChannelGrantQueryRequest.js";
 export type { ChannelGrantRequest } from "./ChannelGrantRequest.js";
 export type { ChannelInboxEventQueryRequest } from "./ChannelInboxEventQueryRequest.js";
 export type { ChannelMessageSendRequest } from "./ChannelMessageSendRequest.js";
+export type { ChannelMessagesReadRequest } from "./ChannelMessagesReadRequest.js";
+export type { ChannelMessagesSearchRequest } from "./ChannelMessagesSearchRequest.js";
 export type { ChannelOutboxEventQueryRequest } from "./ChannelOutboxEventQueryRequest.js";
 export type { ChannelPolicyResolveRequest } from "./ChannelPolicyResolveRequest.js";
 export type { ChannelSpaceDiscoverRequest } from "./ChannelSpaceDiscoverRequest.js";

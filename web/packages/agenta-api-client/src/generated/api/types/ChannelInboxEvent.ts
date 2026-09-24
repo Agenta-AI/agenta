@@ -15,6 +15,7 @@ export interface ChannelInboxEvent {
     kind: AgentaApi.ChannelEventKind;
     origin: AgentaApi.ChannelEventOrigin;
     space_id?: (string | null) | undefined;
+    sent_at?: (string | null) | undefined;
     status?: (AgentaApi.Status | null) | undefined;
     data: AgentaApi.ChannelInboxEventData;
     flags?: AgentaApi.ChannelInboxEventFlags | undefined;
