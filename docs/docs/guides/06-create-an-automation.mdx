@@ -8,18 +8,18 @@ description: "Run an agent on a schedule or whenever something happens in an app
 import { Stream } from "@cloudflare/stream-react";
 ```
 
-An automation runs an agent for you, without anyone typing in the chat. You decide when it runs and what it should do. Agenta does the rest.
+An automation runs an agent without anyone typing in the chat. It starts in one of two ways:
 
-Two things can start an automation:
+- **On a schedule.** For example, every weekday at 9:00.
+- **When something happens in an app you have connected.** For example, when a new issue is opened in GitHub.
 
-- **A schedule.** For example, every weekday at 9:00.
-- **An event in an app you have connected.** For example, when a new issue is opened in GitHub.
-
-To learn more about how automations work, see [Automations](/concepts/automations).
+To learn how automations work, see [Automations](/concepts/automations).
 
 ## Get the agent ready
 
-Open the agent and tell it in the chat what the job is: what to do and where to get the information. The agent sets itself up from that. An automation runs without anyone in the chat, so this is all it will have to go on.
+An automation cannot answer the agent's questions, so the agent has to know the job before it runs.
+
+Open the agent and describe the job in the chat: what to do and where to find the information. The agent writes this into its own instructions and adds the tools it needs.
 
 ## Create the automation
 
@@ -29,59 +29,59 @@ Go to `Sidebar > Automations` and click `New automation`.
 
 ### 1. Give it a name
 
-Type a name, or leave it empty. If you leave it empty, Agenta names it after the schedule and the agent, for example `Weekdays at 09:00 UTC — Support digest`.
+Type a name, or leave it empty. An empty name is filled in from the schedule and the agent, for example `Weekdays at 09:00 UTC — Support digest`.
 
 ### 2. Pick the agent
 
-Under `Agent`, choose the agent you prepared above.
+Under `Agent`, choose the agent you prepared.
 
 ### 3. Choose when it runs
 
-Click `Runs when`. You will see two options at the top:
+Click `Runs when` and choose one of the two options at the top:
 
-- `On a schedule`: the agent runs at the times you pick.
-- `When something happens`: the agent runs when a certain event happens in an app you have connected.
+- `On a schedule` runs the agent at the times you set.
+- `When something happens` runs the agent each time a chosen event happens in a connected app.
 
-#### If you chose "On a schedule"
+#### On a schedule
 
-A new automation is set to run every weekday at 9:00 UTC. To change that, pick how often it should run under `Cadence`:
+A new automation runs every weekday at 9:00 UTC. To change it, choose a `Cadence`:
 
-- `Hourly`: every few hours.
-- `Daily`: once or more every day.
-- `Weekly`: on the days of the week you pick.
-- `Monthly`: on the days of the month you pick.
-- `Cron`: for people who know cron expressions.
+- `Hourly`: every 1 to 12 hours, at the minute you pick.
+- `Daily`: every day, at the times you pick.
+- `Weekly`: on the weekdays you pick, at the times you pick.
+- `Monthly`: on the days of the month you pick, at the times you pick.
+- `Cron`: a cron expression, for schedules the other options cannot express.
 
 :::note
-All times are in UTC (the world's reference time), not your local time. In summer, 9:00 UTC is 11:00 in Berlin and 5:00 in New York.
+Times are in UTC, not your local time. In summer, 9:00 UTC is 11:00 in Berlin and 5:00 in New York.
 :::
 
 <Stream controls autoplay muted loop src="28e50ba6169b9c9a3c0773826e9c9843" height="400px" />
 
-#### If you chose "When something happens"
+#### When something happens
 
-The list on the left shows the apps you have connected. An automation can only watch an app that is on this list.
+The panel lists the apps you have connected. An automation can only watch one of these apps.
 
-If your app is not there yet, click `Connect another app…`. Search for the app, click it, and click `Connect`. Once it is connected, open `Runs when` again and the app is on the list.
+To add an app, click `Connect another app…`, search for the app, click it, and click `Connect`. When the connection is done, open `Runs when` again. The app is now in the list.
 
-Now click the app, then click the event you want to watch (for example, "issue opened"). Some events ask for a few details first, such as which repository to watch. Fill them in and click `Done`.
+Click the app, then click the event to watch, such as "issue opened". Some events need details before they can run, such as which repository to watch. Fill them in and click `Done`.
 
 <Stream controls autoplay muted loop src="f0fcbe8b948279df7a7816c684e34707" height="400px" />
 
 ### 4. Write the message
 
-Under `Instruction`, write the message the agent receives each time it runs, the same way you would type it in the chat. Say what to do and where to put the result. For example:
+Under `Instruction`, write the message the agent receives on every run, as you would type it in the chat. Say what to do and where to put the result. For example:
 
 > Summarize support tickets from the previous day and post the digest to #ops.
 
 ### 5. Create it
 
-Click `Create automation`.
+Click `Create automation`. The automation's page opens, and the automation appears in `Sidebar > Automations`.
 
 ## Check the automation's history
 
-Every run is saved, together with the full conversation the agent had. Open the automation and click the `Run history` card.
+Agenta saves every run with the full conversation the agent had. To see them, open the automation from `Sidebar > Automations` and click the `Run history` card.
 
 ## Related
 
-- [Automations](/concepts/automations) explains what an automation needs to be given up front.
+- [Automations](/concepts/automations) explains how to prepare an agent for work that runs without anyone in the chat.
