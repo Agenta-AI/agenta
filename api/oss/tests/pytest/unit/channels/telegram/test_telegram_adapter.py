@@ -296,6 +296,28 @@ async def test_parse_event_keeps_a_group_title_for_the_destination_list():
 
 
 @pytest.mark.asyncio
+async def test_parse_event_records_date_and_message_id():
+    from datetime import datetime, timezone
+
+    adapter = TelegramAdapter()
+    body = json.dumps(
+        {
+            "update_id": 3,
+            "message": {
+                "message_id": 12,
+                "date": 1700000000,
+                "from": {"id": 555, "is_bot": False},
+                "chat": {"id": 999, "type": "private"},
+                "text": "hello",
+            },
+        }
+    ).encode()
+    event = await adapter.parse_event(body=body, connection=_connection())
+    assert event.processed.message_ref == "12"
+    assert event.processed.sent_at == datetime.fromtimestamp(1700000000, timezone.utc)
+
+
+@pytest.mark.asyncio
 async def test_parse_event_skips_the_bots_own_message():
     adapter = TelegramAdapter()
     body = json.dumps(

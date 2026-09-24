@@ -22,6 +22,7 @@ from oss.src.core.channels.adapters.slack.mapping import (
     mentions_user,
     parse_block_action,
     render_buttons_or_degrade,
+    slack_time,
     split_for_max_chars,
 )
 from oss.src.core.channels.adapters.slack.oauth import hosted_app_configured
@@ -389,6 +390,8 @@ class SlackAdapter(ChannelAdapterInterface):
             processed=ChannelInboxEventProcessed(
                 content=content,
                 sender=sender,
+                sent_at=slack_time(event_ts),
+                message_ref=event_ts or None,
             ),
             # Addressed when the message names an agent by sigil (~agent) or
             # natively @-mentions the bot (<@bot_user_id>, the form Slack
@@ -710,6 +713,8 @@ class SlackAdapter(ChannelAdapterInterface):
                     processed=ChannelInboxEventProcessed(
                         content=[{"type": "text", "text": message.get("text") or ""}],
                         sender={"id": message.get("user") or ""},
+                        sent_at=slack_time(message.get("ts")),
+                        message_ref=message.get("ts"),
                     ),
                 )
             )

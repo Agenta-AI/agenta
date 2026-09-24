@@ -1,3 +1,4 @@
+from datetime import datetime, timedelta, timezone
 import re
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -174,3 +175,27 @@ def render_approval_card(tool_call: Dict[str, Any]) -> Dict[str, Any]:
     for key, value in arguments.items():
         lines.append(f"- {key}: {value}")
     return {"type": "text", "text": "\n".join(lines)}
+
+
+def slack_time(ts: Optional[str]) -> Optional[datetime]:
+    """A Slack `ts` ("1700000000.000100") as the time it names, exact to the
+    microsecond: a float would round the last digits and two messages could
+    swap places."""
+
+    if not ts or not isinstance(ts, str):
+        return None
+    seconds, _, fraction = ts.partition(".")
+    try:
+        whole = datetime.fromtimestamp(int(seconds), timezone.utc)
+        micros = int((fraction + "000000")[:6]) if fraction else 0
+    except (ValueError, OverflowError):
+        return None
+    return whole + timedelta(microseconds=micros)
+
+
+def slack_ts(value: datetime) -> str:
+    """The inverse of `slack_time`, for a history read's `latest` bound."""
+
+    epoch = datetime(1970, 1, 1, tzinfo=timezone.utc)
+    delta = value.astimezone(timezone.utc) - epoch
+    return f"{delta.days * 86400 + delta.seconds}.{delta.microseconds:06d}"

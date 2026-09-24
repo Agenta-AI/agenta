@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 import json
 from typing import Any, Dict, List, Optional
 from uuid import UUID
@@ -285,6 +286,12 @@ class TelegramAdapter(ChannelAdapterInterface):
             processed=ChannelInboxEventProcessed(
                 content=[{"type": "text", "text": text}],
                 sender=_sender_fields(sender),
+                sent_at=_telegram_time(message.get("date")),
+                message_ref=(
+                    str(message["message_id"])
+                    if message.get("message_id") is not None
+                    else None
+                ),
             ),
             addressed=addressed,
         )
@@ -581,3 +588,9 @@ def _parse_callback_query(callback: Dict[str, Any]) -> Optional[ChannelInboundEv
         ),
         addressed=True,
     )
+
+
+def _telegram_time(value: Any) -> Optional[datetime]:
+    if not isinstance(value, int):
+        return None
+    return datetime.fromtimestamp(value, timezone.utc)

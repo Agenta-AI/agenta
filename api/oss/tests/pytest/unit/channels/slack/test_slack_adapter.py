@@ -1477,3 +1477,19 @@ async def test_a_later_chunk_failing_after_an_earlier_one_landed_is_uncertain():
             idempotency_key=uuid4(),
         )
     assert len(calls) == 2
+
+
+async def test_parse_event_records_ts_as_sent_at_and_message_ref():
+    from datetime import datetime, timezone
+
+    adapter = SlackAdapter()
+    body = _event_callback(
+        {"channel": "C1", "user": "U1", "text": "hi", "ts": "1700000000.000100"}
+    )
+
+    event = await adapter.parse_event(body=body)
+
+    assert event.processed.message_ref == "1700000000.000100"
+    assert event.processed.sent_at == datetime(
+        2023, 11, 14, 22, 13, 20, 100, tzinfo=timezone.utc
+    )

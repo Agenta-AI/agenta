@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Enum, String
+from sqlalchemy import TIMESTAMP, Column, Enum, String
 from sqlalchemy.dialects.postgresql import UUID
 
 from oss.src.core.channels.dtos import (
@@ -135,6 +135,8 @@ class ChannelInboxEventDBA(
     kind = Column(String, nullable=False)
     origin = Column(Enum(ChannelEventOrigin), nullable=False)
     space_id = Column(UUID(as_uuid=True), nullable=True)
+    # the provider's time; the channel read tool orders a space by it
+    sent_at = Column(TIMESTAMP(timezone=True), nullable=True)
 
 
 class ChannelInboxTriggerDBA(

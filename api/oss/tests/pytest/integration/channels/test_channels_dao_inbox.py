@@ -211,3 +211,25 @@ async def test_mark_inbox_event_consumed_sets_the_flag_once(channels_scope):
     assert again.flags.is_consumed is True
     rows = await dao.query_inbox_events(project_id=project_id)
     assert rows[0].flags.is_consumed is True
+
+
+async def test_inbox_event_round_trips_sent_at(channels_scope):
+    from datetime import datetime, timezone
+
+    dao = ChannelsDAO(engine=channels_scope["engine"])
+    project_id = channels_scope["project_id"]
+    sent_at = datetime(2023, 11, 14, 22, 13, 20, 100, tzinfo=timezone.utc)
+    event = _event(connection_id=channels_scope["connection_id"], external_id="EvT")
+    event.data.processed.sent_at = sent_at
+    event.data.processed.message_ref = "1700000000.000100"
+
+    recorded = await dao.record_inbox_event(project_id=project_id, event=event)
+    unstamped = await dao.record_inbox_event(
+        project_id=project_id,
+        event=_event(connection_id=channels_scope["connection_id"], external_id="EvU"),
+    )
+
+    assert recorded.sent_at == sent_at
+    assert recorded.data.processed.message_ref == "1700000000.000100"
+    # a row the adapter could not date takes its arrival time, never null
+    assert unstamped.sent_at is not None

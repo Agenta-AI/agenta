@@ -490,6 +490,11 @@ class ChannelInboxEventProcessed(BaseModel):
 
     content: List[Dict[str, Any]]  # normalised parts
     sender: Dict[str, Any]  # platform user, pre-identity-link
+    # the platform's own time and reference for this message (Slack `ts`,
+    # Telegram `date` and `message_id`): the channel read tool orders by the
+    # first and matches the bot's own posts by the second
+    sent_at: Optional[datetime] = None
+    message_ref: Optional[str] = None
 
     @field_validator("content", "sender", mode="after")
     @classmethod
@@ -819,6 +824,8 @@ class ChannelInboxEvent(Identifier, Lifecycle):
     kind: ChannelEventKind
     origin: ChannelEventOrigin
     space_id: Optional[UUID] = None
+    # the provider's time, or the arrival time where the platform gave none
+    sent_at: Optional[datetime] = None
     #
     status: Optional[Status] = None
     data: ChannelInboxEventData
