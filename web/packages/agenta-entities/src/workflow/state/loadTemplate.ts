@@ -1,4 +1,5 @@
 import {projectIdAtom} from "@agenta/shared/state"
+import {generateId} from "@agenta/shared/utils"
 import type {AgentaApi} from "@agentaai/api-client"
 import {atom} from "jotai"
 
@@ -88,6 +89,16 @@ const saveIntent = (scope: string, intent: LoadIntent | null) => {
     }
 }
 
+const isTerminalTemplateLoadConflict = (error: unknown): boolean => {
+    const candidate = error as {statusCode?: number; body?: unknown} | null
+    if (candidate?.statusCode !== 409 || typeof candidate.body !== "object" || !candidate.body) {
+        return false
+    }
+    const body = candidate.body as {code?: unknown; detail?: {code?: unknown}}
+    const code = body.code ?? body.detail?.code
+    return code === "template_load_conflict" || code === "idempotency_key_reused"
+}
+
 export const abandonAgentTemplateLoad = (projectId: string, templateKey: string) => {
     saveIntent(`agent-template-intent:${projectId}:${templateKey}`, null)
 }
@@ -120,7 +131,7 @@ export const loadAgentTemplateFromEphemeralAtom = atom(
             const seedMessage = initialMessage?.trim() || templateBuilderMessage(template)
             const intentScope = `agent-template-intent:${projectId}:${template.source.key}`
             const intent = readIntent(intentScope) ?? {
-                key: `agent-template:${revisionId}:${template.source.key}`,
+                key: `agent-template:${generateId()}`,
                 request: {
                     source: template.source,
                     base_revision: (data ?? {}) as AgentaApi.WorkflowRevisionDataInput,
@@ -133,7 +144,13 @@ export const loadAgentTemplateFromEphemeralAtom = atom(
                 },
             }
             saveIntent(intentScope, intent)
-            const result = await loadAgentTemplate(intent.request, intent.key, projectId)
+            let result: AgentTemplateLoadResult
+            try {
+                result = await loadAgentTemplate(intent.request, intent.key, projectId)
+            } catch (error) {
+                if (isTerminalTemplateLoadConflict(error)) saveIntent(intentScope, null)
+                throw error
+            }
 
             set(
                 workflowBuildKitEnabledAtomFamily(result.revision_id),

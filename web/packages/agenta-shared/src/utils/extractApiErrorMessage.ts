@@ -61,6 +61,11 @@ export function extractApiErrorMessage(error: unknown): string {
         if (responseMessage) return responseMessage
     }
 
+    if (isRecord(error) && "body" in error) {
+        const bodyMessage = extractMessageFromPayload(error.body)
+        if (bodyMessage) return bodyMessage
+    }
+
     const directMessage = extractMessageFromPayload(error)
     if (directMessage) return directMessage
 

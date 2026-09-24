@@ -46,6 +46,22 @@ describe("extractApiErrorMessage — Error instances", () => {
     it("returns error.message for a plain Error", () => {
         expect(extractApiErrorMessage(new Error("Something failed"))).toBe("Something failed")
     })
+
+    it("extracts the message from a Fern error body", () => {
+        const error = Object.assign(new Error("Status code: 409"), {
+            statusCode: 409,
+            body: {code: "template_load_conflict", message: "Template load was refused."},
+        })
+        expect(extractApiErrorMessage(error)).toBe("Template load was refused.")
+    })
+
+    it("extracts a nested message from a Fern error body", () => {
+        const error = Object.assign(new Error("Status code: 409"), {
+            statusCode: 409,
+            body: {detail: {code: "template_load_conflict", message: "Template load was refused."}},
+        })
+        expect(extractApiErrorMessage(error)).toBe("Template load was refused.")
+    })
 })
 
 describe("extractApiErrorMessage — direct string/object", () => {

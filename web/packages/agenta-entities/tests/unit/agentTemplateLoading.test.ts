@@ -20,8 +20,8 @@ vi.mock("../../src/workflow/api/agentTemplates", () => ({
 
 import {AGENT_TEMPLATES, templateBuilderMessage} from "../../src/workflow/agentTemplates"
 import type {AgentTemplateLoadResult} from "../../src/workflow/api/agentTemplates"
-import {buildCreatePayloadFromEphemeral} from "../../src/workflow/state/createPayload"
 import {createWorkflowFromEphemeralAtom} from "../../src/workflow/state/commit"
+import {buildCreatePayloadFromEphemeral} from "../../src/workflow/state/createPayload"
 import {
     loadAgentTemplateFromEphemeralAtom,
     templateConnectionChoices,
@@ -229,4 +229,50 @@ it("recovers the saved creation intent after a page reload", async () => {
     } finally {
         vi.unstubAllGlobals()
     }
+})
+
+it("starts a fresh request after a terminal template conflict", async () => {
+    const template = AGENT_TEMPLATES.find((item) => item.key === "pr-reviewer")!
+    const params = {revisionId: REVISION_ID, template}
+    const scope = "agent-template-intent:project-1:pr-reviewer"
+    const storage = new Map<string, string>()
+    vi.stubGlobal("sessionStorage", {
+        getItem: (key: string) => storage.get(key) ?? null,
+        setItem: (key: string, value: string) => storage.set(key, value),
+        removeItem: (key: string) => storage.delete(key),
+    })
+    const conflict = Object.assign(new Error("Status code: 409"), {
+        statusCode: 409,
+        body: {code: "template_load_conflict", message: "Template load was refused."},
+    })
+    loadAgentTemplateMock.mockRejectedValueOnce(conflict)
+
+    try {
+        await expect(store.set(loadAgentTemplateFromEphemeralAtom, params)).rejects.toBe(conflict)
+        expect(storage.has(scope)).toBe(false)
+        await store.set(loadAgentTemplateFromEphemeralAtom, params)
+
+        expect(loadAgentTemplateMock).toHaveBeenCalledTimes(2)
+        expect(loadAgentTemplateMock.mock.calls[1][1]).not.toBe(
+            loadAgentTemplateMock.mock.calls[0][1],
+        )
+    } finally {
+        vi.unstubAllGlobals()
+    }
+})
+
+it("retains the intent for a retryable conflict", async () => {
+    store.set(projectIdAtom, "project-retryable")
+    const template = AGENT_TEMPLATES.find((item) => item.key === "pr-reviewer")!
+    const params = {revisionId: REVISION_ID, template}
+    const conflict = Object.assign(new Error("Status code: 409"), {
+        statusCode: 409,
+        body: {code: "session_busy", message: "Session is still active."},
+    })
+    loadAgentTemplateMock.mockRejectedValueOnce(conflict)
+
+    await expect(store.set(loadAgentTemplateFromEphemeralAtom, params)).rejects.toBe(conflict)
+    await store.set(loadAgentTemplateFromEphemeralAtom, params)
+
+    expect(loadAgentTemplateMock.mock.calls[1][1]).toBe(loadAgentTemplateMock.mock.calls[0][1])
 })
