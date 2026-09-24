@@ -221,6 +221,8 @@ from oss.src.core.channels.queue import ChannelSessionQueue
 from oss.src.core.channels.service import ChannelsService
 from oss.src.apis.fastapi.channels.ingress import ChannelsIngressRouter
 from oss.src.apis.fastapi.channels.router import ChannelsRouter
+from oss.src.apis.fastapi.channels.tools import ChannelToolsRouter
+from oss.src.core.channels.tools.service import ChannelToolsService
 from oss.src.core.channels.telegram_binding import TelegramBindingService
 from oss.src.core.channels.adapters.telegram_hosted.capabilities import (
     fetch_telegram_hosted_capabilities,
@@ -1294,6 +1296,14 @@ channels = ChannelsRouter(
     telegram_binding_service=_telegram_binding_service,
 )
 
+channel_tools = ChannelToolsRouter(
+    tools_service=ChannelToolsService(
+        channels_service=channels_service,
+        workflows_service=workflows_service,
+        telegram_binding_service=_telegram_binding_service,
+    ),
+)
+
 # Gateway storage and policy services. `llm_endpoints_dao` is built earlier, beside the
 # other DAOs, because the vault's endpoint registrar takes it.
 mcp_endpoints_dao = MCPEndpointsDAO(engine=_transactions_engine)
@@ -1945,6 +1955,12 @@ app.include_router(
     prefix="/preview/channels",
     tags=["Channels"],
     include_in_schema=False,
+)
+
+app.include_router(
+    router=channel_tools.router,
+    prefix="/channels",
+    tags=["Channels"],
 )
 
 app.include_router(

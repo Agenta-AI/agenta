@@ -38,6 +38,7 @@ from agenta.sdk.utils.types import CATALOG_TYPES
 from ._schema import expand_type_refs
 
 __all__ = [
+    "CHANNEL_TOOL_OPS",
     "PLATFORM_OP_NAMESPACE",
     "PlatformOp",
     "PLATFORM_OPS",
@@ -1585,9 +1586,63 @@ _LIST_STARTERS_INPUT_SCHEMA: Dict[str, Any] = {
 }
 
 
+# Channel agent tools: post, read and search through the Slack and Telegram bots the running
+# agent is connected to. The server finds the bots from the run's workflow artifact, so the model
+# never names a bot, a connection or a raw Slack or Telegram id; destinations, threads and
+# messages are opaque ids the list, read and search results hand back.
+_CHANNEL_LIST_DESCRIPTION = (
+    "List the Slack channels and Telegram groups you can post to or read through the bots this "
+    "agent is connected to. Each result has an opaque destination_id to pass to "
+    "send_channel_message, read_channel_messages or search_channel_messages, and says whether "
+    "you may post there (can_post) and read or search it (can_read). Filter by name with "
+    "`query`; page with `cursor`."
+)
+
+_CHANNEL_LIST_INPUT_SCHEMA: Dict[str, Any] = {
+    "type": "object",
+    "additionalProperties": False,
+    "properties": {
+        "type": {
+            "type": "string",
+            "enum": ["channel"],
+            "description": "Only channel destinations exist today.",
+        },
+        "query": {
+            "type": "string",
+            "maxLength": 200,
+            "description": "Case-insensitive part of the channel or group name.",
+        },
+        "limit": {"type": "integer", "minimum": 1, "maximum": 100},
+        "cursor": {
+            "type": "string",
+            "maxLength": 64,
+            "description": "The cursor from the previous page.",
+        },
+        "artifact_id": _BOUND_FROM_RUN_SCHEMA,
+    },
+}
+
+_CHANNEL_TOOL_OPS: tuple = (
+    PlatformOp(
+        op="list_channel_destinations",
+        description=_CHANNEL_LIST_DESCRIPTION,
+        method="POST",
+        path="/api/channels/tools/destinations/query",
+        input_schema=_CHANNEL_LIST_INPUT_SCHEMA,
+        context_bindings={"artifact_id": "$ctx.workflow.artifact.id"},
+        read_only=True,
+    ),
+)
+
+# The ops the Agenta tools kit adds to a run of an agent connected to a bot. The kit reads the
+# condition from `POST /api/channels/tools/availability`.
+CHANNEL_TOOL_OPS: tuple = tuple(op.op for op in _CHANNEL_TOOL_OPS)
+
+
 PLATFORM_OPS: Dict[str, PlatformOp] = {
     op.op: op
     for op in _READ_CONFIG_OPS
+    + _CHANNEL_TOOL_OPS
     + (
         PlatformOp(
             op="create_app",

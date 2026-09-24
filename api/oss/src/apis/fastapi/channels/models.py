@@ -11,7 +11,7 @@ from datetime import datetime
 from typing import Any, Dict, List, Literal, Optional
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from oss.src.core.channels.dtos import (
     ChannelAgentEditRequest,
@@ -53,6 +53,9 @@ from oss.src.core.channels.dtos import (
 )
 
 __all__ = [
+    "ChannelDestinationsQueryRequest",
+    "ChannelToolsAvailabilityRequest",
+    "ChannelToolsAvailabilityResponse",
     "AgentaConversationItem",
     "AgentaConversationResponse",
     "ChannelAgentCreateRequest",
@@ -145,3 +148,31 @@ class TelegramHostedBindingsResponse(BaseModel):
     # from "chat connected".
     count: int
     bindings: List[TelegramHostedBinding]
+
+
+# --- channel agent tools ------------------------------------------------------ #
+#
+# Closed on purpose: `artifact_id`, `session_id` and `tool_call_id` are bound by
+# the runner from run context, and anything else the model adds (a connection
+# id, a raw Slack channel, a sender name) is refused before a read or a write.
+
+
+class _ChannelToolRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    artifact_id: UUID
+
+
+class ChannelToolsAvailabilityRequest(_ChannelToolRequest):
+    pass
+
+
+class ChannelToolsAvailabilityResponse(BaseModel):
+    available: bool
+
+
+class ChannelDestinationsQueryRequest(_ChannelToolRequest):
+    type: Optional[Literal["channel"]] = None
+    query: Optional[str] = Field(default=None, max_length=200)
+    limit: Optional[int] = Field(default=None, ge=1, le=100)
+    cursor: Optional[str] = Field(default=None, max_length=64)
