@@ -10,8 +10,15 @@ from typing import Dict, List, Optional
 from uuid import UUID, uuid4
 
 from oss.src.core.channels.adapters.registry import ChannelAdapterRegistry
+from oss.src.core.channels.adapters.slack.mapping import slack_time
 from oss.src.core.channels.dtos import (
     ChannelAgent,
+    ChannelEventKind,
+    ChannelEventOrigin,
+    ChannelInboxEvent,
+    ChannelInboxEventData,
+    ChannelInboxEventProcessed,
+    ChannelOutboxEventData,
     ChannelAgentData,
     ChannelAgentFlags,
     ChannelConnection,
@@ -37,7 +44,8 @@ class FakeToolsDAO:
         self.agents: Dict[UUID, ChannelAgent] = {}
         self.spaces: Dict[UUID, ChannelSpace] = {}
         self.outbox: Dict[UUID, ChannelOutboxEvent] = {}
-        self.stored_messages: Dict[UUID, List[dict]] = {}
+        self.inbox: List[ChannelInboxEvent] = []
+        self.sent: List[tuple] = []  # (ChannelOutboxEvent, thread_ts)
         self.searches: List[dict] = []
 
     # --- seeding --- #
@@ -101,6 +109,69 @@ class FakeToolsDAO:
         self.spaces[space.id] = space
         return space
 
+    def seed_inbox(
+        self,
+        *,
+        space: ChannelSpace,
+        text: str,
+        ts: str,
+        thread_ts: Optional[str] = None,
+        sender: Optional[dict] = None,
+        kind: ChannelEventKind = ChannelEventKind.MESSAGE,
+    ) -> ChannelInboxEvent:
+        event = ChannelInboxEvent(
+            id=uuid4(),
+            connection_id=space.connection_id,
+            external_id=f"{ts}:{text}",
+            kind=kind,
+            origin=ChannelEventOrigin.PUSHED,
+            space_id=space.id,
+            sent_at=slack_time(ts),
+            data=ChannelInboxEventData(
+                # Slack locators carry the thread; Telegram's never do
+                external_locator={
+                    **space.data.external_locator,
+                    **(
+                        {"thread_ts": thread_ts or ts}
+                        if "channel" in space.data.external_locator
+                        else {}
+                    ),
+                },
+                processed=ChannelInboxEventProcessed(
+                    content=[{"type": "text", "text": text}],
+                    sender=sender or {"id": "U1"},
+                    sent_at=slack_time(ts),
+                    message_ref=ts,
+                ),
+            ),
+        )
+        self.inbox.append(event)
+        return event
+
+    def seed_sent(
+        self,
+        *,
+        space: ChannelSpace,
+        text: str,
+        ts: str,
+        thread_ts: Optional[str] = None,
+    ) -> ChannelOutboxEvent:
+        row = ChannelOutboxEvent(
+            id=uuid4(),
+            created_at=slack_time(ts),
+            connection_id=space.connection_id,
+            space_id=space.id,
+            turn_id="turn",
+            key=uuid4(),
+            state=ChannelDeliveryState.SENT,
+            data=ChannelOutboxEventData(
+                external_locator={"channel": "C", "ts": ts},
+                processed={"content": [{"type": "text", "text": text}], "final": True},
+            ),
+        )
+        self.sent.append((row, thread_ts or ts))
+        return row
+
     def archive_connection(self, connection_id: UUID) -> None:
         connection = self.connections[connection_id]
         self.connections[connection_id] = connection.model_copy(
@@ -155,6 +226,38 @@ class FakeToolsDAO:
         )
         self.spaces[row.id] = row
         return row
+
+    # --- a space's messages --- #
+
+    async def query_space_inbox_messages(
+        self, *, project_id, space_id, thread_ts=None, before=None, limit
+    ):
+        rows = [
+            e
+            for e in self.inbox
+            if e.space_id == space_id
+            and e.kind is ChannelEventKind.MESSAGE
+            and (
+                thread_ts is None
+                or e.data.external_locator.get("thread_ts") == thread_ts
+            )
+            and (before is None or e.sent_at < before)
+        ]
+        rows.sort(key=lambda e: e.sent_at, reverse=True)
+        return rows[:limit]
+
+    async def query_space_outbox_messages(
+        self, *, project_id, space_id, thread_ts=None, before=None, limit
+    ):
+        rows = [
+            (row, thread)
+            for row, thread in self.sent
+            if row.space_id == space_id
+            and (thread_ts is None or thread == thread_ts)
+            and (before is None or row.created_at < before)
+        ]
+        rows.sort(key=lambda pair: pair[0].created_at, reverse=True)
+        return rows[:limit]
 
     # --- outbox --- #
 
