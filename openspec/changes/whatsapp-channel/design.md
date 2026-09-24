@@ -1,6 +1,6 @@
 # Design
 
-Status: Draft for review. No implementation or Meta-side setup is included. The code facts below were read on `main` at `2f9cf635ca`.
+Status: Approved on 2026-09-24. D9 is option B. No Meta-side setup is included. The code facts below were read on `main` at `2f9cf635ca`.
 
 ## Context
 
@@ -45,7 +45,7 @@ Sources are listed at the end.
 
 ## Goals / Non-Goals
 
-**Goals:** Let a business answer its own WhatsApp customers with an Agenta agent. Reuse the adapter interface, routing, inbox, outbox, approvals, and grants unchanged where possible. Never send a message Meta will reject or bill unexpectedly. Keep Agenta outside Meta billing and outside the "AI Provider" definition.
+**Goals:** Let a business answer its own WhatsApp customers with an Agenta agent. Reuse the adapter interface, routing, inbox, outbox, approvals, and grants unchanged where possible. Never send a message Meta will reject or bill unexpectedly. Keep Agenta outside Meta billing. Agenta never runs a shared number, so each business is the sender of record for its own agent.
 
 **Non-Goals:** No Agenta-owned shared number. No groups. No business-initiated campaigns or marketing templates. No voice notes, video, stickers, locations, or contacts cards in v1. No WhatsApp Flows. No Meta credit line or resale of Meta messaging.
 
@@ -115,11 +115,16 @@ v1 answers only conversations the customer starts, which is Meta's clearest form
 
 Alternatives: allow proactive messages from the channel tools proposal (needs a recorded opt-in per customer and template management), or no opt-out handling (risks blocks and reports that lower the number's quality rating).
 
-### D9. Policy: focused business agents only
+### D9. Meta's AI policy: no Agenta-added rules
 
-The connect screen shows a short notice: WhatsApp only allows agents that serve your own business, such as support, bookings, or order status. General-purpose AI assistants are not allowed by Meta. The operator must tick a confirmation before connecting. Agenta's terms get the same clause. Agenta does not try to classify agents automatically.
+Agenta adds no rules of its own. The connect flow has no policy notice, no confirmation checkbox, and no restriction on the kind of agent, and Agenta's terms get no WhatsApp-specific clause. Each business connects its own number under its own Meta account and is responsible for its own use of WhatsApp under Meta's terms, as it is for any other channel.
 
-Alternatives: no notice (Meta may ban the customer's number, and they will blame us), or an automatic check on the agent's prompt (unreliable and intrusive).
+Context: Agenta is an EU company. The European Commission's interim measures of June 9, 2026 currently require Meta to allow access for AI providers in the EU and EEA while its investigation runs. Outside the EU, Meta's terms bar "AI Providers" whose AI is the primary functionality offered, and Meta decides this at its discretion. Because Agenta never offers a shared number (D1), the business, not Agenta, is the sender of record.
+
+Alternatives:
+
+- **Focused business agents only (option A).** A short notice and a required checkbox on the connect screen, plus a clause in Agenta's terms. Rejected by Mahmoud on 2026-09-24: it adds rules and wording Agenta does not need, and the EU measures currently force access.
+- **Automatically check the agent's prompt.** Rejected. Unreliable and intrusive.
 
 ## Adapter mapping
 
@@ -145,7 +150,7 @@ Phase 1 needs nothing per region: each customer points their own Meta app at the
 
 ## Risks / Trade-offs
 
-- **Policy drift.** Meta decides what "primary functionality" means. Mitigation: D9 notice and terms, and no shared number.
+- **Policy drift.** Meta decides what "primary functionality" means, and the EU interim measures may change. Mitigation: no shared number, so each business answers for its own number. D9 can be revisited if the EU measures are lifted.
 - **Cost surprise after October 1, 2026.** Every reply becomes billable after 1,000 per number per month. Mitigation: the connect screen links Meta pricing, and D3 sends at most one extra message per turn.
 - **Pair limit.** Long answers split into many messages can hit error `131056`. Mitigation: 6-second spacing between parts and a retry on that error only.
 - **Personal data.** Customer phone numbers and names are stored as sender fields. They need the same retention and deletion handling as other inbox data.
@@ -159,7 +164,7 @@ Phase 1 needs nothing per region: each customer points their own Meta app at the
 | 1a | Adapter, capability, ingress GET and POST, signature, paste connect flow, text in and out, typing, splitting | 5 to 7 engineer-days |
 | 1b | Service window tracking, held state, re-open template, STOP handling | 3 to 4 engineer-days |
 | 1c | Buttons, lists, approvals, images and documents | 3 to 5 engineer-days |
-| 1d | Connect card UI, policy notice, docs, live QA with a test number | 3 to 4 engineer-days |
+| 1d | Connect card UI, billing notice, docs, live QA with a test number | 3 to 4 engineer-days |
 | 2 | Tech Provider onboarding, app review, Embedded Signup per region | 5 to 8 engineer-days, plus 2 to 6 weeks of Meta review time |
 | Later | Voice notes, proactive messages with opt-in records, groups | Not estimated |
 
