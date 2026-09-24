@@ -6,31 +6,23 @@ Let a connected agent use channel tools from any run while the server, not the m
 
 ## ADDED Requirements
 
-### Requirement: Channel tools are added to every run of a connected agent
-Agenta SHALL offer `list_channel_destinations`, `send_channel_message`, `read_channel_messages`, and `search_channel_messages` as platform tools. Listing, reading, and searching SHALL be read-only. Sending SHALL be a write. When a run's agent is bound to an active, verified bot, Agenta SHALL add the four tools to that run's tool list, whatever started the run: a channel message, the playground, or an automation. Agenta SHALL NOT change the saved agent configuration or create a revision to do so. When the agent has no active bot, the tools SHALL NOT be added. A channel tool the author listed explicitly SHALL be kept as authored and SHALL NOT be added a second time. If the check for an active bot fails or times out, the run SHALL continue without the added tools.
+### Requirement: Channel tools are part of the Agenta tools kit
+Agenta SHALL offer `list_channel_destinations`, `send_channel_message`, `read_channel_messages`, and `search_channel_messages` as platform tools. Listing, reading, and searching SHALL be read-only. Sending SHALL be a write. The four tools SHALL be part of the Agenta tools kit and SHALL be active when the running agent is connected to an active, verified bot. The kit specification SHALL own how the tools are added to a run, how an author's own entry for the same tool is handled, and how an author turns them off. Channels SHALL provide the condition the kit reads: whether the run's workflow artifact matches an active, verified bot. The bot settings SHALL gate every call whether or not the kit is active.
 
-#### Scenario: Connected agent in the playground
-- **WHEN** an agent bound to an active Slack bot runs in the playground and its configuration lists no channel tool
-- **THEN** the model SHALL be offered all four channel tools, and the saved configuration SHALL be unchanged.
-
-#### Scenario: Automation run
-- **WHEN** an automation runs an agent bound to an active Telegram bot
-- **THEN** the run SHALL have the four channel tools and SHALL be able to post.
+#### Scenario: Connected agent
+- **WHEN** an agent is connected to an active Slack bot
+- **THEN** Channels SHALL report the channel tools as available for that agent's runs.
 
 #### Scenario: Bot disconnected
-- **WHEN** the agent's only bot is disconnected
-- **THEN** the next run SHALL NOT be offered any automatically added channel tool.
+- **WHEN** the agent's only bot is disconnected or archived
+- **THEN** Channels SHALL report the channel tools as unavailable, and any call that still arrives SHALL be refused.
 
-#### Scenario: Author already listed a tool
-- **WHEN** the author listed `send_channel_message` with permission `ask` and the agent is connected
-- **THEN** the run SHALL contain exactly one `send_channel_message`, with permission `ask`.
-
-#### Scenario: Availability check fails
-- **WHEN** the check for an active bot times out
-- **THEN** the run SHALL start without the added tools and SHALL log the failure.
+#### Scenario: Posting switched off
+- **WHEN** the kit makes the send tool available but the bot's posting setting is off
+- **THEN** every send SHALL be refused without calling the provider.
 
 ### Requirement: Sending is allowed by default
-`send_channel_message` SHALL default to `allow`, so the agent posts without an approval prompt. The default SHALL apply only when the author set no permission on the tool and the agent-wide permission mode is the default `allow_reads`. A per-tool `ask` or `deny` set by the author SHALL win. An agent-wide `ask` or `deny` mode SHALL win. The operator kill switch SHALL still stop the tool. The other three tools SHALL run without a prompt because they are read-only.
+`send_channel_message` SHALL default to `allow`, so the agent posts without an approval prompt. The default SHALL be expressed the way the Agenta tools kit expresses per-tool defaults. It SHALL apply only when the author set no permission on the tool and the agent-wide permission mode is the default `allow_reads`. A per-tool `ask` or `deny` set by the author SHALL win. An agent-wide `ask` or `deny` mode SHALL win. The operator kill switch SHALL still stop the tool. The other three tools SHALL run without a prompt because they are read-only.
 
 #### Scenario: Default posts without a prompt
 - **WHEN** a connected agent with no author permission on the send tool calls it under the default mode
@@ -46,7 +38,7 @@ Agenta SHALL offer `list_channel_destinations`, `send_channel_message`, `read_ch
 
 #### Scenario: Author denies the tool
 - **WHEN** the author lists `send_channel_message` with permission `deny`
-- **THEN** every send SHALL be refused, and the automatic addition SHALL NOT override it.
+- **THEN** every send SHALL be refused, and the kit SHALL NOT override it.
 
 #### Scenario: Automation cannot answer an approval
 - **WHEN** an automation runs an agent whose send tool is set to `ask` and nobody can answer
