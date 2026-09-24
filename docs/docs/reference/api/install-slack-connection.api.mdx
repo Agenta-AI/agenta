@@ -1,0 +1,62 @@
+---
+id: install-slack-connection
+title: "Install Slack Connection"
+description: "One click, from Settings -> Channels: mint the install state and"
+sidebar_label: "Install Slack Connection"
+hide_title: true
+hide_table_of_contents: true
+api: eJztlEtu2zAQhq8ymE039KMFutGiqBEUrZECDeJm5RjBhBpbbCiSJUdJXcF3L0jJsZ0zVBuJnCd/fqMehXYJqzVeNeQc24QbhTUnHU0Q4x1W+MMxaGv0k4Jt9C2sWMS4XYLJJzhGVdAaJyANg3FJyFpIQsJArr53iV1dbI/RvySOkCSS2TUC4mFlST+9S0CdND6avwx3t9+nsICag/X7lp3cuxcjDTgPjU/C9YRCAB25ZieGbILI2y5xgoYjK3BeoAQQfJzPYTIBaUjunUmlCedjSxZSQ4HBb4Egsd1OhtRnVYdE5IBj9HGKCn3gSFmVZY0Vjgd9SPkAD9o7x7pIpjByCt4lTlj1+GE+z69LUVed1pzStrNwOzqjQu2dsJPsTiFYo0u12a+UY3pMuuGWsOoP+VHYsjQ+t7JjQYWBpMEKZ3q8lJkmIet3p43S6mxsfIYKE8dnjhmAHrtoczQFgwd1XDYiIVWzGXdTbX1XT2nHTmhKZnDc5By6i0b2JcniZnnN+29MNUes1ptzh1Vuf9Dk0q1H2QfGCimYa96jQkdtXi9GJmjU1WTpmiEqC2Dc1pdwI7b4l+ZgcbPEtxRfmLLOpIvOx0rFjOrNsU+nRYXckslGYWo/v1rwoDBrOJSZT99P53kr+CQtubMSy3EwCvBwdc7LRav9CYP/s/c6eyMhwn9kFiwZl0Uul9WP4K/xyHm+4QH9/HXaLPgXjIpMqDD/7XLxHN33j5T4LtrDIW//7jhmpjcKnykaesyErTcHdQQw4/7E+wyP1hzyBD6T7QaO3wxvHoPXaf365SceDv8Alg7l6Q==
+sidebar_class_name: "get api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Install Slack Connection"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"get"}
+  path={"/channels/catalog/channels/slack/install/"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+One click, from Settings -&gt; Channels: mint the install state and
+send the browser straight to Slack's authorize URL. A deployment
+with no hosted-app credentials refuses here, not with a 500 -- that
+is the normal shape of a self-hosted deployment, not an error.
+
+<ParamsDetails>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./install-slack-connection.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./install-slack-connection.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      
