@@ -431,6 +431,8 @@ export const SessionTabRail = ({
         policy: listArgs.policy,
         agentId: listArgs.agentId,
         ids: openIds,
+        // The rail's own reads share the card's priority — its host decides (see the card list).
+        lowPriority: listArgs.lowPriority,
     })
     const arranged = useMemo(
         () => applySessionTabOrder(tabs.rows, savedOrder),

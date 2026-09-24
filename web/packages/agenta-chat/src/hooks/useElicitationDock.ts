@@ -10,7 +10,7 @@
  * What IS kept from that hook is the closing latch, which is load-bearing: without it the card's
  * content vanishes the instant the call settles, and the host animates a collapse around an empty box.
  */
-import {useCallback, useEffect, useMemo, useRef, useState} from "react"
+import {useCallback, useEffect, useMemo, useRef} from "react"
 
 import {
     buildCancelResult,
@@ -27,6 +27,7 @@ import {
 import type {ClientToolMeta} from "../skin"
 
 import {discardElicitationDraft} from "./useElicitationStepper"
+import {useSettlingIds} from "./useSettlingIds"
 
 export interface UseElicitationDockArgs {
     messages: UIMessage[]
@@ -64,6 +65,10 @@ export interface ElicitationDockState {
      * `false`. A no-op while nothing is parked.
      */
     dismiss: () => Promise<void>
+    /** The cards' settle channel: `onOutput` wrapped to close the dock as the answer leaves. */
+    settle: ClientToolOutputHandler
+    /** Calls answered here whose transcript rows have not arrived. */
+    settlingIds: ReadonlySet<string>
 }
 
 /** Fully arrived. `input-streaming` and the `{}` input-refresh announce (sdk `vercel/stream.py`)
@@ -111,25 +116,20 @@ export const useElicitationDock = ({
         })
     }, [front, degradedEarlierInTurn, onOutput])
 
-    // The host-driven dismiss, keyed by the calls it settled. Keyed rather than a bare flag so it
-    // survives the dock's closing animation (`shown` still holds the settled calls) and cannot
-    // leak onto the agent's next ask. `pending` is read through a ref: the host calls this from a
-    // send handler whose closure may predate the current transcript. The sibling of
-    // `useConnectionDock`'s, down to the recovery — keep the two in step.
+    // `pending` through a ref: the host calls `dismiss` from a send handler with a stale closure.
     const pendingRef = useRef(pending)
     pendingRef.current = pending
-    const [dismissingIds, setDismissingIds] = useState<ReadonlySet<string>>(() => new Set())
-    const dismissingRef = useRef<Set<string>>(new Set())
+    const {settlingIds, mark, forget, isSettling, settle} = useSettlingIds(pending, onOutput)
+
     const dismiss = useCallback(async () => {
         // No settle channel means nothing can be written, so nothing is dismissed. Checked before
         // the markers go up: closing the dock over a question that is still parked would hide it.
         if (!onOutput) return
         const targets = pendingRef.current.filter(
-            (meta) => !meta.settled && !dismissingRef.current.has(meta.toolCallId),
+            (meta) => !meta.settled && !isSettling(meta.toolCallId),
         )
         if (targets.length === 0) return
-        for (const meta of targets) dismissingRef.current.add(meta.toolCallId)
-        setDismissingIds(new Set(dismissingRef.current))
+        mark(targets.map((meta) => meta.toolCallId))
         try {
             const landed = await Promise.all(
                 targets.map((meta) =>
@@ -150,18 +150,20 @@ export const useElicitationDock = ({
             for (const meta of targets) discardElicitationDraft(meta.toolCallId)
         } catch (error) {
             // The questions are still live: give the dock back.
-            for (const meta of targets) dismissingRef.current.delete(meta.toolCallId)
-            setDismissingIds(new Set(dismissingRef.current))
+            forget(targets.map((meta) => meta.toolCallId))
             throw error
         }
-    }, [onOutput])
+    }, [onOutput, mark, forget, isSettling])
 
+    // A card whose answer is out can never be the front one the actions address.
+    const live = useMemo(
+        () => pending.filter((meta) => !settlingIds.has(meta.toolCallId)),
+        [pending, settlingIds],
+    )
     // Hold the last non-empty view so a host can animate the dock closed around content already gone.
-    // A dock being dismissed closes at once: the message that replaced it is the thing to look at,
-    // and the cards only return if a write fails.
-    const open = pending.length > 0 && !pending.every((meta) => dismissingIds.has(meta.toolCallId))
+    const open = live.length > 0
     const shownRef = useRef<ClientToolMeta[]>([])
-    if (open) shownRef.current = pending
+    if (open) shownRef.current = live
     const shown = shownRef.current
 
     return {
@@ -170,5 +172,7 @@ export const useElicitationDock = ({
         queue: shown,
         shortcutsEnabled: !approvalsPending,
         dismiss,
+        settle,
+        settlingIds,
     }
 }

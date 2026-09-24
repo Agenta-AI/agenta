@@ -706,6 +706,8 @@ export const useAgentConversation = ({
         sessionId,
         messages,
         locallyBusy: busy,
+        // Another browser's run moves the queue too.
+        remotelyBusy: sharedReaderRunning && remoteRunIsFresh,
         isSharedReaderReady: () => sharedSenderReadyRef.current,
         // A send admitted here renders from the shared reader, so `onData` never sees these.
         onStartupPhase: (label) => setTurnStartupLabel(sessionId, label),

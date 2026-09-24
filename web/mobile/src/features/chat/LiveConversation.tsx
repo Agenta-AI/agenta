@@ -559,6 +559,8 @@ export const LiveConversation = ({
             }),
         [conversation.messages, interactionAvailability.approvals],
     )
+    // The dock drops a gate as we answer it; `pendingApprovals` lags until the transcript catches up.
+    const approvalsOpen = pendingApprovals.length > 0 && conversation.approvals.open
     // Steer keeps the detached resume dispatcher; plain approve/deny go through the engine.
     const steerActions = useApprovalActions({
         sessionId,
@@ -608,16 +610,25 @@ export const LiveConversation = ({
     const elicits = useElicitationDock({
         messages: conversation.messages,
         enabled: interactionAvailability.parkedDocks,
-        approvalsPending: pendingApprovals.length > 0,
+        approvalsPending: approvalsOpen,
         onOutput: conversation.sendToolOutput,
     })
     const connects = useConnectionDock({
         messages: conversation.messages,
         enabled: interactionAvailability.parkedDocks,
-        approvalsPending: pendingApprovals.length > 0,
+        approvalsPending: approvalsOpen,
         elicitationPending: elicits.open,
         onOutput: conversation.sendToolOutput,
     })
+    // The docks know an ask is answered before `hitlPending` does; an ask with no dock stays a wait.
+    const cardOpen = approvalsOpen || elicits.open || connects.open || Boolean(pendingSecret)
+    const answerInFlight =
+        conversation.approvals.settledIds.size > 0 ||
+        elicits.settlingIds.size > 0 ||
+        connects.settlingIds.size > 0
+    const parkedOnUser = conversation.hitlPending && (cardOpen || !answerInFlight)
+    const resumingAfterAnswer = conversation.hitlPending && !cardOpen && answerInFlight
+
     const secretDockOpen =
         !streamingHere && !stopping && !conversation.stopped && Boolean(pendingSecret)
     // Rewind: re-run the conversation from a turn. The hook only SCANS (it never opens dialogs),
@@ -727,7 +738,8 @@ export const LiveConversation = ({
                     turns={visibleTurns}
                     sessionId={sessionId}
                     remoteRunning={showingTurnActivity && !streamingHere}
-                    waitingOnUser={conversation.hitlPending}
+                    waitingOnUser={parkedOnUser}
+                    resuming={resumingAfterAnswer}
                     pending={showTrailingWorkingPulse(showingTurnActivity, visibleTurns)}
                     onClientToolOutput={conversation.sendToolOutput}
                     onRewind={handleRewind}
@@ -774,7 +786,7 @@ export const LiveConversation = ({
                                 <ConnectionWarningStrip message={conversation.connectionWarning} />
                             </ContentRail>
                         ) : null}
-                        {pendingApprovals.length > 0 ? (
+                        {approvalsOpen ? (
                             <ApprovalDock
                                 approvals={pendingApprovals}
                                 actions={approvalActions}
@@ -801,7 +813,7 @@ export const LiveConversation = ({
                                 <ContentRail>
                                     <ElicitationDock
                                         elicits={elicits}
-                                        onOutput={conversation.sendToolOutput}
+                                        onOutput={elicits.settle}
                                         touch
                                     />
                                 </ContentRail>
@@ -814,7 +826,7 @@ export const LiveConversation = ({
                                 <ContentRail>
                                     <ConnectionDock
                                         connects={connects}
-                                        onOutput={conversation.sendToolOutput}
+                                        onOutput={connects.settle}
                                         touch
                                     />
                                 </ContentRail>
@@ -933,7 +945,7 @@ export const LiveConversation = ({
                             placeholder={
                                 modelBlocked ? "Connect a model to start chatting…" : undefined
                             }
-                            waitingOnUser={conversation.hitlPending}
+                            waitingOnUser={parkedOnUser}
                             streaming={shouldShowStopControl({
                                 busy: streamingHere,
                                 hitlPending: conversation.hitlPending,

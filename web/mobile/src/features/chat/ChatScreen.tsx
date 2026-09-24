@@ -1,4 +1,4 @@
-import {useMemo, useRef, useState} from "react"
+import {useEffect, useMemo, useRef, useState} from "react"
 
 import {
     buildTurnViewModels,
@@ -6,7 +6,9 @@ import {
     createTurnViewModelCache,
     getPendingApprovals,
 } from "@agenta/chat/model"
-import {useAtomValue} from "jotai"
+import {fetchSessionRecordsAtom, isSessionFresh} from "@agenta/entities/session"
+import {projectIdAtom} from "@agenta/shared/state"
+import {useAtomValue, useSetAtom} from "jotai"
 
 import {ContentRail} from "@/components/ContentRail"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
@@ -57,6 +59,15 @@ export const ChatScreen = ({
     // sends (the server uses the saved config), but config-derived UI (always-allow) never
     // qualifies. Home/Sessions bind it too; chat must not depend on having visited them.
     useBindProjectContext(projectId)
+    // Warm the transcript as soon as the route names the session, so it races the agent chain.
+    const boundProjectId = useAtomValue(projectIdAtom)
+    const prefetchRecords = useSetAtom(fetchSessionRecordsAtom)
+    useEffect(() => {
+        if (!sessionId || boundProjectId !== projectId) return
+        // A session minted here a moment ago has no records to read.
+        if (isSessionFresh(sessionId)) return
+        void prefetchRecords(sessionId).catch(() => undefined)
+    }, [boundProjectId, prefetchRecords, projectId, sessionId])
     const {
         entityId: latestEntityId,
         agentId: resolvedAgentId,
@@ -127,6 +138,7 @@ export const ChatScreen = ({
             // is what unmounted the pane.
             entityId={heldEntityId}
             agentId={heldAgentId}
+            agentResolving={resolving}
             sessionId={sessionId}
             workspaceId={workspaceId}
             projectId={projectId}

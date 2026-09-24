@@ -64,6 +64,8 @@ export {
 export {
     useSessionList,
     useActionableInteractions,
+    actionableInteractionsQueryKey,
+    actionableInteractionsQueryOptions,
     pendingBySessionId,
     sessionListIdWindow,
     rowsFromPages,
