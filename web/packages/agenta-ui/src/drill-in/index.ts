@@ -161,19 +161,13 @@ export {
     TextField,
     // Field utilities
     getNestedValue,
-    getArrayItemValue,
     canExpandValue,
     canExpandAsArray,
-    canExpand,
     isChatMessageObject,
     isMessagesArray,
     parseMessages,
-    canShowTextMode,
     getTextModeValue,
     textModeToStorageValue,
-    formatForJsonDisplay,
-    parseFromJsonDisplay,
-    MAX_NESTED_DEPTH,
 } from "./FieldRenderers"
 
 export type {

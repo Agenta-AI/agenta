@@ -5,9 +5,7 @@
  * Uses the shared createEntityActionHook factory for the base implementation.
  */
 
-import {useCallback, useMemo} from "react"
-
-import {createEntityActionHook, createTypedEntityActionHook} from "../../shared"
+import {createEntityActionHook} from "../../shared"
 import type {EntityReference, EntityType} from "../../types"
 import {openCommitModalAtom, commitModalLoadingAtom, commitModalOpenAtom} from "../state"
 
@@ -151,117 +149,5 @@ export function useEntityCommit(): UseEntityCommitReturn {
         commitEntityRef: actionEntityRef,
         isCommitting: isActioning,
         isOpen,
-    }
-}
-
-// ============================================================================
-// CONVENIENCE HOOKS
-// ============================================================================
-
-/**
- * Internal typed hook for revisions
- */
-const useRevisionCommitBase = createTypedEntityActionHook(useEntityCommitBase, "revision")
-
-/**
- * Hook specifically for committing revisions
- *
- * @example
- * ```tsx
- * const {commitRevision} = useRevisionCommit()
- *
- * <Button onClick={() => commitRevision(revisionId, revisionName)}>
- *   Commit Revision
- * </Button>
- * ```
- */
-export function useRevisionCommit() {
-    const {action, isActioning, isOpen} = useRevisionCommitBase()
-
-    const commitRevision = useCallback(
-        (id: string, name?: string, initialMessage?: string) => {
-            action(id, name, initialMessage)
-        },
-        [action],
-    )
-
-    return {commitRevision, isCommitting: isActioning, isOpen}
-}
-
-/**
- * Internal typed hook for variants
- */
-const useVariantCommitBase = createTypedEntityActionHook(useEntityCommitBase, "variant")
-
-/**
- * Hook specifically for committing variants
- */
-export function useVariantCommit() {
-    const {action, isActioning, isOpen} = useVariantCommitBase()
-
-    const commitVariant = useCallback(
-        (id: string, name?: string, initialMessage?: string) => {
-            action(id, name, initialMessage)
-        },
-        [action],
-    )
-
-    return {commitVariant, isCommitting: isActioning, isOpen}
-}
-
-// ============================================================================
-// BOUND COMMIT HOOK
-// ============================================================================
-
-/**
- * Hook that returns a bound commit action based on entity state
- *
- * Returns `commit: null` when:
- * - Entity ID is missing/falsy
- * - `canCommit` option is false
- *
- * This allows cleaner component code without manual validation:
- *
- * @example
- * ```tsx
- * // Before (manual validation)
- * const {commitEntity} = useEntityCommit()
- * const handleCommit = useCallback(() => {
- *   if (!hasChanges || !revisionId) return
- *   commitEntity("revision", revisionId, name)
- * }, [hasChanges, revisionId, name, commitEntity])
- *
- * // After (validation handled by hook)
- * const {commit, canCommit} = useBoundCommit({
- *   type: "revision",
- *   id: revisionId,
- *   name,
- *   canCommit: hasChanges,
- * })
- *
- * <Button onClick={commit ?? undefined} disabled={!canCommit}>
- *   Commit
- * </Button>
- * ```
- */
-export function useBoundCommit(options: UseBoundCommitOptions): UseBoundCommitReturn {
-    const {type, id, name, canCommit: canCommitOption = true, metadata} = options
-    const {commitEntityRef, isCommitting, isOpen} = useEntityCommit()
-
-    // Determine if commit is available
-    const canCommit = Boolean(id) && canCommitOption
-
-    // Create bound commit action (null if not available)
-    // Uses commitEntityRef to pass metadata through to the adapter's commitContextAtom
-    const commit = useMemo(() => {
-        if (!canCommit || !id) return null
-        return () => commitEntityRef({type, id, name, metadata})
-    }, [canCommit, id, type, name, metadata, commitEntityRef])
-
-    return {
-        commit,
-        isCommitting,
-        isOpen,
-        canCommit,
     }
 }

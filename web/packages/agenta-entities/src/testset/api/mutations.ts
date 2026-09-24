@@ -287,69 +287,6 @@ export async function archiveRevision(params: {projectId: string; revisionId: st
 }
 
 // ============================================================================
-// FILE UPLOAD
-// ============================================================================
-
-/**
- * Upload a testset file (creates a NEW testset)
- * Sends the file to the backend for server-side parsing
- */
-export async function uploadTestsetFile(params: {
-    projectId: string
-    file: File
-    fileType: "csv" | "json"
-    testsetName?: string
-}) {
-    const {projectId, file, fileType, testsetName} = params
-
-    const formData = new FormData()
-    formData.append("file", file)
-    formData.append("file_type", fileType)
-    if (testsetName) {
-        formData.append("testset_name", testsetName)
-    }
-
-    const response = await axios.post(`${getAgentaApiUrl()}/simple/testsets/upload`, formData, {
-        params: {project_id: projectId},
-        headers: {"Content-Type": "multipart/form-data"},
-    })
-
-    return response.data
-}
-
-/**
- * Upload a file to an EXISTING testset as a new revision
- * Sends the file to the backend for server-side parsing
- */
-export async function uploadRevisionFile(params: {
-    projectId: string
-    testsetId: string
-    file: File
-    fileType: "csv" | "json"
-    testsetName?: string
-}) {
-    const {projectId, testsetId, file, fileType, testsetName} = params
-
-    const formData = new FormData()
-    formData.append("file", file)
-    formData.append("file_type", fileType)
-    if (testsetName) {
-        formData.append("testset_name", testsetName)
-    }
-
-    const response = await axios.post(
-        `${getAgentaApiUrl()}/simple/testsets/${testsetId}/upload`,
-        formData,
-        {
-            params: {project_id: projectId},
-            headers: {"Content-Type": "multipart/form-data"},
-        },
-    )
-
-    return response.data
-}
-
-// ============================================================================
 // FILE DOWNLOAD
 // ============================================================================
 
@@ -450,20 +387,4 @@ export async function fetchSimpleTestset(params: {projectId: string; testsetId: 
     })
 
     return response.data?.testset
-}
-
-/**
- * Query preview testsets with optional filters
- */
-export async function queryPreviewTestsets(params: {
-    projectId: string
-    payload?: Record<string, unknown>
-}) {
-    const {projectId, payload = {}} = params
-
-    const response = await axios.post(`${getAgentaApiUrl()}/simple/testsets/query`, payload, {
-        params: {project_id: projectId},
-    })
-
-    return response.data
 }

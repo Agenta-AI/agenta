@@ -105,7 +105,7 @@ export {
 // TYPES (Only types actually consumed externally)
 // ============================================================================
 
-export type {PlaygroundTestResult, PlaygroundNode} from "./state"
+export type {PlaygroundNode} from "./state"
 export type {ChatMessage, SimpleChatMessage, MessageTarget} from "./state"
 export type {ChainExecutionResult, ChainNodeInfo} from "./state"
 export type {ConnectToTestsetPayload, OpenFromTraceResult} from "./state"

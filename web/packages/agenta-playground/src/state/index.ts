@@ -54,7 +54,6 @@ export type {
     ExecutionResult,
     // Execution types
     ExecutionStatus,
-    ExtendedPathInfo,
     ExtraColumn,
     InputMapping,
     // Connection types
@@ -66,8 +65,6 @@ export type {
     PlaygroundAction,
     // Node types
     PlaygroundNode,
-    // State types
-    PlaygroundState,
     RowExecutionResult,
     RunnableData,
     // Runnable types
@@ -107,7 +104,6 @@ export type {
     ExecutionState,
     ExecutionStep,
     InitSessionsPayload,
-    PlaygroundTestResult,
     RunResult,
     RunStatus,
     RunStepPayload,
@@ -248,25 +244,21 @@ export {
 } from "./execution"
 
 // Chat types
-export {createInitialFlatChatState, SHARED_SESSION_ID} from "./chat"
+export {SHARED_SESSION_ID} from "./chat"
 export type {
     AddMessagePayload,
     AddUserMessagePayload,
     ChatMessage,
-    ChatMessageNode,
     ClearSessionResponsesPayload,
     CompleteExecutionPayload,
     DeleteMessagePayload,
-    DerivedTurn,
     FailExecutionPayload,
-    FlatChatState,
     MessageExecution,
     MessageExecutionStatus,
     MessageTarget,
     PatchMessagePayload,
     RemoveMessagesPayload,
     SimpleChatMessage,
-    StartExecutionPayload,
     TruncateChatPayload,
     UpdateMessagePayload,
 } from "./chat"
@@ -274,12 +266,8 @@ export type {
 // Chat atoms
 export {
     executionByMessageIdAtomFamily,
-    messageAtomFamily,
-    messageCountAtomFamily,
-    messageExecutionAtomFamily,
     messageIdsAtomFamily,
     messagesByIdAtomFamily,
-    orderedMessagesAtomFamily,
 } from "./chat"
 
 // Chat reducer actions
@@ -287,61 +275,30 @@ export {
     // CRUD
     addMessageAtom,
     addMessagesAtom,
-    addMessagesWithContextAtom,
     addMessageWithContextAtom,
     // Domain-level (turn-aware)
     addUserMessageAtom,
     // Context-aware
     addUserMessageWithContextAtom,
-    cancelMessageExecutionAtom,
     clearAllMessagesAtom,
     clearAllMessagesWithContextAtom,
     clearSessionResponsesAtom,
     clearSessionResponsesWithContextAtom,
     completeMessageExecutionAtom,
-    deleteMessageAtom,
     deleteMessageWithContextAtom,
-    // Session operations
-    duplicateSessionResponsesAtom,
-    duplicateSessionResponsesWithContextAtom,
     failMessageExecutionAtom,
     generateMessageId,
-    patchMessageAtom,
     patchMessageWithContextAtom,
-    removeMessagesAtom,
-    removeMessagesWithContextAtom,
-    // Execution lifecycle
-    startMessageExecutionAtom,
-    truncateAfterMessageAtom,
-    truncateAfterMessageWithContextAtom,
-    truncateChatAtom,
     truncateChatWithContextAtom,
-    updateMessageAtom,
-    updateMessageWithContextAtom,
 } from "./chat"
 
 // Chat selectors
 export {
-    activeSessionIdsFromMessagesAtomFamily,
-    apiHistoryBeforeMessageAtomFamily,
-    apiHistoryForSessionAtomFamily,
-    buildApiHistory,
-    derivedTurnsAtomFamily,
-    derivedTurnsWithContextAtom,
-    executionByMessageIdWithContextAtom,
-    groupMessagesIntoTurns,
-    isAnySessionRunningAtomFamily,
-    isSessionRunningAtomFamily,
-    messageCountWithContextAtom,
     messageIdsWithContextAtom,
     messagesByIdWithContextAtom,
-    messagesForSessionAtomFamily,
     sharedMessageIdsAtomFamily,
     sharedMessageIdsWithContextAtom,
 } from "./chat"
-
-// Chat utilities
-export {messageHasContent, messageHasToolCalls} from "./chat"
 
 // Testset import mutation
 export {
@@ -364,7 +321,6 @@ export {syncChatMessagesToEntityAtom} from "./helpers/syncChatMessagesToEntity"
 export {
     applyPendingHydration,
     applyPendingHydrationsForRevision,
-    clearPendingHydrations,
     entitySelectorController,
     executionController,
     executionItemController,
@@ -376,7 +332,6 @@ export {
     pendingHydrationsAtom,
     playgroundController,
     playgroundSnapshotController,
-    resetRunnableTypeResolver,
     setOnSelectionChangeCallback,
     setRunnableTypeResolver,
     setSelectionUpdateCallback,
@@ -426,8 +381,6 @@ export {
     playgroundCapabilityModeAtom,
     playgroundModeOverrideAtom,
     playgroundNodesAtom,
-    primaryEntityIdAtom,
-    primaryNodeAtom,
     selectedNodeIdAtom,
     testsetModalOpenAtom,
     type PlaygroundMode,
@@ -447,7 +400,6 @@ export {
     buildVersionRows,
     buildRevertMessage,
     revertAgentRevisionAtom,
-    revertAgentRevision,
     REVERT_MESSAGE_PREFIX,
 } from "./execution"
 export type {AgentVersionRow, RevertAgentRevisionParams} from "./execution"

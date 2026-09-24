@@ -21,7 +21,7 @@ export type {DeleteEntitiesOptions} from "./components"
 // HOOKS
 // ============================================================================
 
-export {useEntityDelete, useTestsetDelete, useVariantDelete, useEvaluatorDelete} from "./hooks"
+export {useEntityDelete} from "./hooks"
 export type {UseEntityDeleteReturn, DeleteOptions} from "./hooks"
 
 // ============================================================================

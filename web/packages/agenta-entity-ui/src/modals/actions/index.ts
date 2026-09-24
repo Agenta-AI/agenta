@@ -9,7 +9,6 @@
  * import {
  *   EntityActionProvider,
  *   useEntityActionDispatch,
- *   commitAction,
  * } from '@agenta/entity-ui/modals'
  *
  * // In app root
@@ -22,7 +21,7 @@
  *
  * // In component
  * const dispatch = useEntityActionDispatch()
- * dispatch(commitAction({type: 'revision', id, name}))
+ * dispatch({type: 'commit', entity: {type: 'revision', id, name}})
  * ```
  */
 
@@ -45,7 +44,7 @@ export type {
 // ACTION CREATORS
 // ============================================================================
 
-export {commitAction, saveAction, createAction, deleteAction, saveOrCommitAction} from "./types"
+export {deleteAction} from "./types"
 
 // ============================================================================
 // REDUCER

@@ -58,9 +58,6 @@ export {
     revisionSchema,
     revisionSchemas,
     type Revision,
-    type CreateRevision,
-    type UpdateRevision,
-    type LocalRevision,
     revisionListItemSchema,
     type RevisionListItem,
     revisionsResponseSchema,
@@ -70,8 +67,6 @@ export {
     testsetSchemas,
     type Testset,
     type CreateTestset,
-    type UpdateTestset,
-    type LocalTestset,
     testsetsResponseSchema,
     type TestsetsResponse,
     // Variant schemas
@@ -133,15 +128,11 @@ export {
     patchRevision,
     commitRevision,
     archiveRevision,
-    // File upload
-    uploadTestsetFile,
-    uploadRevisionFile,
     // File download
     downloadTestset,
     downloadRevision,
     // Simple API
     fetchSimpleTestset,
-    queryPreviewTestsets,
     // Types
     type ExportFileType,
 } from "./api"

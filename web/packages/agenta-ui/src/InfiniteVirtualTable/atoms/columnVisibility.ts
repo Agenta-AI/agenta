@@ -23,43 +23,6 @@ const EMPTY_SCOPE_MAP = createScopeMap()
 const columnVisibilityStateAtom = atomWithImmer<ColumnVisibilityState>(new Map())
 const defaultVisibilityAtom = atom(false)
 
-// const visibilityDebugEnabled = process.env.NEXT_PUBLIC_EVAL_RUN_DEBUG === "true"
-
-// const logStateTable = (
-//     scopeId: string | null,
-//     previous: Record<string, boolean>,
-//     next: Record<string, boolean>,
-// ) => {
-//     if (!visibilityDebugEnabled || typeof window === "undefined") return
-//     // const timestamp = new Date().toISOString()
-//     // const scopeLabel = scopeId ? `scope:${scopeId}` : "scope:none"
-//     const keys = Array.from(new Set([...Object.keys(previous), ...Object.keys(next)])).sort()
-//     const rows = keys
-//         .map((column) => {
-//             const prev = previous[column] ?? false
-//             const nextValue = next[column] ?? false
-//             if (prev === nextValue) {
-//                 return null
-//             }
-//             return {
-//                 column,
-//                 prev,
-//                 next: nextValue,
-//             }
-//         })
-//         .filter((row): row is {column: string; prev: boolean; next: boolean} => row !== null)
-//     if (!rows.length) {
-//         return
-//     }
-//     // try {
-//     //     console.groupCollapsed("[infiniteTable][columnVisibility]", `${timestamp} ${scopeLabel}`)
-//     //     console.table(rows)
-//     //     console.groupEnd()
-//     // } catch (error) {
-//     //     console.debug("[infiniteTable][columnVisibility] log failed", error)
-//     // }
-// }
-
 type ColumnViewportVisibilityPayload =
     | ColumnViewportVisibilityEvent
     | ColumnViewportVisibilityEvent[]
@@ -227,49 +190,9 @@ export const getColumnEffectiveVisibilityAtom = (
     return atom((get) => get(userAtom) && get(viewportAtom))
 }
 
-// const scopeVisibilityMapAtomFamily = atomFamily((scopeId: string | null) =>
-//     selectAtom(
-//         atom((get) => {
-//             const viewportState = get(viewportStateAtomFamily(scopeId))
-//             const userState = get(userStateAtomFamily(scopeId))
-//             const keys = new Set([...Object.keys(viewportState), ...Object.keys(userState)])
-//             const next: Record<string, boolean> = {}
-//             keys.forEach((key) => {
-//                 const viewportVisible = viewportState[key]
-//                 const userVisible = userState[key]
-//                 next[key] =
-//                     (userVisible === undefined ? true : userVisible) &&
-//                     (viewportVisible === undefined ? false : viewportVisible)
-//             })
-//             return next
-//         }),
-//         (a, b) => deepEqual(resolveScopeKey(a), resolveScopeKey(b)),
-//     ),
-// )
-
-// export const getScopeVisibilityMapAtom = (scopeId: string | null) =>
-
 export const scopedColumnVisibilityAtomFamily = atomFamily(
     ({scopeId, columnKey}: {scopeId: string | null; columnKey: string}) =>
         columnViewportVisibilityAtomFamily({scopeId, columnKey}),
     (a, b) =>
         resolveScopeKey(a.scopeId) === resolveScopeKey(b.scopeId) && a.columnKey === b.columnKey,
 )
-
-// export const getScopedColumnVisibilityAtom = (scopeId: string | null, columnKey?: string) => {
-//     if (!columnKey) {
-//         return defaultVisibilityAtom
-//     }
-//     return selectAtom(
-//         scopeVisibilityMapAtomFamily(scopeId),
-//         (state) => {
-//             const explicit = state[columnKey]
-//             console.log("scopeVisibilityMapAtomFamily", state)
-//             if (typeof explicit === "boolean") {
-//                 return explicit
-//             }
-//             return true
-//         },
-//         (a, b) => a === b,
-//     )
-// }

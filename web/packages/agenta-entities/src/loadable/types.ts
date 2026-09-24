@@ -25,36 +25,9 @@ export type {
 // ============================================================================
 
 /**
- * Loadable mode - local data or connected to external source
- */
-export type LoadableMode = "local" | "connected"
-
-/**
  * Loadable source type - determines which entity implementation to use
  */
 export type LoadableSourceType = "testcase" | "trace"
-
-/**
- * Connected source information
- */
-export interface ConnectedSource {
-    /** Source ID (e.g., revision ID) */
-    id: string | null
-    /** Display name (e.g., "Testset v3") */
-    name: string | null
-    /** Source type for dispatch */
-    type: LoadableSourceType | null
-}
-
-/**
- * Linked runnable information
- */
-export interface LinkedRunnable {
-    /** Runnable type */
-    type: "appRevision" | "evaluatorRevision" | null
-    /** Runnable ID */
-    id: string | null
-}
 
 /**
  * Output mapping configuration

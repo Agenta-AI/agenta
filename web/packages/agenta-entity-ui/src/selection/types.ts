@@ -362,20 +362,6 @@ export interface HierarchicalSelectionState {
     searchTerm: string
 }
 
-/**
- * Multi-selection state
- */
-export interface MultiSelectionState<T = EntitySelectionResult> {
-    /** Selected entities */
-    selectedItems: T[]
-    /** Selected IDs for quick lookup */
-    selectedIds: Set<string>
-    /** Is multi-selection mode active */
-    isMultiSelectMode: boolean
-    /** Maximum selections allowed (undefined = unlimited) */
-    maxSelections?: number
-}
-
 // ============================================================================
 // COMPONENT PROPS
 // ============================================================================
@@ -415,44 +401,6 @@ export interface EntityPickerProps<
 }
 
 /**
- * Props for cascader-style selectors
- */
-export interface EntityCascaderProps<
-    TSelection = EntitySelectionResult,
-> extends EntitySelectionBaseProps<TSelection> {
-    /** Current value (for controlled mode) */
-    value?: TSelection | null
-    /** Called when value changes */
-    onChange?: (value: TSelection | null) => void
-    /** Enable search */
-    showSearch?: boolean
-    /** Allow clearing selection */
-    allowClear?: boolean
-    /** Expand trigger */
-    expandTrigger?: "click" | "hover"
-    /** Custom display render for selected value */
-    displayRender?: (path: SelectionPathItem[]) => ReactNode
-    /** Size variant */
-    size?: "small" | "middle" | "large"
-}
-
-/**
- * Props for menu-style selectors
- */
-export interface EntityMenuProps<
-    TSelection = EntitySelectionResult,
-> extends EntitySelectionBaseProps<TSelection> {
-    /** Show "Create New" option */
-    showCreateNew?: boolean
-    /** Called when "Create New" is clicked */
-    onCreateNew?: () => void
-    /** Selected item ID (for highlighting) */
-    selectedId?: string
-    /** Max height before scrolling */
-    maxHeight?: number | string
-}
-
-/**
  * Props for modal-based selectors
  */
 export interface EntitySelectorModalProps<
@@ -466,20 +414,6 @@ export interface EntitySelectorModalProps<
     width?: number
     /** Destroy content on close */
     destroyOnHidden?: boolean
-}
-
-/**
- * Props for multi-select scenarios
- */
-export interface EntityMultiSelectProps<
-    TSelection = EntitySelectionResult,
-> extends EntitySelectionBaseProps<TSelection> {
-    /** Current selections */
-    value?: TSelection[]
-    /** Max number of selections */
-    maxSelections?: number
-    /** Called when selections change */
-    onChange?: (selections: TSelection[]) => void
 }
 
 // ============================================================================
@@ -502,48 +436,3 @@ export interface EntitySelectorConfig {
  * Resolve function type for modal promise
  */
 export type EntitySelectorResolver<T = EntitySelectionResult> = (selection: T | null) => void
-
-// ============================================================================
-// UTILITY TYPES
-// ============================================================================
-
-/**
- * Create entity selection result with typed metadata
- */
-export type CreateEntitySelection<TMeta extends Record<string, unknown>> =
-    EntitySelectionResult<TMeta>
-
-/**
- * App revision selection with app/variant metadata
- */
-export interface AppRevisionSelection extends EntitySelectionResult<{
-    appId: string
-    appName: string
-    variantId: string
-    variantName: string
-}> {
-    type: "appRevision"
-}
-
-/**
- * Evaluator revision selection with evaluator/variant metadata
- */
-export interface EvaluatorRevisionSelection extends EntitySelectionResult<{
-    evaluatorId: string
-    evaluatorName: string
-    variantId: string
-    variantName: string
-}> {
-    type: "evaluatorRevision"
-}
-
-/**
- * Testset revision selection with testset metadata
- */
-export interface TestsetRevisionSelection extends EntitySelectionResult<{
-    testsetId: string
-    testsetName: string
-    version: number
-}> {
-    type: "revision"
-}

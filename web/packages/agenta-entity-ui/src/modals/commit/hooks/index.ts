@@ -2,12 +2,7 @@
  * Commit Modal Hooks
  */
 
-export {
-    useEntityCommit,
-    useRevisionCommit,
-    useVariantCommit,
-    useBoundCommit,
-} from "./useEntityCommit"
+export {useEntityCommit} from "./useEntityCommit"
 export type {
     UseEntityCommitReturn,
     UseBoundCommitOptions,

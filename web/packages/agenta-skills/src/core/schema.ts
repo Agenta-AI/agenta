@@ -38,7 +38,6 @@ export const skillContentSchema = z.object({
     disable_model_invocation: z.boolean().optional(),
     allow_executable_files: z.boolean().optional(),
 })
-export type SkillContent = z.infer<typeof skillContentSchema>
 
 // ---------------------------------------------------------------------------
 // Registry list (mirrors SkillsResponse / SkillRegistryItem)

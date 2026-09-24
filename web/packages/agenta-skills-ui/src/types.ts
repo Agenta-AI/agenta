@@ -39,16 +39,6 @@ export interface SkillSourceInfo {
     detached?: boolean
 }
 
-/** One revision row in the versions rail. */
-export interface SkillVersionRow {
-    /** Revision id — the key onSelect answers with. */
-    id: string
-    /** e.g. "3" (rendered v3). */
-    version: string
-    message?: string
-    age?: string
-}
-
 /** One agent chip/row in used-by and save-dialog contexts. */
 export interface SkillUsageRef {
     id: string

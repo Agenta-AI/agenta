@@ -423,14 +423,3 @@ export function validateSnapshot(data: unknown): ValidationResult<PlaygroundSnap
         },
     }
 }
-
-/**
- * Create an empty snapshot.
- */
-export function createEmptySnapshot(): PlaygroundSnapshot {
-    return {
-        v: SNAPSHOT_VERSION,
-        selection: [],
-        drafts: [],
-    }
-}

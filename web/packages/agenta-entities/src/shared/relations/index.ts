@@ -8,7 +8,6 @@
  * import {
  *   EntityRelation,
  *   entityRelationRegistry,
- *   extendWithRelations,
  * } from '@agenta/entities/shared'
  *
  * // Define a relation
@@ -23,11 +22,6 @@
  *
  * // Register for global discovery
  * entityRelationRegistry.register(testcaseRelation)
- *
- * // Extend molecule with relation atoms
- * const revisionWithRelations = extendWithRelations(revisionMolecule, {
- *   testcases: testcaseRelation,
- * })
  * ```
  */
 
@@ -35,12 +29,7 @@
 export {entityRelationRegistry, createRelationRegistry} from "./registry"
 export type {RelationRegistry} from "./registry"
 
-// Extension helper
-export {
-    extendWithRelations,
-    createRelationIdsAtom,
-    createRelationDataAtom,
-} from "./extendWithRelations"
+// Relation atom types
 export type {MoleculeWithRelationAtoms} from "./extendWithRelations"
 
 // Re-export relation types from molecule/types
@@ -50,15 +39,10 @@ export type {
     RelationSelectionConfig,
     RelationBindingConfig,
 } from "../molecule/types"
-export {hasSelectionConfig, hasBindingConfig} from "../molecule/types"
 
 // Binding utilities
 export {
     loadableBindingRelation,
-    getLoadableId,
     parseLoadableId,
-    isLoadableBindingId,
-    getLoadableEntityType,
-    getLoadableEntityId,
 } from "./bindings"
 export type {BindingFormat, ParsedBindingId} from "./bindings"

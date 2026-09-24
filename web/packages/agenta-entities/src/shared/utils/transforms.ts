@@ -64,64 +64,6 @@ export function createTimestampNormalizer<T extends TimestampFields>(
     }
 }
 
-/**
- * Creates a generic field transformer that applies a transform function
- * to specified fields.
- *
- * @example
- * ```typescript
- * const normalizeUserDates = createFieldTransformer(parseDate, [
- *   'created_at',
- *   'updated_at',
- *   'last_login',
- * ])
- * ```
- */
-export function createFieldTransformer<T>(
-    transform: (value: unknown) => unknown,
-    fields: (keyof T)[],
-): (data: T) => T {
-    return (data: T): T => {
-        const result = {...data}
-
-        for (const field of fields) {
-            if (data[field] !== undefined) {
-                ;(result as Record<keyof T, unknown>)[field] = transform(data[field])
-            }
-        }
-
-        return result
-    }
-}
-
-// ============================================================================
-// COMPOSE TRANSFORMS
-// ============================================================================
-
-/**
- * Composes multiple transform functions into a single transform.
- *
- * @example
- * ```typescript
- * const transform = composeTransforms(
- *   normalizeTimestamps,
- *   normalizeUserFields,
- *   sanitizeHtml,
- * )
- *
- * const molecule = createMolecule({
- *   name: 'user',
- *   transform,
- *   // ...
- * })
- * ```
- */
-export function composeTransforms<T>(...transforms: ((data: T) => T)[]): (data: T) => T {
-    return (data: T): T => {
-        return transforms.reduce((acc, transform) => transform(acc), data)
-    }
-}
-
 // ============================================================================
 // BUILT-IN TRANSFORMS (NO EXTERNAL DEPS)
 // ============================================================================
@@ -143,11 +85,3 @@ export function parseISODate(date: string | Date | null | undefined): Date | nul
     const parsed = new Date(date)
     return isNaN(parsed.getTime()) ? null : parsed
 }
-
-/**
- * Basic timestamp normalizer using native Date parsing.
- *
- * NOTE: For production use with WebKit browsers (Safari, iOS),
- * prefer creating a normalizer with dayjs + customParseFormat plugin.
- */
-export const normalizeTimestampsBasic = createTimestampNormalizer(parseISODate)

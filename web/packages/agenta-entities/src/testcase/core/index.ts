@@ -45,12 +45,6 @@ export type {
     // Query result types
     QueryResult,
     TestcasesPage,
-    // Metadata types
-    TestsetMetadataInfo,
-    // Internal types
-    CellKey,
-    BatchUpdateEntry,
-    ColumnRenameOperation,
 } from "./types"
 
 // Column extraction utilities
