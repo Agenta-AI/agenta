@@ -7,7 +7,7 @@ Let a connected agent read what a channel or thread said, from the messages Agen
 ## ADDED Requirements
 
 ### Requirement: Read recent messages or a thread
-`read_channel_messages` SHALL accept a channel destination ID, an optional thread ID, a limit, and a cursor. Without a thread ID it SHALL return the channel's most recent messages, up to the limit. With a thread ID it SHALL return the thread's root and replies. The default limit SHALL be 50, and the maximum SHALL be 200. Messages SHALL be ordered oldest to newest by the provider's time. Each message SHALL include an opaque message ID, the thread ID when it has one, the sender's display name when known, whether the sender is this agent's bot, the text, and the time. The cursor SHALL be opaque and SHALL page to older messages. Tool input and output SHALL NOT contain raw provider IDs.
+`read_channel_messages` SHALL accept a channel destination ID, an optional thread ID, a limit, and a cursor. Without a thread ID it SHALL return the channel's most recent messages, up to the limit. With a thread ID it SHALL return the thread's root and replies. The default limit SHALL be 50, and the maximum SHALL be 200. Messages SHALL be ordered oldest to newest by the provider's time, except that the bot's own stored posts sort by the time Agenta recorded them, which is within about a second of the post. Each message SHALL include an opaque message ID, the thread ID when it has one, the sender's display name when known, whether the sender is this agent's bot, the text, and the time. The cursor SHALL be opaque and SHALL page to older messages. Tool input and output SHALL NOT contain raw provider IDs.
 
 #### Scenario: Agent reads a channel
 - **WHEN** the agent reads #releases with a limit of 100

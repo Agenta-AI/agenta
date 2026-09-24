@@ -137,3 +137,56 @@ async def test_query_uses_the_expression_index(channels_scope):
         lines = " ".join(row[0] for row in plan.all())
 
     assert "ix_channel_inbox_events_search" in lines
+
+
+async def test_search_leaves_out_fetched_copies_of_the_bots_posts(channels_scope):
+    from oss.src.core.channels.dtos import (
+        ChannelDeliveryState,
+        ChannelOutboxEventCreate,
+        ChannelOutboxEventData,
+    )
+
+    dao = ChannelsDAO(engine=channels_scope["engine"])
+    project_id = channels_scope["project_id"]
+    space = uuid.uuid4()
+    row = await dao.record_outbox_event(
+        project_id=project_id,
+        event=ChannelOutboxEventCreate(
+            connection_id=channels_scope["connection_id"],
+            space_id=space,
+            turn_id="toolu_x",
+            key=uuid.uuid4(),
+            data=ChannelOutboxEventData(),
+        ),
+    )
+    await dao.transition_outbox_event(
+        project_id=project_id,
+        event_id=row.id,
+        state=ChannelDeliveryState.SENT,
+        data=ChannelOutboxEventData(external_locator={"channel": "C1", "ts": "77.1"}),
+    )
+    await dao.record_inbox_event(
+        project_id=project_id,
+        event=ChannelInboxEventCreate(
+            connection_id=channels_scope["connection_id"],
+            external_id="C1:77.1",
+            kind=ChannelEventKind.MESSAGE,
+            origin=ChannelEventOrigin.PULLED,
+            space_id=space,
+            data=ChannelInboxEventData(
+                external_locator={"team": "T1", "channel": "C1"},
+                processed=ChannelInboxEventProcessed(
+                    content=[{"type": "text", "text": "bot said launch"}],
+                    sender={"id": "UBOT"},
+                    message_ref="77.1",
+                ),
+            ),
+        ),
+    )
+    await _message(dao, channels_scope, space, "person said launch")
+
+    rows = await dao.search_space_inbox_messages(
+        project_id=project_id, space_ids=[space], query="launch", limit=10
+    )
+
+    assert _texts(rows) == ["person said launch"]

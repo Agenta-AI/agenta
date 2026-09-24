@@ -1385,26 +1385,11 @@ class ChannelsDAO(ChannelsDAOInterface):
         limit: int,
     ) -> List[ChannelInboxEvent]:
         table = ChannelInboxEventDBE
-        outbox = ChannelOutboxEventDBE
-        # A fetched history page can hold a copy of the bot's own post, which
-        # the outbox already serves. Leaving it out here, not after paging,
-        # keeps the two sources disjoint, so each pages on its own order.
-        posted_by_bot = (
-            select(outbox.id)
-            .where(
-                outbox.project_id == table.project_id,
-                outbox.space_id == table.space_id,
-                outbox.state == ChannelDeliveryState.SENT,
-                func.json_extract_path_text(outbox.data, "external_locator", "ts")
-                == func.json_extract_path_text(table.data, "processed", "message_ref"),
-            )
-            .exists()
-        )
         stmt = select(table).where(
             table.project_id == project_id,
             table.space_id == space_id,
             table.kind == ChannelEventKind.MESSAGE.value,
-            (table.origin == ChannelEventOrigin.PUSHED) | ~posted_by_bot,
+            _not_a_copy_of_a_bot_post(),
         )
         if thread_ts is not None:
             stmt = stmt.where(
@@ -2197,6 +2182,28 @@ class ChannelsDAO(ChannelsDAOInterface):
             return (row[0], row[1])
 
 
+def _not_a_copy_of_a_bot_post():
+    """A fetched history page can hold a copy of the bot's own post, which
+    the outbox already serves. Read and search leave it out in the query, not
+    after paging, so a dropped copy never moves a page boundary. Pushed rows
+    never hold the bot's posts: ingress drops bot-authored events."""
+
+    table = ChannelInboxEventDBE
+    outbox = ChannelOutboxEventDBE
+    posted_by_bot = (
+        select(outbox.id)
+        .where(
+            outbox.project_id == table.project_id,
+            outbox.space_id == table.space_id,
+            outbox.state == ChannelDeliveryState.SENT,
+            func.json_extract_path_text(outbox.data, "external_locator", "ts")
+            == func.json_extract_path_text(table.data, "processed", "message_ref"),
+        )
+        .exists()
+    )
+    return (table.origin == ChannelEventOrigin.PUSHED) | ~posted_by_bot
+
+
 def _before(time_column, id_column, before: Tuple[datetime, Optional[UUID]]):
     """Strictly older than a read cursor, in the same (time, id) order the
     query sorts by, so a page boundary never repeats or skips a row that
@@ -2239,6 +2246,7 @@ def search_inbox_statement(
             table.project_id == project_id,
             table.space_id.in_(space_ids),
             table.kind == ChannelEventKind.MESSAGE.value,
+            _not_a_copy_of_a_bot_post(),
             _SEARCH_VECTOR.op("@@")(tsquery),
         )
         .order_by(
