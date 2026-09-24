@@ -34,6 +34,11 @@ log = get_module_logger(__name__)
 _WINDOW_CLOSED = 131047  # more than 24 hours since the customer's last message
 _PAIR_RATE_LIMIT = 131056  # too many messages to one customer too fast
 _TOKEN_INVALID = 190
+# Meta answers throttling with an HTTP 400. These codes are reported as a 429,
+# so the outbox retries them like any rate limit instead of failing the reply:
+# app (4), account (80007), throughput (130429), spam (131048) and pair
+# (131056) rate limits.
+_THROTTLED = {4, 80007, 130429, 131048, _PAIR_RATE_LIMIT}
 
 _PAIR_LIMIT_RETRIES = 2
 _MEDIA_TIMEOUT_SECONDS = 30.0
@@ -227,25 +232,23 @@ class WhatsAppAdapter(ChannelAdapterInterface):
     ) -> None:
         """Mark the customer's message read and show "typing…". Meta ties the
         indicator to an inbound message id, which core passes as
-        `inbound_message_id`. Best-effort."""
+        `inbound_message_id`. A refusal raises; the outbox, which calls this,
+        treats it as best-effort and stops signaling on a lasting refusal."""
 
         message_id = locator.get("inbound_message_id")
         if not message_id:
             return
-        try:
-            await self._call(
-                _access_token(connection),
-                "POST",
-                f"/{_phone_number_id(connection)}/messages",
-                json={
-                    "messaging_product": "whatsapp",
-                    "status": "read",
-                    "message_id": message_id,
-                    "typing_indicator": {"type": "text"},
-                },
-            )
-        except Exception as exc:  # noqa: BLE001 - never blocks the answer
-            log.info("[CHANNELS] whatsapp typing indicator failed: %s", exc)
+        await self._call(
+            _access_token(connection),
+            "POST",
+            f"/{_phone_number_id(connection)}/messages",
+            json={
+                "messaging_product": "whatsapp",
+                "status": "read",
+                "message_id": message_id,
+                "typing_indicator": {"type": "text"},
+            },
+        )
 
     async def reopen_conversation(
         self, *, connection: ChannelConnection, locator: dict[str, Any]
@@ -358,18 +361,46 @@ class WhatsAppAdapter(ChannelAdapterInterface):
         error = body.get("error") if isinstance(body, dict) else None
         error = error if isinstance(error, dict) else {}
         code = error.get("code")
-        message = str(error.get("message") or "unknown error")
         if code == _TOKEN_INVALID or response.status_code == 401:
             # The system-user token was revoked or expired. No retry passes.
-            raise ChannelCredentialRevoked(channel="whatsapp", detail=message)
+            raise ChannelCredentialRevoked(
+                channel="whatsapp",
+                detail=_describe(error).replace(token, "[REDACTED]"),
+            )
         raise _GraphApiError(
-            code=code, message=message, status_code=response.status_code
+            error=error,
+            status_code=429 if code in _THROTTLED else response.status_code,
+            token=token,
         )
 
 
+def _describe(error: dict[str, Any]) -> str:
+    """Meta's whole error, for the log and the outbox row: the code, subcode
+    and type, the message, `error_data.details` (usually the actual cause)
+    and the trace id Meta support asks for."""
+
+    head = f"Graph API error {error.get('code')}"
+    if error.get("error_subcode") is not None:
+        head += f"/{error['error_subcode']}"
+    if error.get("type"):
+        head += f" ({error['type']})"
+    text = f"{head}: {error.get('message') or 'unknown error'}"
+    details = (error.get("error_data") or {}).get("details")
+    if details:
+        text += f" Details: {details}"
+    if error.get("fbtrace_id"):
+        text += f" [fbtrace_id {error['fbtrace_id']}]"
+    return text
+
+
 class _GraphApiError(Exception):
-    def __init__(self, *, code: int | None, message: str, status_code: int):
-        self.code = code
-        self.message = message
+    """A request Meta refused. `status_code` is what the outbox classifies
+    by: a 4xx other than a 429 is a refusal no retry changes."""
+
+    def __init__(self, *, error: dict[str, Any], status_code: int, token: str):
+        self.code = error.get("code")
         self.status_code = status_code
-        super().__init__(f"Graph API error {code}: {message}")
+        # Never the token, even where Meta echoes a request back.
+        super().__init__(
+            _describe(error).replace(token, "[REDACTED]") if token else _describe(error)
+        )

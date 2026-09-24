@@ -138,6 +138,8 @@ Core changes, all declared by the adapter's capabilities so Slack and Telegram a
 - `conversation.opt_out` and a space flag `is_opted_out` for STOP and START.
 - Two adapter hooks with no-op defaults: `reopen_conversation` (the template) and `fetch_media` (inbound files).
 
+Failures follow the outbox's one rule, which the Railway preview test made necessary: a platform answer of 4xx other than 429 is a refusal no retry changes, so the reply is marked failed (`delivery_refused`) with Meta's whole error (code, subcode, type, `error_data.details`, `fbtrace_id`, never the token) and the turn event is acknowledged. Rate limits, 5xx and network errors still go back to the stream for a retry. The adapter reports Meta's throttling codes, which Meta sends as HTTP 400, as a 429. A refused typing indicator stops the turn's typing refresh and never blocks the reply. This rule applies to every channel: a Telegram 4xx such as a blocked bot also stops retrying now.
+
 Documented limits:
 
 - Delivery statuses are logged, with failed ones at warning level and Meta's code. They are not written back to the outbox row. Error 131047 in a send response holds the reply; a 131047 that only arrives later as a status is logged. The window check before sending makes that case rare.

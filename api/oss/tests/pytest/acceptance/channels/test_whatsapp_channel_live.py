@@ -438,6 +438,41 @@ class TestWhatsAppConversation:
         assert _texts_to(number, wa_id) == [_ANSWER, _ANSWER]
         assert held() == []
 
+    def test_a_permanent_meta_refusal_fails_the_reply_once_with_metas_error(
+        self, authed_api, cls_account
+    ):
+        number, connection = _connect_agent(authed_api, "reply", text=_ANSWER)
+        wa_id = _customer()
+        _fake(
+            "/_fake/fail_next",
+            {
+                "code": 100,
+                "phone_number_id": number["phone_number_id"],
+            },
+        )
+
+        _post(
+            cls_account["api_url"],
+            _body(number, _message("hello", wa_id=wa_id)),
+            secret=number["app_secret"],
+        )
+
+        def refused():
+            rows = authed_api(
+                "POST",
+                "/channels/outbox/events/query",
+                json={"event": {"state": "failed"}},
+            ).json()["events"]
+            return [r for r in rows if r["connection_id"] == connection["id"]]
+
+        [row] = _wait_for(refused)
+        assert row["status"]["code"] == "delivery_refused"
+        assert "Graph API error 100" in row["status"]["message"]
+        assert number["access_token"] not in row["status"]["message"]
+        time.sleep(40)  # past one stream redelivery: nothing is retried
+        assert _texts_to(number, wa_id) == []
+        assert len(refused()) == 1
+
     def test_stop_silences_the_number_until_start(self, authed_api, cls_account):
         number, _ = _connect_agent(authed_api, "reply", text=_ANSWER)
         wa_id = _customer()

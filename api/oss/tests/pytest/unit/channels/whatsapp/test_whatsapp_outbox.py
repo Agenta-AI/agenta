@@ -545,7 +545,7 @@ async def test_a_held_reply_that_fails_on_release_does_not_block_the_new_answer(
     assert graph.texts_to(p.CUSTOMER) == ["new answer"]
     [failed] = [r for r in dao.rows() if r.turn_id == "t1"]
     assert failed.state is ChannelDeliveryState.FAILED
-    assert failed.status.code == "delivery_failed"
+    assert failed.status.code == "delivery_refused"
 
 
 async def test_two_workers_holding_parts_of_one_answer_send_one_template(
@@ -683,3 +683,94 @@ async def test_a_database_error_during_release_holds_back_the_answer(
     await _end(worker, thread, "t2")  # the stream retries the event
 
     assert graph.texts_to(p.CUSTOMER) == ["held answer", "new answer"]
+
+
+async def test_a_permanent_meta_refusal_fails_the_reply_and_is_not_retried(
+    service, dao, graph, records
+):
+    """Error 100 is a setup problem a retry cannot fix: the row says FAILED
+    with Meta's whole error, and the turn event is acknowledged."""
+
+    worker = _worker(service, records)
+    _, space, thread = dao.seed_whatsapp()
+    dao.customer_wrote(space)
+    _answer(records, thread, "t1", "answer")
+    graph.fail_next(
+        100,
+        message="Authorization Error",
+        subcode=2494010,
+        details="Missing permission whatsapp_business_messaging",
+    )
+
+    await _end(worker, thread, "t1")  # does not raise: acknowledged
+    await _end(worker, thread, "t1")  # the duplicate turn_ended: not resent
+
+    assert graph.texts_to(p.CUSTOMER) == []
+    [row] = dao.rows()
+    assert row.state is ChannelDeliveryState.FAILED
+    assert row.status.code == "delivery_refused"
+    assert "2494010" in row.status.message
+    assert "whatsapp_business_messaging" in row.status.message
+    assert p.ACCESS_TOKEN not in row.status.message
+
+
+async def test_a_rate_limit_that_outlasts_the_retries_is_retried_by_the_stream(
+    service, dao, graph, records
+):
+    worker = _worker(service, records)
+    _, space, thread = dao.seed_whatsapp()
+    dao.customer_wrote(space)
+    _answer(records, thread, "t1", "answer")
+    for _ in range(3):
+        graph.fail_next(131056)
+
+    with pytest.raises(Exception):
+        await _end(worker, thread, "t1")
+    await _end(worker, thread, "t1")  # the stream redelivers it
+
+    assert graph.texts_to(p.CUSTOMER) == ["answer"]
+
+
+async def test_a_held_reply_that_fails_for_a_passing_reason_stays_held(
+    service, dao, graph, records
+):
+    worker = _worker(service, records)
+    _, space, thread = dao.seed_whatsapp()
+    dao.customer_wrote(space, ago=timedelta(days=2))
+    _answer(records, thread, "t1", "held answer")
+    await _end(worker, thread, "t1")
+    dao.customer_wrote(space, message_id="wamid.BACK")
+    for _ in range(3):
+        graph.fail_next(131056)
+
+    _answer(records, thread, "t2", "new answer")
+    with pytest.raises(Exception):
+        await _end(worker, thread, "t2")
+    assert len(dao.rows(ChannelDeliveryState.HELD)) == 1
+
+    await _end(worker, thread, "t2")  # the stream redelivers it
+
+    assert graph.texts_to(p.CUSTOMER) == ["held answer", "new answer"]
+
+
+async def test_a_refused_typing_indicator_is_not_retried_and_never_blocks_the_reply(
+    service, dao, graph, records
+):
+    worker = _worker(
+        service,
+        records,
+        progress_interval_seconds=0.01,
+        activity_refresh_seconds=0.02,
+        working_notice_seconds=10,
+    )
+    _, space, thread = dao.seed_whatsapp()
+    dao.customer_wrote(space)
+    graph.fail_typing()
+
+    await _start(worker, thread, "t1")
+    await asyncio.sleep(0.2)
+    _answer(records, thread, "t1", "answer")
+    await _end(worker, thread, "t1")
+
+    assert graph.typing_attempts == 1
+    assert graph.texts_to(p.CUSTOMER) == ["answer"]

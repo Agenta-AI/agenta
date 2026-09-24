@@ -761,7 +761,8 @@ class ChannelsDAOInterface(ABC):
         overwrites the answer. With `delivery_key`, a row whose last attempt
         at that same delivery ended with an unknown outcome (status code
         `delivery_uncertain`, the key in `status.type`) is not claimable: the
-        post may already be in the chat.
+        post may already be in the chat. Nor is one the platform refused for
+        good (`delivery_refused`, same key): it would refuse it again.
 
         Returns the claimed row (fresh, so the caller posts or edits against
         the current receipt), or None when another worker owns the delivery.

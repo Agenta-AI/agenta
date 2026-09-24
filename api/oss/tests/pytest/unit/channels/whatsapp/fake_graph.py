@@ -28,8 +28,9 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 from starlette.routing import Route
 
-# Meta error code -> HTTP status; code 2 is "service temporarily unavailable".
-_ERROR_STATUS = {190: 401, 131056: 429, 2: 503}
+# Meta error code -> HTTP status. Meta answers most errors, throttling
+# included (131056), with a 400; code 2 is "service temporarily unavailable".
+_ERROR_STATUS = {190: 401, 2: 503}
 
 
 class FakeGraph:
@@ -40,10 +41,12 @@ class FakeGraph:
         self.sent: list[dict[str, Any]] = []
         # every "status": "read" call (read receipt + typing indicator)
         self.typing: list[dict[str, Any]] = []
+        self.typing_attempts = 0
         # media_id -> {"data", "mime_type", "token"}
         self.media: dict[str, dict[str, Any]] = {}
         # phone_number_id (or None for any number) -> queued Meta error codes
-        self._failures: dict[str | None, list[int]] = {}
+        self._failures: dict[str | None, list[dict[str, Any]]] = {}
+        self._typing_failure: dict[str, Any] | None = None
         self._next_id = 0
         self.public_url = public_url.rstrip("/")
         self.app = Starlette(
@@ -83,8 +86,29 @@ class FakeGraph:
     ) -> None:
         self.media[media_id] = {"data": data, "mime_type": mime_type, "token": token}
 
-    def fail_next(self, code: int, phone_number_id: str | None = None) -> None:
-        self._failures.setdefault(phone_number_id, []).append(code)
+    def fail_next(
+        self,
+        code: int,
+        phone_number_id: str | None = None,
+        *,
+        message: str | None = None,
+        subcode: int | None = None,
+        details: str | None = None,
+    ) -> None:
+        """Fail the next send with Meta's error shape. `message`, `subcode`
+        and `details` fill `error.message`, `error.error_subcode` and
+        `error.error_data.details`, as Meta sends them."""
+
+        self._failures.setdefault(phone_number_id, []).append(
+            {"code": code, "message": message, "subcode": subcode, "details": details}
+        )
+
+    def fail_typing(
+        self, code: int = 100, message: str = "Authorization Error"
+    ) -> None:
+        """Every typing indicator (read receipt) from now on fails."""
+
+        self._typing_failure = {"code": code, "message": message}
 
     def texts_to(self, wa_id: str) -> list[str]:
         return [
@@ -100,18 +124,25 @@ class FakeGraph:
         return bool(token) and header == f"Bearer {token}"
 
     @staticmethod
-    def _error(code: int, message: str, status: int = 400) -> JSONResponse:
-        return JSONResponse(
-            {
-                "error": {
-                    "message": message,
-                    "type": "OAuthException",
-                    "code": code,
-                    "fbtrace_id": "fake",
-                }
-            },
-            status_code=status,
-        )
+    def _error(
+        code: int,
+        message: str,
+        status: int = 400,
+        *,
+        subcode: int | None = None,
+        details: str | None = None,
+    ) -> JSONResponse:
+        error: dict[str, Any] = {
+            "message": message,
+            "type": "OAuthException",
+            "code": code,
+            "fbtrace_id": "AbCdEfFakeTrace",
+        }
+        if subcode is not None:
+            error["error_subcode"] = subcode
+        if details is not None:
+            error["error_data"] = {"messaging_product": "whatsapp", "details": details}
+        return JSONResponse({"error": error}, status_code=status)
 
     async def _read_object(self, request: Request) -> Response:
         object_id = request.path_params["object_id"]
@@ -166,6 +197,11 @@ class FakeGraph:
         if body.get("status") == "read":
             if not body.get("message_id"):
                 return self._error(100, "message_id is required")
+            if self._typing_failure:
+                self.typing_attempts += 1
+                return self._error(
+                    self._typing_failure["code"], self._typing_failure["message"]
+                )
             self.typing.append({"phone_number_id": phone_number_id, **body})
             return JSONResponse({"success": True})
 
@@ -180,9 +216,14 @@ class FakeGraph:
 
         queue = self._failures.get(phone_number_id) or self._failures.get(None)
         if queue:
-            code = queue.pop(0)
+            failure = queue.pop(0)
+            code = failure["code"]
             return self._error(
-                code, f"fake failure {code}", _ERROR_STATUS.get(code, 400)
+                code,
+                failure["message"] or f"fake failure {code}",
+                _ERROR_STATUS.get(code, 400),
+                subcode=failure["subcode"],
+                details=failure["details"],
             )
 
         self._next_id += 1

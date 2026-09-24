@@ -180,7 +180,7 @@ class FakeChannelsDAO(ChannelsDAOInterface):
             if (
                 delivery_key is not None
                 and row.status is not None
-                and row.status.code == "delivery_uncertain"
+                and row.status.code in ("delivery_uncertain", "delivery_refused")
                 and row.status.type == delivery_key
             ):
                 return None

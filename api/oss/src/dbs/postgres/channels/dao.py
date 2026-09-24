@@ -1910,7 +1910,7 @@ class ChannelsDAO(ChannelsDAOInterface):
         if delivery_key is not None:
             conditions.append(
                 ~func.coalesce(
-                    (claim_code == "delivery_uncertain")
+                    claim_code.in_(("delivery_uncertain", "delivery_refused"))
                     & (table.status["type"].astext == delivery_key),
                     false(),
                 )

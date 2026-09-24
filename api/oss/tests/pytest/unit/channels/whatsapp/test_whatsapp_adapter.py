@@ -213,6 +213,52 @@ async def test_other_rejections_raise_with_the_status_code(adapter, graph):
     assert getattr(caught.value, "status_code", None) == 400
 
 
+async def test_metas_full_error_is_kept_without_the_token(adapter, graph):
+    graph.fail_next(
+        100,
+        message=f"Authorization Error for {p.ACCESS_TOKEN}",
+        subcode=2494010,
+        details="The phone number is not registered on the Cloud API",
+    )
+    with pytest.raises(Exception) as caught:
+        await adapter.post_message(
+            connection=_connection(),
+            locator={"wa_id": p.CUSTOMER},
+            content=[{"type": "text", "text": "hello"}],
+            idempotency_key=uuid4(),
+        )
+    text = str(caught.value)
+    assert "100" in text and "2494010" in text and "OAuthException" in text
+    assert "not registered on the Cloud API" in text
+    assert "AbCdEfFakeTrace" in text
+    assert p.ACCESS_TOKEN not in text
+
+
+async def test_metas_throttling_is_reported_as_a_rate_limit(adapter, graph):
+    for _ in range(3):  # outlasts the adapter's own pair-limit retries
+        graph.fail_next(131056)
+    with pytest.raises(Exception) as caught:
+        await adapter.post_message(
+            connection=_connection(),
+            locator={"wa_id": p.CUSTOMER},
+            content=[{"type": "text", "text": "hello"}],
+            idempotency_key=uuid4(),
+        )
+    assert caught.value.status_code == 429
+
+
+async def test_a_refused_typing_indicator_raises_for_the_caller_to_judge(
+    adapter, graph
+):
+    graph.fail_typing()
+    with pytest.raises(Exception) as caught:
+        await adapter.signal_activity(
+            connection=_connection(),
+            locator={"wa_id": p.CUSTOMER, "inbound_message_id": "wamid.IN"},
+        )
+    assert caught.value.status_code == 400
+
+
 async def test_signal_activity_marks_read_and_shows_typing(adapter, graph):
     await adapter.signal_activity(
         connection=_connection(),
