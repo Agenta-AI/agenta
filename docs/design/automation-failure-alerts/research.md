@@ -1,228 +1,256 @@
 # Research: How Automations Work Today
 
-All statements were read from the code and checked in three independent passes on
-2026-09-24 and 2026-09-25. Local numbers come from the EE dev stack
-(`agenta_ee_core`, `agenta_ee_tracing`), not from production. Paths are relative to the repo
-root. Short paths such as `core/triggers/service.py` are under `api/oss/src/`.
+Every statement here was read from the code or the local EE dev database
+(`agenta_ee_core`, `agenta_ee_tracing`) on 2026-09-24 and 2026-09-25. Local numbers are not
+production numbers. Paths are relative to the repo root; short paths such as
+`core/triggers/service.py` are under `api/oss/src/`.
 
 ## 1. Two entry paths, one dispatcher
 
 ### Scheduled automations (no Composio)
 
-1. A `cron` container runs `supercronic /app/crontab` in every deployment target (compose,
-   Helm `templates/cron-deployment.yaml`, Railway `hosting/railway/oss/cron/Dockerfile`).
-2. `api/oss/src/crons/triggers.sh` runs every minute (`triggers.txt`). It POSTs to
-   `http://api:8000/admin/triggers/schedules/refresh` with the `Access` key. A curl failure is
-   caught and the script exits 0.
-3. `TriggersService.refresh_schedules` (`api/oss/src/core/triggers/service.py:1679-1780`)
-   loads active schedules across all projects, deactivates schedules past `end_time`, checks
-   `croniter.match` for one timestamp only (no catch-up), builds
-   `event_id = "{schedule_id}:{tick_iso}"`, dedups, and enqueues `triggers.dispatch_schedule`.
-4. The admin route requires the `Access` key (`api/oss/src/middlewares/auth.py`). It skips
-   only permission and entitlement checks.
+- A `cron` container runs `supercronic /app/crontab` in compose, Helm
+  (`hosting/kubernetes/helm/templates/cron-deployment.yaml`, on by default) and Railway
+  (`hosting/railway/oss/cron/Dockerfile`).
+- The crontab is built from the `*.txt` files in `api/oss/src/crons` and `api/ee/src/crons`
+  (`api/oss/docker/Dockerfile.gh:96-119`, `api/ee/docker/Dockerfile.gh:96-127`).
+- `triggers.sh` runs every minute and POSTs to
+  `http://api:8000/admin/triggers/schedules/refresh` with `Authorization: Access <key>`. A curl
+  failure is caught and the script exits 0.
+- `TriggersService.refresh_schedules` (`core/triggers/service.py:1679-1780`) loads active
+  schedules across all projects, turns off schedules past `end_time` (1713-1721), checks
+  `croniter.match` for one timestamp only (no catch-up), builds
+  `event_id = "{schedule_id}:{tick_iso}"`, dedups, and enqueues `triggers.dispatch_schedule`.
+- The refresh handler (`apis/fastapi/triggers/router.py:1474-1498`) always answers HTTP 200. It
+  returns `{"status": "failure"}` in the body when the service reports a failure.
 
 ### Event automations (Composio)
 
-1. At startup the API finds or creates one Composio webhook subscribed to
-   `composio.trigger.message` only (`core/triggers/providers/composio/adapter.py:23,131-160`).
-   It reuses an existing webhook without checking its events, and re-runs this lazily after a
-   signature mismatch (`core/triggers/utils.py:27-68`).
-2. Creating a subscription upserts a Composio trigger instance and stores its `ti_*` id.
-3. `POST /triggers/composio/events/` (`apis/fastapi/triggers/router.py:1573-1627`) checks
-   timestamp freshness, then HMAC, then webhook-id replay; enqueues `triggers.dispatch`;
-   answers 202. Enqueue failure answers 503. A body without a trigger id answers 202 and does
-   nothing.
-4. The worker finds the subscription by `ti_*` across projects and refuses if two projects
-   match.
+- At startup the API finds or creates one Composio webhook subscribed to
+  `composio.trigger.message` only (`core/triggers/providers/composio/adapter.py:23,131-160`).
+- `POST /triggers/composio/events/` (`apis/fastapi/triggers/router.py:1573-1627`) checks
+  timestamp freshness, then HMAC, then webhook-id replay; enqueues `triggers.dispatch`; answers
+  202.
 
-### Dispatch and run
+### Dispatch
 
-- Only the `worker-queues` dispatcher runs. The instance built in `api/entrypoints/routers.py`
-  sits on a producer-only broker. Both use `_dispatch_detached_run`
-  (`api/entrypoints/worker_queues.py:247-270`).
-- `_run` (`api/oss/src/tasks/asyncio/triggers/dispatcher.py:224-362`):
-  1. Claim: one write inserts the delivery at `102 claimed` and a `session_streams` row tagged
-     `ag.origin=trigger`, `ag.trigger.id`, `ag.trigger.kind`, `ag.trigger.delivery_id`, only
-     if the parent is live.
-  2. Input mapping or missing reference: `400 failed`, session soft-deleted.
-  3. `invoke_workflow_detached` (`core/workflows/service.py:3295-3345`) mints
-     `run_id = uuid4()`, puts it in `request.meta`, POSTs `/invoke`, and returns on the first
-     NDJSON record. Triggers do not pass `strict_start`, so an error frame as the first record
-     still counts as started.
-  4. Start error: `500 failed`, session soft-deleted, task re-raises (no effect, see below).
-  5. Success: `202 dispatched` with `data.result.run_id`.
-- An invalid subscription writes `409 failed` with no claim and no session.
-- A trigger can target any workflow, not only agents (`service.py:846-906`). A batch handler
-  answers 406 to the NDJSON request, so the delivery becomes `500`.
+- Only the `worker-queues` dispatcher runs in production. Both constructions pass
+  `dispatch_fn`, so the inline invoke branch is reached only by tests
+  (`api/entrypoints/worker_queues.py:247-270`, `api/entrypoints/routers.py:989-1033`).
+- `TriggersDispatcher._run` (`tasks/asyncio/triggers/dispatcher.py:224-422`):
+  1. creates `delivery_id = uuid7()` and `session_id = uuid4().hex`;
+  2. claims (below);
+  3. builds the request; an exception writes `400 failed` and abandons the session;
+  4. calls `run_id = await self._dispatch_fn(project_id, user_id, request)`; an exception writes
+     `500 failed`, abandons the session, and re-raises;
+  5. writes `202 dispatched` with `data.result.run_id`.
+- `_dispatch_detached_run` in `worker_queues.py:247` takes no `run_id`. The one in
+  `routers.py:989` does. `invoke_workflow_detached(..., run_id=None, ...)`
+  (`core/workflows/service.py:3295`) creates `run_id` when none is passed and puts it in
+  `request.meta`.
 
-## 2. The run's id is the runner's turn id
+### The claim (`dbs/postgres/sessions/streams/dao.py:163-273`)
+
+- One statement: a CTE locks the live parent (`deleted_at IS NULL`, `is_active`, and `is_valid`
+  for subscriptions); it inserts the delivery with `status 102 claimed` and
+  `data = {"session_id": ...}`; then it inserts the `session_streams` row with the `ag.*`
+  tags.
+- `ON CONFLICT (project_id, schedule_id|subscription_id, event_id) DO UPDATE` runs only when
+  the existing row's code is `500`. It sets `id`, `created_by_id`, `status`, `data` (replaced)
+  and `updated_at`. A column not in that list keeps its old value.
+
+## 2. Status values written on a delivery
+
+| Code, message | Written by | `data.error` |
+|---|---|---|
+| `102 claimed` | claim | none |
+| `202 dispatched` | dispatcher after start | none; `result.run_id` |
+| `200 success` | `is_test` capture (`data.is_test = true`), or the inline path (tests only) | none |
+| `409 failed` | invalid subscription, no claim | "Subscription is invalid (provider connection revoked or unsynced)" |
+| `400 failed` | request build error | `str(e)`; the only explicit raise is "Entity has no bound workflow reference" |
+| `500 failed` | detached start error | "Workflow service returned HTTP {code} on detached start: {body}", "Workflow service was never reached on detached start: ...", "Workflow service closed the stream before emitting a started record.", "Workflow revision has no runnable service URL.", or empty |
+
+- A target that is not an agent answers the NDJSON request with HTTP 406
+  (`sdks/python/agenta/sdk/decorators/routing.py:469-491,555`), so the delivery is `500` with
+  "HTTP 406 on detached start".
+- Dedup (`dbs/postgres/triggers/dao.py:663-739`) reads only `status`. It treats a missing row
+  and a `500` row as not seen; any other code as seen.
+
+Local data (all `is_test` null):
+
+| Code | Error | Count |
+|---|---|---|
+| 500 | "HTTP 500 on detached start" wrapping a `400` from `/workflows/revisions/resolve` | 99 |
+| 102 | none (stuck claims from 2026-09-20 11:35) | 40 |
+| 500 | empty (inline timeouts before detached starts) | 28 |
+| 202 | none | 20 |
+| 500 | "closed the stream before emitting a started record" | 8 |
+| 500 | "Agent run failed: No user message to send (prompt/messages empty)." | 6 |
+| 200 | none (inline) | 2 |
+
+## 3. Writers of `trigger_deliveries`
+
+| Function | Writes |
+|---|---|
+| `SessionStreamsDAO.claim_trigger_delivery` | insert; on a `500` conflict: id, created_by_id, status, data, updated_at |
+| `TriggersDAO.write_subscription_delivery_if_live` (dispatcher `is_test` and `409` paths) | insert; on conflict: status, data (merged), updated_at, updated_by_id |
+| `TriggersDAO.update_delivery` (dispatcher completion) | status, updated_at; `data` merged with `||` |
+| `TriggersDAO.write_delivery` | no production caller |
+| Cascade deletes | from `projects`, `trigger_schedules`, `trigger_subscriptions` (and `gateway_connections` through subscriptions) |
+
+## 4. The run's id and its turns
 
 | Hop | Code |
 |---|---|
-| API sets `meta.run_id` | `api/oss/src/core/workflows/service.py:3316-3321` |
+| API sets `meta.run_id` | `core/workflows/service.py:3316-3321` |
 | SDK sets `turn_id = meta.run_id` | `sdks/python/agenta/sdk/agents/handler.py:494` |
 | SDK sends `turnId` | `sdks/python/agenta/sdk/agents/utils/wire.py:183-184` |
-| Runner uses it (else a random id) | `services/runner/src/server.ts:235-237,488-492` |
+| Runner uses it, else a random id | `services/runner/src/server.ts:235-237` |
 | Records store it | `services/runner/src/sessions/persist.ts:99` |
 
-Local check: 20 of 20 deliveries at `202` join to their records on
-`(project_id, session_id, turn_id = data.result.run_id)`. Each of these sessions has exactly
-one turn.
+- Local check: all 20 deliveries that have `result.run_id` join to their records on
+  `(project_id, session_id, turn_id)`. `data.session_id` (32 hex characters) equals
+  `records.session_id`; `records.turn_id` is a dashed UUID equal to `result.run_id`.
+- Of 203 local trigger sessions, 56 have records; 1 has two turns 4.5 hours apart (a later
+  follow-up message, not a continuation).
 
-An approval continuation runs as a new turn in the same session. The chain is
-`parent_execution_id` in the executions table and the command's `expected_turn_id`
-(`api/oss/src/core/sessions/commands/service.py:796-818`).
+**Approval continuations** (`core/sessions/commands/service.py:599-866`):
 
-## 3. Where state lives
+- A paused turn has no `session_executions` row until someone acts on it.
+- On approval, the API locks the paused turn's execution, settles it `continued`, creates a new
+  execution with `execution_id = uuid4()` and `parent_execution_id` = the paused turn's id, and
+  starts it with `run_id` = that new id. So the continuation's `turn_id` is the new id.
+- A continuation can pause again; the next approval creates another child. Chains are longer
+  than two in practice.
+- **No deadline exists.** The watchdog's idle reclaim after 1800 s collapses the session flags
+  but leaves the approval pending and answerable. A pending approval ends only when the run is
+  stopped, the session is deleted, a new turn starts in the session, or the execution is
+  terminal. Local: a trigger session has an approval pending since 2026-09-07.
 
-| Store | Database | Holds |
-|---|---|---|
-| `trigger_schedules`, `trigger_subscriptions` | core | Automation definitions, flags, `created_by_id` |
-| `trigger_deliveries` | core | One row per fire: `status {code, message}` (free-form, no enum), `data` (`session_id`, `result.run_id`, `error` string, `is_test`) |
-| `session_streams` | core | Session row with `ag.*` tags; flags `is_alive`, `is_running` |
-| `records` | tracing | Turn records: `turn_id`, `record_type`, `attributes` JSONB, `quarantined_at` |
+## 5. How a turn ends
 
-- No single transaction or SQL join covers core and tracing.
-- `TriggerDeliveryData` (`core/triggers/dtos.py:368-382`) is a closed Pydantic model: unknown
-  keys are dropped.
-- Index `ix_trigger_deliveries_schedule_id_created_at` exists in migration `oss000000003` but
-  not in the ORM model (`dbs/postgres/triggers/dbes.py:109-135`).
-- Editing a schedule or subscription replaces `meta`, `data` and `flags` whole
-  (`dbs/postgres/triggers/mappings.py:103-107,176-180`).
+- Only a `done` record ends a turn (`core/sessions/records/dtos.py:18`). An `error` record alone
+  is not terminal, with one exception: the runner's abandon path (`server.ts:1019`) writes an
+  `error` with code `execution_lost` and no `done`.
+- Runner writes (`services/runner/src`):
+  - `engines/sandbox_agent/run-turn.ts:1678-1848`: `error` with a code (`runner_error` or a
+    classified code), then `done` with `stopReason = error`.
+  - `server.ts:1004-1008,1037-1042`: backstop `error` with no code, then `done` with no stop
+    reason, or `cancelled` when a person stopped the run.
+  - `tracing/otel.ts:2203-2211`: `done`; `stopReason` is set only for `paused`, `cancelled`,
+    `error`.
+- API writes (`tasks/asyncio/sessions/orphan_sweep.py:145-231`): the watchdog writes `error`
+  (`execution_lost`) plus `done` with no stop reason, or `done` with `stopReason = cancelled`.
+- Tool failures are `tool_result` records, not `error` records. No runner path writes an
+  `error` and then keeps working.
+- Records that arrive after the watchdog ended a turn are kept with `quarantined_at` set and are
+  excluded from transcripts.
+- Local `done` records after an `error`: 27 with no stop reason, 2 with `error`, 4 with
+  `cancelled` (all "Sandbox acquisition was aborted.", a person's stop).
+- Runner error codes (`engines/sandbox_agent/errors.ts:79-105`): `runner_error`,
+  `starter_credits_*`, `credential_delivery_failed`, `rate_limited`, `session_turn_in_use`,
+  `sandbox_gone`, `execution_lost`, `subscription_login_*`; the API adds
+  `continuation_execution_lost`.
+- The runner's hard limit for a run is 11 hours, plus 30 minutes of settle time
+  (`services/runner/src/run-limits.ts:39`, `turn-settle.ts:42`).
 
-## 4. How a failure shows in the records
+## 6. Records table (tracing DB)
 
-- Error records carry `attributes.code` and `attributes.message`.
-- Many error records have no code. The runner's backstop `persistError(message)` in
-  `server.ts` sends none. Engine errors carry codes (`runner_error` and others); the watchdog
-  writes `execution_lost` (`api/oss/src/tasks/asyncio/sessions/orphan_sweep.py:180`).
-  Local counts: 16 without code, 15 `runner_error`, 2 `execution_lost`.
-- `done.stopReason` values written: `paused`, `cancelled`, `error` (`services/runner/src/tracing/otel.ts:2204-2209`)
-  and `cancelled` in the backstop. Local `done` counts: 472 none, 155 paused, 38 cancelled,
-  2 error.
-- All 3 failed automation turns locally end with a `done` that has no `stopReason`. The
-  abandon path (`server.ts:1019`) writes an `error` and no `done`.
-- "The agent produced no output" exists only as a live-stream frame in the SDK Vercel adapter
-  (`sdks/python/agenta/sdk/agents/adapters/vercel/stream.py:426,720`). It is never stored.
-- Runner error codes: `runner_error`, `starter_credits_*`, `credential_delivery_failed`,
-  `rate_limited`, `session_turn_in_use`, `sandbox_gone`, `execution_lost`,
-  `subscription_login_*` (`services/runner/src/engines/sandbox_agent/errors.ts:79-105`),
-  plus `continuation_execution_lost` from the API.
+- Columns include `project_id uuid`, `session_id varchar`, `turn_id varchar`, `record_type`,
+  `attributes jsonb`, `quarantined_at`, `deleted_at`, `sequence`.
+- Index `ix_records_project_id_session_id_turn_id (project_id, session_id, turn_id)` serves
+  lookups by turn.
+- The core and tracing databases are separate; no SQL join or transaction spans both.
 
-## 5. Failure points and what records them today
+## 7. Background loops in the API
 
-| Failure | Recorded as | Visible in app |
-|---|---|---|
-| Agent fails after start (common case) | stays `202`; error record only | "Running" forever |
-| Runner dies, watchdog settles `execution_lost` | error record; delivery untouched | "Running" forever |
-| Worker crash between claim and start | stuck at `102`; dedup skips redelivery | "Running" forever |
-| Input mapping, missing reference | `400 failed` | Failed row and banner |
-| Invalid subscription | `409 failed` | Failed row and banner |
-| Start error, non-agent target (406) | `500 failed` | Failed row and banner |
-| Cron cannot reach the API | nothing | Silent |
-| Missed tick (API slow or down) | nothing | Silent |
-| Unknown `ti_*`, inactive parent | log only | Silent |
-| Connection revoked | nothing; Composio keeps sending events and runs continue | Silent |
-| Composio disable or delete fails | `meta.needs_provider_cleanup`, never read | Hidden |
+- The API lifespan (`api/entrypoints/routers.py:331-429`) starts its loops in every API process.
+- `orphan_sweep_loop` (the watchdog) runs every 60 s in every process with no global lock; it
+  stays correct through per-session locks and idempotent writes.
+- `attachment_sweep_loop` (`tasks/asyncio/sessions/attachment_sweep.py`) takes a lease per pass:
+  `SET NX EX` on `locks:sessions:attachment-sweep` with TTL `max(2 x interval, 300)`, renews it
+  with a compare-and-expire script between batches, releases it with compare-and-delete. A
+  process without the lease skips the pass. It uses `LockEngine` (volatile Redis).
+- `utils/locking.py` has `acquire_lock(namespace, key, ttl=...)` (`SET NX EX`).
+- Redis: `REDIS_URI_VOLATILE` for cache and locks; `REDIS_URI_DURABLE` for streams
+  (`dbs/redis/shared/engine.py`).
 
-## 6. Retries do not run
+## 8. Streams (why the design does not use them)
 
-- Trigger tasks set `retry_on_error=True, max_retries=5`, but no taskiq retry middleware is
-  registered anywhere in `api/`. taskiq 0.12.4 acks a task that raises.
-- `xautoclaim` (idle 10 minutes) re-delivers only after a worker crash, and dedup then skips
-  the row at `102`.
-- A `500` is final for schedules: the next tick has a new `event_id`.
-- Local: 40 deliveries stuck at `102` from 2026-09-20, each with a live session and zero
-  records.
+- The records worker publishes `turn_ended` to `streams:sessions` only for turns with a `done`
+  (`tasks/asyncio/sessions/records_worker.py:35-56,455-480`). Payload: `kind`, `project_id`,
+  `session_id`, `turn_id`.
+- The channels outbox is its only consumer group, and `StreamConsumer.ack_and_delete` deletes
+  each entry after the ack (`tasks/asyncio/shared/consumer.py:279-293`).
+- The records worker has no core-database reader and no taskiq producer
+  (`records_worker.py:101-116`).
 
-## 7. Streams and signals
+## 9. Taskiq
 
-- The records worker publishes `turn_ended` to `streams:sessions` after commit
-  (`api/oss/src/tasks/asyncio/sessions/records_worker.py:455-480`). Payload: `kind`,
-  `project_id`, `session_id`, `turn_id` only. It fires for paused turns too, and again for a
-  late quarantined `done`.
-- `SessionTurnsService.complete_turn` also publishes it, only from the sessions router, which
-  trigger runs do not use.
-- The channels outbox is the only consumer group of `streams:sessions`. `SessionEventsWorker`
-  exists but is not wired (`api/entrypoints/worker_streams.py:214-245`).
-- `StreamConsumer.ack_and_delete` runs `XACK` then `XDEL`
-  (`api/oss/src/tasks/asyncio/shared/consumer.py:279-293`), so a second consumer group misses
-  entries.
-- `streams:records` uses approximate MAXLEN 100k; entries can be trimmed if worker-streams is
-  down.
-- `streams:events`: OSS and EE consume it for webhooks; the ingest step is EE-only. It has no
-  reclaim. EE drops events for an org over its `EVENTS_INGESTED` quota. `EventType` and
-  `WebhookEventType` have no session, run or trigger types.
-- The watchdog (`orphan_sweep.py`) settles runs with a heartbeat older than 90 s and never
-  touches deliveries. Worst case to settle a dead runner: about 3 minutes. A hung runner that
-  still sends heartbeats: up to the 11-hour hard limit plus 30 minutes.
+- No retry middleware is registered in `api/`. Trigger tasks carry `retry_on_error=True`
+  labels that have no effect today. taskiq 0.12 ships `SmartRetryMiddleware`.
+- `worker-queues` builds one broker per domain (`api/entrypoints/worker_queues.py`).
 
-## 8. Email infrastructure
+## 10. Email
 
-- `api/oss/src/utils/emailing.py` `send_email(to_email, subject, username, action, workspace, call_to_action)`:
-  renders one invite-shaped template without escaping, then uses SMTP if enabled, else
-  SendGrid. It raises `ValueError` if no sender is set. It returns `True` without sending if a
-  sender is set but no transport. With SMTP enabled it never falls back to SendGrid.
-- Transport functions `_send_smtp_email` and `_send_sendgrid_email` take
-  `(to_email, subject, html_content, from_email)` and run in a thread.
-- Callers: org invites (`services/organization_service.py:154,494`) and admin password reset
-  (`services/user_service.py:161`). Each first checks `env.smtp.enabled or env.sendgrid.enabled`.
-- Config (`api/oss/src/utils/env.py:1863-1910`): SMTP needs host, port and sender. SendGrid
-  needs `SENDGRID_API_KEY` and a sender from `SENDGRID_FROM_EMAIL`, `SENDGRID_FROM_ADDRESS`,
-  `AGENTA_AUTHN_EMAIL_FROM` or `AGENTA_SEND_EMAIL_FROM_ADDRESS`.
-- `AGENTA_WEB_URL` (`env.py:716`) gives the app address for links.
-- No email templates, recipient logic or preferences exist for runs.
+- `utils/emailing.py`: `send_email` renders a fixed invite template with `str.format` and no
+  escaping; it resolves the sender before checking whether email is enabled, so it raises
+  `ValueError` when no sender is set; then SMTP, else SendGrid, else it logs and returns `True`.
+- SMTP and SendGrid transports run in a thread. `SMTP_TIMEOUT` defaults to none, so an SMTP call
+  has no timeout unless the variable is set.
+- Config (`utils/env.py:1863-1910`): SMTP needs host, port and sender; SendGrid needs
+  `SENDGRID_API_KEY` and a sender.
+- No shared HTML-escape helper exists; modules call `html.escape` directly.
+- No compose file has an SMTP capture service. Email tests use fakes
+  (`api/oss/tests/pytest/unit/test_email_service.py`).
+- Callers today: org invites (`services/organization_service.py:154,494`) and admin password
+  reset (`services/user_service.py:161`).
 
-## 9. Recipients
+## 11. Recipients and links
 
-- `created_by_id` is always a real user. Session auth uses the session user; API keys use
-  `api_key.created_by_id`; build-kit calls carry the calling user's id.
-- A run started from a Slack or Telegram channel can use the agent creator's id
-  (`api/oss/src/tasks/asyncio/channels/inbox.py:197,598,840`).
-- `users.email` defaults to the placeholder `demo@agenta.ai` (`models/db_models.py:113`).
-- Membership: `get_project_members` (`services/db_manager.py:2510`).
+- `created_by_id` on schedules and subscriptions is a `users.id` (set from
+  `request.state.user_id`; API keys use their creator).
+- `db_manager.get_project_members(project_id)` returns `ProjectMemberDB` rows with `user`,
+  `role` and `is_demo`; it does not filter `deleted_at`. Roles include `owner`, `admin`,
+  `developer`, `editor`, `annotator`, `viewer`. The organization owner always has full access.
+- `users.email` defaults to `demo@agenta.ai` (`models/db_models.py:113`).
+- A run started from a Slack or Telegram channel can carry the agent creator's id
+  (`tasks/asyncio/channels/inbox.py:197,598,840`).
+- The mobile app is served under `/m` (`web/mobile/next.config.ts:29`). Automation run history:
+  `/m/w/{workspace_id}/p/{project_id}/automations/{automation_id}?view=runs`. No URL opens one
+  single run.
+- `AGENTA_WEB_URL` (`utils/env.py:716`) is the app base address.
 
-## 10. Frontend (web/mobile and web/packages)
+## 12. Delivery API and app
 
-- Run history reads deliveries (`useAutomationRuns.ts`). `deliveryOutcome`
-  (`web/packages/agenta-automation-ui/src/automationModel.ts:160`) maps `success` to ok,
-  `failed` to bad, anything else to pending, shown as "Running" (`runModel.ts:167-179`).
-- "Needs attention" exists but every call passes `hasRecentFailure=false`
-  (`AutomationCardBody.tsx:31`, `AutomationListScreen.tsx:226`, `automationListView.ts:74`).
-- `AutomationFailureBanner` shows only when the newest delivery is `failed`.
-- `AutomationRunConversation.tsx` mounts a live conversation with a composer, so users can add
-  turns to an automation's session.
-- `RunFailureCallout.tsx` (`web/packages/agenta-chat`) already groups runner codes into
-  starter-credit, subscription-login and retryable sets.
-- Mobile "Run now" starts a manual session with no delivery, so it never reaches alerts.
-  `is_test` deliveries are `200` with `data.is_test=true`; the inline path also writes `200`,
-  so filter on `data.is_test`, not on the code.
+- Endpoints: `GET /deliveries`, `POST /deliveries/query`, `GET /deliveries/{id}`
+  (`apis/fastapi/triggers/router.py:428-446`), returning the `TriggerDelivery` DTO
+  (`core/triggers/dtos.py:385`), mapped by `map_delivery_dbe_to_dto`
+  (`dbs/postgres/triggers/mappings.py:217`).
+- The app reads deliveries with axios and the zod schema `triggerDeliverySchema`
+  (`web/packages/agenta-entities/src/gatewayTrigger/core/types.ts:321`, `.passthrough()`).
+- Status is read in `web/packages/agenta-automation-ui/src/automationModel.ts:160`
+  (`deliveryOutcome`), `runModel.ts`, `runListView.ts`, `useAutomationRuns.ts`, and in
+  `web/packages/agenta-entity-ui/src/gatewayTrigger/drawers/DeliveryDetails.tsx` and
+  `TriggerDeliveriesDrawer.tsx`.
 
-## 11. Infrastructure findings outside this feature
+## 13. Cron base URL per deployment
 
-- All 7 cron scripts hard-code `http://api:8000` with no override: triggers, evaluations
-  refresh, MCP OAuth sweep, and EE meters, events, spans, records. The Helm service is named
-  `<fullname>-api`, so every cron job fails on Helm. Railway uses `*.railway.internal`; short
-  `api` probably fails there too. Cloud config is not in this repo.
-- `records.sh` is in no crontab, image or compose file, so records retention never runs.
-  Locally 9,337 records are older than 7 days.
-- An edit request without `flags` resets `is_valid` to `true`, which re-enables a revoked
-  subscription.
-- Revoking a gateway connection only flips `gateway_connections.is_valid`. Composio keeps
-  sending events and the dispatcher never checks the connection.
-- Deleting a connection hard-deletes it and cascades to its subscriptions and deliveries.
-- Triggers are not gated by entitlements in OSS or EE.
+- The API app has `root_path="/api"` (`api/entrypoints/routers.py:584-588`), so it serves both
+  `/admin/...` and `/api/admin/...`.
+- Compose: host `api` exists on the compose network; `http://api:8000/admin/...` works.
+- Helm: the API Service is `<fullname>-api` on port 8000 (`templates/api-service.yaml:5`);
+  no Service is named `api`. `AGENTA_API_INTERNAL_URL` is emitted only when
+  `agenta.apiInternalUrl` is set (`_helpers.tpl:1066-1068`), and `values.yaml` has no default.
+- Railway: the cron image sets `AGENTA_API_INTERNAL_URL=http://api.railway.internal:8000/api`;
+  the scripts ignore it. Whether plain `api` resolves on Railway is not known from the repo.
 
-## 12. Local data sample (EE dev, not production)
+## 14. Related findings outside this feature
 
-| Measure | Value |
-|---|---|
-| Schedules | 14 total, 7 active, 1 project |
-| Subscriptions | 3 active |
-| Deliveries | 200 total: 138 `500`, 40 `102`, 20 `202`, 2 `200` |
-| Top `500` errors | "Workflow service returned HTTP 500 on detached start" 96, blank 28, "closed the stream before emitting a started record" 8, "No user message to send" 6 |
-| `202` runs in last 7 days | 6: 3 failed (no error code), 3 succeeded |
-
-Production numbers are still needed. The read-only queries are in [sizing.sql](./sizing.sql)
-(steps: core inventory and daily runs; export dispatched turns to CSV; tracing outcome split,
-top codes and worst hour). They were tested on the local EE database.
+- `records.sh` (records retention) is in no crontab, so it never runs. Locally 9,337 records are
+  older than 7 days.
+- The refresh handler always answers HTTP 200, so cron logs cannot show a failed refresh.
+- An edit request without `flags` resets a subscription's `is_valid` to `true`.
+- Revoking a gateway connection does not stop its subscriptions; Composio keeps sending events.
+- The ORM model lacks `ix_trigger_deliveries_schedule_id_created_at`, which the migration
+  creates.

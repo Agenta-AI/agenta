@@ -1,308 +1,317 @@
 # Plan: Automation Failure Alerts
 
 This file is the full design. The evidence for each statement about today's code is in
-[research.md](./research.md). Decisions and open questions are tracked in
-[status.md](./status.md).
+[research.md](./research.md). Decisions and open questions are in [status.md](./status.md).
 
 ## 1. What the user sees today
 
 - An automation run that fails after it starts shows as "Running" in the app forever.
-- The "Needs attention" status and the failure banner exist in the app, but they almost never
-  show, because the server does not know about the failure.
 - Nobody receives any notice. The only trace of a failure is an error record inside the run's
   conversation.
-- Some failures leave no trace at all: a dead cron container, a run whose worker crashed after
-  it claimed the delivery, a revoked account connection.
+- Some failures leave no trace at all: a cron container that cannot reach the API, or a run
+  whose worker crashed after it claimed the delivery.
 
 ## 2. Why it happens
 
 1. The dispatcher starts each run **detached**: it hands the run to the runner and returns
    when the first streamed record arrives. It then writes the delivery as `202 dispatched`.
-2. Nothing writes the run's final result back to the delivery. The code says so in
-   `api/entrypoints/worker_queues.py:255-262`.
-3. The real result exists only as records in the tracing database. No component reads those
-   records for automations.
-4. No outbound notification path exists for runs: no event type, no email template, no
-   recipient logic.
+2. Nothing writes the run's final result back to the delivery
+   (`api/entrypoints/worker_queues.py:255-262` says so).
+3. The real result exists only as records in the tracing database. No component reads them
+   for automations.
+4. No outbound notification path exists for runs.
 
 ## 3. Goals and non-goals
 
 Goals for v0:
 
-- Record the true result of every automation run on its delivery.
-- Email the owner when an automation starts failing, with one reminder per day while it keeps
-  failing, and optionally one email when it recovers.
-- Explain the failure in plain language, with the fix when the customer can fix it.
-- Run first in shadow mode (all emails to one internal inbox), then go live.
+- Record the real result of every automation run on its delivery, and show it in run history.
+- Email the owner when an automation starts failing for a reason the owner can fix, with a
+  reminder while it keeps failing and an email when it recovers.
+- Email the Agenta team about failures caused by the platform.
+- Run first in shadow mode (every email goes to one internal inbox), then go live.
 
 Non-goals for v0:
 
-- In-app notifications, Slack or Telegram messages, customer webhooks.
+- In-app notifications, the "Needs attention" status in the automation list, Slack or
+  Telegram messages, customer webhooks.
 - Automatic retries of failed runs.
-- Detection of expired Composio connections and of missed cron ticks (other than a dead cron).
+- Detection of expired Composio connections and of single missed cron ticks.
 - LLM-written error explanations.
-- Self-recovery (an agent that fixes a failing automation).
-
 
 ## 4. How the system will work
 
 ### 4.1 Design in one paragraph
 
-The dispatcher keeps its job and its status codes. A new **automation monitor** is one loop
-that runs every 60 seconds. It reads the records of each started run, writes the run's result
-into a new `outcome` column on the delivery, derives the current health of each automation
-from its newest results, and queues an email when the health changes. A new **alert sender**
-task sends the email with retries. The monitor is the only writer of `outcome`, and only one
-API replica runs it at a time.
+The dispatcher keeps its job and its `status` values. It also stores the run's id when it
+claims a delivery. A new **automation monitor** is one loop in the API that runs every 60
+seconds under a lock, so one process runs each pass. Each pass reads the records of the open
+runs, writes each run's result into a new `outcome` column on the delivery, updates one
+**alert state** row per automation, and sends an email when that state changes. The monitor is
+the only writer of `outcome` and of the alert state.
 
 ### 4.2 Flow
 
 ```mermaid
 flowchart LR
-  subgraph Start
-    CR[cron container] -->|POST every minute| RF[schedule refresh]
-    CO[Composio] -->|signed webhook| IN[event ingress]
-  end
+  CR[cron container] -->|POST every minute| RF[schedule refresh]
+  CO[Composio] -->|signed webhook| IN[event ingress]
+  RF -->|heartbeat key| RD[(Redis)]
   RF --> Q[(queues:triggers)]
   IN --> Q
-  RF -->|heartbeat| HB[(Redis key)]
   Q --> D[Dispatcher<br/>worker-queues]
-  D -->|claim 102 + run_id<br/>202 or 400/409/500| DB[(trigger_deliveries<br/>status, NEW outcome)]
-  D -->|POST /invoke meta.run_id| WS[Workflow service] -->|turnId = run_id| RU[Runner]
+  D -->|claim: 102 + run_id<br/>then 202 or 400/409/500| DB[(trigger_deliveries<br/>status, NEW outcome)]
+  D -->|POST /invoke, meta.run_id| WS[Workflow service] -->|turnId = run_id| RU[Runner]
   RU -->|records| TR[(Postgres tracing<br/>records)]
   WD[Watchdog] -->|execution_lost| TR
-  MO[NEW automation monitor<br/>API loop, every 60 s, Redis lock]
-  MO -->|1. read records of open runs| TR
-  MO -->|2. write outcome| DB
-  MO -->|3. check| HB
-  MO -->|4. health changed| AQ[(NEW alerts queue)]
-  AQ --> AS[NEW alert sender<br/>worker-queues, retries] --> ML[SMTP / SendGrid] --> IB[Owner or shadow inbox]
+  MO[NEW automation monitor<br/>API loop, 60 s, lock]
+  MO -->|read records of open runs| TR
+  MO -->|write outcome| DB
+  MO -->|read and write| AL[(NEW trigger_alerts)]
+  MO -->|check| RD
+  MO -->|send| ML[SMTP / SendGrid] --> IB[Owner, team, or shadow inbox]
 ```
 
 ### 4.3 Components
 
-| Component | State | What it does in v0 |
+| Component | State | Change |
 |---|---|---|
-| cron scripts | Changes | Read the API address from the existing `AGENTA_API_INTERNAL_URL` (fallback `http://api:8000`). |
-| Schedule refresh endpoint | Changes | Writes the Redis key `triggers:schedules:last_refresh_at` after each successful run. |
-| Dispatcher (`TriggersDispatcher`) | Changes | Stores `run_id` on the delivery at claim time. Nothing else changes: it still owns `status`. |
-| `trigger_deliveries.outcome` | New column | The run's result. Written only by the monitor. |
-| Automation monitor | New | One loop in the API lifespan, built like the execution watchdog (`api/oss/src/tasks/asyncio/sessions/orphan_sweep.py`): every 60 seconds, under the Redis lock from `api/oss/src/dbs/redis/sessions/locks.py`, so one replica runs each pass. Four steps: settle, classify, evaluate health, check the cron heartbeat. |
-| Alerts broker and alert sender | New | A new broker in `worker-queues` (the file already builds one broker per domain) with taskiq `SmartRetryMiddleware`. The task `automations.send_alert` sends one email. |
-| Email helper (`utils/emailing.py`) | Changes | New `send_html_email(to, subject, html, text)` that reuses the existing SMTP and SendGrid functions. |
-| App (`web/packages/agenta-automation-ui`) | Small change | Run history reads `outcome.state` when it is present, else today's `status`. "Needs attention" turns on from the automation's health. |
+| Cron scripts (7 files) | Changes | Call `${AGENTA_API_INTERNAL_URL:-http://api:8000}/admin/...` instead of the hard-coded `http://api:8000`. |
+| Helm cron template | Changes | Set `AGENTA_API_INTERNAL_URL` on the cron pod to `http://<fullname>-api:<port>/api` when `agenta.apiInternalUrl` is not set. |
+| Schedule refresh handler | Changes | Writes the heartbeat key after the service fetched the schedules. |
+| Dispatcher and claim | Changes | Create `run_id` before the claim, store it at claim time, pass it to the detached start. The claim's re-claim branch also resets `outcome`. |
+| `trigger_deliveries.outcome` | New column | The run's result. Exposed read-only through the delivery API. |
+| `trigger_alerts` | New table | One row per automation: what the owner was last told. |
+| Automation monitor | New | A loop in the API lifespan. Each pass: settle open runs, evaluate alerts, check the heartbeat, send emails. |
+| Email helper | Changes | New `send_html_email` that reuses the SMTP and SendGrid transports and always uses a timeout. |
+| App run history | Changes | Reads `outcome.state` when present, else today's `status`. |
 
-The monitor polls instead of reacting to events. Polling reads the truth from the records
-every minute, so it needs no hook in the records worker, no new stream consumer and no
-second settle path. It also repairs itself: after a restart it continues from the database
-state. The cost is up to 60 seconds of delay before an email, which is acceptable for alerts.
+### 4.4 Why a polling monitor
 
-### 4.4 Link a delivery to its turn
+- **One writer.** Only the monitor writes `outcome` and `trigger_alerts`, so no two components
+  race on the same field.
+- **No new hook in the hot path.** The records worker, the dispatcher's completion and the
+  `streams:sessions` stream stay as they are. That stream cannot take a second reader: the
+  channels outbox deletes each entry after it reads it.
+- **It repairs itself.** A pass reads the current database state, so a restart or a missed
+  pass loses nothing.
+- **Cost.** Up to 60 seconds before an outcome appears, and one indexed query per pass on each
+  database. [sizing.sql](./sizing.sql) measures the volume in production.
 
-The dispatcher's `run_id` is already the runner's `turn_id`. The id goes
-`meta.run_id` → SDK `turn_id` → wire `turnId` → runner → `records.turn_id`. This works today
-and was checked on 20 of 20 local runs.
+The loop follows `api/oss/src/tasks/asyncio/sessions/attachment_sweep.py`: it starts in the
+API lifespan (`api/entrypoints/routers.py`), which runs in every API process; each pass first
+takes a Redis lease with `SET NX EX` on `locks:triggers:automation-monitor`, renews it between
+batches, and releases it at the end. A process that does not get the lease skips the pass.
 
-- The dispatcher stores `run_id` at claim time. Today it is stored only with the `202`
-  write, so a run that fails fast can finish before its id is saved.
-- The monitor reads only records of the automation's turns: the turn `run_id`, and, after an
-  approval, the continuation turns reached through `parent_execution_id` in the executions
-  table. Later human turns in the same session are ignored.
+### 4.5 Link a delivery to its turns
 
-### 4.5 The result of a run (`outcome.state`)
+- The dispatcher's `run_id` becomes the runner's `turn_id`: `meta.run_id` → SDK `turn_id` →
+  wire `turnId` → runner → `records.turn_id`. This holds on all 20 local deliveries that have a
+  run id.
+- Today `run_id` is created inside `invoke_workflow_detached` and stored only with the `202`
+  write. The dispatcher will create it before the claim, store it as `data.run_id` in the claim
+  insert, and pass it through `_dispatch_detached_run` (worker-queues) to
+  `invoke_workflow_detached(run_id=...)`, which already accepts it. The monitor uses the id the
+  dispatcher created, not the id the start returns.
+- **Approval continuations.** When a person approves a paused run, the API creates a new turn
+  in the same session. Its row in `session_executions` (core DB) has
+  `parent_execution_id` = the paused turn's id. A continuation can pause again, so the chain can
+  be longer than two. The monitor follows the chain to its newest turn.
+- The monitor reads only the turns in this chain. A later message that a person types into the
+  automation's session is a different turn and is ignored.
 
-The monitor applies this rule to the non-quarantined records of the automation's newest turn
-in the chain:
+### 4.6 Settle a run (`outcome.state`)
 
-| Records | `outcome.state` |
+Each pass selects the open deliveries: `outcome IS NULL`, `created_at` within the last 24 hours,
+and not `data.is_test`. Deliveries in `awaiting_approval` are also re-checked for up to 30 days.
+
+| Delivery `status` | Result |
 |---|---|
-| An `error` record, or `done` with `stopReason = error` | `failed` |
-| `done` with `stopReason = paused` | `awaiting_approval` (not final) |
-| `done` with `stopReason = cancelled` | `cancelled` |
-| `done`, none of the above | `succeeded` |
+| `200` (only old inline runs; test deliveries are excluded above) | `succeeded` |
+| `400`, `409`, `500` | `failed` |
+| `102` older than 15 minutes | `no_result` (the worker crashed before the start; redelivery after 10 minutes is skipped by dedup) |
+| `102` newer than 15 minutes | wait |
+| `202` | read the records of the newest turn in the chain (below) |
+| `202` with no finished turn 11.5 hours after `created_at` | `no_result` (the runner's hard limit is 11 hours; 30 minutes margin) |
 
-Other cases:
+A turn is **finished** when it has a non-quarantined `done` record, or a non-quarantined
+`error` record with code `execution_lost` (the runner's abandon path writes no `done`). For a
+finished turn, the first matching row wins:
 
-| Situation | `outcome.state` |
+| Records of the turn (non-quarantined only) | Result |
 |---|---|
-| Dispatcher wrote `400`, `409` or `500` | `failed` (the classifier reads the dispatcher error) |
-| `102` or `202` with no terminal record 11.5 hours after `created_at` (the runner's 11-hour hard limit plus 30 minutes) | `no_result` |
-| `awaiting_approval` for 1 hour since `outcome.updated_at` (the watchdog's 30-minute idle grace plus 30 minutes) | `failed`, kind `approval_not_given` |
+| `done` with `stopReason = cancelled` | `cancelled` (a person stopped it; this includes an `error` from an aborted sandbox start) |
+| `done` with `stopReason = paused` | `awaiting_approval` (not final; follow the chain on later passes) |
+| any `error` record | `failed` |
+| otherwise | `succeeded` |
 
 Rules:
 
-- The monitor does not wait for `done`: the runner's abandon path writes an `error` and no
-  `done`.
-- `outcome` is `NULL` while the run is open. Only `NULL` and `awaiting_approval` can change;
-  every other state is final. The monitor is the only writer, so it needs no compare-and-set
-  between writers.
-- `status` keeps today's meaning and values. Dedup reads `status`, so it is unchanged: no
-  automation can run twice because of this feature.
-- Deliveries created before the release time get their outcome written, but never cause an
-  email.
+- `outcome` stays `NULL` while the run is open. Only `NULL` and `awaiting_approval` can change;
+  every other state is final. The monitor's update includes that condition.
+- Approvals have no deadline in the product: a paused run can be approved days later. So
+  `awaiting_approval` never turns into a failure by itself. After 30 days the monitor stops
+  re-checking it.
+- A re-claim of a `500` row (a Composio redelivery of the same event) gives the row a new id
+  and new data. The claim will also set `outcome` to `NULL` in that branch, so the new attempt
+  is settled on its own.
+- `status` keeps today's values, and dedup reads only `status`. This feature cannot make an
+  automation run twice.
 
-### 4.6 Classify the error
+### 4.7 Classify a failure
 
 A pure function `classify_failure(delivery, records)` returns a catalog entry. It checks, in
-order: the runner error code, message patterns (many error records have no code), then the
-dispatcher status code. Rows are matched top to bottom, so the specific `resolve` row wins
-over the general "HTTP 500 on detached start" row.
+order: the runner error code, the error message, then the dispatcher status and error text.
+The first matching row wins.
 
-| Raw error (real samples) | Kind | Message to the customer | Owner |
-|---|---|---|---|
-| `starter_credits_exhausted`, `starter_credits_program_paused` | credits_exhausted | Your free credits are used up. Add your own model API key to keep this automation running. | customer |
-| `subscription_login_required` | provider_signin_expired | The sign-in for your AI subscription expired. Sign in again under AI providers. | customer |
-| `rate_limited` | provider_rate_limited | Your model provider is limiting requests. The next run usually works. | customer |
-| "No user message to send (prompt/messages empty)" | empty_input | The automation started with an empty message. Check how the trigger's data maps to the agent's input. | customer |
-| "runtime_provided local run requires a mounted subscription" | subscription_not_available | This agent needs a signed-in AI subscription, and none is available for scheduled runs. | customer |
-| `400` from the dispatcher (input mapping failed, no agent reference) | input_invalid | The automation could not build the agent's input from this event. Check the field mapping and the selected agent. | customer |
-| "HTTP 500 on detached start" whose body is a `400` from `/workflows/revisions/resolve` | agent_reference_invalid | This automation points to an agent version that cannot be loaded. Choose the agent again. | customer |
-| HTTP 406 from a non-agent target | target_not_supported | This automation points to a workflow that cannot run from a trigger. | customer |
-| `409` invalid subscription | connection_invalid | The connected account for this trigger is no longer valid. Reconnect it. | customer |
-| Awaiting approval for more than 1 hour | approval_not_given | The run waited for an approval that nobody gave. | customer |
-| `execution_lost`, `sandbox_gone`, "closed the stream before emitting a started record", any other "HTTP 500 on detached start" | platform_interrupted | The run stopped because of a problem on our side. | platform |
-| `no_result` | no_result | The run did not report a result. | platform |
-| Anything unmatched | unknown | The run failed with an error we could not identify. Open the run for details. | platform |
+| Match | Kind | Who can fix it |
+|---|---|---|
+| code `starter_credits_exhausted` or `starter_credits_program_paused` | credits_exhausted | owner |
+| code `subscription_login_required` | provider_signin_expired | owner |
+| code `rate_limited` | provider_rate_limited | owner |
+| message contains "No user message to send" | empty_input | owner |
+| message contains "requires a mounted subscription" | subscription_not_available | owner |
+| status `400` with "Entity has no bound workflow reference" | no_agent_selected | owner |
+| status `409` | connection_invalid | owner |
+| status `500` with "HTTP 406 on detached start" | target_not_supported | owner |
+| code `execution_lost`, `continuation_execution_lost`, `sandbox_gone`, `credential_delivery_failed`, `starter_credits_unavailable` | platform_interrupted | platform |
+| status `500`, any other text | start_failed | platform |
+| `no_result` | no_result | platform |
+| anything else | unknown | platform |
 
 Rules:
 
-- The Python catalog is the only list of error kinds. The app reads `outcome.kind`. The code
-  groups in `RunFailureCallout.tsx` stay as they are for the chat view.
-- Emails use only catalog text. The raw message goes to `outcome.message` for run history
-  (project members already see it in the conversation) and never into an email.
-- **Customer** kinds go to the owner. **Platform** kinds go to `AUTOMATION_ALERTS_INTERNAL_TO`,
-  and the owner gets only the short "our side" line.
-- Shadow mode logs each `unknown` with its cleaned-up message. The team reviews these weekly
-  and adds rows.
+- Emails use only fixed catalog text: a title, one plain sentence, and the fix. The raw error
+  goes to `outcome.message` for run history (project members already see it in the
+  conversation) and never into an email.
+- **Owner** kinds drive the owner's alerts. **Platform** kinds go to the team digest (section
+  4.9) and do not change the owner's alert state.
+- The 99 local `500` errors wrap a `400` from `/workflows/revisions/resolve`. Their cause is not
+  confirmed, so they stay `start_failed` (platform) until it is.
+- The monitor logs every `unknown` with its message. The team reviews these weekly and adds
+  rows.
 
-### 4.7 Health of an automation and when to email
+### 4.8 Alerts to the owner
 
-The monitor evaluates **state**, not single events. After each settle step, for every
-automation with a new outcome or an open alert, it computes health from its settled
-deliveries, newest first by `created_at`:
+`trigger_alerts` holds one row per automation. The monitor evaluates an automation when one of
+its deliveries got an outcome in this pass, or when its row is `failing`.
 
-- **failing**: the newest settled run failed.
-- **recovering**: the newest settled run succeeded, but a failure happened in the last 30
-  minutes.
-- **healthy**: no failure in the last 30 minutes and the newest settled run succeeded.
+**Which runs count.** The newest settled delivery by `created_at` whose outcome is `succeeded`,
+or `failed` with an owner kind. Cancelled runs, runs awaiting approval, and platform failures
+are skipped. Ordering by `created_at` means a run that settles late cannot override a newer
+one.
 
-The **fingerprint** of a failure is its kind, plus the connection id for connection errors
-and the provider for provider errors. For `unknown` it is the message with ids, numbers,
-timestamps and quoted values removed, then hashed.
+**Fingerprint** of an owner failure: the kind, plus the connection id for `connection_invalid`.
 
-The last alert sent for the automation is the newest delivery whose `outcome.alert.status`
-is `sent`. The monitor compares health with that alert:
+| Row state | Condition | Email | New row state |
+|---|---|---|---|
+| `ok` | the newest counted run failed | "Started failing" | `failing`, fingerprints = [this one] |
+| `failing` | the newest counted run failed with a fingerprint not in the list | "New error" | add the fingerprint |
+| `failing` | last email more than 24 hours ago, the automation can still run, and a counted failure was created after the last email | "Still failing" with the count since it started | update the email time |
+| `failing` | the newest counted run succeeded and the newest counted failure is more than 30 minutes old | "Back to normal" | `ok`, list cleared |
+| `failing` | the automation can no longer run (deleted, turned off, past `end_time`, or an invalid subscription) | none | `ok`, list cleared |
 
-| Current health | Last alert | Email |
-|---|---|---|
-| failing | none, or "back to normal" | "started failing" |
-| failing, new fingerprint | "started failing" or "new error" | "new error" |
-| failing, same fingerprint | sent more than 24 hours ago | "still failing" reminder |
-| healthy | "started failing", "new error" or reminder | "back to normal" (if enabled) |
-| recovering | any | none; wait |
-| awaiting approval | none for this delivery | "needs approval" (if enabled) |
+"Can still run" uses the same conditions as the dispatcher: not deleted, `is_active`, not past
+`end_time` for a schedule, and `is_valid` for a subscription.
 
-Because the monitor reads the newest state each pass:
+**Approvals.** When a delivery becomes `awaiting_approval`, the owner gets "Waiting for your
+approval", at most once per 24 hours per automation. This does not change the failing state.
 
-- An older run that settles after a newer one changes nothing: health uses the newest run.
-- A failure during the 30 recovering minutes keeps the automation failing, and no "back to
-  normal" email went out.
-- An email that could not be sent (cap reached, send failed) is sent on a later pass if the
-  health still calls for it. No deferred state is needed.
+**Sending and state.** The monitor writes the new row state only after the email was accepted
+by SMTP or SendGrid. If the send fails, nothing changes and the next pass tries again. A crash
+between a successful send and the write can cause one duplicate email; that is accepted.
 
-### 4.8 Recipients
+### 4.9 Alerts to the team
 
-1. The `created_by_id` of the schedule or subscription.
-2. Send only if that user is still a project member (`get_project_members`).
-3. Otherwise send to the project admins.
-4. Skip empty addresses and the placeholder `demo@agenta.ai`.
+- **Platform digest.** At most once per hour, one email to `AUTOMATION_ALERTS_INTERNAL_TO` lists
+  the platform failures since the last digest: counts by kind and up to 20 delivery ids.
+- **Cron heartbeat.** The refresh handler writes `triggers:schedules:last_refresh_at` (volatile
+  Redis, 1-day TTL) each time the service fetched the schedules, even if some schedules failed.
+  When the value is older than 5 minutes, the monitor alerts the team. A missing key counts as
+  unknown during the first 10 minutes after the monitor process started, then as stale.
+- **Alert storm.** See the global cap in section 4.11.
+- Each team email uses a once-per-hour guard: `acquire_lock` from `api/oss/src/utils/locking.py`
+  with a 3600-second TTL, never released.
 
-Known gap: a schedule created by an agent from a Slack or Telegram thread can carry the
-agent creator's id, not the person who asked (`tasks/asyncio/channels/inbox.py`). The
-membership check limits the harm.
+### 4.10 Recipients and email content
 
-### 4.9 Send the email
+Owner emails go to:
 
-1. The monitor sets `outcome.alert = {kind, status: queued, queued_at}` on the delivery that
-   caused the alert, then enqueues `automations.send_alert`. A `queued` alert is not queued
-   again for 15 minutes.
-2. The sender finds the recipient, renders a new template (HTML and text, every value
-   escaped: automation name, project, what happened, catalog message and fix, last success,
-   link from `AGENTA_WEB_URL` to the run), applies the mode and sends through
-   `send_html_email`.
-3. On success it sets `alert.status = sent` and `sent_at`. On failure `SmartRetryMiddleware`
-   retries with backoff, up to 5 attempts. After the last attempt it sets `failed`, and the
-   monitor queues it again on a later pass if the health still calls for it.
+1. the user in `created_by_id` of the schedule or subscription, if that user is still a member
+   of the project and is not a demo member;
+2. otherwise the project members with role `owner` or `admin`, plus the organization owner.
 
-Retries live on the alerts broker only. The trigger tasks carry `retry_on_error=True` labels,
-so adding the middleware to the triggers broker would start re-running automations.
+Skip empty addresses and the placeholder `demo@agenta.ai`. `get_project_members` does not filter
+deleted rows, so the lookup must.
 
-A crash between a successful send and step 3 can cause one duplicate email. That is the
-accepted cost of not losing emails.
+Content (HTML and text parts, every value escaped with `html.escape`): automation name, project
+name, what happened, the catalog sentence and fix, the time of the last success, and a link to
+the automation's run history:
+`{AGENTA_WEB_URL}/m/w/{workspace_id}/p/{project_id}/automations/{automation_id}?view=runs`.
 
-### 4.10 Modes and safety limits
+`send_html_email(to, subject, html, text)` calls the existing SMTP or SendGrid function with a
+20-second timeout when `SMTP_TIMEOUT` is not set (its default is no timeout). The monitor
+renews its lease between sends.
+
+### 4.11 Modes and limits
 
 | Mode | Behaviour |
 |---|---|
-| `off` (default) | The monitor writes outcomes and health. No email is queued. Self-hosters are unaffected. |
-| `shadow` | Every email goes to `AUTOMATION_ALERTS_REDIRECT_TO` with `[BETA]` in the subject and a debug block: would-send-to, reason, delivery id, turn id, kind. |
-| `live` | Emails go to the real recipient. If `AUTOMATION_ALERTS_ALLOWLIST` is set, only those projects get live email. |
+| `off` (default) | Outcomes and alert state are written. Every email is replaced by a log line. |
+| `shadow` | Every email goes to `AUTOMATION_ALERTS_REDIRECT_TO`, with `[BETA]` in the subject and a block that shows the real recipient, the reason, the delivery id, the turn id and the kind. |
+| `live` | Emails go to the real recipients. If `AUTOMATION_ALERTS_ALLOWLIST` is set, only those projects get owner emails. |
 
-Safety limits, active in every mode:
-
-- **Global cap**: the monitor counts queued alerts per clock hour in Redis
-  (`AUTOMATION_ALERTS_MAX_PER_HOUR`). At the cap it stops queueing. Emails not queued are sent
-  on a later pass if still due. One "alert storm" summary per hour goes to
-  `AUTOMATION_ALERTS_INTERNAL_TO`, guarded by a Redis `SET NX` key for that hour. Shadow
-  reviews count these as "held by cap", not as missed failures.
-- **Cron heartbeat**: when `triggers:schedules:last_refresh_at` is older than 5 minutes, the
-  monitor alerts `AUTOMATION_ALERTS_INTERNAL_TO`, at most once per hour (`SET NX` key).
-- **No private data**: metadata and catalog text only. No inputs, outputs, prompts or raw
-  error text.
-- **Email not configured**: log once at startup and skip sends. Do not report success.
+- Because state is written in `off` mode too, an automation that is already failing when the
+  mode changes gets its next email from the reminder rule, not a burst of "Started failing".
+- **Global cap.** A Redis counter per clock hour limits owner emails
+  (`AUTOMATION_ALERTS_MAX_PER_HOUR`, default 20). At the cap the monitor stops sending; the
+  state stays unchanged, so the emails go out in a later hour if they are still due. One
+  "alert storm" email per hour tells the team how many were held.
+- **No private data.** Catalog text and names only. No inputs, outputs, prompts or raw error
+  text.
+- **No email configured.** Log it once at startup and skip sends; do not change alert state.
 
 ## 5. Contracts
 
-Fields are grouped by what they are, not by the feature that uses them.
+Fields are grouped by what they are.
 
 ### 5.1 `trigger_deliveries.outcome` (new nullable JSONB column)
 
-A separate column, not a key in `data`: the dispatcher writes `data` with a JSON merge, and
-the monitor must be the only writer of the result. It also allows an index for the monitor's
-"open runs" query.
-
 | Field | Role | Meaning |
 |---|---|---|
-| `state` | data | `awaiting_approval`, `succeeded`, `failed`, `cancelled`, `no_result` |
+| `state` | data | `succeeded`, `failed`, `cancelled`, `awaiting_approval`, `no_result` |
 | `turn_id` | correlation id | The turn whose records decided the state |
-| `kind`, `owner` | derived data | Catalog kind; `customer` or `platform` |
+| `kind`, `owner` | derived data | Catalog kind; `owner` or `platform` |
 | `error_code`, `message` | data | Runner code if present; raw message for run history only |
-| `fingerprint` | grouping key | Section 4.7 |
-| `updated_at` | time | Last change of `state` |
-| `alert.kind` | delivery state | `started_failing`, `new_error`, `reminder`, `back_to_normal`, `needs_approval` |
-| `alert.status`, `alert.queued_at`, `alert.sent_at` | delivery state | `queued`, `sent`, `failed` |
+| `settled_at` | time | When the state was last written |
 
-The sender writes only `outcome.alert` (with `jsonb_set`); the monitor writes the rest.
+Written only by the monitor. Partial index `(created_at) WHERE outcome IS NULL`, plus
+`(created_at) WHERE outcome->>'state' = 'awaiting_approval'`.
 
-Index: `(project_id, created_at) WHERE outcome IS NULL OR outcome->>'state' = 'awaiting_approval'`.
+API: add `outcome` to the `TriggerDelivery` DTO, its DBE and both mappers; the delivery
+endpoints return it. Frontend: add it to `triggerDeliverySchema` in
+`web/packages/agenta-entities/src/gatewayTrigger/core/types.ts` (the schema is `.passthrough()`,
+so the field already arrives, but untyped) and regenerate the Fern types.
 
-### 5.2 `TriggerDeliveryData` (Pydantic, `api/oss/src/core/triggers/dtos.py`)
+### 5.2 `TriggerDeliveryData.run_id`
 
 | Field | Role | Meaning |
 |---|---|---|
-| `run_id` | correlation id | Set at claim. Equals the runner `turn_id`. `result.run_id` stays for old rows. |
+| `run_id` | correlation id | Written at claim. Equals the runner `turn_id` of the first turn. `result.run_id` stays for older rows; the monitor reads `run_id`, else `result.run_id`. |
 
-The model drops unknown keys, so the field must be declared.
+### 5.3 `trigger_alerts` (new table)
 
-### 5.3 Task payload `automations.send_alert`
+| Column | Role | Meaning |
+|---|---|---|
+| `project_id`, `id` | identity | Primary key, like the other trigger tables |
+| `schedule_id` or `subscription_id` | reference | Exactly one is set; unique per automation |
+| `state` | data | `ok` or `failing` |
+| `failing_since` | time | When the current failure started |
+| `fingerprints` | data | Owner fingerprints already emailed in this failure |
+| `last_email_kind`, `last_email_at` | delivery record | The last owner email |
+| `last_approval_email_at` | delivery record | The last approval email |
 
-| Field | Role |
-|---|---|
-| `project_id` | routing |
-| `delivery_id` | routing (empty for `storm` and `cron_dead`) |
-| `email_kind` | data: the `alert.kind` values plus `storm`, `cron_dead` |
-
-The task reads everything else (recipient, automation name, catalog text) at send time.
+Written only by the monitor. Rows cascade on delete with their schedule or subscription.
 
 ### 5.4 Environment variables (`api/oss/src/utils/env.py`)
 
@@ -310,90 +319,86 @@ The task reads everything else (recipient, automation name, catalog text) at sen
 |---|---|---|
 | `AUTOMATION_ALERTS_MODE` | policy | `off` |
 | `AUTOMATION_ALERTS_REDIRECT_TO` | routing (shadow inbox) | empty |
-| `AUTOMATION_ALERTS_INTERNAL_TO` | routing (platform kinds, storms, cron heartbeat) | empty |
+| `AUTOMATION_ALERTS_INTERNAL_TO` | routing (team) | empty |
 | `AUTOMATION_ALERTS_ALLOWLIST` | policy (project ids for live) | empty = all |
-| `AUTOMATION_ALERTS_FROM` | sender identity | falls back to the existing sender variables |
+| `AUTOMATION_ALERTS_FROM` | sender identity | the existing sender variables |
 | `AUTOMATION_ALERTS_MAX_PER_HOUR` | policy | 20 |
-| `AUTOMATION_ALERTS_REMINDER_HOURS` | policy | 24 |
+| `AUTOMATION_MONITOR_INTERVAL_SECONDS` | policy | 60 |
 
-Our own address must never be a default. Self-hosters run the same code.
-
-The cron scripts reuse the existing `AGENTA_API_INTERNAL_URL` (`env.py:719`), with
-`http://api:8000` as the fallback. Railway sets it to a value that ends in `/api`; phase 1
-must confirm that the admin routes answer under that base on Railway and Helm, or strip the
-suffix in the scripts.
+No default contains an Agenta address. Self-hosters run the same code.
 
 ## 6. Delivery phases
 
-Each phase ships on its own and has an exit condition. Effort is in engineer-days for one
-person who knows the codebase, and covers code, tests and review fixes. It is a rough
-estimate for planning, not a commitment.
+Effort is in engineer-days for one person who knows the codebase, including tests and review
+fixes. It is an estimate for planning, not a commitment.
 
 | Phase | Effort | Calendar time |
 |---|---|---|
-| 1. Fix the cron host | 0.5 to 1 day | 1 day |
-| 2. Record the outcome | 5 to 7 days | about 1.5 weeks, plus 1 week of production observation |
-| 3. Classify and evaluate health | 4 to 5 days | 1 week |
-| 4. Shadow email | 3 to 4 days | 1 week, plus 1 to 2 weeks in shadow |
-| 5. Live | 1 day | rollout over about 1 week |
-| **Total** | **14 to 18 days** | **about 6 to 8 weeks** |
+| 1. Cron base URL | 1 day | 1 day |
+| 2. Record the outcome | 7 to 9 days | 2 weeks, plus 1 week of production observation |
+| 3. Alert decisions in `off` mode | 5 to 6 days | 1 week, plus 1 week of log review |
+| 4. Email and shadow mode | 3 to 4 days | 1 week, plus 1 to 2 weeks in shadow |
+| 5. Live | 1 day | about 1 week of rollout |
+| **Total** | **17 to 21 days** | **about 8 to 9 weeks** |
 
-1. **Fix the cron host.** All 7 cron scripts read `AGENTA_API_INTERNAL_URL` with the
-   `http://api:8000` fallback; confirm the admin path on Railway and Helm. Exit: cron logs
-   show 200 on Helm and Railway. Scheduling `records.sh` (records retention) is a separate
-   change, because it deletes customer data; see status.md.
-2. **Record the outcome.** `outcome` column and index (migration); `run_id` at claim; the
-   monitor loop with its lock, the settle step (records read, continuation chain, deadlines),
-   and the heartbeat key; app run history reads `outcome.state`. Mode `off`. Exit: for one
-   week, every automation delivery in production reaches a final outcome, and a sample of 50
-   matches the run's records by hand.
-3. **Classify and evaluate health.** Catalog, fingerprint, health rules, alert decisions
-   written as log lines (nothing queued). App: "Needs attention" from health. Exit: unit tests
-   pass for every catalog row and every health table row, and one week of logged decisions
-   reviewed.
-4. **Shadow email.** Alerts broker with `SmartRetryMiddleware`, sender task, template,
-   `send_html_email`, modes, global cap, heartbeat alert. Set `shadow` in cloud for 1 to 2
-   weeks. Review every email daily and mark it correct, false alarm, missed failure or held by
-   cap. Exit: zero false alarms and zero missed failures over the last 5 days.
-5. **Live.** `live` with the allowlist (internal projects first), then all projects. The mode
-   switch stays as a global off switch.
+1. **Cron base URL.** The 7 cron scripts use `${AGENTA_API_INTERNAL_URL:-http://api:8000}`. The
+   Helm cron template sets the variable when `apiInternalUrl` is empty. Exit: cron logs show
+   HTTP 200 on compose, Helm and Railway. Scheduling `records.sh` (records retention) is a
+   separate change; see status.md.
+2. **Record the outcome.** Migration for `outcome` and its indexes; `run_id` at claim through
+   `_run`, the claim DAO and its interface, and `_dispatch_detached_run`; `outcome` reset in the
+   re-claim branch; DTO, mappers and endpoints; the monitor loop with its lease and the settle
+   step, including the continuation chain; the zod schema, Fern types and the run-history
+   components (`runModel.ts`, `automationModel.ts`, `DeliveryDetails.tsx`,
+   `TriggerDeliveriesDrawer.tsx`). Exit: for one week every automation delivery in production
+   gets an outcome, and 50 sampled outcomes match their records by hand.
+3. **Alert decisions in `off` mode.** Catalog, fingerprints, `trigger_alerts` table and
+   migration, the owner rules, the approval rule, the team digest decision, the heartbeat write
+   and check. Every email is a log line. Exit: unit tests for every catalog row and every rule
+   row pass, and one week of logged decisions is reviewed.
+4. **Email and shadow mode.** `send_html_email` with a timeout, the template, recipients, links,
+   modes, the global cap, a Mailpit service in the dev compose files for tests. Set `shadow` in
+   cloud for 1 to 2 weeks and review every email daily as correct, false alarm, missed failure
+   or held by cap. Exit: zero false alarms and zero missed failures over the last 5 days.
+5. **Live.** `live` with the allowlist (internal projects first), then all projects. `off`
+   stays as the global switch.
 
 ## 7. Tests
 
-- **Unit**: the result rule (error record; `stopReason = error`; error with no `done`;
-  quarantined late `done`; paused; cancelled); the continuation chain (a paused turn whose
-  continuation fails; a later human turn that must be ignored); deadlines (`no_result`,
-  `approval_not_given` measured from `outcome.updated_at`); every catalog row with the real
-  sample messages; fingerprint normalization; every row of the health table, including fail,
-  success, fail within 30 minutes, and an older run that settles after a newer one; recipient
-  fallback; template escaping.
-- **Monitor**: two API replicas start the loop at the same time and only one pass runs; a
-  restart continues from the database state; the cap holds alerts and a later pass sends them;
-  the heartbeat alert fires once per hour.
-- **Sender**: a failed send is retried by the middleware; after the last attempt the monitor
-  queues it again; the triggers broker still does not retry.
-- **Acceptance** (`api/oss/tests/pytest/acceptance/triggers/`): a schedule bound to an agent
-  that fails with the mock LLM gateway gets `outcome.state = failed` with the right kind, and
-  shadow mode produces exactly one email (captured by a test SMTP server).
-- **Local**: the EE dev stack already has failing automations and 40 deliveries stuck at
-  `102`, which exercise the deadlines.
+- **Settle rules (unit):** each row of both tables in 4.6, including an `error` with no `done`
+  and code `execution_lost`; an `error` followed by `done(cancelled)`; a quarantined late
+  `done`; a chain of two continuations; a later human turn in the same session; a `102` before
+  and after 15 minutes; a `202` past 11.5 hours; a re-claimed `500` row.
+- **Catalog (unit):** every row with the real error strings from the code.
+- **Owner rules (unit):** every row of the table in 4.8, plus: A, B, A, B alternating
+  fingerprints send two emails; fail, success, fail within 30 minutes sends no "back to
+  normal"; an older run settling after a newer one changes nothing; a failed send leaves the
+  state unchanged; a turned-off automation stops reminders; a weekly schedule gets a reminder
+  only after a new failure.
+- **Monitor (integration):** two API processes start a pass at the same time and only one runs;
+  a pass after a restart continues from the database state; the cap holds emails and a later
+  hour sends them; team emails go out once per hour.
+- **Acceptance** (`api/oss/tests/pytest/acceptance/triggers/`): a schedule bound to an agent that
+  fails through the mock LLM gateway (`api/oss/tests/pytest/utils/mock_gateways.py`) gets
+  `outcome.state = failed` with the right kind, and shadow mode delivers exactly one email to
+  Mailpit.
 
 ## 8. Risks
 
 | Risk | Handling |
 |---|---|
-| False alarms teach people to ignore the email | Logged decisions in phase 3, shadow period with daily review and exit numbers |
-| Email storm during a platform outage | Global cap, platform kinds go internal |
+| False alarms teach people to ignore the email | One week of logged decisions, then shadow review with exit numbers |
+| Email storm during a platform outage | Platform kinds go to the team digest; global cap for owner emails |
 | Private data in an email | Catalog text only, escaped template |
 | Wrong recipient | Membership check, admin fallback |
-| Silent cron failure | Heartbeat check in the monitor, which does not run in the cron container |
+| Silent cron failure | Heartbeat check in the monitor, which runs in the API, not in the cron container |
 | A long run marked `no_result` too early | Deadline above the runner's hard limit |
-| Monitor query cost grows with volume | Partial index on open runs; batch the tracing read per pass; check with [sizing.sql](./sizing.sql) |
-| Backfill emails at release | Outcomes written for old rows, but they never cause an email |
+| Monitor query cost | Partial indexes on open rows; one batched tracing query per project per pass; sizing.sql |
 
-## 9. Later (after v0)
+## 9. After v0
 
-Webhook event `automations.runs.failed` on the existing webhooks pipeline; Slack and
-Telegram alerts through the channel adapters; in-app notifications; automatic retry for runs
-that failed before any tool call; expired-connection detection; missed-tick detection;
-LLM-drafted catalog entries reviewed by a person.
+The "Needs attention" status in the automation list (it needs an API field for many
+automations); Slack and Telegram alerts through the channel adapters; a webhook event on the
+existing webhooks pipeline; in-app notifications; automatic retry for runs that failed before
+any tool call; expired-connection detection; missed-tick detection; LLM-drafted catalog rows
+reviewed by a person.
