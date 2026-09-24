@@ -141,6 +141,8 @@ describe("build kit permission panel", () => {
         expect(saved.permissionOverrides).toEqual({})
         await pick("deny_all")
         expect(row.disabled).toBe(true)
+        expect(row.value).toBe("deny")
+        expect(host.textContent).not.toContain("runs automatically")
         await pick("always_ask")
         expect(row.disabled).toBe(false)
         expect(row.value).toBe("ask")

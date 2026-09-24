@@ -101,7 +101,7 @@ export function BuildKitSection({state, onChange, disabled, tools}: BuildKitSect
                     })),
                 }}
                 emptyLabel="No build kit tools available."
-                permissions={permissions}
+                permissions={state.enabled ? permissions : {default: "deny", tools: {}}}
                 onChangePermissions={() => undefined}
                 onChangeToolPermission={(op, permission) => {
                     if (permission === "inherit") return
