@@ -211,4 +211,11 @@ class ChannelOutboxEventDBE(Base, ChannelOutboxEventDBA):
             "state",
             "created_at",
         ),
+        # the bot's own posts in a space, for the channel read tool
+        Index(
+            "ix_channel_outbox_space",
+            "project_id",
+            "space_id",
+            "created_at",
+        ),
     )

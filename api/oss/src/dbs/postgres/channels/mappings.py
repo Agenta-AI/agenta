@@ -513,6 +513,7 @@ def map_outbox_event_dto_to_dbe_create(
         #
         connection_id=event.connection_id,
         thread_id=event.thread_id,
+        space_id=event.space_id,
         turn_id=event.turn_id,
         key=event.key,
         state=event.state,
@@ -537,6 +538,7 @@ def map_outbox_event_dbe_to_dto(
         #
         connection_id=event_dbe.connection_id,
         thread_id=event_dbe.thread_id,
+        space_id=event_dbe.space_id,
         turn_id=event_dbe.turn_id,
         key=event_dbe.key,
         state=event_dbe.state,

@@ -169,7 +169,9 @@ class ChannelOutboxEventDBA(
     __abstract__ = True
 
     connection_id = Column(UUID(as_uuid=True), nullable=False)
-    thread_id = Column(UUID(as_uuid=True), nullable=False)
+    # null for a send_channel_message post, which belongs to no thread
+    thread_id = Column(UUID(as_uuid=True), nullable=True)
+    space_id = Column(UUID(as_uuid=True), nullable=True)
     turn_id = Column(String, nullable=False)
     key = Column(UUID(as_uuid=True), nullable=False)
     state = Column(Enum(ChannelDeliveryState), nullable=False)

@@ -878,7 +878,10 @@ class ChannelInboxTriggerQuery(BaseModel):
 
 class ChannelOutboxEvent(Identifier, Lifecycle):
     connection_id: UUID
-    thread_id: UUID
+    # None for a send_channel_message post, which belongs to no channel thread
+    thread_id: Optional[UUID] = None
+    space_id: Optional[UUID] = None
+    # the turn for a reply, the tool call id for a send_channel_message post
     turn_id: str
     key: UUID
     state: ChannelDeliveryState
@@ -890,7 +893,8 @@ class ChannelOutboxEvent(Identifier, Lifecycle):
 
 class ChannelOutboxEventCreate(BaseModel):
     connection_id: UUID
-    thread_id: UUID
+    thread_id: Optional[UUID] = None
+    space_id: Optional[UUID] = None
     turn_id: str
     key: UUID
     state: ChannelDeliveryState = ChannelDeliveryState.CREATED

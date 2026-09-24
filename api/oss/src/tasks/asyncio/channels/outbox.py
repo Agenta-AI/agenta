@@ -189,6 +189,7 @@ class ChannelsOutboxWorker:
             project_id=project_id,
             connection_id=connection.id,
             thread_id=thread.id,
+            space_id=thread.space_id,
             turn_id=turn_id,
             item_index=0,
         )
@@ -290,6 +291,7 @@ class ChannelsOutboxWorker:
                     project_id=project_id,
                     connection_id=connection.id,
                     thread_id=thread.id,
+                    space_id=thread.space_id,
                     turn_id=turn_id,
                     item_index=0,
                 )
@@ -420,6 +422,7 @@ class ChannelsOutboxWorker:
                 project_id=project_id,
                 connection_id=connection.id,
                 thread_id=thread.id,
+                space_id=thread.space_id,
                 turn_id=turn_id,
                 item_index=0,
             )
@@ -448,6 +451,7 @@ class ChannelsOutboxWorker:
                 project_id=project_id,
                 connection_id=connection.id,
                 thread_id=thread.id,
+                space_id=thread.space_id,
                 turn_id=turn_id,
                 item_index=item_index,
             )
@@ -802,6 +806,7 @@ class ChannelsOutboxWorker:
         project_id: UUID,
         connection_id: UUID,
         thread_id: UUID,
+        space_id: UUID,
         turn_id: str,
         item_index: int,
     ) -> ChannelOutboxEvent:
@@ -821,6 +826,7 @@ class ChannelsOutboxWorker:
             event=ChannelOutboxEventCreate(
                 connection_id=connection_id,
                 thread_id=thread_id,
+                space_id=space_id,
                 turn_id=turn_id,
                 key=key,
                 data=ChannelOutboxEventData(),
