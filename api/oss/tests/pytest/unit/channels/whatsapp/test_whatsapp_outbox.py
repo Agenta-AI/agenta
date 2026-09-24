@@ -486,3 +486,115 @@ async def test_the_working_message_never_follows_an_answer_another_worker_sent(
 
     assert graph.texts_to(p.CUSTOMER) == ["quick answer"]
     assert "t1" not in starter._progress_tasks
+
+
+async def test_a_held_reply_is_not_released_to_a_customer_who_opted_out(
+    service, dao, graph, records
+):
+    worker = _worker(service, records)
+    _, space, thread = dao.seed_whatsapp()
+    dao.customer_wrote(space, ago=timedelta(days=2))
+    _answer(records, thread, "t1", "held answer")
+    await _end(worker, thread, "t1")
+
+    dao.customer_wrote(space, message_id="wamid.STOP")  # the STOP message
+    dao.spaces[space.id].flags.is_opted_out = True
+    await _end(worker, thread, "t1")  # a redelivered turn event
+
+    assert graph.texts_to(p.CUSTOMER) == []
+    assert len(dao.rows(ChannelDeliveryState.HELD)) == 1
+
+
+async def test_a_claim_touching_a_held_row_does_not_make_it_look_newly_held(
+    service, dao, graph, records
+):
+    """A release claim moves updated_at; the hold time must not move with it,
+    or the next answer would overtake the held one."""
+
+    worker = _worker(service, records)
+    _, space, thread = dao.seed_whatsapp()
+    dao.customer_wrote(space, ago=timedelta(days=2))
+    _answer(records, thread, "t1", "held answer")
+    await _end(worker, thread, "t1")
+    dao.customer_wrote(space, message_id="wamid.BACK")
+    [held] = dao.rows(ChannelDeliveryState.HELD)
+    dao.outbox[held.key] = held.model_copy(
+        update={"updated_at": datetime.now(timezone.utc)}
+    )
+
+    _answer(records, thread, "t2", "new answer")
+    await _end(worker, thread, "t2")
+
+    assert graph.texts_to(p.CUSTOMER) == ["held answer", "new answer"]
+
+
+async def test_a_held_reply_that_fails_on_release_does_not_block_the_new_answer(
+    service, dao, graph, records
+):
+    worker = _worker(service, records)
+    _, space, thread = dao.seed_whatsapp()
+    dao.customer_wrote(space, ago=timedelta(days=2))
+    _answer(records, thread, "t1", "held answer")
+    await _end(worker, thread, "t1")
+    dao.customer_wrote(space, message_id="wamid.BACK")
+    graph.fail_next(131026)  # Meta refuses the held reply for good
+
+    _answer(records, thread, "t2", "new answer")
+    await _end(worker, thread, "t2")
+
+    assert graph.texts_to(p.CUSTOMER) == ["new answer"]
+    [failed] = [r for r in dao.rows() if r.turn_id == "t1"]
+    assert failed.state is ChannelDeliveryState.FAILED
+    assert failed.status.code == "delivery_failed"
+
+
+async def test_two_workers_holding_parts_of_one_answer_send_one_template(
+    service, dao, graph, records
+):
+    """Worker A holds part 0 and pauses; worker B, handling the same
+    turn_ended, holds part 1. The oldest held part sends the template."""
+
+    from oss.src.core.channels.utils import compose_outbox_key
+
+    worker = _worker(service, records)
+    connection, space, thread = dao.seed_whatsapp(
+        data={"reopen_template": "order_update"}
+    )
+    dao.customer_wrote(space, ago=timedelta(days=2))
+    part0 = await worker._get_or_create_item(
+        project_id=PROJECT_ID,
+        connection_id=connection.id,
+        thread_id=thread.id,
+        turn_id="t1",
+        item_index=0,
+    )
+    part1 = await worker._get_or_create_item(
+        project_id=PROJECT_ID,
+        connection_id=connection.id,
+        thread_id=thread.id,
+        turn_id="t1",
+        item_index=1,
+    )
+    assert part0.key == compose_outbox_key(thread_id=thread.id, turn_id="t1", item=0)
+    dao.outbox[part0.key] = part0.model_copy(
+        update={"state": ChannelDeliveryState.HELD}
+    )
+
+    await worker._hold(  # worker B
+        project_id=PROJECT_ID,
+        event=part1,
+        connection=connection,
+        thread=thread,
+        content=[{"type": "text", "text": "part two"}],
+        final=True,
+        reason="window_closed",
+        claim_token=None,
+    )
+    await worker._reopen_if_first_held(  # worker A resumes
+        project_id=PROJECT_ID,
+        event=dao.outbox[part0.key],
+        connection=connection,
+        thread=thread,
+    )
+
+    assert [m["type"] for m in graph.sent] == ["template"]

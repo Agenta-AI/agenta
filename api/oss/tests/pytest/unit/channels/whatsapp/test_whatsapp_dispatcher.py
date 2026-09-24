@@ -200,6 +200,19 @@ async def test_a_replayed_start_cannot_undo_a_later_stop(world, graph):
     invoke.assert_not_called()
 
 
+async def test_stop_and_start_apply_in_the_order_the_customer_sent_them(world, graph):
+    """Sent STOP, START, STOP; dispatched STOP, STOP, START. The customer's
+    last word was STOP."""
+
+    stop, start, stop_again = _text("STOP"), _text("START"), _text("STOP")
+
+    for event in (stop, stop_again, start):
+        await _dispatch(world, event)
+
+    assert world.space.flags.is_opted_out is True
+    assert graph.texts_to(p.CUSTOMER) == [OPTED_OUT_TEXT]
+
+
 async def test_stop_inside_a_sentence_is_a_normal_message(world, graph):
     invoke = await _dispatch(world, _text("please stop the order"))
 

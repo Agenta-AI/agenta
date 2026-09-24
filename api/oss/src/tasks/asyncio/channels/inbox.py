@@ -635,8 +635,10 @@ class InboxDispatcher:
         space = resolution.space
         opted_out = space.flags.is_opted_out
         keyword = _consent_keyword(event)
-        if (keyword == "stop" and not opted_out) or (keyword == "start" and opted_out):
+        if keyword is not None:
             opting_out = keyword == "stop"
+            # Every STOP and START moves the order fence, even one that
+            # changes nothing, so a delayed older one can never win.
             applied = await self.channels_service.channels_dao.set_space_opted_out(
                 project_id=project_id,
                 space_id=space.id,
@@ -644,20 +646,23 @@ class InboxDispatcher:
                 event_id=event.id,
             )
             if applied is None:
-                # A newer STOP or START already won: this is a redelivery.
+                return True  # older than the last STOP or START: a redelivery
+            if opting_out != opted_out:
+                await self._notify_not_started(
+                    project_id=project_id,
+                    resolution=resolution,
+                    turn_id=str(uuid5(event.id, "consent")),
+                    connection=connection,
+                    capabilities=capabilities,
+                    render=partial(
+                        render_notice,
+                        text=OPTED_OUT_TEXT if opting_out else OPTED_IN_TEXT,
+                    ),
+                )
                 return True
-            await self._notify_not_started(
-                project_id=project_id,
-                resolution=resolution,
-                turn_id=str(uuid5(event.id, "consent")),
-                connection=connection,
-                capabilities=capabilities,
-                render=partial(
-                    render_notice,
-                    text=OPTED_OUT_TEXT if opting_out else OPTED_IN_TEXT,
-                ),
-            )
-            return True
+            # STOP while opted out: nothing more to say. START while opted
+            # in: an ordinary message.
+            return opting_out
         if opted_out:
             log.info(
                 "[INBOX DISPATCHER] space=%s opted out; event=%s stored, not answered",

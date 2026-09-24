@@ -674,9 +674,15 @@ class ChannelsDAO(ChannelsDAOInterface):
         space: ChannelSpaceEdit,
     ) -> Optional[ChannelSpace]:
         async with self.engine.session() as session:
-            stmt = select(ChannelSpaceDBE).where(
-                ChannelSpaceDBE.project_id == project_id,
-                ChannelSpaceDBE.id == space.id,
+            # Locked: the mapper keeps the person's STOP/START flags from this
+            # read, and a concurrent STOP must not commit in between.
+            stmt = (
+                select(ChannelSpaceDBE)
+                .where(
+                    ChannelSpaceDBE.project_id == project_id,
+                    ChannelSpaceDBE.id == space.id,
+                )
+                .with_for_update()
             )
 
             result = await session.execute(stmt)

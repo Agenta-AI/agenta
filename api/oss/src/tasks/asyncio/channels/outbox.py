@@ -411,26 +411,43 @@ class ChannelsOutboxWorker:
         latest = await self._latest_inbound(project_id=project_id, thread=thread)
         if latest is None or not _within_window(latest, window):
             return
+        space = await self.channels_service.channels_dao.fetch_space(
+            project_id=project_id, space_id=thread.space_id
+        )
+        if space is not None and space.flags.is_opted_out:
+            return
         for event in sorted(held, key=lambda row: row.created_at or datetime.min):
-            if not (event.updated_at and latest.created_at) or (
-                event.updated_at >= latest.created_at
-            ):
-                return  # held after the person's latest message
             processed = (event.data.processed if event.data else None) or {}
-            delivered = await self._send(
-                project_id=project_id,
-                event=event,
-                connection=connection,
-                capabilities=capabilities,
-                item=RenderItem(
-                    parts=[
-                        RenderPart(**part) for part in processed.get("content") or []
-                    ]
-                ),
-                thread=thread,
-                final=bool(processed.get("final")),
-                include_held=True,
-            )
+            held_at = processed.get("held_at")
+            if not held_at or latest.created_at is None:
+                return
+            if datetime.fromisoformat(held_at) >= latest.created_at:
+                return  # held after the person's latest message
+            try:
+                delivered = await self._send(
+                    project_id=project_id,
+                    event=event,
+                    connection=connection,
+                    capabilities=capabilities,
+                    item=RenderItem(
+                        parts=[
+                            RenderPart(**part)
+                            for part in processed.get("content") or []
+                        ]
+                    ),
+                    thread=thread,
+                    final=bool(processed.get("final")),
+                    include_held=True,
+                )
+            except Exception as exc:  # noqa: BLE001
+                # The row now says FAILED with the platform's reason. A held
+                # reply that cannot go out never blocks the new answer.
+                log.warning(
+                    "[SESSIONS-OUTBOX] held reply not released row=%s: %s",
+                    event.id,
+                    str(exc)[:200],
+                )
+                return
             if not delivered:
                 return
 
@@ -1025,24 +1042,23 @@ class ChannelsOutboxWorker:
         reason: str,
         claim_token: Optional[str],
     ) -> None:
-        """Keep the reply, unsent, until the person writes again. The first
-        reply held in a quiet thread asks the adapter to re-open the
-        conversation (WhatsApp's optional template); later ones do not, so a
-        long answer held as several parts sends one template, not several."""
+        """Keep the reply, unsent, until the person writes again. `held_at`
+        is stored with the content because a later release claim moves
+        `updated_at`; only replies held before the person's latest message
+        are released."""
 
-        dao = self.channels_service.channels_dao
-        await dao.transition_outbox_event(
+        processed: Dict = {
+            "content": content,
+            "held_at": datetime.now(timezone.utc).isoformat(),
+        }
+        if final:
+            processed["final"] = True
+        held = await self.channels_service.channels_dao.transition_outbox_event(
             project_id=project_id,
             event_id=event.id,
             state=ChannelDeliveryState.HELD,
             status=Status(code=reason),
-            data=ChannelOutboxEventData(
-                processed=(
-                    {"content": content, "final": True}
-                    if final
-                    else {"content": content}
-                ),
-            ),
+            data=ChannelOutboxEventData(processed=processed),
             claim_token=claim_token,
         )
         log.info(
@@ -1051,14 +1067,34 @@ class ChannelsOutboxWorker:
             event.id,
             thread.id,
         )
+        await self._reopen_if_first_held(
+            project_id=project_id,
+            event=held or event,
+            connection=connection,
+            thread=thread,
+        )
 
+    async def _reopen_if_first_held(
+        self,
+        *,
+        project_id: UUID,
+        event: ChannelOutboxEvent,
+        connection: ChannelConnection,
+        thread: ChannelThread,
+    ) -> None:
+        """Ask the adapter to re-open the conversation (WhatsApp's optional
+        template) once per quiet thread: only the oldest held reply does, so
+        a long answer held in several parts, even by two workers, sends one.
+        Best-effort: a crash before this line loses only the invitation."""
+
+        dao = self.channels_service.channels_dao
         held = await dao.query_outbox_events(
             project_id=project_id,
             event=ChannelOutboxEventQuery(
                 thread_id=thread.id, state=ChannelDeliveryState.HELD
             ),
         )
-        if any(row.id != event.id for row in held):
+        if any(_held_before(row, event) for row in held):
             return
         space = await dao.fetch_space(project_id=project_id, space_id=thread.space_id)
         if space is not None and space.flags.is_opted_out:
@@ -1437,3 +1473,14 @@ def _within_window(event: ChannelInboxEvent, window_seconds: int) -> bool:
     if sent_at is None:
         return False
     return datetime.now(timezone.utc) - sent_at <= timedelta(seconds=window_seconds)
+
+
+def _held_before(row: ChannelOutboxEvent, event: ChannelOutboxEvent) -> bool:
+    """Whether `row` is a different reply that was created before `event`."""
+
+    if row.id == event.id:
+        return False
+    return (row.created_at or datetime.min, str(row.id)) < (
+        event.created_at or datetime.min,
+        str(event.id),
+    )
