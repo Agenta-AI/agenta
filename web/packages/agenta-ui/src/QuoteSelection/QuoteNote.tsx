@@ -72,6 +72,7 @@ export const QuoteNote = ({
             style={{top, left, width, opacity: height ? 1 : 0}}
             onKeyDown={(e) => {
                 if (e.key === "Escape") {
+                    e.preventDefault()
                     e.stopPropagation()
                     onCancel()
                 }

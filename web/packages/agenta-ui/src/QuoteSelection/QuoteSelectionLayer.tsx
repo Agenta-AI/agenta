@@ -75,13 +75,16 @@ export const QuoteSelectionLayer = ({
         }
     }, [draftId, draftRange, rootRef])
 
+    // Capture and consume: Esc here must not also reach the stop-the-run listeners.
     useEffect(() => {
         if (!candidate || draft) return
         const onKey = (e: KeyboardEvent) => {
-            if (e.key === "Escape") dismiss()
+            if (e.key !== "Escape") return
+            e.preventDefault()
+            dismiss()
         }
-        document.addEventListener("keydown", onKey)
-        return () => document.removeEventListener("keydown", onKey)
+        document.addEventListener("keydown", onKey, true)
+        return () => document.removeEventListener("keydown", onKey, true)
     }, [candidate, draft, dismiss])
 
     if (!sessionId) return null
