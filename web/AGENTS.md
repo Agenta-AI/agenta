@@ -1,7 +1,11 @@
 # Frontend conventions
 
-Scope: everything under `web/` (`oss`, `ee`, `packages`, `apps`). This file loads when you
-work in the frontend. The repo-wide root conventions live in `/AGENTS.md`.
+Scope: everything under `web/`. Active frontend work lives in two places: `web/mobile` (the
+app, served at `/m`; its own rules are in `web/mobile/AGENTS.md`) and `web/packages` (the
+shared `@agenta/*` packages). `web/oss` and `web/ee` are the abandoned desktop app: do not
+edit, run, or copy from them. The one exception is the theme source in
+`web/oss/src/styles/theme/` (see below). This file loads when you work in the frontend. The
+repo-wide root conventions live in `/AGENTS.md`.
 
 For deep `@agenta/*` package reference (package vs app placement, molecules, bridges, the
 EntityPicker, package unit tests), use the **`agenta-package-practices`** skill. It holds
@@ -15,22 +19,22 @@ the detail this file only summarizes.
   Cover the states a reviewer cannot reach by clicking — empty, error, read-only, migration.
   Nothing type-checks that package in CI, so run `pnpm --filter @agenta/storybook lint` and
   build it once: a story whose component changed shape fails only at build time.
-- A change to any package `web/mobile` consumes (`chat`, `entities`, `entity-ui`,
-  `playground`, `playground-ui`, `shared`) gets a smoke check on `/m` before the PR is done.
-  Mobile is a separate host with its own providers and hydration, and it has broken silently
-  before — the desktop app looked fine while `/m` rendered nothing.
+- A change to any `@agenta/*` package gets a smoke check on `/m` before the PR is done.
+  `web/mobile` depends on 22 of the packages directly and the rest through them. Type
+  checks can pass while `/m` renders nothing; this has happened before.
 - Theme colors have a single source of truth: `oss/src/styles/theme/palette.ts` (semantic
-  roles with `{light, dark}` values). To change any color, edit `palette.ts`, run
-  `pnpm generate:tailwind-tokens`, and commit the regenerated `theme-variables.css` +
-  `oss/src/styles/theme/antd-overrides.generated.ts`. Never hand-edit the generated files.
-  See the "Styling" section below and `docs/designs/dark-mode.md`.
+  roles with `{light, dark}` values). This theme folder is the one part of `web/oss` still
+  in use. To change any color, edit `palette.ts`, run `pnpm generate:tailwind-tokens`, and
+  commit the regenerated files (`packages/agenta-ui/src/styles/theme-variables.css`,
+  `mobile/src/styles/theme.generated.css`, `oss/src/styles/theme/antd-overrides.generated.ts`).
+  Never hand-edit the generated files. See the "Styling" section below.
 - The Fern-generated `@agentaai/api-client` ships as a compiled `dist/` (entry
   `./dist/index.js`). `pnpm install` runs the package's `prepare` script which builds
   `dist/` automatically, so a fresh checkout works out of the box. If you regenerate the
   client (`bash ./clients/scripts/generate.sh --language typescript`) or edit
   `web/packages/agenta-api-client/src/`, run `pnpm install` again or
   `pnpm --filter @agentaai/api-client build` so consumers (`@agenta/sdk`,
-  `@agenta/entities`, `web/oss`, `web/ee`) see the update. The `.js` extensions in Fern's
+  `@agenta/entities`, `web/mobile`) see the update. The `.js` extensions in Fern's
   relative imports are intentional NodeNext-style emission and resolve only via the
   compiled `dist/`.
 
@@ -48,8 +52,8 @@ References:
   (PR #4425 migrated `workflow`)
 
 Prerequisite: the consuming package must declare `"@agenta/sdk": "workspace:../agenta-sdk"`
-in its `package.json` `dependencies`. Today `@agenta/entities` is the main consumer; any
-new package adopting Fern must add this dep first, otherwise `tsc --noEmit` fails on the
+in its `package.json` `dependencies`. `@agenta/entities`, `@agenta/settings`, and
+`@agenta/skills` already do; any new package adopting Fern must add this dep first, otherwise `tsc --noEmit` fails on the
 `@agenta/sdk` import at type-check time.
 
 ### Pattern
@@ -118,58 +122,14 @@ return await getWorkflowsClient().retrieveWorkflowRevision(body, {queryParams}) 
 
 ## Import aliases
 
-The monorepo uses TypeScript path aliases. Choosing the right pattern matters for
-maintainability.
-
-Available aliases:
-1. `@/oss/*` — resolves with fallback order: `ee/src/*` → `oss/src/*`
-2. `@agenta/oss/src/*` — explicit import from the OSS package (npm workspace)
-3. `@/agenta-oss-common/*` — similar fallback to `@/oss/*` (less common)
-
-### Use `@/oss/*` for shared utilities and state
-
-For shared utilities, helpers, types, hooks, or state that work the same in EE and OSS:
-
-```typescript
-import {getEnv} from "@/oss/lib/helpers/dynamicEnv"
-import {useAppTheme} from "@/oss/components/Layout/ThemeContextProvider"
-import {User, JSSTheme} from "@/oss/lib/Types"
-import {selectedOrgIdAtom} from "@/oss/state/org"
-import axios from "@/oss/lib/api/assets/axiosConfig"
-```
-
-Why: the fallback lets EE override an implementation if needed, falling back to OSS by
-default.
-
-### Use `@agenta/oss/src/*` for explicit OSS imports
-
-When EE code must explicitly reference the OSS version of a component or page (extending,
-wrapping, or re-exporting OSS), to guarantee the OSS implementation rather than an EE
-override:
-
-```typescript
-import OssSidebarBanners from "@agenta/oss/src/components/SidebarBanners"
-import ObservabilityPage from "@agenta/oss/src/pages/w/[workspace_id]/p/[project_id]/observability"
-import {DeploymentRevisions} from "@agenta/oss/src/lib/types_ee"
-```
-
-### Never use relative paths for cross-package imports
-
-```typescript
-// BAD - fragile, hard to maintain
-import OssSidebarBanners from "../../../../oss/src/components/SidebarBanners"
-// GOOD - explicit alias
-import OssSidebarBanners from "@agenta/oss/src/components/SidebarBanners"
-```
-
-### Quick decision guide
-
-```text
-Are you in EE code importing from OSS?
-├─ Is it a component/page that EE extends or wraps?  → @agenta/oss/src/*
-├─ Is it a utility, helper, type, or state atom?     → @/oss/*
-└─ Not sure?                                         → @agenta/oss/src/* (explicit is safer)
-```
+- **Across packages**, import by package name and exported subpath:
+  `import {workflowMolecule} from "@agenta/entities/workflow"`. Never a relative path into
+  another package, and never an internal path (`@agenta/entities/src/...`).
+- **Inside `web/mobile`**, `@/*` resolves to `web/mobile/src/*`
+  (`import {ContentRail} from "@/components/ContentRail"`).
+- **Inside a package**, use relative imports for the package's own files.
+- `@/oss/*`, `@agenta/oss/*`, and `@agenta/ee/*` belong to the abandoned desktop app.
+  `web/mobile` lint bans them; do not add them to package code either.
 
 ## Architecture overview
 
@@ -188,7 +148,8 @@ Core principles:
    moves up: components to root `/components`, hooks to root `/hooks`, UI/constants/utils
    to root `/assets`, types to root `types.d.ts`.
 
-Adopt this structure progressively as you modify components. No big-bang refactors.
+Adopt this structure progressively as you modify components. No big-bang refactors. In
+`web/mobile`, the feature-folder layout in the `mobile-app-structure` skill takes precedence.
 
 ## State management
 
@@ -249,14 +210,13 @@ export const selectedVariantsAtom = atom(
 )
 ```
 
-For nullable strings, use `stringStorage` from `@/oss/state/utils/stringStorage` as the
-third arg so null is handled properly.
+For nullable strings, use `stringStorage` from `@agenta/shared/state` as the third arg so
+null is handled properly.
 
 Use `atomWithStorage` for user preferences, recently-used items, persistent UI state, and
 form drafts. Prefix keys with `agenta:`. Examples:
-`web/oss/src/components/EvalRunDetails2/state/rowHeight.ts`,
-`web/oss/src/state/app/atoms/fetcher.ts`,
-`web/oss/src/components/Playground/state/atoms/core.ts`.
+`web/packages/agenta-sessions/src/state/pins.ts`,
+`web/packages/agenta-shared/src/state/featureFlags.ts`.
 
 ## Data fetching
 
@@ -286,9 +246,8 @@ mutations, call the API then `queryClient.invalidateQueries({queryKey: [...]})`.
 
 Key principles: include all reactive dependencies in `queryKey`, use `enabled` for
 conditional queries, `selectAtom` for derived data, invalidate after mutations, set an
-appropriate `staleTime`. Examples: `web/oss/src/state/profile/selectors/user.ts`,
-`web/oss/src/state/environment/atoms/fetcher.ts`,
-`web/oss/src/state/queries/atoms/fetcher.ts`.
+appropriate `staleTime`. Examples: `web/packages/agenta-skills/src/state/index.ts`,
+`web/packages/agenta-settings/src/apiKeysQuery.ts`.
 
 Do NOT use `useEffect` with manual state for data fetching. Use `atomWithQuery`.
 
@@ -299,8 +258,7 @@ Legacy SWR + axios is present in older code but must not be used for new feature
 There is exactly ONE `QueryClient` per app, and it is `@agenta/shared/api`'s `queryClient`
 singleton. The rules are asymmetric:
 
-- **A host** (`web/oss` `_app`, `web/ee`, `web/mobile` `AppProviders`, a Storybook decorator,
-  a test harness) MUST pass that singleton to `<QueryClientProvider client={...}>` **and**
+- **A host** (`web/mobile` `AppProviders`, a Storybook decorator, a test harness) MUST pass that singleton to `<QueryClientProvider client={...}>` **and**
   hydrate `queryClientAtom` with the same object. Never construct your own `new QueryClient()`;
   to change defaults, merge onto the singleton with `setDefaultOptions` (it is a whole-object
   write — spread the existing `queries` so package-set options like
@@ -359,12 +317,14 @@ When adding or changing UI elements, implement appearance and interaction states
 **Theme colors.** All theme-aware colors flow from one source of truth,
 `oss/src/styles/theme/palette.ts` — semantic roles (surface / text / border / fill /
 accent / semantic / scales / feature families), each a `{light, dark}` pair. The generator
-(`pnpm generate:tailwind-tokens`) turns it into `theme-variables.css`, the antd dark
-overrides, and the `--ag-c-*` compatibility shim. In components, consume colors as antd
-semantic tokens (Tailwind `bg-colorBgContainer`, `text-colorText`, or `var(--ag-color*)`),
-not raw hex or `--ag-c-*` literals. To change a color, edit `palette.ts` and regenerate —
-never hand-edit `theme-variables.css` or `theme/antd-overrides.generated.ts`. Full model:
-`docs/designs/dark-mode.md`.
+(`pnpm generate:tailwind-tokens`) turns it into `@agenta/ui`'s `theme-variables.css`, the
+mobile shadcn tokens (`mobile/scripts/generate-shadcn-tokens.ts` →
+`mobile/src/styles/theme.generated.css`), the antd dark overrides, and the `--ag-c-*`
+compatibility shim. In `web/mobile` and the `@agenta/ui/ui` kit, use the shadcn semantic
+tokens (`bg-background`, `text-muted-foreground`, `border-border`). Older package code uses
+antd-derived tokens (`bg-colorBgContainer`, `var(--ag-color*)`); match the file you are in.
+Never use raw hex or `--ag-c-*` literals. To change a color, edit `palette.ts` and
+regenerate — never hand-edit the generated files.
 
 Always prefer Tailwind utility classes over CSS-in-JS or separate CSS files.
 
@@ -378,8 +338,8 @@ Always prefer Tailwind utility classes over CSS-in-JS or separate CSS files.
 Avoid `react-jss`/`styled-components` and inline `style={{...}}`. CSS-in-JS is acceptable
 only for complex Ant Design overrides that Tailwind cannot express, dynamic theme-dependent
 styles needing JS calculation, and legacy components (refactor to Tailwind when you touch
-them). Tailwind benefits: no style bloat, consistent design system, better performance,
-works with Ant Design. Good example: `web/oss/src/components/CustomWorkflowBanner/index.tsx`.
+them). Tailwind benefits: no style bloat, consistent design system, better performance.
+Good example: `web/mobile/src/components/ScreenScaffold.tsx`.
 
 ## React best practices
 
@@ -414,7 +374,7 @@ atomWithQuery((get) => ({queryKey: ["data", get(currentTimeAtom)], queryFn: fetc
 atomWithQuery((get) => ({queryKey: ["data", get(projectIdAtom), get(filterAtom)], queryFn: fetchData, staleTime: 60_000}))
 ```
 
-3. **Virtualize large lists** (100+ items). Reference: `InfiniteVirtualTable`.
+3. **Virtualize large lists** (100+ items). Reference: `InfiniteVirtualTable` from `@agenta/ui`.
 4. **Debounce/throttle** search inputs, filters, scroll and resize handlers.
 
 ### Modular component design
@@ -452,13 +412,14 @@ one line?" — if not, cut it. Longer comments only for a genuinely surprising c
 
 ## Packages, entities, and code placement
 
-The `@agenta/*` workspace packages share UI, state, and utilities across OSS and EE. The
-**`agenta-package-practices`** skill is the source of truth for this area. Load it when you:
+The `@agenta/*` workspace packages (24, listed in `web/packages/README.md`) hold the UI,
+state, and utilities that `web/mobile` composes. The **`agenta-package-practices`** skill is
+the source of truth for this area. Load it when you:
 
-- Decide whether code belongs in the app layer (`web/oss`/`web/ee`) or a package.
-- Import from `@agenta/ui`, `@agenta/entities`, `@agenta/entity-ui`, `@agenta/shared`, or
-  `@agenta/playground` (always via subpath exports for tree-shaking).
-- Build a new modal (use `EnhancedModal` from `@agenta/ui`, not raw antd `Modal`).
+- Decide whether code belongs in the app layer (`web/mobile`) or a package.
+- Import from any `@agenta/*` package (always via subpath exports for tree-shaking).
+- Build a new modal (`Dialog` from `@agenta/ui/ui`; `EnhancedModal` from `@agenta/ui` for
+  antd-style call sites; never raw antd `Modal`).
 - Use entity state (molecules), the loadable/runnable bridges, or the `EntityPicker`.
 - Write package unit tests (they live in `tests/unit/`, not `src/`).
 
@@ -466,17 +427,19 @@ Quick placement heuristic:
 
 ```text
 Is the code used by 2+ features, or could be?
-├─ NO  → keep it in the app layer (web/oss/src/ or web/ee/src/)
+├─ NO  → keep it in the app layer (web/mobile/src/features/<feature>/)
 └─ YES → move to a package by purpose:
          UI component / style util         → @agenta/ui
          entity state (molecule, atoms)     → @agenta/entities
          entity-specific UI (modals/pickers)→ @agenta/entity-ui
-         playground state / UI              → @agenta/playground / @agenta/playground-ui
+         domain state / domain UI           → the domain's headless / -ui package
+                                              (sessions, chat, playground, settings, ...)
          pure utility / type (no React)     → @agenta/shared
 ```
 
-Hard rules (full detail in the skill): respect the import hierarchy
-`shared ← ui ← entities ← entity-ui ← playground ← playground-ui`; no legacy compat shims
+Hard rules (full detail in the skill): respect the layers
+(`shared ← ui ← entities ← headless domain packages ← entity-ui / chat / -ui packages`,
+no cycles, headless packages never import UI packages); no legacy compat shims
 in packages; no `any`; use exported subpaths; verify with
 `pnpm turbo run build --filter=@agenta/<package>` and `lint` before pushing.
 
