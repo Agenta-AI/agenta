@@ -9,5 +9,6 @@ export {
     getQuotes,
     registerQuoteSubmit,
     removeQuote,
+    restoreQuotes,
     useStagedQuotes,
 } from "./store"

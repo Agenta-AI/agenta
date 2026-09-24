@@ -17,6 +17,7 @@ import {
     getQuotes,
     registerQuoteSubmit,
     removeQuote,
+    restoreQuotes,
     useStagedQuotes,
 } from "@agenta/ui/quote-selection"
 import type {RichChatInputHandle, SlashCommandSection} from "@agenta/ui/rich-chat-input"
@@ -40,7 +41,8 @@ const RichChatInput = lazy(() =>
 )
 
 export interface ChatComposerProps {
-    onSubmit: (text: string) => void | Promise<void>
+    /** Resolve `false` when the message did not go out, so staged quotes can be handed back. */
+    onSubmit: (text: string) => void | boolean | Promise<void | boolean>
     /** The attachment engine — staging, guardrails, uploads (see useComposerAttachments). */
     attachments: ReturnType<typeof useComposerAttachments>
     inputRef?: RefObject<RichChatInputHandle | null>
@@ -160,18 +162,23 @@ export const ChatComposer = ({
     // Staged quotes ride out as a blockquote lead-in, so no host send path needs to know them.
     const quoteSessionId = attachments.sessionId
     const quotes = useStagedQuotes(quoteSessionId)
+    const ownInputRef = useRef<RichChatInputHandle | null>(null)
+    const editorRef = inputRef ?? ownInputRef
     const withQuotes =
-        (send: (text: string) => void | Promise<void>) =>
-        (text: string): void | Promise<void> => {
+        (send: (text: string) => unknown) =>
+        (text: string): unknown => {
             const staged = getQuotes(quoteSessionId).filter((quote) => quote.staged)
             if (!staged.length) return send(text)
             clearQuotes(quoteSessionId)
-            return send(quotesToMarkdown(staged, text))
+            // A send that did not go out gets the chips and the typed text back, not the markdown.
+            return Promise.resolve(send(quotesToMarkdown(staged, text))).then((sent) => {
+                if (sent !== false) return
+                restoreQuotes(quoteSessionId, staged)
+                void editorRef.current?.setMarkdown(text)
+            })
         }
 
     // The note box's Enter: send the whole message now, as the Send button would.
-    const ownInputRef = useRef<RichChatInputHandle | null>(null)
-    const editorRef = inputRef ?? ownInputRef
     const submitNowRef = useRef<() => boolean>(() => false)
     submitNowRef.current = () => {
         const editor = editorRef.current
