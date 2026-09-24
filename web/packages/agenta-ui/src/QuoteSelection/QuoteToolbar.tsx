@@ -62,7 +62,6 @@ export const QuoteToolbar = ({anchor, bounds, onCopy, onReply, touch}: QuoteTool
             <button
                 type="button"
                 onClick={onReply}
-                autoFocus
                 className={`flex cursor-pointer items-center rounded-md border-0 bg-transparent px-2 font-medium text-colorText hover:bg-colorFillTertiary ${
                     touch ? "h-6 text-[11px]" : "h-5 text-[11px]"
                 }`}
