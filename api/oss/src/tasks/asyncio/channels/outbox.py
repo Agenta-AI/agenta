@@ -5,7 +5,6 @@ from typing import Dict, List, Optional, Tuple
 from uuid import UUID
 
 from agenta.sdk.agents.fold import fold
-import httpx
 from redis.asyncio import Redis
 
 from oss.src.core.channels.dtos import (
@@ -34,6 +33,7 @@ from oss.src.core.channels.render.render import (
 from oss.src.core.channels.service import ChannelsService
 from oss.src.core.channels.types import ChannelConnectionNotFound, ChannelSpaceNotFound
 from oss.src.core.channels.utils import compose_outbox_key
+from oss.src.core.channels.utils import delivery_outcome_unknown as _outcome_unknown
 from oss.src.core.sessions.records.service import RecordsService
 from oss.src.core.sessions.interactions.service import SessionInteractionsService
 from oss.src.core.sessions.turns.service import SessionTurnsService
@@ -41,8 +41,6 @@ from oss.src.tasks.asyncio.sessions.streaming import deserialize_turn_event
 from oss.src.tasks.asyncio.shared.consumer import StreamConsumer
 from oss.src.core.channels.types import (
     ChannelCredentialRevoked,
-    ChannelDeliveryUncertain,
-    ChannelsError,
 )
 from oss.src.core.shared.dtos import Status
 from oss.src.utils.logging import get_module_logger
@@ -1031,26 +1029,6 @@ async def _finish_even_if_cancelled(coroutine):
             task.exception()  # collected: the cancel wins, the row holds the failure
         raise asyncio.CancelledError()
     return task.result()
-
-
-def _outcome_unknown(exc: BaseException) -> bool:
-    """Whether a failed post may still have reached the chat. Only a request
-    that surely never got a platform answer, or one the platform answered
-    with a rejection below 500 (a 4xx, including a 429 rate limit), is known
-    not to have posted."""
-
-    if isinstance(exc, ChannelDeliveryUncertain):
-        return True
-    if isinstance(exc, (httpx.ConnectError, httpx.ConnectTimeout, httpx.PoolTimeout)):
-        return False
-    if isinstance(exc, httpx.HTTPError):
-        return True  # read/write timeouts, dropped connections: sent, no answer
-    status_code = getattr(exc, "status_code", None)
-    if isinstance(status_code, int):
-        return status_code >= 500
-    if isinstance(exc, ChannelsError):
-        return False  # raised before any call (missing field, bad locator)
-    return True
 
 
 def _sent_with(event: ChannelOutboxEvent, content: List[Dict]) -> bool:
