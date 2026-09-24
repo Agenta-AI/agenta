@@ -5,7 +5,7 @@ import {fileOrigin} from "@agenta/entities/drive"
 import {type Mount} from "@agenta/entities/session"
 import {CopyButton} from "@agenta/ui/components/presentational"
 import {EnhancedButton as Button} from "@agenta/ui/components/presentational"
-import {isQuoteReplyEnabled, QuoteSelectionLayer} from "@agenta/ui/quote-selection"
+import {QuoteSelectionLayer} from "@agenta/ui/quote-selection"
 import {SimpleTooltip as Tooltip} from "@agenta/ui/ui"
 import {Info} from "@phosphor-icons/react"
 import {AnimatePresence, motion} from "motion/react"
@@ -148,7 +148,6 @@ export const DriveFilePreview = ({
                 <QuoteSelectionLayer
                     rootRef={quoteRootRef}
                     sessionId={quoteSessionId}
-                    enabled={isQuoteReplyEnabled()}
                 />
                 <DriveFileContentViewer
                     mount={mount}

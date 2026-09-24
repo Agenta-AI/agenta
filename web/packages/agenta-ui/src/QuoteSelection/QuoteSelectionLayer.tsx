@@ -4,7 +4,7 @@
  * transcript, the file preview) rather than being wrapped in another layout div — the overlays are
  * positioned absolutely inside it, so that element must be `relative`.
  *
- * With `enabled` false this binds nothing and renders nothing.
+ * Outside a conversation (no session to reply into) this binds nothing and renders nothing.
  */
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
@@ -36,13 +36,11 @@ const draftFrom = (candidate: QuoteCandidate): Quote => {
 export const QuoteSelectionLayer = ({
     rootRef,
     sessionId,
-    enabled,
     touch,
 }: {
     rootRef: React.RefObject<HTMLElement | null>
     /** The conversation the quotes attach to. Null outside a session — Copy stays, Reply goes. */
     sessionId: string | null
-    enabled: boolean
     touch?: boolean
 }) => {
     const [draft, setDraft] = useState<{quote: Quote; candidate: QuoteCandidate} | null>(null)
@@ -66,14 +64,14 @@ export const QuoteSelectionLayer = ({
     const {candidate, dismiss} = useQuoteSelection({
         rootRef,
         // Reply needs somewhere to attach; without a session there is nothing to reply into.
-        enabled: enabled && !!sessionId,
+        enabled: !!sessionId,
         onReply: beginReply,
     })
 
     // Only the open draft is painted — the native selection is gone once the note takes focus, so
     // this is what keeps the span visible while you write. A staged quote lives on as its chip.
     const painted = useMemo(() => (draft ? [draft.quote] : []), [draft])
-    useQuoteHighlights(rootRef, painted, enabled)
+    useQuoteHighlights(rootRef, painted, !!sessionId)
 
     // The open note rides with its span: its box is positioned against the root, so leaving the
     // anchor frozen would strand it over whatever scrolled under it.
@@ -102,15 +100,15 @@ export const QuoteSelectionLayer = ({
 
     // Esc closes the pill, matching the note box's own handler.
     useEffect(() => {
-        if (!enabled || !candidate || draft) return
+        if (!candidate || draft) return
         const onKey = (e: KeyboardEvent) => {
             if (e.key === "Escape") dismiss()
         }
         document.addEventListener("keydown", onKey)
         return () => document.removeEventListener("keydown", onKey)
-    }, [enabled, candidate, draft, dismiss])
+    }, [candidate, draft, dismiss])
 
-    if (!enabled || !sessionId) return null
+    if (!sessionId) return null
 
     const root = rootRef.current
     const bounds = {width: root?.clientWidth ?? 0, height: root?.clientHeight ?? 0}

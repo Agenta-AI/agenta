@@ -5,11 +5,7 @@
  *
  * Only text-family bodies (markdown, plain text, code) opt in — the rest have no text to select.
  */
-import {
-    isQuoteReplyEnabled,
-    useFileQuoteFreshness,
-    useQuoteSource,
-} from "@agenta/ui/quote-selection"
+import {useFileQuoteFreshness, useQuoteSource} from "@agenta/ui/quote-selection"
 
 import {useDriveSessionId} from "./driveSessionContext"
 
@@ -19,17 +15,16 @@ export const useQuotableFile = (
     content: string | undefined,
 ) => {
     const sessionId = useDriveSessionId()
-    const enabled = isQuoteReplyEnabled()
-    const key = enabled ? `file:${path}` : null
+    const key = `file:${path}`
     useQuoteSource(key, content)
-    useFileQuoteFreshness(enabled ? sessionId : null, path, content)
+    useFileQuoteFreshness(sessionId, path, content)
     // Outside a conversation (the standalone Files drawer) there is nothing to reply into, so the
     // body is left unmarked and only Copy — the browser's own — remains.
-    if (!enabled || !sessionId) return {}
+    if (!sessionId) return {}
     return {
         "data-quotable": "true",
         "data-quote-kind": "file",
-        "data-quote-source": key ?? undefined,
+        "data-quote-source": key,
         "data-quote-path": path,
         "data-quote-display-path": displayPath ?? path,
     } as const

@@ -34,7 +34,7 @@ import {
     turnToolbarRevealClass,
     userBubbleContentClass,
 } from "@agenta/ui/components/presentational"
-import {isQuoteReplyEnabled, useQuoteSource} from "@agenta/ui/quote-selection"
+import {useQuoteSource} from "@agenta/ui/quote-selection"
 import type {ToolUIPart} from "ai"
 import {useAtomValue, useSetAtom} from "jotai"
 
@@ -130,7 +130,7 @@ const TurnRowInner = ({
         .trim()
 
     // Quoting is offered on settled answers only; mid-stream the text is still being written.
-    const quotable = !turn.isUser && !turn.isStreamingTurn && isQuoteReplyEnabled()
+    const quotable = !turn.isUser && !turn.isStreamingTurn
     useQuoteSource(quotable ? `msg:${turn.message.id}` : null, copyText)
     const quoteProps = quotable
         ? ({
