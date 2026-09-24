@@ -1,8 +1,4 @@
-/**
- * The floating pill that appears at the centre of a selection: Copy · Reply. Anchored above the
- * selection, flipped below when there is no room, and clamped inside the pane so a selection at
- * either edge still reaches its own controls.
- */
+// The Copy · Reply pill over a selection: above it, flipped below when there is no room.
 import {useLayoutEffect, useRef, useState} from "react"
 
 const GAP = 8
@@ -29,8 +25,7 @@ export const QuoteToolbar = ({anchor, bounds, onCopy, onReply, touch}: QuoteTool
     }, [touch])
 
     const above = anchor.top - size.height - GAP
-    // Flip below unless the slot above clears the pane's top edge — a negative top escapes the
-    // pane and draws over the session tabs above it.
+    // Flip below unless there is room above inside the pane.
     const flipped = above < GAP
     const top = flipped ? anchor.bottom + GAP : above
     const left = Math.min(

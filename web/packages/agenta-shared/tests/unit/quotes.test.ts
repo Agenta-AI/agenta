@@ -97,7 +97,7 @@ describe("quotesToMarkdown", () => {
     it("labels a message quote by its turn", () => {
         const out = quotesToMarkdown([
             fileQuote({
-                source: {kind: "message", messageId: "m1", turnLabel: "Agent reply"},
+                source: {kind: "message", messageId: "m1"},
                 note: "",
             }),
         ])

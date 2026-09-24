@@ -1,10 +1,4 @@
-/**
- * The inline note box, anchored under the highlighted span: the excerpt as a quiet left-ruled line,
- * a one-line reply that grows as you type, and a small send. Enter sends the reply now; ⌘/Ctrl+Enter
- * adds it to the composer instead, to go out with other quotes; Shift+Enter breaks a line. Esc, or
- * a click anywhere outside, cancels and drops the draft. Opens below the selection and flips above when it does not
- * fit.
- */
+// Note box under a quoted span. Enter sends, ⌘/Ctrl+Enter stages, Esc or an outside press cancels.
 import {useEffect, useLayoutEffect, useRef, useState} from "react"
 
 import {truncateQuoteText, type Quote} from "@agenta/shared/quotes"
@@ -41,29 +35,27 @@ export const QuoteNote = ({
     const [note, setNote] = useState("")
     const [height, setHeight] = useState(0)
 
+    const cancelRef = useRef(onCancel)
+    cancelRef.current = onCancel
+
     useLayoutEffect(() => {
         setHeight(ref.current?.offsetHeight ?? 0)
         inputRef.current?.focus()
     }, [])
 
-    // A press outside the box abandons the draft, the way any popover behaves.
+    // Bound once: the box re-renders every scroll frame while it tracks its span.
     useEffect(() => {
         const onDown = (e: PointerEvent) => {
-            if (!ref.current?.contains(e.target as Node)) onCancel()
+            if (!ref.current?.contains(e.target as Node)) cancelRef.current()
         }
-        // Deferred: the press that OPENED the box must not immediately close it.
-        const id = setTimeout(() => document.addEventListener("pointerdown", onDown, true))
-        return () => {
-            clearTimeout(id)
-            document.removeEventListener("pointerdown", onDown, true)
-        }
-    }, [onCancel])
+        document.addEventListener("pointerdown", onDown, true)
+        return () => document.removeEventListener("pointerdown", onDown, true)
+    }, [])
 
     const width = Math.min(WIDTH, Math.max(bounds.width - GAP * 2, 200))
     const below = anchor.bottom + GAP
     const flipped = height > 0 && below + height > bounds.height && anchor.top - height - GAP > GAP
-    // Clamped either way: an unclamped flip near the top escapes the pane and lands on the
-    // session tabs above it.
+    // Clamped either way, so a flip near the top never escapes the pane.
     const top = Math.max(flipped ? anchor.top - height - GAP : below, GAP)
     const left = Math.min(
         Math.max(anchor.left - width / 2, GAP),

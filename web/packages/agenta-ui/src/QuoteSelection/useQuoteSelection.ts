@@ -1,17 +1,4 @@
-/**
- * Watches for a text selection inside a `[data-quotable]` body under `rootRef` and turns it into a
- * quote candidate: the excerpt, where it came from, and a live rect to anchor the pill on.
- *
- * `selectionchange` fires on every caret move and continuously through a drag-select, so the
- * handler early-exits on a collapsed selection BEFORE it touches the DOM, and everything past that
- * is coalesced into one rAF. Outside a conversation nothing is bound at all.
- *
- * Nothing is offered WHILE the pointer is down. The pill anchors on the selection's centre, so
- * re-arming mid-drag walks it under the cursor — the pointer then enters the pill and the browser
- * stops extending the selection, which reads as "I can only select a few words". The candidate is
- * therefore computed on release (`mouseup`/`touchend`), and `selectionchange` only drives the
- * keyboard path.
- */
+// Turns a selection inside a `[data-quotable]` body into a quote candidate, offered on release.
 import {useCallback, useEffect, useRef, useState} from "react"
 
 import {normalizeQuoteText, type QuoteSource} from "@agenta/shared/quotes"
@@ -30,7 +17,7 @@ export interface QuoteCandidate {
     range: Range
 }
 
-/** A phone's own selection callout needs a beat to settle before we draw over it. */
+/** Lets a phone's native selection callout settle before the pill draws over it. */
 const TOUCH_SETTLE_MS = 260
 
 const elementOf = (node: Node | null): Element | null =>
@@ -39,7 +26,7 @@ const elementOf = (node: Node | null): Element | null =>
 const readTarget = (node: Node | null): HTMLElement | null =>
     (elementOf(node)?.closest("[data-quotable]") as HTMLElement | null) ?? null
 
-/** The pill and the note box hold their own text; selecting inside them must not re-arm. */
+/** The pill and note box: selecting or pressing inside them must not re-arm or dismiss. */
 const isOwnUi = (node: Node | null): boolean =>
     Boolean(elementOf(node)?.closest("[data-quote-ignore]"))
 
@@ -48,7 +35,7 @@ const sourceFrom = (el: HTMLElement): QuoteSource | null => {
     if (kind === "message") {
         const messageId = el.dataset.quoteMessageId
         if (!messageId) return null
-        return {kind: "message", messageId, turnLabel: el.dataset.quoteLabel || "Agent reply"}
+        return {kind: "message", messageId}
     }
     if (kind === "file") {
         const path = el.dataset.quotePath
@@ -66,7 +53,7 @@ const sourceFrom = (el: HTMLElement): QuoteSource | null => {
 
 export const rectIn = (root: HTMLElement, range: Range): QuoteCandidate["rect"] | null => {
     const box = range.getBoundingClientRect()
-    // A row parked offscreen under `content-visibility:auto` measures as zero — never anchor to it.
+    // An offscreen `content-visibility:auto` row measures as zero; never anchor to it.
     if (box.width === 0 && box.height === 0) return null
     const rootBox = root.getBoundingClientRect()
     return {
@@ -103,7 +90,6 @@ export const useQuoteSelection = ({
         const evaluate = () => {
             const root = rootRef.current
             const selection = window.getSelection()
-            // The cheapest possible exit, and the one that runs on every caret move.
             if (!root || !selection || selection.isCollapsed || selection.rangeCount === 0) {
                 setCandidate(null)
                 return
@@ -137,11 +123,9 @@ export const useQuoteSelection = ({
         }
 
         const schedule = () => {
-            // A drag in progress owns the pointer; offering the pill now would put it under the
-            // cursor and cut the selection short. The release handler picks it up.
+            // Mid-drag the pill would land under the cursor and cut the selection short.
             if (dragging) return
             const selection = window.getSelection()
-            // Early-exit before any DOM work — this is the hot path during a drag-select.
             if (!selection || selection.isCollapsed) {
                 if (candidateRef.current) setCandidate(null)
                 return
@@ -150,11 +134,7 @@ export const useQuoteSelection = ({
             frame = requestAnimationFrame(evaluate)
         }
 
-        /**
-         * A press anywhere but the pill closes it AND the selection it belongs to. Leaving the
-         * selection up meant a press that does not collapse it (the scrollbar, a gap, a button)
-         * re-offered the pill on release, and the page jumped back to it.
-         */
+        // An outside press closes the pill and its selection; left up, the release re-offers it.
         const onPointerDown = (e: PointerEvent) => {
             if (e.button !== 0 || isOwnUi(e.target as Node)) return
             dragging = true
@@ -170,7 +150,6 @@ export const useQuoteSelection = ({
             scheduleSettled()
         }
 
-        /** Touch reports its selection before the native callout lands; wait it out, then measure. */
         const scheduleSettled = () => {
             if (timer) clearTimeout(timer)
             timer = setTimeout(schedule, coarse ? TOUCH_SETTLE_MS : 0)
@@ -204,14 +183,11 @@ export const useQuoteSelection = ({
         document.addEventListener("selectionchange", schedule)
         document.addEventListener("pointerdown", onPointerDown, true)
         document.addEventListener("pointerup", onPointerUp, true)
-        // Pointer capture can swallow the release (a drag that ends outside the window).
         document.addEventListener("pointercancel", onPointerUp, true)
-        document.addEventListener("mouseup", scheduleSettled)
         document.addEventListener("keyup", schedule)
-        document.addEventListener("touchend", scheduleSettled)
         document.addEventListener("keydown", onKeyDown)
         window.addEventListener("resize", reposition)
-        // Capture: the scroller is a descendant of the root, and scroll does not bubble.
+        // Capture: scroll does not bubble up from the pane's scroller.
         document.addEventListener("scroll", reposition, true)
         return () => {
             if (frame) cancelAnimationFrame(frame)
@@ -220,9 +196,7 @@ export const useQuoteSelection = ({
             document.removeEventListener("pointerdown", onPointerDown, true)
             document.removeEventListener("pointerup", onPointerUp, true)
             document.removeEventListener("pointercancel", onPointerUp, true)
-            document.removeEventListener("mouseup", scheduleSettled)
             document.removeEventListener("keyup", schedule)
-            document.removeEventListener("touchend", scheduleSettled)
             document.removeEventListener("keydown", onKeyDown)
             window.removeEventListener("resize", reposition)
             document.removeEventListener("scroll", reposition, true)
