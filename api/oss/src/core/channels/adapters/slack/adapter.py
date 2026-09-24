@@ -34,6 +34,7 @@ from oss.src.core.channels.dtos import (
     ChannelConnectionCreate,
     ChannelEventKind,
     ChannelHistoryMessage,
+    ChannelHistoryPage,
     ChannelInboundEvent,
     ChannelInboxEventProcessed,
     ChannelRequestContext,
@@ -70,6 +71,11 @@ _DEFAULT_BACKFILL_LIMIT = int(os.getenv("AGENTA_CHANNELS_BACKFILL_LIMIT") or 50)
 # A `/me` message arrives as subtype `me_message` with the same user, channel
 # and text fields as a plain message: it is a person speaking, so it routes.
 _MESSAGE_SUBTYPES = {"thread_broadcast", "file_share", "me_message"}
+
+# Slack answers these with HTTP 200 and `ok: false`, yet documents that the
+# call may still have taken effect: a post that failed this way may be in the
+# channel, so it must never read as a definite failure (or be retried).
+_UNCERTAIN_POST_ERRORS = {"internal_error", "fatal_error", "request_timeout"}
 
 # Slack's own signal that an installation stopped -- deactivate, never
 # route these as messages.
@@ -460,9 +466,12 @@ class SlackAdapter(ChannelAdapterInterface):
                     },
                 )
             except Exception as exc:
-                if receipts:
-                    # Earlier chunks are already in the thread; a retry would
-                    # post them again.
+                if receipts or (
+                    isinstance(exc, _SlackApiError)
+                    and exc.error in _UNCERTAIN_POST_ERRORS
+                ):
+                    # Earlier chunks are already in the thread, or Slack says
+                    # the post may have landed; a retry could post it again.
                     raise ChannelDeliveryUncertain(
                         channel=self.channel, detail=str(exc)[:200]
                     ) from exc
@@ -729,22 +738,20 @@ class SlackAdapter(ChannelAdapterInterface):
         locator: Dict[str, Any],
         thread_ts: Optional[str] = None,
         latest: Optional[str] = None,
+        cursor: Optional[str] = None,
         limit: int,
-    ) -> List[ChannelHistoryMessage]:
+    ) -> ChannelHistoryPage:
         # Slack caps a page for commercially distributed apps outside the
         # Marketplace (the hosted app) at about 15 messages and one call per
-        # minute; it returns fewer, or a 429 the caller turns into a note.
-        params: Dict[str, Any] = {
-            "channel": locator["channel"],
-            "limit": limit,
-            "latest": latest,
-            "inclusive": False if latest else None,
-        }
+        # minute; a short page is not the end, `has_more` says whether it is.
+        params: Dict[str, Any] = {"channel": locator["channel"], "limit": limit}
         if thread_ts:
+            # replies pages forward from the root, by Slack's own cursor
             method = "conversations.replies"
-            params["ts"] = thread_ts
+            params.update({"ts": thread_ts, "cursor": cursor})
         else:
             method = "conversations.history"
+            params.update({"latest": latest, "inclusive": False if latest else None})
 
         try:
             response = await self._call(connection, method, params, as_query=True)
@@ -779,7 +786,12 @@ class SlackAdapter(ChannelAdapterInterface):
                 )
             )
         messages.sort(key=lambda m: float(m.message_ref))
-        return messages
+        next_cursor = (response.get("response_metadata") or {}).get("next_cursor")
+        return ChannelHistoryPage(
+            messages=messages,
+            has_more=bool(response.get("has_more") or next_cursor),
+            next_cursor=next_cursor or None,
+        )
 
     # --- test seam (optional; mirrors contract suite's fake) --- #
 
