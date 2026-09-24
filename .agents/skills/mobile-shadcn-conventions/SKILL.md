@@ -1,6 +1,6 @@
 ---
 name: mobile-shadcn-conventions
-description: How the Agenta mobile app (web/mobile) installs and extends shadcn/ui registry components, themes them via the palette token bridge, and uses Vercel AI Elements. Use when adding UI components under web/mobile, changing theme colors, editing components.json or globals.css, or building chat UI with AI Elements.
+description: How the Agenta mobile app (web/mobile) installs and extends shadcn/ui registry components, themes them via the palette token bridge, and builds chat UI on @agenta/chat. Use when adding UI components under web/mobile, changing theme colors, editing components.json or globals.css, or building chat UI.
 ---
 
 # Mobile shadcn conventions
@@ -13,9 +13,12 @@ description: How the Agenta mobile app (web/mobile) installs and extends shadcn/
   (`Button`, `Input`, `Select`, `Dialog`, `Sheet`, `DropdownMenu`, ...), import it
   from there. Do not install a local copy of a component the kit already has —
   `button` in particular lives ONLY in `@agenta/ui` (Nova preset on the shared
-  `control-*` scale), so both apps render one button.
+  `control-*` scale), so there is one button.
+- `src/components/ui/` still holds local `input`, `sheet`, and `skeleton`
+  copies that duplicate the shared kit. Existing screens import them; new code
+  uses the `@agenta/ui/ui` versions. Do not add more local duplicates.
 - Otherwise install via the CLI from `web/mobile/`:
-  `pnpm dlx shadcn@latest add <component>` (e.g. `sheet`, `command`, `skeleton`).
+  `pnpm dlx shadcn@latest add <component>`.
 - Components land in `src/components/ui/` (aliases in `components.json`). They
   are owned code: you may adapt them, but keep diffs minimal and expressed in
   semantic tokens so upstream refreshes stay cheap.
@@ -34,6 +37,9 @@ description: How the Agenta mobile app (web/mobile) installs and extends shadcn/
 - shadcn variables (`--background`, `--primary`, ...) are NOT hand-maintained.
   They are generated into `src/styles/theme.generated.css` from
   `web/oss/src/styles/theme/palette.ts` by `scripts/generate-shadcn-tokens.ts`.
+  The script also reads `controlScale.ts` from the same folder. That theme
+  folder is the one part of `web/oss` still in use: edit it for color changes,
+  but touch nothing else in `web/oss`.
 - To change a color: edit `palette.ts` (if the design-system value is wrong) or
   the ROLE MAP in the script (if the mapping is wrong), then run
   `pnpm --filter @agenta/mobile generate:tokens` and commit the regenerated CSS.
@@ -50,11 +56,14 @@ description: How the Agenta mobile app (web/mobile) installs and extends shadcn/
   wrappers over `components/ui/*` primitives (cva variants where appropriate).
 - Use the `cn` util from `@/lib/utils` for all class merging.
 
-## Vercel AI Elements (chat render layer, WP3b+)
+## Chat UI
 
-- AI Elements are shadcn registry components; install them the same way
-  (`pnpm dlx shadcn@latest add <ai-elements registry item>`), landing in
-  `src/components/ui/` / `src/components/ai-elements/` per the registry config.
-- They are the base of the chat skin (Conversation, Message, Response,
-  Reasoning, Tool, PromptInput); behavior comes from `@agenta/chat` hooks —
-  never re-implement orchestration inside a rendered component.
+- There are no Vercel AI Elements in the app and no `src/components/ai-elements/`.
+  Chat lives in `src/features/chat/` (`ChatScreen`, `Composer`,
+  `LiveConversation`, `TranscriptTurns`, ...), built on `@agenta/chat`
+  (`state`, `model`, `hooks`, `components`, ... subpaths) and the Lexical-based
+  `@agenta/ui/rich-chat-input`. Markdown streams through `streamdown`.
+- Behavior comes from `@agenta/chat` hooks — never re-implement orchestration
+  inside a rendered component.
+- Icons: both `@phosphor-icons/react` (most files) and `lucide-react` (older
+  files and shadcn registry output) are in use. Match the surrounding feature.

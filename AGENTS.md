@@ -8,16 +8,19 @@ bottom.
 
 ## Repo map
 
-- `web/` — frontend (Next.js, OSS + EE + shared `@agenta/*` packages). See `web/AGENTS.md`.
+- `web/` — frontend. The app is `web/mobile` (served at `/m`); shared code is the
+  `@agenta/*` packages in `web/packages`. `web/oss` and `web/ee` are the abandoned desktop
+  app. See `web/AGENTS.md` and `web/mobile/AGENTS.md`.
 - `api/` — FastAPI backend (OSS + EE + entrypoints). See `api/AGENTS.md`.
 - `hosting/` — docker-compose, railway, local dev stack. See `hosting/AGENTS.md`.
-- `clients/`, `sdk/`, `sdks/` — SDKs and client codegen.
+- `clients/`, `sdks/` — SDKs and client codegen.
 - `docs/` — documentation (Docusaurus).
-- `examples/`, `services/`, `chat-ui/` — example apps and supporting services.
+- `examples/`, `services/` — example apps and supporting services.
 
 ## Where conventions live
 
-- Frontend (imports, state, data fetching, styling, React, Fern client): `web/AGENTS.md`.
+- Frontend (imports, state, data fetching, styling, React, Fern client): `web/AGENTS.md`;
+  the mobile app's own rules: `web/mobile/AGENTS.md`.
 - GitButler stacked branches (lane routing, recovery, PR bases): the `gitbutler-stacks` skill.
 - API architecture (layering, domains, endpoints, exceptions, DTOs): `api/AGENTS.md`.
 - Local dev stack run commands: `hosting/AGENTS.md`.
@@ -79,10 +82,13 @@ basics.
 - API or SDK changes: run `ruff format` then `ruff check --fix` within the SDK or API
   folder (from the repo root: `ruff format` then `ruff check`). Fix all errors before
   committing. Details: `api/AGENTS.md`.
-- Theme color changes: edit the source of truth `web/oss/src/styles/theme/palette.ts`,
-  then run `pnpm generate:tailwind-tokens` in the `web` folder and commit the regenerated
-  files (`theme-variables.css`, `theme/antd-overrides.generated.ts`). Do not hand-edit the
-  generated files.
+- Theme color changes: edit the source of truth `web/oss/src/styles/theme/palette.ts`
+  (`web/oss/src/styles/theme/` is the one part of `web/oss` still in use), then run
+  `pnpm generate:tailwind-tokens` in the `web` folder and commit the regenerated files
+  (`web/packages/agenta-ui/src/styles/theme-variables.css`,
+  `web/mobile/src/styles/theme.generated.css`,
+  `web/oss/src/styles/theme/antd-overrides.generated.ts`). Do not hand-edit the generated
+  files.
 
 ## Local dev loop (deploy + test)
 
@@ -141,13 +147,14 @@ Codex, Cursor) read this structure.
 
 - **Root `AGENTS.md`** (this file): cross-cutting facts only. `CLAUDE.md` re-imports it so
   Claude Code reads the same content.
-- **Nested `<dir>/AGENTS.md`** (`web/`, `api/`, `hosting/`): area conventions, loaded only
-  when working in that directory. Each has a `CLAUDE.md` symlink so Claude loads it too.
+- **Nested `<dir>/AGENTS.md`** (`web/`, `web/mobile/`, `web/website/`, `api/`, `hosting/`):
+  area conventions, loaded only when working in that directory. Each has a `CLAUDE.md`
+  symlink so Claude loads it too.
 - **Skills** (`.agents/skills/`, symlinked into `.claude/skills/`): procedures and heavy
   reference, loaded on demand. Discoverable by Codex (`.agents/skills`) and Claude (the
   symlink); the `SKILL.md` format is shared across tools.
-- **Tool rules** (`.claude/rules/`, `.cursor/rules/`): thin, path-scoped enforcement only.
-  They point to the relevant `AGENTS.md`; they do not duplicate it.
+- **Tool rules** (`.claude/rules/`, `.cursor/rules/`): none are checked in today. If you add
+  one, keep it thin and path-scoped: point to the relevant `AGENTS.md`, do not duplicate it.
 
 When adding a new instruction, put it at the lowest scope that fits and do not grow this
 root file. Splitting a long file into `@import`s does not save context, so move content
