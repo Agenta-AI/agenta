@@ -9,6 +9,7 @@ from sqlalchemy import (
     func,
     literal,
     not_,
+    literal_column,
     or_,
     select,
     text,
@@ -1450,6 +1451,35 @@ class ChannelsDAO(ChannelsDAOInterface):
                 for dbe, thread_ts_of in result.all()
             ]
 
+    async def search_space_inbox_messages(
+        self,
+        *,
+        project_id: UUID,
+        space_ids: List[UUID],
+        query: str,
+        after: Optional[datetime] = None,
+        before: Optional[datetime] = None,
+        limit: int,
+        offset: int = 0,
+    ) -> List[ChannelInboxEvent]:
+        if not space_ids or not query.strip():
+            return []
+        stmt = search_inbox_statement(
+            project_id=project_id,
+            space_ids=space_ids,
+            query=query,
+            after=after,
+            before=before,
+            limit=limit,
+            offset=offset,
+        )
+        async with self.engine.session() as session:
+            result = await session.execute(stmt)
+            return [
+                map_inbox_event_dbe_to_dto(event_dbe=dbe)
+                for dbe in result.scalars().all()
+            ]
+
     # --- inbox: the log --------------------------------------------------- #
 
     async def record_inbox_event(
@@ -2148,3 +2178,51 @@ class ChannelsDAO(ChannelsDAOInterface):
                 return None
 
             return (row[0], row[1])
+
+
+# The indexed expression of `ix_channel_inbox_events_search`
+# (oss000000038). A query must repeat it exactly for Postgres to use the
+# index, so this is its only spelling.
+_SEARCH_VECTOR = literal_column(
+    "to_tsvector('simple', "
+    "coalesce(channel_inbox_events.data #>> '{processed,content,0,text}', ''))"
+)
+
+
+def search_inbox_statement(
+    *,
+    project_id: UUID,
+    space_ids: List[UUID],
+    query: str,
+    after: Optional[datetime] = None,
+    before: Optional[datetime] = None,
+    limit: int,
+    offset: int = 0,
+):
+    """Stored messages of these spaces matching `query` (web-search syntax),
+    by relevance, then provider time, then id: a total order, so an offset
+    page neither skips nor repeats a row while the set is unchanged."""
+
+    table = ChannelInboxEventDBE
+    tsquery = func.websearch_to_tsquery(literal_column("'simple'"), query)
+    stmt = (
+        select(table)
+        .where(
+            table.project_id == project_id,
+            table.space_id.in_(space_ids),
+            table.kind == ChannelEventKind.MESSAGE.value,
+            _SEARCH_VECTOR.op("@@")(tsquery),
+        )
+        .order_by(
+            func.ts_rank(_SEARCH_VECTOR, tsquery).desc(),
+            table.sent_at.desc(),
+            table.id.desc(),
+        )
+        .limit(limit)
+        .offset(offset)
+    )
+    if after is not None:
+        stmt = stmt.where(table.sent_at >= after)
+    if before is not None:
+        stmt = stmt.where(table.sent_at <= before)
+    return stmt

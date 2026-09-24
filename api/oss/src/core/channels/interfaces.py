@@ -545,6 +545,21 @@ class ChannelsDAOInterface(ABC):
         thread reference."""
 
     @abstractmethod
+    async def search_space_inbox_messages(
+        self,
+        *,
+        project_id: UUID,
+        space_ids: List[UUID],
+        query: str,
+        after: Optional[datetime] = None,
+        before: Optional[datetime] = None,
+        limit: int,
+        offset: int = 0,
+    ) -> List[ChannelInboxEvent]:
+        """Stored messages of these spaces matching a full-text query, by
+        relevance, then time, then id."""
+
+    @abstractmethod
     async def record_inbox_event(
         self,
         *,

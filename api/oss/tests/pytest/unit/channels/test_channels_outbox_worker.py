@@ -94,6 +94,9 @@ class FakeChannelsDAO(ChannelsDAOInterface):
     async def query_space_outbox_messages(self, **kwargs):
         raise NotImplementedError
 
+    async def search_space_inbox_messages(self, **kwargs):
+        raise NotImplementedError
+
     async def fetch_space(self, *, project_id, space_id):
         return self.spaces.get(space_id)
 
