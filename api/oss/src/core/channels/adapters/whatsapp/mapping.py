@@ -274,7 +274,8 @@ def markdown_to_whatsapp(text: str) -> str:
 def split_text(text: str, *, max_chars: int = TEXT_MAX_CHARS) -> list[str]:
     """The safety net: core already splits answers at the declared limit on
     paragraph, line and word boundaries. This only catches oversize content
-    (a long approval body) that reached the adapter anyway."""
+    that reached the adapter anyway, such as the text sent ahead of a long
+    interactive message."""
 
     if len(text) <= max_chars:
         return [text]
@@ -330,7 +331,20 @@ def build_messages(
             for chunk in split_text(text or " ")
         ]
 
-    body = {"text": _clip(text or "Choose an option.", INTERACTIVE_BODY_MAX_CHARS)}
+    # An interactive body holds 1024 characters. Whatever does not fit goes
+    # first as plain text, so the customer reads the whole request before
+    # choosing; the body keeps the end, cut at a line break where possible.
+    leading: list[dict[str, Any]] = []
+    if len(text) > INTERACTIVE_BODY_MAX_CHARS:
+        cut = text.rfind("\n", len(text) - INTERACTIVE_BODY_MAX_CHARS)
+        if cut == -1:
+            cut = len(text) - INTERACTIVE_BODY_MAX_CHARS
+        head, text = text[:cut], text[cut:].lstrip("\n")
+        leading = [
+            {**envelope, "type": "text", "text": {"body": chunk, "preview_url": False}}
+            for chunk in split_text(head)
+        ]
+    body = {"text": text or "Choose an option."}
     if len(options) <= REPLY_BUTTONS_MAX:
         action: dict[str, Any] = {
             "buttons": [
@@ -361,4 +375,4 @@ def build_messages(
                 "sections": [{"title": "Options", "rows": rows}],
             },
         }
-    return [{**envelope, "type": "interactive", "interactive": interactive}]
+    return [*leading, {**envelope, "type": "interactive", "interactive": interactive}]

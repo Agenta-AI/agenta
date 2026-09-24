@@ -281,7 +281,14 @@ def map_space_dto_to_dbe_edit(
     space_dbe.meta = space.meta
 
     space_dbe.data = space.data.model_dump(mode="json", exclude_none=True)
-    space_dbe.flags = space.flags.model_dump()
+    # STOP and START are the person's own choice: an operator's edit of the
+    # space never resets them, whatever its flags say.
+    stored = dict(space_dbe.flags or {})
+    flags = space.flags.model_dump()
+    for key in ("is_opted_out", "consent_event_id"):
+        if key in stored:
+            flags[key] = stored[key]
+    space_dbe.flags = flags
 
 
 # --- Grant ---------------------------------------------------------------- #

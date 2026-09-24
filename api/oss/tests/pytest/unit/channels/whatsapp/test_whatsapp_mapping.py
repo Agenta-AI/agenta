@@ -317,6 +317,23 @@ def _buttons(count):
     ]
 
 
+def test_a_body_too_long_for_an_interactive_message_goes_first_as_text():
+    """Nothing is cut: the customer sees the whole request before choosing."""
+
+    lines = [f"argument line {i:03d} " + "x" * 40 for i in range(40)]  # ~2400 chars
+    text = "\n".join(lines)
+
+    *leading, interactive = mapping.build_messages(
+        content=[{"type": "text", "text": text}, *_buttons(2)], wa_id=p.CUSTOMER
+    )
+
+    assert [m["type"] for m in leading] == ["text"]
+    body = interactive["interactive"]["body"]["text"]
+    assert len(body) <= mapping.INTERACTIVE_BODY_MAX_CHARS
+    shown = leading[0]["text"]["body"] + "\n" + body
+    assert shown == text
+
+
 def test_four_to_ten_options_render_as_a_list():
     [message] = mapping.build_messages(
         content=[{"type": "text", "text": "Pick one"}, *_buttons(5)], wa_id=p.CUSTOMER
