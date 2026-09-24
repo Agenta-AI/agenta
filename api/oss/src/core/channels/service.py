@@ -1925,14 +1925,15 @@ class ChannelsService:
             )
 
         # The trigger gate. Every message is stored (the fill reads it back
-        # as context), but only some open a turn: a DM, a reply inside a
-        # thread the agent already holds, an answer to a pending choice, or
-        # -- per the effective policy -- a mention, a command, a button.
+        # as context on the next turn), but only some open a turn: a DM, an
+        # answer to a pending choice, or -- per the effective policy -- a
+        # mention, a command, a button. An earlier turn in the thread admits
+        # nothing by itself.
         if event.kind is ChannelEventKind.MESSAGE and not _is_trigger(
             event=event,
             space=space,
             policy=policy,
-            thread=thread,
+            resolved_token=resolved_token,
             capabilities=capabilities,
         ):
             log.info(
@@ -2028,10 +2029,12 @@ class ChannelsService:
         event: ChannelInboxEvent,
         capabilities: ChannelCapabilities,
     ) -> Optional[ChannelAgent]:
-        """The agent whose open conversation this message continues. A reply
-        without a sigil in a thread a specialist opened belongs to that
-        specialist; the default agent would have no thread there and drop it.
-        A sigil always wins, so naming another agent still switches."""
+        """The agent whose open conversation this message continues. A
+        mention without a sigil in a thread a specialist opened belongs to
+        that specialist; the default agent would have no thread there and
+        drop it. A sigil always wins, so naming another agent still switches.
+        This picks the agent only: whether the message opens a turn at all is
+        the trigger gate's call."""
         named = _parse_sigil(
             content=event.data.processed.content,
             sigil=capabilities.addressing.sigils.agent,
@@ -2561,17 +2564,23 @@ def _is_trigger(
     event: ChannelInboxEvent,
     space: ChannelSpace,
     policy: ChannelEffectivePolicy,
-    thread: Optional[ChannelThread],
+    resolved_token: Optional[str],
     capabilities: ChannelCapabilities,
 ) -> bool:
-    """Does this stored message open a turn? See the gate in `resolve`. An
-    answer to a pending choice needs no case of its own: a choice is pending
-    only on an active thread, and an active thread admits the message."""
+    """Does this stored message open a turn? See the gate in `resolve`.
+
+    A 1:1 DM is addressed by nature. Anywhere shared (a channel thread, a
+    group DM, a Telegram group) the message has to be addressed: a mention
+    or sigil, a command, or an answer to the choice the agent has pending
+    in this thread (`resolved_token`, so a typed "Approve" or "2" works
+    without a mention). A thread the agent already answered in admits
+    nothing by itself; what was said there since reaches the agent as
+    context on the next addressed message."""
     from oss.src.core.channels.commands import parse_command
 
     if space.kind is ChannelSpaceKind.PRIVATE:
         return True
-    if thread is not None and thread.flags.is_active:
+    if resolved_token is not None:
         return True
     triggers = policy.triggers
     content = event.data.processed.content
@@ -2767,9 +2776,10 @@ def _channel_defaults(capabilities: ChannelCapabilities):
 
     return ChannelPolicy(
         # What runs a turn unless a level narrows it: being spoken to (a
-        # mention or an agent sigil), a command, or a button. A DM and a
-        # follow-up inside a thread the agent already answered in are
-        # admitted by `resolve` regardless -- they are addressed by nature.
+        # mention or an agent sigil), a command, or a button. A 1:1 DM and
+        # an answer to a pending choice are admitted by `resolve`
+        # regardless -- they are addressed by nature. A follow-up in a
+        # thread the agent already answered in is not.
         triggers={
             ChannelTriggerKind.MENTION,
             ChannelTriggerKind.COMMAND,
