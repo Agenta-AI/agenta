@@ -56,6 +56,7 @@ __all__ = [
     "ChannelDestinationsQueryRequest",
     "ChannelMessageSendRequest",
     "ChannelMessagesReadRequest",
+    "ChannelMessagesSearchRequest",
     "ChannelToolsAvailabilityRequest",
     "ChannelToolsAvailabilityResponse",
     "AgentaConversationItem",
@@ -193,3 +194,12 @@ class ChannelMessagesReadRequest(_ChannelToolRequest):
     thread_id: Optional[str] = Field(default=None, max_length=256)
     limit: Optional[int] = Field(default=None, ge=1, le=200)
     cursor: Optional[str] = Field(default=None, max_length=256)
+
+
+class ChannelMessagesSearchRequest(_ChannelToolRequest):
+    query: str = Field(min_length=1, max_length=500)
+    destination_ids: Optional[List[str]] = Field(default=None, max_length=100)
+    after: Optional[datetime] = None
+    before: Optional[datetime] = None
+    limit: Optional[int] = Field(default=None, ge=1, le=50)
+    cursor: Optional[str] = Field(default=None, max_length=64)

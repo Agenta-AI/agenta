@@ -51,3 +51,26 @@ class ChannelMessagesPage(BaseModel):
     # pages to older messages; None when there is nothing older to read
     cursor: Optional[str] = None
     notes: List[str] = Field(default_factory=list)
+
+
+class ChannelSearchResultItem(BaseModel):
+    message_id: str
+    destination_id: str
+    channel_name: Optional[str] = None
+    thread_id: Optional[str] = None
+    sender_name: Optional[str] = None
+    excerpt: str = ""
+    sent_at: Optional[datetime] = None
+
+
+class ChannelSearchedChannel(BaseModel):
+    destination_id: str
+    name: Optional[str] = None
+    coverage: str
+
+
+class ChannelSearchResult(BaseModel):
+    results: List[ChannelSearchResultItem] = Field(default_factory=list)
+    cursor: Optional[str] = None
+    # every channel the query ran over, each with what that search could see
+    searched: List[ChannelSearchedChannel] = Field(default_factory=list)

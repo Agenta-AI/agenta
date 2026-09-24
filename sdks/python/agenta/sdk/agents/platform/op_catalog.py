@@ -1694,6 +1694,46 @@ _CHANNEL_READ_INPUT_SCHEMA: Dict[str, Any] = {
     "required": ["destination_id"],
 }
 
+_CHANNEL_SEARCH_DESCRIPTION = (
+    "Search the messages Agenta stored from the Slack channels and Telegram groups you may "
+    "read, by words (web-search syntax: quotes for phrases, - to exclude). Covers only messages "
+    "since the bot joined each channel; the result's `searched` list says what each search "
+    "covered. Pass destination_ids to search only some channels, and a result's thread_id to "
+    "read_channel_messages to see the conversation around it."
+)
+
+_CHANNEL_SEARCH_INPUT_SCHEMA: Dict[str, Any] = {
+    "type": "object",
+    "additionalProperties": False,
+    "properties": {
+        "query": {"type": "string", "minLength": 1, "maxLength": 500},
+        "destination_ids": {
+            "type": "array",
+            "items": {"type": "string", "maxLength": 256},
+            "maxItems": 100,
+            "description": "Optional. Only these destinations; default all readable ones.",
+        },
+        "after": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Optional. Only messages at or after this time (ISO 8601).",
+        },
+        "before": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Optional. Only messages at or before this time (ISO 8601).",
+        },
+        "limit": {"type": "integer", "minimum": 1, "maximum": 50},
+        "cursor": {
+            "type": "string",
+            "maxLength": 64,
+            "description": "The cursor from the previous page.",
+        },
+        "artifact_id": _BOUND_FROM_RUN_SCHEMA,
+    },
+    "required": ["query"],
+}
+
 _CHANNEL_TOOL_OPS: tuple = (
     PlatformOp(
         op="list_channel_destinations",
@@ -1728,6 +1768,15 @@ _CHANNEL_TOOL_OPS: tuple = (
         method="POST",
         path="/api/channels/tools/messages/read",
         input_schema=_CHANNEL_READ_INPUT_SCHEMA,
+        context_bindings={"artifact_id": "$ctx.workflow.artifact.id"},
+        read_only=True,
+    ),
+    PlatformOp(
+        op="search_channel_messages",
+        description=_CHANNEL_SEARCH_DESCRIPTION,
+        method="POST",
+        path="/api/channels/tools/messages/search",
+        input_schema=_CHANNEL_SEARCH_INPUT_SCHEMA,
         context_bindings={"artifact_id": "$ctx.workflow.artifact.id"},
         read_only=True,
     ),

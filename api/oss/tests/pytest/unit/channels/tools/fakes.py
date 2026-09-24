@@ -259,6 +259,31 @@ class FakeToolsDAO:
         rows.sort(key=lambda pair: pair[0].created_at, reverse=True)
         return rows[:limit]
 
+    async def search_space_inbox_messages(
+        self,
+        *,
+        project_id,
+        space_ids,
+        query,
+        after=None,
+        before=None,
+        limit,
+        offset=0,
+    ):
+        self.searches.append({"space_ids": list(space_ids), "query": query})
+        words = query.lower().split()
+        rows = [
+            e
+            for e in self.inbox
+            if e.space_id in set(space_ids)
+            and e.kind is ChannelEventKind.MESSAGE
+            and all(w in e.data.processed.content[0]["text"].lower() for w in words)
+            and (after is None or e.sent_at >= after)
+            and (before is None or e.sent_at <= before)
+        ]
+        rows.sort(key=lambda e: (e.sent_at, str(e.id)), reverse=True)
+        return rows[offset : offset + limit]
+
     # --- outbox --- #
 
     async def fetch_outbox_event_by_key(self, *, project_id, key):

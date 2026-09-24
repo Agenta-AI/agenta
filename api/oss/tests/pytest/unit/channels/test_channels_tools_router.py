@@ -83,6 +83,7 @@ ROUTES = [
         "/tools/messages/read",
         {"artifact_id": ARTIFACT_ID, "destination_id": f"dst_{uuid4().hex}"},
     ),
+    ("/tools/messages/search", {"artifact_id": ARTIFACT_ID, "query": "refund"}),
 ]
 
 
@@ -225,3 +226,17 @@ def test_read_rejects_a_limit_over_200(service):
 
     assert response.status_code == 422
     service.read_messages.assert_not_called()
+
+
+def test_search_rejects_a_limit_over_50(service):
+    client, patcher = _client(service)
+    try:
+        response = client.post(
+            "/tools/messages/search",
+            json={"artifact_id": ARTIFACT_ID, "query": "x", "limit": 51},
+        )
+    finally:
+        patcher.stop()
+
+    assert response.status_code == 422
+    service.search_messages.assert_not_called()

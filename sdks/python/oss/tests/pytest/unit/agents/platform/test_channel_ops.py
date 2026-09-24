@@ -22,10 +22,12 @@ async def _spec(connection, op):
 
 
 def test_channel_tool_ops_are_the_kit_group():
-    assert set(CHANNEL_TOOL_OPS) >= {
+    assert CHANNEL_TOOL_OPS == (
         "list_channel_destinations",
         "send_channel_message",
-    }
+        "read_channel_messages",
+        "search_channel_messages",
+    )
 
 
 @pytest.mark.asyncio
@@ -90,3 +92,15 @@ async def test_read_channel_messages_is_read_only_and_hides_artifact_binding(
         "limit",
         "cursor",
     }
+
+
+@pytest.mark.asyncio
+async def test_search_channel_messages_is_read_only_and_limited_to_50(connection):
+    spec = await _spec(connection, "search_channel_messages")
+
+    assert spec.read_only is True
+    assert spec.call.path == "/api/channels/tools/messages/search"
+    assert spec.call.context == {"artifact_id": "$ctx.workflow.artifact.id"}
+    schema = get_platform_op("search_channel_messages").resolved_input_schema()
+    assert schema["properties"]["limit"]["maximum"] == 50
+    assert "artifact_id" not in schema["properties"]

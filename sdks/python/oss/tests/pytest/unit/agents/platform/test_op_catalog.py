@@ -77,6 +77,7 @@ def test_catalog_ships_platform_builder_ops():
         "list_channel_destinations",
         "send_channel_message",
         "read_channel_messages",
+        "search_channel_messages",
     }
 
 

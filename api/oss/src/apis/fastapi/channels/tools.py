@@ -16,6 +16,7 @@ from oss.src.apis.fastapi.channels.models import (
     ChannelDestinationsQueryRequest,
     ChannelMessageSendRequest,
     ChannelMessagesReadRequest,
+    ChannelMessagesSearchRequest,
 )
 from oss.src.apis.fastapi.shared.exceptions import FORBIDDEN_EXCEPTION
 from oss.src.core.access.permissions.service import check_action_access
@@ -23,6 +24,7 @@ from oss.src.core.access.permissions.types import Permission
 from oss.src.core.channels.tools.dtos import (
     ChannelDestinationsPage,
     ChannelMessagesPage,
+    ChannelSearchResult,
     ChannelSendResult,
 )
 from oss.src.core.channels.tools.types import (
@@ -90,6 +92,13 @@ class ChannelToolsRouter:
             methods=["POST"],
             operation_id="read_channel_messages",
             response_model=ChannelMessagesPage,
+        )
+        self.router.add_api_route(
+            "/tools/messages/search",
+            self.search_channel_messages,
+            methods=["POST"],
+            operation_id="search_channel_messages",
+            response_model=ChannelSearchResult,
         )
 
     async def _check(self, request: Request) -> UUID:
@@ -169,6 +178,26 @@ class ChannelToolsRouter:
             artifact_id=body.artifact_id,
             destination_id=body.destination_id,
             thread_id=body.thread_id,
+            limit=body.limit,
+            cursor=body.cursor,
+        )
+
+    @intercept_exceptions()
+    @handle_channel_tools_exceptions()
+    async def search_channel_messages(
+        self,
+        request: Request,
+        *,
+        body: ChannelMessagesSearchRequest,
+    ) -> ChannelSearchResult:
+        project_id = await self._check(request)
+        return await self.tools_service.search_messages(
+            project_id=project_id,
+            artifact_id=body.artifact_id,
+            query=body.query,
+            destination_ids=body.destination_ids,
+            after=body.after,
+            before=body.before,
             limit=body.limit,
             cursor=body.cursor,
         )

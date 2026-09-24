@@ -36,6 +36,9 @@ from oss.src.core.channels.tools.dtos import (
     ChannelDestinationsPage,
     ChannelMessage,
     ChannelMessagesPage,
+    ChannelSearchedChannel,
+    ChannelSearchResult,
+    ChannelSearchResultItem,
     ChannelSendResult,
 )
 from oss.src.core.channels.tools.ids import (
@@ -114,6 +117,17 @@ TELEGRAM_READ_NOTE = (
     "the bot received. In groups where the bot's privacy mode is on, that is "
     "only messages addressed to the bot."
 )
+
+SEARCH_DEFAULT_LIMIT = 20
+SEARCH_MAX_LIMIT = 50
+_EXCERPT_CHARS = 300
+
+SEARCH_OFF_MESSAGE = (
+    "Reading and search are turned off for every channel of this agent's bots "
+    "in their Channels settings, so there is nothing to search."
+)
+SLACK_SEARCH_COVERAGE = "Searched messages since the bot joined this channel."
+TELEGRAM_SEARCH_COVERAGE = "Searched only the messages the bot received in this group."
 
 TELEGRAM_LIST_NOTE = (
     "Telegram bots cannot list the chats they are in, so this shows only groups "
@@ -651,6 +665,94 @@ class ChannelToolsService:
 
         ordered = sorted(merged.values(), key=lambda item: float(item[0]), reverse=True)
         return ordered[:limit]
+
+    # --- search ----------------------------------------------------------- #
+
+    async def search_messages(
+        self,
+        *,
+        project_id: UUID,
+        artifact_id: UUID,
+        query: str,
+        destination_ids: Optional[List[str]] = None,
+        after: Optional[datetime] = None,
+        before: Optional[datetime] = None,
+        limit: Optional[int] = None,
+        cursor: Optional[str] = None,
+    ) -> ChannelSearchResult:
+        """Stored messages of the channels this agent may read now. Access is
+        decided when the query runs, not when a message was stored; direct
+        messages and other projects' spaces are never in the set."""
+
+        bots = await self.resolve_bots(project_id=project_id, artifact_id=artifact_id)
+        if not bots:
+            raise ChannelToolsRefused(NO_BOT_MESSAGE)
+
+        readable: List[_Destination] = []
+        for bot in bots:
+            readable.extend(
+                destination
+                for destination in await self._destinations(
+                    project_id=project_id, bot=bot
+                )
+                if bot.can_read(destination.space)
+            )
+        if not readable and all(
+            bot.agent.data.tools.readable_space_keys == [] for bot in bots
+        ):
+            raise ChannelToolsRefused(SEARCH_OFF_MESSAGE)
+        if destination_ids is not None:
+            wanted = {decode_destination_id(value) for value in destination_ids}
+            readable = [d for d in readable if d.space.id in wanted]
+
+        searched = [
+            ChannelSearchedChannel(
+                destination_id=encode_destination_id(d.space.id),
+                name=d.name,
+                coverage=(
+                    SLACK_SEARCH_COVERAGE
+                    if d.bot.is_slack
+                    else TELEGRAM_SEARCH_COVERAGE
+                ),
+            )
+            for d in readable
+        ]
+        if not readable:
+            return ChannelSearchResult(searched=searched)
+
+        size = min(max(limit or SEARCH_DEFAULT_LIMIT, 1), SEARCH_MAX_LIMIT)
+        offset = _offset(cursor)
+        rows = await self.channels_dao.search_space_inbox_messages(
+            project_id=project_id,
+            space_ids=[d.space.id for d in readable],
+            query=query,
+            after=after,
+            before=before,
+            limit=size + 1,
+            offset=offset,
+        )
+
+        by_space = {d.space.id: d for d in readable}
+        results = []
+        for event in rows[:size]:
+            destination = by_space[event.space_id]
+            _, message = _stored_person_message(event.space_id, event)
+            results.append(
+                ChannelSearchResultItem(
+                    message_id=message.message_id,
+                    destination_id=encode_destination_id(event.space_id),
+                    channel_name=destination.name,
+                    thread_id=message.thread_id,
+                    sender_name=message.sender_name,
+                    excerpt=message.text[:_EXCERPT_CHARS],
+                    sent_at=message.sent_at,
+                )
+            )
+        return ChannelSearchResult(
+            results=results,
+            cursor=str(offset + size) if len(rows) > size else None,
+            searched=searched,
+        )
 
     async def _bound_to_project(
         self,
