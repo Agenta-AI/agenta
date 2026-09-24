@@ -8,18 +8,21 @@ import {
     type AgentStarterTemplate,
     type TemplateConnection,
 } from "../agentTemplates"
+import {fetchAgentBuildKitOverlay} from "../api"
 import {
     loadAgentTemplate,
     type AgentTemplateLoadRequest,
     type AgentTemplateLoadResult,
 } from "../api/agentTemplates"
+import {resolveBuildKitPermissions, type BuildKitUiState} from "../buildKitPolicy"
 
 import {buildCreatePayloadFromEphemeral} from "./createPayload"
 import {
     consumeWorkflowDraftAtom,
     invalidateWorkflowsListCache,
-    workflowBuildKitEnabledAtomFamily,
-    workflowBuildKitDisabledOpsAtomFamily,
+    workflowBuildKitUiStateAtomFamily,
+    workflowAgentTemplateOverlayAtomFamily,
+    transferBuildKitStateAtom,
 } from "./store"
 
 export interface LoadAgentTemplateFromEphemeralParams {
@@ -61,6 +64,7 @@ export const templateConnectionChoices = (
 }
 
 interface LoadIntent {
+    buildKitState?: BuildKitUiState
     key: string
     request: Omit<AgentTemplateLoadRequest, "project_id">
 }
@@ -117,32 +121,43 @@ export const loadAgentTemplateFromEphemeralAtom = atom(
 
         const pending = (async () => {
             const {data} = buildCreatePayloadFromEphemeral(get, revisionId)
+            const buildKitState = get(workflowBuildKitUiStateAtomFamily(revisionId))
+            const overlay =
+                get(workflowAgentTemplateOverlayAtomFamily(revisionId)) ??
+                (buildKitState.enabled ? await fetchAgentBuildKitOverlay(projectId) : null)
+            if (buildKitState.enabled && !overlay)
+                throw new Error(
+                    "The build kit is still loading. Try again before starting the template.",
+                )
             const seedMessage = initialMessage?.trim() || templateBuilderMessage(template)
             const intentScope = `agent-template-intent:${projectId}:${template.source.key}`
             const intent = readIntent(intentScope) ?? {
                 key: `agent-template:${revisionId}:${template.source.key}`,
+                buildKitState,
                 request: {
                     source: template.source,
                     base_revision: (data ?? {}) as AgentaApi.WorkflowRevisionDataInput,
                     initial_message: seedMessage,
                     staging_session_id: stagingSessionId,
                     attachment_ids: attachmentIds,
-                    ui_build_kit_enabled: get(workflowBuildKitEnabledAtomFamily(revisionId)),
-                    ui_disabled_ops: get(workflowBuildKitDisabledOpsAtomFamily(revisionId)),
+                    ui_build_kit_enabled: buildKitState.enabled,
+                    ui_disabled_ops: buildKitState.disabledOps,
+                    ui_op_permissions: resolveBuildKitPermissions(overlay, buildKitState),
                     connection_choices: templateConnectionChoices(template, setup),
                 },
             }
             saveIntent(intentScope, intent)
             const result = await loadAgentTemplate(intent.request, intent.key, projectId)
 
-            set(
-                workflowBuildKitEnabledAtomFamily(result.revision_id),
-                intent.request.ui_build_kit_enabled ?? false,
-            )
-            set(
-                workflowBuildKitDisabledOpsAtomFamily(result.revision_id),
-                intent.request.ui_disabled_ops ?? [],
-            )
+            set(transferBuildKitStateAtom, {
+                revisionId,
+                workflowId: result.workflow_id,
+                state: intent.buildKitState ?? {
+                    enabled: intent.request.ui_build_kit_enabled ?? false,
+                    disabledOps: intent.request.ui_disabled_ops ?? [],
+                    permissionOverrides: intent.request.ui_op_permissions ?? {},
+                },
+            })
             set(consumeWorkflowDraftAtom, revisionId)
             invalidateWorkflowsListCache()
             saveIntent(intentScope, null)

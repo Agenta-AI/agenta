@@ -476,7 +476,7 @@ function ToolGroup({
  * The body, once somebody has produced a catalog. Pure in the catalog: it fetches nothing, so the
  * Composio hook and an MCP tool-list request never both fire for one open drawer.
  */
-function PermissionDrawerBody({
+export function PermissionDrawerBody({
     catalog,
     catalogKey,
     emptyLabel,

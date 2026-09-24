@@ -61,6 +61,7 @@ import {
 import {AgentSecretsSection} from "./AgentSecretsSection"
 import {effectiveHarnessValue, enumLabel} from "./agentTemplateUtils"
 import {CatalogUnavailableNotice} from "./CatalogUnavailableNotice"
+import {INTEGRATION_DRAWER_WIDTH} from "./drawerWidths"
 import ModelPickerControl from "./ModelPickerControl"
 import {PermissionPolicySelect} from "./PermissionPolicySelect"
 import {shouldPromptForProviderKey} from "./providerKeyPrompt"
@@ -837,7 +838,6 @@ export function useModelHarness({
         runnerPermissionSummary,
         advancedSummary,
         advancedDrawerBody,
-        // Rail + one panel at a time; 50px over the Model drawer so the build-kit rows breathe.
-        advancedDrawerWidth: 610,
+        advancedDrawerWidth: INTEGRATION_DRAWER_WIDTH,
     }
 }

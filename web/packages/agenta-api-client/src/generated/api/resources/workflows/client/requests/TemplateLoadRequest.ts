@@ -19,6 +19,7 @@ export interface TemplateLoadRequest {
     base_revision: AgentaApi.WorkflowRevisionDataInput;
     ui_build_kit_enabled?: boolean;
     ui_disabled_ops?: string[];
+    ui_op_permissions?: Record<string, "allow" | "ask">;
     staging_session_id?: string | null;
     attachment_ids?: string[];
     initial_message: string;

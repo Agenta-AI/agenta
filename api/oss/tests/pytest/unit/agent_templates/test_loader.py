@@ -643,6 +643,7 @@ async def test_first_message_display_and_run_only_build_kit(enabled):
         update={
             "ui_build_kit_enabled": enabled,
             "ui_disabled_ops": ["create_schedule"],
+            "ui_op_permissions": {"remove_schedule": "ask"},
         }
     )
     await loader.load(project_id=PROJECT_ID, user_id=USER_ID, command=command)
@@ -658,6 +659,13 @@ async def test_first_message_display_and_run_only_build_kit(enabled):
         ops = {t.get("op") for t in agent["tools"]}
         assert any(t.get("name") == "Request input" for t in agent["tools"])
         assert "create_schedule" not in ops
+        assert (
+            next(t for t in agent["tools"] if t.get("op") == "remove_schedule")[
+                "permission"
+            ]
+            == "ask"
+        )
+        assert all(t.get("op") != "remove_schedule" for t in saved["tools"])
         skill_names = [
             skill.get("name")
             or skill["@ag.embed"]["@ag.references"]["workflow"]["slug"]

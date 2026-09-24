@@ -11,7 +11,14 @@ const {createWorkflowMock, loadAgentTemplateMock} = vi.hoisted(() => ({
 
 vi.mock("../../src/workflow/api", async (importOriginal) => {
     const actual = await importOriginal<typeof import("../../src/workflow/api")>()
-    return {...actual, createWorkflow: createWorkflowMock}
+    return {
+        ...actual,
+        createWorkflow: createWorkflowMock,
+        fetchAgentBuildKitOverlay: vi.fn(async () => ({
+            tools: [{type: "platform", op: "create_schedule", permission: "allow"}],
+            op_access: {create_schedule: "write"},
+        })),
+    }
 })
 
 vi.mock("../../src/workflow/api/agentTemplates", () => ({
@@ -151,7 +158,7 @@ describe("template package loading", () => {
         const first = store.set(loadAgentTemplateFromEphemeralAtom, params)
         const second = store.set(loadAgentTemplateFromEphemeralAtom, params)
 
-        expect(loadAgentTemplateMock).toHaveBeenCalledTimes(1)
+        await vi.waitFor(() => expect(loadAgentTemplateMock).toHaveBeenCalledTimes(1))
         const result = {
             workflow_id: "loaded-workflow",
             workflow_slug: "pr-reviewer",

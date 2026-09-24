@@ -706,7 +706,8 @@ _BUILD_LOOP_ORDERED = """\
    `references/trigger-inputs.md` first. For a schedule, cron is UTC, five fields, one-minute
    floor; convert the person's timezone yourself, then `create_schedule`. For an event,
    `discover_triggers`, check that the returned event description really fits the ask (the
-   match is keyword search), then `create_subscription`. Both are approval stops. A trigger
+   match is keyword search), then `create_subscription`. Use the configured permission gate;
+   do not add a conversational confirmation for an allowed call. A trigger
    pins the revision it was created on: after a later commit, re-point it.
 5. Say what changed in two or three sentences, offer a test, and stop. Run `test_run` only if
    the person asks. When you do, read `verdict`, `tools`, and `approvals`, not the status
