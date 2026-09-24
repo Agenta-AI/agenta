@@ -120,31 +120,33 @@ export const loadAgentTemplateFromEphemeralAtom = atom(
         if (existing) return existing
 
         const pending = (async () => {
-            const {data} = buildCreatePayloadFromEphemeral(get, revisionId)
-            const buildKitState = get(workflowBuildKitUiStateAtomFamily(revisionId))
-            const overlay =
-                get(workflowAgentTemplateOverlayAtomFamily(revisionId)) ??
-                (buildKitState.enabled ? await fetchAgentBuildKitOverlay(projectId) : null)
-            if (buildKitState.enabled && !overlay)
-                throw new Error(
-                    "The build kit is still loading. Try again before starting the template.",
-                )
-            const seedMessage = initialMessage?.trim() || templateBuilderMessage(template)
             const intentScope = `agent-template-intent:${projectId}:${template.source.key}`
-            const intent = readIntent(intentScope) ?? {
-                key: `agent-template:${revisionId}:${template.source.key}`,
-                buildKitState,
-                request: {
-                    source: template.source,
-                    base_revision: (data ?? {}) as AgentaApi.WorkflowRevisionDataInput,
-                    initial_message: seedMessage,
-                    staging_session_id: stagingSessionId,
-                    attachment_ids: attachmentIds,
-                    ui_build_kit_enabled: buildKitState.enabled,
-                    ui_disabled_ops: buildKitState.disabledOps,
-                    ui_op_permissions: resolveBuildKitPermissions(overlay, buildKitState),
-                    connection_choices: templateConnectionChoices(template, setup),
-                },
+            let intent = readIntent(intentScope)
+            if (!intent) {
+                const {data} = buildCreatePayloadFromEphemeral(get, revisionId)
+                const buildKitState = get(workflowBuildKitUiStateAtomFamily(revisionId))
+                const overlay =
+                    get(workflowAgentTemplateOverlayAtomFamily(revisionId)) ??
+                    (buildKitState.enabled ? await fetchAgentBuildKitOverlay(projectId) : null)
+                if (buildKitState.enabled && !overlay)
+                    throw new Error(
+                        "The build kit is still loading. Try again before starting the template.",
+                    )
+                intent = {
+                    key: `agent-template:${revisionId}:${template.source.key}`,
+                    buildKitState,
+                    request: {
+                        source: template.source,
+                        base_revision: (data ?? {}) as AgentaApi.WorkflowRevisionDataInput,
+                        initial_message: initialMessage?.trim() || templateBuilderMessage(template),
+                        staging_session_id: stagingSessionId,
+                        attachment_ids: attachmentIds,
+                        ui_build_kit_enabled: buildKitState.enabled,
+                        ui_disabled_ops: buildKitState.disabledOps,
+                        ui_op_permissions: resolveBuildKitPermissions(overlay, buildKitState),
+                        connection_choices: templateConnectionChoices(template, setup),
+                    },
+                }
             }
             saveIntent(intentScope, intent)
             const result = await loadAgentTemplate(intent.request, intent.key, projectId)

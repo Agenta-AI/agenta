@@ -101,6 +101,22 @@ describe("agent build kit policy", () => {
         })
     })
 
+    it("does not reserve the agent scope before there is a policy to migrate", async () => {
+        backing.set(
+            "agenta:playground:build-kit",
+            JSON.stringify({old: {enabled: true, disabledOps: ["remove_schedule"]}}),
+        )
+        const {mod, store} = await load(backing)
+        seed(mod, store, "new", "agent")
+        seed(mod, store, "old", "agent")
+        store.set(mod.migrateBuildKitStateAtom, "new")
+        expect(backing.has("agenta:playground:build-kit:agents")).toBe(false)
+        store.set(mod.migrateBuildKitStateAtom, "old")
+        expect(store.get(mod.workflowBuildKitDisabledOpsAtomFamily("new"))).toEqual([
+            "remove_schedule",
+        ])
+    })
+
     it("transfers staging choices once to a newly created agent", async () => {
         const {mod, store} = await load(backing)
         store.set(mod.workflowBuildKitUiStateAtomFamily("local-new"), {

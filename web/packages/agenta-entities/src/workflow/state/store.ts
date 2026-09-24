@@ -1572,11 +1572,12 @@ export const workflowBuildKitUiStateAtomFamily = atomFamily((revisionId: string)
 // Promote legacy/staged choices before a run or commit can move to another revision.
 export const migrateBuildKitStateAtom = atom(null, (get, set, revisionId: string) => {
     const scope = get(workflowBuildKitScopeAtomFamily(revisionId))
-    if (!scope || get(buildKitStateByAgentAtom)?.[scope]) return
-    set(
-        workflowBuildKitUiStateAtomFamily(revisionId),
-        get(workflowBuildKitUiStateAtomFamily(revisionId)),
-    )
+    const all = get(buildKitStateByAgentAtom)
+    if (!scope || all?.[scope]) return
+    const staged = `${get(workflowProjectIdAtom)}:staging:${revisionId}`
+    const saved = all?.[staged] ?? get(legacyBuildKitStateAtom)?.[revisionId]
+    if (saved == null) return
+    set(workflowBuildKitUiStateAtomFamily(revisionId), normalizeBuildKitState(saved))
 })
 
 export const transferBuildKitStateAtom = atom(
