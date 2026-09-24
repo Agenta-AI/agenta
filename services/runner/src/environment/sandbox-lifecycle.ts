@@ -139,13 +139,92 @@ export interface SandboxTeardownInput {
 }
 
 /**
+ * How long any one provider teardown call may take before teardown moves on without it.
+ *
+ * "NEVER THROWS" WAS NOT ENOUGH. Every call below already swallowed its rejection, but a call
+ * that never SETTLES hangs teardown just as hard, and teardown is what the failed run is waiting
+ * on before it can answer the caller. That is not hypothetical: with an ACP request still in
+ * flight against the daemon (an adapter that accepted `session/new` and never replied), the local
+ * provider's dispose does not return, so a run that had already decided to fail never reached the
+ * client at all. Bounding each step is what makes the promise in this doc true.
+ *
+ * The abandoned call keeps running; it is not cancelled, only stopped being waited on. Its own
+ * backstops still apply: a Daytona delete has the provider's retry and the auto-stop timer behind
+ * it, and a local daemon dies with the runner process.
+ *
+ * 30 seconds is well above a healthy stop or delete (hundreds of ms locally, a few seconds on
+ * Daytona) and well below the API's 15-minute watchdog, which is the deadline this is racing.
+ */
+const TEARDOWN_STEP_TIMEOUT_MS = 30_000;
+
+/**
+ * Await one call, but never longer than the budget. Answers whether it settled in time.
+ *
+ * The work is NOT cancelled on expiry, only abandoned, so a no-op rejection handler goes on it up
+ * front: the race still sees a rejection, and a late one cannot surface as an `unhandledRejection`
+ * that the server prints as a mystery long after the run ended.
+ */
+async function withTeardownBudget(
+  work: Promise<unknown>,
+  onTimeout: () => void,
+): Promise<boolean> {
+  work.catch(() => {});
+  const expired = Symbol("expired");
+  let timer: NodeJS.Timeout | undefined;
+  try {
+    const outcome = await Promise.race([
+      work.then(() => "settled" as const),
+      new Promise<typeof expired>((resolve) => {
+        timer = setTimeout(() => resolve(expired), TEARDOWN_STEP_TIMEOUT_MS);
+        timer.unref?.();
+      }),
+    ]);
+    if (outcome === expired) {
+      onTimeout();
+      return false;
+    }
+    return true;
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+/**
+ * Run one teardown step to completion, to failure, or to the budget, whichever comes first.
+ *
+ * Swallows a rejection like the call sites always did, and reports either outcome, because an
+ * unfinished stop or delete is the only warning an operator gets that a sandbox may still exist.
+ */
+async function boundedStep(
+  step: string,
+  work: Promise<unknown> | undefined,
+  sandboxLogId: string | undefined,
+  harness: string,
+  log: Log,
+): Promise<void> {
+  if (!work) return;
+  await withTeardownBudget(
+    work.catch((err: unknown) => {
+      log(
+        `sandbox ${step} failed sandbox=${sandboxLogId}: ${conciseError(err, harness)}`,
+      );
+    }),
+    () =>
+      log(
+        `sandbox ${step} did not finish within ${TEARDOWN_STEP_TIMEOUT_MS}ms sandbox=${sandboxLogId}; ` +
+          "continuing teardown without it",
+      ),
+  );
+}
+
+/**
  * Stop or delete the sandbox, and say which happened.
  *
  * `parked` is returned because the caller needs it: a parked Daytona sandbox keeps its agent
  * mount, so the mount unit's teardown is gated on this answer. That coupling is why the composer
  * still sequences the units rather than each unit tearing itself down independently.
  *
- * Never throws. Teardown must always complete.
+ * Never throws, and never hangs: each provider call is bounded (see `TEARDOWN_STEP_TIMEOUT_MS`).
  */
 export async function teardown(
   input: SandboxTeardownInput,
@@ -156,14 +235,23 @@ export async function teardown(
   let parked = false;
 
   if (disposition === "stop" && input.isDaytona && sandbox?.pauseSandbox) {
+    // A pause that times out is NOT treated as parked: `parked` gates whether the agent mount is
+    // torn down, and claiming a park we never confirmed would strand the mount.
+    let paused = false;
     try {
-      await sandbox.pauseSandbox();
-      parked = true;
-      log(`parked sandbox=${sandboxLogId}`);
+      paused = await withTeardownBudget(sandbox.pauseSandbox(), () =>
+        log(
+          `pause did not finish within ${TEARDOWN_STEP_TIMEOUT_MS}ms sandbox=${sandboxLogId}`,
+        ),
+      );
     } catch (err) {
       log(
         `pause failed sandbox=${sandboxLogId}: ${conciseError(err, input.harness)}`,
       );
+    }
+    if (paused) {
+      parked = true;
+      log(`parked sandbox=${sandboxLogId}`);
     }
   }
 
@@ -178,17 +266,21 @@ export async function teardown(
     // at all. The Daytona provider arms its own retry on this same failure; this line is what
     // tells an operator it happened. `conciseError` reads only the top-level message, which for
     // a Secret cleanup failure is a fixed sentence, so no Secret id or value can reach the log.
-    await sandbox?.destroySandbox?.().catch((err) => {
-      log(
-        `sandbox delete failed sandbox=${sandboxLogId}: ${conciseError(err, input.harness)}`,
-      );
-    });
-  }
-  await sandbox?.dispose?.().catch((err) => {
-    log(
-      `sandbox dispose failed sandbox=${sandboxLogId}: ${conciseError(err, input.harness)}`,
+    await boundedStep(
+      "delete",
+      sandbox?.destroySandbox?.(),
+      sandboxLogId,
+      input.harness,
+      log,
     );
-  });
+  }
+  await boundedStep(
+    "dispose",
+    sandbox?.dispose?.(),
+    sandboxLogId,
+    input.harness,
+    log,
+  );
 
   return { parked };
 }
