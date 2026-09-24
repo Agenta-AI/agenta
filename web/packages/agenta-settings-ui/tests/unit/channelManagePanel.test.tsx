@@ -156,9 +156,9 @@ it("shows no read-only settings: Advanced holds only editable controls and no St
     const advanced = container.querySelector('[data-testid="channels-advanced"]')!
     // Every setting in the section is a control the user can change: the posting switch and
     // the readable-channels choice. Nothing is shown as a fixed value.
-    const controls = [
-        ...advanced.querySelectorAll('[data-testid^="channels-advanced-"]'),
-    ].map((node) => node.getAttribute("data-testid"))
+    const controls = [...advanced.querySelectorAll('[data-testid^="channels-advanced-"]')].map(
+        (node) => node.getAttribute("data-testid"),
+    )
     expect(controls).toEqual([
         "channels-advanced-toggle",
         "channels-advanced-post",
