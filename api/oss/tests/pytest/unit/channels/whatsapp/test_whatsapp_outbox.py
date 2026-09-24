@@ -774,3 +774,52 @@ async def test_a_refused_typing_indicator_is_not_retried_and_never_blocks_the_re
 
     assert graph.typing_attempts == 1
     assert graph.texts_to(p.CUSTOMER) == ["answer"]
+
+
+async def test_metas_temporary_maintenance_is_retried_not_refused(
+    service, dao, graph, records
+):
+    """131057: the number is under maintenance (a throughput upgrade takes
+    up to a minute). The reply goes out on the stream's retry."""
+
+    worker = _worker(service, records)
+    _, space, thread = dao.seed_whatsapp()
+    dao.customer_wrote(space)
+    _answer(records, thread, "t1", "answer")
+    graph.fail_next(131057, message="Business account is in maintenance mode")
+
+    with pytest.raises(Exception):
+        await _end(worker, thread, "t1")
+    await _end(worker, thread, "t1")  # the stream redelivers it
+
+    assert graph.texts_to(p.CUSTOMER) == ["answer"]
+
+
+async def test_a_database_error_checking_the_window_keeps_the_reply_retryable(
+    service, dao, graph, records, monkeypatch
+):
+    worker = _worker(service, records)
+    _, space, thread = dao.seed_whatsapp()
+    dao.customer_wrote(space, ago=timedelta(days=2))
+    _answer(records, thread, "t1", "held answer")
+    await _end(worker, thread, "t1")
+    dao.customer_wrote(space, message_id="wamid.BACK")
+
+    real_query = dao.query_inbox_events
+    calls = {"n": 0}
+
+    async def flaky_query(**kwargs):
+        calls["n"] += 1
+        if calls["n"] == 2:  # the window check inside the held reply's delivery
+            raise TimeoutError("connection pool exhausted")
+        return await real_query(**kwargs)
+
+    monkeypatch.setattr(dao, "query_inbox_events", flaky_query)
+    _answer(records, thread, "t2", "new answer")
+    with pytest.raises(TimeoutError):
+        await _end(worker, thread, "t2")
+    assert len(dao.rows(ChannelDeliveryState.HELD)) == 1
+
+    await _end(worker, thread, "t2")  # the stream redelivers it
+
+    assert graph.texts_to(p.CUSTOMER) == ["held answer", "new answer"]

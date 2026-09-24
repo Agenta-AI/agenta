@@ -894,15 +894,25 @@ class ChannelsOutboxWorker:
         # post whose outcome is unknown is never retried (see below).
         idempotency_key = delivery_key
 
+        # Our own read, before any platform call: a failure here says nothing
+        # about the message, so it is released for a retry, never classified.
+        window = capabilities.conversation.reply_window_seconds
         try:
-            window = capabilities.conversation.reply_window_seconds
-            if (
+            window_closed = bool(
                 creates_message
                 and window
                 and not await self._reply_window_open(
                     project_id=project_id, thread=thread, window_seconds=window
                 )
-            ):
+            )
+        except Exception as exc:
+            await self._release_for_retry(
+                project_id=project_id, event=event, claim_token=claim_token, exc=exc
+            )
+            raise
+
+        try:
+            if window_closed:
                 raise ChannelDeliveryHeld(channel=connection.channel)
             if not creates_message:
                 receipt = await adapter.edit_message(
@@ -1014,18 +1024,9 @@ class ChannelsOutboxWorker:
             # The row said CREATED forever after a rejected post, which reads
             # as "not attempted yet" from outside (F87). Write the failure
             # down with the platform's reason, then let the caller's retry
-            # and logging see the error as before. A held reply stays HELD,
-            # so the release that failed for a passing reason runs again.
-            await dao.transition_outbox_event(
-                project_id=project_id,
-                event_id=event.id,
-                state=(
-                    ChannelDeliveryState.HELD
-                    if event.state is ChannelDeliveryState.HELD
-                    else ChannelDeliveryState.FAILED
-                ),
-                status=Status(code="delivery_failed", message=str(exc)[:1000]),
-                claim_token=claim_token,
+            # and logging see the error as before.
+            await self._release_for_retry(
+                project_id=project_id, event=event, claim_token=claim_token, exc=exc
             )
             raise
 
@@ -1052,6 +1053,30 @@ class ChannelsOutboxWorker:
                 event.id,
             )
         return True
+
+    async def _release_for_retry(
+        self,
+        *,
+        project_id: UUID,
+        event: ChannelOutboxEvent,
+        claim_token: Optional[str],
+        exc: BaseException,
+    ) -> None:
+        """Record a failure that may pass and release the claim, so the
+        stream's retry delivers the row again. A held reply stays HELD, so
+        its release runs again too."""
+
+        await self.channels_service.channels_dao.transition_outbox_event(
+            project_id=project_id,
+            event_id=event.id,
+            state=(
+                ChannelDeliveryState.HELD
+                if event.state is ChannelDeliveryState.HELD
+                else ChannelDeliveryState.FAILED
+            ),
+            status=Status(code="delivery_failed", message=str(exc)[:1000]),
+            claim_token=claim_token,
+        )
 
     async def _reply_window_open(
         self, *, project_id: UUID, thread: ChannelThread, window_seconds: int

@@ -34,11 +34,12 @@ log = get_module_logger(__name__)
 _WINDOW_CLOSED = 131047  # more than 24 hours since the customer's last message
 _PAIR_RATE_LIMIT = 131056  # too many messages to one customer too fast
 _TOKEN_INVALID = 190
-# Meta answers throttling with an HTTP 400. These codes are reported as a 429,
-# so the outbox retries them like any rate limit instead of failing the reply:
-# app (4), account (80007), throughput (130429), spam (131048) and pair
-# (131056) rate limits.
-_THROTTLED = {4, 80007, 130429, 131048, _PAIR_RATE_LIMIT}
+# Meta answers "try again later" with an HTTP 400. These codes are reported as
+# a 429, so the outbox retries them like any rate limit instead of failing the
+# reply: app (4), account (80007), throughput (130429), spam (131048) and pair
+# (131056) rate limits, and a number under maintenance (131057, such as a
+# throughput upgrade, which takes up to a minute).
+_TRY_LATER = {4, 80007, 130429, 131048, _PAIR_RATE_LIMIT, 131057}
 
 _PAIR_LIMIT_RETRIES = 2
 _MEDIA_TIMEOUT_SECONDS = 30.0
@@ -369,7 +370,7 @@ class WhatsAppAdapter(ChannelAdapterInterface):
             )
         raise _GraphApiError(
             error=error,
-            status_code=429 if code in _THROTTLED else response.status_code,
+            status_code=429 if code in _TRY_LATER else response.status_code,
             token=token,
         )
 
