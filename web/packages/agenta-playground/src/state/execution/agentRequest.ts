@@ -26,8 +26,9 @@
  */
 import {
     workflowAgentTemplateOverlayAtomFamily,
-    workflowBuildKitEnabledAtomFamily,
-    workflowBuildKitDisabledOpsAtomFamily,
+    workflowBuildKitUiStateAtomFamily,
+    migrateBuildKitStateAtom,
+    resolveBuildKitPermissions,
     workflowMolecule,
     type AgentTemplate,
 } from "@agenta/entities/workflow"
@@ -54,7 +55,7 @@ export interface AgentRequest {
 export const SHARED_SESSION_RESPONSE_HEADER = "x-ag-session-response"
 
 /** Minimal store surface — the default Jotai store, or a test store. */
-type StoreLike = Pick<ReturnType<typeof getDefaultStore>, "get">
+type StoreLike = Pick<ReturnType<typeof getDefaultStore>, "get" | "set">
 
 // Backend rejects local-draft ids; only forward real UUIDs in `references`.
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -328,10 +329,8 @@ export async function buildAgentRequest(
         | undefined
     // The execution sections (`harness`/`runner`/`sandbox`) are nested in the template at
     // `parameters.agent`. Default them, never overriding values the resolved config carries.
-    const buildKitEnabled = store.get(workflowBuildKitEnabledAtomFamily(entityId)) as boolean
-    const buildKitDisabledOps = store.get(
-        workflowBuildKitDisabledOpsAtomFamily(entityId),
-    ) as string[]
+    store.set(migrateBuildKitStateAtom, entityId)
+    const buildKitState = store.get(workflowBuildKitUiStateAtomFamily(entityId))
     const agentTemplateOverlay = store.get(
         workflowAgentTemplateOverlayAtomFamily(entityId),
     ) as AgentTemplate | null
@@ -339,8 +338,9 @@ export async function buildAgentRequest(
         withBuildKitOverlay(
             withAgentRunDefaults(config ?? {}) as Record<string, unknown>,
             agentTemplateOverlay,
-            buildKitEnabled,
-            buildKitDisabledOps,
+            buildKitState.enabled,
+            buildKitState.disabledOps,
+            resolveBuildKitPermissions(agentTemplateOverlay, buildKitState),
         ),
     ) as Record<string, unknown>
 

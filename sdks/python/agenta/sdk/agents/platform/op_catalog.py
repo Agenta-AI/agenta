@@ -554,8 +554,7 @@ _SEARCH_SKILLS_INPUT_SCHEMA: Dict[str, Any] = {
     },
 }
 
-# Skill update sync (read + gated write): the check endpoint never writes; the apply is a
-# write, so under the default policy the approval card IS the user prompt — no extra UI.
+# Skill update checks are reads; applying an update uses the configured permission.
 _CHECK_SKILL_UPDATES_DESCRIPTION = (
     "Check one imported skill against its upstream source, without changing anything. "
     "Reports `update_available` (newer upstream content), `up_to_date`, `detached` "
@@ -578,8 +577,8 @@ _CHECK_SKILL_UPDATES_INPUT_SCHEMA: Dict[str, Any] = {
 
 _APPLY_SKILL_UPDATE_DESCRIPTION = (
     "Commit the upstream version of one imported skill as a new revision. Run "
-    "`check_skill_updates` first and tell the user what changed — this call needs the "
-    "user's approval, and the approval is their yes to updating. Skills edited in "
+    "`check_skill_updates` first and tell the user what changed. Approval follows "
+    "this tool's configured permission. Skills edited in "
     "Agenta report `detached` and are never overwritten; a concurrent edit reports "
     "`conflict` instead of clobbering. Agents referencing the skill by slug "
     "(follow-latest) pick the new version up on their next run; pinned references "
@@ -1252,7 +1251,7 @@ _CREATE_SCHEDULE_DESCRIPTION = (
     "Create a cron schedule that runs this agent. The destination workflow is bound "
     "from the current run context, so only this agent can be scheduled. When no revision "
     "is specified, the schedule binds to the variant's latest revision at creation time "
-    "and does not follow later commits. Requires approval."
+    "and does not follow later commits. Approval follows this tool's configured permission."
 )
 _CREATE_SCHEDULE_INPUT_SCHEMA: Dict[str, Any] = {
     "type": "object",
@@ -1296,7 +1295,7 @@ _CREATE_SUBSCRIPTION_DESCRIPTION = (
     "Create an event subscription that runs this agent when a provider event occurs. "
     "The destination workflow is bound from the current run context. When no revision is "
     "specified, the subscription binds to the variant's latest revision at creation time "
-    "and does not follow later commits. Requires approval."
+    "and does not follow later commits. Approval follows this tool's configured permission."
 )
 _CREATE_SUBSCRIPTION_INPUT_SCHEMA: Dict[str, Any] = {
     "type": "object",
@@ -1332,7 +1331,7 @@ _CREATE_SUBSCRIPTION_INPUT_SCHEMA: Dict[str, Any] = {
 
 _TEST_SUBSCRIPTION_DESCRIPTION = (
     "Open a temporary provider watch, wait for one real matching event, record it as a "
-    "test delivery, and tear the watch down. It does not run the workflow. Requires approval."
+    "test delivery, and tear the watch down. It does not run the workflow. Approval follows this tool's configured permission."
 )
 _TEST_SUBSCRIPTION_INPUT_SCHEMA: Dict[str, Any] = {
     "type": "object",
@@ -1806,7 +1805,7 @@ PLATFORM_OPS: Dict[str, PlatformOp] = {
         ),
         PlatformOp(
             op="remove_schedule",
-            description="Delete a trigger schedule by id. Requires approval.",
+            description="Delete a trigger schedule by id. Approval follows this tool's configured permission.",
             method="DELETE",
             path="/api/triggers/schedules/{id}",
             input_schema=_TRIGGER_ID_INPUT_SCHEMA,
@@ -1814,7 +1813,7 @@ PLATFORM_OPS: Dict[str, PlatformOp] = {
         ),
         PlatformOp(
             op="remove_subscription",
-            description="Delete a trigger subscription by id. Requires approval.",
+            description="Delete a trigger subscription by id. Approval follows this tool's configured permission.",
             method="DELETE",
             path="/api/triggers/subscriptions/{id}",
             input_schema=_TRIGGER_ID_INPUT_SCHEMA,
@@ -1822,7 +1821,7 @@ PLATFORM_OPS: Dict[str, PlatformOp] = {
         ),
         PlatformOp(
             op="pause_schedule",
-            description="Pause a trigger schedule without deleting it. Requires approval.",
+            description="Pause a trigger schedule without deleting it. Approval follows this tool's configured permission.",
             method="POST",
             path="/api/triggers/schedules/{id}/stop",
             input_schema=_TRIGGER_ID_INPUT_SCHEMA,
@@ -1830,7 +1829,7 @@ PLATFORM_OPS: Dict[str, PlatformOp] = {
         ),
         PlatformOp(
             op="resume_schedule",
-            description="Resume a paused trigger schedule. Requires approval.",
+            description="Resume a paused trigger schedule. Approval follows this tool's configured permission.",
             method="POST",
             path="/api/triggers/schedules/{id}/start",
             input_schema=_TRIGGER_ID_INPUT_SCHEMA,
@@ -1838,7 +1837,7 @@ PLATFORM_OPS: Dict[str, PlatformOp] = {
         ),
         PlatformOp(
             op="pause_subscription",
-            description="Pause a trigger subscription without deleting it. Requires approval.",
+            description="Pause a trigger subscription without deleting it. Approval follows this tool's configured permission.",
             method="POST",
             path="/api/triggers/subscriptions/{id}/stop",
             input_schema=_TRIGGER_ID_INPUT_SCHEMA,
@@ -1846,7 +1845,7 @@ PLATFORM_OPS: Dict[str, PlatformOp] = {
         ),
         PlatformOp(
             op="resume_subscription",
-            description="Resume a paused trigger subscription. Requires approval.",
+            description="Resume a paused trigger subscription. Approval follows this tool's configured permission.",
             method="POST",
             path="/api/triggers/subscriptions/{id}/start",
             input_schema=_TRIGGER_ID_INPUT_SCHEMA,

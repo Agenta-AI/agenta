@@ -6,6 +6,7 @@ import type * as AgentaApi from "../index.js";
  * Read-only playground build-kit context for one inspect/fetch response.
  */
 export interface PlaygroundBuildKitContext {
+    op_access?: Record<string, "read" | "write">;
     /** Partial `parameters.agent` overlay applied by the playground only. */
     agent_template_overlay?: (AgentaApi.AgentTemplateOverlay | null) | undefined;
 }

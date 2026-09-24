@@ -1,0 +1,6 @@
+[
+  {"state":{"enabled":true,"disabledOps":[]},"expected":{"read_config":"allow","create_schedule":"allow"}},
+  {"state":{"enabled":true,"disabledOps":[],"permissionDefault":"ask"},"expected":{"read_config":"ask","create_schedule":"ask"}},
+  {"state":{"enabled":true,"disabledOps":[],"permissionDefault":"allow_reads"},"expected":{"read_config":"allow","create_schedule":"ask"}},
+  {"state":{"enabled":true,"disabledOps":["create_schedule"],"permissionDefault":"ask","permissionOverrides":{"read_config":"allow","stale":"ask"}},"expected":{"read_config":"allow"}}
+]

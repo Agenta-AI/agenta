@@ -27,8 +27,8 @@ import {toolActionAvailabilityKey, useToolActionAvailability} from "@agenta/enti
 import type {SchemaProperty} from "@agenta/entities/shared"
 import {
     agentCreationPrefsAtom,
-    workflowBuildKitDisabledOpsAtomFamily,
-    workflowBuildKitEnabledAtomFamily,
+    workflowBuildKitUiStateAtomFamily,
+    migrateBuildKitStateAtom,
     type BuildKitUiState,
 } from "@agenta/entities/workflow"
 import {agentItemIdentity, stableStringify} from "@agenta/entities/workflow/commitDiff"
@@ -284,10 +284,8 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
             if (isCurrentSectionDirty()) return
             const snapshotConfig = (value ?? {}) as Record<string, unknown>
             const snapshotRevision = revisionIdRef.current ?? ""
-            const snapshotBuildKit: BuildKitUiState = {
-                enabled: store.get(workflowBuildKitEnabledAtomFamily(snapshotRevision)),
-                disabledOps: store.get(workflowBuildKitDisabledOpsAtomFamily(snapshotRevision)),
-            }
+            store.set(migrateBuildKitStateAtom, snapshotRevision)
+            const snapshotBuildKit = store.get(workflowBuildKitUiStateAtomFamily(snapshotRevision))
             setDraftConfig(snapshotConfig)
             setDraftBuildKit(snapshotBuildKit)
             setSectionRevision(snapshotRevision)
@@ -357,13 +355,8 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         }
         if (draftBuildKit !== null && sectionBaseline.current !== null) {
             const revision = sectionRevision ?? revisionIdRef.current ?? ""
-            if (draftBuildKit.enabled !== sectionBaseline.current.buildKit.enabled)
-                store.set(workflowBuildKitEnabledAtomFamily(revision), draftBuildKit.enabled)
-            if (!deepEqual(draftBuildKit.disabledOps, sectionBaseline.current.buildKit.disabledOps))
-                store.set(
-                    workflowBuildKitDisabledOpsAtomFamily(revision),
-                    draftBuildKit.disabledOps,
-                )
+            if (!deepEqual(draftBuildKit, sectionBaseline.current.buildKit))
+                store.set(workflowBuildKitUiStateAtomFamily(revision), draftBuildKit)
         }
         closeSectionDraft()
     }, [

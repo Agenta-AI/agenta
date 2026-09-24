@@ -369,6 +369,8 @@ export async function retrieveWorkflowRevision({
 
 export const AGENT_BUILD_KIT_WORKFLOW_SLUG = "__ag__build_kit"
 
+const buildKitAccessSchema = z.record(z.string(), z.enum(["read", "write"]))
+
 const agentBuildKitOverlaySchema = z
     .object({
         tools: z.array(z.unknown()).optional(),
@@ -401,7 +403,8 @@ export async function fetchAgentBuildKitOverlay(
     )
     if (!validated || Object.keys(validated).length === 0) return null
 
-    return validated
+    const access = buildKitAccessSchema.safeParse(revision?.data?.parameters?.op_access)
+    return {...validated, op_access: access.success ? access.data : {}}
 }
 
 /**
@@ -572,6 +575,7 @@ export interface SimpleApplicationFetchResponse {
     additional_context?: {
         playground_build_kit?: {
             agent_template_overlay?: Record<string, unknown> | null
+            op_access?: Record<string, "read" | "write">
         } | null
     } | null
 }
@@ -587,6 +591,7 @@ const simpleApplicationFetchResponseSchema = z.object({
             playground_build_kit: z
                 .object({
                     agent_template_overlay: z.record(z.string(), z.unknown()).nullable().optional(),
+                    op_access: buildKitAccessSchema.optional(),
                 })
                 .nullable()
                 .optional(),

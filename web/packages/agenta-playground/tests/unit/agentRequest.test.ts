@@ -38,14 +38,14 @@ vi.mock("@agenta/entities/workflow", async (importOriginal) => {
             },
         },
         workflowAgentTemplateOverlayAtomFamily: mk<Record<string, unknown> | null>(null),
-        workflowBuildKitEnabledAtomFamily: mk<boolean>(true),
+        workflowBuildKitUiStateAtomFamily: mk({enabled: true, disabledOps: []}),
+        migrateBuildKitStateAtom: atom(null, () => undefined),
     }
 })
 
 import {
     workflowAgentTemplateOverlayAtomFamily,
-    workflowBuildKitDisabledOpsAtomFamily,
-    workflowBuildKitEnabledAtomFamily,
+    workflowBuildKitUiStateAtomFamily,
     workflowMolecule,
 } from "@agenta/entities/workflow"
 import {projectIdAtom} from "@agenta/shared/state"
@@ -91,14 +91,10 @@ function seed(
         workflowAgentTemplateOverlayAtomFamily(id) as PrimitiveAtom<unknown>,
         over.overlay ?? null,
     )
-    store.set(
-        workflowBuildKitEnabledAtomFamily(id) as PrimitiveAtom<unknown>,
-        over.buildKitEnabled ?? true,
-    )
-    store.set(
-        workflowBuildKitDisabledOpsAtomFamily(id) as PrimitiveAtom<unknown>,
-        over.buildKitDisabledOps ?? [],
-    )
+    store.set(workflowBuildKitUiStateAtomFamily(id) as PrimitiveAtom<unknown>, {
+        enabled: over.buildKitEnabled ?? true,
+        disabledOps: over.buildKitDisabledOps ?? [],
+    })
 }
 
 /** Minimal shape of the agent template these assertions read back off the request body. */
@@ -303,7 +299,7 @@ describe("buildAgentRequest", () => {
             sandbox: {permissions: {execute_code: "allow", write_files: "allow"}},
             tools: [
                 {type: "platform", op: "find_capabilities", permission: "allow"},
-                {type: "platform", op: "commit_revision"},
+                {type: "platform", op: "commit_revision", permission: "allow"},
                 requestConnectionTool,
             ],
             skills: [authoringSkill],
@@ -322,7 +318,7 @@ describe("buildAgentRequest", () => {
             {type: "platform", op: "find_capabilities", permission: "allow"},
             {type: "client", name: "weather"},
             requestConnectionTool,
-            {type: "platform", op: "commit_revision"},
+            {type: "platform", op: "commit_revision", permission: "allow"},
         ])
         expect(template.skills).toEqual([authoringSkill])
         expect(config).toEqual(before)
@@ -341,7 +337,7 @@ describe("buildAgentRequest", () => {
         seed(store, "e", {
             config,
             overlay: {
-                tools: [{type: "platform", op: "commit_revision"}],
+                tools: [{type: "platform", op: "commit_revision", permission: "allow"}],
             },
             buildKitEnabled: true,
         })
@@ -355,7 +351,7 @@ describe("buildAgentRequest", () => {
             builtin("bash"),
             builtin("edit"),
             builtin("write"),
-            {type: "platform", op: "commit_revision"},
+            {type: "platform", op: "commit_revision", permission: "allow"},
         ])
     })
 
@@ -370,7 +366,7 @@ describe("buildAgentRequest", () => {
             config,
             overlay: {
                 sandbox: {permissions: {execute_code: "allow", write_files: "allow"}},
-                tools: [{type: "platform", op: "commit_revision"}],
+                tools: [{type: "platform", op: "commit_revision", permission: "allow"}],
                 skills: [authoringSkill],
             },
             buildKitEnabled: true,
@@ -387,7 +383,7 @@ describe("buildAgentRequest", () => {
         })
         expect(params.tools).toEqual([
             {type: "client", name: "weather"},
-            {type: "platform", op: "commit_revision"},
+            {type: "platform", op: "commit_revision", permission: "allow"},
         ])
         expect(params.skills).toEqual([authoringSkill])
     })
@@ -403,7 +399,7 @@ describe("buildAgentRequest", () => {
             config,
             overlay: {
                 sandbox: {permissions: {execute_code: "allow", write_files: "allow"}},
-                tools: [{type: "platform", op: "commit_revision"}],
+                tools: [{type: "platform", op: "commit_revision", permission: "allow"}],
                 skills: [authoringSkill],
             },
             buildKitEnabled: false,
@@ -426,8 +422,8 @@ describe("buildAgentRequest", () => {
             overlay: {
                 sandbox: {permissions: {execute_code: "allow"}},
                 tools: [
-                    {type: "platform", op: "discover_tools"},
-                    {type: "platform", op: "commit_revision"},
+                    {type: "platform", op: "discover_tools", permission: "allow"},
+                    {type: "platform", op: "commit_revision", permission: "allow"},
                     requestConnectionTool,
                 ],
                 skills: [authoringSkill],
@@ -441,7 +437,7 @@ describe("buildAgentRequest", () => {
 
         expect(template.tools).toEqual([
             {type: "client", name: "weather"},
-            {type: "platform", op: "discover_tools"},
+            {type: "platform", op: "discover_tools", permission: "allow"},
             requestConnectionTool,
         ])
         // The master switch still governs permissions and the embedded items.
@@ -456,8 +452,8 @@ describe("buildAgentRequest", () => {
             overlay: {
                 sandbox: {permissions: {write_files: "allow"}},
                 tools: [
-                    {type: "platform", op: "discover_tools"},
-                    {type: "platform", op: "commit_revision"},
+                    {type: "platform", op: "discover_tools", permission: "allow"},
+                    {type: "platform", op: "commit_revision", permission: "allow"},
                     requestConnectionTool,
                 ],
                 skills: [authoringSkill],
@@ -478,7 +474,10 @@ describe("buildAgentRequest", () => {
         const config = {agent: {tools: [{type: "client", name: "weather"}]}}
         seed(store, "e", {
             config,
-            overlay: {tools: [{type: "platform", op: "discover_tools"}], skills: [authoringSkill]},
+            overlay: {
+                tools: [{type: "platform", op: "discover_tools", permission: "allow"}],
+                skills: [authoringSkill],
+            },
             buildKitEnabled: false,
             buildKitDisabledOps: ["commit_revision"],
         })
@@ -505,7 +504,7 @@ describe("buildAgentRequest", () => {
             config,
             overlay: {
                 sandbox: {permissions: {execute_code: "allow", write_files: "allow"}},
-                tools: [{type: "platform", op: "commit_revision"}],
+                tools: [{type: "platform", op: "commit_revision", permission: "allow"}],
             },
         })
 
@@ -513,7 +512,11 @@ describe("buildAgentRequest", () => {
 
         // The run copy carries the kit (overlay applied)...
         const runTemplate = (req!.requestBody.data as any).parameters.agent
-        expect(runTemplate.tools).toContainEqual({type: "platform", op: "commit_revision"})
+        expect(runTemplate.tools).toContainEqual({
+            type: "platform",
+            op: "commit_revision",
+            permission: "allow",
+        })
         expect(runTemplate.sandbox.permissions).toMatchObject({write_files: "allow"})
 
         // ...but the persisted config the commit serializer reads is unmutated.

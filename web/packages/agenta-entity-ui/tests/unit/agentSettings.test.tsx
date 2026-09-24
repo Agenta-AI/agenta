@@ -2,7 +2,7 @@ import {act, useState, type ReactNode} from "react"
 
 import type {SchemaProperty} from "@agenta/entities/shared"
 import {workflowBuildKitEnabledAtomFamily} from "@agenta/entities/workflow"
-import {openAgentConfigSectionAtom} from "@agenta/shared/state"
+import {openAgentConfigSectionAtom, projectIdAtom} from "@agenta/shared/state"
 import {createStore, Provider} from "jotai"
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
@@ -353,10 +353,8 @@ describe("shared agent settings", () => {
         await mount()
         await click(button("Advanced"))
         await click(button("Build kit"))
-        expect(
-            document.querySelector('[aria-label="Enable the playground build kit"]'),
-        ).not.toBeNull()
-        expect(document.querySelector('[aria-label="Save changes"]')).not.toBeNull()
+        expect(document.querySelector('[aria-label="Default permission"]')).not.toBeNull()
+        expect(document.body.textContent).toContain("Write")
         expect(button("Execution")).toBeUndefined()
         expect(document.body.textContent).not.toMatch(/Sandbox permissions|Build kit overrides/)
         expect(fixture.overlay).toEqual(overlay)
@@ -544,11 +542,13 @@ describe("shared agent settings", () => {
     )
 
     it("does not roll back newer build-kit availability when saving only a model", async () => {
+        fixture.revision = "saved-revision"
         await mount()
+        store.set(projectIdAtom, "project")
         await act(async () => store.set(openAgentConfigSectionAtom, "model-harness"))
         await click(button("Pick model", document.querySelector('[role="dialog"]')!))
-        await act(async () => store.set(workflowBuildKitEnabledAtomFamily(""), false))
+        await act(async () => store.set(workflowBuildKitEnabledAtomFamily("saved-revision"), false))
         await click(button("Save"))
-        expect(store.get(workflowBuildKitEnabledAtomFamily(""))).toBe(false)
+        expect(store.get(workflowBuildKitEnabledAtomFamily("saved-revision"))).toBe(false)
     })
 })

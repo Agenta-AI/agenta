@@ -3,33 +3,33 @@ from unittest.mock import AsyncMock
 from uuid import uuid4
 
 import pytest
-
 from agenta.sdk.agents.adapters.agenta_builtins import (
     BUILD_AN_AGENT_SLUG,
     GETTING_STARTED_WITH_AGENTA_SLUG,
 )
+from agenta.sdk.agents.dtos import AgentTemplate
+from agenta.sdk.agents.platform import AgentaPlatformToolResolver, PlatformConnection
+from agenta.sdk.agents.platform.op_catalog import PLATFORM_OPS
 from agenta.sdk.agents.platform.workflow import (
     REQUEST_CONNECTION_WORKFLOW_SLUG,
     REQUEST_SECRET_WORKFLOW_SLUG,
 )
-from agenta.sdk.agents.dtos import AgentTemplate
-from agenta.sdk.agents.platform import AgentaPlatformToolResolver, PlatformConnection
-from agenta.sdk.agents.platform.op_catalog import PLATFORM_OPS
 from agenta.sdk.agents.tools.models import ClientToolConfig, PlatformToolConfig
-
 from oss.src.apis.fastapi.applications import router as applications_router_module
 from oss.src.apis.fastapi.applications.overlay import (
     DEFAULT_BUILD_KIT_OPS,
     build_agent_template_overlay,
 )
-from oss.src.core.workflows.build_kit import (
-    BUILD_KIT_WORKFLOW_SLUG,
-    REQUEST_INPUT_WORKFLOW_SLUG,
-    build_agent_template_overlay as build_core_agent_template_overlay,
-)
 from oss.src.apis.fastapi.applications.router import SimpleApplicationsRouter
 from oss.src.core.applications.dtos import SimpleApplication
 from oss.src.core.embeds.service import EmbedsService
+from oss.src.core.workflows.build_kit import (
+    BUILD_KIT_WORKFLOW_SLUG,
+    REQUEST_INPUT_WORKFLOW_SLUG,
+)
+from oss.src.core.workflows.build_kit import (
+    build_agent_template_overlay as build_core_agent_template_overlay,
+)
 from oss.src.core.workflows.dtos import WorkflowRevision, WorkflowRevisionData
 from oss.src.core.workflows.service import WorkflowsService
 from oss.src.core.workflows.static_catalog import StaticWorkflowCatalog
@@ -71,28 +71,7 @@ CUT_BUILD_KIT_OPS = (
     "list_connections",
 )
 
-EXPECTED_BUILD_KIT_PERMISSIONS = {
-    "discover_tools": "allow",
-    "search_skills": "allow",
-    "check_skill_updates": "allow",
-    "apply_skill_update": "ask",
-    "read_config": "allow",
-    "commit_revision": "allow",
-    "test_run": "allow",
-    "rename_session": "allow",
-    "rename_agent": "allow",
-    "discover_triggers": "allow",
-    "create_schedule": "ask",
-    "create_subscription": "ask",
-    "list_schedules": "allow",
-    "list_deliveries": "allow",
-    "test_subscription": "allow",
-    "list_subscriptions": "allow",
-    "remove_schedule": "ask",
-    "remove_subscription": "ask",
-    "list_starters": "allow",
-    "create_app": "allow",
-}
+EXPECTED_BUILD_KIT_PERMISSIONS = {op: "allow" for op in EXPECTED_DEFAULT_BUILD_KIT_OPS}
 
 
 def _embed_slug(entry: dict) -> str | None:
