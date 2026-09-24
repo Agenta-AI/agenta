@@ -264,6 +264,10 @@ class TelegramAdapter(ChannelAdapterInterface):
         # v1 keys a conversation on the chat and does not separate forum topics,
         # so the locator carries no message_thread_id.
         locator = build_locator(chat_id=chat_id)
+        # A group's title names it in the channel tools' destination list; a
+        # bot cannot look it up later. Not a key field, so keys are unchanged.
+        if chat.get("title"):
+            locator["title"] = chat["title"]
 
         sender = message.get("from") or {}
         addressed = is_addressed(

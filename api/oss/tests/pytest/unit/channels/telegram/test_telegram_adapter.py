@@ -278,6 +278,24 @@ async def test_parse_event_message_in_a_dm():
 
 
 @pytest.mark.asyncio
+async def test_parse_event_keeps_a_group_title_for_the_destination_list():
+    adapter = TelegramAdapter()
+    body = json.dumps(
+        {
+            "update_id": 2,
+            "message": {
+                "message_id": 11,
+                "from": {"id": 555, "is_bot": False},
+                "chat": {"id": -100, "type": "supergroup", "title": "Ops"},
+                "text": "hello",
+            },
+        }
+    ).encode()
+    event = await adapter.parse_event(body=body, connection=_connection())
+    assert event.external_locator == {"chat_id": -100, "title": "Ops"}
+
+
+@pytest.mark.asyncio
 async def test_parse_event_skips_the_bots_own_message():
     adapter = TelegramAdapter()
     body = json.dumps(
