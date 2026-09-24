@@ -80,5 +80,7 @@ export const registerQuoteSubmit = (sessionId: string, submit: () => boolean) =>
 }
 
 /** False when no composer can send now; the quote then stays staged. */
-export const submitSessionMessage = (sessionId: string): boolean =>
-    submitters.get(sessionId)?.() ?? false
+export const submitSessionMessage = (sessionId: string): boolean => {
+    const submit = submitters.get(sessionId)
+    return typeof submit === "function" ? submit() : false
+}
