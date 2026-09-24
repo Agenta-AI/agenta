@@ -636,6 +636,11 @@ class ChannelAgentDataEdit(BaseModel):
                 "references cannot be null on an edit; omit it to keep the "
                 "stored workflow, or name a new one"
             )
+        if "tools" in self.model_fields_set and self.tools is None:
+            raise ValueError(
+                "tools cannot be null on an edit; omit it to keep the stored "
+                "settings, or send the fields to change"
+            )
         return self
 
     @field_validator("references")

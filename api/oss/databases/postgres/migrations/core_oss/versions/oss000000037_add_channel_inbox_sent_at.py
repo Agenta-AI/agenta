@@ -26,13 +26,24 @@ def upgrade() -> None:
         sa.Column("sent_at", sa.TIMESTAMP(timezone=True), nullable=True),
     )
     op.execute("UPDATE channel_inbox_events SET sent_at = created_at")
-    op.create_index(
-        "ix_channel_inbox_events_sent",
-        "channel_inbox_events",
-        ["project_id", "space_id", "sent_at", "id"],
-    )
+    # built without blocking the inbox's writes; CONCURRENTLY cannot run
+    # inside a transaction
+    with op.get_context().autocommit_block():
+        op.create_index(
+            "ix_channel_inbox_events_sent",
+            "channel_inbox_events",
+            ["project_id", "space_id", "sent_at", "id"],
+            postgresql_concurrently=True,
+            if_not_exists=True,
+        )
 
 
 def downgrade() -> None:
-    op.drop_index("ix_channel_inbox_events_sent", table_name="channel_inbox_events")
+    with op.get_context().autocommit_block():
+        op.drop_index(
+            "ix_channel_inbox_events_sent",
+            table_name="channel_inbox_events",
+            postgresql_concurrently=True,
+            if_exists=True,
+        )
     op.drop_column("channel_inbox_events", "sent_at")

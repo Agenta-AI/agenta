@@ -30,7 +30,7 @@ Commands run from the repository root unless a `cd` is shown.
 - **SDK unit test:** `cd sdks/python && uv run --no-sync python run-tests.py <path>[::<test>]`.
 - **Runner unit test:** `cd services/runner && pnpm vitest run --project unit <path>`.
 - **Settings UI unit test:** `cd web/packages/agenta-settings-ui && pnpm vitest run <path>`.
-- **Before each commit:** `cd api && ruff format && ruff check --fix` for API changes. Do the same in `sdks/python` for SDK changes. Run `cd web && pnpm lint-fix` for web and runner changes. In a GitButler workspace, commit with `but commit <branch> -m "<message>"`. Otherwise use `git commit -m "<message>"`.
+- **Before each commit:** `cd api && ruff format && ruff check --fix` for API changes. Do the same in `sdks/python` for SDK changes. Run `cd web && pnpm lint-fix` for web changes. For runner changes, run `cd services/runner && pnpm test && pnpm run typecheck`. In a GitButler workspace, commit with `but commit <branch> -m "<message>"`. Otherwise use `git commit -m "<message>"`.
 - API unit tests for the tool service live in `api/oss/tests/pytest/unit/channels/tools/`. They reuse the in-memory DAO pattern from `api/oss/tests/pytest/unit/channels/test_channels_outbox_worker.py` and the fake adapter in `api/oss/tests/pytest/unit/channels/contract/fakes.py`.
 - Migrations are `oss000000036` to `oss000000038`, after `oss000000035` in `api/oss/databases/postgres/migrations/core_oss/versions/`.
 

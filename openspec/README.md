@@ -30,7 +30,7 @@ This validates specification format only. Runtime acceptance requires the scenar
 
 ## Channels specifications
 
-These documents separate observed behavior from two proposed changes: native Slack agent handles and agent-facing channel tools. They are drafts for Mahmoud's review. The commits add documentation only.
+These documents separate observed behavior from two changes: native Slack agent handles and agent-facing channel tools. The Slack handle proposal is a draft for Mahmoud's review. The channel agent tools change is approved and implemented; its tasks record what shipped.
 
 The channels stack has not shipped to production. The baseline is a reference for the reviewed code, not a compatibility contract. Neither proposal requires legacy modes, preservation of pre-release data, or a production migration path.
 
@@ -40,10 +40,10 @@ The baseline describes the channels pull request stack through [PR #6737](https:
 
 1. Read the [native Slack handle proposal](changes/slack-native-agent-handles/proposal.md) for shared-installation addressing and identity.
 2. Read the [channel agent tools proposal](changes/channel-agent-tools/proposal.md) for listing destinations, sending, reading, and searching. Its [implementation plan](changes/channel-agent-tools/plan.md) lists the phases, files, and tests.
-3. Read each proposal's design for implementation choices, risks, verification, and estimates:
+3. Read each proposal's design for implementation choices, risks, and verification:
    - [Native Slack handle design](changes/slack-native-agent-handles/design.md), estimated at 9-15 engineer-days.
-   - [Channel agent tools design](changes/channel-agent-tools/design.md), estimated at 11-17 engineer-days without direct messages, 13-19 with them.
-4. Check the implementation tasks. Every task remains unchecked:
+   - [Channel agent tools design](changes/channel-agent-tools/design.md), which also records what was built differently from the plan.
+4. Check the implementation tasks. The Slack handle tasks remain unchecked; the channel agent tools tasks record what shipped:
    - [Native Slack handle tasks](changes/slack-native-agent-handles/tasks.md).
    - [Channel agent tools tasks](changes/channel-agent-tools/tasks.md).
 5. Use the [evidence](evidence.md) to check the claims against exact code references and provider documentation.

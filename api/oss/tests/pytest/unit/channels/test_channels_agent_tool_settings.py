@@ -98,3 +98,31 @@ async def test_edit_without_tools_keeps_stored_tools():
     written = dao.edit_agent.call_args.kwargs["agent"]
     assert written.data.tools.can_post_outside_conversation is False
     assert written.data.tools.readable_space_keys == [key]
+
+
+async def test_editing_one_tools_field_keeps_the_others():
+    key = uuid4()
+    existing = _stored_agent(tools={"readable_space_keys": [key]})
+    service, dao = _service(existing)
+
+    await service.edit_agent(
+        project_id=uuid4(),
+        user_id=uuid4(),
+        agent=ChannelAgentEdit(
+            id=existing.id,
+            data=ChannelAgentDataEdit.model_validate(
+                {"tools": {"can_post_outside_conversation": False}}
+            ),
+        ),
+    )
+
+    written = dao.edit_agent.call_args.kwargs["agent"]
+    assert written.data.tools.can_post_outside_conversation is False
+    assert written.data.tools.readable_space_keys == [key]
+
+
+async def test_tools_null_is_refused_at_the_edit_boundary():
+    import pydantic
+
+    with pytest.raises(pydantic.ValidationError, match="tools cannot be null"):
+        ChannelAgentDataEdit.model_validate({"tools": None})
