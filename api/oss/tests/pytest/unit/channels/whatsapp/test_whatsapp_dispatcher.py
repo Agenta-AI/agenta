@@ -108,7 +108,12 @@ def world(dao, graph):
     )
 
 
-def _event(content, kind=ChannelEventKind.MESSAGE, sent_at=None):
+_NOW = object()  # Meta stamps every message; pass None to model one it did not
+
+
+def _event(content, kind=ChannelEventKind.MESSAGE, sent_at=_NOW):
+    if sent_at is _NOW:
+        sent_at = datetime.now(timezone.utc)
     return ChannelInboxEvent(
         # time-ordered, like the inbox's own ids and arrival times
         id=uuid_utils.uuid7(),
@@ -125,7 +130,7 @@ def _event(content, kind=ChannelEventKind.MESSAGE, sent_at=None):
     )
 
 
-def _text(text, sent_at=None):
+def _text(text, sent_at=_NOW):
     return _event([{"type": "text", "text": text}], sent_at=sent_at)
 
 
@@ -229,6 +234,22 @@ async def test_a_start_sent_before_a_stop_but_stored_after_it_does_not_win(
     late_start = _text("START", sent_at=now - timedelta(minutes=1))
 
     await _dispatch(world, stop)
+    invoke = await _dispatch(world, late_start)
+
+    assert world.space.flags.is_opted_out is True
+    invoke.assert_not_called()
+
+
+async def test_a_start_without_metas_timestamp_cannot_clear_an_opt_out(world, graph):
+    """Without the customer's own send time, arrival order could put a late
+    START after a later STOP, so an untimestamped START changes nothing."""
+
+    from datetime import timedelta
+
+    await _dispatch(world, _text("STOP", sent_at=datetime.now(timezone.utc)))
+    late_start = _text("START", sent_at=None)  # it reaches us after the STOP
+    late_start.created_at = datetime.now(timezone.utc) + timedelta(minutes=1)
+
     invoke = await _dispatch(world, late_start)
 
     assert world.space.flags.is_opted_out is True

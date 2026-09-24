@@ -635,6 +635,11 @@ class InboxDispatcher:
         space = resolution.space
         opted_out = space.flags.is_opted_out
         keyword = _consent_keyword(event)
+        if keyword == "start" and event.data.sent_at is None:
+            # Without the person's own send time, arrival order could put a
+            # late START after a later STOP: it clears nothing. Opted in, it
+            # is an ordinary message.
+            return opted_out
         if keyword is not None:
             opting_out = keyword == "stop"
             # Every STOP and START moves the order fence, even one that
