@@ -106,7 +106,7 @@ describe("quotesToMarkdown", () => {
 
     it("stacks several quotes above one message", () => {
         const out = quotesToMarkdown([fileQuote(), fileQuote({id: "q2", note: "And this."})], "go")
-        expect(out.match(/> \*\*07-schedule\.mdx\*\*/g)).toHaveLength(2)
+        expect(out.match(/> \*\*`agent-files\/docs\/07-schedule\.mdx`\*\*/g)).toHaveLength(2)
     })
 
     it("caps a runaway excerpt so a dragged code block cannot inflate the prompt", () => {
