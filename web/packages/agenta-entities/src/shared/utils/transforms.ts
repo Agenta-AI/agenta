@@ -34,8 +34,8 @@ export type DateParser = (date: string | Date | null | undefined) => Date | stri
  *
  * @example
  * ```typescript
- * // In OSS layer with dayjs
- * import dayjs from '@/oss/lib/helpers/dateTimeHelper/dayjs'
+ * // In the app layer with dayjs
+ * import dayjs from 'dayjs'
  *
  * const parseDate = (date: string | Date | null | undefined) => {
  *   if (!date) return null

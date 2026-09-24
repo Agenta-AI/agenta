@@ -9,7 +9,7 @@ import {bindTraceDrawerSeams} from "@/features/observability/bindTraceDrawerSeam
  * The trace drawer is opened by an ATOM (`openTraceDrawerAtom`), so whoever renders it decides
  * where it works. It used to be mounted inside the Observability screen alone, which meant the
  * "View trace" action on a chat turn set the atom and nothing appeared — the drawer simply was not
- * on that page. web/oss mounts it globally in AppGlobalWrappers for exactly this reason.
+ * on that page.
  *
  * The router seams move with it: they must be bound wherever the drawer can open, not only where
  * the traces table lives.

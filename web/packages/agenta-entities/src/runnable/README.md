@@ -182,27 +182,13 @@ This is the single source of truth for "what inputs does this revision expect".
 For DAG-based execution of multiple runnables:
 
 ```typescript
-import { computeTopologicalOrder, resolveChainInputs } from '@agenta/entities/runnable'
+import { computeTopologicalLevels, resolveChainInputs } from '@agenta/entities/runnable'
 
-// Get execution order
-const order = computeTopologicalOrder(nodes, connections)
+// Get execution batches (nodes in one level can run in parallel)
+const levels = computeTopologicalLevels(nodes, connections)
 
-// Resolve inputs from upstream outputs
-const inputs = resolveChainInputs(mappings, upstreamOutputs, testcaseData)
-```
-
-### Auto-Mapping
-
-Automatically map inputs based on name matching:
-
-```typescript
-import { autoMapInputs } from '@agenta/entities/runnable'
-
-const mappings = autoMapInputs(
-    ["input", "context"],  // target keys
-    [{ path: "testcase.input", key: "input" }]  // available sources
-)
-// Returns: [{ targetKey: "input", sourcePath: "testcase.input", status: "valid" }, ...]
+// Resolve a node's inputs from upstream results
+const inputs = resolveChainInputs(connections, targetNodeId, nodeResults, testcaseData)
 ```
 
 ## Entity Provider Types
