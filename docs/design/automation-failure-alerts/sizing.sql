@@ -31,7 +31,9 @@ FROM trigger_deliveries
 WHERE created_at > now() - interval '30 days' AND status->>'code' IN ('400','409','500')
 GROUP BY 1, 2 ORDER BY n DESC LIMIT 20;
 
--- Step 2: run in the CORE DB (psql, needs -- Q4a (core DB): export dispatched automation turns. run_id IS the runner turn_id.
+-- Step 2: run in the CORE DB with the psql client. \copy writes /tmp/auto_turns.csv on the
+-- client machine, so run step 3 from the same machine (the tracing DB session reads that file).
+-- Q4a (core DB): export dispatched automation turns. run_id IS the runner turn_id.
 \copy (SELECT id AS delivery_id, project_id, created_at, coalesce(schedule_id, subscription_id) AS automation_id, CASE WHEN schedule_id IS NOT NULL THEN 'schedule' ELSE 'subscription' END AS kind, data->>'session_id' AS session_id, data->'result'->>'run_id' AS turn_id FROM trigger_deliveries WHERE status->>'code' = '202' AND created_at > now() - interval '7 days' AND data->'result'->>'run_id' IS NOT NULL) TO '/tmp/auto_turns.csv' CSV HEADER
 
 -- Step 3: run in the TRACING DB, same psql client machine. 7-day window because free-plan records expire after 7 days.

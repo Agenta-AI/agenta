@@ -43,9 +43,19 @@ Non-goals for v0:
 - LLM-written error explanations.
 - Self-recovery (an agent that fixes a failing automation).
 
+
 ## 4. How the system will work
 
-### 4.1 Flow
+### 4.1 Design in one paragraph
+
+The dispatcher keeps its job and its status codes. A new **automation monitor** is one loop
+that runs every 60 seconds. It reads the records of each started run, writes the run's result
+into a new `outcome` column on the delivery, derives the current health of each automation
+from its newest results, and queues an email when the health changes. A new **alert sender**
+task sends the email with retries. The monitor is the only writer of `outcome`, and only one
+API replica runs it at a time.
+
+### 4.2 Flow
 
 ```mermaid
 flowchart LR
@@ -55,119 +65,87 @@ flowchart LR
   end
   RF --> Q[(queues:triggers)]
   IN --> Q
+  RF -->|heartbeat| HB[(Redis key)]
   Q --> D[Dispatcher<br/>worker-queues]
-  D -->|claim 102 + run_id| DB[(Postgres core<br/>trigger_deliveries)]
+  D -->|claim 102 + run_id<br/>202 or 400/409/500| DB[(trigger_deliveries<br/>status, NEW outcome)]
   D -->|POST /invoke meta.run_id| WS[Workflow service] -->|turnId = run_id| RU[Runner]
-  RU -->|records| RS[(streams:records)] --> RW[Records worker]
-  WD[Watchdog] -->|execution_lost| RS
-  RW -->|commit| TR[(Postgres tracing<br/>records)]
-  RW -->|NEW settle job| OQ[(NEW outcome queue)]
-  D -->|NEW pre-start failure| OQ
-  SW[NEW sweeper] -->|no result| OQ
-  OQ --> OW[NEW outcome worker]
-  OW -->|read error records| TR
-  OW -->|compare-and-set status| DB
-  OW -->|email due| AT[NEW alert task] --> ML[SMTP / SendGrid] --> IB[Owner or shadow inbox]
+  RU -->|records| TR[(Postgres tracing<br/>records)]
+  WD[Watchdog] -->|execution_lost| TR
+  MO[NEW automation monitor<br/>API loop, every 60 s, Redis lock]
+  MO -->|1. read records of open runs| TR
+  MO -->|2. write outcome| DB
+  MO -->|3. check| HB
+  MO -->|4. health changed| AQ[(NEW alerts queue)]
+  AQ --> AS[NEW alert sender<br/>worker-queues, retries] --> ML[SMTP / SendGrid] --> IB[Owner or shadow inbox]
 ```
 
-### 4.2 Components
+### 4.3 Components
 
 | Component | State | What it does in v0 |
 |---|---|---|
-| cron container, cron scripts | Changes | Read the API address from the existing `AGENTA_API_INTERNAL_URL` (fallback `http://api:8000`). The refresh endpoint writes a heartbeat time after each successful run. |
-| Dispatcher (`TriggersDispatcher`) | Changes | Creates `run_id` at claim time and stores it. Every status write is compare-and-set. Sends pre-start failures to the outcome queue. |
-| Records worker (`records_worker.py`) | Changes | After it commits the final records of a turn in a session tagged `ag.origin=trigger`, it enqueues a settle job. Gets two new dependencies (section 4.6). |
-| Outcome queue | New | A taskiq task `triggers.settle_outcome` on the existing `worker-queues` broker. |
-| Outcome worker | New | Reads the turn's records, writes the final status, classifies the error, decides whether an email is due. |
-| Sweeper | New | A loop in the API lifespan, built like the execution watchdog (`orphan_sweep.py`). Settles deliveries stuck at `102`, `202` or paused, closes their sessions, checks the cron heartbeat. It must not run from the cron container, because it has to detect a dead cron. |
-| Alert task | New | A taskiq task `automations.send_alert`: finds the recipient, renders the email, applies the mode, sends once. |
+| cron scripts | Changes | Read the API address from the existing `AGENTA_API_INTERNAL_URL` (fallback `http://api:8000`). |
+| Schedule refresh endpoint | Changes | Writes the Redis key `triggers:schedules:last_refresh_at` after each successful run. |
+| Dispatcher (`TriggersDispatcher`) | Changes | Stores `run_id` on the delivery at claim time. Nothing else changes: it still owns `status`. |
+| `trigger_deliveries.outcome` | New column | The run's result. Written only by the monitor. |
+| Automation monitor | New | One loop in the API lifespan, built like the execution watchdog (`api/oss/src/tasks/asyncio/sessions/orphan_sweep.py`): every 60 seconds, under the Redis lock from `api/oss/src/dbs/redis/sessions/locks.py`, so one replica runs each pass. Four steps: settle, classify, evaluate health, check the cron heartbeat. |
+| Alerts broker and alert sender | New | A new broker in `worker-queues` (the file already builds one broker per domain) with taskiq `SmartRetryMiddleware`. The task `automations.send_alert` sends one email. |
 | Email helper (`utils/emailing.py`) | Changes | New `send_html_email(to, subject, html, text)` that reuses the existing SMTP and SendGrid functions. |
-| App (`web/packages/agenta-automation-ui`) | Small change | `deliveryOutcome` learns the messages `cancelled` (neutral) and `paused` (needs approval). `runFailureReason` gets a lead line for `504`. "Needs attention" turns on from the latest settled delivery. |
+| App (`web/packages/agenta-automation-ui`) | Small change | Run history reads `outcome.state` when it is present, else today's `status`. "Needs attention" turns on from the automation's health. |
 
-### 4.3 Link a delivery to its turn
+The monitor polls instead of reacting to events. Polling reads the truth from the records
+every minute, so it needs no hook in the records worker, no new stream consumer and no
+second settle path. It also repairs itself: after a restart it continues from the database
+state. The cost is up to 60 seconds of delay before an email, which is acceptable for alerts.
+
+### 4.4 Link a delivery to its turn
 
 The dispatcher's `run_id` is already the runner's `turn_id`. The id goes
 `meta.run_id` → SDK `turn_id` → wire `turnId` → runner → `records.turn_id`. This works today
 and was checked on 20 of 20 local runs.
 
-Two changes make it safe:
+- The dispatcher stores `run_id` at claim time. Today it is stored only with the `202`
+  write, so a run that fails fast can finish before its id is saved.
+- The monitor reads only records of the automation's turns: the turn `run_id`, and, after an
+  approval, the continuation turns reached through `parent_execution_id` in the executions
+  table. Later human turns in the same session are ignored.
 
-- Create `run_id` in the dispatcher and store it on the delivery at claim time. Today it is
-  stored only with the `202` write, so a run that fails fast can finish before its id is saved.
-- The outcome worker reads only records where `turn_id = run_id`. Later human turns in the
-  same session are ignored.
-- After an approval, the run continues on a new turn in the same session. Follow
-  `parent_execution_id` in the executions table to reach the final turn. This is needed only if
-  "needs approval" is in v0 (open question in status.md).
+### 4.5 The result of a run (`outcome.state`)
 
-### 4.4 Decide the result of a run
+The monitor applies this rule to the non-quarantined records of the automation's newest turn
+in the chain:
 
-Rule, applied to the non-quarantined records of the automation's turn:
-
-| Records on the turn | Result |
+| Records | `outcome.state` |
 |---|---|
-| At least one `error` record | **failed** |
-| `done` with `stopReason = paused` and no error | **needs approval** (not final; email only if in v0) |
-| `done` with `stopReason = cancelled` and no error | **cancelled** (no email) |
-| `done`, no error | **success** |
-| Nothing after the sweeper deadline | **no result** |
+| An `error` record, or `done` with `stopReason = error` | `failed` |
+| `done` with `stopReason = paused` | `awaiting_approval` (not final) |
+| `done` with `stopReason = cancelled` | `cancelled` |
+| `done`, none of the above | `succeeded` |
 
-Do not wait for `done`: one failure path (the runner's abandon path) writes an `error` and no
-`done`. Do not use `done.stopReason = error`: failed automation turns end with a `done` that
-has no stop reason.
+Other cases:
 
-### 4.5 Status transitions on a delivery
+| Situation | `outcome.state` |
+|---|---|
+| Dispatcher wrote `400`, `409` or `500` | `failed` (the classifier reads the dispatcher error) |
+| `102` or `202` with no terminal record 11.5 hours after `created_at` (the runner's 11-hour hard limit plus 30 minutes) | `no_result` |
+| `awaiting_approval` for 1 hour since `outcome.updated_at` (the watchdog's 30-minute idle grace plus 30 minutes) | `failed`, kind `approval_not_given` |
 
-Every write is a conditional `UPDATE ... WHERE status code IN (allowed sources)`. A final
-status never changes.
+Rules:
 
-| From | To | Written by |
-|---|---|---|
-| (none) | `102 claimed` | Dispatcher claim |
-| `102` | `202 dispatched` | Dispatcher after start |
-| `102` | `400` / `409` / `500 failed` | Dispatcher, failure before start |
-| `102`, `202` | `202 paused` (needs approval, not final) | Outcome worker |
-| `102`, `202`, `202 paused` | `200 success` | Outcome worker |
-| `102`, `202`, `202 paused` | `499 cancelled` | Outcome worker |
-| `102`, `202`, `202 paused` | `520 failed` (failed after start) | Outcome worker |
-| `102`, `202`, `202 paused` | `504 failed` (no result, or approval never given) | Outcome worker, from the sweeper |
+- The monitor does not wait for `done`: the runner's abandon path writes an `error` and no
+  `done`.
+- `outcome` is `NULL` while the run is open. Only `NULL` and `awaiting_approval` can change;
+  every other state is final. The monitor is the only writer, so it needs no compare-and-set
+  between writers.
+- `status` keeps today's meaning and values. Dedup reads `status`, so it is unchanged: no
+  automation can run twice because of this feature.
+- Deliveries created before the release time get their outcome written, but never cause an
+  email.
 
-`520`, `504` and `499` are new codes. They are deliberately not `500`: dedup treats `500` as
-"not seen", so a Composio redelivery would run the automation again.
+### 4.6 Classify the error
 
-On `520` the outcome worker also writes the raw error message to `data.error`, so run history
-shows the reason (the conversation already shows it to project members). `data.error` is
-never emailed.
-
-### 4.6 Where settle jobs come from
-
-1. **Records worker**, after commit, for trigger sessions. The job carries `project_id`,
-   `session_id`, `turn_id`.
-   - To know which sessions are trigger sessions, the records worker reads the `ag.origin` tag
-     of `session_streams` in the core DB: one query per project batch for all terminal turns
-     in it, cached per session. It needs a core-DB reader for this.
-   - It enqueues through a producer-only taskiq broker on `queues:triggers`, the same pattern
-     the API uses in `api/entrypoints/routers.py`.
-   - If the enqueue fails, it leaves the batch unacknowledged, exactly like the existing
-     `turn_ended` publish. The record append is an upsert, so the redelivery only re-enqueues.
-   - The outcome worker finds the delivery through the session's `ag.trigger.delivery_id` tag
-     (raw DB read; the DTO removes `ag.*` tags). It accepts the job if `turn_id` equals
-     `delivery.run_id`, or if following `parent_execution_id` from `turn_id` in the executions
-     table reaches `delivery.run_id` (an approval continuation). It ignores every other turn,
-     such as a person chatting in the session later.
-2. **Dispatcher**, for `400`, `409` and `500` before start. These runs have no records.
-3. **Sweeper**, every 10 minutes, for deliveries at `102` or `202` older than 11.5 hours (the
-   runner's 11-hour hard limit plus 30 minutes), and for `202 paused` older than the idle
-   grace (30 minutes) plus the same margin. It also closes the phantom session.
-
-The records worker must not add a second consumer group on `streams:sessions`: the channels
-outbox deletes each entry after it reads it, so a second group misses entries.
-
-### 4.7 Classify the error
-
-A pure function `classify_failure(delivery, error_record)` returns a catalog entry. It checks,
-in order: the runner error code, message patterns (many error records have no code), then the
-dispatcher status code. Rows are matched top to bottom, so the specific `resolve` pattern wins
+A pure function `classify_failure(delivery, records)` returns a catalog entry. It checks, in
+order: the runner error code, message patterns (many error records have no code), then the
+dispatcher status code. Rows are matched top to bottom, so the specific `resolve` row wins
 over the general "HTTP 500 on detached start" row.
 
 | Raw error (real samples) | Kind | Message to the customer | Owner |
@@ -177,48 +155,62 @@ over the general "HTTP 500 on detached start" row.
 | `rate_limited` | provider_rate_limited | Your model provider is limiting requests. The next run usually works. | customer |
 | "No user message to send (prompt/messages empty)" | empty_input | The automation started with an empty message. Check how the trigger's data maps to the agent's input. | customer |
 | "runtime_provided local run requires a mounted subscription" | subscription_not_available | This agent needs a signed-in AI subscription, and none is available for scheduled runs. | customer |
-| HTTP 406 from a non-agent target | target_not_supported | This automation points to a workflow that cannot run from a trigger. | customer |
 | `400` from the dispatcher (input mapping failed, no agent reference) | input_invalid | The automation could not build the agent's input from this event. Check the field mapping and the selected agent. | customer |
 | "HTTP 500 on detached start" whose body is a `400` from `/workflows/revisions/resolve` | agent_reference_invalid | This automation points to an agent version that cannot be loaded. Choose the agent again. | customer |
-| `202 paused` past the sweeper deadline | approval_not_given | The run waited for an approval that nobody gave. | customer |
+| HTTP 406 from a non-agent target | target_not_supported | This automation points to a workflow that cannot run from a trigger. | customer |
 | `409` invalid subscription | connection_invalid | The connected account for this trigger is no longer valid. Reconnect it. | customer |
+| Awaiting approval for more than 1 hour | approval_not_given | The run waited for an approval that nobody gave. | customer |
 | `execution_lost`, `sandbox_gone`, "closed the stream before emitting a started record", any other "HTTP 500 on detached start" | platform_interrupted | The run stopped because of a problem on our side. | platform |
-| No records before the deadline | no_result | The run did not report a result. | platform |
+| `no_result` | no_result | The run did not report a result. | platform |
 | Anything unmatched | unknown | The run failed with an error we could not identify. Open the run for details. | platform |
 
 Rules:
 
-- The email uses only text from this catalog. Raw error text never goes into an email.
-- **Customer** kinds go to the owner. **Platform** kinds go to the internal address, and the
-  owner gets only the short "our side" line.
-- Shadow mode logs every `unknown` with its cleaned-up message. The team reviews these each
-  week and adds catalog rows.
-- Move the code groups in `web/packages/agenta-chat/src/components/RunFailureCallout.tsx`
-  (`STARTER_CREDIT_CODES`, `SUBSCRIPTION_LOGIN_CODES`, `RETRYABLE_CODES`) to one shared list
-  used by both the app and the classifier.
+- The Python catalog is the only list of error kinds. The app reads `outcome.kind`. The code
+  groups in `RunFailureCallout.tsx` stay as they are for the chat view.
+- Emails use only catalog text. The raw message goes to `outcome.message` for run history
+  (project members already see it in the conversation) and never into an email.
+- **Customer** kinds go to the owner. **Platform** kinds go to `AUTOMATION_ALERTS_INTERNAL_TO`,
+  and the owner gets only the short "our side" line.
+- Shadow mode logs each `unknown` with its cleaned-up message. The team reviews these weekly
+  and adds rows.
 
-### 4.8 Group failures into incidents
+### 4.7 Health of an automation and when to email
 
-No new table. The deliveries already hold the history.
+The monitor evaluates **state**, not single events. After each settle step, for every
+automation with a new outcome or an open alert, it computes health from its settled
+deliveries, newest first by `created_at`:
 
-- **Fingerprint** = kind, plus the connection id for connection errors, plus the provider for
-  provider errors. For `unknown`: the message with ids, numbers, timestamps and quoted values
-  removed, then hashed.
-- Under a Postgres advisory lock on the automation id (`pg_advisory_xact_lock`), decide only
-  if this delivery is the newest settled delivery of the automation (by `created_at`). Compare
-  it with the settled delivery just before it. Scheduled runs can overlap for hours, so an
-  older run can settle after a newer one. That older run gets its status but no email
-  decision, because a newer result already describes the automation.
+- **failing**: the newest settled run failed.
+- **recovering**: the newest settled run succeeded, but a failure happened in the last 30
+  minutes.
+- **healthy**: no failure in the last 30 minutes and the newest settled run succeeded.
 
-| Situation | Email |
-|---|---|
-| Failure, and the previous settled run succeeded (or none exists) | "started failing" |
-| Failure with a new fingerprint while another is still failing | "new error" |
-| Same fingerprint still failing | none, except one reminder every 24 hours |
-| Success after a failure | "back to normal" (if enabled) |
-| Same fingerprint returns within 30 minutes of recovery | none (treat as the same incident) |
+The **fingerprint** of a failure is its kind, plus the connection id for connection errors
+and the provider for provider errors. For `unknown` it is the message with ids, numbers,
+timestamps and quoted values removed, then hashed.
 
-### 4.9 Recipients
+The last alert sent for the automation is the newest delivery whose `outcome.alert.status`
+is `sent`. The monitor compares health with that alert:
+
+| Current health | Last alert | Email |
+|---|---|---|
+| failing | none, or "back to normal" | "started failing" |
+| failing, new fingerprint | "started failing" or "new error" | "new error" |
+| failing, same fingerprint | sent more than 24 hours ago | "still failing" reminder |
+| healthy | "started failing", "new error" or reminder | "back to normal" (if enabled) |
+| recovering | any | none; wait |
+| awaiting approval | none for this delivery | "needs approval" (if enabled) |
+
+Because the monitor reads the newest state each pass:
+
+- An older run that settles after a newer one changes nothing: health uses the newest run.
+- A failure during the 30 recovering minutes keeps the automation failing, and no "back to
+  normal" email went out.
+- An email that could not be sent (cap reached, send failed) is sent on a later pass if the
+  health still calls for it. No deferred state is needed.
+
+### 4.8 Recipients
 
 1. The `created_by_id` of the schedule or subscription.
 2. Send only if that user is still a project member (`get_project_members`).
@@ -229,77 +221,90 @@ Known gap: a schedule created by an agent from a Slack or Telegram thread can ca
 agent creator's id, not the person who asked (`tasks/asyncio/channels/inbox.py`). The
 membership check limits the harm.
 
-### 4.10 Send the email
+### 4.9 Send the email
 
-- The outcome worker enqueues `automations.send_alert`. It never sends from inside the
-  stream loop.
-- The task renders a new template with an HTML part and a text part. Every value is escaped.
-  Content: automation name, project, what happened, the catalog message and fix, time of last
-  success, and a link built from `AGENTA_WEB_URL` to the run in the app.
-- It sends through `send_html_email`, which uses SMTP when configured, else SendGrid.
-- It marks the delivery with a conditional update on `data.notified`. Only the task whose
-  update changes the row sends. A retried task sends nothing twice.
+1. The monitor sets `outcome.alert = {kind, status: queued, queued_at}` on the delivery that
+   caused the alert, then enqueues `automations.send_alert`. A `queued` alert is not queued
+   again for 15 minutes.
+2. The sender finds the recipient, renders a new template (HTML and text, every value
+   escaped: automation name, project, what happened, catalog message and fix, last success,
+   link from `AGENTA_WEB_URL` to the run), applies the mode and sends through
+   `send_html_email`.
+3. On success it sets `alert.status = sent` and `sent_at`. On failure `SmartRetryMiddleware`
+   retries with backoff, up to 5 attempts. After the last attempt it sets `failed`, and the
+   monitor queues it again on a later pass if the health still calls for it.
 
-### 4.11 Modes and safety limits
+Retries live on the alerts broker only. The trigger tasks carry `retry_on_error=True` labels,
+so adding the middleware to the triggers broker would start re-running automations.
+
+A crash between a successful send and step 3 can cause one duplicate email. That is the
+accepted cost of not losing emails.
+
+### 4.10 Modes and safety limits
 
 | Mode | Behaviour |
 |---|---|
-| `off` (default) | Outcome capture runs. No email is sent. Self-hosters are unaffected. |
+| `off` (default) | The monitor writes outcomes and health. No email is queued. Self-hosters are unaffected. |
 | `shadow` | Every email goes to `AUTOMATION_ALERTS_REDIRECT_TO` with `[BETA]` in the subject and a debug block: would-send-to, reason, delivery id, turn id, kind. |
 | `live` | Emails go to the real recipient. If `AUTOMATION_ALERTS_ALLOWLIST` is set, only those projects get live email. |
 
 Safety limits, active in every mode:
 
-- **Global cap**: a Redis counter limits alert emails per hour
-  (`AUTOMATION_ALERTS_MAX_PER_HOUR`). Above it, customer emails stop and one internal
-  "alert storm" summary goes to `AUTOMATION_ALERTS_INTERNAL_TO`. This protects against a
-  platform outage that fails every automation at once.
-- **No private data**: metadata only. No inputs, outputs, prompts or raw error text.
+- **Global cap**: the monitor counts queued alerts per clock hour in Redis
+  (`AUTOMATION_ALERTS_MAX_PER_HOUR`). At the cap it stops queueing. Emails not queued are sent
+  on a later pass if still due. One "alert storm" summary per hour goes to
+  `AUTOMATION_ALERTS_INTERNAL_TO`, guarded by a Redis `SET NX` key for that hour. Shadow
+  reviews count these as "held by cap", not as missed failures.
+- **Cron heartbeat**: when `triggers:schedules:last_refresh_at` is older than 5 minutes, the
+  monitor alerts `AUTOMATION_ALERTS_INTERNAL_TO`, at most once per hour (`SET NX` key).
+- **No private data**: metadata and catalog text only. No inputs, outputs, prompts or raw
+  error text.
 - **Email not configured**: log once at startup and skip sends. Do not report success.
-- **Cutover**: deliveries created before the release are settled silently. The sweeper never
-  emails about rows older than the release time.
 
 ## 5. Contracts
 
 Fields are grouped by what they are, not by the feature that uses them.
 
-### 5.1 `TriggerDeliveryData` (Pydantic, `api/oss/src/core/triggers/dtos.py`)
+### 5.1 `trigger_deliveries.outcome` (new nullable JSONB column)
 
-The model drops unknown keys, so every new field must be declared.
+A separate column, not a key in `data`: the dispatcher writes `data` with a JSON merge, and
+the monitor must be the only writer of the result. It also allows an index for the monitor's
+"open runs" query.
 
-| Field | Role | Written by | Meaning |
-|---|---|---|---|
-| `run_id` | correlation id | Dispatcher at claim | Equals the runner `turn_id`. Replaces reading `result.run_id` (kept for old rows). |
-| `outcome.kind` | derived data | Outcome worker | Catalog kind, for example `empty_input`. |
-| `outcome.owner` | policy input | Outcome worker | `customer` or `platform`. |
-| `outcome.error_code` | data | Outcome worker | Runner code if present. |
-| `fingerprint` | grouping key | Outcome worker | Section 4.8. |
-| `notified.kind` | delivery state | Alert task | `opened`, `new_error`, `reminder`, `resolved`, `needs_approval`. |
-| `notified.at` | delivery state | Alert task | Send time. Used for the 24-hour reminder. |
+| Field | Role | Meaning |
+|---|---|---|
+| `state` | data | `awaiting_approval`, `succeeded`, `failed`, `cancelled`, `no_result` |
+| `turn_id` | correlation id | The turn whose records decided the state |
+| `kind`, `owner` | derived data | Catalog kind; `customer` or `platform` |
+| `error_code`, `message` | data | Runner code if present; raw message for run history only |
+| `fingerprint` | grouping key | Section 4.7 |
+| `updated_at` | time | Last change of `state` |
+| `alert.kind` | delivery state | `started_failing`, `new_error`, `reminder`, `back_to_normal`, `needs_approval` |
+| `alert.status`, `alert.queued_at`, `alert.sent_at` | delivery state | `queued`, `sent`, `failed` |
 
-`error` stays a single string and is never emailed.
+The sender writes only `outcome.alert` (with `jsonb_set`); the monitor writes the rest.
 
-### 5.2 Task payloads
+Index: `(project_id, created_at) WHERE outcome IS NULL OR outcome->>'state' = 'awaiting_approval'`.
 
-`triggers.settle_outcome`:
+### 5.2 `TriggerDeliveryData` (Pydantic, `api/oss/src/core/triggers/dtos.py`)
+
+| Field | Role | Meaning |
+|---|---|---|
+| `run_id` | correlation id | Set at claim. Equals the runner `turn_id`. `result.run_id` stays for old rows. |
+
+The model drops unknown keys, so the field must be declared.
+
+### 5.3 Task payload `automations.send_alert`
 
 | Field | Role |
 |---|---|
-| `source` | protocol context: `records`, `dispatcher` or `sweeper` |
 | `project_id` | routing |
-| `delivery_id` | routing (dispatcher and sweeper jobs) |
-| `session_id`, `turn_id` | routing (records jobs) |
-
-`automations.send_alert`:
-
-| Field | Role |
-|---|---|
-| `project_id`, `delivery_id` | routing |
-| `email_kind` | data: `opened`, `new_error`, `reminder`, `resolved`, `needs_approval`, `storm` |
+| `delivery_id` | routing (empty for `storm` and `cron_dead`) |
+| `email_kind` | data: the `alert.kind` values plus `storm`, `cron_dead` |
 
 The task reads everything else (recipient, automation name, catalog text) at send time.
 
-### 5.3 Environment variables (`api/oss/src/utils/env.py`)
+### 5.4 Environment variables (`api/oss/src/utils/env.py`)
 
 | Variable | Role | Default |
 |---|---|---|
@@ -327,65 +332,64 @@ estimate for planning, not a commitment.
 | Phase | Effort | Calendar time |
 |---|---|---|
 | 1. Fix the cron host | 0.5 to 1 day | 1 day |
-| 2. Record the outcome (3 PRs) | 7 to 9 days | about 2 weeks, plus 1 week of production observation |
-| 3. Classify and group | 4 to 5 days | 1 week |
+| 2. Record the outcome | 5 to 7 days | about 1.5 weeks, plus 1 week of production observation |
+| 3. Classify and evaluate health | 4 to 5 days | 1 week |
 | 4. Shadow email | 3 to 4 days | 1 week, plus 1 to 2 weeks in shadow |
 | 5. Live | 1 day | rollout over about 1 week |
-| **Total** | **16 to 20 days** | **about 7 to 9 weeks** |
+| **Total** | **14 to 18 days** | **about 6 to 8 weeks** |
 
-1. **Fix the cron host.** Make all 7 cron scripts read `AGENTA_API_INTERNAL_URL` with the
-   `http://api:8000` fallback, and confirm the admin path on Railway and Helm. Exit: cron logs
+1. **Fix the cron host.** All 7 cron scripts read `AGENTA_API_INTERNAL_URL` with the
+   `http://api:8000` fallback; confirm the admin path on Railway and Helm. Exit: cron logs
    show 200 on Helm and Railway. Scheduling `records.sh` (records retention) is a separate
    change, because it deletes customer data; see status.md.
-2. **Record the outcome.** Ship as three PRs:
-   - **2a, dispatcher:** `run_id` at claim; compare-and-set writes; new status codes; the
-     pre-start settle path; the outcome worker for pre-start failures.
-   - **2b, records path:** the records-worker hook with its core-DB reader and taskiq producer;
-     reading the turn's records across the core and tracing DBs; continuation chain; paused
-     and cancelled.
-   - **2c, sweeper:** the API lifespan loop; stuck and paused rows; cron heartbeat check;
-     cutover time.
-
-   Mode stays `off`. Exit: for one week, every automation delivery in production reaches a
-   final status, and a sample of 50 matches the run's records by hand.
-3. **Classify and group.** Catalog, fingerprint, incident decision under the lock, shared code
-   groups with the app. App: real outcomes in run history, "Needs attention" turned on.
-   Exit: unit tests pass for every catalog row and every row of the incident table.
-4. **Shadow email.** `send_html_email`, template, alert task, modes, caps, internal alerts.
-   Set `shadow` in cloud for 1 to 2 weeks. Review every email daily and mark it correct,
-   false alarm or missed failure. Exit: zero false alarms and zero missed failures over the
-   last 5 days.
+2. **Record the outcome.** `outcome` column and index (migration); `run_id` at claim; the
+   monitor loop with its lock, the settle step (records read, continuation chain, deadlines),
+   and the heartbeat key; app run history reads `outcome.state`. Mode `off`. Exit: for one
+   week, every automation delivery in production reaches a final outcome, and a sample of 50
+   matches the run's records by hand.
+3. **Classify and evaluate health.** Catalog, fingerprint, health rules, alert decisions
+   written as log lines (nothing queued). App: "Needs attention" from health. Exit: unit tests
+   pass for every catalog row and every health table row, and one week of logged decisions
+   reviewed.
+4. **Shadow email.** Alerts broker with `SmartRetryMiddleware`, sender task, template,
+   `send_html_email`, modes, global cap, heartbeat alert. Set `shadow` in cloud for 1 to 2
+   weeks. Review every email daily and mark it correct, false alarm, missed failure or held by
+   cap. Exit: zero false alarms and zero missed failures over the last 5 days.
 5. **Live.** `live` with the allowlist (internal projects first), then all projects. The mode
    switch stays as a global off switch.
 
 ## 7. Tests
 
-- **Unit**: outcome rule (error record, no `done`, quarantined late `done`, paused,
-  cancelled, a paused turn whose continuation fails, a later human turn that must be
-  ignored); every catalog row with the real sample messages; fingerprint normalization;
-  incident decisions as sequence tables; compare-and-set transitions; recipient fallback;
-  template escaping.
-- **Races**: a fast failure settles before the `202` write; watchdog `execution_lost` then a
-  late runner `done`; two failures of one automation settle at the same time; an older run
-  settles after a newer one (no email); a failed settle-job enqueue leaves the records batch
-  unacknowledged; a retried alert task.
+- **Unit**: the result rule (error record; `stopReason = error`; error with no `done`;
+  quarantined late `done`; paused; cancelled); the continuation chain (a paused turn whose
+  continuation fails; a later human turn that must be ignored); deadlines (`no_result`,
+  `approval_not_given` measured from `outcome.updated_at`); every catalog row with the real
+  sample messages; fingerprint normalization; every row of the health table, including fail,
+  success, fail within 30 minutes, and an older run that settles after a newer one; recipient
+  fallback; template escaping.
+- **Monitor**: two API replicas start the loop at the same time and only one pass runs; a
+  restart continues from the database state; the cap holds alerts and a later pass sends them;
+  the heartbeat alert fires once per hour.
+- **Sender**: a failed send is retried by the middleware; after the last attempt the monitor
+  queues it again; the triggers broker still does not retry.
 - **Acceptance** (`api/oss/tests/pytest/acceptance/triggers/`): a schedule bound to an agent
-  that fails with the mock LLM gateway ends at `520 failed` with the right kind, and shadow
-  mode produces exactly one email (captured by a test SMTP server).
+  that fails with the mock LLM gateway gets `outcome.state = failed` with the right kind, and
+  shadow mode produces exactly one email (captured by a test SMTP server).
 - **Local**: the EE dev stack already has failing automations and 40 deliveries stuck at
-  `102`, which exercise the sweeper.
+  `102`, which exercise the deadlines.
 
 ## 8. Risks
 
 | Risk | Handling |
 |---|---|
-| False alarms teach people to ignore the email | Shadow period with daily review and exit numbers |
+| False alarms teach people to ignore the email | Logged decisions in phase 3, shadow period with daily review and exit numbers |
 | Email storm during a platform outage | Global cap, platform kinds go internal |
 | Private data in an email | Catalog text only, escaped template |
 | Wrong recipient | Membership check, admin fallback |
-| Silent cron failure | Heartbeat check with internal alert |
-| Sweeper marks a long run as failed | Deadline above the runner's hard limit |
-| Backfill storm at release | Cutover time, old rows settled silently |
+| Silent cron failure | Heartbeat check in the monitor, which does not run in the cron container |
+| A long run marked `no_result` too early | Deadline above the runner's hard limit |
+| Monitor query cost grows with volume | Partial index on open runs; batch the tracing read per pass; check with [sizing.sql](./sizing.sql) |
+| Backfill emails at release | Outcomes written for old rows, but they never cause an email |
 
 ## 9. Later (after v0)
 

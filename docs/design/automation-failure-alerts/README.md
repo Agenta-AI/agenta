@@ -26,7 +26,7 @@ inbox.
 
 Visual companions (private claude.ai pages, ask the owner for access):
 
-- Automation Alert Journey (interactive diagram of the full flow): https://claude.ai/artifact/13Qag3h2uyGAfcmZU1FKpv
+- Automation Alert Journey (interactive diagram; it shows an earlier draft with a records-worker hook and a sweeper, while plan.md is current): https://claude.ai/artifact/13Qag3h2uyGAfcmZU1FKpv
 - Automation Runtime Map (today's architecture and failure points): https://claude.ai/artifact/3FkN6HZGpLoBZsaPFQNYhi
 - Automation Failure Alerts (proposal and challenges): https://claude.ai/artifact/TmRQvv38jjVZzPpGEiP16g
 
@@ -50,6 +50,11 @@ Visual companions (private claude.ai pages, ask the owner for access):
 - **Records**: the events a turn produces (`message`, `error`, `done` and others), stored in
   the tracing database.
 - **Watchdog**: a loop in the API that closes runs whose runner stopped sending heartbeats.
+- **Outcome**: the new `outcome` column on a delivery. It holds the run's real result
+  (`succeeded`, `failed`, and so on). The existing `status` column keeps only the dispatch
+  stage.
+- **Automation monitor**: the new loop that reads run records every 60 seconds, writes
+  outcomes, evaluates each automation's health and queues alert emails.
 - **Shadow mode**: a setting that sends every alert email to one internal address instead of
   the real owner, for a beta period.
 - **Fingerprint**: a short key for the cause of a failure, used to group repeated failures.
