@@ -19,6 +19,7 @@ from sqlalchemy.dialects.postgresql import JSONB, insert
 
 from oss.src.core.channels.dtos import (
     CHANNEL_TRIGGER_NEVER_SENT,
+    ChannelEventKind,
     ChannelAgent,
     ChannelAgentCreate,
     ChannelAgentEdit,
@@ -1369,6 +1370,85 @@ class ChannelsDAO(ChannelsDAOInterface):
             await session.refresh(thread_dbe)
 
             return map_thread_dbe_to_dto(thread_dbe=thread_dbe)
+
+    # --- a space's messages, for the channel read tool ------------------- #
+
+    async def query_space_inbox_messages(
+        self,
+        *,
+        project_id: UUID,
+        space_id: UUID,
+        thread_ts: Optional[str] = None,
+        before: Optional[datetime] = None,
+        limit: int,
+    ) -> List[ChannelInboxEvent]:
+        table = ChannelInboxEventDBE
+        stmt = select(table).where(
+            table.project_id == project_id,
+            table.space_id == space_id,
+            table.kind == ChannelEventKind.MESSAGE.value,
+        )
+        if thread_ts is not None:
+            stmt = stmt.where(
+                func.json_extract_path_text(table.data, "external_locator", "thread_ts")
+                == thread_ts
+            )
+        if before is not None:
+            stmt = stmt.where(table.sent_at < before)
+        stmt = stmt.order_by(table.sent_at.desc(), table.id.desc()).limit(limit)
+
+        async with self.engine.session() as session:
+            result = await session.execute(stmt)
+            return [
+                map_inbox_event_dbe_to_dto(event_dbe=dbe)
+                for dbe in result.scalars().all()
+            ]
+
+    async def query_space_outbox_messages(
+        self,
+        *,
+        project_id: UUID,
+        space_id: UUID,
+        thread_ts: Optional[str] = None,
+        before: Optional[datetime] = None,
+        limit: int,
+    ) -> List[Tuple[ChannelOutboxEvent, Optional[str]]]:
+        """The bot's sent posts in a space, newest first, each with the thread
+        it belongs to: a tool send records it, a turn reply takes its channel
+        thread's, and a top-level post roots its own."""
+
+        outbox = ChannelOutboxEventDBE
+        thread = ChannelThreadDBE
+        thread_of = func.coalesce(
+            func.json_extract_path_text(outbox.data, "processed", "thread_ts"),
+            func.json_extract_path_text(thread.data, "external_locator", "thread_ts"),
+            func.json_extract_path_text(outbox.data, "external_locator", "ts"),
+        )
+        stmt = (
+            select(outbox, thread_of)
+            .outerjoin(
+                thread,
+                (thread.project_id == outbox.project_id)
+                & (thread.id == outbox.thread_id),
+            )
+            .where(
+                outbox.project_id == project_id,
+                outbox.space_id == space_id,
+                outbox.state == ChannelDeliveryState.SENT,
+            )
+        )
+        if thread_ts is not None:
+            stmt = stmt.where(thread_of == thread_ts)
+        if before is not None:
+            stmt = stmt.where(outbox.created_at < before)
+        stmt = stmt.order_by(outbox.created_at.desc(), outbox.id.desc()).limit(limit)
+
+        async with self.engine.session() as session:
+            result = await session.execute(stmt)
+            return [
+                (map_outbox_event_dbe_to_dto(event_dbe=dbe), thread_ts_of)
+                for dbe, thread_ts_of in result.all()
+            ]
 
     # --- inbox: the log --------------------------------------------------- #
 
