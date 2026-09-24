@@ -11,6 +11,7 @@ import {
     HOSTED_HANDLE,
     OTHER_AGENT,
     SLACK_SETUP,
+    SLACK_SUPPORT_KEY,
     TELEGRAM_SETUP,
     WORKSPACE_NAME,
     createChannelStoryActions,
@@ -28,7 +29,7 @@ import type {ChannelConnection, ChannelConnections} from "./types"
 
 /**
  * **The manage view for a connected channel.** What is connected, where it answers, the two
- * behavior switches, who may message it, and disconnect.
+ * behavior switches, who may message it, the Advanced channel tool settings, and disconnect.
  *
  * Every mutation is real. Each rejects with a message the panel shows, the panel stays open, and
  * the row that failed re-reads its own state, so nothing on screen claims a change the backend
@@ -321,6 +322,98 @@ export const DisconnectFails: Story = {
                 story:
                     "Press disconnect and confirm. The action rejects, the panel shows the " +
                     "message it carried, and it stays open with the connection intact.",
+            },
+        },
+    },
+}
+
+/** Stories of the Advanced section open it on load, so its state shows without a click. */
+const openAdvanced: Story["play"] = async ({canvasElement}) => {
+    const toggle = canvasElement.querySelector<HTMLButtonElement>(
+        '[data-testid="channels-advanced-toggle"]',
+    )
+    if (toggle?.getAttribute("aria-expanded") === "false") toggle.click()
+}
+
+/** The Advanced section of a Slack bot that never saved its channel tool settings. */
+export const AdvancedSlackDefault: Story = {
+    render: () => <ManageHost connection={slackHere} />,
+    play: openAdvanced,
+    parameters: {
+        docs: {
+            description: {
+                story:
+                    "Posting outside the conversation is on and the agent may search and read " +
+                    'every channel the bot is in. Choose "Only these channels": the checklist ' +
+                    "offers only the channels the bot is a member of.",
+            },
+        },
+    },
+}
+
+/** Reading and search narrowed to one Slack channel. */
+export const AdvancedSlackNarrowed: Story = {
+    render: () => (
+        <ManageHost
+            connection={slackHere}
+            options={{
+                toolSettings: {
+                    "cx-slack": {
+                        canPostOutsideConversation: true,
+                        readableSpaceKeys: [SLACK_SUPPORT_KEY],
+                    },
+                },
+            }}
+        />
+    ),
+    play: openAdvanced,
+    parameters: {
+        docs: {
+            description: {
+                story:
+                    '"Only these channels" is stored with #support checked. Check another ' +
+                    "channel and save; uncheck all and save to turn reading and search off.",
+            },
+        },
+    },
+}
+
+/** A Telegram bot, which can read only what it received. */
+export const AdvancedTelegram: Story = {
+    render: () => <ManageHost connection={telegramHere} />,
+    play: openAdvanced,
+    parameters: {
+        docs: {
+            description: {
+                story:
+                    "The help text says a Telegram bot reads only the messages it received. " +
+                    "The checklist lists the groups the bot has stored, never private chats.",
+            },
+        },
+    },
+}
+
+/** Posting outside the conversation turned off, and the next save refused. */
+export const AdvancedPostingOff: Story = {
+    render: () => (
+        <ManageHost
+            connection={slackHere}
+            options={{
+                toolSettings: {
+                    "cx-slack": {canPostOutsideConversation: false, readableSpaceKeys: null},
+                },
+                toolSettingsError: "Could not reach the server. The setting was not saved.",
+            }}
+        />
+    ),
+    play: openAdvanced,
+    parameters: {
+        docs: {
+            description: {
+                story:
+                    "The switch is off, so the agent's send tool refuses every destination; it " +
+                    "still answers in the conversation that woke it. Flip the switch: the save " +
+                    "is refused, the message shows, and the switch returns to the stored value.",
             },
         },
     },

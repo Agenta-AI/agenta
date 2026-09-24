@@ -16,8 +16,13 @@ vi.mock("@agenta/ui/ui", () => {
                 {children}
             </button>
         ),
+        Checkbox: () => <input type="checkbox" />,
         Input: () => <input />,
         PasswordInput: () => <input />,
+        RadioGroup: Wrap,
+        RadioGroupItem: (props: {"data-testid"?: string}) => (
+            <input type="radio" data-testid={props["data-testid"]} />
+        ),
         Spinner: () => <span />,
         Switch: ({
             onCheckedChange,
@@ -141,11 +146,28 @@ it("marks Direct messages off once the switch turns them off", async () => {
     )
     expect(row()).toBe("Direct messagesOff")
 })
-it("shows no read-only settings: no Advanced defaults and no Status row", async () => {
+it("shows no read-only settings: Advanced holds only editable controls and no Status row", async () => {
     await render({})
+    const toggle = container.querySelector(
+        '[data-testid="channels-advanced-toggle"]',
+    ) as HTMLButtonElement
+    expect(toggle.textContent).toBe("Advanced")
+    await act(async () => toggle.click())
+    const advanced = container.querySelector('[data-testid="channels-advanced"]')!
+    // Every setting in the section is a control the user can change: the posting switch and
+    // the readable-channels choice. Nothing is shown as a fixed value.
+    const controls = [
+        ...advanced.querySelectorAll('[data-testid^="channels-advanced-"]'),
+    ].map((node) => node.getAttribute("data-testid"))
+    expect(controls).toEqual([
+        "channels-advanced-toggle",
+        "channels-advanced-post",
+        "channels-advanced-telegram-help",
+        "channels-advanced-read-all",
+        "channels-advanced-read-only",
+    ])
     const text = container.textContent ?? ""
     for (const gone of [
-        "Advanced",
         "Session memory",
         "Read earlier messages",
         "Read while thinking",

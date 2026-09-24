@@ -4,7 +4,7 @@ import {Button} from "@agenta/ui/ui"
 
 import {ChannelConnectFlow} from "./ChannelConnectFlow"
 import {ChannelsPage} from "./ChannelsPage"
-import {DIRECT_MESSAGES_CHAT, EMPTY_CONNECTIONS} from "./helpers"
+import {DEFAULT_TOOL_SETTINGS, DIRECT_MESSAGES_CHAT, EMPTY_CONNECTIONS} from "./helpers"
 import type {
     ChannelBehaviorState,
     ChannelConnection,
@@ -15,6 +15,7 @@ import type {
     ChannelSpace,
     ChannelSpaceCandidate,
     ChannelsActions,
+    ChannelToolSettings,
     HostedTelegramLink,
 } from "./types"
 
@@ -166,8 +167,16 @@ export const SLACK_SPACES: ChannelSpace[] = [
 
 export const TELEGRAM_SPACES: ChannelSpace[] = [
     {id: "sp-tg-dm", kind: "private", name: "Direct messages"},
-    {id: "sp-tg-ops", kind: "group", name: "Ops team"},
+    {
+        id: "sp-tg-ops",
+        kind: "group",
+        name: "Ops team",
+        externalKey: "5b0c7a4e-0000-4000-8000-00000000a001",
+    },
 ]
+
+/** The space key of #support, for a story that narrows reading to it. */
+export const SLACK_SUPPORT_KEY = "5b0c7a4e-0000-4000-8000-00000000c001"
 
 /** What the Slack app can see: one room already configured, three that are not. */
 export const SLACK_CANDIDATES: ChannelSpaceCandidate[] = [
@@ -177,6 +186,7 @@ export const SLACK_CANDIDATES: ChannelSpaceCandidate[] = [
         displayName: "#support",
         isConfigured: true,
         membership: "member",
+        externalKey: SLACK_SUPPORT_KEY,
     },
     {
         kind: "topic",
@@ -184,6 +194,7 @@ export const SLACK_CANDIDATES: ChannelSpaceCandidate[] = [
         displayName: "#product",
         isConfigured: false,
         membership: "joinable",
+        externalKey: "5b0c7a4e-0000-4000-8000-00000000c002",
     },
     {
         kind: "topic",
@@ -191,6 +202,7 @@ export const SLACK_CANDIDATES: ChannelSpaceCandidate[] = [
         displayName: "#sales-questions",
         isConfigured: false,
         membership: "member",
+        externalKey: "5b0c7a4e-0000-4000-8000-00000000c003",
     },
     {
         kind: "topic",
@@ -198,6 +210,7 @@ export const SLACK_CANDIDATES: ChannelSpaceCandidate[] = [
         displayName: "#leadership",
         isConfigured: false,
         membership: "invite_required",
+        externalKey: "5b0c7a4e-0000-4000-8000-00000000c004",
     },
 ]
 
@@ -237,6 +250,9 @@ export interface ChannelStoryActionsOptions {
     behavior?: Record<string, ChannelBehaviorState>
     /** The allowed Telegram accounts, keyed by connection id. Default: everyone. */
     allowedUsers?: Record<string, string[]>
+    /** The channel tool settings, keyed by connection id. Default: the defaults. */
+    toolSettings?: Record<string, ChannelToolSettings>
+    toolSettingsError?: string
     spacesError?: string
     discoverError?: string
     addSpaceError?: string
@@ -277,6 +293,7 @@ export const createChannelStoryActions = (
         behaviorError,
         allowedUsersError,
         credentialsError,
+        toolSettingsError,
         onChange,
     } = options
 
@@ -289,6 +306,7 @@ export const createChannelStoryActions = (
     }
     const behavior: Record<string, ChannelBehaviorState> = {...options.behavior}
     const allowedUsers: Record<string, string[]> = {...options.allowedUsers}
+    const toolSettings: Record<string, ChannelToolSettings> = {...options.toolSettings}
     let nextSpaceId = 0
 
     const write = (next: ChannelConnections) => {
@@ -415,6 +433,27 @@ export const createChannelStoryActions = (
                     write({...store, [platform]: {...current, status: "connected"}})
                 }
             }
+        },
+        readToolSettings: async (connectionId) => {
+            await delay(latencyMs)
+            return toolSettings[connectionId] ?? DEFAULT_TOOL_SETTINGS
+        },
+        writeToolSettings: async (connectionId, next) => {
+            await delay(latencyMs)
+            if (toolSettingsError) throw new Error(toolSettingsError)
+            toolSettings[connectionId] = next
+        },
+        listReadableChannels: async (platform, connectionId) => {
+            await delay(latencyMs)
+            const rows =
+                platform === "slack"
+                    ? (candidates[connectionId] ?? []).filter((c) => c.membership === "member")
+                    : (spaces[connectionId] ?? []).filter((space) => space.kind !== "private")
+            return rows.flatMap((row) => {
+                const key = row.externalKey
+                const name = "displayName" in row ? row.displayName : row.name
+                return key ? [{key, name, kind: row.kind}] : []
+            })
         },
     }
 
