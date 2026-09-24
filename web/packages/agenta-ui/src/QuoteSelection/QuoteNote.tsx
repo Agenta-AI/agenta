@@ -10,6 +10,8 @@ import {useEffect, useLayoutEffect, useRef, useState} from "react"
 import {truncateQuoteText, type Quote} from "@agenta/shared/quotes"
 import {ArrowUp} from "@phosphor-icons/react"
 
+import {Button} from "../components/ui/button"
+
 const GAP = 8
 const WIDTH = 320
 
@@ -103,17 +105,15 @@ export const QuoteNote = ({
                         touch ? "text-sm" : "text-xs"
                     }`}
                 />
-                <button
-                    type="button"
+                <Button
+                    size="icon-sm"
+                    className="shrink-0"
                     aria-label="Send"
                     title="Send · ⌘/Ctrl+Enter adds it to your message instead"
                     onClick={() => onSend(note)}
-                    className={`flex shrink-0 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent text-colorTextTertiary hover:bg-colorFillTertiary hover:text-colorText ${
-                        touch ? "h-7 w-7" : "h-6 w-6"
-                    }`}
                 >
-                    <ArrowUp size={touch ? 16 : 14} weight="bold" />
-                </button>
+                    <ArrowUp weight="bold" />
+                </Button>
             </div>
         </div>
     )
