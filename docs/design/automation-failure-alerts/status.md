@@ -20,6 +20,12 @@
 | 2026-09-25 | Error text for the email comes from a fixed catalog, not an LLM | Prompt injection, data leaks, consistent fingerprints |
 | 2026-09-25 | New final codes `520` (failed after start) and `504` (no result), not `500` | Dedup treats `500` as not seen, which would re-run the automation |
 | 2026-09-25 | No automatic retries in v0 | A retry can repeat side effects such as a sent email or a Slack post |
+| 2026-09-25 | Paused and cancelled runs get their own statuses (`202 paused`, `499 cancelled`) | Without them these runs stay at `202` and the sweeper would report them as "no result" |
+| 2026-09-25 | Settle jobs for approval continuations are accepted through `parent_execution_id` | A continuation runs on a new turn id; human turns in the same session stay ignored |
+| 2026-09-25 | Only the newest settled run of an automation can trigger an email | Scheduled runs overlap; an older run that settles late must not report a stale state |
+| 2026-09-25 | The sweeper runs in the API lifespan, like the execution watchdog | It must keep running when the cron container is dead, to detect that case |
+| 2026-09-25 | Cron scripts reuse `AGENTA_API_INTERNAL_URL` | No second variable for the same address |
+| 2026-09-25 | Records retention (`records.sh`) is not part of this plan | It deletes customer data and needs its own decision |
 
 ## Open questions
 
@@ -55,7 +61,7 @@ These need production access. None of them blocks phase 1 or phase 2 of the plan
 Track these separately; they are not part of this feature:
 
 - Cron scripts hard-code `http://api:8000` (all cron jobs fail on Helm). Phase 1 fixes it.
-- `records.sh` is never scheduled, so records retention never runs. Phase 1 adds it.
+- `records.sh` is never scheduled, so records retention never runs. Turning it on deletes customer data (for example everything older than 7 days on free), so it needs its own product decision and change.
 - An edit without `flags` re-enables a revoked subscription.
 - A revoked connection keeps running its subscriptions.
 - The ORM model lacks `ix_trigger_deliveries_schedule_id_created_at`.
