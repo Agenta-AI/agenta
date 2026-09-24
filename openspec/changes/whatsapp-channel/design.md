@@ -142,14 +142,18 @@ Documented limits:
 
 - Delivery statuses are logged, with failed ones at warning level and Meta's code. They are not written back to the outbox row. Error 131047 in a send response holds the reply; a 131047 that only arrives later as a status is logged. The window check before sending makes that case rare.
 - The pair rate limit (131056) is retried twice after 6 seconds. There is no fixed spacing between the parts of a long answer, because Meta allows short bursts.
-- Held replies go out whenever the customer writes again, with or without a template, before the new message is answered. The customer's message then runs a normal turn.
-- The re-open template is sent once for the first reply held since the customer last wrote, not once per held part.
+- Held replies go out, oldest first, when the customer writes again and that message starts a turn, before the turn's answer, with or without a template. The outbox sends them through its ordinary claim and delivery path, so an unknown outcome is never retried and order holds across workers. Only rows held before the customer's latest message are released, so a redelivered turn event sends nothing. A message that starts no turn (a voice note, a message while opted out) releases nothing.
+- The re-open template is sent once for the first reply held since the customer last wrote, not once per held part. If the worker stops between holding the reply and sending the template, the template is not sent; the reply stays held and goes out when the customer writes. Two replies of one thread are never held at the same moment by two workers, because a thread runs one turn at a time and its parts go out in order from one worker.
 - Group messages are ignored, not stored.
 - The operator registers the webhook in Meta by pasting the callback URL and verify token. Agenta does not call `subscribed_apps`, and disconnecting does not unsubscribe the app, because the same Meta app may serve the business's other tools. Disconnect shows a notice instead.
 - The verify token is `<phone_number_id>.<random>` and is kept in the connection data, not the vault, because the operator needs to see it again. The GET handshake finds the connection from the phone number ID in the token.
 - Inbound images and documents become session attachments, so the deployment's attachment limits apply (10 MB by default), not Meta's 100 MB.
 - Sending files the agent produces is deferred: no channel can return a file from an agent yet.
 - A turn already running when the customer sends STOP still delivers its answer.
+- STOP and START apply in order: the space records the id of the last one applied, and an older, redelivered one changes nothing.
+- The window counts from Meta's timestamp on the customer's latest message to arrive, or from its arrival time when the payload has none. A webhook Meta retried for a day therefore does not reopen the window.
+- The typing loop stops as soon as the turn's answer, failure notice or approval card has left, even when the turn ended on another worker.
+- A held reply shows in Settings > Channels outbound events with the state `held` and the reason `window_closed`. The session view does not show it yet.
 - A real Meta number has not been tested yet. The code is tested against a fake Graph API that answers like Meta's for every call the adapter makes.
 
 ## Adapter mapping

@@ -283,10 +283,17 @@ class FakeChannelsDAO(ChannelsDAOInterface):
     async def mark_space_backfilled(self, **kwargs):
         raise NotImplementedError
 
-    async def set_space_opted_out(self, *, project_id, space_id, opted_out):
+    async def set_space_opted_out(self, *, project_id, space_id, opted_out, event_id):
+        """Same fence as the Postgres update: an older event never overrides
+        a newer one (ids are time-ordered)."""
         space = self.spaces.get(space_id)
         if space is None:
             return None
+        applied = getattr(self, "_consent_events", {})
+        self._consent_events = applied
+        if space_id in applied and str(applied[space_id]) >= str(event_id):
+            return None
+        applied[space_id] = event_id
         space.flags.is_opted_out = opted_out
         return space
 

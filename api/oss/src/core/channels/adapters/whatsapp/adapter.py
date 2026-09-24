@@ -39,11 +39,14 @@ _PAIR_LIMIT_RETRIES = 2
 _MEDIA_TIMEOUT_SECONDS = 30.0
 
 
-def _data(connection: ChannelConnection) -> dict[str, Any]:
+def _data(connection: ChannelConnection | ChannelConnectionCreate) -> dict[str, Any]:
     return connection.data if isinstance(connection.data, dict) else {}
 
 
-def _phone_number_id(connection: ChannelConnection) -> str:
+def _phone_number_id(connection: ChannelConnection | ChannelConnectionCreate) -> str:
+    """The number, from a stored connection (under `connection_locator`) or
+    from a create or rotate request (flat, as the operator typed it)."""
+
     data = _data(connection)
     locator = data.get("connection_locator")
     value = locator.get("phone_number_id") if isinstance(locator, dict) else None
@@ -98,21 +101,17 @@ class WhatsAppAdapter(ChannelAdapterInterface):
     ) -> dict[str, Any]:
         """Read the phone number with the token. A token that cannot read it
         stores nothing. Also returns what the operator pastes into Meta's
-        webhook form: the callback URL and a fresh verify token."""
+        webhook form: the callback URL and a fresh verify token. Rotation
+        calls this too, with the stored data and only the new credential;
+        the app secret cannot be checked against Meta, so it is not required
+        here (the setup form requires it)."""
 
-        data = connection.data if isinstance(connection.data, dict) else {}
-        phone_number_id = str(data.get("phone_number_id") or "").strip()
+        phone_number_id = _phone_number_id(connection).strip()
         token = (credentials or {}).get("access_token")
-        if not phone_number_id:
-            raise ChannelConnectionIncomplete(
-                channel=self.channel, field="phone_number_id"
-            )
         if not token:
             raise ChannelConnectionIncomplete(
                 channel=self.channel, field="access_token"
             )
-        if not (credentials or {}).get("app_secret"):
-            raise ChannelConnectionIncomplete(channel=self.channel, field="app_secret")
 
         try:
             number = await self._call(

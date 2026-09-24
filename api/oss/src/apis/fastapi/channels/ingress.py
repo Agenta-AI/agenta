@@ -537,6 +537,7 @@ class ChannelsIngressRouter:
                 processed=inbound.processed,
                 space_kind=inbound.space_kind,
                 addressed=inbound.addressed,
+                sent_at=inbound.sent_at,
             ),
         )
         await self.channels_service.record_inbox_event(

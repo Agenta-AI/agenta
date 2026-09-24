@@ -11,7 +11,7 @@ Agenta SHALL let a project editor connect a WhatsApp business number by entering
 
 #### Scenario: Valid credentials
 - **WHEN** an editor submits a phone number ID and a token that can read that number
-- **THEN** Agenta SHALL store the connection with the number's display name and business account ID and SHALL show the webhook URL and a generated verify token to paste into Meta
+- **THEN** Agenta SHALL store the connection with the number's display name and SHALL show the webhook URL and a generated verify token to paste into Meta
 
 #### Scenario: Token cannot read the number
 - **WHEN** the token is invalid or lacks access to the phone number

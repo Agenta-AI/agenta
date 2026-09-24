@@ -28,6 +28,8 @@ def test_text_message_is_one_private_addressed_message():
     assert event.external_locator == {"wa_id": p.CUSTOMER}
     assert event.processed.content == [{"type": "text", "text": "Where is my order?"}]
     assert event.processed.sender == {"id": p.CUSTOMER, "name": "Kerry Fisher"}
+    # Meta's own timestamp, which the 24-hour window counts from
+    assert event.sent_at.timestamp() == 1758700000
 
 
 def test_button_and_list_replies_are_actions_carrying_the_token():

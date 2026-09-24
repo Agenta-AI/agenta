@@ -307,10 +307,15 @@ class ChannelsDAOInterface(ABC):
         project_id: UUID,
         space_id: UUID,
         opted_out: bool,
+        event_id: UUID,
     ) -> Optional[ChannelSpace]:
         """Set flags.is_opted_out when the person sends STOP or START. Its own
         write for the same reason as `mark_space_backfilled`: the writer is the
-        person on the platform, and it must not clobber an operator's edit."""
+        person on the platform, and it must not clobber an operator's edit.
+
+        Fenced on `event_id` (time-ordered): a STOP or START older than the
+        last one applied changes nothing and returns None, so a redelivered
+        START can never undo a later STOP."""
         ...
 
     @abstractmethod

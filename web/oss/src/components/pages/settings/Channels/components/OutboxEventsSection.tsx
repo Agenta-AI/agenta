@@ -40,6 +40,14 @@ export default function OutboxEventsSection() {
                 render: (v: string) => <Tag color={STATE_COLOR[v] ?? "default"}>{v}</Tag>,
             },
             {
+                // Why a reply did not go out: "window_closed" for a held
+                // WhatsApp reply, the platform's error for a failed one.
+                title: "Reason",
+                key: "reason",
+                render: (_: unknown, record: AgentaApi.ChannelOutboxEvent) =>
+                    record.state === "sent" ? "-" : (record.status?.code ?? "-"),
+            },
+            {
                 title: "Created at",
                 dataIndex: "created_at",
                 key: "created_at",

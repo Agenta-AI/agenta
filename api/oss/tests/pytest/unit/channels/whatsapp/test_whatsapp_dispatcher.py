@@ -1,5 +1,5 @@
 """The inbox dispatcher's WhatsApp paths: STOP and START, the one fixed reply
-to a voice note, releasing held replies before a turn, and passing images
+to a voice note, and passing images
 and documents to the agent as session attachments. The channels service is
 stubbed like the rest of the dispatcher suite; the adapter is the real one
 over the fake Graph API, so replies are asserted on what Meta received."""
@@ -9,6 +9,7 @@ from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
 
 import httpx
+import uuid_utils.compat as uuid_utils
 import pytest
 from oss.src.core.channels.adapters.registry import ChannelAdapterRegistry
 from oss.src.core.channels.adapters.whatsapp.adapter import WhatsAppAdapter
@@ -91,7 +92,6 @@ def world(dao, graph):
     service.resolve = AsyncMock(return_value=resolution)
     service.fetch_connection = AsyncMock(return_value=connection)
     service.fetch_capabilities = AsyncMock(return_value=fetch_whatsapp_capabilities())
-    service.release_held_replies = AsyncMock(return_value=0)
     service.open_turn = AsyncMock(
         return_value=ChannelInboxTrigger(
             id=uuid4(),
@@ -109,7 +109,8 @@ def world(dao, graph):
 
 def _event(content, kind=ChannelEventKind.MESSAGE):
     return ChannelInboxEvent(
-        id=uuid4(),
+        # time-ordered, like the inbox's own ids
+        id=uuid_utils.uuid7(),
         connection_id=uuid4(),
         external_id=f"wamid.{uuid4().hex[:6]}",
         kind=kind,
@@ -160,7 +161,6 @@ async def test_an_opted_out_customer_is_not_answered(world, graph):
 
     invoke.assert_not_called()
     assert graph.sent == []
-    world.service.release_held_replies.assert_not_called()
 
 
 async def test_stop_again_while_opted_out_sends_nothing(world, graph):
@@ -189,6 +189,17 @@ async def test_start_from_a_customer_who_never_opted_out_is_a_normal_message(wor
     invoke.assert_called_once()
 
 
+async def test_a_replayed_start_cannot_undo_a_later_stop(world, graph):
+    stop, start, stop_again = _text("STOP"), _text("START"), _text("STOP")
+
+    for event in (stop, start, stop_again):
+        await _dispatch(world, event)
+    invoke = await _dispatch(world, start)  # Meta redelivers the old START
+
+    assert world.space.flags.is_opted_out is True
+    invoke.assert_not_called()
+
+
 async def test_stop_inside_a_sentence_is_a_normal_message(world, graph):
     invoke = await _dispatch(world, _text("please stop the order"))
 
@@ -207,22 +218,6 @@ async def test_a_voice_note_gets_one_fixed_reply_and_no_turn(world, graph):
 
     invoke.assert_not_called()
     assert graph.texts_to(p.CUSTOMER) == [UNSUPPORTED_TEXT]
-
-
-# --- held replies -------------------------------------------------------- #
-
-
-async def test_held_replies_are_released_before_the_new_turn(world):
-    order = []
-    world.service.release_held_replies = AsyncMock(
-        side_effect=lambda **kw: order.append("release") or 0
-    )
-
-    invoke = await _dispatch(world, _text("any update?"))
-
-    world.service.release_held_replies.assert_awaited_once()
-    assert order == ["release"]
-    invoke.assert_called_once()
 
 
 # --- images and documents ------------------------------------------------ #

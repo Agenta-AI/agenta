@@ -7,6 +7,7 @@ import json
 import re
 import secrets
 from collections.abc import Mapping
+from datetime import datetime, timezone
 from typing import Any
 
 from oss.src.core.channels.adapters.whatsapp.capabilities import (
@@ -193,12 +194,22 @@ def _parse_message(
 
     return ChannelInboundEvent(
         external_id=str(message_id),
+        sent_at=_sent_at(message.get("timestamp")),
         kind=kind,
         space_kind=ChannelSpaceKind.PRIVATE,
         external_locator={"wa_id": str(wa_id)},
         processed=ChannelInboxEventProcessed(content=content, sender=sender),
         addressed=True,
     )
+
+
+def _sent_at(timestamp: Any) -> datetime | None:
+    """Meta's `timestamp`: Unix seconds, as a string."""
+
+    try:
+        return datetime.fromtimestamp(int(timestamp), tz=timezone.utc)
+    except (TypeError, ValueError, OverflowError, OSError):
+        return None
 
 
 # --- signature and webhook registration ---------------------------------- #

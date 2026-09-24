@@ -20,7 +20,6 @@ from oss.src.core.channels.dtos import (
     ChannelConnectionEdit,
     ChannelConnectionFlags,
     ChannelConnectionQuery,
-    ChannelDeliveryState,
     ChannelEffectivePolicy,
     ChannelEventKind,
     ChannelGrant,
@@ -33,8 +32,6 @@ from oss.src.core.channels.dtos import (
     ChannelInboxTrigger,
     ChannelInboxTriggerCreate,
     ChannelKeyGrain,
-    ChannelOutboxEventData,
-    ChannelOutboxEventQuery,
     ChannelPendingChoice,
     ChannelResolution,
     ChannelSessionScope,
@@ -62,7 +59,6 @@ from oss.src.core.channels.types import (
     ChannelConnectionIdentityConflict,
     ChannelConnectionNotFound,
     ChannelConnectionVerificationFailed,
-    ChannelDeliveryHeld,
     ChannelGrantRuleInvalid,
     ChannelLocatorIncomplete,
     ChannelsError,
@@ -2309,81 +2305,6 @@ class ChannelsService:
             external_locator=event.data.external_locator,
             content=content,
         )
-
-    async def release_held_replies(
-        self,
-        *,
-        project_id: UUID,
-        thread: ChannelThread,
-        connection: ChannelConnection,
-    ) -> int:
-        """Send the thread's HELD replies, oldest first, now that the person
-        wrote again and the reply window is open. Returns how many went out.
-        A reply that fails is marked FAILED and the rest still go; one the
-        platform holds again stays HELD."""
-
-        held = await self.channels_dao.query_outbox_events(
-            project_id=project_id,
-            event=ChannelOutboxEventQuery(
-                thread_id=thread.id, state=ChannelDeliveryState.HELD
-            ),
-        )
-        if not held:
-            return 0
-
-        adapter = self.adapter_registry.get(connection.channel)
-        released = 0
-        for row in sorted(held, key=lambda r: (r.created_at is None, r.created_at)):
-            processed = (row.data.processed if row.data else None) or {}
-            content = processed.get("content") or []
-            claimed = await self.channels_dao.claim_outbox_delivery(
-                project_id=project_id,
-                event_id=row.id,
-                content=content,
-                claim_ttl_seconds=60.0,
-                include_held=True,
-            )
-            if claimed is None:
-                continue  # another worker is releasing it
-            claim_token = claimed.status.message if claimed.status else None
-            try:
-                receipt = await adapter.post_message(
-                    connection=connection,
-                    locator=thread.data.external_locator or {},
-                    content=content,
-                    idempotency_key=row.key,
-                )
-            except ChannelDeliveryHeld as e:
-                await self.channels_dao.transition_outbox_event(
-                    project_id=project_id,
-                    event_id=row.id,
-                    state=ChannelDeliveryState.HELD,
-                    status=Status(code=e.reason),
-                    claim_token=claim_token,
-                )
-                break
-            except Exception as e:  # noqa: BLE001 - one bad row never blocks the rest
-                await self.channels_dao.transition_outbox_event(
-                    project_id=project_id,
-                    event_id=row.id,
-                    state=ChannelDeliveryState.FAILED,
-                    status=Status(code="delivery_failed", message=str(e)[:500]),
-                    claim_token=claim_token,
-                )
-                log.warning("[CHANNELS] held reply not delivered row=%s: %s", row.id, e)
-                continue
-            await self.channels_dao.transition_outbox_event(
-                project_id=project_id,
-                event_id=row.id,
-                state=ChannelDeliveryState.SENT,
-                status=Status(code="sent"),
-                data=ChannelOutboxEventData(
-                    external_locator=receipt, processed=processed
-                ),
-                claim_token=claim_token,
-            )
-            released += 1
-        return released
 
     async def enqueue_output(self, *, project_id, thread_id, turn_id, items):
         raise NotImplementedError

@@ -1,3 +1,4 @@
+import json
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Tuple
 from uuid import UUID, uuid4
@@ -805,28 +806,45 @@ class ChannelsDAO(ChannelsDAOInterface):
         project_id: UUID,
         space_id: UUID,
         opted_out: bool,
+        event_id: UUID,
     ) -> Optional[ChannelSpace]:
-        async with self.engine.session() as session:
-            stmt = select(ChannelSpaceDBE).where(
+        # One conditional UPDATE: the fence and the write cannot interleave with
+        # another consent event. uuid7 text sorts by time.
+        flags = cast(ChannelSpaceDBE.flags, JSONB)
+        applied = flags["consent_event_id"].astext
+        stmt = (
+            update(ChannelSpaceDBE)
+            .where(
                 ChannelSpaceDBE.project_id == project_id,
                 ChannelSpaceDBE.id == space_id,
+                or_(applied.is_(None), applied < str(event_id)),
             )
+            .values(
+                flags=func.coalesce(flags, cast(literal("{}"), JSONB)).op("||")(
+                    cast(
+                        literal(
+                            json.dumps(
+                                {
+                                    "is_opted_out": opted_out,
+                                    "consent_event_id": str(event_id),
+                                }
+                            )
+                        ),
+                        JSONB,
+                    )
+                ),
+                updated_at=datetime.now(timezone.utc),
+            )
+            .returning(ChannelSpaceDBE)
+        )
 
+        async with self.engine.session() as session:
             result = await session.execute(stmt)
-
             space_dbe = result.scalar_one_or_none()
-
-            if not space_dbe:
-                return None
-
-            flags = dict(space_dbe.flags or {})
-            flags["is_opted_out"] = opted_out
-            space_dbe.flags = flags
-            space_dbe.updated_at = datetime.now(timezone.utc)
-
             await session.commit()
 
-            await session.refresh(space_dbe)
+            if space_dbe is None:
+                return None
 
             return map_space_dbe_to_dto(space_dbe=space_dbe)
 

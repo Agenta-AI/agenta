@@ -516,15 +516,6 @@ class InboxDispatcher:
         ):
             return
 
-        if capabilities.conversation.reply_window_seconds:
-            # The person wrote, so the reply window is open again: replies
-            # held while it was closed go out first, oldest first.
-            await self.channels_service.release_held_replies(
-                project_id=project_id,
-                thread=resolution.thread,
-                connection=connection,
-            )
-
         if resolution.answered_interaction_id is not None:
             # The message answered a parked approval. The answer belongs to the
             # turn that parked, so it goes to the sessions respond path and no
@@ -646,9 +637,15 @@ class InboxDispatcher:
         keyword = _consent_keyword(event)
         if (keyword == "stop" and not opted_out) or (keyword == "start" and opted_out):
             opting_out = keyword == "stop"
-            await self.channels_service.channels_dao.set_space_opted_out(
-                project_id=project_id, space_id=space.id, opted_out=opting_out
+            applied = await self.channels_service.channels_dao.set_space_opted_out(
+                project_id=project_id,
+                space_id=space.id,
+                opted_out=opting_out,
+                event_id=event.id,
             )
+            if applied is None:
+                # A newer STOP or START already won: this is a redelivery.
+                return True
             await self._notify_not_started(
                 project_id=project_id,
                 resolution=resolution,

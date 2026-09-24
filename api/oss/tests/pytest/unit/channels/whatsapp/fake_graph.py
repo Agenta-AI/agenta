@@ -28,7 +28,8 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 from starlette.routing import Route
 
-_ERROR_STATUS = {190: 401, 131056: 429}
+# Meta error code -> HTTP status; code 2 is "service temporarily unavailable".
+_ERROR_STATUS = {190: 401, 131056: 429, 2: 503}
 
 
 class FakeGraph:

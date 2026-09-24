@@ -24,7 +24,7 @@ from oss.src.core.channels.dtos import (
     ChannelThread,
     ChannelThreadQuery,
 )
-from oss.src.core.channels.render.dtos import RenderItem
+from oss.src.core.channels.render.dtos import RenderItem, RenderPart
 from oss.src.core.sessions.interactions.dtos import SessionInteractionStatus
 from oss.src.core.channels.render.render import (
     extract_answer_text,
@@ -204,6 +204,15 @@ class ChannelsOutboxWorker:
             project_id=project_id, thread=thread
         )
 
+        # The person wrote, so a closed reply window is open again: replies
+        # held while it was closed go out first, oldest first.
+        await self._release_held(
+            project_id=project_id,
+            thread=thread,
+            connection=connection,
+            capabilities=capabilities,
+        )
+
         if capabilities.rendering.controls.indicator == "native":
             # No "Thinking…" message: this platform could never remove it.
             # The typing signal now, awaited so a turn that ends at once still
@@ -315,6 +324,12 @@ class ChannelsOutboxWorker:
             while loop.time() - started <= self.progress_max_seconds:
                 now = loop.time()
                 try:
+                    if await self._turn_answered(
+                        project_id=project_id, thread=thread, turn_id=turn_id
+                    ):
+                        # turn_ended may have run on another worker, where
+                        # stop_progress cannot reach this loop.
+                        return
                     if now >= next_signal:
                         next_signal = now + self.activity_refresh_seconds
                         await self._signal_native(
@@ -354,6 +369,70 @@ class ChannelsOutboxWorker:
                 await asyncio.sleep(self.progress_interval_seconds)
         finally:
             self._progress_tasks.pop(turn_id, None)
+
+    async def _turn_answered(
+        self, *, project_id: UUID, thread: ChannelThread, turn_id: str
+    ) -> bool:
+        """Whether the turn's answer (or its failure notice, or an approval
+        card) has been delivered or held: its first item left CREATED."""
+
+        event = await self.channels_service.channels_dao.fetch_outbox_event_by_key(
+            project_id=project_id,
+            key=compose_outbox_key(thread_id=thread.id, turn_id=turn_id, item=0),
+        )
+        return event is not None and event.state is not ChannelDeliveryState.CREATED
+
+    async def _release_held(
+        self,
+        *,
+        project_id: UUID,
+        thread: ChannelThread,
+        connection: ChannelConnection,
+        capabilities: ChannelCapabilities,
+    ) -> None:
+        """Send the thread's HELD replies, oldest first, once the person has
+        written since they were held. Uses the same claim and delivery path as
+        any reply, and stops at the first one that does not go out, so replies
+        never arrive out of order and one whose outcome is unknown is never
+        sent twice. A redelivered turn event, with no new message, sends
+        nothing: the window may look open to us while Meta said it was not."""
+
+        window = capabilities.conversation.reply_window_seconds
+        if not window:
+            return
+        held = await self.channels_service.channels_dao.query_outbox_events(
+            project_id=project_id,
+            event=ChannelOutboxEventQuery(
+                thread_id=thread.id, state=ChannelDeliveryState.HELD
+            ),
+        )
+        if not held:
+            return
+        latest = await self._latest_inbound(project_id=project_id, thread=thread)
+        if latest is None or not _within_window(latest, window):
+            return
+        for event in sorted(held, key=lambda row: row.created_at or datetime.min):
+            if not (event.updated_at and latest.created_at) or (
+                event.updated_at >= latest.created_at
+            ):
+                return  # held after the person's latest message
+            processed = (event.data.processed if event.data else None) or {}
+            delivered = await self._send(
+                project_id=project_id,
+                event=event,
+                connection=connection,
+                capabilities=capabilities,
+                item=RenderItem(
+                    parts=[
+                        RenderPart(**part) for part in processed.get("content") or []
+                    ]
+                ),
+                thread=thread,
+                final=bool(processed.get("final")),
+                include_held=True,
+            )
+            if not delivered:
+                return
 
     async def _signal_native(
         self,
@@ -524,6 +603,14 @@ class ChannelsOutboxWorker:
 
         connection, capabilities = await self._connection_and_capabilities(
             project_id=project_id, thread=thread
+        )
+        # Held replies go out before this turn's answer, in case turn_started
+        # ran on another worker that has not finished releasing them.
+        await self._release_held(
+            project_id=project_id,
+            thread=thread,
+            connection=connection,
+            capabilities=capabilities,
         )
 
         # The turn-ended event can outrun the final record commit (measured
@@ -702,9 +789,11 @@ class ChannelsOutboxWorker:
         final: bool = False,
         overwrite_final: Optional[bool] = None,
         wait_for_claim: bool = True,
+        include_held: bool = False,
     ) -> bool:
         """Deliver `item` on this row at most once per (row, content). True
         when the chat now shows this content, by this call or another.
+        `include_held` lets the release path claim a HELD row.
 
         `final` marks a turn's answer, and once one is sent only a delivery
         with `overwrite_final` (by default: any final one) replaces it.
@@ -732,6 +821,7 @@ class ChannelsOutboxWorker:
                 overwrite_final=overwrite_final,
                 delivery_key=delivery_key,
                 wait=wait_for_claim,
+                include_held=include_held,
             )
             if claimed is None:
                 return already_delivered
@@ -921,10 +1011,7 @@ class ChannelsOutboxWorker:
         whose person never wrote is closed too: v1 only replies."""
 
         latest = await self._latest_inbound(project_id=project_id, thread=thread)
-        if latest is None or latest.created_at is None:
-            return False
-        age = datetime.now(timezone.utc) - latest.created_at
-        return age <= timedelta(seconds=window_seconds)
+        return latest is not None and _within_window(latest, window_seconds)
 
     async def _hold(
         self,
@@ -997,6 +1084,7 @@ class ChannelsOutboxWorker:
         overwrite_final: bool,
         delivery_key: UUID,
         wait: bool,
+        include_held: bool = False,
     ) -> Tuple[Optional[ChannelOutboxEvent], bool]:
         """`(claimed row, None-reason)`: the row when this delivery is ours to
         make; otherwise None, with True when the row already went out with
@@ -1017,6 +1105,7 @@ class ChannelsOutboxWorker:
                 claim_ttl_seconds=_CLAIM_TTL_SECONDS,
                 overwrite_final=overwrite_final,
                 delivery_key=str(delivery_key),
+                include_held=include_held,
             )
             if claimed is not None:
                 return claimed, False
@@ -1337,3 +1426,14 @@ def _delivery_key(event_key: UUID, content: List[Dict]) -> UUID:
     from oss.src.core.channels.utils import canonical_json
 
     return uuid5(event_key, canonical_json(content))
+
+
+def _within_window(event: ChannelInboxEvent, window_seconds: int) -> bool:
+    """Whether a reply to this inbound message may still be sent. Counts from
+    when the person sent it (the platform's clock) where the payload said,
+    else from when it reached us."""
+
+    sent_at = event.data.sent_at or event.created_at
+    if sent_at is None:
+        return False
+    return datetime.now(timezone.utc) - sent_at <= timedelta(seconds=window_seconds)

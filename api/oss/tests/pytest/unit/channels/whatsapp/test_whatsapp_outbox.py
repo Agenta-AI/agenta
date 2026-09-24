@@ -77,11 +77,14 @@ class WhatsAppDAO(FakeChannelsDAO):
         )
         return connection, space, thread
 
-    def customer_wrote(self, space, *, message_id="wamid.IN", ago=timedelta(0)):
+    def customer_wrote(
+        self, space, *, message_id="wamid.IN", ago=timedelta(0), sent_ago=None
+    ):
+        now = datetime.now(timezone.utc)
         self.inbox.append(
             ChannelInboxEvent(
                 id=uuid4(),
-                created_at=datetime.now(timezone.utc) - ago,
+                created_at=now - ago,
                 connection_id=space.connection_id,
                 space_id=space.id,
                 external_id=message_id,
@@ -92,6 +95,7 @@ class WhatsAppDAO(FakeChannelsDAO):
                     processed=ChannelInboxEventProcessed(
                         content=[{"type": "text", "text": "hi"}], sender={}
                     ),
+                    sent_at=now - (ago if sent_ago is None else sent_ago),
                 ),
             )
         )
@@ -338,8 +342,13 @@ async def test_a_turn_that_started_inside_the_window_but_ended_outside_is_held(
 
     await _start(worker, thread, "t1")
     await worker.stop_progress("t1")
-    dao.inbox[0] = dao.inbox[0].model_copy(
-        update={"created_at": dao.inbox[0].created_at - timedelta(minutes=20)}
+    first = dao.inbox[0]
+    dao.inbox[0] = first.model_copy(
+        update={
+            "data": first.data.model_copy(
+                update={"sent_at": first.data.sent_at - timedelta(minutes=20)}
+            )
+        }
     )
     _answer(records, thread, "t1", "late")
     await _end(worker, thread, "t1")
@@ -395,11 +404,11 @@ async def test_an_opted_out_customer_gets_no_template(service, dao, graph, recor
     assert graph.sent == []
 
 
-async def test_held_replies_go_out_in_order_when_the_customer_writes_again(
+async def test_held_replies_go_out_in_order_before_the_next_answer(
     service, dao, graph, records
 ):
     worker = _worker(service, records)
-    connection, space, thread = dao.seed_whatsapp()
+    _, space, thread = dao.seed_whatsapp()
     dao.customer_wrote(space, ago=timedelta(days=2))
     _answer(records, thread, "t1", "first answer")
     await _end(worker, thread, "t1")
@@ -407,12 +416,73 @@ async def test_held_replies_go_out_in_order_when_the_customer_writes_again(
     await _end(worker, thread, "t2")
     assert graph.sent == []
 
+    # the customer writes again, which starts the next turn
     dao.customer_wrote(space, message_id="wamid.BACK")
-    released = await service.release_held_replies(
-        project_id=PROJECT_ID, thread=thread, connection=connection
-    )
+    await _start(worker, thread, "t3")
+    await worker.stop_progress("t3")
+    _answer(records, thread, "t3", "third answer")
+    await _end(worker, thread, "t3")
 
-    assert released == 2
-    assert graph.texts_to(p.CUSTOMER) == ["first answer", "second answer"]
+    assert graph.texts_to(p.CUSTOMER) == [
+        "first answer",
+        "second answer",
+        "third answer",
+    ]
     assert dao.rows(ChannelDeliveryState.HELD) == []
-    assert len(dao.rows(ChannelDeliveryState.SENT)) == 2
+
+
+async def test_a_held_reply_whose_release_outcome_is_unknown_is_never_resent(
+    service, dao, graph, records
+):
+    worker = _worker(service, records)
+    _, space, thread = dao.seed_whatsapp()
+    dao.customer_wrote(space, ago=timedelta(days=2))
+    _answer(records, thread, "t1", "held answer")
+    await _end(worker, thread, "t1")
+
+    dao.customer_wrote(space, message_id="wamid.BACK")
+    graph.fail_next(2)  # Meta answers 503: the outcome is unknown
+    await _start(worker, thread, "t2")
+    await worker.stop_progress("t2")
+    await _start(worker, thread, "t2")  # a redelivered turn start
+    await worker.stop_progress("t2")
+
+    assert graph.texts_to(p.CUSTOMER) == []
+    [row] = [r for r in dao.rows() if r.turn_id == "t1"]
+    assert row.status.code == "delivery_uncertain"
+
+
+async def test_the_window_counts_from_metas_timestamp_not_our_arrival_time(
+    service, dao, graph, records
+):
+    """A webhook Meta retried for a day arrives now, but the customer wrote it
+    25 hours ago: the window is closed."""
+
+    worker = _worker(service, records)
+    _, space, thread = dao.seed_whatsapp()
+    dao.customer_wrote(space, sent_ago=timedelta(hours=25))
+    _answer(records, thread, "t1", "late answer")
+
+    await _end(worker, thread, "t1")
+
+    assert graph.sent == []
+    assert len(dao.rows(ChannelDeliveryState.HELD)) == 1
+
+
+async def test_the_working_message_never_follows_an_answer_another_worker_sent(
+    service, dao, graph, records
+):
+    starter = _worker(
+        service, records, progress_interval_seconds=0.01, working_notice_seconds=0.2
+    )
+    ender = _worker(service, records)
+    _, space, thread = dao.seed_whatsapp()
+    dao.customer_wrote(space)
+
+    await _start(starter, thread, "t1")
+    _answer(records, thread, "t1", "quick answer")
+    await _end(ender, thread, "t1")  # the end lands on another worker
+    await asyncio.sleep(0.4)
+
+    assert graph.texts_to(p.CUSTOMER) == ["quick answer"]
+    assert "t1" not in starter._progress_tasks

@@ -81,14 +81,18 @@ async def test_verify_connection_refuses_a_token_that_cannot_read_the_number(ada
         )
 
 
-async def test_verify_connection_needs_the_app_secret(adapter):
-    with pytest.raises(Exception):
-        await adapter.verify_connection(
-            connection=ChannelConnectionCreate(
-                channel="whatsapp", data={"phone_number_id": p.PHONE_NUMBER_ID}
-            ),
-            credentials={"access_token": p.ACCESS_TOKEN},
-        )
+async def test_rotating_the_token_verifies_against_the_stored_number(adapter):
+    """Rotation re-verifies with the stored data, where the number sits under
+    connection_locator, and with only the credential being replaced."""
+
+    discovered = await adapter.verify_connection(
+        connection=ChannelConnectionCreate(
+            channel="whatsapp",
+            data={"connection_locator": {"phone_number_id": p.PHONE_NUMBER_ID}},
+        ),
+        credentials={"access_token": p.ACCESS_TOKEN},
+    )
+    assert discovered["phone_number_id"] == p.PHONE_NUMBER_ID
 
 
 async def test_revoke_tells_the_operator_to_remove_the_meta_webhook(adapter):

@@ -504,6 +504,9 @@ class ChannelInboxEventData(BaseModel):
     # the adapter's verdict on whether the message spoke to the bot (an
     # app_mention, a sigil): the trigger gate reads it at dispatch
     addressed: Optional[bool] = None
+    # when the person sent it, by the platform's clock, where it says; a
+    # redelivered webhook arrives late, so a reply window counts from this
+    sent_at: Optional[datetime] = None
     # raw:            Optional[Dict[str, Any]] = None
 
 
@@ -934,6 +937,8 @@ class ChannelInboundEvent(BaseModel):
     processed: ChannelInboxEventProcessed
     # the adapter's own answer to trigger-or-fill
     addressed: bool = False
+    # when the person sent it, by the platform's clock, if the payload says
+    sent_at: Optional[datetime] = None
 
 
 class ChannelResolution(BaseModel):
