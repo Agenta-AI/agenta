@@ -12,8 +12,8 @@ Living progress tracker. Plan lives in [agenta-ui-consolidation.md](agenta-ui-co
 | Piece                                                                                                   | State                                                             | Location                                                                |
 | ------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- | ----------------------------------------------------------------------- |
 | Storybook harness (real app providers, light/dark)                                                      | ✅                                                                | `web/storybook`                                                         |
-| **Visual regression (PRIMARY gate — self-baselining pixel diff, antd-half vs agenta-half, light+dark)** | ✅ Playwright + pixelmatch, `pnpm --filter @agenta/storybook vrt` | [`web/storybook/parity/vrt.mjs`](../web/storybook/parity/vrt.mjs)       |
-| Computed-style diff (FALLBACK — exact tokens + antd forced-state confirmation)                          | ✅ committed script + `storybook-addon-pseudo-states`             | [`web/storybook/parity/measure.js`](../web/storybook/parity/measure.js) |
+| **Visual regression (PRIMARY gate — self-baselining pixel diff, antd-half vs agenta-half, light+dark)** | ✅ Playwright + pixelmatch, `pnpm --filter @agenta/storybook vrt` | [`web/storybook/parity/vrt.mjs`](../../../web/storybook/parity/vrt.mjs)       |
+| Computed-style diff (FALLBACK — exact tokens + antd forced-state confirmation)                          | ✅ committed script + `storybook-addon-pseudo-states`             | [`web/storybook/parity/measure.js`](../../../web/storybook/parity/measure.js) |
 | `--ag-*` token layer (palette-generated)                                                                | ✅ extended                                                       | `oss/styles/theme-variables.css`                                        |
 | Shared token bridge (shadcn names → `--ag-*`)                                                           | ✅                                                                | `oss/tailwind.config.ts` `shadcnTokens`                                 |
 | `@agenta/ui` `cn` (tailwind-merge + custom ramps registered)                                            | ✅                                                                | `@agenta/ui/ui` (`utils.ts`)                                            |
@@ -124,7 +124,7 @@ Full symptom→cause→fix reference: **[GOTCHAS.md](GOTCHAS.md)** (read before 
 
 Gated by **`web/storybook/parity/vrt.mjs`** (pixel VRT, PRIMARY — `pnpm --filter @agenta/storybook vrt`),
 with **`measure.js`** (computed-style) as the fallback for exact tokens + confirming antd
-forced-state flags. See [`parity/README.md`](../web/storybook/parity/README.md). Every remaining
+forced-state flags. See [`parity/README.md`](../../../web/storybook/parity/README.md). Every remaining
 VRT flag is the AA noise floor (~1–2% text; ~8–11% on _bordered_ forced hover/active = 1px-border
 AA, proven by the borderless variants reading <1%); intentional structural diffs are opted out
 (`not reproduced` labels / `data-vrt-expected`). The row-count table below is the computed-style

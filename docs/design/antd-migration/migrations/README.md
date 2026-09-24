@@ -39,14 +39,14 @@ context**, and so the migration recipe stays consistent across components.
 
 **Before you start:** read [../GOTCHAS.md](../GOTCHAS.md) — the symptom→cause→fix reference of
 traps hit building the harness, bridge, and first component — and
-[../../web/storybook/parity/README.md](../../web/storybook/parity/README.md) for the two gates
+[../../web/storybook/parity/README.md](../../../../web/storybook/parity/README.md) for the two gates
 (VRT first, `measure.js` fallback). Saves hours.
 
 ## The recipe (every component follows this)
 1. **Measure the current rendering** in Storybook (`getComputedStyle`, light + dark) — ground truth, not the source files (the `--ag-c-*` shim can surprise you).
 2. **Add the variant(s)** the component needs to the `@agenta/ui` component, backed by the palette-derived `--ag-*` layer (add a palette family + generator rows + bridge token if no existing token fits — see DraftTag.md §Infra).
 3. **Verify parity** in a comparison story with BOTH gates (see
-   [`web/storybook/parity/README.md`](../../web/storybook/parity/README.md)):
+   [`web/storybook/parity/README.md`](../../../../web/storybook/parity/README.md)):
    - **Pixel VRT first** — `pnpm --filter @agenta/storybook vrt` (self-baselining, antd-half vs
      agenta-half, light+dark). It is the catch-all: border/radius/shadow/width/colour/icon at
      once, no per-component tuning. Classify every flagged row (real defect / ~1–2% AA noise /
