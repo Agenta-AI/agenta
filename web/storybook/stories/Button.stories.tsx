@@ -23,7 +23,7 @@ const BRow = ({label, a, s}: {label: string; a: React.ReactNode; s: React.ReactN
 )
 
 // Phase-0 parity story: the REAL antd Button rendered behind the REAL app theme.
-// Controls are seeded from the variant usage extracted in antd-inventory
+// Controls are seeded from the variant usage extracted in docs/design/antd-migration
 // (type: text×27, primary×7, default, link×2; size: small×37; shape: circle×8).
 const meta = {
     title: "@agenta/ui/Primitives/Forms/Button",

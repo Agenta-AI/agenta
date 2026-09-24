@@ -50,9 +50,9 @@ This cost a full rework once already (STATUS.md, "Fix round 2026-07-26").
 **2. Container reads atoms, presentational takes props.** The target shape already exists in this
 package:
 
-- [`variant/VariantNameCell.tsx`](../web/packages/agenta-entity-ui/src/variant/VariantNameCell.tsx) —
+- [`variant/VariantNameCell.tsx`](../../../web/packages/agenta-entity-ui/src/variant/VariantNameCell.tsx) —
   container. Reads 5 atoms across 3 molecules, derives a flat object, renders a sibling.
-- [`variant/VariantDetailsWithStatus.tsx`](../web/packages/agenta-entity-ui/src/variant/VariantDetailsWithStatus.tsx) —
+- [`variant/VariantDetailsWithStatus.tsx`](../../../web/packages/agenta-entity-ui/src/variant/VariantDetailsWithStatus.tsx) —
   presentational. **Zero** jotai/entities imports. Storiable with plain args.
 
 Keep containers at the leaf. Do **not** hoist atom reads to the top of a tree and prop-drill down:
