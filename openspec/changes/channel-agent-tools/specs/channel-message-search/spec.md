@@ -2,72 +2,58 @@
 
 ## Purpose
 
-Let connected agents retrieve permitted channel knowledge with explicit source coverage and without widening access to private conversations.
+Let a connected agent search what its readable channels said, without widening access and with honest coverage.
 
 ## ADDED Requirements
 
-### Requirement: Permission-aware message search
-`search_channel_messages` SHALL search only active destinations for which the running agent currently has search permission. The service SHALL apply project, deployment, connection, destination, and grant checks at query time. Search results SHALL NOT rely on permissions captured only when a message was indexed.
+### Requirement: Search readable channels
+`search_channel_messages` SHALL search the local message history of the channels the running agent may read at call time. It SHALL accept a text query and optional channel destination IDs, a sender (a person destination ID), an inclusive time range, a limit of at most 50, and a cursor. Without destination IDs it SHALL search every readable channel of every bot bound to the agent. Access SHALL be checked when the query runs, not when a message was stored.
 
-#### Scenario: Search across allowed destinations
-- **WHEN** an agent searches without naming destinations
-- **THEN** Agenta SHALL search only that agent's currently permitted destinations in the authenticated project.
+#### Scenario: Search everything readable
+- **WHEN** the agent searches "refund policy" with no destination IDs
+- **THEN** Agenta SHALL search every readable channel of the agent's bots in the project, and no others.
 
-#### Scenario: Search grant is revoked after indexing
-- **WHEN** an editor removes search permission from a destination that still has indexed messages
-- **THEN** later searches SHALL exclude those messages without waiting for index deletion.
+#### Scenario: Channel removed from the readable list
+- **WHEN** an admin removes #finance from the readable list after its messages were stored
+- **THEN** the next search SHALL NOT return #finance messages.
 
-#### Scenario: Destination token belongs to another tenant
-- **WHEN** a query includes an opaque destination token from another project
-- **THEN** Agenta SHALL refuse or omit it without revealing matching messages or destination metadata.
+#### Scenario: Destination from another project
+- **WHEN** a search names a destination ID from another project
+- **THEN** Agenta SHALL treat it as not found and return no matches from it.
 
-### Requirement: Search inputs and results
-The search tool SHALL accept text query, optional opaque destination IDs, optional sender filter, optional inclusive time bounds, optional thread filter, and a bounded result limit. Each result SHALL include an opaque message ID, destination ID, provider, timestamp, sender display data when available, text excerpt, thread reference when available, and a provider permalink only when the caller may access it. Results SHALL use deterministic ordering and cursor pagination.
+#### Scenario: Direct messages
+- **WHEN** a search runs
+- **THEN** it SHALL NOT return messages from direct-message conversations.
 
-#### Scenario: Matching messages share a timestamp
-- **WHEN** several permitted messages have the same provider timestamp
-- **THEN** Agenta SHALL return a stable order and a cursor that neither skips nor repeats them on the next page.
+### Requirement: Search results
+Each result SHALL include the message ID, the channel destination ID and name, the thread ID when there is one, the sender's display name, a text excerpt, and the time. Results SHALL be ordered by relevance, then time, then message ID, and the cursor SHALL neither skip nor repeat results with equal rank and time. The response SHALL include coverage for each channel it searched.
 
-#### Scenario: Sender data is unavailable
-- **WHEN** an indexed event contains only a provider sender identifier that Agenta cannot resolve safely
-- **THEN** the result SHALL omit display data rather than expose the raw identifier as a trusted identity.
+#### Scenario: Equal timestamps
+- **WHEN** several matches share the same rank and timestamp
+- **THEN** paging with the cursor SHALL return each exactly once.
 
-### Requirement: Message lifecycle is reflected
-The searchable projection SHALL ingest new permitted provider events and SHALL apply supported message edits and deletions. A deleted message SHALL stop appearing in normal results. Search SHALL distinguish content that Agenta no longer retains from a temporary indexing delay.
+#### Scenario: Follow up on a result
+- **WHEN** the agent passes a result's thread ID to `read_channel_messages`
+- **THEN** Agenta SHALL return that thread.
 
-#### Scenario: Slack message is edited
-- **WHEN** Agenta receives a valid edit event for an indexed Slack message
-- **THEN** later searches SHALL use the edited content and retain its stable message identity.
+#### Scenario: Sender name unknown
+- **WHEN** Agenta cannot resolve a sender's display name
+- **THEN** the result SHALL omit the name and SHALL NOT show the raw provider user ID.
 
-#### Scenario: Slack message is deleted
-- **WHEN** Agenta receives a valid deletion event for an indexed Slack message
-- **THEN** normal search SHALL no longer return its prior text.
+### Requirement: Search covers only stored history
+Search SHALL use only Agenta's local history. It SHALL NOT call the provider's search API. Slack results SHALL cover what backfill and live events stored. Telegram results SHALL cover only observed messages. Each response SHALL say so through its coverage.
 
-### Requirement: Slack indexing and backfill coverage
-Agenta SHALL continuously index supported Slack message events for selected destinations and SHALL offer bounded, rate-limit-aware backfill where the installation has access and scopes. Search SHALL NOT query Slack's full workspace on every tool call. Slack coverage metadata SHALL state the earliest and latest indexed times, whether initial backfill completed, and known gaps or access failures.
+#### Scenario: Slack channel with partial backfill
+- **WHEN** a searched Slack channel's backfill is partial
+- **THEN** the coverage for that channel SHALL say `partial` and give the oldest time covered.
 
-#### Scenario: Fresh Slack destination
-- **WHEN** an editor first enables search for an authorized Slack channel
-- **THEN** Agenta SHALL begin live indexing, request bounded history backfill, and report incomplete coverage until that work settles.
+#### Scenario: Telegram group
+- **WHEN** a searched channel is a Telegram group
+- **THEN** its coverage SHALL say `observed_only`.
 
-#### Scenario: Slack refuses private-channel history
-- **WHEN** the installation lacks membership or scope for backfill
-- **THEN** search SHALL retain any lawfully observed events, report the access gap, and SHALL NOT claim complete history.
+### Requirement: Lexical search in version one
+Version one SHALL provide text search in PostgreSQL. It SHALL NOT need an embedding model, a vector store, or any extra credential, so it works on a self-hosted deployment as installed.
 
-#### Scenario: Slack rate limits backfill
-- **WHEN** Slack returns a retry delay during indexing
-- **THEN** Agenta SHALL retain progress, respect that delay, and report incomplete coverage rather than blocking all searches.
-
-### Requirement: Telegram observed-history boundary
-Telegram search SHALL include only messages that Agenta lawfully observed and retained after the chat connected. Agenta SHALL NOT claim Telegram provider-history backfill, chat enumeration, or complete pre-connection coverage.
-
-#### Scenario: User asks for older Telegram history
-- **WHEN** the requested time range starts before Agenta's first retained event for the bound chat
-- **THEN** the result SHALL state that the earlier range is unavailable through the Telegram Bot API.
-
-### Requirement: Search is lexical in the first release
-The first release SHALL provide text and metadata search. It SHALL NOT require embedding generation, semantic similarity, or an external vector service. Search behavior SHALL remain usable on a self-hosted deployment without an additional model credential.
-
-#### Scenario: Self-hosted deployment has no embedding provider
-- **WHEN** an authorized agent searches indexed messages
-- **THEN** Agenta SHALL execute lexical search without requesting an embedding credential.
+#### Scenario: Self-hosted deployment
+- **WHEN** an agent searches on a self-hosted deployment with no embedding provider
+- **THEN** the search SHALL run and return lexical matches.
