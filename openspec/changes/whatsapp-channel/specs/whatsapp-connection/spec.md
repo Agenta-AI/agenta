@@ -65,13 +65,6 @@ Agenta SHALL NOT attach an Agenta credit line or payment method to a customer's 
 - **WHEN** an editor opens the WhatsApp connect screen
 - **THEN** the screen SHALL say that Meta bills their business directly and link Meta's pricing page
 
-### Requirement: Focused-agent policy notice
-The connect screen SHALL tell the editor that Meta allows only agents that serve their own business, such as support, bookings, or order status, and does not allow general-purpose AI assistants. The editor SHALL confirm this before the connection is created.
-
-#### Scenario: Editor does not confirm
-- **WHEN** the editor submits the form without the policy confirmation
-- **THEN** Agenta SHALL NOT create the connection
-
 ### Requirement: Disconnect
 Archiving a WhatsApp connection SHALL stop routing its events and SHALL attempt, best effort, to unsubscribe the app from the business account webhooks.
 
