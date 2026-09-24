@@ -26,15 +26,12 @@ This is an internal workspace package. Add it to your `package.json`:
 
 ```typescript
 import { PlaygroundContent, PlaygroundUIProvider } from '@agenta/playground-ui'
-import { PlaygroundEntityProvider } from '@agenta/playground'
 
 function PlaygroundPage() {
   return (
-    <PlaygroundEntityProvider value={entityProviders}>
-      <PlaygroundUIProvider value={uiProviders}>
-        <PlaygroundContent />
-      </PlaygroundUIProvider>
-    </PlaygroundEntityProvider>
+    <PlaygroundUIProvider value={uiProviders}>
+      <PlaygroundContent />
+    </PlaygroundUIProvider>
   )
 }
 ```

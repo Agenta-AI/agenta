@@ -111,9 +111,6 @@ export type {LoggerOptions} from "./createLogger"
 // JSON parsing utilities
 export {safeJson5Parse, tryParsePartialJson} from "./jsonParsing"
 
-// Key path utilities
-export {keyToString, stringToKeyPath} from "./keyUtils"
-
 // JSON detection utilities
 export {
     canExpandAsJson,

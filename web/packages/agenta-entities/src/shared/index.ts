@@ -247,19 +247,6 @@ export {
 } from "./user"
 
 // ============================================================================
-// STUB MOLECULE (for optional/feature-flagged entities)
-// ============================================================================
-
-export {
-    createStubMolecule,
-    isStubMolecule,
-    type StubQueryState,
-    type StubMoleculeSelectors,
-    type CreateStubMoleculeConfig,
-    type StubMolecule,
-} from "./stubMolecule"
-
-// ============================================================================
 // ENTITY BRIDGE (unified loadable/runnable controllers)
 // ============================================================================
 

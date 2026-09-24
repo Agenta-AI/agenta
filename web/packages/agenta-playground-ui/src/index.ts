@@ -10,20 +10,18 @@
  *
  * ```tsx
  * import { PlaygroundUIProvider, PlaygroundContent } from "@agenta/playground-ui"
- * import { playgroundController, PlaygroundEntityProvider } from "@agenta/playground"
+ * import { playgroundController } from "@agenta/playground"
  * import { EntityDrillInView } from "@/oss/components/DrillInView"
  *
  * export function PlaygroundTest() {
  *   return (
- *     <PlaygroundEntityProvider providers={entityProviders}>
- *       <PlaygroundUIProvider providers={{
- *         EntityDrillInView,
- *         SharedGenerationResultUtils,
- *         CommitVariantChangesButton: dynamic(() => import("...CommitVariantChangesButton")),
- *       }}>
- *         <PlaygroundContent />
- *       </PlaygroundUIProvider>
- *     </PlaygroundEntityProvider>
+ *     <PlaygroundUIProvider providers={{
+ *       EntityDrillInView,
+ *       SharedGenerationResultUtils,
+ *       CommitVariantChangesButton: dynamic(() => import("...CommitVariantChangesButton")),
+ *     }}>
+ *       <PlaygroundContent />
+ *     </PlaygroundUIProvider>
  *   )
  * }
  * ```

@@ -26,7 +26,6 @@
  *
  * - Controllers provide clean API for state access (selectors + actions)
  * - Internal atoms are hidden - use controllers instead
- * - Entity injection via PlaygroundEntityProvider
  * - UI components are in @agenta/playground-ui
  */
 
@@ -61,9 +60,6 @@ export {
 
 // Displayed entities & initialization (consumed by OSS layout/URL sync)
 export {displayedEntityIdsAtom, playgroundInitializedAtom} from "./state"
-
-// Testset import mutation (consumed by OSS testset integration)
-export {loadTestsetNormalizedMutationAtom} from "./state"
 
 export {filterUnreferencedColumnsForSource} from "./state"
 
@@ -104,14 +100,6 @@ export {
     triggerUserMessageId,
     type TurnRequestCapture,
 } from "./state"
-
-// ============================================================================
-// ENTITY CONTEXT (Dependency Injection)
-// ============================================================================
-
-export {PlaygroundEntityProvider} from "./state"
-
-export type {PlaygroundEntityProviders} from "./state"
 
 // ============================================================================
 // TYPES (Only types actually consumed externally)

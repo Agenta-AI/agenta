@@ -205,23 +205,7 @@ const mappings = autoMapInputs(
 // Returns: [{ targetKey: "input", sourcePath: "testcase.input", status: "valid" }, ...]
 ```
 
-## Entity Provider (Dependency Injection)
-
-For runtime dependency injection of entity implementations, use the context from `@agenta/playground`:
-
-```typescript
-import { PlaygroundEntityProvider, usePlaygroundEntities } from '@agenta/playground'
-
-// Wrap your app with the provider
-<PlaygroundEntityProvider providers={{
-    appRevision: { selectors: workflowMolecule.selectors },
-}}>
-    <App />
-</PlaygroundEntityProvider>
-
-// Access injected providers in components
-const { appRevision } = usePlaygroundEntities()
-```
+## Entity Provider Types
 
 The type definitions for providers are exported from this module:
 

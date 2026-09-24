@@ -18,7 +18,6 @@ export {
 } from "./CommandPalette"
 export {SidebarSelectionButton, type SidebarSelectionButtonProps} from "./SidebarSelectionButton"
 export {SidebarBackButton, type SidebarBackButtonProps} from "./SidebarBackButton"
-export {SidebarSkeletonLoader} from "./SidebarSkeletonLoader"
 export {NamePromptModal, type NamePromptModalProps} from "./NamePromptModal"
 export {
     ProjectOrgSwitcherView,

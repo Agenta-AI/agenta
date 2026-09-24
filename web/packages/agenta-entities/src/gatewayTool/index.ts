@@ -127,12 +127,6 @@ export {
 export type {CreateConnectionInput} from "./hooks"
 
 // ---------------------------------------------------------------------------
-// PROMPT — cross-entity bridge (workflow-aware tool removal)
-// ---------------------------------------------------------------------------
-
-export {removePromptToolByNameAtomFamily} from "./prompt"
-
-// ---------------------------------------------------------------------------
 // SLUG HELPERS — re-exported from @agenta/shared for ergonomic single-import
 // ---------------------------------------------------------------------------
 
