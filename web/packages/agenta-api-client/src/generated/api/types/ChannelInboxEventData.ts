@@ -7,4 +7,5 @@ export interface ChannelInboxEventData {
     processed: AgentaApi.ChannelInboxEventProcessed;
     space_kind?: (AgentaApi.ChannelSpaceKind | null) | undefined;
     addressed?: (boolean | null) | undefined;
+    sent_at?: (string | null) | undefined;
 }

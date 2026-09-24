@@ -9,5 +9,6 @@ export const ChannelDeliveryState = {
     Sent: "sent",
     Failed: "failed",
     Abandoned: "abandoned",
+    Held: "held",
 } as const;
 export type ChannelDeliveryState = (typeof ChannelDeliveryState)[keyof typeof ChannelDeliveryState];

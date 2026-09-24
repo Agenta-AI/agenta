@@ -5,4 +5,6 @@ import type * as AgentaApi from "../index.js";
 export interface ChannelConversation {
     units?: AgentaApi.ChannelKeyGrain[] | undefined;
     default?: AgentaApi.ChannelKeyGrain | undefined;
+    reply_window_seconds?: number | undefined;
+    opt_out?: boolean | undefined;
 }
