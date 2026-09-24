@@ -3,7 +3,6 @@
     "version": "0.75.0",
     "private": true,
     "sideEffects": [
-        "./src/appRevision/snapshotAdapter.ts",
         "./src/workflow/snapshotAdapter.ts"
     ],
     "main": "./src/index.ts",
@@ -32,9 +31,6 @@
         ".": "./src/index.ts",
         "./annotation": "./src/annotation/index.ts",
         "./annotation/dto": "./src/annotation/dto/index.ts",
-        "./appRevision": "./src/appRevision/index.ts",
-        "./appRevision/snapshotAdapter": "./src/appRevision/snapshotAdapter.ts",
-        "./appRevision/state": "./src/appRevision/state/index.ts",
         "./drive": "./src/drive/index.ts",
         "./environment": "./src/environment/index.ts",
         "./etl": "./src/etl/index.ts",
