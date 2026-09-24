@@ -1788,6 +1788,7 @@ class GitDAO(GitDAOInterface):
     # into `None`, and the caller would report "nothing committed" with no reason.
     @suppress_exceptions(
         exclude=[
+            EntityCreationConflict,
             InitialRevisionConflict,
             RevisionConflict,
             RevisionUnchanged,
