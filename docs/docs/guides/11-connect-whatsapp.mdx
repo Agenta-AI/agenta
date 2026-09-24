@@ -1,0 +1,119 @@
+---
+title: "Connect a WhatsApp number to an agent"
+sidebar_label: "Connect WhatsApp"
+description: "Put an Agenta agent behind your WhatsApp business number so it answers your customers' messages."
+---
+
+Connect a WhatsApp business number to an agent, and the agent answers every customer who writes to that number. You set this up in two places: your Meta app, where the number lives, and Agenta.
+
+## Before you start
+
+You need:
+
+- **A Meta Business account.**
+- **A Meta app with the WhatsApp product.** The steps below create one if you do not have it.
+- **A phone number on the WhatsApp Cloud API.** To try the setup first, use the free test number Meta gives every new WhatsApp app.
+
+## 1. Collect three values in Meta
+
+Agenta needs a phone number ID, an access token, and an app secret.
+
+1. In Meta's App Dashboard, create a Business app and add the **WhatsApp** product to it.
+2. Open **WhatsApp > API Setup** and copy the **phone number ID** of the number you want to connect. It is digits only, such as `123456789012345`. It is not the phone number itself.
+3. Open **Business Settings** for your Meta Business account and create a **system user**. Give it access to your WhatsApp account. Then generate a token for that system user, pick your app, and select these two permissions:
+   - `whatsapp_business_messaging`
+   - `whatsapp_business_management`
+
+   Copy the token. Do not use the temporary token on the **API Setup** page; it expires within 24 hours.
+4. In your app, open **App settings > Basic** and copy the **app secret**.
+
+## 2. Connect the number in Agenta
+
+1. Open the agent that should answer on WhatsApp and go to its **Channels** section.
+2. Choose **WhatsApp** and click **Connect**.
+3. Paste the three values into **Phone number ID**, **Access token**, and **App secret**.
+4. Click connect.
+
+Agenta checks the token against the phone number before it saves anything. If the token is wrong or cannot read that number, the connection fails and nothing is stored.
+
+After it connects, Agenta shows a **callback URL** and a **verify token**. Keep them open for the next step.
+
+The form also has two optional fields, **Re-open template** and **Template language**. Leave them empty for now. [The 24-hour window](#the-24-hour-window) explains when to use them.
+
+## 3. Point Meta's webhook at Agenta
+
+1. In your Meta app, open **WhatsApp > Configuration**.
+2. Under **Webhook**, click **Edit**. Paste the callback URL and the verify token from Agenta.
+3. Click **Verify and save**. Meta calls Agenta to check the token. If it matches, Meta saves the webhook.
+4. In the webhook fields list, subscribe to the **`messages`** field.
+
+## 4. Send a test message
+
+From your own phone, send a WhatsApp message to the business number. The agent marks it as read, shows the typing indicator, and replies.
+
+If you use Meta's test number, first add your phone number as a recipient on the **WhatsApp > API Setup** page. The test number only exchanges messages with numbers on that list.
+
+## Troubleshooting
+
+**Webhook verification fails in Meta.** Copy the callback URL and verify token again from Agenta. Both must match exactly, with no extra spaces.
+
+**The webhook is verified, but messages do not reach the agent.** Check that the `messages` field is subscribed. If it is, your app may not be subscribed to your WhatsApp Business Account. Subscribe it with the token from step 1, replacing `<WABA_ID>` with your WhatsApp Business Account ID (shown on the **WhatsApp > API Setup** page):
+
+```bash
+curl -X POST "https://graph.facebook.com/v24.0/<WABA_ID>/subscribed_apps" \
+  -H "Authorization: Bearer <ACCESS_TOKEN>"
+```
+
+A response of `{"success": true}` means the app is subscribed. Send another test message.
+
+## How conversations work
+
+### One customer, one conversation
+
+Each customer's phone number is one conversation with the agent. Every message the customer sends continues the same conversation. WhatsApp groups are not supported.
+
+The agent only replies to conversations the customer started. It never writes first to a number that has not messaged the business.
+
+### Typing and long replies
+
+While the agent works, the customer sees their message marked as read and a typing indicator. If the reply takes more than 30 seconds, the customer gets one message: "Working on it, I'll reply here when I'm done." There is no other progress message.
+
+WhatsApp messages cannot be edited after they are sent, so the answer always arrives as new messages. An answer longer than 4,096 characters is split into several messages, sent in order.
+
+### Approvals
+
+When the agent needs approval before it runs a tool, the customer gets the request with **Approve** and **Deny** reply buttons. The customer can also type the answer, such as `approve`, instead of tapping.
+
+### Images, documents, and other media
+
+The agent receives images and documents the customer sends, together with any caption. Voice notes, videos, and stickers do not reach the agent. For those, the customer gets a fixed reply: "I can read text, images and documents here. Please send your message in one of those."
+
+### The 24-hour window
+
+Meta lets a business send free-form messages to a customer only within 24 hours of that customer's last message. Agenta follows this rule.
+
+If the agent's reply is ready more than 24 hours after the customer's last message, Agenta does not send it. It holds the reply and shows it as held in the session. When the customer writes again, Agenta sends the held reply.
+
+To prompt the customer to come back, set a re-open template on the connection:
+
+- **Re-open template**: the name of a message template that Meta has approved for your WhatsApp account.
+- **Template language**: the template's language code, such as `en_US` (the default) or `fr`.
+
+With a template set, Agenta sends it once when a reply is held. Without one, the customer receives nothing until they write again.
+
+### Opting out
+
+If a customer sends `STOP` or `UNSUBSCRIBE`, Agenta confirms once and stops answering them. Their later messages are not answered. When they send `START`, Agenta answers them again.
+
+## Billing and use
+
+Meta bills your business directly for WhatsApp messages. See Meta's [WhatsApp pricing](https://developers.facebook.com/documentation/business-messaging/whatsapp/pricing) for current rates.
+
+Agenta adds no rules of its own about what kind of agent runs on your number. Your business is responsible for its use of WhatsApp under Meta's terms.
+
+## Limits
+
+- The agent cannot send files back to the customer yet.
+- WhatsApp groups are not supported.
+- There is no one-click connect with a Meta popup (Embedded Signup) yet. You paste the values by hand, as described above.
+- Disconnecting the number in Agenta stops the agent from answering, but it does not remove the webhook in Meta. To stop Meta from sending messages to Agenta, open **WhatsApp > Configuration** in your Meta app and remove the callback URL.
