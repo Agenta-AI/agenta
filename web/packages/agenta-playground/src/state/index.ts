@@ -348,7 +348,6 @@ export {
     extractAndLoadChatMessagesAtom,
     type ExtractChatMessagesParams,
 } from "./helpers/extractAndLoadChatMessages"
-export {loadTestsetNormalizedMutationAtom} from "./helpers/loadTestsetNormalizedMutation"
 export {
     extractCanonicalTestcaseRow,
     normalizeTestcaseRowsForLoad,
@@ -396,31 +395,6 @@ export type {
     SnapshotSelectionInput,
     UrlComponents,
 } from "./controllers"
-
-// ============================================================================
-// CONTEXT (Public)
-// ============================================================================
-
-export {
-    PlaygroundEntityProvider,
-    usePlaygroundEntities,
-    usePlaygroundEntitiesOptional,
-} from "./context"
-
-export type {
-    AppRevisionActions,
-    AppRevisionCommitPayload,
-    AppRevisionCreateVariantPayload,
-    AppRevisionCrudResult,
-    AppRevisionListSelectors,
-    AppRevisionRawData,
-    EntityQueryState,
-    EntityRevisionSelectors,
-    EvaluatorRawData,
-    EvaluatorSelectors,
-    PlaygroundEntityProviders,
-    SettingsPreset,
-} from "./context"
 
 // ============================================================================
 // INTERNAL ATOMS (for controller implementation only)

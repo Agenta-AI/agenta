@@ -70,11 +70,6 @@ Jotai recipe helpers are also available from `@agenta/shared/state`:
 import {
   atomWithDebounce,
   atomWithRefresh,
-  atomWithCompare,
-  atomWithToggle,
-  atomWithToggleAndStorage,
-  atomWithBroadcast,
-  atomWithRefreshAndDefault,
 } from "@agenta/shared/state"
 ```
 
@@ -289,9 +284,9 @@ if (schema) {
 | Subpath | Description | Key Exports |
 |---------|-------------|-------------|
 | `@agenta/shared/api` | API utilities | `axios`, `getAgentaApiUrl`, `getEnv`, `configureAxios` |
-| `@agenta/shared/state` | Jotai atoms + recipes | `projectIdAtom`, `setProjectIdAtom`, `atomWithDebounce`, `atomWithRefresh`, `atomWithCompare`, `atomWithToggle`, `atomWithBroadcast`, `atomWithRefreshAndDefault` |
+| `@agenta/shared/state` | Jotai atoms + recipes | `projectIdAtom`, `setProjectIdAtom`, `atomWithDebounce`, `atomWithRefresh` |
 | `@agenta/shared/utils` | Pure utilities | `dayjs`, `createBatchFetcher`, `isValidUUID`, `dereferenceSchema`, path utils, mapping utils, formatters |
-| `@agenta/shared/hooks` | React hooks | `useDebounceInput`, `useReducerAtom` |
+| `@agenta/shared/hooks` | React hooks | `useDebounceInput`, `useDebouncedAtomSearch` |
 | `@agenta/shared/schemas` | Zod schemas | `MESSAGE_CONTENT_SCHEMA`, `CHAT_MESSAGE_SCHEMA`, `CHAT_MESSAGES_ARRAY_SCHEMA` |
 | `@agenta/shared/types` | TypeScript types | `SimpleChatMessage`, `MessageContent`, `TextContentPart`, `ToolCall` |
 
@@ -307,7 +302,6 @@ import {
   setProjectIdAtom,
   atomWithDebounce,
   atomWithRefresh,
-  atomWithToggle,
 } from "@agenta/shared/state"
 
 // Utilities (most common)
@@ -325,7 +319,7 @@ import {
 } from "@agenta/shared/utils"
 
 // React hooks
-import {useDebounceInput, useReducerAtom} from "@agenta/shared/hooks"
+import {useDebounceInput} from "@agenta/shared/hooks"
 
 // Schemas (for validation)
 import {

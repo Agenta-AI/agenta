@@ -27,7 +27,6 @@ import type {StoreOptions, ListQueryState} from "../../shared"
 import {generateLocalId, isLocalDraftId, isPlaceholderId} from "../../shared"
 import type {
     InspectWorkflowResponse,
-    InterfaceSchemasResponse,
     AppOpenApiSchemas,
     SimpleApplicationFetchResponse,
     AgentBuildKitOverlay,
@@ -1742,40 +1741,6 @@ export const workflowAppSchemaAtomFamily = atomFamily((revisionId: string) =>
             },
             enabled,
             staleTime: 60_000,
-        }
-    }),
-)
-
-// ============================================================================
-// INTERFACE SCHEMAS QUERY (builtin workflow fallback)
-// ============================================================================
-
-// NOTE: Disabled — re-enable when `/workflows/interfaces/schemas` is available.
-// function isBuiltinUri(uri: string | null | undefined): boolean {
-//     if (!uri) return false
-//     return uri.startsWith("agenta:builtin:")
-// }
-
-/**
- * Interface schemas query atom family.
- * For builtin workflows, fetches the interface schemas from the
- * `/workflows/interfaces/schemas` endpoint.
- *
- * This is a lightweight fallback that returns static schema definitions
- * for builtin evaluators without requiring the handler to be running.
- *
- * **Only fires for builtin workflows** (URI starts with "agenta:builtin:").
- *
- * NOTE: Currently disabled — the backend endpoint is not yet implemented.
- * Re-enable `enabled` when `/workflows/interfaces/schemas` is available.
- */
-export const workflowInterfaceSchemasAtomFamily = atomFamily((revisionId: string) =>
-    atomWithQuery((_get) => {
-        return {
-            queryKey: ["workflows", "interfaceSchemas", revisionId],
-            queryFn: async (): Promise<InterfaceSchemasResponse | null> => null,
-            enabled: false,
-            staleTime: Infinity,
         }
     }),
 )

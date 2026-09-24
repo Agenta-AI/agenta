@@ -11,7 +11,7 @@
  *
  * ## State Atoms
  * - `projectIdAtom` - Current project ID (populated by app)
- * - Jotai recipes: `atomWithDebounce`, `atomWithCompare`, `atomWithToggle`, etc.
+ * - Jotai recipes: `atomWithDebounce`, `atomWithRefresh`
  *
  * ## Chat Message Utilities
  * - Types: `SimpleChatMessage`, `MessageContent`, `ToolCall`, etc.
@@ -20,7 +20,6 @@
  *
  * ## Hooks
  * - `useDebounceInput` - Debounced input handling with synchronized state
- * - `useReducerAtom` - Reducer ergonomics for primitive atoms
  *
  * @example
  * ```typescript
@@ -56,13 +55,7 @@ export {
     projectIdAtom,
     setProjectIdAtom,
     atomWithRefresh,
-    atomWithCompare,
-    atomWithToggle,
-    atomWithToggleAndStorage,
-    atomWithListeners,
-    atomWithBroadcast,
     atomWithDebounce,
-    atomWithRefreshAndDefault,
 } from "./state"
 export type {DebouncedAtomBundle} from "./state"
 
@@ -151,9 +144,6 @@ export type {LoggerOptions} from "./utils"
 // JSON parsing utilities
 export {tryParsePartialJson, safeJson5Parse} from "./utils"
 
-// Key path utilities
-export {keyToString, stringToKeyPath} from "./utils"
-
 // JSON detection utilities
 export {
     isPlainObject,
@@ -198,7 +188,6 @@ export {
 } from "./hooks"
 export type {UseSelectionStateResult} from "./hooks"
 export type {UseRunAllShortcutParams} from "./hooks"
-export {useReducerAtom} from "./hooks"
 
 // Formatting utilities
 export {
