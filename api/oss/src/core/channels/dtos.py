@@ -707,6 +707,9 @@ class ChannelSpaceCandidate(BaseModel):
     #
     display_name: Optional[str] = None  # the platform's own name, for the list
     is_configured: bool = False  # a space row already exists for it
+    # the key a space row for it has or will have; the channel tools' readable
+    # list stores these, so a channel can be picked before it has a row
+    external_key: Optional[UUID] = None
     membership: Optional[ChannelSpaceMembership] = None
 
 

@@ -1423,6 +1423,7 @@ class ChannelsService:
                 )
             except ChannelLocatorIncomplete:
                 key = None
+            candidate.external_key = key
             candidate.is_configured = key in configured_keys or (
                 _canonical_locator(candidate.external_locator) in configured_locators
             )
