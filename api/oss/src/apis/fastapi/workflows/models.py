@@ -358,6 +358,11 @@ class WorkflowRevisionRetrieveRequest(BaseModel):
             "configuration before returning it."
         ),
     )
+    #
+    include_archived: Optional[bool] = Field(
+        default=None,
+        description="When false, an archived workflow, variant, or revision resolves to nothing.",
+    )
 
 
 class WorkflowRevisionDeployRequest(BaseModel):

@@ -16,6 +16,7 @@ export {
     isAgentDeploymentProviderKind,
     resolveAgentModelSelection,
     selectableAgentHarnesses,
+    HIDDEN_AGENT_HARNESSES,
     subscriptionConnectionCandidates,
 } from "./agentModelCandidates"
 

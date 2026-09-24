@@ -30,8 +30,7 @@ services:
     web-mobile:
         # === ACTIVATION =========================================== #
         # No profile: the mobile app (/m) starts with the stack, like api and web.
-        # Opt out with `run.sh --no-mobile`, or with `--scale web-mobile=0` on a
-        # hand-rolled `docker compose up`.
+        # Always on: /m is part of every deployment.
         # === IMAGE ================================================ #
         build:
             context: ../../../web

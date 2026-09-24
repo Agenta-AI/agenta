@@ -307,7 +307,7 @@ describe("useSessionLivePreview", () => {
             execution_state: {state: "idle"},
             pending: {inputs: [], interactions: []},
             read: null,
-            capabilities: {queue: true, steer: true},
+            capabilities: {durable_approvals: true},
         })
         const onDisconnect = vi.fn().mockResolvedValue(true)
         const onExecutionSettled = vi.fn()

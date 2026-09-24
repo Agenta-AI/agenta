@@ -254,26 +254,6 @@ class ApiCachingConfig(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
 
-class WorkflowsConfig(BaseModel):
-    """Workflow-revision behavior toggles."""
-
-    # The ordered-operations change set (agent-config-editing). ON is the default: the
-    # request model carries the ordered arm and the catalog advertises it. The variable
-    # is an escape hatch — set it falsy and the deployment falls back to the legacy
-    # surface, where only `set`/`remove` exist and a delta carrying `operations` is
-    # refused as an unknown field.
-    # The SDK reads this SAME variable in `agenta/sdk/agents/flags.py` to decide what to
-    # advertise to the model and what the build-an-agent skill teaches, and cannot import
-    # this parser. Its default and its accepted spellings must match this one in both
-    # directions, or the model is shown one payload shape while the server accepts
-    # another. Pinned by `oss/tests/pytest/unit/workflows/test_ordered_operations_flag.py`.
-    ordered_operations_enabled: bool = _parse_bool_env(
-        "AGENTA_WORKFLOWS_ORDERED_OPERATIONS_ENABLED", True
-    )
-
-    model_config = ConfigDict(extra="ignore")
-
-
 class SkillsImportConfig(BaseModel):
     """Skill-registry import (repo/marketplace fetch) limits."""
 
@@ -292,7 +272,6 @@ class ApiConfig(BaseModel):
     """Agenta API sub-namespace."""
 
     caching: ApiCachingConfig = ApiCachingConfig()
-    workflows: WorkflowsConfig = WorkflowsConfig()
     skills_import: SkillsImportConfig = SkillsImportConfig()
 
     model_config = ConfigDict(extra="ignore")
@@ -539,29 +518,17 @@ def _parse_sessions_late_output() -> Literal["quarantine", "reject"]:
     return "quarantine"
 
 
-def _sessions_durable_stop_enabled() -> bool:
-    return (os.getenv("AGENTA_SESSIONS_DURABLE_STOP") or "true").lower() in _TRUTHY
-
-
 def _parse_sessions_watchdog_stale_heartbeat_seconds() -> int:
     configured = _parse_optional_positive_int_env(
         "AGENTA_SESSIONS_WATCHDOG_STALE_HEARTBEAT_SECONDS"
     )
     if configured is not None:
         return configured
-    return 90 if _sessions_durable_stop_enabled() else 300
+    return 90
 
 
 class SessionsRecordsConfig(BaseModel):
     """Durable session-record ingest tuning (server-side history reconstruction)."""
-
-    # When a record body exceeds the cap, preserve its structure + partial content (trim only
-    # the large field values) instead of replacing the whole body with {"_truncated": True}.
-    # Off = legacy whole-body drop, which loses the record's type and id and leaves the
-    # replayed tool card unable to settle. Default ON since 2026-08-11.
-    smart_truncation: bool = (
-        os.getenv("AGENTA_RECORDS_SMART_TRUNCATION") or "true"
-    ).lower() in _TRUTHY
 
     # How long a record message the worker failed to write sits unacknowledged before the
     # worker claims it back and tries again.
@@ -628,8 +595,8 @@ class SessionWatchdogConfig(BaseModel):
     onto `session_streams.updated_at`, so the age of that column is the real liveness signal.
 
     A turn is declared lost when its stream row still claims `is_running` and its last
-    heartbeat is older than `stale_heartbeat_seconds`. Durable Stop uses 90 seconds (three
-    missed beats); flag-off deployments retain the pre-milestone 300-second default.
+    heartbeat is older than `stale_heartbeat_seconds`, 90 seconds by default (three missed
+    beats).
 
     Only a turn that still claims `is_running` is eligible. A turn parked for a human sends a
     final beat with `is_running: false` and then stops beating on purpose; that state is
@@ -717,12 +684,6 @@ class SessionsCommandsConfig(BaseModel):
 class SessionsConfig(BaseModel):
     """Agenta sessions sub-namespace."""
 
-    durable_stop: bool = _sessions_durable_stop_enabled()
-    durable_approvals: bool = (
-        os.getenv("AGENTA_SESSIONS_DURABLE_APPROVALS") or "true"
-    ).lower() in _TRUTHY
-    queue: bool = (os.getenv("AGENTA_SESSIONS_QUEUE") or "true").lower() in _TRUTHY
-    steer: bool = (os.getenv("AGENTA_SESSIONS_STEER") or "true").lower() in _TRUTHY
     late_output: Literal["quarantine", "reject"] = _parse_sessions_late_output()
     attachments: SessionAttachmentsConfig = SessionAttachmentsConfig()
     commands: SessionsCommandsConfig = SessionsCommandsConfig()
@@ -815,6 +776,57 @@ class AlembicConfig(BaseModel):
     cfg_path_tracing: str = os.getenv("ALEMBIC_CFG_PATH_TRACING") or (
         f"/app/{_LICENSE}/databases/postgres/migrations/tracing/alembic.ini"
     )
+
+    model_config = ConfigDict(extra="ignore")
+
+
+# ---------------------------------------------------------------------------
+# channels.slack — the Agenta-owned Slack app (hosted install), one
+# deployment's credentials, never a project's. See channels/adapters/slack.
+# ---------------------------------------------------------------------------
+
+
+class ChannelsSlackConfig(BaseModel):
+    client_id: str | None = os.getenv("SLACK_CLIENT_ID")
+    client_secret: str | None = os.getenv("SLACK_CLIENT_SECRET")
+    signing_secret: str | None = os.getenv("SLACK_SIGNING_SECRET")
+
+    model_config = ConfigDict(extra="ignore")
+
+    @property
+    def enabled(self) -> bool:
+        return bool(self.client_id and self.client_secret and self.signing_secret)
+
+
+# ---------------------------------------------------------------------------
+# channels.telegram — the Agenta-owned Telegram bot (hosted bind), one
+# deployment's bot, shared by every project. A custom bot uses a per-project
+# token in the vault instead; these are only for the hosted bot.
+# ---------------------------------------------------------------------------
+
+
+class ChannelsTelegramConfig(BaseModel):
+    # One shared bot token for the whole deployment, never a project's.
+    bot_token: str | None = os.getenv("TELEGRAM_HOSTED_BOT_TOKEN")
+    # The @username of the hosted bot, for the deep link t.me/<username>.
+    bot_username: str | None = os.getenv("TELEGRAM_HOSTED_BOT_USERNAME")
+    # The secret token Telegram echoes on every hosted webhook call, set once
+    # per deployment at setWebhook time; the ingress verifies it before it
+    # consumes a bind token or writes anything.
+    webhook_secret: str | None = os.getenv("TELEGRAM_HOSTED_WEBHOOK_SECRET")
+
+    model_config = ConfigDict(extra="ignore")
+
+    @property
+    def enabled(self) -> bool:
+        # A username is required too: without it the deep link degrades to
+        # https://t.me/?start=... , which connects nothing.
+        return bool(self.bot_token and self.webhook_secret and self.bot_username)
+
+
+class ChannelsConfig(BaseModel):
+    slack: ChannelsSlackConfig = ChannelsSlackConfig()
+    telegram: ChannelsTelegramConfig = ChannelsTelegramConfig()
 
     model_config = ConfigDict(extra="ignore")
 
@@ -1630,6 +1642,9 @@ class PostgresConfig(BaseModel):
 
     user: str = os.getenv("POSTGRES_USER") or "username"
     password: str = os.getenv("POSTGRES_PASSWORD") or "password"
+    # Compose service name in-network; set POSTGRES_HOST=localhost to reach the
+    # published port from the host (tests run outside the network).
+    host: str = os.getenv("POSTGRES_HOST") or "postgres"
     # The bundled Postgres always listens on 5432 inside the Docker network.
     # POSTGRES_PORT only remaps the host-published port (compose
     # "${POSTGRES_PORT:-5432}:5432") and must NOT feed the in-network URIs below.
@@ -1647,13 +1662,13 @@ class PostgresConfig(BaseModel):
     )
 
     uri_core: str = os.getenv("POSTGRES_URI_CORE") or (
-        f"postgresql+asyncpg://{_user_q}:{_password_q}@postgres:5432/{db_prefix}_core"
+        f"postgresql+asyncpg://{_user_q}:{_password_q}@{host}:5432/{db_prefix}_core"
     )
     uri_tracing: str = os.getenv("POSTGRES_URI_TRACING") or (
-        f"postgresql+asyncpg://{_user_q}:{_password_q}@postgres:5432/{db_prefix}_tracing"
+        f"postgresql+asyncpg://{_user_q}:{_password_q}@{host}:5432/{db_prefix}_tracing"
     )
     uri_supertokens: str = os.getenv("POSTGRES_URI_SUPERTOKENS") or (
-        f"postgresql://{_user_q}:{_password_q}@postgres:5432/{db_prefix}_supertokens"
+        f"postgresql://{_user_q}:{_password_q}@{host}:5432/{db_prefix}_supertokens"
     )
 
     # Stable signed-64-bit advisory-lock key for this deployment. We mix
@@ -2135,6 +2150,7 @@ class EnvironSettings(BaseModel):
     agenta: AgentaConfig = AgentaConfig()
     alembic: AlembicConfig = AlembicConfig()
     auth: AuthFacade = AuthFacade()
+    channels: ChannelsConfig = ChannelsConfig()
     cloudflare: CloudflareConfig = CloudflareConfig()
     composio: ComposioConfig = ComposioConfig()
     crisp: CrispConfig = CrispConfig()

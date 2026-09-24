@@ -9,3 +9,7 @@ context: |
   /m is the new default application for desktop and mobile, not a mobile-only host.
   Reuse v0.119 model selection, MCP gateway services, and build-kit tools.
   Multi-agent support is deferred and must remain marked NOT IMPLEMENTED.
+
+  Channels proposals in this tree are also unimplemented drafts. Preserve tenant
+  isolation and provider constraints. Do not implement deferred channel tools or
+  multiple-agent behavior without a separate request.

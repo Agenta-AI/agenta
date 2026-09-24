@@ -3,6 +3,7 @@
  * select and rail, and the chat composer's model palette. One home so a harness can't be
  * hidden in one picker and offered in another.
  */
+import {selectableAgentHarnesses} from "@agenta/entities/secret"
 import {formatEnumLabel} from "@agenta/shared/utils"
 
 export interface HarnessMeta {
@@ -24,10 +25,6 @@ export const HARNESS_META: Record<string, HarnessMeta> = {
     codex: {label: "Codex", short: "Cx", color: "#10a37f"},
 }
 
-/** Harnesses never offered in a picker. `pi_agenta` (a removed experiment) stays listed so a
- * web build in front of an older API that still advertises it never shows it. */
-export const HIDDEN_HARNESSES = new Set(["pi_agenta"])
-
 /** Resolve display identity, deriving a sensible fallback for unknown harness ids. */
 export function harnessMetaFor(value: string): HarnessMeta {
     const known = HARNESS_META[value]
@@ -41,7 +38,7 @@ export function harnessMetaFor(value: string): HarnessMeta {
     return {label, short, color: "#586673"}
 }
 
-/** The harness ids a picker may offer, from the capability catalog. */
+/** The harness ids a picker may offer, from the capability catalog (drops `HIDDEN_AGENT_HARNESSES`). */
 export function selectableHarnesses(harnessIds: string[]): string[] {
-    return harnessIds.filter((id) => !HIDDEN_HARNESSES.has(id))
+    return selectableAgentHarnesses(harnessIds)
 }

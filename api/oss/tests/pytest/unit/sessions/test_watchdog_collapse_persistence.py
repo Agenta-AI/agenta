@@ -343,8 +343,6 @@ def _build_services(engine):
 async def test_a_lost_pass_persists_the_collapse_against_real_postgres(
     anyio_backend, wd_engine, monkeypatch
 ):
-    monkeypatch.setattr(env.agenta.sessions, "durable_stop", True)
-
     session_id = "wd-" + uuid.uuid4().hex[:12]
     turn_id = str(uuid.uuid4())
     await _seed_scenario(wd_engine, session_id=session_id, turn_id=turn_id)
@@ -416,7 +414,6 @@ async def test_b_lost_turn_clear_persists_after_a_nested_session_close(
     with nothing nested in between. The test pins the property rather than a past bug. Make the
     write an ORM attribute assignment again and it fails on `is_running` still true.
     """
-    monkeypatch.setattr(env.agenta.sessions, "durable_stop", True)
 
     session_id = "wd-" + uuid.uuid4().hex[:12]
     turn_id = str(uuid.uuid4())

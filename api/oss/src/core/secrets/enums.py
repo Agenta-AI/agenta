@@ -7,6 +7,7 @@ class SecretKind(str, Enum):
     SSO_PROVIDER = "sso_provider"
     WEBHOOK_PROVIDER = "webhook_provider"
     CUSTOM_SECRET = "custom_secret"
+    CHANNEL_SECRET = "channel_secret"
     SUBSCRIPTION_PROVIDER = "subscription_provider"
     OAUTH_PROVIDER = "oauth_provider"
     OAUTH_GRANT = "oauth_grant"
@@ -44,6 +45,13 @@ def is_always_write_only(kind) -> bool:
     except ValueError:
         # An unknown kind is not one of ours to force. It cannot be an OAuth grant.
         return False
+
+
+class ChannelSecretKind(str, Enum):
+    SLACK = "slack"
+    TELEGRAM = "telegram"
+    AGENTA = "agenta"
+    BRIDGE = "bridge"
 
 
 class SubscriptionProviderKind(str, Enum):

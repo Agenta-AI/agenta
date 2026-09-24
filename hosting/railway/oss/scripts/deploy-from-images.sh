@@ -32,7 +32,8 @@ SEAWEEDFS_IMAGE="${SEAWEEDFS_IMAGE:-chrislusf/seaweedfs:4.47}"
 
 AGENTA_API_IMAGE="${AGENTA_API_IMAGE:-}"
 AGENTA_WEB_IMAGE="${AGENTA_WEB_IMAGE:-}"
-# Optional: the mobile app is opt-in (see bootstrap.sh AGENTA_RAILWAY_WITH_MOBILE).
+# Optional here only because an environment bootstrapped before web-mobile became
+# standard may still lack the service; bootstrap.sh now always creates it.
 AGENTA_WEB_MOBILE_IMAGE="${AGENTA_WEB_MOBILE_IMAGE:-}"
 AGENTA_SERVICES_IMAGE="${AGENTA_SERVICES_IMAGE:-}"
 AGENTA_RUNNER_IMAGE="${AGENTA_RUNNER_IMAGE:-}"

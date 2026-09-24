@@ -2,17 +2,11 @@ import {projectIdAtom} from "@agenta/shared/state"
 import {atom} from "jotai"
 
 import {
-    fetchSessionCapabilities,
     fetchSessionSnapshot,
     removePendingSessionInput,
     sendPendingSessionInputNow,
     updatePendingSessionInput,
 } from "../api/api"
-
-export const fetchSessionCapabilitiesAtom = atom(null, async (get, _set, sessionId: string) => {
-    const projectId = get(projectIdAtom) ?? ""
-    return fetchSessionCapabilities({projectId, sessionId})
-})
 
 export const fetchSessionSnapshotAtom = atom(null, async (get, _set, sessionId: string) => {
     const projectId = get(projectIdAtom) ?? ""

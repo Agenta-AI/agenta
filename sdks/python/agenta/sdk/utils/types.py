@@ -8,7 +8,11 @@ from pydantic import ConfigDict, BaseModel, HttpUrl, RootModel
 from pydantic import Field, model_validator, AliasChoices
 
 
-from agenta.sdk.agents.dtos import HARNESS_IDENTITIES, SandboxPermission
+from agenta.sdk.agents.dtos import (
+    HARNESS_IDENTITIES,
+    UNLISTED_HARNESS_KINDS,
+    SandboxPermission,
+)
 from agenta.sdk.agents.mcp import MCPServerConfig
 from agenta.sdk.agents.tools import ToolConfig
 from agenta.sdk.agents.wire_models import run_contract_schemas
@@ -1140,16 +1144,24 @@ def _harness_field_schema_extra() -> Dict[str, Any]:
     catalog (``GET /catalog/harnesses/{value}``), where its capabilities live — the same
     catalog/ref mechanism as ``x-ag-type-ref`` -> ``/catalog/types/``. The frontend resolves it
     to drive the harness-filtered provider/model picker, instead of reading an inlined inspect
-    ``meta`` field."""
+    ``meta`` field.
+
+    Unlisted harnesses (``UNLISTED_HARNESS_KINDS``) stay out of both lists, so no schema-driven
+    control offers them; a config that names one still runs."""
+    listed = [
+        identity
+        for identity in HARNESS_IDENTITIES
+        if identity.value not in UNLISTED_HARNESS_KINDS
+    ]
     return {
-        "enum": [identity.value for identity in HARNESS_IDENTITIES],
+        "enum": [identity.value for identity in listed],
         "oneOf": [
             {
                 "const": identity.value,
                 "title": identity.name,
                 _HARNESS_SLUG_KEY: identity.slug,
             }
-            for identity in HARNESS_IDENTITIES
+            for identity in listed
         ],
         "x-ag-harness-ref": "harness",
     }

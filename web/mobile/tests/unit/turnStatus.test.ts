@@ -1,4 +1,3 @@
-import {isComposerRunStoppable} from "@agenta/chat/assets"
 import {describe, expect, it} from "vitest"
 
 import {
@@ -99,19 +98,5 @@ describe("showRunningElsewhere", () => {
 
     it("keeps a locally parked gate from being labeled remote", () => {
         expect(showRunningElsewhere({running: true, localStatus: "awaiting"})).toBe(false)
-    })
-
-    it("renders exactly one Stop for a flag-off remote run", () => {
-        const stripStop = showRunningElsewhere({running: true, localStatus: "idle"})
-        const composerStop = isComposerRunStoppable({
-            localStreaming: false,
-            serverBusy: true,
-            serverControlEnabled: false,
-            waitingOnUser: false,
-        })
-
-        expect([stripStop, composerStop].filter(Boolean)).toHaveLength(1)
-        expect(stripStop).toBe(true)
-        expect(composerStop).toBe(false)
     })
 })

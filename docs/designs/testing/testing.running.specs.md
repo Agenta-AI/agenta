@@ -58,14 +58,14 @@ Master table of all variables across all interfaces and modes:
 | `AGENTA_TEST_OSS_OWNER_PASSWORD` | Web E2E (OSS) | Yes | -- | OSS owner account password |
 | `AGENTA_TEST_OSS_OWNER_EMAIL` | Web E2E (OSS) | Optional | -- | OSS owner email |
 | `NEXT_PUBLIC_AGENTA_API_URL` | Web data layer | Yes | -- | API URL for frontend tests |
-| `AGENTA_TEST_NO_DATABASE` | API integration | For a remote deployment | unset | Declares that this runner has no route to the deployment's Postgres |
+| `AGENTA_TEST_NO_DATABASE` | API integration, API acceptance | For a remote deployment | unset | Declares that this runner has no route to the deployment's Postgres |
 | `AGENTA_TESTS_EXPECT_LLM_GATEWAY` | Services acceptance | For a deployment with the plane off | `true` | Declares whether the deployment is expected to serve the LLM gateway |
 
 ### Declarations about the deployment under test
 
 Two layers refuse to guess what the deployment they are pointed at can do, because guessing wrong produces a green run that covered nothing. A run against a deployment it did not configure has to state the facts below, and the statement belongs in the workflow or shell that points at that deployment, not in a default.
 
-The API integration layer reads the deployment's Postgres directly. When it cannot reach one it fails rather than skips, so a run that touched no database cannot report success. A runner that reaches the deployment only over HTTPS has no route to its Postgres at all, which is the shape of every remote stage and of the Railway previews in `.github/workflows/44-railway-tests.yml`. Set `AGENTA_TEST_NO_DATABASE=1` for the integration layer there. Every database-bound case then skips with a reason naming the declaration, and the run prints the count of them in its terminal summary and in the GitHub job summary, so the skip is harder to miss than the failure was.
+The API integration layer reads the deployment's Postgres directly. When it cannot reach one it fails rather than skips, so a run that touched no database cannot report success. A runner that reaches the deployment only over HTTPS has no route to its Postgres at all, which is the shape of every remote stage and of the Railway previews in `.github/workflows/44-railway-tests.yml`. Set `AGENTA_TEST_NO_DATABASE=1` for the integration layer there, and for the acceptance layer too: its few database-adjacent cases (the modules marked `integration`, such as the channels bridge and differential suites and the mounts and sessions attachment cases) go through the same guard and fail the same way. Every database-bound case then skips with a reason naming the declaration, and the run prints the count of them in its terminal summary and in the GitHub job summary, so the skip is harder to miss than the failure was.
 
 The services gateway acceptance suites exist to prove that a gateway refusal reaches the caller, so they expect the deployment to serve the LLM gateway plane and fail when it does not. The plane ships off, so a run pointed at a stack that keeps it off has to say so with `AGENTA_TESTS_EXPECT_LLM_GATEWAY=false`, and the suites then skip. Do not set it on a deployment that is supposed to serve the plane. The point of the default is that a misconfigured deployment stays loud.
 

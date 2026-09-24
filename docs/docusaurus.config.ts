@@ -441,6 +441,14 @@ const config: Config = {
       {
         redirects: [
           {
+            from: "/guides/schedule-an-automation",
+            to: "/guides/create-an-automation",
+          },
+          {
+            from: "/guides/trigger-an-automation-from-an-app",
+            to: "/guides/create-an-automation",
+          },
+          {
             from: "/changelog/main",
             to: "/changelog",
           },
