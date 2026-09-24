@@ -33,10 +33,3 @@ export const FIRST_RUN_COPY = {
     /** Shown only once a template's prompt has been edited — one tap restores the original. */
     resetPrompt: "Reset prompt",
 } as const
-
-/** Tap to fill the composer — see the note in [[FirstRunComposer]] on why they fill, not send. */
-export const FIRST_RUN_STARTERS = [
-    "Triage #support tickets",
-    "Review my PRs",
-    "Summarize standups",
-] as const

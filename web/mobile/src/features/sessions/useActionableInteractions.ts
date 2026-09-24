@@ -19,15 +19,3 @@ export const useActionableInteractions = (projectId: string) => {
         refetchOnWindowFocus: true,
     })
 }
-
-/** `session_id → pending count` off the poll result; `undefined` while it hasn't resolved. */
-export const pendingCountBySession = (
-    interactions: SessionInteraction[] | null | undefined,
-): Map<string, number> | undefined => {
-    if (interactions === undefined || interactions === null) return undefined
-    const map = new Map<string, number>()
-    for (const interaction of interactions) {
-        map.set(interaction.session_id, (map.get(interaction.session_id) ?? 0) + 1)
-    }
-    return map
-}

@@ -6,11 +6,7 @@ export {createTableColumns} from "./columns/createTableColumns"
 export {buildEntityColumns} from "./columns/buildEntityColumns"
 export type {BuildEntityColumnsOptions} from "./columns/buildEntityColumns"
 export {
-    createTextCell,
     createComponentCell,
-    createStatusCell,
-    createActionsCell,
-    createViewportAwareCell,
     createColumnVisibilityAwareCell,
 } from "./columns/cells"
 export * from "./columns/types"
@@ -97,10 +93,7 @@ export type {
 } from "./hooks/useEditableTable"
 export {
     useRowHeight,
-    useRowHeightValue,
     createRowHeightAtom,
-    createRowHeightPxAtom,
-    createRowHeightMaxLinesAtom,
     DEFAULT_ROW_HEIGHT_CONFIG,
 } from "./hooks/useRowHeight"
 export type {

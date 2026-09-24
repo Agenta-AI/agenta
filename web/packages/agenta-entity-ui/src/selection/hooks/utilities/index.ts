@@ -32,15 +32,9 @@ export {
 
 // Path builder utilities
 export {
-    usePathBuilder,
-    useSelectionCallback,
-    usePathMemo,
     buildPath,
     buildPathItem,
     isPathComplete,
-    findEntityInItems,
-    getPathIds,
-    getPathIdAtLevel,
     type LevelState,
     type UsePathBuilderOptions,
     type UsePathBuilderResult,

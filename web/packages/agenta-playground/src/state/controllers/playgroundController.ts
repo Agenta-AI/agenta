@@ -1860,11 +1860,6 @@ export function setOnSelectionChangeCallback(cb: SelectionChangeCallback | null)
     _onSelectionChange = cb
 }
 
-/** @internal */
-export function getOnSelectionChangeCallback(): SelectionChangeCallback | null {
-    return _onSelectionChange
-}
-
 // ============================================================================
 // SELECTION ACTIONS
 // ============================================================================

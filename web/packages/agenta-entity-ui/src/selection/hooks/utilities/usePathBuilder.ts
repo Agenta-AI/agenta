@@ -7,8 +7,6 @@
  * Used by both cascading and hierarchical selection modes.
  */
 
-import {useCallback, useMemo, useRef, useEffect} from "react"
-
 import type {
     EntitySelectionAdapter,
     EntitySelectionResult,
@@ -56,96 +54,6 @@ export interface UsePathBuilderResult<TSelection = EntitySelectionResult> {
     selection: TSelection | null
     /** Whether selection is complete */
     isComplete: boolean
-}
-
-// ============================================================================
-// HOOK: usePathBuilder
-// ============================================================================
-
-/**
- * Hook that builds selection paths and triggers onSelect.
- *
- * Handles:
- * - Building path from level states
- * - Creating selection result via adapter
- * - Triggering onSelect callback (only when selection changes)
- *
- * @example
- * ```typescript
- * const { path, selection, isComplete } = usePathBuilder({
- *     adapter,
- *     levels: [level0, level1, level2],
- *     onSelect: handleSelect,
- * })
- * ```
- */
-export function usePathBuilder<TSelection = EntitySelectionResult>({
-    adapter,
-    levels,
-    onSelect,
-}: UsePathBuilderOptions<TSelection>): UsePathBuilderResult<TSelection> {
-    // Build path and selection
-    const {path, selection} = useMemo(() => {
-        const selectableLevel =
-            adapter.hierarchy.selectableLevel ?? adapter.hierarchy.levels.length - 1
-
-        // Build path from all levels with selections
-        const pathItems: SelectionPathItem[] = []
-
-        for (let i = 0; i <= selectableLevel && i < levels.length; i++) {
-            const level = levels[i]
-            if (level.effectiveId && level.selectedEntity) {
-                pathItems.push({
-                    type: level.config.type,
-                    id: level.effectiveId,
-                    label: level.config.getLabel(level.selectedEntity),
-                })
-            }
-        }
-
-        // Check if all required levels have selections
-        const allLevelsSelected = pathItems.length > selectableLevel
-
-        if (!allLevelsSelected) {
-            return {path: pathItems, selection: null}
-        }
-
-        // Get leaf entity for selection creation
-        const leafLevel = levels[selectableLevel]
-        if (!leafLevel?.selectedEntity) {
-            return {path: pathItems, selection: null}
-        }
-
-        // Create selection via adapter
-        const selectionResult = adapter.toSelection(pathItems, leafLevel.selectedEntity)
-
-        return {
-            path: pathItems,
-            selection: selectionResult,
-        }
-    }, [adapter, levels])
-
-    const isComplete = selection !== null
-
-    // Track previous selection to avoid duplicate onSelect calls
-    const prevSelectionIdRef = useRef<string | null>(null)
-
-    useEffect(() => {
-        if (!selection || !onSelect) return
-
-        // Cast to EntitySelectionResult to access id property
-        const currentId = (selection as unknown as EntitySelectionResult).id
-        if (currentId !== prevSelectionIdRef.current) {
-            prevSelectionIdRef.current = currentId
-            onSelect(selection)
-        }
-    }, [selection, onSelect])
-
-    return {
-        path,
-        selection,
-        isComplete,
-    }
 }
 
 // ============================================================================
@@ -219,26 +127,8 @@ export function isPathComplete<TSelection = EntitySelectionResult>(
     return adapter.isComplete(path)
 }
 
-// ============================================================================
-// HOOK: useSelectionCallback
-// ============================================================================
-
 /**
- * Creates a stable callback for triggering selection.
- *
- * Useful in hierarchical mode where selection happens on user action.
- *
- * @example
- * ```typescript
- * const select = useSelectionCallback({
- *     adapter,
- *     currentPath,
- *     onSelect,
- * })
- *
- * // Call when user clicks an item
- * select(entity, levelConfig)
- * ```
+ * Options for a selection callback
  */
 export interface UseSelectionCallbackOptions<TSelection = EntitySelectionResult> {
     /** Resolved adapter */
@@ -247,97 +137,4 @@ export interface UseSelectionCallbackOptions<TSelection = EntitySelectionResult>
     currentPath: SelectionPathItem[]
     /** Callback when selection is complete */
     onSelect?: (selection: TSelection) => void
-}
-
-export function useSelectionCallback<TSelection = EntitySelectionResult, T = unknown>({
-    adapter,
-    currentPath,
-    onSelect,
-}: UseSelectionCallbackOptions<TSelection>): (entity: T, levelConfig: HierarchyLevel<T>) => void {
-    return useCallback(
-        (entity: T, levelConfig: HierarchyLevel<T>) => {
-            const pathItem = buildPathItem(entity, levelConfig)
-            const fullPath = [...currentPath, pathItem]
-            const selection = adapter.toSelection(fullPath, entity)
-            onSelect?.(selection)
-        },
-        [adapter, currentPath, onSelect],
-    )
-}
-
-// ============================================================================
-// UTILITY: findEntityInItems
-// ============================================================================
-
-/**
- * Find an entity in a list by ID.
- *
- * @example
- * ```typescript
- * const entity = findEntityInItems(items, selectedId, levelConfig)
- * ```
- */
-export function findEntityInItems<T>(
-    items: T[],
-    id: string | null,
-    levelConfig: HierarchyLevel<T>,
-): T | null {
-    if (!id) return null
-    return items.find((item) => levelConfig.getId(item) === id) ?? null
-}
-
-// ============================================================================
-// UTILITY: getPathIds
-// ============================================================================
-
-/**
- * Extract IDs from a selection path.
- *
- * @example
- * ```typescript
- * const [appId, variantId, revisionId] = getPathIds(path)
- * ```
- */
-export function getPathIds(path: SelectionPathItem[]): string[] {
-    return path.map((item) => item.id)
-}
-
-/**
- * Get ID at a specific level in the path.
- */
-export function getPathIdAtLevel(path: SelectionPathItem[], level: number): string | null {
-    return path[level]?.id ?? null
-}
-
-// ============================================================================
-// HOOK: usePathMemo
-// ============================================================================
-
-/**
- * Memoizes a path array to prevent unnecessary re-renders.
- *
- * Uses shallow comparison of path items.
- *
- * @example
- * ```typescript
- * const stablePath = usePathMemo(path)
- * ```
- */
-export function usePathMemo(path: SelectionPathItem[]): SelectionPathItem[] {
-    const prevPathRef = useRef<SelectionPathItem[]>(path)
-
-    // Check if path changed (shallow comparison)
-    const pathChanged =
-        path.length !== prevPathRef.current.length ||
-        path.some(
-            (item, i) =>
-                item.id !== prevPathRef.current[i]?.id ||
-                item.type !== prevPathRef.current[i]?.type,
-        )
-
-    if (pathChanged) {
-        prevPathRef.current = path
-    }
-
-    return prevPathRef.current
 }

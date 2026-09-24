@@ -40,24 +40,17 @@ export {timeAgo} from "./timeAgo"
 
 // Path utilities for nested data navigation
 export {
-    buildTestcaseColumnPaths,
     collectPaths,
-    combineTypedPaths,
     deleteValueAtPath,
     // Typed path utilities for UI selection components
     extractTypedPaths,
     getChildCount,
     getItemsAtPath,
-    getLastSegment,
-    getParentPath,
     getValueAtPath,
     getValueAtStringPath,
-    getValueType,
     hasValueAtPath,
-    isChildPath,
     isExpandable,
     parsePath,
-    pathToString,
     setValueAtPath,
 } from "./pathUtils"
 export type {
@@ -90,13 +83,10 @@ export {
     deriveToolViewModelFromResult,
     extractDisplayTextFromMessage,
     extractTextFromContent,
-    getAttachmentInfo,
     getAttachments,
     hasAttachments,
     isChatMessageObject,
     isChatMessagesArray,
-    messageHasContent,
-    messageHasToolCalls,
     normalizeMessagesFromField,
     removeAttachmentFromContent,
     tryParseArrayFromString,
@@ -113,10 +103,7 @@ export {safeJson5Parse, tryParsePartialJson} from "./jsonParsing"
 
 // JSON detection utilities
 export {
-    canExpandAsJson,
     inferLogicalType,
-    isJsonArray,
-    isJsonObject,
     isJsonString,
     isPlainObject,
     tryParseAsArray,
@@ -130,7 +117,6 @@ export type {JsonParseResult, LogicalType} from "./jsonDetection"
 export {
     detectEditorLanguage,
     getContentLanguage,
-    looksLikeJson,
     type EditorLanguage,
 } from "./editorLanguage"
 
@@ -198,7 +184,6 @@ export {
 
 // Status inference utilities
 export {
-    getStatusColor,
     getStatusLabel,
     getStatusSeverity,
     inferStatusFromSummary,

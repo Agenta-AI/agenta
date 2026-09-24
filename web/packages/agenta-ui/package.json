@@ -50,7 +50,6 @@
         "./styles": "./src/utils/styles.ts",
         "./surfaces.css": "./src/styles/surfaces.css",
         "./table": "./src/InfiniteVirtualTable/index.ts",
-        "./table/paginated": "./src/InfiniteVirtualTable/paginated/index.ts",
         "./theme": "./src/theme/index.ts",
         "./theme-variables.css": "./src/styles/theme-variables.css",
         "./type-chip": "./src/type-chip/index.ts",

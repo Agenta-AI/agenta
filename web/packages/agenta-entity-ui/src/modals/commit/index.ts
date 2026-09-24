@@ -23,7 +23,7 @@ export type {
 } from "./components"
 
 // Hooks
-export {useEntityCommit, useRevisionCommit, useVariantCommit, useBoundCommit} from "./hooks"
+export {useEntityCommit} from "./hooks"
 export type {UseEntityCommitReturn, UseBoundCommitOptions, UseBoundCommitReturn} from "./hooks"
 
 // State atoms

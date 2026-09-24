@@ -253,9 +253,6 @@ export {
     evaluatorsListQueryAtom,
     evaluatorsListDataAtom,
     nonArchivedEvaluatorsAtom,
-    llmEvaluatorsAtom,
-    fullPagePlaygroundEvaluatorsAtom,
-    nonHumanEvaluatorsAtom,
     nonDeterministicEvaluatorsAtom,
     // Lazy enrichment gate (defers the per-evaluator latest-revision fan-out)
     evaluatorEnrichmentActivatedAtom,

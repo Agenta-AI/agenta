@@ -68,7 +68,6 @@ export {
     type StoreOptions,
     type MoleculeQueryState,
     type AtomFamily,
-    type WritableAtomFamily,
     type FlexibleWritableAtomFamily,
     type MoleculeAtoms,
     type MoleculeReducers,
@@ -78,7 +77,6 @@ export {
     type MoleculeCleanup,
     type LifecycleCallback,
     type LifecycleUnsubscribe,
-    type LifecycleEvent,
     type MoleculeLifecycle,
     type LifecycleConfig,
     type MoleculeState,
@@ -96,17 +94,12 @@ export {
     type CreateLocalMoleculeConfig,
     type LocalQueryState,
     type CacheKeyConfig,
-    type CacheRedirectEntry,
     type CacheConfig,
     type MoleculeRelation,
-    type MoleculeWithRelations,
-    type InferSchemaType,
     type ServerEntity,
     type LocalEntity,
     type AnyEntity,
     isLocalEntity,
-    isServerEntity,
-    getEntityId,
     // ============================================================================
     // PUBLIC API INTERFACES (Clean entity controller pattern)
     // ============================================================================
@@ -115,19 +108,12 @@ export {
     // Capability interfaces
     type RunnableCapability,
     type LoadableCapability,
-    // Combined entity types
-    type RunnableEntity,
-    type LoadableEntity,
-    type RunnableLoadableEntity,
     // Entity meta capability
     withEntityMeta,
     type EntityMetaFieldMap,
     type EntityMetaAtoms,
     type EntityMetaGetters,
     type EntityMetaCapability,
-    type MetaEntity,
-    type RunnableMetaEntity,
-    type LoadableMetaEntity,
 } from "./molecule"
 
 // ============================================================================
@@ -140,14 +126,8 @@ export {
     type EvaluatorField,
     type EntitySchema,
     getSchemaAtPath,
-    getSchemaKeys,
-    isArrayPath,
     getDefaultValue,
-    createDefaultArrayItem,
     evaluatorFieldToSchema,
-    evaluatorFieldsToSchema,
-    extractPromptSchema,
-    extractCustomPropertiesSchema,
     messageSchema,
     messagesSchema,
     // Zod schema utilities
@@ -155,19 +135,10 @@ export {
     type EntitySchemaSetConfig,
     type EntitySchemaSet,
     type LocalEntityFactory,
-    type InferBase,
-    type InferCreate,
-    type InferUpdate,
-    type InferLocal,
     createEntitySchemaSet,
-    createLocalEntityFactory,
-    createTrackedEntityFactory,
     defaultIdGenerator,
     safeParseWithErrors,
     safeParseWithLogging,
-    parseOrThrow,
-    createPaginatedResponseSchema,
-    createBatchOperationSchema,
     timestampFieldsSchema,
     auditFieldsSchema,
     jsonValueSchema,
@@ -176,25 +147,17 @@ export {
     type TimestampFields,
     type DateParser,
     createTimestampNormalizer,
-    createFieldTransformer,
-    composeTransforms,
     parseISODate,
-    normalizeTimestampsBasic,
     // Date formatting utilities
     type EntityDateInput,
     type EntityDateTimeFormatOptions,
     formatEntityDateTime,
     // ID & batch utilities
-    isLocalId,
-    isServerId,
     generateLocalId,
     batchUpdate,
-    batchCreate,
-    batchDelete,
     // Relation utilities
     getChildIds,
     getChildData,
-    createRelation,
     // Latest entity query factory
     createLatestEntityQueryFactory,
     type CreateLatestEntityQueryConfig,
@@ -285,20 +248,9 @@ export {
     // Registry
     entityRelationRegistry,
     createRelationRegistry,
-    // Extension helper
-    extendWithRelations,
-    createRelationIdsAtom,
-    createRelationDataAtom,
-    // Type guards
-    hasSelectionConfig,
-    hasBindingConfig,
     // Binding utilities
     loadableBindingRelation,
-    getLoadableId,
     parseLoadableId,
-    isLoadableBindingId,
-    getLoadableEntityType,
-    getLoadableEntityId,
 } from "./relations"
 
 export type {
@@ -348,14 +300,6 @@ export {
     computeListCounts,
     // Paginated list counts
     createPaginatedListCountsAtom,
-    createPaginatedListCountsAtomFamily,
-    // Regular list counts
-    createListCountsAtom,
-    createListCountsFromPaginationAtom,
-    // Utility atoms
-    createDisplayLabelAtom,
-    createDisplayLabelShortAtom,
-    createHasMoreAtom,
 } from "./listCounts"
 
 // ============================================================================
@@ -425,15 +369,10 @@ export {
     // URI parsing
     type ParsedUriInfo,
     parseRevisionUri,
-    extractRuntimePrefix,
-    extractRoutePath,
     // Revision parameter extraction
     type RawAgConfig,
     extractRevisionParameters,
     extractRevisionParametersFromApiRevision,
-    // Deprecated agConfig aliases
-    extractAgConfig,
-    extractAgConfigFromApiRevision,
     // List item types
     type AppListItem,
     type VariantListItem,
@@ -441,9 +380,4 @@ export {
     // API response types
     type ApiVariant,
     type ApiRevisionListItem,
-    type ApiApp,
-    // Transform utilities
-    transformAppToListItem,
-    transformVariantToListItem,
-    transformRevisionToListItem,
 } from "./utils"

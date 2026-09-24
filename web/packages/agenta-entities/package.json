@@ -34,11 +34,9 @@
         "./drive": "./src/drive/index.ts",
         "./environment": "./src/environment/index.ts",
         "./etl": "./src/etl/index.ts",
-        "./evaluationQueue": "./src/evaluationQueue/index.ts",
         "./evaluationRun": "./src/evaluationRun/index.ts",
         "./evaluationRun/etl": "./src/evaluationRun/etl/index.ts",
         "./event": "./src/event/index.ts",
-        "./event/state": "./src/event/state/index.ts",
         "./gatewayTool": "./src/gatewayTool/index.ts",
         "./gatewayTrigger": "./src/gatewayTrigger/index.ts",
         "./loadable": "./src/loadable/index.ts",
@@ -49,7 +47,6 @@
         "./organization": "./src/organization/index.ts",
         "./queue": "./src/queue/index.ts",
         "./runnable": "./src/runnable/index.ts",
-        "./runnable/bridge": "./src/runnable/bridge.ts",
         "./runnable/deploy": "./src/runnable/deploy.ts",
         "./secret": "./src/secret/index.ts",
         "./session": "./src/session/index.ts",
@@ -68,9 +65,7 @@
         "./webhook": "./src/webhook/index.ts",
         "./workflow": "./src/workflow/index.ts",
         "./workflow/agentCreationTelemetry": "./src/workflow/state/agentCreationTelemetry.ts",
-        "./workflow/commitDiff": "./src/workflow/commitDiff/index.ts",
-        "./workflow/snapshotAdapter": "./src/workflow/snapshotAdapter.ts",
-        "./workflow/state": "./src/workflow/state/index.ts"
+        "./workflow/commitDiff": "./src/workflow/commitDiff/index.ts"
     },
     "dependencies": {
         "@agenta/sdk": "workspace:../agenta-sdk",

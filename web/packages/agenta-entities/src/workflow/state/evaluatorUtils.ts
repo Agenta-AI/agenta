@@ -27,7 +27,6 @@ import {fetchEvaluatorCatalogPresets} from "../api/templates"
 import type {Workflow} from "../core"
 import {
     buildWorkflowUri,
-    hasFullPagePlaygroundUX,
     parseWorkflowKeyFromUri,
     resolveOutputSchemaProperties,
 } from "../core"
@@ -35,7 +34,6 @@ import {
 import {evaluatorTemplatesDataAtom} from "./evaluatorTemplateAtoms"
 import {
     buildServiceUrlFromUri,
-    filterLlmEvaluatorWorkflows,
     filterNonDeterministicEvaluatorWorkflows,
 } from "./helpers"
 import {
@@ -121,8 +119,7 @@ export const nonArchivedEvaluatorsAtom = atom<Workflow[]>((get) => {
 // ============================================================================
 
 /**
- * The aggregate evaluator atoms below — `fullPagePlaygroundEvaluatorsAtom`,
- * `nonHumanEvaluatorsAtom`, `evaluatorKeyMapAtom`, `evaluatorWorkflowMetaMapAtom`,
+ * The aggregate evaluator atoms below — `evaluatorKeyMapAtom`, `evaluatorWorkflowMetaMapAtom`,
  * `evaluatorFeedbackSchemasAtom` — each resolve EVERY evaluator's LATEST REVISION,
  * which fans out one batched `POST /workflows/revisions/query` over the whole
  * project. That enrichment is only needed to populate evaluator pickers /
@@ -144,89 +141,7 @@ export const activateEvaluatorEnrichmentAtom = atom(null, (get, set) => {
 
 // Stable empty references returned while the gate is dormant (so subscribers
 // don't churn on every read).
-const EMPTY_EVALUATOR_LIST: Workflow[] = []
 const EMPTY_EVALUATOR_KEY_MAP = new Map<string, string>()
-
-/**
- * Non-archived LLM-based evaluators.
- *
- * Evaluator-family flags live on latest revisions rather than the artifact
- * list, so revisions are resolved through the shared batched query atoms.
- * Unresolved evaluators are held back until they can be classified.
- */
-export const llmEvaluatorsAtom = atom<Workflow[]>((get) => {
-    const evaluators = get(nonArchivedEvaluatorsAtom)
-    const latestRevisions = new Map<string, Workflow>()
-
-    evaluators.forEach((evaluator) => {
-        if (!evaluator.id) return
-        const revision = get(workflowLatestRevisionQueryAtomFamily(evaluator.id)).data
-        if (revision) latestRevisions.set(evaluator.id, revision)
-    })
-
-    return filterLlmEvaluatorWorkflows(evaluators, latestRevisions)
-})
-
-/**
- * Non-archived evaluators whose latest revision has the full-page playground
- * UX (prompt-authored — `auto_ai_critique` / `llm` — or code-authored —
- * `auto_custom_code_run` / `code`). Declarative classifiers (match,
- * exact_match, contains_*, json_*) and human (`is_feedback`) evaluators are
- * filtered out: they can only be configured via the drawer, so surfacing
- * them in the sidebar workflow switcher routes the user to an app-level
- * destination (/apps/[id]/...) that the route guard then redirects back to
- * /evaluators — visually inconsistent and confusing.
- *
- * Resolves the URI / type flags from each evaluator's latest revision (the
- * workflow LIST response carries no `data.uri`, and `is_llm` / `is_code` /
- * `is_feedback` live on the revision, not the parent artifact). Latest-
- * revision queries are batched + cached by `workflowLatestRevisionQuery`,
- * so calling this per-evaluator inside a single derived atom is cheap.
- *
- * Returns the parent `Workflow` records (same shape as
- * `nonArchivedEvaluatorsAtom`), so callers can use it as a drop-in filter.
- */
-export const fullPagePlaygroundEvaluatorsAtom = atom<Workflow[]>((get) => {
-    if (!get(evaluatorEnrichmentActivatedAtom)) return EMPTY_EVALUATOR_LIST
-    const evaluators = get(nonArchivedEvaluatorsAtom)
-    return evaluators.filter((evaluator) => {
-        if (!evaluator.id) return false
-        const revisionQuery = get(workflowLatestRevisionQueryAtomFamily(evaluator.id))
-        const revision = revisionQuery.data
-        if (!revision) return false
-        if (revision.flags?.is_feedback) return false
-        return hasFullPagePlaygroundUX({
-            flags: revision.flags as Record<string, unknown> | null,
-            data: revision.data as {uri?: string | null} | null,
-            meta: revision.meta as Record<string, unknown> | null,
-            slug: revision.slug ?? evaluator.slug ?? null,
-        })
-    })
-})
-
-/**
- * Non-archived **automatic** evaluators — i.e. all evaluators except human
- * (`is_feedback`) ones. Unlike `fullPagePlaygroundEvaluatorsAtom`, this does
- * NOT narrow to evaluators that have a full-page playground, so it includes the
- * declarative classifiers too (exact match, regex, similarity / semantic
- * similarity, json diff, contains json, …). This is the right list for the
- * sidebar workflow switcher, which should surface every automatic evaluator.
- *
- * `is_feedback` lives on the revision (not the parent artifact), so it's
- * resolved from each evaluator's latest revision (batched + cached). An
- * evaluator whose latest revision hasn't resolved yet is held back until it
- * does, so a human evaluator never briefly leaks into the list.
- */
-export const nonHumanEvaluatorsAtom = atom<Workflow[]>((get) => {
-    if (!get(evaluatorEnrichmentActivatedAtom)) return EMPTY_EVALUATOR_LIST
-    const evaluators = get(nonArchivedEvaluatorsAtom)
-    return evaluators.filter((evaluator) => {
-        if (!evaluator.id) return false
-        const revision = get(workflowLatestRevisionQueryAtomFamily(evaluator.id)).data
-        if (!revision) return false
-        return !revision.flags?.is_feedback
-    })
-})
 
 /**
  * Non-archived **non-deterministic** evaluators — automatic evaluators that

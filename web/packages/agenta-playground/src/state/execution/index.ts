@@ -69,7 +69,6 @@ export type {
     // Adapter
     ExecutionAdapter,
     // Legacy compat
-    PlaygroundTestResult,
     // Cancel params
     CancelTestsParams,
 } from "./types"
@@ -228,18 +227,8 @@ export {
     isAnyExecutingWithContextAtom,
     executionProgressWithContextAtom,
     // Session selectors
-    sessionCountAtomFamily,
-    activeSessionCountAtomFamily,
     isCompareModeAtomFamily,
-    sessionLabelsAtomFamily,
-    // Step selectors
-    stepCountAtomFamily,
-    latestStepAtomFamily,
     // Result selectors
-    stepAggregateStatusAtomFamily,
-    stepResultSummaryAtomFamily,
-    allResultsAtomFamily,
-    completedResultsCountAtomFamily,
     executionProgressAtomFamily,
     // Row-entity convenience selectors
     responseByRowEntityAtomFamily,
@@ -403,7 +392,6 @@ export {
     buildVersionRows,
     buildRevertMessage,
     revertAgentRevisionAtom,
-    revertAgentRevision,
     REVERT_MESSAGE_PREFIX,
     type AgentVersionRow,
     type RevertAgentRevisionParams,

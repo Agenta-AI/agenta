@@ -90,19 +90,12 @@ export {
     deleteValueAtPath,
     hasValueAtPath,
     isExpandable,
-    getValueType,
     getChildCount,
     getItemsAtPath,
     parsePath,
-    pathToString,
-    getParentPath,
-    getLastSegment,
-    isChildPath,
     collectPaths,
     // Typed path utilities for UI selection
     extractTypedPaths,
-    combineTypedPaths,
-    buildTestcaseColumnPaths,
 } from "./utils"
 export type {
     PathSegment,
@@ -120,7 +113,6 @@ export {
     extractTextFromContent,
     extractDisplayTextFromMessage,
     hasAttachments,
-    getAttachmentInfo,
     updateTextInContent,
     addImageToContent,
     addFileToContent,
@@ -128,8 +120,6 @@ export {
     getAttachments,
     isChatMessageObject,
     isChatMessagesArray,
-    messageHasContent,
-    messageHasToolCalls,
     tryParseArrayFromString,
     normalizeMessagesFromField,
     deriveToolViewModelFromResult,
@@ -148,18 +138,15 @@ export {tryParsePartialJson, safeJson5Parse} from "./utils"
 export {
     isPlainObject,
     isJsonString,
-    isJsonObject,
-    isJsonArray,
     tryParseJson,
     tryParseAsObject,
     tryParseAsArray,
-    canExpandAsJson,
     tryParseJsonValue,
 } from "./utils"
 export type {JsonParseResult} from "./utils"
 
 // Editor language detection utilities
-export {detectEditorLanguage, getContentLanguage, looksLikeJson, type EditorLanguage} from "./utils"
+export {detectEditorLanguage, getContentLanguage, type EditorLanguage} from "./utils"
 
 // OpenAPI schema utilities
 export {dereferenceSchema, type DereferencedSchemaResult} from "./utils"
@@ -221,7 +208,6 @@ export {stripAgentaMetadataDeep, stripEmptyCollectionsDeep, stripEnhancedWrapper
 export {
     toFiniteNumber,
     getStatusLabel,
-    getStatusColor,
     getStatusSeverity,
     inferStatusFromSummary,
 } from "./utils"

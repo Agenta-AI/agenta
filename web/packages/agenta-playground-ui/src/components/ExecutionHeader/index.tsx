@@ -13,8 +13,6 @@ import {Button, Tooltip, Typography} from "antd"
 import clsx from "clsx"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 
-// import RunOptionsPopover from "../ExecutionItems/assets/RunOptionsPopover"
-
 export interface ExecutionHeaderProps {
     /** Entity ID — when provided, scopes run/results to this single entity (single view).
      *  When omitted, runs all entities (comparison view). */
@@ -26,7 +24,8 @@ export interface ExecutionHeaderProps {
         resultCount: number
         isRunning: boolean
     }) => React.ReactNode
-    /** Optional analytics callback for RunOptionsPopover */
+    /** Analytics callback for repeat-count changes. Currently not used: the header has no
+     *  run-options control. */
     onRepeatCountChange?: (event: string, props: Record<string, unknown>) => void
 }
 
@@ -38,14 +37,13 @@ export interface ExecutionHeaderProps {
  * - GenerationComparisonHeader (comparison view — runs all entities)
  *
  * Behavior adapts based on whether `entityId` is provided:
- * - With entityId: shows collapse toggle, RunOptionsPopover, runs only this entity's rows
+ * - With entityId: shows collapse toggle, runs only this entity's rows
  * - Without entityId: runs all entities, aggregates results across all
  */
 const ExecutionHeader = ({
     entityId,
     className,
     renderTestsetActions,
-    // onRepeatCountChange,
 }: ExecutionHeaderProps) => {
     const isComparisonView = !entityId
     const isChatMode = useAtomValue(executionController.selectors.isChatMode) ?? false
@@ -103,7 +101,6 @@ const ExecutionHeader = ({
         : "Run the prompt on all test cases."
 
     const showCollapseToggle = !isComparisonView
-    // const showRunOptions = !isComparisonView && entityId
 
     // The agent panel owns its own chat composer and has no generation rows, so this execution
     // header (a "Chat" label + collapse toggle + run controls) serves no purpose in agent mode.
@@ -187,16 +184,8 @@ const ExecutionHeader = ({
                                     variant="default"
                                     onClick={() => runTests()}
                                     disabled={isRunning || !canRun}
-                                    // style={showRunOptions ? {borderRadius: "6px 0 0 6px"} : undefined}
                                 />
                             </Tooltip>
-                            {/* {showRunOptions && entityId && (
-                                <RunOptionsPopover
-                                    isRunning={isRunning}
-                                    entityId={entityId}
-                                    onRepeatCountChange={onRepeatCountChange}
-                                />
-                            )} */}
                         </div>
                     ) : (
                         <RunButton mode="cancel" onClick={() => cancelAll()} className="flex" />

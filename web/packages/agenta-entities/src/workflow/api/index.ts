@@ -99,7 +99,5 @@ export {
     type EvaluatorCatalogPreset,
     type EvaluatorCatalogPresetsResponse,
     /** @deprecated Use EvaluatorCatalogTemplate */
-    type EvaluatorTemplate,
     /** @deprecated Use EvaluatorCatalogTemplatesResponse */
-    type EvaluatorTemplatesResponse,
 } from "./templates"
