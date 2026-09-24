@@ -14,11 +14,15 @@ from oss.src.apis.fastapi.channels.models import (
     ChannelToolsAvailabilityRequest,
     ChannelToolsAvailabilityResponse,
     ChannelDestinationsQueryRequest,
+    ChannelMessageSendRequest,
 )
 from oss.src.apis.fastapi.shared.exceptions import FORBIDDEN_EXCEPTION
 from oss.src.core.access.permissions.service import check_action_access
 from oss.src.core.access.permissions.types import Permission
-from oss.src.core.channels.tools.dtos import ChannelDestinationsPage
+from oss.src.core.channels.tools.dtos import (
+    ChannelDestinationsPage,
+    ChannelSendResult,
+)
 from oss.src.core.channels.tools.types import (
     ChannelToolsNotFound,
     ChannelToolsRefused,
@@ -71,6 +75,13 @@ class ChannelToolsRouter:
             operation_id="query_channel_destinations",
             response_model=ChannelDestinationsPage,
         )
+        self.router.add_api_route(
+            "/tools/messages/send",
+            self.send_channel_message,
+            methods=["POST"],
+            operation_id="send_channel_message",
+            response_model=ChannelSendResult,
+        )
 
     async def _check(self, request: Request) -> UUID:
         allowed = await check_action_access(
@@ -114,4 +125,23 @@ class ChannelToolsRouter:
             query=body.query,
             limit=body.limit,
             cursor=body.cursor,
+        )
+
+    @intercept_exceptions()
+    @handle_channel_tools_exceptions()
+    async def send_channel_message(
+        self,
+        request: Request,
+        *,
+        body: ChannelMessageSendRequest,
+    ) -> ChannelSendResult:
+        project_id = await self._check(request)
+        return await self.tools_service.send_message(
+            project_id=project_id,
+            artifact_id=body.artifact_id,
+            session_id=body.session_id,
+            tool_call_id=body.tool_call_id,
+            destination_id=body.destination_id,
+            text=body.text,
+            thread_id=body.thread_id,
         )

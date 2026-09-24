@@ -13,6 +13,7 @@ from oss.src.apis.fastapi.channels.tools import ChannelToolsRouter
 from oss.src.core.channels.tools.dtos import (
     ChannelDestination,
     ChannelDestinationsPage,
+    ChannelSendResult,
 )
 from oss.src.core.channels.tools.types import (
     ChannelToolsNotFound,
@@ -60,12 +61,24 @@ def service():
         ]
     )
     service.is_available.return_value = True
+    service.send_message.return_value = ChannelSendResult(
+        delivery_id=str(uuid4()), state="failed", reason="not_in_channel"
+    )
     return service
 
+
+SEND_BODY = {
+    "artifact_id": ARTIFACT_ID,
+    "session_id": "session-1",
+    "tool_call_id": "toolu_1",
+    "destination_id": f"dst_{uuid4().hex}",
+    "text": "QA hello",
+}
 
 ROUTES = [
     ("/tools/availability", {"artifact_id": ARTIFACT_ID}),
     ("/tools/destinations/query", {"artifact_id": ARTIFACT_ID}),
+    ("/tools/messages/send", SEND_BODY),
 ]
 
 
@@ -163,3 +176,30 @@ def test_refusals_map_to_readable_errors(service, error, code):
 
     assert response.status_code == code
     assert response.json()["detail"] == error.message
+
+
+@pytest.mark.parametrize("field", ["username", "icon_url", "bot_token", "channel"])
+def test_send_rejects_identity_and_routing_fields(service, field):
+    client, patcher = _client(service)
+    try:
+        response = client.post("/tools/messages/send", json={**SEND_BODY, field: "x"})
+    finally:
+        patcher.stop()
+
+    assert response.status_code == 422
+    service.send_message.assert_not_called()
+
+
+def test_send_returns_the_sanitized_reason(service):
+    client, patcher = _client(service)
+    try:
+        response = client.post("/tools/messages/send", json=SEND_BODY)
+    finally:
+        patcher.stop()
+
+    assert response.status_code == 200
+    assert response.json()["state"] == "failed"
+    assert response.json()["reason"] == "not_in_channel"
+    kwargs = service.send_message.call_args.kwargs
+    assert kwargs["session_id"] == "session-1"
+    assert kwargs["tool_call_id"] == "toolu_1"

@@ -1627,6 +1627,41 @@ _CHANNEL_LIST_INPUT_SCHEMA: Dict[str, Any] = {
     },
 }
 
+_CHANNEL_SEND_DESCRIPTION = (
+    "Post a message now to a Slack channel or Telegram group, outside the conversation you "
+    "are in. Get destination_id from list_channel_destinations. To reply in a Slack thread, "
+    "pass a thread_id returned by an earlier send, read or search in the same destination. "
+    "Returns state `sent` (with message_id and thread_id), `failed` (with a reason), or "
+    "`unknown` when the post may have reached the chat; never send it again after `unknown`."
+)
+
+_CHANNEL_SEND_INPUT_SCHEMA: Dict[str, Any] = {
+    "type": "object",
+    "additionalProperties": False,
+    "properties": {
+        "destination_id": {
+            "type": "string",
+            "maxLength": 256,
+            "description": "An opaque destination_id from list_channel_destinations.",
+        },
+        "text": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 40000,
+            "description": "The message, in Markdown.",
+        },
+        "thread_id": {
+            "type": "string",
+            "maxLength": 256,
+            "description": "Optional. Reply in this Slack thread of the same destination.",
+        },
+        "artifact_id": _BOUND_FROM_RUN_SCHEMA,
+        "session_id": _BOUND_FROM_RUN_SCHEMA,
+        "tool_call_id": _BOUND_FROM_RUN_SCHEMA,
+    },
+    "required": ["destination_id", "text"],
+}
+
 _CHANNEL_TOOL_OPS: tuple = (
     PlatformOp(
         op="list_channel_destinations",
@@ -1636,6 +1671,24 @@ _CHANNEL_TOOL_OPS: tuple = (
         input_schema=_CHANNEL_LIST_INPUT_SCHEMA,
         context_bindings={"artifact_id": "$ctx.workflow.artifact.id"},
         read_only=True,
+    ),
+    PlatformOp(
+        op="send_channel_message",
+        description=_CHANNEL_SEND_DESCRIPTION,
+        method="POST",
+        path="/api/channels/tools/messages/send",
+        input_schema=_CHANNEL_SEND_INPUT_SCHEMA,
+        # The tool call id keys the delivery record, so a retried call reports the first
+        # attempt instead of posting twice.
+        context_bindings={
+            "artifact_id": "$ctx.workflow.artifact.id",
+            "session_id": "$ctx.session.id",
+            "tool_call_id": "$ctx.tool.call_id",
+        },
+        read_only=False,
+        # Posting is the point of the tool, so it runs without a prompt by default. The
+        # bot's "Can post outside the conversation" setting is the admin's off switch.
+        default_permission="allow",
     ),
 )
 
