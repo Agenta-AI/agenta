@@ -12,7 +12,7 @@ thread get-or-create) stays inside the service.
 
 import asyncio
 from functools import partial
-from typing import Awaitable, Callable, Optional
+from typing import Any, Awaitable, Callable, Dict, List, Optional
 from uuid import UUID, uuid4, uuid5
 
 from oss.src.core.channels.commands import (
@@ -29,6 +29,7 @@ from oss.src.core.channels.dtos import (
     ChannelCapabilities,
     ChannelConnection,
     ChannelDeliveryState,
+    ChannelEventKind,
     ChannelInboxEvent,
     ChannelInboxEventQuery,
     ChannelKeyGrain,
@@ -43,6 +44,9 @@ from oss.src.core.channels.dtos import (
 from oss.src.core.channels.queue import ChannelQueueDecision, ChannelSessionQueue
 from oss.src.core.channels.render.dtos import RenderItem
 from oss.src.core.channels.render.render import (
+    OPTED_IN_TEXT,
+    OPTED_OUT_TEXT,
+    UNSUPPORTED_TEXT,
     render_busy,
     render_failed_start,
     render_notice,
@@ -64,6 +68,8 @@ from oss.src.core.channels.identity import (
     ChannelIdentityService,
     compose_external_user_key,
 )
+from oss.src.core.sessions.attachments.service import SessionAttachmentsService
+from oss.src.core.sessions.attachments.types import AttachmentTooLarge
 from oss.src.core.sessions.streams.service import SessionStreamsService
 from oss.src.core.workflows.service import WorkflowsService
 from oss.src.utils.logging import get_module_logger
@@ -112,6 +118,7 @@ class InboxDispatcher:
         invoke_fn: Optional[InvokeFn] = None,
         respond_interaction_fn: Optional[RespondInteractionFn] = None,
         session_queue: Optional[ChannelSessionQueue] = None,
+        attachments_service: Optional[SessionAttachmentsService] = None,
     ):
         self.channels_service = channels_service
         self.workflows_service = workflows_service
@@ -130,6 +137,9 @@ class InboxDispatcher:
         # None means a follow-up to a running turn cannot be queued; it is
         # retried, then answered with one "still working" reply.
         self.session_queue = session_queue
+        # Stores an inbound image or document as a session attachment for the
+        # agent. None means files reach the agent as a short note instead.
+        self.attachments_service = attachments_service
 
     async def dispatch(
         self,
@@ -485,6 +495,36 @@ class InboxDispatcher:
             )
             return
 
+        connection = await self.channels_service.fetch_connection(
+            project_id=project_id,
+            connection_id=connection_id,
+        )
+        if connection is None:
+            raise ChannelConnectionNotFound(connection_id=connection_id)
+
+        capabilities = await self.channels_service.fetch_capabilities(
+            channel=connection.channel,
+            connection=connection,
+        )
+
+        if await self._handle_consent(
+            project_id=project_id,
+            event=event,
+            resolution=resolution,
+            connection=connection,
+            capabilities=capabilities,
+        ):
+            return
+
+        if capabilities.conversation.reply_window_seconds:
+            # The person wrote, so the reply window is open again: replies
+            # held while it was closed go out first, oldest first.
+            await self.channels_service.release_held_replies(
+                project_id=project_id,
+                thread=resolution.thread,
+                connection=connection,
+            )
+
         if resolution.answered_interaction_id is not None:
             # The message answered a parked approval. The answer belongs to the
             # turn that parked, so it goes to the sessions respond path and no
@@ -498,17 +538,18 @@ class InboxDispatcher:
             )
             return
 
-        connection = await self.channels_service.fetch_connection(
-            project_id=project_id,
-            connection_id=connection_id,
-        )
-        if connection is None:
-            raise ChannelConnectionNotFound(connection_id=connection_id)
-
-        capabilities = await self.channels_service.fetch_capabilities(
-            channel=connection.channel,
-            connection=connection,
-        )
+        if _only_unsupported(event):
+            # A voice note, a video, a sticker: nothing the agent can read.
+            # One fixed reply, keyed on the event so a redelivery sends none.
+            await self._notify_not_started(
+                project_id=project_id,
+                resolution=resolution,
+                turn_id=str(uuid5(event.id, "unsupported")),
+                connection=connection,
+                capabilities=capabilities,
+                render=partial(render_notice, text=UNSUPPORTED_TEXT),
+            )
+            return
 
         parsed = parse_command(
             content=event.data.processed.content,
@@ -564,6 +605,14 @@ class InboxDispatcher:
             resolution=resolution,
         )
 
+        turn_input.content = await self._attach_media(
+            project_id=project_id,
+            connection=connection,
+            resolution=resolution,
+            user_id=user_id or resolution.agent.created_by_id,
+            content=turn_input.content,
+        )
+
         await self._invoke_with_retry(
             project_id=project_id,
             resolution=resolution,
@@ -574,6 +623,132 @@ class InboxDispatcher:
             connection=connection,
             capabilities=capabilities,
         )
+
+    async def _handle_consent(
+        self,
+        *,
+        project_id: UUID,
+        event: ChannelInboxEvent,
+        resolution: ChannelResolution,
+        connection: ChannelConnection,
+        capabilities: ChannelCapabilities,
+    ) -> bool:
+        """STOP and START, on a channel that declares opt-out. True when the
+        event is fully handled here: a STOP or START that changed the state
+        (confirmed once), or any message from someone who opted out (stored,
+        never answered)."""
+
+        if not capabilities.conversation.opt_out:
+            return False
+
+        space = resolution.space
+        opted_out = space.flags.is_opted_out
+        keyword = _consent_keyword(event)
+        if (keyword == "stop" and not opted_out) or (keyword == "start" and opted_out):
+            opting_out = keyword == "stop"
+            await self.channels_service.channels_dao.set_space_opted_out(
+                project_id=project_id, space_id=space.id, opted_out=opting_out
+            )
+            await self._notify_not_started(
+                project_id=project_id,
+                resolution=resolution,
+                turn_id=str(uuid5(event.id, "consent")),
+                connection=connection,
+                capabilities=capabilities,
+                render=partial(
+                    render_notice,
+                    text=OPTED_OUT_TEXT if opting_out else OPTED_IN_TEXT,
+                ),
+            )
+            return True
+        if opted_out:
+            log.info(
+                "[INBOX DISPATCHER] space=%s opted out; event=%s stored, not answered",
+                space.id,
+                event.id,
+            )
+            return True
+        return False
+
+    async def _attach_media(
+        self,
+        *,
+        project_id: UUID,
+        connection: ChannelConnection,
+        resolution: ChannelResolution,
+        user_id: Optional[UUID],
+        content: List[Dict[str, Any]],
+    ) -> List[Dict[str, Any]]:
+        """Replace each `media` part (an inbound image or document, named by
+        the platform's media id) with a session attachment the agent can
+        open. A file that cannot be stored becomes a short note, so the agent
+        still knows one was sent."""
+
+        if not any(part.get("type") == "media" for part in content):
+            return content
+
+        adapter = self.channels_service.adapter_registry.get(connection.channel)
+        session_id = resolution.thread.session_id
+        attached: List[Dict[str, Any]] = []
+        for part in content:
+            if part.get("type") != "media":
+                attached.append(part)
+                continue
+            label = f"[{part.get('kind') or 'file'}]"
+            if self.attachments_service is None or not session_id or user_id is None:
+                attached.append(
+                    {"type": "text", "text": f"{label} (files cannot be read here)"}
+                )
+                continue
+            try:
+                limits = getattr(self.attachments_service, "limits", None)
+                fetched = await adapter.fetch_media(
+                    connection=connection,
+                    media=part,
+                    max_bytes=limits.max_raw_bytes if limits else None,
+                )
+                if fetched is None:
+                    raise AttachmentTooLarge(size=0, limit=0)
+                data, media_type = fetched
+                attachment = await self.attachments_service.create_attachment(
+                    project_id=project_id,
+                    user_id=user_id,
+                    session_id=session_id,
+                    idempotency_key=f"channels:{part.get('media_id')}",
+                    filename=part.get("filename") or part.get("kind"),
+                    declared_media_type=media_type,
+                    data=data,
+                )
+                await self.attachments_service.reference_attachments(
+                    project_id=project_id,
+                    session_id=session_id,
+                    attachment_ids=[attachment.id],
+                )
+            except AttachmentTooLarge:
+                attached.append(
+                    {"type": "text", "text": f"{label} (too large to read)"}
+                )
+                continue
+            except Exception as exc:  # noqa: BLE001 - the text still reaches the agent
+                log.warning(
+                    "[INBOX DISPATCHER] media %s could not be attached: %s",
+                    part.get("media_id"),
+                    str(exc)[:200],
+                )
+                attached.append(
+                    {"type": "text", "text": f"{label} (could not be read)"}
+                )
+                continue
+            attached.append(
+                {
+                    "type": "attachment",
+                    "attachmentId": str(attachment.id),
+                    "filename": attachment.filename,
+                    "mimeType": attachment.media_type,
+                    "size": attachment.size,
+                }
+            )
+        return attached
 
     async def _queue_behind_running_turn(
         self,
@@ -878,3 +1053,32 @@ class InboxDispatcher:
                 }
             ),
         )
+
+
+_OPT_OUT_WORDS = {"STOP", "UNSUBSCRIBE"}
+_OPT_IN_WORDS = {"START"}
+
+
+def _consent_keyword(event: ChannelInboxEvent) -> Optional[str]:
+    """ "stop" or "start" when the whole message is one of those words, else
+    None. A sentence that contains "stop" is an ordinary message."""
+
+    if event.kind is not ChannelEventKind.MESSAGE:
+        return None
+    texts = [
+        (part.get("text") or "").strip().upper()
+        for part in event.data.processed.content
+        if part.get("type") == "text"
+    ]
+    if len(texts) != 1:
+        return None
+    if texts[0] in _OPT_OUT_WORDS:
+        return "stop"
+    if texts[0] in _OPT_IN_WORDS:
+        return "start"
+    return None
+
+
+def _only_unsupported(event: ChannelInboxEvent) -> bool:
+    content = event.data.processed.content
+    return bool(content) and all(part.get("unsupported") for part in content)

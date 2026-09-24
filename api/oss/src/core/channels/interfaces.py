@@ -301,6 +301,19 @@ class ChannelsDAOInterface(ABC):
         ...
 
     @abstractmethod
+    async def set_space_opted_out(
+        self,
+        *,
+        project_id: UUID,
+        space_id: UUID,
+        opted_out: bool,
+    ) -> Optional[ChannelSpace]:
+        """Set flags.is_opted_out when the person sends STOP or START. Its own
+        write for the same reason as `mark_space_backfilled`: the writer is the
+        person on the platform, and it must not clobber an operator's edit."""
+        ...
+
+    @abstractmethod
     async def attach_event_to_space(
         self,
         *,
@@ -723,8 +736,13 @@ class ChannelsDAOInterface(ABC):
         claim_ttl_seconds: float,
         overwrite_final: bool = True,
         delivery_key: Optional[str] = None,
+        include_held: bool = False,
     ) -> Optional[ChannelOutboxEvent]:
         """Take the right to deliver `content` on this row, atomically.
+
+        A HELD row (a reply kept past the platform's reply window) is only
+        claimable with `include_held`, which only the release path passes: a
+        redelivered turn must not re-send, or re-hold, a held reply.
 
         One conditional UPDATE: it succeeds only when the row is not already
         SENT with exactly this content and no other worker holds a live claim

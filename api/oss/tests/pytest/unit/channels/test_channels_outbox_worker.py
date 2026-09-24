@@ -152,12 +152,15 @@ class FakeChannelsDAO(ChannelsDAOInterface):
         claim_ttl_seconds,
         overwrite_final=True,
         delivery_key=None,
+        include_held=False,
     ):
         """Same rule as the Postgres conditional UPDATE, in memory. Nothing
         awaits between the check and the write, so it is atomic here too."""
         for key, row in self.outbox.items():
             if row.id != event_id:
                 continue
+            if row.state == ChannelDeliveryState.HELD and not include_held:
+                return None
             processed = (row.data.processed if row.data else None) or {}
             if (
                 row.state == ChannelDeliveryState.SENT
@@ -279,6 +282,13 @@ class FakeChannelsDAO(ChannelsDAOInterface):
 
     async def mark_space_backfilled(self, **kwargs):
         raise NotImplementedError
+
+    async def set_space_opted_out(self, *, project_id, space_id, opted_out):
+        space = self.spaces.get(space_id)
+        if space is None:
+            return None
+        space.flags.is_opted_out = opted_out
+        return space
 
     async def attach_event_to_space(self, **kwargs):
         raise NotImplementedError  # inbound only; the outbox never resolves

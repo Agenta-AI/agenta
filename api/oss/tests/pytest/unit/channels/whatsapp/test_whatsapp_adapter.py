@@ -1,0 +1,283 @@
+"""WhatsAppAdapter against the fake Graph API: setup, signed ingress, sending,
+the typing indicator, the re-open template and media download."""
+
+from uuid import uuid4
+
+import httpx
+import pytest
+from oss.src.core.channels.adapters.whatsapp.adapter import WhatsAppAdapter
+from oss.src.core.channels.dtos import (
+    ChannelConnection,
+    ChannelConnectionCreate,
+    ChannelRequestContext,
+)
+from oss.src.core.channels.types import (
+    ChannelConnectionVerificationFailed,
+    ChannelCredentialRevoked,
+    ChannelDeliveryHeld,
+    ChannelSignatureInvalid,
+)
+
+from . import payloads as p
+from .fake_graph import FakeGraph
+
+GRAPH = "https://graph.facebook.com/v24.0"
+
+
+@pytest.fixture
+def graph():
+    fake = FakeGraph()
+    fake.add_number(phone_number_id=p.PHONE_NUMBER_ID, token=p.ACCESS_TOKEN)
+    return fake
+
+
+@pytest.fixture
+def adapter(graph):
+    client = httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=graph.app), base_url=GRAPH
+    )
+    return WhatsAppAdapter(http_client=client, pair_limit_retry_seconds=0)
+
+
+def _connection(**data):
+    return ChannelConnection(
+        id=uuid4(),
+        slug="whatsapp-bella",
+        channel="whatsapp",
+        external_key=uuid4(),
+        data={
+            "connection_locator": {"phone_number_id": p.PHONE_NUMBER_ID},
+            "access_token": p.ACCESS_TOKEN,
+            "app_secret": p.APP_SECRET,
+            **data,
+        },
+    )
+
+
+# --- setup --------------------------------------------------------------- #
+
+
+async def test_verify_connection_reads_the_number_and_mints_a_verify_token(adapter):
+    discovered = await adapter.verify_connection(
+        connection=ChannelConnectionCreate(
+            channel="whatsapp", data={"phone_number_id": p.PHONE_NUMBER_ID}
+        ),
+        credentials={"access_token": p.ACCESS_TOKEN, "app_secret": p.APP_SECRET},
+    )
+
+    assert discovered["verified_name"] == "Bella Shoes"
+    assert discovered["display_phone_number"] == "+1 555-010-0000"
+    assert discovered["webhook_verify_token"].startswith(p.PHONE_NUMBER_ID + ".")
+    assert discovered["webhook_url"].endswith("/channels/whatsapp/events/")
+
+
+async def test_verify_connection_refuses_a_token_that_cannot_read_the_number(adapter):
+    with pytest.raises(ChannelConnectionVerificationFailed):
+        await adapter.verify_connection(
+            connection=ChannelConnectionCreate(
+                channel="whatsapp", data={"phone_number_id": p.PHONE_NUMBER_ID}
+            ),
+            credentials={"access_token": "wrong", "app_secret": p.APP_SECRET},
+        )
+
+
+async def test_verify_connection_needs_the_app_secret(adapter):
+    with pytest.raises(Exception):
+        await adapter.verify_connection(
+            connection=ChannelConnectionCreate(
+                channel="whatsapp", data={"phone_number_id": p.PHONE_NUMBER_ID}
+            ),
+            credentials={"access_token": p.ACCESS_TOKEN},
+        )
+
+
+async def test_revoke_tells_the_operator_to_remove_the_meta_webhook(adapter):
+    notice = await adapter.revoke_installation(connection=_connection())
+    assert "Meta" in notice
+
+
+# --- ingress ------------------------------------------------------------- #
+
+
+def _request(raw: bytes, signature: str = None) -> ChannelRequestContext:
+    headers = {"content-type": "application/json"}
+    if signature is not None:
+        headers["X-Hub-Signature-256"] = signature
+    return ChannelRequestContext(
+        headers=headers, path="/api/channels/whatsapp/events/", body=raw
+    )
+
+
+def test_connection_locator_is_the_first_phone_number_in_the_body(adapter):
+    raw = p.encode(p.text_body())
+    assert adapter.connection_locator(request=_request(raw)) == {
+        "phone_number_id": p.PHONE_NUMBER_ID
+    }
+    assert adapter.connection_locator(request=_request(b"{}")) is None
+
+
+async def test_verify_signature_returns_the_connections_phone_number(adapter):
+    raw = p.encode(p.text_body())
+    speaker = await adapter.verify_signature(
+        request=_request(raw, p.sign(raw)), connection=_connection()
+    )
+    assert speaker == p.PHONE_NUMBER_ID
+
+
+async def test_verify_signature_refuses_a_forged_body(adapter):
+    raw = p.encode(p.text_body())
+    with pytest.raises(ChannelSignatureInvalid):
+        await adapter.verify_signature(
+            request=_request(raw, p.sign(raw, "attacker-secret")),
+            connection=_connection(),
+        )
+
+
+async def test_parse_event_returns_every_message_for_this_number(adapter):
+    raw = p.encode(
+        p.body(
+            p.value(
+                messages=[
+                    p.text_message("one", message_id="wamid.1"),
+                    p.text_message("two", message_id="wamid.2"),
+                ]
+            )
+        )
+    )
+    events = await adapter.parse_event(body=raw, connection=_connection())
+    assert [e.external_id for e in events] == ["wamid.1", "wamid.2"]
+
+
+# --- egress -------------------------------------------------------------- #
+
+
+async def test_post_message_sends_text_and_returns_the_receipt(adapter, graph):
+    receipt = await adapter.post_message(
+        connection=_connection(),
+        locator={"wa_id": p.CUSTOMER},
+        content=[{"type": "text", "text": "Yes, it left **yesterday**."}],
+        idempotency_key=uuid4(),
+    )
+
+    assert graph.texts_to(p.CUSTOMER) == ["Yes, it left *yesterday*."]
+    assert receipt == {"wa_id": p.CUSTOMER, "message_id": "wamid.out.1"}
+
+
+async def test_window_closed_error_holds_the_reply(adapter, graph):
+    graph.fail_next(131047)
+    with pytest.raises(ChannelDeliveryHeld):
+        await adapter.post_message(
+            connection=_connection(),
+            locator={"wa_id": p.CUSTOMER},
+            content=[{"type": "text", "text": "late answer"}],
+            idempotency_key=uuid4(),
+        )
+    assert graph.sent == []
+
+
+async def test_pair_rate_limit_is_retried_without_resending(adapter, graph):
+    graph.fail_next(131056)
+    await adapter.post_message(
+        connection=_connection(),
+        locator={"wa_id": p.CUSTOMER},
+        content=[{"type": "text", "text": "part one"}],
+        idempotency_key=uuid4(),
+    )
+    assert graph.texts_to(p.CUSTOMER) == ["part one"]
+
+
+async def test_a_revoked_token_marks_the_credential_revoked(adapter, graph):
+    graph.fail_next(190)
+    with pytest.raises(ChannelCredentialRevoked):
+        await adapter.post_message(
+            connection=_connection(),
+            locator={"wa_id": p.CUSTOMER},
+            content=[{"type": "text", "text": "hello"}],
+            idempotency_key=uuid4(),
+        )
+
+
+async def test_other_rejections_raise_with_the_status_code(adapter, graph):
+    graph.fail_next(131026)
+    with pytest.raises(Exception) as caught:
+        await adapter.post_message(
+            connection=_connection(),
+            locator={"wa_id": p.CUSTOMER},
+            content=[{"type": "text", "text": "hello"}],
+            idempotency_key=uuid4(),
+        )
+    assert getattr(caught.value, "status_code", None) == 400
+
+
+async def test_signal_activity_marks_read_and_shows_typing(adapter, graph):
+    await adapter.signal_activity(
+        connection=_connection(),
+        locator={"wa_id": p.CUSTOMER, "inbound_message_id": "wamid.IN"},
+    )
+    assert graph.typing == [
+        {
+            "phone_number_id": p.PHONE_NUMBER_ID,
+            "messaging_product": "whatsapp",
+            "status": "read",
+            "message_id": "wamid.IN",
+            "typing_indicator": {"type": "text"},
+        }
+    ]
+
+
+async def test_signal_activity_without_an_inbound_message_does_nothing(adapter, graph):
+    await adapter.signal_activity(
+        connection=_connection(), locator={"wa_id": p.CUSTOMER}
+    )
+    assert graph.typing == []
+
+
+async def test_reopen_sends_the_configured_template(adapter, graph):
+    sent = await adapter.reopen_conversation(
+        connection=_connection(
+            reopen_template="order_update", reopen_template_language="de"
+        ),
+        locator={"wa_id": p.CUSTOMER},
+    )
+    assert sent is True
+    [message] = graph.sent
+    assert message["type"] == "template"
+    assert message["template"] == {"name": "order_update", "language": {"code": "de"}}
+
+
+async def test_reopen_without_a_template_sends_nothing(adapter, graph):
+    sent = await adapter.reopen_conversation(
+        connection=_connection(), locator={"wa_id": p.CUSTOMER}
+    )
+    assert sent is False
+    assert graph.sent == []
+
+
+async def test_fetch_media_downloads_with_the_connection_token(adapter, graph):
+    graph.add_media(
+        media_id="DOC1",
+        data=b"%PDF-1.4 fake",
+        mime_type="application/pdf",
+        token=p.ACCESS_TOKEN,
+    )
+    data, mime_type = await adapter.fetch_media(
+        connection=_connection(), media={"media_id": "DOC1"}
+    )
+    assert data == b"%PDF-1.4 fake"
+    assert mime_type == "application/pdf"
+
+
+async def test_capabilities_declare_the_whatsapp_rules(adapter):
+    capabilities = await adapter.fetch_capabilities()
+    assert capabilities.channel == "whatsapp"
+    assert capabilities.spaces.private and not capabilities.spaces.group
+    assert capabilities.rendering.controls.update is False
+    assert capabilities.rendering.controls.indicator == "native"
+    assert capabilities.rendering.text.max_chars == 4096
+    assert capabilities.conversation.reply_window_seconds == 24 * 60 * 60
+    assert capabilities.conversation.opt_out is True
+    assert capabilities.fill.backfill.supported is False
+    assert [f.name for f in capabilities.setup.fields if f.secret] == [
+        "access_token",
+        "app_secret",
+    ]

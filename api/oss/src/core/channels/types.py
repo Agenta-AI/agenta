@@ -151,6 +151,17 @@ class ChannelDeliveryUncertain(ChannelsError):
         super().__init__(f"{channel}: delivery outcome unknown {detail}".strip())
 
 
+class ChannelDeliveryHeld(ChannelsError):
+    """The platform would refuse this message now (WhatsApp's 24-hour reply
+    window closed). Nothing was sent; the outbox keeps the row HELD and sends
+    it when the person next writes."""
+
+    def __init__(self, *, channel: str, reason: str = "window_closed"):
+        self.channel = channel
+        self.reason = reason
+        super().__init__(f"{channel}: delivery held ({reason})")
+
+
 class ChannelConnectionVerificationFailed(ChannelsError):
     """Raised by `verify_connection` when the platform rejects a credential.
     Nothing is written on this path — surfaced as the platform said it,

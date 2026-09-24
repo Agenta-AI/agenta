@@ -25,6 +25,17 @@ FAILED_START_TEXT = (
 BUSY_TEXT = "I'm still working on your previous message. Send it again when I reply."
 # Appended to a partial answer while the turn is still running.
 PROGRESS_CURSOR = " …"
+# Sent once when a turn runs long on a channel that cannot show progress in a
+# message (WhatsApp shows only a typing indicator, and cannot edit).
+WORKING_TEXT = "Working on it, I'll reply here when I'm done."
+# The person sent something the channel cannot pass to the agent.
+UNSUPPORTED_TEXT = (
+    "I can read text, images and documents here. Please send your message "
+    "in one of those."
+)
+# The person opted out (STOP) or back in (START).
+OPTED_OUT_TEXT = "You won't get more messages from us. Send START to chat again."
+OPTED_IN_TEXT = "Welcome back. Send your message and we'll reply here."
 
 
 def render_indicator(*, capabilities: ChannelCapabilities) -> RenderItem:

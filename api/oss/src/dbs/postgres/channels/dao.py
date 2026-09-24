@@ -799,6 +799,37 @@ class ChannelsDAO(ChannelsDAOInterface):
 
             return map_space_dbe_to_dto(space_dbe=space_dbe)
 
+    async def set_space_opted_out(
+        self,
+        *,
+        project_id: UUID,
+        space_id: UUID,
+        opted_out: bool,
+    ) -> Optional[ChannelSpace]:
+        async with self.engine.session() as session:
+            stmt = select(ChannelSpaceDBE).where(
+                ChannelSpaceDBE.project_id == project_id,
+                ChannelSpaceDBE.id == space_id,
+            )
+
+            result = await session.execute(stmt)
+
+            space_dbe = result.scalar_one_or_none()
+
+            if not space_dbe:
+                return None
+
+            flags = dict(space_dbe.flags or {})
+            flags["is_opted_out"] = opted_out
+            space_dbe.flags = flags
+            space_dbe.updated_at = datetime.now(timezone.utc)
+
+            await session.commit()
+
+            await session.refresh(space_dbe)
+
+            return map_space_dbe_to_dto(space_dbe=space_dbe)
+
     async def attach_event_to_space(
         self,
         *,
@@ -1814,6 +1845,7 @@ class ChannelsDAO(ChannelsDAOInterface):
         claim_ttl_seconds: float,
         overwrite_final: bool = True,
         delivery_key: Optional[str] = None,
+        include_held: bool = False,
     ) -> Optional[ChannelOutboxEvent]:
         table = ChannelOutboxEventDBE
         # `data` is JSON, not JSONB: cast it so the comparison is by value,
@@ -1849,6 +1881,8 @@ class ChannelsDAO(ChannelsDAOInterface):
             conditions.append(
                 ~func.coalesce(processed["final"].astext == "true", false())
             )
+        if not include_held:
+            conditions.append(table.state != ChannelDeliveryState.HELD)
 
         # The token names this claim, so the writes that release it can be
         # fenced to the worker that still holds it.

@@ -124,6 +124,8 @@ def test_every_method_parameter_after_self_is_keyword_only():
         "signal_activity",
         "dismiss_choices",
         "join_space",
+        "reopen_conversation",
+        "fetch_media",
     }
     assert len(methods) == len(ChannelAdapterInterface.__abstractmethods__) + len(
         concrete_methods

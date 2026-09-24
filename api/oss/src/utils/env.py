@@ -824,9 +824,26 @@ class ChannelsTelegramConfig(BaseModel):
         return bool(self.bot_token and self.webhook_secret and self.bot_username)
 
 
+# ---------------------------------------------------------------------------
+# channels.whatsapp — Meta's WhatsApp Cloud API. Each connection brings its own
+# number, token and app secret; the deployment only chooses the Graph API base.
+# ---------------------------------------------------------------------------
+
+
+class ChannelsWhatsAppConfig(BaseModel):
+    # The versioned Graph API base. Overridable so a local stack can point the
+    # adapter at a fake Graph API instead of Meta.
+    graph_api_url: str = (
+        os.getenv("WHATSAPP_GRAPH_API_URL") or "https://graph.facebook.com/v24.0"
+    )
+
+    model_config = ConfigDict(extra="ignore")
+
+
 class ChannelsConfig(BaseModel):
     slack: ChannelsSlackConfig = ChannelsSlackConfig()
     telegram: ChannelsTelegramConfig = ChannelsTelegramConfig()
+    whatsapp: ChannelsWhatsAppConfig = ChannelsWhatsAppConfig()
 
     model_config = ConfigDict(extra="ignore")
 
