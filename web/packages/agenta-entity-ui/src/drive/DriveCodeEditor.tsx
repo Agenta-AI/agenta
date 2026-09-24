@@ -1,7 +1,7 @@
 /** The Files pane's body for an editable code / text file: the kit's code editor over the draft. */
-import {driveCodeLanguage, useDriveFileDraft} from "@agenta/entities/drive"
 import {useRef} from "react"
 
+import {driveCodeLanguage, useDriveFileDraft} from "@agenta/entities/drive"
 import {type Mount} from "@agenta/entities/session"
 import {type CodeLanguage, EditorProvider} from "@agenta/ui/editor"
 import {QuoteSelectionLayer} from "@agenta/ui/quote-selection"
