@@ -1,4 +1,3 @@
-export {isQuoteReplyEnabled} from "./flag"
 export {QuoteSelectionLayer} from "./QuoteSelectionLayer"
 export {QuoteToolbar, type QuoteToolbarProps} from "./QuoteToolbar"
 export {QuoteNote, type QuoteNoteProps} from "./QuoteNote"

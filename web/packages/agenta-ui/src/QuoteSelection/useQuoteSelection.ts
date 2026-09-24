@@ -4,7 +4,7 @@
  *
  * `selectionchange` fires on every caret move and continuously through a drag-select, so the
  * handler early-exits on a collapsed selection BEFORE it touches the DOM, and everything past that
- * is coalesced into one rAF. With the feature flag down nothing is bound at all.
+ * is coalesced into one rAF. Outside a conversation nothing is bound at all.
  *
  * Nothing is offered WHILE the pointer is down. The pill anchors on the selection's centre, so
  * re-arming mid-drag walks it under the cursor — the pointer then enters the pill and the browser

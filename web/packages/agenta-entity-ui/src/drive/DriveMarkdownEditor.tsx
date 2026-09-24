@@ -3,7 +3,7 @@ import {useCallback, useRef, useState} from "react"
 
 import {type DriveEditorMode, useDriveFileDraft} from "@agenta/entities/drive"
 import {type Mount} from "@agenta/entities/session"
-import {isQuoteReplyEnabled, QuoteSelectionLayer} from "@agenta/ui/quote-selection"
+import {QuoteSelectionLayer} from "@agenta/ui/quote-selection"
 
 import {MarkdownEditor} from "../DrillInView/SchemaControls/MarkdownEditor"
 
@@ -67,7 +67,6 @@ export function DriveMarkdownEditor({
                 <QuoteSelectionLayer
                     rootRef={quoteRootRef}
                     sessionId={quoteSessionId}
-                    enabled={isQuoteReplyEnabled()}
                 />
                 <MarkdownEditor
                     value={value}

@@ -43,7 +43,7 @@ import {AgentSetupCard} from "@agenta/entity-ui/onboarding"
 import {isOnScreen, isOverlayOpen} from "@agenta/shared/utils"
 import {message, modal} from "@agenta/ui/app-message"
 import {ChatBubble} from "@agenta/ui/components/presentational"
-import {isQuoteReplyEnabled, QuoteSelectionLayer} from "@agenta/ui/quote-selection"
+import {QuoteSelectionLayer} from "@agenta/ui/quote-selection"
 import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 import {isAltChord} from "@agenta/ui/shortcuts"
 import {Button} from "@agenta/ui/ui"
@@ -709,7 +709,6 @@ export const LiveConversation = ({
                 <QuoteSelectionLayer
                     rootRef={quoteRootRef}
                     sessionId={sessionId}
-                    enabled={isQuoteReplyEnabled()}
                     touch
                 />
                 {/* A held or failed Home task stays visible until accepted. */}

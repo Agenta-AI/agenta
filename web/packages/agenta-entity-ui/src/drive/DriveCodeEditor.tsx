@@ -4,7 +4,7 @@ import {useRef} from "react"
 
 import {type Mount} from "@agenta/entities/session"
 import {type CodeLanguage, EditorProvider} from "@agenta/ui/editor"
-import {isQuoteReplyEnabled, QuoteSelectionLayer} from "@agenta/ui/quote-selection"
+import {QuoteSelectionLayer} from "@agenta/ui/quote-selection"
 import {SharedEditor} from "@agenta/ui/shared-editor"
 
 import {DriveEditorPlaceholder, useDriveSaveKey} from "./DriveEditorFrame"
@@ -77,7 +77,6 @@ export function DriveCodeEditor({
             <QuoteSelectionLayer
                 rootRef={quoteRootRef}
                 sessionId={quoteSessionId}
-                enabled={isQuoteReplyEnabled()}
             />
             <EditorProvider
                 key={editorId}
