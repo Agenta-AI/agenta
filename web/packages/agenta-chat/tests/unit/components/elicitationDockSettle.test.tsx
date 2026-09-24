@@ -73,7 +73,7 @@ beforeEach(() => {
     Object.defineProperty(window, "localStorage", {value: stub, configurable: true})
 })
 
-const setup = (input: unknown = TWO_QUESTIONS) => {
+const setup = (input: unknown = TWO_QUESTIONS, state: Partial<ElicitationDockState> = {}) => {
     const onOutput = vi.fn()
     const meta = metaWith(input)
     const elicits: ElicitationDockState = {
@@ -81,6 +81,8 @@ const setup = (input: unknown = TWO_QUESTIONS) => {
         front: meta,
         queue: [meta],
         shortcutsEnabled: true,
+        dismiss: vi.fn(async () => undefined),
+        ...state,
     }
     const view = render(<ElicitationDock elicits={elicits} onOutput={onOutput} />)
     return {...view, onOutput}
@@ -221,6 +223,37 @@ describe("settling", () => {
         fireEvent.click(screen.getByLabelText("Dismiss this request"))
 
         expect(onOutput).toHaveBeenCalledTimes(1)
+    })
+
+    it("gives the buttons back when the host reports the write did not land", async () => {
+        // `sendToolOutput` swallows a refused respond and resolves `false`. Read as success, the
+        // card spins forever over a question that is still live.
+        const onOutput = vi.fn(() => Promise.resolve(false))
+        const meta = metaWith(TWO_QUESTIONS)
+        render(
+            <ElicitationDock
+                elicits={{
+                    open: true,
+                    front: meta,
+                    queue: [meta],
+                    shortcutsEnabled: true,
+                    dismiss: vi.fn(async () => undefined),
+                }}
+                onOutput={onOutput}
+            />,
+        )
+
+        fireEvent.click(screen.getByLabelText("Dismiss this request"))
+        await waitFor(() =>
+            expect((screen.getByText("Next").closest("button") as HTMLButtonElement).disabled).toBe(
+                false,
+            ),
+        )
+        expect(screen.getByText("Could not submit your answer.")).toBeTruthy()
+
+        // The latch let go too: a retry goes out again.
+        fireEvent.click(screen.getByLabelText("Dismiss this request"))
+        expect(onOutput).toHaveBeenCalledTimes(2)
     })
 })
 

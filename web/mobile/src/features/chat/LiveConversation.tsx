@@ -616,6 +616,7 @@ export const LiveConversation = ({
         enabled: interactionAvailability.parkedDocks,
         approvalsPending: pendingApprovals.length > 0,
         elicitationPending: elicits.open,
+        onOutput: conversation.sendToolOutput,
     })
     const secretDockOpen =
         !streamingHere && !stopping && !conversation.stopped && Boolean(pendingSecret)
@@ -892,6 +893,27 @@ export const LiveConversation = ({
                                 // An open edit rewrites its held message instead of sending. The
                                 // input clears on submit, so the displaced draft goes back after.
                                 if (!conversation.editingId) {
+                                    // A message typed over a parked question or connection
+                                    // request replaces it: the cards settle exactly as their own
+                                    // ✕ / "Not now" would, then the message steers into the
+                                    // resumed run so the agent reads it next, not after. A
+                                    // dismiss that fails throws here, and the composer's catch
+                                    // puts the text back with the cards intact. `steer` rather
+                                    // than `send`: the session has already run, so there is no
+                                    // fresh-session registration to do.
+                                    //
+                                    // Settled together, not in sequence: a failure after one dock
+                                    // had already gone would hand the text back with that dock's
+                                    // request silently cancelled. Both writes go out, and the
+                                    // first rejection is what the composer reports.
+                                    if (elicits.open || connects.open) {
+                                        await Promise.all([
+                                            elicits.open ? elicits.dismiss() : null,
+                                            connects.open ? connects.dismiss() : null,
+                                        ])
+                                        await conversation.steer({text, parts, stagedFiles})
+                                        return
+                                    }
                                     await send({text, parts, stagedFiles})
                                     return
                                 }

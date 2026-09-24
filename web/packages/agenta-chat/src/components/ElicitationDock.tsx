@@ -143,7 +143,13 @@ const ElicitationCard = ({
             try {
                 void Promise.resolve(
                     onOutput({toolName: meta.toolName, toolCallId: meta.toolCallId, output}),
-                ).catch(failed)
+                )
+                    .then((landed) => {
+                        // A host that reports the failure itself still resolves; without this the
+                        // spinner outlives a write that never landed.
+                        if (landed === false) failed(new Error("Could not submit your answer."))
+                    })
+                    .catch(failed)
             } catch (error) {
                 failed(error)
             }

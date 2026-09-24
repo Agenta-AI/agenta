@@ -243,7 +243,8 @@ export interface AgentConversation {
     /** Headless approval-dock state wired to the live-gate-aware response path. */
     approvals: ApprovalDock
     /** Settle a parked client tool part (widgets call this; the resume predicate auto-resends). */
-    sendToolOutput: (args: ToolOutputSettleInput) => Promise<void>
+    /** Resolves `false` when the write did not land (see `ClientToolOutputHandler`). */
+    sendToolOutput: (args: ToolOutputSettleInput) => Promise<boolean>
     /** Re-fetch the durable records and adopt the server transcript under the same guards as
      * revalidate-on-open (never mid-stream, only when strictly ahead). Wire push signals — a
      * session watch relay, a foreground event — to this. */
@@ -917,9 +918,10 @@ export const useAgentConversation = ({
                     isApprovalNotPendingError(error) || isSettledInteractionConflict(error)
                 if (!settled) stampRunError(parseAgentRunError(error))
                 settle({recoverable: false})
-                return
+                return settled
             }
             settle(outcome)
+            return true
         },
         [respondInteractionAnswer, sessionId, stampRunError],
     )

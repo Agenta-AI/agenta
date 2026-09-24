@@ -23,12 +23,35 @@ export interface PendingSendEcho {
     executionId?: string | null
     /** Durable input id from a 202 body; the dock owns the row once it reports this id. */
     parkedInputId?: string | null
+    /**
+     * How this send was admitted. A steer is on its way INTO the running turn, so while its echo
+     * is live the dock must not ALSO show it as a held row — see `echoedDockInputIds`. A queued
+     * send is the opposite: the dock row is what retires its echo.
+     */
+    policy?: "queue" | "steer"
     /** The send is known to have failed. The row STAYS, so the text is never silently lost. */
     failed?: boolean
     /** Fallback user-row count, used only while this send has no identity of its own yet. */
     coveredAtUserCount: number
     /** User-row count when this echo was made; falling below it means a rewind stranded it. */
     createdAtUserCount: number
+}
+
+/**
+ * Durable input ids a live steer echo already represents, so the dock can leave them out rather
+ * than showing the same message twice — once as a sent bubble, once as a held row.
+ *
+ * Only LIVE echoes: an echo that failed (the turn ended without consuming its input) stops
+ * covering its row, so a steer the server parked but never promoted becomes visible in the dock,
+ * where it can still be removed or sent.
+ */
+export const echoedDockInputIds = (pending: readonly PendingSendEcho[]): ReadonlySet<string> => {
+    const ids = new Set<string>()
+    for (const item of pending) {
+        if (item.policy !== "steer" || item.failed || !item.parkedInputId) continue
+        ids.add(item.parkedInputId)
+    }
+    return ids
 }
 
 export const countUserMessages = (messages: readonly UIMessage[]): number =>
@@ -102,8 +125,15 @@ export const retirePendingSendEchoes = (
         // A parked input that is promoted before any snapshot observes it disappears from the
         // dock query for good, and it never gets a turn id of its own, so dock membership cannot
         // be its only successor. The count is the fallback that keeps it from waiting forever.
+        //
+        // A STEER is never shown as a dock row while this echo is live (`echoedDockInputIds`), so
+        // for it dock membership is not a successor at all — reading one would retire the echo the
+        // moment the snapshot lists the input, leaving the message on screen nowhere.
         if (item.parkedInputId)
-            return !dockedIds.has(item.parkedInputId) && userCount < item.coveredAtUserCount
+            return (
+                (item.policy === "steer" || !dockedIds.has(item.parkedInputId)) &&
+                userCount < item.coveredAtUserCount
+            )
         // A failed send outlives everything else here. The composer has already cleared, so
         // dropping the row would delete the user's text with nothing to show for it.
         if (item.failed) return true

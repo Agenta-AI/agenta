@@ -14,8 +14,10 @@
  */
 import {useCallback, useMemo, useRef, useState} from "react"
 
+import {declinedConnectOutput} from "@agenta/shared/clientTools"
 import type {UIMessage} from "ai"
 
+import type {ClientToolOutputHandler} from "../clientTools/ClientToolPart"
 import {
     getConnectInteractions,
     getPendingConnectInteractions,
@@ -42,6 +44,8 @@ export interface UseConnectionDockArgs {
      * them in that order so visual and keyboard order never disagree.
      */
     elicitationPending?: boolean
+    /** Settle channel for the host-driven `dismiss`. Without it, `dismiss` is a no-op. */
+    onOutput?: ClientToolOutputHandler
 }
 
 export interface ConnectionDockState {
@@ -62,6 +66,14 @@ export interface ConnectionDockState {
     bringForward: (toolCallId: string) => void
     /** Whether the dock may bind its keyboard shortcuts (see `approvalsPending`). */
     shortcutsEnabled: boolean
+    /**
+     * Settle every parked connection as its card's "Not now" would, from outside the cards. The
+     * host calls this when the user sends a chat message over the dock: the message is the answer,
+     * so the requests go and the message follows them in. Mirrors `ElicitationDockState.dismiss`:
+     * resolves once every settle write lands; rejects (and re-opens the dock) when one fails,
+     * whether the handler threw or reported `false`. A no-op while nothing is parked.
+     */
+    dismiss: () => Promise<void>
 }
 
 export const useConnectionDock = ({
@@ -69,6 +81,7 @@ export const useConnectionDock = ({
     enabled = true,
     approvalsPending = false,
     elicitationPending = false,
+    onOutput,
 }: UseConnectionDockArgs): ConnectionDockState => {
     const pending = useMemo(
         () => (enabled ? getPendingConnectInteractions(messages) : []),
@@ -113,11 +126,52 @@ export const useConnectionDock = ({
 
     const bringForward = useCallback((toolCallId: string) => setFrontId(toolCallId), [])
 
+    // The host-driven dismiss, keyed by the calls it settled. Keyed rather than a bare flag so it
+    // survives the dock's closing animation (`shown` still holds the settled calls) and cannot
+    // leak onto the agent's next ask. `pending` is read through a ref: the host calls this from a
+    // send handler whose closure may predate the current transcript.
+    const pendingRef = useRef(pending)
+    pendingRef.current = pending
+    const [dismissingIds, setDismissingIds] = useState<ReadonlySet<string>>(() => new Set())
+    const dismissingRef = useRef<Set<string>>(new Set())
+    const dismiss = useCallback(async () => {
+        // No settle channel means nothing can be written, so nothing is dismissed — the documented
+        // no-op. Checked before the markers go up, which would otherwise close the dock over
+        // requests that are still parked.
+        if (!onOutput) return
+        const targets = pendingRef.current.filter(
+            (meta) => !meta.settled && !dismissingRef.current.has(meta.toolCallId),
+        )
+        if (targets.length === 0) return
+        for (const meta of targets) dismissingRef.current.add(meta.toolCallId)
+        setDismissingIds(new Set(dismissingRef.current))
+        try {
+            const landed = await Promise.all(
+                targets.map((meta) =>
+                    onOutput?.({
+                        toolName: meta.toolName,
+                        toolCallId: meta.toolCallId,
+                        output: declinedConnectOutput(meta.input) as Record<string, unknown>,
+                    }),
+                ),
+            )
+            if (landed.some((result) => result === false))
+                throw new Error("The connection request couldn't be dismissed.")
+        } catch (error) {
+            // The requests are still live: give the dock back.
+            for (const meta of targets) dismissingRef.current.delete(meta.toolCallId)
+            setDismissingIds(new Set(dismissingRef.current))
+            throw error
+        }
+    }, [onOutput])
+
     // Derived from the group: it keeps its settled entries, so the counter simply reads how many
     // are done rather than watching the pending set shrink.
     const total = batch.length
     const settled = batch.filter((meta) => meta.settled).length
-    const open = stack.length > 0
+    // A stack being dismissed closes the dock at once: the message that replaced it is the thing
+    // to look at, and the cards only return if a write fails.
+    const open = stack.length > 0 && !stack.every((meta) => dismissingIds.has(meta.toolCallId))
 
     // Hold the last non-empty view so a host can animate the dock closed around content that is
     // already gone. It lives here rather than as a `useRef` copy-pasted into each host.
@@ -134,5 +188,6 @@ export const useConnectionDock = ({
         total: shown.total,
         bringForward,
         shortcutsEnabled: !approvalsPending && !elicitationPending,
+        dismiss,
     }
 }

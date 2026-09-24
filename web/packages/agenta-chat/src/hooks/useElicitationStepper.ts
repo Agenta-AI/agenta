@@ -81,6 +81,13 @@ const clearDraft = (toolCallId: string): void => {
     }
 }
 
+/**
+ * Drop a parked form's saved answers from outside the card — the dock's host-driven dismiss must
+ * leave no more behind than the card's own ✕. Call it AFTER the settle write lands: the card
+ * unmounts as soon as the dock closes, and its unmount flush would write the draft straight back.
+ */
+export const discardElicitationDraft = clearDraft
+
 interface State {
     index: number
     values: Record<string, unknown>
