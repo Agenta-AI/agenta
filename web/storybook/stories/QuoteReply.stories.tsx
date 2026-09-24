@@ -3,13 +3,7 @@ import type {Quote} from "@agenta/shared/quotes"
 import {QuoteNote, QuoteToolbar} from "@agenta/ui/quote-selection"
 import type {Meta, StoryObj} from "@storybook/nextjs"
 
-/**
- * Quote-to-reply — select part of a settled agent reply or a file preview, reply to just that
- * span, and send the excerpt along with the message.
- *
- * These are the states a reviewer cannot reach by clicking: the pill flipped below its selection,
- * the note box, and a chip row that has gone stale.
- */
+// Quote-to-reply states a reviewer cannot reach by clicking.
 const meta = {
     title: "@agenta/ui/Chat/QuoteReply",
     parameters: {
@@ -32,7 +26,7 @@ const messageQuote: Quote = {
     note: "This contradicts the section above.",
     staged: true,
     stale: false,
-    source: {kind: "message", messageId: "m-1", turnLabel: "Agent reply"},
+    source: {kind: "message", messageId: "m-1"},
 }
 
 const fileQuote: Quote = {

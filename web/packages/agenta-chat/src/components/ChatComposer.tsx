@@ -9,17 +9,22 @@
  */
 import {Suspense, lazy, useEffect, useRef, type ReactNode, type RefObject} from "react"
 
-import {quotesToMarkdown, type Quote} from "@agenta/shared/quotes"
+import {quotesToMarkdown} from "@agenta/shared/quotes"
 import {isOverlayOpen} from "@agenta/shared/utils"
 import {HeightCollapse} from "@agenta/ui/height-collapse"
-import {registerQuoteSubmit} from "@agenta/ui/quote-selection"
+import {
+    clearQuotes,
+    getQuotes,
+    registerQuoteSubmit,
+    removeQuote,
+    useStagedQuotes,
+} from "@agenta/ui/quote-selection"
 import type {RichChatInputHandle, SlashCommandSection} from "@agenta/ui/rich-chat-input"
 import {Button, SimpleTooltip} from "@agenta/ui/ui"
 import {Paperclip} from "@phosphor-icons/react"
 
 import {acceptAttrFor} from "../assets/attachmentRules"
 import type {useComposerAttachments} from "../hooks/useComposerAttachments"
-import {useComposerQuotes} from "../hooks/useComposerQuotes"
 import {useFilePalette} from "../hooks/useFilePalette"
 import {useHardwareKeyboard} from "../hooks/useHardwareKeyboard"
 
@@ -94,9 +99,6 @@ export interface ChatComposerProps {
      * surfaces that run before a session exists (onboarding, the home task composer) are untouched.
      */
     fileMentions?: boolean
-    /** Quote-to-reply: the spans staged for the next send, shown as chips above the input. */
-    quotes?: Quote[]
-    onRemoveQuote?: (id: string) => void
     /** Suspense fallback while the Lexical chunk hydrates (hosts pass their skeleton). */
     fallback?: ReactNode
 }
@@ -131,8 +133,6 @@ export const ChatComposer = ({
     headerExtra,
     slashCommands,
     fileMentions,
-    quotes,
-    onRemoveQuote,
     fallback,
 }: ChatComposerProps) => {
     const {
@@ -157,22 +157,19 @@ export const ChatComposer = ({
     const hasKeyboard = useHardwareKeyboard()
     const filePalette = useFilePalette({enabled: fileMentions})
 
-    // Quote-to-reply: a host may pass its own set; otherwise the composer reads the session's
-    // staged quotes and ships them as a blockquote lead-in, so no host send path has to know.
-    const sessionQuotes = useComposerQuotes(quotes === undefined ? attachments.sessionId : null)
-    const shownQuotes = quotes ?? sessionQuotes.quotes
-    const removeQuote = onRemoveQuote ?? sessionQuotes.remove
+    // Staged quotes ride out as a blockquote lead-in, so no host send path needs to know them.
+    const quoteSessionId = attachments.sessionId
+    const quotes = useStagedQuotes(quoteSessionId)
     const withQuotes =
         (send: (text: string) => void | Promise<void>) =>
         (text: string): void | Promise<void> => {
-            const staged = quotes === undefined ? sessionQuotes.peek() : []
+            const staged = getQuotes(quoteSessionId).filter((quote) => quote.staged)
             if (!staged.length) return send(text)
-            sessionQuotes.clear()
+            clearQuotes(quoteSessionId)
             return send(quotesToMarkdown(staged, text))
         }
 
-    // The note box's Enter sends the whole message now, exactly as the Send button would: the
-    // typed draft, the tray and every staged quote. False (the quote stays staged) when it can't.
+    // The note box's Enter: send the whole message now, as the Send button would.
     const ownInputRef = useRef<RichChatInputHandle | null>(null)
     const editorRef = inputRef ?? ownInputRef
     const submitNowRef = useRef<() => boolean>(() => false)
@@ -185,12 +182,10 @@ export const ChatComposer = ({
         void withQuotes(onSubmit)(text)
         return true
     }
-    const selfServesQuotes = quotes === undefined
-    useEffect(() => {
-        const sessionId = attachments.sessionId
-        if (!selfServesQuotes || !sessionId) return
-        return registerQuoteSubmit(sessionId, () => submitNowRef.current())
-    }, [attachments.sessionId, selfServesQuotes])
+    useEffect(
+        () => registerQuoteSubmit(quoteSessionId, () => submitNowRef.current()),
+        [quoteSessionId],
+    )
 
     useEffect(() => {
         if (!streaming || !onStop || !stopShortcutEnabled) return
@@ -251,7 +246,7 @@ export const ChatComposer = ({
                 submitOnEnter={hasKeyboard}
                 placeholder={
                     placeholder ??
-                    (shownQuotes.length > 0
+                    (quotes.length > 0
                         ? "What should change about the quoted part?"
                         : waitingOnUser
                           ? // The parked interaction is docked directly above, so point at it rather
@@ -269,7 +264,7 @@ export const ChatComposer = ({
                     if (!attachmentsBlocked?.()) addFiles(Array.from(pasted))
                 }}
                 // A quote carries a reply on its own, so it can be sent with no text at all.
-                sendForceEnabled={files.length > 0 || shownQuotes.length > 0}
+                sendForceEnabled={files.length > 0 || quotes.length > 0}
                 sendDisabled={files.length > 0 && !attachmentsSettled}
                 sendDisabledReason={uploadBlockReason}
                 sending={sending}
@@ -308,10 +303,10 @@ export const ChatComposer = ({
                             </SimpleTooltip>
                         )}
                         {/* Design puts the quote count on the action row, not over the chips. */}
-                        {shownQuotes.length > 0 ? (
+                        {quotes.length > 0 ? (
                             <span className="ml-1 text-[11px] text-colorTextTertiary">
-                                {shownQuotes.length}{" "}
-                                {shownQuotes.length === 1 ? "quote" : "quotes"} attached
+                                {quotes.length}{" "}
+                                {quotes.length === 1 ? "quote" : "quotes"} attached
                             </span>
                         ) : null}
                     </div>
@@ -319,10 +314,10 @@ export const ChatComposer = ({
                 header={
                     <>
                         {headerExtra}
-                        <HeightCollapse open={shownQuotes.length > 0}>
+                        <HeightCollapse open={quotes.length > 0}>
                             <ComposerQuotes
-                                quotes={shownQuotes}
-                                onRemove={removeQuote}
+                                quotes={quotes}
+                                onRemove={(id) => removeQuote(quoteSessionId, id)}
                                 touch={!hasKeyboard}
                             />
                         </HeightCollapse>

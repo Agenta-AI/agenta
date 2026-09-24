@@ -1,10 +1,4 @@
-/**
- * Marks a file body quotable: the data attributes the selection watcher reads, the raw source it
- * resolves line numbers against, and the staleness check that flips a quote's `changed` badge when
- * the file's content refetches into something the excerpt no longer matches.
- *
- * Only text-family bodies (markdown, plain text, code) opt in — the rest have no text to select.
- */
+// Marks a text-family file body quotable: data attributes, raw source, staleness.
 import {useFileQuoteFreshness, useQuoteSource} from "@agenta/ui/quote-selection"
 
 import {useDriveSessionId} from "./driveSessionContext"
@@ -18,8 +12,7 @@ export const useQuotableFile = (
     const key = `file:${path}`
     useQuoteSource(key, content)
     useFileQuoteFreshness(sessionId, path, content)
-    // Outside a conversation (the standalone Files drawer) there is nothing to reply into, so the
-    // body is left unmarked and only Copy — the browser's own — remains.
+    // Outside a conversation there is nothing to reply into.
     if (!sessionId) return {}
     return {
         "data-quotable": "true",

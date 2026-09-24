@@ -54,8 +54,7 @@ export const DriveFilePreview = ({
 }) => {
     const shown = displayPath ?? path
     const name = shown.split("/").pop() ?? shown
-    // Quote-to-reply is offered only inside a conversation — elsewhere there is nothing to reply
-    // into, so the pill never appears and the browser's own Copy is all there is.
+    // Null outside a conversation, which leaves the quote layer inert.
     const quoteRootRef = useRef<HTMLDivElement>(null)
     const quoteSessionId = useDriveSessionId()
     const [metaExpanded, setMetaExpanded] = useState(false)

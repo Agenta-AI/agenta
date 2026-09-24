@@ -1,19 +1,9 @@
-/**
- * Quote-to-reply: the pure half. A quote is an excerpt the user selected in a settled agent reply
- * or in a drive file preview, plus the note they wrote about it. This module owns the three things
- * that must behave identically on desktop and mobile and that are worth testing on their own:
- * normalising selected text, locating it inside the source it came from (so a file quote can carry
- * real line numbers), and serialising the staged quotes into the markdown that rides the message.
- *
- * No React, no DOM — the selection plumbing lives in `@agenta/ui/quote-selection`.
- */
+// Quote-to-reply's pure half: normalise, locate in source, serialise. No React, no DOM.
 
 export interface MessageQuoteSource {
     kind: "message"
     /** The assistant message the excerpt was selected in. */
     messageId: string
-    /** How the quote card names the origin ("Agent reply"), shown above the excerpt. */
-    turnLabel?: string
 }
 
 export interface FileQuoteSource {
@@ -38,7 +28,7 @@ export interface Quote {
     note: string
     /** Staged onto the composer (a chip), as opposed to a draft the note box still owns. */
     staged: boolean
-    /** The source moved under the quote — the turn was rewound, or the file no longer matches. */
+    /** The file no longer contains the excerpt. */
     stale: boolean
     source: QuoteSource
 }
@@ -48,12 +38,7 @@ export const QUOTE_EXCERPT_CAP = 2000
 /** What a chip or a quote card shows before it truncates. */
 export const QUOTE_DISPLAY_CAP = 120
 
-/**
- * Collapse every whitespace run to a single space and trim. Used by BOTH sides of a match so a
- * selection that crossed a rendered line break still finds its source, and by the display path so a
- * chip never carries a newline.
- */
-export const normalizeQuoteText = (text: string): string => text.replace(/\s+/g, " ").trim()
+/** Collapse whitespace runs and trim; both sides of a match use it. */export const normalizeQuoteText = (text: string): string => text.replace(/\s+/g, " ").trim()
 
 /** Truncate for display, on a word boundary where one is close enough to the cut. */
 export const truncateQuoteText = (text: string, cap = QUOTE_DISPLAY_CAP): string => {
@@ -72,11 +57,7 @@ export interface QuoteLocation {
     endLine: number
 }
 
-/**
- * Build a whitespace-collapsed view of `source` alongside a map from each collapsed character back
- * to its index in the original. That map is what lets a normalised match report a real line number.
- */
-const collapseWithIndex = (source: string): {text: string; map: number[]} => {
+/** A whitespace-collapsed view of `source`, mapped back to original indices for line numbers. */const collapseWithIndex = (source: string): {text: string; map: number[]} => {
     const out: string[] = []
     const map: number[] = []
     let pendingSpace = false
@@ -103,15 +84,7 @@ const lineAt = (source: string, index: number): number => {
     return line
 }
 
-/**
- * Locate `selected` inside `source`. Exact match first (plain-text and code bodies render their
- * source verbatim, so those land here and their line numbers are exact); otherwise a
- * whitespace-normalised search, which is what a markdown body needs — the rendered text has lost
- * the source's wrapping, list markers and emphasis runs.
- *
- * Returns null when the excerpt cannot be found at all; the quote still sends, just without lines.
- */
-export const findInSource = (source: string, selected: string): QuoteLocation | null => {
+/** Locate `selected` in `source`: exact first, then whitespace-normalised; null if absent. */export const findInSource = (source: string, selected: string): QuoteLocation | null => {
     if (!source || !selected) return null
 
     const exact = source.indexOf(selected)
@@ -140,27 +113,13 @@ export const formatLineRange = (start?: number, end?: number): string => {
     return `L${start}–L${end}`
 }
 
-/** The origin line a quote card and a chip both show. */
-export const describeQuoteSource = (source: QuoteSource): string => {
-    if (source.kind === "file") {
-        const range = formatLineRange(source.startLine, source.endLine)
-        return range ? `${source.fileName} (${range})` : source.fileName
-    }
-    return source.turnLabel || "Agent reply"
-}
-
 /** Cap one excerpt for the wire, marking the elision so the model knows it is reading a middle. */
 const capExcerpt = (text: string): string => {
     if (text.length <= QUOTE_EXCERPT_CAP) return text
     return `${text.slice(0, QUOTE_EXCERPT_CAP).trimEnd()}\n… (excerpt truncated)`
 }
 
-/**
- * Render the staged quotes as markdown blockquotes ahead of the user's message. No wire change:
- * the model literally reads the excerpt, and the transcript record keeps it, so a reload still
- * shows what was being replied to.
- */
-export const quotesToMarkdown = (quotes: Quote[], text = ""): string => {
+/** Staged quotes as markdown blockquotes ahead of the message text. */export const quotesToMarkdown = (quotes: Quote[], text = ""): string => {
     if (quotes.length === 0) return text
     const blocks = quotes.map((quote) => {
         const head =
@@ -171,14 +130,13 @@ export const quotesToMarkdown = (quotes: Quote[], text = ""): string => {
                           ? ` (${formatLineRange(quote.source.startLine, quote.source.endLine)})`
                           : ""
                   }`
-                : `**${quote.source.turnLabel || "Agent reply"}**`
+                : "**Agent reply**"
         const body = capExcerpt(quote.text)
             .split("\n")
             .map((line) => `> ${line}`)
             .join("\n")
         const note = quote.note.trim()
-        // Two trailing spaces: a hard break, so the origin line does not run into the excerpt
-        // when the renderer folds the blockquote's lines into one paragraph.
+        // Two trailing spaces: a hard break between the origin line and the excerpt.
         return [`> ${head}  `, body, note ? `\n${note}` : ""].filter(Boolean).join("\n")
     })
     const trimmed = text.trim()

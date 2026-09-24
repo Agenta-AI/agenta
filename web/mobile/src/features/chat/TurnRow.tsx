@@ -30,7 +30,6 @@ import {
     turnToolbarRevealClass,
     userBubbleContentClass,
 } from "@agenta/ui/components/presentational"
-import {useQuoteSource} from "@agenta/ui/quote-selection"
 import type {ToolUIPart} from "ai"
 import {useAtomValue, useSetAtom} from "jotai"
 
@@ -127,17 +126,14 @@ const TurnRowInner = ({
         .trim()
 
     // Quoting is offered on settled answers only; mid-stream the text is still being written.
-    const quotable = !turn.isUser && !turn.isStreamingTurn
-    useQuoteSource(quotable ? `msg:${turn.message.id}` : null, copyText)
-    const quoteProps = quotable
-        ? ({
-              "data-quotable": "true",
-              "data-quote-kind": "message",
-              "data-quote-source": `msg:${turn.message.id}`,
-              "data-quote-message-id": turn.message.id,
-              "data-quote-label": "Agent reply",
-          } as const)
-        : undefined
+    const quoteProps =
+        !turn.isUser && !turn.isStreamingTurn
+            ? ({
+                  "data-quotable": "true",
+                  "data-quote-kind": "message",
+                  "data-quote-message-id": turn.message.id,
+              } as const)
+            : undefined
 
     const footer = {
         messageId: turn.message.id,

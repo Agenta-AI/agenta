@@ -1,9 +1,4 @@
-/**
- * The staged quotes, as chips above the composer input — the counterpart of `ComposerAttachments`
- * in the same header slot. Each chip carries the quote-or-file icon, the excerpt truncated to one
- * line, a filename divider for file quotes, a `changed` badge once the source has moved, and a ✕.
- * Chips stack across messages and across both panes, so the row is scrollable rather than growing.
- */
+// Staged quotes as chips in the composer header, beside `ComposerAttachments`.
 import {formatLineRange, truncateQuoteText, type Quote} from "@agenta/shared/quotes"
 import {FileText, Quotes, X} from "@phosphor-icons/react"
 import {AnimatePresence, MotionConfig, motion} from "motion/react"
