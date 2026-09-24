@@ -1,6 +1,6 @@
 # Tasks
 
-These tasks describe future implementation. All remain unchecked. The behavior choices are recommendations awaiting Mahmoud's review.
+Mahmoud approved these decisions on 2026-09-24. Phase 1 is implemented on `feat/whatsapp-channel`; phase 2 (Embedded Signup) is not.
 
 ## 1. Adapter and ingress (phase 1a)
 
@@ -27,7 +27,7 @@ These tasks describe future implementation. All remain unchecked. The behavior c
 
 ## 4. Connect experience and docs (phase 1d)
 
-- [ ] 4.1 Build the WhatsApp connect card with the paste form, webhook URL, verify token, billing notice, and policy confirmation.
+- [ ] 4.1 Build the WhatsApp connect card with the paste form, webhook URL, verify token, and billing notice (no policy confirmation, per D9).
 - [ ] 4.2 Write the user guide for creating a system user, token, and webhook in Meta.
 - [ ] 4.3 Run live QA with a Meta test number: text, long answer, approval buttons, PDF in, window closed, STOP.
 
