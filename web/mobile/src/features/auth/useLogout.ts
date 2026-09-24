@@ -2,6 +2,7 @@ import {useCallback} from "react"
 
 import {useRouter} from "next/router"
 
+import {resetAnalytics} from "@/features/analytics/client"
 import {clearTranscriptSnapshots} from "@/features/chat/useSessionTranscript"
 import {signOut} from "@/lib/auth"
 import {clearLastContext} from "@/lib/context"
@@ -17,6 +18,7 @@ export const useLogout = () => {
 
     return useCallback(async () => {
         await signOut().catch(() => undefined)
+        await resetAnalytics()
         clearLastContext()
         clearTranscriptSnapshots()
         await Promise.all([
