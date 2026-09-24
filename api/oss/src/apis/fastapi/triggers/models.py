@@ -167,6 +167,11 @@ class TriggerSchedulesResponse(BaseModel):
     schedules: List[TriggerSchedule] = Field(default_factory=list)
 
 
+class TriggerScheduleRunResponse(BaseModel):
+    status: str = "accepted"
+    event_id: str
+
+
 # ---------------------------------------------------------------------------
 # Trigger Deliveries
 # ---------------------------------------------------------------------------

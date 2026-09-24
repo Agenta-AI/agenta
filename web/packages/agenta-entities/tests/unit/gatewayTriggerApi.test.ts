@@ -46,6 +46,7 @@ import {
     queryTriggerDeliveries,
     queryTriggerSchedules,
     queryTriggerSubscriptions,
+    runTriggerSchedule,
     startTriggerSchedule,
     startTriggerSubscription,
     stopTriggerSchedule,
@@ -342,6 +343,17 @@ describe("schedules (recurring cron timers)", () => {
         post.mockResolvedValueOnce({data: {count: 1, schedule: sampleSchedule}})
         await stopTriggerSchedule("sch-1")
         expect(post.mock.calls[1][0]).toBe("https://api.test/triggers/schedules/sch-1/stop")
+    })
+
+    it("queues a schedule run through the trigger endpoint", async () => {
+        post.mockResolvedValueOnce({data: {status: "accepted", event_id: "manual:evt-1"}})
+
+        const res = await runTriggerSchedule("sch-1")
+
+        expect(post.mock.calls[0][0]).toBe("https://api.test/triggers/schedules/sch-1/run")
+        expect(post.mock.calls[0][1]).toEqual({})
+        expect(post.mock.calls[0][2].params).toMatchObject({project_id: "proj-42"})
+        expect(res.event_id).toBe("manual:evt-1")
     })
 
     it("falls back to an empty list when the schedules payload fails validation", async () => {

@@ -428,6 +428,12 @@ export const triggerSchedulesResponseSchema = z
     .passthrough()
 export type TriggerSchedulesResponse = z.infer<typeof triggerSchedulesResponseSchema>
 
+export const triggerScheduleRunResponseSchema = z.object({
+    status: z.string().default("accepted"),
+    event_id: z.string(),
+})
+export type TriggerScheduleRunResponse = z.infer<typeof triggerScheduleRunResponseSchema>
+
 // Create body (Header + Metadata + data); no id, no connection_id.
 export interface TriggerScheduleCreate {
     name?: string | null

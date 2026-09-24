@@ -1,7 +1,7 @@
 import {useCallback} from "react"
 
 import {type Automation, useAutomation} from "@agenta/automation-ui"
-import {getScheduleMessagePreview} from "@agenta/entities/gatewayTrigger"
+import {getScheduleMessagePreview, runTriggerSchedule} from "@agenta/entities/gatewayTrigger"
 import {message} from "@agenta/ui/app-message"
 import {
     Button,
@@ -14,7 +14,6 @@ import {
 import {ClockCounterClockwise, DotsThreeVertical, Pause, Play, Trash} from "@phosphor-icons/react"
 import {useRouter} from "next/router"
 
-import {useStartTaskSession} from "../chat/useStartTaskSession"
 import {useConfirmModal} from "../settings/useConfirmModal"
 
 import {testRunBlockedReason} from "./AutomationTestRunButton"
@@ -53,7 +52,6 @@ export const AutomationActionsMenu = ({
 }) => {
     const router = useRouter()
     const {remove, setActive} = useAutomation(automation.id, automation.kind)
-    const startTask = useStartTaskSession(base)
     const {confirm, modal} = useConfirmModal()
 
     const onToggle = useCallback(async () => {
@@ -75,9 +73,8 @@ export const AutomationActionsMenu = ({
             message.error(blocked)
             return
         }
-        // Sent on landing, like the detail screen's Run now.
-        void startTask(automation.agentId, instruction)
-    }, [automation.agentId, automation.raw.data?.inputs_fields, startTask])
+        void runTriggerSchedule(automation.id)
+    }, [automation.agentId, automation.id, automation.raw.data?.inputs_fields])
 
     const onDelete = useCallback(() => {
         confirm({

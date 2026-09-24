@@ -60,6 +60,26 @@ def _service(*, schedules=None, seen=False, with_task=True):
     return service, dao
 
 
+@pytest.mark.asyncio
+async def test_run_schedule_queues_unique_manual_event():
+    service, dao = _service()
+    schedule = _make_schedule()
+    dao.fetch_schedule = AsyncMock(return_value=schedule)
+
+    event_id = await service.run_schedule(
+        project_id=uuid4(),
+        schedule_id=schedule.id,
+    )
+
+    assert event_id.startswith("manual:")
+    service.schedule_dispatch_task.kiq.assert_awaited_once()
+    kwargs = service.schedule_dispatch_task.kiq.await_args.kwargs
+    assert kwargs["schedule_id"] == str(schedule.id)
+    assert kwargs["event_id"] == event_id
+    assert kwargs["event"]["metadata"]["id"] == event_id
+    assert kwargs["event"]["payload"] == {"manual": True}
+
+
 class TestValidateSchedule:
     def test_accepts_valid_five_field_cron(self):
         # Above the frequency floor; the floor itself is pinned in

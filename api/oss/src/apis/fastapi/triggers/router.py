@@ -33,6 +33,7 @@ from oss.src.apis.fastapi.triggers.models import (
     TriggerScheduleEditRequest,
     TriggerScheduleQueryRequest,
     TriggerScheduleResponse,
+    TriggerScheduleRunResponse,
     TriggerSchedulesResponse,
     TriggerSubscriptionCreateRequest,
     TriggerSubscriptionEditRequest,
@@ -411,6 +412,15 @@ class TriggersRouter:
             response_model=TriggerScheduleResponse,
             response_model_exclude_none=True,
             status_code=status.HTTP_200_OK,
+        )
+        self.router.add_api_route(
+            "/schedules/{schedule_id}/run",
+            self.run_schedule,
+            methods=["POST"],
+            operation_id="run_trigger_schedule",
+            response_model=TriggerScheduleRunResponse,
+            response_model_exclude_none=True,
+            status_code=status.HTTP_202_ACCEPTED,
         )
 
         # --- Trigger Schedules (admin) ---
@@ -1445,6 +1455,23 @@ class TriggersRouter:
             schedule_id=schedule_id,
             is_active=False,
         )
+
+    @intercept_exceptions()
+    async def run_schedule(
+        self,
+        request: Request,
+        *,
+        schedule_id: UUID,
+    ) -> TriggerScheduleRunResponse:
+        await self._check(request, Permission.EDIT_TRIGGERS)
+        try:
+            event_id = await self.triggers_service.run_schedule(
+                project_id=UUID(request.state.project_id),
+                schedule_id=schedule_id,
+            )
+        except ScheduleNotFoundError as e:
+            raise HTTPException(status_code=404, detail=e.message) from e
+        return TriggerScheduleRunResponse(event_id=event_id)
 
     async def _set_schedule_active(
         self,

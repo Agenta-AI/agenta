@@ -27,6 +27,7 @@ import {
     triggerDeliveriesResponseSchema,
     triggerDeliveryResponseSchema,
     triggerScheduleResponseSchema,
+    triggerScheduleRunResponseSchema,
     triggerSchedulesResponseSchema,
     triggerSubscriptionResponseSchema,
     triggerSubscriptionsResponseSchema,
@@ -46,6 +47,7 @@ import {
     type TriggerScheduleEdit,
     type TriggerScheduleQuery,
     type TriggerScheduleResponse,
+    type TriggerScheduleRunResponse,
     type TriggerSchedulesResponse,
     type TriggerSubscriptionCreate,
     type TriggerSubscriptionEdit,
@@ -531,6 +533,22 @@ export const stopTriggerSchedule = async (scheduleId: string): Promise<TriggerSc
         safeParseWithLogging(triggerScheduleResponseSchema, data, "[stopTriggerSchedule]") ?? {
             count: 0,
             schedule: null,
+        }
+    )
+}
+
+export const runTriggerSchedule = async (
+    scheduleId: string,
+): Promise<TriggerScheduleRunResponse> => {
+    const {data} = await axios.post(
+        `${triggersBaseUrl()}/schedules/${scheduleId}/run`,
+        {},
+        projectScopedParams(),
+    )
+    return (
+        safeParseWithLogging(triggerScheduleRunResponseSchema, data, "[runTriggerSchedule]") ?? {
+            status: "accepted",
+            event_id: "",
         }
     )
 }

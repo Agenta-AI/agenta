@@ -19,8 +19,8 @@
 import {useCallback, type ReactNode} from "react"
 
 import {
-    getScheduleMessagePreview,
     isEntityActive,
+    runTriggerSchedule,
     triggerDeliveriesDrawerAtom,
     triggerScheduleDrawerAtom,
     triggerSubscriptionDrawerAtom,
@@ -29,7 +29,6 @@ import {
     type TriggerSchedule,
     type TriggerSubscription,
 } from "@agenta/entities/gatewayTrigger"
-import {simulatedAgentRunAtomFamily} from "@agenta/shared/state"
 import {message} from "@agenta/ui"
 import {DropdownMenuItem, DropdownMenuSeparator} from "@agenta/ui/ui"
 import {
@@ -95,7 +94,6 @@ export function TriggerManagementSection({
     const openSubscriptionDrawer = useSetAtom(triggerSubscriptionDrawerAtom)
     const openScheduleDrawer = useSetAtom(triggerScheduleDrawerAtom)
     const openDeliveries = useSetAtom(triggerDeliveriesDrawerAtom)
-    const setPendingRun = useSetAtom(simulatedAgentRunAtomFamily(entityId ?? ""))
 
     const openRunHistory = useCallback(
         (owner: TriggerOwnerRef, name?: string | null) => {
@@ -115,27 +113,14 @@ export function TriggerManagementSection({
 
     // A schedule (cron) has no external event to replay — simulate it with its own
     // configured inputs, exactly like the schedule drawer's "Run in playground".
-    const simulateSchedule = useCallback(
-        (record: TriggerSchedule) => {
-            if (!entityId) {
-                message.info("Open this agent in the playground first")
-                return
-            }
-            const msg = getScheduleMessagePreview(record.data?.inputs_fields)
-            const label = record.name?.trim() || "Scheduled run"
-            const cron = record.data?.schedule
-            const text = msg.trim()
-                ? msg
-                : `[Scheduled run · ${label}${cron ? ` (${cron})` : ""}]\n\`\`\`json\n${JSON.stringify(
-                      record.data?.inputs_fields ?? {},
-                      null,
-                      2,
-                  )}\n\`\`\``
-            setPendingRun({text, nonce: Date.now(), newSession: true})
-            message.success("Starting run")
-        },
-        [entityId, setPendingRun],
-    )
+    const runSchedule = useCallback((record: TriggerSchedule) => {
+        if (!record.id) {
+            return
+        }
+        void runTriggerSchedule(record.id)
+            .then(() => message.success("Starting run"))
+            .catch(() => message.error("Failed to start run"))
+    }, [])
 
     // ---- subscription actions ----
     // The menu body is composed JSX (the `@agenta/ui` DropdownMenu has no items array).
@@ -245,7 +230,7 @@ export function TriggerManagementSection({
             <>
                 <DropdownMenuItem
                     disabled={disabled || !record.id}
-                    onSelect={() => simulateSchedule(record)}
+                    onSelect={() => runSchedule(record)}
                 >
                     <Play size={16} />
                     Run now
@@ -313,7 +298,7 @@ export function TriggerManagementSection({
             openRunHistory,
             openScheduleDrawer,
             removeSchedule,
-            simulateSchedule,
+            runSchedule,
             toggleSchedule,
             entityId,
             disabled,

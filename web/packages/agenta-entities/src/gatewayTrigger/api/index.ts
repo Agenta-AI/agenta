@@ -20,6 +20,7 @@ export {
     queryTriggerConnections,
     queryTriggerDeliveries,
     queryTriggerSchedules,
+    runTriggerSchedule,
     queryTriggerSubscriptions,
     refreshTriggerConnection,
     refreshTriggerSubscription,

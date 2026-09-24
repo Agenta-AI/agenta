@@ -1,29 +1,22 @@
 import {useMemo} from "react"
 
 import type {Automation} from "@agenta/automation-ui"
-import {getScheduleMessagePreview} from "@agenta/entities/gatewayTrigger"
+import {getScheduleMessagePreview, runTriggerSchedule} from "@agenta/entities/gatewayTrigger"
+import {message} from "@agenta/ui/app-message"
 import {Button} from "@agenta/ui/ui"
 import {Play} from "@phosphor-icons/react"
-
-import {useStartTaskSession} from "../chat/useStartTaskSession"
 
 /**
  * Run this automation now, without waiting for its trigger.
  *
- * It opens a NEW session with the bound agent and sends the automation's instruction as the
- * first turn — the same hand-off Home's composer uses, so the run is under way by the time the
- * chat is on screen. A test run is a run: the reader came to see what the automation does, not
- * to be handed its text to send.
- *
- * Not the shared `RunSubscriptionButton`: that publishes to `simulatedAgentRunAtomFamily`, which
- * only the desktop playground reads, so on this surface it would silently do nothing.
+ * It queues a server-side schedule delivery so the resulting session is attributed to this
+ * automation and appears in its run history.
  *
  * Disabled with a reason rather than hidden — "why can't I test this" is a question the control
  * itself should answer.
  */
 export const AutomationTestRunButton = ({
     automation,
-    base,
     dirty,
 }: {
     automation: Automation
@@ -32,8 +25,6 @@ export const AutomationTestRunButton = ({
     /** Unsaved config edits — a test run would exercise a version that does not exist yet. */
     dirty: boolean
 }) => {
-    const startTask = useStartTaskSession(base)
-
     // Shape-agnostic: the message is read straight off the stored inputs, so no agent schema has
     // to resolve before the button can be pressed.
     const instruction = useMemo(
@@ -56,7 +47,9 @@ export const AutomationTestRunButton = ({
                 title={blockedReason || "Run this automation now in a new session"}
                 onClick={() => {
                     if (!automation.agentId) return
-                    void startTask(automation.agentId, instruction)
+                    void runTriggerSchedule(automation.id).catch(() => {
+                        message.error("Couldn't start this automation")
+                    })
                 }}
             >
                 <Play aria-hidden className="size-3" />

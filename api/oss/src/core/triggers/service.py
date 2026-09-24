@@ -3,7 +3,7 @@ import hashlib
 import hmac
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Mapping, Optional, Set, Tuple
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from croniter import croniter
 
@@ -1675,6 +1675,41 @@ class TriggersService:
         if updated is None:
             raise ScheduleNotFoundError(schedule_id=str(schedule_id))
         return updated
+
+    async def run_schedule(
+        self,
+        *,
+        project_id: UUID,
+        schedule_id: UUID,
+    ) -> str:
+        """Queue one user-requested run without pretending it was a cron tick."""
+        schedule = await self.dao.fetch_schedule(
+            project_id=project_id,
+            schedule_id=schedule_id,
+        )
+        if schedule is None:
+            raise ScheduleNotFoundError(schedule_id=str(schedule_id))
+        if self.schedule_dispatch_task is None:
+            raise RuntimeError("Schedule dispatcher is not configured")
+
+        event_id = f"manual:{uuid4().hex}"
+        event = {
+            "metadata": {
+                "trigger_slug": schedule.data.event_key,
+                "id": event_id,
+            },
+            "payload": {"manual": True},
+        }
+        await asyncio.wait_for(
+            self.schedule_dispatch_task.kiq(
+                project_id=str(project_id),
+                event_id=event_id,
+                event=event,
+                schedule_id=str(schedule.id),
+            ),
+            timeout=_ENQUEUE_TIMEOUT_SECONDS,
+        )
+        return event_id
 
     async def refresh_schedules(
         self,
