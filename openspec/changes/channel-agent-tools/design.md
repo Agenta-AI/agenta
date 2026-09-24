@@ -1,180 +1,218 @@
 # Design
 
-Status: Draft for review. No implementation or external platform change is included. The channels stack has not shipped to production.
+Status: Draft for review. Nothing is implemented. This design replaces the 2026-09-20 draft and follows Mahmoud's decisions of 2026-09-24. Code references point at `main` at commit `2f9cf635ca2ddda65dbd3702d98df88a4ea2a93f`.
 
 ## Context
 
-See [proposal](proposal.md) for the user outcome and the five delta specifications for required behavior. The reviewed code is PR #6737 at `658d6f5edae34d861d141a38604ef7a12a7b69c8`.
+See the [proposal](proposal.md) for the user outcome and the six capability specifications for required behavior. The implementation order and tests are in [plan.md](plan.md).
 
-Replies currently begin with a session-turn event. `ChannelsOutboxWorker._fetch_thread_for_session` finds a `ChannelThread` before it posts, while `ChannelsService.enqueue_output` and `deliver` remain unimplemented. The Slack and Telegram adapters can already post and edit when core supplies a connection, locator, content, and idempotency key. Slack can fetch bounded conversation history. Telegram explicitly cannot discover chats or fetch provider history.
+What exists on `main` today:
 
-Agenta already supports direct platform tools. `PlatformToolConfig` names a catalog operation. `AgentaPlatformToolResolver` turns it into an authenticated call to an existing Agenta endpoint. `PlatformOp.context_bindings` hides self-targeting fields from model input. The current `RunContextWorkflow` carries workflow artifact, variant, and revision identity. The runner's read-allowing mode already distinguishes read-only operations from writes.
+- **Replies are tied to an inbound thread.** The outbox worker finds a `ChannelThread` by session ID before it posts (`ChannelsOutboxWorker._fetch_thread_for_session` in `api/oss/src/tasks/asyncio/channels/outbox.py`). `ChannelsService.enqueue_output` and `ChannelsService.deliver` in `api/oss/src/core/channels/service.py` still raise `NotImplementedError`.
+- **The outbox already records deliveries truthfully.** `channel_outbox_events` rows move through `created`, `sent`, and `failed`. A post whose outcome is unknown is marked `failed` with status code `delivery_uncertain` and is never retried (`_outcome_unknown` and `_deliver` in `outbox.py`). Every row requires a `thread_id`.
+- **Adapters can post, edit, list, and fetch.** The Slack adapter (`api/oss/src/core/channels/adapters/slack/adapter.py`) posts with `chat.postMessage`, lists public and private channels with `conversations.list`, and reads one page of `conversations.history` or `conversations.replies` (at most `AGENTA_CHANNELS_BACKFILL_LIMIT`, default 50). It drops `message_changed` and `message_deleted` events. The Telegram adapter (`api/oss/src/core/channels/adapters/telegram/adapter.py`) returns no candidates from `discover_spaces` and raises from `fetch_history`, because the Bot API has neither.
+- **Every Slack message in a channel the bot is in is already stored.** The manifest subscribes to `message.channels`, `message.groups`, `message.im`, and `message.mpim` (`adapters/slack/manifest.py`). Ingress records each one as a `channel_inbox_events` row, and the dispatcher attaches it to its space even when no turn starts (`ChannelsService.resolve`).
+- **A space row is not an authorization.** `ChannelsService.resolve` creates a never-seen space on first contact and says so: "the row's existence stopped being what authorises an agent to answer there; the grant is."
+- **Platform tools already hide self-targeting fields.** A `PlatformOp` (`sdks/python/agenta/sdk/agents/platform/op_catalog.py`) declares `context_bindings`, which the runner fills from the run context and removes from the model's schema (`assembleBody` in `services/runner/src/tools/direct.ts`). The run context carries the workflow artifact, variant, and revision (`RunContextWorkflow` in `sdks/python/agenta/sdk/agents/dtos.py`), and the runner adds `session.id` (`services/runner/src/engines/sandbox_agent/run-turn.ts`). There is no tool call ID in the run context yet, but the relay has one (`req.toolCallId` in `services/runner/src/tools/relay.ts`).
+- **Tool permission is already solved.** `effective_permission` in `sdks/python/agenta/sdk/agents/tools/models.py` lets a `read_only` op run under `allow_reads` and makes every other op ask, unless the author set `allow` or `ask` explicitly.
+- **A connected bot answers as one agent.** The settings UI binds a connection to an app with `ChannelAgent.data.references = {application: {id}}` (`web/packages/agenta-settings-ui/src/channels/actions.ts`). The references can also use the `workflow` family (`RESOLVABLE_AGENT_REFERENCE_KEYS` in `api/oss/src/core/channels/dtos.py`).
+- **The manage panel has no Advanced section today.** `ChannelManagePanel.tsx` shows "Answers in", "Behavior" (two switches stored as kind-level grants), "Allowed users" (Telegram only), credentials, and Disconnect. The Advanced section is new.
+- **Permissions.** `Permission.RUN_CHANNELS` exists (`api/oss/src/core/access/permissions/types.py`) and is used only by the channel-adapter entrypoint. The configuration routes use `VIEW_CHANNELS` and `EDIT_CHANNELS`.
 
 ## Goals / Non-Goals
 
-**Goals:** Use one Channels service boundary for replies, proactive sends, direct messages, exact schedules, and indexed retrieval. Make every connected agent eligible for explicit tool access. Keep credentials, project identity, deployment identity, and provider locators server-controlled. Preserve current authorization at execution time and give agents truthful delivery and search-coverage results.
+**Goals:** Let a connected agent list where it can post, post there, read a channel's recent history, and search what its channels said. Default to what a Slack workspace admin expects from a bot they invited. Keep credentials, provider IDs, and tenant IDs away from the model. Report delivery outcomes truthfully. Keep a proactive direct message out of any shared session.
 
-**Non-Goals:** Do not expose adapter methods as tools, accept arbitrary provider identifiers, add semantic or vector search, backfill Telegram history, enumerate Telegram chats, create another scheduler inside an adapter, move a shared channel session into a direct message, or guarantee exactly-once provider delivery where the provider offers no idempotency primitive. Telegram agent and session picker controls remain a separate change.
+**Non-Goals:** Scheduling of any kind. Semantic or vector search. Telegram history backfill or chat enumeration. Slack group DMs as destinations. Slack Enterprise Grid org-wide installs. A per-person or per-channel posting allow-list (future work). Exactly-once delivery where the provider has no idempotency key. Reading or searching direct messages.
 
 ## Decisions
 
-### Add direct platform operations over authenticated Channels endpoints
+### 1. Four endpoint-mode platform operations
 
-Register these operations in the platform catalog:
+Add four catalog entries. Each is an endpoint-mode `PlatformOp` over a new authenticated route. None is a gateway tool or a handler.
 
-| Operation | Model input | Permission hint |
+| Operation | Route | Model input | Hint |
+| --- | --- | --- | --- |
+| `list_channel_destinations` | `POST /api/channels/tools/destinations/query` | Optional `type` (`channel` or `person`), `query` (name filter), `limit`, `cursor` | Read-only |
+| `send_channel_message` | `POST /api/channels/tools/messages/send` | `destination_id`, `text`, optional `thread_id` | Write |
+| `read_channel_messages` | `POST /api/channels/tools/messages/read` | `destination_id`, optional `thread_id`, `limit`, `cursor` | Read-only |
+| `search_channel_messages` | `POST /api/channels/tools/messages/search` | `query`, optional `destination_ids`, `from_person_id`, `after`, `before`, `limit`, `cursor` | Read-only |
+
+Every operation binds `$ctx.workflow.artifact.id`. The send also binds `$ctx.session.id` and a new `$ctx.tool.call_id`. The runner fails a call closed when a bound value is missing (`assembleBody`), so the ops bind only what every agent run has. A playground draft can lack a revision ID, so the revision is not bound. The project comes from the caller's credential, as for every other route. The routes require `RUN_CHANNELS` on the caller.
+
+The tools are platform tools the agent author adds to the agent's tool list, like `create_schedule` today. Connecting a bot does not change the agent's configuration. With the runner's default `allow_reads` mode, list, read, and search run without a prompt and send asks. An author can set the send tool to `allow`, which an unattended automation needs.
+
+Why not publish Slack and Telegram gateway actions: that would copy bot credentials into the tool gateway, skip the Channels settings, and expose provider-shaped IDs. Why not let the model pass a `channel_agent_id` or `connection_id`: holding an internal ID is not authorization.
+
+### 2. The server resolves which bots the run speaks for
+
+The tool service matches the bound artifact ID against every active `ChannelAgent` in the project. A `ChannelAgent` that references an `application` or `workflow` matches on that ID. One that references a variant or a revision matches on the artifact that variant or revision belongs to, which the service looks up. The connection must be active, verified, and not archived.
+
+One run can match several connections, for example a Slack workspace and a Telegram bot. The list tool returns destinations from all of them. If two active `ChannelAgent` rows on the same connection match the same run, the settings would be ambiguous, so the tool refuses with a configuration error rather than guess.
+
+A run that matches no connection gets an empty destination list and a clear refusal from send, read, and search. It is not an error for the agent to have the tools configured before a bot is connected.
+
+### 3. Three settings on the bot replace per-destination grants
+
+Store the settings on the connected bot, in a new `tools` block of `ChannelAgentData`:
+
+| Field | Default | Meaning |
 | --- | --- | --- |
-| `list_channel_destinations` | Optional provider, kind, and action filters | Read-only |
-| `search_channel_messages` | Query, opaque destinations, sender, time bounds, thread, limit, cursor | Read-only |
-| `send_channel_message` | Opaque destination, text, optional opaque thread | Write |
-| `get_channel_delivery` | Delivery ID | Read-only |
-| `schedule_channel_message` | Destination, exact text, optional thread, offset-aware delivery time | Write |
-| `list_scheduled_channel_messages` | State and time filters | Read-only |
-| `cancel_scheduled_channel_message` | Scheduled delivery ID | Write |
+| `can_post_outside_conversation` | `true` | The send tool may post anywhere. When `false`, send refuses every destination, and the list reports `can_post: false`. |
+| `can_message_people` | `true` | The send tool may post to a person. It needs `can_post_outside_conversation` too. When either is `false`, the list omits people. |
+| `readable_space_ids` | `null` | `null` means every channel the bot is in. A list narrows read and search to those channels. An empty list turns read and search off. |
 
-Use endpoint-mode `PlatformOp` entries, not gateway tools or handler-mode operations. The endpoint path stays relative to the current Agenta API and reuses the run's authorization. The tool definitions contain only product inputs. The runner injects caller identity through context bindings.
+The settings page edits these through the existing `PUT /channels/agents/{agent_id}` route (`edit_channel_agent`), which layers a partial `data` edit onto the stored row (`ChannelAgentDataEdit` and `_layer_agent_edit`). No new configuration route is needed.
 
-Add a tool-dispatch context value such as `$ctx.tool.call_id`. It must be generated by the runner, stable across retries of one tool dispatch, and unavailable to the model. Bind workflow artifact, variant, and revision identity for every operation. Bind the tool call identity for writes. The project continues to come from the authenticated request.
+**What this drops, and why.** The first draft added four actions (`reply`, `search`, `send`, `direct_message`) to `ChannelGrant`, evaluated per destination and per space kind, plus an editor step that authorized each direct-message recipient. Mahmoud decided that on Slack the agent may post to every channel the bot is in, message anyone, and read every channel, with no allow-list in v1. Per-destination grants would then hold the same "allow" on every row. That adds a table's worth of state, a migration of the grant evaluation in `resolve_policy`, and a UI to edit it, all to express a default. Three settings on the bot express the same policy, are easy to show on one screen, and leave room for the future allow-list as a fourth setting. The existing grants keep their current job, which is deciding where the agent answers.
 
-The Channels endpoint resolves `ChannelAgent.data.references` against the bound run identity. It can return deployments across several authorized connections. If one connection has several indistinguishable deployments for the same run identity, configuration is invalid and the endpoint refuses an ambiguous choice.
+The read list is the one setting that names channels, because Mahmoud asked that an admin can narrow it. It stores space IDs, so it survives a channel rename.
 
-Alternative: Publish Slack and Telegram gateway actions. Rejected because that would duplicate installation credentials, bypass Channels grants and audit, and expose provider-shaped routing. Alternative: Let the model submit `channel_agent_id` or `connection_id`. Rejected because possession of an internal ID is not authorization.
+### 4. Destinations are space rows and person rows
 
-### Add action-specific Channels grants
+A destination ID is an opaque string that encodes one of two row types. The model must treat it as opaque, and the server treats it only as a lookup key. Every call re-resolves it inside the caller's project and the matched connections and then checks the settings again.
 
-Keep tool permission and resource permission separate. Tool permission answers whether the runner may execute an operation. Channels grants answer which destination and action the running agent may use.
+- **A channel destination** is a `ChannelSpace` row of kind `group` or `topic`.
+  - On Slack, the list first syncs the channels the bot is a member of. The adapter pages `users.conversations` with `types=public_channel,private_channel`, and the service creates missing space rows without joining anything (`get_or_create_space`). The sync runs on demand with a short time-to-live, stored on the connection. Group DMs (`mpim`) are left out.
+  - On Telegram, channel destinations are the group and supergroup chats that already have a space row. That means chats that sent the bot an update or were bound to it.
+- **A person destination** is a row in a new `channel_people` table: project, connection, a composed external user key (`compose_external_user_key` in `api/oss/src/core/channels/identity.py`), display name, handle, and flags. It also links the person's private space once one exists.
+  - On Slack, the list syncs the workspace directory with `users.list` (the `users:read` scope is already requested), skipping bots, deleted users, and Slackbot. It also creates a row whenever a message arrives from a sender it has not seen. Large workspaces rely on the `query` filter and cursor paging.
+  - On Telegram, a person row exists only for someone who has a private chat with the bot. That covers people who sent it a direct message and people bound through the hosted bot's `/start` link. A Telegram bot cannot start a chat, so nobody else can be listed.
 
-Extend the pre-release grant contract with explicit actions:
+Direct-message spaces (kind `private`) are never listed as channel destinations. They are reached through their person.
 
-- `reply`: answer an admitted inbound event.
-- `search`: retrieve indexed messages.
-- `send`: send proactively to an existing authorized conversation.
-- `direct_message`: create or use an explicitly authorized private recipient conversation.
+Why not signed provider locators: a signed Slack ID still leaks provider identity, and revocation would need a deny list. Why not open a DM for every workspace member up front: it creates provider state for people the agent may never contact.
 
-Exact scheduling requires the same `send` or `direct_message` action as delivery plus the scheduling platform tool. Destination listing reveals only actions that survive adapter capability, installation scope, connection state, destination state, and effective grant evaluation. Deny decisions remain effective at query and delivery time.
+### 5. The send posts inline and records the delivery
 
-The editor who changes tool configuration or grants needs the existing workflow and Channels edit permissions. Runtime tool endpoints are authenticated execution endpoints. They do not expose configuration CRUD and do not treat a human `EDIT_CHANNELS` permission as the agent's destination grant.
+`send_channel_message` extends the existing outbox rather than adding a new delivery table:
 
-Alternative: Use only runner approval. Rejected because approval for a tool call does not define which private channels or recipients an agent can access. Alternative: Treat reply as send. Rejected because answering a mention is narrower than initiating contact.
+- `channel_outbox_events.thread_id` becomes nullable, and the table gains `space_id` and `origin` (`turn` or `tool`). Turn replies keep writing `thread_id`, so their queries do not change.
+- The row `key` for a tool send is `uuid5(session_id + tool_call_id)`. The existing unique constraint `uq_channel_outbox_key` on `(project_id, key)` makes a retried call return the same row instead of posting twice.
+- The route re-checks authorization, creates or reuses the row, claims it with the same claim-and-fence logic the worker uses, posts through the adapter, and writes the receipt. It returns `sent`, `failed` with a sanitized reason, or `unknown`. `unknown` is the existing `delivery_uncertain` outcome: the post may have reached the chat, so Agenta never retries it. A row found still claimed by a request that died is also reported as `unknown`.
+- To share the claim, post, and receipt code with turn replies, move it from `ChannelsOutboxWorker._deliver` into `ChannelsService.deliver`. The worker then calls the service. This fills in the `deliver` stub that exists today.
 
-### Use configured conversation records as destinations
+The response includes a `message_id` and, when the provider threads, a `thread_id`. The agent can pass that `thread_id` to a later send or read.
 
-A model-visible destination is an opaque reference to an active configured `ChannelSpace`. Existing Slack channels and bound Telegram chats already fit that object. For a first Slack direct message, an editor explicitly authorizes a recipient. Channels uses the installation's `im:write` permission to open or resolve the direct conversation and then stores it as a private `ChannelSpace` before offering it to an agent.
+There is no background retry for tool sends. The agent gets a truthful state in the same call and decides what to do. Slack's `chat.postMessage` takes no idempotency key, so a lost receipt can never be made exactly-once. The design reports it as unknown instead of claiming more.
 
-The list operation returns `destination_id`, provider, kind, display label, available actions, thread support, direct-message support, and search coverage class. It never returns `ChannelSpace.data.external_locator`, Slack member IDs, Slack channel IDs, Telegram chat IDs, tokens, or connection IDs. Every later operation treats the opaque ID as a lookup key and repeats authorization.
+The sender identity comes from the connection, as for replies. Nothing in the tool schema can set a name, an avatar, or a token.
 
-This keeps one durable target type for delivery and search. It also prevents a model from turning a Slack username or Telegram handle into new authority.
+### 6. A proactive direct message gets its own private session
 
-Alternative: Return signed provider locators. Rejected because revocation and grant changes would be harder to enforce and the locator would leak provider identity. Alternative: let a send tool open a direct message from a raw recipient ID. Rejected because it combines recipient discovery, authorization, and delivery in one high-risk call.
+A send to a person resolves the person's private space:
 
-### Add a delivery intent above the shared adapter call
+- **Slack:** if the person has no private space yet, open one with `conversations.open` (`im:write` is already requested) and create the space row.
+- **Telegram:** the private space already exists, because the person wrote first.
 
-Introduce a durable `ChannelDeliveryIntent` for immediate and exact scheduled sends. It owns project, channel agent, destination, optional thread reference, exact content, source kind, tool invocation identity, requested delivery time, state, attempts, sanitized error, and external receipt. Store provider locators only in the existing destination and receipt data, never in tool input.
+The send then uses an active `ChannelThread` for that agent and private space, or creates one with a fresh session ID, the same way `ChannelsService.resolve` does. The outbox row records that thread. When the recipient answers, normal routing finds the thread and continues the private session. On Slack, a reply inside the posted message's thread lands in this session. A new top-level direct message follows the existing direct-message routing, which may start another private session. It never goes back to the source session.
 
-`ChannelsService.enqueue_output` creates or returns the intent under a uniqueness key that includes project, agent, operation, and tool call identity. `ChannelsService.deliver` re-checks authorization, resolves the trusted sender profile, claims the intent, and calls the adapter. The current turn outbox can continue folding progress and answers, but its final provider call should use the same delivery primitive.
+The source session is never moved, copied, or linked. Only the text the agent chose to send crosses over. So that the private session knows what was said, `compose_input` includes the thread's tool-origin outbox rows that the session has not seen yet as the agent's own earlier message.
 
-An immediate send waits for a bounded delivery attempt. It returns `sent` or a truthful non-terminal or failure state. `get_channel_delivery` lets the agent inspect a queued or unknown result. Exact schedules remain pending until due. A worker or trigger-service delivery invokes the same `deliver` method. The adapter does not parse time or invoke an agent.
+### 7. One local message history serves read and search
 
-Slack's current `post_message` accepts an idempotency key but does not use it in `chat.postMessage`. The Channels uniqueness constraint prevents duplicate intents and local enqueue, but it cannot close the network failure window after Slack accepts a post and before Agenta stores the receipt. Report that outcome as unknown. Do not claim exactly-once Slack delivery.
+Add a `channel_messages` table. It holds one row per provider message in a readable channel: project, connection, space, provider message key, thread key, parent message ID, sender (person ID when known, display name), text, provider timestamp, state (`live`, `edited`, `deleted`), origin (`pushed`, `pulled`, `sent`), and a generated `tsvector` column with a GIN index for search.
 
-Alternative: Create a synthetic inbound event and thread. Rejected because it falsifies provenance and couples outbound delivery to a conversation that did not occur. Alternative: call the adapter directly in the platform endpoint. Rejected because a process failure would lose durable status and scheduled delivery would need another path.
+The table is written from three places:
 
-### Give proactive direct messages a private session
+1. **Ingress.** After `resolve` attaches an inbox event to its space, the service upserts the message if the space is readable. This runs even when no turn starts.
+2. **Tool and reply sends.** A sent receipt writes the agent's own message, so reads show both sides of the conversation.
+3. **The history worker.** It writes pulled pages during backfill.
 
-When Channels configures the first direct conversation for an agent and recipient, create or select a private `ChannelThread` and session for future replies. Store no link that makes the source session the direct-message session. Send only the approved outbound text. A later inbound direct message resolves the private thread and current grants.
+Slack edits and deletions start being processed. A new adapter method parses `message_changed` and `message_deleted` into a message update that goes only to the history table. The existing `parse_event` still drops them, so an edit never starts a turn. That rule was added to stop a bot-echo loop and stays as it is.
 
-This prevents shared channel history, tool results, and participants from moving into a private conversation by accident. It also gives direct-message replies stable continuity.
+Why a projection and not `channel_inbox_events`: inbox rows are the turn log. They exclude the bot's own posts, include button clicks, and are append-only. Reading a conversation needs both sides of it, in order, with edits applied.
 
-Alternative: Move the source session to the direct message. Rejected because shared context can contain content the recipient must not receive. Alternative: send without creating reply continuity. Rejected because the first recipient response could fall to the installation default or a different session.
+### 8. Slack backfill is bounded and rate-aware
 
-### Build a permission-filtered lexical index
+When a Slack channel becomes readable, the service queues a backfill job on a new `queues:channels-history` Taskiq queue. A channel becomes readable when the bot is added, the admin re-adds it to the list, or the first destination sync finds it.
 
-Keep inbox events as source records and add a searchable message projection keyed by project, connection, space, provider message identity, and thread identity. Store normalized text, sender display data where available, provider timestamp, lifecycle state, and an optional permalink. Use PostgreSQL lexical search and deterministic timestamp-plus-ID pagination for the first release. No embedding provider is required.
+- The job pages `conversations.history` backwards up to a bound: `AGENTA_CHANNELS_HISTORY_BACKFILL_DAYS` (default 90) or `AGENTA_CHANNELS_HISTORY_BACKFILL_MESSAGES` (default 1,000) per channel, whichever comes first. It then fetches `conversations.replies` for threads inside that window, up to `AGENTA_CHANNELS_HISTORY_BACKFILL_THREADS` (default 200) per channel.
+- On HTTP 429 it waits for `Retry-After` and resumes from a stored cursor. A worker restart resumes from the same cursor.
+- Progress and coverage live in a new `history` block on `ChannelSpaceData`: state (`pending`, `running`, `complete`, `partial`, `refused`), oldest and newest covered times, the cursor, and the last error. This is separate from the existing `is_backfilled` flag, which guards the one-time fill before a first turn.
+- If the read tool asks for a thread whose replies were not fetched, the service fetches that one thread inline (one page, bounded), stores it, and serves it.
 
-Update the projection from valid ingress events. Extend Slack normalization to process supported `message_changed` and `message_deleted` events rather than dropping all such subtypes before indexing. Keep agent invocation filters separate so an edit updates the index without starting a turn.
+All bounds are read from `env.channels.history` in `api/oss/src/utils/env.py`, not from `os.getenv`.
 
-When an editor grants search on a Slack destination, start live indexing and a bounded history job. Page `conversations.history` or `conversations.replies`, respect Slack retry delays, and persist coverage state. Do not use provider search on each tool call. Query-time joins re-evaluate the current agent grant, so indexed private content does not become accessible after revocation.
+Telegram has no backfill. Its coverage is always "observed only". It starts at the first message Agenta stored for that chat. In groups where the bot's privacy mode is on, that is only messages addressed to the bot.
 
-Coverage records include observed start, earliest and latest indexed time, backfill state, known gaps, and sanitized access failures. Telegram coverage always states observed-history only because the Bot API provides neither chat discovery nor history reads.
+### 9. Read and search re-check access at query time
 
-Alternative: Inject all destination history into every prompt. Rejected because it wastes context and widens disclosure. Alternative: use Slack's search API as the primary index. Rejected because token support and workspace coverage differ, query-time provider access is harder to audit, and Telegram still needs local retrieval.
+Read and search accept only channel destinations that are readable at call time. That is `readable_space_ids` (or every channel when it is `null`), on an active connection, for a matched bot. Rows stored before an admin narrowed the list are filtered out immediately. A cleanup job then deletes history for spaces that left the list or whose connection was archived.
 
-### Separate exact schedules from recurring generated runs
+Direct messages are never readable or searchable through these tools. A shared-channel run must not pull a private conversation into its context.
 
-`schedule_channel_message` stores one exact message and an offset-aware due time on a delivery intent. It never asks the model to regenerate the text. The owner can list and cancel it before claim. Due delivery repeats all current authorization and connection checks.
+Search uses PostgreSQL full-text search with the `simple` configuration, so no language or embedding model is assumed. Results are ordered by rank, then provider timestamp, then row ID. The cursor encodes that triple, so equal timestamps never skip or repeat. Every response carries coverage for each channel searched.
 
-Recurring content that must change at each occurrence uses the existing `create_schedule` platform operation. That schedule starts the agent with generation instructions. The agent then calls `send_channel_message`. The editor must explicitly configure unattended write permission and destination grants. If send still requires an interactive decision, the scheduled run stops instead of bypassing it.
+### 10. Settings UI
 
-This separation keeps fixed approved content stable and leaves generated recurrence in the existing scheduling product.
+Add a collapsible **Advanced** section at the end of `ChannelManagePanel`, below "Behavior" and the Telegram allow-list:
 
-Alternative: Put cron fields on Slack and Telegram adapters. Rejected because adapters are transports and this would duplicate scheduler, retry, cancellation, and audit behavior.
+- Two switches, "Can post outside the conversation" and "Can message people directly". The second is disabled while the first is off.
+- "Channels it can search and read", with "All channels the bot is in" selected by default. Choosing "Only these channels" shows a checklist of the bot's member channels. On Slack these come from discovery with `membership == member`. On Telegram they are the known group chats.
+- Telegram help text under each control says what Telegram allows: "People who have messaged the bot" and "Only messages the bot has seen since it joined".
+
+The panel is shared by desktop and `/m`, so both get the controls. An existing test (`web/packages/agenta-settings-ui/tests/unit/channelManagePanel.test.tsx`, "shows no read-only settings: no Advanced defaults and no Status row") forbids the word "Advanced". It records an earlier decision to stop showing read-only defaults. The new section keeps that rule: it holds only the three editable controls, and the test changes to say so. New `ChannelsActions` methods read and write `ChannelAgentData.tools` through the existing edit-agent client call.
 
 ## Interface roles
 
-The public tool contracts separate fields by role:
+- **Data:** message text, search query, name filter, and time bounds.
+- **Routing:** destination ID, thread ID, message ID, and cursor. All are opaque.
+- **Policy:** the three bot settings and the tool permission. They are never model input.
+- **Protocol context:** caller credential, workflow references, session ID, and tool call ID. The runner and server bind them.
+- **Metadata:** delivery state, coverage, and timestamps.
+- **Credentials:** bot tokens stay in the connection's secret store. They never appear in a tool schema, a tool result, a delivery row, or a log line.
 
-- **Data:** query text, outbound text, filters, and delivery time.
-- **Routing:** opaque destination, thread, delivery, and cursor references.
-- **Policy:** tool permission and Channels action grants. These never arrive as model-authored call data.
-- **Protocol context:** project credential, running workflow references, and tool invocation identity. The runner and server bind these.
-- **Metadata:** delivery states, timestamps, coverage, audit references, and sanitized failures.
-- **Credentials:** bot tokens and signing secrets remain in the Channels connection store and never enter tool schemas, model context, delivery content, or audit fields.
+## What was dropped from the first draft
+
+| Dropped | Why |
+| --- | --- |
+| `channel-message-scheduling`: `schedule_channel_message`, `list_scheduled_channel_messages`, `cancel_scheduled_channel_message`, due-delivery wake-up, exact-schedule rows | Scheduling belongs to the automation and scheduling product (decision 1). An automation that runs the agent calls `send_channel_message`. |
+| Per-destination action grants (`reply`, `search`, `send`, `direct_message`) | Replaced by three bot settings. See decision 3. |
+| Editor-authorized direct-message recipients | Slack agents may message anyone by default (decision 3). A per-person allow-list is future work. |
+| `get_channel_delivery` | The send posts inline and returns a final state. |
+| A separate `ChannelDeliveryIntent` table | The outbox already has keys, claims, receipts, and the `delivery_uncertain` rule. A nullable thread and two columns reuse all of it. |
+| A separate audit table | Tool calls are already recorded as trace spans, and sends leave a durable outbox row. |
+| Provider permalinks in results | Each Slack permalink costs an API call. Opaque message and thread IDs are enough to reply or read on. |
 
 ## Risks / Trade-offs
 
-- **Provider post succeeds but receipt storage fails:** Slack and Telegram can duplicate a retry. Preserve an unknown outcome and show the limitation instead of claiming exactly-once delivery.
-- **Search permission changes after indexing:** Stored private text remains in the project index. Apply authorization at every query and delete it according to project retention and connection removal rules.
-- **Slack history is incomplete:** Membership, scopes, retention, and rate limits can create gaps. Return coverage with every search response.
-- **Telegram history is incomplete:** The Bot API cannot backfill. Label every Telegram result set as observed-history only.
-- **Direct-message setup changes provider state:** Opening a Slack direct conversation requires explicit editor action, `im:write`, and live API validation before release.
-- **Scheduled sends outlive intent:** An editor can revoke access after approval. Re-check at delivery and block rather than preserve stale authority.
-- **Recurring unattended sends reduce review:** Require an explicit `allow` decision and show the destination scope before schedule activation.
-- **Identity match is ambiguous:** Several ChannelAgent rows can reference the same runnable identity. Enforce one deployment per connection and resolved run identity or fail closed.
+- **Slack's history limits for distributed apps.** Since 2025, Slack caps `conversations.history` and `conversations.replies` at about one request per minute and 15 messages per page for commercially distributed apps that are not in the Slack Marketplace. Internal (customer-built) apps keep the normal tier. If the hosted Agenta app falls in the capped group, a 1,000-message backfill takes over an hour per channel. The bounds are configurable, and coverage reports `partial` honestly. The hosted app's status needs checking before release.
+- **Private channel content reaches wider audiences.** By default an agent can read a private channel it was invited to and post what it learned to a public channel. That is Mahmoud's chosen default. The admin control is the read list.
+- **Directory sync on large workspaces.** `users.list` is a Tier 2 method. Sync is paged, cached with a time-to-live, and filtered by `query`. It never runs on every call.
+- **Lost receipts.** A Slack or Telegram post can succeed after the request times out. The send reports `unknown` and never retries. The agent may tell the user it is unsure.
+- **Stored private text.** History rows stay in the project database until cleanup. Query-time checks make them unreachable at once. Deletion follows within the cleanup interval.
+- **Telegram privacy mode.** In groups where privacy mode is on, the bot sees only messages addressed to it, so reads and searches return little. The settings help text and every Telegram coverage block say so.
+- **People cannot reply to a Slack DM.** If the app's messages tab is off, a person can read the proactive message but cannot answer. The custom-app manifest in `adapters/slack/manifest.py` sets no `app_home` block today. The plan adds it and checks the hosted app.
+- **Ambiguous bot bindings.** Two bots on one connection bound to the same agent make the settings ambiguous. The tools refuse rather than pick one.
 
 ## Migration Plan
 
-1. Define final DTOs, database constraints, platform-operation schemas, and generated clients together. No compatibility path or pre-release data migration is required.
-2. Add action-specific grants, configured direct destinations, delivery intents, search projection, coverage records, and tool-call context identity.
-3. Add authenticated tool endpoints and catalog entries. Keep every new platform tool opt-in.
-4. Route immediate and due intents through the shared delivery service, then move existing turn posting onto the same final provider-call primitive.
-5. Add Slack edit and delete indexing, bounded backfill, and Telegram observed-history coverage.
-6. Add editor controls for tools, actions, direct recipients, coverage, schedules, and delivery states.
-7. Validate with fresh Slack and Telegram connections. Resetting shared development data still requires operator approval.
-8. Enable exact schedules only after cancellation, revocation, duplicate-fire, and provider-unknown-outcome tests pass. Enable recurring unattended sends only with explicit tool and destination permission.
-
-Rollback disables the new platform operations and workers, leaving pending intents blocked and inspectable. It SHALL NOT delete external messages or silently move pending work to another installation.
+1. Add `ChannelAgentData.tools`, the `channel_people` table, and the outbox columns in one additive migration (`oss000000036`). Existing rows read `tools` as the defaults. Existing outbox rows get `origin = turn` and their `space_id` from their thread.
+2. Add `channel_messages` and the history queue (`oss000000037`).
+3. Ship the routes and catalog entries. Nothing changes for an agent until its author adds the tools.
+4. Rollback removes the catalog entries and stops the history worker. Outbox rows and history rows stay readable. No external message is deleted.
 
 ## Verification Plan
 
-Add platform catalog and runner tests for hidden identity fields, stable tool call identity, read-only hints, and write decisions. Add Channels service and route tests for reference matching, project isolation, action grants, opaque destinations, direct-message setup, durable enqueue, retries, cancellation, and delivery-time revocation.
-
-Add PostgreSQL tests for tenant-scoped lexical search, deterministic cursors, edits, deletions, coverage, and revoked grants. Extend Slack adapter and live tests for `im:write`, direct conversation setup, bounded pagination, rate limits, customized proactive identity, and lost-receipt behavior. Extend Telegram tests for bound-chat destinations, observed-history search, and no discovery or backfill claims.
-
-Run the full OpenSpec validation and repository document checks before implementation review. Live provider tests must use fresh approved test connections and save sanitized evidence.
+Unit tests cover settings defaults, reference matching, destination encoding, every refusal path, the send's idempotency and unknown outcome, the private-session rule, cursor ordering, and coverage reporting. Integration tests against PostgreSQL cover the new tables, the outbox extension, full-text search, and query-time filtering. Adapter tests use the existing fake Slack server. Live QA uses a fresh Slack workspace and a fresh Telegram bot. [plan.md](plan.md) lists every test and command.
 
 ## Effort
 
 | Component | Engineer-days |
 | --- | ---: |
-| Platform operations and bound tool-call identity | 2-3 |
-| Action grants and destination controls | 2-3 |
-| Durable proactive and direct-message delivery | 3-5 |
-| Slack indexing and lexical search | 4-6 |
-| Exact scheduling and recurring-run integration | 2-3 |
-| Shared controls, automated tests, and live validation | 3-5 |
-| Total | 16-25 |
+| Destinations, people directory, bot settings, list tool | 3-4 |
+| Send tool, outbox extension, tool call ID, private DM session | 4-5 |
+| Settings UI (Advanced section) | 1-2 |
+| Message history, Slack edits, backfill worker, read tool | 4-6 |
+| Search index and search tool | 2-3 |
+| Live QA on Slack and Telegram, fixes | 2-3 |
+| Total | 16-23 |
 
-This estimate excludes the native Slack handle work, provider app-review time, semantic search, Telegram history backfill, and Enterprise Grid.
+This excludes Slack Marketplace review time, the native Slack handle change, and the future per-person allow-list.
 
-## Implementation sources
+## Future work
 
-- Platform operation contract and context bindings: [`op_catalog.py`](https://github.com/Agenta-AI/agenta/blob/658d6f5edae34d861d141a38604ef7a12a7b69c8/sdks/python/agenta/sdk/agents/platform/op_catalog.py#L152-L319).
-- Platform tool resolution and reused authorization: [`platform_tools.py`](https://github.com/Agenta-AI/agenta/blob/658d6f5edae34d861d141a38604ef7a12a7b69c8/sdks/python/agenta/sdk/agents/platform/platform_tools.py#L53-L140).
-- Read and write permission behavior: [`tools/models.py`](https://github.com/Agenta-AI/agenta/blob/658d6f5edae34d861d141a38604ef7a12a7b69c8/sdks/python/agenta/sdk/agents/tools/models.py#L142-L165).
-- Workflow run identity: [`agents/dtos.py`](https://github.com/Agenta-AI/agenta/blob/658d6f5edae34d861d141a38604ef7a12a7b69c8/sdks/python/agenta/sdk/agents/dtos.py#L528-L613).
-- Authenticated Channels routes and project permissions: [`channels/router.py`](https://github.com/Agenta-AI/agenta/blob/658d6f5edae34d861d141a38604ef7a12a7b69c8/api/oss/src/apis/fastapi/channels/router.py#L507-L515).
-- Current policy and grant data: [`channels/dtos.py`](https://github.com/Agenta-AI/agenta/blob/658d6f5edae34d861d141a38604ef7a12a7b69c8/api/oss/src/core/channels/dtos.py#L305-L320), [`channels/dtos.py`](https://github.com/Agenta-AI/agenta/blob/658d6f5edae34d861d141a38604ef7a12a7b69c8/api/oss/src/core/channels/dtos.py#L668-L718).
-- Thread-bound outbox lookup: [`outbox.py`](https://github.com/Agenta-AI/agenta/blob/658d6f5edae34d861d141a38604ef7a12a7b69c8/api/oss/src/tasks/asyncio/channels/outbox.py#L105-L139).
-- Unimplemented delivery service boundary: [`channels/service.py`](https://github.com/Agenta-AI/agenta/blob/658d6f5edae34d861d141a38604ef7a12a7b69c8/api/oss/src/core/channels/service.py#L1939-L1946).
-- Slack posting and history: [`slack/adapter.py`](https://github.com/Agenta-AI/agenta/blob/658d6f5edae34d861d141a38604ef7a12a7b69c8/api/oss/src/core/channels/adapters/slack/adapter.py#L322-L366), [`slack/adapter.py`](https://github.com/Agenta-AI/agenta/blob/658d6f5edae34d861d141a38604ef7a12a7b69c8/api/oss/src/core/channels/adapters/slack/adapter.py#L431-L476).
-- Telegram discovery and history limits: [`telegram/adapter.py`](https://github.com/Agenta-AI/agenta/blob/658d6f5edae34d861d141a38604ef7a12a7b69c8/api/oss/src/core/channels/adapters/telegram/adapter.py#L395-L417).
+- An allow-list of people the agent may message directly, as a fourth bot setting.
+- A per-channel posting allow-list, if admins ask for one.
+- Semantic search over the same history table.

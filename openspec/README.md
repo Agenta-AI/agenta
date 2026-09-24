@@ -39,10 +39,10 @@ The baseline describes the channels pull request stack through [PR #6737](https:
 ## Read first
 
 1. Read the [native Slack handle proposal](changes/slack-native-agent-handles/proposal.md) for shared-installation addressing and identity.
-2. Read the [channel agent tools proposal](changes/channel-agent-tools/proposal.md) for destination discovery, search, proactive delivery, and scheduling.
+2. Read the [channel agent tools proposal](changes/channel-agent-tools/proposal.md) for listing destinations, sending, reading, and searching. Its [implementation plan](changes/channel-agent-tools/plan.md) lists the phases, files, and tests.
 3. Read each proposal's design for implementation choices, risks, verification, and estimates:
    - [Native Slack handle design](changes/slack-native-agent-handles/design.md), estimated at 9-15 engineer-days.
-   - [Channel agent tools design](changes/channel-agent-tools/design.md), estimated at 16-25 engineer-days.
+   - [Channel agent tools design](changes/channel-agent-tools/design.md), estimated at 16-23 engineer-days.
 4. Check the implementation tasks. Every task remains unchecked:
    - [Native Slack handle tasks](changes/slack-native-agent-handles/tasks.md).
    - [Channel agent tools tasks](changes/channel-agent-tools/tasks.md).
@@ -64,17 +64,18 @@ A Slack user group provides the mention handle. It is not a new Slack bot user. 
 
 | Capability | Current behavior | Proposed delta |
 | --- | --- | --- |
-| Tool access | No channel operations are platform tools. | [Optional tools with bound identity and layered authorization](changes/channel-agent-tools/specs/channel-agent-tool-access/spec.md) |
-| Destination discovery | Configuration APIs can discover spaces, but agents cannot list their permitted targets. | [Opaque authorized destinations](changes/channel-agent-tools/specs/channel-destination-discovery/spec.md) |
-| Proactive delivery | Outbox delivery begins from a session-linked ChannelThread. | [Durable sends outside an inbound thread](changes/channel-agent-tools/specs/channel-message-delivery/spec.md) |
-| Message search | Slack has bounded one-time history fetch. Telegram has no provider-history read. | [Permission-aware indexed search with coverage](changes/channel-agent-tools/specs/channel-message-search/spec.md) |
-| Scheduling | The generic scheduler can run an agent, but Channels has no exact-message schedule. | [Exact one-time messages and recurring generated runs](changes/channel-agent-tools/specs/channel-message-scheduling/spec.md) |
+| Tool access | No channel operations are platform tools. | [Four platform tools with a server-bound caller and checks on every call](changes/channel-agent-tools/specs/channel-agent-tool-access/spec.md) |
+| Bot settings | The manage panel has "Answers in", "Behavior", and a Telegram allow-list. | [Three per-bot controls under a new Advanced section](changes/channel-agent-tools/specs/channel-agent-tool-settings/spec.md) |
+| Destination discovery | Configuration APIs can discover spaces, but agents cannot list their targets. | [Opaque channel and person destinations on Slack and Telegram](changes/channel-agent-tools/specs/channel-destination-discovery/spec.md) |
+| Proactive delivery | Outbox delivery begins from a session-linked ChannelThread. | [Sends outside the conversation with a truthful delivery record](changes/channel-agent-tools/specs/channel-message-delivery/spec.md) |
+| Reading | Slack has a one-time fetch of up to 50 messages before a first turn. Telegram has no history read. | [Read a channel or thread from a local history with bounded Slack backfill](changes/channel-agent-tools/specs/channel-conversation-reading/spec.md) |
+| Search | None. | [Lexical search over the local history with coverage](changes/channel-agent-tools/specs/channel-message-search/spec.md) |
 
-The proposed tools never receive bot credentials, raw provider locators, project IDs, connection IDs, or channel-agent IDs from the model. Exact scheduled messages store approved text. Recurring generated messages continue to use the agent scheduler and ordinary send tool.
+The tools never receive bot credentials, raw provider IDs, project IDs, connection IDs, or channel-agent IDs from the model. Scheduling is out of scope: an automation that runs the agent uses the ordinary send tool.
 
 ## OpenSpec layout
 
-`specs/` records the observed Slack baseline. `changes/slack-native-agent-handles/` contains one proposal with five capability deltas. `changes/channel-agent-tools/` contains a separate proposal with five new capability deltas.
+`specs/` records the observed Slack baseline. `changes/slack-native-agent-handles/` contains one proposal with five capability deltas. `changes/channel-agent-tools/` contains a separate proposal with six new capability deltas and an implementation plan.
 
 Do not copy proposed requirements over the baseline yet. OpenSpec merges a delta when an implemented and accepted change is archived. Completed planning artifacts are not a completed implementation.
 
@@ -88,16 +89,16 @@ openspec status --change slack-native-agent-handles
 openspec status --change channel-agent-tools
 ```
 
-The current behavior comes from code inspection, not live Slack or Telegram testing. Native empty-member group mentions, customized progress identity, Slack direct-message setup, provider receipt-loss behavior, indexed-history coverage, and unattended scheduled delivery remain explicit validation work. No external workspace is changed by these documents.
+The current behavior comes from code inspection, not live Slack or Telegram testing. Native empty-member group mentions, customized progress identity, Slack direct-message setup, provider receipt-loss behavior, and history backfill coverage remain explicit validation work. No external workspace is changed by these documents.
 
 ## Review decisions
 
 - Native Slack handles use one workspace installation in one Agenta project.
-- Agent-facing channel operations are optional platform tools, not direct adapter or gateway calls.
-- Tool permission and destination-level Channels grants are separate decisions.
-- Permission to reply does not grant search, proactive send, or direct-message initiation.
+- Agent-facing channel operations are platform tools the agent author adds, not direct adapter or gateway calls. The send tool follows the agent's normal tool permission.
+- Three per-bot settings replace per-destination grants: posting outside the conversation (on), messaging people directly (on), and the channels it may read and search (all by default).
+- On Slack the agent may post to any channel the bot is in, message anyone in the workspace, and read every channel the bot is in. There is no allow-list in v1.
+- On Telegram the agent can reach only chats that sent the bot an update and people who wrote to it first. Reading and search cover only observed messages.
 - Proactive direct messages use a separate private channel session. They do not move a shared source session.
-- Slack search uses a permission-filtered local lexical index with bounded backfill and coverage reporting.
-- Telegram search covers only messages Agenta observes after connection.
-- Exact one-time messages use durable Channels intents. Recurring generated content uses the existing agent scheduler.
+- Read and search use a local history. Slack backfill is bounded and rate-aware.
+- Scheduling belongs to the automation product and is not part of this change.
 - Provider delivery is not described as exactly once when an accepted post can lose its receipt.

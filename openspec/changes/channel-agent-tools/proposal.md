@@ -2,36 +2,52 @@
 
 ## Why
 
-Connected agents can answer only inside a channel thread that already produced an inbound event. They cannot independently list permitted destinations, search channel knowledge, send to another destination, or schedule an exact message through the Channels stack.
+An agent connected to Slack or Telegram can only answer inside the conversation that woke it up. It cannot post to another channel, message a person, look back at what a channel said last week, or search what was discussed. People expect a connected coworker to do all four: "post the summary in #releases", "tell Dana the build is green", "what did #support decide about refunds?".
 
-Status: Draft for Mahmoud's review. This change is specified, not implemented. The channels stack has not shipped to production.
+Status: Draft for Mahmoud's review. Nothing here is implemented. This version replaces the 2026-09-20 draft and follows Mahmoud's decisions of 2026-09-24. The implementation plan is in [plan.md](plan.md).
 
 ## What Changes
 
-- Expose optional Agenta platform tools that let a connected agent list its permitted Slack and Telegram destinations, search indexed messages, send a message, and manage an exact scheduled message.
-- Bind the running workflow identity and project authorization on the server. Do not let the model choose another channel agent, connection, project, credential, or raw platform locator.
-- Separate tool execution permission from destination-level Channels grants for reply, search, proactive send, and direct-message initiation.
-- Add a durable delivery intent that can target an authorized destination without an inbound event, existing `ChannelThread`, or source-session transfer.
-- Add permission-aware message indexing with explicit coverage. Slack can backfill selected conversations. Telegram search covers only messages observed after connection.
-- Use the existing scheduler for recurring agent runs that generate fresh content. Store exact one-time messages as cancellable Channels delivery intents so the model does not regenerate approved text at delivery time.
-- Treat a proactive direct message as a separate private channel session. Do not move or expose the source session.
+- Add four Agenta platform tools that a connected agent can use from any run: in a channel thread, in Agenta chat, or in an automation.
+  - `list_channel_destinations` lists the channels and people the agent may message, as opaque destination IDs.
+  - `send_channel_message` posts to a channel or to a person, outside the current conversation, optionally in a thread.
+  - `read_channel_messages` reads a channel's recent messages (the last N, up to 200) or one thread's replies.
+  - `search_channel_messages` searches the messages of every channel the agent may read.
+- Set permissive defaults on Slack. The agent may post to any channel the bot is in, message any person in the workspace, and read and search every channel the bot is in. There is no per-channel or per-person allow-list in v1.
+- Describe Telegram as it really is. A bot can message only chats that have sent it an update and people who wrote to it first. Reading and searching cover only messages Agenta observed after the bot joined.
+- Add three controls under a new **Advanced** section of each connected bot in the Channels settings: "Can post outside the conversation" (on by default), "Can message people directly" (on by default), and "Channels it can search and read" (all channels by default; an admin can narrow the list).
+- Keep a local copy of channel messages so the read and search tools can serve them. On Slack, backfill a bounded amount of history for every readable channel and respect Slack's rate limits. On Telegram, keep only what the bot observed.
+- Keep the safety rules of the first draft: opaque destination IDs, the running agent's identity bound on the server, no credentials visible to the model, a durable delivery record with truthful `sent`, `unknown`, or `failed` states, a private session for every proactive direct message, project isolation, and authorization checked again at every call.
+- The send tool follows the agent's normal tool permission (`ask` or `allow`), like any other write tool. Nothing special is added for approval.
+
+## What this change removes from the first draft
+
+- All scheduling. Posting at a set time, exact one-time messages, and recurring posts belong to the separate automation and scheduling product. The `channel-message-scheduling` capability and every schedule, cancel, and list-scheduled tool, table, and task are gone. An automation that runs the agent can call `send_channel_message` like any other run.
+- The per-destination action grants (`reply`, `search`, `send`, `direct_message`). The three settings above replace them. [design.md](design.md) explains the trade-off.
+- The editor-only step that authorized each Slack direct-message recipient. Mahmoud's decision is that an agent may message anyone in the workspace.
+- `get_channel_delivery`. A send posts inline and returns its final state, so there is nothing left to poll.
 
 ## Capabilities
 
 ### New Capabilities
 
-- `channel-agent-tool-access`: Optional tool exposure, bound caller identity, layered authorization, project isolation, and auditing.
-- `channel-destination-discovery`: Safe discovery of destinations the running agent can use.
-- `channel-message-delivery`: Durable proactive channel and direct-message delivery outside an originating thread.
-- `channel-message-search`: Permission-aware search over indexed Slack and observed Telegram messages with coverage reporting.
-- `channel-message-scheduling`: Exact one-time delivery intents plus integration with recurring generated agent runs.
+- `channel-agent-tool-access`: Which runs may use the channel tools, how the server binds the caller's identity, and the checks every call repeats.
+- `channel-agent-tool-settings`: The three per-bot controls, their defaults, and where the settings page shows them.
+- `channel-destination-discovery`: What `list_channel_destinations` returns on Slack and on Telegram.
+- `channel-message-delivery`: `send_channel_message`, the delivery record, and the private session for proactive direct messages.
+- `channel-conversation-reading`: `read_channel_messages`, the local message history, Slack backfill, and Telegram's observed-only history.
+- `channel-message-search`: `search_channel_messages` over the local message history.
 
 ### Modified Capabilities
 
-None. These tools add capabilities that the current baseline does not define.
+None. The current baseline specifications describe installation, routing, reply identity, and deployment. They do not define agent-facing channel tools.
 
 ## Impact
 
-Backend work affects platform operation definitions, run-context bindings, authenticated Channels routes, grants and effective policy, destination resolution, inbox indexing, delivery storage, outbox execution, and Slack and Telegram scopes and adapters. The agent editor and Channels settings need controls for tool exposure, destination grants, direct-message access, and scheduled deliveries. The existing trigger service remains the scheduler for recurring generated runs.
+- **SDK**: four new operations in the platform tool catalog (`sdks/python/agenta/sdk/agents/platform/op_catalog.py`).
+- **Runner**: one new hidden run-context value, the tool call ID, used to make a send idempotent (`services/runner/src/tools/relay.ts`).
+- **API**: new authenticated tool routes under `/channels/tools/`, a tool service under `api/oss/src/core/channels/tools/`, new tables for people and messages, a nullable-thread extension of the outbox table, a history backfill worker, and Slack adapter methods for membership, people, direct conversations, paged history, and message edits.
+- **Settings UI**: a new Advanced section in `web/packages/agenta-settings-ui/src/channels/ChannelManagePanel.tsx`, shared by the desktop app and `/m`.
+- **Slack app**: no new scopes. The current bot scopes already include `users:read`, `im:write`, and the history scopes. The app manifest may need its messages tab enabled so people can answer a proactive direct message.
 
-No adapter credential becomes agent-visible. No tool can use an arbitrary raw Slack channel ID, Slack user ID, Telegram chat ID, connection ID, or project ID. This change does not add Slack semantic search, Telegram history backfill, cross-project installations, Telegram chat discovery, or a general-purpose message scheduler outside Channels.
+No credential, raw Slack ID, raw Telegram ID, project ID, connection ID, or channel-agent ID ever appears in a tool's input or output. This change adds no semantic search, no Telegram history backfill, no Slack group-DM destinations, no per-person allow-list, and no scheduling.

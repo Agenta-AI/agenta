@@ -2,54 +2,66 @@
 
 ## Purpose
 
-Give a running agent stable, permission-filtered destination choices without revealing raw provider locators or inaccessible conversations.
+Tell a running agent which channels and people it can reach, with opaque IDs and truthful capabilities, on Slack and on Telegram.
 
 ## ADDED Requirements
 
-### Requirement: Opaque authorized destinations
-`list_channel_destinations` SHALL return only active destinations for which the running agent currently has at least one requested action. Each result SHALL use an opaque Agenta destination ID and SHALL include its provider, kind, display label, supported actions, and whether threads and direct messages are supported. It SHALL NOT return credentials or raw Slack channel, Slack user, or Telegram chat identifiers.
+### Requirement: List destinations with opaque IDs
+`list_channel_destinations` SHALL return the channels and people the running agent can reach through its bots. Each result SHALL have an opaque `destination_id`, a `type` (`channel` or `person`), the platform, a display name, and the flags `can_post`, `can_read`, `can_search`, and `supports_threads`. Channel results SHALL also say whether their history is backfilled or observed only. Results SHALL NOT contain credentials or raw Slack channel, Slack user, Telegram chat, or Telegram user IDs. The tool SHALL accept an optional type filter, an optional name filter, a limit of at most 100, and a cursor.
 
 #### Scenario: Agent lists its destinations
-- **WHEN** a connected agent lists destinations
-- **THEN** Agenta SHALL return only destinations from that agent's active deployments and current grants in the authenticated project.
+- **WHEN** a connected agent calls the list tool with no filters
+- **THEN** Agenta SHALL return channels and people from every bot bound to that agent in the project, and no others.
 
-#### Scenario: Destination loses its grant
-- **WHEN** an editor removes all tool actions from a destination
-- **THEN** a later destination listing SHALL omit it even if the provider installation can still access it.
+#### Scenario: Name filter in a large workspace
+- **WHEN** the agent lists people with the query "dana"
+- **THEN** Agenta SHALL return only people whose name or handle matches, a page at a time.
 
-### Requirement: Destination tokens are references, not authority
-An opaque destination ID SHALL identify a stored destination but SHALL NOT grant access by possession. Every read and write SHALL re-resolve the destination under the authenticated project, running agent, active connection, and current grant.
+#### Scenario: Posting is off but reading is on
+- **WHEN** the bot's posting setting is off and its channels are readable
+- **THEN** channel results SHALL show `can_post` false and `can_read` true, and no people SHALL be listed.
 
-#### Scenario: Token copied between agents
-- **WHEN** another agent in the same project submits a destination token that it cannot use
-- **THEN** Agenta SHALL refuse the operation without revealing the allowed agent's configuration.
+### Requirement: A destination ID is a reference, not a permission
+A destination ID SHALL identify a stored channel or person. Holding one SHALL NOT grant access. Every later call SHALL look it up again inside the caller's project and the running agent's bots and check the current settings.
 
-#### Scenario: Archived connection
-- **WHEN** a destination belongs to an archived or unverified connection
-- **THEN** Agenta SHALL omit it from discovery and refuse new operations against its prior token.
+#### Scenario: ID copied to another agent
+- **WHEN** a second agent in the same project uses a destination ID listed for the first agent's bot
+- **THEN** Agenta SHALL return not found.
 
-### Requirement: Provider-specific discovery limits
-Slack channel destinations SHALL come from configured conversations that the installation can access. Slack direct-message destinations SHALL require an explicitly authorized recipient and the scopes needed to open or use that conversation. Telegram destinations SHALL come only from chats that have already bound or self-registered with the connection because a Telegram bot cannot enumerate joined chats.
+#### Scenario: Channel archived in Slack
+- **WHEN** a listed Slack channel is archived before the agent posts to it
+- **THEN** the send SHALL fail with a sanitized reason, and later listings SHALL omit that channel.
 
-#### Scenario: Slack sees an unconfigured public channel
-- **WHEN** the Slack installation can list a public channel but no active Channels destination and agent grant exist for it
-- **THEN** the agent's destination tool SHALL NOT expose that channel.
+### Requirement: Slack destinations
+On Slack, channel destinations SHALL be the public and private channels the bot is a member of. Group DMs SHALL NOT be listed. Person destinations SHALL be the people in the workspace, excluding bots, deactivated accounts, and Slackbot. Agenta SHALL refresh both lists from Slack on demand, SHALL cache them for a short time, and SHALL NOT call Slack on every list request.
 
-#### Scenario: Telegram bot is installed in an unknown chat
-- **WHEN** a Telegram chat has never bound or sent an event to Agenta
-- **THEN** destination discovery SHALL NOT claim that the chat exists or can receive a message.
+#### Scenario: Bot invited to a private channel
+- **WHEN** someone invites the bot to a private channel and the agent lists destinations after the cache expires
+- **THEN** that channel SHALL appear as a channel destination.
 
-#### Scenario: Slack direct-message initiation lacks permission
-- **WHEN** an authorized recipient has no existing direct conversation and the installation lacks the required direct-message scope
-- **THEN** discovery SHALL report direct-message initiation as unavailable and SHALL NOT offer a sendable destination.
+#### Scenario: Public channel the bot is not in
+- **WHEN** a public channel exists but the bot is not a member
+- **THEN** it SHALL NOT be listed, because the bot cannot post there.
 
-### Requirement: Destination capability reporting
-Destination results SHALL state which of reply, search, proactive send, direct-message initiation, and scheduling are currently available. A result SHALL NOT claim a capability that the adapter, installation scopes, destination state, or agent grant cannot perform.
+#### Scenario: Person who never talked to the bot
+- **WHEN** a workspace member has never messaged the bot
+- **THEN** the member SHALL still be listed as a person destination the agent can message.
 
-#### Scenario: Telegram search has limited coverage
-- **WHEN** a Telegram destination is searchable only from observed events
-- **THEN** its capability metadata SHALL identify search as observed-history only rather than complete provider history.
+### Requirement: Telegram destinations
+On Telegram, channel destinations SHALL be the group and supergroup chats that sent the bot an update or were bound to it. Person destinations SHALL be only people who have a private chat with the bot, because a Telegram bot cannot start a conversation with a user. Agenta SHALL NOT claim that any other chat or person exists or can receive a message. The list SHALL explain these limits in a note when it returns Telegram results.
 
-#### Scenario: Slack destination supports send but not search
-- **WHEN** an agent has proactive-send permission but no search permission for a Slack channel
-- **THEN** the destination SHALL remain sendable while search is absent from its available actions.
+#### Scenario: Person who never messaged the bot
+- **WHEN** a Telegram user wrote in a group but never opened a private chat with the bot
+- **THEN** that user SHALL NOT be listed as a person destination.
+
+#### Scenario: Person who wrote first
+- **WHEN** a Telegram user sent the bot a private message
+- **THEN** that user SHALL be listed as a person destination.
+
+#### Scenario: Group the bot joined silently
+- **WHEN** the bot was added to a group that has not sent it any update Agenta received
+- **THEN** that group SHALL NOT be listed.
+
+#### Scenario: Hosted Telegram bot
+- **WHEN** the project uses the shared Agenta Telegram bot
+- **THEN** only chats bound to this project SHALL be listed.
