@@ -14,11 +14,13 @@ Only the calls the adapter makes are served:
 - GET  /media/{media_id}                      the media bytes
 
 `fail_next(code)` makes the next send fail with a Meta error code (131047
-window closed, 131056 pair rate limit, 190 bad token).
+window closed, 131056 pair rate limit, 190 bad token); with a phone number
+ID, only that number's next send, so parallel tests do not trip each other.
 
 No wall clock and no randomness: message ids come from a counter.
 """
 
+import base64
 from typing import Any
 
 from starlette.applications import Starlette
@@ -39,7 +41,8 @@ class FakeGraph:
         self.typing: list[dict[str, Any]] = []
         # media_id -> {"data", "mime_type", "token"}
         self.media: dict[str, dict[str, Any]] = {}
-        self._failures: list[int] = []
+        # phone_number_id (or None for any number) -> queued Meta error codes
+        self._failures: dict[str | None, list[int]] = {}
         self._next_id = 0
         self.public_url = public_url.rstrip("/")
         self.app = Starlette(
@@ -47,6 +50,7 @@ class FakeGraph:
                 Route("/_fake/state", self._state, methods=["GET"]),
                 Route("/_fake/numbers", self._add_number_route, methods=["POST"]),
                 Route("/_fake/fail_next", self._fail_next_route, methods=["POST"]),
+                Route("/_fake/media", self._add_media_route, methods=["POST"]),
                 Route("/media/{media_id}", self._media_bytes, methods=["GET"]),
                 Route(
                     "/{version}/{phone_number_id}/messages",
@@ -78,8 +82,8 @@ class FakeGraph:
     ) -> None:
         self.media[media_id] = {"data": data, "mime_type": mime_type, "token": token}
 
-    def fail_next(self, code: int) -> None:
-        self._failures.append(code)
+    def fail_next(self, code: int, phone_number_id: str | None = None) -> None:
+        self._failures.setdefault(phone_number_id, []).append(code)
 
     def texts_to(self, wa_id: str) -> list[str]:
         return [
@@ -173,8 +177,9 @@ class FakeGraph:
         ):
             return self._error(100, "Invalid parameter")
 
-        if self._failures:
-            code = self._failures.pop(0)
+        queue = self._failures.get(phone_number_id) or self._failures.get(None)
+        if queue:
+            code = queue.pop(0)
             return self._error(
                 code, f"fake failure {code}", _ERROR_STATUS.get(code, 400)
             )
@@ -199,6 +204,17 @@ class FakeGraph:
         self.add_number(**(await request.json()))
         return JSONResponse({"ok": True})
 
+    async def _add_media_route(self, request: Request) -> Response:
+        body = await request.json()
+        self.add_media(
+            media_id=body["media_id"],
+            data=base64.b64decode(body["data_base64"]),
+            mime_type=body["mime_type"],
+            token=body["token"],
+        )
+        return JSONResponse({"ok": True})
+
     async def _fail_next_route(self, request: Request) -> Response:
-        self.fail_next(int((await request.json())["code"]))
+        body = await request.json()
+        self.fail_next(int(body["code"]), body.get("phone_number_id"))
         return JSONResponse({"ok": True})

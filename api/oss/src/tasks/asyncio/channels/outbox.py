@@ -206,7 +206,12 @@ class ChannelsOutboxWorker:
 
         if capabilities.rendering.controls.indicator == "native":
             # No "Thinking…" message: this platform could never remove it.
-            # The typing signal and, on a long turn, one working message.
+            # The typing signal now, awaited so a turn that ends at once still
+            # shows it, then a loop that refreshes it and, on a long turn,
+            # sends one working message.
+            await self._signal_native(
+                project_id=project_id, thread=thread, connection=connection
+            )
             self._track(
                 turn_id,
                 lambda: self._run_native_activity(
@@ -302,10 +307,9 @@ class ChannelsOutboxWorker:
         """Keep the platform's typing signal up while the turn runs, and send
         one working message if it runs past `working_notice_seconds`."""
 
-        adapter = self.channels_service.adapter_registry.get(connection.channel)
         loop = asyncio.get_running_loop()
         started = loop.time()
-        next_signal = started
+        next_signal = started + self.activity_refresh_seconds
         working_sent = False
         try:
             while loop.time() - started <= self.progress_max_seconds:
@@ -313,17 +317,8 @@ class ChannelsOutboxWorker:
                 try:
                     if now >= next_signal:
                         next_signal = now + self.activity_refresh_seconds
-                        latest = await self._latest_inbound(
-                            project_id=project_id, thread=thread
-                        )
-                        await adapter.signal_activity(
-                            connection=connection,
-                            locator={
-                                **(thread.data.external_locator or {}),
-                                "inbound_message_id": (
-                                    latest.external_id if latest else None
-                                ),
-                            },
+                        await self._signal_native(
+                            project_id=project_id, thread=thread, connection=connection
                         )
                     if (
                         not working_sent
@@ -359,6 +354,30 @@ class ChannelsOutboxWorker:
                 await asyncio.sleep(self.progress_interval_seconds)
         finally:
             self._progress_tasks.pop(turn_id, None)
+
+    async def _signal_native(
+        self,
+        *,
+        project_id: UUID,
+        thread: ChannelThread,
+        connection: ChannelConnection,
+    ) -> None:
+        """The platform's typing signal, pointed at the person's latest
+        message (WhatsApp ties the indicator to an inbound message id).
+        Best-effort: a failed signal never delays the answer."""
+
+        try:
+            latest = await self._latest_inbound(project_id=project_id, thread=thread)
+            adapter = self.channels_service.adapter_registry.get(connection.channel)
+            await adapter.signal_activity(
+                connection=connection,
+                locator={
+                    **(thread.data.external_locator or {}),
+                    "inbound_message_id": latest.external_id if latest else None,
+                },
+            )
+        except Exception as exc:  # noqa: BLE001
+            log.warning("[SESSIONS-OUTBOX] typing signal failed: %s", str(exc)[:200])
 
     async def _latest_inbound(
         self, *, project_id: UUID, thread: ChannelThread
