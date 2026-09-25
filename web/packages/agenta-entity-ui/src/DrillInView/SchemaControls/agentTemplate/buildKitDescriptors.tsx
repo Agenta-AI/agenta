@@ -76,6 +76,18 @@ const BUILD_KIT_TOOL_COPY: Record<string, BuildKitCopy> = {
         name: "Test the agent",
         description: "Runs this agent once against test messages and reports the result.",
     },
+    get_current_session: {
+        name: "Get the link to this chat",
+        description: "Gets this chat's name and a link to open it in Agenta.",
+    },
+    check_skill_updates: {
+        name: "Check skill updates",
+        description: "Checks whether this agent's skills have newer versions.",
+    },
+    apply_skill_update: {
+        name: "Apply a skill update",
+        description: "Updates one of this agent's skills to its newer version.",
+    },
     rename_session: {
         name: "Rename this chat",
         description: "Gives this chat a name and a recap so it is easy to find later.",

@@ -407,6 +407,21 @@ export async function fetchAgentBuildKitOverlay(
     return {...validated, op_access: access.success ? access.data : {}}
 }
 
+export const AGENTA_TOOLS_WORKFLOW_SLUG = "__ag__agenta_tools"
+
+/** Every Agenta tool an agent can turn on, each marked "read" or "write". */
+export async function fetchAgentaToolsAccess(
+    projectId: string,
+): Promise<Record<string, "read" | "write">> {
+    const revision = await retrieveWorkflowRevision({
+        projectId,
+        workflowRef: {slug: AGENTA_TOOLS_WORKFLOW_SLUG},
+        lowPriority: true,
+    })
+    const access = buildKitAccessSchema.safeParse(revision?.data?.parameters?.op_access)
+    return access.success ? access.data : {}
+}
+
 /**
  * Query workflow revisions for a given variant.
  *
