@@ -31,7 +31,7 @@ What existed on `main` before this change:
 
 **Goals:** Let a connected agent list the channels where it can post, post there, read a channel's recent history, and search what its channels said. Default to what a Slack workspace admin expects from a bot they invited. Keep credentials, provider IDs, and tenant IDs away from the model. Report delivery outcomes truthfully.
 
-**Non-Goals:** Scheduling of any kind. Direct messages to people. A new message table or a history copy job in v1. Semantic search, Slack's own search APIs, or searching the bot's own posts. Telegram history beyond what the bot received. Slack group DMs as destinations. Slack Enterprise Grid org-wide installs. A per-channel posting allow-list. Exactly-once delivery where the provider has no idempotency key. Reading or searching direct messages.
+**Non-Goals:** Scheduling of any kind. Direct messages to people. A new message table or a history copy job in v1. Semantic search or Slack's own search APIs. Telegram history beyond what the bot received. Slack group DMs as destinations. Slack Enterprise Grid org-wide installs. A per-channel posting allow-list. Exactly-once delivery where the provider has no idempotency key. Reading or searching direct messages.
 
 ## Decisions
 
@@ -168,18 +168,18 @@ Inbox rows sort by `(sent_at, id)` and outbox rows by `(created_at, id)`, the or
 
 ### 7. Search covers stored messages only
 
-`search_channel_messages` searches the inbox rows of the channels the agent may read at call time. The default limit is 20 and the maximum is 50. It uses a PostgreSQL full-text index. It does not use Slack's `search.messages` API, which needs a user token that the bot does not have.
+`search_channel_messages` searches the inbox rows and the bot's sent outbox posts of the channels the agent may read at call time. The default limit is 20 and the maximum is 50. It uses a PostgreSQL full-text index. It does not use Slack's `search.messages` API, which needs a user token that the bot does not have.
 
 **Index shape.** The text lives in the `json` column `data` at `processed.content[0].text`, and adapters write exactly one text part. Migration `oss000000038` adds the GIN expression index `ix_channel_inbox_events_search` on `to_tsvector('simple', coalesce(data #>> '{processed,content,0,text}', ''))`. It is created `CONCURRENTLY` in an autocommit block, so it does not lock the table. `#>>` works on `json` and is immutable, so the expression can be indexed. A generated column was rejected: a stored generated column rewrites the whole table and keeps a second copy of every message's text. The expression index adds no row data. Its cost is that every query must repeat the exact expression, so the DAO spells it once, as `_SEARCH_VECTOR`. The `simple` configuration assumes no language.
 
-**Scope.** Search covers readable channel spaces only. It excludes direct messages, rows with no space, `action` events, fetched copies of the bot's own posts, and answers that an approval consumed (`flags.is_consumed`), through the same filter as read. It does not search the bot's own posts in v1. It makes no Slack history or search call. It may refresh the Slack member channel list (decision 4) to know which channels are readable.
+**Scope.** Search covers readable channel spaces only. It excludes direct messages, rows with no space, `action` events, fetched copies of the bot's own posts, and answers that an approval consumed (`flags.is_consumed`), through the same filter as read. It searches the bot's own final posts from the outbox, so each post matches once; staging QA of v0.121.2 showed that a person expects "search Slack for what you posted" to find them. The outbox half has no full-text index: it narrows through the existing `(project_id, space_id, created_at)` index and matches the text row by row, which is fine while a channel's bot posts number in the thousands; add an expression index like the inbox one if measurement says otherwise. A bot post is filtered, ordered, and shown by its Slack `ts` when the receipt has one, else by the time Agenta recorded it. Both halves run in one `UNION ALL`, ordered and paged in the database. A requested destination that is not one the agent may read refuses the whole search as not found, so a channel name passed as an ID never reads as no match. It makes no Slack history or search call. It may refresh the Slack member channel list (decision 4) to know which channels are readable.
 
 **Ordering and paging.** Results are ordered by rank, then provider time, then row ID. That is a total order, and the cursor carries an offset over it. The limit: a message stored between two pages can shift a later page by one row.
 
 **What was searched.** Each result set has a `searched` list with one entry per channel, each with a `coverage` statement:
 
 - Slack: "Searched messages since the bot joined this channel."
-- Telegram: "Searched only the messages the bot received in this group."
+- Telegram: "Searched only the messages the bot received or sent in this group."
 
 Once retention has deleted older messages, the wording follows the retention specification. The assumption is: "Searched messages from the last N days."
 

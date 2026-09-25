@@ -19,7 +19,11 @@ Let a connected agent search the messages Agenta stored from its readable channe
 
 #### Scenario: Destination from another project
 - **WHEN** a search names a destination ID from another project
-- **THEN** Agenta SHALL treat it as not found and return no matches from it.
+- **THEN** Agenta SHALL refuse the search as not found, and SHALL NOT say where the destination exists.
+
+#### Scenario: A channel name instead of a destination ID
+- **WHEN** a search names a destination that is not a destination ID the agent may read, such as `#support`
+- **THEN** Agenta SHALL refuse the search as not found and SHALL tell the agent to pass destination IDs from `list_channel_destinations`, so that nothing searched never reads as no match.
 
 #### Scenario: Direct messages
 - **WHEN** a search runs
@@ -30,7 +34,7 @@ Let a connected agent search the messages Agenta stored from its readable channe
 - **THEN** the search SHALL return no match.
 
 ### Requirement: Search states what it searched
-Each search result SHALL carry a `searched` list with one entry per channel it searched, each with a `coverage` statement. For a Slack channel the statement SHALL be "Searched messages since the bot joined this channel." For a Telegram group it SHALL be "Searched only the messages the bot received in this group." Search SHALL NOT call Slack's history or search APIs or any Telegram API to find messages. It MAY refresh the Slack member channel list to know which channels are readable. Once retention has deleted a channel's older messages, the statement SHALL follow the wording the retention specification defines.
+Each search result SHALL carry a `searched` list with one entry per channel it searched, each with a `coverage` statement. For a Slack channel the statement SHALL be "Searched messages since the bot joined this channel." For a Telegram group it SHALL be "Searched only the messages the bot received or sent in this group." Search SHALL NOT call Slack's history or search APIs or any Telegram API to find messages. It MAY refresh the Slack member channel list to know which channels are readable. Once retention has deleted a channel's older messages, the statement SHALL follow the wording the retention specification defines.
 
 #### Scenario: Message from before the bot joined
 - **WHEN** the only match is a Slack message posted before the bot joined
@@ -38,10 +42,10 @@ Each search result SHALL carry a `searched` list with one entry per channel it s
 
 #### Scenario: Telegram group
 - **WHEN** a searched channel is a Telegram group
-- **THEN** the search SHALL cover only messages the bot received there, and its coverage SHALL say so.
+- **THEN** the search SHALL cover only messages the bot received or sent there, and its coverage SHALL say so.
 
 ### Requirement: Search results
-Each result SHALL include the message ID, the channel destination ID and name, the thread ID when there is one, the sender's display name when known, a text excerpt, and the time. Results SHALL be ordered by relevance, then provider time, then row ID. The cursor SHALL page with an offset over that order, so that while the stored messages do not change it neither skips nor repeats results with equal rank and time. A message stored between two pages MAY shift a later page. The bot's own posts SHALL NOT be searched in version one.
+Each result SHALL include the message ID, the channel destination ID and name, the thread ID when there is one, the sender's display name when known, a text excerpt, and the time. Results SHALL be ordered by relevance, then provider time, then row ID. A bot post's time SHALL be its provider time when the receipt carries one (a Slack post), else the time Agenta recorded it, and the time filter and the returned time SHALL use that same time. The cursor SHALL page with an offset over that order, so that while the stored messages do not change it neither skips nor repeats results with equal rank and time. A message stored between two pages MAY shift a later page. Search SHALL include the bot's own sent posts, each once, even when a read also stored a copy of the post.
 
 #### Scenario: Equal timestamps
 - **WHEN** several matches share the same rank and timestamp and no message is stored while paging

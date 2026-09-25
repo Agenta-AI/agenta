@@ -37,6 +37,10 @@ Agenta SHALL offer `list_channel_destinations`, `send_channel_message`, `read_ch
 - **WHEN** the availability check times out or returns an error
 - **THEN** the run SHALL go on without added channel tools, and the handler SHALL log a warning.
 
+#### Scenario: The prompt points at the tools
+- **WHEN** a run has `list_channel_destinations`
+- **THEN** the platform instructions SHALL say, in one short section, to call it to see where the agent can post, and SHALL name only the channel tools the run has.
+
 ### Requirement: Sending is allowed by default
 `send_channel_message` SHALL default to `allow`, so the agent posts without an approval prompt. The default SHALL be carried by the optional `PlatformOp.default_permission` field. The SDK platform resolver SHALL apply it only when the author set no permission on the tool and the agent-wide permission mode is the default `allow_reads`. A per-tool `ask` or `deny` set by the author SHALL win. An agent-wide `ask` or `deny` mode SHALL win. The operator kill switch SHALL still stop the tool. The other three tools SHALL run without a prompt because they are read-only.
 
@@ -51,6 +55,10 @@ Agenta SHALL offer `list_channel_destinations`, `send_channel_message`, `read_ch
 #### Scenario: Agent-wide ask mode
 - **WHEN** the author sets the agent's permission mode to `ask` and leaves the send tool unset
 - **THEN** every send SHALL wait for approval.
+
+#### Scenario: Agent-wide mode outside the agent template
+- **WHEN** a request puts `runner`, `harness`, or `sandbox` beside `parameters.agent` instead of inside it
+- **THEN** the run SHALL be refused with a message naming `agent.<section>`, and SHALL NOT run under the default mode.
 
 #### Scenario: Author denies the tool
 - **WHEN** the author lists `send_channel_message` with permission `deny`

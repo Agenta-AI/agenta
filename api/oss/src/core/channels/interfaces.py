@@ -564,7 +564,7 @@ class ChannelsDAOInterface(ABC):
         thread reference."""
 
     @abstractmethod
-    async def search_space_inbox_messages(
+    async def search_space_messages(
         self,
         *,
         project_id: UUID,
@@ -574,9 +574,11 @@ class ChannelsDAOInterface(ABC):
         before: Optional[datetime] = None,
         limit: int,
         offset: int = 0,
-    ) -> List[ChannelInboxEvent]:
-        """Stored messages of these spaces matching a full-text query, by
-        relevance, then time, then id."""
+    ) -> List[ChannelInboxEvent | Tuple[ChannelOutboxEvent, Optional[str]]]:
+        """People's stored messages and the bot's sent posts in these spaces
+        matching a full-text query, by relevance, then time, then id. A
+        person's message is an inbox event; a bot post is its outbox row with
+        its thread reference, as the outbox read returns it."""
 
     @abstractmethod
     async def record_inbox_event(

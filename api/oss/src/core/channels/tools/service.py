@@ -131,8 +131,15 @@ SEARCH_OFF_MESSAGE = (
     "Reading and search are turned off for every channel of this agent's bots "
     "in their Channels settings, so there is nothing to search."
 )
+UNKNOWN_SEARCH_DESTINATION_MESSAGE = (
+    "Destination not found, or not one you can search. Pass destination_id "
+    "values from list_channel_destinations, not channel names, or omit "
+    "destination_ids to search every channel you can read."
+)
 SLACK_SEARCH_COVERAGE = "Searched messages since the bot joined this channel."
-TELEGRAM_SEARCH_COVERAGE = "Searched only the messages the bot received in this group."
+TELEGRAM_SEARCH_COVERAGE = (
+    "Searched only the messages the bot received or sent in this group."
+)
 
 TELEGRAM_LIST_NOTE = (
     "Telegram bots cannot list the chats they are in, so this shows only groups "
@@ -771,6 +778,9 @@ class ChannelToolsService:
         if destination_ids is not None:
             wanted = {decode_destination_id(value) for value in destination_ids}
             readable = [d for d in readable if d.space.id in wanted]
+            # an empty result would read as "no match" when nothing was searched
+            if len(readable) < len(wanted):
+                raise ChannelToolsNotFound(UNKNOWN_SEARCH_DESTINATION_MESSAGE)
 
         searched = [
             ChannelSearchedChannel(
@@ -789,7 +799,7 @@ class ChannelToolsService:
 
         size = min(max(limit or SEARCH_DEFAULT_LIMIT, 1), SEARCH_MAX_LIMIT)
         offset = _offset(cursor)
-        rows = await self.channels_dao.search_space_inbox_messages(
+        rows = await self.channels_dao.search_space_messages(
             project_id=project_id,
             space_ids=[d.space.id for d in readable],
             query=query,
@@ -801,13 +811,19 @@ class ChannelToolsService:
 
         by_space = {d.space.id: d for d in readable}
         results = []
-        for event in rows[:size]:
-            destination = by_space[event.space_id]
-            message = _person_item(event.space_id, event).message
+        for row in rows[:size]:
+            if isinstance(row, ChannelInboxEvent):
+                space_id = row.space_id
+                message = _person_item(space_id, row).message
+            else:
+                post, thread_ref = row
+                space_id = post.space_id
+                message = _bot_item(space_id, post, thread_ref).message
+            destination = by_space[space_id]
             results.append(
                 ChannelSearchResultItem(
                     message_id=message.message_id,
-                    destination_id=encode_destination_id(event.space_id),
+                    destination_id=encode_destination_id(space_id),
                     channel_name=destination.name,
                     thread_id=message.thread_id,
                     sender_name=message.sender_name,

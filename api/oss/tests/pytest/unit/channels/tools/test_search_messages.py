@@ -10,14 +10,21 @@ from oss.src.core.channels.adapters.slack.capabilities import (
     fetch_slack_capabilities,
 )
 from oss.src.core.channels.adapters.telegram.adapter import TelegramAdapter
-from oss.src.core.channels.dtos import ChannelKeyGrain, ChannelSpaceKind
+from oss.src.core.channels.dtos import (
+    ChannelEventOrigin,
+    ChannelKeyGrain,
+    ChannelSpaceKind,
+)
 from oss.src.core.channels.tools import service as tools_service_module
 from oss.src.core.channels.tools.ids import (
     decode_destination_id,
     decode_space_ref,
     encode_destination_id,
 )
-from oss.src.core.channels.tools.types import ChannelToolsRefused
+from oss.src.core.channels.tools.types import (
+    ChannelToolsNotFound,
+    ChannelToolsRefused,
+)
 from oss.src.core.channels.utils import compose_external_key
 from oss.tests.pytest.unit.channels.slack.fake_slack import make_adapter_and_workspace
 
@@ -109,15 +116,49 @@ async def test_reading_off_refuses_search():
         await _search(service, artifact_id)
 
 
-async def test_foreign_destination_returns_no_matches():
+async def test_foreign_destination_is_not_found():
     service, dao, _, artifact_id, _ = _slack()
 
-    result = await _search(
-        service, artifact_id, destination_ids=[encode_destination_id(uuid4())]
+    with pytest.raises(ChannelToolsNotFound):
+        await _search(
+            service, artifact_id, destination_ids=[encode_destination_id(uuid4())]
+        )
+
+    assert dao.searches == []
+
+
+async def test_a_channel_name_is_not_a_destination_id():
+    # staging QA: Haiku passed "#support" and read the empty result as "no match"
+    service, dao, _, artifact_id, spaces = _slack()
+
+    with pytest.raises(ChannelToolsNotFound, match="list_channel_destinations"):
+        await _search(
+            service,
+            artifact_id,
+            destination_ids=[encode_destination_id(spaces["C1"].id), "#support"],
+        )
+
+    assert dao.searches == []
+
+
+async def test_search_finds_the_bots_own_posts_once():
+    service, dao, _, artifact_id, spaces = _slack()
+    dao.seed_sent(space=spaces["C1"], text="refund shipped", ts="110.000000")
+    # a live read stored a copy of the same post
+    dao.seed_inbox(
+        space=spaces["C1"],
+        text="refund shipped",
+        ts="110.000000",
+        origin=ChannelEventOrigin.PULLED,
     )
 
-    assert result.results == [] and result.searched == []
-    assert dao.searches == []
+    result = await _search(service, artifact_id, query="shipped")
+
+    assert [r.excerpt for r in result.results] == ["refund shipped"]
+    assert decode_space_ref("thr", result.results[0].thread_id) == (
+        spaces["C1"].id,
+        "110.000000",
+    )
 
 
 async def test_destination_filter_narrows_to_one_channel():
@@ -223,5 +264,5 @@ async def test_telegram_group_covers_only_messages_the_bot_received():
 
     assert [r.excerpt for r in result.results] == ["refund done"]
     assert result.searched[0].coverage == (
-        "Searched only the messages the bot received in this group."
+        "Searched only the messages the bot received or sent in this group."
     )

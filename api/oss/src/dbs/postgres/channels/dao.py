@@ -5,6 +5,7 @@ from uuid import UUID, uuid4
 
 from sqlalchemy import (
     and_,
+    Float,
     cast,
     false,
     func,
@@ -16,6 +17,7 @@ from sqlalchemy import (
     text,
     true,
     tuple_,
+    union_all,
     update,
 )
 from sqlalchemy.dialects.postgresql import JSONB, insert
@@ -1479,29 +1481,8 @@ class ChannelsDAO(ChannelsDAOInterface):
         thread's, and a top-level post roots its own."""
 
         outbox = ChannelOutboxEventDBE
-        thread = ChannelThreadDBE
-        thread_of = func.coalesce(
-            func.json_extract_path_text(outbox.data, "processed", "thread_ts"),
-            func.json_extract_path_text(thread.data, "external_locator", "thread_ts"),
-            func.json_extract_path_text(outbox.data, "external_locator", "ts"),
-        )
-        stmt = (
-            select(outbox, thread_of)
-            .outerjoin(
-                thread,
-                (thread.project_id == outbox.project_id)
-                & (thread.id == outbox.thread_id),
-            )
-            .where(
-                outbox.project_id == project_id,
-                outbox.space_id == space_id,
-                outbox.state == ChannelDeliveryState.SENT,
-                # a final post only: a running turn's "Thinking..." indicator is
-                # not something the bot said
-                func.json_extract_path_text(outbox.data, "processed", "final")
-                == "true",
-            )
-        )
+        stmt, thread_of = _bot_posts(project_id)
+        stmt = stmt.where(outbox.space_id == space_id)
         if thread_ts is not None:
             stmt = stmt.where(thread_of == thread_ts)
         if before is not None:
@@ -1515,7 +1496,7 @@ class ChannelsDAO(ChannelsDAOInterface):
                 for dbe, thread_ts_of in result.all()
             ]
 
-    async def search_space_inbox_messages(
+    async def search_space_messages(
         self,
         *,
         project_id: UUID,
@@ -1525,10 +1506,10 @@ class ChannelsDAO(ChannelsDAOInterface):
         before: Optional[datetime] = None,
         limit: int,
         offset: int = 0,
-    ) -> List[ChannelInboxEvent]:
+    ) -> List[ChannelInboxEvent | Tuple[ChannelOutboxEvent, Optional[str]]]:
         if not space_ids or not query.strip():
             return []
-        stmt = search_inbox_statement(
+        stmt = search_statement(
             project_id=project_id,
             space_ids=space_ids,
             query=query,
@@ -1538,11 +1519,34 @@ class ChannelsDAO(ChannelsDAOInterface):
             offset=offset,
         )
         async with self.engine.session() as session:
-            result = await session.execute(stmt)
-            return [
-                map_inbox_event_dbe_to_dto(event_dbe=dbe)
-                for dbe in result.scalars().all()
-            ]
+            hits = (await session.execute(stmt)).all()
+            ids = {
+                source: [hit.id for hit in hits if hit.source == source]
+                for source in ("inbox", "outbox")
+            }
+            found: Dict[Tuple[str, UUID], Any] = {}
+            if ids["inbox"]:
+                people = await session.execute(
+                    select(ChannelInboxEventDBE).where(
+                        ChannelInboxEventDBE.project_id == project_id,
+                        ChannelInboxEventDBE.id.in_(ids["inbox"]),
+                    )
+                )
+                for dbe in people.scalars().all():
+                    found[("inbox", dbe.id)] = map_inbox_event_dbe_to_dto(event_dbe=dbe)
+            if ids["outbox"]:
+                posts, _ = _bot_posts(project_id)
+                bot = await session.execute(
+                    posts.where(ChannelOutboxEventDBE.id.in_(ids["outbox"]))
+                )
+                for dbe, thread_ts_of in bot.all():
+                    found[("outbox", dbe.id)] = (
+                        map_outbox_event_dbe_to_dto(event_dbe=dbe),
+                        thread_ts_of,
+                    )
+        return [
+            found[(hit.source, hit.id)] for hit in hits if (hit.source, hit.id) in found
+        ]
 
     # --- inbox: the log --------------------------------------------------- #
 
@@ -2297,9 +2301,43 @@ _SEARCH_VECTOR = literal_column(
     "to_tsvector('simple', "
     "coalesce(channel_inbox_events.data #>> '{processed,content,0,text}', ''))"
 )
+_OUTBOX_SEARCH_VECTOR = literal_column(
+    "to_tsvector('simple', "
+    "coalesce(channel_outbox_events.data #>> '{processed,content,0,text}', ''))"
+)
 
 
-def search_inbox_statement(
+def _bot_posts(project_id: UUID):
+    """The bot's sent posts in a project, each with the thread it belongs to:
+    a tool send records it, a turn reply takes its channel thread's, and a
+    top-level post roots its own. Returns the statement and the thread
+    column, for callers that filter on it."""
+
+    outbox = ChannelOutboxEventDBE
+    thread = ChannelThreadDBE
+    thread_of = func.coalesce(
+        func.json_extract_path_text(outbox.data, "processed", "thread_ts"),
+        func.json_extract_path_text(thread.data, "external_locator", "thread_ts"),
+        func.json_extract_path_text(outbox.data, "external_locator", "ts"),
+    )
+    stmt = (
+        select(outbox, thread_of)
+        .outerjoin(
+            thread,
+            (thread.project_id == outbox.project_id) & (thread.id == outbox.thread_id),
+        )
+        .where(
+            outbox.project_id == project_id,
+            outbox.state == ChannelDeliveryState.SENT,
+            # a final post only: a running turn's "Thinking..." indicator is
+            # not something the bot said
+            func.json_extract_path_text(outbox.data, "processed", "final") == "true",
+        )
+    )
+    return stmt, thread_of
+
+
+def search_statement(
     *,
     project_id: UUID,
     space_ids: List[UUID],
@@ -2309,31 +2347,62 @@ def search_inbox_statement(
     limit: int,
     offset: int = 0,
 ):
-    """Stored messages of these spaces matching `query` (web-search syntax),
-    by relevance, then provider time, then id: a total order, so an offset
-    page neither skips nor repeats a row while the set is unchanged."""
+    """People's stored messages and the bot's sent posts in these spaces
+    matching `query` (web-search syntax), as (source, id) by relevance, then
+    time, then id: a total order, so an offset page neither skips nor repeats
+    a row while the set is unchanged. A fetched copy of a bot post is left
+    out, so each post matches once, from the outbox."""
 
-    table = ChannelInboxEventDBE
+    inbox = ChannelInboxEventDBE
+    outbox = ChannelOutboxEventDBE
     tsquery = func.websearch_to_tsquery(literal_column("'simple'"), query)
-    stmt = (
-        select(table)
-        .where(
-            table.project_id == project_id,
-            table.space_id.in_(space_ids),
-            table.kind == ChannelEventKind.MESSAGE.value,
-            _not_a_copy_of_a_bot_post(),
-            _SEARCH_VECTOR.op("@@")(tsquery),
-        )
-        .order_by(
-            func.ts_rank(_SEARCH_VECTOR, tsquery).desc(),
-            table.sent_at.desc(),
-            table.id.desc(),
-        )
+    # The post's provider time when the receipt has one (a Slack ts), as the result shows
+    # it; else the time Agenta recorded it (Telegram receipts carry no time).
+    posted_at = func.coalesce(
+        func.to_timestamp(
+            cast(
+                func.json_extract_path_text(outbox.data, "external_locator", "ts"),
+                Float,
+            )
+        ),
+        outbox.created_at,
+    )
+    people = select(
+        literal("inbox").label("source"),
+        inbox.id.label("id"),
+        func.ts_rank(_SEARCH_VECTOR, tsquery).label("rank"),
+        inbox.sent_at.label("at"),
+    ).where(
+        inbox.project_id == project_id,
+        inbox.space_id.in_(space_ids),
+        inbox.kind == ChannelEventKind.MESSAGE.value,
+        _not_a_copy_of_a_bot_post(),
+        _SEARCH_VECTOR.op("@@")(tsquery),
+    )
+    # No full-text index on the outbox: the (project, space, created_at) index
+    # narrows it and the text matches row by row; add one if measured slow.
+    bot = select(
+        literal("outbox").label("source"),
+        outbox.id.label("id"),
+        func.ts_rank(_OUTBOX_SEARCH_VECTOR, tsquery).label("rank"),
+        posted_at.label("at"),
+    ).where(
+        outbox.project_id == project_id,
+        outbox.space_id.in_(space_ids),
+        outbox.state == ChannelDeliveryState.SENT,
+        func.json_extract_path_text(outbox.data, "processed", "final") == "true",
+        _OUTBOX_SEARCH_VECTOR.op("@@")(tsquery),
+    )
+    if after is not None:
+        people = people.where(inbox.sent_at >= after)
+        bot = bot.where(posted_at >= after)
+    if before is not None:
+        people = people.where(inbox.sent_at <= before)
+        bot = bot.where(posted_at <= before)
+    hits = union_all(people, bot).subquery()
+    return (
+        select(hits.c.source, hits.c.id)
+        .order_by(hits.c.rank.desc(), hits.c.at.desc(), hits.c.id.desc())
         .limit(limit)
         .offset(offset)
     )
-    if after is not None:
-        stmt = stmt.where(table.sent_at >= after)
-    if before is not None:
-        stmt = stmt.where(table.sent_at <= before)
-    return stmt

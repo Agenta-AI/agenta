@@ -1696,9 +1696,10 @@ _CHANNEL_READ_INPUT_SCHEMA: Dict[str, Any] = {
 
 _CHANNEL_SEARCH_DESCRIPTION = (
     "Search the messages Agenta stored from the Slack channels and Telegram groups you may "
-    "read, by words (web-search syntax: quotes for phrases, - to exclude). Covers only messages "
-    "since the bot joined each channel; the result's `searched` list says what each search "
-    "covered. Pass destination_ids to search only some channels, and a result's thread_id to "
+    "read, your own posts included, by words (web-search syntax: quotes for phrases, - to "
+    "exclude). Covers only messages since the bot joined each channel; the result's "
+    "`searched` list says what each search covered. Pass destination_ids from "
+    "list_channel_destinations to search only some channels, and a result's thread_id to "
     "read_channel_messages to see the conversation around it."
 )
 

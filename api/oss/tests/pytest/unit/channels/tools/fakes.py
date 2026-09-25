@@ -268,7 +268,7 @@ class FakeToolsDAO:
         rows.sort(key=lambda pair: (pair[0].created_at, str(pair[0].id)), reverse=True)
         return rows[:limit]
 
-    async def search_space_inbox_messages(
+    async def search_space_messages(
         self,
         *,
         project_id,
@@ -281,17 +281,33 @@ class FakeToolsDAO:
     ):
         self.searches.append({"space_ids": list(space_ids), "query": query})
         words = query.lower().split()
-        rows = [
-            e
+
+        def matches(text, at):
+            return (
+                all(w in text.lower() for w in words)
+                and (after is None or at >= after)
+                and (before is None or at <= before)
+            )
+
+        posted = {(row.data.external_locator or {}).get("ts") for row, _ in self.sent}
+        hits = [
+            (e.sent_at, str(e.id), e)
             for e in self.inbox
             if e.space_id in set(space_ids)
             and e.kind is ChannelEventKind.MESSAGE
-            and all(w in e.data.processed.content[0]["text"].lower() for w in words)
-            and (after is None or e.sent_at >= after)
-            and (before is None or e.sent_at <= before)
+            and (
+                e.origin is ChannelEventOrigin.PUSHED
+                or e.data.processed.message_ref not in posted
+            )
+            and matches(e.data.processed.content[0]["text"], e.sent_at)
+        ] + [
+            (row.created_at, str(row.id), (row, thread))
+            for row, thread in self.sent
+            if row.space_id in set(space_ids)
+            and matches(row.data.processed["content"][0]["text"], row.created_at)
         ]
-        rows.sort(key=lambda e: (e.sent_at, str(e.id)), reverse=True)
-        return rows[offset : offset + limit]
+        hits.sort(key=lambda hit: hit[:2], reverse=True)
+        return [hit[2] for hit in hits[offset : offset + limit]]
 
     # --- outbox --- #
 

@@ -8,9 +8,9 @@ and tool call bound into the body.
 
 Covers the success paths, every refusal (posting off, reading off, another
 project's destination, no connected bot), send idempotency, and the closed
-request bodies. Search over stored inbox text is covered against Postgres in
-integration/channels/test_channels_dao_message_search.py; here it runs over a
-project with no stored messages.
+request bodies. Search over people's stored messages and the bot's own posts is
+covered against Postgres in integration/channels/test_channels_dao_message_search.py;
+here the only stored text is what the tests themselves post.
 """
 
 from uuid import uuid4
@@ -315,7 +315,8 @@ class TestReadAndSearch:
             owner(
                 "POST",
                 "/channels/tools/messages/search",
-                json={"artifact_id": world["artifact_id"], "query": "hello"},
+                # a word nobody posted: search now also covers the bot's own posts
+                json={"artifact_id": world["artifact_id"], "query": "unmatchedword"},
             )
         )
 
@@ -337,17 +338,16 @@ class TestReadAndSearch:
                 "destination_id": theirs["destination_id"],
             },
         )
-        search = _ok(
-            owner(
-                "POST",
-                "/channels/tools/messages/search",
-                json={
-                    "artifact_id": world["artifact_id"],
-                    "query": "hello",
-                    "destination_ids": [theirs["destination_id"]],
-                },
-            )
+        search = owner(
+            "POST",
+            "/channels/tools/messages/search",
+            json={
+                "artifact_id": world["artifact_id"],
+                "query": "hello",
+                "destination_ids": [theirs["destination_id"]],
+            },
         )
 
         assert read.status_code == 404
-        assert search == {"results": [], "cursor": None, "searched": []}
+        # refused rather than an empty result, which would read as "no match"
+        assert search.status_code == 404
