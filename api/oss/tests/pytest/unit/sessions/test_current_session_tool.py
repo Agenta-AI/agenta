@@ -160,6 +160,9 @@ def test_no_guess_from_missing_or_untyped_reference(setup, references):
         "https://user:secret@example.test",
         "https://example.test?redirect=other",
         "https://example.test#fragment",
+        "https://example.test:notaport",
+        "https://example.test:65536",
+        "https://example.test:-1",
         "https://[",
     ],
 )

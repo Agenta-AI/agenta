@@ -40,6 +40,9 @@ def current_session_response(
     else:
         try:
             parsed = urlsplit(web_url)
+            _ = (
+                parsed.port
+            )  # Parsing alone does not validate malformed or out-of-range ports.
             valid_url = (
                 parsed.scheme in {"http", "https"}
                 and parsed.hostname
