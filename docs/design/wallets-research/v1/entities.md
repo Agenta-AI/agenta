@@ -367,6 +367,13 @@ name exactly), awarded once per organization on every plan including free, twelv
 (`report.md` §9.5/§9.6), wired into the signup organization-creation path only
 (`provision_signup_subscription`, never `provision_user_subscription`/explicit `POST
 /organizations/`, per `report.md` §9.2), after the general balance row already exists.
+The award key is stored at `data.references.award_idempotency_key` on the minted credit, and the
+partial unique index `uq_wallet_credits_org_award_key` on `(organization_id,
+data->'references'->>'award_idempotency_key')` (`ee0000000004`) makes a second credit for one
+award impossible at the database, as `uq_wallet_debits_org_debit_key` does for debits. The
+general-row lock already serializes awards; the index is the final guard. Organizations that
+signed up while the flag was off are granted by the one-off job
+`entrypoints.backfill_wallet_signup_grants` (`open-designs.md` item 15).
 
 **`credit_kind` (delivered set, `WP-1-04`).** `GENERAL_CREDIT_KINDS` in `ee.src.core.wallets.types`
 carries eight of `mechanics.md` §4's thirteen inbound kinds — enough to distinguish a signup grant
@@ -698,8 +705,11 @@ not the versioned production pricing configuration this document describes elsew
 
 The `check(delta)` this document names throughout is the design operation, not the delivered
 signature. Wave 1 has no admission control and no hold, so what shipped is
-`check(*, organization_id) -> bool`: an `async` read of the committed general balance against its
-floor, with no amount argument at all. The `amount_musd` parameter the first implementation carried
+`check(*, organization_id) -> bool`: an `async` read of the committed spendable balance against the
+general row's floor, with no amount argument at all. Spendable is the general balance minus the
+remaining value of expired credits, derived in one statement by
+`WalletsDAO.get_spendable_balance`, because nothing posts expired value out of the general row
+(`open-designs.md` item 21). The `amount_musd` parameter the first implementation carried
 and never read was removed in `WP-1-04`. An amount returns to that signature only when an L1
 exposure estimate gives it meaning, with reservation semantics behind it — see `open-designs.md`
 items 10 and 11.

@@ -3,6 +3,7 @@ adapter) against the in-memory `FakeWalletsDAO` — no Postgres, no event loop c
 """
 
 import inspect
+from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
 import pytest
@@ -127,6 +128,53 @@ async def test_check_provisions_a_missing_general_balance_and_answers_from_it():
     assert dao.general_balance.organization_id == organization_id
     assert dao.general_balance.balance_musd == 0
     assert dao.general_balance.floor_musd == LAZY_PROVISION_FLOOR_MUSD
+
+
+def _fake_with_one_credit(*, balance_musd: int, end_time) -> FakeWalletsDAO:
+    candidate = build_credit_candidate(balance_musd=balance_musd, end_time=end_time)
+    return FakeWalletsDAO(
+        general_balance=build_general_wallet_balance(
+            balance_musd=balance_musd, floor_musd=0
+        ),
+        credits=[
+            (
+                candidate,
+                build_credit_wallet_balance(
+                    wallet_credit_id=candidate.wallet_credit_id,
+                    balance_musd=balance_musd,
+                ),
+            )
+        ],
+    )
+
+
+@pytest.mark.asyncio
+async def test_check_rejects_when_the_only_value_has_expired():
+    """Open-designs item 21: the general row still counts an expired credit's remainder,
+    which settlement can only book as deficit. Admission must not count it."""
+    dao = _fake_with_one_credit(
+        balance_musd=20_000_000,
+        end_time=datetime.now(timezone.utc) - timedelta(days=1),
+    )
+    service = WalletsService(wallets_dao=dao)
+
+    assert (
+        await service.check(organization_id=dao.general_balance.organization_id)
+        is False
+    )
+
+
+@pytest.mark.asyncio
+async def test_check_allows_when_the_value_has_not_expired():
+    dao = _fake_with_one_credit(
+        balance_musd=20_000_000,
+        end_time=datetime.now(timezone.utc) + timedelta(days=1),
+    )
+    service = WalletsService(wallets_dao=dao)
+
+    assert (
+        await service.check(organization_id=dao.general_balance.organization_id) is True
+    )
 
 
 @pytest.mark.asyncio

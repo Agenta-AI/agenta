@@ -31,6 +31,16 @@ class WalletCreditDBE(Base, WalletCreditDBA):
             "end_time",
             "id",
         ),
+        # Final replay guard for grant awards; see migration `ee0000000004`.
+        Index(
+            "uq_wallet_credits_org_award_key",
+            "organization_id",
+            text("(data -> 'references' ->> 'award_idempotency_key')"),
+            unique=True,
+            postgresql_where=text(
+                "(data -> 'references' ->> 'award_idempotency_key') IS NOT NULL"
+            ),
+        ),
     )
 
 

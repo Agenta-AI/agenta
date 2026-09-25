@@ -95,6 +95,17 @@ class WalletBalanceDTO(BaseModel):
     deleted_at: Optional[datetime] = None
 
 
+class WalletSpendableBalanceDTO(BaseModel):
+    """What admission may spend: the general balance minus the value still sitting on
+    expired credits. Derived in one read rather than stored, because nothing posts an
+    expired credit's remainder out of the general row (open-designs item 21)."""
+
+    organization_id: UUID
+
+    spendable_musd: int
+    floor_musd: Optional[int] = None
+
+
 class PlanChangeResultDTO(BaseModel):
     """Result of `WalletsDAOInterface.apply_plan_change`. `replayed=True` means this exact
     `idempotency_key` had already been applied — the returned ids/amounts are the
@@ -312,7 +323,22 @@ class WalletsDAOInterface(ABC):
         organization_id: UUID,
     ) -> Optional[WalletBalanceDTO]:
         """Read-only, unlocked: the organization's general balance row, or `None` if not
-        provisioned. Used by the write-free `check()` path."""
+        provisioned. The raw projection, which still counts expired credit value;
+        admission reads `get_spendable_balance` instead."""
+        raise NotImplementedError
+
+    @abstractmethod
+    async def get_spendable_balance(
+        self,
+        *,
+        organization_id: UUID,
+    ) -> Optional[WalletSpendableBalanceDTO]:
+        """Read-only, unlocked: the general balance minus the remaining value of every
+        credit whose `end_time` has passed, with the general row's floor, or `None` if
+        the general row is not provisioned. "Expired" must be the exact complement of
+        settlement's eligibility predicate (`end_time > now()` on the database clock), and
+        both terms must come from one snapshot, so a settlement committing between two
+        separate reads cannot skew the answer."""
         raise NotImplementedError
 
     @abstractmethod

@@ -30,6 +30,7 @@ from ee.src.core.wallets.proration import compute_plan_change_proration
 from ee.src.core.wallets.types import (
     PlanChangeResultDTO,
     WalletCreditDTO,
+    WalletGeneralBalanceNotFoundError,
     WalletsDAOInterface,
 )
 
@@ -39,11 +40,14 @@ class WalletsService(WalletCheckPort, WalletSettlementPort):
         self.wallets_dao = wallets_dao
 
     async def check(self, *, organization_id: UUID) -> bool:
-        general = await self.wallets_dao.get_general_balance(
+        # Spendable, not the raw general balance: nothing posts an expired credit's
+        # remainder out of the general row, so the raw number would admit calls that
+        # settlement can only book as deficit (open-designs item 21).
+        balance = await self.wallets_dao.get_spendable_balance(
             organization_id=organization_id,
         )
 
-        if general is None:
+        if balance is None:
             # An organization created while `AGENTA_WALLETS_ENABLED` was off has no
             # general balance row and nothing else will ever give it one: the
             # `ee0000000005` backfill ran once, at migration time. Provision it here, on
@@ -56,15 +60,22 @@ class WalletsService(WalletCheckPort, WalletSettlementPort):
             # answer is a rejection for an organization with no credits, which is the
             # correct reading of the wallet and the whole reason the missing row was a
             # gap rather than a permission to spend.
-            general = await self.wallets_dao.provision_general_balance(
+            await self.wallets_dao.provision_general_balance(
                 organization_id=organization_id,
                 floor_musd=LAZY_PROVISION_FLOOR_MUSD,
             )
+            # Re-read rather than trusting the fresh row: a concurrent award may have
+            # provisioned it first and funded it.
+            balance = await self.wallets_dao.get_spendable_balance(
+                organization_id=organization_id,
+            )
+            if balance is None:
+                raise WalletGeneralBalanceNotFoundError(organization_id)
 
-        floor = general.floor_musd if general.floor_musd is not None else 0
+        floor = balance.floor_musd if balance.floor_musd is not None else 0
 
         # Non-strict: reject only once already-committed balance is at/below the floor.
-        return general.balance_musd > floor
+        return balance.spendable_musd > floor
 
     async def settle(self, command: DebitCommandV1) -> None:
         await self.wallets_dao.settle(command=command)

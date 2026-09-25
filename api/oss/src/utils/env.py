@@ -2145,8 +2145,9 @@ class WalletsConfig(BaseModel):
     balance row and no signup grant, mid-period plan changes are not prorated,
     and the `measurements`/`debits` stream consumers are not started — so no
     row is written that a later, corrected implementation would have to undo.
-    Turning it on changes no behaviour for organizations provisioned while it
-    was off until they are backfilled (core_ee ee0000000005).
+    Organizations created while it was off get their balance row lazily on
+    first use; their missed signup grant comes only from the one-off
+    `entrypoints.backfill_wallet_signup_grants` job, run before turning it on.
     """
 
     enabled: bool = _parse_bool_env("AGENTA_WALLETS_ENABLED", default=False)
