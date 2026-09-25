@@ -10,7 +10,7 @@ export {
     agentaChannelSurfaceEnabledAtom,
     agentAppsEnabledAtom,
     channelDebugEnabledAtom,
-    channelsEnabledAtom,
+    inprocessSandboxEnabledAtom,
     playgroundInspectorEnabledAtom,
     userScopedFlagAtom,
 } from "./featureFlags"

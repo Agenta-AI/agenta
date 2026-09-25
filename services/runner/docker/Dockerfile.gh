@@ -119,6 +119,11 @@ RUN mkdir -p /var/lib/agenta/runner-state && chown node:node /var/lib/agenta/run
 # another's. Confinement between sessions is the runner's mount namespace, not these bits.
 RUN mkdir -p /var/lib/agenta/mounts && chmod 1777 /var/lib/agenta /var/lib/agenta/mounts
 
+# `inprocess` keeps its session folders at the command sandbox's paths on the runner too
+# (DAYTONA_DURABLE_MOUNT_ROOT, /home/sandbox/agenta/mounts/...), where Pi reads its instructions
+# file: one absolute path must name the same folder in both places. Same 1777 mode, same reason.
+RUN mkdir -p /home/sandbox/agenta/mounts && chmod 1777 /home/sandbox/agenta /home/sandbox/agenta/mounts
+
 # Pin HOME so the sandbox-agent daemon's per-agent install dir ($HOME/.local/share/sandbox-agent)
 # is the same at build time (the pin RUN below) and at runtime (buildDaemonEnv copies HOME into the
 # daemon env). Without a fixed HOME an arbitrary runtime uid would miss the baked pin and reinstall.

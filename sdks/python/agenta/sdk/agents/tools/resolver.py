@@ -338,7 +338,7 @@ class ToolResolver:
             if self._platform_resolver is None:
                 raise UnsupportedToolProviderError("platform")
             platform_resolution = await self._platform_resolver.resolve(
-                platform_configs
+                platform_configs, permission_default=permission_default
             )
             tool_specs = [*platform_resolution.tool_specs, *tool_specs]
             tool_callback = platform_resolution.tool_callback or tool_callback

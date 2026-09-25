@@ -116,14 +116,21 @@ class FakeSlackWorkspace:
             message["blocks"] = blocks
         return message
 
-    def history(self, *, channel: str, limit: int) -> List[Dict[str, Any]]:
+    def history(
+        self, *, channel: str, limit: int, latest: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
         """Top-level channel messages, oldest first, threaded replies excluded —
-        matching `conversations.history`."""
+        matching `conversations.history`. With `latest` (exclusive), the
+        `limit` newest messages before it, newest first, as Slack pages."""
 
         bucket = self.messages.get(channel, {})
         top_level = [
             m for m in bucket.values() if m.get("thread_ts") in (None, m["ts"])
         ]
+        if latest:
+            before = [m for m in top_level if float(m["ts"]) < float(latest)]
+            before.reverse()
+            return before[:limit] if limit else before
         return top_level[:limit] if limit else top_level
 
     def replies(
@@ -144,6 +151,7 @@ class FakeSlackWorkspace:
 
 
 _READ_METHODS = {
+    "users.conversations",
     "conversations.list",
     "conversations.history",
     "conversations.replies",
@@ -265,6 +273,19 @@ class FakeSlackTransport(httpx.AsyncBaseTransport):
             }
         )
 
+    def _users_conversations(self, payload: Dict[str, Any]) -> httpx.Response:
+        limit = payload.get("limit") or 100
+        cursor = payload.get("cursor") or ""
+        mine = [c for c in self.workspace.channels.values() if c.get("is_member")]
+
+        start = int(cursor) if cursor else 0
+        page = mine[start : start + limit]
+        next_cursor = str(start + limit) if start + limit < len(mine) else ""
+
+        return _ok_response(
+            {"channels": page, "response_metadata": {"next_cursor": next_cursor}}
+        )
+
     def _conversations_history(self, payload: Dict[str, Any]) -> httpx.Response:
         channel = payload.get("channel")
         if not channel:
@@ -272,10 +293,13 @@ class FakeSlackTransport(httpx.AsyncBaseTransport):
         if channel not in self.workspace.channels:
             return _error_response("channel_not_found")
 
-        messages = self.workspace.history(
-            channel=channel, limit=payload.get("limit") or 0
+        limit = payload.get("limit") or 0
+        latest = str(payload["latest"]) if payload.get("latest") else None
+        messages = self.workspace.history(channel=channel, limit=limit, latest=latest)
+        everything = self.workspace.history(channel=channel, limit=0, latest=latest)
+        return _ok_response(
+            {"messages": messages, "has_more": bool(limit) and len(everything) > limit}
         )
-        return _ok_response({"messages": messages})
 
     def _conversations_replies(self, payload: Dict[str, Any]) -> httpx.Response:
         channel = payload.get("channel")
@@ -285,10 +309,22 @@ class FakeSlackTransport(httpx.AsyncBaseTransport):
         if channel not in self.workspace.channels:
             return _error_response("channel_not_found")
 
-        messages = self.workspace.replies(
-            channel=channel, thread_ts=thread_ts, limit=payload.get("limit") or 0
+        everything = self.workspace.replies(
+            channel=channel, thread_ts=thread_ts, limit=0
         )
-        return _ok_response({"messages": messages})
+        limit = payload.get("limit") or len(everything) or 1
+        start = int(payload.get("cursor") or 0)
+        page = everything[start : start + limit]
+        more = start + limit < len(everything)
+        return _ok_response(
+            {
+                "messages": page,
+                "has_more": more,
+                "response_metadata": {
+                    "next_cursor": str(start + limit) if more else ""
+                },
+            }
+        )
 
     def _conversations_info(self, payload: Dict[str, Any]) -> httpx.Response:
         entry = self.workspace.channels.get(payload.get("channel") or "")
@@ -312,6 +348,7 @@ class FakeSlackTransport(httpx.AsyncBaseTransport):
         "auth.test": _auth_test,
         "chat.postMessage": _chat_post_message,
         "chat.update": _chat_update,
+        "users.conversations": _users_conversations,
         "conversations.list": _conversations_list,
         "conversations.history": _conversations_history,
         "conversations.replies": _conversations_replies,

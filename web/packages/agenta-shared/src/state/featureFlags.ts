@@ -71,15 +71,15 @@ export const playgroundInspectorEnabledAtom = userScopedFlagAtom("playground-ins
 /** Temporary channel probe page, kept separate from the permanent Channels settings tab. */
 export const agentaChannelSurfaceEnabledAtom = userScopedFlagAtom("agenta-channel-surface")
 
-/**
- * Show Channels controls; existing connections keep running when hidden. Off until a user
- * turns it on in Preferences. Only an explicit toggle is stored, so a user who never touched
- * it follows whatever this default says.
- */
-export const channelsEnabledAtom = userScopedFlagAtom("channels")
-
 /** Debug switch for the log and diagnostic sections of the Channels settings tab. */
 export const channelDebugEnabledAtom = userScopedFlagAtom("channel-debug")
 
 /** Experimental switch for Run on HTML files in the drive; key mirrors `AGENT_APPS_FLAG`. */
 export const agentAppsEnabledAtom = userScopedFlagAtom("agent-apps")
+
+/**
+ * Beta switch that offers the `inprocess` sandbox in the agent's sandbox picker. It only gates
+ * what the picker offers: the deployment's enabled-provider list stays the real gate, and the API
+ * does not read this flag.
+ */
+export const inprocessSandboxEnabledAtom = userScopedFlagAtom("inprocess-sandbox")

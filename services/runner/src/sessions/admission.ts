@@ -26,3 +26,11 @@ export const SESSION_TURN_IN_USE_CODE: RunErrorCode = "session_turn_in_use";
  */
 export const SESSION_TURN_IN_USE_MESSAGE =
   "This session is already running a turn. Your message was not sent. Wait for the reply, or stop the turn, then send again.";
+
+/**
+ * The platform never answered this turn's admission (it throttled or restarted past the retry
+ * budget), so nothing is known about who owns the session. Same class as a refused turn, because
+ * the client's handling is the same: nothing was sent, keep the text, send it again.
+ */
+export const SESSION_ADMISSION_UNCONFIRMED_MESSAGE =
+  "The platform is busy and could not start this turn. Your message was not sent. Send it again in a moment.";

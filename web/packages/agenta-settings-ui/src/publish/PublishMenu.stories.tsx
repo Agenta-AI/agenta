@@ -6,8 +6,7 @@ import {PublishMenu} from "./PublishMenu"
  * **The agent header's Publish button.** One menu of the places an agent can be reached from:
  * Slack, Telegram and API. Each row shows "Set up" or "Live"; the header counts the live ones.
  * The API is live as soon as the agent has a saved revision — it can always be called — so it
- * only shows "Set up" for a draft agent that has not been saved yet. With the Channels
- * preference off, the host passes only API.
+ * only shows "Set up" for a draft agent that has not been saved yet.
  */
 const meta = {
     title: "@agenta/settings-ui/Publish/PublishMenu",
@@ -61,9 +60,4 @@ export const ChannelsLoading: Story = {
             {key: "api", live: true},
         ],
     },
-}
-
-/** The Channels preference is off: only API is offered, live once the agent is saved. */
-export const ChannelsHidden: Story = {
-    args: {items: [{key: "api", live: true}]},
 }

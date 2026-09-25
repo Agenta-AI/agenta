@@ -1,5 +1,6 @@
 import { InMemorySessionPersistDriver, SandboxAgent } from "sandbox-agent";
 import type { SeededDecision } from "../../sessions/interactions.ts";
+import type { AgentToolsSetupExec, AgentToolsSetupResult } from "./agent-tools-setup.ts";
 
 import {
   type AgentRunRequest,
@@ -53,8 +54,74 @@ import { prepareWorkspace } from "./workspace.ts";
 
 type Log = (message: string) => void;
 
+/**
+ * What a harness that runs inside this runner process needs to know about the run: the facts a
+ * daemon would have read from its own environment and files.
+ */
+export interface InRunnerRunFacts {
+  /** The durable conversation id; undefined for a throwaway run. */
+  conversationId: string | undefined;
+  projectId: string | undefined;
+  credentialMode: string | undefined;
+  systemPrompt: string | undefined;
+  appendSystemPrompt: string | undefined;
+  /** The run's custom sandbox credentials, by environment variable name. */
+  sandboxEnvironment: Record<string, string>;
+  /** The run's network policy for its shell commands. */
+  network: { networkBlockAll: boolean; networkAllowList?: string };
+  /** The run's skills on the runner's own disk, where their file modes are intact. */
+  skillSources: Array<{ name: string; dir: string }>;
+  /** The object store behind each durable root, with the mount's current credentials. */
+  drives: Array<{ root: string; credentials: () => MountCredentials | null }>;
+  /**
+   * Signs the session's own prefix for the harness's conversation file (`pi-sessions`), apart from
+   * the session folder. Absent without a session or a run credential.
+   */
+  signTranscriptMount?: () => Promise<MountCredentials | null>;
+  /** The harness environment the runner built (agent, session and skill dirs). */
+  harnessEnv: Record<string, string>;
+  /** The Agenta extension's settings. */
+  extensionEnv: Record<string, string>;
+  /** Model credentials by environment variable name. */
+  modelEnvironment: Record<string, string>;
+  /** A custom provider the run registered through models.json, and where its key is. */
+  customProvider?: { providerId: string; keyEnv: string };
+}
+
+export interface InRunnerHarnessStart {
+  facts: InRunnerRunFacts;
+  persist: InMemorySessionPersistDriver;
+}
+
+/**
+ * A harness that runs inside this runner process instead of behind a sandbox-agent daemon. When
+ * set, `acquireEnvironment` starts it in place of `SandboxAgent.start` and builds no provider.
+ */
+export interface InRunnerHarness {
+  start(input: InRunnerHarnessStart): Promise<unknown>;
+}
+
+/**
+ * What shared code calls on a harness that runs in this process (`plan.harnessInRunner`): the
+ * environment's `sandbox` handle and its `session`.
+ */
+export interface InRunnerSandboxHandle {
+  /** The start of a turn: the sandbox's view of the drive is refreshed before its next tool call. */
+  startTurn(): void;
+  /** Owner setup to run in the command sandbox before its first command. */
+  onFirstCommand(setup: (exec: AgentToolsSetupExec, signal?: AbortSignal) => Promise<AgentToolsSetupResult>): void;
+}
+
+export interface InRunnerSessionHandle {
+  /** Drop what the failed turn's agent did from the transcript, keeping the person's message; true when it did. */
+  rollbackFailedTurn(): Promise<boolean>;
+  /** False when the latest turn may be missing from the saved native transcript: not a resume point. */
+  nativeHistorySaved(): boolean;
+}
+
 export interface SandboxAgentDeps extends BuildRunPlanDeps {
   startSandboxAgent?: typeof SandboxAgent.start;
+  inRunnerHarness?: InRunnerHarness;
   createPersist?: () => InMemorySessionPersistDriver;
   createOtel?: typeof createSandboxAgentOtel;
   buildDaemonEnv?: typeof buildDaemonEnv;
@@ -354,6 +421,8 @@ export interface SessionEnvironment {
    * moment a turn ends.
    */
   subscriptionPublisher?: import("./subscription-login/publisher.ts").SubscriptionPublisher;
+  /** Gives back this session's hold on its runner-host login folder (`subscription-login/retention.ts`). */
+  releaseSubscriptionHome?: () => void;
   mountCreds: MountCredentials | null;
   agentMountCreds?: MountCredentials | null;
   /** The mount's owning project id (keep-alive pool key FALLBACK scope, preferred is

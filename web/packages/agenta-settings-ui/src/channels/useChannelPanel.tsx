@@ -92,7 +92,9 @@ export const useChannelPanel = ({
                   ? platformLabel(activePlatform)
                   : `Connect ${platformLabel(activePlatform)}`,
               subtitle: `${agentName} · ${
-                  activePlatform === "slack" ? (active?.workspaceName ?? workspaceName) : "Telegram"
+                  activePlatform === "slack"
+                      ? (active?.workspaceName ?? workspaceName)
+                      : platformLabel(activePlatform)
               }`,
               onClose: close,
               children: active ? (

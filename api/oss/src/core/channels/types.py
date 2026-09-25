@@ -151,6 +151,17 @@ class ChannelDeliveryUncertain(ChannelsError):
         super().__init__(f"{channel}: delivery outcome unknown {detail}".strip())
 
 
+class ChannelDeliveryHeld(ChannelsError):
+    """The platform would refuse this message now (WhatsApp's 24-hour reply
+    window closed). Nothing was sent; the outbox keeps the row HELD and sends
+    it when the person next writes."""
+
+    def __init__(self, *, channel: str, reason: str = "window_closed"):
+        self.channel = channel
+        self.reason = reason
+        super().__init__(f"{channel}: delivery held ({reason})")
+
+
 class ChannelConnectionVerificationFailed(ChannelsError):
     """Raised by `verify_connection` when the platform rejects a credential.
     Nothing is written on this path — surfaced as the platform said it,
@@ -187,3 +198,13 @@ class ChannelPolicyDenied(ChannelsError):
         self.field = field
         self.level = level
         super().__init__(f"Denied by {level.value} policy: {field}")
+
+
+class ChannelRateLimited(ChannelsError):
+    """The platform refused a read for now (Slack HTTP 429). `retry_after` is
+    the platform's own wait in seconds, when it said."""
+
+    def __init__(self, *, channel: str, retry_after: Optional[int] = None):
+        self.channel = channel
+        self.retry_after = retry_after
+        super().__init__(f"{channel}: rate limited, retry after {retry_after}s")

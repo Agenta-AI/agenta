@@ -43,6 +43,7 @@ export const useSessionLivePreview = ({
     sharedReaderAdvertised,
     runningElsewhere,
     sender,
+    visible = true,
     onReadyChange,
     onCommittedRevision,
     onExecutionSettled,
@@ -55,6 +56,11 @@ export const useSessionLivePreview = ({
     runningElsewhere: boolean
     /** Subscribe before this browser sends its next turn. */
     sender?: boolean
+    /**
+     * False while the conversation is off screen (a hidden pane kept mounted): the stream closes,
+     * and coming back re-reads the snapshot and the records before it reopens.
+     */
+    visible?: boolean
     /** Reports commits learned after initial hydration, once their transcript is adopted. */
     onCommittedRevision?: (revision: CommittedRevision) => void
     /** Non-reactive request-pipeline signal: true only while the shared event route is ready. */
@@ -90,6 +96,7 @@ export const useSessionLivePreview = ({
         sharedReaderAdvertised,
         runningElsewhere,
         sender,
+        visible,
     })
 
     useEffect(() => {

@@ -4,7 +4,13 @@ import {Button} from "@agenta/ui/ui"
 
 import {ChannelConnectFlow} from "./ChannelConnectFlow"
 import {ChannelsPage} from "./ChannelsPage"
-import {DIRECT_MESSAGES_CHAT, EMPTY_CONNECTIONS} from "./helpers"
+import {
+    CHANNEL_PLATFORMS,
+    DEFAULT_TOOL_SETTINGS,
+    DIRECT_MESSAGES_CHAT,
+    EMPTY_CONNECTIONS,
+    platformLabel,
+} from "./helpers"
 import type {
     ChannelBehaviorState,
     ChannelConnection,
@@ -15,6 +21,7 @@ import type {
     ChannelSpace,
     ChannelSpaceCandidate,
     ChannelsActions,
+    ChannelToolSettings,
     HostedTelegramLink,
 } from "./types"
 
@@ -53,6 +60,49 @@ export const TELEGRAM_SETUP: ChannelSetupInfo = {
             secret: true,
             required: true,
             help: "From @BotFather",
+        },
+    ],
+}
+
+export const WHATSAPP_SETUP: ChannelSetupInfo = {
+    manifest: null,
+    hostedAvailable: false,
+    fields: [
+        {
+            name: "phone_number_id",
+            label: "Phone number ID",
+            secret: false,
+            required: true,
+            help: "WhatsApp > API Setup in your Meta app",
+            pattern: "^\\d+$",
+            patternError: "A phone number ID is digits only.",
+        },
+        {
+            name: "access_token",
+            label: "Access token",
+            secret: true,
+            required: true,
+            help: "A permanent system-user token",
+        },
+        {
+            name: "app_secret",
+            label: "App secret",
+            secret: true,
+            required: true,
+            help: "App settings > Basic in your Meta app",
+        },
+        {
+            name: "reopen_template",
+            label: "Re-open template (optional)",
+            secret: false,
+            required: false,
+        },
+        {
+            name: "reopen_template_language",
+            label: "Template language (optional)",
+            secret: false,
+            required: false,
+            help: "The template's language code. Defaults to en_US.",
         },
     ],
 }
@@ -98,6 +148,21 @@ export const telegramHere: ChannelConnection = {
     chats: [DIRECT_MESSAGES_CHAT, {name: "Support squad", type: "group"}],
     agent: {id: AGENT_ID, name: AGENT_NAME},
     connectedAt: "2026-08-21T10:12:00.000Z",
+}
+
+export const whatsappHere: ChannelConnection = {
+    connectionId: "cx-whatsapp",
+    platform: "whatsapp",
+    kind: "custom",
+    status: "connected",
+    dm: "allow",
+    group: "allow",
+    chats: [DIRECT_MESSAGES_CHAT],
+    agent: {id: AGENT_ID, name: AGENT_NAME},
+    connectedAt: "2026-08-21T10:12:00.000Z",
+    handle: "+1 555 0100",
+    webhookUrl: "https://cloud.agenta.ai/api/channels/whatsapp/events/",
+    webhookVerifyToken: "1065550100.example-verify-token",
 }
 
 export const telegramElsewhere: ChannelConnection = {
@@ -166,8 +231,16 @@ export const SLACK_SPACES: ChannelSpace[] = [
 
 export const TELEGRAM_SPACES: ChannelSpace[] = [
     {id: "sp-tg-dm", kind: "private", name: "Direct messages"},
-    {id: "sp-tg-ops", kind: "group", name: "Ops team"},
+    {
+        id: "sp-tg-ops",
+        kind: "group",
+        name: "Ops team",
+        externalKey: "5b0c7a4e-0000-4000-8000-00000000a001",
+    },
 ]
+
+/** The space key of #support, for a story that narrows reading to it. */
+export const SLACK_SUPPORT_KEY = "5b0c7a4e-0000-4000-8000-00000000c001"
 
 /** What the Slack app can see: one room already configured, three that are not. */
 export const SLACK_CANDIDATES: ChannelSpaceCandidate[] = [
@@ -177,6 +250,7 @@ export const SLACK_CANDIDATES: ChannelSpaceCandidate[] = [
         displayName: "#support",
         isConfigured: true,
         membership: "member",
+        externalKey: SLACK_SUPPORT_KEY,
     },
     {
         kind: "topic",
@@ -184,6 +258,7 @@ export const SLACK_CANDIDATES: ChannelSpaceCandidate[] = [
         displayName: "#product",
         isConfigured: false,
         membership: "joinable",
+        externalKey: "5b0c7a4e-0000-4000-8000-00000000c002",
     },
     {
         kind: "topic",
@@ -191,6 +266,7 @@ export const SLACK_CANDIDATES: ChannelSpaceCandidate[] = [
         displayName: "#sales-questions",
         isConfigured: false,
         membership: "member",
+        externalKey: "5b0c7a4e-0000-4000-8000-00000000c003",
     },
     {
         kind: "topic",
@@ -198,6 +274,7 @@ export const SLACK_CANDIDATES: ChannelSpaceCandidate[] = [
         displayName: "#leadership",
         isConfigured: false,
         membership: "invite_required",
+        externalKey: "5b0c7a4e-0000-4000-8000-00000000c004",
     },
 ]
 
@@ -237,6 +314,9 @@ export interface ChannelStoryActionsOptions {
     behavior?: Record<string, ChannelBehaviorState>
     /** The allowed Telegram accounts, keyed by connection id. Default: everyone. */
     allowedUsers?: Record<string, string[]>
+    /** The channel tool settings, keyed by connection id. Default: the defaults. */
+    toolSettings?: Record<string, ChannelToolSettings>
+    toolSettingsError?: string
     spacesError?: string
     discoverError?: string
     addSpaceError?: string
@@ -277,6 +357,7 @@ export const createChannelStoryActions = (
         behaviorError,
         allowedUsersError,
         credentialsError,
+        toolSettingsError,
         onChange,
     } = options
 
@@ -289,6 +370,7 @@ export const createChannelStoryActions = (
     }
     const behavior: Record<string, ChannelBehaviorState> = {...options.behavior}
     const allowedUsers: Record<string, string[]> = {...options.allowedUsers}
+    const toolSettings: Record<string, ChannelToolSettings> = {...options.toolSettings}
     let nextSpaceId = 0
 
     const write = (next: ChannelConnections) => {
@@ -338,11 +420,14 @@ export const createChannelStoryActions = (
             await delay(latencyMs)
             if (connectCustomError) throw new Error(connectCustomError)
             const connection: ChannelConnection = {
-                ...(platform === "slack" ? slackCustomHere : telegramHere),
+                ...{slack: slackCustomHere, telegram: telegramHere, whatsapp: whatsappHere}[
+                    platform
+                ],
                 kind: "custom",
                 agent: {id: AGENT_ID, name: AGENT_NAME},
             }
             write({...store, [platform]: connection})
+            return connection
         },
         connectHere: async (platform) => {
             await delay(latencyMs)
@@ -409,12 +494,33 @@ export const createChannelStoryActions = (
             await delay(latencyMs)
             if (credentialsError) throw new Error(credentialsError)
             // A good token brings the connection back: the panel re-reads it as active.
-            for (const platform of ["slack", "telegram"] as const) {
+            for (const platform of CHANNEL_PLATFORMS) {
                 const current = store[platform]
                 if (current?.connectionId === connectionId && current.status === "revoked") {
                     write({...store, [platform]: {...current, status: "connected"}})
                 }
             }
+        },
+        readToolSettings: async (connectionId) => {
+            await delay(latencyMs)
+            return toolSettings[connectionId] ?? DEFAULT_TOOL_SETTINGS
+        },
+        writeToolSettings: async (connectionId, next) => {
+            await delay(latencyMs)
+            if (toolSettingsError) throw new Error(toolSettingsError)
+            toolSettings[connectionId] = next
+        },
+        listReadableChannels: async (platform, connectionId) => {
+            await delay(latencyMs)
+            const rows =
+                platform === "slack"
+                    ? (candidates[connectionId] ?? []).filter((c) => c.membership === "member")
+                    : (spaces[connectionId] ?? []).filter((space) => space.kind !== "private")
+            return rows.flatMap((row) => {
+                const key = row.externalKey
+                const name = "displayName" in row ? row.displayName : row.name
+                return key ? [{key, name, kind: row.kind}] : []
+            })
         },
     }
 
@@ -505,7 +611,7 @@ export const ConnectFlowHost = ({
     // One actions object per run: the flow keeps it in effect dependencies, and a fresh one
     // also resets the fake bind clock when the reader re-opens the panel.
     const [run, setRun] = useState(() => ({id: 0, ...createChannelStoryActions(options)}))
-    const name = platform === "slack" ? "Slack" : "Telegram"
+    const name = platformLabel(platform)
 
     if (!open) {
         return (
@@ -542,7 +648,7 @@ export const ConnectFlowHost = ({
     return (
         <InlinePanel
             title={`Connect ${name}`}
-            subtitle={`${AGENT_NAME} · ${platform === "slack" ? WORKSPACE_NAME : "Telegram"}`}
+            subtitle={`${AGENT_NAME} · ${platform === "slack" ? WORKSPACE_NAME : platformLabel(platform)}`}
             onClose={() => setOpen(false)}
         >
             {capturePopups ? <CapturePopups>{flow}</CapturePopups> : flow}

@@ -327,6 +327,30 @@ describe("useServerSessionInputs", () => {
         expect(fetchSnapshot).toHaveBeenCalledTimes(2)
     })
 
+    it("polls the queue only for the conversation on screen", async () => {
+        fetchSnapshot.mockResolvedValue(runningSnapshot([]))
+        const {result, rerender} = renderHook(
+            ({active}: {active: boolean}) =>
+                useServerSessionInputs({
+                    entityId: "revision-1",
+                    sessionId: "session-1",
+                    messages: [] as UIMessage[],
+                    locallyBusy: false,
+                    active,
+                }),
+            {initialProps: {active: false}},
+        )
+        await waitFor(() => expect(result.current.executionState).toBe("running"))
+        const afterLoad = fetchSnapshot.mock.calls.length
+        await act(async () => new Promise((resolve) => setTimeout(resolve, 2_300)))
+        expect(fetchSnapshot).toHaveBeenCalledTimes(afterLoad)
+
+        rerender({active: true})
+        await waitFor(() => expect(fetchSnapshot.mock.calls.length).toBeGreaterThan(afterLoad), {
+            timeout: 3_000,
+        })
+    }, 10_000)
+
     it("lists queued inputs from a snapshot without reconnect data", async () => {
         fetchSnapshot.mockResolvedValue({
             session: null,

@@ -170,6 +170,14 @@ class ChannelInboxEventDBE(Base, ChannelInboxEventDBA):
             "origin",
             "id",
         ),
+        # a space's messages in provider order, for the channel read tool
+        Index(
+            "ix_channel_inbox_events_sent",
+            "project_id",
+            "space_id",
+            "sent_at",
+            "id",
+        ),
     )
 
 
@@ -209,6 +217,13 @@ class ChannelOutboxEventDBE(Base, ChannelOutboxEventDBA):
             "ix_channel_outbox_created",
             "project_id",
             "state",
+            "created_at",
+        ),
+        # the bot's own posts in a space, for the channel read tool
+        Index(
+            "ix_channel_outbox_space",
+            "project_id",
+            "space_id",
             "created_at",
         ),
     )

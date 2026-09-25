@@ -92,6 +92,8 @@ class FakePlatformResolver:
     async def resolve(
         self,
         tools: Sequence[PlatformToolConfig],
+        *,
+        permission_default: str = "allow_reads",
     ) -> GatewayToolResolution:
         return GatewayToolResolution(
             tool_specs=[

@@ -1,66 +1,54 @@
 # Tasks
 
-These tasks describe future implementation. All remain unchecked. Mahmoud approved creating the OpenSpec documents, not implementation. The channels stack has not shipped to production; no compatibility mode or migration of pre-release data is required.
+All phases ship in one pull request, on branch `feat/channel-agent-tools`, which targets `release/v0.121.2`. [plan.md](plan.md) gives the files, tests, and commands for every task. Task numbers are kept from the approved plan, so dropped tasks leave gaps.
 
-## 1. Define tool and data contracts
+## 1. Destinations, bot settings, and the list tool
 
-- [ ] 1.1 Define DTOs for opaque destinations, action grants, delivery intents, delivery states, search queries, search coverage, and exact schedules; verify schema tests reject raw project, connection, channel-agent, and provider locator fields.
-- [ ] 1.2 Add a runner-generated tool call identity to dispatch context and bind workflow artifact, variant, and revision references into channel operations; verify the model-visible schemas omit every bound field and one retry retains the same call identity.
-- [ ] 1.3 Add the seven platform catalog operations with correct endpoint, schema, timeout, and read-only hints; verify platform resolver tests cover each operation and reject duplicate or unknown declarations.
-- [ ] 1.4 Generate affected public clients and verify generated schemas match the authenticated Channels routes without credential fields.
+- [x] 1.1 Add the `tools` settings block to `ChannelAgentData` with its defaults; verify that a stored bot without the block reads as the defaults and that a partial edit keeps its other fields.
+- [x] 1.3 Add a Slack adapter method that lists the bot's member channels; verify paging, the exclusion of group DMs, and that Telegram reports it as unsupported.
+- [x] 1.4 Add opaque destination IDs; verify that they round-trip and that malformed, foreign-project, and foreign-bot IDs resolve to not found.
+- [x] 1.5 Match the bound run artifact to its bots; verify application, workflow, variant, and revision references, archived connections, and the refusal for two bots on one connection.
+- [x] 1.6 Implement `list_channel_destinations` for Slack and Telegram; verify the setting effects, the Telegram limits, hosted-bot scoping, and the member-channel cache.
+- [x] 1.7 Add the authenticated tool router and the SDK catalog entry; verify `run_channels`, closed input schemas, hidden bindings, and that no raw provider ID is returned.
+- [x] 1.8 Add the availability route, which says whether the agent is connected to an active, verified bot and which channel tools its runs get under the bot settings; verify it turns false on disconnect and archive.
+- [x] 1.9 Add the channel tools to every run of a connected agent, gated by the bot settings; author entries win; a failed check adds nothing.
 
-## 2. Add action grants and destinations
+## 2. The send tool and the delivery record
 
-- [ ] 2.1 Add `reply`, `search`, `send`, and `direct_message` actions to the pre-release Channels grant model; verify allow and deny evaluation at connection-kind and destination levels without treating reply as proactive send.
-- [ ] 2.2 Resolve the bound run identity to active ChannelAgent deployments within the authenticated project; verify workflow, variant, and revision references, multiple authorized connections, ambiguous same-connection deployments, and cross-project refusal.
-- [ ] 2.3 Project active ChannelSpace rows as opaque destinations and implement `list_channel_destinations`; verify results contain safe labels and capabilities but no raw Slack channel, Slack user, Telegram chat, connection, or credential fields.
-- [ ] 2.4 Re-check destination authority on every operation; verify copied, revoked, archived, unverified, and other-project destination IDs fail without metadata disclosure.
+- [x] 2.1 Add `$ctx.tool.call_id` to the runner's direct-call context; verify that it is bound, stable across a retry, and not part of the approval key.
+- [x] 2.2 Make the outbox thread optional and add `space_id`; verify turn rows are unchanged and a duplicate tool key returns the existing row.
+- [x] 2.4 Implement channel sends; verify the setting refusals, the thread check, the retry, the unknown outcome, and a revoked credential.
+- [x] 2.7 Make the send tool default to `allow` through `PlatformOp.default_permission`; verify that an author `ask` or `deny` and an agent-wide `ask` win.
+- [x] 2.8 Add the send route and the SDK catalog entry; verify the session and tool call bindings are hidden from the model.
 
-## 3. Implement durable delivery
+## 3. Settings UI
 
-- [ ] 3.1 Add ChannelDeliveryIntent storage, lifecycle states, attempt records, unique tool-invocation constraint, sanitized failures, and receipts; verify fresh database and concurrent duplicate-enqueue tests.
-- [ ] 3.2 Implement `ChannelsService.enqueue_output` for tool-originated delivery and verify repeated calls with one tool invocation identity return one intent.
-- [ ] 3.3 Implement `ChannelsService.deliver` with claim, current authorization, trusted sender profile, adapter post, receipt transition, and blocked state; verify grant or credential revocation prevents the external call.
-- [ ] 3.4 Implement `send_channel_message` and `get_channel_delivery`; verify immediate success, provider rejection, queued timeout, unknown provider outcome, retry, and long-message chunk receipts.
-- [ ] 3.5 Route the final provider-call part of turn replies through the same delivery primitive without changing progress folding; verify existing Slack, Telegram, bridge, mock, approval, and outbox suites.
-- [ ] 3.6 Expose at-least-once provider semantics and unknown outcomes; fault-inject a lost Slack receipt and verify the system does not claim exactly-once delivery or enqueue a second local intent.
+- [x] 3.1 Regenerate the TypeScript client and add the settings actions; verify that a write sends only the `tools` block.
+- [x] 3.2 Add the Advanced section with the posting switch and the readable-channels choice; verify defaults, saving a narrowed list, error recovery, and the Telegram help text.
+- [x] 3.3 Update the manage-panel test that forbade an Advanced section and add Storybook states.
 
-## 4. Add explicit direct-message destinations
+## 4. The read tool
 
-- [ ] 4.1 Add editor-only Slack recipient authorization and direct-conversation setup with `im:write`; verify raw model-supplied user IDs cannot open a conversation and missing scope or workspace access produces a safe blocker.
-- [ ] 4.2 Persist the resolved direct conversation as a private destination with agent-specific grants; verify another agent or project cannot list or use it.
-- [ ] 4.3 Create or select a private ChannelThread and session for proactive direct-message continuity; verify the source session and its history are not moved or copied.
-- [ ] 4.4 Route a recipient reply to the private session under current grants; verify revocation, agent disablement, and shared-installation defaults do not attach it to the source channel session.
-- [ ] 4.5 Validate Slack direct-message setup and reply continuity in an approved test workspace; save sanitized scopes, payloads, source SHA, and results.
+- [x] 4.1 Record the provider time and message reference on stored inbox messages, with a `sent_at` column; verify Slack and Telegram parsing and the round trip.
+- [x] 4.2 Read a channel's stored messages from inbox and outbox rows in provider order; verify the merge, the single copy of a bot post, thread reads, paging, and the fallback to `created_at`.
+- [x] 4.3 Fetch one page of older Slack history before a timestamp; verify the `latest` bound, thread replies, the rate-limit error, and deleted messages.
+- [x] 4.4 Implement `read_messages`: stored messages first, then one live Slack call; verify limits, the notes on edits, rate limits, and Telegram, the refusals, and that live messages are not stored.
+- [x] 4.5 Add the read route and the SDK catalog entry.
 
-## 5. Build permission-aware search
+## 5. Search
 
-- [ ] 5.1 Add the tenant-scoped lexical message projection and deterministic cursor indexes; verify messages with equal timestamps paginate without duplicates or omissions.
-- [ ] 5.2 Project valid inbound events without starting extra turns; verify Slack new, changed, and deleted events update one stable searchable record and bot echoes remain excluded from invocation.
-- [ ] 5.3 Add Slack live indexing and bounded paginated backfill for selected destinations; verify private membership failures, retention gaps, retry delays, interrupted resume, and coverage persistence.
-- [ ] 5.4 Record Telegram observed-history coverage without discovery or backfill; verify searches before the first retained event return an explicit unavailable range.
-- [ ] 5.5 Implement `search_channel_messages` with query-time project, deployment, destination, and grant checks; verify revoked and other-project indexed content remains inaccessible.
-- [ ] 5.6 Return safe sender data, opaque thread references, permitted links, deterministic cursors, and coverage; verify raw provider identifiers and inaccessible permalinks are omitted.
-- [ ] 5.7 Run PostgreSQL search tests and approved live Slack checks for public, invited-private, thread, edit, delete, rate-limit, and incomplete-history cases; save sanitized evidence.
+- [x] 5.1 Add the full-text expression index on stored inbox text; verify matching, filters, stable paging, project isolation, and that queries use the index.
+- [x] 5.2 Implement `search_channel_messages`, its route, and the SDK catalog entry; verify query-time readability, the coverage statements, no provider history or search calls, and hidden raw sender IDs.
 
-## 6. Implement exact and recurring schedules
+## 6. Release validation
 
-- [ ] 6.1 Implement `schedule_channel_message` with offset-aware RFC 3339 validation and normalized UTC storage; verify missing offsets, past times, duplicate calls, and unauthorized destinations are refused.
-- [ ] 6.2 Implement `list_scheduled_channel_messages` and `cancel_scheduled_channel_message`; verify owner scoping, project isolation, idempotent cancellation, and sent-message non-recall behavior.
-- [ ] 6.3 Connect due intents to the existing scheduling service or its delivery wake-up path; verify duplicate due events claim one intent and adapters receive no cron or timing logic.
-- [ ] 6.4 Re-check deployment, connection, destination, scope, and action grants at due time; verify revoked schedules become blocked without a provider call.
-- [ ] 6.5 Exercise a recurring generated report through the existing agent scheduler and ordinary send tool; verify denied or interactive-only send permission stops the unattended post instead of bypassing approval.
+- [x] 6.1 Run the live Slack and Telegram QA in [plan.md](plan.md) on fresh connections and save sanitized evidence. Ran on a local EE stack with Claude Haiku as the agent and the Slack QA app connected as a customer app. Not run live: the hosted Slack app's history rate limit (the QA app is not subject to it; covered by unit tests), a successful post to a real Telegram group (adding the bot to a group needs a person; the failed-post path ran), the hosted Telegram bot, and a send whose Slack request times out (covered by unit tests).
+- [ ] 6.2 Check the assumptions about the retention specification once it is approved.
+- [ ] 6.3 Run `openspec validate --all --strict --no-interactive`; archive the change only after the implementation, live validation, and product acceptance are complete.
 
-## 7. Add configuration and observability controls
+## 7. Follow-ups
 
-- [ ] 7.1 Add agent-editor controls for each optional channel tool and its runner permission; verify connecting an agent does not silently enable any tool.
-- [ ] 7.2 Add destination action controls for search, proactive send, and direct-message access; verify desktop and mobile show the same effective capabilities and blockers.
-- [ ] 7.3 Add delivery, schedule, search coverage, and sanitized failure views; verify users can distinguish queued, sending, sent, failed, blocked, cancelled, incomplete, and unknown outcomes.
-- [ ] 7.4 Add audit records linking bound run, tool invocation, policy decision, destination, delivery or query, and receipt; verify credentials and unredacted provider errors never appear.
-
-## 8. Validate the proposed release
-
-- [ ] 8.1 Run focused SDK platform-tool, runner, Channels route, policy, database, adapter, outbox, scheduler, and shared UI suites; record exact commands, source SHA, and results.
-- [ ] 8.2 Run an approved end-to-end flow from Agenta chat, Slack, Telegram, and a scheduled run; verify destination listing, permission refusal, proactive send, direct-message continuity, search coverage, exact cancellation, and recurring generation.
-- [ ] 8.3 Verify a fresh Slack installation requests all scopes needed by both approved Channels changes, including `im:write`, and verify first installation grants no agent tool authority automatically.
-- [ ] 8.4 Run `openspec validate --all --strict --no-interactive`, local link and requirement checks, and `git diff --check`; archive the change only after implementation, live validation, and product acceptance are complete.
+- [x] 7.1 Skip consumed rows (`flags.is_consumed`) in `query_space_inbox_messages` and `search_inbox_statement` in `api/oss/src/dbs/postgres/channels/dao.py`. Done in this change, now that pull request #7128 is merged.
+- [ ] 7.2 Direct messages to people.
+- [ ] 7.3 Replace the run-time injection with the Agenta tools kit once it ships.
+- [ ] 7.4 Apply Slack edits and deletions to stored inbox rows.

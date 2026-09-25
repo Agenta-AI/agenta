@@ -11,6 +11,7 @@ from oss.src.core.channels.adapters.telegram.adapter import TelegramAdapter
 from oss.src.core.channels.adapters.telegram_hosted.adapter import (
     HostedTelegramAdapter,
 )
+from oss.src.core.channels.adapters.whatsapp.adapter import WhatsAppAdapter
 from oss.src.core.access.permissions.service import check_action_access
 from oss.src.core.access.permissions.types import Permission
 from oss.src.dbs.postgres.channels.dao import ChannelsDAO
@@ -52,6 +53,7 @@ def build_channel_adapter_registry() -> ChannelAdapterRegistry:
             "slack": SlackAdapter(),
             "telegram": TelegramAdapter(),
             "telegram_hosted": HostedTelegramAdapter(),
+            "whatsapp": WhatsAppAdapter(),
             "mock": MockAdapter(),
             "bridge": BridgeAdapter(),
             "agenta": AgentaAdapter(

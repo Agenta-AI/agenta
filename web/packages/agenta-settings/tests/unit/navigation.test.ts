@@ -14,7 +14,6 @@ const baseAccess: SettingsAccess = {
     billingEnabled: true,
     canShowMcpEndpoints: true,
     canShowTools: true,
-    canShowChannels: true,
     canViewApiKeys: true,
     canViewEvents: true,
     isEE: true,

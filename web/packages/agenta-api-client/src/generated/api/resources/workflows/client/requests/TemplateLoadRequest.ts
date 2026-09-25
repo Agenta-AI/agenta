@@ -19,8 +19,19 @@ export interface TemplateLoadRequest {
     base_revision: AgentaApi.WorkflowRevisionDataInput;
     ui_build_kit_enabled?: boolean;
     ui_disabled_ops?: string[];
+    ui_op_permissions?: Record<string, TemplateLoadRequest.UiOpPermissions.Value>;
     staging_session_id?: string | null;
     attachment_ids?: string[];
     initial_message: string;
     connection_choices?: AgentaApi.TemplateLoadRequestConnectionChoicesItem[];
+}
+
+export namespace TemplateLoadRequest {
+    export namespace UiOpPermissions {
+        export const Value = {
+            Allow: "allow",
+            Ask: "ask",
+        } as const;
+        export type Value = (typeof Value)[keyof typeof Value];
+    }
 }

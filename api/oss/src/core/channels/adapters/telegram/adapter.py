@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 import json
 from typing import Any, Dict, List, Optional
 from uuid import UUID
@@ -264,6 +265,10 @@ class TelegramAdapter(ChannelAdapterInterface):
         # v1 keys a conversation on the chat and does not separate forum topics,
         # so the locator carries no message_thread_id.
         locator = build_locator(chat_id=chat_id)
+        # A group's title names it in the channel tools' destination list; a
+        # bot cannot look it up later. Not a key field, so keys are unchanged.
+        if chat.get("title"):
+            locator["title"] = chat["title"]
 
         sender = message.get("from") or {}
         addressed = is_addressed(
@@ -281,6 +286,12 @@ class TelegramAdapter(ChannelAdapterInterface):
             processed=ChannelInboxEventProcessed(
                 content=[{"type": "text", "text": text}],
                 sender=_sender_fields(sender),
+                sent_at=_telegram_time(message.get("date")),
+                message_ref=(
+                    str(message["message_id"])
+                    if message.get("message_id") is not None
+                    else None
+                ),
             ),
             addressed=addressed,
         )
@@ -577,3 +588,9 @@ def _parse_callback_query(callback: Dict[str, Any]) -> Optional[ChannelInboundEv
         ),
         addressed=True,
     )
+
+
+def _telegram_time(value: Any) -> Optional[datetime]:
+    if not isinstance(value, int):
+        return None
+    return datetime.fromtimestamp(value, timezone.utc)

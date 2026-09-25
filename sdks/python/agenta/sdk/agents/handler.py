@@ -30,7 +30,7 @@ from agenta.sdk.agents.connections import (
     UnsupportedDeploymentError,
     UnsupportedProviderError,
 )
-from agenta.sdk.agents.tools import ResolvedToolSet
+from agenta.sdk.agents.tools import PlatformToolConfig, ResolvedToolSet
 from agenta.sdk.agents.adapters import SandboxAgentBackend, make_harness
 from agenta.sdk.agents.errors import SandboxNotAllowedError
 from agenta.sdk.agents.sandbox_providers import sandbox_provider_enabled
@@ -43,6 +43,8 @@ from agenta.sdk.agents.platform import (
 )
 from agenta.sdk.agents.platform import resolve_mcp as _platform_resolve_mcp
 from agenta.sdk.agents.platform import resolve_tools as _platform_resolve_tools
+from agenta.sdk.agents.platform import CHANNEL_TOOL_OPS
+from agenta.sdk.agents.platform import read_channel_tools as _platform_channel_tools
 from agenta.sdk.agents.platform import (
     read_session_context as _platform_read_session_context,
     run_optional,
@@ -77,6 +79,7 @@ ResolveMCPFn = Callable[..., Awaitable[List[ResolvedMCPServer]]]
 ResolveConnectionFn = Callable[..., Awaitable[ResolvedConnection]]
 ResolveSandboxCredentialsFn = Callable[..., Awaitable[List[Any]]]
 ResolveSessionContextFn = Callable[..., Awaitable[Optional[SessionContext]]]
+ResolveChannelToolsFn = Callable[..., Awaitable[List[str]]]
 ResolveSessionConnectionFn = Callable[
     [ModelRef, RuntimeAuthContext], Awaitable[ResolvedConnection]
 ]
@@ -159,6 +162,37 @@ async def _bounded_session_context(
         budget=session_context_timeout(),
         label="session context resolver",
     )
+
+
+async def _with_channel_tools(
+    resolve: ResolveChannelToolsFn, tools: list, *, workflow_id: Optional[str]
+) -> list:
+    """The run's tools plus the channel tools its connected bots allow, never saved to the
+    agent's configuration. Bounded like the session context: a slow or failed check adds
+    nothing and never breaks the turn. An author's own entry for an op wins, permission
+    included. A stand-in for the Agenta tools kit, which will own this and replace it."""
+
+    ops = await run_optional(
+        lambda: resolve(workflow_id=workflow_id),
+        budget=session_context_timeout(),
+        label="channel tools resolver",
+    )
+    if not ops:
+        return list(tools)
+    # any declared tool with the op's name wins: a platform entry for the op, or a
+    # client, code or other tool that already uses the name
+    authored = {
+        name
+        for tool in tools
+        for name in (getattr(tool, "op", None), getattr(tool, "name", None))
+        if isinstance(name, str)
+    }
+    added = [
+        PlatformToolConfig(op=op)
+        for op in CHANNEL_TOOL_OPS
+        if op in ops and op not in authored
+    ]
+    return [*tools, *added]
 
 
 def _reference_id(references, name: str) -> Optional[str]:
@@ -332,6 +366,10 @@ class AgentComposition:
     resolve_session_context: ResolveSessionContextFn = field(
         default=_default_resolve_session_context
     )
+    # Which channel tools the agent's connected bots allow; added to every run.
+    resolve_channel_tools: ResolveChannelToolsFn = field(
+        default=_platform_channel_tools
+    )
     # capability gating + fail-closed resolution policy; override to replace, not just add to.
     resolve_session_connection: Optional[ResolveSessionConnectionFn] = field(
         default=None
@@ -383,8 +421,13 @@ def make_agent_handler(composition: Optional[AgentComposition] = None):
         # The agent-wide mode reaches the gateway permission compiler only here: an
         # ``inherit`` in a saved connection policy resolves against it, so a resolve that
         # does not carry it would compile a different policy than the run enforces.
-        resolved_tools = await comp.resolve_tools(
+        run_tools = await _with_channel_tools(
+            comp.resolve_channel_tools,
             agent_template.tools,
+            workflow_id=_agent_artifact_id(comp.run_context(), request.references),
+        )
+        resolved_tools = await comp.resolve_tools(
+            run_tools,
             permission_default=agent_template.permission_default,
         )
         resolved_mcp = await comp.resolve_mcp_servers(

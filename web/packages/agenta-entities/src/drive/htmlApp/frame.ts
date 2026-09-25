@@ -22,10 +22,9 @@
  * The app srcdoc inherits the wrapper's policy, which is {@link RUN_CSP} plus `frame-src`, so the
  * policy holds even for a document the app swaps in with a `javascript:` URL.
  *
- * Not closed: Chrome's `<link rel="prerender">` prefetch ignores CSP (even on a top-level page),
- * so an app can still send one request per load with data in its URL. No policy stops it, and
- * stripping the tag would not stop a script adding it, so the grant sheet says the app may be
- * able to send out what it reads.
+ * Egress is not what the wrapper guards: {@link RUN_CSP} lets the app load and fetch over `https:`
+ * by design. The wrapper keeps the app in its frame and the bridge port away from any page but the
+ * app's first load.
  */
 
 // Old-style code on purpose: the body below is shipped as a string into a foreign document.

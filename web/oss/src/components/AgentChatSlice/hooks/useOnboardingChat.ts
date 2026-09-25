@@ -2,6 +2,7 @@ import {type RefObject, useCallback, useEffect, useMemo, useRef, useState} from 
 
 import {workflowMolecule} from "@agenta/entities/workflow"
 import {type AgentSetupSelection, type AgentStarterTemplate} from "@agenta/entities/workflow"
+import {captureFirstAgentIntent, classifyAgentIntent} from "@agenta/shared/analytics"
 import {generateId} from "@agenta/shared/utils"
 import {type RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 import {type UIMessage} from "ai"
@@ -11,10 +12,6 @@ import {
     IDE_INSTALL_COMMAND,
     TEMPLATE_STRIP_MODE,
 } from "@/oss/components/pages/agent-home/assets/constants"
-import {
-    captureFirstAgentIntent,
-    classifyAgentIntent,
-} from "@/oss/components/pages/agent-home/assets/onboardingAnalytics"
 import {useOptionalOnboardingContext} from "@/oss/components/pages/agent-home/PlaygroundOnboarding/OnboardingContext"
 import {useTemplateProvenance} from "@/oss/components/TemplateStrip/hooks/useTemplateProvenance"
 import {usePostHogAg} from "@/oss/lib/helpers/analytics/hooks/usePostHogAg"

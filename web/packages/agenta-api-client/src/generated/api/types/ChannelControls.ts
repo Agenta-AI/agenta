@@ -3,4 +3,13 @@
 export interface ChannelControls {
     update?: boolean | undefined;
     ephemeral?: boolean | undefined;
+    indicator?: ChannelControls.Indicator | undefined;
+}
+
+export namespace ChannelControls {
+    export const Indicator = {
+        Message: "message",
+        Native: "native",
+    } as const;
+    export type Indicator = (typeof Indicator)[keyof typeof Indicator];
 }

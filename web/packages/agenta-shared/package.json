@@ -18,6 +18,7 @@
     },
     "exports": {
         ".": "./src/index.ts",
+        "./analytics": "./src/analytics/index.ts",
         "./api": "./src/api/index.ts",
         "./api/env": "./src/api/env.ts",
         "./api/hostQueryClient": "./src/api/hostQueryClient.ts",

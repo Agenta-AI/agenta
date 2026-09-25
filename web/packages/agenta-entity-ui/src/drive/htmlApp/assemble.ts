@@ -8,7 +8,7 @@
  *   are stripped so ONLY {@link HTML_NAV_INTERCEPTOR} runs. Lifted verbatim out of
  *   `renderers.tsx`; the lock is `tests/unit/htmlApp.assemble.test.ts`.
  * - `assembleRunDocument` is the Run tab (agent HTML apps): the same asset inlining, but the
- *   author's scripts are KEPT (same-folder `<script src>` is inlined, external ones dropped),
+ *   author's scripts are KEPT (same-folder `<script src>` is inlined, `https:` ones load as-is),
  *   and the head gains the CSP, the kit tokens + CSS, and the bridge stub that gives the app
  *   `window.agenta`. No nav interceptor: the stub carries navigation over the port.
  *
@@ -252,7 +252,8 @@ const escapeInlineScript = (text: string): string => text.replace(/<\/script/gi,
 
 /**
  * The Run document: assets inlined as in Preview, author scripts kept (same-folder `<script src>`
- * inlined through `io`, external ones dropped with a note), then — at the top of `<head>`, in this
+ * inlined through `io`, `https:` ones left for the browser to load under {@link RUN_CSP}, any other
+ * scheme dropped with a note), then — at the top of `<head>`, in this
  * order — the CSP meta, the kit tokens, the kit CSS (when enabled) and the bridge stub, so the stub
  * runs before any author script. No nav interceptor: the stub posts `nav` over the port.
  */
@@ -268,9 +269,12 @@ export async function assembleRunDocument(html: string, ctx: RunContext): Promis
             Array.from(doc.querySelectorAll<HTMLScriptElement>("script[src]")).map(
                 async (script) => {
                     const src = script.getAttribute("src") ?? ""
+                    // Remote scripts load as-is: RUN_CSP allows `https:`. Protocol-relative URLs
+                    // resolve against the host page, which is served over https.
+                    if (/^https:\/\//i.test(src) || src.startsWith("//")) return
                     if (!src || isExternalUrl(src)) {
                         errors.push(
-                            `External script dropped by the sandbox: ${src || "(empty src)"}`,
+                            `Script not loaded, only https:// scripts can run: ${src || "(empty src)"}`,
                         )
                         script.remove()
                         return

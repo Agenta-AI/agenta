@@ -38,6 +38,7 @@ from agenta.sdk.utils.types import CATALOG_TYPES
 from ._schema import expand_type_refs
 
 __all__ = [
+    "CHANNEL_TOOL_OPS",
     "PLATFORM_OP_NAMESPACE",
     "PlatformOp",
     "PLATFORM_OPS",
@@ -189,6 +190,11 @@ class PlatformOp(BaseModel):
     static_body: Optional[Dict[str, Any]] = None
     # Catalog hint for the runner's ``allow_reads`` policy; no hint counts as a write.
     read_only: bool = False
+    # The op's own permission when the author set none on the tool, applied only under the
+    # agent-wide ``allow_reads`` mode. An author's per-tool choice or any other agent-wide mode
+    # wins, and the runner's operator kill switch still comes first. ``deny`` is not offered: an
+    # op nobody may run does not belong in the catalog.
+    default_permission: Optional[Literal["allow", "ask"]] = None
     # Per-op execution budget for long-running server-side handlers. Emitted as `timeoutMs`.
     timeout_ms: Optional[int] = Field(default=None, gt=0)
     # Builder ops opt in to the ephemeral per-call ``description`` (R12). The model writes one
@@ -554,8 +560,7 @@ _SEARCH_SKILLS_INPUT_SCHEMA: Dict[str, Any] = {
     },
 }
 
-# Skill update sync (read + gated write): the check endpoint never writes; the apply is a
-# write, so under the default policy the approval card IS the user prompt — no extra UI.
+# Skill update checks are reads; applying an update uses the configured permission.
 _CHECK_SKILL_UPDATES_DESCRIPTION = (
     "Check one imported skill against its upstream source, without changing anything. "
     "Reports `update_available` (newer upstream content), `up_to_date`, `detached` "
@@ -578,8 +583,8 @@ _CHECK_SKILL_UPDATES_INPUT_SCHEMA: Dict[str, Any] = {
 
 _APPLY_SKILL_UPDATE_DESCRIPTION = (
     "Commit the upstream version of one imported skill as a new revision. Run "
-    "`check_skill_updates` first and tell the user what changed — this call needs the "
-    "user's approval, and the approval is their yes to updating. Skills edited in "
+    "`check_skill_updates` first and tell the user what changed. Approval follows "
+    "this tool's configured permission. Skills edited in "
     "Agenta report `detached` and are never overwritten; a concurrent edit reports "
     "`conflict` instead of clobbering. Agents referencing the skill by slug "
     "(follow-latest) pick the new version up on their next run; pinned references "
@@ -1252,7 +1257,7 @@ _CREATE_SCHEDULE_DESCRIPTION = (
     "Create a cron schedule that runs this agent. The destination workflow is bound "
     "from the current run context, so only this agent can be scheduled. When no revision "
     "is specified, the schedule binds to the variant's latest revision at creation time "
-    "and does not follow later commits. Requires approval."
+    "and does not follow later commits. Approval follows this tool's configured permission."
 )
 _CREATE_SCHEDULE_INPUT_SCHEMA: Dict[str, Any] = {
     "type": "object",
@@ -1296,7 +1301,7 @@ _CREATE_SUBSCRIPTION_DESCRIPTION = (
     "Create an event subscription that runs this agent when a provider event occurs. "
     "The destination workflow is bound from the current run context. When no revision is "
     "specified, the subscription binds to the variant's latest revision at creation time "
-    "and does not follow later commits. Requires approval."
+    "and does not follow later commits. Approval follows this tool's configured permission."
 )
 _CREATE_SUBSCRIPTION_INPUT_SCHEMA: Dict[str, Any] = {
     "type": "object",
@@ -1332,7 +1337,7 @@ _CREATE_SUBSCRIPTION_INPUT_SCHEMA: Dict[str, Any] = {
 
 _TEST_SUBSCRIPTION_DESCRIPTION = (
     "Open a temporary provider watch, wait for one real matching event, record it as a "
-    "test delivery, and tear the watch down. It does not run the workflow. Requires approval."
+    "test delivery, and tear the watch down. It does not run the workflow. Approval follows this tool's configured permission."
 )
 _TEST_SUBSCRIPTION_INPUT_SCHEMA: Dict[str, Any] = {
     "type": "object",
@@ -1586,9 +1591,207 @@ _LIST_STARTERS_INPUT_SCHEMA: Dict[str, Any] = {
 }
 
 
+# Channel agent tools: post, read and search through the Slack and Telegram bots the running
+# agent is connected to. The server finds the bots from the run's workflow artifact, so the model
+# never names a bot, a connection or a raw Slack or Telegram id; destinations, threads and
+# messages are opaque ids the list, read and search results hand back.
+_CHANNEL_LIST_DESCRIPTION = (
+    "List the Slack channels and Telegram groups you can post to or read through the bots this "
+    "agent is connected to. Each result has an opaque destination_id to pass to "
+    "send_channel_message, read_channel_messages or search_channel_messages, and says whether "
+    "you may post there (can_post) and read or search it (can_read). Filter by name with "
+    "`query`; page with `cursor`."
+)
+
+_CHANNEL_LIST_INPUT_SCHEMA: Dict[str, Any] = {
+    "type": "object",
+    "additionalProperties": False,
+    "properties": {
+        "type": {
+            "type": "string",
+            "enum": ["channel"],
+            "description": "Only channel destinations exist today.",
+        },
+        "query": {
+            "type": "string",
+            "maxLength": 200,
+            "description": "Case-insensitive part of the channel or group name.",
+        },
+        "limit": {"type": "integer", "minimum": 1, "maximum": 100},
+        "cursor": {
+            "type": "string",
+            "maxLength": 64,
+            "description": "The cursor from the previous page.",
+        },
+        "artifact_id": _BOUND_FROM_RUN_SCHEMA,
+    },
+}
+
+_CHANNEL_SEND_DESCRIPTION = (
+    "Post a message now to a Slack channel or Telegram group, outside the conversation you "
+    "are in. Get destination_id from list_channel_destinations. To reply in a Slack thread, "
+    "pass a thread_id returned by an earlier send, read or search in the same destination. "
+    "Returns state `sent` (with message_id and thread_id), `failed` (with a reason), or "
+    "`unknown` when the post may have reached the chat; never send it again after `unknown`."
+)
+
+_CHANNEL_SEND_INPUT_SCHEMA: Dict[str, Any] = {
+    "type": "object",
+    "additionalProperties": False,
+    "properties": {
+        "destination_id": {
+            "type": "string",
+            "maxLength": 256,
+            "description": "An opaque destination_id from list_channel_destinations.",
+        },
+        "text": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 40000,
+            "description": "The message, in Markdown.",
+        },
+        "thread_id": {
+            "type": "string",
+            "maxLength": 256,
+            "description": "Optional. Reply in this Slack thread of the same destination.",
+        },
+        "artifact_id": _BOUND_FROM_RUN_SCHEMA,
+        "session_id": _BOUND_FROM_RUN_SCHEMA,
+        "tool_call_id": _BOUND_FROM_RUN_SCHEMA,
+    },
+    "required": ["destination_id", "text"],
+}
+
+_CHANNEL_READ_DESCRIPTION = (
+    "Read a Slack channel's or Telegram group's recent messages, oldest first, or one Slack "
+    "thread's root and replies when you pass its thread_id. Default 50 messages, at most 200; "
+    "pass the returned cursor to read older ones. Messages Agenta stored come first; on Slack, "
+    "older ones are fetched live. Read the result's notes: they say what could not be read."
+)
+
+_CHANNEL_READ_INPUT_SCHEMA: Dict[str, Any] = {
+    "type": "object",
+    "additionalProperties": False,
+    "properties": {
+        "destination_id": {
+            "type": "string",
+            "maxLength": 256,
+            "description": "An opaque destination_id from list_channel_destinations.",
+        },
+        "thread_id": {
+            "type": "string",
+            "maxLength": 256,
+            "description": "Optional. Read this Slack thread instead of the channel.",
+        },
+        "limit": {"type": "integer", "minimum": 1, "maximum": 200},
+        "cursor": {
+            "type": "string",
+            "maxLength": 256,
+            "description": "The cursor from the previous page, to read older messages.",
+        },
+        "artifact_id": _BOUND_FROM_RUN_SCHEMA,
+    },
+    "required": ["destination_id"],
+}
+
+_CHANNEL_SEARCH_DESCRIPTION = (
+    "Search the messages Agenta stored from the Slack channels and Telegram groups you may "
+    "read, your own posts included, by words (web-search syntax: quotes for phrases, - to "
+    "exclude). Covers only messages since the bot joined each channel; the result's "
+    "`searched` list says what each search covered. Pass destination_ids from "
+    "list_channel_destinations to search only some channels, and a result's thread_id to "
+    "read_channel_messages to see the conversation around it."
+)
+
+_CHANNEL_SEARCH_INPUT_SCHEMA: Dict[str, Any] = {
+    "type": "object",
+    "additionalProperties": False,
+    "properties": {
+        "query": {"type": "string", "minLength": 1, "maxLength": 500},
+        "destination_ids": {
+            "type": "array",
+            "items": {"type": "string", "maxLength": 256},
+            "maxItems": 100,
+            "description": "Optional. Only these destinations; default all readable ones.",
+        },
+        "after": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Optional. Only messages at or after this time (ISO 8601).",
+        },
+        "before": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Optional. Only messages at or before this time (ISO 8601).",
+        },
+        "limit": {"type": "integer", "minimum": 1, "maximum": 50},
+        "cursor": {
+            "type": "string",
+            "maxLength": 64,
+            "description": "The cursor from the previous page.",
+        },
+        "artifact_id": _BOUND_FROM_RUN_SCHEMA,
+    },
+    "required": ["query"],
+}
+
+_CHANNEL_TOOL_OPS: tuple = (
+    PlatformOp(
+        op="list_channel_destinations",
+        description=_CHANNEL_LIST_DESCRIPTION,
+        method="POST",
+        path="/api/channels/tools/destinations/query",
+        input_schema=_CHANNEL_LIST_INPUT_SCHEMA,
+        context_bindings={"artifact_id": "$ctx.workflow.artifact.id"},
+        read_only=True,
+    ),
+    PlatformOp(
+        op="send_channel_message",
+        description=_CHANNEL_SEND_DESCRIPTION,
+        method="POST",
+        path="/api/channels/tools/messages/send",
+        input_schema=_CHANNEL_SEND_INPUT_SCHEMA,
+        # The tool call id keys the delivery record, so a retried call reports the first
+        # attempt instead of posting twice.
+        context_bindings={
+            "artifact_id": "$ctx.workflow.artifact.id",
+            "session_id": "$ctx.session.id",
+            "tool_call_id": "$ctx.tool.call_id",
+        },
+        read_only=False,
+        # Posting is the point of the tool, so it runs without a prompt by default. The
+        # bot's "Can post outside the conversation" setting is the admin's off switch.
+        default_permission="allow",
+    ),
+    PlatformOp(
+        op="read_channel_messages",
+        description=_CHANNEL_READ_DESCRIPTION,
+        method="POST",
+        path="/api/channels/tools/messages/read",
+        input_schema=_CHANNEL_READ_INPUT_SCHEMA,
+        context_bindings={"artifact_id": "$ctx.workflow.artifact.id"},
+        read_only=True,
+    ),
+    PlatformOp(
+        op="search_channel_messages",
+        description=_CHANNEL_SEARCH_DESCRIPTION,
+        method="POST",
+        path="/api/channels/tools/messages/search",
+        input_schema=_CHANNEL_SEARCH_INPUT_SCHEMA,
+        context_bindings={"artifact_id": "$ctx.workflow.artifact.id"},
+        read_only=True,
+    ),
+)
+
+# The ops the Agenta tools kit adds to a run of an agent connected to a bot. The kit reads the
+# condition from `POST /api/channels/tools/availability`.
+CHANNEL_TOOL_OPS: tuple = tuple(op.op for op in _CHANNEL_TOOL_OPS)
+
+
 PLATFORM_OPS: Dict[str, PlatformOp] = {
     op.op: op
     for op in _READ_CONFIG_OPS
+    + _CHANNEL_TOOL_OPS
     + (
         PlatformOp(
             op="create_app",
@@ -1657,6 +1860,26 @@ PLATFORM_OPS: Dict[str, PlatformOp] = {
             method="POST",
             path="/api/spans/query",
             input_schema=_QUERY_SPANS_INPUT_SCHEMA,
+            read_only=True,
+        ),
+        PlatformOp(
+            op="get_current_session",
+            description=(
+                "Get the ID, current name, and Agenta web URL of the conversation you are "
+                "running in. Call this when you need to link to this session. Takes no "
+                "arguments. Copy the returned URL exactly; it requires the recipient's "
+                "existing Agenta access and does not make the session public. If url is "
+                "null, report url_unavailable_reason instead of inventing a link."
+            ),
+            method="POST",
+            path="/api/sessions/tools/current",
+            input_schema={
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {"session_id": {"type": "string"}},
+                "required": ["session_id"],
+            },
+            context_bindings={"session_id": "$ctx.session.id"},
             read_only=True,
         ),
         PlatformOp(
@@ -1806,7 +2029,7 @@ PLATFORM_OPS: Dict[str, PlatformOp] = {
         ),
         PlatformOp(
             op="remove_schedule",
-            description="Delete a trigger schedule by id. Requires approval.",
+            description="Delete a trigger schedule by id. Approval follows this tool's configured permission.",
             method="DELETE",
             path="/api/triggers/schedules/{id}",
             input_schema=_TRIGGER_ID_INPUT_SCHEMA,
@@ -1814,7 +2037,7 @@ PLATFORM_OPS: Dict[str, PlatformOp] = {
         ),
         PlatformOp(
             op="remove_subscription",
-            description="Delete a trigger subscription by id. Requires approval.",
+            description="Delete a trigger subscription by id. Approval follows this tool's configured permission.",
             method="DELETE",
             path="/api/triggers/subscriptions/{id}",
             input_schema=_TRIGGER_ID_INPUT_SCHEMA,
@@ -1822,7 +2045,7 @@ PLATFORM_OPS: Dict[str, PlatformOp] = {
         ),
         PlatformOp(
             op="pause_schedule",
-            description="Pause a trigger schedule without deleting it. Requires approval.",
+            description="Pause a trigger schedule without deleting it. Approval follows this tool's configured permission.",
             method="POST",
             path="/api/triggers/schedules/{id}/stop",
             input_schema=_TRIGGER_ID_INPUT_SCHEMA,
@@ -1830,7 +2053,7 @@ PLATFORM_OPS: Dict[str, PlatformOp] = {
         ),
         PlatformOp(
             op="resume_schedule",
-            description="Resume a paused trigger schedule. Requires approval.",
+            description="Resume a paused trigger schedule. Approval follows this tool's configured permission.",
             method="POST",
             path="/api/triggers/schedules/{id}/start",
             input_schema=_TRIGGER_ID_INPUT_SCHEMA,
@@ -1838,7 +2061,7 @@ PLATFORM_OPS: Dict[str, PlatformOp] = {
         ),
         PlatformOp(
             op="pause_subscription",
-            description="Pause a trigger subscription without deleting it. Requires approval.",
+            description="Pause a trigger subscription without deleting it. Approval follows this tool's configured permission.",
             method="POST",
             path="/api/triggers/subscriptions/{id}/stop",
             input_schema=_TRIGGER_ID_INPUT_SCHEMA,
@@ -1846,7 +2069,7 @@ PLATFORM_OPS: Dict[str, PlatformOp] = {
         ),
         PlatformOp(
             op="resume_subscription",
-            description="Resume a paused trigger subscription. Requires approval.",
+            description="Resume a paused trigger subscription. Approval follows this tool's configured permission.",
             method="POST",
             path="/api/triggers/subscriptions/{id}/start",
             input_schema=_TRIGGER_ID_INPUT_SCHEMA,

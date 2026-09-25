@@ -21,6 +21,7 @@ import {
 } from "../engines/sandbox_agent/sandbox-reconnect.ts";
 import {
   teardownDisposition,
+  type TeardownDisposition,
   type TeardownReason,
 } from "../engines/sandbox_agent/teardown.ts";
 import type { Log, TimingLog } from "./timing.ts";
@@ -135,6 +136,11 @@ export interface SandboxTeardownInput {
   isDaytona: boolean;
   harness: string;
   reason: TeardownReason | undefined;
+  /**
+   * A provider-owned answer that replaces the reason-based one. Only a provider whose sandbox
+   * holds no harness state sets it; everything else keeps the shared policy.
+   */
+  disposition?: TeardownDisposition;
   log: Log;
 }
 
@@ -151,7 +157,7 @@ export async function teardown(
   input: SandboxTeardownInput,
 ): Promise<{ parked: boolean }> {
   const { sandbox, log } = input;
-  const disposition = teardownDisposition(input.reason ?? "failed-turn");
+  const disposition = input.disposition ?? teardownDisposition(input.reason ?? "failed-turn");
   const sandboxLogId = sandbox?.sandboxId ?? input.plannedSandboxId;
   let parked = false;
 

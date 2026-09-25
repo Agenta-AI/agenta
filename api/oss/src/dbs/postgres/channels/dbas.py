@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Enum, String
+from sqlalchemy import TIMESTAMP, Column, Enum, String
 from sqlalchemy.dialects.postgresql import UUID
 
 from oss.src.core.channels.dtos import (
@@ -135,6 +135,8 @@ class ChannelInboxEventDBA(
     kind = Column(String, nullable=False)
     origin = Column(Enum(ChannelEventOrigin), nullable=False)
     space_id = Column(UUID(as_uuid=True), nullable=True)
+    # the provider's time; the channel read tool orders a space by it
+    sent_at = Column(TIMESTAMP(timezone=True), nullable=True)
 
 
 class ChannelInboxTriggerDBA(
@@ -169,7 +171,9 @@ class ChannelOutboxEventDBA(
     __abstract__ = True
 
     connection_id = Column(UUID(as_uuid=True), nullable=False)
-    thread_id = Column(UUID(as_uuid=True), nullable=False)
+    # null for a send_channel_message post, which belongs to no thread
+    thread_id = Column(UUID(as_uuid=True), nullable=True)
+    space_id = Column(UUID(as_uuid=True), nullable=True)
     turn_id = Column(String, nullable=False)
     key = Column(UUID(as_uuid=True), nullable=False)
     state = Column(Enum(ChannelDeliveryState), nullable=False)

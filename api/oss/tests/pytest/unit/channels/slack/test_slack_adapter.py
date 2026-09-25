@@ -319,16 +319,25 @@ async def test_parse_event_ignores_the_connections_own_bot_user_id():
     assert await adapter.parse_event(body=body, connection=connection) is None
 
 
-async def test_parse_event_extracts_sigils_and_marks_addressed():
+async def test_parse_event_tilde_word_in_a_thread_reply_is_not_addressed():
+    """A pasted "~10x faster" once read as "address agent 10" and the reply
+    was dropped. Slack declares no agent sigil, so `~word` is plain text."""
+    connection = _connection(bot_user_id="UBOT1")
     adapter = SlackAdapter()
     body = _event_callback(
-        {"channel": "C1", "user": "U1", "text": "<@UBOT1> ~support !new", "ts": "1.1"}
+        {
+            "channel": "C1",
+            "user": "U1",
+            "text": "Results: ~10× faster renders",
+            "ts": "1.2",
+            "thread_ts": "1.1",
+        }
     )
 
-    event = await adapter.parse_event(body=body)
+    event = await adapter.parse_event(body=body, connection=connection)
 
     assert event is not None
-    assert event.addressed is True
+    assert event.addressed is False
 
 
 async def test_parse_event_command_alone_is_not_a_mention():
@@ -1477,3 +1486,19 @@ async def test_a_later_chunk_failing_after_an_earlier_one_landed_is_uncertain():
             idempotency_key=uuid4(),
         )
     assert len(calls) == 2
+
+
+async def test_parse_event_records_ts_as_sent_at_and_message_ref():
+    from datetime import datetime, timezone
+
+    adapter = SlackAdapter()
+    body = _event_callback(
+        {"channel": "C1", "user": "U1", "text": "hi", "ts": "1700000000.000100"}
+    )
+
+    event = await adapter.parse_event(body=body)
+
+    assert event.processed.message_ref == "1700000000.000100"
+    assert event.processed.sent_at == datetime(
+        2023, 11, 14, 22, 13, 20, 100, tzinfo=timezone.utc
+    )

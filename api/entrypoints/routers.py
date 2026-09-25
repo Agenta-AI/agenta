@@ -221,6 +221,8 @@ from oss.src.core.channels.queue import ChannelSessionQueue
 from oss.src.core.channels.service import ChannelsService
 from oss.src.apis.fastapi.channels.ingress import ChannelsIngressRouter
 from oss.src.apis.fastapi.channels.router import ChannelsRouter
+from oss.src.apis.fastapi.channels.tools import ChannelToolsRouter
+from oss.src.core.channels.tools.service import ChannelToolsService
 from oss.src.core.channels.telegram_binding import TelegramBindingService
 from oss.src.core.channels.adapters.telegram_hosted.capabilities import (
     fetch_telegram_hosted_capabilities,
@@ -233,7 +235,7 @@ from oss.src.dbs.postgres.mounts.dao import MountsDAO
 from oss.src.core.mounts.service import MountsService
 from oss.src.core.store.storage import ObjectStore
 from oss.src.core.sessions.mounts.service import SessionMountsService
-from oss.src.core.sessions.attachments.dtos import AttachmentLimits
+from entrypoints.session_attachments import attachment_limits
 from oss.src.core.sessions.attachments.service import SessionAttachmentsService
 from oss.src.dbs.postgres.sessions.attachments.dao import SessionAttachmentsDAO
 from oss.src.tasks.asyncio.sessions.attachment_sweep import attachment_sweep_loop
@@ -1057,16 +1059,7 @@ session_mounts_service = SessionMountsService(
 session_attachments_service = SessionAttachmentsService(
     attachments_dao=session_attachments_dao,
     original_store=mounts_service,
-    limits=AttachmentLimits(
-        max_image_bytes=env.agenta.sessions.attachments.max_image_bytes,
-        max_audio_bytes=env.agenta.sessions.attachments.max_audio_bytes,
-        max_document_bytes=env.agenta.sessions.attachments.max_document_bytes,
-        max_other_bytes=env.agenta.sessions.attachments.max_other_bytes,
-        max_per_session_count=env.agenta.sessions.attachments.max_per_session_count,
-        max_per_session_bytes=env.agenta.sessions.attachments.max_per_session_bytes,
-        max_pending_per_session=env.agenta.sessions.attachments.max_pending_per_session,
-        pending_ttl_seconds=env.agenta.sessions.attachments.pending_ttl_seconds,
-    ),
+    limits=attachment_limits(),
 )
 
 _t_services_done = time.perf_counter() - _t_services
@@ -1262,6 +1255,7 @@ async def _respond_channel_interaction(*, project_id, user_id, interaction_id, a
 
 _channels_inbox_dispatcher = InboxDispatcher(
     channels_service=channels_service,
+    attachments_service=session_attachments_service,
     respond_interaction_fn=_respond_channel_interaction,
     workflows_service=workflows_service,
     identity_service=channels_identity_service,
@@ -1292,6 +1286,14 @@ channels = ChannelsRouter(
     channels_service=channels_service,
     adapter_registry=channels_adapter_registry,
     telegram_binding_service=_telegram_binding_service,
+)
+
+channel_tools = ChannelToolsRouter(
+    tools_service=ChannelToolsService(
+        channels_service=channels_service,
+        workflows_service=workflows_service,
+        telegram_binding_service=_telegram_binding_service,
+    ),
 )
 
 # Gateway storage and policy services. `llm_endpoints_dao` is built earlier, beside the
@@ -1945,6 +1947,12 @@ app.include_router(
     prefix="/preview/channels",
     tags=["Channels"],
     include_in_schema=False,
+)
+
+app.include_router(
+    router=channel_tools.router,
+    prefix="/channels",
+    tags=["Channels"],
 )
 
 app.include_router(

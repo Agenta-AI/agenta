@@ -1,9 +1,11 @@
+import {platformLabel} from "./helpers"
 import type {
     ChannelBehaviorState,
     ChannelChatType,
     ChannelConnection,
     ChannelConnections,
     ChannelPlatform,
+    ChannelReadableChannel,
     ChannelSetupIdentity,
     ChannelSetupInfo,
     ChannelSpace,
@@ -11,6 +13,7 @@ import type {
     ChannelSpaceKind,
     ChannelSpaceMembership,
     ChannelsActions,
+    ChannelToolSettings,
     HostedTelegramLink,
 } from "./types"
 
@@ -78,10 +81,11 @@ const asString = (value: unknown): string | null =>
 
 /** The backend channel key for a platform and install mode. */
 export const channelKey = (platform: ChannelPlatform, hosted: boolean): string =>
-    platform === "telegram" ? (hosted ? "telegram_hosted" : "telegram") : "slack"
+    platform === "telegram" ? (hosted ? "telegram_hosted" : "telegram") : platform
 
 const platformOf = (channel: string): ChannelPlatform | null =>
-    channel.startsWith("telegram") ? "telegram" : channel.startsWith("slack") ? "slack" : null
+    (["telegram", "slack", "whatsapp"] as const).find((platform) => channel.startsWith(platform)) ??
+    null
 
 /** The first reference id in a channel agent's `data.references` (the app it answers as). */
 export const referencedAppId = (agent: Row): string | null => {
@@ -119,6 +123,21 @@ const randomUuid = (): string => {
     return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`
 }
 
+/**
+ * A bot's channel tool settings from its `data.tools`. A bot stored before the block existed
+ * has none, and each missing field reads as its default.
+ */
+export const toolSettingsOf = (agent: Row): ChannelToolSettings => {
+    const tools = asRecord(asRecord(agent.data).tools)
+    const keys = tools.readable_space_keys
+    return {
+        canPostOutsideConversation: tools.can_post_outside_conversation !== false,
+        readableSpaceKeys: Array.isArray(keys)
+            ? keys.map((key) => asString(key)).filter((key): key is string => key !== null)
+            : null,
+    }
+}
+
 /** The platform id in a space locator: a Slack `channel`, a Telegram `chat_id`. */
 export const locatorId = (locator: Row): string | null => {
     const value = locator.channel ?? locator.chat_id
@@ -140,12 +159,14 @@ export const mapSpaceRow = (row: Row): ChannelSpace | null => {
     const kind = asSpaceKind(row.kind)
     const name = asString(row.name) ?? asString(row.description)
     const externalId = locatorId(asRecord(asRecord(row.data).external_locator))
-    if (kind === "private") return {id, kind, name: "Direct messages", externalId}
+    const externalKey = asString(row.external_key)
+    const keyed = externalKey ? {externalKey} : {}
+    if (kind === "private") return {id, kind, name: "Direct messages", externalId, ...keyed}
     // A place first seen through a message is stored without a name; the panel swaps in the
     // name discovery reports, and until then the platform id tells two such places apart.
     return name
-        ? {id, kind, name, externalId}
-        : {id, kind, name: unnamedSpaceLabel(kind, externalId), externalId, unnamed: true}
+        ? {id, kind, name, externalId, ...keyed}
+        : {id, kind, name: unnamedSpaceLabel(kind, externalId), externalId, unnamed: true, ...keyed}
 }
 
 /** Fill the unnamed places with the names discovery reports for the same platform id. */
@@ -188,6 +209,7 @@ export const mapConnectionRow = (row: Row): ChannelConnection | null => {
     const platform = platformOf(channel)
     if (!platform) return null
     const flags = asRecord(row.flags)
+    const data = asRecord(row.data)
     return {
         connectionId: asString(row.id) ?? undefined,
         platform,
@@ -198,14 +220,16 @@ export const mapConnectionRow = (row: Row): ChannelConnection | null => {
         chats: [],
         connectedAt: asString(row.created_at),
         handle: (() => {
-            const name = asString(asRecord(row.data).bot_username)
+            // A WhatsApp connection is known by its business phone number.
+            if (platform === "whatsapp") return asString(data.display_phone_number)
+            const name = asString(data.bot_username)
             return name ? `@${name.replace(/^@/, "")}` : null
         })(),
-        workspaceName: asString(asRecord(row.data).team_name),
+        workspaceName: asString(data.team_name),
         // New installs keep it flat on `data`; every install has it in the routing locator.
-        appId:
-            asString(asRecord(row.data).api_app_id) ??
-            asString(asRecord(asRecord(row.data).connection_locator).api_app_id),
+        appId: asString(data.api_app_id) ?? asString(asRecord(data.connection_locator).api_app_id),
+        webhookUrl: asString(data.webhook_url),
+        webhookVerifyToken: asString(data.webhook_verify_token),
     }
 }
 
@@ -310,6 +334,7 @@ export const buildAgentChannelsActions = ({
                 unnamedSpaceLabel(asSpaceKind(row.kind), locatorId(asRecord(row.external_locator))),
             isConfigured: row.is_configured === true,
             membership: asSpaceMembership(row.membership),
+            externalKey: asString(row.external_key),
         }))
     }
 
@@ -442,6 +467,69 @@ export const buildAgentChannelsActions = ({
             .catch(rethrow("The platform rejected the new credentials."))
     }
 
+    const answeringAgent = async (connectionId: string): Promise<Row> => {
+        const answering = answeringAgentRow(
+            await agentsOf(connectionId).catch(rethrow("Could not read this bot's settings.")),
+        )
+        if (!answering) throw new Error("This connection answers as no agent yet.")
+        return answering
+    }
+
+    const readToolSettings = async (connectionId: string): Promise<ChannelToolSettings> =>
+        toolSettingsOf(await answeringAgent(connectionId))
+
+    const writeToolSettings = async (
+        connectionId: string,
+        next: ChannelToolSettings,
+    ): Promise<void> => {
+        const agentId = asString((await answeringAgent(connectionId)).id)
+        // The edit layers `data` over the stored row, so sending only `tools` leaves the
+        // references and the policy as they are.
+        await client
+            .editChannelAgent(
+                {
+                    agent_id: agentId,
+                    agent: {
+                        id: agentId,
+                        data: {
+                            tools: {
+                                can_post_outside_conversation: next.canPostOutsideConversation,
+                                readable_space_keys: next.readableSpaceKeys,
+                            },
+                        },
+                    },
+                },
+                scope(),
+            )
+            .catch(rethrow("Could not save this setting."))
+    }
+
+    /** Slack lists the channels the app can see and says which ones the bot is in. A Telegram
+     * bot cannot list its chats, so its stored groups stand in. */
+    const listReadableChannels = async (
+        platform: ChannelPlatform,
+        connectionId: string,
+    ): Promise<ChannelReadableChannel[]> => {
+        if (platform === "slack") {
+            return (await discoverSpaces(connectionId)).flatMap((candidate) =>
+                candidate.membership === "member" && candidate.externalKey
+                    ? [
+                          {
+                              key: candidate.externalKey,
+                              name: candidate.displayName,
+                              kind: candidate.kind,
+                          },
+                      ]
+                    : [],
+            )
+        }
+        return (await listSpaces(connectionId)).flatMap((space) =>
+            space.kind !== "private" && space.externalKey
+                ? [{key: space.externalKey, name: space.name, kind: space.kind}]
+                : [],
+        )
+    }
+
     const countHostedTelegramBindings = async (connectionId: string): Promise<number> => {
         const res = await client.listTelegramHostedBindings({connection_id: connectionId}, scope())
         const count = Number(asRecord(res).count)
@@ -497,8 +585,12 @@ export const buildAgentChannelsActions = ({
             const here = c.agent === undefined || c.agent?.id === appId ? 4 : 0
             return here + (c.status === "connected" ? 2 : c.status === "pending" ? 1 : 0)
         }
-        const out: ChannelConnections = {slack: null, telegram: null}
-        const mine: Record<ChannelPlatform, ChannelConnection[]> = {slack: [], telegram: []}
+        const out: ChannelConnections = {slack: null, telegram: null, whatsapp: null}
+        const mine: Record<ChannelPlatform, ChannelConnection[]> = {
+            slack: [],
+            telegram: [],
+            whatsapp: [],
+        }
         for (const connection of rows) {
             const current = out[connection.platform]
             if (!current || rank(connection) > rank(current)) out[connection.platform] = connection
@@ -512,7 +604,11 @@ export const buildAgentChannelsActions = ({
                 ? [primary, ...list.filter((c) => c !== primary)]
                 : list
         }
-        out.agentConnections = {slack: lead("slack"), telegram: lead("telegram")}
+        out.agentConnections = {
+            slack: lead("slack"),
+            telegram: lead("telegram"),
+            whatsapp: lead("whatsapp"),
+        }
         return out
     }
 
@@ -554,7 +650,7 @@ export const buildAgentChannelsActions = ({
     const connectCustom = async (
         platform: ChannelPlatform,
         values: Record<string, string>,
-    ): Promise<void> => {
+    ): Promise<ChannelConnection | null> => {
         const setup = await loadSetup(platform)
         const data: Record<string, string> = {}
         const credentials: Record<string, string> = {}
@@ -569,14 +665,14 @@ export const buildAgentChannelsActions = ({
                 {connection: {channel: channelKey(platform, false), data, credentials}},
                 scope(),
             )
-            .catch(
-                rethrow(`${platform === "slack" ? "Slack" : "Telegram"} rejected the credentials.`),
-            )
-        const connectionId = asString(asRecord(asRecord(res).connection).id)
+            .catch(rethrow(`${platformLabel(platform)} rejected the credentials.`))
+        const row = asRecord(asRecord(res).connection)
+        const connectionId = asString(row.id)
         if (!connectionId) throw new Error("The connection was created without an id.")
         await pointHere(connectionId).catch(
             rethrow("The connection was created, but could not be pointed at this agent."),
         )
+        return mapConnectionRow(row)
     }
 
     const connectHere = async (_platform: ChannelPlatform, connectionId: string) =>
@@ -611,5 +707,8 @@ export const buildAgentChannelsActions = ({
         readAllowedUsers,
         writeAllowedUsers,
         updateCredentials,
+        readToolSettings,
+        writeToolSettings,
+        listReadableChannels,
     }
 }

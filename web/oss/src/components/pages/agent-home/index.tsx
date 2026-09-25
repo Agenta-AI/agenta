@@ -1,6 +1,7 @@
 import {useCallback, useRef} from "react"
 
 import {appTemplatesQueryAtom} from "@agenta/entities/workflow"
+import {captureFirstAgentIntent} from "@agenta/shared/analytics"
 import {PageLayout} from "@agenta/ui"
 import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 import {Tag, Typography} from "antd"
@@ -13,7 +14,6 @@ import {usePostHogAg} from "@/oss/lib/helpers/analytics/hooks/usePostHogAg"
 import {urlAtom} from "@/oss/state/url"
 
 import {HERO, TEMPLATE_STRIP_MODE, TUTORIAL_VIDEO} from "./assets/constants"
-import {captureFirstAgentIntent} from "./assets/onboardingAnalytics"
 import AgentComposer from "./components/AgentComposer"
 import OnRamps from "./components/OnRamps"
 import TemplatesSection from "./components/TemplatesSection"

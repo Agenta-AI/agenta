@@ -45,6 +45,7 @@ from .mcp import (
     parse_mcp_server_configs,
 )
 from .pi_builtins import PI_BUILTIN_TOOL_NAMES
+from .sandbox_providers import run_default_sandbox_provider
 from .skills import SkillTemplate, parse_skill_templates, skills_to_wire
 from .permission_rules import wire_author_permission_rules
 from .tools import (
@@ -820,7 +821,9 @@ class AgentTemplate(BaseModel):
     # The execution selectors: the coding agent to drive, where it runs, and the runner-enforced
     # default permission mode (sourced from ``runner.permissions.default``).
     harness: str = "pi_core"
-    sandbox: str = "local"
+    # A template that names no sandbox runs on the deployment's default provider, not always
+    # on ``local`` (which a hardened deployment does not enable).
+    sandbox: str = Field(default_factory=run_default_sandbox_provider)
     permission_default: PermissionMode = "allow_reads"
 
     @model_validator(mode="before")
@@ -1538,6 +1541,16 @@ def _validate_agent_template_shape(params: Dict[str, Any]) -> None:
     element = _template(params)
     if not isinstance(element, dict):
         return
+
+    if element is not params:
+        # A selector beside the wrapped template is never read, so an `ask` posture there
+        # would run under the default and let a write through without an approval.
+        for section in _SELECTOR_ALLOWED_KEYS:
+            if section in params:
+                raise AgentTemplateShapeError(
+                    f"{section!r} sits beside the agent template and is ignored; "
+                    f"put it under agent.{section}"
+                )
 
     for legacy_key, moved_to in _LEGACY_FLAT_TEMPLATE_KEYS.items():
         if legacy_key in element:

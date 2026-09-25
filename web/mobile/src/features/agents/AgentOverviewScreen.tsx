@@ -2,7 +2,6 @@ import {useCallback, useMemo} from "react"
 
 import {revealConfigPaneAtom} from "@agenta/chat/state"
 import {agentWorkflowsListQueryStateAtom, type Workflow} from "@agenta/entities/workflow"
-import {channelsEnabledAtom} from "@agenta/shared/state"
 import {pageContentWidthClass} from "@agenta/ui/components/page-width"
 import {useAtomValue, useSetAtom} from "jotai"
 
@@ -31,7 +30,6 @@ export const AgentOverviewScreen = ({
     agentId: string
 }) => {
     useBindProjectContext(projectId)
-    const channelsEnabled = useAtomValue(channelsEnabledAtom)
     const base = `/w/${workspaceId}/p/${projectId}`
 
     const agentsQuery = useAtomValue(agentWorkflowsListQueryStateAtom)
@@ -111,14 +109,12 @@ export const AgentOverviewScreen = ({
                             base={base}
                             agentNames={agentNames}
                             channels={
-                                channelsEnabled ? (
-                                    <AgentChannelsCard
-                                        appId={agentId}
-                                        agentName={name}
-                                        agentDescription={description}
-                                        resolveAgentName={resolveAgentName}
-                                    />
-                                ) : null
+                                <AgentChannelsCard
+                                    appId={agentId}
+                                    agentName={name}
+                                    agentDescription={description}
+                                    resolveAgentName={resolveAgentName}
+                                />
                             }
                             verbs={verbs}
                             onEditConfig={onEditConfig}

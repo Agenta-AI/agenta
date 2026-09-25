@@ -1,7 +1,13 @@
 import type {Meta, StoryObj} from "@storybook/nextjs"
 
 import {ChannelConnectFlow} from "./ChannelConnectFlow"
-import {ConnectFlowHost, SLACK_SETUP, TELEGRAM_LINK, TELEGRAM_SETUP} from "./storyFixtures"
+import {
+    ConnectFlowHost,
+    SLACK_SETUP,
+    TELEGRAM_LINK,
+    TELEGRAM_SETUP,
+    WHATSAPP_SETUP,
+} from "./storyFixtures"
 
 /**
  * **The connect flow for one platform.** Hosted Telegram mints a one-time link, shows it as a QR
@@ -215,4 +221,11 @@ export const SlackCustomApp: Story = {
             },
         },
     },
+}
+
+/** WhatsApp: paste the Meta values, connect, then copy the webhook values into Meta. */
+export const WhatsAppCustom: Story = {
+    render: () => (
+        <ConnectFlowHost platform="whatsapp" options={{setup: {whatsapp: WHATSAPP_SETUP}}} />
+    ),
 }

@@ -1,3 +1,4 @@
+from datetime import datetime
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional, Tuple
 from uuid import UUID
@@ -301,6 +302,25 @@ class ChannelsDAOInterface(ABC):
         ...
 
     @abstractmethod
+    async def set_space_opted_out(
+        self,
+        *,
+        project_id: UUID,
+        space_id: UUID,
+        opted_out: bool,
+        sent_at: datetime,
+    ) -> Optional[ChannelSpace]:
+        """Set flags.is_opted_out when the person sends STOP or START. Its own
+        write for the same reason as `mark_space_backfilled`: the writer is the
+        person on the platform, and it must not clobber an operator's edit.
+
+        Fenced on `sent_at`, when the person sent it: a STOP or START sent
+        before the last one applied changes nothing and returns None, so a
+        delayed or redelivered START can never undo a later STOP. On a tie,
+        STOP wins."""
+        ...
+
+    @abstractmethod
     async def attach_event_to_space(
         self,
         *,
@@ -518,6 +538,49 @@ class ChannelsDAOInterface(ABC):
     # --- inbox: the log ----------------------------------------------------- #
 
     @abstractmethod
+    async def query_space_inbox_messages(
+        self,
+        *,
+        project_id: UUID,
+        space_id: UUID,
+        thread_ts: Optional[str] = None,
+        before: Optional[Tuple[datetime, Optional[UUID]]] = None,
+        limit: int,
+    ) -> List[ChannelInboxEvent]:
+        """A space's stored messages, newest first by provider time: message
+        events only, optionally one thread's, optionally before a time."""
+
+    @abstractmethod
+    async def query_space_outbox_messages(
+        self,
+        *,
+        project_id: UUID,
+        space_id: UUID,
+        thread_ts: Optional[str] = None,
+        before: Optional[Tuple[datetime, Optional[UUID]]] = None,
+        limit: int,
+    ) -> List[Tuple[ChannelOutboxEvent, Optional[str]]]:
+        """The bot's sent posts in a space, newest first, each with its
+        thread reference."""
+
+    @abstractmethod
+    async def search_space_messages(
+        self,
+        *,
+        project_id: UUID,
+        space_ids: List[UUID],
+        query: str,
+        after: Optional[datetime] = None,
+        before: Optional[datetime] = None,
+        limit: int,
+        offset: int = 0,
+    ) -> List[ChannelInboxEvent | Tuple[ChannelOutboxEvent, Optional[str]]]:
+        """People's stored messages and the bot's sent posts in these spaces
+        matching a full-text query, by relevance, then time, then id. A
+        person's message is an inbox event; a bot post is its outbox row with
+        its thread reference, as the outbox read returns it."""
+
+    @abstractmethod
     async def record_inbox_event(
         self,
         *,
@@ -569,6 +632,7 @@ class ChannelsDAOInterface(ABC):
         #
         space_id: UUID,
         after_event_id: Optional[UUID],
+        through_event_id: Optional[UUID] = None,
         #
         limit: Optional[int] = None,
     ) -> List[ChannelInboxEvent]:
@@ -576,9 +640,23 @@ class ChannelsDAOInterface(ABC):
 
         `WHERE (origin, id) > (PUSHED, :after_event_id) ORDER BY origin, id`, or
         the whole log when `after_event_id` is None (a thread nobody has
-        addressed yet, which reads as "from the beginning"). Consumes nothing and
-        claims nothing: two threads can read the same range concurrently.
+        addressed yet, which reads as "from the beginning"). With
+        `through_event_id`, nothing after that PUSHED event: a turn's range
+        stops at its own addressing message. Consumes nothing and claims
+        nothing: two threads can read the same range concurrently.
         """
+        ...
+
+    @abstractmethod
+    async def mark_inbox_event_consumed(
+        self,
+        *,
+        project_id: UUID,
+        #
+        event_id: UUID,
+    ) -> Optional[ChannelInboxEvent]:
+        """Set flags.is_consumed: the event answered a parked interaction and
+        is never composed into a turn as conversation. Idempotent."""
         ...
 
     @abstractmethod
@@ -601,10 +679,17 @@ class ChannelsDAOInterface(ABC):
         project_id: UUID,
         #
         thread_id: UUID,
+        before_event_id: Optional[UUID] = None,
     ) -> Optional[ChannelInboxTrigger]:
-        """This agent's consumer offset — `ORDER BY id DESC LIMIT 1`.
+        """This agent's consumer offset: the trigger with the latest event
+        among those whose turn may have reached the agent. A REFUSED trigger,
+        or a FAILED one whose status code is `CHANNEL_TRIGGER_NEVER_SENT`,
+        provably never did and does not count, so its messages carry into the
+        next turn. Any other FAILED trigger counts: its start may have run.
 
-        None means never addressed, which is the case that triggers backfill.
+        With `before_event_id`, only triggers on earlier events: the offset
+        for a turn addressed by that event. None means no such turn: read
+        from the start.
         """
         ...
 
@@ -723,8 +808,13 @@ class ChannelsDAOInterface(ABC):
         claim_ttl_seconds: float,
         overwrite_final: bool = True,
         delivery_key: Optional[str] = None,
+        include_held: bool = False,
     ) -> Optional[ChannelOutboxEvent]:
         """Take the right to deliver `content` on this row, atomically.
+
+        A HELD row (a reply kept past the platform's reply window) is only
+        claimable with `include_held`, which only the release path passes: a
+        redelivered turn must not re-send, or re-hold, a held reply.
 
         One conditional UPDATE: it succeeds only when the row is not already
         SENT with exactly this content and no other worker holds a live claim
@@ -736,7 +826,8 @@ class ChannelsDAOInterface(ABC):
         overwrites the answer. With `delivery_key`, a row whose last attempt
         at that same delivery ended with an unknown outcome (status code
         `delivery_uncertain`, the key in `status.type`) is not claimable: the
-        post may already be in the chat.
+        post may already be in the chat. Nor is one the platform refused for
+        good (`delivery_refused`, same key): it would refuse it again.
 
         Returns the claimed row (fresh, so the caller posts or edits against
         the current receipt), or None when another worker owns the delivery.

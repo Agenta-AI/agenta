@@ -73,9 +73,14 @@ class SandboxNotAllowedError(ErrorStatus):
         sandbox: str = "local",
         message: Optional[str] = None,
     ) -> None:
+        how = (
+            "it is enabled together with 'daytona'; add daytona to "
+            "AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS to enable"
+            if sandbox == "inprocess"
+            else "add it to AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS to enable"
+        )
         resolved = message or (
-            f"sandbox '{sandbox}' is not enabled on this deployment "
-            f"(add it to AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS to enable)"
+            f"sandbox '{sandbox}' is not enabled on this deployment ({how})"
         )
         super().__init__(code=self.code, type=self.type, message=resolved)
         self.sandbox = sandbox

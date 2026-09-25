@@ -1,7 +1,6 @@
 from oss.src.core.channels.adapters.slack.mapping import (
     build_locator,
     classify_space_kind,
-    extract_sigils,
     is_bot_authored,
     parse_block_action,
     render_approval_card,
@@ -9,33 +8,6 @@ from oss.src.core.channels.adapters.slack.mapping import (
     split_for_max_chars,
 )
 from oss.src.core.channels.dtos import ChannelSpaceKind
-
-
-# --- sigil tokenisation ---------------------------------------------------- #
-
-
-def test_agent_sigil_extracted_alongside_rewritten_mention_token():
-    text = "<@U0123ABC> ~support please help !new"
-    agent, command, arg = extract_sigils(text)
-
-    assert agent == "support"
-    assert command == "new"
-    assert arg is None
-
-
-def test_command_with_argument_is_extracted():
-    agent, command, arg = extract_sigils("!use:gpt-5")
-
-    assert command == "use"
-    assert arg == "gpt-5"
-
-
-def test_neither_sigil_present_returns_all_none():
-    agent, command, arg = extract_sigils("just a normal message")
-
-    assert agent is None
-    assert command is None
-    assert arg is None
 
 
 # --- space-kind classification ---------------------------------------------- #

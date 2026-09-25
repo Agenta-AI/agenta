@@ -119,6 +119,13 @@ _PUBLIC_ENDPOINTS = (
     "/api/channels/telegram/events/",
     "/preview/channels/telegram/events/",
     "/api/preview/channels/telegram/events/",
+    # WhatsApp: Meta's GET verify handshake and its signed POSTs share this
+    # path. The verify token and X-Hub-Signature-256, checked in the ingress,
+    # are what authorise them.
+    "/channels/whatsapp/events/",
+    "/api/channels/whatsapp/events/",
+    "/preview/channels/whatsapp/events/",
+    "/api/preview/channels/whatsapp/events/",
     "/channels/bridge/events/",
     "/api/channels/bridge/events/",
     "/preview/channels/bridge/events/",

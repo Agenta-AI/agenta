@@ -3,6 +3,7 @@ import {useState} from "react"
 import {CaretRight} from "@phosphor-icons/react"
 
 import {
+    CHANNEL_PLATFORMS,
     EMPTY_CONNECTIONS,
     NOOP_ACTIONS,
     agentConnectionsOf,
@@ -12,7 +13,7 @@ import {
     summarizeConnection,
 } from "./helpers"
 import {platformLogo} from "./icons"
-import type {ChannelConnections, ChannelPlatform, ChannelsActions} from "./types"
+import type {ChannelConnections, ChannelsActions} from "./types"
 import {useChannelPanel, type ChannelsPanelRenderProps} from "./useChannelPanel"
 
 /**
@@ -51,8 +52,6 @@ export interface ChannelsPageProps {
     hostedHandle?: string
 }
 
-const PLATFORMS: ChannelPlatform[] = ["slack", "telegram"]
-
 export const ChannelsPage = ({
     agentId,
     agentName = "your agent",
@@ -79,7 +78,7 @@ export const ChannelsPage = ({
     })
 
     const anyIssue = hasAnyIssue(connections)
-    const nothingConnected = (["slack", "telegram"] as const).every(
+    const nothingConnected = CHANNEL_PLATFORMS.every(
         (platform) => !connections[platform] || connections[platform]?.status === "pending",
     )
 
@@ -126,7 +125,7 @@ export const ChannelsPage = ({
                             Talk to {agentName} from the chat tools your team already uses.
                         </p>
                     ) : null}
-                    {PLATFORMS.map((platform) => {
+                    {CHANNEL_PLATFORMS.map((platform) => {
                         const connection = connections[platform]
                         const summary = summarizeConnection(platform, connection, agentId)
                         // Several connections answer as this agent: name each one.

@@ -141,6 +141,11 @@ const AgentConversation = ({
     const scrollIntent = useScrollIntent({initialArmed: initialMessages.length > 0})
     const {showJump} = scrollIntent
 
+    // antd Tabs keeps inactive session panes mounted; only the active one holds network streams.
+    const scopeKey = useChatScopeKey()
+    const activeSessionId = useAtomValue(activeSessionIdAtomFamily(scopeKey))
+    const onScreen = activeSessionId === sessionId
+
     // The chat stream for this tab: transport, useChat, history hydration, persistence,
     // self-commit pickup, stop/kill and teardown.
     const {
@@ -185,6 +190,7 @@ const AgentConversation = ({
         sharedReaderAdvertised,
         runningElsewhere: livenessRunningElsewhere,
         sender: true,
+        visible: onScreen,
         onReadyChange: setSharedSenderReady,
         onExecutionSettled: settleSharedTurn,
         onDisconnect: refreshFromRecords,
@@ -237,8 +243,6 @@ const AgentConversation = ({
     // below `useAgentChatQueue` so the run goes through the same `submit` path as a manual
     // send — respecting a pending HITL approval and any queued messages instead of jumping
     // ahead with a raw `sendMessage`.
-    const scopeKey = useChatScopeKey()
-    const activeSessionId = useAtomValue(activeSessionIdAtomFamily(scopeKey))
     const pendingRun = useAtomValue(simulatedAgentRunAtomFamily(entityId))
     const setPendingRun = useSetAtom(simulatedAgentRunAtomFamily(entityId))
 
@@ -378,6 +382,7 @@ const AgentConversation = ({
         sessionId,
         messages,
         locallyBusy: busy,
+        active: onScreen,
         isSharedReaderReady: () => readerReady,
         onExecuted: revalidate,
     })

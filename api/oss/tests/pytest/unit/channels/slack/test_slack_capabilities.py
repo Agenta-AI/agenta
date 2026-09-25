@@ -6,18 +6,23 @@ EXPECTED = {
     "channel": "slack",
     "protocol": {"versions": ["0.1.0"]},
     "addressing": {
-        "sigils": {"agent": "~", "command": "!"},
+        "sigils": {"agent": None, "command": "!"},
         "mention": True,
         "commands": {"native": True, "in_conversation": False},
     },
     "spaces": {"private": True, "group": True, "topic": True},
-    "conversation": {"units": ["thread", "space"], "default": "thread"},
+    "conversation": {
+        "units": ["thread", "space"],
+        "default": "thread",
+        "reply_window_seconds": 0,
+        "opt_out": False,
+    },
     "fill": {
         "backfill": {"supported": True, "requires_permission": "channels:history"},
         "forwardfill": {"supported": True, "requires_permission": "channels:history"},
     },
     "rendering": {
-        "controls": {"update": True, "ephemeral": True},
+        "controls": {"update": True, "ephemeral": True, "indicator": "message"},
         "buttons": {"supported": True, "max": 5},
         "text": {"format": "markdown", "max_chars": 3000},
         "files": {
@@ -38,30 +43,12 @@ EXPECTED = {
         "instructions": [
             "Create a Slack app from the generated manifest (own app, not ours).",
             "Install it to your workspace and approve the requested scopes.",
+            "Copy the App ID and the Signing Secret from Settings -> Basic Information.",
             "Copy the Bot User OAuth Token from Settings -> Install App.",
-            "Copy the Signing Secret and the App ID from Settings -> Basic Information.",
         ],
         "document": None,
         "hosted_available": False,
         "fields": [
-            {
-                "name": "bot_token",
-                "label": "Bot User OAuth Token",
-                "secret": True,
-                "required": True,
-                "help": "Settings -> Install App",
-                "pattern": None,
-                "pattern_error": None,
-            },
-            {
-                "name": "signing_secret",
-                "label": "Signing Secret",
-                "secret": True,
-                "required": True,
-                "help": "Settings -> Basic Information",
-                "pattern": None,
-                "pattern_error": None,
-            },
             {
                 "name": "api_app_id",
                 "label": "App ID",
@@ -74,6 +61,24 @@ EXPECTED = {
                     "Basic Information; it starts with A. The Client ID does not "
                     "go here."
                 ),
+            },
+            {
+                "name": "signing_secret",
+                "label": "Signing Secret",
+                "secret": True,
+                "required": True,
+                "help": "Settings -> Basic Information",
+                "pattern": None,
+                "pattern_error": None,
+            },
+            {
+                "name": "bot_token",
+                "label": "Bot User OAuth Token",
+                "secret": True,
+                "required": True,
+                "help": "Settings -> Install App",
+                "pattern": None,
+                "pattern_error": None,
             },
         ],
     },
@@ -118,6 +123,16 @@ def test_conversation_units_use_key_grain_not_session_scope_vocabulary():
         ChannelKeyGrain.SPACE,
     }
     assert capabilities.conversation.default == ChannelKeyGrain.THREAD
+
+
+def test_setup_fields_follow_slack_credential_order():
+    capabilities = fetch_slack_capabilities()
+
+    assert [field.name for field in capabilities.setup.fields] == [
+        "api_app_id",
+        "signing_secret",
+        "bot_token",
+    ]
 
 
 def test_setup_declares_two_secret_fields_and_one_discovered_exception():

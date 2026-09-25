@@ -1,17 +1,19 @@
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Literal, Optional, Tuple, Union
 from uuid import UUID
 
 from oss.src.core.channels.dtos import (
     ChannelCapabilities,
     ChannelConnection,
     ChannelConnectionCreate,
+    ChannelHistoryPage,
     ChannelInboundEvent,
     ChannelRequestContext,
     ChannelSetupDoc,
     ChannelSetupIdentity,
     ChannelSpaceCandidate,
 )
+from oss.src.core.channels.types import ChannelNotSupported
 
 
 class ChannelAdapterInterface(ABC):
@@ -134,9 +136,11 @@ class ChannelAdapterInterface(ABC):
     @abstractmethod
     async def parse_event(
         self, *, body: bytes, connection: Optional[ChannelConnection] = None
-    ) -> Optional[ChannelInboundEvent]:
+    ) -> Union[None, ChannelInboundEvent, List[ChannelInboundEvent]]:
         """Platform payload → the normalised event, or None for anything we do not
-        act on (acks, bot echoes, platform noise). Carries `addressed`, which is
+        act on (acks, bot echoes, platform noise). A platform that batches
+        several messages in one delivery (WhatsApp) returns a list, one event
+        per message. Carries `addressed`, which is
         the adapter's answer to trigger-or-fill: the adapter knows its own
         platform's addressing conventions and core does not.
 
@@ -204,6 +208,16 @@ class ChannelAdapterInterface(ABC):
         can only drop buttons by re-sending the rest of the message."""
         return None
 
+    async def set_message_status(
+        self,
+        *,
+        connection: ChannelConnection,
+        locator: Dict[str, Any],
+        status: Literal["received", "completed", "failed"],
+    ) -> None:
+        """Optional, best-effort status on the original request, not the reply."""
+        return None
+
     async def signal_activity(
         self,
         *,
@@ -216,6 +230,31 @@ class ChannelAdapterInterface(ABC):
 
         return None
 
+    async def reopen_conversation(
+        self,
+        *,
+        connection: ChannelConnection,
+        locator: Dict[str, Any],
+    ) -> bool:
+        """Ask the person to come back after a reply was held because the
+        platform's reply window closed (WhatsApp's re-open template). True
+        when something was sent. Defaults to sending nothing."""
+
+        return False
+
+    async def fetch_media(
+        self,
+        *,
+        connection: ChannelConnection,
+        media: Dict[str, Any],
+        max_bytes: Optional[int] = None,
+    ) -> Optional[Tuple[bytes, Optional[str]]]:
+        """Download an inbound file named by a `media` content part, as
+        `(bytes, media type)`. None when it is larger than `max_bytes`.
+        Defaults to None: a channel that never emits media parts."""
+
+        return None
+
     # --- discovery ---
 
     @abstractmethod
@@ -225,6 +264,16 @@ class ChannelAdapterInterface(ABC):
         """Which places this install can actually see, so configuration is a
         pick-list rather than a paste-the-channel-id form. Returns
         candidates, not rows — nothing is persisted until an operator chooses."""
+
+    async def list_member_spaces(
+        self, *, connection: ChannelConnection
+    ) -> List[ChannelSpaceCandidate]:
+        """The channels the bot is a member of, for the agent's destination
+        list. Group conversations only: never direct messages or group DMs.
+        Raises ChannelNotSupported where the platform cannot list them
+        (a Telegram bot cannot list its chats)."""
+
+        raise ChannelNotSupported(channel=self.channel)
 
     async def join_space(
         self, *, connection: ChannelConnection, locator: Dict[str, Any]
@@ -246,3 +295,22 @@ class ChannelAdapterInterface(ABC):
         `fill.backfill.supported`. A permission refusal raises rather than
         returning empty — an empty fetch is a legitimate result and the two must
         stay distinguishable."""
+
+    async def read_history(
+        self,
+        *,
+        connection: ChannelConnection,
+        locator: Dict[str, Any],
+        thread_ts: Optional[str] = None,
+        latest: Optional[str] = None,
+        cursor: Optional[str] = None,
+        limit: int,
+    ) -> ChannelHistoryPage:
+        """One live history page for the channel read tool, oldest first.
+        A channel page holds the newest messages strictly before `latest`; a
+        thread page (`thread_ts`) holds the root and replies from the start,
+        paging forward with `cursor`. Nothing is stored. Raises
+        ChannelRateLimited when the platform says to wait, and
+        ChannelNotSupported where bots cannot read history (Telegram)."""
+
+        raise ChannelNotSupported(channel=self.channel)

@@ -128,6 +128,17 @@ for how they behave. The plan and role variables are Enterprise-only; see
 | Env var | env.py path | values.yaml path |
 |---|---|---|
 | `AGENTA_API_CACHING_ENABLED` | `agenta.api.caching.enabled` | `agenta.api.caching.enabled` |
+| `AGENTA_API_THROTTLING_BOOKKEEPING_CAPACITY` | `agenta.api.throttling.bookkeeping_capacity` | Not mapped; set it in the API's environment |
+| `AGENTA_API_THROTTLING_BOOKKEEPING_RATE` | `agenta.api.throttling.bookkeeping_rate` | Not mapped; set it in the API's environment |
+
+The two throttling variables apply to Enterprise Edition deployments, which throttle API requests
+per organization and plan. They size a separate budget for the agent runtime's own calls: the
+runner's heartbeats, turn and record reads, approvals, mount signing and credential refresh, sent
+with a run's credential. These calls do not spend the plan's budget. The value is in requests per
+minute per organization, and the default for both is `60000`. When an organization's plan allows
+more for these requests, the plan's larger budget applies. The routes that count as these calls are listed in `api/ee/src/middlewares/throttling.py`
+(`_BOOKKEEPING_ROUTES`). Every other request, including tool calls the model makes, spends the
+plan's budget.
 
 ## Agenta extras
 
@@ -326,10 +337,16 @@ templates apply it to both.
 
 Rules:
 
-- Values are lowercase provider ids separated by commas. The known ids are `local` and `daytona`.
+- Values are lowercase provider ids separated by commas. The known ids are `local`, `daytona` and
+  `inprocess` (see [In-process](#in-process)).
 - Unset enabled providers means exactly `local`.
 - An explicitly empty list is invalid, and so is an empty entry inside the list.
 - Unknown ids and duplicate ids are invalid.
+- `inprocess` is enabled wherever `daytona` is enabled. You do not add it to the list. The runner
+  adds it after the listed providers, so `daytona` stays the default. A list without `daytona`
+  (for example `local`) does not enable `inprocess`. You cannot turn `inprocess` off while `daytona`
+  is enabled. Each user chooses to see it in the web app (Settings, Preferences, "In-process agent
+  runtime"). This preference is off by default.
 - The default must be one of the enabled providers.
 - A run may select any enabled provider. A run that selects a known but disabled provider fails
   before any working directory, mount, secret, or sandbox is created. There is no fallback to
@@ -426,6 +443,44 @@ The two may point at the same Daytona account, so the key, the URL, and the targ
 same values. The snapshot may not: the evaluator's snapshot (for example `daytona-small`) has no
 agent harness installed, so an agent booted into it cannot run.
 :::
+
+### In-process
+
+Read by the `runner` service, and only when `inprocess` is enabled: when `daytona` or `inprocess` is
+in `AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS`. With `inprocess`, the Pi harness runs inside the runner
+process, and a Daytona sandbox, one per conversation, runs the agent's file tools and commands. The
+sandbox starts on the first tool call. `inprocess` runs only the `pi_core` harness, and it needs
+the durable store (see [Store](#store-durable-object-store)).
+
+Enabling `inprocess` makes `AGENTA_RUNNER_DAYTONA_API_KEY` required. The command sandboxes use the
+Daytona connection above (key, URL, target) and, unless you set a snapshot below, its snapshot or
+image. A model provider key (for example `OPENAI_API_KEY`) or a cloud credential (for example
+`AWS_ACCESS_KEY_ID`) in the runner's own environment is not allowed with `inprocess`, because every
+in-process session would use it. What the runner does at start:
+
+- Without `local` in the list, no enabled provider reads these variables from the runner
+  environment. The runner removes them from its own environment and logs a warning that names
+  them (never their values). `inprocess` stays on.
+- With `local` in the list, the local harness processes inherit the runner environment, so the
+  variables stay. If `inprocess` is only enabled through `daytona`, the runner starts without
+  `inprocess` and logs a warning. If you listed `inprocess` or made it the default, the runner does
+  not start.
+
+Set `AGENTA_RUNNER_INPROCESS_ALLOW_ENV_KEYS=true` only on a deployment that must keep such a key.
+
+| Variable | Role | Default | Secret | Helm |
+|---|---|---|---|---|
+| `AGENTA_RUNNER_INPROCESS_SANDBOX_SNAPSHOT` | Snapshot for the command sandboxes | The `daytona` provider's snapshot or image | no | `agentRunner.env.AGENTA_RUNNER_INPROCESS_SANDBOX_SNAPSHOT` |
+| `AGENTA_RUNNER_INPROCESS_SANDBOX_LABELS` | Labels added to every command sandbox, as `key=value,key=value` | Unset | no | `agentRunner.env.AGENTA_RUNNER_INPROCESS_SANDBOX_LABELS` |
+| `AGENTA_RUNNER_INPROCESS_IDLE_STOP_MS` | Stop a command sandbox after this long without a tool call | `300000` (5 minutes) | no | `agentRunner.env.AGENTA_RUNNER_INPROCESS_IDLE_STOP_MS` |
+| `AGENTA_RUNNER_INPROCESS_MAX_RUNNING_SANDBOXES` | Command sandboxes this runner keeps running at once | `40` | no | `agentRunner.env.AGENTA_RUNNER_INPROCESS_MAX_RUNNING_SANDBOXES` |
+| `AGENTA_RUNNER_INPROCESS_MAX_SESSIONS` | In-process sessions this runner hosts at once | `200` | no | `agentRunner.env.AGENTA_RUNNER_INPROCESS_MAX_SESSIONS` |
+| `AGENTA_RUNNER_INPROCESS_ALLOW_ENV_KEYS` | Start even when a model provider key is in the runner's environment | `false` | no | `agentRunner.env.AGENTA_RUNNER_INPROCESS_ALLOW_ENV_KEYS` |
+
+The command sandboxes take the `daytona` provider's `AGENTA_RUNNER_DAYTONA_AUTOSTOP_MINUTES` and
+`AGENTA_RUNNER_DAYTONA_AUTODELETE_MINUTES`. A command sandbox holds nothing durable (the session and
+agent folders are in the store), so a sandbox left by a runner that stopped is removed by Daytona on
+those intervals.
 
 ### Warm sessions and scale
 
@@ -553,26 +608,35 @@ The runner fails to start when configuration is invalid, before it listens. The 
 | Token not set | `AGENTA_RUNNER_TOKEN is required. Generate a secret (e.g. \`openssl rand -hex 32\`) and set the SAME value on the runner and on the service that calls it.` |
 | Enabled list is set but empty | `AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS is set but empty; unset it for the default 'local', or list at least one provider.` |
 | Empty entry in the enabled list | `AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS has an empty entry in '<list>'.` |
-| Unknown provider id in the enabled list | `AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS lists unknown provider '<id>'; known providers: local, daytona.` |
+| Unknown provider id in the enabled list | `AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS lists unknown provider '<id>'; known providers: local, daytona, inprocess.` |
 | Duplicate provider id | `AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS lists provider '<id>' more than once.` |
-| Default is an unknown provider | `AGENTA_RUNNER_DEFAULT_SANDBOX_PROVIDER is unknown provider '<id>'; known providers: local, daytona.` |
+| Default is an unknown provider | `AGENTA_RUNNER_DEFAULT_SANDBOX_PROVIDER is unknown provider '<id>'; known providers: local, daytona, inprocess.` |
 | Default not in the enabled set | `AGENTA_RUNNER_DEFAULT_SANDBOX_PROVIDER '<id>' is not in the enabled set [<list>]. Add it to AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS or change the default.` |
 | Daytona enabled without a key | `AGENTA_RUNNER_DAYTONA_API_KEY is required when 'daytona' is in AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS.` |
+| `inprocess` enabled without a Daytona key | `AGENTA_RUNNER_DAYTONA_API_KEY is required when 'inprocess' is in AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS: its tool calls run in a Daytona sandbox.` |
+| `inprocess` listed (or the default) together with `local`, and a model provider key in the runner environment | `The 'inprocess' provider is enabled but the runner environment holds credential variable(s) <names>; Pi would use them for every in-process session. Remove them, or set AGENTA_RUNNER_INPROCESS_ALLOW_ENV_KEYS=true.` |
+| A label entry without `=` | `AGENTA_RUNNER_INPROCESS_SANDBOX_LABELS entry '<entry>' is not in the form key=value.` |
 | Snapshot and image both set | `AGENTA_RUNNER_DAYTONA_SNAPSHOT and AGENTA_RUNNER_DAYTONA_IMAGE are mutually exclusive; set only one.` |
 | Non-integer positive value | `<variable> must be a positive integer, got '<value>'.` |
 
 The last message covers `AGENTA_RUNNER_PORT`, `AGENTA_RUNNER_CONCURRENCY_LIMIT`,
-`AGENTA_RUNNER_DAYTONA_AUTOSTOP_MINUTES`, and `AGENTA_RUNNER_DAYTONA_AUTODELETE_MINUTES`.
+`AGENTA_RUNNER_DAYTONA_AUTOSTOP_MINUTES`, `AGENTA_RUNNER_DAYTONA_AUTODELETE_MINUTES`,
+`AGENTA_RUNNER_INPROCESS_IDLE_STOP_MS`, `AGENTA_RUNNER_INPROCESS_MAX_RUNNING_SANDBOXES`, and
+`AGENTA_RUNNER_INPROCESS_MAX_SESSIONS`. The `inprocess` checks run only when `inprocess` is enabled
+(which includes every list with `daytona`).
 
 On a valid start, the runner logs one redacted summary. No credential value or source path is
 logged.
 
 ```text
-runner providers enabled=[local,daytona] default=local
+runner providers enabled=[local,daytona,inprocess] default=local
 runner daytona target=eu artifact=snapshot:agenta-agent-sandbox-v1
+runner inprocess sandbox_start=on-first-tool-call artifact=snapshot:agenta-agent-sandbox-v1 max_running_sandboxes=40 max_sessions=200
 ```
 
-The first line always prints. The second line appears only when `daytona` is enabled. `target`
+The first line always prints and shows the effective list: `local,daytona` in the variable prints as
+`local,daytona,inprocess`. The second line appears only when `daytona` is enabled. The third
+line appears only when `inprocess` is enabled. `target`
 reads `default` when `AGENTA_RUNNER_DAYTONA_TARGET` is unset, and `artifact` reads
 `snapshot:agenta-agent-sandbox-v1` (the pinned default), `snapshot:<name>`, or `image:<name>`
 depending on what is set.
@@ -584,7 +648,9 @@ depending on what is set.
 **Cause:** The run requested a provider that is not in `AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS`.
 
 **Solution:** Add the provider and recreate the runner, or change the run to use an enabled
-provider.
+provider. For `inprocess`, add `daytona`: `inprocess` is enabled with it. If the runner log shows
+a warning that `inprocess` is off because of credential variables (a deployment that also enables
+`local`), remove those variables from the runner environment.
 
 #### A run fails with `could not find runner CLI at /app/runner/src/cli.ts`
 
@@ -961,7 +1027,7 @@ it, so set it in the env file the services and runner containers load, and recre
 
 ## Channels
 
-Channels connect an agent to Slack or Telegram. They need no environment variable: users can connect their own Slack app or Telegram bot. The variables below are optional and turn on the hosted integrations, where one app or bot owned by the deployment serves every project. Each hosted integration stays off until all three of its variables are set.
+Channels connect an agent to Slack, Telegram, or WhatsApp. They need no environment variable: users can connect their own Slack app or Telegram bot. The variables below are optional and turn on the hosted integrations, where one app or bot owned by the deployment serves every project. Each hosted integration stays off until all three of its variables are set.
 
 Set them on the `api`, `worker-queues` and `worker-streams` containers. The Helm chart has no keys for them; add them with `api.extraEnv`, `workerQueues.extraEnv` and `workerStreams.extraEnv`.
 
@@ -975,6 +1041,14 @@ Set them on the `api`, `worker-queues` and `worker-streams` containers. The Helm
 | `TELEGRAM_HOSTED_WEBHOOK_SECRET` | `channels.telegram.webhook_secret` | _(not mapped)_   |
 
 For the Telegram setup, see [Set up the hosted Telegram bot](/self-host/channels/telegram-hosted-bot).
+
+WhatsApp has no hosted integration. Each connection brings its own Meta app, so WhatsApp needs no variable. One optional variable changes where the WhatsApp channel sends its Meta Graph API calls:
+
+| Env var                  | env.py path                       | values.yaml path | Default                            |
+| ------------------------ | --------------------------------- | ---------------- | ---------------------------------- |
+| `WHATSAPP_GRAPH_API_URL` | `channels.whatsapp.graph_api_url` | _(not mapped)_   | `https://graph.facebook.com/v24.0` |
+
+Change it only to route the calls through a proxy or to a test double. For the setup, see [Connect a WhatsApp number to an agent](/guides/connect-whatsapp).
 
 :::warning One replica for channel replies
 The `sessions` loop of `worker-streams` sends channel replies. Run it in exactly one replica. With two or more, a progress update can overwrite a final reply, and a Telegram reply can arrive twice. With the default `AGENTA_WORKER_STREAMS` (empty, which runs every loop), that means one `worker-streams` replica. On Helm, a rolling update briefly runs two pods; set `workerStreams.strategy.type: Recreate` to avoid the overlap.

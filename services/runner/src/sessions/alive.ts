@@ -15,6 +15,7 @@
  * Key contract constants mirror `sessions/contract.ts`; do not duplicate them.
  */
 
+import { fetchControlPlane, type ControlPlaneRetry } from "./control-plane-fetch.ts";
 import { envTimerMs } from "../env.ts";
 import { apiBase } from "../apiBase.ts";
 import { randomUUID } from "node:crypto";
@@ -60,6 +61,9 @@ export interface SessionProposal {
   /** The run's workflow references, so the stream row is openable without a turn append. */
   references?: TypedReference[];
 }
+
+/** A turn's admission waits for a throttled or restarting platform as every control-plane call does. */
+const ADMISSION_RETRY: ControlPlaneRetry = {};
 
 function log(msg: string): void {
   process.stderr.write(`[sessions/alive] ${msg}\n`);
@@ -145,6 +149,8 @@ async function sendHeartbeat(
   authorization: string,
   isRunning = true,
   proposal?: SessionProposal,
+  /** Only the admission beat is retried; for a periodic beat the next beat is the retry. */
+  retry?: ControlPlaneRetry,
 ): Promise<{
   streamId: string | undefined;
   interrupted: boolean;
@@ -153,24 +159,26 @@ async function sendHeartbeat(
 }> {
   try {
     const url = `${apiBase()}/sessions/streams/heartbeat`;
-    const res = await fetch(url, {
-      method: "POST",
-      signal: AbortSignal.timeout(heartbeatTimeoutMs()),
-      headers: {
-        "content-type": "application/json",
-        authorization,
-      },
-      body: JSON.stringify({
-        session_id: sessionId,
-        replica_id: REPLICA_ID,
-        turn_id: turnId,
-        is_running: isRunning,
-        ...(proposal?.name ? { name: proposal.name } : {}),
-        ...(proposal?.references?.length
-          ? { references: proposal.references }
-          : {}),
-      }),
-    });
+    const beat = (signal?: AbortSignal) =>
+        fetch(url, {
+          method: "POST",
+          signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(heartbeatTimeoutMs())]) : AbortSignal.timeout(heartbeatTimeoutMs()),
+          headers: {
+            "content-type": "application/json",
+            authorization,
+          },
+          body: JSON.stringify({
+            session_id: sessionId,
+            replica_id: REPLICA_ID,
+            turn_id: turnId,
+            is_running: isRunning,
+            ...(proposal?.name ? { name: proposal.name } : {}),
+            ...(proposal?.references?.length
+              ? { references: proposal.references }
+              : {}),
+          }),
+        });
+    const res = retry ? await fetchControlPlane(beat, retry) : await beat();
     if (!res.ok) {
       log(`heartbeat HTTP ${res.status} session=${sessionId} turn=${turnId}`);
       return {
@@ -301,6 +309,8 @@ export async function startAliveWatchdog(
   streamId: () => string | undefined;
   /** False when the FIRST beat reported `is_current_turn: false` — another turn owns the session. */
   admitted: boolean;
+  /** True when the platform never answered the first beat: nothing is known about ownership. */
+  admissionUnconfirmed: boolean;
   /** True only when the awaited first heartbeat confirmed this turn owns the session. */
   firstBeatOwned: boolean;
 }> {
@@ -326,13 +336,16 @@ export async function startAliveWatchdog(
     }
   };
 
-  // Await the FIRST beat so streamId is ready before the caller starts the turn.
+  // Await the FIRST beat so streamId is ready before the caller starts the turn. It is this
+  // turn's admission, so a throttled or restarting platform is asked again rather than read as
+  // a refusal.
   const first = await sendHeartbeat(
     sessionId,
     turnId,
     credentialLease.credential(),
     true,
     proposal,
+    ADMISSION_RETRY,
   );
   handleBeat(first);
 
@@ -370,6 +383,7 @@ export async function startAliveWatchdog(
   return {
     // Read from the FIRST beat only. Later interruptions travel the abort path instead.
     admitted: first.confirmed && !first.interrupted,
+    admissionUnconfirmed: !first.confirmed,
     async release() {
       clearInterval(interval);
       credentialLease.release();

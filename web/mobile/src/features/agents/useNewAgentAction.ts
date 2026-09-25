@@ -12,6 +12,7 @@ import type {FileUIPart} from "ai"
 import {useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 
+import {captureIntent} from "@/features/analytics/client"
 import {newId} from "@/lib/ids"
 
 import {stashPendingTaskAtom, takePendingTaskAtom} from "../home/pendingTask"
@@ -151,7 +152,10 @@ export const useNewAgentAction = (base: string) => {
         [base, createAgent, creating, dropTask, revealConfigPane, router, setSetupDraft, stashTask],
     )
 
-    const create = useCallback(() => void run(), [run])
+    const create = useCallback(() => {
+        captureIntent({source: "skipped"})
+        void run()
+    }, [run])
 
     /**
      * A template pick opens the existing setup surface before the first run can start.
@@ -160,6 +164,15 @@ export const useNewAgentAction = (base: string) => {
         (templateKey: string) => {
             const template = agentTemplateByKey(templateKey)
             if (!template) return
+            captureIntent({
+                source: "template",
+                properties: {
+                    template: template.name,
+                    templateId: template.key,
+                    templateCategory: template.category,
+                },
+                intentValue: template.category || template.name,
+            })
             void run({name: template.name, templateKey})
         },
         [run],

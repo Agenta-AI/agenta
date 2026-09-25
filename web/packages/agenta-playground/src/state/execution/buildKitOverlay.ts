@@ -132,15 +132,26 @@ export function applyBuildKitOverlay(
 const withoutDisabledOps = (
     overlay: AgentTemplate,
     disabledOps: readonly string[],
+    permissions: Record<string, "allow" | "ask">,
 ): AgentTemplate => {
-    if (disabledOps.length === 0 || !Array.isArray(overlay.tools)) return overlay
+    if (!Array.isArray(overlay.tools)) return overlay
     const disabled = new Set(disabledOps)
     return {
         ...overlay,
-        tools: (overlay.tools as unknown[]).filter(
-            (entry) =>
-                !(isRecord(entry) && entry.type === "platform" && disabled.has(entry.op as string)),
-        ),
+        tools: (overlay.tools as unknown[])
+            .filter(
+                (entry) =>
+                    !(
+                        isRecord(entry) &&
+                        entry.type === "platform" &&
+                        disabled.has(entry.op as string)
+                    ),
+            )
+            .map((entry) =>
+                isRecord(entry) && entry.type === "platform" && permissions[entry.op as string]
+                    ? {...entry, permission: permissions[entry.op as string]}
+                    : entry,
+            ),
     }
 }
 
@@ -154,14 +165,31 @@ export const withBuildKitOverlay = (
     overlay: AgentTemplate | null,
     enabled: boolean,
     disabledOps: readonly string[] = [],
+    permissions: Record<string, "allow" | "ask"> = {},
 ): Record<string, unknown> => {
     if (!enabled || !overlay) return parameters
-    const effective = withoutDisabledOps(overlay, disabledOps)
-    if (isRecord(parameters.agent)) {
-        return {
-            ...parameters,
-            agent: applyBuildKitOverlay(parameters.agent as AgentTemplate, effective),
-        }
-    }
-    return applyBuildKitOverlay(parameters as AgentTemplate, effective) as Record<string, unknown>
+    const effective = withoutDisabledOps(overlay, disabledOps, permissions)
+    const base = isRecord(parameters.agent) ? parameters.agent : parameters
+    const kitOps = new Set(
+        (Array.isArray(overlay.tools) ? overlay.tools : []).flatMap((tool) =>
+            isRecord(tool) && tool.type === "platform" ? [tool.op] : [],
+        ),
+    )
+    // Removing an overlay entry must not reveal a same-op entry in the base config.
+    const filteredBase = Array.isArray(base.tools)
+        ? {
+              ...base,
+              tools: base.tools.filter(
+                  (tool) =>
+                      !(
+                          isRecord(tool) &&
+                          tool.type === "platform" &&
+                          kitOps.has(tool.op) &&
+                          disabledOps.includes(tool.op as string)
+                      ),
+              ),
+          }
+        : base
+    const agent = applyBuildKitOverlay(filteredBase, effective)
+    return isRecord(parameters.agent) ? {...parameters, agent} : agent
 }

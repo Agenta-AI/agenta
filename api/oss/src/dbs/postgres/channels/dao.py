@@ -1,11 +1,31 @@
+import json
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Tuple
 from uuid import UUID, uuid4
 
-from sqlalchemy import cast, false, func, literal, or_, select, text, tuple_, update
+from sqlalchemy import (
+    and_,
+    Float,
+    cast,
+    false,
+    func,
+    literal,
+    not_,
+    literal_column,
+    or_,
+    select,
+    text,
+    true,
+    tuple_,
+    union_all,
+    update,
+)
 from sqlalchemy.dialects.postgresql import JSONB, insert
 
 from oss.src.core.channels.dtos import (
+    CHANNEL_TRIGGER_NEVER_SENT,
+    ChannelEventKind,
+    ChannelEventOrigin,
     ChannelAgent,
     ChannelAgentCreate,
     ChannelAgentEdit,
@@ -673,9 +693,15 @@ class ChannelsDAO(ChannelsDAOInterface):
         space: ChannelSpaceEdit,
     ) -> Optional[ChannelSpace]:
         async with self.engine.session() as session:
-            stmt = select(ChannelSpaceDBE).where(
-                ChannelSpaceDBE.project_id == project_id,
-                ChannelSpaceDBE.id == space.id,
+            # Locked: the mapper keeps the person's STOP/START flags from this
+            # read, and a concurrent STOP must not commit in between.
+            stmt = (
+                select(ChannelSpaceDBE)
+                .where(
+                    ChannelSpaceDBE.project_id == project_id,
+                    ChannelSpaceDBE.id == space.id,
+                )
+                .with_for_update()
             )
 
             result = await session.execute(stmt)
@@ -796,6 +822,87 @@ class ChannelsDAO(ChannelsDAOInterface):
             await session.commit()
 
             await session.refresh(space_dbe)
+
+            return map_space_dbe_to_dto(space_dbe=space_dbe)
+
+    async def mark_inbox_event_consumed(
+        self,
+        *,
+        project_id: UUID,
+        #
+        event_id: UUID,
+    ) -> Optional[ChannelInboxEvent]:
+        async with self.engine.session() as session:
+            stmt = select(ChannelInboxEventDBE).where(
+                ChannelInboxEventDBE.project_id == project_id,
+                ChannelInboxEventDBE.id == event_id,
+            )
+
+            result = await session.execute(stmt)
+
+            event_dbe = result.scalar_one_or_none()
+
+            if not event_dbe:
+                return None
+
+            flags = dict(event_dbe.flags or {})
+            if not flags.get("is_consumed"):
+                event_dbe.flags = {**flags, "is_consumed": True}
+                event_dbe.updated_at = datetime.now(timezone.utc)
+
+                await session.commit()
+
+                await session.refresh(event_dbe)
+
+            return map_inbox_event_dbe_to_dto(event_dbe=event_dbe)
+
+    async def set_space_opted_out(
+        self,
+        *,
+        project_id: UUID,
+        space_id: UUID,
+        opted_out: bool,
+        sent_at: datetime,
+    ) -> Optional[ChannelSpace]:
+        # One conditional UPDATE: the fence and the write cannot interleave with
+        # another consent event. A fixed-width UTC stamp sorts as text.
+        stamp = sent_at.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+        flags = cast(ChannelSpaceDBE.flags, JSONB)
+        applied = flags["consent_sent_at"].astext
+        stmt = (
+            update(ChannelSpaceDBE)
+            .where(
+                ChannelSpaceDBE.project_id == project_id,
+                ChannelSpaceDBE.id == space_id,
+                or_(
+                    applied.is_(None),
+                    applied < stamp,
+                    and_(applied == stamp, true() if opted_out else false()),
+                ),
+            )
+            .values(
+                flags=func.coalesce(flags, cast(literal("{}"), JSONB)).op("||")(
+                    cast(
+                        literal(
+                            json.dumps(
+                                {"is_opted_out": opted_out, "consent_sent_at": stamp}
+                            )
+                        ),
+                        JSONB,
+                    )
+                ),
+                updated_at=datetime.now(timezone.utc),
+            )
+            .returning(ChannelSpaceDBE)
+        )
+
+        async with self.engine.session() as session:
+            result = await session.execute(stmt)
+            space_dbe = result.scalar_one_or_none()
+            await session.commit()
+
+            if space_dbe is None:
+                return None
 
             return map_space_dbe_to_dto(space_dbe=space_dbe)
 
@@ -1326,6 +1433,121 @@ class ChannelsDAO(ChannelsDAOInterface):
 
             return map_thread_dbe_to_dto(thread_dbe=thread_dbe)
 
+    # --- a space's messages, for the channel read tool ------------------- #
+
+    async def query_space_inbox_messages(
+        self,
+        *,
+        project_id: UUID,
+        space_id: UUID,
+        thread_ts: Optional[str] = None,
+        before: Optional[Tuple[datetime, Optional[UUID]]] = None,
+        limit: int,
+    ) -> List[ChannelInboxEvent]:
+        table = ChannelInboxEventDBE
+        stmt = select(table).where(
+            table.project_id == project_id,
+            table.space_id == space_id,
+            table.kind == ChannelEventKind.MESSAGE.value,
+            _not_a_copy_of_a_bot_post(),
+        )
+        if thread_ts is not None:
+            stmt = stmt.where(
+                func.json_extract_path_text(table.data, "external_locator", "thread_ts")
+                == thread_ts
+            )
+        if before is not None:
+            stmt = stmt.where(_before(table.sent_at, table.id, before))
+        stmt = stmt.order_by(table.sent_at.desc(), table.id.desc()).limit(limit)
+
+        async with self.engine.session() as session:
+            result = await session.execute(stmt)
+            return [
+                map_inbox_event_dbe_to_dto(event_dbe=dbe)
+                for dbe in result.scalars().all()
+            ]
+
+    async def query_space_outbox_messages(
+        self,
+        *,
+        project_id: UUID,
+        space_id: UUID,
+        thread_ts: Optional[str] = None,
+        before: Optional[Tuple[datetime, Optional[UUID]]] = None,
+        limit: int,
+    ) -> List[Tuple[ChannelOutboxEvent, Optional[str]]]:
+        """The bot's sent posts in a space, newest first, each with the thread
+        it belongs to: a tool send records it, a turn reply takes its channel
+        thread's, and a top-level post roots its own."""
+
+        outbox = ChannelOutboxEventDBE
+        stmt, thread_of = _bot_posts(project_id)
+        stmt = stmt.where(outbox.space_id == space_id)
+        if thread_ts is not None:
+            stmt = stmt.where(thread_of == thread_ts)
+        if before is not None:
+            stmt = stmt.where(_before(outbox.created_at, outbox.id, before))
+        stmt = stmt.order_by(outbox.created_at.desc(), outbox.id.desc()).limit(limit)
+
+        async with self.engine.session() as session:
+            result = await session.execute(stmt)
+            return [
+                (map_outbox_event_dbe_to_dto(event_dbe=dbe), thread_ts_of)
+                for dbe, thread_ts_of in result.all()
+            ]
+
+    async def search_space_messages(
+        self,
+        *,
+        project_id: UUID,
+        space_ids: List[UUID],
+        query: str,
+        after: Optional[datetime] = None,
+        before: Optional[datetime] = None,
+        limit: int,
+        offset: int = 0,
+    ) -> List[ChannelInboxEvent | Tuple[ChannelOutboxEvent, Optional[str]]]:
+        if not space_ids or not query.strip():
+            return []
+        stmt = search_statement(
+            project_id=project_id,
+            space_ids=space_ids,
+            query=query,
+            after=after,
+            before=before,
+            limit=limit,
+            offset=offset,
+        )
+        async with self.engine.session() as session:
+            hits = (await session.execute(stmt)).all()
+            ids = {
+                source: [hit.id for hit in hits if hit.source == source]
+                for source in ("inbox", "outbox")
+            }
+            found: Dict[Tuple[str, UUID], Any] = {}
+            if ids["inbox"]:
+                people = await session.execute(
+                    select(ChannelInboxEventDBE).where(
+                        ChannelInboxEventDBE.project_id == project_id,
+                        ChannelInboxEventDBE.id.in_(ids["inbox"]),
+                    )
+                )
+                for dbe in people.scalars().all():
+                    found[("inbox", dbe.id)] = map_inbox_event_dbe_to_dto(event_dbe=dbe)
+            if ids["outbox"]:
+                posts, _ = _bot_posts(project_id)
+                bot = await session.execute(
+                    posts.where(ChannelOutboxEventDBE.id.in_(ids["outbox"]))
+                )
+                for dbe, thread_ts_of in bot.all():
+                    found[("outbox", dbe.id)] = (
+                        map_outbox_event_dbe_to_dto(event_dbe=dbe),
+                        thread_ts_of,
+                    )
+        return [
+            found[(hit.source, hit.id)] for hit in hits if (hit.source, hit.id) in found
+        ]
+
     # --- inbox: the log --------------------------------------------------- #
 
     async def record_inbox_event(
@@ -1444,6 +1666,7 @@ class ChannelsDAO(ChannelsDAOInterface):
         #
         space_id: UUID,
         after_event_id: Optional[UUID],
+        through_event_id: Optional[UUID] = None,
         #
         limit: Optional[int] = None,
     ) -> List[ChannelInboxEvent]:
@@ -1452,6 +1675,17 @@ class ChannelsDAO(ChannelsDAOInterface):
                 ChannelInboxEventDBE.project_id == project_id,
                 ChannelInboxEventDBE.space_id == space_id,
             )
+
+            if through_event_id is not None:
+                # the addressing event is PUSHED; anything that arrived after
+                # it belongs to the next turn
+                stmt = stmt.where(
+                    tuple_(
+                        ChannelInboxEventDBE.origin,
+                        ChannelInboxEventDBE.id,
+                    )
+                    <= ("pushed", through_event_id)
+                )
 
             if after_event_id is not None:
                 # PUSHED is the only origin an addressing offset can hold;
@@ -1494,6 +1728,9 @@ class ChannelsDAO(ChannelsDAOInterface):
             )
 
             if event:
+                if event.id is not None:
+                    stmt = stmt.filter(ChannelInboxEventDBE.id == event.id)
+
                 if event.connection_id is not None:
                     stmt = stmt.filter(
                         ChannelInboxEventDBE.connection_id == event.connection_id,
@@ -1539,17 +1776,31 @@ class ChannelsDAO(ChannelsDAOInterface):
         project_id: UUID,
         #
         thread_id: UUID,
+        before_event_id: Optional[UUID] = None,
     ) -> Optional[ChannelInboxTrigger]:
+        """The offset a turn reads from. Only a turn that provably never
+        reached the agent leaves it in place: REFUSED (the runner turned the
+        start away), or FAILED with `CHANNEL_TRIGGER_NEVER_SENT` (the start
+        never reached the workflow service). Any other FAILED turn may have
+        run, so it moves the offset like a settled one. Ordered by event, not
+        by trigger id: two turns can record their triggers out of order."""
+        never_admitted = or_(
+            ChannelInboxTriggerDBE.state == ChannelTriggerState.REFUSED,
+            and_(
+                ChannelInboxTriggerDBE.state == ChannelTriggerState.FAILED,
+                func.coalesce(ChannelInboxTriggerDBE.status["code"].astext, "")
+                == CHANNEL_TRIGGER_NEVER_SENT,
+            ),
+        )
         async with self.engine.session() as session:
-            stmt = (
-                select(ChannelInboxTriggerDBE)
-                .where(
-                    ChannelInboxTriggerDBE.project_id == project_id,
-                    ChannelInboxTriggerDBE.thread_id == thread_id,
-                )
-                .order_by(ChannelInboxTriggerDBE.id.desc())
-                .limit(1)
+            stmt = select(ChannelInboxTriggerDBE).where(
+                ChannelInboxTriggerDBE.project_id == project_id,
+                ChannelInboxTriggerDBE.thread_id == thread_id,
+                not_(never_admitted),
             )
+            if before_event_id is not None:
+                stmt = stmt.where(ChannelInboxTriggerDBE.event_id < before_event_id)
+            stmt = stmt.order_by(ChannelInboxTriggerDBE.event_id.desc()).limit(1)
 
             result = await session.execute(stmt)
 
@@ -1651,6 +1902,9 @@ class ChannelsDAO(ChannelsDAOInterface):
             )
 
             if trigger:
+                if trigger.id is not None:
+                    stmt = stmt.filter(ChannelInboxTriggerDBE.id == trigger.id)
+
                 if trigger.thread_id is not None:
                     stmt = stmt.filter(
                         ChannelInboxTriggerDBE.thread_id == trigger.thread_id,
@@ -1814,6 +2068,7 @@ class ChannelsDAO(ChannelsDAOInterface):
         claim_ttl_seconds: float,
         overwrite_final: bool = True,
         delivery_key: Optional[str] = None,
+        include_held: bool = False,
     ) -> Optional[ChannelOutboxEvent]:
         table = ChannelOutboxEventDBE
         # `data` is JSON, not JSONB: cast it so the comparison is by value,
@@ -1840,7 +2095,7 @@ class ChannelsDAO(ChannelsDAOInterface):
         if delivery_key is not None:
             conditions.append(
                 ~func.coalesce(
-                    (claim_code == "delivery_uncertain")
+                    claim_code.in_(("delivery_uncertain", "delivery_refused"))
                     & (table.status["type"].astext == delivery_key),
                     false(),
                 )
@@ -1849,6 +2104,8 @@ class ChannelsDAO(ChannelsDAOInterface):
             conditions.append(
                 ~func.coalesce(processed["final"].astext == "true", false())
             )
+        if not include_held:
+            conditions.append(table.state != ChannelDeliveryState.HELD)
 
         # The token names this claim, so the writes that release it can be
         # fenced to the worker that still holds it.
@@ -1998,3 +2255,154 @@ class ChannelsDAO(ChannelsDAOInterface):
                 return None
 
             return (row[0], row[1])
+
+
+def _not_a_copy_of_a_bot_post():
+    """Rows that are a person's message in the conversation. A fetched history
+    page can hold a copy of the bot's own post, which
+    the outbox already serves. Read and search leave it out in the query, not
+    after paging, so a dropped copy never moves a page boundary. Pushed rows
+    never hold the bot's posts: ingress drops bot-authored events."""
+
+    table = ChannelInboxEventDBE
+    outbox = ChannelOutboxEventDBE
+    posted_by_bot = (
+        select(outbox.id)
+        .where(
+            outbox.project_id == table.project_id,
+            outbox.space_id == table.space_id,
+            outbox.state == ChannelDeliveryState.SENT,
+            func.json_extract_path_text(outbox.data, "external_locator", "ts")
+            == func.json_extract_path_text(table.data, "processed", "message_ref"),
+        )
+        .exists()
+    )
+    consumed = func.coalesce(table.flags["is_consumed"].as_boolean(), false())
+    # an answer an approval consumed went to the parked interaction, not to
+    # the conversation
+    return ((table.origin == ChannelEventOrigin.PUSHED) | ~posted_by_bot) & ~consumed
+
+
+def _before(time_column, id_column, before: Tuple[datetime, Optional[UUID]]):
+    """Strictly older than a read cursor, in the same (time, id) order the
+    query sorts by, so a page boundary never repeats or skips a row that
+    shares its time. A cursor with no id bounds by time alone."""
+
+    at, row_id = before
+    if row_id is None:
+        return time_column < at
+    return tuple_(time_column, id_column) < tuple_(at, row_id)
+
+
+# The indexed expression of `ix_channel_inbox_events_search`
+# (oss000000038). A query must repeat it exactly for Postgres to use the
+# index, so this is its only spelling.
+_SEARCH_VECTOR = literal_column(
+    "to_tsvector('simple', "
+    "coalesce(channel_inbox_events.data #>> '{processed,content,0,text}', ''))"
+)
+_OUTBOX_SEARCH_VECTOR = literal_column(
+    "to_tsvector('simple', "
+    "coalesce(channel_outbox_events.data #>> '{processed,content,0,text}', ''))"
+)
+
+
+def _bot_posts(project_id: UUID):
+    """The bot's sent posts in a project, each with the thread it belongs to:
+    a tool send records it, a turn reply takes its channel thread's, and a
+    top-level post roots its own. Returns the statement and the thread
+    column, for callers that filter on it."""
+
+    outbox = ChannelOutboxEventDBE
+    thread = ChannelThreadDBE
+    thread_of = func.coalesce(
+        func.json_extract_path_text(outbox.data, "processed", "thread_ts"),
+        func.json_extract_path_text(thread.data, "external_locator", "thread_ts"),
+        func.json_extract_path_text(outbox.data, "external_locator", "ts"),
+    )
+    stmt = (
+        select(outbox, thread_of)
+        .outerjoin(
+            thread,
+            (thread.project_id == outbox.project_id) & (thread.id == outbox.thread_id),
+        )
+        .where(
+            outbox.project_id == project_id,
+            outbox.state == ChannelDeliveryState.SENT,
+            # a final post only: a running turn's "Thinking..." indicator is
+            # not something the bot said
+            func.json_extract_path_text(outbox.data, "processed", "final") == "true",
+        )
+    )
+    return stmt, thread_of
+
+
+def search_statement(
+    *,
+    project_id: UUID,
+    space_ids: List[UUID],
+    query: str,
+    after: Optional[datetime] = None,
+    before: Optional[datetime] = None,
+    limit: int,
+    offset: int = 0,
+):
+    """People's stored messages and the bot's sent posts in these spaces
+    matching `query` (web-search syntax), as (source, id) by relevance, then
+    time, then id: a total order, so an offset page neither skips nor repeats
+    a row while the set is unchanged. A fetched copy of a bot post is left
+    out, so each post matches once, from the outbox."""
+
+    inbox = ChannelInboxEventDBE
+    outbox = ChannelOutboxEventDBE
+    tsquery = func.websearch_to_tsquery(literal_column("'simple'"), query)
+    # The post's provider time when the receipt has one (a Slack ts), as the result shows
+    # it; else the time Agenta recorded it (Telegram receipts carry no time).
+    posted_at = func.coalesce(
+        func.to_timestamp(
+            cast(
+                func.json_extract_path_text(outbox.data, "external_locator", "ts"),
+                Float,
+            )
+        ),
+        outbox.created_at,
+    )
+    people = select(
+        literal("inbox").label("source"),
+        inbox.id.label("id"),
+        func.ts_rank(_SEARCH_VECTOR, tsquery).label("rank"),
+        inbox.sent_at.label("at"),
+    ).where(
+        inbox.project_id == project_id,
+        inbox.space_id.in_(space_ids),
+        inbox.kind == ChannelEventKind.MESSAGE.value,
+        _not_a_copy_of_a_bot_post(),
+        _SEARCH_VECTOR.op("@@")(tsquery),
+    )
+    # No full-text index on the outbox: the (project, space, created_at) index
+    # narrows it and the text matches row by row; add one if measured slow.
+    bot = select(
+        literal("outbox").label("source"),
+        outbox.id.label("id"),
+        func.ts_rank(_OUTBOX_SEARCH_VECTOR, tsquery).label("rank"),
+        posted_at.label("at"),
+    ).where(
+        outbox.project_id == project_id,
+        outbox.space_id.in_(space_ids),
+        outbox.state == ChannelDeliveryState.SENT,
+        func.json_extract_path_text(outbox.data, "processed", "final") == "true",
+        _OUTBOX_SEARCH_VECTOR.op("@@")(tsquery),
+    )
+    if after is not None:
+        people = people.where(inbox.sent_at >= after)
+        bot = bot.where(posted_at >= after)
+    if before is not None:
+        people = people.where(inbox.sent_at <= before)
+        bot = bot.where(posted_at <= before)
+    hits = union_all(people, bot).subquery()
+    return (
+        select(hits.c.source, hits.c.id)
+        .order_by(hits.c.rank.desc(), hits.c.at.desc(), hits.c.id.desc())
+        .limit(limit)
+        .offset(offset)
+    )

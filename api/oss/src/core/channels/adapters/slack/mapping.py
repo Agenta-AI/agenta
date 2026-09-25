@@ -1,12 +1,8 @@
+from datetime import datetime, timedelta, timezone
 import re
 from typing import Any, Dict, List, Optional, Tuple
 
 from oss.src.core.channels.dtos import ChannelSpaceKind
-
-# Slack rewrites @mention into <@U…> before delivery, so the adapter parses
-# ~agent/!command from otherwise-untouched text, never @.
-_AGENT_SIGIL_RE = re.compile(r"(?<!\S)~(?P<agent>[\w.-]+)")
-_COMMAND_SIGIL_RE = re.compile(r"(?<!\S)!(?P<command>[\w-]+)(?::(?P<arg>\S+))?")
 
 MAX_CHARS = 4000
 BUTTONS_MAX = 5
@@ -20,19 +16,6 @@ def classify_space_kind(event: Dict[str, Any]) -> ChannelSpaceKind:
     if event.get("channel_type") == "mpim" or event.get("is_mpim"):
         return ChannelSpaceKind.GROUP
     return ChannelSpaceKind.TOPIC
-
-
-def extract_sigils(text: str) -> Tuple[Optional[str], Optional[str], Optional[str]]:
-    """(~agent, !command, arg) — independent, either or both may be absent."""
-
-    agent_match = _AGENT_SIGIL_RE.search(text)
-    command_match = _COMMAND_SIGIL_RE.search(text)
-
-    agent = agent_match.group("agent") if agent_match else None
-    command = command_match.group("command") if command_match else None
-    arg = command_match.group("arg") if command_match else None
-
-    return agent, command, arg
 
 
 def mentions_user(text: str, user_id: Optional[str]) -> bool:
@@ -174,3 +157,27 @@ def render_approval_card(tool_call: Dict[str, Any]) -> Dict[str, Any]:
     for key, value in arguments.items():
         lines.append(f"- {key}: {value}")
     return {"type": "text", "text": "\n".join(lines)}
+
+
+def slack_time(ts: Optional[str]) -> Optional[datetime]:
+    """A Slack `ts` ("1700000000.000100") as the time it names, exact to the
+    microsecond: a float would round the last digits and two messages could
+    swap places."""
+
+    if not ts or not isinstance(ts, str):
+        return None
+    seconds, _, fraction = ts.partition(".")
+    try:
+        whole = datetime.fromtimestamp(int(seconds), timezone.utc)
+        micros = int((fraction + "000000")[:6]) if fraction else 0
+    except (ValueError, OverflowError):
+        return None
+    return whole + timedelta(microseconds=micros)
+
+
+def slack_ts(value: datetime) -> str:
+    """The inverse of `slack_time`, for a history read's `latest` bound."""
+
+    epoch = datetime(1970, 1, 1, tzinfo=timezone.utc)
+    delta = value.astimezone(timezone.utc) - epoch
+    return f"{delta.days * 86400 + delta.seconds}.{delta.microseconds:06d}"

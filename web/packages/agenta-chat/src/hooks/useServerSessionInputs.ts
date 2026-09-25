@@ -213,6 +213,7 @@ export const useServerSessionInputs = ({
     messages,
     locallyBusy,
     remotelyBusy = false,
+    active = true,
     isSharedReaderReady,
     onExecuted,
     onStartupPhase,
@@ -223,6 +224,8 @@ export const useServerSessionInputs = ({
     locallyBusy: boolean
     /** Another browser is running this session (the host's project liveness poll). */
     remotelyBusy?: boolean
+    /** False for a conversation kept mounted off screen: it stops polling the queue. */
+    active?: boolean
     /** Read current transport readiness when admitting input, including after reconnect. */
     isSharedReaderReady?: () => boolean
     /**
@@ -304,15 +307,20 @@ export const useServerSessionInputs = ({
     }, [load, scope])
 
     // A snapshot poll gives every browser the same durable order; tight only while there is work.
+    // Only the conversation on screen polls: over HTTP/1.1 each hidden pane's poll queued for the
+    // same six connections a send needs.
     const tracking =
         locallyBusy || remotelyBusy || view.executionState !== "idle" || view.queued.length > 0
     useEffect(() => {
+        if (!active) return
         const timer = setInterval(
-            () => void refresh(),
+            () => {
+                if (document.visibilityState === "visible") void refresh()
+            },
             tracking ? ACTIVE_SNAPSHOT_POLL_MS : IDLE_SNAPSHOT_POLL_MS,
         )
         return () => clearInterval(timer)
-    }, [refresh, tracking])
+    }, [active, refresh, tracking])
 
     const submit = useCallback(
         async (

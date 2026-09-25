@@ -1,4 +1,4 @@
-import {connectionLabel, platformLabel} from "./helpers"
+import {connectionLabel, installKindLabel, platformLabel} from "./helpers"
 import type {ChannelConnection} from "./types"
 
 export interface ChannelConnectionListProps {
@@ -29,7 +29,6 @@ export const ChannelConnectionList = ({
 }: ChannelConnectionListProps) => {
     const platform = connections[0]?.platform
     if (!platform) return null
-    const isSlack = platform === "slack"
     return (
         <div className="mb-5 flex flex-col gap-2" data-testid="channels-connection-list">
             <span className="text-[13px] font-semibold text-colorText">
@@ -40,12 +39,7 @@ export const ChannelConnectionList = ({
                     const id = connection.connectionId
                     const selected = id === selectedId
                     const revoked = connection.status === "revoked"
-                    const kind =
-                        connection.kind === "hosted"
-                            ? "Agenta-hosted"
-                            : isSlack
-                              ? "Your own app"
-                              : "Your own bot"
+                    const kind = installKindLabel(connection)
                     const connectedOn = formatDate(connection.connectedAt)
                     return (
                         <button

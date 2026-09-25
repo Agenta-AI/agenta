@@ -67,11 +67,13 @@ import {
 } from "./attachments.ts";
 import { describeCodexSubscriptionAuthFault } from "./codex-assets.ts";
 import { linkAgentFiles } from "./agent-mount.ts";
+import { refreshDriveViewsAtTurnStart } from "./turn-start-refresh.ts";
 import {
   recoverSubscriptionAuthFailure,
 } from "./subscription-recovery.ts";
 import {
   classifyRunError,
+  conciseError,
   CREDENTIAL_RACE_REPORTS_PER_SESSION,
   withinCredentialPropagationWindow,
 } from "./errors.ts";
@@ -109,6 +111,7 @@ import {
   RUN_LIMIT_TRIPPED,
   sendLastMessageOnly,
   type CurrentTurn,
+  type InRunnerSessionHandle,
   type ParkedApproval,
   type ParkedApprovedExecution,
   type RunTurnOptions,
@@ -289,6 +292,60 @@ export async function runTurn(
   // stop this turn's relay on EVERY exit path (a cleared sink must never orphan it).
   let otel: ReturnType<typeof createSandboxAgentOtel> | undefined;
   let activeTurn: CurrentTurn | undefined;
+  // Set once this turn's ledger row is written: a failed turn the harness rolled back completes
+  // its row like any other resume point.
+  let turnLedgerForFailure:
+    | { sessionId: string; turnIndex: number; authorization: string }
+    | undefined;
+  /**
+   * After a failed turn: keep the harness's native session when it can take the failed turn back
+   * out of its transcript, otherwise drop the resume point (the next turn replays).
+   *
+   * Either way what the provider refused leaves the model's context: the replay keeps only the
+   * person's message of a failed turn (`reconstructMessages`). Keeping them made one refusal
+   * permanent, because every retry resent the content the provider refused. A rolled-back turn is a faithful resume point: the
+   * transcript is exactly the completed turns before it, so it records the same pointer and
+   * completes the same ledger row a finished turn does, and the next turn loads it natively.
+   */
+  const settleFailedTurnContinuity = async (): Promise<void> => {
+    let rolledBack = false;
+    // Only a harness in this runner can roll its own transcript back.
+    const session = env.session as Partial<InRunnerSessionHandle> | undefined;
+    if (session?.rollbackFailedTurn) {
+      try {
+        rolledBack = await session.rollbackFailedTurn();
+      } catch (err) {
+        logger(
+          `[continuity] failed-turn rollback failed: ${conciseError(err, plan.harness)}`,
+        );
+      }
+    }
+    const agentSessionId = env.session?.agentSessionId as string | undefined;
+    if (
+      !rolledBack ||
+      !sessionId ||
+      !agentSessionId ||
+      env.continuityTurnIndex === undefined
+    ) {
+      invalidateContinuity(sessionId, plan.harness, deps);
+      return;
+    }
+    continuityStore.record(
+      sessionId,
+      plan.harness,
+      agentSessionId,
+      env.continuityTurnIndex,
+    );
+    const completeTurn = (deps.appendSessionTurn ?? appendSessionTurn).complete;
+    if (turnLedgerForFailure && completeTurn) {
+      await completeTurn(
+        turnLedgerForFailure.sessionId,
+        turnLedgerForFailure.turnIndex,
+        { agentSessionId, endTime: new Date().toISOString() },
+        { authorization: turnLedgerForFailure.authorization, log: logger },
+      ).catch(() => {});
+    }
+  };
   /**
    * Ask the subscription recovery what to do about a failure, or undefined when this run carries
    * no subscription and when the failure is not about the login.
@@ -613,7 +670,10 @@ export async function runTurn(
     }
     const turnContext = request.turnContext?.trim();
     if (turnContext) {
-      promptBlocks.unshift({ type: "text", text: turnContext });
+      // The blank line is load-bearing: pi-acp joins text blocks with nothing between them, so
+      // without it the facts' last sentence and the user's first word become one line
+      // ("...first turn of the session.hi").
+      promptBlocks.unshift({ type: "text", text: `${turnContext}\n\n` });
     }
 
     const sessionTurnClient = deps.appendSessionTurn ?? appendSessionTurn;
@@ -631,6 +691,7 @@ export async function runTurn(
           }
         : undefined;
     if (turnLedgerContext) {
+      turnLedgerForFailure = turnLedgerContext;
       const workflowRefs = buildWorkflowReferenceList(
         request.runContext?.workflow,
       );
@@ -1189,7 +1250,7 @@ export async function runTurn(
     // deletion land on the session drive, which is durable, and the repair moves them onto the
     // agent mount. They arrive one turn late instead of never, for one `lstat` per turn rather
     // than one per tool call on a FUSE mount.
-    if (env.agentMountedPath && !plan.isDaytona) {
+    if (env.agentMountedPath && plan.driveOnRunner) {
       const agentFilesReady = await linkAgentFiles(plan.workspace.cwd, env.agentMountedPath, {
         log: logger,
       });
@@ -1197,6 +1258,10 @@ export async function runTurn(
         throw new Error("agent-files could not be linked to the durable agent mount");
       }
     }
+
+    // Files-pane edits and uploads go straight to the store; refresh the mounts' views so this
+    // turn's first reads and commands see them. Same place and reason as the link repair above.
+    await refreshDriveViewsAtTurnStart(env, plan, logger);
 
     // Non-Pi loopback tools use the correlation index; Pi's relay toolCallId is already exact.
     env.clientToolRelayRef.current = buildClientToolRelay({
@@ -1704,6 +1769,7 @@ export async function runTurn(
             // race that arrives THIS way is the identical failure wearing a different shape —
             // and without the predicate it would still be reported as the user's key problem.
             daytonaCredentialFresh: reportCredentialRace,
+            unknownText: plan.unknownErrorText,
           },
         );
       swallowedError = classified.message;
@@ -1721,9 +1787,9 @@ export async function runTurn(
     const turnEndedAt = new Date().toISOString();
 
     if (swallowedError) {
-      // A failed turn may have left a partial turn in the native transcript: the prior record
-      // is no longer a faithful resume point.
-      invalidateContinuity(sessionId, plan.harness, deps);
+      // A failed turn may have left a partial turn in the native transcript: roll it back, or
+      // drop the resume point.
+      await settleFailedTurnContinuity();
       // The envelope is attached HERE for the folded-refusal path, because its message has had
       // the marker stripped out: `withGatewayErrorDetail` scans the text and would find nothing
       // left to recover. The Pi path keeps its text intact and is recovered there as before.
@@ -1753,9 +1819,23 @@ export async function runTurn(
     // Still dropped, unchanged: a pause has not finished authoring the turn, and an UNSETTLED
     // cancel leaves the harness in an unknown state, possibly still writing. Both fall back to
     // cold replay, which is the always-correct floor.
+    //
+    // Also dropped: a turn whose native transcript did not reach durable storage (an in-runner
+    // harness saves it at the turn's end, bounded). Loading that transcript after a restart would
+    // silently leave the turn out of the model's context; the replay keeps it.
+    const nativeHistorySaved =
+      (
+        env.session as Partial<InRunnerSessionHandle> | undefined
+      )?.nativeHistorySaved?.() !== false;
     const turnIsResumePoint =
       stopReason !== "paused" && (stopReason !== "cancelled" || cancelSettled);
-    if (
+    if (turnIsResumePoint && !nativeHistorySaved) {
+      logger(
+        `[continuity] native transcript behind the turn's records session=${sessionId ?? "-"}; ` +
+          "the next cold turn replays",
+      );
+      invalidateContinuity(sessionId, plan.harness, deps);
+    } else if (
       turnIsResumePoint &&
       env.continuityTurnIndex !== undefined &&
       sessionId
@@ -1816,6 +1896,7 @@ export async function runTurn(
           deployment: request.modelConnection?.deployment,
         },
         daytonaCredentialFresh: reportCredentialRace,
+        unknownText: plan.unknownErrorText,
       },
     );
     // A hosted subscription run has no vault key, so the generic "add a key" advice would send the
@@ -1836,8 +1917,9 @@ export async function runTurn(
       await harnessTrace.emitMissingBatchFallback(otel, error);
     }
     otel?.emitEvent(errorEventWithDetail(error, classified.code));
-    // An aborted turn may have left a partial turn in the native transcript.
-    invalidateContinuity(sessionId, plan.harness, deps);
+    // An aborted turn may have left a partial turn in the native transcript: roll it back, or
+    // drop the resume point.
+    await settleFailedTurnContinuity();
     // Same ordering as the happy path: settle the durable rows before the terminal record goes out.
     await settleInBandInteractions?.();
     // finish() must not throw uncaught — tracing must not mask the run error.

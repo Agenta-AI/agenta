@@ -12,4 +12,5 @@ export interface ChannelPendingChoice {
     choices: AgentaApi.ChannelPendingChoiceItem[];
     posted_at: string;
     interaction_id?: (string | null) | undefined;
+    outbox_event_id?: (string | null) | undefined;
 }

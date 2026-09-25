@@ -27,6 +27,7 @@
   "dependencies": {
     "@agentclientprotocol/claude-agent-acp": "0.81.0",
     "@anthropic-ai/sdk": "0.111.0",
+    "@aws-sdk/client-s3": "3.1070.0",
     "@daytonaio/sdk": "npm:@daytona/sdk@^0.198.0",
     "@earendil-works/pi-ai": "0.80.6",
     "@earendil-works/pi-coding-agent": "0.85.1",
@@ -40,8 +41,10 @@
     "@opentelemetry/semantic-conventions": "1.37.0",
     "acp-http-client": "0.4.2",
     "pi-acp": "0.0.29",
+    "pi-coding-agent-pi-ai": "npm:@earendil-works/pi-ai@0.85.1",
     "proper-lockfile": "4.1.2",
     "sandbox-agent": "0.4.2",
+    "tar": "7.5.21",
     "undici": "8.10.0"
   },
   "devDependencies": {

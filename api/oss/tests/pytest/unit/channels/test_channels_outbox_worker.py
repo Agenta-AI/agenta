@@ -88,6 +88,15 @@ class FakeChannelsDAO(ChannelsDAOInterface):
         self.threads[thread.id] = thread
         return thread
 
+    async def query_space_inbox_messages(self, **kwargs):
+        raise NotImplementedError
+
+    async def query_space_outbox_messages(self, **kwargs):
+        raise NotImplementedError
+
+    async def search_space_messages(self, **kwargs):
+        raise NotImplementedError
+
     async def fetch_space(self, *, project_id, space_id):
         return self.spaces.get(space_id)
 
@@ -152,12 +161,15 @@ class FakeChannelsDAO(ChannelsDAOInterface):
         claim_ttl_seconds,
         overwrite_final=True,
         delivery_key=None,
+        include_held=False,
     ):
         """Same rule as the Postgres conditional UPDATE, in memory. Nothing
         awaits between the check and the write, so it is atomic here too."""
         for key, row in self.outbox.items():
             if row.id != event_id:
                 continue
+            if row.state == ChannelDeliveryState.HELD and not include_held:
+                return None
             processed = (row.data.processed if row.data else None) or {}
             if (
                 row.state == ChannelDeliveryState.SENT
@@ -177,7 +189,7 @@ class FakeChannelsDAO(ChannelsDAOInterface):
             if (
                 delivery_key is not None
                 and row.status is not None
-                and row.status.code == "delivery_uncertain"
+                and row.status.code in ("delivery_uncertain", "delivery_refused")
                 and row.status.type == delivery_key
             ):
                 return None
@@ -280,6 +292,21 @@ class FakeChannelsDAO(ChannelsDAOInterface):
     async def mark_space_backfilled(self, **kwargs):
         raise NotImplementedError
 
+    async def set_space_opted_out(self, *, project_id, space_id, opted_out, sent_at):
+        """Same fence as the Postgres update: a STOP or START sent before the
+        last one applied changes nothing; on a tie, STOP wins."""
+        space = self.spaces.get(space_id)
+        if space is None:
+            return None
+        applied = getattr(self, "_consent_sent_at", {})
+        self._consent_sent_at = applied
+        last = applied.get(space_id)
+        if last is not None and (sent_at < last or (sent_at == last and not opted_out)):
+            return None
+        applied[space_id] = sent_at
+        space.flags.is_opted_out = opted_out
+        return space
+
     async def attach_event_to_space(self, **kwargs):
         raise NotImplementedError  # inbound only; the outbox never resolves
 
@@ -352,6 +379,9 @@ class FakeChannelsDAO(ChannelsDAOInterface):
         raise NotImplementedError
 
     async def fetch_latest_trigger(self, **kwargs):
+        raise NotImplementedError
+
+    async def mark_inbox_event_consumed(self, **kwargs):
         raise NotImplementedError
 
     async def record_inbox_trigger(self, **kwargs):
@@ -1839,6 +1869,7 @@ async def test_a_stale_claim_from_a_dead_worker_is_taken_over():
         project_id=PROJECT_ID,
         connection_id=thread.space_id,
         thread_id=thread.id,
+        space_id=thread.space_id,
         turn_id="turn-stale",
         item_index=0,
     )
@@ -1891,6 +1922,7 @@ async def test_a_live_claim_that_never_releases_leaves_the_entry_for_redelivery(
         project_id=PROJECT_ID,
         connection_id=thread.space_id,
         thread_id=thread.id,
+        space_id=thread.space_id,
         turn_id="turn-busy",
         item_index=0,
     )
@@ -2679,6 +2711,7 @@ async def test_telegram_not_modified_on_one_chunk_marks_it_sent_and_posts_the_re
         project_id=PROJECT_ID,
         connection_id=connection.id,
         thread_id=thread.id,
+        space_id=thread.space_id,
         turn_id="turn-tg",
         item_index=0,
     )

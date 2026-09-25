@@ -128,3 +128,28 @@ def test_daytona_sandbox_refused_when_not_enabled(monkeypatch):
     assert excinfo.value.sandbox == "daytona"
     assert excinfo.value.type.endswith("#v0:agent:sandbox-provider-not-allowed")
     assert "local" not in excinfo.value.type
+
+
+# ---------------------------------------------------------------------------
+# `inprocess` is enabled wherever `daytona` is, with no setting of its own.
+# ---------------------------------------------------------------------------
+
+
+def test_inprocess_allowed_on_a_daytona_only_deployment(monkeypatch):
+    monkeypatch.setenv("AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS", "daytona")
+    monkeypatch.setenv("AGENTA_RUNNER_DEFAULT_SANDBOX_PROVIDER", "daytona")
+
+    backend = select_backend(_sel("pi_core", "inprocess"))
+
+    assert isinstance(backend, SandboxAgentBackend)
+    assert backend._sandbox == "inprocess"
+
+
+def test_inprocess_refused_without_daytona(monkeypatch):
+    monkeypatch.setenv("AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS", "local")
+
+    with pytest.raises(SandboxNotAllowedError) as excinfo:
+        select_backend(_sel("pi_core", "inprocess"))
+
+    assert excinfo.value.sandbox == "inprocess"
+    assert "daytona" in excinfo.value.message

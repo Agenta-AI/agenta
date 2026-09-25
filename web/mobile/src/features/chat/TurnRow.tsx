@@ -17,7 +17,12 @@ import {
     TurnFooter,
 } from "@agenta/chat/components"
 import {useHeldFor} from "@agenta/chat/hooks"
-import {endsOnClosedText, splitTurnActivity, type TurnViewModel} from "@agenta/chat/model"
+import {
+    endsOnClosedText,
+    readableTraceError,
+    splitTurnActivity,
+    type TurnViewModel,
+} from "@agenta/chat/model"
 import {messageBodyKey} from "@agenta/chat/state"
 import {traceDataSummaryAtomFamily} from "@agenta/entities/loadable"
 import {openTraceDrawerAtom} from "@agenta/observability/traceDrawer"
@@ -146,7 +151,9 @@ const TurnRowInner = ({
     const traceSummary = useAtomValue(
         traceDataSummaryAtomFamily(answerless && traceId ? traceId : ""),
     )
-    const traceError = answerless ? (traceSummary.error ?? null) : null
+    // A trace keeps the provider's failure as it came back, which can be a raw JSON body with
+    // account ids; only its sanitized sentence may reach the screen, as on the desktop.
+    const traceError = answerless ? readableTraceError(traceSummary.error) : null
     const errorText = turn.status.showError
         ? (turn.status.errorText ?? "Something went wrong.")
         : traceError

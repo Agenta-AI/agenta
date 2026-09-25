@@ -4,6 +4,7 @@
  * ingest client — same apiBase + run-credential auth, project scope resolved server-side.
  */
 
+import { fetchControlPlane } from "./control-plane-fetch.ts";
 import { apiBase } from "../apiBase.ts";
 import { envTimerMs } from "../env.ts";
 import type { SessionRecordRow } from "./reconstruct.ts";
@@ -39,15 +40,18 @@ export async function fetchSessionRecords(
 ): Promise<SessionRecordRow[] | null> {
   const url = `${apiBase()}/sessions/records/query`;
   try {
-    const res = await fetch(url, {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        authorization: auth(),
-      },
-      body: JSON.stringify({ session_id: sessionId }),
-      signal: AbortSignal.timeout(queryTimeoutMs()),
-    });
+    const res = await fetchControlPlane(
+      (signal) =>
+        fetch(url, {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            authorization: auth(),
+          },
+          body: JSON.stringify({ session_id: sessionId }),
+          signal: AbortSignal.any([signal, AbortSignal.timeout(queryTimeoutMs())]),
+        }),
+    );
     // Prefixed so a runner-side 401 is distinguishable from a provider refusal; see
     // `RUNNER_INTERNAL_401` in engines/sandbox_agent/errors.ts.
     if (!res.ok)

@@ -75,7 +75,12 @@ A correctable assumption beats a question when the stakes are low.
 options. Do not use it for a question you could answer yourself, and do not turn one question
 into a form. Scratch files, drafts, notes in your durable folder, and your own naming never need
 a question. The platform also has its own approval cards for some tool calls; those are not
-yours to ask, and a person who approved one has answered.
+yours to ask, and a person who approved one has answered. For playground build-kit actions
+(such as editing this agent, updating a skill, or creating and removing automations), use the
+configured tool permission gate instead of asking for a second confirmation in conversation.
+An allowed action runs directly; an ask action uses the approval card. Still collect missing
+facts and credentials with the human-input tools. This exception does not authorize sending
+messages to other people.
 
 - Anything that changes or deletes something outside your working directory, or is hard to
   undo. If the person tells you in this session to stop asking, stop asking for the rest of
@@ -346,6 +351,26 @@ list can go stale — `search_tools` is the source of truth for what is connecte
   arguments — report it instead of looping."""
 
 
+def channel_guidance(tool_names: Sequence[str]) -> Optional[str]:
+    """Point at the channel tools when the run has them. Claude lists an MCP tool by name only
+    until it loads one, so without this line Haiku answered "where can you post in Slack?"
+    from memory. Names only the channel tools this run has."""
+    if "list_channel_destinations" not in tool_names:
+        return None
+    steps = ["to see where you can post, call `list_channel_destinations`"]
+    if "send_channel_message" in tool_names:
+        steps.append("to post outside this conversation, use `send_channel_message`")
+    if "read_channel_messages" in tool_names:
+        steps.append("to read a channel, use `read_channel_messages`")
+    if "search_channel_messages" in tool_names:
+        steps.append("to search channels, use `search_channel_messages`")
+    return (
+        "## Slack and Telegram\n\n"
+        f"You are connected to Slack or Telegram: {'; '.join(steps)}. "
+        "Use these tools instead of guessing."
+    )
+
+
 def is_placeholder_agent_name(name: Optional[str]) -> bool:
     """Say whether an agent display name is still the seeded placeholder.
 
@@ -420,5 +445,6 @@ def compose_platform_instructions(
         AGENTA_CONFIG_SECTIONS if CONFIG_COMMIT_TOOL in tool_names else None,
         credential_guidance(credential_environment_names),
         gateway_guidance(integration_names),
+        channel_guidance(tool_names),
     ]
     return "\n\n".join(section for section in sections if section)

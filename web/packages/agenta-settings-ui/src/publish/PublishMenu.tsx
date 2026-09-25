@@ -9,7 +9,7 @@ import {CaretDown, Code} from "@phosphor-icons/react"
 
 import {platformLogo} from "../channels/icons"
 
-export type PublishTarget = "slack" | "telegram" | "api"
+export type PublishTarget = "slack" | "telegram" | "whatsapp" | "api"
 
 export interface PublishMenuItem {
     key: PublishTarget
@@ -20,7 +20,7 @@ export interface PublishMenuItem {
 }
 
 export interface PublishMenuProps {
-    /** The targets to offer, in order. The host drops Slack and Telegram when Channels is off. */
+    /** The targets to offer, in order. The host drops the chat channels when Channels is off. */
     items: PublishMenuItem[]
     onSelect: (target: PublishTarget) => void
     disabled?: boolean
@@ -30,6 +30,7 @@ export interface PublishMenuProps {
 const LABELS: Record<PublishTarget, string> = {
     slack: "Slack",
     telegram: "Telegram",
+    whatsapp: "WhatsApp",
     api: "API",
 }
 

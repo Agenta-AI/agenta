@@ -268,11 +268,34 @@ class SkillsImportConfig(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
 
+class ApiThrottlingConfig(BaseModel):
+    """Throttling budgets that do not come from an organization's plan."""
+
+    # The platform's own turn bookkeeping (heartbeats, record reads, turn rows, interactions,
+    # mounts, credential refresh), sent with a run credential. Its volume follows the
+    # platform's design, not the user's intent, so it has its own per-organization budget
+    # instead of spending the plan's; requests per minute. The middleware uses the larger of
+    # this and the plan's own bucket, so no organization gets less than its plan gave it before.
+    # Model-driven platform calls with the same credential are NOT bookkeeping and stay on the
+    # plan budget. The routes: `_BOOKKEEPING_ROUTES` in `ee/src/middlewares/throttling.py`.
+    bookkeeping_capacity: int = (
+        _parse_optional_positive_int_env("AGENTA_API_THROTTLING_BOOKKEEPING_CAPACITY")
+        or 60000
+    )
+    bookkeeping_rate: int = (
+        _parse_optional_positive_int_env("AGENTA_API_THROTTLING_BOOKKEEPING_RATE")
+        or 60000
+    )
+
+    model_config = ConfigDict(extra="ignore")
+
+
 class ApiConfig(BaseModel):
     """Agenta API sub-namespace."""
 
     caching: ApiCachingConfig = ApiCachingConfig()
     skills_import: SkillsImportConfig = SkillsImportConfig()
+    throttling: ApiThrottlingConfig = ApiThrottlingConfig()
 
     model_config = ConfigDict(extra="ignore")
 
@@ -824,9 +847,26 @@ class ChannelsTelegramConfig(BaseModel):
         return bool(self.bot_token and self.webhook_secret and self.bot_username)
 
 
+# ---------------------------------------------------------------------------
+# channels.whatsapp — Meta's WhatsApp Cloud API. Each connection brings its own
+# number, token and app secret; the deployment only chooses the Graph API base.
+# ---------------------------------------------------------------------------
+
+
+class ChannelsWhatsAppConfig(BaseModel):
+    # The versioned Graph API base. Overridable so a local stack can point the
+    # adapter at a fake Graph API instead of Meta.
+    graph_api_url: str = (
+        os.getenv("WHATSAPP_GRAPH_API_URL") or "https://graph.facebook.com/v24.0"
+    )
+
+    model_config = ConfigDict(extra="ignore")
+
+
 class ChannelsConfig(BaseModel):
     slack: ChannelsSlackConfig = ChannelsSlackConfig()
     telegram: ChannelsTelegramConfig = ChannelsTelegramConfig()
+    whatsapp: ChannelsWhatsAppConfig = ChannelsWhatsAppConfig()
 
     model_config = ConfigDict(extra="ignore")
 
@@ -1406,7 +1446,7 @@ _SANDBOX_LOCAL_WARNED = False
 
 # Sandbox providers this runner can provision. Kept in lockstep with the runner's
 # KNOWN_SANDBOX_PROVIDER_IDS and the SDK's KNOWN_SANDBOX_PROVIDERS so all three readers agree.
-_KNOWN_SANDBOX_PROVIDERS = ("local", "daytona")
+_KNOWN_SANDBOX_PROVIDERS = ("local", "daytona", "inprocess")
 
 
 def _parse_enabled_sandbox_providers(raw: Optional[str]) -> List[str]:
@@ -1462,9 +1502,18 @@ def _parse_default_sandbox_provider(raw: Optional[str], enabled: List[str]) -> s
     return value
 
 
+def _with_implied_sandbox_providers(ids: List[str]) -> List[str]:
+    """``inprocess`` is enabled wherever ``daytona`` is (the runner's withImpliedProviders)."""
+    if "daytona" in ids and "inprocess" not in ids:
+        return [*ids, "inprocess"]
+    return list(ids)
+
+
 def _enabled_sandbox_providers_default() -> List[str]:
-    return _parse_enabled_sandbox_providers(
-        os.getenv("AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS")
+    return _with_implied_sandbox_providers(
+        _parse_enabled_sandbox_providers(
+            os.getenv("AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS")
+        )
     )
 
 

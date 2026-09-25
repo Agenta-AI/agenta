@@ -168,6 +168,8 @@ def _make_channels_service(
     )
     service.open_turn = AsyncMock(return_value=trigger)
     service.settle_turn = AsyncMock()
+    service.mark_event_consumed = AsyncMock()
+    service.adapter_registry.get.return_value.set_message_status = AsyncMock()
     return service
 
 
@@ -1150,6 +1152,7 @@ class TestFailedStartNotification:
         service.channels_dao.record_outbox_event = AsyncMock(return_value=created)
         service.channels_dao.transition_outbox_event = AsyncMock()
         self.adapter = MagicMock()
+        self.adapter.set_message_status = AsyncMock()
         self.adapter.post_message = AsyncMock(return_value={"chat": "1", "ts": "9.9"})
         service.adapter_registry.get = MagicMock(return_value=self.adapter)
         return service

@@ -45,6 +45,7 @@ from oss.src.core.workflows.build_kit import (
     REQUEST_CONNECTION_WORKFLOW_NAME,
     REQUEST_INPUT_WORKFLOW_SLUG,
     build_agent_template_overlay,
+    build_kit_op_access,
 )
 from oss.src.core.workflows.dtos import (
     WorkflowRevision,
@@ -318,7 +319,10 @@ def _build_kit_revision() -> WorkflowRevision:
         description=BUILD_KIT_WORKFLOW_DESCRIPTION,
         data=WorkflowRevisionData(
             uri=AGENTA_BUILTIN_AGENT_URI,
-            parameters={"agent": build_agent_template_overlay()},
+            parameters={
+                "agent": build_agent_template_overlay(),
+                "op_access": build_kit_op_access(),
+            },
         ),
     )
 

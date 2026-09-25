@@ -73,6 +73,7 @@ from oss.src.apis.fastapi.applications.models import (
     PlaygroundBuildKitContext,
 )
 from oss.src.apis.fastapi.applications.overlay import build_agent_template_overlay
+from oss.src.core.workflows.build_kit import build_kit_op_access
 from oss.src.apis.fastapi.applications.utils import (
     parse_application_variant_query_request_from_params,
     parse_application_variant_query_request_from_body,
@@ -1928,6 +1929,7 @@ class SimpleApplicationsRouter:
                 additional_context = SimpleApplicationAdditionalContext(
                     playground_build_kit=PlaygroundBuildKitContext(
                         agent_template_overlay=build_agent_template_overlay(),
+                        op_access=build_kit_op_access(),
                     ),
                 )
             except Exception:  # noqa: BLE001 - overlay is best-effort; never blank the response

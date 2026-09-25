@@ -37,7 +37,10 @@ vi.mock("@agenta/ui/ui", async (importOriginal) => ({
 
 /** The same structure the /m Preferences tab test asserts: the two apps must not drift. */
 const EXPECTED_STRUCTURE = [
-    {title: "Feature Flags", rows: ["Developer Mode", "Channels", "Agent apps"]},
+    {
+        title: "Feature Flags",
+        rows: ["Developer Mode", "Agent apps", "In-process agent runtime"],
+    },
     {title: "Debugging", rows: ["Playground inspector", "Channel debug", "Agenta channel probe"]},
 ]
 

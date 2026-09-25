@@ -11,7 +11,8 @@ export interface ChannelOutboxEvent {
     deleted_by_id?: (string | null) | undefined;
     id?: (string | null) | undefined;
     connection_id: string;
-    thread_id: string;
+    thread_id?: (string | null) | undefined;
+    space_id?: (string | null) | undefined;
     turn_id: string;
     key: string;
     state: AgentaApi.ChannelDeliveryState;

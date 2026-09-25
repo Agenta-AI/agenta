@@ -3,6 +3,8 @@ from json import dumps
 from typing import Any, Dict, List, Optional
 from uuid import NAMESPACE_DNS, UUID, uuid5
 
+import httpx
+
 from oss.src.core.channels.dtos import (
     SESSION_SCOPE_ORDER,
     ChannelCapabilities,
@@ -16,7 +18,9 @@ from oss.src.core.channels.dtos import (
 )
 from oss.src.core.channels.types import (
     ChannelConnectionKeyUndeclared,
+    ChannelDeliveryUncertain,
     ChannelLocatorIncomplete,
+    ChannelsError,
 )
 
 
@@ -215,3 +219,36 @@ def evaluate_grant_effect(grants: List[ChannelGrant]) -> Optional[ChannelGrantEf
         return ChannelGrantEffect.ALLOW
 
     return None
+
+
+def delivery_refused(exc: BaseException) -> bool:
+    """Whether the platform refused the request for good: it answered with a
+    4xx other than a 429. A retry would be refused the same way, unlike a
+    rate limit, a 5xx or a request that never got an answer."""
+
+    status_code = getattr(exc, "status_code", None)
+    return (
+        isinstance(status_code, int)
+        and 400 <= status_code < 500
+        and (status_code != 429)
+    )
+
+
+def delivery_outcome_unknown(exc: BaseException) -> bool:
+    """Whether a failed post may still have reached the chat. Only a request
+    that surely never got a platform answer, or one the platform answered
+    with a rejection below 500 (a 4xx, including a 429 rate limit), is known
+    not to have posted."""
+
+    if isinstance(exc, ChannelDeliveryUncertain):
+        return True
+    if isinstance(exc, (httpx.ConnectError, httpx.ConnectTimeout, httpx.PoolTimeout)):
+        return False
+    if isinstance(exc, httpx.HTTPError):
+        return True  # read/write timeouts, dropped connections: sent, no answer
+    status_code = getattr(exc, "status_code", None)
+    if isinstance(status_code, int):
+        return status_code >= 500
+    if isinstance(exc, ChannelsError):
+        return False  # raised before any call (missing field, bad locator)
+    return True

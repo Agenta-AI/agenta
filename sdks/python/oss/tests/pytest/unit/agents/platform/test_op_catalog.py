@@ -53,6 +53,7 @@ def test_catalog_ships_platform_builder_ops():
         "check_skill_updates",
         "apply_skill_update",
         "query_spans",
+        "get_current_session",
         "rename_session",
         "rename_agent",
         "test_run",
@@ -74,6 +75,10 @@ def test_catalog_ships_platform_builder_ops():
         "resume_subscription",
         "create_app",
         "list_starters",
+        "list_channel_destinations",
+        "send_channel_message",
+        "read_channel_messages",
+        "search_channel_messages",
     }
 
 
