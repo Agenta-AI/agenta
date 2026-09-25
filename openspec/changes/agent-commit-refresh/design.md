@@ -21,7 +21,7 @@ never refetches on open.
 
 | # | Case | Today /w | Today /m | Expected | Fix |
 | --- | --- | --- | --- | --- | --- |
-| 1 | Agent commits during the user's turn, session in view | Adopts: pane, chip and next send move; "Agent updated this configuration in vN" shows (`useAgentChatSession.ts:602-620`). Live: v3 -> v4. | Nothing until reload. Live: stayed v5, reload showed v6. | OPEN (Decision 1). Recommended: adopt, as /w does. | Yes |
+| 1 | Agent commits during the user's turn, session in view | Adopts: pane, chip and next send move; "Agent updated this configuration in vN" shows (`useAgentChatSession.ts:602-620`). Live: v3 -> v4. | Nothing until reload. Live: stayed v5, reload showed v6. | Adopt, as /w does (Decision 1, decided). | Yes |
 | 1a | Agent name in the sidebar | Moves on `rename_agent` (artifact edit -> `workflow-changed`). | Same | Same | n/a |
 | 2 | Tab hidden or minimized when the commit happens | The records reader closes when hidden and re-reads on return (`useSessionLivePreview.ts:342-352`), then adopts the commit automatically. | Nothing | No automatic adoption. On return, one latest-version check; if newer, the pill. | Yes |
 | 3 | Another session of the same agent, same tab | That session's reader is closed while off screen (`AgentConversation.tsx:147,193`); a missed commit is never reported. Stale until reload. | Stale until reload | On switching to it, one check; if newer, the pill. | Yes |
@@ -45,7 +45,7 @@ the conflict model for case 6.
 
 ## Decisions
 
-### Decision 1 (OPEN, awaiting Mahmoud): the session in view when the agent commits in this turn
+### Decision 1 (DECIDED 2026-09-25: Option A): the session in view when the agent commits in this turn
 
 - **Option A, recommended: adopt.** The user asked this agent to change itself, in this
   conversation, and is watching. Adopting is what /w does today and what "used to work" means. The
@@ -56,7 +56,7 @@ the conflict model for case 6.
   all. The user clicks Update after each self-edit, and the next send goes to the old version
   until they do. /w's automatic adoption would be removed.
 
-Until Mahmoud answers, the spec and tasks follow Option A.
+Mahmoud chose Option A.
 
 ### Decision 2: the pill instead of automatic adoption everywhere else
 
@@ -109,5 +109,5 @@ None. This is frontend only. Rollback is a revert.
 
 ## Open Questions
 
-- Decision 1: Option A or B.
+- Decision 1: decided, Option A.
 - Should the `workflow-changed` option in Decision 3 replace some checks later?

@@ -10,7 +10,7 @@ How a playground session learns about, shows, and adopts a newer version of its 
 When the agent in the session the user is watching commits a new revision during that session's
 turn, the playground SHALL show the new revision in the configuration pane and the version chip,
 and SHALL send the next message against it. This SHALL hold on /m and on /w, for every send path.
-(Decision 1, Option A. Open with Mahmoud.)
+(Decision 1, Option A, decided.)
 
 #### Scenario: Durable send on /m
 - **WHEN** a user on /m asks the agent to change its instructions and the agent commits v6 while the chip shows v5

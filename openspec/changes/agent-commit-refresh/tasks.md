@@ -8,7 +8,7 @@
 
 ## 2. Decision
 
-- [ ] 2.1 Mahmoud picks Decision 1 option A (adopt) or B (pill). Tasks below assume A.
+- [x] 2.1 Mahmoud chose Decision 1 option A (adopt).
 
 ## 3. Session in view (Decision 1)
 
