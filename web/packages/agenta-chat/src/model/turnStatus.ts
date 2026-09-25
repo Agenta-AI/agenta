@@ -10,9 +10,13 @@ const REQUEST_TOO_LARGE_MESSAGE =
 /**
  * A provider's raw HTTP error: `400 {json}`, `Label: 400 {json}`, or `OpenAI API error (400): {json}`,
  * after any number of `Label: ` prefixes (`Internal error: OpenAI API error (404): {json}`).
- * The runner has the same rule.
+ * The runner has the same rule. Prefix and label runs are bounded (not `*`) so this stays
+ * linear-time on adversarial input (CodeQL js/polynomial-redos): unbounded nested
+ * quantifiers over the same `[A-Za-z ]` class let a run of letters/spaces with no colon
+ * force exponential backtracking.
  */
-const RAW_PROVIDER_BODY = /^(?:[A-Za-z][A-Za-z ]*:\s*)*(?:[A-Za-z ]+\()?([45]\d\d)\b[^\n]*?\{/
+const RAW_PROVIDER_BODY =
+    /^(?:[A-Za-z][A-Za-z ]{0,40}:\s*){0,6}(?:[A-Za-z ]{1,40}\()?([45]\d\d)\b[^\n]*?\{/
 /**
  * The runner's generic class: any other code means the runner recognized the failure, and its
  * sentence (a rate limit, a quota, a provider refusal, withheld text) says more than a trace can.
