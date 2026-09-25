@@ -265,3 +265,6 @@ def test_channel_guidance_appears_only_when_the_run_can_list_channels():
     section = text[text.index("## Slack and Telegram") :]
     assert "call `list_channel_destinations`" in section
     assert "where you can post" in section
+    # a tool the run does not have is never named
+    assert "read_channel_messages" not in section
+    assert "search_channel_messages" not in section

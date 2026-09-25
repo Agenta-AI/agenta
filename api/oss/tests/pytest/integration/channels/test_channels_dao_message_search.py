@@ -231,3 +231,46 @@ async def test_search_leaves_out_answers_consumed_by_an_approval(channels_scope)
     )
 
     assert [r.id for r in rows] == [kept.id]
+
+
+async def test_a_bot_post_is_filtered_by_its_slack_time(channels_scope):
+    # A reply settled minutes after its row was created shows Slack's time; the time
+    # filter must use that same time, or the post falls outside a range it shows inside.
+    dao = ChannelsDAO(engine=channels_scope["engine"])
+    space = uuid.uuid4()
+    posted = datetime.now(timezone.utc) + timedelta(minutes=5)
+    await _bot_post(
+        dao, channels_scope, space, "late rollout", f"{posted.timestamp():.6f}"
+    )
+
+    rows = await dao.search_space_messages(
+        project_id=channels_scope["project_id"],
+        space_ids=[space],
+        query="rollout",
+        after=posted - timedelta(minutes=1),
+        limit=10,
+    )
+
+    assert _texts(rows) == ["late rollout"]
+
+
+async def test_pages_mix_people_and_bot_posts_without_repeats(channels_scope):
+    dao = ChannelsDAO(engine=channels_scope["engine"])
+    space = uuid.uuid4()
+    for i in range(3):
+        await _message(dao, channels_scope, space, f"outage {i}", minutes=i)
+        await _bot_post(dao, channels_scope, space, f"outage bot {i}", f"{80 + i}.1")
+
+    seen = []
+    for offset in range(0, 6, 4):
+        seen += await dao.search_space_messages(
+            project_id=channels_scope["project_id"],
+            space_ids=[space],
+            query="outage",
+            limit=4,
+            offset=offset,
+        )
+
+    assert sorted(_texts(seen)) == sorted(
+        [f"outage {i}" for i in range(3)] + [f"outage bot {i}" for i in range(3)]
+    )

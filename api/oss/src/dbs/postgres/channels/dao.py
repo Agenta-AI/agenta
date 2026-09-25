@@ -5,6 +5,7 @@ from uuid import UUID, uuid4
 
 from sqlalchemy import (
     and_,
+    Float,
     cast,
     false,
     func,
@@ -1523,7 +1524,7 @@ class ChannelsDAO(ChannelsDAOInterface):
                 source: [hit.id for hit in hits if hit.source == source]
                 for source in ("inbox", "outbox")
             }
-            found: Dict[UUID, Any] = {}
+            found: Dict[Tuple[str, UUID], Any] = {}
             if ids["inbox"]:
                 people = await session.execute(
                     select(ChannelInboxEventDBE).where(
@@ -1532,18 +1533,20 @@ class ChannelsDAO(ChannelsDAOInterface):
                     )
                 )
                 for dbe in people.scalars().all():
-                    found[dbe.id] = map_inbox_event_dbe_to_dto(event_dbe=dbe)
+                    found[("inbox", dbe.id)] = map_inbox_event_dbe_to_dto(event_dbe=dbe)
             if ids["outbox"]:
                 posts, _ = _bot_posts(project_id)
                 bot = await session.execute(
                     posts.where(ChannelOutboxEventDBE.id.in_(ids["outbox"]))
                 )
                 for dbe, thread_ts_of in bot.all():
-                    found[dbe.id] = (
+                    found[("outbox", dbe.id)] = (
                         map_outbox_event_dbe_to_dto(event_dbe=dbe),
                         thread_ts_of,
                     )
-        return [found[hit.id] for hit in hits if hit.id in found]
+        return [
+            found[(hit.source, hit.id)] for hit in hits if (hit.source, hit.id) in found
+        ]
 
     # --- inbox: the log --------------------------------------------------- #
 
@@ -2353,6 +2356,17 @@ def search_statement(
     inbox = ChannelInboxEventDBE
     outbox = ChannelOutboxEventDBE
     tsquery = func.websearch_to_tsquery(literal_column("'simple'"), query)
+    # The post's provider time when the receipt has one (a Slack ts), as the result shows
+    # it; else the time Agenta recorded it (Telegram receipts carry no time).
+    posted_at = func.coalesce(
+        func.to_timestamp(
+            cast(
+                func.json_extract_path_text(outbox.data, "external_locator", "ts"),
+                Float,
+            )
+        ),
+        outbox.created_at,
+    )
     people = select(
         literal("inbox").label("source"),
         inbox.id.label("id"),
@@ -2365,13 +2379,13 @@ def search_statement(
         _not_a_copy_of_a_bot_post(),
         _SEARCH_VECTOR.op("@@")(tsquery),
     )
-    # No index: the bot's posts are few next to the people's messages, and
-    # the project and space filters bound the scan.
+    # No full-text index on the outbox: the (project, space, created_at) index
+    # narrows it and the text matches row by row; add one if measured slow.
     bot = select(
         literal("outbox").label("source"),
         outbox.id.label("id"),
         func.ts_rank(_OUTBOX_SEARCH_VECTOR, tsquery).label("rank"),
-        outbox.created_at.label("at"),
+        posted_at.label("at"),
     ).where(
         outbox.project_id == project_id,
         outbox.space_id.in_(space_ids),
@@ -2381,10 +2395,10 @@ def search_statement(
     )
     if after is not None:
         people = people.where(inbox.sent_at >= after)
-        bot = bot.where(outbox.created_at >= after)
+        bot = bot.where(posted_at >= after)
     if before is not None:
         people = people.where(inbox.sent_at <= before)
-        bot = bot.where(outbox.created_at <= before)
+        bot = bot.where(posted_at <= before)
     hits = union_all(people, bot).subquery()
     return (
         select(hits.c.source, hits.c.id)

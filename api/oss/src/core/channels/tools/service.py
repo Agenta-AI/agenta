@@ -137,7 +137,9 @@ UNKNOWN_SEARCH_DESTINATION_MESSAGE = (
     "destination_ids to search every channel you can read."
 )
 SLACK_SEARCH_COVERAGE = "Searched messages since the bot joined this channel."
-TELEGRAM_SEARCH_COVERAGE = "Searched only the messages the bot received in this group."
+TELEGRAM_SEARCH_COVERAGE = (
+    "Searched only the messages the bot received or sent in this group."
+)
 
 TELEGRAM_LIST_NOTE = (
     "Telegram bots cannot list the chats they are in, so this shows only groups "

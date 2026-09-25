@@ -360,13 +360,10 @@ def channel_guidance(tool_names: Sequence[str]) -> Optional[str]:
     steps = ["to see where you can post, call `list_channel_destinations`"]
     if "send_channel_message" in tool_names:
         steps.append("to post outside this conversation, use `send_channel_message`")
-    readers = [
-        f"`{name}`"
-        for name in ("read_channel_messages", "search_channel_messages")
-        if name in tool_names
-    ]
-    if readers:
-        steps.append(f"to read or search a channel, use {' or '.join(readers)}")
+    if "read_channel_messages" in tool_names:
+        steps.append("to read a channel, use `read_channel_messages`")
+    if "search_channel_messages" in tool_names:
+        steps.append("to search channels, use `search_channel_messages`")
     return (
         "## Slack and Telegram\n\n"
         f"You are connected to Slack or Telegram: {'; '.join(steps)}. "

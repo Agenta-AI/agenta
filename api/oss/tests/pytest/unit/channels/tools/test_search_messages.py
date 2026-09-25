@@ -264,5 +264,5 @@ async def test_telegram_group_covers_only_messages_the_bot_received():
 
     assert [r.excerpt for r in result.results] == ["refund done"]
     assert result.searched[0].coverage == (
-        "Searched only the messages the bot received in this group."
+        "Searched only the messages the bot received or sent in this group."
     )
