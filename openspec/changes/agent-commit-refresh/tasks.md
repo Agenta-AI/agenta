@@ -34,4 +34,5 @@
 ## 6. Follow-ups
 
 - [ ] 6.1 An agent commit must not be silently reverted by a pending auto-save (case 6).
+- [ ] 6.3 Make /w's revision per session tab, so an Update or a self-commit in one /w session does not move the others.
 - [ ] 6.2 Evaluate publishing `workflow-changed` on revision commits (Decision 3 option).

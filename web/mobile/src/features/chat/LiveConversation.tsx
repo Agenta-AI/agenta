@@ -191,6 +191,8 @@ export const LiveConversation = ({
     followCommitRef.current = (revisionId: string) => {
         if (committedSeenRef.current.has(revisionId)) return
         committedSeenRef.current.add(revisionId)
+        // Nobody is watching a hidden tab: its version pill offers the commit on return.
+        if (document.visibilityState !== "visible") return
         invalidateAgentCommittedRevisionCache()
         if (revisionId !== entityId) adoptSecretRevision(revisionId)
     }

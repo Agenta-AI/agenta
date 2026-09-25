@@ -84,8 +84,8 @@ export const ChatScreen = ({
     useEffect(() => {
         if (pinnedRevisionId || !hasAgent) return
         let live = true
-        void refetchLatest().then(({data}) => {
-            if (live && data?.revisionId) pinRevision(data.revisionId)
+        void refetchLatest().then(({data, status}) => {
+            if (live && status === "success" && data?.revisionId) pinRevision(data.revisionId)
         })
         return () => {
             live = false

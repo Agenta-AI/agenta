@@ -40,7 +40,7 @@ describe("watchLatestVersion", () => {
         expect(retrieve).toHaveBeenCalledWith(
             expect.objectContaining({projectId: "project-1", workflowRef: {id: "agent-1"}}),
         )
-        expect(onLatest).toHaveBeenCalledWith({id: "rev-6", version: 6})
+        expect(onLatest).toHaveBeenCalledWith({workflowId: "agent-1", id: "rev-6", version: 6})
 
         page.become("hidden")
         expect(retrieve).toHaveBeenCalledOnce()

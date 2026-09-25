@@ -87,16 +87,25 @@ export const AgentVersionHistoryDrawer = ({
     // Opens on the newest version — "what just changed" is the question the drawer is opened with.
     const selectVersionId = useSetAtom(versionHistorySelectedAtomFamily(workflowId))
     const newestId = rows[0]?.id ?? null
-    useEffect(() => {
-        if (open && !selectedId && newestId) selectVersionId(newestId)
-    }, [open, selectedId, newestId, selectVersionId])
-    // The list is cached, so a version committed since the last open is missing until it re-reads;
-    // re-select once it lands, so the drawer still opens on the newest.
+    // The list is cached, so a version committed since the last open is missing until it re-reads.
+    // Pick the newest only once that read lands; a row the user already picked stays picked.
     const refetchRef = useRef(query.refetch)
     refetchRef.current = query.refetch
+    const [listFresh, setListFresh] = useState(false)
     useEffect(() => {
-        if (open) void refetchRef.current().then(() => selectVersionId(null))
-    }, [open, selectVersionId])
+        setListFresh(false)
+        if (!open) return
+        let current = true
+        void refetchRef.current().finally(() => {
+            if (current) setListFresh(true)
+        })
+        return () => {
+            current = false
+        }
+    }, [open])
+    useEffect(() => {
+        if (open && listFresh && !selectedId && newestId) selectVersionId(newestId)
+    }, [open, listFresh, selectedId, newestId, selectVersionId])
 
     // Drawer-local: nothing outside reads either.
     const [phase, setPhase] = useState<RevertPhase>("idle")

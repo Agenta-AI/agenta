@@ -106,7 +106,13 @@ export const AgentRevisionStatus = ({
     const version = (data?.version as number | null | undefined) ?? null
     const commitMessage = data?.message?.trim() || null
     const newer =
-        onUpdate && latest && version !== null && latest.version > Number(version) ? latest : null
+        onUpdate &&
+        latest &&
+        latest.workflowId === historyWorkflowId &&
+        version !== null &&
+        latest.version > Number(version)
+            ? latest
+            : null
 
     const failed = autoCommitStatus === "error"
     // "Saving…" must mean a save is armed or in flight. Off `isDirty` it also caught every

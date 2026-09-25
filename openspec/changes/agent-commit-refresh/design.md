@@ -107,8 +107,13 @@ latest-revision cache, which can be up to 30 s old.
   tab on the session the agent is working in counts as the user watching it. A hidden tab, or a
   tab on another session, gets the pill.
 - **/w session switch:** /w's playground holds one revision for all its session tabs, so a
-  session switch there changes nothing to check. /w checks on mount, on visibility and on drawer
-  open; /m also checks on each session switch.
+  session switch there changes nothing to check, and an adoption in one session tab moves the
+  others. That is /w's existing model (the in-view self-commit already moved every tab before this
+  change); making /w's revision per session is a follow-up, not part of this fix. /w checks on
+  mount, on visibility and on drawer open; /m also checks on each session switch.
+- **Stream parts while hidden:** a regenerate still streams `data-committed-revision`. Both hosts
+  mark it seen but do not adopt it while the tab is hidden, so it cannot replay on return; the
+  pill offers it instead.
 
 ## Risks / Trade-offs
 

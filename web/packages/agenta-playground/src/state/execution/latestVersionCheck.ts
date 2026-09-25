@@ -1,6 +1,8 @@
 import {retrieveWorkflowRevision} from "@agenta/entities/workflow"
 
 export interface LatestVersion {
+    /** The agent this answer is about: a host that switches agents must not show it for another. */
+    workflowId: string
     id: string
     version: number
 }
@@ -27,7 +29,7 @@ export const watchLatestVersion = ({
         void retrieveWorkflowRevision({projectId, workflowRef: {id: workflowId}, lowPriority: true})
             .then((revision) => {
                 if (!stopped && revision?.id && revision.version != null)
-                    onLatest({id: revision.id, version: Number(revision.version)})
+                    onLatest({workflowId, id: revision.id, version: Number(revision.version)})
             })
             .catch(() => undefined)
     }

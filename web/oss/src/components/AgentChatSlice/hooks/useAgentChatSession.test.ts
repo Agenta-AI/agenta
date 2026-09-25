@@ -348,6 +348,32 @@ describe("useAgentChatSession execution guard", () => {
         act(() => root.unmount())
     })
 
+    it("leaves a commit made while the tab is hidden to the version pill", () => {
+        let result: ReturnType<typeof useAgentChatSession> | undefined
+        const root = createRoot(document.createElement("div"))
+        const Probe = () => {
+            result = useAgentChatSession({
+                entityId: "revision-1",
+                sessionId: "session-1",
+                initialMessages: [],
+                intent: {} as never,
+            })
+            return null
+        }
+        act(() => root.render(createElement(Probe)))
+        Object.defineProperty(document, "visibilityState", {configurable: true, value: "hidden"})
+        try {
+            act(() => result!.onCommittedRevision({revisionId: "revision-2", version: "2"}))
+        } finally {
+            Object.defineProperty(document, "visibilityState", {
+                configurable: true,
+                value: "visible",
+            })
+        }
+        expect(state.switchEntity).not.toHaveBeenCalled()
+        act(() => root.unmount())
+    })
+
     it("allows durable hydration for an accepted shared sender while protecting local streaming", async () => {
         state.busy = true
         let result: ReturnType<typeof useAgentChatSession> | undefined
