@@ -526,6 +526,25 @@ export async function querySessionStreams({
     return validated?.streams ?? null
 }
 
+/**
+ * The project's alive streams for a liveness poll. A failed read throws instead of resolving
+ * `null`: cached as success, `null` read as "nothing alive", which stopped the poll and tore down
+ * the live reader of a turn running elsewhere until a reload.
+ */
+export async function readAliveStreams(
+    projectId: string,
+    signal?: AbortSignal,
+): Promise<SessionStream[]> {
+    const streams = await querySessionStreams({
+        projectId,
+        isAlive: true,
+        abortSignal: signal,
+        lowPriority: true,
+    })
+    if (streams === null) throw new Error("Session liveness is unavailable")
+    return streams
+}
+
 interface SessionPredicatesParams {
     search?: string
     liveness?: {is_alive?: boolean; is_running?: boolean; is_attached?: boolean}

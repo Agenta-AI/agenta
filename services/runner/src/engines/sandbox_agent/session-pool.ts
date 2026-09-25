@@ -87,13 +87,25 @@ export type ReserveInput<E extends AppliedStateOwner> = ParkInput<E>;
  * (Node), so check-and-set on a key needs no lock. All teardown routes through the session's
  * one idempotent `teardown`.
  */
+/** How long a turn waits for the previous environment of its conversation to finish tearing down. */
+const PREVIOUS_TEARDOWN_WAIT_MS = 30_000;
+
+export const PREVIOUS_TEARDOWN_STUCK_MESSAGE =
+  "The previous run of this conversation is still shutting down, so this turn did not start. Send the message again in a moment.";
+
 export class SessionPool<E extends AppliedStateOwner = AppliedStateOwner> {
   private readonly sessions = new Map<string, LiveSession<E>>();
+  /**
+   * Teardowns still running, by key. The default pool frees a key before its teardown ends, so
+   * the key alone cannot tell a re-acquire that the old environment is still unmounting the drive
+   * both share; `evict` waits on this instead.
+   */
+  private readonly teardowns = new Map<string, Promise<void>>();
 
   constructor(
     private readonly config: Pick<KeepaliveConfig, "poolMax">,
     private readonly logger: (message: string) => void = log,
-    private readonly options: { strictCapacity?: boolean } = {},
+    private readonly options: { strictCapacity?: boolean; teardownWaitMs?: number } = {},
   ) {}
 
   /** Peek without mutating. */
@@ -369,14 +381,32 @@ export class SessionPool<E extends AppliedStateOwner = AppliedStateOwner> {
       state === "awaiting_approval" ? "approval-ttl-expire" : "expire";
     session.ttlTimer = setTimeout(() => {
       this.logger(`${label} key=${session.key} (TTL ${ttlMs}ms)`);
-      void this.evict(session.key, label, "idle-expiry");
+      this.evictInBackground(session.key, label, "idle-expiry");
     }, ttlMs);
     session.ttlTimer.unref?.();
   }
 
   /**
-   * Remove a key and destroy it. Idempotent: a missing key is a no-op (resolves false).
-   * The returned promise resolves once the destroy completed, so a caller that reacquires the
+   * Wait for a teardown still running on `key`, bounded: one that does not end in time (a stuck
+   * unmount or sandbox delete) refuses the turn with a sentence instead of holding it.
+   */
+  private async previousTeardown(key: string): Promise<void> {
+    const running = this.teardowns.get(key);
+    if (!running) return;
+    let timer: NodeJS.Timeout | undefined;
+    const ended = await Promise.race([
+      running.then(() => true),
+      new Promise<boolean>((resolve) => (timer = setTimeout(() => resolve(false), this.options.teardownWaitMs ?? PREVIOUS_TEARDOWN_WAIT_MS))),
+    ]).finally(() => clearTimeout(timer));
+    if (ended) return;
+    this.logger(`evict key=${key}: the previous environment's teardown did not end in time`);
+    // A public error (errors.ts `PublicError`), so every provider shows this sentence as written.
+    throw Object.assign(new Error(PREVIOUS_TEARDOWN_STUCK_MESSAGE), { publicCode: "runner_error" });
+  }
+
+  /**
+   * Remove a key and destroy it. Idempotent: a missing key resolves false, once any teardown
+   * still running on that key has ended. The returned promise resolves once the destroy completed, so a caller that reacquires the
    * same key (same durable cwd / mount) MUST await it — the old teardown's unmount must not
    * overlap the new acquire. Fire-and-forget callers (the TTL timer) `void` it.
    * `label` feeds the greppable `[keepalive] evict` log line; `reason` drives engine teardown.
@@ -387,11 +417,24 @@ export class SessionPool<E extends AppliedStateOwner = AppliedStateOwner> {
     reason: TeardownReason,
   ): Promise<boolean> {
     const session = this.sessions.get(key);
-    if (!session) return false;
+    if (!session) {
+      await this.previousTeardown(key);
+      return false;
+    }
     this.clearTimer(session);
     this.logger(`evict key=${key} reason=${label}`);
     await this.removeAndTeardown(session, reason);
     return true;
+  }
+
+  /**
+   * `evict` for a caller that does not wait: a refusal (the bounded wait for a previous teardown)
+   * is logged, never left as an unhandled rejection.
+   */
+  evictInBackground(key: string, label: string, reason: TeardownReason): void {
+    this.evict(key, label, reason).catch((err) => {
+      this.logger(`evict key=${key} reason=${label} failed: ${String((err as Error)?.message ?? err).slice(0, 200)}`);
+    });
   }
 
   /**
@@ -513,7 +556,7 @@ export class SessionPool<E extends AppliedStateOwner = AppliedStateOwner> {
       return;
     }
     session.state = "destroyed";
-    session.teardownPromise = (async () => {
+    const teardown = (async () => {
       try {
         await session.teardown(reason);
       } catch (err) {
@@ -524,6 +567,13 @@ export class SessionPool<E extends AppliedStateOwner = AppliedStateOwner> {
         );
       }
     })();
-    await session.teardownPromise;
+    session.teardownPromise = teardown;
+    const running = this.teardowns.get(session.key);
+    const all = running ? Promise.all([running, teardown]).then(() => {}) : teardown;
+    this.teardowns.set(session.key, all);
+    void all.then(() => {
+      if (this.teardowns.get(session.key) === all) this.teardowns.delete(session.key);
+    });
+    await teardown;
   }
 }

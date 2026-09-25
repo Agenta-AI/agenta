@@ -263,3 +263,51 @@ A custom code evaluator raised an exception during execution.
 
 **How to fix:**
 - Check the error message and stacktrace for details about the failure in your custom code.
+
+---
+
+## Agent run errors
+
+When an agent turn fails, the chat stream carries a `data-agent-error` part before the stream's
+`error` part:
+
+```json
+{
+  "type": "data-agent-error",
+  "data": {
+    "code": "rate_limited",
+    "errorText": "Too many requests right now. Try again in a moment."
+  }
+}
+```
+
+| Field | Description |
+|-------|-------------|
+| `code` | A stable class for the failure. Key your client's behavior on it. |
+| `errorText` | A sentence for the person in the chat. Its wording can change between releases. |
+
+The table lists the codes of the agent runtime, the service that runs the agent. The platform can
+also send its own codes before the runtime starts, for example `agent_run_failed` or a gateway code
+such as `gateway_connection_refused`; treat a code you do not know like `runner_error`. Show
+`errorText` for every code. For `internal_error`, show only `errorText`: the runtime withheld the
+underlying text on purpose, so do not replace it with a trace's error text.
+
+| Code | What happened | Retry |
+|------|---------------|-------|
+| `runner_error` | The run failed for a reason no other code names. `errorText` says what is known. | Depends on `errorText` |
+| `rate_limited` | The model provider or a proxy in front of it throttled the request. | Yes, after a moment |
+| `provider_error` | The model provider refused this request with an error of its own (a content filter, a refusal, an invalid request). `errorText` quotes the provider's reason with credentials removed. | Not as is: change the request or the model |
+| `starter_credits_exhausted` | The organization's free Agenta credits are used up. | No: add a provider key |
+| `starter_credits_program_paused` | Free Agenta credits are paused for everyone. | No: add a provider key |
+| `starter_credits_unavailable` | The credits service could not be reached. | Yes, after a moment |
+| `credential_delivery_failed` | The run's model credential did not reach the model in time (a cloud sandbox race). | Yes |
+| `subscription_login_required` | The ChatGPT sign-in used by this connection is no longer valid. | No: sign in again |
+| `subscription_login_refreshed` | Another session renewed the ChatGPT sign-in during this run. | Yes |
+| `session_turn_in_use` | The turn was not started, because another turn already runs in this conversation. Nothing ran. | Yes, once the other turn ends |
+| `sandbox_gone` | The sandbox running the turn stopped answering, so the turn was ended. | Yes: a new sandbox starts |
+| `sandbox_capacity` | The sandbox provider is at its capacity limit. | Yes, in a few minutes |
+| `execution_lost` | The run ended without an outcome of its own (the agent service restarted or stopped answering). | Yes |
+| `runner_capacity` | The agent service is at its session or memory limit. In-process runs only. | Yes, in a moment |
+| `model_unavailable` | The agent's model is not available to this runtime. In-process runs only. | No: pick another model |
+| `internal_error` | A failure the agent service does not show. `errorText` carries a reference to its log. In-process runs only. | Yes, once; report the reference if it fails again |
+

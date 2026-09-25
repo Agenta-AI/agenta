@@ -57,7 +57,7 @@ export interface PiTranscriptCursor {
   offset: number;
 }
 
-function transcriptFileForSession(
+export function transcriptFileForSession(
   names: string[],
   sessionId: string,
 ): string | undefined {

@@ -1,6 +1,7 @@
 import { rmSync } from "node:fs";
 
 import { apiBase } from "../../apiBase.ts";
+import { sandboxProviderTraits } from "../../config/runner-config.ts";
 import { appliedStateForRequest } from "./applied-state.ts";
 
 import { resolveRunSessionId, type AgentRunRequest } from "../../protocol.ts";
@@ -17,7 +18,7 @@ import {
   configureDaytonaCodexEnv,
 } from "./codex-assets.ts";
 import { buildDaemonEnv, resolveDaemonBinary } from "./daemon.ts";
-import { conciseError } from "./errors.ts";
+import { classifyRunError, conciseError } from "./errors.ts";
 import { signSessionMountCredentials, type MountCredentials } from "./mount.ts";
 import { PI_MODEL_PROVIDER_OVERRIDE_ENV } from "../../extensions/model-provider-override.ts";
 import {
@@ -163,22 +164,35 @@ export async function prepareEnvironmentSetup(
     // Same resolver `buildRunPlan` uses, not a second reading of the config: this choice is made
     // BEFORE the plan exists, and when the two disagreed a Daytona run selected here by
     // `deps.sandboxProvider` alone got the local root, which no Daytona sandbox has.
-    const isDaytonaReq =
-      resolveSandboxProviderId(request, deps.sandboxProvider) === "daytona";
+    const providerId = resolveSandboxProviderId(request, deps.sandboxProvider);
+    // A provider whose commands run in a remote sandbox takes the sandbox root even when it
+    // mounts on the runner (`inprocess`): the sandbox user can only write under /home/sandbox,
+    // and one absolute path must mean the same folder in both places.
+    const isDaytonaReq = sandboxProviderTraits(providerId).commandsInRemoteSandbox;
     const root = isDaytonaReq
       ? DAYTONA_DURABLE_MOUNT_ROOT
       : LOCAL_DURABLE_MOUNT_ROOT;
     durableCwd = `${root}/${mountCreds.prefix}`;
   }
 
-  const planResult = buildRunPlan(request, {
-    sandboxProvider: deps.sandboxProvider,
-    createLocalCwd: deps.createLocalCwd,
-    createDaytonaCwd: deps.createDaytonaCwd,
-    durableCwd,
-    resolveSkillDirs: deps.resolveSkillDirs,
-    log: logger,
-  });
+  let planResult: ReturnType<typeof buildRunPlan>;
+  try {
+    planResult = buildRunPlan(request, {
+      sandboxProvider: deps.sandboxProvider,
+      createLocalCwd: deps.createLocalCwd,
+      createDaytonaCwd: deps.createDaytonaCwd,
+      durableCwd,
+      resolveSkillDirs: deps.resolveSkillDirs,
+      log: logger,
+    });
+  } catch (err) {
+    // A host failure while planning (the session folder could not be created) goes through the
+    // public error contract like any acquire failure: host paths and operator commands stay in the log.
+    logger(`run plan failed: ${conciseError(err, request.harness ?? "agent")}`);
+    const hidden = sandboxProviderTraits(resolveSandboxProviderId(request, deps.sandboxProvider)).harnessInRunner;
+    const classified = classifyRunError(err, request.harness ?? "agent", request.modelConnection?.provider, { unknownText: hidden ? "hidden" : "sanitized" });
+    return { ok: false as const, error: classified.message };
+  }
   if (!planResult.ok) return { ok: false as const, error: planResult.error };
   const plan = planResult.plan;
   const piSkillSnapshot = resolvePiSkillSnapshot(plan);
@@ -276,7 +290,10 @@ export async function prepareEnvironmentSetup(
   }
 
   // undefined is fine: the local provider runs its own resolution and errors clearly.
-  const binaryPath = (deps.resolveDaemonBinary ?? resolveDaemonBinary)();
+  // A harness that runs in this process has no daemon to start.
+  const binaryPath = sandboxProviderTraits(resolveSandboxProviderId(request, deps.sandboxProvider)).harnessInRunner
+    ? undefined
+    : (deps.resolveDaemonBinary ?? resolveDaemonBinary)();
   const localPiAssets = prepareLocalPiAssets({
     plan,
     env,

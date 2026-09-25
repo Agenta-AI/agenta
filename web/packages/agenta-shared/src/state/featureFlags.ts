@@ -83,3 +83,10 @@ export const channelDebugEnabledAtom = userScopedFlagAtom("channel-debug")
 
 /** Experimental switch for Run on HTML files in the drive; key mirrors `AGENT_APPS_FLAG`. */
 export const agentAppsEnabledAtom = userScopedFlagAtom("agent-apps")
+
+/**
+ * Beta switch that offers the `inprocess` sandbox in the agent's sandbox picker. It only gates
+ * what the picker offers: the deployment's enabled-provider list stays the real gate, and the API
+ * does not read this flag.
+ */
+export const inprocessSandboxEnabledAtom = userScopedFlagAtom("inprocess-sandbox")

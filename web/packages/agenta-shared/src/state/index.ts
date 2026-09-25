@@ -11,6 +11,7 @@ export {
     agentAppsEnabledAtom,
     channelDebugEnabledAtom,
     channelsEnabledAtom,
+    inprocessSandboxEnabledAtom,
     playgroundInspectorEnabledAtom,
     userScopedFlagAtom,
 } from "./featureFlags"

@@ -70,6 +70,7 @@ import {
 import { applyCodexMode, resolveCodexMode } from "./codex-mode.ts";
 import { classifyRunError, conciseError, type RunErrorCode } from "./errors.ts";
 import { startSubscriptionPublisher } from "./subscription-login/publisher.ts";
+import { holdSubscriptionHome } from "./subscription-login/retention.ts";
 import { recoverSubscriptionAuthFailure } from "./subscription-recovery.ts";
 import {
   awaitCredentialSubstitution,
@@ -108,11 +109,12 @@ import {
   PI_PROMPT_CHANNEL_UNAVAILABLE_MESSAGE,
   PI_MODEL_OVERRIDE_EXTENSION_UNAVAILABLE_MESSAGE,
   PI_PERMISSION_EXTENSION_UNAVAILABLE_MESSAGE,
+  piToolSpecsFilePath,
   prepareLocalPiAssets,
   uploadSystemPromptToSandbox,
   writeSystemPromptLocal,
 } from "./pi-assets.ts";
-import { piModelsJsonProviderId } from "./pi-model-config.ts";
+import { isPiModelRegistrationPlan, piModelsJsonProviderId } from "./pi-model-config.ts";
 import {
   AGENT_MOUNT_ENV_VAR,
   agentMountPath,
@@ -132,6 +134,7 @@ import {
   remoteAgentToolsExec,
   removeAgentToolsLocalDir,
   runAgentToolsSetup,
+  type AgentToolsSetupExec,
 } from "./agent-tools-setup.ts";
 import {
   appendPlatformGuidance,
@@ -151,13 +154,16 @@ import {
   routePermissionRequestToActiveTurn,
   routeSessionEventToActiveTurn,
 } from "./session-events.ts";
-import { buildSandboxProvider } from "./provider.ts";
+import { buildSandboxProvider, daytonaNetworkFields } from "./provider.ts";
+import { sandboxProviderTraits } from "../../config/runner-config.ts";
 import {
   markSandboxDestroyed,
   readStoredSandboxPointer,
 } from "./sandbox-reconnect.ts";
 import type {
   AcquireEnvironmentResult,
+  InRunnerRunFacts,
+  InRunnerSandboxHandle,
   SandboxAgentDeps,
   SessionEnvironment,
 } from "./runtime-contracts.ts";
@@ -540,6 +546,8 @@ async function acquireEnvironmentOnce(
     // reaches the API before the sandbox goes.
     await environment.subscriptionPublisher?.stop();
     environment.subscriptionPublisher = undefined;
+    environment.releaseSubscriptionHome?.();
+    environment.releaseSubscriptionHome = undefined;
     inFlightSandboxes.delete(environment);
     // Graceful `session/cancel` BEFORE tearing down the daemon, or the ACP adapter subprocess
     // reparents to PID 1 and never exits. Skip if the pause path already sent it.
@@ -568,14 +576,22 @@ async function acquireEnvironmentOnce(
     environment.piTraceExport = undefined;
     // SandboxLifecycle owns park-versus-delete. It returns `parked` because the mount teardown
     // below is gated on it: a parked Daytona sandbox keeps its agent mount.
+    const traits = sandboxProviderTraits(plan.sandboxId);
     const { parked } = await teardownSandbox({
       sandbox: environment.sandbox,
       plannedSandboxId: plan.sandboxId,
-      isDaytona: plan.isDaytona,
+      isDaytona: traits.commandsInRemoteSandbox,
       harness: plan.harness,
       reason: opts?.reason,
       log: logger,
+      // A command-only sandbox holds no harness state a failed turn could have wedged, so only an
+      // explicit kill deletes it; every other ending keeps its disk for the next turn.
+      ...(plan.harnessInRunner
+        ? { disposition: opts?.reason === "kill" ? ("delete" as const) : ("stop" as const) }
+        : {}),
     });
+    // A parked remote sandbox keeps its own mounts; runner-host mounts always come down here.
+    const sandboxKeepsMounts = parked && !traits.filesOnRunner;
     // Unmount the durable cwd BEFORE removing the dir: data lives in the store, only the host
     // mountpoint is torn down. If unmount is not CONFIRMED gone, skip the delete: rmSync must
     // never run against a possibly-live FUSE mount into the durable store.
@@ -589,14 +605,14 @@ async function acquireEnvironmentOnce(
         ).catch(() => false),
       );
     }
-    if (!parked && !plan.isDaytona) {
+    if (!sandboxKeepsMounts && !plan.isDaytona) {
       // The per-session tools dir on local disk dies with the environment (`agent-tools-setup.ts`).
       await removeAgentToolsLocalDir(
         agentToolsLocalDir(plan.workspace.cwd, false),
         { log },
       );
     }
-    if (!parked && !plan.isDaytona && environment.agentMountedPath) {
+    if (!sandboxKeepsMounts && plan.driveOnRunner && environment.agentMountedPath) {
       const agentMountSafeToDelete = await (
         environment.deps.unmountStorage ?? unmountStorage
       )(environment.agentMountedPath, { log }).catch(() => false);
@@ -627,6 +643,16 @@ async function acquireEnvironmentOnce(
       piPromptDir: environment.piPromptDir,
       codexSqliteHome: environment.codexSqliteHome,
     });
+    // The runner-host tool relay folder is this session's own (`workspace.ts`); the relay loop was
+    // stopped above, so it goes with the environment, and so does the tool-specs file beside it.
+    if (!plan.isDaytona && plan.tools.useToolRelay) {
+      try {
+        rmSync(plan.workspace.relayDir, { recursive: true, force: true });
+        rmSync(piToolSpecsFilePath(plan.workspace.relayDir), { force: true });
+      } catch (err) {
+        logger(`tool relay folder cleanup failed: ${conciseError(err, plan.harness)}`);
+      }
+    }
     // Remove the per-run skills temp root the materializer created (success or error).
     plan.workspace.skillsCleanup();
   };
@@ -681,6 +707,11 @@ async function acquireEnvironmentOnce(
     // previous session lost: the agent dir can already hold a login newer than the delivered one,
     // whose push never reached the API. The sandbox is read at each pass because a Daytona run
     // acquires one further down.
+    // The login folder on the runner host is this session's while it lives: the retention sweep
+    // never deletes it meanwhile.
+    if (plan.credentials.subscriptionHome && !plan.isDaytona) {
+      environment.releaseSubscriptionHome = holdSubscriptionHome(plan.credentials.subscriptionHome);
+    }
     environment.subscriptionPublisher = startSubscriptionPublisher({
       plan,
       state: environment.subscriptionPublish,
@@ -719,33 +750,54 @@ async function acquireEnvironmentOnce(
     // Local geesefs runs on the host, so mount before spawning the daemon. This lets the
     // mount-success path add guidance/env atomically, while a failed mount starts a normal
     // scratch-only harness with no false durable-storage signal.
-    if (environment.mountCreds && !plan.isDaytona) {
+    if (environment.mountCreds && plan.driveOnRunner) {
       const mounted = await mountLocalDurableCwd("initial");
       if (mounted && piSessionDir) environment.nativeHistoryDurable = true;
       throwIfAcquireAborted(signal);
     }
-    if (environment.agentMountCreds && !plan.isDaytona) {
+    if (environment.agentMountCreds && plan.driveOnRunner) {
       await mountLocalAgentCwd();
+      throwIfAcquireAborted(signal);
+    }
+    // A harness in the runner (`inprocess`) mounts the drive in its own command sandbox when a
+    // tool first needs it, so nothing is mounted here. The credentials' expiry bounds this
+    // environment as a remote mount's does; the harness keeps the conversation file in the drive
+    // itself; and the model is told about its agent folder, which will be at this path.
+    if (plan.harnessInRunner) {
+      if (environment.mountCreds) {
+        environment.installedMountExpiries.cwd = mountExpiryMs(environment.mountCreds.expiresAt);
+        if (piSessionDir) environment.nativeHistoryDurable = true;
+      }
+      if (environment.agentMountCreds && agentMountDir) {
+        environment.agentMountedPath = agentMountDir;
+        environment.installedMountExpiries.agent = mountExpiryMs(environment.agentMountCreds.expiresAt);
+        await activateAgentMountGuidance();
+      }
       throwIfAcquireAborted(signal);
     }
     // INVARIANT 1: the provider takes `env` and `piExtEnv` BY REFERENCE and hands them to the
     // daemon, after which the daemon environment is fixed. Every local mount had to land above
     // this line. From here a `writeDaemonEnv` is a programming-order bug and throws.
     ctx.freezeDaemonEnv();
-    sandboxProvider = abortableSandboxProvider(
-      (deps.buildSandboxProvider ?? buildSandboxProvider)(
-        plan.sandboxId,
-        env,
-        binaryPath,
-        piExtEnv,
-        plan.credentials.modelEnvironment,
-        plan.sandboxPermission,
-        plan.credentials.daytonaSecretPlan,
-        inheritedLease ? { inheritedLease } : {},
-      ),
-      signal,
-      logger,
-    );
+    // A harness that runs in this process has no daemon, so no sandbox provider is built for it.
+    const inRunnerHarness = plan.harnessInRunner ? deps.inRunnerHarness : undefined;
+    if (plan.harnessInRunner && !inRunnerHarness) throw new Error(`The ${plan.sandboxId} sandbox is not available on this agent service.`);
+    sandboxProvider = inRunnerHarness
+      ? undefined
+      : abortableSandboxProvider(
+          (deps.buildSandboxProvider ?? buildSandboxProvider)(
+            plan.sandboxId,
+            env,
+            binaryPath,
+            piExtEnv,
+            plan.credentials.modelEnvironment,
+            plan.sandboxPermission,
+            plan.credentials.daytonaSecretPlan,
+            inheritedLease ? { inheritedLease } : {},
+          ),
+          signal,
+          logger,
+        );
     // The turn's own socket is the first thing to learn that a remote sandbox was deleted, and it
     // cannot end a turn by itself (the ACP transport swallows the failure and the pending prompt
     // never settles). It notes the death here; `run-turn.ts` hands this latch to the liveness
@@ -763,6 +815,7 @@ async function acquireEnvironmentOnce(
     const acpFetchOptions = {
       onSandboxGone: (reason: string) => sandboxGone.note(reason),
     };
+    const providerTraits = sandboxProviderTraits(plan.sandboxId);
     const startOptions = {
       sandbox: sandboxProvider,
       persist,
@@ -778,12 +831,53 @@ async function acquireEnvironmentOnce(
           )
         : (deps.createAcpFetch ?? createAcpFetch)(undefined, acpFetchOptions),
     };
+    // The run facts a harness in this process reads instead of a daemon environment.
+    const inRunnerRunFacts = (): InRunnerRunFacts => {
+      // The session folder on the drive, signed for the harness's command sandbox to mount.
+      const sessionDriveRoot = environment.mountCreds ? plan.workspace.cwd : undefined;
+      const network = daytonaNetworkFields(plan.sandboxPermission);
+      const customProvider =
+        piModelConfig && !isPiModelRegistrationPlan(piModelConfig)
+          ? { providerId: piModelConfig.providerId, keyEnv: piModelConfig.apiKeyEnv }
+          : undefined;
+      return {
+        conversationId: sessionForMount,
+        projectId: environment.projectScopeId,
+        credentialMode: plan.credentials.credentialMode,
+        systemPrompt: plan.prompt.systemPrompt,
+        appendSystemPrompt: plan.prompt.appendSystemPrompt,
+        sandboxEnvironment: plan.credentials.sandboxEnvironment,
+        network: {
+          networkBlockAll: "networkBlockAll" in network,
+          ...("networkAllowList" in network ? { networkAllowList: network.networkAllowList } : {}),
+        },
+        skillSources: plan.workspace.skillDirs.map((s) => ({ name: s.name, dir: s.dir })),
+        drives: [
+          ...(sessionDriveRoot ? [{ root: sessionDriveRoot, credentials: () => environment.mountCreds ?? null }] : []),
+          ...(environment.agentMountedPath ? [{ root: environment.agentMountedPath, credentials: () => environment.agentMountCreds ?? null }] : []),
+        ],
+        ...(sessionForMount && runCred
+          ? {
+              signTranscriptMount: () =>
+                (deps.signSessionMountCredentials ?? signSessionMountCredentials)(
+                  sessionForMount,
+                  { apiBase: apiBase(), authorization: runCred, log: logger },
+                  "pi-sessions",
+                ),
+            }
+          : {}),
+        harnessEnv: env,
+        extensionEnv: piExtEnv,
+        modelEnvironment: plan.credentials.modelEnvironment,
+        ...(customProvider ? { customProvider } : {}),
+      };
+    };
     // SandboxLifecycle owns the reconnect ladder, the fresh-create fallback, and both
     // `sandbox_start` timing marks. See `environment/sandbox-lifecycle.ts`.
     const acquiredSandbox = await acquireSandbox(
       {
         startOptions,
-        isDaytona: plan.isDaytona,
+        isDaytona: providerTraits.commandsInRemoteSandbox,
         harness: plan.harness,
         sessionForMount,
         runCred,
@@ -791,9 +885,11 @@ async function acquireEnvironmentOnce(
         timingLog,
       },
       {
-        startSandboxAgent: startSandboxAgent as unknown as (
-          options: Record<string, unknown>,
-        ) => Promise<unknown>,
+        startSandboxAgent: inRunnerHarness
+          ? () => inRunnerHarness.start({ facts: inRunnerRunFacts(), persist })
+          : (startSandboxAgent as unknown as (
+              options: Record<string, unknown>,
+            ) => Promise<unknown>),
         ...(deps.readStoredSandboxPointer
           ? { readStoredSandboxPointer: deps.readStoredSandboxPointer }
           : {}),
@@ -1103,7 +1199,23 @@ async function acquireEnvironmentOnce(
     // earlier session is ready on local disk when this one starts. Never fails the turn; see
     // `agent-tools-setup.ts` for the convention, the permission guard, and why the mount itself
     // cannot hold a venv.
-    if (environment.agentMountedPath) {
+    if (environment.agentMountedPath && plan.harnessInRunner) {
+      // `inprocess` never runs owner code on the runner host. The restore runs in the command
+      // sandbox right before its first command, after the workspace sync has pushed `.tools/`.
+      const mountPath = environment.agentMountedPath;
+      (environment.sandbox as InRunnerSandboxHandle | undefined)?.onFirstCommand((exec: AgentToolsSetupExec, commandSignal?: AbortSignal) =>
+        runAgentToolsSetup(
+          {
+            mountPath,
+            cwd: plan.workspace.cwd,
+            localDir: agentToolsLocalDir(plan.workspace.cwd, true),
+            runSetup: plan.tools.permissionDefault === "allow",
+          },
+          exec,
+          { log: logger, hostEnv: {}, ...(commandSignal ? { signal: commandSignal } : {}) },
+        ),
+      );
+    } else if (environment.agentMountedPath) {
       const agentToolsStartedAt = Date.now();
       const mountPath = environment.agentMountedPath;
       await runAgentToolsSetup(
@@ -1546,7 +1658,7 @@ async function acquireEnvironmentOnce(
       err,
       plan.harness,
       request.modelConnection?.provider,
-      { authFault: () => describeCodexSubscriptionAuthFault(plan) },
+      { authFault: () => describeCodexSubscriptionAuthFault(plan), unknownText: plan.unknownErrorText },
     );
     // Same substitution as the turn path: a hosted subscription run must never be told to add a
     // vault key. Acquire itself makes no model call, but the harness starts here and a dead login

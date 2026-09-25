@@ -348,7 +348,15 @@ const ToolActivity = ({parts, isStreaming = false, detailed = false}: ToolActivi
 
     // ---- Settled: the quiet "Used N tools" line + expandable list ----
     const failed = parts.filter(hasFailed).length
-    const SummaryIcon = failed > 0 ? Warning : CheckCircle
+    // A denied call never ran, so the group must not read as a success either.
+    const denied = parts.filter(
+        (p) =>
+            (p.state as string) === "output-denied" ||
+            ((p.state as string) === "approval-responded" && approvalVerdictText(p) === "denied"),
+    ).length
+    const SummaryIcon = failed > 0 ? Warning : denied > 0 ? Prohibit : CheckCircle
+    const summaryTone =
+        failed > 0 ? "text-colorError" : denied > 0 ? "text-colorTextTertiary" : "text-colorSuccess"
 
     return (
         <div className="flex min-w-0 flex-col gap-1.5">
@@ -374,8 +382,8 @@ const ToolActivity = ({parts, isStreaming = false, detailed = false}: ToolActivi
                 />
                 <SummaryIcon
                     size={13}
-                    weight="fill"
-                    className={`shrink-0 ${failed > 0 ? "text-colorError" : "text-colorSuccess"}`}
+                    weight={denied > 0 && failed === 0 ? "regular" : "fill"}
+                    className={`shrink-0 ${summaryTone}`}
                 />
                 <span className="text-xs text-colorTextSecondary">
                     <GroupLabel parts={parts} />

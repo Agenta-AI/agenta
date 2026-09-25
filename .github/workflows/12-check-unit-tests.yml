@@ -511,6 +511,12 @@ jobs:
         working-directory: services/runner
         run: pnpm run build:extension
 
+      # The in-process `grep` and `find` tools run ripgrep in the command sandbox. The unit tests
+      # use a local stand-in for that sandbox, so ripgrep must be on this machine too.
+      - name: Install ripgrep
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","services-only"]'), inputs.packages)
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq ripgrep
+
       # The code-tool unit test spawns python3 and node end-to-end; both are preinstalled on
       # ubuntu runners (node is also set up above), so no setup-python step is needed.
       - name: Run agent runner unit tests

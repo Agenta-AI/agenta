@@ -1455,7 +1455,7 @@ class _SandboxSchema(BaseModel):
 
     model_config = ConfigDict(extra="forbid", title="Sandbox")
 
-    kind: Literal["local", "daytona"] = Field(
+    kind: Literal["local", "daytona", "inprocess"] = Field(
         default=_DEFAULT_SANDBOX,
         title="Sandbox",
         description="Where the agent runs: local daemon or a Daytona sandbox.",

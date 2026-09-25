@@ -101,7 +101,13 @@ export const getEnabledSandboxProviders = (): string[] => {
         .split(",")
         .map((provider) => provider.trim().toLowerCase())
         .filter(Boolean)
-    return providers.length > 0 ? providers : ["local"]
+    if (providers.length === 0) return ["local"]
+    // `inprocess` is enabled wherever `daytona` is (the runner, the SDK, the API and
+    // entrypoint.sh apply the same rule); who is offered it is the per-user preference's call.
+    if (providers.includes("daytona") && !providers.includes("inprocess")) {
+        providers.push("inprocess")
+    }
+    return providers
 }
 
 // Optional deploy-time woff2 display font for the auth headlines; unset renders them in Inter.

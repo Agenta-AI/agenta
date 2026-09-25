@@ -20,6 +20,20 @@ export const sessionRecordsQueryKey = (projectId: string, sessionId: string) =>
 
 const SESSION_RECORDS_STALE_MS = 15_000
 
+/** Retries after a failed read, on a 1s, 2s, 4s backoff. Each attempt can itself wait out the
+ * client timeout, so the budget covers a slow or briefly unreachable API, not a dead one. */
+const SESSION_RECORDS_RETRIES = 3
+const sessionRecordsRetryDelay = (attempt: number): number => Math.min(1_000 * 2 ** attempt, 8_000)
+
+/** The read failed (timeout, network, 5xx). Thrown rather than resolved as `null`, so the cache
+ * keeps the last good log and retries instead of storing the failure as a successful empty answer. */
+class SessionRecordsUnavailableError extends Error {
+    constructor() {
+        super("Session records are unavailable")
+        this.name = "SessionRecordsUnavailableError"
+    }
+}
+
 // Single source of key + fn so atom subscribers and imperative fetches share one flight.
 // Persisted to IndexedDB so a warm reload paints the transcript from disk instead of blocking
 // on the (~200KB, backend-slow) records query; recordsPersister ALWAYS revalidates on restore
@@ -28,14 +42,21 @@ const sessionRecordsQueryOptions = (projectId: string, sessionId: string) => ({
     // Widened to QueryKey so fetchQuery/atomWithQuery and the persister agree on one key type.
     queryKey: sessionRecordsQueryKey(projectId, sessionId) as QueryKey,
     // Low priority only behind a painted copy; the first read is the open's critical path.
-    queryFn: ({signal, client, queryKey}: QueryFunctionContext) =>
-        querySessionRecords({
+    queryFn: async ({signal, client, queryKey}: QueryFunctionContext): Promise<SessionRecord[]> => {
+        const records = await querySessionRecords({
             sessionId,
             projectId,
             abortSignal: signal,
             lowPriority: client.getQueryData(queryKey) !== undefined,
-        }),
+        })
+        if (records === null) throw new SessionRecordsUnavailableError()
+        return records
+    },
     staleTime: SESSION_RECORDS_STALE_MS,
+    // Explicit, because `fetchQuery` (the imperative path the chat settles a turn through) does
+    // not retry by default.
+    retry: SESSION_RECORDS_RETRIES,
+    retryDelay: sessionRecordsRetryDelay,
     // persist-client-core bundles its own query-core types; the cast bridges the nominal split.
     persister: recordsPersister.persisterFn as unknown as QueryPersister<
         SessionRecord[] | null,
@@ -74,7 +95,13 @@ export const fetchSessionRecordsAtom = atom(
         if (!projectId || !sessionId) return {records: null}
         const client = get(queryClientAtom)
         const options = sessionRecordsQueryOptions(projectId, sessionId)
-        const records = await client.fetchQuery(options)
+        let records: SessionRecord[] | null
+        try {
+            records = await client.fetchQuery(options)
+        } catch {
+            // Retries exhausted. `null` is this atom's documented "the read failed" answer.
+            return {records: null}
+        }
         // The persister's post-restore task (a macrotask queued before fetchQuery resolved)
         // rewrites dataUpdatedAt to the persisted timestamp and starts the always-revalidate
         // fetch — wait for it before judging freshness, or a restore reads as fresh network data.

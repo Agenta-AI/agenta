@@ -17,6 +17,7 @@
  * `createAgentServer(run)` is the testable seam: it builds the server around an injectable
  * engine runner so the HTTP behavior can be tested with a fake engine (no live harness).
  */
+import { join } from "node:path";
 import { apiBase, runWithRequestApiBase } from "./apiBase.ts";
 import { loadDurableDecisions } from "./sessions/interactions.ts";
 import {
@@ -53,6 +54,7 @@ import {
   type ParkedApproval,
   type SessionEnvironment,
 } from "./engines/sandbox_agent.ts";
+import type { SandboxAgentDeps } from "./engines/sandbox_agent/runtime-contracts.ts";
 import { withGatewayErrorDetail } from "./engines/sandbox_agent/engine.ts";
 import {
   cancelHarnessTurn,
@@ -88,6 +90,8 @@ import {
 import {
   assertRunnerToken,
   loadRunnerConfig,
+  replaceRunnerConfig,
+  sandboxProviderTraits,
   runnerConfigSummary,
 } from "./config/runner-config.ts";
 import { applyDaytonaSdkEnv } from "./engines/sandbox_agent/daytona-provider.ts";
@@ -96,6 +100,7 @@ import { insecureEgressAllowed } from "./tools/ssrf-guard.ts";
 import {
   SESSION_TURN_IN_USE_CODE,
   SESSION_TURN_IN_USE_MESSAGE,
+  SESSION_ADMISSION_UNCONFIRMED_MESSAGE,
 } from "./sessions/admission.ts";
 import {
   REPLICA_ID,
@@ -122,6 +127,8 @@ import {
 } from "./sessions/turn-settle.ts";
 import {
   ABANDONED_TURN_MARKER,
+  RUNNER_SHUTDOWN_REASON,
+  abandonedTurnMessage,
   type RunErrorCode,
 } from "./engines/sandbox_agent/errors.ts";
 import {
@@ -135,6 +142,19 @@ import {
   takePersistFailures,
 } from "./sessions/persist.ts";
 import { seedForRun } from "./redaction.ts";
+import type { InProcessProvider } from "./engines/inprocess/index.ts";
+import { endActiveTurns, registerActiveTurn } from "./sessions/active-turns.ts";
+import { DAYTONA_DURABLE_MOUNT_ROOT, resolveSandboxProviderId, runnerStateDir } from "./engines/sandbox_agent/run-plan.ts";
+import { startSubscriptionHomeSweeper } from "./engines/sandbox_agent/subscription-login/retention.ts";
+
+/** How long a shutdown waits for interrupted turns to write their terminal records. */
+const SHUTDOWN_TURN_END_BUDGET_MS = 5_000;
+/** How long an in-process run gets to unwind after its abort, inside the shutdown budget above. */
+const INPROCESS_ABANDON_GRACE_MS = 3_000;
+
+function inRunnerLimits<L extends { abandonGraceMs: number }>(limits: L, harnessInRunner: boolean): L {
+  return harnessInRunner ? { ...limits, abandonGraceMs: Math.min(limits.abandonGraceMs, INPROCESS_ABANDON_GRACE_MS) } : limits;
+}
 
 // Server binding (host/port) comes from the typed `RunnerConfig` resolved at boot. The host
 // binds to loopback by default (sidecar-trust step 1): the `/run` body carries plaintext provider
@@ -272,10 +292,10 @@ export {
   type KeepaliveEngine,
 } from "./lifecycle/session-coordinator.ts";
 
-const realKeepaliveEngine: KeepaliveEngine = {
+const makeKeepaliveEngine = (engineDeps: () => SandboxAgentDeps | Promise<SandboxAgentDeps>): KeepaliveEngine => ({
   resolveKeepaliveMount: (request) => resolveKeepaliveMount(request),
-  acquireEnvironment: (request, signal, presignedMount, emit) =>
-    acquireEnvironment(request, {}, signal, presignedMount, emit),
+  acquireEnvironment: async (request, signal, presignedMount, emit) =>
+    acquireEnvironment(request, await engineDeps(), signal, presignedMount, emit),
   // Every coordinator dispatch reaches runTurn through here, so the pre-turn read lives here
   // once rather than at each of its call sites. It must happen BEFORE runTurn: that function
   // may not suspend before its permission responder is attached.
@@ -322,7 +342,7 @@ const realKeepaliveEngine: KeepaliveEngine = {
   ) => {
     const acquired = await acquireEnvironment(
       request,
-      {},
+      await engineDeps(),
       signal,
       presignedMount,
       emit,
@@ -357,15 +377,46 @@ const realKeepaliveEngine: KeepaliveEngine = {
       });
     }
   },
+});
+
+const realKeepaliveEngine = makeKeepaliveEngine(() => ({}));
+
+const INPROCESS = "inprocess";
+/**
+ * The `inprocess` provider's code is loaded, and its settings read, on its first run, and only
+ * when the deployment enables it: a runner without it never loads that code.
+ */
+let inProcessProvider: Promise<InProcessProvider> | undefined;
+export const inProcessDeps = async (): Promise<SandboxAgentDeps> => {
+  inProcessProvider ??= (async () => {
+    const config = loadRunnerConfig();
+    if (!config.providers.enabled.includes(INPROCESS)) {
+      throw new Error(
+        "The 'inprocess' sandbox provider is not enabled on this agent service. It is enabled with 'daytona'.",
+      );
+    }
+    const { createInProcessProvider } = await import("./engines/inprocess/index.ts");
+    const { sweepTranscriptDirs } = await import("./engines/inprocess/workspace/transcript-store.ts");
+    // Before this process holds any in-process workspace, so every folder it finds is a previous process's.
+    await sweepTranscriptDirs(`${DAYTONA_DURABLE_MOUNT_ROOT}/mounts`, klog).catch((err) =>
+      klog(`[inprocess] conversation file sweep failed: ${String(err).slice(0, 160)}`),
+    );
+    return createInProcessProvider(config, klog);
+  })();
+  return (await inProcessProvider).deps;
 };
 
 // One engine: `sandbox-agent` drives a harness (Pi or Claude) over ACP. The harness is
-// selected by `request.harness`, not by an engine selector.
+// selected by `request.harness`, not by an engine selector. `inprocess` runs Pi in this process
+// behind the same session contract, so it takes the same keep-alive path with its own deps.
 //
-// Provider pools stay separate because their caps budget different resources.
+// Provider pools stay separate because their caps budget different resources. Every server path
+// that walks `keepalivePools` (kill, shutdown, Stop on a parked approval, stale-card cleanup)
+// covers every provider by construction.
 const keepaliveConfigs: Record<KeepaliveProviderName, KeepaliveConfig> = {
   local: readKeepaliveConfig("local"),
   daytona: readKeepaliveConfig("daytona"),
+  inprocess: readKeepaliveConfig("inprocess"),
 };
 const keepalivePools: Record<
   KeepaliveProviderName,
@@ -375,16 +426,23 @@ const keepalivePools: Record<
   daytona: new SessionPool<SessionEnvironment>(keepaliveConfigs.daytona, klog, {
     strictCapacity: true,
   }),
+  inprocess: new SessionPool<SessionEnvironment>(keepaliveConfigs.inprocess, klog),
+};
+const keepaliveEngines: Record<KeepaliveProviderName, KeepaliveEngine> = {
+  local: realKeepaliveEngine,
+  daytona: realKeepaliveEngine,
+  inprocess: makeKeepaliveEngine(inProcessDeps),
 };
 
-const runAgent: RunAgent = (request, emit, signal, options) => {
+const runAgent: RunAgent = async (request, emit, signal, options) => {
+  const inProcess = sandboxProviderTraits(resolveSandboxProviderId(request)).harnessInRunner;
   const provider = resolveKeepaliveDispatch(request, keepaliveConfigs);
   if (!provider) {
     return runSandboxAgent(
       request,
       emit,
       signal,
-      {},
+      inProcess ? await inProcessDeps() : {},
       {
         ...(options?.credential ? { credential: options.credential } : {}),
       },
@@ -392,7 +450,7 @@ const runAgent: RunAgent = (request, emit, signal, options) => {
   }
   const config = keepaliveConfigs[provider];
   return runWithKeepalive(request, emit, signal, {
-    engine: realKeepaliveEngine,
+    engine: keepaliveEngines[provider],
     pool: keepalivePools[provider],
     config,
     clientGone: options?.clientGone,
@@ -642,6 +700,7 @@ async function runAndStreamWithApiBaseResolved(
         streamId: () => string | undefined;
         firstBeatOwned: boolean;
         admitted: boolean;
+        admissionUnconfirmed?: boolean;
       }
     | undefined;
   if (!sessionOwned && !detached) {
@@ -844,9 +903,13 @@ async function runAndStreamWithApiBaseResolved(
       // which is the path every runner failure already takes to the browser. Nothing is persisted,
       // so the refused message never appears in the session's history — the client keeps the text.
       if (!watchdog.admitted) {
+        const refusal = watchdog.admissionUnconfirmed ? SESSION_ADMISSION_UNCONFIRMED_MESSAGE : SESSION_TURN_IN_USE_MESSAGE;
         process.stderr.write(
           `[sessions] admission REFUSED session=${sessionId} turn=${turnId}; ` +
-            `another turn owns this session. No pool resolve, no eviction.\n`,
+            (watchdog.admissionUnconfirmed
+              ? "the platform did not answer the admission beat. "
+              : "another turn owns this session. ") +
+            `No pool resolve, no eviction.\n`,
         );
         // Stops the heartbeat interval and releases the credential lease. Its final
         // `is_running: false` beat is owner-scoped server-side, so it cannot clear the live
@@ -855,12 +918,12 @@ async function runAndStreamWithApiBaseResolved(
         unregisterExecution(sessionId, turnId);
         liveEmit({
           type: "error",
-          message: SESSION_TURN_IN_USE_MESSAGE,
+          message: refusal,
           code: SESSION_TURN_IN_USE_CODE,
         });
         writeRecord({
           kind: "result",
-          result: { ok: false, error: SESSION_TURN_IN_USE_MESSAGE, events: [] },
+          result: { ok: false, error: refusal, events: [] },
         });
         res.end();
         return;
@@ -969,6 +1032,11 @@ async function runAndStreamWithApiBaseResolved(
 
   let result: AgentRunResult;
   let teardownCompleted = true;
+  // A harness that runs in this process dies with it, so a shutdown interrupts its turn like a
+  // displacement does, with a grace short enough to write the terminal record before the
+  // process exits. Other providers keep the shared settle path unchanged.
+  const harnessInRunner = sandboxProviderTraits(resolveSandboxProviderId(request)).harnessInRunner;
+  const activeTurn = harnessInRunner ? registerActiveTurn() : undefined;
   try {
     // Not a bare `await run(...)`: an await inside the run that never settles would keep this
     // function parked forever, and with it the terminal record below AND the alive watchdog's
@@ -981,9 +1049,14 @@ async function runAndStreamWithApiBaseResolved(
         credential: aliveWatchdog?.credential,
       }),
       abort: () => controller.abort(),
-      interrupted: sessionOwned ? interrupted : undefined,
-      limits: resolveTurnSettleLimits((message) =>
-        process.stderr.write(`${message}\n`),
+      interrupted: activeTurn
+        ? Promise.race([activeTurn.shuttingDown, ...(sessionOwned && interrupted ? [interrupted] : [])])
+        : sessionOwned
+          ? interrupted
+          : undefined,
+      limits: inRunnerLimits(
+        resolveTurnSettleLimits((message) => process.stderr.write(`${message}\n`)),
+        !!activeTurn,
       ),
       log: (message) => process.stderr.write(`${message}\n`),
     });
@@ -1016,8 +1089,11 @@ async function runAndStreamWithApiBaseResolved(
       process.stderr.write(
         `[sessions] ABANDONED session=${sessionId ?? "-"} turn=${turnId ?? "-"}: ${outcome.reason}\n`,
       );
-      if (persistError) persistError(message, "execution_lost");
-      result = { ok: false, error: message };
+      // For an in-process harness the transcript and the caller get the sentence a person can
+      // act on; the marker stays in the log above. Other providers keep the marker.
+      const reported = harnessInRunner ? abandonedTurnMessage(outcome.reason, request.harness ?? "agent") : message;
+      if (persistError) persistError(reported, "execution_lost");
+      result = { ok: false, error: reported };
     }
     // Drain the terminal backstop or abandonment marker and all prior persists before the
     // sandbox tears down.
@@ -1061,6 +1137,7 @@ async function runAndStreamWithApiBaseResolved(
     // clean. Scoped to this turn id, so a turn that finishes after its successor registered
     // cannot unregister the successor.
     if (sessionOwned) unregisterExecution(sessionId, turnId, teardownCompleted);
+    activeTurn?.done();
   }
 
   // Streaming delivered the events live, so don't echo them in the terminal record.
@@ -1624,12 +1701,20 @@ if (isEntrypoint(import.meta.url)) {
   // parked session or an in-flight sandbox (the per-run teardown never runs on a process kill).
   registerShutdownHandler({
     onCleanup: async (timeoutMs?: number) => {
+      // First, while persistence still works: every running turn writes its ending, so no
+      // client waits on a turn this process will never finish.
+      await endActiveTurns(RUNNER_SHUTDOWN_REASON, SHUTDOWN_TURN_END_BUDGET_MS);
       await Promise.all(
         Object.values(keepalivePools).map((pool) =>
           pool.destroyAll(timeoutMs, "shutdown-idle", "shutdown-in-flight"),
         ),
       );
       await destroyInFlightSandboxes(timeoutMs, "shutdown-in-flight");
+      // Command sandboxes park in the background; let those stops reach Daytona before exit.
+      await inProcessProvider?.then(
+        (provider) => provider.settle(Math.min(timeoutMs ?? 20_000, 20_000)),
+        () => {},
+      );
       // LAST, and only after the sandboxes are gone: hand back the `owner:session:<id>`
       // affinity keys this replica holds. Nothing else releases them, and `claim_owner` never
       // steals, so without this the replacement replica is refused every message on those
@@ -1646,17 +1731,28 @@ if (isEntrypoint(import.meta.url)) {
   // credential, mutually exclusive artifact, invalid lifecycle values) fails startup here. Log
   // one redacted summary, then bridge the typed Daytona credential into the ambient names the
   // vendored SDK reads during sandbox creation.
-  const runnerConfig = loadRunnerConfig();
+  let runnerConfig = loadRunnerConfig();
   // The shared token is required to SERVE, but not to parse config: the per-request config reads
   // (provider defaults) must not depend on an auth secret. So it is asserted here, at the one
   // boundary that exposes the HTTP surface, and nowhere else.
   assertRunnerToken(runnerConfig.server.token);
+  if (runnerConfig.providers.enabled.includes(INPROCESS)) {
+    const { assertInProcessEnvironment } = await import("./engines/inprocess/index.ts");
+    runnerConfig = replaceRunnerConfig(
+      assertInProcessEnvironment(runnerConfig, process.env, (message) =>
+        process.stderr.write(`[sandbox-agent] WARNING: ${message}\n`),
+      ),
+    );
+  }
   process.stderr.write(
     `[sandbox-agent] ${runnerConfigSummary(runnerConfig)}\n`,
   );
   if (runnerConfig.providers.enabled.includes("daytona")) {
     applyDaytonaSdkEnv(runnerConfig.daytona);
   }
+  // ChatGPT logins no run used for a week leave the runner's state dir (the API keeps the login
+  // of record); a login a session holds stays.
+  startSubscriptionHomeSweeper(join(runnerStateDir(), "subscriptions"), (message) => process.stderr.write(`${message}\n`));
 
   createAgentServer().listen(
     runnerConfig.server.port,

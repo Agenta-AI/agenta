@@ -7,6 +7,7 @@ import {
   DEFAULT_DAYTONA_SNAPSHOT,
   KNOWN_SANDBOX_PROVIDER_IDS,
   loadRunnerConfig,
+  providerNotEnabledMessage,
   type RunnerConfig,
   type RunnerDaytonaConfig,
   type SandboxProviderId,
@@ -199,10 +200,7 @@ export function buildSandboxProvider(
     (KNOWN_SANDBOX_PROVIDER_IDS as readonly string[]).includes(sandboxId) &&
     !config.providers.enabled.includes(sandboxId as SandboxProviderId)
   ) {
-    throw new Error(
-      `Sandbox provider '${sandboxId}' is not enabled on this deployment ` +
-        `(enabled: ${config.providers.enabled.join(", ")}).`,
-    );
+    throw new Error(providerNotEnabledMessage(sandboxId, config.providers.enabled));
   }
 
   if (sandboxId === "daytona") {

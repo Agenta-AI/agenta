@@ -79,7 +79,10 @@ describe("PreferencesPage", () => {
     it("shows Feature Flags then Debugging, in the shared order", () => {
         renderBound()
         expect(structure()).toEqual([
-            {title: "Feature Flags", rows: ["Developer Mode", "Channels", "Agent apps"]},
+            {
+                title: "Feature Flags",
+                rows: ["Developer Mode", "Channels", "Agent apps", "In-process agent runtime"],
+            },
             {
                 title: "Debugging",
                 rows: ["Playground inspector", "Channel debug", "Agenta channel probe"],
@@ -107,6 +110,7 @@ describe("PreferencesPage", () => {
                 "agenta:settings:u1:agenta-channel-surface",
                 "agenta:settings:u1:channel-debug",
                 "agenta:settings:u1:channels",
+                "agenta:settings:u1:inprocess-sandbox",
                 "agenta:settings:u1:playground-inspector",
             ].sort(),
         )

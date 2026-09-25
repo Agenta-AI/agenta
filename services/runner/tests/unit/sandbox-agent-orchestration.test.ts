@@ -249,7 +249,7 @@ describe("runSandboxAgent orchestration", () => {
         const first = await runTurn(acquired.env, request);
         assert.equal(first.ok, true);
         assert.deepEqual(calls.promptBlocks, [
-          { type: "text", text: request.turnContext },
+          { type: "text", text: `${request.turnContext}\n\n` },
           { type: "text", text: "hello" },
         ]);
 
@@ -270,7 +270,7 @@ describe("runSandboxAgent orchestration", () => {
         assert.equal(acquired.env.session, session);
         assert.equal(calls.sandboxDestroyed, 0);
         assert.deepEqual(calls.promptBlocks, [
-          { type: "text", text: next.turnContext },
+          { type: "text", text: `${next.turnContext}\n\n` },
           { type: "text", text: "continue" },
         ]);
         assert.deepEqual(calls.runStart.messages.at(-1), {
@@ -306,7 +306,7 @@ describe("runSandboxAgent orchestration", () => {
       });
       assert.equal(result.ok, true);
       assert.deepEqual(calls.promptBlocks, [
-        { type: "text", text: request.turnContext },
+        { type: "text", text: `${request.turnContext}\n\n` },
         { type: "text", text: SUPERSEDED_TURN_NOTE },
         { type: "text", text: "Reply with exactly: STEERED" },
       ]);
@@ -394,7 +394,7 @@ describe("runSandboxAgent orchestration", () => {
       assert.equal(result.ok, true);
       assert.deepEqual(calls.promptBlocks[0], {
         type: "text",
-        text: request.turnContext,
+        text: `${request.turnContext}\n\n`,
       });
       const prompt = calls.promptBlocks?.[1]?.text ?? "";
       assert.match(prompt, /^Conversation so far:/);

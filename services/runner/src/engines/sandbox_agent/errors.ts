@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { SubstitutionStuckError } from "./credential-preflight.ts";
 
 /** Map a provider family to its human-facing vault key label, for the credit/auth hint. */
@@ -72,12 +73,23 @@ export const SANDBOX_GONE_MESSAGE =
   "The sandbox running this session stopped responding, so the run was ended. " +
   "Send the message again to start a fresh sandbox.";
 
+/** Why a shutdown ends the turns it interrupts. */
+export const RUNNER_SHUTDOWN_REASON = "the runner is shutting down";
+
+/** The line the user reads when a restart ended their turn; a resend reaches the new process. */
+export const RUNNER_RESTARTING_MESSAGE =
+  "The agent service restarted, so this turn was ended. Send the message again in a moment.";
+
 /** The line the user reads when the run never produced an outcome of its own. */
 export const EXECUTION_LOST_MESSAGE =
   "The agent stopped responding and the run was closed. Send the message again to retry.";
 
 export type RunErrorCode =
   | "runner_error"
+  // The sandbox provider (or this runner's own sandbox admission) is at capacity; retryable later.
+  | "sandbox_capacity"
+  // This runner is at its session or memory limit and refused a new session; retryable later.
+  | "runner_capacity"
   | "starter_credits_exhausted"
   | "starter_credits_program_paused"
   | "starter_credits_unavailable"
@@ -102,7 +114,21 @@ export type RunErrorCode =
   | "subscription_login_required"
   // The login this run used was stale: another session already replaced it. Nothing is wrong with
   // the connection, so this one IS retryable — the next turn picks up the newer login.
-  | "subscription_login_refreshed";
+  | "subscription_login_refreshed"
+  // The run asked for a model the runtime does not know (the in-process Pi session). A setting the
+  // user changes; a retry fails the same way.
+  | "model_unavailable"
+  // The model provider answered the request with an error of its own that no rule above names:
+  // a refusal or guardrail returned as an error (Inception: "I'm sorry, but I can't share
+  // details of my architecture..."), a content filter, a fault behind a router. The message
+  // carries the provider's own sentence, redacted. Not retryable as is: the same request is
+  // refused the same way. The failed turn leaves the conversation, so the next message is not.
+  | "provider_error"
+  // A failure no rule recognized, whose text the runner withholds (it may hold paths, ids or
+  // credentials): the message is one sentence with a reference to the runner's log. A client must
+  // not show any other text for it in its place (a trace's error text included). Only runs whose
+  // unknown text is hidden produce it (`ConciseErrorOptions.unknownText`).
+  | "internal_error";
 
 /** One failed run, condensed: the line the user reads plus the class a client can act on. */
 export interface ClassifiedRunError {
@@ -150,6 +176,30 @@ const TEAM_BUDGET_SUBJECT =
 /** Throttling from the proxy in front of the model (parallel-request, RPM/TPM, plain rate limit). */
 const PROXY_RATE_LIMIT =
   /rate[ _-]?limit|max parallel request|too many requests|\b(?:tpm|rpm)[ _-]?limit/i;
+
+/**
+ * The provider refused the request for its size (context window or per-request token cap). Checked
+ * after the credit and quota rules and before the rate-limit rule: Groq reports its per-request cap
+ * as HTTP 413 with the code `rate_limit_exceeded`, and waiting does not help, the request has to
+ * shrink. A bare 413 counts only where it is an HTTP status: at the start of a line (after an
+ * optional `Label:`), after `HTTP`, or after `status`/`status_code`. A 413 inside a request id or a
+ * duration (`req_ab413cd9`, `after 413s`) is not a status.
+ */
+const REQUEST_TOO_LARGE =
+  /request too large|request entity too large|payload too large|context_length_exceeded|maximum context length|prompt is too long|^(?:[A-Za-z ]+:\s*)?413\b|\bhttp[ /_-]?(?:1\.[01] )?413\b|\bstatus(?:[ _]?code)?[":\s=]+413\b/im;
+export const REQUEST_TOO_LARGE_MESSAGE =
+  "The request is too large for this model. Start a new session, turn off tools you do not need, or pick a model with a larger context.";
+
+/**
+ * A provider's raw HTTP error: a status code followed by its JSON body. The chat shows the body's
+ * own reason (its `message`), redacted, not the whole body.
+ */
+// `400 {json}`, `Label: 400 {json}`, or `OpenAI API error (400): {json}` (Pi's OpenAI provider),
+// after any number of `Label: ` prefixes: on `inprocess`, pi-acp reports a failed prompt as an ACP
+// internal error, so the text reads `Internal error: OpenAI API error (404): {json}`.
+// Each label starts with a letter: a label that could start with a space would let the spaces
+// after a colon split two ways, and a long unmatched line would backtrack for minutes.
+const RAW_PROVIDER_ERROR = /^(?:[A-Za-z][A-Za-z ]*:\s*)*(?:[A-Za-z ]+\()?([45]\d\d)\b[^\n]*?\{/;
 
 /** The upstream provider's own quota refusal (Vertex/Google shape), distinct from a billing stop. */
 const PROVIDER_QUOTA_EXHAUSTED = /resource_exhausted|quota exceeded/i;
@@ -319,6 +369,13 @@ const PROXY_MARKER = /litellm|budget_exceeded|no_db_connection/i;
 
 export interface ConciseErrorOptions {
   /**
+   * What an error no rule recognizes shows. `sanitized` (the default): its first line, redacted.
+   * `hidden`: one generic sentence with a reference, the text only in the runner's log. The
+   * `inprocess` provider asks for `hidden`; `local` and `daytona` keep `sanitized` until every
+   * runner-authored sentence they surface carries a public code.
+   */
+  unknownText?: "sanitized" | "hidden";
+  /**
    * Called only when the error maps to the model-authentication branch. A run that authenticates
    * from a mounted subscription login rather than a vault key can diagnose the real fault there
    * (see `describeCodexSubscriptionAuthFault`); returning a string replaces the generic
@@ -361,6 +418,8 @@ export function classifyRunError(
   provider?: string,
   options: ConciseErrorOptions = {},
 ): ClassifiedRunError {
+  // An error that states its own public code was written for the person in the chat.
+  if (isPublicError(err)) return { message: sanitizeErrorText(err.message), code: err.publicCode };
   const raw = err instanceof Error ? err.message : String(err);
   const msg = raw.split("\n")[0].trim();
   const keyHint = keyHintFor(provider, harness, options.connection);
@@ -408,7 +467,7 @@ export function classifyRunError(
     };
   }
   if (
-    /credit balance is too low|exceeded your current quota|insufficient_quota/i.test(
+    /credit balance is too low|exceeded your current quota|insufficient_quota|insufficient credits/i.test(
       raw,
     )
   ) {
@@ -421,6 +480,9 @@ export function classifyRunError(
   // says "exceeded your current quota", and that is a billing stop, not throttling.
   if (PROVIDER_QUOTA_EXHAUSTED.test(raw)) {
     return { message: PROVIDER_RATE_LIMITED_MESSAGE, code: "rate_limited" };
+  }
+  if (REQUEST_TOO_LARGE.test(raw)) {
+    return { message: REQUEST_TOO_LARGE_MESSAGE, code: "runner_error" };
   }
   if (PROXY_RATE_LIMIT.test(raw)) {
     return { message: RATE_LIMITED_MESSAGE, code: "rate_limited" };
@@ -500,7 +562,164 @@ export function classifyRunError(
       code: "runner_error",
     };
   }
-  return { message: msg || "agent run failed", code: "runner_error" };
+  if (SANDBOX_PROVIDER_CAPACITY.test(raw)) {
+    return { message: SANDBOX_CAPACITY_MESSAGE, code: "sandbox_capacity" };
+  }
+  const providerError = describeProviderError(raw);
+  if (providerError) return { message: providerError, code: "provider_error" };
+  const rawProviderError = describeRawProviderError(msg);
+  if (rawProviderError) return rawProviderError;
+  if (options.unknownText !== "hidden") return { message: sanitizeErrorText(msg) || "agent run failed", code: "runner_error" };
+  // Unknown text is not shown: it can carry paths, ids or credentials no rule anticipated. The
+  // reference joins the sentence to the log line holding the error, redacted and cut to 500
+  // characters (the log is not a place for credentials either).
+  const reference = randomBytes(4).toString("hex");
+  process.stderr.write(`[errors] unclassified run error reference=${reference}: ${sanitizeErrorText(raw).slice(0, 500)}\n`);
+  return { message: unclassifiedRunErrorMessage(reference), code: "internal_error" };
+}
+
+/**
+ * A router's report of the upstream provider's own error. OpenRouter writes
+ * "Upstream error from <Provider>: <the provider's message>"; the provider's message is often a
+ * refusal worded for the end user. "Provider returned error" is its wording when it has no text.
+ */
+const UPSTREAM_PROVIDER_ERROR = /upstream error from ([A-Za-z0-9][A-Za-z0-9 ._-]{0,40}?)\s*:\s*([^\n]+)/i;
+const PROVIDER_RETURNED_ERROR = /\bprovider returned error\b/i;
+/** A provider's content filter or moderation refusal, named in its own error. */
+const CONTENT_FILTER = /content[_ ]filter|content management policy|flagged by (?:the )?moderation|responsible ?ai polic/i;
+const PROVIDER_TEXT_MAX_CHARS = 300;
+
+/** The part of a failed turn the person can act on: the rest of the conversation is unaffected. */
+const PROVIDER_ERROR_ADVICE =
+  "You can keep going in this conversation. Sending the same request again will likely fail the same way: rephrase it or pick another model.";
+
+/** A provider's own words, redacted and cut, ending with a full stop. */
+function providerSentence(text: string): string | undefined {
+  const said = sanitizeErrorText(text.trim()).slice(0, PROVIDER_TEXT_MAX_CHARS).trim();
+  if (!said) return undefined;
+  return /[.!?]$/.test(said) ? said : `${said}.`;
+}
+
+/** The `message` of a provider's JSON error body (`{"error":{"message":...}}` or `{"message":...}`). */
+function providerBodyReason(body: string): string | undefined {
+  try {
+    const parsed = JSON.parse(body) as { error?: unknown; message?: unknown };
+    const error = parsed?.error;
+    const message =
+      error && typeof error === "object" ? (error as { message?: unknown }).message : (error ?? parsed?.message);
+    if (typeof message === "string") return message;
+  } catch {
+    // Not one JSON value (cut off, or followed by more text): read the first "message" string.
+  }
+  const quoted = /"message"\s*:\s*"((?:[^"\\]|\\.)*)"/.exec(body)?.[1];
+  if (quoted === undefined) return undefined;
+  try {
+    return JSON.parse(`"${quoted}"`) as string;
+  } catch {
+    return quoted;
+  }
+}
+
+/**
+ * A raw `NNN {json}` provider error as one sentence with the provider's own reason, redacted. A
+ * 4xx is a refusal of this request (`provider_error`); a 429 or a 5xx is the provider busy or
+ * failing, which a retry may fix.
+ */
+function describeRawProviderError(line: string): ClassifiedRunError | undefined {
+  const match = RAW_PROVIDER_ERROR.exec(line);
+  if (!match) return undefined;
+  const status = match[1]!;
+  const reason = providerBodyReason(line.slice(line.indexOf("{", match.index)));
+  const said = reason === undefined ? undefined : providerSentence(reason);
+  if (status === "429" || status.startsWith("5")) {
+    return {
+      message: `The model provider could not answer (HTTP ${status})${said ? `: ${said}` : "."} Try again in a moment.`,
+      code: "runner_error",
+    };
+  }
+  return {
+    message: `The model provider refused the request (HTTP ${status})${said ? `: ${said}` : "."} ${PROVIDER_ERROR_ADVICE}`,
+    code: "provider_error",
+  };
+}
+
+/** One readable sentence for a provider-side error, or undefined when `raw` is not one. */
+function describeProviderError(raw: string): string | undefined {
+  const upstream = UPSTREAM_PROVIDER_ERROR.exec(raw);
+  if (upstream) {
+    const provider = upstream[1]!.trim();
+    const said = providerSentence(upstream[2]!);
+    if (said) return `The model provider (${provider}) returned an error: ${said} ${PROVIDER_ERROR_ADVICE}`;
+    return `The model provider (${provider}) returned an error. ${PROVIDER_ERROR_ADVICE}`;
+  }
+  if (CONTENT_FILTER.test(raw)) {
+    return `The model provider's content filter blocked this request. ${PROVIDER_ERROR_ADVICE}`;
+  }
+  if (PROVIDER_RETURNED_ERROR.test(raw)) {
+    return `The model provider returned an error for this request. ${PROVIDER_ERROR_ADVICE}`;
+  }
+  return undefined;
+}
+
+/** The one sentence for an error no rule recognizes. */
+export function unclassifiedRunErrorMessage(reference: string): string {
+  return `The agent run failed (reference ${reference}). Send the message again; if it fails again, the reference points to the error in the agent service's log.`;
+}
+
+/**
+ * The public error contract: an error carrying `publicCode` has a message written for the person
+ * in the chat (a readable sentence, no internal ids or paths), and `classifyRunError` passes both
+ * through, redacted once more. Anything else is mapped to a known sentence by its class. What no
+ * rule recognizes is, for `inprocess`, one generic sentence with a reference (its text only in the
+ * log); for `local` and `daytona`, its redacted first line (`ConciseErrorOptions.unknownText`).
+ */
+export interface PublicError extends Error {
+  publicCode: RunErrorCode;
+}
+
+export function isPublicError(err: unknown): err is PublicError {
+  return err instanceof Error && typeof (err as Partial<PublicError>).publicCode === "string";
+}
+
+/** Give `err` a public code, keeping its (already readable) message. */
+export function withPublicCode<E extends Error>(err: E, code: RunErrorCode): E & PublicError {
+  return Object.assign(err, { publicCode: code });
+}
+
+/**
+ * The sandbox provider refused for capacity or quota (Daytona: "Total disk limit exceeded",
+ * "concurrency limit", "upgrade your organization's Tier"). Its text sells an upgrade and links a
+ * vendor dashboard; the person reads a plain sentence instead.
+ */
+export const SANDBOX_PROVIDER_CAPACITY =
+  /total (?:disk|cpu|memory) limit exceeded|(?:disk|cpu|memory|concurrency|sandbox) (?:quota|limit) (?:exceeded|reached)|upgrade your organization'?s tier/i;
+export const SANDBOX_CAPACITY_MESSAGE =
+  "The command sandbox could not be started because the sandbox provider is at its capacity limit. Try again in a few minutes.";
+
+/**
+ * Credentials redacted from a sentence, and nothing else: `Bearer`/`Basic` values and any other
+ * `Authorization` scheme's, the value of a field named like a key, token, secret, password or
+ * credential (quoted or not, singular or plural, except `tokens`, which names counts), JWTs and
+ * provider-key shapes (`sk-...`). Numbers, ids and paths stay: `max_tokens: 4096`, a sandbox id in
+ * a log line and a file name in an `ENOENT` are what a reader needs. Applied to the runner's own
+ * public sentences, to a provider's quoted reason, to an unclassified error's first line and to
+ * what the runner logs about it. The web applies the same rules (`turnStatus.ts`) to what reaches
+ * it from any source, such as a trace.
+ */
+export function sanitizeErrorText(text: string): string {
+  return text
+    .replace(/\b(Bearer|Basic)\s+[A-Za-z0-9._~+/=-]{6,}/gi, "$1 [secret]")
+    .replace(/\b(Token|Bot)\s+(?=[A-Za-z0-9._~+/=-]*\d)[A-Za-z0-9._~+/=-]{12,}/g, "$1 [secret]")
+    // Any other scheme in an Authorization header, quoted or not (`Authorization: Token abc...`,
+    // `{"Authorization": "Token abc..."}`).
+    .replace(/\b(Authorization['"]?\s*[=:]\s*['"]?)(?!(?:Bearer|Basic)\b)([A-Za-z]+)\s+(?!\[secret\])[A-Za-z0-9._~+/=-]{6,}/gi, "$1$2 [secret]")
+    // A credential's value, quoted (`password='a b'`, `"token": "x"`) or not (`key=x`), digits
+    // included. The name ends in the credential word, so `max_tokens` or `input_tokens` is not one.
+    .replace(/(['"]?)\b([A-Za-z0-9_-]*(?:keys?|token|secrets?|passwords?|passwd|credentials?))\1\s*[=:]\s*(['"`])(?:(?!\3)[^\\]|\\.)*\3/gi, "$2=[secret]")
+    .replace(/(['"]?)\b([A-Za-z0-9_-]*(?:keys?|token|secrets?|passwords?|passwd|credentials?))\1\s*[=:]\s*(?!\[secret\])['"`]?[^\s'"`,;)]+/gi, "$2=[secret]")
+    .replace(/\beyJ[A-Za-z0-9_-]{6,}\.[A-Za-z0-9._-]+/g, "[secret]")
+    .replace(/\b(?:sk|pk|rk)-[A-Za-z0-9_-]{8,}/g, "[secret]")
+    .trim();
 }
 
 /*
@@ -615,4 +834,10 @@ export function conciseError(
   options: ConciseErrorOptions = {},
 ): string {
   return classifyRunError(err, harness, provider, options).message;
+}
+
+/** The line a person reads when the runner ended a turn that would not finish on its own. */
+export function abandonedTurnMessage(reason: string, harness: string): string {
+  if (reason === RUNNER_SHUTDOWN_REASON) return RUNNER_RESTARTING_MESSAGE;
+  return classifyRunError(new Error(`${ABANDONED_TURN_MARKER}: ${reason}`), harness).message;
 }

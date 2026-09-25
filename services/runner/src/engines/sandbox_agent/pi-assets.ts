@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import {
+  chmodSync,
   copyFileSync,
   cpSync,
   existsSync,
@@ -402,8 +403,8 @@ export const PI_TOOL_SPECS_UNAVAILABLE_MESSAGE =
  *
  * A SIBLING of the relay dir, like the OTLP auth file, because `prepareWorkspace` clears and
  * recreates the relay dir itself on every turn. It is keyed on the conversation (the relay dir
- * is), non-secret, and rewritten in place per run, so it is left behind at teardown exactly as
- * the relay dir is.
+ * is) and rewritten per run. On the runner host it is owner-only and goes with the relay dir at
+ * teardown (`environment.ts`).
  */
 export function piToolSpecsFilePath(relayDir: string): string {
   return `${relayDir}.tool-specs.json`;
@@ -448,7 +449,9 @@ export function writePiToolSpecsFileLocal(
 ): void {
   try {
     mkdirSync(dirname(delivery.path), { recursive: true });
-    writeFileSync(delivery.path, delivery.contents, "utf-8");
+    writeFileSync(delivery.path, delivery.contents, { encoding: "utf-8", mode: 0o600 });
+    // `mode` applies only to a new file; one an older runner left behind keeps its own.
+    chmodSync(delivery.path, 0o600);
   } catch (err) {
     log(`pi tool specs write failed: ${(err as Error).message}`);
     throw new Error(PI_TOOL_SPECS_UNAVAILABLE_MESSAGE);
