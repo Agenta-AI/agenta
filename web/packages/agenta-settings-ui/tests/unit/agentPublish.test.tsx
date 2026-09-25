@@ -81,7 +81,6 @@ describe("AgentPublish", () => {
                     agentName="Agent"
                     projectId="project-1"
                     host="https://agenta.example"
-                    channelsEnabled
                     connections={connections}
                     actions={NOOP_ACTIONS}
                     renderPanel={renderPanel}

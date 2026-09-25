@@ -2,7 +2,6 @@ import {
     agentaChannelSurfaceEnabledAtom,
     agentAppsEnabledAtom,
     channelDebugEnabledAtom,
-    channelsEnabledAtom,
     classicModeEnabledAtom,
     inprocessSandboxEnabledAtom,
     playgroundInspectorEnabledAtom,
@@ -15,7 +14,6 @@ import {ThemePicker, type ThemePickerProps} from "./ThemePicker"
 /** One switch on the Preferences page. The key names the row, not its storage. */
 export type PreferenceKey =
     | "classic-mode"
-    | "channels"
     | "agent-apps"
     | "inprocess-sandbox"
     | "playground-inspector"
@@ -48,11 +46,6 @@ export const PREFERENCE_SECTIONS: PreferenceSection[] = [
                 key: "classic-mode",
                 title: "Developer Mode",
                 description: "Show Evaluation, Prompt Management, and Tracing in the navigation.",
-            },
-            {
-                key: "channels",
-                title: "Channels",
-                description: "Show Slack and Telegram channels on agent pages and in Settings.",
             },
             {
                 key: "agent-apps",
@@ -104,7 +97,6 @@ export type PreferenceBindings = Partial<Record<PreferenceKey, PreferenceBinding
  */
 export const usePreferenceBindings = (): Record<PreferenceKey, PreferenceBinding> => {
     const [classicMode, setClassicMode] = useAtom(classicModeEnabledAtom)
-    const [channels, setChannels] = useAtom(channelsEnabledAtom)
     const [agentApps, setAgentApps] = useAtom(agentAppsEnabledAtom)
     const [inprocessSandbox, setInprocessSandbox] = useAtom(inprocessSandboxEnabledAtom)
     const [inspector, setInspector] = useAtom(playgroundInspectorEnabledAtom)
@@ -113,7 +105,6 @@ export const usePreferenceBindings = (): Record<PreferenceKey, PreferenceBinding
 
     return {
         "classic-mode": {enabled: classicMode, onChange: setClassicMode},
-        channels: {enabled: channels, onChange: setChannels},
         "agent-apps": {enabled: agentApps, onChange: setAgentApps},
         "inprocess-sandbox": {enabled: inprocessSandbox, onChange: setInprocessSandbox},
         "playground-inspector": {enabled: inspector, onChange: setInspector},
