@@ -8,6 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from .errors import ToolConfigurationError
 from .models import (
+    AgentaToolsConfig,
     BuiltinToolConfig,
     ClientToolConfig,
     CodeToolConfig,
@@ -98,6 +99,7 @@ def coerce_tool_config(value: Any) -> ToolConfig:
             ClientToolConfig,
             ReferenceToolConfig,
             PlatformToolConfig,
+            AgentaToolsConfig,
         ),
     ):
         return value
@@ -135,6 +137,7 @@ def coerce_tool_config(value: Any) -> ToolConfig:
         "client",
         "reference",
         "platform",
+        "agenta_tools",
     }:
         return parse_tool_config(data)
 

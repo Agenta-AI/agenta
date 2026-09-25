@@ -21,12 +21,11 @@ def test_load_config_uses_real_template_when_present():
     assert template.agents_md != agent_config.DEFAULT_AGENTS_MD
 
 
-def test_the_shipped_template_carries_no_tool_entries():
-    """The on-disk `agent.json` is a second copy of the shipped default. An empty list is now
-    correct: built-in tools are activated by the runner on every Pi run, not granted by
-    config."""
-    assert agent_config.load_config().tools == []
-    assert agent_config.DEFAULT_TOOLS == []
+def test_the_shipped_template_carries_only_the_agenta_tools_entry():
+    """Built-in tools are activated by the runner on every Pi run, not granted by config. The
+    one default entry turns on the Agenta tools every new agent gets."""
+    assert agent_config.load_config().tools == [{"type": "agenta_tools", "tools": {"get_current_session": "allow", "rename_session": "allow"}}]
+    assert agent_config.DEFAULT_TOOLS == [{"type": "agenta_tools", "tools": {"get_current_session": "allow", "rename_session": "allow"}}]
 
 
 def _write_template(tmp_path, monkeypatch, meta: dict):
@@ -36,12 +35,12 @@ def _write_template(tmp_path, monkeypatch, meta: dict):
     monkeypatch.setenv("AGENTA_AGENT_TEMPLATE_DIR", str(tmp_path))
 
 
-def test_an_absent_or_empty_tools_key_both_yield_no_tools(monkeypatch, tmp_path):
+def test_an_absent_or_empty_tools_key_both_yield_the_default(monkeypatch, tmp_path):
     _write_template(tmp_path, monkeypatch, {"model": "gpt-5.6-luna"})
-    assert agent_config.load_config().tools == []
+    assert agent_config.load_config().tools == agent_config.DEFAULT_TOOLS
 
     _write_template(tmp_path, monkeypatch, {"model": "gpt-5.6-luna", "tools": []})
-    assert agent_config.load_config().tools == []
+    assert agent_config.load_config().tools == agent_config.DEFAULT_TOOLS
 
 
 def test_agent_json_tools_override_the_defaults(monkeypatch, tmp_path):

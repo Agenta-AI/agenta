@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any, List, Optional
 
 from agenta.sdk.agents.sandbox_providers import enabled_sandbox_providers
+from agenta.sdk.utils.types import build_agent_v0_default
 from agenta.sdk.utils.logging import get_module_logger
 
 log = get_module_logger(__name__)
@@ -22,10 +23,10 @@ _DEFAULT_AGENT_DIR = _SERVICES_DIR / "runner"
 
 # Fallback config used when the editable files are missing or a field is absent.
 # Kept in sync with the catalog template and the `/inspect` schema defaults
-# (schemas.py: _DEFAULT_MODEL / _DEFAULT_AGENTS_MD). No tool entries: built-in tools are
-# always active and are not configured here.
+# (schemas.py: _DEFAULT_MODEL / _DEFAULT_AGENTS_MD). Built-in tools are always active and
+# are not configured here; the one entry is the default Agenta tools.
 DEFAULT_MODEL = "gpt-5.6-luna"
-DEFAULT_TOOLS: List[Any] = []
+DEFAULT_TOOLS: List[Any] = build_agent_v0_default()["tools"]
 DEFAULT_AGENTS_MD = (
     "You are a friendly hello-world agent running on the Agenta agent service.\n\n"
     "- Greet the user warmly.\n"
