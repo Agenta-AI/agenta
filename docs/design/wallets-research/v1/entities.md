@@ -331,6 +331,7 @@ A credit is the credit-side record; it is not duplicated in `measurements`.
   "end_time": "2026-09-01T00:00:00Z",
   "data": {
     "references": {
+      "plan_change_idempotency_key": "plan_change:evt_...",
       "subscription": {"id": "sub_..."}
     }
   },
@@ -347,11 +348,16 @@ not silently rewrite this arrival row.
 provisions each organization's general `wallet_balances` row (`wallet_credit_id IS NULL`)
 idempotently; migration `ee0000000005_backfill_wallet_general_balances.py` backfills it for
 organizations that predate this change. A mid-period plan change prorates a `plan_allowance`
-credit: `ee.src.core.wallets.proration.compute_plan_change_proration` computes the outgoing
-remainder debit and the incoming share (pure, DB-free arithmetic), and
-`WalletsDAO.apply_plan_change` applies both — debiting the outgoing credit's balance and minting a
-NEW `wallet_credits` row for the incoming share, never mutating an existing row — idempotent on
-the subscription's `plan_change:{subscription_id}:{period_start}` key.
+credit. `WalletsDAO.apply_plan_change` does it in one transaction under the general-balance lock:
+it selects the outgoing allowance (the organization's newest `plan_allowance` credit, by uuid7 id,
+unless a plan change already clawed it back), claws back the unused share of that credit's own
+lifetime (`start_time` to `end_time`), and mints a NEW `wallet_credits` row for the incoming
+plan's share of the Stripe billing period, never mutating an existing row. The arithmetic is the
+pure `ee.src.core.wallets.proration` functions. The minted credit starts at the instant the change
+took effect, ends at the period end, and records `data.references.subscription.id` and
+`data.references.plan_change_idempotency_key`. The key is `plan_change:{stripe_event_id}` on the
+webhook path and `plan_change:{uuid7}` on the direct routes, which are serialized per organization
+by the subscription lock (open-designs item 22).
 
 `ee.src.core.wallets.plans` carries real, PRODUCT-DECIDED (2026-08-14) per-plan allowance and floor
 amounts — see `nodes/im-1-02-pipeline/acceptance.md` §"2b" for the table. Every floor is 0 at

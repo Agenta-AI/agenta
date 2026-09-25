@@ -25,7 +25,7 @@ The source register's status is not implementation proof or approval of commerci
 | 19 | Open | Model catalog and rate-card synchronization | models; configuration | Unpriced paid routes stay disabled; update rates with model catalog changes through validation. |
 | 20 | Open | Terminal messages and stream retention | hardening | Define inspectable failure handling, recovery and capacity assumptions; no unbounded blind retry or silent financial loss claim. |
 | 21 | Open | Expired value in general balance | hardening | Admission and spendable UI must exclude expired credit consistently; settlement filtering alone is insufficient. |
-| 22 | Open; webhook path fixed, direct routes and failed-adjustment recovery open | Identity of a plan transition | hardening; funding | Distinct genuine changes within one period need distinct identities; retries must retain the same identity. |
+| 22 | Decided 2026-09-25: subscription lock serializes changes (option 2); failed-adjustment recovery (option 3) deferred | Identity of a plan transition | hardening; funding | Distinct genuine changes within one period need distinct identities; retries must retain the same identity. |
 
 ## New direction from this conversation
 

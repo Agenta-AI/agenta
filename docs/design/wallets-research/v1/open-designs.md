@@ -78,7 +78,7 @@ its configuration interface belongs in the wallet-settlement schema decision abo
 | 19 | Open | How the rate card stays in step with the model catalogue. |
 | 20 | Open | Where a stream entry this pipeline cannot accept goes, and what the stream cap protects. |
 | 21 | Open | Whether expired credit value leaves the general balance, and what admission reads. |
-| 22 | Open | What identifies one plan change, so two in a billing period are not treated as one. |
+| 22 | Decided (option 2; option 3 deferred) | What identifies one plan change, so two in a billing period are not treated as one. |
 
 Items 2, 4, 7, and 14 are decided. The table is an index only; each numbered item below contains the
 context, examples, and consequences needed for its discussion.
@@ -1824,7 +1824,7 @@ _Unresolved._
 
 ## 22. What identifies one plan change
 
-**Status:** Open
+**Status:** Decided (2026-09-25): option 2; option 3 deferred
 
 ### Context
 
@@ -1927,4 +1927,43 @@ timetable, since a correct key still does nothing for a call that never ran.
 
 ### Decision
 
-_Unresolved._
+**Option 2, closing the race at the subscription.** With wallets enabled,
+`SubscriptionsService.process_event` runs under a per-organization subscription lock
+(`SubscriptionsDAO.lock`, a transaction-scoped Postgres advisory lock keyed on the organization),
+from reading the plan through applying the wallet side of the change. Two submissions of one switch
+can no longer both read the old plan: the second reads the new plan and is refused as a switch to
+the plan already in force, so it never reaches the wallet hook. A per-call key is therefore safe,
+and the direct routes now key on a fresh `plan_change:{uuid7}`. The webhook keeps
+`plan_change:{stripe_event_id}`. The same transition repeated in one period is a new change each
+time and moves money each time.
+
+Why this option. It fixes the race where it lives: the subscription row is read and written in
+separate sessions, and that is what let a double submission through. Option 1 would have changed a
+customer-facing endpoint contract and asked every client to mint and keep a key. The lock also
+closes a second race the key could never close: two different changes for one organization (a
+webhook and a direct call, or two webhooks) interleaving their wallet adjustments out of order.
+An advisory lock rather than `SELECT ... FOR UPDATE` on the row, because `read` and `update` open
+their own sessions and would wait on a row lock held by their own caller. The lock is taken only
+with the flag on, so a deployment with wallets disabled behaves exactly as before. The cost is
+that a plan switch holds one extra database connection for the length of its Stripe calls, which
+is acceptable for a rare, user-initiated action.
+
+The wallet side was fixed alongside it (review findings, same date). The outgoing allowance is
+no longer found by expiry, which is not an identity: after two changes in one period both
+allowance credits end at the same instant, and the lookup could claw a downgrade out of the older,
+already-clawed credit. `WalletsDAO.apply_plan_change` now selects the newest `plan_allowance`
+credit by uuid7 id, inside its own transaction after the general-balance lock, and skips it when a
+plan change already clawed it back (Pro to Hobby to Pro in one period must not claw the earned
+remainder twice). The clawback is the unused share of that credit's own lifetime, so the caller no
+longer reconstructs an outgoing window. The incoming allowance is prorated from the instant the
+change took effect (the Stripe event's `created`) over the subscription's real billing period
+(`current_period_start`/`current_period_end`), not over a midnight-aligned window derived from the
+anchor day at processing time. Minted allowance credits record `data.references.subscription.id`.
+
+**Option 3 is deferred.** A wallet adjustment that fails after the subscription change committed
+still has no durable record; it is logged at error level and not retried. Deferred because the
+failure needs a database error on the same core database the subscription update just used, the
+flag is off everywhere, and a pending table plus a drain job is a new subsystem for that case.
+Reopen when either comes first: the flag is turned on for paying customers, or the recurring
+period-start allowance is built (item 3), since that job needs the same "compare subscriptions with
+allowance credits and re-drive" pass and should own it.
