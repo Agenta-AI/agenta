@@ -93,12 +93,10 @@ if is_ee():
 
 log = get_module_logger(__name__)
 
-# measurements/debits are wallet (EE-only) streams — excluded from ALL_STREAMS in an
-# OSS build so the default (unset AGENTA_WORKER_STREAMS) selection never needs ee.*,
-# and excluded while the wallet is off so no debit is settled against a ledger that
-# is not finished.
+WALLET_STREAMS_ENABLED = is_ee() and env.wallets.enabled
+
 ALL_STREAMS = ("records", "events", "spans", "sessions") + (
-    ("measurements", "debits") if is_ee() and env.wallets.enabled else ()
+    ("measurements", "debits") if WALLET_STREAMS_ENABLED else ()
 )
 
 # Bound the stream so acked entries are trimmed; without this it grows unbounded.
@@ -289,7 +287,7 @@ async def main_async() -> int:
             "events": _build_events_worker,
             "sessions": _build_sessions_worker,
         }
-        if is_ee() and env.wallets.enabled:
+        if WALLET_STREAMS_ENABLED:
             builders["measurements"] = _build_measurements_worker
             builders["debits"] = _build_debits_worker
 

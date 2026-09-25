@@ -46,18 +46,10 @@ class WalletsService(WalletCheckPort, WalletSettlementPort):
         )
 
         if balance is None:
-            # An organization created while `AGENTA_WALLETS_ENABLED` was off has no
-            # general balance row and nothing else will ever give it one: the
-            # `ee0000000005` backfill ran once, at migration time. Provision it here, on
-            # the first admission read, rather than leaving admission to answer from a
-            # row that does not exist — open-designs item 14.
-            #
-            # This stays within the port's write-free contract in the sense that matters:
-            # `check` still writes no debit, reservation, hold or allocation. It writes a
-            # zero-balance projection row, idempotently, and then answers from it. That
-            # answer is a rejection for an organization with no credits, which is the
-            # correct reading of the wallet and the whole reason the missing row was a
-            # gap rather than a permission to spend.
+            # Some organizations have no row (created while the flag was off, or by a
+            # path that skips provisioning). Writing an empty projection row keeps the
+            # port's contract: no debit, reservation, hold or allocation. Open-designs
+            # item 14.
             await self.wallets_dao.provision_general_balance(
                 organization_id=organization_id,
                 floor_musd=LAZY_PROVISION_FLOOR_MUSD,
@@ -106,8 +98,7 @@ class WalletsService(WalletCheckPort, WalletSettlementPort):
         """Claw back the outgoing allowance's unused share, mint the incoming plan's
         prorated share, and update the general balance's floor — all as one atomic
         transaction in the DAO, replay-safe on `idempotency_key`. Never mutates an
-        existing `wallet_credits` row; never issues the recurring full-period allowance
-        (that is a later wave's job).
+        existing `wallet_credits` row; never issues the recurring full-period allowance.
 
         `now` is when the change took effect, and `period_start`/`period_end` are the
         billing period the incoming allowance covers, as the billing provider reports

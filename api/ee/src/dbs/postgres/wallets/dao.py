@@ -49,6 +49,56 @@ from ee.src.dbs.postgres.wallets.mappings import (
 log = get_module_logger(__name__)
 
 
+def _general_balance_filter(organization_id: UUID):
+    return (
+        WalletBalanceDBE.organization_id == organization_id,
+        WalletBalanceDBE.wallet_credit_id.is_(None),
+    )
+
+
+async def _mint_credit(
+    session,
+    *,
+    organization_id: UUID,
+    credit_kind: str,
+    amount_musd: int,
+    priority: int,
+    start_time: Optional[datetime],
+    end_time: Optional[datetime],
+    data: dict,
+    created_at=None,
+) -> WalletCreditDBE:
+    """Add a credit and its balance row, funded with the full amount."""
+    credit = WalletCreditDBE(
+        id=uuid_utils.uuid7(),
+        organization_id=organization_id,
+        credit_kind=credit_kind,
+        amount_musd=amount_musd,
+        priority=priority,
+        start_time=start_time,
+        end_time=end_time,
+        data=data,
+    )
+    if created_at is not None:
+        credit.created_at = created_at
+    session.add(credit)
+    # `wallet_balances.wallet_credit_id` is a table-level FK with no ORM relationship
+    # behind it, so the unit of work has nothing to order these two INSERTs by. Flush the
+    # credit first or Postgres rejects the balance row.
+    await session.flush()
+
+    session.add(
+        WalletBalanceDBE(
+            id=uuid_utils.uuid7(),
+            organization_id=organization_id,
+            wallet_credit_id=credit.id,
+            balance_musd=amount_musd,
+            floor_musd=None,
+        )
+    )
+    return credit
+
+
 def _general_balance_insert(*, organization_id: UUID, floor_musd: int):
     """The one definition of "insert this organization's general balance row if it does
     not exist". ON CONFLICT targets the exact partial unique index — that index, not any
@@ -86,26 +136,15 @@ class WalletsDAO(WalletsDAOInterface):
         absent. Every write path below opens with this call, so each of them serializes
         on the same row for the same organization.
 
-        Lazy provisioning is what closes the `AGENTA_WALLETS_ENABLED` gap recorded as
-        item 14 of `docs/design/wallets-research/v1/open-designs.md`: an organization
-        created while the flag was off was skipped by `provision_signup_subscription`,
-        and the `ee0000000005` backfill has already run and will not run again, so
-        nothing else would ever give it a row. Provisioning here needs no plan lookup —
-        `LAZY_PROVISION_FLOOR_MUSD` is every known plan's floor today, and a plan change
-        rewrites the floor anyway.
-
-        The insert is idempotent (partial unique index) and rides this transaction, so a
-        rolled-back settlement leaves no row behind and the next delivery provisions
-        again. `WalletGeneralBalanceNotFoundError` is therefore no longer a routine
-        outcome; it survives as a defensive invariant for the case where the row is
-        neither present nor insertable.
+        Some organizations have no row: created while the flag was off, or by a path
+        that skips provisioning (open-designs item 14). No plan lookup is needed:
+        `LAZY_PROVISION_FLOOR_MUSD` is every plan's floor, and a plan change rewrites it.
+        The insert is idempotent (partial unique index) and rides this transaction, so
+        a rolled-back settlement leaves no row behind.
         """
         general_stmt = (
             select(WalletBalanceDBE)
-            .where(
-                WalletBalanceDBE.organization_id == organization_id,
-                WalletBalanceDBE.wallet_credit_id.is_(None),
-            )
+            .where(*_general_balance_filter(organization_id))
             .with_for_update()
         )
 
@@ -144,8 +183,7 @@ class WalletsDAO(WalletsDAOInterface):
     ) -> Optional[WalletBalanceDTO]:
         async with self.engine.session() as session:
             stmt = select(WalletBalanceDBE).where(
-                WalletBalanceDBE.organization_id == organization_id,
-                WalletBalanceDBE.wallet_credit_id.is_(None),
+                *_general_balance_filter(organization_id)
             )
             result = await session.execute(stmt)
             balance = result.scalar_one_or_none()
@@ -179,10 +217,7 @@ class WalletsDAO(WalletsDAOInterface):
         stmt = select(
             WalletBalanceDBE.balance_musd - expired_remaining,
             WalletBalanceDBE.floor_musd,
-        ).where(
-            WalletBalanceDBE.organization_id == organization_id,
-            WalletBalanceDBE.wallet_credit_id.is_(None),
-        )
+        ).where(*_general_balance_filter(organization_id))
 
         async with self.engine.session() as session:
             row = (await session.execute(stmt)).one_or_none()
@@ -312,8 +347,7 @@ class WalletsDAO(WalletsDAOInterface):
             # Read back rather than returning what was inserted: on the conflict path
             # nothing was inserted, and the caller wants the row that actually exists.
             stmt = select(WalletBalanceDBE).where(
-                WalletBalanceDBE.organization_id == organization_id,
-                WalletBalanceDBE.wallet_credit_id.is_(None),
+                *_general_balance_filter(organization_id)
             )
             balance = (await session.execute(stmt)).scalar_one_or_none()
 
@@ -488,44 +522,30 @@ class WalletsDAO(WalletsDAOInterface):
                     outgoing_balance.balance_musd -= applied_outgoing_amount
 
             incoming_credit = None
-            applied_incoming_amount = 0
             if incoming_credit_amount_musd > 0:
-                applied_incoming_amount = incoming_credit_amount_musd
-                incoming_credit = WalletCreditDBE(
-                    id=uuid_utils.uuid7(),
+                incoming_credit = await _mint_credit(
+                    session,
                     organization_id=organization_id,
                     credit_kind=PLAN_ALLOWANCE_CREDIT_KIND,
-                    amount_musd=applied_incoming_amount,
+                    amount_musd=incoming_credit_amount_musd,
                     priority=PLAN_ALLOWANCE_PRIORITY,
                     start_time=now,
                     end_time=incoming_end_time,
-                    # Orders allowance credits for step 3; see there.
-                    created_at=func.clock_timestamp(),
                     data={
                         "references": {
                             "plan_change_idempotency_key": idempotency_key,
                             "subscription": {"id": subscription_id},
                         }
                     },
+                    # Orders allowance credits for step 3; see there.
+                    created_at=func.clock_timestamp(),
                 )
-                session.add(incoming_credit)
-                # `wallet_balances.wallet_credit_id` is a table-level FK with no ORM
-                # relationship behind it, so the unit of work has nothing to order these
-                # two INSERTs by. Flush the credit first or Postgres rejects the balance
-                # row on `wallet_balances_wallet_credit_id_fkey`.
-                await session.flush()
-
-                incoming_balance = WalletBalanceDBE(
-                    id=uuid_utils.uuid7(),
-                    organization_id=organization_id,
-                    wallet_credit_id=incoming_credit.id,
-                    balance_musd=applied_incoming_amount,
-                    floor_musd=None,
-                )
-                session.add(incoming_balance)
 
             # 4. General balance: net of what actually moved, plus the incoming plan's
             #    floor — always applied, even when this change moved zero value.
+            applied_incoming_amount = (
+                incoming_credit.amount_musd if incoming_credit else 0
+            )
             general.balance_musd += applied_incoming_amount - applied_outgoing_amount
             general.floor_musd = floor_musd
 
@@ -579,8 +599,8 @@ class WalletsDAO(WalletsDAOInterface):
 
             # 3. First delivery: mint the credit and its balance row, and fund the
             #    general balance projection by the full amount.
-            credit = WalletCreditDBE(
-                id=uuid_utils.uuid7(),
+            credit = await _mint_credit(
+                session,
                 organization_id=organization_id,
                 credit_kind=credit_kind,
                 amount_musd=amount_musd,
@@ -588,21 +608,6 @@ class WalletsDAO(WalletsDAOInterface):
                 start_time=now,
                 end_time=end_time,
                 data={"references": {"award_idempotency_key": idempotency_key}},
-            )
-            session.add(credit)
-            # Same FK-ordering constraint as `apply_plan_change`: no ORM relationship
-            # ties `wallet_balances.wallet_credit_id` to `wallet_credits.id`, so the
-            # credit INSERT has to be flushed before the balance row can reference it.
-            await session.flush()
-
-            session.add(
-                WalletBalanceDBE(
-                    id=uuid_utils.uuid7(),
-                    organization_id=organization_id,
-                    wallet_credit_id=credit.id,
-                    balance_musd=amount_musd,
-                    floor_musd=None,
-                )
             )
             general.balance_musd += amount_musd
 

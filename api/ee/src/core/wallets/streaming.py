@@ -1,17 +1,12 @@
-"""Compressed-JSON `data` serializers for the two wallet streams, matching the shape used by
-`oss/src/core/events/streaming.py`, and the publisher contracts. The Redis publishers live in
+"""Compressed-JSON `data` serializers for the two wallet streams, and the publisher
+contracts. The Redis publishers live in
 `ee/src/dbs/redis/wallets/streams.py`.
 """
 
 import zlib
-from typing import Any, Protocol
+from typing import Protocol
 
 from orjson import dumps, loads
-
-try:
-    from asyncpg.pgproto.pgproto import UUID as AsyncpgUUID
-except ImportError:
-    AsyncpgUUID = None
 
 from ee.src.core.wallets.contracts import (
     CONTRACT_VERSION,
@@ -21,14 +16,8 @@ from ee.src.core.wallets.contracts import (
 from ee.src.core.wallets.errors import MalformedEnvelopeError, UnsupportedVersionError
 
 
-def _orjson_default(obj: Any):
-    if AsyncpgUUID is not None and isinstance(obj, AsyncpgUUID):
-        return str(obj)
-    raise TypeError(f"Type is not JSON serializable: {type(obj)}")
-
-
 def _serialize(command) -> bytes:
-    payload = dumps(command.model_dump(mode="json"), default=_orjson_default)
+    payload = dumps(command.model_dump(mode="json"))
     return zlib.compress(payload)
 
 
@@ -52,8 +41,6 @@ def _deserialize(payload: bytes, model):
 
     try:
         return model.model_validate(raw)
-    except MalformedEnvelopeError:
-        raise
     except Exception as e:
         raise MalformedEnvelopeError(f"Envelope failed validation: {e}") from e
 

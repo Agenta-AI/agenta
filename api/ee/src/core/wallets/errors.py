@@ -7,14 +7,7 @@ the stream entry pending for normal consumer-group redelivery).
 
 
 class WalletError(Exception):
-    """Base class for all wallet-domain errors, stream-level and core alike.
-
-    Exactly one class carries this name, and every wallet-domain exception inherits from
-    it, directly or through the terminal/retryable split below. A second base of the same
-    name elsewhere in the package would make `except WalletError` catch only half the
-    taxonomy, and the half it missed would be the core errors that mean a charge did not
-    settle.
-    """
+    """Base class for all wallet-domain errors, stream-level and core alike."""
 
 
 class WalletTerminalError(WalletError):
@@ -31,9 +24,9 @@ class UnsupportedVersionError(WalletTerminalError):
     """Terminal: the envelope's `version` is not one this worker understands. There is no
     way to safely price or settle an envelope shape the worker cannot interpret."""
 
-    def __init__(self, *, version, message: str = None):
+    def __init__(self, *, version):
         self.version = version
-        super().__init__(message or f"Unsupported envelope version: {version!r}")
+        super().__init__(f"Unsupported envelope version: {version!r}")
 
 
 class WalletRetryableError(WalletError):

@@ -18,9 +18,3 @@ class PersistedMeasurement(BaseModel):
     # False when `measurement_id` already existed with identical content (a
     # replayed/redelivered message); nothing was written.
     created: bool
-
-
-class PersistedMeasurementValue(BaseModel):
-    key: str
-    value: int
-    cost_musd: int | None = None

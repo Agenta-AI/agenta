@@ -21,13 +21,9 @@ DEFICIT_SOURCE = "deficit"
 
 class WalletGeneralBalanceNotFoundError(WalletError):
     """The organization has no general (`wallet_credit_id IS NULL`) balance row, and one
-    could not be provisioned on the spot.
-
-    Every wallet write path now provisions the row lazily before locking it, so this is a
-    defensive invariant rather than a routine outcome: reaching it means the row is
-    neither present nor insertable. It is terminal for a stream consumer — redelivering
-    the same posting cannot make an uninsertable row appear — so `DebitWorker` logs and
-    ACKs instead of leaving the message pending forever."""
+    could not be provisioned on the spot. Every write path provisions the row before
+    locking it, so this is a broken invariant; `DebitWorker` dead-letters it, since
+    redelivery cannot make an uninsertable row appear."""
 
     def __init__(self, organization_id: UUID):
         self.organization_id = organization_id
@@ -160,12 +156,7 @@ class CreditCandidateDTO(BaseModel):
 # kind funds only resource keys starting with that prefix.
 # ---------------------------------------------------------------------------
 
-# Eight inbound kinds delivered here (mechanics.md §4 is the naming source). Each answers
-# "where did this value come from" from the row alone — no more catch-all "award".
-# Deliberately NOT included yet (mechanics.md §4 names these too; add them as their own
-# rows here when their code paths land, never re-use one of the eight above for them):
-#   auto_recharge, charge_refund, chargeback_reversal, opening_balance,
-#   partner_allocation
+# Named in mechanics.md §4. Add a new kind as its own row rather than reusing one of these.
 GENERAL_CREDIT_KINDS = frozenset(
     {
         "signup_grant",
@@ -182,16 +173,8 @@ RESTRICTED_CREDIT_KIND_PREFIX = "restricted:"
 
 
 def is_wellformed_credit_kind(credit_kind: str) -> bool:
-    """Whether `credit_kind` names something this module can act on: a general kind, or a
-    restricted kind carrying an actual prefix after `restricted:`.
-
-    A restricted kind with nothing after the colon is malformed, not universal. It is
-    called out separately because the naive reading runs the wrong way: every string
-    starts with the empty string, so an empty allowed prefix would make the one credit
-    kind whose entire job is to narrow what may be funded match every resource key
-    instead of none. Whitespace after the colon is left alone — `" llm:"` is a prefix that
-    happens to match nothing real, which is already the closed answer.
-    """
+    """A general kind, or a restricted kind with a non-empty prefix after `restricted:`.
+    An empty prefix is malformed, not universal: every string starts with ""."""
     if credit_kind in GENERAL_CREDIT_KINDS:
         return True
 
@@ -202,19 +185,14 @@ def is_wellformed_credit_kind(credit_kind: str) -> bool:
 
 
 def is_resource_eligible(*, credit_kind: str, resource_key: str) -> bool:
+    # Fail closed: an unconfigured or malformed kind funds nothing.
+    if not is_wellformed_credit_kind(credit_kind):
+        return False
+
     if credit_kind in GENERAL_CREDIT_KINDS:
         return True
 
-    if credit_kind.startswith(RESTRICTED_CREDIT_KIND_PREFIX):
-        allowed_prefix = credit_kind[len(RESTRICTED_CREDIT_KIND_PREFIX) :]
-        if allowed_prefix == "":
-            # Fail closed: a restricted kind with an empty prefix funds nothing. Without
-            # this, `"".startswith` is vacuously true and the credit funds everything.
-            return False
-        return resource_key.startswith(allowed_prefix)
-
-    # Unconfigured credit_kind: fail closed rather than silently fund a posting.
-    return False
+    return resource_key.startswith(credit_kind[len(RESTRICTED_CREDIT_KIND_PREFIX) :])
 
 
 def compose_debit_key(*, idempotency_key: str, source: str) -> str:
@@ -290,8 +268,6 @@ def plan_settlement(
             continue
 
         funded = min(remaining, candidate.balance_musd)
-        if funded <= 0:
-            continue
 
         debit_writes.append(
             DebitWriteDTO(

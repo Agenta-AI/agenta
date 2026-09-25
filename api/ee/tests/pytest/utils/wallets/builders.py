@@ -17,7 +17,6 @@ from ee.src.core.wallets.contracts import (
 from ee.src.core.wallets.types import (
     CreditCandidateDTO,
     WalletBalanceDTO,
-    WalletCreditDTO,
 )
 
 DEFAULT_CREATED_AT = datetime(2026, 8, 13, 16, 13, 4, tzinfo=timezone.utc)
@@ -104,22 +103,6 @@ def build_credit_candidate(**overrides) -> CreditCandidateDTO:
     )
     defaults.update(overrides)
     return CreditCandidateDTO(**defaults)
-
-
-def build_wallet_credit_dto(**overrides) -> WalletCreditDTO:
-    defaults = dict(
-        id=uuid4(),
-        organization_id=DEFAULT_ORGANIZATION_ID,
-        credit_kind="plan_allowance",
-        amount_musd=500_000,
-        priority=10,
-        start_time=DEFAULT_START_TIME,
-        end_time=None,
-        data={},
-        created_at=DEFAULT_CREATED_AT,
-    )
-    defaults.update(overrides)
-    return WalletCreditDTO(**defaults)
 
 
 def build_general_wallet_balance(**overrides) -> WalletBalanceDTO:

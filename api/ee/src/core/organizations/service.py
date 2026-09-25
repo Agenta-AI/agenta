@@ -996,15 +996,8 @@ async def _provision_wallet_general_balance(
     organization_id: UUID,
     plan: str,
 ) -> None:
-    """Idempotent — the partial unique index `uq_wallet_balances_org_general` is the
-    actual guard against a duplicate row, so calling this twice (retry, concurrent
-    creation) is safe. Runs AFTER the organization-creation transaction (and the
-    subscription-provisioning call above it) have already committed, in its own
-    transaction — matching how subscription provisioning itself already runs post-hoc
-    rather than inside `create_organization`'s transaction. A wallet-provisioning failure
-    must not roll back an organization/subscription that already exist; it is safe to
-    retry alone later precisely because it is idempotent.
-    """
+    """Idempotent. Runs after the organization and subscription have committed, in its
+    own transaction, so a failure here leaves them in place and can be retried alone."""
     try:
         await _get_wallets_service().provision_general_balance(
             organization_id=organization_id,
@@ -1020,17 +1013,8 @@ async def _provision_wallet_general_balance(
 
 
 async def _award_signup_grant(*, organization_id: UUID) -> None:
-    """Idempotent — `WalletsDAOInterface.award_credit`'s replay guard (keyed on the
-    minted credit's `data.references.award_idempotency_key`) is the actual guard against
-    a duplicate award, so calling this twice (retry, concurrent creation) is safe. Runs
-    AFTER `_provision_wallet_general_balance` so the general balance row it funds already
-    exists — a credit with no balance row to project into is a bug. Signup-path only
-    (report.md §9.2: never on explicit organization creation, or the grant is farmable) —
-    this helper is called from `provision_signup_subscription` only, never from
-    `provision_user_subscription`. A grant failure must not roll back an
-    organization/subscription/balance row that already exist; it is safe to retry alone
-    later precisely because it is idempotent.
-    """
+    """Idempotent. Signup path only: on explicit organization creation the grant would
+    be farmable (report.md §9.2)."""
     try:
         await _get_wallets_service().award(
             organization_id=organization_id,

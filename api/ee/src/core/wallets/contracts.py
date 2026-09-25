@@ -1,4 +1,4 @@
-"""Wave 1 wallet stream contracts: version-one Pydantic envelopes for the two dedicated
+"""Wallet stream contracts: version-one Pydantic envelopes for the two dedicated
 Redis streams described in `docs/design/wallets-research/v1/entities.md` §"Gateway stream
 contracts". These are wire DTOs only — no DB, no Redis, no HTTP.
 """
@@ -10,7 +10,6 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator
 
-# Stream names — the only two producers/consumers this package seeds.
 STREAM_MEASUREMENTS = "streams:measurements"
 STREAM_DEBITS = "streams:debits"
 

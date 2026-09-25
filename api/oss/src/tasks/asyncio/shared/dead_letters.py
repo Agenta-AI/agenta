@@ -13,6 +13,7 @@ import asyncio
 from typing import Dict, List, Optional, Tuple
 
 from redis.asyncio import Redis
+from oss.src.dbs.redis.shared.engine import get_streams_engine
 
 from oss.src.tasks.asyncio.shared.consumer import (
     DEAD_LETTER_DESCRIPTION,
@@ -86,14 +87,13 @@ async def _move_back(
 
 
 async def _main(argv: List[str]) -> int:
-    from oss.src.utils.env import env
-
     if len(argv) < 2 or argv[0] not in {"list", "replay"}:
         print(__doc__)
         return 2
     command, stream, ids = argv[0], argv[1], argv[2:]
 
-    redis = Redis.from_url(env.redis.uri_durable, decode_responses=False)
+    engine = get_streams_engine()
+    redis = engine.get_redis()
     try:
         if command == "list":
             dead_stream = dead_letter_stream_of(stream)
@@ -110,7 +110,7 @@ async def _main(argv: List[str]) -> int:
             moved = await replay_dead_letters(redis, stream=stream, ids=ids or None)
             print(f"replayed {moved} dead letters onto {stream}")
     finally:
-        await redis.close()
+        await engine.close()
     return 0
 
 
