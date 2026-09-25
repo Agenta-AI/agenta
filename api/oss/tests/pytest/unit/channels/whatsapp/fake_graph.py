@@ -215,6 +215,18 @@ class FakeGraph:
             self.typing.append({"phone_number_id": phone_number_id, **body})
             return JSONResponse({"success": True})
 
+        queue = self._failures.get(phone_number_id) or self._failures.get(None)
+        if queue:
+            failure = queue.pop(0)
+            code = failure["code"]
+            return self._error(
+                code,
+                failure["message"] or f"fake failure {code}",
+                _ERROR_STATUS.get(code, 400),
+                subcode=failure["subcode"],
+                details=failure["details"],
+            )
+
         if body.get("to") == "0":
             # Not a WhatsApp number: Meta refuses the recipient, sends nothing.
             return self._error(
@@ -230,18 +242,6 @@ class FakeGraph:
             "document",
         ):
             return self._error(100, "Invalid parameter")
-
-        queue = self._failures.get(phone_number_id) or self._failures.get(None)
-        if queue:
-            failure = queue.pop(0)
-            code = failure["code"]
-            return self._error(
-                code,
-                failure["message"] or f"fake failure {code}",
-                _ERROR_STATUS.get(code, 400),
-                subcode=failure["subcode"],
-                details=failure["details"],
-            )
 
         self._next_id += 1
         message_id = f"wamid.out.{self._next_id}"

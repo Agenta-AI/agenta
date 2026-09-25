@@ -41,6 +41,12 @@ _TOKEN_INVALID = 190
 # throughput upgrade, which takes up to a minute).
 _TRY_LATER = {4, 80007, 130429, 131048, _PAIR_RATE_LIMIT, 131057}
 
+# Meta's answers to the connect probe's recipient "0" once authorization has
+# passed: invalid parameter (131009, seen live), not in the test number's
+# allowed list (131030), undeliverable (131026). Only these prove the token
+# may send; anything else blocks the connect.
+_RECIPIENT_REFUSED = {131009, 131030, 131026}
+
 _PAIR_LIMIT_RETRIES = 2
 _MEDIA_TIMEOUT_SECONDS = 30.0
 
@@ -148,9 +154,9 @@ class WhatsAppAdapter(ChannelAdapterInterface):
         """Reading the number is not enough: a token whose system user has no
         WhatsApp account assigned reads it fine and fails every send. So probe
         a send to "0", which is no WhatsApp number and cannot be delivered.
-        Meta checks authorization first: "Authorization Error" (or a
-        permission code) means the token cannot send; a complaint about the
-        recipient means it can."""
+        Meta checks authorization first: a complaint about the recipient means
+        the token can send; "Authorization Error" (or a permission code)
+        means it cannot; any other answer is inconclusive and blocks."""
 
         try:
             await self._call(
@@ -169,9 +175,25 @@ class WhatsAppAdapter(ChannelAdapterInterface):
                 channel=self.channel,
                 message=f"Meta refused the token for this phone number: {e}",
             ) from e
+        except httpx.HTTPError as e:
+            raise ChannelConnectionVerificationFailed(
+                channel=self.channel,
+                message=(
+                    "Could not confirm with Meta that this token can send from "
+                    f"this number. Try again. ({type(e).__name__})"
+                ),
+            ) from e
         except _GraphApiError as e:
-            if not e.denied:
+            if e.code in _RECIPIENT_REFUSED:
                 return  # the recipient was refused, after authorization passed
+            if not e.denied:
+                raise ChannelConnectionVerificationFailed(
+                    channel=self.channel,
+                    message=(
+                        "Could not confirm with Meta that this token can send "
+                        f"from this number. Try again. ({e})"
+                    ),
+                ) from e
             raise ChannelConnectionVerificationFailed(
                 channel=self.channel,
                 message=(

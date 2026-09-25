@@ -104,6 +104,42 @@ async def test_a_token_that_can_read_but_not_send_is_refused_with_the_fix(
     assert graph.sent == []  # the probe delivered nothing
 
 
+@pytest.mark.parametrize("code", [2, 131000])  # Meta down; an unknown refusal
+async def test_an_unexpected_send_probe_answer_blocks_the_connect(adapter, graph, code):
+    """Only a refusal of the recipient proves the token may send."""
+
+    graph.fail_next(code)
+    with pytest.raises(ChannelConnectionVerificationFailed) as caught:
+        await adapter.verify_connection(
+            connection=ChannelConnectionCreate(
+                channel="whatsapp", data={"phone_number_id": p.PHONE_NUMBER_ID}
+            ),
+            credentials={"access_token": p.ACCESS_TOKEN, "app_secret": p.APP_SECRET},
+        )
+    assert "Try again" in caught.value.message
+
+
+async def test_a_network_error_on_the_send_probe_blocks_with_a_retry_hint(graph):
+    async def handler(request: httpx.Request) -> httpx.Response:
+        if request.method == "POST":
+            raise httpx.ConnectError("connection refused")
+        return await httpx.ASGITransport(app=graph.app).handle_async_request(request)
+
+    adapter = WhatsAppAdapter(
+        http_client=httpx.AsyncClient(
+            transport=httpx.MockTransport(handler), base_url=GRAPH
+        )
+    )
+    with pytest.raises(ChannelConnectionVerificationFailed) as caught:
+        await adapter.verify_connection(
+            connection=ChannelConnectionCreate(
+                channel="whatsapp", data={"phone_number_id": p.PHONE_NUMBER_ID}
+            ),
+            credentials={"access_token": p.ACCESS_TOKEN, "app_secret": p.APP_SECRET},
+        )
+    assert "Try again" in caught.value.message
+
+
 async def test_the_send_probe_delivers_nothing(adapter, graph):
     await adapter.verify_connection(
         connection=ChannelConnectionCreate(
