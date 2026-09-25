@@ -2187,7 +2187,8 @@ class ChannelsDAO(ChannelsDAOInterface):
 
 
 def _not_a_copy_of_a_bot_post():
-    """A fetched history page can hold a copy of the bot's own post, which
+    """Rows that are a person's message in the conversation. A fetched history
+    page can hold a copy of the bot's own post, which
     the outbox already serves. Read and search leave it out in the query, not
     after paging, so a dropped copy never moves a page boundary. Pushed rows
     never hold the bot's posts: ingress drops bot-authored events."""
@@ -2205,7 +2206,10 @@ def _not_a_copy_of_a_bot_post():
         )
         .exists()
     )
-    return (table.origin == ChannelEventOrigin.PUSHED) | ~posted_by_bot
+    consumed = func.coalesce(table.flags["is_consumed"].as_boolean(), false())
+    # an answer an approval consumed went to the parked interaction, not to
+    # the conversation
+    return ((table.origin == ChannelEventOrigin.PUSHED) | ~posted_by_bot) & ~consumed
 
 
 def _before(time_column, id_column, before: Tuple[datetime, Optional[UUID]]):

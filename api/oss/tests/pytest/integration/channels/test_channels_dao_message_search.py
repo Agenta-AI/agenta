@@ -190,3 +190,22 @@ async def test_search_leaves_out_fetched_copies_of_the_bots_posts(channels_scope
     )
 
     assert _texts(rows) == ["person said launch"]
+
+
+async def test_search_leaves_out_answers_consumed_by_an_approval(channels_scope):
+    dao = ChannelsDAO(engine=channels_scope["engine"])
+    space = uuid.uuid4()
+    kept = await _message(dao, channels_scope, space, "approve the budget please")
+    consumed = await _message(dao, channels_scope, space, "approve")
+    await dao.mark_inbox_event_consumed(
+        project_id=channels_scope["project_id"], event_id=consumed.id
+    )
+
+    rows = await dao.search_space_inbox_messages(
+        project_id=channels_scope["project_id"],
+        space_ids=[space],
+        query="approve",
+        limit=10,
+    )
+
+    assert [r.id for r in rows] == [kept.id]

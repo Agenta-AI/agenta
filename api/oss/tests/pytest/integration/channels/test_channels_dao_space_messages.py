@@ -296,3 +296,21 @@ async def test_a_running_turns_indicator_is_not_a_message(channels_scope):
     )
 
     assert [row.data.external_locator["ts"] for row, _ in rows] == ["201.1"]
+
+
+async def test_an_answer_consumed_by_an_approval_is_not_a_message(channels_scope):
+    """A typed 'Approve' went to the parked interaction, not the conversation;
+    reading the channel must not show it."""
+    dao = ChannelsDAO(engine=channels_scope["engine"])
+    space = await _space(dao, channels_scope)
+    said = await _inbox(dao, channels_scope, space, "said", minutes=1)
+    approve = await _inbox(dao, channels_scope, space, "Approve", minutes=2)
+    await dao.mark_inbox_event_consumed(
+        project_id=channels_scope["project_id"], event_id=approve.id
+    )
+
+    rows = await dao.query_space_inbox_messages(
+        project_id=channels_scope["project_id"], space_id=space.id, limit=10
+    )
+
+    assert [r.id for r in rows] == [said.id]

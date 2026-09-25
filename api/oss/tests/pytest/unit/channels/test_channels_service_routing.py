@@ -2386,6 +2386,7 @@ class TestTelegramGroupsAreMentionOnly:
 
         assert first is not None
         assert second is not None
+
     async def test_candidates_carry_their_space_key_for_the_readable_list(self):
         """The Advanced section's readable-channels list stores space keys, and
         a member channel with no space row yet still needs one to be picked."""
