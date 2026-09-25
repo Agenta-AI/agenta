@@ -5,7 +5,12 @@ import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
 vi.mock("@agenta/ui/ui", () => ({
-    Alert: ({message}: {message: string}) => <div role="alert">{message}</div>,
+    Alert: ({message, description}: {message: string; description?: React.ReactNode}) => (
+        <div role="alert">
+            {message}
+            {description}
+        </div>
+    ),
     Button: ({children, onClick, disabled, asChild, ...props}: any) =>
         asChild ? (
             children
@@ -180,6 +185,28 @@ describe("WhatsApp connect flow", () => {
 
         await click("Done")
         expect(onConnected).toHaveBeenCalledTimes(1)
+    })
+
+    it("shows why Meta refused, in view, and keeps the form", async () => {
+        const scrolled = vi.fn()
+        Element.prototype.scrollIntoView = scrolled
+        const refusal =
+            "This token can't send messages from this number. In Meta Business Settings → " +
+            "System users → <user>, assign the WhatsApp account with Full control."
+        const {onConnected} = await renderFlow({
+            connectCustom: vi.fn().mockRejectedValue(new Error(refusal)),
+        })
+        await type("channels-field-phone_number_id", "1234567890")
+        await type("channels-field-access_token", "EAAG-token")
+        await type("channels-field-app_secret", "app-secret")
+        await click("Connect to WhatsApp")
+
+        const alert = container.querySelector('[role="alert"]')
+        expect(alert?.textContent).toContain(refusal)
+        // The form is long: the error sits above it, so it is scrolled into view.
+        expect(scrolled).toHaveBeenCalled()
+        expect(byTestId("channels-field-access_token")).toBeTruthy()
+        expect(onConnected).not.toHaveBeenCalled()
     })
 })
 

@@ -132,6 +132,8 @@ class WhatsAppAdapter(ChannelAdapterInterface):
                 message=f"Meta refused the token for this phone number: {e}",
             ) from e
 
+        await self._check_can_send(token=token, phone_number_id=phone_number_id)
+
         base_url = (env.agenta.api_url or "").rstrip("/")
         discovered = {
             "phone_number_id": phone_number_id,
@@ -141,6 +143,43 @@ class WhatsAppAdapter(ChannelAdapterInterface):
             "webhook_verify_token": mapping.mint_verify_token(phone_number_id),
         }
         return {k: v for k, v in discovered.items() if v is not None}
+
+    async def _check_can_send(self, *, token: str, phone_number_id: str) -> None:
+        """Reading the number is not enough: a token whose system user has no
+        WhatsApp account assigned reads it fine and fails every send. So probe
+        a send to "0", which is no WhatsApp number and cannot be delivered.
+        Meta checks authorization first: "Authorization Error" (or a
+        permission code) means the token cannot send; a complaint about the
+        recipient means it can."""
+
+        try:
+            await self._call(
+                token,
+                "POST",
+                f"/{phone_number_id}/messages",
+                json={
+                    "messaging_product": "whatsapp",
+                    "to": "0",
+                    "type": "text",
+                    "text": {"body": "."},
+                },
+            )
+        except ChannelCredentialRevoked as e:
+            raise ChannelConnectionVerificationFailed(
+                channel=self.channel,
+                message=f"Meta refused the token for this phone number: {e}",
+            ) from e
+        except _GraphApiError as e:
+            if not e.denied:
+                return  # the recipient was refused, after authorization passed
+            raise ChannelConnectionVerificationFailed(
+                channel=self.channel,
+                message=(
+                    "This token can't send messages from this number. In Meta "
+                    "Business Settings → System users → <user>, assign the "
+                    f"WhatsApp account with Full control. ({e})"
+                ),
+            ) from e
 
     async def revoke_installation(self, *, connection: ChannelConnection) -> str | None:
         # The webhook lives on the customer's own Meta app, which may serve
@@ -401,6 +440,14 @@ class _GraphApiError(Exception):
     def __init__(self, *, error: dict[str, Any], status_code: int, token: str):
         self.code = error.get("code")
         self.status_code = status_code
+        # Meta refused the caller, not the request: a permission code, or
+        # code 100 "Authorization Error", which it sends before it reads the
+        # rest of the request when the token's user has no access to the
+        # number's WhatsApp account.
+        self.denied = self.code in (10, 200) or (
+            self.code == 100
+            and str(error.get("message") or "").strip() == "Authorization Error"
+        )
         # Never the token, even where Meta echoes a request back.
         super().__init__(
             _describe(error).replace(token, "[REDACTED]") if token else _describe(error)

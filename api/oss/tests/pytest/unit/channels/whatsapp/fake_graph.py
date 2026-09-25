@@ -74,11 +74,18 @@ class FakeGraph:
         token: str,
         verified_name: str = "Bella Shoes",
         display_phone_number: str = "+1 555-010-0000",
+        can_send: bool = True,
     ) -> None:
+        """`can_send=False` is a token that can read the number but whose
+        system user has no WhatsApp account assigned: Meta answers every
+        POST to /messages with error 100 "Authorization Error", before it
+        looks at the recipient (seen live, 2026-09-25)."""
+
         self.numbers[phone_number_id] = {
             "token": token,
             "verified_name": verified_name,
             "display_phone_number": display_phone_number,
+            "can_send": can_send,
         }
 
     def add_media(
@@ -190,6 +197,9 @@ class FakeGraph:
         if not self._authorized(request, number["token"]):
             return self._error(190, "Invalid OAuth access token.", 401)
 
+        if not number.get("can_send", True):
+            return self._error(100, "Authorization Error")
+
         body = await request.json()
         if body.get("messaging_product") != "whatsapp":
             return self._error(100, "messaging_product must be whatsapp")
@@ -205,6 +215,13 @@ class FakeGraph:
             self.typing.append({"phone_number_id": phone_number_id, **body})
             return JSONResponse({"success": True})
 
+        if body.get("to") == "0":
+            # Not a WhatsApp number: Meta refuses the recipient, sends nothing.
+            return self._error(
+                131030,
+                "(#131030) Recipient phone number not in allowed list",
+                details="Recipient phone number not in allowed list",
+            )
         if not body.get("to") or body.get("type") not in (
             "text",
             "interactive",

@@ -34,7 +34,7 @@ Agenta needs a phone number ID, an access token, and an app secret.
 3. Paste the three values into **Phone number ID**, **Access token**, and **App secret**.
 4. Click connect.
 
-Agenta checks the token against the phone number before it saves anything. If the token is wrong or cannot read that number, the connection fails and nothing is stored.
+Agenta checks the token against the phone number before it saves anything: that it can read the number and that it can send from it. The send check uses a request that cannot reach anyone. If either check fails, the connection fails and nothing is stored.
 
 After it connects, Agenta shows a **callback URL** and a **verify token**. Keep them open for the next step.
 
@@ -54,6 +54,8 @@ From your own phone, send a WhatsApp message to the business number. The agent m
 If you use Meta's test number, first add your phone number as a recipient on the **WhatsApp > API Setup** page. The test number only exchanges messages with numbers on that list.
 
 ## Troubleshooting
+
+**"This token can't send messages from this number."** The token can read the number but Meta refuses to send from it, which usually means its system user has no access to your WhatsApp account. In Meta Business Settings, open **System users**, select the user, and assign the WhatsApp account with **Full control**. Then generate the token again and connect.
 
 **Webhook verification fails in Meta.** Copy the callback URL and verify token again from Agenta. Both must match exactly, with no extra spaces.
 

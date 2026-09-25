@@ -170,6 +170,12 @@ export const ChannelConnectFlow = ({
     }, [tgLink, hostedHandle])
 
     const alive = useRef(true)
+    // The error sits above a form taller than the panel, while the button that
+    // failed is at its bottom: bring the error into view, or it goes unseen.
+    const errorRef = useRef<HTMLDivElement>(null)
+    useEffect(() => {
+        if (error) errorRef.current?.scrollIntoView({block: "nearest", behavior: "smooth"})
+    }, [error])
     const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
     const feedbackTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
     // The polls below call the latest `onConnected` without restarting on every render.
@@ -475,13 +481,15 @@ export const ChannelConnectFlow = ({
             </div>
 
             {error ? (
-                <Alert
-                    type="error"
-                    showIcon
-                    message={`${name} is not connected`}
-                    description={error}
-                    data-testid="channels-connect-error"
-                />
+                <div ref={errorRef}>
+                    <Alert
+                        type="error"
+                        showIcon
+                        message={`${name} is not connected`}
+                        description={error}
+                        data-testid="channels-connect-error"
+                    />
+                </div>
             ) : null}
 
             {isWhatsApp ? null : (

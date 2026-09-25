@@ -7,11 +7,15 @@ Let a project connect a WhatsApp business phone number to Channels, prove every 
 ## ADDED Requirements
 
 ### Requirement: Bring-your-own number connection
-Agenta SHALL let a project editor connect a WhatsApp business number by entering a phone number ID, a permanent system-user access token, and the Meta app secret. Agenta SHALL verify the token against the phone number before it stores the connection, SHALL store the token and app secret in the project vault, and SHALL key the connection on the phone number ID.
+Agenta SHALL let a project editor connect a WhatsApp business number by entering a phone number ID, a permanent system-user access token, and the Meta app secret. Agenta SHALL verify that the token can read and send from the phone number, without delivering any message, before it stores the connection, SHALL store the token and app secret in the project vault, and SHALL key the connection on the phone number ID.
 
 #### Scenario: Valid credentials
 - **WHEN** an editor submits a phone number ID and a token that can read that number
 - **THEN** Agenta SHALL store the connection with the number's display name and SHALL show the webhook URL and a generated verify token to paste into Meta
+
+#### Scenario: Token can read the number but not send from it
+- **WHEN** Meta refuses a send from the number with the token (for example, its system user has no WhatsApp account assigned)
+- **THEN** Agenta SHALL refuse the connection, SHALL tell the editor to assign the WhatsApp account to the system user with Full control, and SHALL store nothing
 
 #### Scenario: Token cannot read the number
 - **WHEN** the token is invalid or lacks access to the phone number

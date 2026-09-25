@@ -81,6 +81,53 @@ async def test_verify_connection_refuses_a_token_that_cannot_read_the_number(ada
         )
 
 
+async def test_a_token_that_can_read_but_not_send_is_refused_with_the_fix(
+    adapter, graph
+):
+    """The Railway case: the token reads the number, but its system user has
+    no WhatsApp account assigned, so every send is refused."""
+
+    graph.add_number(
+        phone_number_id=p.PHONE_NUMBER_ID, token=p.ACCESS_TOKEN, can_send=False
+    )
+    with pytest.raises(ChannelConnectionVerificationFailed) as caught:
+        await adapter.verify_connection(
+            connection=ChannelConnectionCreate(
+                channel="whatsapp", data={"phone_number_id": p.PHONE_NUMBER_ID}
+            ),
+            credentials={"access_token": p.ACCESS_TOKEN, "app_secret": p.APP_SECRET},
+        )
+    message = caught.value.message
+    assert message.startswith("This token can't send messages from this number.")
+    assert "System users" in message and "Full control" in message
+    assert p.ACCESS_TOKEN not in message
+    assert graph.sent == []  # the probe delivered nothing
+
+
+async def test_the_send_probe_delivers_nothing(adapter, graph):
+    await adapter.verify_connection(
+        connection=ChannelConnectionCreate(
+            channel="whatsapp", data={"phone_number_id": p.PHONE_NUMBER_ID}
+        ),
+        credentials={"access_token": p.ACCESS_TOKEN, "app_secret": p.APP_SECRET},
+    )
+    assert graph.sent == []
+
+
+async def test_rotating_to_a_token_that_cannot_send_is_refused(adapter, graph):
+    graph.add_number(
+        phone_number_id=p.PHONE_NUMBER_ID, token=p.ACCESS_TOKEN, can_send=False
+    )
+    with pytest.raises(ChannelConnectionVerificationFailed):
+        await adapter.verify_connection(
+            connection=ChannelConnectionCreate(
+                channel="whatsapp",
+                data={"connection_locator": {"phone_number_id": p.PHONE_NUMBER_ID}},
+            ),
+            credentials={"access_token": p.ACCESS_TOKEN},
+        )
+
+
 async def test_rotating_the_token_verifies_against_the_stored_number(adapter):
     """Rotation re-verifies with the stored data, where the number sits under
     connection_locator, and with only the credential being replaced."""
