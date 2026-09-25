@@ -1,7 +1,11 @@
 import type {UIMessage} from "ai"
 import {describe, expect, it} from "vitest"
 
-import {deriveTurnStatus, readableTraceError, sanitizeErrorText} from "../../../src/model/turnStatus"
+import {
+    deriveTurnStatus,
+    readableTraceError,
+    sanitizeErrorText,
+} from "../../../src/model/turnStatus"
 import reasoningOnlyTurnFixture from "../fixtures/reasoningOnlyTurn.json"
 
 describe("deriveTurnStatus", () => {
