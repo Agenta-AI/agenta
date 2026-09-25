@@ -22,7 +22,7 @@ Status: draft OpenSpec package, written 2026-09-22, moved into the repository 20
 | [Managed tool actions](openspec/changes/add-managed-tool-actions/proposal.md) | Agreed structure; implementation pending; first provider/action unselected | 6 |
 | [Usage visibility and release scope](openspec/changes/explain-usage-and-release-scope/proposal.md) | Proposed implementation and acceptance requirements | 7, 8 |
 
-All changes use `schema: spec-driven` and contain proposal.md, design.md, tasks.md and capability requirement deltas. No change has been archived into a shipped specification. Task checkboxes are deliberately unchecked, including verification of the branch baseline.
+All changes use `schema: spec-driven` and contain proposal.md, design.md, tasks.md and capability requirement deltas. No change has been archived into a shipped specification. Task checkboxes are otherwise unchecked; the exception is the foundation change (`document-wallet-foundation`), whose baseline review and test/deployment verification tasks (1.1 and 1.2) are checked and evidenced, while merge authorization and archival (1.3, 1.4) remain unchecked.
 
 ## Terms
 

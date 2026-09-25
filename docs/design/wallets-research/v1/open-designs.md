@@ -80,7 +80,7 @@ its configuration interface belongs in the wallet-settlement schema decision abo
 | 21 | Decided | Whether expired credit value leaves the general balance, and what admission reads. |
 | 22 | Decided (option 2; option 3 deferred) | What identifies one plan change, so two in a billing period are not treated as one. |
 
-Items 2, 4, 7, 14, 16, 17, 18, 19, 20, 21, and 22 are decided. The table is an index only; each numbered item below contains the
+Items 2, 4, 7, 14, 15, 16, 17, 18, 19, 20, 21, and 22 are decided. The table is an index only; each numbered item below contains the
 context, examples, and consequences needed for its discussion.
 
 **What Wave 1 closed, and what it did not.** Wave 1 delivered the measurement and settlement
