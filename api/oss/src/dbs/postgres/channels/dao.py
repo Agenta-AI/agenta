@@ -1666,6 +1666,9 @@ class ChannelsDAO(ChannelsDAOInterface):
             )
 
             if event:
+                if event.id is not None:
+                    stmt = stmt.filter(ChannelInboxEventDBE.id == event.id)
+
                 if event.connection_id is not None:
                     stmt = stmt.filter(
                         ChannelInboxEventDBE.connection_id == event.connection_id,
@@ -1837,6 +1840,9 @@ class ChannelsDAO(ChannelsDAOInterface):
             )
 
             if trigger:
+                if trigger.id is not None:
+                    stmt = stmt.filter(ChannelInboxTriggerDBE.id == trigger.id)
+
                 if trigger.thread_id is not None:
                     stmt = stmt.filter(
                         ChannelInboxTriggerDBE.thread_id == trigger.thread_id,

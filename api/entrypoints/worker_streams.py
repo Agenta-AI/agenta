@@ -41,6 +41,7 @@ from oss.src.dbs.postgres.events.dao import EventsDAO
 from oss.src.dbs.postgres.secrets.dao import SecretsDAO
 from oss.src.dbs.postgres.sessions.interactions.dao import SessionInteractionsDAO
 from oss.src.dbs.postgres.sessions.executions.dao import SessionExecutionsDAO
+from oss.src.dbs.postgres.sessions.inputs.dao import SessionInputsDAO
 from oss.src.dbs.postgres.sessions.records.dao import RecordsDAO
 from oss.src.dbs.postgres.sessions.turns.dao import SessionTurnsDAO
 from oss.src.dbs.postgres.shared.engine import (
@@ -204,6 +205,8 @@ async def _build_sessions_worker(redis_client: Redis) -> StreamConsumer:
         records_service=RecordsService(
             records_dao=RecordsDAO(engine=get_analytics_engine())
         ),
+        executions_dao=SessionExecutionsDAO(engine=transactions_engine),
+        inputs_dao=SessionInputsDAO(engine=transactions_engine),
         # resolves an approval card's real SessionInteraction row id, which the
         # sessions respond path answers by
         interactions_service=SessionInteractionsService(

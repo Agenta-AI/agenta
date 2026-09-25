@@ -848,6 +848,7 @@ class ChannelInboxEventCreate(BaseModel):
 
 
 class ChannelInboxEventQuery(BaseModel):
+    id: Optional[UUID] = None
     connection_id: Optional[UUID] = None
     space_id: Optional[UUID] = None
     kind: Optional[ChannelEventKind] = None
@@ -880,6 +881,7 @@ class ChannelInboxTriggerCreate(BaseModel):
 
 
 class ChannelInboxTriggerQuery(BaseModel):
+    id: Optional[UUID] = None
     thread_id: Optional[UUID] = None
     event_id: Optional[UUID] = None
     turn_id: Optional[str] = None

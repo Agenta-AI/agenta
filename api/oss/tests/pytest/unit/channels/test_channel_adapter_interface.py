@@ -126,6 +126,7 @@ def test_every_method_parameter_after_self_is_keyword_only():
         "detect_deactivation",
         "revoke_installation",
         "signal_activity",
+        "set_message_status",
         "dismiss_choices",
         "join_space",
         "list_member_spaces",

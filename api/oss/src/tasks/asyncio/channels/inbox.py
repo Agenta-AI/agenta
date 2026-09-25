@@ -12,7 +12,7 @@ thread get-or-create) stays inside the service.
 
 import asyncio
 from functools import partial
-from typing import Awaitable, Callable, Optional
+from typing import Awaitable, Callable, Dict, Optional
 from uuid import UUID, uuid4, uuid5
 
 from oss.src.core.channels.commands import (
@@ -579,6 +579,13 @@ class InboxDispatcher:
             )
             return
 
+        if connection.channel == "slack":
+            adapter = self.channels_service.adapter_registry.get(connection.channel)
+            await adapter.set_message_status(
+                connection=connection,
+                locator=event.data.external_locator,
+                status="received",
+            )
         await self._invoke_with_retry(
             project_id=project_id,
             resolution=resolution,
@@ -588,6 +595,7 @@ class InboxDispatcher:
             user_id=user_id,
             connection=connection,
             capabilities=capabilities,
+            request_locator=event.data.external_locator,
         )
 
     async def _queue_behind_running_turn(
@@ -638,6 +646,7 @@ class InboxDispatcher:
         user_id: Optional[UUID] = None,
         connection: Optional[ChannelConnection] = None,
         capabilities: Optional[ChannelCapabilities] = None,
+        request_locator: Optional[Dict] = None,
     ) -> None:
         """Queue behind a running turn, else invoke once, retrying only on a
         refused overlapping turn — never the `force` path, never coalescing.
@@ -693,6 +702,15 @@ class InboxDispatcher:
                         state=ChannelTriggerState.REFUSED,
                         status=Status(code="409", message="Turn refused"),
                     )
+                    if connection and connection.channel == "slack" and request_locator:
+                        adapter = self.channels_service.adapter_registry.get(
+                            connection.channel
+                        )
+                        await adapter.set_message_status(
+                            connection=connection,
+                            locator=request_locator,
+                            status="failed",
+                        )
                     await self._notify_not_started(
                         project_id=project_id,
                         resolution=resolution,
@@ -732,6 +750,13 @@ class InboxDispatcher:
                         message=str(e),
                     ),
                 )
+                if connection and connection.channel == "slack" and request_locator:
+                    adapter = self.channels_service.adapter_registry.get(
+                        connection.channel
+                    )
+                    await adapter.set_message_status(
+                        connection=connection, locator=request_locator, status="failed"
+                    )
                 await self._notify_not_started(
                     project_id=project_id,
                     resolution=resolution,
