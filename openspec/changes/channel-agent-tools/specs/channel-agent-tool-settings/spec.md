@@ -18,7 +18,7 @@ Each connected bot SHALL store the settings "Can post outside the conversation" 
 - **THEN** its settings SHALL read as the defaults without a data migration step by the admin.
 
 ### Requirement: Posting setting
-When "Can post outside the conversation" is off, the agent's runs SHALL NOT get `send_channel_message` unless another bound bot allows posting, `send_channel_message` SHALL refuse every destination of this bot, and `list_channel_destinations` SHALL report that none of its destinations accepts posts. The agent's normal replies inside the conversation that woke it SHALL NOT be affected.
+When "Can post outside the conversation" is off, this bot SHALL NOT add `send_channel_message` to the agent's runs (another bound bot that allows posting still adds it; an author's own entry for the tool stays), `send_channel_message` SHALL refuse every destination of this bot, and `list_channel_destinations` SHALL report that none of its destinations accepts posts. The agent's normal replies inside the conversation that woke it SHALL NOT be affected.
 
 #### Scenario: Posting turned off
 - **WHEN** posting is off and the agent calls the send tool for a channel
