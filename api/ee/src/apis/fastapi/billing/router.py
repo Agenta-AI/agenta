@@ -42,6 +42,7 @@ from ee.src.core.subscriptions.service import (
     SubscriptionsService,
     SwitchException,
     EventException,
+    current_billing_period,
 )
 from oss.src.models.api.organization_models import OrganizationUpdate
 
@@ -360,6 +361,8 @@ class BillingRouter:
             subscription_id = None
             plan = None
             anchor = None
+            period_start = None
+            period_end = None
 
             if stripe_event.type == "customer.subscription.created":
                 event = Event.SUBSCRIPTION_CREATED
@@ -431,6 +434,10 @@ class BillingRouter:
                     tz=timezone.utc,
                 ).day
 
+                period_start, period_end = current_billing_period(
+                    stripe_event.data.object
+                )
+
             elif stripe_event.type == "invoice.payment_failed":
                 event = Event.SUBSCRIPTION_PAUSED
 
@@ -458,6 +465,13 @@ class BillingRouter:
                 # the wallet proration's idempotency key needs (see
                 # `SubscriptionsService._apply_wallet_plan_change`).
                 event_id=_stripe_get(stripe_event, "id"),
+                # When the change happened, not when this delivery is processed: the
+                # wallet prorates the allowance at this instant.
+                effective_at=datetime.fromtimestamp(
+                    _stripe_get(stripe_event, "created"), tz=timezone.utc
+                ),
+                period_start=period_start,
+                period_end=period_end,
             )
             if event == Event.SUBSCRIPTION_CANCELLED:
                 await self._reset_organization_flags(organization_id)

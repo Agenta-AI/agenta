@@ -233,11 +233,8 @@ async def test_apply_plan_change_provisions_and_then_sets_the_plan_floor(wallet_
         result = await dao.apply_plan_change(
             organization_id=organization_id,
             idempotency_key="plan_change:lazy:2026-01-01",
-            outgoing_credit_id=None,
-            outgoing_debit_amount_musd=0,
-            incoming_credit_kind="plan_allowance",
+            subscription_id="sub_123",
             incoming_credit_amount_musd=250_000,
-            incoming_priority=10,
             incoming_end_time=period_end,
             floor_musd=-5_000,
             now=period_start + timedelta(days=10),

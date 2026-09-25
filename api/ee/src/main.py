@@ -19,12 +19,15 @@ from ee.src.dbs.postgres.subscriptions.dao import SubscriptionsDAO
 from ee.src.dbs.postgres.organizations.dao import OrganizationDomainsDAO
 from ee.src.dbs.postgres.events.dao import EventsRetentionDAO
 from ee.src.dbs.postgres.sessions.records.dao import RecordsRetentionDAO
+from ee.src.dbs.postgres.wallets.dao import WalletsDAO
 
 from ee.src.core.meters.service import MetersService
 from ee.src.core.tracing.service import TracingRetentionService
 from ee.src.core.subscriptions.service import SubscriptionsService
 from ee.src.core.events.service import EventsRetentionService
 from ee.src.core.sessions.records.service import RecordsRetentionService
+from ee.src.core.wallets.service import WalletsService
+from ee.src.core.organizations.service import register_wallets_service
 
 from ee.src.apis.fastapi.access.router import AccessRouter
 from ee.src.apis.fastapi.billing.router import BillingRouter
@@ -63,6 +66,8 @@ records_retention_dao = RecordsRetentionDAO(
     analytics_engine=_analytics_engine,
 )
 
+wallets_dao = WalletsDAO(engine=_transactions_engine)
+
 # CORE -------------------------------------------------------------------------
 
 meters_service = MetersService(
@@ -89,9 +94,17 @@ records_retention_service = RecordsRetentionService(
     records_retention_dao=records_retention_dao,
 )
 
+wallets_service = WalletsService(
+    wallets_dao=wallets_dao,
+)
+
 subscription_service = SubscriptionsService(
     subscriptions_dao=subscriptions_dao,
+    wallets_service=wallets_service,
 )
+
+# The signup and organization-creation hooks provision wallets through this instance.
+register_wallets_service(wallets_service=wallets_service)
 
 # Wire entitlements module against the freshly-built services so the
 # `BillingRouter` and the entitlements helper share one instance each.

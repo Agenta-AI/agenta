@@ -32,6 +32,7 @@ import ee.src.core.organizations.service as organizations_service_module
 import oss.src.dbs.postgres.shared.engine as engine_module
 from ee.databases.postgres.migrations.core_ee.utils import alembic_cfg
 from ee.src.core.wallets.grants import compose_award_idempotency_key
+from ee.src.core.wallets.service import WalletsService
 from ee.src.dbs.postgres.wallets.dao import WalletsDAO
 from oss.src.dbs.postgres.shared.engine import get_transactions_engine
 from oss.src.utils.env import env
@@ -207,11 +208,12 @@ async def test_award_signup_grant_via_organizations_service_hooks_against_real_d
     method in isolation."""
     organization_id = uuid.uuid4()
 
-    # Force the process-wide wallets-service singleton onto a fresh WalletsDAO bound to
-    # THIS test's engine, mirroring the `_fresh_engine_per_test` reset above.
-    import ee.src.core.wallets.runtime as wallets_runtime_module
-
-    monkeypatch.setattr(wallets_runtime_module, "_wallet_settlement_port", None)
+    # What the composition root registers, bound to THIS test's engine.
+    monkeypatch.setattr(
+        organizations_service_module,
+        "_wallets_service",
+        WalletsService(wallets_dao=WalletsDAO()),
+    )
 
     try:
         await organizations_service_module._provision_wallet_general_balance(
@@ -247,4 +249,3 @@ async def test_award_signup_grant_via_organizations_service_hooks_against_real_d
             assert result.scalar() == 1
     finally:
         await _cleanup(organization_id)
-        monkeypatch.setattr(wallets_runtime_module, "_wallet_settlement_port", None)

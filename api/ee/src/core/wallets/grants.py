@@ -4,8 +4,6 @@ activity — an activation milestone, a referral bonus, a contribution award (se
 `docs/design/wallets-research/v1/mechanics.md` §4 for the full enumerated list) — is a
 new row in `GRANT_CATALOG`, never a new code path: `WalletsService.award()` and
 `WalletsDAOInterface.award_credit` are generic over any catalog entry.
-
-Seeded with exactly one entry today: `signup`.
 """
 
 from dataclasses import dataclass
@@ -50,15 +48,6 @@ GRANT_CATALOG: Dict[str, GrantRule] = {
         lifetime_days=TWELVE_MONTHS_DAYS,
         repeatable=False,
     ),
-    # Intended next entries (mechanics.md §4), each a new row here, no new code path.
-    # Suggested priority (spend order, after plan_allowance=10/signup_grant=20 above —
-    # see `ee.src.core.wallets.types.GENERAL_CREDIT_KINDS` for the full kind set):
-    #   "promotion"           — repeatable=False, priority=30, keyed by campaign
-    #   "referral_bonus"      — repeatable=True,  priority=40, keyed by referral identifier
-    #   "contribution_award"  — repeatable=True,  priority=50, keyed by contribution identifier
-    #   "goodwill"            — repeatable=True,  priority=60, keyed by support case identifier
-    #   "activation_milestone" — repeatable=False, e.g. saving a first agent (not a
-    #                             mechanics.md §4 kind; would need its own credit_kind)
 }
 
 
@@ -93,7 +82,7 @@ def compose_award_idempotency_key(
     reference: Optional[str] = None,
 ) -> str:
     """One prefix (`award`), then identifiers, `organization` spelled out — mirrors the
-    `plan_change:{subscription_id}:{period_start}` / `measurement:{measurement_id}`
+    `plan_change:{stripe_event_id}` / `measurement:{measurement_id}`
     convention elsewhere in this package. A once-per-organization activity's key omits
     `reference` entirely (there is only ever one), so two calls with different
     `reference` values for a non-repeatable activity still collide onto the same key —

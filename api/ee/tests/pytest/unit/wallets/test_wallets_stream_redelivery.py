@@ -7,10 +7,9 @@ the workers opted into `reclaim_pending`, skipping the ACK therefore dropped the
 (or the measurement AND its charge) silently, while the pending list grew forever.
 
 These tests run against fakeredis so the pending-list bookkeeping is real Redis
-consumer-group behaviour rather than a mock of it. They also pin the drop rule: an
-envelope the worker cannot even read is dropped after `max_deliveries`, while a readable
-one whose write path keeps failing is kept — money is never dropped because Postgres was
-down for a while.
+consumer-group behaviour rather than a mock of it. They also pin the exit rule
+(open-designs item 20): after `max_deliveries` an entry leaves the pending list for
+`<stream>:dead`, readable or not, and a dead letter replays onto the stream it came from.
 """
 
 import asyncio
@@ -19,12 +18,16 @@ from uuid import uuid4
 import fakeredis.aioredis as fakeredis
 import pytest
 
+from oss.src.tasks.asyncio.shared.dead_letters import replay_dead_letters
+
+import ee.src.dbs.redis.wallets.streams as wallet_streams
 from ee.src.core.wallets.contracts import STREAM_DEBITS, STREAM_MEASUREMENTS
 from ee.src.core.wallets.errors import SettlementUnavailableError
 from ee.src.core.wallets.streaming import (
     serialize_debit_command,
     serialize_measurement_command,
 )
+from ee.src.dbs.redis.wallets.streams import RedisDebitPublisher
 from ee.src.tasks.asyncio.measurements.worker import MeasurementWorker
 from ee.src.tasks.asyncio.wallets.worker import DebitWorker
 from ee.tests.pytest.utils.measurements.fakes import (
@@ -56,14 +59,30 @@ async def _pending(redis_client, *, stream, group):
     )
 
 
-def _debit_worker(*, redis_client, settlement_port, max_deliveries=5):
+def _debit_worker(
+    *, redis_client, settlement_port, max_deliveries=5, reclaim_min_idle_ms=0
+):
     return DebitWorker(
         settlement_port=settlement_port,
         redis_client=redis_client,
         consumer_name="test-consumer",
-        reclaim_min_idle_ms=0,
+        reclaim_min_idle_ms=reclaim_min_idle_ms,
         max_deliveries=max_deliveries,
     )
+
+
+class _AlwaysFailingPort(FakeWalletSettlementPort):
+    """Fails every posting whose key is in `failing`, settles the rest."""
+
+    def __init__(self, failing=None):
+        super().__init__()
+        self.failing = failing
+
+    async def settle(self, command):
+        if self.failing is None or command.idempotency_key in self.failing:
+            self.calls.append(command)
+            raise SettlementUnavailableError("db unavailable")
+        return await super().settle(command)
 
 
 def _measurement_worker(*, redis_client, dao, publisher):
@@ -168,10 +187,20 @@ async def test_unpublished_measurement_comes_back_through_the_reclaim_pass():
     )
 
 
+async def _drain_reclaims(worker, *, passes):
+    for _ in range(passes):
+        await asyncio.sleep(0.01)
+        reclaimed = await worker.reclaim_batch()
+        if not reclaimed:
+            continue
+        _, acked_ids = await worker.process_batch(reclaimed)
+        await worker.ack_and_delete(acked_ids)
+
+
 @pytest.mark.asyncio
-async def test_unreadable_debit_entry_is_dropped_after_max_deliveries(caplog):
-    """An entry with no `data` field will never gain one — the one failure this worker
-    knows is permanent, so `is_permanent_failure` lets the drop rule fire."""
+async def test_unreadable_debit_entry_is_dead_lettered_after_max_deliveries():
+    """An entry with no `data` field will never gain one. It leaves the pending list
+    after `max_deliveries`, and is kept, not dropped."""
     redis_client = fakeredis.FakeRedis()
     await _seed(
         redis_client,
@@ -186,33 +215,24 @@ async def test_unreadable_debit_entry_is_dropped_after_max_deliveries(caplog):
     )
 
     batch = await worker.read_batch()
-    assert len(batch) == 1
     _, acked_ids = await worker.process_batch(batch)
     assert acked_ids == []
+    await _drain_reclaims(worker, passes=6)
 
-    for _ in range(6):
-        await asyncio.sleep(0.01)
-        reclaimed = await worker.reclaim_batch()
-        if not reclaimed:
-            break
-        _, acked_ids = await worker.process_batch(reclaimed)
-        await worker.ack_and_delete(acked_ids)
-
-    assert worker.dropped_messages == 1
+    assert worker.dropped_messages == 0
+    assert worker.dead_lettered_messages == 1
     assert port.calls == []
     assert await _pending(redis_client, stream=STREAM_DEBITS, group=DEBITS_GROUP) == []
+    [(_, dead)] = await redis_client.xrange(f"{STREAM_DEBITS}:dead")
+    assert dead[b"not_data"] == b"no envelope here"
+    assert dead[b"dead_letter_reason"] == b"failed 3 deliveries"
 
 
 @pytest.mark.asyncio
-async def test_readable_debit_is_kept_pending_however_often_settlement_fails():
-    """The opposite rule: a debit whose settlement path is down is NOT permanently
-    invalid, so it keeps its place in the pending list instead of being dropped."""
-
-    class _AlwaysFailingPort(FakeWalletSettlementPort):
-        async def settle(self, command):
-            self.calls.append(command)
-            raise SettlementUnavailableError("db unavailable")
-
+async def test_readable_debit_that_keeps_failing_is_dead_lettered_then_replayed():
+    """A debit whose settlement keeps failing leaves the pending list after
+    `max_deliveries` instead of pinning it forever, and replaying it once settlement
+    works again charges it exactly once."""
     command = build_debit_command(idempotency_key="gw_never_settles")
     redis_client = fakeredis.FakeRedis()
     await _seed(
@@ -227,21 +247,97 @@ async def test_readable_debit_is_kept_pending_however_often_settlement_fails():
         redis_client=redis_client, settlement_port=port, max_deliveries=2
     )
 
-    batch = await worker.read_batch()
-    await worker.process_batch(batch)
+    await worker.process_batch(await worker.read_batch())
+    await _drain_reclaims(worker, passes=5)
 
-    for _ in range(5):
-        await asyncio.sleep(0.01)
+    assert worker.dead_lettered_messages == 1
+    assert await _pending(redis_client, stream=STREAM_DEBITS, group=DEBITS_GROUP) == []
+    [(_, dead)] = await redis_client.xrange(f"{STREAM_DEBITS}:dead")
+    assert dead[b"dead_letter_description"] == (
+        f"{command.organization_id}:gw_never_settles".encode()
+    )
+
+    # The outage ends; the operator replays.
+    port.failing = set()
+    assert await replay_dead_letters(redis_client, stream=STREAM_DEBITS) == 1
+    assert await redis_client.xlen(f"{STREAM_DEBITS}:dead") == 0
+
+    replayed = await worker.read_batch()
+    assert replayed[0][1] == {b"data": serialize_debit_command(command)}
+    _, acked_ids = await worker.process_batch(replayed)
+    await worker.ack_and_delete(acked_ids)
+    assert port.effects[(command.organization_id, "gw_never_settles")] == 1
+    assert await redis_client.xlen(STREAM_DEBITS) == 0
+
+
+@pytest.mark.asyncio
+async def test_failing_entries_at_the_head_do_not_hide_later_pending_entries():
+    """Spec-review P2: the reclaim pass read only the 50 oldest pending entries per
+    idle window, so 50 entries that keep failing hid every later one for good."""
+    poison = [build_debit_command(idempotency_key=f"gw_poison_{i}") for i in range(60)]
+    behind = build_debit_command(idempotency_key="gw_behind_the_head")
+    redis_client = fakeredis.FakeRedis()
+    await _seed(
+        redis_client,
+        stream=STREAM_DEBITS,
+        group=DEBITS_GROUP,
+        entries=[{"data": serialize_debit_command(c)} for c in [*poison, behind]],
+    )
+
+    # First delivery: everything fails (an outage), so all 61 are pending.
+    port = _AlwaysFailingPort()
+    worker = _debit_worker(
+        redis_client=redis_client,
+        settlement_port=port,
+        # Large enough that no entry leaves for the dead letters during this test:
+        # what is under test is reaching past the head, not the exit rule.
+        max_deliveries=100,
+        reclaim_min_idle_ms=20,
+    )
+    for _ in range(2):
+        await worker.process_batch(await worker.read_batch())
+    assert len(port.calls) == 61
+
+    # The outage ends for every posting except the poison ones.
+    port.failing = {c.idempotency_key for c in poison}
+    for _ in range(6):
+        await asyncio.sleep(0.03)
         reclaimed = await worker.reclaim_batch()
-        assert [msg_id for msg_id, _ in reclaimed] == [msg_id for msg_id, _ in batch]
-        await worker.process_batch(reclaimed)
+        if reclaimed:
+            _, acked_ids = await worker.process_batch(reclaimed)
+            await worker.ack_and_delete(acked_ids)
 
-    assert worker.dropped_messages == 0
-    pending = await _pending(redis_client, stream=STREAM_DEBITS, group=DEBITS_GROUP)
-    assert len(pending) == 1
+    assert port.effects.get((behind.organization_id, "gw_behind_the_head")) == 1
 
 
-def test_describe_message_names_the_posting_for_the_loss_log():
+@pytest.mark.asyncio
+async def test_debit_publish_refuses_past_the_backlog_limit_and_never_trims(
+    monkeypatch,
+):
+    """Spec-review P2: `XADD MAXLEN` trimmed the oldest entries of a backlog, pending
+    or not, without a log line. Past the limit the publish now fails loudly and every
+    entry already in the stream stays."""
+    redis_client = fakeredis.FakeRedis()
+    monkeypatch.setattr(wallet_streams, "MAX_BACKLOG", 2)
+    await redis_client.xgroup_create(
+        name=STREAM_DEBITS, groupname=DEBITS_GROUP, id="0", mkstream=True
+    )
+    publisher = RedisDebitPublisher(redis_client=redis_client)
+
+    assert await publisher.publish(build_debit_command()) is True
+    assert await publisher.publish(build_debit_command()) is True
+    await redis_client.xreadgroup(
+        groupname=DEBITS_GROUP, consumername="c", streams={STREAM_DEBITS: ">"}
+    )
+
+    assert await publisher.publish(build_debit_command()) is False
+    assert await redis_client.xlen(STREAM_DEBITS) == 2
+    assert (
+        len(await _pending(redis_client, stream=STREAM_DEBITS, group=DEBITS_GROUP)) == 2
+    )
+
+
+def test_describe_message_names_the_posting_for_the_dead_letter():
     command = build_debit_command(
         organization_id=uuid4(), idempotency_key="gw_traceable"
     )

@@ -104,7 +104,7 @@ done. Three environment variables have to point at them: `POSTGRES_URI_CORE`,
 `POSTGRES_URI_TRACING`, and `REDIS_URI`. The test fixtures probe those addresses and skip when
 they are unreachable, so a skipped test means a misconfigured environment, never a pass.
 
-Four things in that setup are easy to get wrong.
+Five things in that setup are easy to get wrong.
 
 1. **The databases must exist before the migrations run.** Mount
    `api/ee/databases/postgres/init-db-ee.sql` as the Postgres image's init script rather than
@@ -123,6 +123,16 @@ Four things in that setup are easy to get wrong.
    `--dist=loadgroup` and every wallet and measurement integration module carries the
    `wallets-integration` xdist group marker, which lands them all on one worker. Any new
    module here that holds database state must follow the same precedent.
+5. **Do not run `oss/tests/pytest/unit` with the infrastructure addresses pointed at the
+   wallet test database.** Some OSS unit tests use a real database when one is reachable and
+   do not clean up. One run left 44 organizations in `agenta_ee_core`. The wallet
+   integration fixtures then refuse to run, because their downgrade guard finds wallet rows.
+   Run the OSS unit suite without the addresses (only `AGENTA_LICENSE=ee` set), or drop and
+   recreate the three databases and rerun the migrations before the wallet integration
+   suites. With the addresses set, one OSS test,
+   `oss/tests/pytest/unit/utils/test_integration_postgres_address.py::test_an_unreachable_database_fails_the_run`,
+   also fails, because it reads the exported address. That is a test-isolation defect on
+   `main`, not a wallet failure.
 
 Run each command with `AGENTA_LICENSE=ee AGENTA_WALLETS_ENABLED=true` and the three addresses
 set. The exact commands, in the order that matters, are in section 9 of

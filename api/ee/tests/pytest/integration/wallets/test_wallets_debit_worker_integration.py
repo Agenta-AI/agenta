@@ -15,12 +15,13 @@ from sqlalchemy import select
 
 import oss.src.dbs.postgres.shared.engine as engine_module
 from oss.src.dbs.postgres.shared.engine import get_transactions_engine
+from oss.src.tasks.asyncio.shared.consumer import dead_letter_stream_of
 from oss.src.utils.env import env
 
 from ee.databases.postgres.migrations.core_ee.utils import alembic_cfg
 from ee.src.core.wallets.contracts import STREAM_DEBITS
 from ee.src.core.wallets.service import WalletsService
-from ee.src.core.wallets.streaming import RedisDebitPublisher
+from ee.src.dbs.redis.wallets.streams import RedisDebitPublisher
 from ee.src.dbs.postgres.wallets.dao import WalletsDAO
 from ee.src.dbs.postgres.wallets.dbes import WalletBalanceDBE, WalletDebitDBE
 from ee.src.tasks.asyncio.wallets.worker import DebitWorker
@@ -117,9 +118,8 @@ async def test_duplicate_debit_command_produces_one_financial_effect(
     )
 
     group = await _make_group(redis_client, stream=STREAM_DEBITS)
-    # A real WalletsService (the concrete WalletSettlementPort adapter, same class the
-    # runtime factory wires) bound to this test's own engine — not the process-wide
-    # singleton, so the fixture-scoped engine reset above stays authoritative.
+    # A real WalletsService, the settlement port worker_streams wires, bound to this
+    # test's own engine so the fixture-scoped engine reset above stays authoritative.
     settlement_port = WalletsService(
         wallets_dao=WalletsDAO(engine=get_transactions_engine())
     )
@@ -130,7 +130,7 @@ async def test_duplicate_debit_command_produces_one_financial_effect(
         consumer_group=group,
     )
 
-    publisher = RedisDebitPublisher()
+    publisher = RedisDebitPublisher(redis_client=redis_client)
     assert await publisher.publish(command_) is True
     assert await publisher.publish(command_) is True  # same command, produced twice
 
@@ -157,3 +157,67 @@ async def test_duplicate_debit_command_produces_one_financial_effect(
         )
         balance = result.scalar_one()
         assert balance.balance_musd == STARTING_GENERAL_BALANCE - 500  # debited once
+
+
+async def test_first_debit_for_an_organization_with_no_wallet_row_settles(
+    wallet_schema, redis_client
+):
+    """An organization created by a path that never provisions its wallet (the admin
+    account route calls `start_plan` directly) gets its general balance row from `check`
+    and from `settle`, so its debits are booked, not dead-lettered."""
+    settlement_port = WalletsService(
+        wallets_dao=WalletsDAO(engine=get_transactions_engine())
+    )
+
+    # Admission: no credits and a hard-stop floor of 0, so refused, but the row now exists.
+    admitted_organization_id = uuid4()
+    assert (
+        await settlement_port.check(organization_id=admitted_organization_id) is False
+    )
+    general = await WalletsDAO().get_general_balance(
+        organization_id=admitted_organization_id
+    )
+    assert general is not None and general.balance_musd == 0
+
+    # Settlement, for an organization that still has no row: booked, as deficit.
+    organization_id = uuid4()
+    assert (
+        await WalletsDAO().get_general_balance(organization_id=organization_id) is None
+    )
+
+    group = await _make_group(redis_client, stream=STREAM_DEBITS)
+    worker = DebitWorker(
+        settlement_port=settlement_port,
+        redis_client=redis_client,
+        stream_name=STREAM_DEBITS,
+        consumer_group=group,
+    )
+    dead_before = await redis_client.xlen(dead_letter_stream_of(STREAM_DEBITS))
+
+    command_ = build_debit_command(
+        organization_id=organization_id,
+        idempotency_key=f"gw_unprovisioned_{uuid4().hex}",
+        amount_musd=700,
+    )
+    assert await RedisDebitPublisher(redis_client=redis_client).publish(command_)
+
+    batch = await worker.read_batch()
+    count, processed_ids = await worker.process_batch(batch)
+    assert count == 1
+    await worker.ack_and_delete(processed_ids)
+
+    assert await redis_client.xlen(dead_letter_stream_of(STREAM_DEBITS)) == dead_before
+    rows = await _debit_rows(
+        organization_id=organization_id, idempotency_key=command_.idempotency_key
+    )
+    assert len(rows) == 1
+
+    engine = get_transactions_engine()
+    async with engine.session() as session:
+        result = await session.execute(
+            select(WalletBalanceDBE).where(
+                WalletBalanceDBE.organization_id == organization_id,
+                WalletBalanceDBE.wallet_credit_id.is_(None),
+            )
+        )
+        assert result.scalar_one().balance_musd == -700

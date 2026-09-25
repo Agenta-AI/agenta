@@ -331,6 +331,7 @@ A credit is the credit-side record; it is not duplicated in `measurements`.
   "end_time": "2026-09-01T00:00:00Z",
   "data": {
     "references": {
+      "plan_change_idempotency_key": "plan_change:evt_...",
       "subscription": {"id": "sub_..."}
     }
   },
@@ -347,11 +348,22 @@ not silently rewrite this arrival row.
 provisions each organization's general `wallet_balances` row (`wallet_credit_id IS NULL`)
 idempotently; migration `ee0000000005_backfill_wallet_general_balances.py` backfills it for
 organizations that predate this change. A mid-period plan change prorates a `plan_allowance`
-credit: `ee.src.core.wallets.proration.compute_plan_change_proration` computes the outgoing
-remainder debit and the incoming share (pure, DB-free arithmetic), and
-`WalletsDAO.apply_plan_change` applies both — debiting the outgoing credit's balance and minting a
-NEW `wallet_credits` row for the incoming share, never mutating an existing row — idempotent on
-the subscription's `plan_change:{subscription_id}:{period_start}` key.
+credit. `WalletsDAO.apply_plan_change` does it in one transaction under the general-balance lock:
+it selects the outgoing allowance (the organization's newest `plan_allowance` credit, by a
+`created_at` taken from the database clock after the lock, unless a plan change already clawed it
+back), claws back the unused share of that credit's own
+lifetime (`start_time` to `end_time`), and mints a NEW `wallet_credits` row for the incoming
+plan's share of the Stripe billing period, never mutating an existing row. The arithmetic is the
+pure `ee.src.core.wallets.proration` functions. The minted credit starts at the instant the change
+took effect, ends at the period end, and records `data.references.subscription.id` and
+`data.references.plan_change_idempotency_key`. The key is `plan_change:{stripe_event_id}` on the
+webhook path and `plan_change:{uuid7}` on the direct routes, which are serialized per organization
+by the subscription lock (open-designs item 22). The partial unique index
+`uq_wallet_credits_org_plan_change_key` on `(organization_id,
+data->'references'->>'plan_change_idempotency_key')` (`ee0000000004`) makes a second incoming
+credit for one plan change impossible at the database, as `uq_wallet_credits_org_award_key` does
+for grant awards. The general-row lock already serializes plan changes; the index is the final
+guard.
 
 `ee.src.core.wallets.plans` carries real, PRODUCT-DECIDED (2026-08-14) per-plan allowance and floor
 amounts — see `nodes/im-1-02-pipeline/acceptance.md` §"2b" for the table. Every floor is 0 at
@@ -367,6 +379,13 @@ name exactly), awarded once per organization on every plan including free, twelv
 (`report.md` §9.5/§9.6), wired into the signup organization-creation path only
 (`provision_signup_subscription`, never `provision_user_subscription`/explicit `POST
 /organizations/`, per `report.md` §9.2), after the general balance row already exists.
+The award key is stored at `data.references.award_idempotency_key` on the minted credit, and the
+partial unique index `uq_wallet_credits_org_award_key` on `(organization_id,
+data->'references'->>'award_idempotency_key')` (`ee0000000004`) makes a second credit for one
+award impossible at the database, as `uq_wallet_debits_org_debit_key` does for debits. The
+general-row lock already serializes awards; the index is the final guard. Organizations that
+signed up while the flag was off are granted by the one-off job
+`entrypoints.backfill_wallet_signup_grants` (`open-designs.md` item 15).
 
 **`credit_kind` (delivered set, `WP-1-04`).** `GENERAL_CREDIT_KINDS` in `ee.src.core.wallets.types`
 carries eight of `mechanics.md` §4's thirteen inbound kinds — enough to distinguish a signup grant
@@ -500,10 +519,11 @@ not invent a second serialization protocol. It needs two dedicated streams becau
 worker consumes the first and produces the second; the generic shared consumer deletes successfully
 processed stream entries and therefore cannot safely fan out one entry to both workers.
 
-Like the existing `streams:spans`, `streams:events`, and `streams:records` producers, both new streams
-use bounded approximate `MAXLEN` trimming and successful consumers ACK plus delete messages. Their
-configured maximum lengths may differ by workload, but the transport/retention mechanism is the same
-for all streams.
+Successful consumers ACK plus delete messages, so a stream's length is its unprocessed backlog.
+Unlike the existing `streams:spans`, `streams:events`, and `streams:records` producers, the two
+wallet streams are not trimmed with `MAXLEN`, since a trim could only delete unprocessed charges.
+The publishers refuse a publish past a backlog limit instead, and each stream has a dead-letter
+stream, `<stream>:dead`, for entries the pipeline cannot accept (open-designs item 20).
 
 #### `streams:measurements`
 
@@ -556,13 +576,13 @@ component cost. Their metric-specific unit is encoded by the stable key. `resour
 
 The measurement worker validates the envelope, inserts exactly one immutable `measurements` row and its
 `measurement_values` under the gateway-supplied `measurement_id`, calculates the final charge, and
-publishes the second message. It ACKs the measurement message only after those actions complete, with
-one deliberate exception: a chargeable measurement whose `project_id` resolves to no organization is
-persisted and then ACKed with no debit published. The worker cannot bill what it cannot attribute, and
-redelivering a project that will never resolve stalls the stream behind it, so the charge is dropped
-and logged—the same family of terminal drops as open-designs item 20. A malformed/unsupported version
-is logged and terminally ACKed—there is no way to safely price an envelope the worker cannot
-interpret.
+publishes the second message. It ACKs the measurement message only after those actions complete.
+Envelope validation rejects repeated component keys. Entries the worker can never accept go to
+`streams:measurements:dead` with their reason (open-designs item 20): a malformed or unsupported
+version, which there is no way to safely price; a chargeable measurement whose `project_id` resolves
+to no organization, which is persisted but cannot be billed; and a `measurement_id` seen again with
+different content, which leaves the stored measurement unchanged and is not priced. An identical
+replay is a no-op, detected by the content fingerprint in `measurements.data.fingerprint`.
 
 #### `streams:debits`
 
@@ -686,7 +706,8 @@ row for pre-existing organizations and is the current `core_ee` head. It adds no
 column, so nothing in this document's schema changes with it.
 
 The delivered streams are `streams:measurements` (consumer group `worker-measurements`) and
-`streams:debits` (consumer group `worker-debits`), both `MAXLEN 100_000` (approximate trimming),
+`streams:debits` (consumer group `worker-debits`), both with a 100,000-entry backlog limit that
+refuses new publishes rather than trimming, and each with a `<stream>:dead` dead-letter stream,
 registered in `api/entrypoints/worker_streams.py` and gated into `ALL_STREAMS` only when `is_ee()`
 is true and `AGENTA_WALLETS_ENABLED` is on (see `wave-1.md`, Feature flag).
 The debit idempotency key the measurement worker mints is `"measurement:{measurement_id}"`. Wave 1
@@ -696,8 +717,11 @@ not the versioned production pricing configuration this document describes elsew
 
 The `check(delta)` this document names throughout is the design operation, not the delivered
 signature. Wave 1 has no admission control and no hold, so what shipped is
-`check(*, organization_id) -> bool`: an `async` read of the committed general balance against its
-floor, with no amount argument at all. The `amount_musd` parameter the first implementation carried
+`check(*, organization_id) -> bool`: an `async` read of the committed spendable balance against the
+general row's floor, with no amount argument at all. Spendable is the general balance minus the
+remaining value of expired credits, derived in one statement by
+`WalletsDAO.get_spendable_balance`, because nothing posts expired value out of the general row
+(`open-designs.md` item 21). The `amount_musd` parameter the first implementation carried
 and never read was removed in `WP-1-04`. An amount returns to that signature only when an L1
 exposure estimate gives it meaning, with reservation semantics behind it — see `open-designs.md`
 items 10 and 11.

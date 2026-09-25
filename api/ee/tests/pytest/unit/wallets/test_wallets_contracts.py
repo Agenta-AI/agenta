@@ -97,3 +97,9 @@ def test_debit_command_has_no_provider_metrics_or_measurement_reference():
         "created_at",
     }
     assert actual_fields == expected_fields
+
+
+def test_measurement_command_rejects_repeated_component_keys():
+    component = build_mcp_component()
+    with pytest.raises(ValidationError, match="duplicate component keys"):
+        build_measurement_command(components=[component, component.model_copy()])

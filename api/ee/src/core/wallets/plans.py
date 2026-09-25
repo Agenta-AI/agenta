@@ -18,6 +18,9 @@ from ee.src.core.access.entitlements.types import DefaultPlan
 # constant, not a per-plan choice, until credit priority itself becomes plan-dependent.
 PLAN_ALLOWANCE_CREDIT_KIND = "plan_allowance"
 PLAN_ALLOWANCE_PRIORITY = 10
+# `resource_key` of the adjustment debit a plan change posts against the outgoing
+# allowance credit. It also marks that credit as already clawed back.
+PLAN_CHANGE_RESOURCE_KEY = "wallet:plan_change"
 
 # musd; $1 = 1_000_000 musd. One recurring allowance amount per plan, per billing period.
 _HOBBY_ALLOWANCE_MUSD = 0  # $0 — the free tier draws no funded allowance

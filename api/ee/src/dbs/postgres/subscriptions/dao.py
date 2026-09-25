@@ -1,5 +1,7 @@
-from typing import Optional
+from contextlib import asynccontextmanager
+from typing import AsyncIterator, Optional
 
+from sqlalchemy import text
 from sqlalchemy.future import select
 
 from ee.src.core.subscriptions.types import SubscriptionDTO
@@ -21,6 +23,25 @@ class SubscriptionsDAO(SubscriptionsDAOInterface):
         if engine is None:
             engine = get_transactions_engine()
         self.engine = engine
+
+    @asynccontextmanager
+    async def lock(
+        self,
+        *,
+        organization_id: str,
+    ) -> AsyncIterator[None]:
+        # A transaction-scoped advisory lock on a connection of its own. Not the
+        # task-scoped `session()`: `read` and `update` below would join that session and
+        # commit it, releasing the lock early. Not `SELECT ... FOR UPDATE` on the row
+        # either: `read` and `update` would then wait on a row lock held by their own
+        # caller. Waiters block rather than fail; changes for one organization are rare
+        # user actions and webhooks, so a queue of them is short.
+        async with self.engine.transaction() as connection:
+            await connection.execute(
+                text("SELECT pg_advisory_xact_lock(hashtextextended(:key, 0))"),
+                {"key": f"subscriptions:{organization_id}"},
+            )
+            yield
 
     async def create(
         self,
