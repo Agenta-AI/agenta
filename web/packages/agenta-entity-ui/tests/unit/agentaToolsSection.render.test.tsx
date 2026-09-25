@@ -116,4 +116,36 @@ describe("Agenta tools section", () => {
         await choose(preset(), "allow_all")
         expect(Object.values(saved)).toEqual(["allow", "allow", "allow", "allow"])
     })
+
+    it("names every Agenta tool with its own copy", async () => {
+        const ops = [
+            "get_current_session",
+            "rename_session",
+            "rename_agent",
+            "create_schedule",
+            "create_subscription",
+            "remove_schedule",
+            "remove_subscription",
+            "list_schedules",
+            "list_subscriptions",
+            "list_deliveries",
+            "test_subscription",
+            "discover_triggers",
+            "commit_revision",
+            "read_config",
+            "check_skill_updates",
+            "apply_skill_update",
+        ]
+        await act(async () =>
+            root.render(
+                <AgentaToolsSection
+                    tools={{}}
+                    onChange={() => undefined}
+                    access={Object.fromEntries(ops.map((op) => [op, "write" as const]))}
+                    buildKitOps={new Set()}
+                />,
+            ),
+        )
+        expect(host.textContent).not.toContain("Playground-only")
+    })
 })

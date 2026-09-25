@@ -35,6 +35,10 @@ const AGENTA_TOOL_COPY: Record<string, {name: string; description: string}> = {
         name: "Get the link to this chat",
         description: "Gets this chat's name and a link to open it in Agenta.",
     },
+    list_subscriptions: {
+        name: "List triggers",
+        description: "Lists the triggers set up for this project.",
+    },
     check_skill_updates: {
         name: "Check skill updates",
         description: "Checks whether this agent's skills have newer versions.",
