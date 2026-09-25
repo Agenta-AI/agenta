@@ -52,6 +52,7 @@ from oss.tests.pytest.unit.gateways.test_gateways_llm_service import (
     _secret,
 )
 
+ROUTERS_PATH = Path(__file__).resolve().parents[5] / "entrypoints" / "routers.py"
 GATEWAYS_SOURCE = (
     Path(__file__).resolve().parents[5] / "oss" / "src" / "core" / "gateways"
 )
@@ -424,6 +425,28 @@ async def test_the_defaults_admit_everything_and_record_nothing(
     assert result.status_code == 200 and json.loads(body)["choices"]
     assert adapter.calls == 1
     assert len(audit_events) == 1
+
+
+def test_the_wallet_ports_are_bound_only_behind_the_wallet_flag():
+    """`routers.py` builds the wallet's adapters inside one `if` that reads
+    `env.wallets.enabled`, and hands the policy service nothing otherwise. Read as source:
+    importing the module builds every DAO, engine and router in the process."""
+    tree = ast.parse(ROUTERS_PATH.read_text(encoding="utf-8"))
+    guarded = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.If) and "env.wallets.enabled" in ast.unparse(node.test):
+            for inner in ast.walk(node):
+                if isinstance(inner, ast.Call):
+                    guarded.add(ast.unparse(inner.func))
+    constructed = {
+        ast.unparse(node.func)
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call)
+        and ast.unparse(node.func) in {"WalletSpendAdmission", "MeasurementUsageSink"}
+    }
+
+    assert constructed == {"WalletSpendAdmission", "MeasurementUsageSink"}
+    assert constructed <= guarded
 
 
 def test_no_gateway_module_imports_enterprise_code():
