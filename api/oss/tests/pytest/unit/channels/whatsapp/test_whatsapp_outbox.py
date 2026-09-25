@@ -110,7 +110,7 @@ class WhatsAppDAO(FakeChannelsDAO):
             if (event is None or event.space_id in (None, row.space_id))
             and (event is None or event.origin in (None, row.origin))
         ]
-        rows.sort(key=lambda row: row.created_at, reverse=True)
+        rows.reverse()  # newest arrival first, as uuid7 ids order them
         if windowing is not None and windowing.limit:
             rows = rows[: windowing.limit]
         return rows
@@ -362,6 +362,22 @@ async def test_a_retried_old_message_arriving_last_does_not_close_the_window(
     await _end(worker, thread, "t1")
 
     assert graph.texts_to(p.CUSTOMER) == ["answer"]
+
+
+async def test_a_button_tap_keeps_the_window_open_when_an_old_message_lands_after(
+    service, dao, graph, records
+):
+    worker = _worker(service, records)
+    _, space, thread = dao.seed_whatsapp()
+    dao.customer_wrote(space, message_id="wamid.TEXT", ago=timedelta(hours=25))
+    dao.customer_wrote(space, message_id="wamid.TAP", ago=timedelta(minutes=2))
+    dao.inbox[-1] = dao.inbox[-1].model_copy(update={"kind": ChannelEventKind.ACTION})
+    dao.customer_wrote(space, message_id="wamid.OLD", sent_ago=timedelta(hours=26))
+    _answer(records, thread, "t1", "approved and done")
+
+    await _end(worker, thread, "t1")
+
+    assert graph.texts_to(p.CUSTOMER) == ["approved and done"]
 
 
 async def test_a_turn_that_started_inside_the_window_but_ended_outside_is_held(

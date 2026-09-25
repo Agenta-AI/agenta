@@ -86,6 +86,9 @@ _PROGRESS_MAX_SECONDS = 20 * 60
 _ACTIVITY_REFRESH_SECONDS = 20.0
 _WORKING_NOTICE_SECONDS = 30.0
 _WORKING_NOTICE_ITEM = -1
+# How many of a space's latest arrivals the reply window looks at to find the
+# newest message by the platform's clock. A late retry lands among them.
+_LATEST_INBOUND_SCAN = 20
 
 # Delivery claims. A post or edit holds its row for at most this long: well
 # past the adapters' HTTP timeouts, so only a worker that died mid-post leaves
@@ -499,25 +502,21 @@ class ChannelsOutboxWorker:
     ) -> Optional[ChannelInboxEvent]:
         """The person's latest message in this thread's space: what the typing
         signal points at, and where the reply window starts. Latest by the
-        platform's clock, so a message the platform retried and delivered late
-        does not win; the latest arrival too, since a button tap counts."""
+        platform's clock, among the latest arrivals: a message the platform
+        retried and delivered late must neither open nor close the window,
+        and a button tap counts like any message."""
 
-        dao = self.channels_service.channels_dao
-        arrived = await dao.query_inbox_events(
+        arrived = await self.channels_service.channels_dao.query_inbox_events(
             project_id=project_id,
             event=ChannelInboxEventQuery(
                 space_id=thread.space_id, origin=ChannelEventOrigin.PUSHED
             ),
-            windowing=Windowing(limit=1),
+            windowing=Windowing(limit=_LATEST_INBOUND_SCAN),
         )
-        sent = await dao.query_space_inbox_messages(
-            project_id=project_id, space_id=thread.space_id, limit=1
-        )
-        candidates = [*arrived, *sent]
-        if not candidates:
+        if not arrived:
             return None
         oldest = datetime.min.replace(tzinfo=timezone.utc)
-        return max(candidates, key=lambda e: e.sent_at or e.created_at or oldest)
+        return max(arrived, key=lambda e: e.sent_at or e.created_at or oldest)
 
     async def stop_progress(self, turn_id: str) -> None:
         """Cancel this turn's progress loop and wait for it, so a final edit
