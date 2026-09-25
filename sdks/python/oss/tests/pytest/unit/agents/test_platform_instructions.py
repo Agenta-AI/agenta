@@ -251,3 +251,17 @@ def test_static_instructions_do_not_duplicate_session_facts_or_naming_actions():
     assert "## This session" not in text
     assert "rename_agent" not in text
     assert "rename_session" not in text
+
+
+def test_channel_guidance_appears_only_when_the_run_can_list_channels():
+    # Staging QA: Claude defers MCP tools behind a name-only list, so without a line in the
+    # prompt, Haiku answered "where can you post in Slack?" from memory instead of listing.
+    without = compose_platform_instructions([], [], ["bash"])
+    assert "list_channel_destinations" not in without
+
+    text = compose_platform_instructions(
+        [], [], ["list_channel_destinations", "send_channel_message"]
+    )
+    section = text[text.index("## Slack and Telegram") :]
+    assert "call `list_channel_destinations`" in section
+    assert "where you can post" in section

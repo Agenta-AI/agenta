@@ -351,6 +351,29 @@ list can go stale — `search_tools` is the source of truth for what is connecte
   arguments — report it instead of looping."""
 
 
+def channel_guidance(tool_names: Sequence[str]) -> Optional[str]:
+    """Point at the channel tools when the run has them. Claude lists an MCP tool by name only
+    until it loads one, so without this line Haiku answered "where can you post in Slack?"
+    from memory. Names only the channel tools this run has."""
+    if "list_channel_destinations" not in tool_names:
+        return None
+    steps = ["to see where you can post, call `list_channel_destinations`"]
+    if "send_channel_message" in tool_names:
+        steps.append("to post outside this conversation, use `send_channel_message`")
+    readers = [
+        f"`{name}`"
+        for name in ("read_channel_messages", "search_channel_messages")
+        if name in tool_names
+    ]
+    if readers:
+        steps.append(f"to read or search a channel, use {' or '.join(readers)}")
+    return (
+        "## Slack and Telegram\n\n"
+        f"You are connected to Slack or Telegram: {'; '.join(steps)}. "
+        "Use these tools instead of guessing."
+    )
+
+
 def is_placeholder_agent_name(name: Optional[str]) -> bool:
     """Say whether an agent display name is still the seeded placeholder.
 
@@ -425,5 +448,6 @@ def compose_platform_instructions(
         AGENTA_CONFIG_SECTIONS if CONFIG_COMMIT_TOOL in tool_names else None,
         credential_guidance(credential_environment_names),
         gateway_guidance(integration_names),
+        channel_guidance(tool_names),
     ]
     return "\n\n".join(section for section in sections if section)
