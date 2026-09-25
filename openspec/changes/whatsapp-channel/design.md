@@ -53,7 +53,7 @@ Sources are listed at the end.
 
 ### D1. Connect: bring your own number first, Embedded Signup second, no shared number
 
-Phase 1 is a paste form with the phone number ID, a permanent system-user access token, and the app secret. `verify_connection` reads the phone number's details (display name, verified name, quality rating) with the token and fails if it cannot. It also returns the WhatsApp Business Account ID. `activate_connection` subscribes the app to the account's webhooks. Agenta shows the webhook URL and a generated verify token for the customer to paste into their Meta app. The connection keys on `phone_number_id`.
+Phase 1 is a paste form with the phone number ID, a permanent system-user access token, and the app secret. `verify_connection` reads the phone number's display name and verified name with the token and fails if it cannot. Agenta shows the webhook URL and a generated verify token for the customer to paste into their Meta app. The connection keys on `phone_number_id`.
 
 Phase 2 adds Embedded Signup. Agenta becomes a Meta Tech Provider: business verification of Agenta's Meta business, app review for `whatsapp_business_management` and `whatsapp_business_messaging`, and one Meta app per region. The popup returns a code that the backend exchanges for a business token. The connection keys on the same `phone_number_id`. Both paths share one adapter. Only setup and the token source differ, the way `telegram_hosted` differs from `telegram`.
 
@@ -126,21 +126,55 @@ Alternatives:
 - **Focused business agents only (option A).** A short notice and a required checkbox on the connect screen, plus a clause in Agenta's terms. Rejected by Mahmoud on 2026-09-24: it adds rules and wording Agenta does not need, and the EU measures currently force access.
 - **Automatically check the agent's prompt.** Rejected. Unreliable and intrusive.
 
+## As built (v1)
+
+The code follows the decisions above with these small core changes and documented limits. Each limit trades rare-case machinery for a narrower contract.
+
+Core changes, all declared by the adapter's capabilities so Slack and Telegram are unchanged:
+
+- `rendering.controls.indicator = "native"`: the outbox sends no "Thinking…" message. It signals typing when the turn starts, refreshes it every 20 seconds, and sends one working message after 30 seconds, on its own outbox row so a redelivered event cannot send it twice.
+- `conversation.reply_window_seconds` and a `HELD` delivery state. The window is derived from the space's latest inbound message, so no new field is stored. A held row is only claimable by the release path.
+- `parse_event` may return a list. The WhatsApp route verifies each business number in a batched body on its own and skips numbers not connected here.
+- `conversation.opt_out` and a space flag `is_opted_out` for STOP and START.
+- Two adapter hooks with no-op defaults: `reopen_conversation` (the template) and `fetch_media` (inbound files).
+
+Failures follow the outbox's one rule, which the Railway preview test made necessary: a platform answer of 4xx other than 429 is a refusal no retry changes, so the reply is marked failed (`delivery_refused`) with Meta's whole error (code, subcode, type, `error_data.details`, `fbtrace_id`, never the token) and the turn event is acknowledged. Rate limits and connection failures that happen before the platform answers still go back to the stream for a retry. A new message whose outcome is unknown (a 5xx, a read or write timeout, a dropped connection) is recorded as `delivery_uncertain` and not retried, because it may already be in the chat; this rule predates WhatsApp. The adapter reports Meta's "try again later" codes, which Meta sends as HTTP 400, as a 429: its rate limits and 131057 (a number under maintenance, such as a throughput upgrade). A database error before the send, such as the reply-window read, releases the row for a retry and is never classified as a platform answer. A refused typing indicator stops the turn's typing refresh and never blocks the reply. The rule applies to every channel: a Telegram 4xx such as a blocked bot also stops retrying now. Slack reports most errors as HTTP 200 with `ok: false`, so Slack keeps its current retries.
+
+The connect check also proves the token can send, not only read: reading the number succeeds for a token whose system user has no WhatsApp account assigned, and every send then fails with error 100 "Authorization Error" (seen on the Railway preview, 2026-09-25). The check posts a text to `to: "0"`, which is no WhatsApp number and cannot be delivered. Meta checks authorization first, so a complaint about the recipient (131009, seen live, or 131030 or 131026) means the token can send, "Authorization Error" (or a permission code, 10 or 200) means it cannot, and any other answer, a network error included, blocks the connect with "Try again". The same check runs on credential rotation. The alternative, finding the number among `/me/assigned_whatsapp_business_accounts` and its phone numbers, takes several calls and works only for system-user tokens.
+
+Documented limits:
+
+- Delivery statuses are logged, with failed ones at warning level and Meta's code. They are not written back to the outbox row. Error 131047 in a send response holds the reply; a 131047 that only arrives later as a status is logged. The window check before sending makes that case rare.
+- The pair rate limit (131056) is retried twice after 6 seconds. There is no fixed spacing between the parts of a long answer, because Meta allows short bursts.
+- Held replies go out, oldest first, when the customer writes again and that message starts a turn, before the turn's answer, with or without a template. The outbox sends them through its ordinary claim and delivery path, so an unknown outcome is never retried and order holds across workers. Only rows held before the customer's latest message are released (the hold time is stored with the reply, because a release claim moves the row's `updated_at`), so a redelivered turn event sends nothing. Nothing is released to a customer who opted out. A message that starts no turn (a voice note, a message while opted out) releases nothing. A held reply that is refused on release is marked failed with the reason and is not retried; the parts after it and the new answer still go. This covers Meta's refusals, a connection refused or timed out before Meta answered, and a pair rate limit that outlasts its retries: under sustained throttling or connection trouble the customer can miss an old answer, and Settings shows it. A held reply another worker is still sending makes the turn event fail and retry, so the new answer never overtakes it.
+- The re-open template is sent once for the first reply held since the customer last wrote, not once per held part. Only the oldest held reply of a thread sends it, so two workers holding parts of one answer send one. If the worker stops between holding the reply and sending the template, the template is not sent; the reply stays held and goes out when the customer writes.
+- Group messages are ignored, not stored.
+- The operator registers the webhook in Meta by pasting the callback URL and verify token. Agenta does not call `subscribed_apps`, and disconnecting does not unsubscribe the app, because the same Meta app may serve the business's other tools. Disconnect shows a notice instead.
+- The verify token is `<phone_number_id>.<random>` and is kept in the connection data, not the vault, because the operator needs to see it again. The GET handshake finds the connection from the phone number ID in the token.
+- Inbound images and documents become session attachments, so the deployment's attachment limits apply (10 MB by default), not Meta's 100 MB.
+- Sending files the agent produces is deferred: no channel can return a file from an agent yet.
+- A turn already running when the customer sends STOP still delivers its answer.
+- STOP and START apply in the order the customer sent them, by Meta's timestamp: every one moves an order fence on the space (the send time of the last one seen), even when it changes nothing, and one sent earlier, however late it arrives, changes nothing. On a tie, STOP wins. An operator's edit of the space keeps the customer's choice.
+- The window counts from Meta's timestamp on the customer's latest message to arrive, or from its arrival time when the payload has none. A webhook Meta retried for a day therefore does not reopen the window.
+- The typing loop stops as soon as the turn's answer, failure notice or approval card has left, even when the turn ended on another worker.
+- A held reply shows in Settings > Channels outbound events with the state `held` and the reason `window_closed`. The session view does not show it yet.
+- A real Meta number has not been tested yet. The code is tested against a fake Graph API that answers like Meta's for every call the adapter makes.
+
 ## Adapter mapping
 
 | Interface method | WhatsApp behavior |
 | --- | --- |
-| `fetch_capabilities` | Static. `spaces.private` only, `controls.update` false, `buttons.max` 3, list max 10, text `markdown` converted to WhatsApp formatting, `max_chars` 4096, files per D6, no backfill, forwardfill on. |
+| `fetch_capabilities` | Static. `spaces.private` only, `controls.update` false, `buttons.max` 10 (the adapter sends reply buttons for up to 3 options and a list for 4 to 10), text `markdown` converted to WhatsApp formatting, `max_chars` 4096, files per D6, no backfill, forwardfill on. |
 | `verify_connection` | Read the phone number with the token. Return display name, WhatsApp Business Account ID, and quality rating. |
-| `activate_connection` | Subscribe the app to the business account webhooks. Store the verify token. |
+| `activate_connection` | Not used. The operator registers the webhook in Meta. |
 | `connection_locator` | `metadata.phone_number_id` from the body. |
 | `verify_signature` | HMAC-SHA256 of the raw body with the connection's app secret (phase 1) or the deployment app secret (phase 2), compared in constant time with `X-Hub-Signature-256`. |
 | `parse_event` | One event per `messages[]` item. Statuses update delivery receipts and are not routed. `interactive.button_reply` and `list_reply` become `ACTION` events. Always `private` and `addressed`. |
-| `post_message` | `/messages` with text, interactive, image, or document. Returns `{phone_number_id, wa_id, message_id}`. |
+| `post_message` | `/messages` with text or interactive. Returns `{wa_id, message_id}`. |
 | `edit_message` | Not offered. Declared off. |
 | `signal_activity` | Typing indicator on the last inbound message ID. |
 | `discover_spaces`, `fetch_history` | Return nothing. |
-| `revoke_installation` | Unsubscribe the app from the business account webhooks. |
+| `revoke_installation` | Returns a notice to remove the callback URL in Meta. |
 
 Ingress adds `GET /channels/whatsapp/events/` for the verify handshake. It looks up the verify token among WhatsApp connections and echoes `hub.challenge` as plain text. `POST /channels/whatsapp/events/` handles events. One webhook body can carry several messages, so `parse_event` is extended to return a list for this adapter, or the ingress splits the body before parsing.
 

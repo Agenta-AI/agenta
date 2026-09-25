@@ -11,13 +11,18 @@ EXPECTED = {
         "commands": {"native": True, "in_conversation": False},
     },
     "spaces": {"private": True, "group": True, "topic": True},
-    "conversation": {"units": ["thread", "space"], "default": "thread"},
+    "conversation": {
+        "units": ["thread", "space"],
+        "default": "thread",
+        "reply_window_seconds": 0,
+        "opt_out": False,
+    },
     "fill": {
         "backfill": {"supported": True, "requires_permission": "channels:history"},
         "forwardfill": {"supported": True, "requires_permission": "channels:history"},
     },
     "rendering": {
-        "controls": {"update": True, "ephemeral": True},
+        "controls": {"update": True, "ephemeral": True, "indicator": "message"},
         "buttons": {"supported": True, "max": 5},
         "text": {"format": "markdown", "max_chars": 3000},
         "files": {

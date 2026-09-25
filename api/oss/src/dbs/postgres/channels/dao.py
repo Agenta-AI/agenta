@@ -1,3 +1,4 @@
+import json
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Tuple
 from uuid import UUID, uuid4
@@ -13,6 +14,7 @@ from sqlalchemy import (
     or_,
     select,
     text,
+    true,
     tuple_,
     update,
 )
@@ -689,9 +691,15 @@ class ChannelsDAO(ChannelsDAOInterface):
         space: ChannelSpaceEdit,
     ) -> Optional[ChannelSpace]:
         async with self.engine.session() as session:
-            stmt = select(ChannelSpaceDBE).where(
-                ChannelSpaceDBE.project_id == project_id,
-                ChannelSpaceDBE.id == space.id,
+            # Locked: the mapper keeps the person's STOP/START flags from this
+            # read, and a concurrent STOP must not commit in between.
+            stmt = (
+                select(ChannelSpaceDBE)
+                .where(
+                    ChannelSpaceDBE.project_id == project_id,
+                    ChannelSpaceDBE.id == space.id,
+                )
+                .with_for_update()
             )
 
             result = await session.execute(stmt)
@@ -845,6 +853,56 @@ class ChannelsDAO(ChannelsDAOInterface):
                 await session.refresh(event_dbe)
 
             return map_inbox_event_dbe_to_dto(event_dbe=event_dbe)
+
+    async def set_space_opted_out(
+        self,
+        *,
+        project_id: UUID,
+        space_id: UUID,
+        opted_out: bool,
+        sent_at: datetime,
+    ) -> Optional[ChannelSpace]:
+        # One conditional UPDATE: the fence and the write cannot interleave with
+        # another consent event. A fixed-width UTC stamp sorts as text.
+        stamp = sent_at.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+        flags = cast(ChannelSpaceDBE.flags, JSONB)
+        applied = flags["consent_sent_at"].astext
+        stmt = (
+            update(ChannelSpaceDBE)
+            .where(
+                ChannelSpaceDBE.project_id == project_id,
+                ChannelSpaceDBE.id == space_id,
+                or_(
+                    applied.is_(None),
+                    applied < stamp,
+                    and_(applied == stamp, true() if opted_out else false()),
+                ),
+            )
+            .values(
+                flags=func.coalesce(flags, cast(literal("{}"), JSONB)).op("||")(
+                    cast(
+                        literal(
+                            json.dumps(
+                                {"is_opted_out": opted_out, "consent_sent_at": stamp}
+                            )
+                        ),
+                        JSONB,
+                    )
+                ),
+                updated_at=datetime.now(timezone.utc),
+            )
+            .returning(ChannelSpaceDBE)
+        )
+
+        async with self.engine.session() as session:
+            result = await session.execute(stmt)
+            space_dbe = result.scalar_one_or_none()
+            await session.commit()
+
+            if space_dbe is None:
+                return None
+
+            return map_space_dbe_to_dto(space_dbe=space_dbe)
 
     async def attach_event_to_space(
         self,
@@ -2006,6 +2064,7 @@ class ChannelsDAO(ChannelsDAOInterface):
         claim_ttl_seconds: float,
         overwrite_final: bool = True,
         delivery_key: Optional[str] = None,
+        include_held: bool = False,
     ) -> Optional[ChannelOutboxEvent]:
         table = ChannelOutboxEventDBE
         # `data` is JSON, not JSONB: cast it so the comparison is by value,
@@ -2032,7 +2091,7 @@ class ChannelsDAO(ChannelsDAOInterface):
         if delivery_key is not None:
             conditions.append(
                 ~func.coalesce(
-                    (claim_code == "delivery_uncertain")
+                    claim_code.in_(("delivery_uncertain", "delivery_refused"))
                     & (table.status["type"].astext == delivery_key),
                     false(),
                 )
@@ -2041,6 +2100,8 @@ class ChannelsDAO(ChannelsDAOInterface):
             conditions.append(
                 ~func.coalesce(processed["final"].astext == "true", false())
             )
+        if not include_held:
+            conditions.append(table.state != ChannelDeliveryState.HELD)
 
         # The token names this claim, so the writes that release it can be
         # fenced to the worker that still holds it.

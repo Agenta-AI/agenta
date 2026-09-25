@@ -16,11 +16,11 @@ export interface BuildPublishItemsOptions {
      * `agentId`); pass explicitly to override, e.g. for a draft agent that has no id yet.
      */
     apiLive?: boolean
-    /** Disables Slack and Telegram while the connections are loading or failed to load. */
+    /** Disables the chat channels while the connections are loading or failed to load. */
     channelsUnavailable?: boolean
 }
 
-/** The Publish menu's items, in order: Slack, Telegram, API. */
+/** The Publish menu's items, in order: Slack, Telegram, WhatsApp, API. */
 export const buildPublishItems = ({
     connections,
     agentId,
@@ -35,6 +35,11 @@ export const buildPublishItems = ({
     {
         key: "telegram",
         live: isLiveForAgent(connections.telegram, agentId),
+        disabled: channelsUnavailable,
+    },
+    {
+        key: "whatsapp",
+        live: isLiveForAgent(connections.whatsapp, agentId),
         disabled: channelsUnavailable,
     },
     {key: "api", live: apiLive ?? !!agentId},

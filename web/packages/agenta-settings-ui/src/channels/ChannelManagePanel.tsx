@@ -20,18 +20,21 @@ import {
     connectionScope,
     disconnectSubject,
     errorMessage,
+    installKindLabel,
     platformLabel,
     slackInviteHandle,
 } from "./helpers"
 import type {
     ChannelBehaviorState,
     ChannelConnection,
+    ChannelPlatform,
     ChannelSetupField,
     ChannelSpace,
     ChannelSpaceCandidate,
     ChannelSpaceKind,
     ChannelsActions,
 } from "./types"
+import {WhatsAppWebhook} from "./WhatsAppWebhook"
 
 /**
  * The manage view for a connected channel: what is connected, where it answers, the two
@@ -67,8 +70,12 @@ export interface ChannelManagePanelProps {
 }
 
 /** The secret fields a token update asks for when the backend declares none. */
-const FALLBACK_SECRETS: Record<"slack" | "telegram", ChannelSetupField[]> = {
+const FALLBACK_SECRETS: Record<ChannelPlatform, ChannelSetupField[]> = {
     telegram: [{name: "bot_token", label: "Bot token", secret: true, required: true}],
+    whatsapp: [
+        {name: "access_token", label: "Access token", secret: true, required: true},
+        {name: "app_secret", label: "App secret", secret: true, required: true},
+    ],
     slack: [
         {name: "bot_token", label: "Bot User OAuth Token", secret: true, required: true},
         {name: "signing_secret", label: "Signing Secret", secret: true, required: true},
@@ -113,6 +120,8 @@ export const ChannelManagePanel = ({
     onReconnect,
 }: ChannelManagePanelProps) => {
     const isSlack = connection.platform === "slack"
+    const isTelegram = connection.platform === "telegram"
+    const isWhatsApp = connection.platform === "whatsapp"
     const name = platformLabel(connection.platform)
     const connectionId = connection.connectionId
     const handle = botHandle(connection, hostedHandle)
@@ -352,8 +361,8 @@ export const ChannelManagePanel = ({
         if (elsewhere || !connectionId) return
         void loadSpaces()
         void loadBehavior()
-        if (!isSlack) void loadAllowed()
-    }, [elsewhere, connectionId, isSlack, loadSpaces, loadBehavior, loadAllowed])
+        if (isTelegram) void loadAllowed()
+    }, [elsewhere, connectionId, isTelegram, loadSpaces, loadBehavior, loadAllowed])
 
     const run = async (kind: "disconnect" | "connect-here", action: () => Promise<void>) => {
         setBusy(kind)
@@ -377,18 +386,14 @@ export const ChannelManagePanel = ({
 
     const summaryRows: {label: string; value: React.ReactNode}[] = [
         {
-            label: "Bot",
-            value: `${handle} · ${
-                connection.kind === "hosted"
-                    ? "Agenta-hosted"
-                    : isSlack
-                      ? "Your own app"
-                      : "Your own bot"
-            }`,
+            label: isWhatsApp ? "Number" : "Bot",
+            value: `${handle} · ${installKindLabel(connection)}`,
         },
-        isSlack
-            ? {label: "Workspace", value: connection.workspaceName || workspaceName}
-            : {label: "Account", value: "Linked to you"},
+        ...(isSlack
+            ? [{label: "Workspace", value: connection.workspaceName || workspaceName}]
+            : isTelegram
+              ? [{label: "Account", value: "Linked to you"}]
+              : []),
         ...(canUpdateToken
             ? [
                   {
@@ -414,7 +419,7 @@ export const ChannelManagePanel = ({
         ...(connectedOn ? [{label: "Connected", value: connectedOn}] : []),
     ]
 
-    const behaviorRows: {key: "dm" | "group"; title: string; help: string}[] = [
+    const allBehaviorRows: {key: "dm" | "group"; title: string; help: string}[] = [
         {
             key: "dm",
             title: "Direct messages",
@@ -428,6 +433,11 @@ export const ChannelManagePanel = ({
                 : "Whether this agent answers in a group it has been added to.",
         },
     ]
+
+    // WhatsApp is one-to-one only: there is no group chat to switch.
+    const behaviorRows = isWhatsApp
+        ? allBehaviorRows.filter((row) => row.key === "dm")
+        : allBehaviorRows
 
     // Every private chat is its own space (one per person who messaged the bot), but they are
     // all "Direct messages" to the reader: one row stands for them.
@@ -511,14 +521,18 @@ export const ChannelManagePanel = ({
                     <Warning size={16} className="mt-0.5 flex-shrink-0 text-colorError" />
                     <div className="flex min-w-0 flex-1 flex-col gap-1.5">
                         <span className="text-[13px] font-medium text-colorText">
-                            {revokedOffersToken
-                                ? "Telegram revoked the bot token"
-                                : `${name} uninstalled the app`}
+                            {isWhatsApp
+                                ? "Meta rejected the access token"
+                                : revokedOffersToken
+                                  ? "Telegram revoked the bot token"
+                                  : `${name} uninstalled the app`}
                         </span>
                         <span className="text-xs leading-relaxed text-colorTextSecondary">
-                            {revokedOffersToken
-                                ? `${agentName} cannot answer there until you paste a new token from @BotFather.`
-                                : `${agentName} cannot answer there until the app is installed again.`}
+                            {isWhatsApp
+                                ? `${agentName} cannot answer there until you paste a new access token.`
+                                : revokedOffersToken
+                                  ? `${agentName} cannot answer there until you paste a new token from @BotFather.`
+                                  : `${agentName} cannot answer there until the app is installed again.`}
                         </span>
                         {revokedOffersToken ? (
                             tokenOpen ? null : (
@@ -582,9 +596,18 @@ export const ChannelManagePanel = ({
                             data-testid="channels-own-bot-offer"
                         >
                             <span className="text-xs leading-relaxed text-colorTextSecondary">
-                                The one-per-project rule applies to the Agenta bot only. {agentName}{" "}
-                                can have its own bot instead
-                                {unassigned ? "" : `, and ${otherAgent} keeps the Agenta bot`}.
+                                {isWhatsApp ? (
+                                    <>{agentName} can have a WhatsApp number of its own instead.</>
+                                ) : (
+                                    <>
+                                        The one-per-project rule applies to the Agenta bot only.{" "}
+                                        {agentName} can have its own bot instead
+                                        {unassigned
+                                            ? ""
+                                            : `, and ${otherAgent} keeps the Agenta bot`}
+                                        .
+                                    </>
+                                )}
                             </span>
                             <Button
                                 variant="outline"
@@ -592,7 +615,9 @@ export const ChannelManagePanel = ({
                                 disabled={busy !== null}
                                 onClick={onUseOwnBot}
                             >
-                                Use your own bot for {agentName}
+                                {isWhatsApp
+                                    ? `Connect another number for ${agentName}`
+                                    : `Use your own bot for ${agentName}`}
                             </Button>
                         </div>
                     ) : null}
@@ -750,12 +775,12 @@ export const ChannelManagePanel = ({
                                 </div>
                             ) : null}
                         </div>
-                        {isSlack ? null : (
+                        {isTelegram ? (
                             <span className="text-xs leading-relaxed text-colorTextTertiary">
                                 Add {handle} to a group in Telegram and mention it once. The group
                                 appears here. Private chats appear on first message.
                             </span>
-                        )}
+                        ) : null}
                     </div>
 
                     {/* --- the two switches --- */}
@@ -794,8 +819,16 @@ export const ChannelManagePanel = ({
                         </div>
                     </div>
 
+                    {/* --- where Meta delivers messages (WhatsApp only) --- */}
+                    {isWhatsApp ? (
+                        <div className="flex flex-col gap-2">
+                            <Section title="Webhook" />
+                            <WhatsAppWebhook connection={connection} />
+                        </div>
+                    ) : null}
+
                     {/* --- who may message the bot (Telegram only) --- */}
-                    {isSlack ? null : (
+                    {!isTelegram ? null : (
                         <div className={`flex flex-col gap-2 ${CARD} p-3`}>
                             <div className="flex items-center gap-3">
                                 <span className="flex min-w-0 flex-1 flex-col gap-0.5">

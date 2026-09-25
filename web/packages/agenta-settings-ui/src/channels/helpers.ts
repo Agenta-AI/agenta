@@ -8,8 +8,23 @@ import type {
     ChannelToolSettings,
 } from "./types"
 
-export const platformLabel = (platform: ChannelPlatform): string =>
-    platform === "slack" ? "Slack" : "Telegram"
+/** Every platform, in the order the Channels card lists them. */
+export const CHANNEL_PLATFORMS: ChannelPlatform[] = ["slack", "telegram", "whatsapp"]
+
+const PLATFORM_LABELS: Record<ChannelPlatform, string> = {
+    slack: "Slack",
+    telegram: "Telegram",
+    whatsapp: "WhatsApp",
+}
+
+export const platformLabel = (platform: ChannelPlatform): string => PLATFORM_LABELS[platform]
+
+/** How a connection's install is described: the shared Agenta one, or the customer's own. */
+export const installKindLabel = (connection: ChannelConnection): string => {
+    if (connection.kind === "hosted") return "Agenta-hosted"
+    if (connection.platform === "slack") return "Your own app"
+    return connection.platform === "whatsapp" ? "Your own number" : "Your own bot"
+}
 
 /** The handle shown for a connection: the shared Agenta bot, or the customer's own. */
 export const botHandle = (connection: ChannelConnection, hostedHandle = "@agenta"): string => {
@@ -19,7 +34,7 @@ export const botHandle = (connection: ChannelConnection, hostedHandle = "@agenta
     if (connection.platform === "slack") {
         return connection.appId ? `Slack app ${connection.appId}` : "your Slack app"
     }
-    return "your bot"
+    return connection.platform === "whatsapp" ? "your number" : "your bot"
 }
 
 /** How one of several connections on a platform is told apart: its handle, and on Slack the
@@ -117,7 +132,9 @@ export const summarizeConnection = (
             sub:
                 platform === "slack"
                     ? "Chat with the agent in your team’s workspace"
-                    : "Chat with the agent from your phone",
+                    : platform === "whatsapp"
+                      ? "Answer messages to your WhatsApp Business number"
+                      : "Chat with the agent from your phone",
             subClass: "text-colorTextTertiary",
             dotClass: "",
             connected: false,
@@ -131,7 +148,9 @@ export const summarizeConnection = (
             sub:
                 platform === "telegram"
                     ? "Bot token revoked · update it"
-                    : "App uninstalled · reconnect",
+                    : platform === "whatsapp"
+                      ? "Access token rejected · update it"
+                      : "App uninstalled · reconnect",
             subClass: "text-colorError",
             dotClass: "bg-colorError",
             connected: true,
@@ -201,7 +220,7 @@ export const summarizeConnection = (
 }
 
 export const hasAnyIssue = (connections: ChannelConnections): boolean =>
-    (["slack", "telegram"] as const).some((platform) => {
+    CHANNEL_PLATFORMS.some((platform) => {
         const connection = connections[platform]
         return (
             !!connection &&
@@ -217,8 +236,8 @@ export const DEFAULT_TOOL_SETTINGS: ChannelToolSettings = {
     readableSpaceKeys: null,
 }
 
-/** Nothing connected on either platform. */
-export const EMPTY_CONNECTIONS: ChannelConnections = {slack: null, telegram: null}
+/** Nothing connected on any platform. */
+export const EMPTY_CONNECTIONS: ChannelConnections = {slack: null, telegram: null, whatsapp: null}
 
 export const DIRECT_MESSAGES_CHAT = {name: "Direct messages", type: "dm" as const}
 
@@ -264,7 +283,7 @@ export const NOOP_ACTIONS: ChannelsActions = {
     },
     countHostedTelegramBindings: async () => 0,
     hostedSlackInstallUrl: async () => null,
-    connectCustom: async () => {},
+    connectCustom: async () => null,
     connectHere: async () => {},
     disconnect: async () => {},
     listSpaces: async () => [],

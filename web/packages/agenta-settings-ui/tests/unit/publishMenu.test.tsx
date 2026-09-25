@@ -56,7 +56,7 @@ const connection = (overrides: Partial<ChannelConnection> = {}): ChannelConnecti
 })
 
 describe("buildPublishItems", () => {
-    it("offers Slack, Telegram and API in order; API is live once the agent is saved", () => {
+    it("offers Slack, Telegram, WhatsApp and API in order; API is live once the agent is saved", () => {
         const items = buildPublishItems({
             connections: EMPTY_CONNECTIONS,
             agentId: AGENT,
@@ -64,6 +64,7 @@ describe("buildPublishItems", () => {
         expect(items.map((item) => [item.key, item.live])).toEqual([
             ["slack", false],
             ["telegram", false],
+            ["whatsapp", false],
             ["api", true],
         ])
     })
@@ -72,6 +73,7 @@ describe("buildPublishItems", () => {
         const connections: ChannelConnections = {
             slack: connection(),
             telegram: connection({platform: "telegram"}),
+            whatsapp: null,
         }
         const items = buildPublishItems({connections, agentId: AGENT})
         expect(items.filter((item) => item.live).map((item) => item.key)).toEqual([
@@ -82,7 +84,7 @@ describe("buildPublishItems", () => {
     })
 
     it("shows the API as Set up while the agent has no saved id (draft)", () => {
-        const [, , api] = buildPublishItems({
+        const [, , , api] = buildPublishItems({
             connections: EMPTY_CONNECTIONS,
             agentId: undefined,
         })
@@ -90,7 +92,7 @@ describe("buildPublishItems", () => {
     })
 
     it("lets the host override the API's live state explicitly", () => {
-        const [, , api] = buildPublishItems({
+        const [, , , api] = buildPublishItems({
             connections: EMPTY_CONNECTIONS,
             agentId: AGENT,
             apiLive: false,
@@ -107,7 +109,7 @@ describe("buildPublishItems", () => {
         ]
         for (const slack of cases) {
             const [item] = buildPublishItems({
-                connections: {slack, telegram: null},
+                connections: {slack, telegram: null, whatsapp: null},
                 agentId: AGENT,
             })
             expect(item).toMatchObject({key: "slack", live: false})
@@ -123,6 +125,7 @@ describe("buildPublishItems", () => {
         expect(items.map((item) => [item.key, !!item.disabled])).toEqual([
             ["slack", true],
             ["telegram", true],
+            ["whatsapp", true],
             ["api", false],
         ])
     })

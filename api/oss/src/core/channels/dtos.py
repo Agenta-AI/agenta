@@ -102,6 +102,9 @@ class ChannelDeliveryState(str, Enum):
     SENT = "sent"  # the platform acknowledged; locator held
     FAILED = "failed"  # terminal after retries
     ABANDONED = "abandoned"  # we stopped trying — access revoked mid-thread
+    # not sent, and kept: the platform would refuse it now (WhatsApp's 24-hour
+    # reply window closed). Sent when the person next writes in the thread.
+    HELD = "held"
 
 
 class ChannelKeyGrain(str, Enum):
@@ -156,6 +159,12 @@ class ChannelConversation(BaseModel):
     units: List[ChannelKeyGrain] = Field(default_factory=list)
     # applies when no policy level states a session_scope; must be in units
     default: ChannelKeyGrain = ChannelKeyGrain.SPACE
+    # Seconds after the person's last message during which a reply may be
+    # sent; 0 means no window. Past it, replies are held (WhatsApp: 24 hours).
+    reply_window_seconds: int = 0
+    # A bare STOP (or UNSUBSCRIBE) opts the person out of this space until they
+    # send START. Declared by platforms whose rules require it (WhatsApp).
+    opt_out: bool = False
 
 
 class ChannelFillMode(BaseModel):
@@ -172,6 +181,10 @@ class ChannelFill(BaseModel):
 class ChannelControls(BaseModel):
     update: bool = False
     ephemeral: bool = False
+    # How a running turn shows: "message" posts a "Thinking…" message;
+    # "native" uses only the platform's own typing signal, for platforms that
+    # cannot remove a message once sent (WhatsApp).
+    indicator: Literal["message", "native"] = "message"
 
 
 class ChannelButtons(BaseModel):
@@ -302,6 +315,8 @@ class ChannelSpaceFlags(BaseModel):
     is_active: bool = True
     # the one-time fetch happened here, including when it returned nothing
     is_backfilled: bool = False
+    # the person sent STOP; nothing is answered until they send START
+    is_opted_out: bool = False
 
 
 class ChannelGrantFlags(BaseModel):
@@ -463,7 +478,13 @@ class ChannelThreadData(BaseModel):
 
 # Defensive, not exhaustive: the union of every channel's own secret field
 # names would need the adapter registry, which a leaf DTO must not import.
-_REDACTED_CREDENTIAL_FIELDS = {"bot_token", "signing_secret", "webhook_secret"}
+_REDACTED_CREDENTIAL_FIELDS = {
+    "bot_token",
+    "signing_secret",
+    "webhook_secret",
+    "access_token",
+    "app_secret",
+}
 _REDACTED_VALUE = "[REDACTED]"
 
 

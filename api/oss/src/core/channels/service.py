@@ -2427,7 +2427,9 @@ def _fill_connection_name_and_slug(
     """
     if not connection.name:
         connection.name = (
-            str(discovered.get("team_name") or "").strip()
+            str(
+                discovered.get("team_name") or discovered.get("verified_name") or ""
+            ).strip()
             or connection.channel.capitalize()
         )
     if not connection.slug:

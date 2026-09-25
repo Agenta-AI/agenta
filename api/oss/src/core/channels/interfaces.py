@@ -302,6 +302,25 @@ class ChannelsDAOInterface(ABC):
         ...
 
     @abstractmethod
+    async def set_space_opted_out(
+        self,
+        *,
+        project_id: UUID,
+        space_id: UUID,
+        opted_out: bool,
+        sent_at: datetime,
+    ) -> Optional[ChannelSpace]:
+        """Set flags.is_opted_out when the person sends STOP or START. Its own
+        write for the same reason as `mark_space_backfilled`: the writer is the
+        person on the platform, and it must not clobber an operator's edit.
+
+        Fenced on `sent_at`, when the person sent it: a STOP or START sent
+        before the last one applied changes nothing and returns None, so a
+        delayed or redelivered START can never undo a later STOP. On a tie,
+        STOP wins."""
+        ...
+
+    @abstractmethod
     async def attach_event_to_space(
         self,
         *,
@@ -787,8 +806,13 @@ class ChannelsDAOInterface(ABC):
         claim_ttl_seconds: float,
         overwrite_final: bool = True,
         delivery_key: Optional[str] = None,
+        include_held: bool = False,
     ) -> Optional[ChannelOutboxEvent]:
         """Take the right to deliver `content` on this row, atomically.
+
+        A HELD row (a reply kept past the platform's reply window) is only
+        claimable with `include_held`, which only the release path passes: a
+        redelivered turn must not re-send, or re-hold, a held reply.
 
         One conditional UPDATE: it succeeds only when the row is not already
         SENT with exactly this content and no other worker holds a live claim
@@ -800,7 +824,8 @@ class ChannelsDAOInterface(ABC):
         overwrites the answer. With `delivery_key`, a row whose last attempt
         at that same delivery ended with an unknown outcome (status code
         `delivery_uncertain`, the key in `status.type`) is not claimable: the
-        post may already be in the chat.
+        post may already be in the chat. Nor is one the platform refused for
+        good (`delivery_refused`, same key): it would refuse it again.
 
         Returns the claimed row (fresh, so the caller posts or edits against
         the current receipt), or None when another worker owns the delivery.

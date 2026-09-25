@@ -161,12 +161,15 @@ class FakeChannelsDAO(ChannelsDAOInterface):
         claim_ttl_seconds,
         overwrite_final=True,
         delivery_key=None,
+        include_held=False,
     ):
         """Same rule as the Postgres conditional UPDATE, in memory. Nothing
         awaits between the check and the write, so it is atomic here too."""
         for key, row in self.outbox.items():
             if row.id != event_id:
                 continue
+            if row.state == ChannelDeliveryState.HELD and not include_held:
+                return None
             processed = (row.data.processed if row.data else None) or {}
             if (
                 row.state == ChannelDeliveryState.SENT
@@ -186,7 +189,7 @@ class FakeChannelsDAO(ChannelsDAOInterface):
             if (
                 delivery_key is not None
                 and row.status is not None
-                and row.status.code == "delivery_uncertain"
+                and row.status.code in ("delivery_uncertain", "delivery_refused")
                 and row.status.type == delivery_key
             ):
                 return None
@@ -288,6 +291,21 @@ class FakeChannelsDAO(ChannelsDAOInterface):
 
     async def mark_space_backfilled(self, **kwargs):
         raise NotImplementedError
+
+    async def set_space_opted_out(self, *, project_id, space_id, opted_out, sent_at):
+        """Same fence as the Postgres update: a STOP or START sent before the
+        last one applied changes nothing; on a tie, STOP wins."""
+        space = self.spaces.get(space_id)
+        if space is None:
+            return None
+        applied = getattr(self, "_consent_sent_at", {})
+        self._consent_sent_at = applied
+        last = applied.get(space_id)
+        if last is not None and (sent_at < last or (sent_at == last and not opted_out)):
+            return None
+        applied[space_id] = sent_at
+        space.flags.is_opted_out = opted_out
+        return space
 
     async def attach_event_to_space(self, **kwargs):
         raise NotImplementedError  # inbound only; the outbox never resolves

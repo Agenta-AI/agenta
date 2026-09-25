@@ -1,6 +1,6 @@
 import asyncio
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Literal, Optional, Tuple
 from uuid import UUID
 
@@ -11,23 +11,28 @@ from oss.src.core.channels.dtos import (
     ChannelCapabilities,
     ChannelConnection,
     ChannelDeliveryState,
+    ChannelEventOrigin,
+    ChannelInboxEvent,
     ChannelInboxEventQuery,
     ChannelInboxTriggerQuery,
     ChannelOutboxEvent,
     ChannelOutboxEventCreate,
     ChannelOutboxEventData,
+    ChannelOutboxEventQuery,
     ChannelPendingChoice,
     ChannelPendingChoiceItem,
     ChannelThread,
     ChannelThreadQuery,
 )
-from oss.src.core.channels.render.dtos import RenderItem
+from oss.src.core.channels.render.dtos import RenderItem, RenderPart
 from oss.src.core.sessions.interactions.dtos import SessionInteractionStatus
 from oss.src.core.channels.render.render import (
     extract_answer_text,
     render_indicator,
     FAILED_START_TEXT,
+    WORKING_TEXT,
     render_no_answer,
+    render_notice,
     render_progress,
     render_thinking,
     render_turn_result,
@@ -36,6 +41,7 @@ from oss.src.core.channels.service import ChannelsService
 from oss.src.core.channels.types import ChannelConnectionNotFound, ChannelSpaceNotFound
 from oss.src.core.channels.utils import compose_outbox_key
 from oss.src.core.channels.utils import delivery_outcome_unknown as _outcome_unknown
+from oss.src.core.channels.utils import delivery_refused as _refused
 from oss.src.core.sessions.executions.interfaces import SessionExecutionsDAOInterface
 from oss.src.core.sessions.inputs.interfaces import SessionInputsDAOInterface
 from oss.src.core.sessions.records.service import RecordsService
@@ -45,8 +51,9 @@ from oss.src.tasks.asyncio.sessions.streaming import deserialize_turn_event
 from oss.src.tasks.asyncio.shared.consumer import StreamConsumer
 from oss.src.core.channels.types import (
     ChannelCredentialRevoked,
+    ChannelDeliveryHeld,
 )
-from oss.src.core.shared.dtos import Status
+from oss.src.core.shared.dtos import Status, Windowing
 from oss.src.utils.logging import get_module_logger
 
 log = get_module_logger(__name__)
@@ -71,6 +78,14 @@ _SETTLE_REREAD_BACKOFF_SECONDS = 0.5
 _PROGRESS_INTERVAL_SECONDS = 2.0
 _ACTIVITY_EVERY_TICKS = 2
 _PROGRESS_MAX_SECONDS = 20 * 60
+
+# On a channel whose indicator is native only (WhatsApp): the typing signal
+# lasts about 25 seconds there, so it is re-sent every 20; a turn still running
+# after 30 seconds gets one "working on it" message, on its own outbox row so a
+# redelivered turn-started never sends it twice.
+_ACTIVITY_REFRESH_SECONDS = 20.0
+_WORKING_NOTICE_SECONDS = 30.0
+_WORKING_NOTICE_ITEM = -1
 
 # Delivery claims. A post or edit holds its row for at most this long: well
 # past the adapters' HTTP timeouts, so only a worker that died mid-post leaves
@@ -117,12 +132,16 @@ class ChannelsOutboxWorker:
         inputs_dao: Optional[SessionInputsDAOInterface] = None,
         progress_interval_seconds: float = _PROGRESS_INTERVAL_SECONDS,
         progress_max_seconds: float = _PROGRESS_MAX_SECONDS,
+        activity_refresh_seconds: float = _ACTIVITY_REFRESH_SECONDS,
+        working_notice_seconds: float = _WORKING_NOTICE_SECONDS,
     ) -> None:
         self.channels_service = channels_service
         self.turns_service = turns_service
         self.records_service = records_service
         self.progress_interval_seconds = progress_interval_seconds
         self.progress_max_seconds = progress_max_seconds
+        self.activity_refresh_seconds = activity_refresh_seconds
+        self.working_notice_seconds = working_notice_seconds
         # One progress loop per running turn, keyed by turn id; turn_ended
         # stops it before the final edit.
         self._progress_tasks: Dict[str, asyncio.Task] = {}
@@ -198,6 +217,36 @@ class ChannelsOutboxWorker:
             project_id=project_id, thread=thread
         )
 
+        # The person wrote, so a closed reply window is open again: replies
+        # held while it was closed go out first, oldest first.
+        await self._release_held(
+            project_id=project_id,
+            thread=thread,
+            connection=connection,
+            capabilities=capabilities,
+        )
+
+        if capabilities.rendering.controls.indicator == "native":
+            # No "Thinking…" message: this platform could never remove it.
+            # The typing signal now, awaited so a turn that ends at once still
+            # shows it, then a loop that refreshes it and, on a long turn,
+            # sends one working message.
+            signaling = await self._signal_native(
+                project_id=project_id, thread=thread, connection=connection
+            )
+            self._track(
+                turn_id,
+                lambda: self._run_native_activity(
+                    project_id=project_id,
+                    thread=thread,
+                    turn_id=turn_id,
+                    connection=connection,
+                    capabilities=capabilities,
+                    signaling=signaling,
+                ),
+            )
+            return
+
         event = await self._get_or_create_item(
             project_id=project_id,
             connection_id=connection.id,
@@ -250,19 +299,215 @@ class ChannelsOutboxWorker:
         connection: ChannelConnection,
         capabilities: ChannelCapabilities,
     ) -> None:
-        existing = self._progress_tasks.get(turn_id)
-        if existing is not None and not existing.done():
-            return
-        self._progress_tasks[turn_id] = asyncio.create_task(
-            self._run_progress(
+        self._track(
+            turn_id,
+            lambda: self._run_progress(
                 project_id=project_id,
                 thread=thread,
                 turn_id=turn_id,
                 session_id=session_id,
                 connection=connection,
                 capabilities=capabilities,
-            )
+            ),
         )
+
+    def _track(self, turn_id: str, make_loop) -> None:
+        """Run one keep-alive loop per turn; turn_ended stops it."""
+
+        existing = self._progress_tasks.get(turn_id)
+        if existing is not None and not existing.done():
+            return
+        self._progress_tasks[turn_id] = asyncio.create_task(make_loop())
+
+    async def _run_native_activity(
+        self,
+        *,
+        project_id: UUID,
+        thread: ChannelThread,
+        turn_id: str,
+        connection: ChannelConnection,
+        capabilities: ChannelCapabilities,
+        signaling: bool = True,
+    ) -> None:
+        """Keep the platform's typing signal up while the turn runs, and send
+        one working message if it runs past `working_notice_seconds`.
+        `signaling` is off once the platform refused the signal for good."""
+
+        loop = asyncio.get_running_loop()
+        started = loop.time()
+        next_signal = started + self.activity_refresh_seconds
+        working_sent = False
+        try:
+            while loop.time() - started <= self.progress_max_seconds:
+                now = loop.time()
+                try:
+                    if await self._turn_answered(
+                        project_id=project_id, thread=thread, turn_id=turn_id
+                    ):
+                        # turn_ended may have run on another worker, where
+                        # stop_progress cannot reach this loop.
+                        return
+                    if signaling and now >= next_signal:
+                        next_signal = now + self.activity_refresh_seconds
+                        signaling = await self._signal_native(
+                            project_id=project_id, thread=thread, connection=connection
+                        )
+                    if (
+                        not working_sent
+                        and now - started >= self.working_notice_seconds
+                    ):
+                        working_sent = True
+                        event = await self._get_or_create_item(
+                            project_id=project_id,
+                            connection_id=connection.id,
+                            thread_id=thread.id,
+                            space_id=thread.space_id,
+                            turn_id=turn_id,
+                            item_index=_WORKING_NOTICE_ITEM,
+                        )
+                        await self._send(
+                            project_id=project_id,
+                            event=event,
+                            connection=connection,
+                            capabilities=capabilities,
+                            item=render_notice(
+                                capabilities=capabilities, text=WORKING_TEXT
+                            ),
+                            thread=thread,
+                            wait_for_claim=False,
+                        )
+                except asyncio.CancelledError:
+                    raise
+                except Exception as exc:  # one bad tick never ends the loop
+                    log.warning(
+                        "[SESSIONS-OUTBOX] activity tick failed turn=%s: %s",
+                        turn_id,
+                        str(exc)[:200],
+                    )
+                await asyncio.sleep(self.progress_interval_seconds)
+        finally:
+            self._progress_tasks.pop(turn_id, None)
+
+    async def _turn_answered(
+        self, *, project_id: UUID, thread: ChannelThread, turn_id: str
+    ) -> bool:
+        """Whether the turn's answer (or its failure notice, or an approval
+        card) has been delivered or held: its first item left CREATED."""
+
+        event = await self.channels_service.channels_dao.fetch_outbox_event_by_key(
+            project_id=project_id,
+            key=compose_outbox_key(thread_id=thread.id, turn_id=turn_id, item=0),
+        )
+        return event is not None and event.state is not ChannelDeliveryState.CREATED
+
+    async def _release_held(
+        self,
+        *,
+        project_id: UUID,
+        thread: ChannelThread,
+        connection: ChannelConnection,
+        capabilities: ChannelCapabilities,
+    ) -> None:
+        """Send the thread's HELD replies, oldest first, once the person has
+        written since they were held. Uses the same claim and delivery path as
+        any reply, and stops at the first one that does not go out, so replies
+        never arrive out of order and one whose outcome is unknown is never
+        sent twice. A redelivered turn event, with no new message, sends
+        nothing: the window may look open to us while Meta said it was not."""
+
+        window = capabilities.conversation.reply_window_seconds
+        if not window:
+            return
+        held = await self.channels_service.channels_dao.query_outbox_events(
+            project_id=project_id,
+            event=ChannelOutboxEventQuery(
+                thread_id=thread.id, state=ChannelDeliveryState.HELD
+            ),
+        )
+        if not held:
+            return
+        latest = await self._latest_inbound(project_id=project_id, thread=thread)
+        if latest is None or not _within_window(latest, window):
+            return
+        space = await self.channels_service.channels_dao.fetch_space(
+            project_id=project_id, space_id=thread.space_id
+        )
+        if space is not None and space.flags.is_opted_out:
+            return
+        for event in sorted(held, key=lambda row: row.created_at or datetime.min):
+            processed = (event.data.processed if event.data else None) or {}
+            held_at = processed.get("held_at")
+            if not held_at or latest.created_at is None:
+                return
+            if datetime.fromisoformat(held_at) >= latest.created_at:
+                return  # held after the person's latest message
+            # A failure that may pass (a rate limit, a network error, the
+            # claim itself) raises: the row stays HELD and the stream retries
+            # this turn event, so the new answer never overtakes it.
+            delivered = await self._send(
+                project_id=project_id,
+                event=event,
+                connection=connection,
+                capabilities=capabilities,
+                item=RenderItem(
+                    parts=[
+                        RenderPart(**part) for part in processed.get("content") or []
+                    ]
+                ),
+                thread=thread,
+                final=bool(processed.get("final")),
+                include_held=True,
+            )
+            if not delivered:
+                current = await self.channels_service.channels_dao.fetch_outbox_event(
+                    project_id=project_id, event_id=event.id
+                )
+                if current is not None and current.state is ChannelDeliveryState.HELD:
+                    return  # held again: the window closed, so would the rest
+                # Refused, or its outcome unknown: FAILED for good. The parts
+                # after it and the new answer still go.
+
+    async def _signal_native(
+        self,
+        *,
+        project_id: UUID,
+        thread: ChannelThread,
+        connection: ChannelConnection,
+    ) -> bool:
+        """The platform's typing signal, pointed at the person's latest
+        message (WhatsApp ties the indicator to an inbound message id).
+        Best-effort: a failed signal never delays or fails the answer. False
+        when the platform refused it for good, so the turn stops signaling."""
+
+        try:
+            latest = await self._latest_inbound(project_id=project_id, thread=thread)
+            adapter = self.channels_service.adapter_registry.get(connection.channel)
+            await adapter.signal_activity(
+                connection=connection,
+                locator={
+                    **(thread.data.external_locator or {}),
+                    "inbound_message_id": latest.external_id if latest else None,
+                },
+            )
+        except Exception as exc:  # noqa: BLE001
+            log.warning("[SESSIONS-OUTBOX] typing signal failed: %s", str(exc)[:1000])
+            return not _refused(exc)
+        return True
+
+    async def _latest_inbound(
+        self, *, project_id: UUID, thread: ChannelThread
+    ) -> Optional[ChannelInboxEvent]:
+        """The person's latest message in this thread's space: what the typing
+        signal points at, and where the reply window starts."""
+
+        events = await self.channels_service.channels_dao.query_inbox_events(
+            project_id=project_id,
+            event=ChannelInboxEventQuery(
+                space_id=thread.space_id, origin=ChannelEventOrigin.PUSHED
+            ),
+            windowing=Windowing(limit=1),
+        )
+        return events[0] if events else None
 
     async def stop_progress(self, turn_id: str) -> None:
         """Cancel this turn's progress loop and wait for it, so a final edit
@@ -396,6 +641,14 @@ class ChannelsOutboxWorker:
         connection, capabilities = await self._connection_and_capabilities(
             project_id=project_id, thread=thread
         )
+        # Held replies go out before this turn's answer, in case turn_started
+        # ran on another worker that has not finished releasing them.
+        await self._release_held(
+            project_id=project_id,
+            thread=thread,
+            connection=connection,
+            capabilities=capabilities,
+        )
 
         # The turn-ended event can outrun the final record commit (measured
         # ~150ms live): reading too early folds to an EMPTY answer, which used
@@ -446,9 +699,12 @@ class ChannelsOutboxWorker:
                 turn_id=turn_id,
                 item_index=0,
             )
-            if _holds_failed_start_notice(event):
+            if _holds_failed_start_notice(event) or (
+                event.state is ChannelDeliveryState.HELD
+            ):
                 # The dispatcher already told the chat this run never
                 # started; a second "failed" line would be the same news twice.
+                # A held row waits for the person to write again.
                 return
             await self._send(
                 project_id=project_id,
@@ -476,6 +732,10 @@ class ChannelsOutboxWorker:
                 turn_id=turn_id,
                 item_index=item_index,
             )
+            if event.state is ChannelDeliveryState.HELD:
+                # Held past the reply window: only the person writing again
+                # releases it (ChannelsService.release_held_replies).
+                continue
 
             if item.choice:
                 # written here, not at send time -- a choice is state on the
@@ -710,9 +970,11 @@ class ChannelsOutboxWorker:
         final: bool = False,
         overwrite_final: Optional[bool] = None,
         wait_for_claim: bool = True,
+        include_held: bool = False,
     ) -> bool:
         """Deliver `item` on this row at most once per (row, content). True
         when the chat now shows this content, by this call or another.
+        `include_held` lets the release path claim a HELD row.
 
         `final` marks a turn's answer, and once one is sent only a delivery
         with `overwrite_final` (by default: any final one) replaces it.
@@ -740,6 +1002,7 @@ class ChannelsOutboxWorker:
                 overwrite_final=overwrite_final,
                 delivery_key=delivery_key,
                 wait=wait_for_claim,
+                include_held=include_held,
             )
             if claimed is None:
                 return already_delivered
@@ -791,7 +1054,26 @@ class ChannelsOutboxWorker:
         # post whose outcome is unknown is never retried (see below).
         idempotency_key = delivery_key
 
+        # Our own read, before any platform call: a failure here says nothing
+        # about the message, so it is released for a retry, never classified.
+        window = capabilities.conversation.reply_window_seconds
         try:
+            window_closed = bool(
+                creates_message
+                and window
+                and not await self._reply_window_open(
+                    project_id=project_id, thread=thread, window_seconds=window
+                )
+            )
+        except Exception as exc:
+            await self._release_for_retry(
+                project_id=project_id, event=event, claim_token=claim_token, exc=exc
+            )
+            raise
+
+        try:
+            if window_closed:
+                raise ChannelDeliveryHeld(channel=connection.channel)
             if not creates_message:
                 receipt = await adapter.edit_message(
                     connection=connection,
@@ -819,6 +1101,18 @@ class ChannelsOutboxWorker:
                     content=content,
                     idempotency_key=idempotency_key,
                 )
+        except ChannelDeliveryHeld as exc:
+            await self._hold(
+                project_id=project_id,
+                event=event,
+                connection=connection,
+                thread=thread,
+                content=content,
+                final=final,
+                reason=exc.reason,
+                claim_token=claim_token,
+            )
+            return False
         except ChannelCredentialRevoked as exc:
             # The platform refused the credential itself: switch the
             # connection off so the agent page shows "token revoked" and
@@ -864,16 +1158,35 @@ class ChannelsOutboxWorker:
                     str(exc)[:200],
                 )
                 return False
+            if _refused(exc):
+                # The platform refused this message and would refuse it again
+                # (a 4xx other than a rate limit: a setup or permission
+                # problem, a bad recipient). Record its whole reason and stop:
+                # retrying the turn event would only repeat the refusal.
+                await dao.transition_outbox_event(
+                    project_id=project_id,
+                    event_id=event.id,
+                    state=ChannelDeliveryState.FAILED,
+                    status=Status(
+                        code="delivery_refused",
+                        type=str(delivery_key),
+                        message=str(exc)[:1000],
+                    ),
+                    claim_token=claim_token,
+                )
+                log.error(
+                    "[SESSIONS-OUTBOX] platform refused the reply; not retrying "
+                    "row=%s: %s",
+                    event.id,
+                    str(exc)[:1000],
+                )
+                return False
             # The row said CREATED forever after a rejected post, which reads
             # as "not attempted yet" from outside (F87). Write the failure
             # down with the platform's reason, then let the caller's retry
             # and logging see the error as before.
-            await dao.transition_outbox_event(
-                project_id=project_id,
-                event_id=event.id,
-                state=ChannelDeliveryState.FAILED,
-                status=Status(code="delivery_failed", message=str(exc)[:500]),
-                claim_token=claim_token,
+            await self._release_for_retry(
+                project_id=project_id, event=event, claim_token=claim_token, exc=exc
             )
             raise
 
@@ -901,6 +1214,120 @@ class ChannelsOutboxWorker:
             )
         return True
 
+    async def _release_for_retry(
+        self,
+        *,
+        project_id: UUID,
+        event: ChannelOutboxEvent,
+        claim_token: Optional[str],
+        exc: BaseException,
+    ) -> None:
+        """Record a failure that may pass and release the claim, so the
+        stream's retry delivers the row again. A held reply stays HELD, so
+        its release runs again too."""
+
+        await self.channels_service.channels_dao.transition_outbox_event(
+            project_id=project_id,
+            event_id=event.id,
+            state=(
+                ChannelDeliveryState.HELD
+                if event.state is ChannelDeliveryState.HELD
+                else ChannelDeliveryState.FAILED
+            ),
+            status=Status(code="delivery_failed", message=str(exc)[:1000]),
+            claim_token=claim_token,
+        )
+
+    async def _reply_window_open(
+        self, *, project_id: UUID, thread: ChannelThread, window_seconds: int
+    ) -> bool:
+        """Whether the person wrote within the channel's reply window. A thread
+        whose person never wrote is closed too: v1 only replies."""
+
+        latest = await self._latest_inbound(project_id=project_id, thread=thread)
+        return latest is not None and _within_window(latest, window_seconds)
+
+    async def _hold(
+        self,
+        *,
+        project_id: UUID,
+        event: ChannelOutboxEvent,
+        connection: ChannelConnection,
+        thread: ChannelThread,
+        content: List[Dict],
+        final: bool,
+        reason: str,
+        claim_token: Optional[str],
+    ) -> None:
+        """Keep the reply, unsent, until the person writes again. `held_at`
+        is stored with the content because a later release claim moves
+        `updated_at`; only replies held before the person's latest message
+        are released."""
+
+        processed: Dict = {
+            "content": content,
+            "held_at": datetime.now(timezone.utc).isoformat(),
+        }
+        if final:
+            processed["final"] = True
+        held = await self.channels_service.channels_dao.transition_outbox_event(
+            project_id=project_id,
+            event_id=event.id,
+            state=ChannelDeliveryState.HELD,
+            status=Status(code=reason),
+            data=ChannelOutboxEventData(processed=processed),
+            claim_token=claim_token,
+        )
+        log.info(
+            "[SESSIONS-OUTBOX] reply held (%s) row=%s thread=%s",
+            reason,
+            event.id,
+            thread.id,
+        )
+        await self._reopen_if_first_held(
+            project_id=project_id,
+            event=held or event,
+            connection=connection,
+            thread=thread,
+        )
+
+    async def _reopen_if_first_held(
+        self,
+        *,
+        project_id: UUID,
+        event: ChannelOutboxEvent,
+        connection: ChannelConnection,
+        thread: ChannelThread,
+    ) -> None:
+        """Ask the adapter to re-open the conversation (WhatsApp's optional
+        template) once per quiet thread: only the oldest held reply does, so
+        a long answer held in several parts, even by two workers, sends one.
+        Best-effort: a crash before this line loses only the invitation."""
+
+        dao = self.channels_service.channels_dao
+        held = await dao.query_outbox_events(
+            project_id=project_id,
+            event=ChannelOutboxEventQuery(
+                thread_id=thread.id, state=ChannelDeliveryState.HELD
+            ),
+        )
+        if any(_held_before(row, event) for row in held):
+            return
+        space = await dao.fetch_space(project_id=project_id, space_id=thread.space_id)
+        if space is not None and space.flags.is_opted_out:
+            return
+        adapter = self.channels_service.adapter_registry.get(connection.channel)
+        try:
+            await adapter.reopen_conversation(
+                connection=connection, locator=thread.data.external_locator or {}
+            )
+        except Exception as exc:  # the reply stays held either way
+            log.warning(
+                "[SESSIONS-OUTBOX] re-open message failed thread=%s: %s",
+                thread.id,
+                str(exc)[:200],
+            )
+
     async def _claim_delivery(
         self,
         *,
@@ -910,6 +1337,7 @@ class ChannelsOutboxWorker:
         overwrite_final: bool,
         delivery_key: UUID,
         wait: bool,
+        include_held: bool = False,
     ) -> Tuple[Optional[ChannelOutboxEvent], bool]:
         """`(claimed row, None-reason)`: the row when this delivery is ours to
         make; otherwise None, with True when the row already went out with
@@ -930,6 +1358,7 @@ class ChannelsOutboxWorker:
                 claim_ttl_seconds=_CLAIM_TTL_SECONDS,
                 overwrite_final=overwrite_final,
                 delivery_key=str(delivery_key),
+                include_held=include_held,
             )
             if claimed is not None:
                 return claimed, False
@@ -1195,10 +1624,13 @@ def _sent_with(event: ChannelOutboxEvent, content: List[Dict]) -> bool:
 
 
 def _uncertain_with(event: ChannelOutboxEvent, delivery_key: UUID) -> bool:
+    """This delivery ended for good: its outcome is unknown (it may be in the
+    chat), or the platform refused it (it would refuse it again)."""
+
     status = event.status
     return (
         status is not None
-        and status.code == "delivery_uncertain"
+        and status.code in ("delivery_uncertain", "delivery_refused")
         and status.type == str(delivery_key)
     )
 
@@ -1232,3 +1664,26 @@ def _delivery_key(event_key: UUID, content: List[Dict]) -> UUID:
     from oss.src.core.channels.utils import canonical_json
 
     return uuid5(event_key, canonical_json(content))
+
+
+def _within_window(event: ChannelInboxEvent, window_seconds: int) -> bool:
+    """Whether a reply to this inbound message may still be sent. Counts from
+    when the person sent it (the platform's clock) where the payload said,
+    else from when it reached us."""
+
+    # the provider's time where the payload gave one, else the arrival time
+    sent_at = event.sent_at or event.created_at
+    if sent_at is None:
+        return False
+    return datetime.now(timezone.utc) - sent_at <= timedelta(seconds=window_seconds)
+
+
+def _held_before(row: ChannelOutboxEvent, event: ChannelOutboxEvent) -> bool:
+    """Whether `row` is a different reply that was created before `event`."""
+
+    if row.id == event.id:
+        return False
+    return (row.created_at or datetime.min, str(row.id)) < (
+        event.created_at or datetime.min,
+        str(event.id),
+    )

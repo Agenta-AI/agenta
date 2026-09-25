@@ -1027,7 +1027,7 @@ it, so set it in the env file the services and runner containers load, and recre
 
 ## Channels
 
-Channels connect an agent to Slack or Telegram. They need no environment variable: users can connect their own Slack app or Telegram bot. The variables below are optional and turn on the hosted integrations, where one app or bot owned by the deployment serves every project. Each hosted integration stays off until all three of its variables are set.
+Channels connect an agent to Slack, Telegram, or WhatsApp. They need no environment variable: users can connect their own Slack app or Telegram bot. The variables below are optional and turn on the hosted integrations, where one app or bot owned by the deployment serves every project. Each hosted integration stays off until all three of its variables are set.
 
 Set them on the `api`, `worker-queues` and `worker-streams` containers. The Helm chart has no keys for them; add them with `api.extraEnv`, `workerQueues.extraEnv` and `workerStreams.extraEnv`.
 
@@ -1041,6 +1041,14 @@ Set them on the `api`, `worker-queues` and `worker-streams` containers. The Helm
 | `TELEGRAM_HOSTED_WEBHOOK_SECRET` | `channels.telegram.webhook_secret` | _(not mapped)_   |
 
 For the Telegram setup, see [Set up the hosted Telegram bot](/self-host/channels/telegram-hosted-bot).
+
+WhatsApp has no hosted integration. Each connection brings its own Meta app, so WhatsApp needs no variable. One optional variable changes where the WhatsApp channel sends its Meta Graph API calls:
+
+| Env var                  | env.py path                       | values.yaml path | Default                            |
+| ------------------------ | --------------------------------- | ---------------- | ---------------------------------- |
+| `WHATSAPP_GRAPH_API_URL` | `channels.whatsapp.graph_api_url` | _(not mapped)_   | `https://graph.facebook.com/v24.0` |
+
+Change it only to route the calls through a proxy or to a test double. For the setup, see [Connect a WhatsApp number to an agent](/guides/connect-whatsapp).
 
 :::warning One replica for channel replies
 The `sessions` loop of `worker-streams` sends channel replies. Run it in exactly one replica. With two or more, a progress update can overwrite a final reply, and a Telegram reply can arrive twice. With the default `AGENTA_WORKER_STREAMS` (empty, which runs every loop), that means one `worker-streams` replica. On Helm, a rolling update briefly runs two pods; set `workerStreams.strategy.type: Recreate` to avoid the overlap.

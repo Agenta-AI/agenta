@@ -131,6 +131,8 @@ def test_every_method_parameter_after_self_is_keyword_only():
         "join_space",
         "list_member_spaces",
         "read_history",
+        "reopen_conversation",
+        "fetch_media",
     }
     assert len(methods) == len(ChannelAdapterInterface.__abstractmethods__) + len(
         concrete_methods

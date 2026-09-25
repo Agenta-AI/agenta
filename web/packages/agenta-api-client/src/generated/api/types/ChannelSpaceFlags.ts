@@ -3,4 +3,5 @@
 export interface ChannelSpaceFlags {
     is_active?: boolean | undefined;
     is_backfilled?: boolean | undefined;
+    is_opted_out?: boolean | undefined;
 }

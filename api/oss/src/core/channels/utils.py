@@ -221,6 +221,19 @@ def evaluate_grant_effect(grants: List[ChannelGrant]) -> Optional[ChannelGrantEf
     return None
 
 
+def delivery_refused(exc: BaseException) -> bool:
+    """Whether the platform refused the request for good: it answered with a
+    4xx other than a 429. A retry would be refused the same way, unlike a
+    rate limit, a 5xx or a request that never got an answer."""
+
+    status_code = getattr(exc, "status_code", None)
+    return (
+        isinstance(status_code, int)
+        and 400 <= status_code < 500
+        and (status_code != 429)
+    )
+
+
 def delivery_outcome_unknown(exc: BaseException) -> bool:
     """Whether a failed post may still have reached the chat. Only a request
     that surely never got a platform answer, or one the platform answered
