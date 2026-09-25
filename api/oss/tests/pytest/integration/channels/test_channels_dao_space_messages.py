@@ -84,7 +84,8 @@ async def _sent(dao, scope, space, *, ts, thread_id=None, processed=None):
         state=ChannelDeliveryState.SENT,
         data=ChannelOutboxEventData(
             external_locator={"channel": "C1", "ts": ts},
-            processed=processed or {"content": [{"type": "text", "text": ts}]},
+            processed=processed
+            or {"content": [{"type": "text", "text": ts}], "final": True},
         ),
     )
     return row
@@ -184,7 +185,7 @@ async def test_bot_posts_carry_their_thread(channels_scope):
         channels_scope,
         space,
         ts="102.1",
-        processed={"content": [], "thread_ts": "100.1"},
+        processed={"content": [], "thread_ts": "100.1", "final": True},
     )
     await _sent(dao, channels_scope, space, ts="103.1")
     unsent = await dao.record_outbox_event(
@@ -276,3 +277,22 @@ async def test_a_fetched_copy_of_the_bots_post_is_left_out(channels_scope):
     )
 
     assert [r.data.processed.content[0]["text"] for r in rows] == ["person"]
+
+
+async def test_a_running_turns_indicator_is_not_a_message(channels_scope):
+    dao = ChannelsDAO(engine=channels_scope["engine"])
+    space = await _space(dao, channels_scope)
+    await _sent(
+        dao,
+        channels_scope,
+        space,
+        ts="200.1",
+        processed={"content": [{"type": "text", "text": "Thinking..."}]},
+    )
+    await _sent(dao, channels_scope, space, ts="201.1")
+
+    rows = await dao.query_space_outbox_messages(
+        project_id=channels_scope["project_id"], space_id=space.id, limit=10
+    )
+
+    assert [row.data.external_locator["ts"] for row, _ in rows] == ["201.1"]

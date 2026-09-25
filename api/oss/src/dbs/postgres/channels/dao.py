@@ -1438,6 +1438,10 @@ class ChannelsDAO(ChannelsDAOInterface):
                 outbox.project_id == project_id,
                 outbox.space_id == space_id,
                 outbox.state == ChannelDeliveryState.SENT,
+                # a final post only: a running turn's "Thinking..." indicator is
+                # not something the bot said
+                func.json_extract_path_text(outbox.data, "processed", "final")
+                == "true",
             )
         )
         if thread_ts is not None:
