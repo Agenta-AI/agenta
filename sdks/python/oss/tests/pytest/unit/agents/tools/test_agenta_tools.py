@@ -14,6 +14,7 @@ from agenta.sdk.agents.tools import (
     DEFAULT_AGENTA_TOOLS,
     AgentaToolsConfig,
     CallbackToolSpec,
+    DuplicateToolNameError,
     GatewayToolResolution,
     PlatformApiUnavailableError,
     PlatformToolConfig,
@@ -246,3 +247,13 @@ async def test_the_handler_passes_the_runs_session_id_to_the_resolver():
         parameters={"agent": {"harness": {"kind": "pi_core"}}},
     )
     assert seen == ["s-42"]
+
+
+async def test_only_a_platform_entry_wins_and_other_name_clashes_still_fail():
+    with pytest.raises(DuplicateToolNameError):
+        await _resolve(
+            [
+                {"type": "client", "name": "rename_session"},
+                _entry(rename_session="allow"),
+            ]
+        )

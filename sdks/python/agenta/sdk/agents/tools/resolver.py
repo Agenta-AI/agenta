@@ -197,9 +197,9 @@ def _expand_agenta_tools(
     tool_configs: Sequence[ToolConfig], *, session_id: Optional[str]
 ) -> List[PlatformToolConfig]:
     """One platform tool per Agenta tool an ``agenta_tools`` entry lists, with its value as the
-    permission. A tool the run already declares, as the author's own platform entry or the
+    permission. A tool the run already has a platform entry for, the author's own or the
     playground build kit's, keeps that entry and is not added again."""
-    present = {_declared_config_name(tool_config) for tool_config in tool_configs}
+    present = {c.op for c in tool_configs if isinstance(c, PlatformToolConfig)}
     added: List[PlatformToolConfig] = []
     for entry in tool_configs:
         if not isinstance(entry, AgentaToolsConfig):

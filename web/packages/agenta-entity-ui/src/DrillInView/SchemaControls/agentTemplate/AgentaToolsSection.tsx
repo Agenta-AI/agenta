@@ -29,6 +29,22 @@ const presets: PermissionPresetOption[] = [
     },
 ]
 
+/** Copy for the Agenta tools the build kit table does not name. */
+const AGENTA_TOOL_COPY: Record<string, {name: string; description: string}> = {
+    get_current_session: {
+        name: "Get the link to this chat",
+        description: "Gets this chat's name and a link to open it in Agenta.",
+    },
+    check_skill_updates: {
+        name: "Check skill updates",
+        description: "Checks whether this agent's skills have newer versions.",
+    },
+    apply_skill_update: {
+        name: "Apply a skill update",
+        description: "Updates one of this agent's skills to its newer version.",
+    },
+}
+
 /** What each preset sets a tool to. Deactivate leaves an empty map, never removes the entry. */
 function presetValue(preset: Preset, readOnly: boolean): "allow" | "ask" | undefined {
     if (preset === "allow_all") return "allow"
@@ -55,7 +71,7 @@ export function AgentaToolsSection({
     disabled,
 }: AgentaToolsSectionProps) {
     const rows = Object.entries(access).map(([op, kind]) => {
-        const {name, description} = describeBuildKitPlatformTool(op)
+        const {name, description} = AGENTA_TOOL_COPY[op] ?? describeBuildKitPlatformTool(op)
         return {
             key: op,
             name,

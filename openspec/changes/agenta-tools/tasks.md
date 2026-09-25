@@ -4,7 +4,7 @@ Nothing is implemented. The tasks assume the recommended option for each decisio
 
 ## 1. Entry type and resolution (SDK)
 
-- [x] 1.1 List the Agenta tools in `sdks/python/agenta/sdk/agents/platform/`, and the default entry (`get_current_session` and `rename_session` set to `allow`, nothing else).
+- [x] 1.1 List the Agenta tools in `sdks/python/agenta/sdk/agents/platform/`, and the default entry (`get_current_session` and `rename_session` set to `allow`, nothing else). Done in `sdks/python/agenta/sdk/agents/tools/models.py` instead: the resolver in `tools/` cannot import the `platform/` package without an import cycle.
 - [x] 1.2 Add `AgentaToolsConfig` (`type: "agenta_tools"`, a flat `tools` map with values `allow` or `ask`, no top-level `permission`) to the `ToolConfig` union in `sdks/python/agenta/sdk/agents/tools/models.py`, following `GatewayConnectionToolConfig`. Update the agent configuration schema.
 - [x] 1.3 In `sdks/python/agenta/sdk/agents/tools/resolver.py`, expand the entry into one platform tool per listed tool, with its value as the permission. Skip any tool the run already has a platform entry for. Skip the session tools without a session ID. Skip the entry, with a warning, without an API address. Warn on unknown names.
 - [x] 1.4 Unit tests: parsing, `allow` and `ask`, unlisted tools off, an empty map, `deny` and `off` refused, unknown name, expansion, author entry wins, build kit entry wins, a build kit tool deactivated there falls back to the entry, no session ID, no API address, no entry means no Agenta tools.
@@ -12,7 +12,7 @@ Nothing is implemented. The tasks assume the recommended option for each decisio
 ## 2. API and service
 
 - [x] 2.1 Leave `DEFAULT_BUILD_KIT_OPS` in `api/oss/src/core/workflows/build_kit.py` unchanged. Add a test that pins its list.
-- [x] 2.2 Add the default entry to the default agent template (`services/oss/src/agent/config.py` and its `agent.json`) and to the built-in agent templates.
+- [x] 2.2 Add the default entry to the default agent template (`services/oss/src/agent/config.py` and its `agent.json`) and to the built-in agent templates. Done in the one builder every new agent comes from, `build_agent_v0_default()` in `sdks/python/agenta/sdk/utils/types.py`, which the service `/inspect` default, the catalog template and the built-in templates all use. `services/oss/src/agent/config.py` and `agent.json` stay unchanged: they fill a run whose saved config omits `tools`, so adding the entry there would be the run-time fallback this change rules out.
 - [x] 2.3 Serve the Agenta tools list with each tool's `read_only` flag, from the SDK list, for the settings UI.
 
 ## 3. Web

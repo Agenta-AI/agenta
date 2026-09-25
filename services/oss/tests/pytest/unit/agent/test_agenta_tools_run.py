@@ -17,6 +17,8 @@ from oss.src.agent import agent_v0_app, app
 
 from .test_session_context_resolution import sdk_singleton  # noqa: F401
 
+_SERVICE_DEFAULT_TEMPLATE = app._default_agent_template
+
 DEFAULT_ENTRY = {
     "type": "agenta_tools",
     "tools": {"get_current_session": "allow", "rename_session": "allow"},
@@ -77,16 +79,17 @@ def backend(monkeypatch, fake_backend, sdk_singleton):  # noqa: F811
     return backend
 
 
-def _run(backend, tools: list) -> set:
+def _run(backend, tools: list | None) -> set:
+    agent = {"harness": {"kind": "pi_core"}}
+    if tools is not None:
+        agent["tools"] = tools
     response = TestClient(agent_v0_app).post(
         "/invoke",
         json={
             "session_id": "s-1",
             "data": {
                 "inputs": {"messages": [{"role": "user", "content": "hi"}]},
-                "parameters": {
-                    "agent": {"harness": {"kind": "pi_core"}, "tools": tools}
-                },
+                "parameters": {"agent": agent},
             },
         },
     )
@@ -100,3 +103,9 @@ def test_an_agent_with_the_entry_gets_both_session_tools(backend):
 
 def test_an_agent_without_the_entry_gets_neither(backend):
     assert _run(backend, []) == set()
+
+
+def test_a_saved_agent_without_tools_gets_no_fallback(backend, monkeypatch):
+    # The service's own defaults fill a missing `tools`; they must not add Agenta tools.
+    monkeypatch.setattr(app, "_default_agent_template", _SERVICE_DEFAULT_TEMPLATE)
+    assert _run(backend, None) == set()

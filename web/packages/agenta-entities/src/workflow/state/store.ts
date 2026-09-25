@@ -1334,7 +1334,7 @@ export const workflowQueryAtomFamily = atomFamily((revisionId: string) =>
                 return persistType(await workflowRevisionBatchFetcher({projectId, revisionId}))
             },
             initialData: detailCached ?? undefined,
-            // Every path above, the caches and initialData included, reaches consumers through here.
+            // Every result of this query, cache hits and initialData included, passes through here.
             select: withAgentaToolsEntry,
             // detailCached/enabled evaluate synchronously; the persister restores only inside a fetch they allowed, so no race.
             persister: immutablePersister.persisterFn,

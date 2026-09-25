@@ -6,6 +6,7 @@ import {atom} from "jotai"
 
 import type {AgentSecretBinding} from "../../secret/core/types"
 import {safeParseWithLogging} from "../../shared/utils/zodSchema"
+import {withAgentaToolsEntry} from "../agentaTools"
 import {retrieveWorkflowRevision} from "../api"
 import {workflowRevisionResponseSchema, type Workflow} from "../core/schema"
 
@@ -101,7 +102,7 @@ export const commitAgentCredentialsAtom = atom(
                 // caller's list would silently undo that, so the user reviews it first.
                 throw new Error(AGENT_CREDENTIALS_CONFLICT_MESSAGE)
             }
-            const data = withCredentials(base, bindings)
+            const data = withCredentials(withAgentaToolsEntry(base), bindings)
             try {
                 const response = await getWorkflowsClient().commitWorkflowRevision(
                     {
