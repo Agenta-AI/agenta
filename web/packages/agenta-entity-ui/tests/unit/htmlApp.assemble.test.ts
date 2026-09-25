@@ -344,7 +344,7 @@ const APP = `<html>
 const TOKENS = {"--ag-bg": "#fff", "--ag-fg": "#111", "--ag-accent": "red;}<style>"}
 
 describe("assembleRunDocument", () => {
-    it("keeps author scripts and handlers, inlines same-folder script src, drops external", async () => {
+    it("keeps author scripts and handlers, inlines same-folder script src, keeps https", async () => {
         const {html, errors} = await assembleRunDocument(APP, {
             dir: "app",
             io: appIo,
@@ -356,15 +356,24 @@ describe("assembleRunDocument", () => {
         // Inlined, with its own terminator neutralised.
         expect(html).toContain('console.log("app"); var s = "<\\/script>";')
         expect(html).not.toContain('src="app.js"')
-        expect(html).not.toContain("cdn.example.com")
+        // Remote https scripts are left for the browser; RUN_CSP allows them.
+        expect(html).toContain('src="https://cdn.example.com/lib.js"')
         expect(html).not.toContain("missing.js")
-        expect(errors).toEqual([
-            "External script dropped by the sandbox: https://cdn.example.com/lib.js",
-            "Script not found in the app folder: missing.js",
-        ])
+        expect(errors).toEqual(["Script not found in the app folder: missing.js"])
         // No Preview interceptor in Run.
         expect(html).not.toContain(HTML_NAV_INTERCEPTOR)
         expect(html).toContain("<style>.ag-app{padding:8px}</style>")
+    })
+
+    it("drops a remote script that is not https, with a note", async () => {
+        const {html, errors} = await assembleRunDocument(
+            '<html><head><script src="http://cdn.example.com/old.js"></script></head><body></body></html>',
+            {dir: "app", io: appIo, tokens: {}, kitCss: null},
+        )
+        expect(html).not.toContain("old.js")
+        expect(errors).toEqual([
+            "Script not loaded, only https:// scripts can run: http://cdn.example.com/old.js",
+        ])
     })
 
     // The `fs` bridge has always refused `../..`; markup used to go around it. A grant is for
@@ -442,14 +451,14 @@ describe("assembleRunDocument", () => {
         expect(html).not.toContain(BRIDGE_STUB)
     })
 
-    it("without io: every script src is dropped with a note, the document still assembles", async () => {
+    it("without io: every local script src is dropped with a note, the document still assembles", async () => {
         const {html, errors} = await assembleRunDocument(APP, {
             dir: "app",
             io: null,
             tokens: {},
             kitCss: "",
         })
-        expect(errors).toHaveLength(3)
+        expect(errors).toHaveLength(2)
         expect(html).toContain('id="agenta-kit"')
         expect(html).toContain('href="site.css"')
     })
