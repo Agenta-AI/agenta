@@ -110,16 +110,34 @@ def _usage_from_payload(payload: Any, protocol: LLMProtocol) -> Optional[Gateway
     if not isinstance(usage, dict):
         return None
 
-    if protocol == LLMProtocol.CHAT_COMPLETIONS:
+    if protocol == LLMProtocol.MESSAGES:
+        # Anthropic reports fresh input already apart from both cached slices.
         return GatewayUsage(
             calls=1,
-            input_tokens=usage.get("prompt_tokens"),
-            output_tokens=usage.get("completion_tokens"),
+            input_tokens=usage.get("input_tokens"),
+            cache_read_tokens=usage.get("cache_read_input_tokens"),
+            cache_write_tokens=usage.get("cache_creation_input_tokens"),
+            output_tokens=usage.get("output_tokens"),
         )
+
+    # OpenAI's two protocols count the cached slice INSIDE the prompt total, so fresh input
+    # is the difference; left as is, cached tokens would be priced as fresh input.
+    if protocol == LLMProtocol.CHAT_COMPLETIONS:
+        prompt = usage.get("prompt_tokens")
+        details = usage.get("prompt_tokens_details")
+        output = usage.get("completion_tokens")
+    else:
+        prompt = usage.get("input_tokens")
+        details = usage.get("input_tokens_details")
+        output = usage.get("output_tokens")
+    cached = details.get("cached_tokens") if isinstance(details, dict) else None
+    if isinstance(prompt, int) and isinstance(cached, int):
+        prompt -= cached
     return GatewayUsage(
         calls=1,
-        input_tokens=usage.get("input_tokens"),
-        output_tokens=usage.get("output_tokens"),
+        input_tokens=prompt,
+        cache_read_tokens=cached,
+        output_tokens=output,
     )
 
 
@@ -138,14 +156,20 @@ def _merge_usage(
         return later
     return GatewayUsage(
         calls=1,
-        input_tokens=later.input_tokens
-        if later.input_tokens is not None
-        else base.input_tokens,
-        output_tokens=later.output_tokens
-        if later.output_tokens is not None
-        else base.output_tokens,
-        cost=later.cost if later.cost is not None else base.cost,
+        **{
+            field: getattr(later, field)
+            if getattr(later, field) is not None
+            else getattr(base, field)
+            for field in _MERGED_USAGE_FIELDS
+        },
     )
+
+
+# Every measured field, derived so that a field added to `GatewayUsage` cannot be dropped
+# by a stream that splits its usage across frames.
+_MERGED_USAGE_FIELDS = tuple(
+    field for field in GatewayUsage.model_fields if field != "calls"
+)
 
 
 def _usage_from_body(content: bytes, protocol: LLMProtocol) -> Optional[GatewayUsage]:

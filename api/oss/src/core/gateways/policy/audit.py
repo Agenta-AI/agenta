@@ -84,10 +84,15 @@ def build_gateway_call_attributes(
         # then dropped on the floor (OR49). Counts only; no prompt or completion text can
         # reach an attribute through `GatewayUsage`.
         attributes["calls"] = outcome.usage.calls
-        if outcome.usage.input_tokens is not None:
-            attributes["input_tokens"] = outcome.usage.input_tokens
-        if outcome.usage.output_tokens is not None:
-            attributes["output_tokens"] = outcome.usage.output_tokens
+        for field in (
+            "input_tokens",
+            "cache_read_tokens",
+            "cache_write_tokens",
+            "output_tokens",
+        ):
+            value = getattr(outcome.usage, field)
+            if value is not None:
+                attributes[field] = value
         if outcome.usage.cost is not None:
             attributes["cost"] = outcome.usage.cost
     return attributes
