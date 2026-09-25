@@ -8,9 +8,8 @@ import {
     DialogFooter,
     DialogHeader,
     DialogTitle,
+    Input,
 } from "@agenta/ui/ui"
-
-import {Input} from "@/components/ui/input"
 
 /** Create-project prompt. Not the shared `NamePromptModal`: that renders antd, which /m bans. */
 export const CreateProjectSheet = ({
