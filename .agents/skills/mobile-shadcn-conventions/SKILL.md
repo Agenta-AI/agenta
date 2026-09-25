@@ -14,9 +14,9 @@ description: How the Agenta mobile app (web/mobile) installs and extends shadcn/
   from there. Do not install a local copy of a component the kit already has —
   `button` in particular lives ONLY in `@agenta/ui` (Nova preset on the shared
   `control-*` scale), so there is one button.
-- `src/components/ui/` still holds local `input`, `sheet`, and `skeleton`
-  copies that duplicate the shared kit. Existing screens import them; new code
-  uses the `@agenta/ui/ui` versions. Do not add more local duplicates.
+- `src/components/ui/` still holds a local `sheet` that duplicates the shared kit.
+  Existing screens import it; new code uses the `@agenta/ui/ui` version. Do not add
+  more local duplicates. Use `Input` and `SkeletonBlock` from `@agenta/ui/ui`.
 - Otherwise install via the CLI from `web/mobile/`:
   `pnpm dlx shadcn@latest add <component>`.
 - Components land in `src/components/ui/` (aliases in `components.json`). They

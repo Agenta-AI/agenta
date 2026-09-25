@@ -23,6 +23,7 @@ import {
     DialogFooter,
     DialogHeader,
     DialogTitle,
+    Input,
     Select,
     SelectContent,
     SelectItem,
@@ -30,8 +31,6 @@ import {
     SelectValue,
 } from "@agenta/ui/ui"
 import {useMutation, useQuery} from "@tanstack/react-query"
-
-import {Input} from "@/components/ui/input"
 
 interface Props {
     members: WorkspaceMember[]
