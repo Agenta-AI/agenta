@@ -1542,6 +1542,16 @@ def _validate_agent_template_shape(params: Dict[str, Any]) -> None:
     if not isinstance(element, dict):
         return
 
+    if element is not params:
+        # A selector beside the wrapped template is never read, so an `ask` posture there
+        # would run under the default and let a write through without an approval.
+        for section in _SELECTOR_ALLOWED_KEYS:
+            if section in params:
+                raise AgentTemplateShapeError(
+                    f"{section!r} sits beside the agent template and is ignored; "
+                    f"put it under agent.{section}"
+                )
+
     for legacy_key, moved_to in _LEGACY_FLAT_TEMPLATE_KEYS.items():
         if legacy_key in element:
             raise AgentTemplateShapeError(
