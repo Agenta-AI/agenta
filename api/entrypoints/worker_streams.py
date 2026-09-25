@@ -81,12 +81,13 @@ from oss.src.utils.logging import get_module_logger
 if is_ee():
     from ee.src.core.access.entitlements.service import bootstrap_entitlements_services
     from ee.src.core.wallets.contracts import STREAM_DEBITS, STREAM_MEASUREMENTS
-    from ee.src.core.wallets.runtime import get_wallet_settlement_port
-    from ee.src.core.wallets.streaming import RedisDebitPublisher
+    from ee.src.core.wallets.service import WalletsService
     from ee.src.dbs.postgres.measurements.dao import MeasurementsDAO
     from ee.src.dbs.postgres.measurements.organization import (
         ProjectOrganizationResolver,
     )
+    from ee.src.dbs.postgres.wallets.dao import WalletsDAO
+    from ee.src.dbs.redis.wallets.streams import RedisDebitPublisher
     from ee.src.tasks.asyncio.measurements.worker import MeasurementWorker
     from ee.src.tasks.asyncio.wallets.worker import DebitWorker
 
@@ -248,7 +249,7 @@ async def _build_measurements_worker(redis_client: Redis) -> StreamConsumer:
     return MeasurementWorker(
         measurements_dao=MeasurementsDAO(),
         organization_resolver=ProjectOrganizationResolver(),
-        debit_publisher=RedisDebitPublisher(),
+        debit_publisher=RedisDebitPublisher(redis_client=redis_client),
         redis_client=redis_client,
         stream_name=STREAM_MEASUREMENTS,
         consumer_group="worker-measurements",
@@ -257,7 +258,7 @@ async def _build_measurements_worker(redis_client: Redis) -> StreamConsumer:
 
 async def _build_debits_worker(redis_client: Redis) -> StreamConsumer:
     return DebitWorker(
-        settlement_port=get_wallet_settlement_port(),
+        settlement_port=WalletsService(wallets_dao=WalletsDAO()),
         redis_client=redis_client,
         stream_name=STREAM_DEBITS,
         consumer_group="worker-debits",

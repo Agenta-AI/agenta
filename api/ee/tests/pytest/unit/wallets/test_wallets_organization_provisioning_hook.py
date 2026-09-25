@@ -50,9 +50,7 @@ async def test_provision_wallet_general_balance_hook_calls_service_idempotently(
     monkeypatch,
 ):
     fake = _RecordingWalletsService()
-    monkeypatch.setattr(
-        organizations_service_module, "get_wallets_service", lambda: fake
-    )
+    monkeypatch.setattr(organizations_service_module, "_wallets_service", fake)
 
     organization_id = uuid4()
 
@@ -75,9 +73,7 @@ async def test_provision_wallet_general_balance_hook_calls_service_idempotently(
 @pytest.mark.asyncio
 async def test_provision_wallet_general_balance_hook_reraises_on_failure(monkeypatch):
     monkeypatch.setattr(
-        organizations_service_module,
-        "get_wallets_service",
-        lambda: _FailingWalletsService(),
+        organizations_service_module, "_wallets_service", _FailingWalletsService()
     )
 
     with pytest.raises(RuntimeError):
@@ -89,9 +85,7 @@ async def test_provision_wallet_general_balance_hook_reraises_on_failure(monkeyp
 @pytest.mark.asyncio
 async def test_award_signup_grant_hook_calls_service_idempotently(monkeypatch):
     fake = _RecordingWalletsService()
-    monkeypatch.setattr(
-        organizations_service_module, "get_wallets_service", lambda: fake
-    )
+    monkeypatch.setattr(organizations_service_module, "_wallets_service", fake)
 
     organization_id = uuid4()
 
@@ -114,9 +108,7 @@ async def test_award_signup_grant_hook_calls_service_idempotently(monkeypatch):
 @pytest.mark.asyncio
 async def test_award_signup_grant_hook_reraises_on_failure(monkeypatch):
     monkeypatch.setattr(
-        organizations_service_module,
-        "get_wallets_service",
-        lambda: _FailingWalletsService(),
+        organizations_service_module, "_wallets_service", _FailingWalletsService()
     )
 
     with pytest.raises(RuntimeError):

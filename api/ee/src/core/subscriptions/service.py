@@ -24,7 +24,7 @@ from ee.src.core.subscriptions.settings import (
     trial_enabled,
 )
 from ee.src.core.subscriptions.interfaces import SubscriptionsDAOInterface
-from ee.src.core.wallets.runtime import get_wallets_service
+from ee.src.core.wallets.service import WalletsService
 
 log = get_module_logger(__name__)
 
@@ -71,8 +71,11 @@ class SubscriptionsService:
     def __init__(
         self,
         subscriptions_dao: SubscriptionsDAOInterface,
+        wallets_service: Optional[WalletsService] = None,
     ):
         self.subscriptions_dao = subscriptions_dao
+        # Only the instance that handles plan changes (the billing router's) needs it.
+        self.wallets_service = wallets_service
 
     async def create(
         self,
@@ -540,7 +543,10 @@ class SubscriptionsService:
             return
 
         try:
-            await get_wallets_service().apply_plan_change(
+            if self.wallets_service is None:
+                raise RuntimeError("No wallets service was wired into this service")
+
+            await self.wallets_service.apply_plan_change(
                 organization_id=UUID(organization_id),
                 idempotency_key=f"plan_change:{event_id or uuid_utils.uuid7()}",
                 subscription_id=subscription_id,

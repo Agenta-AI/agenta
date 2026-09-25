@@ -16,7 +16,10 @@ from oss.src.dbs.postgres.shared.engine import AnalyticsEngine
 from oss.src.utils.env import env
 
 from ee.src.core.wallets.contracts import STREAM_DEBITS, STREAM_MEASUREMENTS
-from ee.src.core.wallets.streaming import RedisDebitPublisher, RedisMeasurementPublisher
+from ee.src.dbs.redis.wallets.streams import (
+    RedisDebitPublisher,
+    RedisMeasurementPublisher,
+)
 from ee.src.dbs.postgres.measurements.dao import MeasurementsDAO
 from ee.src.dbs.postgres.measurements.dbes import MeasurementDBE, MeasurementValueDBE
 from ee.src.tasks.asyncio.measurements.worker import MeasurementWorker
@@ -137,13 +140,15 @@ async def test_full_consume_persist_publish(redis_client, analytics_engine):
     worker = MeasurementWorker(
         measurements_dao=MeasurementsDAO(engine=analytics_engine),
         organization_resolver=InMemoryOrganizationResolver(),
-        debit_publisher=RedisDebitPublisher(),
+        debit_publisher=RedisDebitPublisher(redis_client=redis_client),
         redis_client=redis_client,
         stream_name=STREAM_MEASUREMENTS,
         consumer_group=measurements_group,
     )
 
-    published = await RedisMeasurementPublisher().publish(command)
+    published = await RedisMeasurementPublisher(redis_client=redis_client).publish(
+        command
+    )
     assert published is True
 
     batch = await worker.read_batch()
@@ -182,7 +187,9 @@ async def test_transient_debit_publish_failure_converges_to_one_of_each(
     ]
     last_debit_id = last_debit_id[0][0]
 
-    failing_publisher = _OnceFailingDebitPublisher(RedisDebitPublisher())
+    failing_publisher = _OnceFailingDebitPublisher(
+        RedisDebitPublisher(redis_client=redis_client)
+    )
     worker = MeasurementWorker(
         measurements_dao=MeasurementsDAO(engine=analytics_engine),
         organization_resolver=InMemoryOrganizationResolver(),
@@ -192,7 +199,7 @@ async def test_transient_debit_publish_failure_converges_to_one_of_each(
         consumer_group=measurements_group,
     )
 
-    await RedisMeasurementPublisher().publish(command)
+    await RedisMeasurementPublisher(redis_client=redis_client).publish(command)
 
     # First attempt: tracing write succeeds, debit publish fails -> pending.
     batch = await worker.read_batch()
@@ -263,14 +270,14 @@ async def test_conflicting_replay_keeps_the_stored_measurement_and_is_dead_lette
     worker = MeasurementWorker(
         measurements_dao=MeasurementsDAO(engine=analytics_engine),
         organization_resolver=InMemoryOrganizationResolver(),
-        debit_publisher=RedisDebitPublisher(),
+        debit_publisher=RedisDebitPublisher(redis_client=redis_client),
         redis_client=redis_client,
         stream_name=STREAM_MEASUREMENTS,
         consumer_group=measurements_group,
     )
 
     for command in (original, conflicting):
-        await RedisMeasurementPublisher().publish(command)
+        await RedisMeasurementPublisher(redis_client=redis_client).publish(command)
         _, processed_ids = await worker.process_batch(await worker.read_batch())
         await worker.ack_and_delete(processed_ids)
 

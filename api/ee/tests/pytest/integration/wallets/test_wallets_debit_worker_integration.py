@@ -20,7 +20,7 @@ from oss.src.utils.env import env
 from ee.databases.postgres.migrations.core_ee.utils import alembic_cfg
 from ee.src.core.wallets.contracts import STREAM_DEBITS
 from ee.src.core.wallets.service import WalletsService
-from ee.src.core.wallets.streaming import RedisDebitPublisher
+from ee.src.dbs.redis.wallets.streams import RedisDebitPublisher
 from ee.src.dbs.postgres.wallets.dao import WalletsDAO
 from ee.src.dbs.postgres.wallets.dbes import WalletBalanceDBE, WalletDebitDBE
 from ee.src.tasks.asyncio.wallets.worker import DebitWorker
@@ -117,9 +117,8 @@ async def test_duplicate_debit_command_produces_one_financial_effect(
     )
 
     group = await _make_group(redis_client, stream=STREAM_DEBITS)
-    # A real WalletsService (the concrete WalletSettlementPort adapter, same class the
-    # runtime factory wires) bound to this test's own engine — not the process-wide
-    # singleton, so the fixture-scoped engine reset above stays authoritative.
+    # A real WalletsService, the settlement port worker_streams wires, bound to this
+    # test's own engine so the fixture-scoped engine reset above stays authoritative.
     settlement_port = WalletsService(
         wallets_dao=WalletsDAO(engine=get_transactions_engine())
     )
@@ -130,7 +129,7 @@ async def test_duplicate_debit_command_produces_one_financial_effect(
         consumer_group=group,
     )
 
-    publisher = RedisDebitPublisher()
+    publisher = RedisDebitPublisher(redis_client=redis_client)
     assert await publisher.publish(command_) is True
     assert await publisher.publish(command_) is True  # same command, produced twice
 

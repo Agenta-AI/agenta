@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional
 from uuid import UUID
 from datetime import datetime, timezone, timedelta
 from urllib.parse import urlparse, urlunparse
@@ -966,12 +966,29 @@ from ee.src.core.access.entitlements.service import (  # noqa: E402
 from ee.src.core.starter_credits_bridge.service import (  # noqa: E402
     seed_starter_credits_bridge_safely,
 )
-from ee.src.core.wallets.runtime import get_wallets_service  # noqa: E402
+from ee.src.core.wallets.service import WalletsService  # noqa: E402
 
 
 _subscription_service = SubscriptionsService(
     subscriptions_dao=SubscriptionsDAO(),
 )
+
+_wallets_service: Optional[WalletsService] = None
+
+
+def register_wallets_service(*, wallets_service: WalletsService) -> None:
+    """Composition-root hook: the entrypoint wires the wallets service at startup."""
+    global _wallets_service
+    _wallets_service = wallets_service
+
+
+def _get_wallets_service() -> WalletsService:
+    if _wallets_service is None:
+        raise RuntimeError(
+            "Wallets service not registered. "
+            "Call register_wallets_service() from the composition root."
+        )
+    return _wallets_service
 
 
 async def _provision_wallet_general_balance(
@@ -989,7 +1006,7 @@ async def _provision_wallet_general_balance(
     retry alone later precisely because it is idempotent.
     """
     try:
-        await get_wallets_service().provision_general_balance(
+        await _get_wallets_service().provision_general_balance(
             organization_id=organization_id,
             plan=plan,
         )
@@ -1015,7 +1032,7 @@ async def _award_signup_grant(*, organization_id: UUID) -> None:
     later precisely because it is idempotent.
     """
     try:
-        await get_wallets_service().award(
+        await _get_wallets_service().award(
             organization_id=organization_id,
             activity_code="signup",
         )

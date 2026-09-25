@@ -8,7 +8,6 @@ from uuid import uuid4
 
 import pytest
 
-import ee.src.core.subscriptions.service as subscriptions_service_module
 import entrypoints.worker_streams as worker_streams_module
 from ee.src.core.subscriptions.service import SubscriptionsService
 from ee.src.core.subscriptions.types import Event, SubscriptionDTO
@@ -39,12 +38,14 @@ async def test_plan_change_is_not_prorated_when_the_wallet_is_off(monkeypatch):
 
     # Recorded, not raised: the hook swallows every exception by design, so a raising
     # fake would pass whether or not the gate held.
-    reached = []
-    monkeypatch.setattr(
-        subscriptions_service_module,
-        "get_wallets_service",
-        lambda: reached.append(True),
-    )
+    class _RecordingWalletsService:
+        def __init__(self):
+            self.calls = []
+
+        async def apply_plan_change(self, **kwargs):
+            self.calls.append(kwargs)
+
+    wallets_service = _RecordingWalletsService()
 
     organization_id = str(uuid4())
     dao = _FakeSubscriptionsDAO(
@@ -56,7 +57,9 @@ async def test_plan_change_is_not_prorated_when_the_wallet_is_off(monkeypatch):
         )
     )
 
-    await SubscriptionsService(subscriptions_dao=dao).process_event(
+    await SubscriptionsService(
+        subscriptions_dao=dao, wallets_service=wallets_service
+    ).process_event(
         organization_id=organization_id,
         event=Event.SUBSCRIPTION_CREATED,
         subscription_id="sub_123",
@@ -64,7 +67,7 @@ async def test_plan_change_is_not_prorated_when_the_wallet_is_off(monkeypatch):
         anchor=1,
     )
 
-    assert reached == []
+    assert wallets_service.calls == []
     # The plan change itself still lands; only the wallet side is skipped.
     assert dao._subscription.plan == "cloud_v0_pro"
 

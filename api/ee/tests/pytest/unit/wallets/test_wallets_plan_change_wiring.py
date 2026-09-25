@@ -138,9 +138,7 @@ async def test_creation_passes_the_stripe_period_and_effective_time(monkeypatch)
         )
     )
     fake_wallets = _RecordingWalletsService(dao=dao)
-    monkeypatch.setattr(
-        subscriptions_service_module, "get_wallets_service", lambda: fake_wallets
-    )
+    monkeypatch.setattr(service, "wallets_service", fake_wallets)
     effective_at = datetime(2026, 4, 1, 15, 30, tzinfo=timezone.utc)
     period_end = datetime(2026, 5, 1, 15, 30, tzinfo=timezone.utc)
 
@@ -176,9 +174,7 @@ async def test_switch_reads_the_period_from_the_stripe_subscription(monkeypatch)
     organization_id = str(uuid4())
     service, _ = _service(_pro_subscription(organization_id))
     fake_wallets = _RecordingWalletsService()
-    monkeypatch.setattr(
-        subscriptions_service_module, "get_wallets_service", lambda: fake_wallets
-    )
+    monkeypatch.setattr(service, "wallets_service", fake_wallets)
     period = (
         datetime(2026, 4, 1, 9, 12, tzinfo=timezone.utc),
         datetime(2026, 5, 1, 9, 12, tzinfo=timezone.utc),
@@ -206,9 +202,7 @@ async def test_cancellation_passes_no_period_and_no_subscription(monkeypatch):
     organization_id = str(uuid4())
     service, _ = _service(_pro_subscription(organization_id))
     fake_wallets = _RecordingWalletsService()
-    monkeypatch.setattr(
-        subscriptions_service_module, "get_wallets_service", lambda: fake_wallets
-    )
+    monkeypatch.setattr(service, "wallets_service", fake_wallets)
 
     result = await service.process_event(
         organization_id=organization_id,
@@ -227,9 +221,7 @@ async def test_process_event_skips_wallet_hook_when_plan_is_unchanged(monkeypatc
     organization_id = str(uuid4())
     service, _ = _service(_pro_subscription(organization_id))
     fake_wallets = _RecordingWalletsService()
-    monkeypatch.setattr(
-        subscriptions_service_module, "get_wallets_service", lambda: fake_wallets
-    )
+    monkeypatch.setattr(service, "wallets_service", fake_wallets)
 
     await service.process_event(
         organization_id=organization_id,
@@ -253,9 +245,7 @@ async def test_process_event_swallows_wallet_hook_failure(monkeypatch):
         )
     )
     fake_wallets = _RecordingWalletsService(raises=True)
-    monkeypatch.setattr(
-        subscriptions_service_module, "get_wallets_service", lambda: fake_wallets
-    )
+    monkeypatch.setattr(service, "wallets_service", fake_wallets)
 
     result = await service.process_event(
         organization_id=organization_id,
@@ -286,9 +276,7 @@ async def test_flag_off_takes_no_lock_and_calls_no_hook(monkeypatch):
 
     dao.lock = _no_lock
     fake_wallets = _RecordingWalletsService()
-    monkeypatch.setattr(
-        subscriptions_service_module, "get_wallets_service", lambda: fake_wallets
-    )
+    monkeypatch.setattr(service, "wallets_service", fake_wallets)
 
     result = await service.process_event(
         organization_id=organization_id,
@@ -315,9 +303,7 @@ async def test_direct_changes_get_a_fresh_key_so_a_repeated_transition_moves_mon
         general_balance=build_general_wallet_balance(balance_musd=0, floor_musd=0)
     )
     monkeypatch.setattr(
-        subscriptions_service_module,
-        "get_wallets_service",
-        lambda: WalletsService(wallets_dao=wallets_dao),
+        service, "wallets_service", WalletsService(wallets_dao=wallets_dao)
     )
     _mock_stripe(monkeypatch)
 
@@ -348,9 +334,7 @@ async def test_a_double_submitted_switch_changes_the_plan_once(monkeypatch):
     organization_id = str(uuid4())
     service, dao = _service(_pro_subscription(organization_id))
     fake_wallets = _RecordingWalletsService()
-    monkeypatch.setattr(
-        subscriptions_service_module, "get_wallets_service", lambda: fake_wallets
-    )
+    monkeypatch.setattr(service, "wallets_service", fake_wallets)
     _mock_stripe(monkeypatch)
 
     results = await asyncio.gather(
@@ -386,9 +370,7 @@ async def test_the_same_delivery_id_applied_twice_moves_money_once(monkeypatch):
         general_balance=build_general_wallet_balance(balance_musd=0, floor_musd=0)
     )
     monkeypatch.setattr(
-        subscriptions_service_module,
-        "get_wallets_service",
-        lambda: WalletsService(wallets_dao=wallets_dao),
+        service, "wallets_service", WalletsService(wallets_dao=wallets_dao)
     )
 
     delivery = dict(

@@ -20,14 +20,14 @@ import pytest
 
 from oss.src.tasks.asyncio.shared.dead_letters import replay_dead_letters
 
-import ee.src.core.wallets.streaming as streaming
+import ee.src.dbs.redis.wallets.streams as wallet_streams
 from ee.src.core.wallets.contracts import STREAM_DEBITS, STREAM_MEASUREMENTS
 from ee.src.core.wallets.errors import SettlementUnavailableError
 from ee.src.core.wallets.streaming import (
-    RedisDebitPublisher,
     serialize_debit_command,
     serialize_measurement_command,
 )
+from ee.src.dbs.redis.wallets.streams import RedisDebitPublisher
 from ee.src.tasks.asyncio.measurements.worker import MeasurementWorker
 from ee.src.tasks.asyncio.wallets.worker import DebitWorker
 from ee.tests.pytest.utils.measurements.fakes import (
@@ -318,12 +318,11 @@ async def test_debit_publish_refuses_past_the_backlog_limit_and_never_trims(
     or not, without a log line. Past the limit the publish now fails loudly and every
     entry already in the stream stays."""
     redis_client = fakeredis.FakeRedis()
-    monkeypatch.setattr(streaming, "_get_redis", lambda: redis_client)
-    monkeypatch.setattr(streaming, "MAX_BACKLOG_STREAMS_DEBITS", 2)
+    monkeypatch.setattr(wallet_streams, "MAX_BACKLOG", 2)
     await redis_client.xgroup_create(
         name=STREAM_DEBITS, groupname=DEBITS_GROUP, id="0", mkstream=True
     )
-    publisher = RedisDebitPublisher()
+    publisher = RedisDebitPublisher(redis_client=redis_client)
 
     assert await publisher.publish(build_debit_command()) is True
     assert await publisher.publish(build_debit_command()) is True
