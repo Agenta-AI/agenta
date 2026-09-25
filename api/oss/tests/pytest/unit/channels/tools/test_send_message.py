@@ -308,15 +308,19 @@ async def test_telegram_thread_ids_are_refused():
 async def test_a_row_another_request_created_is_never_posted_again():
     """A concurrent retry gets the first request's row back from the insert;
     only the request that created the row posts, whatever time has passed."""
-    from uuid import uuid5
-
     from oss.src.core.channels.dtos import (
         ChannelOutboxEventCreate,
         ChannelOutboxEventData,
     )
 
     service, dao, _, transport, artifact_id, spaces = _slack()
-    key = uuid5(tools_service_module._SEND_KEYS, "session-1:toolu_1")
+    key = tools_service_module.send_key(
+        session_id="session-1",
+        tool_call_id="toolu_1",
+        destination_id=encode_destination_id(spaces["C1"].id),
+        thread_id=None,
+        text="QA hello",
+    )
     await dao.record_outbox_event(
         project_id=PROJECT_ID,
         event=ChannelOutboxEventCreate(
@@ -349,3 +353,13 @@ async def test_slack_internal_error_is_unknown_not_failed():
     result = await _send(service, artifact_id, spaces["C1"])
 
     assert result.state == "unknown"
+
+
+async def test_a_reused_call_id_with_a_new_message_posts_again():
+    service, _, _, transport, artifact_id, spaces = _slack()
+
+    first = await _send(service, artifact_id, spaces["C1"], text="first")
+    second = await _send(service, artifact_id, spaces["C1"], text="second")
+
+    assert first.delivery_id != second.delivery_id
+    assert len(_posts(transport)) == 2

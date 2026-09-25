@@ -179,7 +179,14 @@ async def _with_channel_tools(
     )
     if not ops:
         return list(tools)
-    authored = {tool.op for tool in tools if isinstance(tool, PlatformToolConfig)}
+    # any declared tool with the op's name wins: a platform entry for the op, or a
+    # client, code or other tool that already uses the name
+    authored = {
+        name
+        for tool in tools
+        for name in (getattr(tool, "op", None), getattr(tool, "name", None))
+        if isinstance(name, str)
+    }
     added = [
         PlatformToolConfig(op=op)
         for op in CHANNEL_TOOL_OPS

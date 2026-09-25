@@ -121,3 +121,12 @@ async def test_an_unknown_op_from_the_api_is_ignored():
     tools, _ = await _run(channel_tools=["list_channel_destinations", "rm_rf"])
 
     assert _ops(tools) == ["list_channel_destinations"]
+
+
+async def test_a_tool_that_already_uses_an_ops_name_wins():
+    authored = [{"type": "client", "name": "send_channel_message"}]
+
+    tools, _ = await _run(channel_tools=ALL, authored=authored)
+
+    assert "send_channel_message" not in _ops(tools)
+    assert set(_ops(tools)) == {*ALL} - {"send_channel_message"}

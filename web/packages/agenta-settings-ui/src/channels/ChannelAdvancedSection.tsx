@@ -79,7 +79,9 @@ export const ChannelAdvancedSection = ({
         setError(null)
         try {
             await actions.writeToolSettings(connectionId, next)
-            show(next)
+            // A posting-only save keeps an unsaved channel checklist as it is.
+            if (settings && next.readableSpaceKeys === settings.readableSpaceKeys) setSettings(next)
+            else show(next)
         } catch (e) {
             const message = errorMessage(e, "Could not save this setting.")
             // Show what the backend still holds, not what the refused save asked for.

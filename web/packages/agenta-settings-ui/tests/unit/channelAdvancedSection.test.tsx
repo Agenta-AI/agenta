@@ -165,3 +165,17 @@ it("explains the Telegram limits", async () => {
     await click("channels-advanced-read-only")
     expect(byId("channels-advanced-checklist").textContent).toContain("The bot is in no group yet")
 })
+
+it("keeps an unsaved channel checklist when the posting switch is saved", async () => {
+    const writeToolSettings = vi.fn(async () => {})
+    await open({writeToolSettings, listReadableChannels: async () => CHANNELS})
+    await click("channels-advanced-read-only")
+    await click("channels-advanced-channel-k1")
+    await click("channels-advanced-post")
+    expect(writeToolSettings).toHaveBeenCalledWith("connection", {
+        canPostOutsideConversation: false,
+        readableSpaceKeys: null,
+    })
+    expect(byId("channels-advanced-read-only").dataset.checked).toBe("true")
+    expect(byId("channels-advanced-channel-k1").dataset.checked).toBe("true")
+})

@@ -35,15 +35,25 @@ def upgrade() -> None:
         WHERE t.project_id = o.project_id AND t.id = o.thread_id
         """
     )
-    op.create_index(
-        "ix_channel_outbox_space",
-        "channel_outbox_events",
-        ["project_id", "space_id", "created_at"],
-    )
+    # built without blocking the outbox's writes
+    with op.get_context().autocommit_block():
+        op.create_index(
+            "ix_channel_outbox_space",
+            "channel_outbox_events",
+            ["project_id", "space_id", "created_at"],
+            postgresql_concurrently=True,
+            if_not_exists=True,
+        )
 
 
 def downgrade() -> None:
-    op.drop_index("ix_channel_outbox_space", table_name="channel_outbox_events")
+    with op.get_context().autocommit_block():
+        op.drop_index(
+            "ix_channel_outbox_space",
+            table_name="channel_outbox_events",
+            postgresql_concurrently=True,
+            if_exists=True,
+        )
     op.drop_column("channel_outbox_events", "space_id")
     op.execute("DELETE FROM channel_outbox_events WHERE thread_id IS NULL")
     op.alter_column("channel_outbox_events", "thread_id", nullable=False)

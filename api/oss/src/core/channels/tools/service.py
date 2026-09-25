@@ -426,7 +426,13 @@ class ChannelToolsService:
                 raise ChannelToolsNotFound("Thread not found in this destination.")
             locator["thread_ts"] = thread[1]
 
-        key = uuid5(_SEND_KEYS, f"{session_id}:{tool_call_id}")
+        key = send_key(
+            session_id=session_id,
+            tool_call_id=tool_call_id,
+            destination_id=destination_id,
+            thread_id=thread_id,
+            text=text,
+        )
         existing = await self.channels_dao.fetch_outbox_event_by_key(
             project_id=project_id, key=key
         )
@@ -925,6 +931,24 @@ async def _member_spaces(adapter, connection: ChannelConnection):
     members = await adapter.list_member_spaces(connection=connection)
     _MEMBER_CACHE[connection.id] = (now + _MEMBER_TTL_SECONDS, members)
     return members
+
+
+def send_key(
+    *,
+    session_id: str,
+    tool_call_id: str,
+    destination_id: str,
+    thread_id: Optional[str],
+    text: str,
+) -> UUID:
+    """The delivery row's key. The call's own arguments are part of it: a retry
+    of one call finds its row, while a harness that reuses a call id in a later
+    turn still gets a new post for a new message."""
+
+    return uuid5(
+        _SEND_KEYS,
+        f"{session_id}:{tool_call_id}:{destination_id}:{thread_id or ''}:{text}",
+    )
 
 
 def _is_channel(space: ChannelSpace) -> bool:

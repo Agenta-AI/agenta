@@ -477,7 +477,7 @@ export const buildAgentChannelsActions = ({
         connectionId: string,
         next: ChannelToolSettings,
     ): Promise<void> => {
-        const agentId = await channelAgentId(connectionId)
+        const agentId = asString((await answeringAgent(connectionId)).id)
         // The edit layers `data` over the stored row, so sending only `tools` leaves the
         // references and the policy as they are.
         await client
