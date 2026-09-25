@@ -3198,9 +3198,9 @@ export class ChannelsClient {
     }
 
     /**
-     * Whether this agent is connected to an active, verified bot: the
-     * condition the Agenta tools kit reads before adding the channel tools
-     * to a run.
+     * Whether this agent is connected to an active, verified bot, and
+     * which channel tools its runs get under the bots' settings. The agent
+     * runtime reads it to add the tools to every run.
      *
      * @param {AgentaApi.ChannelToolsAvailabilityRequest} request
      * @param {ChannelsClient.RequestOptions} requestOptions - Request-specific configuration.
