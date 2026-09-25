@@ -200,13 +200,22 @@ export const WRITE_METHODS: ReadonlySet<FsMethod> = new Set<FsMethod>([
 export const SANDBOX_FLAGS = "allow-scripts allow-forms"
 
 /**
- * CSP injected into the app document. Inline only; no network, no remote fonts or images.
+ * CSP injected into the app document. Inline code plus anything served over `https:`: scripts,
+ * stylesheets, fonts, images and `fetch`/XHR.
  *
- * `form-action 'none'` closes the other navigation-shaped exit: a form posting to an external
- * action. It does not inherit from `default-src`, so it has to be named.
+ * The network is open on purpose. An app is written by the same agent that can already read its
+ * folder and, under the default sandbox network policy, send it anywhere, and apps ship inside
+ * templates the person already chose to trust. Blocking egress here protected nothing the agent
+ * could not do itself, and it broke ordinary apps that load a library from a CDN. What stays
+ * closed is what keeps the app from acting as the person: no `allow-same-origin` (the app is a
+ * foreign origin with no Agenta session), the folder-scoped bridge, and the navigation guards
+ * (no popups, `form-action 'none'`, the wrapper's `frame-src 'none'`) that keep the app in its
+ * frame and the bridge port out of a foreign page.
+ *
+ * `form-action 'none'` does not inherit from `default-src`, so it has to be named.
  */
 export const RUN_CSP =
-    "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; form-action 'none'"
+    "default-src 'none'; script-src 'unsafe-inline' https:; style-src 'unsafe-inline' https:; img-src data: blob: https:; font-src data: https:; connect-src https:; form-action 'none'"
 
 /**
  * CSP injected into the PREVIEW document (ordinary drive HTML, not an app).
@@ -223,7 +232,8 @@ export const RUN_CSP =
  * `default-src 'none'` covers `connect-src`, so even a context that somehow runs has no way out.
  * Enumerating vectors does not terminate; denying the capability does.
  *
- * Wider than {@link RUN_CSP} in one respect, deliberately: preview leaves external URLs alone
+ * Narrower than {@link RUN_CSP} in one respect, deliberately: Preview strips scripts and allows
+ * no `connect-src`. Like Run, it leaves external URLs alone
  * (`inlineAssets` only folds in same-mount assets), so ordinary drive HTML that links a remote
  * stylesheet, image or font renders today and must keep rendering. Those are fetches the policy
  * still confines to their element type; `connect-src` stays denied.

@@ -45,8 +45,13 @@ describe("run CSP", () => {
         expect(RUN_CSP).toContain("form-action 'none'")
     })
 
-    it("allows no remote origin anywhere", () => {
-        expect(RUN_CSP).not.toMatch(/https?:/)
+    // Open on purpose: an app may load libraries, fonts and images from a CDN and call APIs.
+    // See RUN_CSP for why egress is not the boundary. Plain http and wildcards stay out.
+    it("allows https for scripts, styles, fonts, images and fetch, and nothing looser", () => {
+        for (const directive of ["script-src", "style-src", "img-src", "font-src", "connect-src"]) {
+            expect(RUN_CSP).toMatch(new RegExp(`${directive} [^;]*https:`))
+        }
+        expect(RUN_CSP).not.toContain("http:")
         expect(RUN_CSP).not.toContain("*")
     })
 
