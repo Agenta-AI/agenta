@@ -34,5 +34,15 @@ work. It owns five things and nothing else:
   tidiness is that a core service reaching for global runtime state cannot be constructed in a
   test without that state, and the wallet fakes exist precisely so that it can be. Nothing in it
   depends on the seam, so it can land before the rest of this node if a test needs it sooner.
+  **Done (2026-09-25, `wallets/fix-layering`).** `runtime.py` is gone. `SubscriptionsService`
+  takes the wallets service on its constructor; `ee/src/main.py` builds it and passes it to
+  the billing router's instance, the only one that handles plan changes. The organization
+  hooks are module functions, so they use the entitlements registration shape:
+  `register_wallets_service`, called from `ee/src/main.py`; an unregistered call raises. The
+  Redis publishers moved out of core to `ee/src/dbs/redis/wallets/streams.py` and take their
+  client from the entrypoint (`worker_streams.py`); core keeps the serializers and the
+  publisher protocols. The wire contracts stay in `core/wallets/contracts.py`: moving the
+  measurement envelope to the measurements domain touches every producer and consumer
+  import for no behaviour gain, so it waits for this node's vocabulary work.
 - **The documents.** `wave-2.md`'s completion evidence, `entities.md` where a name changed,
   `seams.md`'s "what nobody owns yet", and the open-design items this wave closed or opened.
