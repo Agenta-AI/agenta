@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Literal, Optional
 from uuid import UUID
 
 from oss.src.core.channels.dtos import (
@@ -204,6 +204,16 @@ class ChannelAdapterInterface(ABC):
         """Remove resolved message controls without changing the message text.
         `content` is the message as it was posted, for platforms (Slack) that
         can only drop buttons by re-sending the rest of the message."""
+        return None
+
+    async def set_message_status(
+        self,
+        *,
+        connection: ChannelConnection,
+        locator: Dict[str, Any],
+        status: Literal["received", "completed", "failed"],
+    ) -> None:
+        """Optional, best-effort status on the original request, not the reply."""
         return None
 
     async def signal_activity(

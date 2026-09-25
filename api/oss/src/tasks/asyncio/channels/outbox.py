@@ -1,7 +1,7 @@
 import asyncio
 import time
 from datetime import datetime, timezone
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Literal, Optional, Tuple
 from uuid import UUID
 
 from agenta.sdk.agents.fold import fold
@@ -11,6 +11,8 @@ from oss.src.core.channels.dtos import (
     ChannelCapabilities,
     ChannelConnection,
     ChannelDeliveryState,
+    ChannelInboxEventQuery,
+    ChannelInboxTriggerQuery,
     ChannelOutboxEvent,
     ChannelOutboxEventCreate,
     ChannelOutboxEventData,
@@ -34,6 +36,8 @@ from oss.src.core.channels.service import ChannelsService
 from oss.src.core.channels.types import ChannelConnectionNotFound, ChannelSpaceNotFound
 from oss.src.core.channels.utils import compose_outbox_key
 from oss.src.core.channels.utils import delivery_outcome_unknown as _outcome_unknown
+from oss.src.core.sessions.executions.interfaces import SessionExecutionsDAOInterface
+from oss.src.core.sessions.inputs.interfaces import SessionInputsDAOInterface
 from oss.src.core.sessions.records.service import RecordsService
 from oss.src.core.sessions.interactions.service import SessionInteractionsService
 from oss.src.core.sessions.turns.service import SessionTurnsService
@@ -52,6 +56,13 @@ log = get_module_logger(__name__)
 # empty turn still reports within two seconds.
 _EMPTY_FOLD_ATTEMPTS = 3
 _EMPTY_FOLD_BACKOFF_SECONDS = 0.8
+
+# The turn's settlement can land just after its turn_ended event. Re-read a
+# few times before leaving the request reaction as received. The re-read
+# budget is added on top of the update's own timeout, so the Slack calls keep
+# their full time.
+_SETTLE_REREAD_ATTEMPTS = 3
+_SETTLE_REREAD_BACKOFF_SECONDS = 0.5
 
 # While a turn runs on a channel that edits in place: how often the answer so
 # far is folded and edited into the indicator, how often the platform's
@@ -102,6 +113,8 @@ class ChannelsOutboxWorker:
         turns_service: SessionTurnsService,
         records_service: RecordsService,
         interactions_service: Optional[SessionInteractionsService] = None,
+        executions_dao: Optional[SessionExecutionsDAOInterface] = None,
+        inputs_dao: Optional[SessionInputsDAOInterface] = None,
         progress_interval_seconds: float = _PROGRESS_INTERVAL_SECONDS,
         progress_max_seconds: float = _PROGRESS_MAX_SECONDS,
     ) -> None:
@@ -118,6 +131,8 @@ class ChannelsOutboxWorker:
         # respond path answers by. Without this service, do not publish
         # actionable approval cards.
         self.interactions_service = interactions_service
+        self.executions_dao = executions_dao
+        self.inputs_dao = inputs_dao
 
     # --- driven by the session-turn stream ---------------------------------#
 
@@ -410,6 +425,13 @@ class ChannelsOutboxWorker:
         # erases the only signal that the answer was lost, DM-wave finding,
         # 2026-08-17), and never a "Thinking…" that sits there forever.
         if not has_answer:
+            await self._update_request_reaction(
+                project_id=project_id,
+                thread=thread,
+                connection=connection,
+                turn_id=turn_id,
+                status="failed",
+            )
             log.error(
                 "[SESSIONS-OUTBOX] answer still empty after re-reads; telling "
                 "the chat the run failed turn=%s session=%s",
@@ -443,6 +465,7 @@ class ChannelsOutboxWorker:
             return
 
         items = render_turn_result(capabilities=capabilities, folded=folded)
+        all_delivered = bool(items)
 
         for item_index, item in enumerate(items):
             event = await self._get_or_create_item(
@@ -495,14 +518,148 @@ class ChannelsOutboxWorker:
                     ),
                 )
 
-            await self._send(
+            try:
+                delivered = await self._send(
+                    project_id=project_id,
+                    event=event,
+                    connection=connection,
+                    capabilities=capabilities,
+                    item=item,
+                    thread=thread,
+                    final=True,
+                )
+                all_delivered = all_delivered and delivered
+            except Exception:
+                await self._update_request_reaction(
+                    project_id=project_id,
+                    thread=thread,
+                    connection=connection,
+                    turn_id=turn_id,
+                    status="failed",
+                )
+                raise
+
+        if (
+            not folded.get("pending_interaction")
+            and folded.get("stop_reason") != "paused"
+        ):
+            await self._update_request_reaction(
                 project_id=project_id,
-                event=event,
-                connection=connection,
-                capabilities=capabilities,
-                item=item,
                 thread=thread,
-                final=True,
+                connection=connection,
+                turn_id=turn_id,
+                status=(
+                    "completed"
+                    if all_delivered
+                    and folded.get("stop_reason") not in ("error", "cancelled")
+                    else "failed"
+                ),
+            )
+
+    async def _update_request_reaction(
+        self,
+        *,
+        project_id: UUID,
+        thread: ChannelThread,
+        connection: ChannelConnection,
+        turn_id: str,
+        status: Literal["completed", "failed"],
+    ) -> None:
+        if connection.channel != "slack" or self.executions_dao is None:
+            return
+
+        async def update() -> None:
+            execution = None
+            for attempt in range(_SETTLE_REREAD_ATTEMPTS):
+                if attempt:
+                    await asyncio.sleep(_SETTLE_REREAD_BACKOFF_SECONDS)
+                execution = await self.executions_dao.fetch_execution(
+                    project_id=project_id,
+                    session_id=thread.session_id,
+                    execution_id=turn_id,
+                )
+                if status != "completed" or (
+                    execution is not None and execution.terminal_outcome is not None
+                ):
+                    break
+            desired_status = status
+            if status == "completed":
+                if execution is None or execution.terminal_outcome in (
+                    None,
+                    "continued",
+                ):
+                    return
+                if execution.error or execution.terminal_outcome != "completed":
+                    desired_status = "failed"
+
+            source_turn_id = turn_id
+            seen = set()
+            dao = self.channels_service.channels_dao
+            while source_turn_id and source_turn_id not in seen and len(seen) < 32:
+                seen.add(source_turn_id)
+                triggers = await dao.query_inbox_triggers(
+                    project_id=project_id,
+                    trigger=ChannelInboxTriggerQuery(
+                        thread_id=thread.id, turn_id=source_turn_id
+                    ),
+                )
+                if not triggers and self.inputs_dao is not None:
+                    queued = await self.inputs_dao.fetch_by_execution_id(
+                        project_id=project_id,
+                        session_id=thread.session_id,
+                        execution_id=source_turn_id,
+                    )
+                    if queued is not None:
+                        # A queued follow-up owns its request, not its predecessor's.
+                        if not queued.idempotency_key.startswith("channels:"):
+                            return
+                        triggers = await dao.query_inbox_triggers(
+                            project_id=project_id,
+                            trigger=ChannelInboxTriggerQuery(
+                                thread_id=thread.id,
+                                id=UUID(
+                                    queued.idempotency_key.removeprefix("channels:")
+                                ),
+                            ),
+                        )
+                        if not triggers:
+                            return
+                if triggers:
+                    events = await dao.query_inbox_events(
+                        project_id=project_id,
+                        event=ChannelInboxEventQuery(
+                            id=triggers[0].event_id, connection_id=connection.id
+                        ),
+                    )
+                    if events:
+                        adapter = self.channels_service.adapter_registry.get(
+                            connection.channel
+                        )
+                        await adapter.set_message_status(
+                            connection=connection,
+                            locator=events[0].data.external_locator,
+                            status=desired_status,
+                        )
+                    return
+                # Approval/recovery continuations keep the original request.
+                ancestor = await self.executions_dao.fetch_execution(
+                    project_id=project_id,
+                    session_id=thread.session_id,
+                    execution_id=source_turn_id,
+                )
+                source_turn_id = ancestor.parent_execution_id if ancestor else None
+
+        try:
+            await asyncio.wait_for(
+                update(),
+                timeout=3.0
+                + (_SETTLE_REREAD_ATTEMPTS - 1) * _SETTLE_REREAD_BACKOFF_SECONDS,
+            )
+        except Exception as exc:
+            log.warning(
+                "[SLACK] request reaction skipped turn=%s: %s",
+                turn_id,
+                type(exc).__name__,
             )
 
     async def _resolve_interaction_row_id(

@@ -3,7 +3,7 @@ import json
 import os
 import re
 import time
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Literal, Optional, Tuple
 from urllib.parse import parse_qs, quote
 from uuid import UUID
 
@@ -379,6 +379,7 @@ class SlackAdapter(ChannelAdapterInterface):
         thread_ts = event.get("thread_ts") or event_ts or None
 
         locator = build_locator(team=team_id, channel=channel_id, thread_ts=thread_ts)
+        locator["message_ts"] = event_ts
 
         # The bot's own mention as a readable handle: `<@U09…>` is noise to the
         # agent and made every session title start with it.
@@ -500,6 +501,46 @@ class SlackAdapter(ChannelAdapterInterface):
             },
         )
         return {"channel": response["channel"], "ts": response["ts"]}
+
+    async def set_message_status(
+        self,
+        *,
+        connection: ChannelConnection,
+        locator: Dict[str, Any],
+        status: Literal["received", "completed", "failed"],
+    ) -> None:
+        # Old events have no message_ts. Never guess from the thread root.
+        if not locator.get("channel") or not locator.get("message_ts"):
+            return
+        operations = {
+            "received": [("add", "eyes")],
+            "completed": [("add", "white_check_mark"), ("remove", "eyes")],
+            "failed": [("remove", "eyes")],
+        }
+        for action, name in operations[status]:
+            try:
+                await asyncio.wait_for(
+                    self._call(
+                        connection,
+                        f"reactions.{action}",
+                        {
+                            "channel": locator["channel"],
+                            "timestamp": locator["message_ts"],
+                            "name": name,
+                        },
+                    ),
+                    timeout=1.0,
+                )
+            except _SlackApiError as exc:
+                if (action, exc.error) not in {
+                    ("add", "already_reacted"),
+                    ("remove", "no_reaction"),
+                }:
+                    log.warning("[SLACK] reaction %s failed: %s", action, exc.error)
+            except Exception as exc:
+                log.warning(
+                    "[SLACK] reaction %s failed: %s", action, type(exc).__name__
+                )
 
     async def dismiss_choices(
         self,
