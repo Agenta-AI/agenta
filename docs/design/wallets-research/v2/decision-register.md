@@ -23,7 +23,7 @@ The source register's status is not implementation proof or approval of commerci
 | 17 | Open | Meaning/enforcement of admission ceiling | models; hardening | Original phase carries ceiling without enforcing it. Later paid execution needs an enforceable exposure policy. |
 | 18 | Open | Provider-cost unit and rounding | models; hardening | Document units and precision, store evidence, and round customer debit once at its defined boundary. |
 | 19 | Open | Model catalog and rate-card synchronization | models; configuration | Unpriced paid routes stay disabled; update rates with model catalog changes through validation. |
-| 20 | Open | Terminal messages and stream retention | hardening | Define inspectable failure handling, recovery and capacity assumptions; no unbounded blind retry or silent financial loss claim. |
+| 20 | Decided | Terminal messages and stream retention | hardening | A dead-letter stream per source stream holds every terminal entry and every entry past `max_deliveries` (20 for the wallet workers), with list and replay commands. No `MAXLEN` trim: publishers refuse new entries past a 100,000-entry backlog. |
 | 21 | Decided | Expired value in general balance | hardening | Admission reads a derived spendable value (general minus expired remainder, one statement). An expiry debit that reconciles the two projections is still item 3's. |
 | 22 | Decided 2026-09-25: subscription lock serializes changes (option 2); failed-adjustment recovery (option 3) deferred | Identity of a plan transition | hardening; funding | Distinct genuine changes within one period need distinct identities; retries must retain the same identity. |
 
