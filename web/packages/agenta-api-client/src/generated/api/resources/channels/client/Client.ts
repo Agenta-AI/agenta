@@ -153,6 +153,117 @@ export class ChannelsClient {
     }
 
     /**
+     * Meta's subscription check: echo `hub.challenge` as plain text when
+     * `hub.verify_token` is the token a WhatsApp connection handed its
+     * operator. The token starts with the phone number ID, which picks the
+     * one connection to compare against. Echoing grants nothing, but an
+     * unknown token is refused so the URL answers only for its own numbers.
+     *
+     * @param {ChannelsClient.RequestOptions} requestOptions - Request-specific configuration.
+     *
+     * @example
+     *     await client.channels.verifyWhatsappWebhook()
+     */
+    public verifyWhatsappWebhook(requestOptions?: ChannelsClient.RequestOptions): core.HttpResponsePromise<string> {
+        return core.HttpResponsePromise.fromPromise(this.__verifyWhatsappWebhook(requestOptions));
+    }
+
+    private async __verifyWhatsappWebhook(
+        requestOptions?: ChannelsClient.RequestOptions,
+    ): Promise<core.WithRawResponse<string>> {
+        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
+        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
+            _authRequest.headers,
+            this._options?.headers,
+            requestOptions?.headers,
+        );
+        const _response = await core.fetcher({
+            url: core.url.join(
+                (await core.Supplier.get(this._options.baseUrl)) ??
+                    (await core.Supplier.get(this._options.environment)) ??
+                    environments.AgentaApiEnvironment.Default,
+                "channels/whatsapp/events/",
+            ),
+            method: "GET",
+            headers: _headers,
+            queryParameters: requestOptions?.queryParams,
+            responseType: "text",
+            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 30) * 1000,
+            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
+            withCredentials: true,
+            abortSignal: requestOptions?.abortSignal,
+            fetchFn: this._options?.fetch,
+            logging: this._options.logging,
+        });
+        if (_response.ok) {
+            return { data: _response.body as string, rawResponse: _response.rawResponse };
+        }
+
+        if (_response.error.reason === "status-code") {
+            throw new errors.AgentaApiError({
+                statusCode: _response.error.statusCode,
+                body: _response.error.body,
+                rawResponse: _response.rawResponse,
+            });
+        }
+
+        return handleNonStatusCodeError(_response.error, _response.rawResponse, "GET", "/channels/whatsapp/events/");
+    }
+
+    /**
+     * @param {ChannelsClient.RequestOptions} requestOptions - Request-specific configuration.
+     *
+     * @example
+     *     await client.channels.ingestWhatsappEvent()
+     */
+    public ingestWhatsappEvent(
+        requestOptions?: ChannelsClient.RequestOptions,
+    ): core.HttpResponsePromise<AgentaApi.ChannelEventAck> {
+        return core.HttpResponsePromise.fromPromise(this.__ingestWhatsappEvent(requestOptions));
+    }
+
+    private async __ingestWhatsappEvent(
+        requestOptions?: ChannelsClient.RequestOptions,
+    ): Promise<core.WithRawResponse<AgentaApi.ChannelEventAck>> {
+        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
+        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
+            _authRequest.headers,
+            this._options?.headers,
+            requestOptions?.headers,
+        );
+        const _response = await core.fetcher({
+            url: core.url.join(
+                (await core.Supplier.get(this._options.baseUrl)) ??
+                    (await core.Supplier.get(this._options.environment)) ??
+                    environments.AgentaApiEnvironment.Default,
+                "channels/whatsapp/events/",
+            ),
+            method: "POST",
+            headers: _headers,
+            queryParameters: requestOptions?.queryParams,
+            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 30) * 1000,
+            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
+            withCredentials: true,
+            abortSignal: requestOptions?.abortSignal,
+            fetchFn: this._options?.fetch,
+            logging: this._options.logging,
+        });
+        if (_response.ok) {
+            return { data: _response.body as AgentaApi.ChannelEventAck, rawResponse: _response.rawResponse };
+        }
+
+        if (_response.error.reason === "status-code") {
+            throw new errors.AgentaApiError({
+                statusCode: _response.error.statusCode,
+                body: _response.error.body,
+                rawResponse: _response.rawResponse,
+            });
+        }
+
+        return handleNonStatusCodeError(_response.error, _response.rawResponse, "POST", "/channels/whatsapp/events/");
+    }
+
+    /**
      * @param {ChannelsClient.RequestOptions} requestOptions - Request-specific configuration.
      *
      * @example
@@ -3087,9 +3198,9 @@ export class ChannelsClient {
     }
 
     /**
-     * Whether this agent is connected to an active, verified bot: the
-     * condition the Agenta tools kit reads before adding the channel tools
-     * to a run.
+     * Whether this agent is connected to an active, verified bot, and
+     * which channel tools its runs get under the bots' settings. The agent
+     * runtime reads it to add the tools to every run.
      *
      * @param {AgentaApi.ChannelToolsAvailabilityRequest} request
      * @param {ChannelsClient.RequestOptions} requestOptions - Request-specific configuration.

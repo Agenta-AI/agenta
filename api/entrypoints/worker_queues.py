@@ -105,6 +105,7 @@ from oss.src.dbs.postgres.workflows.dbes import (
     WorkflowVariantDBE,
 )
 from entrypoints.channel_adapters import build_channel_adapter_registry
+from entrypoints.session_attachments import build_session_attachments_service
 from oss.src.core.channels.identity import ChannelIdentityService
 from oss.src.core.channels.queue import ChannelSessionQueue
 from oss.src.core.channels.service import ChannelsService
@@ -400,6 +401,11 @@ def _build_channels_inbox_broker() -> tuple[AsyncBroker, int]:
         ),
         respond_interaction_fn=_respond_interaction,
         session_queue=session_queue,
+        # Inbound images and documents (WhatsApp) reach the agent as session
+        # attachments.
+        attachments_service=build_session_attachments_service(
+            workflows_service=workflows_service
+        ),
     )
     ChannelsInboxWorker(broker=broker, dispatcher=dispatcher)
     return broker, 50  # max_async_tasks

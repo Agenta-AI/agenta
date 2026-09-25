@@ -1,10 +1,11 @@
 import asyncio
+import hmac
 import json
 from functools import wraps
 from typing import TYPE_CHECKING, Any, Dict, Optional
 
 from fastapi import APIRouter, HTTPException, Request, status
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, PlainTextResponse
 
 from oss.src.utils.exceptions import intercept_exceptions
 from oss.src.utils.logging import get_module_logger
@@ -25,6 +26,10 @@ from oss.src.core.channels.types import (
 )
 from oss.src.core.channels.utils import compose_external_key
 from oss.src.core.channels.adapters.telegram.signature import verify_telegram_secret
+from oss.src.core.channels.adapters.whatsapp.mapping import (
+    phone_number_id_from_verify_token,
+    phone_number_ids,
+)
 from oss.src.core.channels.telegram_binding import (
     BindTokenError,
     ChatAlreadyConnected,
@@ -115,6 +120,24 @@ class ChannelsIngressRouter:
             status_code=status.HTTP_202_ACCEPTED,
         )
 
+        # WhatsApp: Meta proves the URL with a GET handshake before it sends
+        # any event, then POSTs signed events to the same URL.
+        self.router.add_api_route(
+            "/whatsapp/events/",
+            self.verify_whatsapp_webhook,
+            methods=["GET"],
+            operation_id="verify_whatsapp_webhook",
+            response_class=PlainTextResponse,
+        )
+        self.router.add_api_route(
+            "/whatsapp/events/",
+            self.ingest_whatsapp_event,
+            methods=["POST"],
+            operation_id="ingest_whatsapp_event",
+            response_model=ChannelEventAck,
+            status_code=status.HTTP_202_ACCEPTED,
+        )
+
         # Bridges share one route -- their channel key is unknown at build time.
         self.router.add_api_route(
             "/bridge/events/",
@@ -175,6 +198,56 @@ class ChannelsIngressRouter:
         return await self._ingest(channel="telegram", request=request)
 
     @intercept_exceptions()
+    async def verify_whatsapp_webhook(self, request: Request) -> Any:
+        """Meta's subscription check: echo `hub.challenge` as plain text when
+        `hub.verify_token` is the token a WhatsApp connection handed its
+        operator. The token starts with the phone number ID, which picks the
+        one connection to compare against. Echoing grants nothing, but an
+        unknown token is refused so the URL answers only for its own numbers."""
+
+        params = request.query_params
+        token = params.get("hub.verify_token") or ""
+        challenge = params.get("hub.challenge") or ""
+        phone_number_id = phone_number_id_from_verify_token(token)
+        if params.get("hub.mode") == "subscribe" and challenge and phone_number_id:
+            adapter = self.adapter_registry.get("whatsapp")
+            candidate = await self._resolve_candidate(
+                channel="whatsapp",
+                capabilities=await adapter.fetch_capabilities(connection=None),
+                locator={"phone_number_id": phone_number_id},
+            )
+            data = candidate[2].data if candidate else None
+            expected = (data or {}).get("webhook_verify_token") or ""
+            if expected and hmac.compare_digest(
+                token.encode("utf-8"), expected.encode("utf-8")
+            ):
+                return PlainTextResponse(challenge)
+        return PlainTextResponse("", status_code=status.HTTP_403_FORBIDDEN)
+
+    @intercept_exceptions()
+    @handle_channel_adapter_exceptions()
+    async def ingest_whatsapp_event(self, request: Request) -> Any:
+        # One body can batch messages for several business numbers of the
+        # same Meta app. Each number is its own connection, so each is
+        # verified and routed on its own. A number not connected here (or
+        # connected with another app secret) is skipped; a body where no
+        # number verifies is refused like any bad signature.
+        accepted = False
+        for phone_number_id in phone_number_ids(await request.body()):
+            try:
+                await self._ingest(
+                    channel="whatsapp",
+                    request=request,
+                    locator={"phone_number_id": phone_number_id},
+                )
+            except ChannelSignatureInvalid:
+                continue
+            accepted = True
+        if not accepted:
+            raise ChannelSignatureInvalid(channel="whatsapp")
+        return ChannelEventAck(status="accepted")
+
+    @intercept_exceptions()
     @handle_channel_adapter_exceptions()
     async def ingest_bridge_event(self, request: Request) -> Any:
         # Every bridge shares this literal channel key; the credential (not
@@ -230,9 +303,17 @@ class ChannelsIngressRouter:
 
         return project_id, connection_id, connection
 
-    async def _ingest(self, *, channel: str, request: Request) -> ChannelEventAck:
+    async def _ingest(
+        self,
+        *,
+        channel: str,
+        request: Request,
+        locator: Optional[Dict[str, Any]] = None,
+    ) -> ChannelEventAck:
         """The shared body. Both handlers are one line calling this with their
-        channel; the split exists for the route table and the SDK."""
+        channel; the split exists for the route table and the SDK. `locator`
+        overrides the adapter's own claim, for a body that speaks for several
+        installations (WhatsApp)."""
 
         body = await request.body()
 
@@ -256,7 +337,7 @@ class ChannelsIngressRouter:
         candidate = await self._resolve_candidate(
             channel=channel,
             capabilities=capabilities,
-            locator=adapter.connection_locator(request=request_context),
+            locator=locator or adapter.connection_locator(request=request_context),
         )
 
         if candidate is None:
@@ -295,16 +376,17 @@ class ChannelsIngressRouter:
 
         inbound = await adapter.parse_event(body=body, connection=connection)
 
+        # None is platform noise (ack, bot echo) -- not an error, nothing to
+        # log. A list is a batched delivery: one row per message.
         if inbound is None:
-            # Platform noise (ack, bot echo) -- not an error, nothing to log.
-            return ChannelEventAck(status="accepted")
-
-        await self._record_and_enqueue(
-            project_id=project_id,
-            connection_id=connection_id,
-            channel=channel,
-            inbound=inbound,
-        )
+            inbound = []
+        for event in inbound if isinstance(inbound, list) else [inbound]:
+            await self._record_and_enqueue(
+                project_id=project_id,
+                connection_id=connection_id,
+                channel=channel,
+                inbound=event,
+            )
         return ChannelEventAck(status="accepted")
 
     async def _ingest_hosted(self, *, request: Request, bot_id: str) -> ChannelEventAck:

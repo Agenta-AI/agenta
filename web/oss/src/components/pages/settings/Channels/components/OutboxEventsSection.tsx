@@ -16,6 +16,8 @@ const STATE_COLOR: Record<string, string> = {
     sent: "green",
     failed: "red",
     abandoned: "orange",
+    // Kept because the WhatsApp 24-hour window closed; sent when the customer writes again.
+    held: "gold",
 }
 
 /** Read-only outbox event log (debugging surface). No create action — the
@@ -36,6 +38,14 @@ export default function OutboxEventsSection() {
                 dataIndex: "state",
                 key: "state",
                 render: (v: string) => <Tag color={STATE_COLOR[v] ?? "default"}>{v}</Tag>,
+            },
+            {
+                // Why a reply did not go out: "window_closed" for a held
+                // WhatsApp reply, the platform's error for a failed one.
+                title: "Reason",
+                key: "reason",
+                render: (_: unknown, record: AgentaApi.ChannelOutboxEvent) =>
+                    record.state === "sent" ? "-" : (record.status?.code ?? "-"),
             },
             {
                 title: "Created at",

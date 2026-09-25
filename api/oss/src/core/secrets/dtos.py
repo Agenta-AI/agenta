@@ -241,6 +241,10 @@ class ChannelSecretSettingsDTO(BaseModel):
     # ingress verifies against the hydrated value, so it must survive the vault
     # round trip rather than being dropped as an unknown key.
     webhook_secret: Optional[str] = None
+    # WhatsApp: the system-user token that calls the Graph API, and the Meta
+    # app secret every webhook is signed with (X-Hub-Signature-256).
+    access_token: Optional[str] = None
+    app_secret: Optional[str] = None
 
 
 class ChannelSecretDTO(BaseModel):

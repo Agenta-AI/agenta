@@ -50,6 +50,7 @@ def is_always_write_only(kind) -> bool:
 class ChannelSecretKind(str, Enum):
     SLACK = "slack"
     TELEGRAM = "telegram"
+    WHATSAPP = "whatsapp"
     AGENTA = "agenta"
     BRIDGE = "bridge"
 

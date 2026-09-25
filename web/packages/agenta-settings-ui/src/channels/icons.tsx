@@ -6,6 +6,8 @@
  * theme. The QR is a deterministic placeholder — it encodes nothing.
  */
 
+import type {ChannelPlatform} from "./types"
+
 export const SlackLogo = ({size = 20}: {size?: number}) => (
     <svg width={size} height={size} viewBox="0 0 127 127" aria-hidden="true">
         <path
@@ -37,8 +39,25 @@ export const TelegramLogo = ({size = 20}: {size?: number}) => (
     </svg>
 )
 
-export const platformLogo = (platform: "slack" | "telegram", size = 20) =>
-    platform === "slack" ? <SlackLogo size={size} /> : <TelegramLogo size={size} />
+/** A plain chat-bubble mark in WhatsApp green. */
+export const WhatsAppLogo = ({size = 20}: {size?: number}) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2z" fill="#25D366" />
+        <path
+            d="M9.2 7.2c-.2-.5-.4-.5-.6-.5h-.5c-.2 0-.5.1-.7.3-.2.3-.9.9-.9 2.2s.9 2.5 1 2.7c.1.2 1.8 2.8 4.4 3.8 2.2.9 2.6.7 3.1.6.5 0 1.5-.6 1.7-1.2.2-.6.2-1.1.2-1.2-.1-.1-.2-.2-.5-.3l-1.7-.8c-.2-.1-.4-.1-.6.1l-.8 1c-.1.2-.3.2-.5.1-.3-.1-1.1-.4-2-1.3-.8-.7-1.3-1.5-1.4-1.8-.2-.3 0-.4.1-.5l.4-.4.2-.4c.1-.2 0-.3 0-.4l-.9-2.1z"
+            fill="#fff"
+        />
+    </svg>
+)
+
+export const platformLogo = (platform: ChannelPlatform, size = 20) =>
+    platform === "slack" ? (
+        <SlackLogo size={size} />
+    ) : platform === "whatsapp" ? (
+        <WhatsAppLogo size={size} />
+    ) : (
+        <TelegramLogo size={size} />
+    )
 
 export const AgentaMark = ({size = 20}: {size?: number}) => (
     <svg width={size} height={size} viewBox="0 0 171 140" fill="none" aria-hidden="true">

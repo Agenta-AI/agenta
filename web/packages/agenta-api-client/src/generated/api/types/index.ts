@@ -219,6 +219,7 @@ export * from "./ConnectAffordance.js";
 export * from "./ConnectionRequirement.js";
 export * from "./CredentialResult.js";
 export * from "./CredentialStatus.js";
+export * from "./CurrentSessionResponse.js";
 export * from "./CustomModelSettingsDto.js";
 export * from "./CustomProviderDto.js";
 export * from "./CustomProviderSettingsDto.js";

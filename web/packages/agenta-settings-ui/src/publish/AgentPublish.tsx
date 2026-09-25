@@ -27,7 +27,7 @@ export interface AgentPublishProps {
 
 /**
  * The agent header's Publish control, identical on the /w playground and the /m session
- * workspace: the button, its Slack / Telegram / API menu with Set up or Live per row, the
+ * workspace: the button, its Slack / Telegram / WhatsApp / API menu with Set up or Live per row, the
  * "Live in N places" count, the channels' connect and manage panels, and the API panel.
  * Hosts pass only data and the panel container.
  */

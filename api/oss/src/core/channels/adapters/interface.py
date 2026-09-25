@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Literal, Optional
+from typing import Any, Dict, List, Literal, Optional, Tuple, Union
 from uuid import UUID
 
 from oss.src.core.channels.dtos import (
@@ -136,9 +136,11 @@ class ChannelAdapterInterface(ABC):
     @abstractmethod
     async def parse_event(
         self, *, body: bytes, connection: Optional[ChannelConnection] = None
-    ) -> Optional[ChannelInboundEvent]:
+    ) -> Union[None, ChannelInboundEvent, List[ChannelInboundEvent]]:
         """Platform payload → the normalised event, or None for anything we do not
-        act on (acks, bot echoes, platform noise). Carries `addressed`, which is
+        act on (acks, bot echoes, platform noise). A platform that batches
+        several messages in one delivery (WhatsApp) returns a list, one event
+        per message. Carries `addressed`, which is
         the adapter's answer to trigger-or-fill: the adapter knows its own
         platform's addressing conventions and core does not.
 
@@ -225,6 +227,31 @@ class ChannelAdapterInterface(ABC):
         """The platform's own "the bot is working" signal (Telegram's typing
         action), sent again every few seconds while a turn runs. Best-effort
         and optional: a platform without one leaves this a no-op."""
+
+        return None
+
+    async def reopen_conversation(
+        self,
+        *,
+        connection: ChannelConnection,
+        locator: Dict[str, Any],
+    ) -> bool:
+        """Ask the person to come back after a reply was held because the
+        platform's reply window closed (WhatsApp's re-open template). True
+        when something was sent. Defaults to sending nothing."""
+
+        return False
+
+    async def fetch_media(
+        self,
+        *,
+        connection: ChannelConnection,
+        media: Dict[str, Any],
+        max_bytes: Optional[int] = None,
+    ) -> Optional[Tuple[bytes, Optional[str]]]:
+        """Download an inbound file named by a `media` content part, as
+        `(bytes, media type)`. None when it is larger than `max_bytes`.
+        Defaults to None: a channel that never emits media parts."""
 
         return None
 
