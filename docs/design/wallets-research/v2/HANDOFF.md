@@ -118,6 +118,36 @@ with evidence.
 - Run `openspec validate --all --strict --no-interactive` from this folder (OpenSpec 1.13.1)
   after editing any spec.
 
+## Before turning the flag on: the signup-grant backfill
+
+Organizations that signed up while `AGENTA_WALLETS_ENABLED` was off never received the signup
+grant ([v1/open-designs.md](../v1/open-designs.md), item 15). An operator runs
+`api/entrypoints/backfill_wallet_signup_grants.py` once per deployment, against that
+deployment's own database, before the flag is turned on there. Never run it against a
+database you do not own.
+
+From `api/`, with the deployment's EE environment loaded (`AGENTA_LICENSE=ee` and
+`POSTGRES_URI_CORE` at minimum):
+
+```bash
+# 1. Dry run (the default): counts eligible organizations, writes nothing.
+uv run --no-sync python -m entrypoints.backfill_wallet_signup_grants
+
+# 2. Award the grants. Safe to rerun: each organization gets at most one grant.
+uv run --no-sync python -m entrypoints.backfill_wallet_signup_grants --apply
+
+# Optional: limit to a creation window, [from, to), in ISO 8601.
+uv run --no-sync python -m entrypoints.backfill_wallet_signup_grants \
+  --created-from 2026-08-14 --created-to 2026-10-01 --apply
+```
+
+The last line prints `eligible`, `awarded` and `failed`. A non-zero `failed` count gives a
+non-zero exit status, and each failure is logged with its organization. Run the job again to
+retry the failures. After a successful `--apply`, a second dry run should report
+`eligible=0`. The job awards whatever `GRANT_CATALOG["signup"]` holds at that moment. Whether
+these organizations get the grant, and how much, is a product decision to make before
+running `--apply`.
+
 ## Reservation (open, not your task)
 
 The original design admits a call by checking only that the organization's general balance is
