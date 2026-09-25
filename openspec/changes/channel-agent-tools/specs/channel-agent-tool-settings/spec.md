@@ -18,15 +18,19 @@ Each connected bot SHALL store the settings "Can post outside the conversation" 
 - **THEN** its settings SHALL read as the defaults without a data migration step by the admin.
 
 ### Requirement: Posting setting
-When "Can post outside the conversation" is off, `send_channel_message` SHALL refuse every destination, and `list_channel_destinations` SHALL report that no destination accepts posts. The agent's normal replies inside the conversation that woke it SHALL NOT be affected.
+When "Can post outside the conversation" is off, the agent's runs SHALL NOT get `send_channel_message` unless another bound bot allows posting, `send_channel_message` SHALL refuse every destination of this bot, and `list_channel_destinations` SHALL report that none of its destinations accepts posts. The agent's normal replies inside the conversation that woke it SHALL NOT be affected.
 
 #### Scenario: Posting turned off
 - **WHEN** posting is off and the agent calls the send tool for a channel
 - **THEN** Agenta SHALL refuse the send and SHALL NOT call the provider.
 
-#### Scenario: Switching off a send tool the author added
-- **WHEN** an admin wants a connected agent never to post outside the conversation, and the send tool is in the agent's tools
-- **THEN** turning posting off SHALL make every send refused, even though the tool stays in each run.
+#### Scenario: Posting off removes the send tool
+- **WHEN** an admin turns posting off for the agent's only bot
+- **THEN** the agent's next run SHALL NOT have the send tool.
+
+#### Scenario: Author listed the send tool
+- **WHEN** posting is off and the author lists the send tool in the agent's tools
+- **THEN** the tool SHALL stay in the run, and every send SHALL be refused.
 
 #### Scenario: Replies still work
 - **WHEN** posting is off and someone mentions the agent in a Slack thread
@@ -49,7 +53,7 @@ When "Can post outside the conversation" is off, `send_channel_message` SHALL re
 
 #### Scenario: Reading turned off
 - **WHEN** the admin selects no channels
-- **THEN** read and search SHALL refuse every destination, and the list SHALL report no readable channel.
+- **THEN** the agent's runs SHALL NOT get the read and search tools from this bot, read and search SHALL refuse every destination, and the list SHALL report no readable channel.
 
 ### Requirement: Controls in the Advanced section
 The Channels settings panel for each connected bot SHALL show its channel tool controls in a collapsible section named "Advanced", collapsed by default, on desktop and on `/m`. The section SHALL sit after "Behavior" and the Telegram allow-list, above the Disconnect footer. The posting switch SHALL save when flipped. Choosing "Only these channels" SHALL show a checklist and a Save button. On Slack the checklist SHALL hold the discovered channels the bot is a member of. On Telegram it SHALL hold the stored group chats. On Telegram, the controls SHALL explain that the bot can read only messages it received. A failed save SHALL show the error and re-read the stored value.

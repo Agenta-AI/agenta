@@ -1,6 +1,6 @@
 # Design
 
-Status: approved on 2026-09-24 and implemented on branch `feat/channel-agent-tools`. Code references in [Context](#context) describe `main` at commit `2f9cf635ca2ddda65dbd3702d98df88a4ea2a93f`, before this change.
+Status: approved on 2026-09-24 and implemented on branch `feat/channel-agent-tools`, which targets `release/v0.121.2`. Code references in [Context](#context) describe `main` at commit `2f9cf635ca2ddda65dbd3702d98df88a4ea2a93f`, before this change.
 
 ## Context
 
@@ -8,7 +8,7 @@ See the [proposal](proposal.md) for the user outcome and the six capability spec
 
 Two related specifications are written separately. Neither was approved or built when this change was implemented, so the assumptions made about them are stated where they apply:
 
-- **Agenta tools kit** (branch `docs/agenta-tools-kit`). It owns how always-on Agenta tools are added to a run and how they are turned off. The four channel tools form its channel group.
+- **Agenta tools kit** (branch `docs/agenta-tools-kit`). It will own how always-on Agenta tools are added to a run and how they are turned off.
 - **Channel message retention** (branch `docs/channel-message-retention`). It owns how long stored channel messages are kept.
 
 What existed on `main` before this change:
@@ -25,17 +25,17 @@ What existed on `main` before this change:
 - **Permissions.** `effective_permission` in `sdks/python/agenta/sdk/agents/tools/models.py` lets a `read_only` op run under `allow_reads` and makes every other op ask, unless the author set a permission. The runner mirrors it in `defaultPermission` (`services/runner/src/permission-plan.ts`). `Permission.RUN_CHANNELS` exists (`api/oss/src/core/access/permissions/types.py`).
 - **A connected bot answers as one agent.** The settings UI binds a connection to an app with `ChannelAgent.data.references = {application: {id}}` (`web/packages/agenta-settings-ui/src/channels/actions.ts`).
 - **The manage panel had no Advanced section.** `ChannelManagePanel.tsx` showed "Answers in", "Behavior", "Allowed users" (Telegram only), credentials, and Disconnect. An existing test forbade the word "Advanced" (see decision 8).
-- **Pull request #7128** (`fix(channels): answer in threads and groups only when addressed`) adds `ChannelInboxEventFlags.is_consumed`. It is paused and not merged. This change does not depend on it (see [Future work](#future-work)).
+- **Pull request #7128** (`fix(channels): answer in threads and groups only when addressed`) adds `ChannelInboxEventFlags.is_consumed`, set on an answer that an approval consumed. It is merged into `release/v0.121.2`, and read and search use the flag (decision 6).
 
 ## Goals / Non-Goals
 
 **Goals:** Let a connected agent list the channels where it can post, post there, read a channel's recent history, and search what its channels said. Default to what a Slack workspace admin expects from a bot they invited. Keep credentials, provider IDs, and tenant IDs away from the model. Report delivery outcomes truthfully.
 
-**Non-Goals:** Scheduling of any kind. Direct messages to people. A new message table or a history copy job in v1. Semantic search, Slack's own search APIs, or searching the bot's own posts. Telegram history beyond what the bot received. Slack group DMs as destinations. Slack Enterprise Grid org-wide installs. A per-channel posting allow-list. Exactly-once delivery where the provider has no idempotency key. Reading or searching direct messages. Adding tools to a run automatically, which the Agenta tools kit owns.
+**Non-Goals:** Scheduling of any kind. Direct messages to people. A new message table or a history copy job in v1. Semantic search, Slack's own search APIs, or searching the bot's own posts. Telegram history beyond what the bot received. Slack group DMs as destinations. Slack Enterprise Grid org-wide installs. A per-channel posting allow-list. Exactly-once delivery where the provider has no idempotency key. Reading or searching direct messages.
 
 ## Decisions
 
-### 1. Four platform operations and the tools kit's condition
+### 1. Four platform operations, added to every run of a connected agent
 
 Add four endpoint-mode `PlatformOp` entries, each over a new authenticated route. None is a gateway tool or a handler.
 
@@ -48,14 +48,18 @@ Add four endpoint-mode `PlatformOp` entries, each over a new authenticated route
 
 Every operation binds `$ctx.workflow.artifact.id`. The send also binds `$ctx.session.id` and a new `$ctx.tool.call_id`, which the runner fills from the relayed tool call on a direct call. The runner fails a call closed when a bound value is missing (`assembleBody`), so the ops bind only what every agent run has. A playground draft can lack a revision ID, so the revision is not bound. The project comes from the caller's credential. Every route requires `run_channels` on the caller.
 
-**How the tools reach a run.** The Agenta tools kit will add the channel tools to a connected agent's runs on its own. The kit is a separate specification and is not yet approved or built. This change builds what the kit reads:
+**How the tools reach a run.** The agent runtime adds the channel tools to every run of a connected agent. It does not change the saved configuration, and it works in every run type: playground, API, channel turns, and automations.
 
-- The condition: `ChannelToolsService.is_available(project_id, artifact_id)`, true when the artifact matches an active, verified bot (decision 2). It is exposed as `POST /api/channels/tools/availability`, which returns `{"available": bool}`.
-- The channel group: `CHANNEL_TOOL_OPS` in the SDK op catalog lists the four ops.
+- **Which tools.** `POST /api/channels/tools/availability` returns `{"available": bool, "tools": [...]}`. `ChannelToolsService.available_tools(project_id, artifact_id)` computes the list from the bots the artifact matches (decision 2): `list_channel_destinations` while any bot is connected, `send_channel_message` while any bot has "Can post outside the conversation" on, and `read_channel_messages` and `search_channel_messages` while any bot's readable list is not empty. An ambiguous binding still gets the list tool, so its calls surface the configuration error.
+- **Where they are added.** The SDK agent handler calls the route before each run (`_with_channel_tools` in `sdks/python/agenta/sdk/agents/handler.py`, through `read_channel_tools` in `sdks/python/agenta/sdk/agents/platform/channel_tools.py`). It runs under the same bounded deadline as the session context (`run_optional` with `session_context_timeout()`). A slow or failed check adds nothing and logs a warning, and the run goes on.
+- **Author entries win.** When the author already lists `{"type": "platform", "op": "<name>"}` for one of the ops, that entry stays as written, permission included, and the op is not added a second time.
+- **The channel group.** `CHANNEL_TOOL_OPS` in the SDK op catalog lists the four ops, in the order they are added.
 
-Until the kit ships, the four tools work when an author adds them to the agent's tools as `{"type": "platform", "op": "<name>"}`, for example `{"type": "platform", "op": "send_channel_message"}`. Adding them automatically comes with the kit.
+So the bot settings (decision 3) decide which tools the agent has: posting off removes the send tool, and reading off removes read and search. The settings also gate every call, so a tool the author lists in the configuration is refused the same way.
 
-The bot settings (decision 3) gate every call however the tool got into the run. They are the channel-side way to switch a capability off: posting off refuses every send, and an empty read list refuses every read and search.
+This is a stand-in. The Agenta tools kit (branch `docs/agenta-tools-kit`, not built) will own how always-on tools reach a run, read the same route, and replace `_with_channel_tools`.
+
+**The web app knows the four ops.** The chat renders them as platform tools (`web/packages/agenta-chat/src/skin/registry.ts`), the tool permission control lists them in `PLATFORM_OPS` (`web/packages/agenta-entity-ui/src/DrillInView/SchemaControls/toolPermission.ts`), and the agent build kit copy names them (`agentTemplate/buildKitDescriptors.tsx`).
 
 **The send tool defaults to `allow`.** By default the agent posts without an approval prompt:
 
@@ -144,9 +148,9 @@ There is no background retry. The sender identity comes from the connection, as 
 **Stored messages.** For a channel destination, the service merges two sources:
 
 - inbox rows of that space, for what people posted (`PUSHED` rows, plus any `PULLED` rows the existing first-turn fetch already stored). `action` events (button clicks) are left out.
-- sent outbox rows of that space, for the bot's own posts, found through the new `space_id` column.
+- sent outbox rows of that space, for the bot's own posts, found through the new `space_id` column. Only final posts count. A running turn's "Thinking..." indicator is not something the bot said, so stored reads never show it. The same holds for answers an approval consumed. Live Slack pages are Slack's own history and are shown as Slack holds them; a documented limit rather than a second filter over provider messages.
 
-Inbox rows sort by `(sent_at, id)` and outbox rows by `(created_at, id)`, the orders their queries read in, and the merge and the cursor use the same pairs. So a page boundary never repeats a message or skips one that shares its second, which matters on Telegram, whose times have one-second precision. A bot post that appears in both sources (a `PULLED` copy of one of its own posts) is kept once, from the outbox, which holds its final text: the inbox query itself leaves out a `PULLED` row whose message reference matches a sent outbox receipt in the same space. So the two sources never overlap and each pages on its own order; dropping duplicates after paging would move the page boundary past unread messages.
+Inbox rows sort by `(sent_at, id)` and outbox rows by `(created_at, id)`, the orders their queries read in, and the merge and the cursor use the same pairs. So a page boundary never repeats a message or skips one that shares its second, which matters on Telegram, whose times have one-second precision. A bot post that appears in both sources (a `PULLED` copy of one of its own posts) is kept once, from the outbox, which holds its final text: the inbox query itself leaves out a `PULLED` row whose message reference matches a sent outbox receipt in the same space. The same filter (`_not_a_copy_of_a_bot_post` in `api/oss/src/dbs/postgres/channels/dao.py`) leaves out inbox rows with `flags.is_consumed`: an answer that an approval consumed went to the waiting approval, not to the conversation. So the two sources never overlap and each pages on its own order; dropping duplicates after paging would move the page boundary past unread messages.
 
 **Live Slack history for anything older.** On Slack, when the stored messages do not fill the page, the service makes one live `conversations.history` call with `latest` set to the oldest stored time. That fills in messages from before the bot joined and messages that retention has deleted. Live messages are returned to the agent and are not stored. Slack's `has_more` decides whether a cursor is returned, because a short page (the hosted app gets about 15 messages) is not the end of the history. A live channel page lists only top-level messages, because Slack's channel history shows thread replies only inside their thread. The result says so and tells the agent to read a thread with its `thread_id`.
 
@@ -168,7 +172,7 @@ Inbox rows sort by `(sent_at, id)` and outbox rows by `(created_at, id)`, the or
 
 **Index shape.** The text lives in the `json` column `data` at `processed.content[0].text`, and adapters write exactly one text part. Migration `oss000000038` adds the GIN expression index `ix_channel_inbox_events_search` on `to_tsvector('simple', coalesce(data #>> '{processed,content,0,text}', ''))`. It is created `CONCURRENTLY` in an autocommit block, so it does not lock the table. `#>>` works on `json` and is immutable, so the expression can be indexed. A generated column was rejected: a stored generated column rewrites the whole table and keeps a second copy of every message's text. The expression index adds no row data. Its cost is that every query must repeat the exact expression, so the DAO spells it once, as `_SEARCH_VECTOR`. The `simple` configuration assumes no language.
 
-**Scope.** Search covers readable channel spaces only. It excludes direct messages, rows with no space, and `action` events. It does not search the bot's own posts in v1. It makes no Slack history or search call. It may refresh the Slack member channel list (decision 4) to know which channels are readable.
+**Scope.** Search covers readable channel spaces only. It excludes direct messages, rows with no space, `action` events, fetched copies of the bot's own posts, and answers that an approval consumed (`flags.is_consumed`), through the same filter as read. It does not search the bot's own posts in v1. It makes no Slack history or search call. It may refresh the Slack member channel list (decision 4) to know which channels are readable.
 
 **Ordering and paging.** Results are ordered by rank, then provider time, then row ID. That is a total order, and the cursor carries an offset over it. The limit: a message stored between two pages can shift a later page by one row.
 
@@ -212,12 +216,11 @@ The panel is shared by desktop and `/m`. An existing test (`web/packages/agenta-
 | A `ChannelDirectory` capability, a stored directory sync time, and a TTL environment variable | `ChannelNotSupported` from `list_member_spaces` is the capability signal, and an in-process cache is enough to spare Slack (decision 4). |
 | An `origin` column on the outbox | A tool send is the row with no thread. |
 | A thread expression index on the inbox | A thread read filters within its space's index (decision 6). |
-| A tool-injection hook in the SDK handler | Adding tools to a run belongs to the Agenta tools kit. |
 | A separate audit table and provider permalinks | Tool calls are already trace spans, and sends leave outbox rows. Each Slack permalink costs an API call. |
 
 ## Risks / Trade-offs
 
-- **An agent can post without a human seeing it first.** The send tool defaults to `allow`, and once the kit ships it will make the tools available in every run of a connected agent, including automations. A bad prompt or a prompt injection can post to any channel the bot is in with no approval card. Mitigations: the posting setting, an author's per-tool `ask` or `deny`, an agent-wide `ask` mode, the operator kill switch, and the outbox record of every post.
+- **An agent can post without a human seeing it first.** The send tool defaults to `allow`, and the tools are added to every run of a connected agent, including automations. A bad prompt or a prompt injection can post to any channel the bot is in with no approval card. Mitigations: the posting setting, an author's per-tool `ask` or `deny`, an agent-wide `ask` mode, the operator kill switch, and the outbox record of every post.
 - **Slack's history limit for the hosted app.** Reading older history on the hosted app is slow: about one live page of 15 messages per minute. The read result says so. Customer-built apps are not affected.
 - **Search sees only what Agenta stored.** Messages from before the bot joined are not searchable in v1. The result says so on every call. The history copy in Future work closes this gap.
 - **Stored text can be stale.** Edits and deletions made in Slack after Agenta stored a message do not reach the stored row. So a deleted message can still be found by search and shown by read. The read result says so.
@@ -227,7 +230,8 @@ The panel is shared by desktop and `/m`. An existing test (`web/packages/agenta-
 - **Ambiguous bot bindings.** Two bots on one connection bound to the same agent make the settings ambiguous. The tools refuse rather than pick one.
 - **Offset paging.** A message stored between two search pages can shift a later page by one row.
 - **Slow thread reads in busy channels.** A thread whose messages are old, in a very busy channel, reads slower without a thread index.
-- **Dependent specifications are not approved.** The kit and retention assumptions above must be checked when those specifications land.
+- **A failed availability check drops the tools for one run.** When the check is slow or fails, the run goes on without the channel tools and the handler logs a warning. The next run checks again.
+- **The retention specification is not approved.** The retention assumptions above must be checked when it lands.
 
 ## Migration Plan
 
@@ -235,12 +239,12 @@ The panel is shared by desktop and `/m`. An existing test (`web/packages/agenta-
 2. `oss000000036`: make the outbox `thread_id` nullable and add `space_id`, backfilled from each row's thread, with its index.
 3. `oss000000037`: add `channel_inbox_events.sent_at`, backfilled from `created_at`, with its index.
 4. `oss000000038`: add the full-text expression index, created concurrently.
-5. Ship the routes and catalog entries. The tools work for any agent whose author adds them. When the kit ships and adds them automatically, every connected agent gains them on its next run. Admins who want to hold posting back should turn off posting in the Advanced section before that release.
-6. Rollback removes the catalog entries. Stored rows and indexes stay. No external message is deleted.
+5. Ship the routes, the catalog entries, and the run-time injection. Every connected agent gains the tools on its next run. To hold posting back, an admin turns off posting in the Advanced section before the release.
+6. Rollback removes the catalog entries and the injection. Stored rows and indexes stay. No external message is deleted.
 
 ## Verification Plan
 
-Unit tests cover settings defaults, reference matching, destination and reference encoding, every refusal path and its status code, the send's idempotency and unknown outcome, the default permission's precedence, the stored-then-live read merge, the rate-limit note, and search scoping. Integration tests against PostgreSQL cover the outbox extension, the new column and indexes, the read merge, and full-text search. Adapter tests use the existing fake Slack server. Live QA uses a fresh Slack workspace, the hosted Slack app, and fresh Telegram bots. [plan.md](plan.md) lists every test and command.
+Unit tests cover settings defaults, reference matching, which tools each run gets and how the handler adds them, destination and reference encoding, every refusal path and its status code, the send's idempotency and unknown outcome, the default permission's precedence, the stored-then-live read merge, the rate-limit note, and search scoping. Integration tests against PostgreSQL cover the outbox extension, the new column and indexes, the read merge, and full-text search. Adapter tests use the existing fake Slack server. Live QA uses a fresh Slack workspace, the hosted Slack app, and fresh Telegram bots. [plan.md](plan.md) lists every test and command.
 
 ## Future work
 
@@ -257,9 +261,8 @@ Goal: make search cover recent history from before the bot joined. The approach 
 
 ### Other follow-ups
 
-- Once pull request #7128 merges, skip rows with `flags.is_consumed` in read and search: add the filter to `query_space_inbox_messages` and `search_inbox_statement` in `api/oss/src/dbs/postgres/channels/dao.py`. Until then, answers consumed by an approval can appear in reads and searches.
 - Direct messages to people.
-- Add the channel tools to a connected agent's runs automatically, with the Agenta tools kit.
+- Replace the run-time injection with the Agenta tools kit once it ships.
 - Apply Slack edits and deletions to stored rows.
 - Search the bot's own posts.
 - Check Slack's search API for AI apps (`assistant.search.context`) as a live search source that does not need a user token.

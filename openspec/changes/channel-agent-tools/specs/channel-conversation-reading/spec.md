@@ -26,11 +26,19 @@ Let a connected agent read what a channel or thread said, from the messages Agen
 - **THEN** the message SHALL omit the name and SHALL NOT show the raw ID.
 
 ### Requirement: Stored messages come first
-Agenta SHALL serve a read from the messages it already stores for the channel, with no new message table: inbox rows for what people posted, and sent outbox rows for the bot's own posts, merged in provider-time order. Every stored inbox message SHALL carry a provider time, taken from the provider when the adapter has it and from the arrival time otherwise. A bot post stored in both places SHALL appear once, taken from the outbox. Button clicks SHALL NOT appear as messages.
+Agenta SHALL serve a read from the messages it already stores for the channel, with no new message table: inbox rows for what people posted, and sent outbox rows for the bot's own posts, merged in provider-time order. Every stored inbox message SHALL carry a provider time, taken from the provider when the adapter has it and from the arrival time otherwise. A bot post stored in both places SHALL appear once, taken from the outbox. Only the bot's final posts SHALL appear: a running turn's "Thinking..." indicator SHALL NOT appear as a message. Button clicks SHALL NOT appear as messages. An answer that an approval consumed (an inbox row with `flags.is_consumed`) SHALL NOT appear as a message. These exclusions apply to stored messages. Messages read live from Slack SHALL be shown as Slack holds them, which can include a running turn's indicator and a typed approval answer.
 
 #### Scenario: Both sides of a conversation
 - **WHEN** people and the bot have both posted in a channel since the bot joined
 - **THEN** a read SHALL return both, in order, with the bot's posts marked as the bot's.
+
+#### Scenario: Answer consumed by an approval
+- **WHEN** a person answered an approval prompt in the channel and the approval consumed that answer
+- **THEN** a read SHALL NOT return that answer.
+
+#### Scenario: Turn still running
+- **WHEN** the bot is running a turn in the channel and shows a "Thinking..." indicator
+- **THEN** a read SHALL NOT return the indicator.
 
 #### Scenario: Bot post edited by a turn
 - **WHEN** the bot's reply was posted as a progress message and then edited into the final answer

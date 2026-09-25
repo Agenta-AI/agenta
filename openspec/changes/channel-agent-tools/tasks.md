@@ -1,6 +1,6 @@
 # Tasks
 
-All phases ship in one pull request, on branch `feat/channel-agent-tools`. [plan.md](plan.md) gives the files, tests, and commands for every task. Task numbers are kept from the approved plan, so dropped tasks leave gaps.
+All phases ship in one pull request, on branch `feat/channel-agent-tools`, which targets `release/v0.121.2`. [plan.md](plan.md) gives the files, tests, and commands for every task. Task numbers are kept from the approved plan, so dropped tasks leave gaps.
 
 ## 1. Destinations, bot settings, and the list tool
 
@@ -10,7 +10,8 @@ All phases ship in one pull request, on branch `feat/channel-agent-tools`. [plan
 - [x] 1.5 Match the bound run artifact to its bots; verify application, workflow, variant, and revision references, archived connections, and the refusal for two bots on one connection.
 - [x] 1.6 Implement `list_channel_destinations` for Slack and Telegram; verify the setting effects, the Telegram limits, hosted-bot scoping, and the member-channel cache.
 - [x] 1.7 Add the authenticated tool router and the SDK catalog entry; verify `run_channels`, closed input schemas, hidden bindings, and that no raw provider ID is returned.
-- [x] 1.8 Give the Agenta tools kit its condition (is this agent connected to an active, verified bot); verify it turns false on disconnect and archive.
+- [x] 1.8 Add the availability route, which says whether the agent is connected to an active, verified bot and which channel tools its runs get under the bot settings; verify it turns false on disconnect and archive.
+- [x] 1.9 Add the channel tools to every run of a connected agent, gated by the bot settings; author entries win; a failed check adds nothing.
 
 ## 2. The send tool and the delivery record
 
@@ -42,12 +43,12 @@ All phases ship in one pull request, on branch `feat/channel-agent-tools`. [plan
 ## 6. Release validation
 
 - [x] 6.1 Run the live Slack and Telegram QA in [plan.md](plan.md) on fresh connections and save sanitized evidence. Ran on a local EE stack with Claude Haiku as the agent and the Slack QA app connected as a customer app. Not run live: the hosted Slack app's history rate limit (the QA app is not subject to it; covered by unit tests), a successful post to a real Telegram group (adding the bot to a group needs a person; the failed-post path ran), the hosted Telegram bot, and a send whose Slack request times out (covered by unit tests).
-- [ ] 6.2 Check the assumptions about the Agenta tools kit and the retention specification once both are approved.
+- [ ] 6.2 Check the assumptions about the retention specification once it is approved.
 - [ ] 6.3 Run `openspec validate --all --strict --no-interactive`; archive the change only after the implementation, live validation, and product acceptance are complete.
 
 ## 7. Follow-ups
 
-- [ ] 7.1 Once pull request #7128 merges, skip consumed rows (`flags.is_consumed`) in `query_space_inbox_messages` and `search_inbox_statement` in `api/oss/src/dbs/postgres/channels/dao.py`.
+- [x] 7.1 Skip consumed rows (`flags.is_consumed`) in `query_space_inbox_messages` and `search_inbox_statement` in `api/oss/src/dbs/postgres/channels/dao.py`. Done in this change, now that pull request #7128 is merged.
 - [ ] 7.2 Direct messages to people.
-- [ ] 7.3 Add the channel tools to a connected agent's runs automatically, with the Agenta tools kit.
+- [ ] 7.3 Replace the run-time injection with the Agenta tools kit once it ships.
 - [ ] 7.4 Apply Slack edits and deletions to stored inbox rows.

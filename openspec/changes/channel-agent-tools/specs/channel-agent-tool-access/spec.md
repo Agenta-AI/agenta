@@ -6,24 +6,36 @@ Let a connected agent use channel tools from any run while the server, not the m
 
 ## ADDED Requirements
 
-### Requirement: Channel tools and the tools kit condition
-Agenta SHALL offer `list_channel_destinations`, `send_channel_message`, `read_channel_messages`, and `search_channel_messages` as platform tools. Listing, reading, and searching SHALL be read-only. Sending SHALL be a write. The tools SHALL work when an author adds them to an agent's tools as `{"type": "platform", "op": "<name>"}`. The SDK op catalog SHALL group the four tools as `CHANNEL_TOOL_OPS`, the channel group of the Agenta tools kit. Channels SHALL provide the condition the kit reads: `POST /api/channels/tools/availability` SHALL return `{"available": true}` when the run's workflow artifact matches an active, verified bot, and `{"available": false}` otherwise. The kit specification SHALL own how the tools are added to a run automatically and how an author turns them off. The bot settings SHALL gate every call however the tool got into the run.
+### Requirement: Channel tools are added to every run of a connected agent
+Agenta SHALL offer `list_channel_destinations`, `send_channel_message`, `read_channel_messages`, and `search_channel_messages` as platform tools, grouped in the SDK op catalog as `CHANNEL_TOOL_OPS`. Listing, reading, and searching SHALL be read-only. Sending SHALL be a write. When the running agent's workflow artifact matches an active, verified bot, the agent runtime SHALL add the channel tools to that run, in every run type (playground, API, channel turns, and automations), without changing the saved configuration. `POST /api/channels/tools/availability` SHALL return `{"available": bool, "tools": [...]}`. The list SHALL hold `list_channel_destinations` while any bound bot is connected, `send_channel_message` while any bound bot has "Can post outside the conversation" on, and `read_channel_messages` and `search_channel_messages` while any bound bot's readable list is not empty. The SDK agent handler SHALL make this check under the same bounded deadline as the session context. A slow or failed check SHALL add no tools, SHALL log a warning, and SHALL NOT stop the run. When the author already lists `{"type": "platform", "op": "<name>"}` for one of the tools, the author's entry SHALL win, permission included, and the tool SHALL NOT be added twice. The bot settings SHALL also gate every call. The web app SHALL know the four tools as platform tools, in the chat and in the tool permission controls.
 
-#### Scenario: Author adds a channel tool
-- **WHEN** an author adds `{"type": "platform", "op": "send_channel_message"}` to a connected agent's tools
-- **THEN** the agent SHALL be able to call the tool in its runs.
+#### Scenario: Connected agent in the playground
+- **WHEN** an agent is connected to an active Slack bot and runs in the playground with no channel tools in its configuration
+- **THEN** the run SHALL have all four channel tools, and the saved configuration SHALL stay unchanged.
 
-#### Scenario: Connected agent
-- **WHEN** an agent is connected to an active Slack bot
-- **THEN** the availability route SHALL report the channel tools as available for that agent's runs.
+#### Scenario: Automation run
+- **WHEN** an automation runs a connected agent
+- **THEN** the run SHALL have the channel tools its bot settings allow.
 
 #### Scenario: Bot disconnected
 - **WHEN** the agent's only bot is disconnected or archived
-- **THEN** the availability route SHALL report the channel tools as unavailable, and any call that still arrives SHALL be refused.
+- **THEN** the availability route SHALL return `{"available": false, "tools": []}`, the next run SHALL get no channel tools, and any call that still arrives SHALL be refused.
 
 #### Scenario: Posting switched off
-- **WHEN** the send tool is in the run but the bot's posting setting is off
-- **THEN** every send SHALL be refused without calling the provider.
+- **WHEN** the bot's posting setting is off
+- **THEN** the run SHALL NOT get `send_channel_message`, and a send that still arrives SHALL be refused without calling the provider.
+
+#### Scenario: Reading switched off
+- **WHEN** the bot's readable list is empty
+- **THEN** the run SHALL NOT get `read_channel_messages` or `search_channel_messages`.
+
+#### Scenario: Author lists a channel tool
+- **WHEN** the author lists `{"type": "platform", "op": "send_channel_message", "permission": "ask"}` in a connected agent's tools
+- **THEN** the run SHALL have one send tool, with the author's `ask` permission.
+
+#### Scenario: Availability check fails
+- **WHEN** the availability check times out or returns an error
+- **THEN** the run SHALL go on without added channel tools, and the handler SHALL log a warning.
 
 ### Requirement: Sending is allowed by default
 `send_channel_message` SHALL default to `allow`, so the agent posts without an approval prompt. The default SHALL be carried by the optional `PlatformOp.default_permission` field. The SDK platform resolver SHALL apply it only when the author set no permission on the tool and the agent-wide permission mode is the default `allow_reads`. A per-tool `ask` or `deny` set by the author SHALL win. An agent-wide `ask` or `deny` mode SHALL win. The operator kill switch SHALL still stop the tool. The other three tools SHALL run without a prompt because they are read-only.

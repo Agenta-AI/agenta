@@ -7,7 +7,7 @@ Let a connected agent search the messages Agenta stored from its readable channe
 ## ADDED Requirements
 
 ### Requirement: Search stored messages of readable channels
-`search_channel_messages` SHALL search the stored inbox messages of the channels the running agent may read at call time. It SHALL accept a text query, optional channel destination IDs, an inclusive time range, a limit, and a cursor. The default limit SHALL be 20, and the maximum SHALL be 50. Without destination IDs it SHALL search every readable channel of every bot bound to the agent. Access SHALL be checked when the query runs, not when a message was stored. Search SHALL exclude direct messages and button clicks.
+`search_channel_messages` SHALL search the stored inbox messages of the channels the running agent may read at call time. It SHALL accept a text query, optional channel destination IDs, an inclusive time range, a limit, and a cursor. The default limit SHALL be 20, and the maximum SHALL be 50. Without destination IDs it SHALL search every readable channel of every bot bound to the agent. Access SHALL be checked when the query runs, not when a message was stored. Search SHALL exclude direct messages, button clicks, and answers that an approval consumed (inbox rows with `flags.is_consumed`).
 
 #### Scenario: Search everything readable
 - **WHEN** the agent searches "refund policy" with no destination IDs
@@ -24,6 +24,10 @@ Let a connected agent search the messages Agenta stored from its readable channe
 #### Scenario: Direct messages
 - **WHEN** a search runs
 - **THEN** it SHALL NOT return messages from direct-message conversations.
+
+#### Scenario: Answer consumed by an approval
+- **WHEN** the only match is an answer that an approval consumed
+- **THEN** the search SHALL return no match.
 
 ### Requirement: Search states what it searched
 Each search result SHALL carry a `searched` list with one entry per channel it searched, each with a `coverage` statement. For a Slack channel the statement SHALL be "Searched messages since the bot joined this channel." For a Telegram group it SHALL be "Searched only the messages the bot received in this group." Search SHALL NOT call Slack's history or search APIs or any Telegram API to find messages. It MAY refresh the Slack member channel list to know which channels are readable. Once retention has deleted a channel's older messages, the statement SHALL follow the wording the retention specification defines.

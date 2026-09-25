@@ -1,10 +1,10 @@
 # Channel agent tools: implementation plan
 
-Status: approved on 2026-09-24 and implemented on branch `feat/channel-agent-tools`.
+Status: approved on 2026-09-24 and implemented on branch `feat/channel-agent-tools`, which targets `release/v0.121.2`.
 
 **Goal:** Let an agent connected to Slack or Telegram list the channels where it can post, post there, read a channel's history, and search its channels' stored messages, under per-bot settings.
 
-**Architecture:** Four endpoint-mode platform tools call new authenticated routes under `/api/channels/tools/`. The send tool defaults to `allow`. A `ChannelToolsService` in `api/oss/src/core/channels/tools/` resolves the agent's bots, applies the bot settings on every call, posts through the existing outbox and adapters, reads stored inbox and outbox rows with live Slack history for older messages, and searches stored inbox rows through a full-text expression index. No new message table. The Agenta tools kit, a separate specification, will add the tools to a connected agent's runs automatically. This change gives it its condition (`POST /api/channels/tools/availability`) and its channel group (`CHANNEL_TOOL_OPS`). Until the kit ships, an author adds the tools to the agent's tools as `{"type": "platform", "op": "<name>"}`.
+**Architecture:** Four endpoint-mode platform tools call new authenticated routes under `/api/channels/tools/`. The send tool defaults to `allow`. A `ChannelToolsService` in `api/oss/src/core/channels/tools/` resolves the agent's bots, applies the bot settings on every call, posts through the existing outbox and adapters, reads stored inbox and outbox rows with live Slack history for older messages, and searches stored inbox rows through a full-text expression index. No new message table. The SDK agent handler adds the channel tools to every run of a connected agent, as far as the bot settings allow, after asking `POST /api/channels/tools/availability` which tools the run gets.
 
 **Tech stack:** Python 3 with FastAPI, Pydantic, SQLAlchemy, and Alembic (API); PostgreSQL full-text search; httpx against the Slack Web API and the Telegram Bot API; TypeScript with Vitest (runner); React with Vitest and Storybook (`@agenta/settings-ui`).
 
@@ -12,7 +12,7 @@ Read [design.md](design.md) first. All phases ship in one pull request. The phas
 
 | Phase | Scope | Tasks |
 | --- | --- | ---: |
-| 1 | Destinations, bot settings, list tool, kit condition | 7 |
+| 1 | Destinations, bot settings, list tool, adding the tools to every run | 8 |
 | 2 | Send tool, delivery record, tool call ID, `allow` default | 5 |
 | 3 | Settings UI: the Advanced section | 3 |
 | 4 | Read tool: stored messages, then live Slack history | 5 |
@@ -111,18 +111,33 @@ Every task follows five steps: (1) write the failing test, (2) run it and see it
 4. Run both commands, plus `oss/tests/pytest/unit/agents/platform/test_op_catalog.py` in the SDK. All pass.
 5. Commit: `feat(api,sdk): expose list_channel_destinations as a platform tool`.
 
-### Task 1.8: The condition the Agenta tools kit reads
+### Task 1.8: Which channel tools a run gets
 
-The Agenta tools kit specification (`docs/agenta-tools-kit`) owns how the channel tools are added to a run and turned off. It is not yet approved or built. This task gives the kit its condition: is this agent connected to an active, verified bot?
+This task answers one question for the agent runtime: is this agent connected to an active, verified bot, and which channel tools do its bots' settings allow?
 
-- Modify: `api/oss/src/core/channels/tools/service.py` (`is_available(project_id, artifact_id)` reuses `resolve_bots` from task 1.5), `api/oss/src/apis/fastapi/channels/tools.py` (`POST /tools/availability` returns `{"available": bool}`), `sdks/python/agenta/sdk/agents/platform/op_catalog.py` (`CHANNEL_TOOL_OPS` is the list the kit reads for its channel group).
+- Modify: `api/oss/src/core/channels/tools/service.py` (`available_tools(project_id, artifact_id)` reuses `resolve_bots` from task 1.5: the list tool while any bot is connected, the send tool while any bot may post outside the conversation, read and search while any bot's readable list is not empty; `is_available` is true when that list is not empty), `api/oss/src/apis/fastapi/channels/tools.py` (`POST /tools/availability` returns `{"available": bool, "tools": [...]}`), `sdks/python/agenta/sdk/agents/platform/op_catalog.py` (`CHANNEL_TOOL_OPS` lists the four ops).
+- Built as: an ambiguous binding still gets the list tool, so its calls surface the configuration error instead of hiding it.
 - Test: extend `api/oss/tests/pytest/unit/channels/tools/test_resolve_bots.py` and `api/oss/tests/pytest/unit/channels/test_channels_tools_router.py`.
 
-1. Write `test_is_available_true_for_active_verified_bot`, `test_is_available_false_after_disconnect_or_archive`, and, in the router file, `test_availability_answers_the_kit`.
+1. Write `test_is_available_true_for_active_verified_bot`, `test_is_available_false_after_disconnect_or_archive`, `test_available_tools_are_all_four_by_default`, `test_available_tools_follow_the_bot_settings`, `test_one_permissive_bot_is_enough_for_a_tool`, `test_no_bot_means_no_tools`, and, in the router file, `test_availability_answers_the_kit` (the route returns both `available` and `tools`).
 2. Run `cd api && uv run --no-sync python run-tests.py oss/tests/pytest/unit/channels/tools/test_resolve_bots.py`. The new cases fail.
 3. Implement.
 4. Run the same command and the router test. Both pass.
-5. Commit: `feat(api): tell the tools kit when an agent is connected to a bot`.
+5. Commit: `feat(api): say which channel tools a connected agent's runs get`.
+
+### Task 1.9: Add the channel tools to every run of a connected agent
+
+The agent runtime adds the tools the availability route names to each run, without changing the saved configuration. This works in every run type: playground, API, channel turns, and automations. It is a stand-in for the Agenta tools kit (branch `docs/agenta-tools-kit`, not built), which will replace it.
+
+- Create: `sdks/python/agenta/sdk/agents/platform/channel_tools.py` (`read_channel_tools(workflow_id, connection)` calls `POST /api/channels/tools/availability` and returns the tool names; no workflow artifact, no API, or an HTTP error returns an empty list).
+- Modify: `sdks/python/agenta/sdk/agents/handler.py` (`_with_channel_tools` runs the check with `run_optional` under `session_context_timeout()`, the same deadline as the session context; a slow or failed check adds nothing and logs a warning; it adds a `PlatformToolConfig` for each allowed op in `CHANNEL_TOOL_OPS` order, skipping any op the author already lists, so the author's entry and its permission win).
+- Test: create `sdks/python/oss/tests/pytest/unit/agents/test_channel_tools_injection.py`.
+
+1. Write `test_a_connected_agent_gets_the_channel_tools`, `test_a_disconnected_agent_gets_none`, `test_the_bot_settings_decide_which_tools_come`, `test_an_author_entry_wins_and_is_not_duplicated`, `test_a_failed_check_adds_nothing_and_the_run_goes_on`, `test_a_slow_check_is_bounded`, and `test_an_unknown_op_from_the_api_is_ignored`.
+2. Run `cd sdks/python && uv run --no-sync python run-tests.py oss/tests/pytest/unit/agents/test_channel_tools_injection.py`. It fails on import.
+3. Implement.
+4. Run the same command. It passes.
+5. Commit: `feat(sdk,api): add the channel tools to every run of a connected agent`.
 
 ---
 
@@ -249,10 +264,10 @@ The plan moved the claim, post, and receipt code from `ChannelsOutboxWorker._del
 ### Task 4.2: Stored message read
 
 - Modify: `api/oss/src/core/channels/interfaces.py` and `api/oss/src/dbs/postgres/channels/dao.py` (`query_space_inbox_messages(project_id, space_id, thread_ts, before, limit)` returns inbox rows of the space, skipping `action` events; `query_space_outbox_messages` returns sent outbox rows found through the new `space_id`; the service merges them by provider time, and a bot post present in both is kept once, from the outbox).
-- Built as: consumed rows are not skipped. Pull request #7128, which adds `flags.is_consumed`, is paused and not merged. The filter is a follow-up (task 7.1 in [tasks.md](tasks.md)).
+- Built as: the inbox query leaves out answers that an approval consumed (`flags.is_consumed`, from pull request #7128, merged into `release/v0.121.2`), through `_not_a_copy_of_a_bot_post`, which also leaves out fetched copies of the bot's own posts. The outbox query returns final posts only, so a running turn's "Thinking..." indicator is never read as a message.
 - Test: create `api/oss/tests/pytest/integration/channels/test_channels_dao_space_messages.py`.
 
-1. Write `test_inbox_messages_come_newest_first_by_provider_time`, `test_before_cursor_pages_older_without_gaps`, `test_thread_filter_returns_root_and_replies`, `test_action_events_are_skipped`, and `test_bot_posts_carry_their_thread`. The merge and the single copy of a bot post are tested in the service (task 4.4).
+1. Write `test_inbox_messages_come_newest_first_by_provider_time`, `test_before_cursor_pages_older_without_gaps`, `test_thread_filter_returns_root_and_replies`, `test_action_events_are_skipped`, `test_bot_posts_carry_their_thread`, `test_a_running_turns_indicator_is_not_a_message`, and `test_an_answer_consumed_by_an_approval_is_not_a_message`. The merge and the single copy of a bot post are tested in the service (task 4.4).
 2. Run (after `load-env`) `cd api && uv run --no-sync python run-tests.py oss/tests/pytest/integration/channels/test_channels_dao_space_messages.py`. It fails.
 3. Implement.
 4. Run the same command. It passes.
@@ -300,10 +315,10 @@ The plan moved the claim, post, and receipt code from `ChannelsOutboxWorker._del
 
 - Create: `api/oss/databases/postgres/migrations/core_oss/versions/oss000000038_add_channel_inbox_search_index.py` (GIN index `ix_channel_inbox_events_search` on `to_tsvector('simple', coalesce(data #>> '{processed,content,0,text}', ''))`, created `CONCURRENTLY` in an autocommit block).
 - Modify: `api/oss/src/dbs/postgres/channels/dao.py` (`_SEARCH_VECTOR`, the one spelling of the indexed expression, and `search_inbox_statement(project_id, space_ids, query, after, before, limit, offset)` using `websearch_to_tsquery('simple', ...)`, skipping `action` events, ordered by rank, `sent_at`, and `id`), `api/oss/src/core/channels/interfaces.py`.
-- Built as: paging uses an offset over that total order. A message stored between two pages can shift a later page by one row. Consumed rows are not skipped until pull request #7128 merges (task 7.1 in [tasks.md](tasks.md)).
+- Built as: paging uses an offset over that total order. A message stored between two pages can shift a later page by one row. Search uses the same `_not_a_copy_of_a_bot_post` filter as read, so it leaves out consumed answers and fetched copies of the bot's posts.
 - Test: create `api/oss/tests/pytest/integration/channels/test_channels_dao_message_search.py`.
 
-1. Write `test_search_matches_words`, `test_search_filters_by_space_and_time`, `test_offset_pages_are_stable_for_equal_rank_and_time`, `test_search_is_project_scoped`, and `test_query_uses_the_expression_index` (an `EXPLAIN` of the search names the new index).
+1. Write `test_search_matches_words`, `test_search_filters_by_space_and_time`, `test_offset_pages_are_stable_for_equal_rank_and_time`, `test_search_is_project_scoped`, `test_search_leaves_out_answers_consumed_by_an_approval`, and `test_query_uses_the_expression_index` (an `EXPLAIN` of the search names the new index).
 2. Run (after `load-env`) `cd api && uv run --no-sync python run-tests.py oss/tests/pytest/integration/channels/test_channels_dao_message_search.py`. It fails.
 3. Implement and apply the migration.
 4. Run the same command. It passes.
@@ -327,21 +342,21 @@ The plan moved the claim, post, and receipt code from `ChannelsOutboxWorker._del
 
 Run on a local EE stack (`load-env hosting/docker-compose/ee/.env.ee.dev` and `bash ./hosting/docker-compose/run.sh --ee --dev --build`). Use a fresh Slack workspace with a custom app built from the generated manifest, the hosted Slack app, a fresh Telegram bot, and the hosted Telegram bot. Record an MP4 of each flow and keep sanitized request and response evidence under `~/`, not `/tmp`.
 
-The Agenta tools kit is not built yet, so the tools are not added automatically. Add the four tools to the agent's tools explicitly: `{"type": "platform", "op": "list_channel_destinations"}`, and the same for `send_channel_message`, `read_channel_messages`, and `search_channel_messages`.
+The channel tools come to a connected agent's runs automatically. Do not add them to the agent's configuration.
 
 **Slack**
 
-1. Connect the bot and add the four tools to the agent's tools. `POST /api/channels/tools/availability` returns `{"available": true}`. Disconnect the bot: the same call returns `{"available": false}`, and every tool call is refused. Reconnect it.
+1. Connect the bot in the UI. With no change to the agent's configuration, ask the agent in Agenta chat: "Where can you post in Slack?" The agent calls `list_channel_destinations`. `POST /api/channels/tools/availability` returns `{"available": true}` with all four tools. In Advanced, turn off "Can post outside the conversation": the availability call no longer lists `send_channel_message`, and the next run has no send tool. Turn it back on. Disconnect the bot: the call returns `{"available": false}` and an empty list. Reconnect it.
 2. Invite the bot to one public and one private channel. Ask the agent in Agenta chat: "Where can you post?" The list shows both channels and no channel the bot is not in.
 3. "Post 'QA hello' in #qa-public." No approval card appears. The message is in Slack, and the result says `sent` with a thread ID.
-4. In the agent's tools, set `send_channel_message` to `ask` and post again. The approval card appears, and nothing is posted until it is approved. Put the setting back.
+4. Add `{"type": "platform", "op": "send_channel_message", "permission": "ask"}` to the agent's tools and post again. The approval card appears, and nothing is posted until it is approved. The run has one send tool, not two. Remove the entry.
 5. Set the agent-wide permission mode to `ask` and post. The approval card appears. Set it back.
 6. Run an automation (a schedule) that asks the agent to post to #qa-public. It posts with no prompt.
 7. "Reply in the thread from step 3 with 'follow-up'." It lands in the thread.
 8. Post a few messages in #qa-private as a person. "Read the last 100 messages in #qa-private." The stored messages come first, including the bot's own posts, then older messages fetched live from Slack. On the custom app, page back several times. On the hosted app, page back twice within a minute: the second call returns the stored messages and the "about one history request per minute" note.
 9. Edit and delete a message the bot stored. Read again. The stored part still shows the original text, and the result carries the note that stored messages may miss edits and deletions.
 10. "Search for 'QA hello'." It finds the message, and the result says "Searched messages since the bot joined this channel." Search for a word used only before the bot joined. Nothing is found.
-11. In Advanced, turn off "Can post outside the conversation". A send is refused, and a mention in a thread is still answered.
+11. In Advanced, turn off "Can post outside the conversation". The next run has no send tool, and a mention in a thread is still answered.
 12. Narrow reading to #qa-public. A read or search of #qa-private is refused at once.
 
 **Telegram**
@@ -360,12 +375,12 @@ The Agenta tools kit is not built yet, so the tools are not added automatically.
 
 ## Risks
 
-- **Posting without a human in the loop** follows from the `allow` default, and, once the kit ships, from the kit making the tools available in every run of a connected agent. A prompt injection in any channel the bot reads can make the agent post elsewhere. Mitigations are the posting setting, a per-tool or agent-wide `ask`, the operator kill switch, and the outbox record.
+- **Posting without a human in the loop** follows from the `allow` default and from the tools being added to every run of a connected agent. A prompt injection in any channel the bot reads can make the agent post elsewhere. Mitigations are the posting setting, a per-tool or agent-wide `ask`, the operator kill switch, and the outbox record.
 - **Slack's history limit for the hosted app** makes reading older history slow: about one live page of 15 messages per minute. It is accepted, and the read result says so. Customer-built apps are not affected.
 - **Search sees only stored messages.** Anything from before the bot joined is not searchable until the history copy in Future work ships. Every result says what it searched.
 - **Stored text can be stale.** Slack edits and deletions do not reach stored rows, so search can still find a deleted message. The read result notes it.
-- **The Agenta tools kit and retention specifications are not approved yet.** The assumptions in `design.md` must be checked when they land.
-- **Consumed rows appear in reads and searches.** Pull request #7128, which adds `is_consumed`, is paused and not merged. Once it merges, add the filter to `query_space_inbox_messages` and `search_inbox_statement` in `api/oss/src/dbs/postgres/channels/dao.py` (task 7.1 in [tasks.md](tasks.md)).
+- **The retention specification is not approved yet.** The assumptions in `design.md` must be checked when it lands.
+- **A failed availability check drops the tools for one run.** The handler bounds the check by the session context deadline and logs a warning. The next run checks again.
 - **Private-to-public leaks** follow from the permissive default. The only mitigation in v1 is the read list.
 - **Every run has a session, so duplicate-post protection always applies.** The triggers dispatcher mints a session ID per delivery (`session_id = uuid4().hex` in `api/oss/src/tasks/asyncio/triggers/dispatcher.py`), and the runner falls back to a generated ID when a request names none (`resolveRunSessionId` in `services/runner/src/protocol.ts`; `run-turn.ts` binds `session.id` from it). So the send's key over session and tool call ID applies in automation runs too.
 - **The old UI test** that forbade an Advanced section (task 3.3) encoded an earlier decision to hide read-only defaults. The new section keeps that rule.
