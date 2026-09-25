@@ -12,6 +12,7 @@ from datetime import datetime, timezone
 import pytest
 from alembic import command
 from sqlalchemy import text
+from sqlalchemy.exc import IntegrityError
 
 import oss.src.dbs.postgres.shared.engine as engine_module
 from ee.databases.postgres.migrations.core_ee.utils import alembic_cfg
@@ -413,5 +414,49 @@ async def test_the_newest_allowance_is_found_even_when_uuid7_ids_run_backwards(
 
         assert hobby.outgoing_credit_id == business.incoming_credit_id
         assert hobby.outgoing_debit_amount_musd == (50_000_000 * 21 // 31) * 10 // 21
+    finally:
+        await _cleanup(organization_id)
+
+
+async def test_a_second_incoming_credit_for_one_plan_change_key_is_rejected(
+    wallet_schema,
+):
+    """`apply_plan_change`'s replay guard reads the actual rows a prior application
+    wrote, under the general-row lock, so two ordinary calls with the same key can
+    never mint two credits. This proves the database itself refuses a second one even
+    for a writer that bypasses the DAO and the lock — the same final guard
+    `uq_wallet_credits_org_award_key` gives grant awards."""
+    organization_id = uuid.uuid4()
+    service = WalletsService(wallets_dao=WalletsDAO())
+    engine = get_transactions_engine()
+    insert = text(
+        "INSERT INTO wallet_credits"
+        " (id, organization_id, credit_kind, amount_musd, priority, data)"
+        " VALUES (:id, :organization_id, 'plan_allowance', 1, 10,"
+        " CAST(:data AS jsonb))"
+    )
+    data = '{"references": {"plan_change_idempotency_key": "pc:duplicate"}}'
+
+    try:
+        await _change(
+            service,
+            organization_id,
+            key="pc:duplicate",
+            plan="cloud_v0_pro",
+            now=PERIOD_START,
+        )
+
+        with pytest.raises(
+            IntegrityError, match="uq_wallet_credits_org_plan_change_key"
+        ):
+            async with engine.session() as session:
+                await session.execute(
+                    insert,
+                    {
+                        "id": uuid.uuid4(),
+                        "organization_id": organization_id,
+                        "data": data,
+                    },
+                )
     finally:
         await _cleanup(organization_id)

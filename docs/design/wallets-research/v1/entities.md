@@ -358,7 +358,12 @@ pure `ee.src.core.wallets.proration` functions. The minted credit starts at the 
 took effect, ends at the period end, and records `data.references.subscription.id` and
 `data.references.plan_change_idempotency_key`. The key is `plan_change:{stripe_event_id}` on the
 webhook path and `plan_change:{uuid7}` on the direct routes, which are serialized per organization
-by the subscription lock (open-designs item 22).
+by the subscription lock (open-designs item 22). The partial unique index
+`uq_wallet_credits_org_plan_change_key` on `(organization_id,
+data->'references'->>'plan_change_idempotency_key')` (`ee0000000004`) makes a second incoming
+credit for one plan change impossible at the database, as `uq_wallet_credits_org_award_key` does
+for grant awards. The general-row lock already serializes plan changes; the index is the final
+guard.
 
 `ee.src.core.wallets.plans` carries real, PRODUCT-DECIDED (2026-08-14) per-plan allowance and floor
 amounts — see `nodes/im-1-02-pipeline/acceptance.md` §"2b" for the table. Every floor is 0 at

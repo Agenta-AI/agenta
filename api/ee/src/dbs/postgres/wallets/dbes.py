@@ -41,6 +41,17 @@ class WalletCreditDBE(Base, WalletCreditDBA):
                 "(data -> 'references' ->> 'award_idempotency_key') IS NOT NULL"
             ),
         ),
+        # Final replay guard for plan-change incoming credits; see migration
+        # `ee0000000004`.
+        Index(
+            "uq_wallet_credits_org_plan_change_key",
+            "organization_id",
+            text("(data -> 'references' ->> 'plan_change_idempotency_key')"),
+            unique=True,
+            postgresql_where=text(
+                "(data -> 'references' ->> 'plan_change_idempotency_key') IS NOT NULL"
+            ),
+        ),
     )
 
 
