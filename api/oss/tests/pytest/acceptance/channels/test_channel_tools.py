@@ -8,9 +8,9 @@ and tool call bound into the body.
 
 Covers the success paths, every refusal (posting off, reading off, another
 project's destination, no connected bot), send idempotency, and the closed
-request bodies. Search over stored inbox text is covered against Postgres in
-integration/channels/test_channels_dao_message_search.py; here it runs over a
-project with no stored messages.
+request bodies. Search over people's stored messages and the bot's own posts is
+covered against Postgres in integration/channels/test_channels_dao_message_search.py;
+here the only stored text is what the tests themselves post.
 """
 
 from uuid import uuid4
