@@ -7,7 +7,7 @@ Give every run of an agent the Agenta tools its saved configuration turns on, wh
 ## ADDED Requirements
 
 ### Requirement: The Agenta tools and their defaults
-The Agenta tools SHALL be `get_current_session`, `rename_session`, `rename_agent`, `create_schedule`, `create_subscription`, `remove_schedule`, `remove_subscription`, `list_schedules`, `list_subscriptions`, `list_deliveries`, `test_subscription`, `discover_triggers`, `commit_revision`, `read_config`, `check_skill_updates` and `apply_skill_update`. The default `agenta_tools` entry SHALL set `default` to `off` and SHALL set `get_current_session` and `rename_session` to `allow`.
+The Agenta tools SHALL be `get_current_session`, `rename_session`, `rename_agent`, `create_schedule`, `create_subscription`, `remove_schedule`, `remove_subscription`, `list_schedules`, `list_subscriptions`, `list_deliveries`, `test_subscription`, `discover_triggers`, `commit_revision`, `read_config`, `check_skill_updates` and `apply_skill_update`. The default `agenta_tools` entry SHALL list `get_current_session` and `rename_session` with `allow`, and SHALL list no other tool.
 
 #### Scenario: New agent in Slack
 - **WHEN** an agent created from the default template runs in a Slack thread
@@ -18,7 +18,7 @@ The Agenta tools SHALL be `get_current_session`, `rename_session`, `rename_agent
 - **THEN** every run of that version SHALL offer `create_schedule`, and each call SHALL ask for approval.
 
 ### Requirement: The entry expands into platform tools at resolve time
-When the agent's `tools` contain an `agenta_tools` entry, the tool resolver SHALL add one platform tool for each Agenta tool whose value is `allow` or `ask`, with that value as its permission, and SHALL NOT add a tool whose value is `off`. A tool not named in `tools` SHALL take the `default` value. The op catalog SHALL supply each tool's description, endpoint and schema. This SHALL apply to every run of the agent: the playground in `/w` and `/m`, the API, a Slack, Telegram or WhatsApp message, an automation, and an approval resume. The resolver SHALL skip `get_current_session` and `rename_session` when the run has no session ID. When the platform connection has no Agenta API address, the resolver SHALL skip the entry with a warning and the run SHALL start normally. An agent with no `agenta_tools` entry SHALL get no Agenta tools.
+When the agent's `tools` contain an `agenta_tools` entry, the tool resolver SHALL add one platform tool for each Agenta tool listed in its `tools` map, with the listed value as its permission. The resolver SHALL NOT add an Agenta tool that is not listed. The op catalog SHALL supply each tool's description, endpoint and schema. This SHALL apply to every run of the agent: the playground in `/w` and `/m`, the API, a Slack, Telegram or WhatsApp message, an automation, and an approval resume. The resolver SHALL skip `get_current_session` and `rename_session` when the run has no session ID. When the platform connection has no Agenta API address, the resolver SHALL skip the entry with a warning and the run SHALL start normally. An agent with no `agenta_tools` entry SHALL get no Agenta tools.
 
 #### Scenario: Session link in Slack
 - **WHEN** someone in a Slack thread asks "send me a link to this conversation" and the agent's saved entry has the defaults
@@ -29,7 +29,7 @@ When the agent's `tools` contain an `agenta_tools` entry, the tool resolver SHAL
 - **THEN** the run SHALL offer `list_schedules`.
 
 #### Scenario: Tool off
-- **WHEN** the entry sets `rename_session` to `off`
+- **WHEN** the entry does not list `rename_session`
 - **THEN** no Slack, Telegram, WhatsApp, automation or API run of that version SHALL offer `rename_session`.
 
 #### Scenario: No saved entry
@@ -63,5 +63,5 @@ The build kit SHALL keep all its tools, including `get_current_session` and `ren
 - **THEN** the list SHALL include every tool it includes today, among them `commit_revision`, `read_config`, `get_current_session` and `rename_session`.
 
 #### Scenario: Agenta tool off, build kit on
-- **WHEN** `rename_session` is `off` in the `agenta_tools` entry and on in the build kit
+- **WHEN** `rename_session` is not listed in the `agenta_tools` entry and is on in the build kit
 - **THEN** a playground run SHALL offer `rename_session`, and a Slack run SHALL NOT.
