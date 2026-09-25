@@ -1468,6 +1468,9 @@ on the `organizations` row records which path created it. The earliest organizat
 one signup creates, so the rule excludes the later, explicitly created ones. It is a proxy,
 and it misfires in two rare cases: an ownership transfer, and a deployment where signup
 creates no organization. Both are accepted for a one-off job.
+An owner with any organization whose `created_at` is NULL has no provable earliest
+organization, so the job skips all of that owner's organizations. An operator can award such
+a case by hand.
 
 The grant's twelve-month lifetime starts when the job runs, not at the organization's creation
 date. A backdated start would expire part of the grant before anyone could spend it.
@@ -1871,7 +1874,10 @@ Why this over the others:
   takes no lock and writes nothing. It uses the exact complement of settlement's eligibility
   predicate (`end_time <= now()` against settlement's `end_time > now()`, both on the database
   clock), and both terms come from one statement, so one snapshot. A settlement that commits
-  between two separate reads cannot move value from one term to the other.
+  between two separate reads cannot move value from one term to the other. Settlement used a
+  second clock: `plan_settlement` re-filtered candidates on the API host's clock, so a host
+  clock running ahead could book a live credit's share as deficit. `WalletsDAO.settle` now
+  reads the database clock once and uses it for both filters.
 - **It stays cheap.** Item 21's objection to option 2 was an aggregate over every credit on
   the request path. This aggregate covers only the organization's expired credits, reached
   through `idx_wallet_credits_org_priority_end_id` (organization leading), and an organization
