@@ -54,7 +54,7 @@ Updated 2026-09-25, after the overnight takeover run. The first handoff state (P
 | Tests at the final code | `ee/tests/pytest/unit` 573 passed; wallet and measurement integration 43 passed, 0 skipped; OSS unit the same as `main`. Commands and counts: [review-findings.md](review-findings.md#test-evidence-at-the-final-code) |
 | Review findings | Every finding from the spec review, the Codex reviews and the acceptance run has a disposition in [review-findings.md](review-findings.md) |
 | Design changes | Every place the code now differs from the original design, and which side should move: [spec-divergences.md](spec-divergences.md) |
-| Manual acceptance | Run 1 at `144c0dec91`: sections 0, 1 and 3 to 8 pass; section 2 failed only against a wrong claim in the procedure, now corrected. Run 2 at `0693b307c1`: sections 0 to 3 and 5, lazy provisioning and the signup-grant backfill pass. Plan-change proration was not exercised on a deployment (it needs a Stripe checkout) |
+| Manual acceptance | At `0693b307c1`, the final head: sections 0 to 8 pass, lazy provisioning and the signup-grant backfill pass, and four plan changes through Stripe test mode (checkout, upgrade, downgrade, cancel) prorate exactly to the musd. An earlier run at `144c0dec91` found the procedure's stale facts, now corrected |
 | Wave 2 | Being built on the stacked branch `wallets/wave-2`, whose PR base is `wallets/takeover`. Nothing from it is on this branch |
 | Known unrelated failure | `api/oss/tests/pytest/integration/sessions/test_records_replay_postgres.py` fails on `main` too |
 
@@ -101,7 +101,8 @@ Updated 2026-09-25, after the overnight takeover run. The first handoff state (P
    - **Item 14 addendum.** Organizations created by the admin route have no balance row.
      Lazy provisioning covers them, and a test pins it.
 4. **Run the manual acceptance procedure.** Done at `144c0dec91` and again at `0693b307c1`.
-   Details are under task 1.2 of
+   The final head also passed four plan changes through Stripe test mode. Details are
+   under task 1.2 of
    [document-wallet-foundation](openspec/changes/document-wallet-foundation/tasks.md). The procedure in
    [v1/nodes/im-1-02-pipeline/acceptance.md](../v1/nodes/im-1-02-pipeline/acceptance.md) is
    corrected for what that run found: the Alembic version table name, the `redis-durable`
@@ -110,10 +111,11 @@ Updated 2026-09-25, after the overnight takeover run. The first handoff state (P
 
 ### Left
 
-1. **Exercise a plan change on a deployment.** Run 2 could not: its organizations have no
-   Stripe subscription, so the switch route refuses them. Use a stack wired to Stripe test
-   mode, complete a checkout, switch plans, and check the clawback and the prorated
-   allowance against the real-Postgres plan-change tests.
+1. **Decide the cancel copy (billing, outside wallet scope).** The billing page's "Cancel
+   auto-renewal" dialog says the plan "stays active until the end of the current period".
+   On confirm, the Stripe subscription is deleted at once and the organization drops to
+   Hobby at once. Either the copy or the cancel behaviour is wrong. The wallet side follows
+   the immediate cancel correctly. See AC-8 in [review-findings.md](review-findings.md).
 2. **Get the CLA check on #6050 signed off.** It went pending when `main` was merged in. It
    needs a person with CLA access; it does not block the code.
 3. **Update the PR descriptions of #6050 and #7153** so they state what is verified, what is

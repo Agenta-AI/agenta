@@ -23,7 +23,7 @@ behaviour, [spec-divergences.md](spec-divergences.md) has the row.
 | BL | Codex rounds on the balance fixes | `wallets/fix-balance`, 2 rounds |
 | PC | Codex rounds on the plan-change fixes | `wallets/fix-plan-change`, 2 rounds |
 | LY | Codex rounds on the layering fixes, and a final round over the whole wallet diff | `wallets/fix-layering`, then `origin/main...6f4e567f9d -- api` |
-| AC | Manual acceptance runs, IM-1-02 sections 0 to 8 | Disposable EE stack: Run 1 at `144c0dec91`, Run 2 at `0693b307c1` |
+| AC | Manual acceptance runs, IM-1-02 sections 0 to 8 | Disposable EE stack: Run 1 at `144c0dec91`, Runs 2 and 3 at `0693b307c1` |
 
 The Codex reviews used `gpt-6-astra` at medium reasoning effort, in a read-only sandbox.
 
@@ -103,7 +103,8 @@ The Codex reviews used `gpt-6-astra` at medium reasoning effort, in a read-only 
 | AC-4 | Section 8 expects a log line and a dropped entry; the worker now dead-letters it. | **Fixed** in the acceptance procedure. |
 | AC-5 | Sections 3, 4 and 6 import the publishers from core with no client. | **Fixed** in the acceptance procedure, after `f77b591a06` moved them. Run 2 hit the import error and confirmed the corrected wiring. |
 | AC-6 | Section 2b queries `credit_kind = 'award'`. The code writes `signup_grant`. | **Fixed** in the acceptance procedure. Found in Run 2. |
-| AC-7 | Run 2 could not exercise a plan change: an admin-created organization has no Stripe subscription, so the switch route refuses it before any wallet code runs. | **Deferred** to a deployment wired to Stripe test mode (v2 handoff, "Left"). The real-Postgres plan-change tests cover the wallet side. |
+| AC-7 | Run 2 could not exercise a plan change: an admin-created organization has no Stripe subscription, so the switch route refuses it before any wallet code runs. | **Fixed** by Run 3: a real Stripe test-mode checkout, then an upgrade, a downgrade and a cancel. All four transitions prorated exactly to the musd. |
+| AC-8 | Billing, outside wallet scope. The "Cancel auto-renewal" dialog says the plan "stays active until the end of the current period", but confirming deletes the Stripe subscription and drops the organization to Hobby immediately. | **Deferred** to the owner: decide whether the copy or the cancel behaviour is wrong. Reproduce with any organization on a paid Stripe subscription: Settings, Usage & Billing, Cancel subscription, Confirm, then compare the dialog text with the plan shown right after. The wallet ledger follows the immediate cancel correctly. |
 
 ## Test evidence at the final code
 
