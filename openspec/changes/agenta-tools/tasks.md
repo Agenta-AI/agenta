@@ -4,10 +4,10 @@ Nothing is implemented. The tasks assume the recommended option for each decisio
 
 ## 1. Entry type and resolution (SDK)
 
-- [ ] 1.1 List the Agenta tools in `sdks/python/agenta/sdk/agents/platform/`, and the default entry (`default: "off"`, `get_current_session` and `rename_session` set to `allow`).
-- [ ] 1.2 Add `AgentaToolsConfig` (`type: "agenta_tools"`, `policy.permissions` with `default` and `tools`, values `allow`, `ask`, `off`, no top-level `permission`) to the `ToolConfig` union in `sdks/python/agenta/sdk/agents/tools/models.py`, following `GatewayConnectionToolConfig`. Update the agent configuration schema.
-- [ ] 1.3 In `sdks/python/agenta/sdk/agents/tools/resolver.py`, expand the entry into platform tools whose value is not `off`, with that permission. Skip any tool the run already has a platform entry for. Skip the session tools without a session ID. Skip the entry, with a warning, without an API address. Warn on unknown names.
-- [ ] 1.4 Unit tests: parsing, `default` and per-tool values, `deny` refused, unknown name, expansion, author entry wins, build kit entry wins, a build kit tool deactivated there falls back to the entry, no session ID, no API address, no entry means no Agenta tools.
+- [ ] 1.1 List the Agenta tools in `sdks/python/agenta/sdk/agents/platform/`, and the default entry (`get_current_session` and `rename_session` set to `allow`, nothing else).
+- [ ] 1.2 Add `AgentaToolsConfig` (`type: "agenta_tools"`, a flat `tools` map with values `allow` or `ask`, no top-level `permission`) to the `ToolConfig` union in `sdks/python/agenta/sdk/agents/tools/models.py`, following `GatewayConnectionToolConfig`. Update the agent configuration schema.
+- [ ] 1.3 In `sdks/python/agenta/sdk/agents/tools/resolver.py`, expand the entry into one platform tool per listed tool, with its value as the permission. Skip any tool the run already has a platform entry for. Skip the session tools without a session ID. Skip the entry, with a warning, without an API address. Warn on unknown names.
+- [ ] 1.4 Unit tests: parsing, `allow` and `ask`, unlisted tools off, an empty map, `deny` and `off` refused, unknown name, expansion, author entry wins, build kit entry wins, a build kit tool deactivated there falls back to the entry, no session ID, no API address, no entry means no Agenta tools.
 
 ## 2. API and service
 
@@ -18,11 +18,11 @@ Nothing is implemented. The tasks assume the recommended option for each decisio
 ## 3. Web
 
 - [ ] 3.1 Add the Agenta tools section in the Advanced drawer, before Build kit, rendering the entry with the gateway connection permission component, grouped into write and read-only tools, in `web/packages/agenta-entity-ui/src/DrillInView/SchemaControls/agentTemplate/`. Shared by `/w` and `/m`.
-- [ ] 3.2 Make its choices edit the entry in the draft. Deactivate writes `off`; the kit-level Deactivate keeps the entry with every tool `off`.
-- [ ] 3.3 In `workflowQueryAtomFamily` (`web/packages/agenta-entities/src/workflow/state/store.ts`), add the default entry to a loaded revision whose `tools` have none. One small function, no dirty-state change, no commit.
+- [ ] 3.2 Make its choices edit the entry in the draft. Show every Agenta tool. Allow or Ask adds the tool to the map, Deactivate removes it, and the kit-level Deactivate leaves an empty map.
+- [ ] 3.3 In `workflowQueryAtomFamily` (`web/packages/agenta-entities/src/workflow/state/store.ts`), add the default entry to a loaded revision whose `tools` have no `agenta_tools` entry. Never change an existing entry, even an empty one. One small function, no dirty-state change, no commit.
 - [ ] 3.4 Mark rows whose tool is also in the build kit: "In the playground, the Build kit setting applies."
 - [ ] 3.5 Write the Agenta tools copy, and the Build kit copy only if Mahmoud confirms it may change (design, Open Points).
-- [ ] 3.6 Unit tests for the section, its draft edits, and the loader function (adds the entry once, leaves an existing entry alone, does not mark the draft dirty). Run `pnpm lint-fix` in `web`.
+- [ ] 3.6 Unit tests for the section, its draft edits, and the loader function (adds the entry when missing, leaves an existing entry alone, including an empty map, does not mark the draft dirty). Run `pnpm lint-fix` in `web`.
 
 ## 4. Live QA
 

@@ -89,7 +89,7 @@ Decision 1 covers `list_deliveries` (2001, read-only), `test_subscription` (2021
 
 ### 2. Where the Agenta tools choices are saved
 
-**Decision (approved by Mahmoud):** One entry in the agent's `tools` list, `type: "agenta_tools"`, shaped like the existing `gateway_connection` entry (`GatewayConnectionToolConfig`, `GatewayConnectionPolicy` and `GatewayPermissions`, `sdks/python/agenta/sdk/agents/tools/models.py:211-255`).
+**Decision (approved by Mahmoud):** One entry in the agent's `tools` list, `type: "agenta_tools"`, modelled on the existing `gateway_connection` entry (`GatewayConnectionToolConfig`, `sdks/python/agenta/sdk/agents/tools/models.py:233-255`), with one map of the tools that are on.
 
 ```json
 {
@@ -98,14 +98,9 @@ Decision 1 covers `list_deliveries` (2001, read-only), `test_subscription` (2021
       {"type": "platform", "op": "list_schedules", "permission": "allow"},
       {
         "type": "agenta_tools",
-        "policy": {
-          "permissions": {
-            "default": "off",
-            "tools": {
-              "get_current_session": "allow",
-              "rename_session": "allow"
-            }
-          }
+        "tools": {
+          "get_current_session": "allow",
+          "rename_session": "allow"
         }
       }
     ]
@@ -113,19 +108,20 @@ Decision 1 covers `list_deliveries` (2001, read-only), `test_subscription` (2021
 }
 ```
 
-- **Model.** A new `AgentaToolsConfig` joins the `ToolConfig` union (`models.py:466-477`). Like `GatewayConnectionToolConfig`, it does not extend `ToolConfigBase`, so it has no top-level `permission` or `render`. Every permission lives in `policy.permissions`.
-- **Values.** `allow` adds the tool and runs it without asking. `ask` adds it and asks before each call. `off` leaves it out of the run, so the model never sees it. `default` applies to every Agenta tool not named in `tools`. A tool name that is not an Agenta tool is ignored and logged, the way the gateway reports stale keys (`sdks/python/agenta/sdk/agents/tools/gateway_policy.py:40-42`).
-- **Resolution.** At resolve time, the tool resolver (`sdks/python/agenta/sdk/agents/tools/resolver.py`) expands the entry into one platform tool per Agenta tool whose value is not `off`, with that value as its permission. The op catalog still owns each tool's description, endpoint, schema and read-only flag. The resolver skips `get_current_session` and `rename_session` when the run has no session ID, since their binding needs one, and skips the whole entry, with a warning, when the platform connection has no Agenta API address, so a standalone SDK run still starts.
+- **Model.** A new `AgentaToolsConfig` joins the `ToolConfig` union (`models.py:466-477`). Like `GatewayConnectionToolConfig`, it does not extend `ToolConfigBase`, so it has no top-level `permission` or `render`. Every permission lives in `tools`.
+- **Flat, not `policy.permissions`.** The gateway nests its map so a later policy of another kind has a place to go (`models.py:224-230`); Agenta tools have no such policy in sight, so the entry keeps one flat `tools` map.
+- **Values.** `allow` adds the tool and runs it without asking. `ask` adds it and asks before each call. A tool that is not in the map is off: it is left out of the run, so the model never sees it. There is no `default` field and no `off` value. A tool name that is not an Agenta tool is ignored and logged, the way the gateway reports stale keys (`sdks/python/agenta/sdk/agents/tools/gateway_policy.py:40-42`).
+- **Resolution.** At resolve time, the tool resolver (`sdks/python/agenta/sdk/agents/tools/resolver.py`) expands the entry into one platform tool per Agenta tool in the map, with its value as the permission. The op catalog still owns each tool's description, endpoint, schema and read-only flag. The resolver skips `get_current_session` and `rename_session` when the run has no session ID, since their binding needs one, and skips the whole entry, with a warning, when the platform connection has no Agenta API address, so a standalone SDK run still starts.
 - **No entry.** An agent whose saved `tools` has no `agenta_tools` entry gets no Agenta tools. There is no fallback to the defaults.
-- **What the defaults mean.** The UI and the agent template write the entry with `default: "off"` and the two session tools set to `allow`. The defaults live in the saved entry, not in code.
+- **What the defaults mean.** The agent template and the playground loader write the entry with the two session tools set to `allow` and nothing else. The defaults live in the saved entry, not in code. An entry with an empty map, `{"type": "agenta_tools", "tools": {}}`, means every Agenta tool is off.
 
-**"deny" is not a value.** The gateway accepts `deny`, which keeps a tool visible and refuses each call. For Agenta tools there is no reason to show the model a tool it can never use, and two ways to say "no" would confuse authors. The values are `allow`, `ask` and `off`, and the UI's Deactivate writes `off`. An author who wants a visible, refused tool can still list it as its own platform entry with `permission: "deny"`, which wins (decision 3). `inherit` is also left out for now: no Agenta tool needs to follow the agent-wide mode, and it can be added later without breaking saved entries.
+**"deny" is not a value.** The gateway accepts `deny`, which keeps a tool visible and refuses each call. For Agenta tools there is no reason to show the model a tool it can never use, and two ways to say "no" would confuse authors. The values are `allow` and `ask`, and the UI's Deactivate removes the tool from the map. An author who wants a visible, refused tool can still list it as its own platform entry with `permission: "deny"`, which wins (decision 3). `inherit` is also left out for now: no Agenta tool needs to follow the agent-wide mode, and it can be added later without breaking saved entries.
 
 | Option | Trade-off |
 | --- | --- |
 | **A. One `agenta_tools` entry in `tools`, like `gateway_connection`** | Saved and versioned with the agent, so the tested version ships and a rollback restores it. Reuses a shape the resolver and the UI already handle. The run needs no extra lookup and no hidden step: the saved configuration says exactly which tools the agent has. |
 | B. Add the tools at run time from a separate `agenta_tools` block (the previous draft) | Existing agents get the defaults with no migration. But a hidden step decides the tools, the saved configuration no longer shows what the agent can do, and a second code path sits next to the resolver. |
-| C. Thirteen separate `{"type": "platform", "op": ...}` entries | Works today with no new type. But every agent carries thirteen entries, there is no "all off" and no default for tools added later, and the section cannot tell its own entries from the author's. |
+| C. Thirteen separate `{"type": "platform", "op": ...}` entries | Works today with no new type. But every agent carries thirteen entries, there is no "all off", and the section cannot tell its own entries from the author's. |
 | D. Next to the channel settings, on the channel-agent row | Exists only per bot. Playground, API and automation runs have no bot. |
 | E. On the agent, outside its versions | Applies at once with no commit, but is not versioned and needs a lookup per run. |
 
@@ -162,7 +158,7 @@ The build kit keeps all its tools. Every Agenta tool is also in the build kit, s
 **Two consequences of keeping it this small:**
 
 - **The agent's own commit does not save the entry.** `commit_revision` applies the agent's change set to the stored version (`api/oss/src/core/tools/platform_handlers.py:763-783`), which has no entry. The playground adds the entry again when it loads the new version, and the next save from the playground saves it.
-- **The entry cannot be removed from the playground.** The loader would add it back on the next open. To turn every Agenta tool off, the author uses the section's kit-level Deactivate, which keeps the entry with every tool `off`. Removing the entry through the API still turns the tools off outside the playground.
+- **The entry cannot be removed from the playground.** The loader would add it back on the next open. To turn every Agenta tool off, the author uses the section's kit-level Deactivate, which keeps the entry with an empty map. The loader adds the default entry only when there is no `agenta_tools` entry at all, never to an existing entry, so an empty map stays empty. Removing the entry through the API still turns the tools off outside the playground.
 
 | Option | Trade-off |
 | --- | --- |
@@ -179,8 +175,8 @@ The build kit keeps all its tools. Every Agenta tool is also in the build kit, s
 - **Build kit** keeps its tools and controls. New copy: "Tools the assistant uses only while you build in the playground. They are not available in Slack, Telegram, WhatsApp, automations or the API. Saved in this browser." A draft for Mahmoud to approve.
 - Both have the kit-level choice (Allow all, Allow reads, Ask all, Deactivate, Custom) and the per-tool choice (Allow, Ask, Deactivate), with Write and Read-only groups.
 - **Read-only and write tools.** Both groups offer the same three choices. The difference is the kit-level choice "Allow reads", which sets read-only tools to Allow and write tools to Ask. Write tools are listed first, because they change something.
-- Changing an Agenta tools choice edits the `agenta_tools` entry in the draft and marks it unsaved. A commit saves it. Deactivate writes `off`. A Build kit choice saves in the browser at once, as today.
-- The kit-level Deactivate sets every tool to `off` and keeps the entry. The section has no remove action, because the playground would add the entry back on the next open (decision 4).
+- Changing an Agenta tools choice edits the `agenta_tools` entry in the draft and marks it unsaved. A commit saves it. The section shows every Agenta tool. Allow or Ask adds the tool to the map, and Deactivate removes it. A Build kit choice saves in the browser at once, as today.
+- The kit-level Deactivate empties the map and keeps the entry. The section has no remove action, because the playground would add the entry back on the next open (decision 4).
 
 ```
 Advanced
@@ -239,7 +235,7 @@ Rollback: older code cannot parse a saved `agenta_tools` entry. This is a docume
 
 ## Verification Plan
 
-SDK unit tests cover parsing the entry, `default` and per-tool values (`allow`, `ask`, `off`), refusing `deny`, unknown names, the expansion into platform tools, the precedence rule, the session-ID condition, and the standalone case. API unit tests cover the unchanged build kit list. Web unit tests cover the section, its draft edits, and the loader adding the entry to a revision without one. Live QA runs one agent from `/w`, `/m`, the API, Slack, Telegram and a schedule: it asks for the link, turns `create_schedule` on with Ask and uses it from Slack, and turns `rename_session` off and checks that Slack runs stop naming their sessions while the playground follows the build kit.
+SDK unit tests cover parsing the entry, the `allow` and `ask` values, unlisted tools being off, an empty map, refusing `deny` and `off`, unknown names, the expansion into platform tools, the precedence rule, the session-ID condition, and the standalone case. API unit tests cover the unchanged build kit list. Web unit tests cover the section, its draft edits, and the loader adding the entry to a revision without one. Live QA runs one agent from `/w`, `/m`, the API, Slack, Telegram and a schedule: it asks for the link, turns `create_schedule` on with Ask and uses it from Slack, and turns `rename_session` off and checks that Slack runs stop naming their sessions while the playground follows the build kit.
 
 ## Effort
 
