@@ -152,9 +152,7 @@ def coerce_tool_config(value: Any) -> ToolConfig:
     raise ToolConfigurationError("Unsupported tool configuration shape", value=value)
 
 
-def _check_single_entries(
-    tool_config: ToolConfig, seen: set[tuple[str, str]]
-) -> None:
+def _check_single_entries(tool_config: ToolConfig, seen: set[tuple[str, str]]) -> None:
     if isinstance(tool_config, AgentaToolsConfig):
         # Two maps would need a rule to combine them, and an empty one would stop meaning "off".
         if ("agenta_tools", "") in seen:
