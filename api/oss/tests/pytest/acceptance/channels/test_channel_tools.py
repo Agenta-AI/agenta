@@ -315,7 +315,8 @@ class TestReadAndSearch:
             owner(
                 "POST",
                 "/channels/tools/messages/search",
-                json={"artifact_id": world["artifact_id"], "query": "hello"},
+                # a word nobody posted: search now also covers the bot's own posts
+                json={"artifact_id": world["artifact_id"], "query": "unmatchedword"},
             )
         )
 
@@ -337,17 +338,16 @@ class TestReadAndSearch:
                 "destination_id": theirs["destination_id"],
             },
         )
-        search = _ok(
-            owner(
-                "POST",
-                "/channels/tools/messages/search",
-                json={
-                    "artifact_id": world["artifact_id"],
-                    "query": "hello",
-                    "destination_ids": [theirs["destination_id"]],
-                },
-            )
+        search = owner(
+            "POST",
+            "/channels/tools/messages/search",
+            json={
+                "artifact_id": world["artifact_id"],
+                "query": "hello",
+                "destination_ids": [theirs["destination_id"]],
+            },
         )
 
         assert read.status_code == 404
-        assert search == {"results": [], "cursor": None, "searched": []}
+        # refused rather than an empty result, which would read as "no match"
+        assert search.status_code == 404
