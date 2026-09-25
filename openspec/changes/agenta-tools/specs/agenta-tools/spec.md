@@ -30,7 +30,7 @@ Agenta SHALL add each Agenta tool whose setting is `allow` or `ask`, with that p
 
 #### Scenario: Tool turned off
 - **WHEN** the author set `rename_session` to `off`
-- **THEN** no run of that version SHALL offer `rename_session`, including playground runs.
+- **THEN** no Slack, Telegram, WhatsApp, automation or API run of that version SHALL offer `rename_session`.
 
 #### Scenario: Saved tools untouched
 - **WHEN** a run adds Agenta tools and the author then commits
@@ -51,16 +51,20 @@ When a run already has an entry for an Agenta tool, from the author's own `tools
 - **WHEN** a playground run has `commit_revision` from the build kit with `allow`, and the Agenta tools set it to `ask`
 - **THEN** the run SHALL contain exactly one `commit_revision`, with permission `allow`.
 
-#### Scenario: Old build kit overlay
-- **WHEN** a browser with an old cached build kit sends `get_current_session` in its overlay
-- **THEN** the run SHALL contain exactly one `get_current_session` and SHALL start normally.
+#### Scenario: Session tool in both sections
+- **WHEN** a playground run has `get_current_session` from the build kit and the Agenta tools also have it on
+- **THEN** the run SHALL contain exactly one `get_current_session`, with the build kit's permission, and SHALL start normally.
 
 ### Requirement: The build kit stays playground-only
-The build kit SHALL NOT contain `get_current_session` or `rename_session`. It SHALL keep its other tools, and it SHALL reach only playground runs and a loaded template's first run.
+The build kit SHALL keep all its tools, including `get_current_session` and `rename_session`, its defaults and its browser-saved choices. It SHALL reach only playground runs and a loaded template's first run. In a playground run, the build kit's choice SHALL apply to a tool that is in both the build kit and the Agenta tools. Outside the playground, only the Agenta tools settings SHALL apply.
 
 #### Scenario: Build kit contents
 - **WHEN** the playground fetches the build kit
-- **THEN** the list SHALL include `commit_revision` and `read_config`, and SHALL NOT include `get_current_session` or `rename_session`.
+- **THEN** the list SHALL include every tool it includes today, among them `commit_revision`, `read_config`, `get_current_session` and `rename_session`.
+
+#### Scenario: Agenta tool off, build kit on
+- **WHEN** `rename_session` is `off` in the Agenta tools and on in the build kit
+- **THEN** a playground run SHALL offer `rename_session`, and a Slack run SHALL NOT.
 
 #### Scenario: Slack run
 - **WHEN** an agent runs in a Slack thread

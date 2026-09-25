@@ -70,7 +70,7 @@ Decision 1 covers `list_deliveries` (2001, read-only), `test_subscription` (2021
 
 **Goals:** Tools the agent needs in production reach every run. Each is on or off per agent, with Allow or Ask, saved with the agent's version. The session link opens in the default app and stays private.
 
-**Non-Goals:** Changing what any tool does. Moving the channel tools. Changing where build kit choices are saved. Public session links. Per-surface or per-environment settings. Filtering tools by run kind (test, evaluation, automation) (see Risks).
+**Non-Goals:** Changing what any tool does. Moving the channel tools. Changing the build kit's tools, defaults, controls, or where its choices are saved. Public session links. Per-surface or per-environment settings. Filtering tools by run kind (test, evaluation, automation) (see Risks).
 
 ## Decisions
 
@@ -94,7 +94,7 @@ Decision 1 covers `list_deliveries` (2001, read-only), `test_subscription` (2021
 
 | Option | Trade-off |
 | --- | --- |
-| **A. In the agent's configuration (the version)** | Saved with each version, so the tested version is the version that ships, and a rollback restores the choices. The handler reads it from the configuration it already has, with no extra call. The playground applies unsaved choices to its own runs, like any other draft edit. Turning a tool on for production needs a commit, like every other production setting. |
+| **A. In the agent's configuration (the version)** | Saved with each version, so the tested version is the version that ships, and a rollback restores the choices. The handler reads it from the configuration it already has, with no extra call. A playground run uses the unsaved choices, like any other draft edit, for any tool the build kit does not already add (decision 3). Turning a tool on for production needs a commit, like every other production setting. |
 | B. Next to the channel settings, on the channel-agent row | This is where the bot's channel settings live, but that row exists only per bot. Playground, API and automation runs have no bot, so they would have no settings. An agent with two bots would have two answers. |
 | C. On the agent, outside its versions | A change applies at once everywhere, with no commit. But it is not versioned, a switch flipped while testing changes production immediately, and every run needs one more lookup. |
 
@@ -135,9 +135,9 @@ A tool can reach a run from three places: the author's own `tools` list, the bui
 | --- | --- |
 | **The entry already in the run wins** | One rule, the same one the channel tools use (`handler.py:183-193`). In the playground, the build kit's choice applies to a tool that is in both, which is the setting the person building sees next to the chat. Outside the playground, the author's own entry wins, then `agenta_tools`. A run can never fail with a duplicate. |
 | The stricter choice wins (Ask over Allow) | Safer when the two disagree, but the handler cannot tell a build kit entry from an author's entry, so it would also override the author. |
-| One home per tool: remove every Agenta tool from the build kit | No overlap to explain. But `commit_revision` and `read_config` are off by default in Agenta tools, so building in the playground would stop working until the author turns them on. |
+| One home per tool: remove every Agenta tool from the build kit | No overlap to explain. But it changes the build kit, and `commit_revision` and `read_config` are off by default in Agenta tools, so building in the playground would stop working until the author turns them on. |
 
-The build kit drops `get_current_session` and `rename_session`: they are not building tools, and they are on by default in Agenta tools. So turning either off in Agenta tools also turns it off in the playground. The UI marks each Agenta tools row that is also in the build kit: "In the playground, the Build kit setting applies."
+The build kit keeps all its tools, including `get_current_session` and `rename_session` (Mahmoud: "the build kit should not be changed"). Every Agenta tool is also in the build kit today, so in a playground run the build kit's choice applies to all of them, and the Agenta tools choices matter only outside the playground: the API, Slack, Telegram, WhatsApp and automations. For example, turning `rename_session` off in Agenta tools stops Slack runs from naming their sessions, but a playground run still has it if the build kit has it on. The UI marks each Agenta tools row that is also in the build kit: "In the playground, the Build kit setting applies."
 
 ### 4. How the tools reach every run
 
@@ -156,7 +156,7 @@ The step adds each tool whose setting is `allow` or `ask`, with that permission,
 **Decision:** An "Agenta tools" section beside "Build kit" in the Advanced drawer, with the same controls, in `/w` and `/m`.
 
 - **Agenta tools** comes first, because it affects production. Copy: "Tools your agent can use wherever it runs: the playground, the API, Slack, Telegram, WhatsApp and automations. Saved with the agent." A draft for Mahmoud to approve.
-- **Build kit** keeps its controls. New copy: "Tools the assistant uses only while you build in the playground. They are not available in Slack, Telegram, WhatsApp, automations or the API. Saved in this browser." A draft for Mahmoud to approve.
+- **Build kit** keeps its tools and controls. New copy: "Tools the assistant uses only while you build in the playground. They are not available in Slack, Telegram, WhatsApp, automations or the API. Saved in this browser." A draft for Mahmoud to approve.
 - Both have the kit-level choice (Allow all, Allow reads, Ask all, Deactivate, Custom) and the per-tool choice (Allow, Ask, Deactivate), with Write and Read-only groups.
 - **Read-only and write tools.** Both groups offer the same three choices. The difference is the kit-level choice "Allow reads", which sets read-only tools to Allow and write tools to Ask. Write tools are listed first, because they change something.
 - Changing an Agenta tools choice edits the draft and marks it unsaved. A commit saves it. A Build kit choice saves in the browser at once, as today.
@@ -227,20 +227,25 @@ The description also tells the agent to share the link only with people who can 
 - **Channel sessions look person-started.** They carry no origin marker, so in the session list a Slack session reads like one started by hand. Not a blocker for the link.
 - **The sign-in return.** A person who signs in from the link should land on the session. QA checks this in both apps.
 - **Two places save settings.** Agenta tools save with the agent, Build kit in the browser. The section copy says which is which.
+- **The playground does not show the Agenta tools choices.** Every Agenta tool is also a build kit tool, so a playground run follows the build kit, not the Agenta tools. An author who turns a tool off in Agenta tools still sees it in the playground. The row note and the section copy say so, and live QA checks the choice from Slack or the API.
+
+## Open Points
+
+- **Build kit copy.** Mahmoud said "the build kit should not be changed". This change keeps the build kit's tools, controls and storage as they are, and proposes only new copy that says it is playground-only (decision 5). If he meant no change at all, the Build kit copy stays as it is today, task 3.4 covers only the Agenta tools copy, and the Build kit copy requirement in `specs/agenta-tools-settings/spec.md` is removed. Not decided here.
 
 ## Migration Plan
 
 1. Ship the handler step and the kit definition. Existing agents have no `agenta_tools` block, so every run gets the two defaults, `get_current_session` and `rename_session`. No saved configuration is rewritten.
-2. In the same release, drop `get_current_session` and `rename_session` from the build kit and ship the `/m` link. A browser that still sends them in an old build kit overlay causes no duplicate (decision 3).
+2. In the same release, ship the `/m` link. The build kit is unchanged, and a tool it sends that the Agenta tools also add appears once (decision 3).
 3. Ship the Agenta tools section. Until then, authors can set the block through the API or the JSON editor.
 
-Existing agents lose nothing: in the playground the build kit is unchanged except for the two tools, which now come from Agenta tools, and elsewhere they had none of these tools before.
+Existing agents lose nothing: in the playground the build kit is unchanged, and elsewhere they had none of these tools before.
 
-Rollback: remove the handler step and restore the two build kit entries. Saved `agenta_tools` blocks are ignored by older code, because unknown top-level keys of the agent configuration are accepted (`sdks/python/agenta/sdk/agents/dtos.py:1531`).
+Rollback: remove the handler step. Saved `agenta_tools` blocks are ignored by older code, because unknown top-level keys of the agent configuration are accepted (`sdks/python/agenta/sdk/agents/dtos.py:1531`).
 
 ## Verification Plan
 
-SDK unit tests cover the defaults, each setting (`allow`, `ask`, `off`, missing), the precedence rule, the session-ID condition, and the standalone case. API unit tests cover the smaller build kit and the `/m` link with and without an agent reference. Web unit tests cover the section and its draft edits. Live QA runs one agent from `/w`, `/m`, the API, Slack, Telegram and a schedule: it asks for the link, turns `create_schedule` on with Ask and uses it from Slack, and turns `rename_session` off. It then opens the link as a member with Classic mode on and off, on a phone, signed out, and as a non-member.
+SDK unit tests cover the defaults, each setting (`allow`, `ask`, `off`, missing), the precedence rule, the session-ID condition, and the standalone case. API unit tests cover the unchanged build kit list and the `/m` link with and without an agent reference. Web unit tests cover the section and its draft edits. Live QA runs one agent from `/w`, `/m`, the API, Slack, Telegram and a schedule: it asks for the link, turns `create_schedule` on with Ask and uses it from Slack, and turns `rename_session` off and checks that Slack runs stop naming their sessions while the playground follows the build kit. It then opens the link as a member with Classic mode on and off, on a phone, signed out, and as a non-member.
 
 ## Effort
 

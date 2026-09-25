@@ -16,7 +16,7 @@ Status: Draft for Mahmoud's review. Nothing here is implemented. This change rep
 - **Defaults (decided by Mahmoud):** `get_current_session` and `rename_session` are on (Allow). Every other Agenta tool is off (Deactivate), including `rename_agent`, `commit_revision` and `read_config`.
 - Save the Agenta tools choices in the agent's configuration, so they are part of each version and ship and roll back with it. The build kit choices stay in the browser, as today.
 - Add the Agenta tools to each run in the SDK agent handler, in the same place PR #7134 adds the channel tools, but for every agent, not only agents with a connected bot. The tools are never written into the agent's `tools` list.
-- The build kit keeps its building tools, so building in the playground works as it does today. It drops `get_current_session` and `rename_session`, which are not building tools and are now on everywhere. When a tool is on in both sections, a playground run has it once, and the build kit's choice applies there.
+- The build kit does not change. It keeps all its tools, including `get_current_session` and `rename_session`, its choices stay in the browser, and it still reaches only playground runs. When a tool is in both sections, a playground run has it once, and the build kit's choice applies there. Outside the playground only the Agenta tools apply. The one build kit change proposed is its copy, which says it is playground-only. Whether even that copy should change is an open point in the design.
 - Point the session link at the session's page in `/m`, the default app. People who use Classic mode are sent to the classic playground by the existing gate. A session with no agent reference still gets a link.
 - Keep the link private to signed-in project members. The agent shares it when asked, and at the end of long work in a chat app or automation.
 - The channel tools are out of scope. They stay automatic for agents with a connected bot, controlled by the bot's settings.
@@ -36,6 +36,6 @@ None. No baseline specification covers the build kit or the platform tools. The 
 ## Impact
 
 - **SDK**: a kit definition with each tool's default, a new optional `agenta_tools` field on the agent configuration, a step in `sdks/python/agenta/sdk/agents/handler.py` that adds the tools, and a new `get_current_session` description.
-- **API**: a read-only listing of the Agenta tools for the settings UI, the build kit loses `get_current_session` and `rename_session`, and `current_session_response` builds the `/m` link.
+- **API**: a read-only listing of the Agenta tools for the settings UI, and `current_session_response` builds the `/m` link.
 - **Web**: an Agenta tools section beside Build kit in the agent's tool settings, shared by `/w` and `/m`, and new copy for the Build kit section.
 - **Existing agents**: on their next run, in every surface, they get the two default tools. Nothing else changes for them until an author turns a tool on.

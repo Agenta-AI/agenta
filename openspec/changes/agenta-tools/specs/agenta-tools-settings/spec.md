@@ -37,15 +37,15 @@ The agent's tool settings, in `/w` and in `/m`, SHALL show an Agenta tools secti
 - **THEN** every read-only row SHALL read Allow and every write row SHALL read Ask.
 
 ### Requirement: Agenta tools choices edit the draft
-Changing a choice in the Agenta tools section SHALL edit the draft configuration and mark it unsaved. A commit SHALL save it. Playground runs of the draft SHALL use the unsaved choice. The UI SHALL write a tool to the block only when its choice differs from the default. Build kit choices SHALL keep being saved in the browser.
+Changing a choice in the Agenta tools section SHALL edit the draft configuration and mark it unsaved. A commit SHALL save it. A playground run of the draft SHALL use the unsaved choice for a tool the build kit does not add to that run. The UI SHALL write a tool to the block only when its choice differs from the default. Build kit choices SHALL keep being saved in the browser.
 
 #### Scenario: Turning a tool on
 - **WHEN** an author sets "Add a schedule" to Ask in the Agenta tools section
 - **THEN** the draft SHALL show unsaved changes, and after commit the saved configuration SHALL contain `agenta_tools.create_schedule: "ask"`.
 
 #### Scenario: Run before commit
-- **WHEN** an author turns `create_schedule` on and runs the draft in the playground without committing
-- **THEN** the playground run SHALL offer `create_schedule`, and Slack runs of the deployed version SHALL NOT.
+- **WHEN** an author has `create_schedule` deactivated in the Build kit, sets it to Ask in the Agenta tools, and runs the draft in the playground without committing
+- **THEN** the playground run SHALL offer `create_schedule` with Ask, and Slack runs of the deployed version SHALL NOT.
 
 #### Scenario: Back to the default
 - **WHEN** an author sets a tool back to its default choice
