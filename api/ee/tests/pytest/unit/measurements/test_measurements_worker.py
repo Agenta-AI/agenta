@@ -45,7 +45,7 @@ def _entry(command, msg_id: bytes = b"1-0"):
 @pytest.mark.asyncio
 async def test_happy_path_persists_and_publishes_then_acks():
     org_id = uuid4()
-    command = build_measurement_command(organization_id=org_id, endpoint_kind="managed")
+    command = build_measurement_command(organization_id=org_id, endpoint_kind="builtin")
     dao = InMemoryMeasurementsDAO()
     publisher = InMemoryDebitPublisher()
     worker = _make_worker(dao=dao, publisher=publisher)
@@ -68,7 +68,7 @@ async def test_resolves_organization_from_project_when_envelope_omits_it():
     project_id = uuid4()
     org_id = uuid4()
     command = build_measurement_command(
-        organization_id=None, project_id=project_id, endpoint_kind="managed"
+        organization_id=None, project_id=project_id, endpoint_kind="builtin"
     )
     resolver = InMemoryOrganizationResolver(mapping={project_id: org_id})
     publisher = InMemoryDebitPublisher()
@@ -85,7 +85,7 @@ async def test_unresolvable_organization_stores_nothing_and_dead_letters_the_mes
     """A measurement stored without its charge would be replayed as free forever, so
     nothing is stored; the dead letter keeps the whole message for a replay once the
     project resolves."""
-    command = build_measurement_command(organization_id=None, endpoint_kind="managed")
+    command = build_measurement_command(organization_id=None, endpoint_kind="builtin")
     resolver = InMemoryOrganizationResolver(mapping={})  # never resolves
     publisher = InMemoryDebitPublisher()
     dao = InMemoryMeasurementsDAO()
@@ -122,7 +122,7 @@ async def test_a_redelivery_republishes_the_stored_decision_byte_for_byte(
     here), and the debit envelope, `created_at` included, is identical to the first."""
     project_id = uuid4()
     command = build_measurement_command(
-        organization_id=None, project_id=project_id, endpoint_kind="managed"
+        organization_id=None, project_id=project_id, endpoint_kind="builtin"
     )
     dao = InMemoryMeasurementsDAO()
     publisher = InMemoryDebitPublisher()
@@ -135,7 +135,7 @@ async def test_a_redelivery_republishes_the_stored_decision_byte_for_byte(
     await worker.process_batch([_entry(command)])
 
     worker.organization_resolver = _RaisingResolver()
-    monkeypatch.setattr(worker_module, "calculate_fake_charge", _pricer_raises)
+    monkeypatch.setattr(worker_module, "calculate_charge", _pricer_raises)
     _, processed_ids = await worker.process_batch([_entry(command)])
 
     assert processed_ids == [b"1-0"]
@@ -146,7 +146,7 @@ async def test_a_redelivery_republishes_the_stored_decision_byte_for_byte(
 
 @pytest.mark.asyncio
 async def test_a_redelivery_after_a_price_change_keeps_the_stored_price(monkeypatch):
-    command = build_measurement_command(endpoint_kind="managed")
+    command = build_measurement_command(endpoint_kind="builtin")
     publisher = InMemoryDebitPublisher()
     publisher.fail_next = True
     worker = _make_worker(publisher=publisher)
@@ -155,7 +155,7 @@ async def test_a_redelivery_after_a_price_change_keeps_the_stored_price(monkeypa
 
     monkeypatch.setattr(
         worker_module,
-        "calculate_fake_charge",
+        "calculate_charge",
         lambda **_kwargs: (first.amount_musd * 10, "a-later-card"),
     )
     await worker.process_batch([_entry(command)])
@@ -217,7 +217,7 @@ async def test_debit_publish_failure_leaves_message_pending_then_converges_on_re
     redelivery of the SAME message, the measurement insert is a safe no-op
     (idempotent) and the retried publish succeeds — exactly one measurement
     row and exactly one published debit command, never zero and never two."""
-    command = build_measurement_command(endpoint_kind="managed")
+    command = build_measurement_command(endpoint_kind="builtin")
     dao = InMemoryMeasurementsDAO()
     publisher = InMemoryDebitPublisher()
     publisher.fail_next = True
@@ -241,8 +241,8 @@ async def test_debit_publish_failure_leaves_message_pending_then_converges_on_re
 async def test_ack_ordering_is_per_message_within_a_batch():
     """One bad message in a batch must not block the others: each message's
     ACK decision is independent."""
-    pending_command = build_measurement_command(endpoint_kind="managed")
-    good_command = build_measurement_command(endpoint_kind="managed")
+    pending_command = build_measurement_command(endpoint_kind="builtin")
+    good_command = build_measurement_command(endpoint_kind="builtin")
     dao = InMemoryMeasurementsDAO()
     publisher = InMemoryDebitPublisher()
     worker = _make_worker(dao=dao, publisher=publisher)
@@ -269,7 +269,7 @@ async def test_duplicate_component_keys_are_dead_lettered_not_priced():
     so `request_count=1` plus `request_count=2` used to charge 150 musd for a
     measurement that stores one count."""
     raw = build_measurement_command(
-        gateway_kind="mcp", endpoint_kind="managed"
+        gateway_kind="mcp", endpoint_kind="builtin"
     ).model_dump(mode="json")
     raw["components"] = [
         {"key": "request_count", "value": 1, "cost_musd": None},
@@ -294,7 +294,7 @@ async def test_duplicate_component_keys_are_dead_lettered_not_priced():
 async def test_conflicting_replay_is_dead_lettered_and_not_priced():
     """Codex #5: a measurement id seen again with different content must not add
     components to the stored measurement or charge the new payload."""
-    original = build_measurement_command(endpoint_kind="managed")
+    original = build_measurement_command(endpoint_kind="builtin")
     conflicting = original.model_copy(
         update={"resource_key": original.resource_key + "-changed"}
     )

@@ -1,6 +1,6 @@
 """Measurement worker — consumes `streams:measurements`, persists the
-measurement, prices it with the Wave 1 fixture, and publishes `DebitCommandV1`
-to `streams:debits` for every charge the gateway decides to make.
+measurement with its charge from the rate card, and publishes `DebitCommandV1`
+to `streams:debits` for every charge it decides to make.
 
 Imports NO core wallet table, DAO, or service — its only outbound edge is the
 debit stream, published through `DebitPublisher` (a structural protocol; see
@@ -20,7 +20,7 @@ from ee.src.core.measurements.interfaces import (
     MeasurementsDAOInterface,
     OrganizationResolverInterface,
 )
-from ee.src.core.measurements.pricing import calculate_fake_charge
+from ee.src.core.measurements.charges import calculate_charge
 from ee.src.core.wallets.contracts import (
     STREAM_MEASUREMENTS,
     DebitCommandV1,
@@ -53,6 +53,8 @@ class MeasurementWorker(StreamConsumer):
     3. An unseen measurement is priced, its organization resolved when it is
        charged, and inserted with its values and that charge decision in one
        tracing transaction. A seen one keeps the decision it was stored with.
+       A platform-funded measurement the rate card cannot price is not stored:
+       it stays pending and is retried, and dead-lettered if it never prices.
     4. A measurement with no charge publishes nothing.
     5. Publish `DebitCommandV1`, built from the stored decision, to
        `streams:debits`.
@@ -151,7 +153,7 @@ class MeasurementWorker(StreamConsumer):
     async def _decide_charge(
         self, command: MeasurementCommandV1
     ) -> Optional[ChargeDecision]:
-        priced = calculate_fake_charge(command=command)
+        priced = calculate_charge(command=command)
         if priced is None:
             return None
         amount_musd, pricing_version = priced

@@ -21,6 +21,7 @@ import pytest
 from oss.src.tasks.asyncio.shared.dead_letters import replay_dead_letters
 
 import ee.src.dbs.redis.wallets.streams as wallet_streams
+from ee.src.core.measurements import rate_card
 from ee.src.core.wallets.contracts import STREAM_DEBITS, STREAM_MEASUREMENTS
 from ee.src.core.wallets.errors import SettlementUnavailableError
 from ee.src.core.wallets.streaming import (
@@ -85,7 +86,7 @@ class _AlwaysFailingPort(FakeWalletSettlementPort):
         return await super().settle(command)
 
 
-def _measurement_worker(*, redis_client, dao, publisher):
+def _measurement_worker(*, redis_client, dao, publisher, max_deliveries=20):
     return MeasurementWorker(
         measurements_dao=dao,
         organization_resolver=InMemoryOrganizationResolver(),
@@ -93,6 +94,7 @@ def _measurement_worker(*, redis_client, dao, publisher):
         redis_client=redis_client,
         consumer_name="test-consumer",
         reclaim_min_idle_ms=0,
+        max_deliveries=max_deliveries,
     )
 
 
@@ -137,7 +139,7 @@ async def test_unsettled_debit_comes_back_through_the_reclaim_pass():
 
 @pytest.mark.asyncio
 async def test_unpublished_measurement_comes_back_through_the_reclaim_pass():
-    command = build_measurement_command(endpoint_kind="managed")
+    command = build_measurement_command(endpoint_kind="builtin")
     redis_client = fakeredis.FakeRedis()
     await _seed(
         redis_client,
@@ -169,10 +171,10 @@ async def test_unpublished_measurement_comes_back_through_the_reclaim_pass():
     assert acked_ids == [batch[0][0]]
     await worker.ack_and_delete(acked_ids)
 
-    # Redelivery is only safe because the measurement insert is idempotent on
-    # `measurement_id` and the debit carries the derived key the settlement port
-    # deduplicates on: two inserts attempted, one row, one debit.
-    assert len(dao.insert_calls) == 2
+    # Redelivery is only safe because the stored measurement is replayed from its
+    # stored decision rather than inserted again, and the debit carries the derived key
+    # the settlement port deduplicates on: one insert, one row, one debit.
+    assert len(dao.insert_calls) == 1
     assert len(dao.rows) == 1
     assert len(publisher.published) == 1
     assert (
@@ -268,6 +270,53 @@ async def test_readable_debit_that_keeps_failing_is_dead_lettered_then_replayed(
     await worker.ack_and_delete(acked_ids)
     assert port.effects[(command.organization_id, "gw_never_settles")] == 1
     assert await redis_client.xlen(STREAM_DEBITS) == 0
+
+
+@pytest.mark.asyncio
+async def test_an_unpriced_measurement_is_retried_dead_lettered_and_charged_on_replay(
+    monkeypatch,
+):
+    """Codex #5: an API newer than its worker can emit a `builtin` model the worker's
+    card does not price yet. That is not a free call: nothing is stored, the message is
+    retried, then kept as a dead letter, and a replay once the card prices the model
+    charges it exactly once."""
+    command = build_measurement_command(
+        resource_key="llm:mock:next-model",
+        resource_locator={"provider": "mock", "model": "next-model"},
+    )
+    redis_client = fakeredis.FakeRedis()
+    await _seed(
+        redis_client,
+        stream=STREAM_MEASUREMENTS,
+        group=MEASUREMENTS_GROUP,
+        entries=[{"data": serialize_measurement_command(command)}],
+    )
+    dao = InMemoryMeasurementsDAO()
+    publisher = InMemoryDebitPublisher()
+    worker = _measurement_worker(
+        redis_client=redis_client, dao=dao, publisher=publisher, max_deliveries=2
+    )
+
+    await worker.process_batch(await worker.read_batch())
+    await _drain_reclaims(worker, passes=5)
+
+    assert dao.rows == {}
+    assert publisher.attempts == []
+    assert worker.dead_lettered_messages == 1
+
+    # The worker is upgraded to a card that prices the model; the operator replays.
+    monkeypatch.setitem(
+        rate_card.TOKEN_RATES,
+        ("mock", "next-model"),
+        rate_card.TOKEN_RATES[("mock", "gpt-5.5")],
+    )
+    assert await replay_dead_letters(redis_client, stream=STREAM_MEASUREMENTS) == 1
+    _, acked_ids = await worker.process_batch(await worker.read_batch())
+
+    assert len(acked_ids) == 1
+    assert list(dao.rows) == [command.measurement_id]
+    [debit] = publisher.published
+    assert debit.idempotency_key == f"measurement:{command.measurement_id}"
 
 
 @pytest.mark.asyncio

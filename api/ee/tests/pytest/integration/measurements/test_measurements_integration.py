@@ -136,7 +136,7 @@ async def test_full_consume_persist_publish(redis_client, analytics_engine):
     command = build_measurement_command(
         organization_id=org_id,
         project_id=uuid4(),
-        endpoint_kind="managed",
+        endpoint_kind="builtin",
     )
 
     measurements_group = await _make_group(redis_client, stream=STREAM_MEASUREMENTS)
@@ -186,7 +186,7 @@ async def test_transient_debit_publish_failure_converges_to_one_of_each(
     command = build_measurement_command(
         organization_id=org_id,
         project_id=uuid4(),
-        endpoint_kind="managed",
+        endpoint_kind="builtin",
     )
 
     measurements_group = await _make_group(redis_client, stream=STREAM_MEASUREMENTS)
@@ -257,7 +257,7 @@ async def test_conflicting_replay_keeps_the_stored_measurement_and_is_dead_lette
     the new payload. The stored measurement must stay exactly as first written, the
     second payload must not be charged, and it must be kept as a dead letter."""
     original = build_measurement_command(
-        organization_id=uuid4(), project_id=uuid4(), endpoint_kind="managed"
+        organization_id=uuid4(), project_id=uuid4(), endpoint_kind="builtin"
     )
     conflicting = original.model_copy(
         update={
@@ -401,14 +401,14 @@ async def test_a_worker_that_loses_the_insert_race_publishes_the_winners_debit(
     redis_client, analytics_engine, monkeypatch
 ):
     command = build_measurement_command(
-        organization_id=uuid4(), project_id=uuid4(), endpoint_kind="managed"
+        organization_id=uuid4(), project_id=uuid4(), endpoint_kind="builtin"
     )
     publishers = [InMemoryDebitPublisher(), InMemoryDebitPublisher()]
 
     for publisher, amount in zip(publishers, (100, 200)):
         monkeypatch.setattr(
             worker_module,
-            "calculate_fake_charge",
+            "calculate_charge",
             lambda amount=amount, **_kwargs: (amount, f"test-{amount}"),
         )
         worker = MeasurementWorker(

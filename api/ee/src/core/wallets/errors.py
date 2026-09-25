@@ -39,6 +39,17 @@ class SettlementUnavailableError(WalletRetryableError):
     or timed out."""
 
 
+class UnpricedMeasurementError(WalletRetryableError):
+    """Retryable: a platform-funded measurement names a resource the rate card does not
+    price. An unknown price is not a zero price, so nothing is stored and the message is
+    retried, which covers a worker older than the API that emitted it, and dead-lettered
+    if the card never learns the price."""
+
+    def __init__(self, *, resource_key: str):
+        self.resource_key = resource_key
+        super().__init__(f"No rate for {resource_key!r}")
+
+
 class MeasurementConflictError(WalletTerminalError):
     """Terminal: a measurement id arrived again with different content from the stored
     measurement. The stored fact stays as it is and the new payload is not charged."""
