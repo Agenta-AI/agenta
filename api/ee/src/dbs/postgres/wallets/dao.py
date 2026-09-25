@@ -339,21 +339,27 @@ class WalletsDAO(WalletsDAOInterface):
                 )
 
             # 3. The outgoing allowance is the plan-allowance credit the most recent plan
-            #    change minted: the newest by id (uuid7, minted after the lock above, so
-            #    in the order the changes were applied). Expiry is not an identity: after
-            #    two changes in one period both credits end at the same instant. Only the
-            #    newest is ever a candidate. Every earlier one was superseded, and so
-            #    clawed down to its earned share, by the change that minted a newer one;
-            #    and when a plan change already clawed the newest one (Pro to Hobby mints
-            #    nothing), what is left on it is earned too, so there is no outgoing
-            #    allowance to prorate. An expired newest credit prorates to zero.
+            #    change minted: the newest by `created_at`, which the mint below sets from
+            #    the database's `clock_timestamp()` after taking the lock above, so it
+            #    follows the order the changes were applied in. Neither expiry nor a
+            #    uuid7 id is that order: after two changes in one period both credits
+            #    end at the same instant, and a uuid7 carries the clock of whichever API
+            #    process minted it. Only the newest is ever a candidate. Every earlier
+            #    one was superseded, and so clawed down to its earned share, by the
+            #    change that minted a newer one; and when a plan change already clawed
+            #    the newest one (Pro to Hobby mints nothing), what is left on it is
+            #    earned too, so there is no outgoing allowance to prorate. An expired
+            #    newest credit prorates to zero.
             outgoing_credit_stmt = (
                 select(WalletCreditDBE)
                 .where(
                     WalletCreditDBE.organization_id == organization_id,
                     WalletCreditDBE.credit_kind == PLAN_ALLOWANCE_CREDIT_KIND,
                 )
-                .order_by(WalletCreditDBE.id.desc())
+                .order_by(
+                    WalletCreditDBE.created_at.desc(),
+                    WalletCreditDBE.id.desc(),
+                )
                 .limit(1)
             )
             outgoing_credit = (
@@ -439,6 +445,8 @@ class WalletsDAO(WalletsDAOInterface):
                     priority=PLAN_ALLOWANCE_PRIORITY,
                     start_time=now,
                     end_time=incoming_end_time,
+                    # Orders allowance credits for step 3; see there.
+                    created_at=func.clock_timestamp(),
                     data={
                         "references": {
                             "plan_change_idempotency_key": idempotency_key,

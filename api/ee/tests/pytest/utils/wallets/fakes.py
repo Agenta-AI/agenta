@@ -224,7 +224,7 @@ class FakeWalletsDAO(WalletsDAOInterface):
         await self._lock_general_balance(organization_id=organization_id)
 
         # Mirrors the real DAO: the outgoing allowance is this organization's newest
-        # `plan_allowance` credit (insertion order here, uuid7 order there), unless a
+        # `plan_allowance` credit (insertion order here, database-clock `created_at` there), unless a
         # plan change already clawed it back.
         outgoing_credit_id = None
         for candidate, _ in self._owned_credits(organization_id=organization_id):

@@ -330,9 +330,10 @@ async def test_an_allowance_credit_without_its_balance_row_raises(wallet_schema)
         await _cleanup(organization_id)
 
 
-async def test_the_subscription_lock_serializes_one_organization_only():
-    """Two holders for one organization run one after the other; a holder for another
-    organization is not held up."""
+async def test_the_subscription_lock_serializes_one_organization_only(wallet_schema):
+    """Two holders for one organization run one after the other, even when the first
+    reads the subscription while holding the lock; a holder for another organization is
+    not held up."""
     organization_id = str(uuid.uuid4())
     other_organization_id = str(uuid.uuid4())
     dao = SubscriptionsDAO()
@@ -343,6 +344,9 @@ async def test_the_subscription_lock_serializes_one_organization_only():
     async def first():
         async with dao.lock(organization_id=organization_id):
             order.append("first:acquired")
+            # A read inside the lock, as `process_event` does. On the task-scoped
+            # session it would commit the lock's transaction and release it.
+            await dao.read(organization_id=organization_id)
             first_holds.set()
             await release_first.wait()
             order.append("first:released")
@@ -367,3 +371,47 @@ async def test_the_subscription_lock_serializes_one_organization_only():
     await asyncio.wait_for(asyncio.gather(*tasks), timeout=5)
 
     assert order.index("first:released") < order.index("second:acquired")
+
+
+async def test_the_newest_allowance_is_found_even_when_uuid7_ids_run_backwards(
+    wallet_schema, monkeypatch
+):
+    """A uuid7 carries the clock of the API process that minted it, so on a fleet with
+    skewed clocks a later credit can sort before an earlier one. Minted ids here run
+    backwards; the downgrade must still claw the Business credit, not the Pro one."""
+    import ee.src.dbs.postgres.wallets.dao as dao_module
+
+    descending = iter(
+        uuid.UUID(int=(0xFFFF_FFFF_FFFF - n) << 80 | 0x7000 << 64 | 0x8000 << 48)
+        for n in range(1000)
+    )
+    monkeypatch.setattr(dao_module.uuid_utils, "uuid7", lambda: next(descending))
+
+    organization_id = uuid.uuid4()
+    service = WalletsService(wallets_dao=WalletsDAO())
+
+    try:
+        pro = await _change(
+            service,
+            organization_id,
+            key="pc:pro",
+            plan="cloud_v0_pro",
+            now=PERIOD_START,
+        )
+        business = await _change(
+            service,
+            organization_id,
+            key="pc:business",
+            plan="cloud_v0_business",
+            now=JAN_11,
+        )
+        assert business.incoming_credit_id < pro.incoming_credit_id
+
+        hobby = await _change(
+            service, organization_id, key="pc:hobby", plan="cloud_v0_hobby", now=JAN_22
+        )
+
+        assert hobby.outgoing_credit_id == business.incoming_credit_id
+        assert hobby.outgoing_debit_amount_musd == (50_000_000 * 21 // 31) * 10 // 21
+    finally:
+        await _cleanup(organization_id)

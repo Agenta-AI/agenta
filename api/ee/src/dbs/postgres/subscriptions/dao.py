@@ -30,12 +30,14 @@ class SubscriptionsDAO(SubscriptionsDAOInterface):
         *,
         organization_id: str,
     ) -> AsyncIterator[None]:
-        # A transaction-scoped advisory lock rather than `SELECT ... FOR UPDATE` on the
-        # row: `read` and `update` run in their own sessions, which would block on a row
-        # lock held here by the same caller. The lock is released when this session's
-        # transaction ends.
-        async with self.engine.session() as session:
-            await session.execute(
+        # A transaction-scoped advisory lock on a connection of its own. Not the
+        # task-scoped `session()`: `read` and `update` below would join that session and
+        # commit it, releasing the lock early. Not `SELECT ... FOR UPDATE` on the row
+        # either: `read` and `update` would then wait on a row lock held by their own
+        # caller. Waiters block rather than fail; changes for one organization are rare
+        # user actions and webhooks, so a queue of them is short.
+        async with self.engine.transaction() as connection:
+            await connection.execute(
                 text("SELECT pg_advisory_xact_lock(hashtextextended(:key, 0))"),
                 {"key": f"subscriptions:{organization_id}"},
             )
