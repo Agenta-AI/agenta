@@ -1,7 +1,11 @@
 import type {UIMessage} from "ai"
 import {describe, expect, it} from "vitest"
 
-import {deriveTurnStatus, sanitizeErrorText} from "../../../src/model/turnStatus"
+import {
+    deriveTurnStatus,
+    readableTraceError,
+    sanitizeErrorText,
+} from "../../../src/model/turnStatus"
 import reasoningOnlyTurnFixture from "../fixtures/reasoningOnlyTurn.json"
 
 describe("deriveTurnStatus", () => {
@@ -346,6 +350,50 @@ describe("sanitizeErrorText", () => {
             "max_tokens: 4096 and input_tokens=12000 stay",
         )
         expect(sanitizeErrorText("Token verification failed")).toBe("Token verification failed")
+    })
+})
+
+describe("readableTraceError", () => {
+    it("reads a bare status body", () => {
+        expect(readableTraceError('400 {"error":"bad request"}')).toBe(
+            "The model provider refused the request (HTTP 400): bad request.",
+        )
+    })
+
+    it("reads a labeled status body", () => {
+        expect(readableTraceError('Label: 429 {"error":{"message":"slow down"}}')).toBe(
+            "The model provider could not answer (HTTP 429): slow down. Try again in a moment.",
+        )
+    })
+
+    it("reads a nested-label provider body, e.g. OpenAI's own wrapper", () => {
+        expect(
+            readableTraceError(
+                'Internal error: OpenAI API error (404): {"error":{"message":"model not found"}}',
+            ),
+        ).toBe("The model provider refused the request (HTTP 404): model not found.")
+    })
+
+    it("returns the request-too-large sentence for 413 regardless of body", () => {
+        expect(readableTraceError('413 {"error":"payload too large"}')).toBe(
+            "The request is too large for this model. Start a new session, turn off tools you do not need, or pick a model with a larger context.",
+        )
+    })
+
+    it("falls back to sanitized text when the body has no recognizable raw shape", () => {
+        expect(readableTraceError("connection reset by peer")).toBe("connection reset by peer")
+    })
+
+    // Regression for CodeQL js/polynomial-redos: a run of letters/spaces with no colon or
+    // brace used to make RAW_PROVIDER_BODY backtrack catastrophically. This must return well
+    // under a second even for a large adversarial input.
+    it("stays fast on a long run of letters and spaces with no match (CodeQL js/polynomial-redos)", () => {
+        const evil = "A ".repeat(50_000) + "no match here"
+        const start = performance.now()
+        const result = readableTraceError(evil)
+        const elapsedMs = performance.now() - start
+        expect(elapsedMs).toBeLessThan(1_000)
+        expect(result).toBe(sanitizeErrorText(evil))
     })
 })
 
