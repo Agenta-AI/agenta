@@ -351,8 +351,11 @@ export const ChannelManagePanel = ({
         }
     }
 
+    // Only the first secret (the token) must be re-entered: the backend keeps any
+    // secondary secret left empty (the app or signing secret), so a token rotation
+    // does not force the operator to find the other one again.
     const tokenValid = (tokenFields ?? []).every(
-        (field) => !field.required || tokenValues[field.name]?.trim(),
+        (field, index) => index > 0 || !field.required || tokenValues[field.name]?.trim(),
     )
 
     // The panel only owns this state when the connection answers here: everything below
@@ -462,11 +465,16 @@ export const ChannelManagePanel = ({
         >
             {tokenError ? <Alert type="error" showIcon message={tokenError} /> : null}
             {tokenFields ? (
-                tokenFields.map((field) => (
+                tokenFields.map((field, index) => (
                     <label key={field.name} className="flex flex-col gap-1.5">
                         <span className="text-[13px] font-medium text-colorText">
                             {field.label}
                         </span>
+                        {index > 0 ? (
+                            <span className="text-xs text-colorTextTertiary">
+                                Leave empty to keep the current one.
+                            </span>
+                        ) : null}
                         <PasswordInput
                             value={tokenValues[field.name] ?? ""}
                             onChange={(e) =>

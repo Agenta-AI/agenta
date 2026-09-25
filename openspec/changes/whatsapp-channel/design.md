@@ -158,7 +158,7 @@ Documented limits:
 - The window counts from Meta's timestamp on the customer's latest message to arrive, or from its arrival time when the payload has none. A webhook Meta retried for a day therefore does not reopen the window.
 - The typing loop stops as soon as the turn's answer, failure notice or approval card has left, even when the turn ended on another worker.
 - A held reply shows in Settings > Channels outbound events with the state `held` and the reason `window_closed`. The session view does not show it yet.
-- A real Meta number has not been tested yet. The code is tested against a fake Graph API that answers like Meta's for every call the adapter makes.
+- A real Meta number was connected on 2026-09-25: the connect check refused a token without WhatsApp account access and passed once access was assigned. A reply sent through a real number is still to be tested. Everything else is tested against a fake Graph API that answers like Meta's for every call the adapter makes.
 
 ## Adapter mapping
 
@@ -186,7 +186,7 @@ Phase 1 needs nothing per region: each customer points their own Meta app at the
 
 - **Policy drift.** Meta decides what "primary functionality" means, and the EU interim measures may change. Mitigation: no shared number, so each business answers for its own number. D9 can be revisited if the EU measures are lifted.
 - **Cost surprise after October 1, 2026.** Every reply becomes billable after 1,000 per number per month. Mitigation: the connect screen links Meta pricing, and D3 sends at most one extra message per turn.
-- **Pair limit.** Long answers split into many messages can hit error `131056`. Mitigation: 6-second spacing between parts and a retry on that error only.
+- **Pair limit.** Long answers split into many messages can hit error `131056`. Mitigation: two retries 6 seconds apart on that error only; parts are not spaced, because Meta allows short bursts.
 - **Personal data.** Customer phone numbers and names are stored as sender fields. They need the same retention and deletion handling as other inbox data.
 - **Unconfirmed limits.** The 4096 text limit and list field limits are widely cited but not confirmed on a primary Meta page. The implementation reads them from one constant each.
 - **Webhook retries.** Meta retries for days if we do not answer quickly. The inbox dedupes on the WhatsApp message ID.

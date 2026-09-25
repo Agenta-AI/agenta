@@ -304,6 +304,21 @@ describe("WhatsApp manage panel", () => {
         expect(readAllowedUsers).not.toHaveBeenCalled()
     })
 
+    it("replaces the access token alone, keeping the stored app secret", async () => {
+        const updateCredentials = vi.fn().mockResolvedValue(undefined)
+        await renderPanel({
+            loadSetup: async () => ({manifest: null, fields: FIELDS, hostedAvailable: false}),
+            updateCredentials,
+        })
+        await act(async () => (byTestId("channels-update-token") as HTMLButtonElement).click())
+        await type("channels-token-access_token", "EAAG-new-token")
+
+        const save = byTestId("channels-token-save") as HTMLButtonElement
+        expect(save.disabled).toBe(false)
+        await act(async () => save.click())
+        expect(updateCredentials).toHaveBeenCalledWith("wa-1", {access_token: "EAAG-new-token"})
+    })
+
     it("replaces the access token and app secret", async () => {
         await renderPanel({
             loadSetup: async () => ({manifest: null, fields: [], hostedAvailable: false}),
