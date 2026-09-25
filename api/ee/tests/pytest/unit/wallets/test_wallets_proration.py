@@ -3,7 +3,7 @@
 integer/datetime math.
 """
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from ee.src.core.wallets.proration import (
     prorate_incoming_allowance,
@@ -147,3 +147,23 @@ def test_outgoing_without_bounds_has_nothing_to_prorate():
         )
         == 0
     )
+
+
+def test_sub_second_durations_are_not_truncated_before_dividing():
+    """A direct switch stamps credits with `datetime.now()`, microseconds included.
+    Truncating remaining and total to whole seconds separately made both 1_296_000 when
+    0.8 s had passed, so the whole credit was clawed back; the exact fraction leaves the
+    0.8 s the customer had."""
+    end = datetime(2026, 2, 1, tzinfo=timezone.utc)
+    start = end - timedelta(days=15, microseconds=900_000)
+    amount = 24_193_548
+
+    clawed = prorate_outgoing_allowance(
+        credit_amount_musd=amount,
+        credit_start_time=start,
+        credit_end_time=end,
+        now=start + timedelta(microseconds=800_000),
+    )
+
+    assert clawed < amount
+    assert clawed == amount * 1_296_000_100_000 // 1_296_000_900_000

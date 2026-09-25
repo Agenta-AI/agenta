@@ -10,16 +10,21 @@ prorated amount DOWN (never over-credits the incoming share, never over-debits t
 outgoing remainder).
 """
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional
 
+_MICROSECOND = timedelta(microseconds=1)
 
-def _prorate(*, amount_musd: int, remaining_seconds: int, total_seconds: int) -> int:
-    """ROUND HERE, once. Floor division truncates toward zero."""
-    if amount_musd <= 0 or total_seconds <= 0 or remaining_seconds <= 0:
+
+def _prorate(*, amount_musd: int, remaining: timedelta, total: timedelta) -> int:
+    """ROUND HERE, once. Durations are exact integer microseconds, so truncating them
+    separately cannot skew the fraction; the final floor division truncates toward
+    zero."""
+    remaining_us = remaining // _MICROSECOND
+    total_us = total // _MICROSECOND
+    if amount_musd <= 0 or total_us <= 0 or remaining_us <= 0:
         return 0
-    remaining_seconds = min(remaining_seconds, total_seconds)
-    return (amount_musd * remaining_seconds) // total_seconds
+    return (amount_musd * min(remaining_us, total_us)) // total_us
 
 
 def prorate_incoming_allowance(
@@ -34,8 +39,8 @@ def prorate_incoming_allowance(
     billing provider reports it, and `now` is when the change took effect."""
     return _prorate(
         amount_musd=allowance_musd,
-        remaining_seconds=int((period_end - now).total_seconds()),
-        total_seconds=int((period_end - period_start).total_seconds()),
+        remaining=period_end - now,
+        total=period_end - period_start,
     )
 
 
@@ -61,6 +66,6 @@ def prorate_outgoing_allowance(
         return 0
     return _prorate(
         amount_musd=credit_amount_musd,
-        remaining_seconds=int((credit_end_time - now).total_seconds()),
-        total_seconds=int((credit_end_time - credit_start_time).total_seconds()),
+        remaining=credit_end_time - now,
+        total=credit_end_time - credit_start_time,
     )
