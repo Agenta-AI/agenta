@@ -18,6 +18,10 @@ from oss.src.utils.env import env
 
 _MOCK_MODELS = ["mock/echo", "gpt-5.5", "claude-sonnet-5"]
 
+# Every provider the `builtin` namespace can serve. A `builtin` call runs on the platform's
+# account, so the wallet's rate card must price each model these serve.
+BUILTIN_LLM_PROVIDERS = ("agenta", "mock")
+
 
 def _bare_model_id(*, provider_key: str, model_id: str) -> str:
     """Remove a provider routing prefix from a catalogued model id."""
@@ -87,7 +91,7 @@ def standard_llm_endpoints() -> List[LLMEndpoint]:
 def builtin_llm_endpoint(*, provider_key: str) -> Optional[LLMEndpoint]:
     """Platform-owned development models.  These are generated only under the
     explicit switch; their static upstream credential is never project-owned."""
-    if not env.mock_gateways.enabled or provider_key not in {"agenta", "mock"}:
+    if not env.mock_gateways.enabled or provider_key not in BUILTIN_LLM_PROVIDERS:
         return None
 
     return LLMEndpoint(

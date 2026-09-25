@@ -1,6 +1,6 @@
 """Measurement worker — consumes `streams:measurements`, persists the
-measurement, prices it with the Wave 1 fixture, and publishes `DebitCommandV1`
-to `streams:debits` for every charge the gateway decides to make.
+measurement with its charge from the rate card, and publishes `DebitCommandV1`
+to `streams:debits` for every charge it decides to make.
 
 Imports NO core wallet table, DAO, or service — its only outbound edge is the
 debit stream, published through `DebitPublisher` (a structural protocol; see
@@ -15,12 +15,18 @@ from redis.asyncio import Redis
 from oss.src.tasks.asyncio.shared.consumer import StreamConsumer
 from oss.src.utils.logging import get_module_logger
 
+from ee.src.core.measurements.dtos import ChargeDecision
 from ee.src.core.measurements.interfaces import (
     MeasurementsDAOInterface,
     OrganizationResolverInterface,
 )
-from ee.src.core.measurements.pricing import calculate_fake_charge
-from ee.src.core.wallets.contracts import STREAM_MEASUREMENTS, DebitCommandV1, DebitKind
+from ee.src.core.measurements.charges import calculate_charge
+from ee.src.core.wallets.contracts import (
+    STREAM_MEASUREMENTS,
+    DebitCommandV1,
+    DebitKind,
+    MeasurementCommandV1,
+)
 from ee.src.core.wallets.errors import (
     OrganizationNotResolvedError,
     WalletTerminalError,
@@ -42,13 +48,16 @@ class MeasurementWorker(StreamConsumer):
     Per message:
     1. Deserialize/validate — malformed or unsupported-version envelopes are
        terminal: dead-lettered, since retry cannot help.
-    2. Resolve the optional `organization_id` from project scope.
-    3. Idempotently insert the measurement and its component values (one
-       tracing transaction). A measurement id replayed with different content is
-       terminal: the stored measurement stands and the new payload is not priced.
-    4. Price the measurement with the Wave 1 fixture; a result the gateway
-       does not charge (e.g. non-managed endpoint) publishes nothing.
-    5. Publish `DebitCommandV1` to `streams:debits`.
+    2. Look the measurement up. A measurement id already stored with different
+       content is terminal: the stored measurement stands and is not re-priced.
+    3. An unseen measurement is priced, its organization resolved when it is
+       charged, and inserted with its values and that charge decision in one
+       tracing transaction. A seen one keeps the decision it was stored with.
+       A platform-funded measurement the rate card cannot price is not stored:
+       it stays pending and is retried, and dead-lettered if it never prices.
+    4. A measurement with no charge publishes nothing.
+    5. Publish `DebitCommandV1`, built from the stored decision, to
+       `streams:debits`.
     6. ACK + DEL only after both the tracing write and the debit publish (if
        any) succeed. A tracing or Redis failure leaves the message pending,
        and the consumer's reclaim pass (`reclaim_pending=True` below) brings
@@ -108,44 +117,65 @@ class MeasurementWorker(StreamConsumer):
             return None
         return command.measurement_id
 
-    async def _process_one(self, command) -> bool:
+    async def _process_one(self, command: MeasurementCommandV1) -> bool:
         """Persist + (maybe) charge one already-deserialized command.
 
         Returns True when the message is safe to ACK (tracing write, and any
         debit publish, both succeeded). Raises `WalletTerminalError` when it never
         will be.
+
+        A measurement already stored is replayed from its stored decision alone: the
+        organization lookup and the pricer are not consulted again, so a redelivery
+        after a failed debit publish recovers even when either has changed or is down.
         """
+        persisted = await self.measurements_dao.fetch_measurement(command=command)
+        if persisted is None:
+            persisted = await self.measurements_dao.insert_measurement(
+                command=command, charge=await self._decide_charge(command)
+            )
+
+        charge = persisted.charge
+        if charge is None:
+            return True
+
+        debit = DebitCommandV1(
+            idempotency_key=f"measurement:{command.measurement_id}",
+            organization_id=charge.organization_id,
+            debit_kind=DebitKind.GATEWAY_USAGE,
+            amount_musd=charge.amount_musd,
+            pricing_version=charge.pricing_version,
+            resource_key=command.resource_key,
+            resource_locator=command.resource_locator,
+            created_at=charge.created_at,
+        )
+        return await self.debit_publisher.publish(debit)
+
+    async def _decide_charge(
+        self, command: MeasurementCommandV1
+    ) -> Optional[ChargeDecision]:
+        priced = calculate_charge(command=command)
+        if priced is None:
+            return None
+        amount_musd, pricing_version = priced
+
         organization_id = command.organization_id
         if organization_id is None:
             organization_id = await self.organization_resolver.resolve_organization_id(
                 project_id=command.project_id
             )
-
-        await self.measurements_dao.insert_measurement(command=command)
-
-        charge = calculate_fake_charge(command=command)
-        if charge is None:
-            return True
-
-        amount_musd, pricing_version = charge
-
         if organization_id is None:
-            # The measurement is persisted; the charge it owes is kept as a dead letter.
+            # Nothing is stored: a measurement stored without its charge would be replayed
+            # as free forever. The dead letter keeps the whole message for a replay.
             raise OrganizationNotResolvedError(
                 f"project {command.project_id} resolves to no organization"
             )
 
-        debit = DebitCommandV1(
-            idempotency_key=f"measurement:{command.measurement_id}",
-            organization_id=organization_id,
-            debit_kind=DebitKind.GATEWAY_USAGE,
+        return ChargeDecision(
             amount_musd=amount_musd,
             pricing_version=pricing_version,
-            resource_key=command.resource_key,
-            resource_locator=command.resource_locator,
+            organization_id=organization_id,
             created_at=datetime.now(timezone.utc),
         )
-        return await self.debit_publisher.publish(debit)
 
     async def process_batch(
         self, batch: List[Tuple[bytes, Dict[bytes, bytes]]]

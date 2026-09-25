@@ -1,4 +1,4 @@
-"""Interface for resolving gateway secrets."""
+"""Ports the gateway policy depends on: secret resolution, spend admission, usage."""
 
 from abc import ABC, abstractmethod
 from typing import Optional, Set
@@ -7,9 +7,12 @@ from uuid import UUID
 from pydantic import BaseModel
 
 from oss.src.core.gateways.policy.dtos import (
+    GatewayOutcome,
+    GatewayTarget,
     SecretMode,
     SecretRef,
     ResolvedSecret,
+    SpendAdmission,
 )
 from oss.src.utils.context import AuthScope
 
@@ -88,4 +91,38 @@ class SecretsResolverInterface(ABC):
 
         `provider_key` secrets only. A `custom_provider` connection is addressed by the
         endpoint row the vault registers for it, which is a different namespace."""
+        raise NotImplementedError
+
+
+class SpendAdmissionInterface(ABC):
+    """Asked before a platform-funded call is dispatched: may this organization spend.
+
+    Not called `authorize`: that name belongs to the permission check, and permissions and
+    entitlements answer different questions. Implementations may raise; the policy service
+    treats a raise as a refusal."""
+
+    @abstractmethod
+    async def admit(
+        self,
+        *,
+        scope: AuthScope,
+        target: GatewayTarget,
+    ) -> SpendAdmission:
+        raise NotImplementedError
+
+
+class UsageSinkInterface(ABC):
+    """Handed the usage of one dispatched, platform-funded call once its body is drained.
+    Implementations may raise or stall; the policy service bounds and contains both, so a
+    sink can never change a relay's result."""
+
+    @abstractmethod
+    async def record(
+        self,
+        *,
+        scope: AuthScope,
+        target: GatewayTarget,
+        outcome: GatewayOutcome,
+        run_id: Optional[str],
+    ) -> None:
         raise NotImplementedError

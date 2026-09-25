@@ -1304,7 +1304,25 @@ secrets_resolver = SecretsResolver(
     vault_service=vault_service,
 )
 
-gateway_policy_service = GatewayPolicyService(resolver=secrets_resolver)
+# The wallet's side of the gateway seam, bound only in EE with the wallet on. Otherwise the
+# policy service keeps its null ports: every call admitted, no usage handed off.
+gateway_spend_admission = None
+gateway_usage_sink = None
+if ee and is_ee() and env.wallets.enabled:
+    from ee.src.core.measurements.sink import MeasurementUsageSink
+    from ee.src.core.wallets.admission import WalletSpendAdmission
+    from ee.src.dbs.redis.wallets.streams import RedisMeasurementPublisher
+
+    gateway_spend_admission = WalletSpendAdmission(wallet=ee.wallets_service)
+    gateway_usage_sink = MeasurementUsageSink(
+        publisher=RedisMeasurementPublisher(redis_client=_streams_engine.get_redis())
+    )
+
+gateway_policy_service = GatewayPolicyService(
+    resolver=secrets_resolver,
+    spend_admission=gateway_spend_admission,
+    usage_sink=gateway_usage_sink,
+)
 
 llm_gateway_service = LLMGatewayService(
     llm_endpoints_dao=llm_endpoints_dao,

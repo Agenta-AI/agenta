@@ -9,6 +9,10 @@ work. It owns five things and nothing else:
 
 - **The fixture pricing.** `ee/src/core/measurements/pricing.py` and every reference to
   `calculate_fake_charge` go, once `WP-2-02`'s rate card is in place.
+  **Done (2026-09-25, `wallets/wave-2`)**, with the fake LLM producer; the fake MCP producer
+  moved to `api/ee/tests/pytest/utils/measurements/mcp_producer.py`. `Counter.CREDITS_CONSUMED`
+  stays: it still counts requests against platform keys, and Wave 2 did not make the gateway
+  the only mechanism (D24).
 - **The fake producers.** The fake LLM producer is superseded by the real one and goes. The
   fake MCP producer is not: Wave 2 built no MCP producer, so it remains the only thing that
   emits an MCP measurement and the only thing the MCP charge can be tested against. It moves

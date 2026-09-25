@@ -296,10 +296,14 @@ class _SseStream(httpx.AsyncByteStream):
 class _PublishingPolicy(_MockPolicy):
     """A policy whose `record` suspends, as the real one does when it publishes."""
 
-    async def record(self, *, scope, target, decision, outcome):
+    async def record(self, *, scope, target, decision, outcome, run_id=None):
         await asyncio.sleep(0)
         await super().record(
-            scope=scope, target=target, decision=decision, outcome=outcome
+            scope=scope,
+            target=target,
+            decision=decision,
+            outcome=outcome,
+            run_id=run_id,
         )
 
 

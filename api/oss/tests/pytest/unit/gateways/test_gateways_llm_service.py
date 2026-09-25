@@ -46,6 +46,7 @@ from oss.src.core.gateways.policy.dtos import (
     PolicyDecision,
     ResolvedSecret,
     SecretOrigin,
+    SpendAdmission,
 )
 from oss.src.core.gateways.policy.interfaces import (
     NamedProviderConnection,
@@ -170,10 +171,13 @@ class _MockResolver(SecretsResolverInterface):
 
 
 class _MockPolicy:
-    def __init__(self, *, allowed: bool = True):
+    def __init__(self, *, allowed: bool = True, admitted: bool = True):
         self.allowed = allowed
+        self.admitted = admitted
         self.authorize_calls: List[tuple] = []
+        self.admit_calls: List[tuple] = []
         self.record_calls: List[tuple] = []
+        self.record_run_ids: List[Optional[str]] = []
 
     async def authorize(self, *, scope, permission, target):
         self.authorize_calls.append((scope, permission, target))
@@ -183,8 +187,16 @@ class _MockPolicy:
             reason=None if self.allowed else "permission_denied",
         )
 
-    async def record(self, *, scope, target, decision, outcome):
+    async def admit(self, *, scope, target):
+        self.admit_calls.append((scope, target))
+        return SpendAdmission(
+            allowed=self.admitted,
+            reason=None if self.admitted else "entitlement_denied",
+        )
+
+    async def record(self, *, scope, target, decision, outcome, run_id=None):
         self.record_calls.append((scope, target, decision, outcome))
+        self.record_run_ids.append(run_id)
 
 
 class _MockAdapter(LLMUpstreamInterface):

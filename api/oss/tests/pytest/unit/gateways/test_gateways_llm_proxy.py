@@ -115,7 +115,7 @@ class _MockLlmGatewayService:
         self.list_models_calls: List[Dict[str, Any]] = []
 
     async def relay_chat_completion(
-        self, *, scope, namespace, name, body, headers, protocol=None
+        self, *, scope, namespace, name, body, headers, protocol=None, run_id=None
     ) -> LLMRelayResult:
         self.relay_calls.append(
             {
@@ -125,6 +125,7 @@ class _MockLlmGatewayService:
                 "body": body,
                 "headers": headers,
                 "protocol": protocol,
+                "run_id": run_id,
             }
         )
         if self._relay_exception is not None:
@@ -196,6 +197,27 @@ async def test_standard_route_passes_standard_namespace_and_provider_as_name():
 
     assert service.relay_calls[0]["namespace"] == GatewayEndpointNamespace.STANDARD
     assert service.relay_calls[0]["name"] == "openai"
+
+
+@pytest.mark.asyncio
+async def test_the_run_a_caller_presents_reaches_the_service():
+    """The run claim is read off request state, never off the tenant scope, and it is
+    what ties a measured call back to its workflow run. A caller on no run passes None."""
+    on_a_run = _request(body=_body())
+    on_a_run.state.gateway_run_id = "run-42"
+    run_ids = []
+
+    for request in (on_a_run, _request(body=_body())):
+        service = _MockLlmGatewayService(
+            relay_result=_relay_result(status_code=200, chunks=[b"{}"])
+        )
+        with _auth_scope():
+            await LLMGatewayProxy(llm_gateway_service=service).chat_completions_builtin(
+                request, "mock"
+            )
+        run_ids.append(service.relay_calls[0]["run_id"])
+
+    assert run_ids == ["run-42", None]
 
 
 @pytest.mark.asyncio

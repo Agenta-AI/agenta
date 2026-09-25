@@ -15,8 +15,8 @@ async def test_replaying_the_same_measurement_id_does_not_duplicate_the_row():
     dao = InMemoryMeasurementsDAO()
     command = build_measurement_command()
 
-    first = await dao.insert_measurement(command=command)
-    second = await dao.insert_measurement(command=command)
+    first = await dao.insert_measurement(command=command, charge=None)
+    second = await dao.insert_measurement(command=command, charge=None)
 
     assert first.created is True
     assert second.created is False
@@ -34,7 +34,7 @@ async def test_one_insert_call_carries_the_parent_and_all_of_its_values():
     command = build_measurement_command()
     assert len(command.components) >= 1
 
-    persisted = await dao.insert_measurement(command=command)
+    persisted = await dao.insert_measurement(command=command, charge=None)
 
     assert len(dao.insert_calls) == 1
     assert dao.insert_calls[0] is command
@@ -47,8 +47,8 @@ async def test_replay_does_not_re_derive_component_values():
     dao = InMemoryMeasurementsDAO()
     command = build_measurement_command()
 
-    persisted = await dao.insert_measurement(command=command)
-    await dao.insert_measurement(command=command)
+    persisted = await dao.insert_measurement(command=command, charge=None)
+    await dao.insert_measurement(command=command, charge=None)
 
     # Still exactly one value row per component key — no duplicate rows from
     # the second, redelivered attempt.
@@ -59,7 +59,7 @@ async def test_replay_does_not_re_derive_component_values():
 async def test_a_conflicting_replay_raises_and_leaves_the_stored_measurement_alone():
     dao = InMemoryMeasurementsDAO()
     command = build_measurement_command()
-    persisted = await dao.insert_measurement(command=command)
+    persisted = await dao.insert_measurement(command=command, charge=None)
     conflicting = command.model_copy(
         update={
             "components": [
@@ -70,7 +70,7 @@ async def test_a_conflicting_replay_raises_and_leaves_the_stored_measurement_alo
     )
 
     with pytest.raises(MeasurementConflictError):
-        await dao.insert_measurement(command=conflicting)
+        await dao.insert_measurement(command=conflicting, charge=None)
 
     assert set(dao.values[persisted.id]) == {c.key for c in command.components}
 
@@ -87,9 +87,11 @@ async def test_component_order_does_not_make_a_replay_conflict():
             ]
         }
     )
-    await dao.insert_measurement(command=command)
+    await dao.insert_measurement(command=command, charge=None)
 
     reordered = command.model_copy(
         update={"components": list(reversed(command.components))}
     )
-    assert (await dao.insert_measurement(command=reordered)).created is False
+    assert (
+        await dao.insert_measurement(command=reordered, charge=None)
+    ).created is False

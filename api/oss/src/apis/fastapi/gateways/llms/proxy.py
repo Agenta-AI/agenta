@@ -38,6 +38,7 @@ from oss.src.core.gateways.policy.types import (
     EntitlementDeniedError,
     PolicyDeniedError,
 )
+from oss.src.core.gateways.run_claims import gateway_run_id
 from oss.src.utils.context import get_auth_scope
 from oss.src.utils.env import env
 
@@ -412,6 +413,7 @@ class LLMGatewayProxy:
                 body=raw_body,
                 headers=caller_headers,
                 protocol=protocol,
+                run_id=gateway_run_id(request),
             )
 
             if context.stream:

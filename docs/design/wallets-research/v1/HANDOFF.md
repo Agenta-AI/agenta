@@ -163,18 +163,23 @@ credit, and it alone is enough to catch a broken locking strategy.
 
 ## Next step
 
+**Historical: the paragraphs below described the plan before Wave 2 forked.** Wave 2 is now
+implemented on `wallets/wave-2`, its preflight review is done (`open-designs.md` items 16-19
+are Decided), and the current status — what shipped, what is deferred, and the launch
+blockers for a real `builtin` provider — is [../v2/wave-2-status.md](../v2/wave-2-status.md).
+Read that file for where things stand; the plan below is kept for context only.
+
 **Wave 2 is written.** [wave-2.md](wave-2.md) has the checkpoint boundary, the fixed inputs,
 the invariants and the completion evidence; the graph is in [wps-2.md](wps-2.md),
 [ims-2.md](ims-2.md) and [cus-2.md](cus-2.md), with a specification and a task list per node
-under [nodes/](nodes/). Nothing in it is implemented.
+under [nodes/](nodes/).
 
-What has not happened is the preflight review `waves.md` requires before any worktree forks.
-Wave 1's is in [preflight.md](preflight.md) and is the shape this one must take: read the graph
+The preflight review `waves.md` requires before any worktree forks has since happened.
+Wave 1's is in [preflight.md](preflight.md) and was the shape this one took: read the graph
 and every specification cold, and write down every blocker and every gap with its disposition.
-Four questions are the ones most likely to come back as blockers, and all four are already in
-`open-designs.md` as items 16 to 19: who owns the rate card, what the admission ceiling
-enforces, what unit a provider-declared cost is stored in, and what keeps the card in step with
-the model catalogue.
+The four questions that came back as blockers are recorded in `open-designs.md` as items 16 to
+19: who owns the rate card, what the admission ceiling enforces, what unit a provider-declared
+cost is stored in, and what keeps the card in step with the model catalogue.
 
 One fact about scope, before anyone estimates this wave's value. Charging follows the
 namespace, per the gateway's D30: only `builtin` is a target whose account we own, and
