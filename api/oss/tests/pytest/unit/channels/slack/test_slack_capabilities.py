@@ -6,7 +6,7 @@ EXPECTED = {
     "channel": "slack",
     "protocol": {"versions": ["0.1.0"]},
     "addressing": {
-        "sigils": {"agent": "~", "command": "!"},
+        "sigils": {"agent": None, "command": "!"},
         "mention": True,
         "commands": {"native": True, "in_conversation": False},
     },

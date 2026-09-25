@@ -4,11 +4,6 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from oss.src.core.channels.dtos import ChannelSpaceKind
 
-# Slack rewrites @mention into <@U…> before delivery, so the adapter parses
-# ~agent/!command from otherwise-untouched text, never @.
-_AGENT_SIGIL_RE = re.compile(r"(?<!\S)~(?P<agent>[\w.-]+)")
-_COMMAND_SIGIL_RE = re.compile(r"(?<!\S)!(?P<command>[\w-]+)(?::(?P<arg>\S+))?")
-
 MAX_CHARS = 4000
 BUTTONS_MAX = 5
 
@@ -21,19 +16,6 @@ def classify_space_kind(event: Dict[str, Any]) -> ChannelSpaceKind:
     if event.get("channel_type") == "mpim" or event.get("is_mpim"):
         return ChannelSpaceKind.GROUP
     return ChannelSpaceKind.TOPIC
-
-
-def extract_sigils(text: str) -> Tuple[Optional[str], Optional[str], Optional[str]]:
-    """(~agent, !command, arg) — independent, either or both may be absent."""
-
-    agent_match = _AGENT_SIGIL_RE.search(text)
-    command_match = _COMMAND_SIGIL_RE.search(text)
-
-    agent = agent_match.group("agent") if agent_match else None
-    command = command_match.group("command") if command_match else None
-    arg = command_match.group("arg") if command_match else None
-
-    return agent, command, arg
 
 
 def mentions_user(text: str, user_id: Optional[str]) -> bool:

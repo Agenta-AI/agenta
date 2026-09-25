@@ -17,7 +17,6 @@ from oss.src.core.channels.adapters.slack.mapping import (
     MAX_CHARS,
     build_locator,
     classify_space_kind,
-    extract_sigils,
     is_bot_authored,
     mentions_user,
     parse_block_action,
@@ -367,8 +366,7 @@ class SlackAdapter(ChannelAdapterInterface):
             return None
 
         text = event.get("text") or ""
-        agent, command, _arg = extract_sigils(text)
-        addressed = bool(agent or mentions_user(text, bot_user_id))
+        addressed = mentions_user(text, bot_user_id)
         sender = await self._sender(connection, event)
         event_ts = event.get("ts") or ""
         # A top-level message carries no thread_ts; per Slack's own threading
@@ -402,9 +400,8 @@ class SlackAdapter(ChannelAdapterInterface):
                 sent_at=slack_time(event_ts),
                 message_ref=event_ts or None,
             ),
-            # Addressed when the message names an agent by sigil (~agent) or
-            # natively @-mentions the bot (<@bot_user_id>, the form Slack
-            # delivers a real @Agenta as). A command alone is not a mention:
+            # Addressed when the message natively @-mentions the bot
+            # (<@bot_user_id>, the form Slack delivers a real @Agenta as). A command alone is not a mention:
             # the COMMAND trigger admits it, or not, on its own; folding it in
             # here let `!new` through a mention-only policy. Read from the raw
             # text, before the mention is rendered as a handle.
