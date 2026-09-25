@@ -31,6 +31,8 @@ down_revision: Union[str, None] = "ee0000000003"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
+_AWARD_KEY = "(data -> 'references' ->> 'award_idempotency_key')"
+
 
 def upgrade() -> None:
     op.create_table(
@@ -63,6 +65,16 @@ def upgrade() -> None:
         "idx_wallet_credits_org_priority_end_id",
         "wallet_credits",
         ["organization_id", "priority", "end_time", "id"],
+    )
+    # Final replay guard for grant awards, as `uq_wallet_debits_org_debit_key` is for
+    # debits: the general-row lock serializes awards, and this makes a second credit for
+    # the same award key impossible even for a writer that skips that lock.
+    op.create_index(
+        "uq_wallet_credits_org_award_key",
+        "wallet_credits",
+        ["organization_id", sa.text(_AWARD_KEY)],
+        unique=True,
+        postgresql_where=sa.text(f"{_AWARD_KEY} IS NOT NULL"),
     )
 
     op.create_table(
@@ -169,5 +181,6 @@ def downgrade() -> None:
     op.drop_index("idx_wallet_debits_org_idempotency", table_name="wallet_debits")
     op.drop_table("wallet_debits")
 
+    op.drop_index("uq_wallet_credits_org_award_key", table_name="wallet_credits")
     op.drop_index("idx_wallet_credits_org_priority_end_id", table_name="wallet_credits")
     op.drop_table("wallet_credits")
