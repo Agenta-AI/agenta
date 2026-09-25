@@ -172,6 +172,8 @@ class ChannelToolsAvailabilityRequest(_ChannelToolRequest):
 
 class ChannelToolsAvailabilityResponse(BaseModel):
     available: bool
+    # the channel tool ops this agent's runs get, following its bots' settings
+    tools: List[str] = Field(default_factory=list)
 
 
 class ChannelDestinationsQueryRequest(_ChannelToolRequest):

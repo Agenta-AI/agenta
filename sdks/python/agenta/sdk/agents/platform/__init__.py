@@ -24,6 +24,7 @@ from .secrets import (
     resolve_named_secrets,
     resolve_provider_keys,
 )
+from .channel_tools import read_channel_tools
 from .session_context import (
     read_session_context,
     resolve_session_context,
@@ -33,6 +34,7 @@ from .session_context import (
 from .workflow import AgentaWorkflowToolResolver
 
 __all__ = [
+    "read_channel_tools",
     "CHANNEL_TOOL_OPS",
     "PLATFORM_OPS",
     "AgentaGatewayToolResolver",

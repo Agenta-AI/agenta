@@ -75,6 +75,11 @@ _REVISION_KEYS = ("application_revision", "workflow_revision")
 
 _CHANNEL_KINDS = (ChannelSpaceKind.GROUP, ChannelSpaceKind.TOPIC)
 
+LIST_TOOL = "list_channel_destinations"
+SEND_TOOL = "send_channel_message"
+READ_TOOL = "read_channel_messages"
+SEARCH_TOOL = "search_channel_messages"
+
 LIST_DEFAULT_LIMIT = 50
 LIST_MAX_LIMIT = 100
 
@@ -834,17 +839,36 @@ class ChannelToolsService:
             if str(space.data.external_locator.get("chat_id")) in bound
         ]
 
-    async def is_available(self, *, project_id: UUID, artifact_id: UUID) -> bool:
-        """The condition the Agenta tools kit reads: is this agent connected
-        to an active, verified bot? An ambiguous binding still counts, so
-        the calls surface the configuration error instead of hiding it."""
+    async def available_tools(
+        self, *, project_id: UUID, artifact_id: UUID
+    ) -> List[str]:
+        """The channel tools this agent's runs get, following its bots'
+        settings: the list while any bot is connected, send while any bot may
+        post, read and search while any bot may read at least one channel. An
+        ambiguous binding still offers the list, so the calls surface the
+        configuration error instead of hiding it."""
 
         try:
-            return bool(
-                await self.resolve_bots(project_id=project_id, artifact_id=artifact_id)
+            bots = await self.resolve_bots(
+                project_id=project_id, artifact_id=artifact_id
             )
         except ChannelToolsRefused:
-            return True
+            return [LIST_TOOL]
+        if not bots:
+            return []
+        tools = [LIST_TOOL]
+        if any(b.agent.data.tools.can_post_outside_conversation for b in bots):
+            tools.append(SEND_TOOL)
+        if any(b.agent.data.tools.readable_space_keys != [] for b in bots):
+            tools.extend([READ_TOOL, SEARCH_TOOL])
+        return tools
+
+    async def is_available(self, *, project_id: UUID, artifact_id: UUID) -> bool:
+        """Whether this agent is connected to an active, verified bot."""
+
+        return bool(
+            await self.available_tools(project_id=project_id, artifact_id=artifact_id)
+        )
 
     async def _references_artifact(
         self,

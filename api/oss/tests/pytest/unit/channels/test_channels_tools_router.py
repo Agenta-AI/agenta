@@ -60,7 +60,7 @@ def service():
             )
         ]
     )
-    service.is_available.return_value = True
+    service.available_tools.return_value = ["list_channel_destinations"]
     service.send_message.return_value = ChannelSendResult(
         delivery_id=str(uuid4()), state="failed", reason="not_in_channel"
     )
@@ -97,7 +97,7 @@ def test_tools_routes_require_run_channels(service, path, body):
 
     assert response.status_code == 403
     service.list_destinations.assert_not_called()
-    service.is_available.assert_not_called()
+    service.available_tools.assert_not_called()
 
 
 @pytest.mark.parametrize("path,body", ROUTES)
@@ -159,7 +159,10 @@ def test_availability_answers_the_kit(service):
     finally:
         patcher.stop()
 
-    assert response.json() == {"available": True}
+    assert response.json() == {
+        "available": True,
+        "tools": ["list_channel_destinations"],
+    }
 
 
 @pytest.mark.parametrize(

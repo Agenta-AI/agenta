@@ -181,8 +181,14 @@ class TestAvailabilityAndList:
             )
         )
 
-        assert yes == {"available": True}
-        assert no == {"available": False}
+        assert yes["available"] is True
+        assert yes["tools"] == [
+            "list_channel_destinations",
+            "send_channel_message",
+            "read_channel_messages",
+            "search_channel_messages",
+        ]
+        assert no == {"available": False, "tools": []}
 
     def test_lists_the_bots_group_with_opaque_ids(self, owner, world):
         destination = _destination(owner, world)

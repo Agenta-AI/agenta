@@ -118,15 +118,15 @@ class ChannelToolsRouter:
         *,
         body: ChannelToolsAvailabilityRequest,
     ) -> ChannelToolsAvailabilityResponse:
-        """Whether this agent is connected to an active, verified bot: the
-        condition the Agenta tools kit reads before adding the channel tools
-        to a run."""
+        """Whether this agent is connected to an active, verified bot, and
+        which channel tools its runs get under the bots' settings. The agent
+        runtime reads it to add the tools to every run."""
 
         project_id = await self._check(request)
-        available = await self.tools_service.is_available(
+        tools = await self.tools_service.available_tools(
             project_id=project_id, artifact_id=body.artifact_id
         )
-        return ChannelToolsAvailabilityResponse(available=available)
+        return ChannelToolsAvailabilityResponse(available=bool(tools), tools=tools)
 
     @intercept_exceptions()
     @handle_channel_tools_exceptions()
