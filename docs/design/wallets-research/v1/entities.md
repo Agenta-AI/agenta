@@ -500,10 +500,11 @@ not invent a second serialization protocol. It needs two dedicated streams becau
 worker consumes the first and produces the second; the generic shared consumer deletes successfully
 processed stream entries and therefore cannot safely fan out one entry to both workers.
 
-Like the existing `streams:spans`, `streams:events`, and `streams:records` producers, both new streams
-use bounded approximate `MAXLEN` trimming and successful consumers ACK plus delete messages. Their
-configured maximum lengths may differ by workload, but the transport/retention mechanism is the same
-for all streams.
+Successful consumers ACK plus delete messages, so a stream's length is its unprocessed backlog.
+Unlike the existing `streams:spans`, `streams:events`, and `streams:records` producers, the two
+wallet streams are not trimmed with `MAXLEN`, since a trim could only delete unprocessed charges.
+The publishers refuse a publish past a backlog limit instead, and each stream has a dead-letter
+stream, `<stream>:dead`, for entries the pipeline cannot accept (open-designs item 20).
 
 #### `streams:measurements`
 
@@ -556,13 +557,13 @@ component cost. Their metric-specific unit is encoded by the stable key. `resour
 
 The measurement worker validates the envelope, inserts exactly one immutable `measurements` row and its
 `measurement_values` under the gateway-supplied `measurement_id`, calculates the final charge, and
-publishes the second message. It ACKs the measurement message only after those actions complete, with
-one deliberate exception: a chargeable measurement whose `project_id` resolves to no organization is
-persisted and then ACKed with no debit published. The worker cannot bill what it cannot attribute, and
-redelivering a project that will never resolve stalls the stream behind it, so the charge is dropped
-and logged—the same family of terminal drops as open-designs item 20. A malformed/unsupported version
-is logged and terminally ACKed—there is no way to safely price an envelope the worker cannot
-interpret.
+publishes the second message. It ACKs the measurement message only after those actions complete.
+Envelope validation rejects repeated component keys. Entries the worker can never accept go to
+`streams:measurements:dead` with their reason (open-designs item 20): a malformed or unsupported
+version, which there is no way to safely price; a chargeable measurement whose `project_id` resolves
+to no organization, which is persisted but cannot be billed; and a `measurement_id` seen again with
+different content, which leaves the stored measurement unchanged and is not priced. An identical
+replay is a no-op, detected by the content fingerprint in `measurements.data.fingerprint`.
 
 #### `streams:debits`
 
@@ -686,7 +687,8 @@ row for pre-existing organizations and is the current `core_ee` head. It adds no
 column, so nothing in this document's schema changes with it.
 
 The delivered streams are `streams:measurements` (consumer group `worker-measurements`) and
-`streams:debits` (consumer group `worker-debits`), both `MAXLEN 100_000` (approximate trimming),
+`streams:debits` (consumer group `worker-debits`), both with a 100,000-entry backlog limit that
+refuses new publishes rather than trimming, and each with a `<stream>:dead` dead-letter stream,
 registered in `api/entrypoints/worker_streams.py` and gated into `ALL_STREAMS` only when `is_ee()`
 is true and `AGENTA_WALLETS_ENABLED` is on (see `wave-1.md`, Feature flag).
 The debit idempotency key the measurement worker mints is `"measurement:{measurement_id}"`. Wave 1

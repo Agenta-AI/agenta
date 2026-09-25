@@ -76,7 +76,7 @@ its configuration interface belongs in the wallet-settlement schema decision abo
 | 17 | Open | What the admission ceiling enforces, and on what evidence. |
 | 18 | Open | The unit and rounding of a provider-declared cost. |
 | 19 | Open | How the rate card stays in step with the model catalogue. |
-| 20 | Open | Where a stream entry this pipeline cannot accept goes, and what the stream cap protects. |
+| 20 | Decided | Where a stream entry this pipeline cannot accept goes, and what the stream cap protects. |
 | 21 | Open | Whether expired credit value leaves the general balance, and what admission reads. |
 | 22 | Open | What identifies one plan change, so two in a billing period are not treated as one. |
 
@@ -1668,7 +1668,7 @@ _Unresolved._
 
 ## 20. Where a stream entry this pipeline cannot accept goes
 
-**Status:** Open
+**Status:** Decided (a dead-letter stream per source stream; a backlog limit that refuses new entries instead of trimming). Implemented on this branch.
 
 ### Context
 
@@ -1752,7 +1752,71 @@ happens to be larger than the backlogs seen so far.
 
 ### Decision
 
-_Unresolved._
+**1. Unacceptable entries go to a dead-letter stream, `<stream>:dead`.** Chosen over the log
+alone (loses the envelope) and a Postgres table (a second store on the failure path, and the
+debit worker's failure is often that very store being down). The mechanism is an opt-in on the
+shared consumer (`dead_letter=True` on `StreamConsumer`, `api/oss/src/tasks/asyncio/shared/consumer.py`),
+so the other streams keep their behaviour. The wallet and measurement workers opt in.
+
+- A dead letter is the original entry's fields unchanged, plus `dead_letter_reason`,
+  `dead_letter_source_id` (the source stream id) and `dead_letter_description` (for debits
+  `organization_id:idempotency_key`, for measurements `measurement_id`). Moving it is one
+  MULTI/EXEC: `XADD` to the dead stream, `XACK` and `XDEL` on the source. An entry is never
+  acknowledged without its dead letter; if the move fails, the entry stays pending.
+- What goes there:
+  - at once, a terminal entry: a malformed or unsupported-version envelope, a debit whose
+    general balance row is neither present nor insertable, a chargeable measurement whose
+    project resolves to no organization (the measurement itself is persisted), and a
+    measurement id replayed with different content (see below);
+  - after `max_deliveries`, **any** entry that keeps failing, readable or not. This replaces
+    the delivered rule that a readable entry is retried forever. That rule existed so a
+    database outage could not drop money; a dead letter is kept, not dropped, so the rule is no
+    longer needed, and without it a deterministic write failure can no longer pin the pending
+    list. The wallet workers raise `max_deliveries` from 5 to 20, about ten minutes of retries
+    at the 30-second idle window, so a short outage still heals without an operator.
+- The dead stream is never trimmed. Its length is the number of charges waiting for a person.
+- Inspect: `XLEN streams:debits:dead`, `XRANGE streams:debits:dead - + COUNT 20` (the metadata
+  fields are plain text), or
+  `python -m oss.src.tasks.asyncio.shared.dead_letters list streams:debits`.
+- Replay: `python -m oss.src.tasks.asyncio.shared.dead_letters replay streams:debits [ID ...]`
+  moves each dead letter (all, or the given ids) back onto the source stream as a new entry. Replay
+  is always safe to run on everything: settlement is idempotent on the posting key, and the
+  measurement insert on `measurement_id`. An entry that is still unacceptable returns to the dead
+  stream with its reason.
+- Alerting is by log: every move logs an error with the reason and the descriptions. A metric or
+  alarm on the dead stream's length is not built; the log line is enough until someone runs this
+  in production at volume.
+
+**2. The cap refuses new entries instead of trimming old ones.** The consumers `XDEL` each entry
+they finish, so a stream's length is exactly its unprocessed backlog, and a `MAXLEN` trim, by
+length or by `MINID` age, can only ever delete unprocessed work. Neither option in "Decision
+needed" protects it. The publishers (`api/ee/src/core/wallets/streaming.py`) instead check
+`XLEN` against a limit (100,000, unchanged) and refuse the publish above it, logging an error and
+returning `False`:
+
+- a refused debit publish leaves its measurement pending, so the measurement worker retries it
+  and, past `max_deliveries`, dead-letters it; nothing is lost;
+- a refused measurement publish is the already-documented best-effort edge ("failed initial
+  publication: no durable recovery"), now loud at the point of loss, and the only place loss can
+  happen.
+
+The check and the `XADD` are two commands, so concurrent publishers can overshoot the limit by a
+few entries. That is harmless for a limit whose only job is to stop unbounded growth.
+
+**3. The reclaim pass walks the whole pending list.** It still reads 50 entries per page, but a
+full page now carries a cursor into the next pass, which runs at once instead of a window later.
+Entries that keep failing at the head no longer hide the rest (spec review P2). With point 1 they
+also leave after `max_deliveries`, so the head cannot stay blocked either.
+
+**Conflicting measurement replay (Codex review #5).** A stored measurement is immutable. The
+`measurements.data.fingerprint` key holds a SHA-256 of the envelope's content, without
+`created_at` and `version` and with components sorted by key. On a repeated `measurement_id`, the
+DAO compares fingerprints. If they are equal, it writes nothing and the worker prices the payload,
+which is identical to the stored fact. If they differ, it writes nothing and raises
+`MeasurementConflictError`, and the worker dead-letters the entry without pricing it. Component
+rows are inserted only with a newly inserted parent, as a plain insert, so a conflict can no
+longer be silently skipped. The envelope also rejects repeated component keys (Codex review #3),
+so the stored values and the priced components are always the same set.
 
 ## 21. Whether expired credit value leaves the general balance
 
