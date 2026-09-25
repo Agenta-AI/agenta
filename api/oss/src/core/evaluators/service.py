@@ -610,6 +610,8 @@ class EvaluatorsService:
         evaluator_revision_ref: Optional[Reference] = None,
         #
         resolve: bool = False,
+        #
+        include_archived: Optional[bool] = True,
     ) -> tuple[
         Optional[EvaluatorRevision],
         Optional[ResolutionInfo],
@@ -674,6 +676,8 @@ class EvaluatorsService:
                 evaluator_ref=evaluator_ref,
                 evaluator_variant_ref=evaluator_variant_ref,
                 evaluator_revision_ref=evaluator_revision_ref,
+                #
+                include_archived=include_archived,
             )
             evaluator_revision, resolution_info = result if result else (None, None)
         else:
@@ -683,6 +687,8 @@ class EvaluatorsService:
                 evaluator_ref=evaluator_ref,
                 evaluator_variant_ref=evaluator_variant_ref,
                 evaluator_revision_ref=evaluator_revision_ref,
+                #
+                include_archived=include_archived,
             )
             resolution_info = None
 

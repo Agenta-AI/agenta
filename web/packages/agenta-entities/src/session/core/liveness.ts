@@ -97,6 +97,18 @@ const RUNNING_POLL_MS = 15_000
 /** Slow cadence: nothing runs, but a warm session can be resumed from another device. */
 const RESUMABLE_POLL_MS = 60_000
 
+/** Poll cadence after a failed read, so a timeout never ends the poll. */
+const LIVENESS_ERROR_POLL_MS = 5_000
+
+/** A liveness query's refetch interval: the error cadence after a failed read, else `livenessPollInterval`. */
+export function livenessRefetchInterval(query: {
+    state: {status: string; data?: readonly (SessionStream | null | undefined)[] | null}
+}): LivenessPollInterval {
+    return query.state.status === "error"
+        ? LIVENESS_ERROR_POLL_MS
+        : livenessPollInterval(query.state.data)
+}
+
 /** Poll `is_running` quickly; `is_alive` alone means warm and uses the slow cadence. */
 export function livenessPollInterval(
     rows: readonly (SessionStream | null | undefined)[] | null | undefined,

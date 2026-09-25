@@ -123,6 +123,7 @@ describe("settings sidebar scopes", () => {
             "secrets",
             "llms",
             "tools",
+            "channels",
             "webhooks",
             "mcpEndpoints",
         ])

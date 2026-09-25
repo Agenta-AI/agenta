@@ -32,9 +32,8 @@ import {
 } from "@agenta/chat/components"
 import {
     buildTurnRenderItems,
+    deriveTurnStatus,
     executedToolIdentities,
-    isReadableMcpServerNoticePart,
-    isToolPart,
     toolPartsSignature,
 } from "@agenta/chat/model"
 import {
@@ -306,41 +305,16 @@ const AgentMessage = ({
         title?: string
     }[]
 
-    // "Answer" = anything the user is meant to read as a reply (text / tool / file / source, and
-    // the notice for a server that did not join). Reasoning alone is NOT an answer — a turn that
-    // only thought hasn't responded.
-    const hasAnswer = message.parts.some(
-        (p) =>
-            (p.type === "text" && (p as {text?: string}).text) ||
-            isToolPart(p.type) ||
-            p.type === "file" ||
-            p.type === "source-url" ||
-            isReadableMcpServerNoticePart(p),
-    )
-    const hasReasoning = message.parts.some(
-        (p) => p.type === "reasoning" && (p as {text?: string}).text,
-    )
-    const hasContent = hasAnswer || hasReasoning
-
-    // A settled assistant turn (NOT the one being generated) with no answer — only a thought,
-    // or nothing — means the model ended without responding. Surface it so the bubble doesn't
-    // read as frozen/broken. Keyed on `isStreaming`, not the conversation-level `busy`, so
-    // earlier answer-less turns don't all light up while a later turn streams.
-    const noResponse = !isUser && !isStreaming && !hasAnswer
-
-    // A trace-leaf error means a model/tool call failed. When the turn still produced an answer,
-    // the agent recovered from it — that failure belongs inline in ToolActivity ("· N failed"),
-    // NOT as a run failure. So trust `traceError` only on an answer-less turn (the swallowed
-    // quota/model error it was written for). A stream death (`runError`) is a real run failure
-    // even with partial output, so it always counts.
-    const errorText = noResponse ? traceError || runError : runError
-    // Surface a settled-turn error even when the model emitted partial output before the stream
-    // died. (`isError` stays answer-less-only so the *whole* bubble only turns red when there's
-    // nothing else to show.)
-    const showError = !isStreaming && !!errorText
-    // A settled no-answer turn whose trace recorded an error → render the bubble itself as a
-    // failure (red), with the message inline — not a nested alert box.
-    const isError = noResponse && showError
+    // The answer / no-response / error-surfacing rules, shared with every other chat surface.
+    // `errorText` is sanitized there, whichever source it came from; the failure class decides
+    // whether a trace's text may take the run error's place.
+    const {hasContent, noResponse, errorText, showError, isError} = deriveTurnStatus(message, {
+        isUser,
+        isStreaming,
+        traceError,
+        runError,
+        errorCode: runErrorCode,
+    })
 
     // Copy the answer; append the error on a failed turn (and copy it alone on an answer-less
     // failure) so the button isn't a no-op when the agent only returned an error.

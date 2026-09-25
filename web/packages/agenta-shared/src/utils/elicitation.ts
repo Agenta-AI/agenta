@@ -209,7 +209,10 @@ export function parseElicitationPayload(input: unknown): ElicitationParseResult 
         }
         const title = typeof prop.title === "string" ? prop.title : ""
         if (SECRET_FIELD_PATTERN.test(name) || SECRET_FIELD_PATTERN.test(title))
-            return {ok: false, reason: `property "${name}" is secret-shaped — use a connect flow`}
+            return {
+                ok: false,
+                reason: `property "${name}" is secret-shaped — do not retry the form; use request_secret or request_connection`,
+            }
     }
 
     const required = requestedSchema.required

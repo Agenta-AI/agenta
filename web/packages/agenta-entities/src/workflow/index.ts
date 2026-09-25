@@ -92,6 +92,9 @@ export {
 
 export {
     workflowAgentTemplateOverlayAtomFamily,
+    workflowBuildKitUiStateAtomFamily,
+    workflowBuildKitScopeAtomFamily,
+    migrateBuildKitStateAtom,
     workflowBuildKitEnabledAtomFamily,
     workflowBuildKitDisabledOpsAtomFamily,
     type BuildKitUiState,
@@ -541,3 +544,5 @@ export {
     commitAgentCredentialsAtom,
     AGENT_CREDENTIALS_CONFLICT_MESSAGE,
 } from "./state/agentCredentials"
+
+export {buildKitDefaultPermission, resolveBuildKitPermissions} from "./buildKitPolicy"

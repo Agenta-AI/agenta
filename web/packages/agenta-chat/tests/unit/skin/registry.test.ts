@@ -350,3 +350,20 @@ describe("referenceToolSkin", () => {
         expect(resolveToolDisplay("search").sourceKey).toBeUndefined()
     })
 })
+
+describe("channel tools read as Agenta's own platform tools", () => {
+    const CHANNEL_OPS = [
+        "list_channel_destinations",
+        "send_channel_message",
+        "read_channel_messages",
+        "search_channel_messages",
+    ]
+
+    it.each(CHANNEL_OPS)("%s carries no app chip and no guessed app", (op) => {
+        const display = resolveToolDisplay(op)
+        expect(display.kind).toBe("platform")
+        expect(display.source).toBeUndefined()
+        expect(display.sourceKey).toBeUndefined()
+        expect(display.icon).toBe("platform")
+    })
+})

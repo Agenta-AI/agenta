@@ -1,5 +1,11 @@
 [
     {
+        "id": "changelog-2026-09-07-session-control-and-queued-work",
+        "title": "Edit queued instructions",
+        "description": "Add follow-up instructions during a run and correct a queued message without losing its place or attachments.",
+        "link": "https://agenta.ai/docs/changelog/session-control-and-queued-work"
+    },
+    {
         "id": "changelog-2026-09-11-chatgpt-subscription-for-agents",
         "title": "Connect ChatGPT",
         "description": "Sign in to ChatGPT from AI providers and choose the subscription when selecting an agent's model.",

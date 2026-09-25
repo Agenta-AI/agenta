@@ -517,20 +517,8 @@ describe("buildPersistingEmitter API contract", () => {
   });
 });
 
-describe("durable records (AGENTA_RECORDS_DURABLE)", () => {
-  it('legacy (explicitly "false"): a permanent failure is dropped and NOT counted', async () => {
-    vi.stubEnv("AGENTA_RECORDS_DURABLE", "false");
-    fetchFailCount = 99; // never succeeds
-    const { emit, flush } = buildPersistingEmitter("sess-legacy", () => "t");
-    emit({ type: "message", text: "x" });
-    await flush();
-
-    assert.equal(postedBodies.length, 0); // dropped
-    assert.equal(takePersistFailures("sess-legacy"), 0); // counting is off
-  });
-
-  it("durable: a permanent failure is dropped AND counted for the session", async () => {
-    vi.stubEnv("AGENTA_RECORDS_DURABLE", "true");
+describe("durable records", () => {
+  it("a permanent failure is dropped AND counted for the session", async () => {
     vi.stubEnv("AGENTA_RECORDS_INGEST_MAX_RETRIES", "2"); // keep the test fast
     fetchFailCount = 99;
     const { emit } = buildPersistingEmitter("sess-durable", () => "t");
@@ -545,31 +533,7 @@ describe("durable records (AGENTA_RECORDS_DURABLE)", () => {
     assert.equal(takePersistFailures("sess-durable"), 0);
   });
 
-  it("durable is the default: an absent flag counts the drop", async () => {
-    vi.stubEnv("AGENTA_RECORDS_INGEST_MAX_RETRIES", "2"); // keep the test fast
-    fetchFailCount = 99;
-    const { emit } = buildPersistingEmitter("sess-default", () => "t");
-    emit({ type: "message", text: "x" });
-    await drainPersist("sess-default");
-
-    assert.equal(postedBodies.length, 0);
-    assert.equal(takePersistFailures("sess-default"), 1);
-  });
-
-  it('an empty flag (compose "${VAR:-}" passthrough) still means durable', async () => {
-    vi.stubEnv("AGENTA_RECORDS_DURABLE", "");
-    vi.stubEnv("AGENTA_RECORDS_INGEST_MAX_RETRIES", "2");
-    fetchFailCount = 99;
-    const { emit } = buildPersistingEmitter("sess-empty", () => "t");
-    emit({ type: "message", text: "x" });
-    await drainPersist("sess-empty");
-
-    assert.equal(postedBodies.length, 0);
-    assert.equal(takePersistFailures("sess-empty"), 1);
-  });
-
-  it("durable: the turn-end flush consumes the drop count (warns + clears)", async () => {
-    vi.stubEnv("AGENTA_RECORDS_DURABLE", "true");
+  it("the turn-end flush consumes the drop count (warns + clears)", async () => {
     vi.stubEnv("AGENTA_RECORDS_INGEST_MAX_RETRIES", "2");
     fetchFailCount = 99;
     const warns: string[] = [];
@@ -598,8 +562,7 @@ describe("durable records (AGENTA_RECORDS_DURABLE)", () => {
     assert.equal(takePersistFailures("sess-flush"), 0);
   });
 
-  it("durable: a transient failure recovers within the retry budget (no drop counted)", async () => {
-    vi.stubEnv("AGENTA_RECORDS_DURABLE", "true");
+  it("a transient failure recovers within the retry budget (no drop counted)", async () => {
     vi.stubEnv("AGENTA_RECORDS_INGEST_MAX_RETRIES", "5");
     fetchFailCount = 2; // fails twice, then the 3rd attempt lands
     const { emit, flush } = buildPersistingEmitter("sess-recover", () => "t");

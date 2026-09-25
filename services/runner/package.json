@@ -25,8 +25,9 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@agentclientprotocol/claude-agent-acp": "0.58.1",
+    "@agentclientprotocol/claude-agent-acp": "0.81.0",
     "@anthropic-ai/sdk": "0.111.0",
+    "@aws-sdk/client-s3": "3.1070.0",
     "@daytonaio/sdk": "npm:@daytona/sdk@^0.198.0",
     "@earendil-works/pi-ai": "0.80.6",
     "@earendil-works/pi-coding-agent": "0.85.1",
@@ -40,8 +41,10 @@
     "@opentelemetry/semantic-conventions": "1.37.0",
     "acp-http-client": "0.4.2",
     "pi-acp": "0.0.29",
+    "pi-coding-agent-pi-ai": "npm:@earendil-works/pi-ai@0.85.1",
     "proper-lockfile": "4.1.2",
     "sandbox-agent": "0.4.2",
+    "tar": "7.5.21",
     "undici": "8.10.0"
   },
   "devDependencies": {
@@ -61,10 +64,12 @@
       "@sandbox-agent/cli-linux-arm64",
       "esbuild"
     ],
+    "_patchedDependenciesComment": "@agentclientprotocol/sdk@0.16.1 patch: backports the later SDK behavior of failing pending requests when the connection closes (fixed upstream in 0.29 and 1.x). It exists because acp-http-client (pinned via sandbox-agent 0.4.2) requires ^0.16.1, and even acp-http-client 0.5.0-rc still does. Drop the patch once sandbox-agent/acp-http-client move to an SDK >= 0.29.",
     "patchedDependencies": {
       "acp-http-client@0.4.2": "patches/acp-http-client@0.4.2.patch",
       "pi-acp@0.0.29": "patches/pi-acp@0.0.29.patch",
-      "sandbox-agent@0.4.2": "patches/sandbox-agent@0.4.2.patch"
+      "sandbox-agent@0.4.2": "patches/sandbox-agent@0.4.2.patch",
+      "@agentclientprotocol/sdk@0.16.1": "patches/@agentclientprotocol__sdk@0.16.1.patch"
     },
     "overrides": {
       "@hono/node-server": "1.19.15",

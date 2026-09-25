@@ -23,3 +23,17 @@ async def test_conditional_put_sends_precondition_and_never_falls_back():
     put.side_effect = S3Error("AccessDenied", "denied", "file", None, None, None)
     with pytest.raises(S3Error):
         await store.put_object_if_absent(bucket="bucket", key="file", body=b"seed")
+
+
+@pytest.mark.asyncio
+async def test_conditional_put_maps_a_missing_bucket_to_storage_unavailable():
+    # The sibling store paths already map NoSuchBucket; a raw S3Error here was a 500.
+    from oss.src.core.mounts.types import MountStorageUnavailable
+
+    store = ObjectStore(endpoint_url=None, access_key=None, secret_key=None)
+    put = AsyncMock(
+        side_effect=S3Error("NoSuchBucket", "gone", "file", None, None, None)
+    )
+    store._client = lambda: SimpleNamespace(_put_object=put)
+    with pytest.raises(MountStorageUnavailable):
+        await store.put_object_if_absent(bucket="bucket", key="file", body=b"seed")

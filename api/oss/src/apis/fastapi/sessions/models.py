@@ -45,6 +45,22 @@ SessionId = Annotated[
 ]
 
 
+class CurrentSessionRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    session_id: SessionId
+
+
+class CurrentSessionResponse(BaseModel):
+    session_id: str
+    name: str | None = None
+    url: str | None = None
+    url_unavailable_reason: (
+        Literal["agent_reference_missing", "workspace_missing", "web_url_unavailable"]
+        | None
+    ) = None
+
+
 class SessionPredicatesRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -124,9 +140,12 @@ class SessionResponse(BaseModel):
 
 
 class SessionCapabilities(BaseModel):
-    durable_approvals: bool = False
-    queue: bool = False
-    steer: bool = False
+    # Durable approvals, queue and steer are always on. The fields stay, pinned true, for
+    # one release so open tabs on an older web bundle still read them; remove them in the
+    # release after.
+    durable_approvals: bool = True
+    queue: bool = True
+    steer: bool = True
 
 
 class SessionExecutionSnapshot(BaseModel):

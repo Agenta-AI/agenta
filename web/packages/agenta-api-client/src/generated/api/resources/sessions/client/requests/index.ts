@@ -2,6 +2,7 @@ export type { ArchiveSessionRequest } from "./ArchiveSessionRequest.js";
 export type { BodyUploadSessionMountFile } from "./BodyUploadSessionMountFile.js";
 export type { CancelSessionExecutionRequest } from "./CancelSessionExecutionRequest.js";
 export type { CreateSessionAttachmentRequest } from "./CreateSessionAttachmentRequest.js";
+export type { CurrentSessionRequest } from "./CurrentSessionRequest.js";
 export type { DeleteSessionRequest } from "./DeleteSessionRequest.js";
 export type { DeleteSessionStreamRequest } from "./DeleteSessionStreamRequest.js";
 export type { DownloadSessionAttachmentContentRequest } from "./DownloadSessionAttachmentContentRequest.js";

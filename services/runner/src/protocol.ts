@@ -231,6 +231,15 @@ export interface RunContext {
   session?: {
     id?: string;
   };
+  /**
+   * The tool call being dispatched, filled by the relay for each direct call and never by the
+   * service. Its id stays the same when the same call is relayed again (a resumed approval
+   * reuses it), so an endpoint can key a side effect on it and answer a retry without repeating
+   * the effect.
+   */
+  tool?: {
+    call_id?: string;
+  };
   workflow?: {
     artifact?: RunContextReference;
     variant?: RunContextReference;

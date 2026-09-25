@@ -44,9 +44,6 @@ export const processEnv = {
     NEXT_PUBLIC_AGENTA_SANDBOX_LOCAL_ENABLED: process.env.NEXT_PUBLIC_AGENTA_SANDBOX_LOCAL_ENABLED,
     NEXT_PUBLIC_AGENTA_ENABLED_SANDBOX_PROVIDERS:
         process.env.NEXT_PUBLIC_AGENTA_ENABLED_SANDBOX_PROVIDERS,
-    NEXT_PUBLIC_SESSIONS_LAST_MESSAGE_ONLY: process.env.NEXT_PUBLIC_SESSIONS_LAST_MESSAGE_ONLY,
-    // Client half of AGENTA_MOBILE_GATE; entrypoint.sh mirrors it into __env.js.
-    NEXT_PUBLIC_AGENTA_MOBILE_GATE: process.env.NEXT_PUBLIC_AGENTA_MOBILE_GATE,
 }
 
 /**
@@ -107,18 +104,6 @@ const parseBoolEnv = (key: string, fallback: boolean): boolean => {
 export const isSandboxLocalEnabled = (): boolean =>
     parseBoolEnv("NEXT_PUBLIC_AGENTA_SANDBOX_LOCAL_ENABLED", true)
 
-/**
- * Send only the trailing user message per agent turn and let the runner rebuild prior history
- * from the durable record log. ON unless set to the literal "false"; absent AND empty both mean
- * on (compose passes `${VAR:-}`, which sets an empty string when unset). Disable it ONLY
- * together with the backend `AGENTA_SESSIONS_RECONSTRUCT=false`, or a cold turn loses its
- * context.
- */
-export const isSessionsLastMessageOnlyEnabled = (): boolean => {
-    const raw = getEnv("NEXT_PUBLIC_SESSIONS_LAST_MESSAGE_ONLY")
-    return raw.trim().toLowerCase() !== "false"
-}
-
 /** The sandbox providers this deployment enabled, normalized to lowercase ids. Unset/empty
  * falls back to `["local"]` so the picker never hides every option. */
 export const getEnabledSandboxProviders = (): string[] => {
@@ -126,7 +111,13 @@ export const getEnabledSandboxProviders = (): string[] => {
         .split(",")
         .map((provider) => provider.trim().toLowerCase())
         .filter(Boolean)
-    return providers.length > 0 ? providers : ["local"]
+    if (providers.length === 0) return ["local"]
+    // `inprocess` is enabled wherever `daytona` is (the runner, the SDK, the API and
+    // entrypoint.sh apply the same rule); who is offered it is the per-user preference's call.
+    if (providers.includes("daytona") && !providers.includes("inprocess")) {
+        providers.push("inprocess")
+    }
+    return providers
 }
 
 /**

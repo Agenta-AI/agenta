@@ -1,7 +1,6 @@
 import {useCallback, useEffect, useRef, useState} from "react"
 
 import {
-    fetchSessionCapabilitiesAtom,
     fetchSessionSnapshotAtom,
     removePendingSessionInputAtom,
     sendPendingSessionInputNowAtom,
@@ -12,6 +11,7 @@ import {projectIdAtom} from "@agenta/shared/state"
 import type {FileUIPart, UIMessage} from "ai"
 import {useAtomValue, useSetAtom} from "jotai"
 
+import {buildRequestWithinDeadline, PREPARE_NOT_READY_MESSAGE} from "../assets/boundedRequest"
 import {outboundUserParts} from "../assets/displayContent"
 import {attachmentIdForPart} from "../assets/files"
 import {reduceSessionPendingInputs, type SessionPendingInputView} from "../assets/pendingInputs"
@@ -23,6 +23,11 @@ import {useMountGeneration} from "./useMountGeneration"
 
 /** "queued" parks the input and the dock owns it; "running" starts a turn the transcript adopts. */
 export type ServerInputAdmission = "queued" | "running"
+
+/** Snapshot poll cadence while a turn runs or an input is parked. */
+const ACTIVE_SNAPSHOT_POLL_MS = 2_000
+/** Idle with an empty queue: only a send changes it, and the transcript watch reports that. */
+const IDLE_SNAPSHOT_POLL_MS = 15_000
 
 /** Reports what became of ONE send, so its echo can retire on evidence about itself. */
 export interface ServerInputWatcher {
@@ -44,7 +49,6 @@ export interface ServerInputWatcher {
 }
 
 export interface ServerSessionInputs {
-    capabilities: SessionPendingInputView["capabilities"]
     executionState: SessionPendingInputView["executionState"]
     busy: boolean
     queued: QueuedMessage[]
@@ -57,7 +61,6 @@ export interface ServerSessionInputs {
     sendNow: (id: string) => Promise<void>
     edit: (id: string, item: {text: string; fileParts?: FileUIPart[]}) => Promise<void>
     refresh: () => Promise<void>
-    resolveCapabilities: () => Promise<SessionPendingInputView["capabilities"]>
 }
 
 const emptyView = reduceSessionPendingInputs(null)
@@ -209,6 +212,8 @@ export const useServerSessionInputs = ({
     sessionId,
     messages,
     locallyBusy,
+    remotelyBusy = false,
+    active = true,
     isSharedReaderReady,
     onExecuted,
     onStartupPhase,
@@ -217,6 +222,10 @@ export const useServerSessionInputs = ({
     sessionId: string
     messages: UIMessage[]
     locallyBusy: boolean
+    /** Another browser is running this session (the host's project liveness poll). */
+    remotelyBusy?: boolean
+    /** False for a conversation kept mounted off screen: it stops polling the queue. */
+    active?: boolean
     /** Read current transport readiness when admitting input, including after reconnect. */
     isSharedReaderReady?: () => boolean
     /**
@@ -233,7 +242,6 @@ export const useServerSessionInputs = ({
     const scopeRef = useRef(scope)
     scopeRef.current = scope
     const fetchSnapshot = useSetAtom(fetchSessionSnapshotAtom)
-    const fetchCapabilities = useSetAtom(fetchSessionCapabilitiesAtom)
     const removeInput = useSetAtom(removePendingSessionInputAtom)
     const sendInputNow = useSetAtom(sendPendingSessionInputNowAtom)
     const updateInput = useSetAtom(updatePendingSessionInputAtom)
@@ -269,9 +277,6 @@ export const useServerSessionInputs = ({
             return loadInFlightRef.current.promise
         }
         const promise = (async () => {
-            const capabilities = await fetchCapabilities(sessionId)
-            if (!capabilities) return null
-            if (!capabilities.queue) return emptyView
             const snapshot = await fetchSnapshot(sessionId)
             return snapshot ? reduceSessionPendingInputs(snapshot) : null
         })()
@@ -282,7 +287,7 @@ export const useServerSessionInputs = ({
         }
         void promise.then(clear, clear)
         return promise
-    }, [fetchCapabilities, fetchSnapshot, sessionId, scope])
+    }, [fetchSnapshot, sessionId, scope])
 
     const refresh = useCallback(async () => {
         const next = await load()
@@ -301,21 +306,21 @@ export const useServerSessionInputs = ({
         }
     }, [load, scope])
 
-    // Pending-input events arrive in a later increment. Until then, a small capability-gated
-    // snapshot poll gives every mounted browser the same durable order.
+    // A snapshot poll gives every browser the same durable order; tight only while there is work.
+    // Only the conversation on screen polls: over HTTP/1.1 each hidden pane's poll queued for the
+    // same six connections a send needs.
+    const tracking =
+        locallyBusy || remotelyBusy || view.executionState !== "idle" || view.queued.length > 0
     useEffect(() => {
-        if (!view.capabilities.queue) return
-        const timer = setInterval(() => void refresh(), 2_000)
+        if (!active) return
+        const timer = setInterval(
+            () => {
+                if (document.visibilityState === "visible") void refresh()
+            },
+            tracking ? ACTIVE_SNAPSHOT_POLL_MS : IDLE_SNAPSHOT_POLL_MS,
+        )
         return () => clearInterval(timer)
-    }, [refresh, view.capabilities.queue])
-
-    const resolveCapabilities = useCallback(async () => {
-        const capabilities = await fetchCapabilities(sessionId)
-        if (!capabilities || scopeRef.current !== scope) {
-            throw new Error("Session capabilities are unavailable. Please try again.")
-        }
-        return {queue: capabilities.queue, steer: capabilities.steer}
-    }, [fetchCapabilities, sessionId, scope])
+    }, [active, refresh, tracking])
 
     const submit = useCallback(
         async (
@@ -334,15 +339,27 @@ export const useServerSessionInputs = ({
                     : {}),
                 parts: outboundUserParts(message),
             }
-            const request = await buildAgentRequest(
-                entityIdRef.current,
-                [...messagesRef.current, outbound],
-                {
+            // Bounded, not instant: a null build means the workflow has not loaded its invocation
+            // URL yet, which the first send to a new agent races (#6042).
+            const request = await buildRequestWithinDeadline(() =>
+                buildAgentRequest(entityIdRef.current, [...messagesRef.current, outbound], {
                     sessionId,
                     ...(isSharedReaderReadyRef.current?.() ? {sharedResponse: true} : {}),
-                },
-            )
-            if (!request) throw new Error("The agent is not ready to accept input.")
+                    // Same host as the resume path: the dock can answer a secret ask (#7001).
+                    secretSetup: true,
+                }),
+            ).catch((error: unknown) => {
+                if (error instanceof Error && error.message === PREPARE_NOT_READY_MESSAGE) {
+                    throw new Error("The agent is not ready to accept input.")
+                }
+                throw error
+            })
+            // The build can wait for the invocation URL. A session switched meanwhile would get a
+            // request mixing the new scope's entity and messages with this send's session id.
+            // Only the scope is checked, not the mount: durable admission may outlive a remount.
+            if (scopeRef.current !== scope) {
+                throw new Error("The session changed before the message was sent.")
+            }
 
             const response = await fetch(request.invocationUrl, {
                 method: "POST",
@@ -407,7 +424,7 @@ export const useServerSessionInputs = ({
                 .catch(() => undefined)
             return "running"
         },
-        [mount, refresh, sessionId],
+        [mount, refresh, scope, sessionId],
     )
 
     const remove = useCallback(
@@ -422,7 +439,6 @@ export const useServerSessionInputs = ({
 
     const edit = useCallback(
         async (id: string, item: {text: string; fileParts?: FileUIPart[]}) => {
-            if (!view.capabilities.queue) throw new Error("Queue editing is not available.")
             const updated = await updateInput({
                 sessionId,
                 inputId: id,
@@ -437,32 +453,28 @@ export const useServerSessionInputs = ({
             if (!updated) throw new Error("The queued message could not be updated. Try again.")
             await refresh()
         },
-        [refresh, sessionId, updateInput, view.capabilities.queue],
+        [refresh, sessionId, updateInput],
     )
 
     const sendNow = useCallback(
         async (id: string) => {
-            if (!view.capabilities.queue || !view.capabilities.steer) {
-                throw new Error("Send Now is not available for this session.")
-            }
             if (!(await sendInputNow({sessionId, inputId: id}))) {
                 throw new Error("The queued message could not be sent. Try again.")
             }
             await refresh()
         },
-        [refresh, sendInputNow, sessionId, view.capabilities.queue, view.capabilities.steer],
+        [refresh, sendInputNow, sessionId],
     )
 
     return {
-        capabilities: view.capabilities,
         executionState: view.executionState,
-        busy: locallyBusy || view.executionState !== "idle",
+        // `remotelyBusy` too: `executionState` learns of another browser's run only on the next poll.
+        busy: locallyBusy || remotelyBusy || view.executionState !== "idle",
         queued: view.queued,
         submit,
         remove,
         sendNow,
         edit,
         refresh,
-        resolveCapabilities,
     }
 }

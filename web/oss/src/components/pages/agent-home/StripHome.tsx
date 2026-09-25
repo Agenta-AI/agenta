@@ -38,7 +38,7 @@ import useURL from "@/oss/hooks/useURL"
 import {layoutFullHeightRequestAtom} from "@/oss/state/layout/fullHeight"
 
 import {agentNameFromTask} from "./assets/agentName"
-import {CONNECT_STEP_MODE, HERO, RETURNING_HERO, TEMPLATE_HERO} from "./assets/constants"
+import {HERO, RETURNING_HERO, TEMPLATE_HERO} from "./assets/constants"
 import HomeTaskComposer from "./components/HomeTaskComposer"
 import YourAgentsTable from "./components/YourAgentsTable"
 import {useAgentHomeActions} from "./hooks/useAgentHomeActions"
@@ -143,8 +143,7 @@ const StripHome: React.FC = () => {
     // A card here IS the create action — no composer step, no second confirmation.
     const {createFromTemplate, pendingKey} = useCreateAgentFromTemplate("create")
 
-    // The pre-create connect step (#6043). `open` replaces create; everything else on this page
-    // is untouched, so with the flag off the surface behaves exactly as it did.
+    // The pre-create connect step (#6043). `open` replaces create.
     const setup = useAgentSetupStep()
     /**
      * The card's create gate and live selection, reported up (`onReadyChange`): the Create
@@ -197,7 +196,6 @@ const StripHome: React.FC = () => {
             // connected for it, and `open` says so. Falling through then is the whole point: the
             // pick still has to create the agent, or the click does nothing at all.
             if (
-                CONNECT_STEP_MODE &&
                 setup.open({
                     seedMessage: templateBuilderMessage(template),
                     name: template.name,
@@ -236,7 +234,6 @@ const StripHome: React.FC = () => {
         provenance.pick(template)
         // A template arriving on the URL was picked on another page, so it goes straight to the
         // step — docked inside the composer, with the template's prompt seeded into the editor.
-        if (!CONNECT_STEP_MODE) return
         if (
             setup.open({
                 seedMessage: templateBuilderMessage(template),
@@ -275,14 +272,13 @@ const StripHome: React.FC = () => {
                 }
                 return
             }
-            // Connect step on: describing an agent opens the step instead of creating. The
+            // Connect step: describing an agent opens the step instead of creating. The
             // composer cleared itself on Enter, so the text goes straight back — the editor
             // stays on screen under the docked card.
             const message = (markdown ?? composerRef.current?.getMarkdown() ?? "").trim()
             // Nothing to ask for — nothing detected, or the workspace is already connected — so
             // the description creates the agent directly instead of stopping at an empty card.
             if (
-                CONNECT_STEP_MODE &&
                 message &&
                 setup.open({
                     seedMessage: message,
@@ -294,7 +290,7 @@ const StripHome: React.FC = () => {
                 seedComposer(message)
                 return
             }
-            if (CONNECT_STEP_MODE && !message) return
+            if (!message) return
             setLoading(true)
             const ok = await onCreate(provenance.resolveTemplateName(), markdown)
             if (!ok) setLoading(false)

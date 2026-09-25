@@ -107,6 +107,39 @@ _PUBLIC_ENDPOINTS = (
     "/api/triggers/composio/events/",
     "/preview/triggers/composio/events/",
     "/api/preview/triggers/composio/events/",
+    # CHANNELS — inbound platform events arrive with no Agenta auth token
+    "/channels/slack/events/",
+    "/api/channels/slack/events/",
+    "/preview/channels/slack/events/",
+    "/api/preview/channels/slack/events/",
+    # Telegram carries the bot in the path, so these are prefixes matched by
+    # startswith: the per-bot token segment follows. The stored webhook secret,
+    # checked in the adapter, is what actually authorises the update.
+    "/channels/telegram/events/",
+    "/api/channels/telegram/events/",
+    "/preview/channels/telegram/events/",
+    "/api/preview/channels/telegram/events/",
+    # WhatsApp: Meta's GET verify handshake and its signed POSTs share this
+    # path. The verify token and X-Hub-Signature-256, checked in the ingress,
+    # are what authorise them.
+    "/channels/whatsapp/events/",
+    "/api/channels/whatsapp/events/",
+    "/preview/channels/whatsapp/events/",
+    "/api/preview/channels/whatsapp/events/",
+    "/channels/bridge/events/",
+    "/api/channels/bridge/events/",
+    "/preview/channels/bridge/events/",
+    "/api/preview/channels/bridge/events/",
+    "/channels/agenta/events/",
+    "/api/channels/agenta/events/",
+    "/preview/channels/agenta/events/",
+    "/api/preview/channels/agenta/events/",
+    # CHANNELS — Slack redirects the browser here with no Agenta session; the
+    # signed OAuth state is the whole of the authorisation on this route
+    "/channels/catalog/channels/slack/callback/",
+    "/api/channels/catalog/channels/slack/callback/",
+    "/preview/channels/catalog/channels/slack/callback/",
+    "/api/preview/channels/catalog/channels/slack/callback/",
     # MCP OAuth client identity document, fetched without an Agenta auth token.
     "/gateways/mcps/oauth/client-metadata.json",
     "/api/gateways/mcps/oauth/client-metadata.json",

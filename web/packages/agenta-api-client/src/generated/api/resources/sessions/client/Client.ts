@@ -26,6 +26,77 @@ export class SessionsClient {
     }
 
     /**
+     * @param {AgentaApi.CurrentSessionRequest} request
+     * @param {SessionsClient.RequestOptions} requestOptions - Request-specific configuration.
+     *
+     * @throws {@link AgentaApi.UnprocessableEntityError}
+     *
+     * @example
+     *     await client.sessions.getCurrentSession({
+     *         session_id: "session_id"
+     *     })
+     */
+    public getCurrentSession(
+        request: AgentaApi.CurrentSessionRequest,
+        requestOptions?: SessionsClient.RequestOptions,
+    ): core.HttpResponsePromise<AgentaApi.CurrentSessionResponse> {
+        return core.HttpResponsePromise.fromPromise(this.__getCurrentSession(request, requestOptions));
+    }
+
+    private async __getCurrentSession(
+        request: AgentaApi.CurrentSessionRequest,
+        requestOptions?: SessionsClient.RequestOptions,
+    ): Promise<core.WithRawResponse<AgentaApi.CurrentSessionResponse>> {
+        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
+        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
+            _authRequest.headers,
+            this._options?.headers,
+            requestOptions?.headers,
+        );
+        const _response = await core.fetcher({
+            url: core.url.join(
+                (await core.Supplier.get(this._options.baseUrl)) ??
+                    (await core.Supplier.get(this._options.environment)) ??
+                    environments.AgentaApiEnvironment.Default,
+                "sessions/tools/current",
+            ),
+            method: "POST",
+            headers: _headers,
+            contentType: "application/json",
+            queryParameters: requestOptions?.queryParams,
+            requestType: "json",
+            body: request,
+            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 30) * 1000,
+            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
+            withCredentials: true,
+            abortSignal: requestOptions?.abortSignal,
+            fetchFn: this._options?.fetch,
+            logging: this._options.logging,
+        });
+        if (_response.ok) {
+            return { data: _response.body as AgentaApi.CurrentSessionResponse, rawResponse: _response.rawResponse };
+        }
+
+        if (_response.error.reason === "status-code") {
+            switch (_response.error.statusCode) {
+                case 422:
+                    throw new AgentaApi.UnprocessableEntityError(
+                        _response.error.body as unknown,
+                        _response.rawResponse,
+                    );
+                default:
+                    throw new errors.AgentaApiError({
+                        statusCode: _response.error.statusCode,
+                        body: _response.error.body,
+                        rawResponse: _response.rawResponse,
+                    });
+            }
+        }
+
+        return handleNonStatusCodeError(_response.error, _response.rawResponse, "POST", "/sessions/tools/current");
+    }
+
+    /**
      * @param {AgentaApi.FetchSessionStreamRequest} request
      * @param {SessionsClient.RequestOptions} requestOptions - Request-specific configuration.
      *
@@ -82,7 +153,7 @@ export class SessionsClient {
             switch (_response.error.statusCode) {
                 case 422:
                     throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.error.body as unknown,
                         _response.rawResponse,
                     );
                 default:
@@ -156,7 +227,7 @@ export class SessionsClient {
             switch (_response.error.statusCode) {
                 case 422:
                     throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.error.body as unknown,
                         _response.rawResponse,
                     );
                 default:
@@ -228,7 +299,7 @@ export class SessionsClient {
             switch (_response.error.statusCode) {
                 case 422:
                     throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.error.body as unknown,
                         _response.rawResponse,
                     );
                 default:
@@ -297,7 +368,7 @@ export class SessionsClient {
             switch (_response.error.statusCode) {
                 case 422:
                     throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.error.body as unknown,
                         _response.rawResponse,
                     );
                 default:
@@ -369,7 +440,7 @@ export class SessionsClient {
             switch (_response.error.statusCode) {
                 case 422:
                     throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.error.body as unknown,
                         _response.rawResponse,
                     );
                 default:
@@ -441,7 +512,7 @@ export class SessionsClient {
             switch (_response.error.statusCode) {
                 case 422:
                     throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.error.body as unknown,
                         _response.rawResponse,
                     );
                 default:
@@ -457,6 +528,25 @@ export class SessionsClient {
     }
 
     /**
+     * Rename a session.
+     *
+     * `name_source` says where the name came from: `manual` (the default) is a person
+     * typing one, and `automatic` is a program proposing one — the agent's
+     * `rename_session`, or the browser's auto-title. An `automatic` edit is refused with
+     * 409 when it would change a name a person controls, unless the body names the exact
+     * name and revision it replaces.
+     *
+     * It is a query parameter rather than a body field on purpose. The `rename_session`
+     * catalog entry fixes `name_source=automatic` inside its path and the model fills only
+     * the body, so an agent cannot claim a person chose its name.
+     *
+     * `author` is the transitional spelling, hidden from the schema. A warm agent session
+     * holds the tool descriptors it opened with, so a sandbox that started under an
+     * earlier build of this change can still execute `?author=auto` after the service has
+     * moved on. Reading it costs one branch and keeps that call on the guarded path; the
+     * alternative is a rename that silently claims a person made it. Delete this parameter
+     * once no such session can still be alive.
+     *
      * @param {AgentaApi.SetSessionStreamHeaderRequest} request
      * @param {SessionsClient.RequestOptions} requestOptions - Request-specific configuration.
      *
@@ -479,9 +569,10 @@ export class SessionsClient {
         request: AgentaApi.SetSessionStreamHeaderRequest,
         requestOptions?: SessionsClient.RequestOptions,
     ): Promise<core.WithRawResponse<AgentaApi.SessionStreamResponse>> {
-        const { session_id: sessionId, body: _body } = request;
+        const { session_id: sessionId, name_source: nameSource, body: _body } = request;
         const _queryParams: Record<string, unknown> = {
             session_id: sessionId,
+            name_source: nameSource !== undefined ? nameSource : undefined,
         };
         const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
         const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
@@ -517,7 +608,7 @@ export class SessionsClient {
             switch (_response.error.statusCode) {
                 case 422:
                     throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.error.body as unknown,
                         _response.rawResponse,
                     );
                 default:
@@ -616,7 +707,7 @@ export class SessionsClient {
             switch (_response.error.statusCode) {
                 case 422:
                     throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.error.body as unknown,
                         _response.rawResponse,
                     );
                 default:
@@ -688,7 +779,7 @@ export class SessionsClient {
             switch (_response.error.statusCode) {
                 case 422:
                     throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.error.body as unknown,
                         _response.rawResponse,
                     );
                 default:
@@ -765,7 +856,7 @@ export class SessionsClient {
             switch (_response.error.statusCode) {
                 case 422:
                     throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.error.body as unknown,
                         _response.rawResponse,
                     );
                 default:
@@ -838,7 +929,7 @@ export class SessionsClient {
             switch (_response.error.statusCode) {
                 case 422:
                     throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.error.body as unknown,
                         _response.rawResponse,
                     );
                 default:
@@ -910,7 +1001,7 @@ export class SessionsClient {
             switch (_response.error.statusCode) {
                 case 422:
                     throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.error.body as unknown,
                         _response.rawResponse,
                     );
                 default:
@@ -983,7 +1074,7 @@ export class SessionsClient {
             switch (_response.error.statusCode) {
                 case 422:
                     throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.error.body as unknown,
                         _response.rawResponse,
                     );
                 default:
@@ -1060,7 +1151,7 @@ export class SessionsClient {
             switch (_response.error.statusCode) {
                 case 422:
                     throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.error.body as unknown,
                         _response.rawResponse,
                     );
                 default:
@@ -1134,7 +1225,7 @@ export class SessionsClient {
             switch (_response.error.statusCode) {
                 case 422:
                     throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.error.body as unknown,
                         _response.rawResponse,
                     );
                 default:
@@ -1211,7 +1302,7 @@ export class SessionsClient {
             switch (_response.error.statusCode) {
                 case 422:
                     throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.error.body as unknown,
                         _response.rawResponse,
                     );
                 default:
@@ -1288,7 +1379,7 @@ export class SessionsClient {
             switch (_response.error.statusCode) {
                 case 422:
                     throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.error.body as unknown,
                         _response.rawResponse,
                     );
                 default:
@@ -1353,7 +1444,7 @@ export class SessionsClient {
             switch (_response.error.statusCode) {
                 case 422:
                     throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.error.body as unknown,
                         _response.rawResponse,
                     );
                 default:
@@ -1430,7 +1521,7 @@ export class SessionsClient {
             switch (_response.error.statusCode) {
                 case 422:
                     throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.error.body as unknown,
                         _response.rawResponse,
                     );
                 default:
@@ -1508,7 +1599,7 @@ export class SessionsClient {
             switch (_response.error.statusCode) {
                 case 422:
                     throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.error.body as unknown,
                         _response.rawResponse,
                     );
                 default:
@@ -1582,7 +1673,7 @@ export class SessionsClient {
             switch (_response.error.statusCode) {
                 case 422:
                     throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.error.body as unknown,
                         _response.rawResponse,
                     );
                 default:
@@ -1655,7 +1746,7 @@ export class SessionsClient {
             switch (_response.error.statusCode) {
                 case 422:
                     throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.error.body as unknown,
                         _response.rawResponse,
                     );
                 default:
@@ -1735,7 +1826,7 @@ export class SessionsClient {
             switch (_response.error.statusCode) {
                 case 422:
                     throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.error.body as unknown,
                         _response.rawResponse,
                     );
                 default:
@@ -1805,7 +1896,7 @@ export class SessionsClient {
             switch (_response.error.statusCode) {
                 case 422:
                     throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.error.body as unknown,
                         _response.rawResponse,
                     );
                 default:
@@ -1884,7 +1975,7 @@ export class SessionsClient {
             switch (_response.error.statusCode) {
                 case 422:
                     throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.error.body as unknown,
                         _response.rawResponse,
                     );
                 default:
@@ -1953,7 +2044,7 @@ export class SessionsClient {
             switch (_response.error.statusCode) {
                 case 422:
                     throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.error.body as unknown,
                         _response.rawResponse,
                     );
                 default:
@@ -2024,7 +2115,7 @@ export class SessionsClient {
             switch (_response.error.statusCode) {
                 case 422:
                     throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.error.body as unknown,
                         _response.rawResponse,
                     );
                 default:
@@ -2098,7 +2189,7 @@ export class SessionsClient {
             switch (_response.error.statusCode) {
                 case 422:
                     throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.error.body as unknown,
                         _response.rawResponse,
                     );
                 default:
@@ -2171,7 +2262,7 @@ export class SessionsClient {
             switch (_response.error.statusCode) {
                 case 422:
                     throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.error.body as unknown,
                         _response.rawResponse,
                     );
                 default:
@@ -2240,7 +2331,7 @@ export class SessionsClient {
             switch (_response.error.statusCode) {
                 case 422:
                     throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.error.body as unknown,
                         _response.rawResponse,
                     );
                 default:
@@ -2309,7 +2400,7 @@ export class SessionsClient {
             switch (_response.error.statusCode) {
                 case 422:
                     throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.error.body as unknown,
                         _response.rawResponse,
                     );
                 default:
@@ -2378,7 +2469,7 @@ export class SessionsClient {
             switch (_response.error.statusCode) {
                 case 422:
                     throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.error.body as unknown,
                         _response.rawResponse,
                     );
                 default:
@@ -2450,7 +2541,7 @@ export class SessionsClient {
             switch (_response.error.statusCode) {
                 case 422:
                     throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.error.body as unknown,
                         _response.rawResponse,
                     );
                 default:
@@ -2520,7 +2611,7 @@ export class SessionsClient {
             switch (_response.error.statusCode) {
                 case 422:
                     throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.error.body as unknown,
                         _response.rawResponse,
                     );
                 default:
@@ -2599,7 +2690,7 @@ export class SessionsClient {
             switch (_response.error.statusCode) {
                 case 422:
                     throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.error.body as unknown,
                         _response.rawResponse,
                     );
                 default:
@@ -2676,7 +2767,7 @@ export class SessionsClient {
             switch (_response.error.statusCode) {
                 case 422:
                     throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.error.body as unknown,
                         _response.rawResponse,
                     );
                 default:
@@ -2748,7 +2839,7 @@ export class SessionsClient {
             switch (_response.error.statusCode) {
                 case 422:
                     throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.error.body as unknown,
                         _response.rawResponse,
                     );
                 default:
@@ -2817,7 +2908,7 @@ export class SessionsClient {
             switch (_response.error.statusCode) {
                 case 422:
                     throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.error.body as unknown,
                         _response.rawResponse,
                     );
                 default:
@@ -2890,7 +2981,7 @@ export class SessionsClient {
             switch (_response.error.statusCode) {
                 case 422:
                     throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.error.body as unknown,
                         _response.rawResponse,
                     );
                 default:
@@ -2967,7 +3058,7 @@ export class SessionsClient {
             switch (_response.error.statusCode) {
                 case 422:
                     throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.error.body as unknown,
                         _response.rawResponse,
                     );
                 default:
@@ -3045,7 +3136,7 @@ export class SessionsClient {
             switch (_response.error.statusCode) {
                 case 422:
                     throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.error.body as unknown,
                         _response.rawResponse,
                     );
                 default:

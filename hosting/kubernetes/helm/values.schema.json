@@ -216,7 +216,8 @@
         "openai":       { "type": "string" },
         "openrouter":   { "type": "string" },
         "perplexityai": { "type": "string" },
-        "togetherai":   { "type": "string" }
+        "togetherai":   { "type": "string" },
+        "xai":          { "type": "string" }
       }
     },
     "cloudflare": {
@@ -549,7 +550,7 @@
     "redisDurable":  { "$ref": "#/$defs/bundledRedis" },
     "api":               { "$ref": "#/$defs/component" },
     "web":               { "$ref": "#/$defs/component" },
-    "webMobile":         { "$ref": "#/$defs/component" },
+    "webMobile":         { "allOf": [ { "$ref": "#/$defs/component" }, { "properties": { "enabled": { "not": { "const": false } } }, "description": "web-mobile (/m) always deploys and has no enabled switch; enabled:false is rejected, but an existing enabled:true from before this change is accepted as a no-op so upgrades don't break." } ] },
     "services":          { "$ref": "#/$defs/component" },
     "workerStreams":      { "$ref": "#/$defs/component" },
     "workerQueues":       { "$ref": "#/$defs/component" },

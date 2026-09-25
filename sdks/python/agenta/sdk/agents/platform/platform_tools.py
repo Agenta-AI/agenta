@@ -26,6 +26,7 @@ from agenta.sdk.agents.tools import (
     PlatformToolConfig,
     ToolCallback,
 )
+from agenta.sdk.agents.tools.models import PermissionMode
 from agenta.sdk.utils.logging import get_module_logger
 
 from .connection import PlatformConnection
@@ -59,6 +60,8 @@ class AgentaPlatformToolResolver:
     async def resolve(
         self,
         tools: Sequence[PlatformToolConfig],
+        *,
+        permission_default: PermissionMode = "allow_reads",
     ) -> GatewayToolResolution:
         api_base = self._connection.base_url()
         if not api_base:
@@ -127,7 +130,7 @@ class AgentaPlatformToolResolver:
                     input_schema=op.resolved_input_schema(),
                     timeout_ms=op.timeout_ms,
                     render=tool_config.render,
-                    permission=tool_config.permission,
+                    permission=_permission(tool_config, op, permission_default),
                     read_only=op.read_only,
                     # Model-authored arguments the runner deletes before it builds the request
                     # (today: the ephemeral per-call ``description``). Both dispatch modes carry
@@ -144,3 +147,15 @@ class AgentaPlatformToolResolver:
                 authorization=authorization,
             ),
         )
+
+
+def _permission(tool_config, op, permission_default: PermissionMode):
+    """The author's per-tool permission, else the op's own default, but only
+    under the agent-wide ``allow_reads`` mode. ``None`` leaves the decision to
+    the runner, which applies the agent-wide mode."""
+
+    if tool_config.permission is not None:
+        return tool_config.permission
+    if permission_default == "allow_reads":
+        return op.default_permission
+    return None

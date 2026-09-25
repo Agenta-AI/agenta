@@ -117,12 +117,60 @@ describe("reconstructMessages", () => {
     ]);
   });
 
-  it("renders an error event as assistant text", () => {
+  it("keeps a failed turn's question and drops what the agent did in it, by its turn id", () => {
+    // Session 53da670e: the provider refused a tool result about its own model. Replaying the
+    // tool result and the refusal text made every later turn fail too. The person's question
+    // stays, so "continue" after a failure still has something to continue. The same rule as the
+    // in-process rollback (`InProcessAcpSession.rollbackFailedTurn`).
     const out = reconstructMessages([
-      rec("user", { type: "message", text: "go" }),
-      rec("agent", { type: "error", message: "boom" }),
+      rec("user", { type: "message", text: "hi" }, { turn_id: "t1" }),
+      rec("agent", { type: "message", text: "hello" }, { turn_id: "t1" }),
+      rec("user", { type: "message", text: "check the pricing" }, { turn_id: "t2" }),
+      rec("agent", { type: "tool_call", id: "c1", name: "bash", input: { command: "curl" } }, { turn_id: "t2" }),
+      rec("agent", { type: "tool_result", id: "c1", output: "Mercury is a diffusion LLM" }, { turn_id: "t2" }),
+      rec("agent", { type: "error", message: "Upstream error from Inception: I'm sorry" }, { turn_id: "t2" }),
+      rec("user", { type: "message", text: "hello?" }, { turn_id: "t3" }),
+      rec("agent", { type: "error", message: "Upstream error from Inception: I'm sorry" }, { turn_id: "t3" }),
+      rec("user", { type: "message", text: "thanks" }, { turn_id: "t4" }),
+      rec("agent", { type: "message", text: "welcome" }, { turn_id: "t4" }),
     ]);
-    assert.deepEqual(out[1], { role: "assistant", content: "[error: boom]" });
+    assert.deepEqual(out, [
+      { role: "user", content: "hi" },
+      { role: "assistant", content: "hello" },
+      { role: "user", content: "check the pricing" },
+      { role: "user", content: "hello?" },
+      { role: "user", content: "thanks" },
+      { role: "assistant", content: "welcome" },
+    ]);
+    assert.doesNotMatch(JSON.stringify(out), /Mercury|Inception|error/);
+  });
+
+  it("drops what the agent did in a failed turn by its user-message span when records carry no turn id", () => {
+    const out = reconstructMessages([
+      rec("user", { type: "message", text: "q1" }),
+      rec("agent", { type: "message", text: "a1" }),
+      rec("user", { type: "message", text: "go" }),
+      rec("agent", { type: "message", text: "partial" }),
+      rec("agent", { type: "tool_call", id: "c2", name: "bash", input: {} }),
+      rec("agent", { type: "tool_result", id: "c2", output: "secret-ish output" }),
+      rec("agent", { type: "error", message: "boom" }),
+      rec("user", { type: "message", text: "q3" }),
+      rec("agent", { type: "tool_call", id: "c3", name: "bash", input: {} }),
+      rec("agent", { type: "tool_result", id: "c3", output: "kept" }),
+    ]);
+    assert.deepEqual(out, [
+      { role: "user", content: "q1" },
+      { role: "assistant", content: "a1" },
+      { role: "user", content: "go" },
+      { role: "user", content: "q3" },
+      {
+        role: "assistant",
+        content: [
+          { type: "tool_call", toolCallId: "c3", toolName: "bash", input: {} },
+          { type: "tool_result", toolCallId: "c3", toolName: "bash", output: "kept", isError: undefined },
+        ],
+      },
+    ]);
   });
 
   it("ignores malformed / typeless attribute rows", () => {

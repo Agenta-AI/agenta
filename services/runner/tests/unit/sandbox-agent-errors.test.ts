@@ -3,12 +3,19 @@
  *
  * Run: pnpm test (or: pnpm exec vitest run tests/unit/sandbox-agent-errors.test.ts)
  */
-import { describe, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import assert from "node:assert/strict";
 
 import {
+  abandonedTurnMessage,
   classifyRunError,
   conciseError,
+  REQUEST_TOO_LARGE_MESSAGE,
+  RUNNER_RESTARTING_MESSAGE,
+  RUNNER_SHUTDOWN_REASON,
+  SANDBOX_CAPACITY_MESSAGE,
+  sanitizeErrorText,
+  withPublicCode,
 } from "../../src/engines/sandbox_agent/errors.ts";
 
 describe("conciseError", () => {
@@ -28,6 +35,19 @@ describe("conciseError", () => {
         "pi",
       ),
       "pi: the model provider account has insufficient credit (check the project's OpenAI key).",
+    );
+  });
+
+  it("formats OpenRouter's 402 insufficient credits as insufficient credit", () => {
+    assert.equal(
+      conciseError(
+        new Error(
+          'Internal error: 402 {"error":{"message":"Insufficient credits. Add more using https://openrouter.ai/settings/credits","code":402}}',
+        ),
+        "pi_core",
+        "openrouter",
+      ),
+      "pi_core: the model provider account has insufficient credit (check the project's OpenRouter key).",
     );
   });
 
@@ -65,6 +85,13 @@ describe("conciseError", () => {
     assert.equal(
       conciseError(new Error("insufficient_quota"), "pi_core", "openai"),
       "pi_core: the model provider account has insufficient credit (check the project's OpenAI key).",
+    );
+  });
+
+  it("names xAI for a failed Grok run instead of the OpenAI fallback", () => {
+    assert.equal(
+      conciseError(new Error("401 unauthorized"), "pi_core", "xai"),
+      "pi_core: model authentication failed — add the project's xAI key to the project vault, or log in (OAuth).",
     );
   });
 
@@ -469,5 +496,261 @@ describe("classifyRunError: budgeted-proxy refusals", () => {
       classifyRunError(new Error(KEY_BUDGET_BODY), "claude", "anthropic")
         .message,
     );
+  });
+});
+
+describe("provider errors never reach the chat raw (QA R3W-5)", () => {
+  const groq413 =
+    'Internal error: 413 {"error":{"message":"Request too large for model `openai/gpt-oss-120b` in organization `org_01abcdef` service tier `on_demand` on tokens per minute (TPM): Limit 8000, Requested 15661. Upgrade to Dev Tier today at https://console.groq.com/settings/billing","type":"tokens","code":"rate_limit_exceeded"}}';
+
+  it("reads a request-too-large refusal as that, not as a rate limit", () => {
+    const classified = classifyRunError(new Error(groq413), "pi_core", "groq");
+    assert.equal(classified.message, REQUEST_TOO_LARGE_MESSAGE);
+    assert.ok(!classified.message.includes("org_"));
+  });
+
+  it("shows a raw provider body's reason, not the body", () => {
+    const classified = classifyRunError(
+      new Error('Internal error: 400 {"error":{"message":"bad thing in organization org_9","type":"invalid_request_error"}}'),
+      "pi_core",
+    );
+    assert.equal(classified.code, "provider_error");
+    assert.match(classified.message, /^The model provider refused the request \(HTTP 400\): bad thing in organization org_9\. You can keep going/);
+    assert.doesNotMatch(classified.message, /invalid_request_error|\{/);
+  });
+
+  it("reads OpenAI's own `API error (NNN): {json}` form the same way, even when unknown text is hidden", () => {
+    // Pi's OpenAI provider reports a refusal as `OpenAI API error (404): {...}`. `inprocess` hides
+    // text it cannot classify behind a reference, so this form must be classified (staging, 2026-09-25).
+    const raw =
+      'OpenAI API error (404): {"message":"The model `totally-not-a-real-model-v99` does not exist or you do not have access to it.","type":"invalid_request_error","param":null,"code":"model_not_found"}';
+    const classified = classifyRunError(new Error(raw), "pi_core", "openai", { unknownText: "hidden" });
+    assert.equal(classified.code, "provider_error");
+    assert.match(classified.message, /^The model provider refused the request \(HTTP 404\): The model `totally-not-a-real-model-v99` does not exist/);
+    assert.doesNotMatch(classified.message, /model_not_found|\{|reference/);
+  });
+
+  it("reads a provider refusal that pi-acp wrapped as `Internal error: ...` (ST-IP-1)", () => {
+    // `inprocess` gets Pi's failure from pi-acp as ACP `RequestError.internalError`, whose message
+    // prefixes "Internal error: ". OpenAI's form then carries two labels before its status.
+    const openai =
+      'Internal error: OpenAI API error (404): {"message":"The model `totally-not-a-real-model-v99` does not exist or you do not have access to it.","type":"invalid_request_error","param":null,"code":"model_not_found"}';
+    const classified = classifyRunError(new Error(openai), "pi_core", "openai", { unknownText: "hidden" });
+    assert.equal(classified.code, "provider_error");
+    assert.match(classified.message, /^The model provider refused the request \(HTTP 404\): The model `totally-not-a-real-model-v99` does not exist/);
+    assert.doesNotMatch(classified.message, /model_not_found|\{|reference|Internal error/);
+    // Groq's form (no provider label) already read as a refusal; it must keep doing so.
+    const groq = classifyRunError(
+      new Error('Internal error: 404: {"message":"The model `nope` does not exist.","code":"model_not_found"}'),
+      "pi_core",
+      "groq",
+      { unknownText: "hidden" },
+    );
+    assert.equal(groq.code, "provider_error");
+    assert.match(groq.message, /^The model provider refused the request \(HTTP 404\): The model `nope` does not exist\./);
+  });
+
+  it("classifies a long line of labels without backtracking", () => {
+    const started = Date.now();
+    classifyRunError(new Error("a:   ".repeat(5000) + "x"), "pi_core", "openai", { unknownText: "hidden" });
+    assert.ok(Date.now() - started < 1000);
+  });
+
+  it("leaves the runner's own readable sentences alone", () => {
+    const classified = classifyRunError(new Error("The drive is not mounted on the runner right now, so the command did not run."), "pi_core");
+    assert.equal(classified.message, "The drive is not mounted on the runner right now, so the command did not run.");
+  });
+});
+
+describe("a turn the runner had to end (QA3A-4)", () => {
+  it("tells the person to resend when a restart ended it", () => {
+    const message = abandonedTurnMessage(RUNNER_SHUTDOWN_REASON, "pi");
+    assert.equal(message, RUNNER_RESTARTING_MESSAGE);
+    assert.doesNotMatch(message, /execution abandoned/);
+  });
+
+  it("reads as a lost run otherwise", () => {
+    assert.match(abandonedTurnMessage("the run did not unwind", "pi"), /Send the message again/);
+  });
+});
+
+describe("the public error contract (Codex R4 P1, decision 10)", () => {
+  it("redacts credentials from an unclassified error and keeps the rest of the sentence", () => {
+    expect(sanitizeErrorText("provider failed: org-private123 sandbox sbx-123 at /home/sandbox/agenta/session")).toBe(
+      "provider failed: org-private123 sandbox sbx-123 at /home/sandbox/agenta/session",
+    );
+    expect(sanitizeErrorText("test-reached-sandbox-start")).toBe("test-reached-sandbox-start");
+    expect(sanitizeErrorText('upstream said {"error":{"message":"bad","api_key":"abc-123"}}')).toBe(
+      'upstream said {"error":{"message":"bad",api_key=[secret]}}',
+    );
+    expect(sanitizeErrorText("see https://example.com/a/b and src/main.py")).toBe("see https://example.com/a/b and src/main.py");
+    expect(sanitizeErrorText("The agent service restarted, so this turn was ended. Send the message again in a moment.")).toBe(
+      "The agent service restarted, so this turn was ended. Send the message again in a moment.",
+    );
+  });
+
+  it("sanitizes the fallback of classifyRunError, which used to return raw text", () => {
+    expect(classifyRunError(new Error("provider failed at /home/sandbox/agenta/session with token=abc123"), "pi").message).toBe(
+      "provider failed at /home/sandbox/agenta/session with token=[secret]",
+    );
+  });
+
+  it("passes an error that states its public code through, and maps a sandbox provider's quota refusal", () => {
+    const err = withPublicCode(new Error("This agent service is at capacity right now. Send the message again in a moment."), "runner_capacity");
+    expect(classifyRunError(err, "pi")).toEqual({ message: err.message, code: "runner_capacity" });
+    const quota = new Error(
+      "Total disk limit exceeded. Maximum allowed: 300GiB.\nConsider archiving your unused Sandboxes to free up available storage.\nTo increase concurrency limits, upgrade your organization's Tier by visiting https://app.daytona.io/dashboard/limits.",
+    );
+    expect(classifyRunError(quota, "pi")).toEqual({ message: SANDBOX_CAPACITY_MESSAGE, code: "sandbox_capacity" });
+  });
+});
+
+describe("the public error contract, round 5 (Codex R5 P1-5)", () => {
+  it("redacts credentials however they are written", () => {
+    expect(sanitizeErrorText("upstream answered 401 for Authorization: Bearer abcDEF123.ghi-jkl_456")).toBe(
+      "upstream answered 401 for Authorization: Bearer [secret]",
+    );
+    expect(sanitizeErrorText("call failed with api_key=abc123def and token: xyz789")).toBe("call failed with api_key=[secret] and token=[secret]");
+    expect(sanitizeErrorText("jwt eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.sig rejected")).toBe("jwt [secret] rejected");
+    expect(sanitizeErrorText("see https://example.com/a/b for openai/gpt-4o-mini-2024-07-18")).toBe("see https://example.com/a/b for openai/gpt-4o-mini-2024-07-18");
+  });
+
+  it("shows one generic sentence with a reference for an error no rule recognizes, on inprocess", () => {
+    const raw = new Error("Internal error: ENOENT: no such file or directory, open '/home/sandbox/agenta/mounts/p/s/agents/sessions/pi/x.jsonl' (Bearer abcdef123456)");
+    const classified = classifyRunError(raw, "pi_core", undefined, { unknownText: "hidden" });
+    // Its own class, so a client knows the text was withheld and shows nothing else in its place (Codex R6 P1-5).
+    expect(classified.code).toBe("internal_error");
+    expect(classified.message).toMatch(/^The agent run failed \(reference [0-9a-f]{8}\)\. Send the message again/);
+    expect(classified.message).not.toMatch(/ENOENT|home|Bearer|abcdef/);
+  });
+
+  it("keeps the redacted first line for local and daytona, whose own sentences carry no public code yet", () => {
+    expect(classifyRunError(new Error("ENOENT:/home/tenant/file"), "pi").message).toBe("ENOENT:/home/tenant/file");
+  });
+});
+
+
+describe("the public error contract, round 6 (Codex R6 P1-5)", () => {
+  it("redacts quoted credentials, however they are quoted, and leaves ordinary text alone", () => {
+    expect(sanitizeErrorText("upstream failed: password='hunter-value'")).toBe("upstream failed: password=[secret]");
+    expect(sanitizeErrorText('upstream failed: token="sensitive-value"')).toBe("upstream failed: token=[secret]");
+    expect(sanitizeErrorText("login failed: password='two words'")).toBe("login failed: password=[secret]");
+    expect(sanitizeErrorText("config {'api_key': 'abc def ghi'} rejected")).toBe("config {api_key=[secret]} rejected");
+    expect(sanitizeErrorText("headers x-api-key: `abcdef` and secret=`s3cr3t`")).toBe("headers x-api-key=[secret] and secret=[secret]");
+    expect(sanitizeErrorText("cut off: password='hunter")).toBe("cut off: password=[secret]");
+    expect(sanitizeErrorText("the key is missing; see https://example.com/a for openai/gpt-4o")).toBe(
+      "the key is missing; see https://example.com/a for openai/gpt-4o",
+    );
+  });
+});
+
+describe("a model the in-process runtime does not know (Codex R6: terminal configuration failures)", () => {
+  it("reads as a setting to change, with its own class, not as 'send it again'", async () => {
+    const { modelUnavailableError } = await import("../../src/engines/inprocess/pi/acp-session.ts");
+    const classified = classifyRunError(modelUnavailableError("groq/no-such-model"), "pi_core", undefined, { unknownText: "hidden" });
+    expect(classified).toEqual({
+      code: "model_unavailable",
+      message: "The model 'groq/no-such-model' is not available to this agent. Pick another model in the agent's settings.",
+    });
+  });
+});
+
+describe("a provider's own error (provider_error)", () => {
+  // The exact text of POC references f14267d0, 19d7af41 and 11f43cc6: Inception's guardrail,
+  // returned by OpenRouter as an error instead of an answer.
+  const INCEPTION =
+    "Internal error: Upstream error from Inception: I'm sorry, but I can't share details of my architecture or training process. Would you like to learn about how language models work in general instead?";
+
+  it.each(["hidden", "sanitized"] as const)("reads the provider's sentence with unknown text %s instead of a reference", (unknownText) => {
+    const classified = classifyRunError(new Error(INCEPTION), "pi_core", "openrouter", { unknownText });
+    expect(classified.code).toBe("provider_error");
+    expect(classified.message).toContain("The model provider (Inception) returned an error: I'm sorry, but I can't share details of my architecture or training process.");
+    expect(classified.message).toContain("You can keep going in this conversation");
+    expect(classified.message).not.toMatch(/reference|Send the message again|Internal error/);
+  });
+
+  it("redacts what the provider said", () => {
+    const classified = classifyRunError(
+      new Error("Upstream error from Acme: key=sk-abcdefghijklmnop rejected, Authorization: Bearer abcdef123456"),
+      "pi_core",
+      "openrouter",
+      { unknownText: "hidden" },
+    );
+    expect(classified.code).toBe("provider_error");
+    expect(classified.message).not.toContain("sk-abcdefghijklmnop");
+    expect(classified.message).not.toContain("abcdef123456");
+  });
+
+  it("keeps the more specific classes for what they name", () => {
+    expect(classifyRunError(new Error("Upstream error from Groq: rate limit reached"), "pi_core").code).toBe("rate_limited");
+    expect(classifyRunError(new Error("Upstream error from X: request too large"), "pi_core").message).toBe(REQUEST_TOO_LARGE_MESSAGE);
+  });
+
+  it("names a content filter", () => {
+    const classified = classifyRunError(new Error("400 The response was filtered due to content_filter"), "pi_core", undefined, { unknownText: "hidden" });
+    expect(classified.code).toBe("provider_error");
+    expect(classified.message).toContain("content filter");
+  });
+});
+
+describe("flag-safety round: shared error rules match only what they name", () => {
+  it("reads a 413 only as an HTTP status, never inside an id or a duration", () => {
+    const auth = classifyRunError(new Error("401 Unauthorized: invalid x-api-key (request_id: req_ab413cd9)"), "claude", "anthropic");
+    expect(auth.message).toMatch(/model authentication failed/);
+    expect(classifyRunError(new Error("Stream idle timeout after 413s"), "pi_core").message).not.toBe(REQUEST_TOO_LARGE_MESSAGE);
+    expect(classifyRunError(new Error("insufficient_quota for run 20241413"), "pi_core", "openai").message).toMatch(/insufficient credit/);
+    expect(classifyRunError(new Error("413 Payload Too Large"), "pi_core").message).toBe(REQUEST_TOO_LARGE_MESSAGE);
+    expect(classifyRunError(new Error("upstream answered HTTP 413"), "pi_core").message).toBe(REQUEST_TOO_LARGE_MESSAGE);
+    expect(classifyRunError(new Error("request failed with status code 413"), "pi_core").message).toBe(REQUEST_TOO_LARGE_MESSAGE);
+  });
+
+  it("redacts credentials only: numbers, ids and paths stay", () => {
+    expect(sanitizeErrorText("max_tokens: 4096 exceeds model limit")).toBe("max_tokens: 4096 exceeds model limit");
+    expect(sanitizeErrorText("sandbox delete failed sandbox=3f2a1b4c-9d8e-4f7a-b6c5-d4e3f2a1b0c9")).toBe(
+      "sandbox delete failed sandbox=3f2a1b4c-9d8e-4f7a-b6c5-d4e3f2a1b0c9",
+    );
+    expect(sanitizeErrorText("ENOENT: no such file or directory, open '/home/sandbox/project/app.py'")).toBe(
+      "ENOENT: no such file or directory, open '/home/sandbox/project/app.py'",
+    );
+    expect(sanitizeErrorText("input_tokens=12000 prompt_tokens: 900")).toBe("input_tokens=12000 prompt_tokens: 900");
+    expect(sanitizeErrorText("OPENAI_API_KEY=abcdef123 and Authorization: Bearer abcDEF123.ghi")).toBe(
+      "OPENAI_API_KEY=[secret] and Authorization: Bearer [secret]",
+    );
+    expect(sanitizeErrorText("refresh_token: r1-xyz access_token=a1b2 password=hunter2")).toBe(
+      "refresh_token=[secret] access_token=[secret] password=[secret]",
+    );
+    expect(sanitizeErrorText("provider key sk-abcdefghijklmnop rejected")).toBe("provider key [secret] rejected");
+  });
+
+  it("redacts a credential whose value is all digits or all letters, and plural key fields (Codex round 8)", () => {
+    expect(sanitizeErrorText("password=123456 rejected")).toBe("password=[secret] rejected");
+    expect(sanitizeErrorText("token=123456 rejected")).toBe("token=[secret] rejected");
+    expect(sanitizeErrorText("Authorization: Token abcdefghijklmnop")).toBe("Authorization: Token [secret]");
+    expect(sanitizeErrorText("api_keys=abcdefghijk rejected")).toBe("api_keys=[secret] rejected");
+    expect(sanitizeErrorText("max_tokens: 4096 and input_tokens=12000 stay")).toBe("max_tokens: 4096 and input_tokens=12000 stay");
+    expect(sanitizeErrorText("Token verification failed")).toBe("Token verification failed");
+  });
+
+  it("redacts any Authorization scheme in a quoted JSON header (Codex R9-3)", () => {
+    expect(sanitizeErrorText('{"Authorization": "Token abcdefghijklmnop"}')).toBe('{"Authorization": "Token [secret]"}');
+    expect(sanitizeErrorText("{'authorization': 'Digest abcdefghijklmnop'}")).toBe("{'authorization': 'Digest [secret]'}");
+    expect(sanitizeErrorText('{"Authorization":"Bearer abcdefghijklmnop"}')).toBe('{"Authorization":"Bearer [secret]"}');
+  });
+
+  it("keeps a raw provider body's own reason, redacted", () => {
+    const classified = classifyRunError(
+      new Error('400 {"type":"error","error":{"type":"invalid_request_error","message":"messages: text content blocks must be non-empty"}}'),
+      "claude",
+      "anthropic",
+    );
+    expect(classified.code).toBe("provider_error");
+    expect(classified.message).toContain("HTTP 400");
+    expect(classified.message).toContain("messages: text content blocks must be non-empty");
+    const withKey = classifyRunError(
+      new Error('Internal error: 400 {"error":{"message":"bad request for api_key=abc123def","type":"invalid_request_error"}}'),
+      "pi_core",
+    );
+    expect(withKey.message).toContain("api_key=[secret]");
+    expect(withKey.message).not.toContain("abc123def");
   });
 });

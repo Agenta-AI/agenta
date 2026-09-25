@@ -28,8 +28,6 @@ import {
     Clock,
     DotsThreeVertical,
     DownloadSimple,
-    FilePlus,
-    FolderPlus,
     HardDrive,
     LinkSimple,
     ListBullets,
@@ -40,9 +38,9 @@ import {
     TextAa,
     TextAlignLeft,
     Trash,
-    UploadSimple,
 } from "@phosphor-icons/react"
 
+import {type DriveFolderActions, driveFolderMenuEntries} from "./DriveFolderMenu"
 import {ROW_ICON_BTN} from "./DriveHeader"
 import {DriveInlineName} from "./DriveInlineName"
 import {SelectedMark} from "./DriveMenuMark"
@@ -100,15 +98,6 @@ export interface DriveFileActions {
     /** A reason a name can't be used, or null. */
     validateName: (name: string) => string | null
     onDelete: () => void
-}
-
-/** A folder's write actions; absent on a read-only mount. */
-interface DriveFolderActions {
-    onNewFolder: () => void
-    onNewFile: () => void
-    /** Pick files, or write the staged ones here. */
-    onUpload: () => void
-    stagedCount?: number
 }
 
 type DriveToolbarProps =
@@ -289,33 +278,31 @@ export function DriveToolbar(props: DriveToolbarProps) {
                         // New / Rename open a name field; the menu must not pull focus back to its trigger.
                         onCloseAutoFocus={(e) => e.preventDefault()}
                     >
-                        <DropdownMenuItem disabled={!actions} onSelect={actions?.onNewFolder}>
-                            <FolderPlus />
-                            New folder
-                        </DropdownMenuItem>
-                        <DropdownMenuItem disabled={!actions} onSelect={actions?.onNewFile}>
-                            <FilePlus />
-                            New file
-                        </DropdownMenuItem>
-                        <DropdownMenuItem disabled={!actions} onSelect={actions?.onUpload}>
-                            <UploadSimple />
-                            {actions?.stagedCount
-                                ? `Upload ${actions.stagedCount} staged ${actions.stagedCount === 1 ? "file" : "files"} here`
-                                : "Upload files…"}
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem disabled={!onCopyPath} onSelect={onCopyPath}>
-                            <LinkSimple />
-                            Copy path
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                            disabled={!onDownloadAll || downloadingAll}
-                            onSelect={onDownloadAll}
-                        >
-                            <DownloadSimple />
-                            {downloadingAll ? "Preparing download…" : "Download all"}
-                            <DropdownMenuShortcut>.zip</DropdownMenuShortcut>
-                        </DropdownMenuItem>
+                        {/* Same entries as the blank-space right-click menu (DriveFolderMenu). */}
+                        {driveFolderMenuEntries({
+                            actions,
+                            onCopyPath,
+                            onDownloadAll,
+                            downloadingAll,
+                        }).map((entry, i) =>
+                            entry === "separator" ? (
+                                <DropdownMenuSeparator key={`sep-${i}`} />
+                            ) : (
+                                <DropdownMenuItem
+                                    key={entry.key}
+                                    disabled={entry.disabled}
+                                    onSelect={entry.onSelect}
+                                >
+                                    {entry.icon}
+                                    {entry.label}
+                                    {entry.shortcut ? (
+                                        <DropdownMenuShortcut>
+                                            {entry.shortcut}
+                                        </DropdownMenuShortcut>
+                                    ) : null}
+                                </DropdownMenuItem>
+                            ),
+                        )}
                     </DropdownMenuContent>
                 </DropdownMenu>
             </Row>

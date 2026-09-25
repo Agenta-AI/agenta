@@ -6,6 +6,7 @@ import {
     compactPendingSendCoverage,
     countUserMessages,
     durableUserTurnIds,
+    echoedDockInputIds,
     nextPendingSendCoverage,
     pendingSendEchoMessages,
     pendingSendsInFlight,
@@ -17,6 +18,7 @@ export interface PendingSendEchoInput {
     id: string
     text: string
     fileParts?: PendingSendEcho["fileParts"]
+    policy?: PendingSendEcho["policy"]
 }
 
 export interface PendingSendEchoes {
@@ -24,6 +26,9 @@ export interface PendingSendEchoes {
     rows: UIMessage[]
     /** A send left the composer and the runner has neither named its turn's row nor refused it. */
     inFlight: boolean
+    /** Durable input ids a live echo already shows — the dock leaves these out (see
+     *  `echoedDockInputIds`). */
+    dockCoveredIds: ReadonlySet<string>
     /** Show a send immediately, before its request leaves. */
     add: (input: PendingSendEchoInput) => void
     /** The server named the turn this send started; from here it retires on that id alone. */
@@ -93,6 +98,7 @@ export const usePendingSendEchoes = ({
                 id: input.id,
                 text: input.text,
                 fileParts: input.fileParts,
+                policy: input.policy,
                 coveredAtUserCount: nextPendingSendCoverage(at, current),
                 createdAtUserCount: at,
             },
@@ -156,6 +162,7 @@ export const usePendingSendEchoes = ({
 
     const rows = useMemo(() => pendingSendEchoMessages(visible), [visible])
     const inFlight = useMemo(() => pendingSendsInFlight(visible), [visible])
+    const dockCoveredIds = useMemo(() => echoedDockInputIds(visible), [visible])
 
-    return {rows, inFlight, add, markAccepted, markParked, markFailed, drop}
+    return {rows, inFlight, dockCoveredIds, add, markAccepted, markParked, markFailed, drop}
 }

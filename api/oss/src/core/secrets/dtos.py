@@ -17,6 +17,7 @@ from oss.src.core.secrets.enums import (
     MCPStandardProviderKind,
     LLMCustomProviderKind,
     CustomSecretFormat,
+    ChannelSecretKind,
     SubscriptionLoginState,
     SubscriptionProviderKind,
     SUBSCRIPTION_PROVIDER_HARNESSES,
@@ -226,6 +227,31 @@ class CustomSecretDTO(BaseModel):
     secret: CustomSecretSettingsDTO
 
 
+class ChannelSecretSettingsDTO(BaseModel):
+    """Vault-stored credential fields only -- things a platform issued and we
+    verify. A bridge's `delivery_url` is not a credential (it is our own
+    address to call, not who is calling us) and does not belong here: it
+    lives on `ChannelConnectionCreate.data`. Unknown keys passed here are
+    silently dropped, so routing a non-credential field through this shape
+    would vanish with no error."""
+
+    bot_token: Optional[str] = None
+    signing_secret: Optional[str] = None
+    # Telegram sets this on the webhook and echoes it back on every update; the
+    # ingress verifies against the hydrated value, so it must survive the vault
+    # round trip rather than being dropped as an unknown key.
+    webhook_secret: Optional[str] = None
+    # WhatsApp: the system-user token that calls the Graph API, and the Meta
+    # app secret every webhook is signed with (X-Hub-Signature-256).
+    access_token: Optional[str] = None
+    app_secret: Optional[str] = None
+
+
+class ChannelSecretDTO(BaseModel):
+    kind: ChannelSecretKind
+    channel: ChannelSecretSettingsDTO
+
+
 class OAuthProviderSettingsDTO(BaseModel):
     # A validation error on a credential field renders the rejected input by default, so
     # the value would travel on to whatever logs or reports the error. The rejection has
@@ -293,6 +319,7 @@ SecretDataDTO = Union[
     SSOProviderDTO,
     WebhookProviderDTO,
     CustomSecretDTO,
+    ChannelSecretDTO,
     OAuthProviderDTO,
     OAuthGrantDTO,
     # Last on purpose: every field has a default, so this member would swallow another
@@ -437,6 +464,21 @@ def _validate_secret_data_based_on_kind(
                     )
         else:
             raise ValueError("A custom_secret format must be 'text' or 'json'")
+    elif kind == SecretKind.CHANNEL_SECRET.value:
+        if not isinstance(data, dict):
+            raise ValueError(
+                "The provided request secret dto is not a valid type for ChannelSecretDTO"
+            )
+        channel_secret_kinds = {member.value for member in ChannelSecretKind}
+        if data.get("kind") not in channel_secret_kinds:
+            raise ValueError(
+                "The provided kind in data is not a valid ChannelSecretKind enum"
+            )
+        channel = data.get("channel")
+        if not isinstance(channel, dict):
+            raise ValueError(
+                "The provided request secret dto is missing required fields for ChannelSecretSettingsDTO"
+            )
     elif kind == SecretKind.SUBSCRIPTION_PROVIDER.value:
         if not isinstance(data, dict):
             raise ValueError(

@@ -17,7 +17,12 @@ import {
     TurnFooter,
 } from "@agenta/chat/components"
 import {useHeldFor} from "@agenta/chat/hooks"
-import {endsOnClosedText, splitTurnActivity, type TurnViewModel} from "@agenta/chat/model"
+import {
+    endsOnClosedText,
+    readableTraceError,
+    splitTurnActivity,
+    type TurnViewModel,
+} from "@agenta/chat/model"
 import {messageBodyKey} from "@agenta/chat/state"
 import {traceDataSummaryAtomFamily} from "@agenta/entities/loadable"
 import {openTraceDrawerAtom} from "@agenta/observability/traceDrawer"
@@ -66,6 +71,7 @@ const TurnRowInner = ({
     sessionId,
     remoteRunning = false,
     waitingOnUser = false,
+    resuming = false,
     runId,
     firstTurn = false,
 }: {
@@ -82,6 +88,8 @@ const TurnRowInner = ({
     remoteRunning?: boolean
     /** The run is parked on the reader: the last turn's fold line says so. */
     waitingOnUser?: boolean
+    /** The reader answered and the transcript still shows the ask — the fold reads as work. */
+    resuming?: boolean
     /** Keys the clock and fold to the run, so the placeholder turn's carry to the real one. */
     runId?: string
     /** The session's first response: the one that narrates the agent's startup. */
@@ -143,7 +151,9 @@ const TurnRowInner = ({
     const traceSummary = useAtomValue(
         traceDataSummaryAtomFamily(answerless && traceId ? traceId : ""),
     )
-    const traceError = answerless ? (traceSummary.error ?? null) : null
+    // A trace keeps the provider's failure as it came back, which can be a raw JSON body with
+    // account ids; only its sanitized sentence may reach the screen, as on the desktop.
+    const traceError = answerless ? readableTraceError(traceSummary.error) : null
     const errorText = turn.status.showError
         ? (turn.status.errorText ?? "Something went wrong.")
         : traceError
@@ -199,6 +209,7 @@ const TurnRowInner = ({
                 streaming={live}
                 answerStarted={activity.answer !== null}
                 waitingOnUser={turn.isLast && waitingOnUser}
+                resuming={turn.isLast && resuming}
                 traceId={traceId}
                 streamedHere={streamedHereRef.current}
                 firstTurn={firstTurn}
@@ -233,7 +244,7 @@ const TurnRowInner = ({
             {/* The turn's meta line sits under the answer, revealed on hover or focus like the
                 desktop's; the row keeps its height so nothing shifts when it appears. Not while
                 the run is parked on the reader: the turn is not over, only waiting. */}
-            {!live && !(turn.isLast && waitingOnUser) ? (
+            {!live && !(turn.isLast && (waitingOnUser || resuming)) ? (
                 <div
                     className={`flex min-h-6 items-center gap-1 ${
                         inspectorEnabled ? "" : turnToolbarRevealClass

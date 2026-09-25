@@ -67,6 +67,9 @@ class TemplateLoadCommand(BaseModel):
     base_revision: WorkflowRevisionData
     ui_build_kit_enabled: bool = False
     ui_disabled_ops: list[str] = Field(default_factory=list, max_length=128)
+    ui_op_permissions: dict[str, Literal["allow", "ask"]] = Field(
+        default_factory=dict, max_length=128
+    )
     staging_session_id: str | None = Field(default=None, min_length=1, max_length=256)
     attachment_ids: list[UUID] = Field(default_factory=list, max_length=10)
     initial_message: str

@@ -37,11 +37,10 @@ describe("pending input reducer", () => {
                 inputs: [input("older", 20, "queued"), input("steer", 10, "redirect", "steer")],
                 interactions: [],
             },
-            capabilities: {durable_approvals: true, queue: true, steer: true},
+            capabilities: {durable_approvals: true},
         })
 
         expect(view.executionState).toBe("stopping")
-        expect(view.capabilities).toEqual({queue: true, steer: true})
         expect(view.queued.map(({id, policy}) => [id, policy])).toEqual([
             ["steer", "steer"],
             ["older", "queue"],
@@ -132,7 +131,7 @@ describe("pending input reducer", () => {
             execution_state: {id: null, state: "idle"},
             read: {latest_sequence: 0, history_complete: true},
             pending: {inputs: [recoverable], interactions: []},
-            capabilities: {durable_approvals: true, queue: true, steer: true},
+            capabilities: {durable_approvals: true},
         })
 
         expect(view.queued).toEqual([
@@ -145,9 +144,8 @@ describe("pending input reducer", () => {
         ])
     })
 
-    it("defaults an absent or failed snapshot to the legacy client queue", () => {
+    it("defaults an absent or failed snapshot to an empty idle queue", () => {
         expect(reduceSessionPendingInputs(null)).toEqual({
-            capabilities: {queue: false, steer: false},
             executionState: "idle",
             queued: [],
         })

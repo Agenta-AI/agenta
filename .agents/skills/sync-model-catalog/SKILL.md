@@ -42,17 +42,27 @@ vault-mapped providers plus `openai-codex`) and emits one entry per model. pi-ai
 mapped to Agenta's vocabulary (`google`->`gemini`, `together`->`together_ai`); ids are
 `<agenta-provider>/<pi-model-id>`.
 
+**Two copies of pi-ai are installed, and only one of them is the harness.** The runner declares
+`@earendil-works/pi-ai` directly at an older version, while `@earendil-works/pi-coding-agent` — the
+package that actually runs the agent — carries its own newer copy. Resolve the models file THROUGH
+pi-coding-agent, so the catalog describes the models the harness really accepts:
+
 ```bash
-# From repo root. Point at the pinned pi-ai in the runner's node_modules (the .pnpm path includes
-# the version — resolve it with the glob).
-MODELS=$(ls services/runner/node_modules/.pnpm/@earendil-works+pi-ai@*/node_modules/@earendil-works/pi-ai/dist/models.generated.js | head -1)
+# From repo root. `realpath` must do the resolving: the path crosses a pnpm symlink, and a `..`
+# left in it would be normalized lexically by node's loader back onto the runner's older direct
+# copy — silently regenerating against the wrong pi-ai.
+MODELS=$(realpath services/runner/node_modules/@earendil-works/pi-coding-agent/../pi-ai/dist/models.generated.js)
 node .agents/skills/sync-model-catalog/generate_pi_models.mjs "$MODELS" \
   sdks/python/agenta/sdk/agents/data/pi_models.generated.json
 ```
 
-Detect the bump from a lockfile diff on `@earendil-works+pi-ai@<version>`. The `_generator` field
-in the output records the exact pi-ai version. The curated overlay is untouched — only the
-`.generated.json` is rewritten, so the merge on load re-applies the human judgments.
+The generator prints the version it read, and records it in the output's `_generator.source`. Check
+that line: a regeneration that reports an OLDER version than the file already carried has read the
+wrong copy — discard it rather than committing a downgrade.
+
+Detect the bump from a lockfile diff on `@earendil-works+pi-coding-agent@<version>`. The curated
+overlay is untouched — only the `.generated.json` is rewritten, so the merge on load re-applies the
+human judgments.
 
 #### Adding a model pi-ai does not carry yet
 
@@ -72,11 +82,13 @@ itself the moment a regeneration carries the model. Prune superseded additions a
 Probe live sessions by reading the model config options (the same `getConfigOptions` call
 `allowedModels` uses in `services/runner/src/engines/sandbox_agent/model.ts`), but do not copy one
 session's set blindly. Account entitlements and promotions can add or remove context-hinted variants
-such as `claude-fable-5[1m]` while keeping the same model family.
+such as `claude-fable-5-1[1m]` while keeping the same model family.
 
 Use the stable bare canonical id when the runner can safely widen it to the session's hinted option.
-For Fable, publish `claude-fable-5`: it matches a bare live option exactly and the runner resolves it
-to `claude-fable-5[1m]` when that is the only offered variant. Do not publish the friendly forms
+For Fable, publish `claude-fable-5-1`: an API-key session offers it bare, and the runner resolves it
+to `claude-fable-5-1[1m]` on a subscription session, where that is the only offered variant. Drop an
+id the pinned build no longer offers at all (Claude Code 2.1.280 dropped `claude-fable-5`); keeping
+it publishes a picker option that fails at run time. Do not publish the friendly forms
 `fable` or `fable[1m]`; the harness does not recognize that model family under those ids. Requires
 an authenticated Claude session, so this is a manual/periodic step, not a CI gate.
 

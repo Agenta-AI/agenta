@@ -68,6 +68,7 @@ class FakeEventSource {
 }
 
 const originalEventSource = globalThis.EventSource
+const originalBroadcastChannel = globalThis.BroadcastChannel
 let root: Root | null = null
 let container: HTMLDivElement | null = null
 
@@ -92,6 +93,9 @@ const agentsWorkflowsInvalidated = () =>
 beforeEach(() => {
     ;(globalThis as {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
     globalThis.EventSource = FakeEventSource as unknown as typeof EventSource
+    // Without `BroadcastChannel` the tab holds its own stream at once, so these tests cover the
+    // event mapping only. The election between tabs has its own tests in `@agenta/sessions`.
+    ;(globalThis as {BroadcastChannel?: unknown}).BroadcastChannel = undefined
     sources.length = 0
     mocks.invalidateQueries.mockClear()
     mocks.invalidateSessionListQueries.mockClear()
@@ -106,6 +110,7 @@ afterEach(async () => {
     container?.remove()
     container = null
     globalThis.EventSource = originalEventSource
+    globalThis.BroadcastChannel = originalBroadcastChannel
 })
 
 // The shared `@agenta/sessions/watch` mount, as the desktop wires it. `/m` mounts the same
