@@ -11,7 +11,6 @@ their arrival time, which is what their order already reflected.
 
 from typing import Sequence, Union
 
-import sqlalchemy as sa
 from alembic import op
 
 revision: str = "oss000000037"
@@ -21,20 +20,21 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    op.add_column(
-        "channel_inbox_events",
-        sa.Column("sent_at", sa.TIMESTAMP(timezone=True), nullable=True),
+    # idempotent, so a retry after an interrupted index build below succeeds
+    op.execute(
+        "ALTER TABLE channel_inbox_events "
+        "ADD COLUMN IF NOT EXISTS sent_at TIMESTAMP WITH TIME ZONE"
     )
-    op.execute("UPDATE channel_inbox_events SET sent_at = created_at")
-    # built without blocking the inbox's writes; CONCURRENTLY cannot run
-    # inside a transaction
+    op.execute(
+        "UPDATE channel_inbox_events SET sent_at = created_at WHERE sent_at IS NULL"
+    )
+    # built without blocking the inbox's writes; an interrupted concurrent
+    # build leaves an invalid index, so drop any leftover first
     with op.get_context().autocommit_block():
-        op.create_index(
-            "ix_channel_inbox_events_sent",
-            "channel_inbox_events",
-            ["project_id", "space_id", "sent_at", "id"],
-            postgresql_concurrently=True,
-            if_not_exists=True,
+        op.execute("DROP INDEX CONCURRENTLY IF EXISTS ix_channel_inbox_events_sent")
+        op.execute(
+            "CREATE INDEX CONCURRENTLY ix_channel_inbox_events_sent "
+            "ON channel_inbox_events (project_id, space_id, sent_at, id)"
         )
 
 

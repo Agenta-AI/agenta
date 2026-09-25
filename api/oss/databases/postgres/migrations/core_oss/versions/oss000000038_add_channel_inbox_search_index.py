@@ -23,11 +23,16 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     # CREATE INDEX CONCURRENTLY cannot run inside a transaction.
+    # an interrupted concurrent build leaves an invalid index; drop any
+    # leftover first so a retry rebuilds it
     with op.get_context().autocommit_block():
+        op.execute(
+            text("DROP INDEX CONCURRENTLY IF EXISTS ix_channel_inbox_events_search;")
+        )
         op.execute(
             text(
                 """
-                CREATE INDEX CONCURRENTLY IF NOT EXISTS ix_channel_inbox_events_search
+                CREATE INDEX CONCURRENTLY ix_channel_inbox_events_search
                 ON channel_inbox_events USING gin (
                     to_tsvector(
                         'simple',

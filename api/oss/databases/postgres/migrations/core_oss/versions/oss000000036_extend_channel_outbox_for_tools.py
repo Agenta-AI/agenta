@@ -12,7 +12,6 @@ turn rows take their thread's space.
 
 from typing import Sequence, Union
 
-import sqlalchemy as sa
 from alembic import op
 
 revision: str = "oss000000036"
@@ -23,9 +22,9 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     op.alter_column("channel_outbox_events", "thread_id", nullable=True)
-    op.add_column(
-        "channel_outbox_events",
-        sa.Column("space_id", sa.UUID(as_uuid=True), nullable=True),
+    # idempotent, so a retry after an interrupted index build below succeeds
+    op.execute(
+        "ALTER TABLE channel_outbox_events ADD COLUMN IF NOT EXISTS space_id UUID"
     )
     op.execute(
         """
@@ -33,17 +32,13 @@ def upgrade() -> None:
         SET space_id = t.space_id
         FROM channel_threads AS t
         WHERE t.project_id = o.project_id AND t.id = o.thread_id
+          AND o.space_id IS NULL
         """
     )
-    # built without blocking the outbox's writes
-    with op.get_context().autocommit_block():
-        op.create_index(
-            "ix_channel_outbox_space",
-            "channel_outbox_events",
-            ["project_id", "space_id", "created_at"],
-            postgresql_concurrently=True,
-            if_not_exists=True,
-        )
+    _build_concurrently(
+        "ix_channel_outbox_space",
+        "channel_outbox_events (project_id, space_id, created_at)",
+    )
 
 
 def downgrade() -> None:
@@ -57,3 +52,12 @@ def downgrade() -> None:
     op.drop_column("channel_outbox_events", "space_id")
     op.execute("DELETE FROM channel_outbox_events WHERE thread_id IS NULL")
     op.alter_column("channel_outbox_events", "thread_id", nullable=False)
+
+
+def _build_concurrently(name: str, target: str) -> None:
+    """Build without blocking writes. An interrupted concurrent build leaves an
+    invalid index behind, so drop any leftover first: a retry then rebuilds it."""
+
+    with op.get_context().autocommit_block():
+        op.execute(f"DROP INDEX CONCURRENTLY IF EXISTS {name}")
+        op.execute(f"CREATE INDEX CONCURRENTLY {name} ON {target}")
