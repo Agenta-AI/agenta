@@ -57,7 +57,7 @@ Why one polling loop and not hooks where things happen:
 | Edit time fix | `api/oss/src/dbs/postgres/triggers/mappings.py` | changed: edits set `updated_at` (bug F5) |
 | Delivery outcome columns | migration `core_oss` on `trigger_deliveries` | new columns and index |
 | Delivery status writes | `TriggersDAO.write_delivery`, `write_subscription_delivery_if_live`, `update_delivery`; `SessionStreamsDAO.claim_trigger_delivery` | changed: every status write also clears `outcome` (4.2) |
-| Notice state table | migration `core_oss`, new DBE in `api/oss/src/dbs/postgres/triggers/` | new table `trigger_notices` |
+| Notice tables | migration `core_oss` (4.5), new DBEs in `api/oss/src/dbs/postgres/triggers/` | new tables `trigger_notices` and `trigger_notice_sends` |
 | Database access | DAO methods and interfaces in 5.5 | new methods |
 | Settle and apply | `api/oss/src/core/triggers/notices.py` (`TriggerNoticesService`) | new |
 | Notices foundation | `api/oss/src/core/notifications/` (`Notice`, `NoticeChannel`, `EmailNoticeChannel`, message catalog) | new |
@@ -111,7 +111,8 @@ are never decided and never cause an email.
 
 ### 4.3 New table `trigger_notices`
 
-One row per automation that has had a decided run while the feature was on.
+One row per automation that has had a decided run while the feature was on. It holds what the
+automation's owner should be told.
 
 | Column | Type | Meaning |
 |---|---|---|
@@ -121,25 +122,97 @@ One row per automation that has had a decided run while the feature was on.
 | `last_result_at` | `TIMESTAMPTZ`, nullable | `created_at` of the newest `failed` or `succeeded` delivery applied |
 | `failing_since` | `TIMESTAMPTZ`, nullable | `created_at` of the first failed run of the current failing state |
 | `failure_code` | `VARCHAR`, nullable | reason code of that run |
-| `failure_notified_at` | `TIMESTAMPTZ`, nullable | when the failure email was sent |
-| `failure_send_attempts` | `INTEGER`, not null, default 0 | failed sends of the current failure email |
 | `attention_since` | `TIMESTAMPTZ`, nullable | `created_at` of the run that first stopped to wait for a person |
 | `attention_session_id` | `VARCHAR`, nullable | that run's `session_id` |
-| `attention_notified_at` | `TIMESTAMPTZ`, nullable | when the "needs attention" email was sent |
-| `attention_send_attempts` | `INTEGER`, not null, default 0 | failed sends of the current "needs attention" email |
-| `created_at`, `updated_at` | `TIMESTAMPTZ` | lifecycle |
+| lifecycle | | the six lifecycle columns (4.5) |
 
-Primary key `(project_id, automation_id)`. There is no foreign key to the automation, because the
-id points to one of two tables.
+Primary key `(project_id, automation_id)`.
 
-The row holds two independent notices, **failure** and **attention**. Each has its own
-`*_since`, `*_notified_at` and `*_send_attempts`. A notice is **due** when its `*_since` is set
-and its `*_notified_at` is `NULL`. Clearing a notice sets its fields back to `NULL` and its
-attempts to 0.
+The row holds two independent notices, **failure** and **attention**. A notice is **open** while
+its `*_since` is set. **Clearing** a notice sets its fields to `NULL` and deletes its rows in
+`trigger_notice_sends`, in the same transaction.
 
-Why a new table and not columns on the automation tables: there are two automation tables, and
+### 4.4 New table `trigger_notice_sends`
+
+One row per open notice and channel. It holds what was already delivered, so each channel is
+tracked on its own.
+
+| Column | Type | Meaning |
+|---|---|---|
+| `project_id` | `UUID`, not null | FK `projects.id`, `ON DELETE CASCADE` |
+| `automation_id` | `UUID`, not null | the automation of the notice |
+| `notice` | `VARCHAR`, not null | `failure` or `attention` |
+| `channel` | `VARCHAR`, not null | the channel name, `email` in v0 |
+| `sent_at` | `TIMESTAMPTZ`, nullable | when this channel delivered the notice |
+| `failed_at` | `TIMESTAMPTZ`, nullable | when this channel gave up after 10 attempts, or found no recipient |
+| `attempts` | `INTEGER`, not null, default 0 | failed sends on this channel |
+| lifecycle | | the six lifecycle columns (4.5) |
+
+Primary key `(project_id, automation_id, notice, channel)`.
+
+A notice is **due on a channel** when the notice is open and its row for that channel is missing,
+or has `sent_at IS NULL AND failed_at IS NULL`.
+
+Why new tables and not columns on the automation tables: there are two automation tables, and
 every edit locks and rewrites the whole automation row (F4). The monitor must not write to rows
-that users edit.
+that users edit. Why two tables: what to tell (one row per automation) and what was delivered
+(one row per channel) change at different times, and a new channel must only add rows, not
+columns.
+
+### 4.5 Migration
+
+All schema changes go in the shared chain `oss/databases/postgres/migrations/core_oss/`. EE runs
+that chain too, so nothing is copied into the EE tree (`api/AGENTS.md`, "Database schema
+migrations"). There are two revisions, with the next free numbers at implementation time.
+
+**Revision 1: columns and tables** (one transaction).
+
+1. `SET LOCAL lock_timeout = '5s'` and `SET LOCAL statement_timeout = '5min'`, as in
+   `oss000000032_rekey_mcp_oauth_grants_by_connection.py:63-68`. `ALTER TABLE` on
+   `trigger_deliveries` needs a short exclusive lock, and the workers write that table all the
+   time. Without a limit, the migration can wait behind a long transaction and block every
+   delivery write behind itself. With the limit it fails fast and can run again.
+2. `ADD COLUMN outcome VARCHAR NULL` and `ADD COLUMN outcome_code VARCHAR NULL` on
+   `trigger_deliveries`. A nullable column without a default changes only the Postgres catalog:
+   no table rewrite, no row scan. Existing rows read as `NULL` (4.2).
+3. `CREATE TABLE trigger_notices` and `CREATE TABLE trigger_notice_sends` (4.3, 4.4).
+4. Downgrade: drop both tables, then drop both columns.
+
+Both new tables follow the repo's table rules
+(`docs/designs/oss-ee-convergence/migration-chains-and-edition-switch.md`, rules 1 and 4):
+
+- the six lifecycle columns, all nullable: `created_at` (`DEFAULT CURRENT_TIMESTAMP`),
+  `updated_at`, `deleted_at`, `created_by_id`, `updated_by_id`, `deleted_by_id`, with no foreign
+  key on the actor columns;
+- one hard foreign key at the owning scope, `project_id` to `projects.id` with
+  `ON DELETE CASCADE`. `projects.id` is one of the frozen shared keys that every chain may
+  reference;
+- no other foreign keys. `automation_id` is a loose UUID, and `trigger_notice_sends` has no foreign
+  key to `trigger_notices`. The code keeps them consistent: clearing a notice deletes its send
+  rows (4.3), and a missing or deleted automation clears its notices (5.2, 5.3).
+
+**Revision 2: index** (outside a transaction).
+
+1. `CREATE INDEX CONCURRENTLY ix_trigger_deliveries_created_at ON trigger_deliveries (created_at)`
+   inside `op.get_context().autocommit_block()`, as in
+   `oss000000012_add_gateway_connections_provider_account_index.py:27-38`. `CONCURRENTLY` does not
+   block delivery writes while the index builds. It cannot run inside a transaction, so it is
+   its own revision.
+2. A failed concurrent build leaves an invalid index with the same name, and `IF NOT EXISTS`
+   would then skip it on the next run. So the revision first drops the index if it exists and
+   is invalid (`pg_index.indisvalid = false`), then creates it.
+3. Downgrade: `DROP INDEX CONCURRENTLY IF EXISTS ix_trigger_deliveries_created_at`.
+
+The ORM models match the migration: `TriggerDeliveryDBE` gets the two columns, and the two new
+tables get DBEs.
+
+Order and rollback:
+
+- The migration runs before the new code starts. The old code ignores the new nullable columns
+  and tables, so a deploy is safe in both directions.
+- A downgrade loses only notice state and decided outcomes. No user data is lost.
+- Before running it on cloud, check the size of `trigger_deliveries` (open item 2 in section 14).
+  The index build reads the whole table once.
 
 ## 5. The monitor pass
 
@@ -270,21 +343,27 @@ For each session returned, clear that row's attention notice. The next run that 
 new email. `cancelled` does not count as an answer. If the runner dropped the row (F43), the wait
 never counts as answered, and the next email comes only after a change to the automation (P4).
 
-Then send the due notices, oldest `*_since` first, at most 100 per pass. For each due notice:
+Then send what is due, oldest `*_since` first, at most 100 sends per pass. The unit of work is
+one notice on one channel (4.4). For each:
 
 1. Read `A` again. If `A` is missing or deleted, or its edit time is after the notice's
-   `*_since`, clear that notice's fields and do not send.
-2. Find the recipient (5.4).
-3. Build a `Notice` and call each channel in the channel list (v0: only email), with a 30-second
-   timeout (`asyncio.wait_for`).
-4. On success: set that notice's `*_notified_at = now()` and `*_send_attempts = 0`, only if its
-   `*_since` still has the value that was read.
-5. On failure: log the error and add 1 to that notice's `*_send_attempts`. At 10 attempts, set its
-   `*_notified_at = now()` and log an error that the notice was dropped.
+   `*_since`, clear the notice and do not send.
+2. Find the recipient (5.4). If there is none, set `failed_at = now()` on every channel of the
+   notice and log a warning.
+3. Build a `Notice` and call that channel's `send`, with a 30-second timeout
+   (`asyncio.wait_for`).
+4. On success: in one transaction, lock the `trigger_notices` row, check that `*_since` still has
+   the value that was read, and write the channel row with `sent_at = now()`.
+5. On failure: log the error and add 1 to the channel row's `attempts`, with the same `*_since`
+   check. At 10 attempts, set `failed_at = now()` and log an error that the notice was dropped on
+   this channel.
 6. Renew the lease. If renewal fails, stop the pass.
 
-The email is sent outside any database transaction. If the process dies between the send and the
-write in item 4, the next pass sends the email again. This is rare and accepted.
+Channels do not affect each other: a channel that fails keeps retrying on its own row, and a
+channel that succeeded is never called again for the same notice.
+
+A send happens outside any database transaction. If the process dies between the send and the
+write in item 4, the next pass sends on that channel again. This is rare and accepted.
 
 ### 5.4 Recipient
 
@@ -292,7 +371,7 @@ write in item 4, the next pass sends the email again. This is rare and accepted.
 |---|---|
 | `A.created_by_id` is a user with `deleted_at IS NULL` and a `project_members` row for the project with `deleted_at IS NULL` | the creator (F2, F6, F7, F60) |
 | otherwise (no creator, creator deleted, or creator not in the project) | the organization owner: `organizations.owner_id` of the project's organization (A1, F8, F64), with `get_organization_owner` |
-| the owner has `deleted_at` set or no email (`get_organization_owner` does not check this, F61) | no email; log a warning; the notice counts as sent |
+| the owner has `deleted_at` set or no email (`get_organization_owner` does not check this, F61) | none; log a warning; the notice is closed as failed on every channel (5.3 item 2) |
 
 ### 5.5 Code layout and transactions
 
@@ -302,7 +381,7 @@ DAO interface, DAO implementation).
 | Interface (core) | Implementation (db) | Methods |
 |---|---|---|
 | `TriggersDAOInterface` (`core/triggers/interfaces.py:93`) | `TriggersDAO` | `query_undecided_deliveries(created_after, after, limit)`; `settle_delivery(project_id, delivery_id, status_code, outcome, outcome_code, transaction)` returns whether a row changed |
-| `TriggerNoticesDAOInterface` (new, `core/triggers/interfaces.py`) | `TriggerNoticesDAO` (new, `dbs/postgres/triggers/notices_dao.py`) | `lock_notice(project_id, automation_id, automation_kind, transaction)`; `save_notice(state, transaction)`; `query_waiting()`; `query_due(limit)`; `clear_attention(project_id, automation_id)`; `mark_sent(...)`; `record_send_failure(...)` |
+| `TriggerNoticesDAOInterface` (new, `core/triggers/interfaces.py`) | `TriggerNoticesDAO` (new, `dbs/postgres/triggers/notices_dao.py`) | `lock_notice(project_id, automation_id, automation_kind, transaction)`; `save_notice(state, transaction)`, which also deletes the send rows of a cleared notice; `query_waiting()`; `query_due(channels, limit)` returns (notice, channel) pairs; `clear_notice(project_id, automation_id, notice)`; `mark_sent(project_id, automation_id, notice, channel, since)`; `record_send_failure(project_id, automation_id, notice, channel, since)`; `close_failed(project_id, automation_id, notice, channels, since)` |
 | `RecordsDAOInterface` (`core/sessions/records/interfaces.py:14`) | `RecordsDAO` | `turn_endings(project_id, keys)` |
 | `SessionInteractionsDAOInterface` (`core/sessions/interactions/interfaces.py:14`) | `SessionInteractionsDAO` | `answered_sessions(project_id, session_ids)` |
 
@@ -387,8 +466,8 @@ team.
 
 - `Notice`: kind (`automation_failed` or `automation_needs_attention`), recipient (user id and
   email), project, automation (id, kind, name), reason code, time, link.
-- `NoticeChannel`: an interface with one method, `async send(notice) -> None`, that raises on
-  failure.
+- `NoticeChannel`: an interface with a stable `name` (the `channel` value in 4.4) and one
+  method, `async send(notice) -> None`, that raises on failure.
 - `EmailNoticeChannel`: renders section 6 and calls `send_html_email`.
 - The reason catalog (6.2).
 
@@ -396,9 +475,9 @@ The trigger rules (what counts as a failure, when a notice is due) stay in
 `core/triggers/notices.py`. To add in-app notices in v1, add an `InAppNoticeChannel` and put it
 in the channel list. Slack or Telegram follow the same way.
 
-v0 keeps one `*_notified_at` per notice, not one per channel. With one channel this is exact.
-When v1 adds a second channel, one channel can fail while the other succeeds, so v1 must move
-"sent" to one row per channel.
+Delivery is tracked per channel (4.4), so a new channel needs no schema change: its first send
+writes rows with its own `channel` name, and a failure on one channel never blocks or repeats
+another.
 
 ## 8. Switch and settings
 
@@ -467,7 +546,9 @@ Each scenario lists the expected result and the rules that give it.
 | S35 | A `500` delivery is claimed again by a repeated event and then runs. | The failure email was already sent (known limit). The row is decided again from its new status; if the run succeeds, the failing state ends. | D4, 4.2, P7, P9 |
 | S36 | Two runs overlap: the newer one succeeds and is decided first, then the older one stops to wait for a person. | One "needs attention" email. | P5 |
 | S37 | A delivery waits at `102` for 30 minutes, then starts and succeeds. | One `start_stuck` email (known limit). The row is decided again as `succeeded`, and the failing state ends. | D6, 4.2, P7, P9 |
-| S38 | The failure email always fails while the attention email of the same automation sends. | The failure email is dropped after its own 10 attempts. | send 4, 5 |
+| S38 | The failure email always fails while the attention email of the same automation sends. | The failure email is dropped after its own 10 attempts. | 4.4, send 4, 5 |
+| S39 | The migration runs while workers write deliveries, and a long transaction holds a lock on `trigger_deliveries`. | Revision 1 stops after 5 seconds without blocking writes, and runs again later. | 4.5 |
+| S40 | The concurrent index build fails halfway. | The next run drops the invalid index and builds it again. | 4.5 |
 
 ## 10. Known limits of v0
 
@@ -484,7 +565,7 @@ Accepted on purpose. Each one is also in the scenario table.
    as `start_stuck` first.
 6. **A start slower than 30 minutes sends a `start_stuck` email (S37).** The run's real outcome
    is still read afterwards (4.2).
-7. **A crash between a send and its write sends the email again.**
+7. **A crash between a send and its write sends again on that channel.**
 8. **The scaling risks in requirements.md** ("Note for reviewers") are not handled beyond the
    100 sends per pass.
 
@@ -494,14 +575,14 @@ Estimates are for one engineer who knows the codebase, and include tests.
 
 | Phase | Work | Days |
 |---|---|---|
-| 1. Data | Edit-time fix (4.1), migration for 4.2 and 4.3, outcome reset on status writes, DBE, DAO interfaces (5.5) | 2 |
+| 1. Data | Edit-time fix (4.1), the two revisions in 4.5 with upgrade and downgrade tested locally, outcome reset on status writes, DBEs, DAO interfaces (5.5) | 2.5 |
 | 2. Settle | `RecordsDAO.turn_endings`, decision table D1-D13, guarded write | 2.5 |
 | 3. Apply | Rules P1-P9, shared transaction, notices DAO, answered check | 2 |
 | 4. Notices | `core/notifications`, email templates, reason catalog, `send_html_email`, recipient rule | 2.5 |
 | 5. Monitor | Loop, lease, switch, startup checks, lifespan wiring, local end-to-end test | 1.5 |
-| 6. Integration tests | Scenarios S1-S38 on the local stack (section 12) | 2 |
+| 6. Integration tests | Scenarios S1-S40 on the local stack (section 12) | 2 |
 | 7. Rollout | Turn on in cloud, watch logs and emails for one week | 1 |
-| **Total** | | **13.5** |
+| **Total** | | **14** |
 
 Phase 1 can ship alone. The edit-time fix is useful without the rest.
 
@@ -509,10 +590,12 @@ Phase 1 can ship alone. The edit-time fix is useful without the rest.
 
 - **Unit:** each row D1-D13 and P1-P9; the recipient cases in 5.4; the catalog maps every code in
   F36 plus the platform codes; HTML escaping.
+- **Migration:** upgrade and downgrade of both revisions on a local database with existing
+  deliveries; the index revision runs again after an interrupted build.
 - **DAO:** `turn_endings` excludes deleted and quarantined records; the guarded settle write
   changes 0 rows after a status change; every status write in 4.2 clears `outcome`; the edit
   mappings set `updated_at`; `answered_sessions` returns only answered sessions.
-- **Integration:** scenarios S1-S38 against the local stack, with the email channel replaced by a
+- **Integration:** scenarios S1-S40 against the local stack, with the email channel replaced by a
   recording channel.
 
 ## 13. Separate bug tickets
