@@ -42,6 +42,7 @@ EXPECTED_BUILD_KIT_OPS_WITH_READ_CONFIG = (
     "read_config",
     "commit_revision",
     "test_run",
+    "get_current_session",
     "rename_session",
     "rename_agent",
     "discover_triggers",

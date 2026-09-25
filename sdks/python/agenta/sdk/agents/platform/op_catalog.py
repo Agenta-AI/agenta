@@ -1862,6 +1862,26 @@ PLATFORM_OPS: Dict[str, PlatformOp] = {
             read_only=True,
         ),
         PlatformOp(
+            op="get_current_session",
+            description=(
+                "Get the ID, current name, and Agenta web URL of the conversation you are "
+                "running in. Call this when you need to link to this session. Takes no "
+                "arguments. Copy the returned URL exactly; it requires the recipient's "
+                "existing Agenta access and does not make the session public. If url is "
+                "null, report url_unavailable_reason instead of inventing a link."
+            ),
+            method="POST",
+            path="/api/sessions/tools/current",
+            input_schema={
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {"session_id": {"type": "string"}},
+                "required": ["session_id"],
+            },
+            context_bindings={"session_id": "$ctx.session.id"},
+            read_only=True,
+        ),
+        PlatformOp(
             op="rename_session",
             description=_RENAME_SESSION_DESCRIPTION,
             method="POST",

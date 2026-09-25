@@ -45,6 +45,22 @@ SessionId = Annotated[
 ]
 
 
+class CurrentSessionRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    session_id: SessionId
+
+
+class CurrentSessionResponse(BaseModel):
+    session_id: str
+    name: str | None = None
+    url: str | None = None
+    url_unavailable_reason: (
+        Literal["agent_reference_missing", "workspace_missing", "web_url_unavailable"]
+        | None
+    ) = None
+
+
 class SessionPredicatesRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 

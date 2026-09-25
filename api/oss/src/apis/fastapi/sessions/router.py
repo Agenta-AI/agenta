@@ -151,6 +151,8 @@ from oss.src.apis.fastapi.mounts.models import (
 )
 
 from oss.src.apis.fastapi.sessions.models import (
+    CurrentSessionRequest,
+    CurrentSessionResponse,
     SessionCancelRequest,
     SessionCancelResponse,
     SessionCommandRef,
@@ -209,6 +211,7 @@ from oss.src.apis.fastapi.sessions.models import (
     SessionExecutionSnapshot,
 )
 from oss.src.apis.fastapi.sessions.utils import (
+    current_session_response,
     compute_session_response_windowing,
     normalize_session_query_request,
     sanitize_session_stream,
@@ -415,6 +418,15 @@ class SessionStreamsRouter:
         self._records_service = records_service
         self.router = APIRouter()
 
+        self.router.add_api_route(
+            "/sessions/tools/current",
+            self.get_current_session,
+            methods=["POST"],
+            operation_id="get_current_session",
+            response_model=CurrentSessionResponse,
+            tags=["Sessions"],
+        )
+
         # Unified collection surface on /sessions/streams/, keyed by ?session_id=.
         self.router.add_api_route(
             "/sessions/streams/",
@@ -552,6 +564,39 @@ class SessionStreamsRouter:
                 )
 
         return response
+
+    @intercept_exceptions()
+    @_handle_session_exceptions()
+    async def get_current_session(
+        self, request: Request, *, body: CurrentSessionRequest
+    ) -> CurrentSessionResponse:
+        project_id = UUID(str(request.state.project_id))
+        if not await check_action_access(
+            user_uid=str(request.state.user_id),
+            project_id=str(project_id),
+            permission=Permission.VIEW_SESSIONS,
+        ):
+            raise FORBIDDEN_EXCEPTION
+
+        stream = await self._service.fetch(
+            project_id=project_id, session_id=body.session_id
+        )
+        if stream is None:
+            raise HTTPException(
+                status_code=404,
+                detail={
+                    "code": "session_not_found",
+                    "message": "This session is not available in the current project.",
+                    "retryable": False,
+                    "next_step": "Do not invent a session link; report that it is unavailable.",
+                },
+            )
+        workspace_id = getattr(request.state, "workspace_id", None)
+        return current_session_response(
+            stream=stream,
+            workspace_id=UUID(str(workspace_id)) if workspace_id else None,
+            web_url=env.agenta.web_url,
+        )
 
     @intercept_exceptions()
     @_handle_session_exceptions()
