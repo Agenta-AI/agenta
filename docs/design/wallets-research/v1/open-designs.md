@@ -72,15 +72,15 @@ its configuration interface belongs in the wallet-settlement schema decision abo
 | 13 | Open | Whether earned value expires at all, and what decides spend order between lots. |
 | 14 | Decided | How an organization provisioned while `AGENTA_WALLETS_ENABLED` was off gets its balance row. |
 | 15 | Decided | What, if anything, restores the value those organizations also missed. |
-| 16 | Open | Which design owns the rate card, and who reviews a change to a price. |
-| 17 | Open | What the admission ceiling enforces, and on what evidence. |
-| 18 | Open | The unit and rounding of a provider-declared cost. |
-| 19 | Open | How the rate card stays in step with the model catalogue. |
+| 16 | Decided | Which design owns the rate card, and who reviews a change to a price. |
+| 17 | Decided | What the admission ceiling enforces, and on what evidence. |
+| 18 | Decided | The unit and rounding of a provider-declared cost. |
+| 19 | Decided | How the rate card stays in step with the model catalogue. |
 | 20 | Decided | Where a stream entry this pipeline cannot accept goes, and what the stream cap protects. |
 | 21 | Decided | Whether expired credit value leaves the general balance, and what admission reads. |
 | 22 | Decided (option 2; option 3 deferred) | What identifies one plan change, so two in a billing period are not treated as one. |
 
-Items 2, 4, 7, 14, 20, 21, and 22 are decided. The table is an index only; each numbered item below contains the
+Items 2, 4, 7, 14, 16, 17, 18, 19, 20, 21, and 22 are decided. The table is an index only; each numbered item below contains the
 context, examples, and consequences needed for its discussion.
 
 **What Wave 1 closed, and what it did not.** Wave 1 delivered the measurement and settlement
@@ -1499,7 +1499,7 @@ already granted, and one outside the window are left alone).
 
 ## 16. Which design owns the rate card
 
-**Status:** Open
+**Status:** Decided
 
 ### Context
 
@@ -1553,11 +1553,26 @@ under this reading; if the decision goes the other way the file moves and nothin
 
 ### Decision
 
-_Unresolved._
+**Decided (2026-09-25, Wave 2): option 3, in one file.** `ee/src/core/measurements/rate_card.py`
+is EE code keyed by the gateway's vocabulary: `(provider, model)` for tokens and the MCP
+`server` for requests, both read from `resource_locator`. It holds our price in integer
+micro-dollars per million tokens (or per request). The wallet owns the arithmetic
+(`charges.py`, `calculate_charge`) and nothing else interprets provider metrics.
+
+- **Who reviews a price:** a price change is a PR that edits this file; product (Mahmoud)
+  approves it. No admin UI, no second process.
+- **Version:** `RATE_CARD_VERSION` is derived, `"rc-" + sha256(canonical JSON of the
+  table)[:12]`, so a rate cannot change without the version every debit carries. No
+  hand-kept constant and no checksum test to keep in sync.
+- **Why:** the mechanism is identical under all three options, and this one needs no
+  cross-package import from the OSS gateway and leaves `DebitCommandV1` as designed.
+- **Today's contents are synthetic:** the six `builtin` LLM entries (`agenta`, `mock` x
+  the three mock models) and the MCP flat 50 musd per request carried over from the Wave 1
+  fixture. None is an approved price; `builtin` serves only the mock.
 
 ## 17. What the admission ceiling enforces
 
-**Status:** Open
+**Status:** Decided
 
 ### Context
 
@@ -1605,11 +1620,28 @@ costs a request-path dependency on the price list and buys an over-refusal.
 
 ### Decision
 
-_Unresolved._
+**Decided for Wave 2 (2026-09-25): option 1 in behaviour, the field kept.** Admission is a
+boolean: a `builtin` call is refused when `WalletsService.check` says the spendable balance
+is at or below the floor, and a wallet that cannot answer refuses (fail closed).
+`SpendAdmission.ceiling_musd` stays on the gateway DTO as `Optional[int] = None`, documented
+as carried and never enforced; nothing sets it and nothing may read it as a budget.
+`WalletCheckPort.check` keeps its `bool` return (no `WalletAdmissionDTO`), and the
+measurement carries no ceiling reference.
+
+- **Why:** a number nothing enforces is one a later reader misuses. The evidence the ceiling
+  was meant to collect (how far balances go below the floor) is already in the ledger:
+  for each settled debit, the general balance minus the floor after settlement is the
+  overshoot. Option 2 puts the card on the request path and over-refuses; option 3 is
+  item 2's strict admission and out of scope.
+- **Cost on the request path:** one `check` read per admitted `builtin` call. No cache, no
+  reservation. `standard` and `custom` never consult the wallet.
+- **Reopens when:** a real platform-funded `builtin` provider carries material spend and the
+  ledger shows overshoot below the floor that matters. The answer then is a bounded
+  reservation, not a carried number.
 
 ## 18. The unit and rounding of a provider-declared cost
 
-**Status:** Open
+**Status:** Decided
 
 ### Context
 
@@ -1660,11 +1692,23 @@ this item is what adds the field.
 
 ### Decision
 
-_Unresolved._
+**Decided (2026-09-25): option 1, drop it.** The usage sink writes no `cost_musd`, and
+`GatewayUsage.cost` (a float with no unit) stays gateway-internal and in the audit event. The
+envelope does not change: the `secret_origin` field the Wave 2 plan once proposed was cut too
+(charging follows `endpoint_kind`, the namespace).
+
+- **Why:** nothing in production sets a provider cost; only the mock sets `0.0`.
+  Reconciliation against a provider invoice (item 8) needs exact token counts per
+  component, which the measurement stores exactly, times the provider's list price. A float
+  in the money path is the defect the integer unit exists to prevent.
+- **Reopens when:** a `builtin` provider's charge cannot be derived from tokens (for example a
+  router that reports a per-call cost). Then store it exactly as integer nano-dollars on a new
+  component key such as `provider_cost_ndusd`. The component key space is open, so the
+  envelope still does not change.
 
 ## 19. How the rate card stays in step with the model catalogue
 
-**Status:** Open
+**Status:** Decided
 
 ### Context
 
@@ -1712,7 +1756,25 @@ it maintainable.
 
 ### Decision
 
-_Unresolved._
+**Decided (2026-09-25): option 2 alone, and an unknown rate is not a free call.**
+
+- **The test:** `test_every_model_the_builtin_namespace_serves_has_a_rate`
+  (`ee/tests/pytest/unit/measurements/test_measurements_charges.py`) enumerates every model of
+  every provider in `BUILTIN_LLM_PROVIDERS` with mocks on and asserts a rate. The `builtin`
+  catalogue is code, so every source of drift passes through a PR this test runs on.
+- **At runtime:** a `builtin` measurement the card does not price raises the retryable
+  `UnpricedMeasurementError`. Nothing is stored (a stored "no charge" would be final), the
+  message is retried by the reclaim pass, and after `max_deliveries` it moves to
+  `streams:measurements:dead`. A replay once the card prices the model charges it once.
+  This covers the case the test cannot: an API newer than its worker during a rolling
+  deploy.
+- **Activation order:** deploy the measurement worker (with the new card) before the API
+  that routes the new model. The retry window absorbs a short overlap; the dead-letter stream
+  absorbs a long one.
+- **Why not litellm (option 3):** there is nothing to generate today (three mock models), and
+  it adds a build step. **Reopens when** the first real `builtin` provider lands: snapshot its
+  rates from litellm by hand into the file, with source and date, and automate only if the
+  model list outgrows review.
 
 ## 20. Where a stream entry this pipeline cannot accept goes
 

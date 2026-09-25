@@ -569,15 +569,51 @@ an SBX observation can provide `vcpu_core_time_msec`, `vmem_gibi_time_msec`, and
 component cost. Their metric-specific unit is encoded by the stable key. `resource_locator` and
 `references` are structured objects; neither is an unbounded raw provider payload or secret store.
 
-The measurement worker validates the envelope, inserts exactly one immutable `measurements` row and its
-`measurement_values` under the gateway-supplied `measurement_id`, calculates the final charge, and
-publishes the second message. It ACKs the measurement message only after those actions complete.
+The measurement worker validates the envelope and first looks the measurement up. An unseen one
+is priced, its organization resolved when it is charged, and inserted as exactly one immutable
+`measurements` row with its `measurement_values` and its charge decision in one tracing
+transaction; the second message is then published from that decision. A measurement already
+stored is replayed from its stored decision alone, without the organization lookup or the pricer.
+It ACKs the measurement message only after those actions complete.
 Envelope validation rejects repeated component keys. Entries the worker can never accept go to
 `streams:measurements:dead` with their reason (open-designs item 20): a malformed or unsupported
 version, which there is no way to safely price; a chargeable measurement whose `project_id` resolves
-to no organization, which is persisted but cannot be billed; and a `measurement_id` seen again with
-different content, which leaves the stored measurement unchanged and is not priced. An identical
+to no organization, which is not stored, since a stored measurement without its charge would replay
+as free; and a `measurement_id` seen again with different content, which leaves the stored
+measurement unchanged and is not priced. A `builtin` measurement the rate card cannot price is not
+stored either: it is retried and, after `max_deliveries`, dead-lettered (item 19). An identical
 replay is a no-op, detected by the content fingerprint in `measurements.data.fingerprint`.
+
+**Wave 2: `measurements.data`.** Three keys, no migration (the column is already JSONB):
+
+```json
+{
+  "references": {"workflow": {"gateway_run_id": "..."}},
+  "fingerprint": "<sha256 of the measurement, envelope fields excluded>",
+  "charge": {
+    "amount_musd": 1883,
+    "pricing_version": "rc-0123456789ab",
+    "organization_id": "org_7a...",
+    "created_at": "2026-09-25T20:56:11.334512Z"
+  }
+}
+```
+
+`charge` is null when the measurement is not charged (`endpoint_kind` other than `builtin`, or
+nothing priced was used). The fingerprint covers the measurement only, never the decision derived
+from it. `charge.created_at` is the debit envelope's `created_at`, stored so a replayed debit is
+byte-identical to the first. When two workers race on one unseen measurement, the insert that
+loses answers with the committed winner's decision.
+
+**Wave 2: the gateway producer.** `MeasurementUsageSink` (`ee/src/core/measurements/sink.py`)
+emits one measurement per dispatched `builtin` LLM call: `measurement_id = request_id =
+"msr_<uuid7>"`, `endpoint_kind` is the gateway namespace (`builtin`; the Wave 1 fixture value
+`managed` is gone), `resource_key = "llm:<provider>:<model>"`, `resource_locator =
+{"provider", "model", "endpoint_id"}`, and `references.workflow.gateway_run_id` only when the
+caller was on a run. Components use the keys in `ee/src/core/measurements/components.py`:
+`request_count`, `input_tokens` (fresh input only), `cache_read_tokens`, `cache_write_tokens`,
+`output_tokens`. The Wave 1 key `cached_tokens` is replaced by `cache_read_tokens`, and no
+component carries `cost_musd` (item 18).
 
 #### `streams:debits`
 
@@ -705,10 +741,12 @@ The delivered streams are `streams:measurements` (consumer group `worker-measure
 refuses new publishes rather than trimming, and each with a `<stream>:dead` dead-letter stream,
 registered in `api/entrypoints/worker_streams.py` and gated into `ALL_STREAMS` only when `is_ee()`
 is true and `AGENTA_WALLETS_ENABLED` is on (see `wave-1.md`, Feature flag).
-The debit idempotency key the measurement worker mints is `"measurement:{measurement_id}"`. Wave 1
-pricing is an explicit fixture (`PRICING_VERSION = "wallet-v1-fake-1"` in
-`ee/src/core/measurements/pricing.py`), chargeable only when `endpoint_kind == "managed"` — it is
-not the versioned production pricing configuration this document describes elsewhere.
+The debit idempotency key the measurement worker mints is `"measurement:{measurement_id}"`. Wave 2
+replaced the Wave 1 fixture pricer (`pricing.py`, `"wallet-v1-fake-1"`, `endpoint_kind ==
+"managed"`) with the rate card in `ee/src/core/measurements/rate_card.py`: integer micro-dollars
+per million tokens keyed by `(provider, model)`, per request keyed by MCP `server`, and a
+`pricing_version` of `"rc-"` plus a hash of the table. Only `endpoint_kind == "builtin"` is
+charged (open-designs items 16 and 19). Its rates are synthetic: `builtin` serves only the mock.
 
 The `check(delta)` this document names throughout is the design operation, not the delivered
 signature. Wave 1 has no admission control and no hold, so what shipped is

@@ -1,9 +1,16 @@
 # Wave 2: the gateway–wallet seam
 
-**Status:** planned. No node has been implemented. The graph is in [wps-2.md](wps-2.md),
-[ims-2.md](ims-2.md) and [cus-2.md](cus-2.md), with per-node specifications under
-[nodes/](nodes/). Nothing here has been through a preflight review yet; [preflight.md](preflight.md)
-is the shape that review must take, and `waves.md` requires it before any worktree forks.
+**Status:** implemented on `wallets/wave-2` (stacked on `wallets/takeover`), 2026-09-25. What
+was built, tested and deferred, and the launch blockers, are in
+[../v2/wave-2-status.md](../v2/wave-2-status.md); the completion evidence is at the end of this
+page. The preflight review collapsed the node graph below into one branch and a short series
+of commits, because the gateway PR (#6049) had already merged into `main`. Where this page and
+the delivered code differ, the code follows the preflight and its amendments, and the
+decisions are recorded in `open-designs.md` items 16 to 19. In particular: no `secret_origin`
+envelope field (charging follows `endpoint_kind`), no `GatewayCallContext`, and `check` still
+returns a `bool` (the ceiling stays on `SpendAdmission`, carried and unenforced).
+
+The text below is the original plan, kept as written.
 
 **Wave 2 spans two branches.** The gateway owns the request path, so roughly half of this
 wave's files live on `feat/add-gateways` and the other half on `feat/add-wallets`. Every node
@@ -142,3 +149,31 @@ against the provider invoice) and item 13 (expiry and spend order) all stay open
 no machinery that presumes an answer to any of them, and the `ceiling_musd` field it
 introduces is the place a strict, reserving admission would later put a number without
 changing a signature.
+
+## Completion evidence (2026-09-25)
+
+Delivered on `wallets/wave-2`. The summary is in
+[../v2/wave-2-status.md](../v2/wave-2-status.md).
+
+- **Unit tests, gateway:** `test_gateways_usage_capture.py` (the cache split per protocol,
+  a whole Messages stream, the audit event) and `test_gateways_wallet_seam.py` (admission,
+  the usage hand-off, its bound, the null defaults, the flag guard, the import guard).
+- **Unit tests, wallet:** `test_measurements_charges.py` (arithmetic, rounding, unpriced,
+  non-`builtin`, MCP flat rate, derived version, every `builtin` model priced),
+  `test_measurements_sink.py`, `test_wallets_admission.py`, the replay tests in
+  `test_measurements_worker.py`, and the unpriced retry and replay in
+  `test_wallets_stream_redelivery.py`.
+- **Integration, real Postgres and Redis:** the decision race and round trip, and a cached
+  Messages stream stored and priced, in `test_measurements_integration.py`; the whole chain in
+  `test_wallets_gateway_chain_postgres.py`.
+- **Acceptance against a deployment:** not run in this wave. The in-process chain test covers
+  the same path on real stores; the deployed smoke run is deferred.
+- **The fakes:** `fakes/llm.py` is gone; the MCP producer lives in
+  `api/ee/tests/pytest/utils/measurements/mcp_producer.py`.
+- **Suites** at the last code commit (`a9019f1526`), infra from `v1/HANDOFF.md`, database
+  reset first: the settlement concurrency test 1 passed; `ee/tests/pytest/unit` 588 passed;
+  `ee/tests/pytest/integration/wallets` and `.../measurements` 56 passed, 0 skipped;
+  `oss/tests/pytest/unit/gateways` 1410 passed; `oss/tests/pytest/unit` without the infra URIs
+  6833 passed, 119 skipped (all Postgres-gated OSS suites, which that trap requires to skip,
+  and five live Composio checks; none is a wallet or gateway test).
+- **Checkpoint 2:** the charging path is proven against the mock and bills nothing real.

@@ -156,7 +156,9 @@ credit, and it alone is enough to catch a broken locking strategy.
 **Wave 2 is written.** [wave-2.md](wave-2.md) has the checkpoint boundary, the fixed inputs,
 the invariants and the completion evidence; the graph is in [wps-2.md](wps-2.md),
 [ims-2.md](ims-2.md) and [cus-2.md](cus-2.md), with a specification and a task list per node
-under [nodes/](nodes/). Nothing in it is implemented.
+under [nodes/](nodes/). It is implemented on `wallets/wave-2`; see
+[../v2/wave-2-status.md](../v2/wave-2-status.md) for what shipped, what is deferred, and the
+launch blockers for a real `builtin` provider.
 
 What has not happened is the preflight review `waves.md` requires before any worktree forks.
 Wave 1's is in [preflight.md](preflight.md) and is the shape this one must take: read the graph
