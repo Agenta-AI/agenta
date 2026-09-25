@@ -112,6 +112,23 @@ class GatewayPolicyService:
         outcome: GatewayOutcome,
         run_id: Optional[str] = None,
     ) -> None:
+        # Only a dispatched, platform-funded LLM call is a usage fact worth billing: a
+        # refusal reached no provider, `standard` and `custom` spend the customer's own
+        # credential, and MCP has no charging path yet. Their usage stays in the audit
+        # event below.
+        #
+        # The hand-off goes first so that billing never waits behind the audit publish,
+        # which has no bound of its own.
+        if (
+            decision.allowed
+            and target.plane == GatewayPlane.LLM
+            and target.namespace == GatewayEndpointNamespace.BUILTIN
+            and outcome.usage is not None
+        ):
+            await self._hand_off_usage(
+                scope=scope, target=target, outcome=outcome, run_id=run_id
+            )
+
         # Publish audit events for both allowed and denied relays.
         #
         # `run_id` is call context rather than target, verdict or outcome, so it travels
@@ -126,17 +143,14 @@ class GatewayPolicyService:
             run_id=run_id,
         )
 
-        # Only a dispatched, platform-funded LLM call is a usage fact worth billing: a
-        # refusal reached no provider, `standard` and `custom` spend the customer's own
-        # credential, and MCP has no charging path yet. Their usage stays in the audit
-        # event above.
-        if not (
-            decision.allowed
-            and target.plane == GatewayPlane.LLM
-            and target.namespace == GatewayEndpointNamespace.BUILTIN
-            and outcome.usage is not None
-        ):
-            return
+    async def _hand_off_usage(
+        self,
+        *,
+        scope: AuthScope,
+        target: GatewayTarget,
+        outcome: GatewayOutcome,
+        run_id: Optional[str],
+    ) -> None:
         try:
             await asyncio.wait_for(
                 self.usage_sink.record(

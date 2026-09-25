@@ -350,6 +350,26 @@ async def test_a_stalled_sink_holds_a_response_no_longer_than_its_bound(
     assert elapsed < 1.0
 
 
+@pytest.mark.asyncio
+async def test_a_stalled_audit_publish_does_not_hold_back_the_usage_hand_off(
+    mocks_on, permitted, monkeypatch
+):
+    """Codex round 1: billing must not wait behind the audit event, which has no bound
+    of its own."""
+
+    async def _stalled(**_kwargs):
+        await asyncio.sleep(60)
+
+    monkeypatch.setattr(policy_service_module, "publish_gateway_call", _stalled)
+    sink = _Sink()
+    service, _, _ = _gateway(sink=sink)
+
+    with pytest.raises(asyncio.TimeoutError):
+        await asyncio.wait_for(_relay(service), timeout=0.2)
+
+    assert len(sink.calls) == 1
+
+
 def test_the_production_bound_on_a_usage_hand_off_is_sub_second():
     assert 0 < policy_service_module.USAGE_SINK_TIMEOUT_SECONDS <= 0.5
 
