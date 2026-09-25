@@ -23,7 +23,6 @@ import {AgentAutomationsCard} from "./AgentAutomationsCard"
 import {AgentComposer} from "./AgentComposer"
 import {AgentConfigCard} from "./AgentConfigCard"
 import {AgentDriveCard} from "./AgentDriveCard"
-import {AgentPhoneChannels} from "./AgentPhoneChannels"
 
 /**
  * The overview's body, on the shared two-column arrangement: the composer over the activity
@@ -95,7 +94,6 @@ export const AgentOverviewBody = ({
             main={
                 <>
                     <AgentComposer agentId={agentId} agentName={agentName} base={base} />
-                    {!wide ? <AgentPhoneChannels>{channels}</AgentPhoneChannels> : null}
                     <div className="mt-3 flex min-h-0 flex-1 flex-col">
                         <AgentActivityTabs
                             tab={view.tab}

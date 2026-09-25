@@ -2,8 +2,8 @@ import type {ReactNode} from "react"
 
 import type {SidebarConfig, SidebarSection, SidebarSlotContext} from "@agenta/navigation"
 import {
+    Broadcast,
     Buildings,
-    ChatsCircle,
     ClockCounterClockwise,
     FolderSimple,
     Key,
@@ -33,7 +33,7 @@ export const getSettingsSidebarIcon = (key: SettingsTabKey): ReactNode => {
         case "tools":
             return <Wrench size={14} />
         case "channels":
-            return <ChatsCircle size={14} />
+            return <Broadcast size={14} />
         case "webhooks":
             return <Link size={14} />
         case "mcpEndpoints":

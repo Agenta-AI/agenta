@@ -12,13 +12,20 @@ vi.mock("@agenta/ui/ui", () => {
         AccordionItem: Wrap,
         AccordionTrigger: Wrap,
         Alert: ({message}: {message: string}) => <div role="alert">{message}</div>,
-        Button: ({children, onClick, disabled}: React.ComponentProps<"button">) => (
-            <button disabled={disabled} onClick={onClick}>
+        Button: ({children, onClick, disabled, ...props}: React.ComponentProps<"button">) => (
+            <button disabled={disabled} onClick={onClick} data-testid={props["data-testid"]}>
                 {children}
             </button>
         ),
         Input: () => <input />,
         PasswordInput: () => <input />,
+        RadioGroup: Wrap,
+        RadioGroupItem: () => <span />,
+        Select: Wrap,
+        SelectContent: Wrap,
+        SelectItem: Wrap,
+        SelectTrigger: Wrap,
+        SelectValue: () => null,
         Spinner: () => <span />,
         Switch: () => <span />,
     }
@@ -85,7 +92,7 @@ describe("connection labels", () => {
         expect(connectionLabel(row)).toBe("your Slack app · Agenta")
     })
 
-    it("renders distinguishable rows in the connection switcher", async () => {
+    it("renders distinguishable rows in the platform list", async () => {
         globalThis.IS_REACT_ACT_ENVIRONMENT = true
         const container = document.createElement("div")
         document.body.append(container)
@@ -93,6 +100,7 @@ describe("connection labels", () => {
         await act(async () =>
             root.render(
                 <ChannelConnectionList
+                    platform="slack"
                     connections={[
                         mapConnectionRow(slackRow())!,
                         mapConnectionRow(
@@ -102,14 +110,14 @@ describe("connection labels", () => {
                             }),
                         )!,
                     ]}
-                    selectedId="slack-1"
                     onSelect={() => {}}
+                    onAdd={() => {}}
                 />,
             ),
         )
-        const labels = [...container.querySelectorAll("button")].map(
-            (row) => row.querySelector("span.truncate")?.textContent,
-        )
+        const labels = [
+            ...container.querySelectorAll('[data-testid^="channels-connection-slack"]'),
+        ].map((row) => row.querySelector("span.truncate")?.textContent)
         expect(labels).toEqual(["Slack app A0SLACK1 · Agenta", "Slack app A0SLACK2 · Agenta"])
         await act(async () => root.unmount())
         container.remove()
@@ -232,7 +240,7 @@ describe("ChannelManagePanel", () => {
 
     it("names the specific bot in the Disconnect confirmation", async () => {
         await render(connection({handle: "@nancypreg29bot"}))
-        await act(async () => button("Disconnect Telegram").click())
+        await act(async () => button("Disconnect").click())
         expect(container.textContent).toContain(
             "Disconnect @nancypreg29bot? Slack QA Agent stops answering there.",
         )
@@ -265,7 +273,7 @@ describe("ChannelManagePanel", () => {
         const rows = [...container.querySelectorAll('[data-testid="channels-space"]')].map(
             (row) => row.textContent,
         )
-        expect(rows).toEqual(["release-v115", "release-v118"])
+        expect(rows).toEqual(["release-v115Mentions only", "release-v118Mentions only"])
         expect(discoverSpaces).toHaveBeenCalledTimes(1)
     })
 
@@ -296,6 +304,6 @@ describe("ChannelManagePanel", () => {
         const rows = [...container.querySelectorAll('[data-testid="channels-space"]')].map(
             (row) => row.textContent,
         )
-        expect(rows).toEqual(["#C0RELEASE"])
+        expect(rows).toEqual(["#C0RELEASEMentions only"])
     })
 })

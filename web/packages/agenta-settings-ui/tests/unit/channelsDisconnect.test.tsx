@@ -12,23 +12,31 @@ vi.mock("@agenta/ui/ui", () => {
         AccordionItem: Wrap,
         AccordionTrigger: Wrap,
         Alert: ({message}: {message: string}) => <div role="alert">{message}</div>,
-        Button: ({children, onClick, disabled}: React.ComponentProps<"button">) => (
-            <button disabled={disabled} onClick={onClick}>
+        Button: ({children, onClick, disabled, ...props}: React.ComponentProps<"button">) => (
+            <button disabled={disabled} onClick={onClick} data-testid={props["data-testid"]}>
                 {children}
             </button>
         ),
         Input: () => <input />,
         PasswordInput: () => <input />,
+        RadioGroup: Wrap,
+        RadioGroupItem: () => <span />,
+        Select: Wrap,
+        SelectContent: Wrap,
+        SelectItem: Wrap,
+        SelectTrigger: Wrap,
+        SelectValue: () => null,
         Spinner: () => <span />,
         Switch: () => <span />,
-        Segmented: () => <span />,
     }
 })
 vi.mock("../../src/channels/icons", () => ({AgentaMark: () => null, platformLogo: () => null}))
 vi.mock("../../src/channels/qr", () => ({QrCode: () => null}))
-import {ChannelsPage, type ChannelsPanelRenderProps} from "../../src/channels/ChannelsPage"
 import {NOOP_ACTIONS} from "../../src/channels/helpers"
 import type {ChannelConnection, ChannelConnections, ChannelsActions} from "../../src/channels/types"
+import type {ChannelsPanelRenderProps} from "../../src/channels/useChannelPanel"
+
+import {PanelHarness} from "./channelPanelHarness"
 
 let root: Root
 let container: HTMLDivElement
@@ -76,7 +84,7 @@ const Host = ({
         },
     }
     return (
-        <ChannelsPage
+        <PanelHarness
             agentId="agent"
             agentName="QA"
             connections={connections}
@@ -101,7 +109,7 @@ const openAndDisconnect = async () => {
             container.querySelector('[data-testid="channels-row-slack"]') as HTMLButtonElement
         ).click(),
     )
-    await click("Disconnect Slack")
+    await click("Disconnect")
     // The confirm step's own button.
     const confirm = [...container.querySelectorAll("button")].find(
         (b) => b.textContent === "Disconnect",
@@ -111,11 +119,11 @@ const openAndDisconnect = async () => {
 
 it("closes the panel when the backend archived the row but answered with an error", async () => {
     const disconnect = vi.fn().mockRejectedValue(new Error("Internal Server Error"))
-    const reload = vi.fn().mockResolvedValue({slack: null, telegram: null})
+    const reload = vi.fn().mockResolvedValue({slack: null, telegram: null, whatsapp: null})
     await act(async () =>
         root.render(
             <Host
-                initial={{slack: SLACK, telegram: null}}
+                initial={{slack: SLACK, telegram: null, whatsapp: null}}
                 actions={{...NOOP_ACTIONS, disconnect, reload}}
             />,
         ),
@@ -126,16 +134,15 @@ it("closes the panel when the backend archived the row but answered with an erro
     expect(disconnect).toHaveBeenCalledWith("slack", "slack-connection")
     expect(reload).toHaveBeenCalled()
     expect(container.querySelector('[data-testid="panel"]')).toBeNull()
-    expect(container.textContent).toContain("Chat with the agent in your team")
 })
 
 it("shows a failed disconnect next to the Disconnect button when the row is still there", async () => {
     const disconnect = vi.fn().mockRejectedValue(new Error("Could not disconnect."))
-    const reload = vi.fn().mockResolvedValue({slack: SLACK, telegram: null})
+    const reload = vi.fn().mockResolvedValue({slack: SLACK, telegram: null, whatsapp: null})
     await act(async () =>
         root.render(
             <Host
-                initial={{slack: SLACK, telegram: null}}
+                initial={{slack: SLACK, telegram: null, whatsapp: null}}
                 actions={{...NOOP_ACTIONS, disconnect, reload}}
             />,
         ),
@@ -146,19 +153,18 @@ it("shows a failed disconnect next to the Disconnect button when the row is stil
     expect(container.querySelector('[data-testid="panel"]')).not.toBeNull()
     const alert = container.querySelector('[role="alert"]')
     expect(alert?.textContent).toBe("Could not disconnect.")
-    // The message sits in the disconnect block, not at the top of a panel the user
-    // scrolled past to reach the button.
-    const block = buttonByText("Disconnect").closest("div.pt-4")
+    // The message sits in the pinned footer with the button, not at the top of the panel.
+    const block = buttonByText("Disconnect").closest("div.sticky")
     expect(block?.contains(alert!)).toBe(true)
 })
 
 it("closes the panel after a clean disconnect", async () => {
     const disconnect = vi.fn().mockResolvedValue(undefined)
-    const reload = vi.fn().mockResolvedValue({slack: null, telegram: null})
+    const reload = vi.fn().mockResolvedValue({slack: null, telegram: null, whatsapp: null})
     await act(async () =>
         root.render(
             <Host
-                initial={{slack: SLACK, telegram: null}}
+                initial={{slack: SLACK, telegram: null, whatsapp: null}}
                 actions={{...NOOP_ACTIONS, disconnect, reload}}
             />,
         ),
@@ -187,7 +193,7 @@ it("lists each of the agent's connections on a platform and disconnects only the
     const reload = vi.fn().mockResolvedValue({
         slack: null,
         telegram: TELEGRAM_B,
-        agentConnections: {slack: [], telegram: [TELEGRAM_B]},
+        agentConnections: {slack: [], telegram: [TELEGRAM_B], whatsapp: []},
     })
     await act(async () =>
         root.render(
@@ -195,22 +201,25 @@ it("lists each of the agent's connections on a platform and disconnects only the
                 initial={{
                     slack: null,
                     telegram: TELEGRAM_A,
-                    agentConnections: {slack: [], telegram: [TELEGRAM_A, TELEGRAM_B]},
+                    agentConnections: {slack: [], telegram: [TELEGRAM_A, TELEGRAM_B], whatsapp: []},
                 }}
                 actions={{...NOOP_ACTIONS, disconnect, reload}}
             />,
         ),
     )
-    // The card names both bots.
     const row = container.querySelector('[data-testid="channels-row-telegram"]') as HTMLElement
-    expect(row.textContent).toContain("@bot_a, @bot_b")
     await act(async () => row.click())
 
     expect(container.querySelector('[data-testid="channels-connection-list"]')).not.toBeNull()
     expect(container.querySelector('[data-testid="channels-connection-bot-a"]')).not.toBeNull()
     expect(container.querySelector('[data-testid="channels-connection-bot-b"]')).not.toBeNull()
 
-    await click("Disconnect Telegram")
+    await act(async () =>
+        (
+            container.querySelector('[data-testid="channels-connection-bot-a"]') as HTMLElement
+        ).click(),
+    )
+    await click("Disconnect")
     const confirm = [...container.querySelectorAll("button")].find(
         (b) => b.textContent === "Disconnect",
     )!
@@ -218,15 +227,14 @@ it("lists each of the agent's connections on a platform and disconnects only the
 
     expect(disconnect).toHaveBeenCalledWith("telegram", "bot-a")
     expect(disconnect).toHaveBeenCalledTimes(1)
-    // The panel stays open on the bot that is left; the archived one is gone from view.
+    // The panel steps back to the list, which now holds only the bot that is left.
     expect(container.querySelector('[data-testid="panel"]')).not.toBeNull()
+    expect(container.querySelector('[data-testid="channels-connection-list"]')).not.toBeNull()
     expect(container.querySelector('[data-testid="channels-connection-bot-a"]')).toBeNull()
-    // One connection left: no switcher, the manage view is the single-connection one.
-    expect(container.querySelector('[data-testid="channels-connection-list"]')).toBeNull()
-    expect(container.textContent).toContain("@bot_b")
+    expect(container.querySelector('[data-testid="channels-connection-bot-b"]')).not.toBeNull()
 })
 
-it("switches the manage view to the connection picked in the list", async () => {
+it("opens the manage view of the connection picked in the list", async () => {
     const disconnect = vi.fn().mockResolvedValue(undefined)
     await act(async () =>
         root.render(
@@ -234,7 +242,7 @@ it("switches the manage view to the connection picked in the list", async () => 
                 initial={{
                     slack: null,
                     telegram: TELEGRAM_A,
-                    agentConnections: {slack: [], telegram: [TELEGRAM_A, TELEGRAM_B]},
+                    agentConnections: {slack: [], telegram: [TELEGRAM_A, TELEGRAM_B], whatsapp: []},
                 }}
                 actions={{...NOOP_ACTIONS, disconnect}}
             />,
@@ -248,12 +256,8 @@ it("switches the manage view to the connection picked in the list", async () => 
             container.querySelector('[data-testid="channels-connection-bot-b"]') as HTMLElement
         ).click(),
     )
-    expect(
-        container
-            .querySelector('[data-testid="channels-connection-bot-b"]')
-            ?.getAttribute("aria-pressed"),
-    ).toBe("true")
-    await click("Disconnect Telegram")
+    expect(container.textContent).toContain("@bot_b")
+    await click("Disconnect")
     const confirm = [...container.querySelectorAll("button")].find(
         (b) => b.textContent === "Disconnect",
     )!

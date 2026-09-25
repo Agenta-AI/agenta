@@ -15,8 +15,19 @@ vi.mock("../../src/channels/ChannelManagePanel", () => ({
     ),
 }))
 vi.mock("../../src/channels/ChannelConnectFlow", () => ({
-    ChannelConnectFlow: ({platform}: {platform: string}) => (
-        <div data-testid="connect-flow-body">connect {platform}</div>
+    ChannelConnectFlow: ({
+        platform,
+        initialMode,
+        onConnected,
+    }: {
+        platform: string
+        initialMode: string
+        onConnected: () => Promise<void>
+    }) => (
+        <div data-testid="connect-flow-body">
+            connect {platform} {initialMode}
+            <button data-testid="finish-connect" onClick={() => void onConnected()} />
+        </div>
     ),
 }))
 
@@ -38,13 +49,18 @@ const connected = (platform: "slack" | "telegram"): ChannelConnection => ({
     agent: {id: AGENT, name: "Agent"},
 })
 
-const ALL_LIVE: ChannelConnections = {slack: connected("slack"), telegram: connected("telegram")}
+const ALL_LIVE: ChannelConnections = {
+    slack: connected("slack"),
+    telegram: connected("telegram"),
+    whatsapp: null,
+}
 
-// A stand-in for the host's drawer: open panels render a dialog carrying their title.
-const renderPanel = ({open, title, onClose, children}: ChannelsPanelRenderProps) =>
+// A stand-in for the host's drawer: the open panel renders a dialog carrying its title.
+const renderPanel = ({open, title, onClose, onBack, children}: ChannelsPanelRenderProps) =>
     open ? (
         <div role="dialog" data-title={title}>
-            <button onClick={onClose}>close</button>
+            <button data-testid="close" onClick={onClose} />
+            {onBack ? <button data-testid="back" onClick={onBack} /> : null}
             {children}
         </div>
     ) : null
@@ -54,15 +70,6 @@ describe("AgentPublish", () => {
     let container: HTMLDivElement
     beforeEach(() => {
         globalThis.IS_REACT_ACT_ENVIRONMENT = true
-        // Radix measures and scrolls its menu; jsdom has neither.
-        Element.prototype.scrollIntoView ??= () => undefined
-        Element.prototype.hasPointerCapture ??= () => false
-        Element.prototype.releasePointerCapture ??= () => undefined
-        globalThis.ResizeObserver ??= class {
-            observe() {}
-            unobserve() {}
-            disconnect() {}
-        } as unknown as typeof ResizeObserver
         container = document.createElement("div")
         document.body.append(container)
         root = createRoot(container)
@@ -73,7 +80,10 @@ describe("AgentPublish", () => {
         document.body.innerHTML = ""
     })
 
-    const render = async (connections: ChannelConnections = ALL_LIVE) => {
+    const render = async (
+        connections: ChannelConnections = ALL_LIVE,
+        {actions = NOOP_ACTIONS} = {},
+    ) => {
         await act(async () =>
             root.render(
                 <AgentPublish
@@ -82,65 +92,96 @@ describe("AgentPublish", () => {
                     projectId="project-1"
                     host="https://agenta.example"
                     connections={connections}
-                    actions={NOOP_ACTIONS}
+                    actions={actions}
                     renderPanel={renderPanel}
                 />,
             ),
         )
     }
 
-    // Opens the real Radix menu the way a mouse does (pointerdown on the trigger) and picks
-    // an item with a click, so the menu's own close-on-select runs as it does in the app.
-    const choose = async (key: string) => {
-        const trigger = document.querySelector('[data-testid="publish-button"]') as HTMLElement
-        await act(async () => {
-            trigger.dispatchEvent(
-                new MouseEvent("pointerdown", {bubbles: true, cancelable: true, button: 0}),
-            )
-        })
-        const item = document.querySelector(`[data-testid="publish-item-${key}"]`) as HTMLElement
-        expect(item).not.toBeNull()
-        await act(async () => {
-            item.click()
-        })
-        // The menu has closed; only the panel is left.
-        expect(document.querySelector('[data-testid^="publish-item-"]')).toBeNull()
+    const click = async (testId: string) => {
+        const el = document.querySelector(`[data-testid="${testId}"]`) as HTMLElement | null
+        expect(el).not.toBeNull()
+        await act(async () => el?.click())
     }
 
     const dialog = () => document.querySelector('[role="dialog"]') as HTMLElement | null
 
-    it("opens the Slack manage panel from the Publish menu when Slack is live", async () => {
+    it("opens the hub from the Publish button", async () => {
         await render()
-        expect(document.body.textContent).toContain("Live in 3 places")
-        await choose("slack")
+        await click("publish-button")
+        expect(dialog()?.dataset.title).toBe("Publish")
+        expect(document.querySelector('[data-testid="channels-hub"]')).not.toBeNull()
+        expect(document.querySelector('[data-testid="back"]')).toBeNull()
+    })
+
+    it("goes from the hub to a connection and back", async () => {
+        await render()
+        await click("publish-button")
+        await click("channels-hub-slack")
+        // The card expands into its connections instead of navigating.
+        expect(dialog()?.dataset.title).toBe("Publish")
+        await click("channels-hub-connection-slack-1")
         expect(dialog()?.dataset.title).toBe("Slack")
         expect(document.querySelector('[data-testid="manage-panel-body"]')?.textContent).toBe(
             "manage slack",
         )
+        await click("back")
+        expect(dialog()?.dataset.title).toBe("Publish")
     })
 
-    it("opens the Slack connect flow when Slack is not set up yet", async () => {
-        await render({slack: null, telegram: null})
-        await choose("slack")
+    it("opens connect for a platform that is not set up", async () => {
+        await render({slack: null, telegram: null, whatsapp: null})
+        await click("publish-button")
+        await click("channels-hub-add-slack")
         expect(dialog()?.dataset.title).toBe("Connect Slack")
-        expect(document.querySelector('[data-testid="connect-flow-body"]')).not.toBeNull()
-    })
-
-    it("opens the API panel from the Publish menu", async () => {
-        await render()
-        await choose("api")
-        expect(dialog()?.dataset.title).toBe("API")
-        expect(document.querySelector('[data-testid="api-panel-body"]')?.textContent).toBe(
-            `api for ${AGENT}`,
+        expect(document.querySelector('[data-testid="connect-flow-body"]')?.textContent).toContain(
+            "connect slack hosted",
         )
     })
 
-    it("closes the panel and lets the menu open another one", async () => {
+    it("adds a second Telegram bot as the agent's own", async () => {
         await render()
-        await choose("api")
-        await act(async () => (dialog()?.querySelector("button") as HTMLElement).click())
-        expect(dialog()).toBeNull()
-        await choose("telegram")
-        expect(dialog()?.dataset.title).toBe("Telegram")
+        await click("publish-button")
+        await click("channels-hub-add-telegram")
+        expect(dialog()?.dataset.title).toBe("Add a Telegram bot")
+        expect(document.querySelector('[data-testid="connect-flow-body"]')?.textContent).toContain(
+            "connect telegram custom",
+        )
+    })
+
+    it("replaces the connect view with the new connection once connected", async () => {
+        const fresh = {...connected("slack"), connectionId: "slack-2"}
+        const next: ChannelConnections = {
+            ...ALL_LIVE,
+            agentConnections: {slack: [connected("slack"), fresh], telegram: [], whatsapp: []},
+        }
+        const reload = vi.fn(async () => next)
+        await render(ALL_LIVE, {actions: {...NOOP_ACTIONS, reload}})
+        await click("publish-button")
+        await click("channels-hub-add-slack")
+        await click("finish-connect")
+        expect(dialog()?.dataset.title).toBe("Slack")
+        await click("back")
+        expect(dialog()?.dataset.title).toBe("Publish")
+    })
+
+    it("re-reads the connections when a connect view is left", async () => {
+        const reload = vi.fn(async () => ALL_LIVE)
+        await render(
+            {slack: null, telegram: null, whatsapp: null},
+            {actions: {...NOOP_ACTIONS, reload}},
+        )
+        await click("publish-button")
+        await click("channels-hub-add-slack")
+        await click("back")
+        expect(reload).toHaveBeenCalledTimes(1)
+    })
+
+    it("opens the API view from the hub", async () => {
+        await render()
+        await click("publish-button")
+        await click("channels-hub-api")
+        expect(dialog()?.dataset.title).toBe("API")
     })
 })

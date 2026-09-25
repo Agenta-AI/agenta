@@ -1,11 +1,4 @@
-export {
-    PublishMenu,
-    liveSummary,
-    type PublishMenuItem,
-    type PublishMenuProps,
-    type PublishTarget,
-} from "./PublishMenu"
-export {buildPublishItems, type BuildPublishItemsOptions} from "./items"
+export {PublishButton, type PublishButtonProps} from "./PublishButton"
 export {AgentPublish, type AgentPublishProps} from "./AgentPublish"
 export {AgentApiPanel, type AgentApiPanelProps} from "./AgentApiPanel"
 export {

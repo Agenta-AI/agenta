@@ -80,7 +80,8 @@ export const SETTINGS_TABS: SettingsTabDefinition[] = [
     {
         key: "channels",
         scope: "project",
-        description: "Let agents answer in Slack and other messaging platforms.",
+        description:
+            "Chat platforms connected to this project. Each connection answers as one agent.",
     },
     {
         key: "webhooks",
