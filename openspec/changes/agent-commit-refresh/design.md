@@ -1,85 +1,113 @@
-# Design: agent self-commit refresh
+# Design: agent version freshness
 
 ## Context
 
-### The two signals
+### The signals that exist today
 
-| Signal | Carried by | Reaches | Listener on /w | Listener on /m |
-| --- | --- | --- | --- | --- |
-| `data-committed-revision` stream part | Vercel stream from `/services/agent/v0/invoke` (`sdks/python/agenta/sdk/agents/adapters/vercel/stream.py:316-323`, `:628-635`) | `conversation.messages` only when `useChat` consumes the stream: regenerate or a legacy approval resume. A durable send's stream goes to `readRunAdmission` (`useServerSessionInputs.ts:398`), which drops it. | `useAgentChatSession.ts:621-628` | `LiveConversation.tsx:184-195` |
-| `commit_revision` tool records | Session records, read by `useSessionLivePreview` on every `tool.completed` durable event (`durableEvents.ts:49-55`) through `liveCommittedRevisions` (`committedRevisions.ts:41-64`) | Every subscribed reader of the session, including other tabs | `AgentConversation.tsx:188-199` -> `useAgentChatSession.ts:602-620` | none: `useAgentConversation.ts:1053-1063` does not pass `onCommittedRevision` |
+| Signal | Carried by | Who hears it |
+| --- | --- | --- |
+| `data-committed-revision` stream part | Invoke stream (`sdks/python/agenta/sdk/agents/adapters/vercel/stream.py:316-323`, `:628-635`) | Only a `useChat`-consumed stream (regenerate, legacy approval resume). Durable sends drop it in `readRunAdmission` (`useServerSessionInputs.ts:398`). Listeners: /w `useAgentChatSession.ts:621-628`, /m `LiveConversation.tsx:184-195`. |
+| `commit_revision` tool records | Session records, re-read on each `tool.completed` event (`durableEvents.ts:49-55`, `committedRevisions.ts:41-64`) | Subscribed readers of that session only. Listener on /w: `AgentConversation.tsx:188-199`. None on /m: `useAgentConversation.ts:1053-1063`. |
+| Project watch `workflow-changed` | `api/oss/src/core/workflows/service.py:1298-1310` | Every tab (`useProjectWatch.ts:57`). Fires on an artifact edit such as a rename, NOT on a revision commit. |
+| Manual save | `agentAutoCommit.ts:187-195` invalidates caches | The saving tab only. |
 
-Neither signal is emitted for a manual save. A manual save runs `invalidateAgentCommittedRevisionCache` in the
-saving tab only (`agentAutoCommit.ts:187-195`). The project watch's `workflow-changed` event fires
-only on an artifact edit such as a rename (`api/oss/src/core/workflows/service.py:1298-1310`), never
-on a revision commit.
+The version drawer (`AgentVersionHistoryDrawer.tsx:55`) reads
+`workflowRevisionsByWorkflowQueryAtomFamily` (`store.ts:705`, `staleTime: 30_000` at `:752`) and
+never refetches on open.
 
-### Current and expected behavior, per case
+### Today and expected, per case
 
-"Current" is what the code does today, and whether it was checked live on staging. "Fix" says
-whether this change delivers the expected behavior.
+"Fix" marks what this change delivers.
 
-| # | Case | Current /w | Current /m | Expected | Fix |
+| # | Case | Today /w | Today /m | Expected | Fix |
 | --- | --- | --- | --- | --- | --- |
-| 1 | Agent commits, session in view, tab focused | Config pane, instructions, tools and version chip move to the new revision, the next send targets it, and "Agent updated this configuration in vN" shows (records path, `useAgentChatSession.ts:602-620`). **Live: v3 -> v4.** | Nothing moves until reload, and the next send still targets the old revision. **Live: stayed v5, reload showed v6.** | Both hosts move to the new revision and send against it. | Yes |
-| 1a | Agent name in the sidebar | Moves when the agent calls `rename_agent`: that is an artifact edit -> `workflow-changed` -> `useProjectWatch.ts:57`. `commit_revision` does not change the name. | Same | Same | n/a (already works) |
-| 1b | Unsaved local edit in the config pane at that moment | See case 6 | See case 6 | See case 6 | Follow-up |
-| 2 | Agent commits while the tab is hidden or the window minimized | `useSessionLivePreview` closes on `visibilitychange` and re-reads the records when the tab is visible again (`useSessionLivePreview.ts:342-352`). A commit made after the first read is still reported, because the baseline survives in the effect closure (`:122`, `:231`). So the pane catches up when the user returns. No rAF dependency. An unfocused but visible window stays connected and updates live. | Nothing (no listener) | Catches up on return, without a reload | Yes (/m gets the /w path) |
-| 3 | Agent commits in session A while the user views session B of the same agent, same tab | On /w, A's reader is closed while A is off screen (`visible: onScreen`, `AgentConversation.tsx:147,193`). When A comes back, a new effect run sets a fresh baseline, so the commit is behind it and is never reported. B's pane stays stale until reload. | Nothing | B's pane shows that a newer revision exists; A adopts it on return. | Follow-up |
-| 4 | Same session open in two tabs (or /m and /w side by side), one commits | /w tab: the reader is subscribed (`sender: true`) and receives `tool.completed` -> refresh. | /m tab: nothing | Every open view of that session follows the commit | Yes for the same session. A different session of the same agent is case 3. |
-| 5 | User saves the config manually | The saving tab moves to the new revision (`agentAutoCommit.ts:187-195`). Other tabs and other sessions get no signal and keep the old revision until reload; unpinned readers refetch only when something else invalidates. A running turn keeps its config; the next send from the saving tab uses the new revision. | Same | Other open views learn about the new revision | Follow-up (needs a project-watch event for revision commits) |
-| 6 | Unsaved local edit when the agent commits | Auto-save debounces 1.5 s (`agentAutoCommit.ts:23`) and commits the full configuration of the edited revision with no `base_revision_id` (`commit.ts:240-256`). If the agent committed in between, the user's save lands on top and silently reverts the agent's change. /w holds the flush for 2 s after a self-commit (`SELF_COMMIT_QUIET_MS`, `agentAutoCommit.ts:27,72`), which delays the overwrite without preventing it. (From code; not reproduced live.) | Same, and /m does not set the quiet window because it never sets `agentSelfCommitSignalAtom` | Neither change is silently lost: the save is refused or rebased on the new head, and the user sees a conflict. | Follow-up |
-| 7 | Agent commits during a long turn | `tool.completed` triggers a records re-read mid-turn (`durableEvents.ts:49-55`), so the pane moves at the commit, not at the end of the turn. (From code; the live run was checked after the turn.) | Nothing | Moves at the commit | Yes |
-| 8 | Commit fails (validation refusal, `commit_failed`) | `liveCommittedRevisions` skips error results and results without `status: "committed"` (`committedRevisions.ts:21,55-62`). The tool card shows the error and the pane does not move. **Live: a validation refusal (record 16) left the pane alone; the agent's retry committed.** | Same card, no move | Same | n/a |
-| 9 | Agent commits from Slack, Telegram or an automation, no playground open | A playground opened later reads the latest revision fresh. An already-open playground is case 5. | Same, except a session pinned to a revision (`selectedRevisionAtomFamily`) keeps showing that revision | Same | n/a |
-| 10 | /m vs /w | /w has both listeners | /m has only the stream-part listener, which the durable path never feeds | Parity | Yes |
+| 1 | Agent commits during the user's turn, session in view | Adopts: pane, chip and next send move; "Agent updated this configuration in vN" shows (`useAgentChatSession.ts:602-620`). Live: v3 -> v4. | Nothing until reload. Live: stayed v5, reload showed v6. | OPEN (Decision 1). Recommended: adopt, as /w does. | Yes |
+| 1a | Agent name in the sidebar | Moves on `rename_agent` (artifact edit -> `workflow-changed`). | Same | Same | n/a |
+| 2 | Tab hidden or minimized when the commit happens | The records reader closes when hidden and re-reads on return (`useSessionLivePreview.ts:342-352`), then adopts the commit automatically. | Nothing | No automatic adoption. On return, one latest-version check; if newer, the pill. | Yes |
+| 3 | Another session of the same agent, same tab | That session's reader is closed while off screen (`AgentConversation.tsx:147,193`); a missed commit is never reported. Stale until reload. | Stale until reload | On switching to it, one check; if newer, the pill. | Yes |
+| 4 | Same agent in another tab, or /m next to /w | A tab reading the same session adopts automatically; a tab on another session stays stale. | Stale | The other tab shows the pill when it becomes visible or is switched to. Never auto-adopts. | Yes |
+| 5 | User saves the config manually | Saving tab moves. Other tabs and sessions stay stale; a running turn keeps its config, and the next send from the saving tab uses the new version. | Same | Saving tab moves; others show the pill at their next check. | Yes |
+| 6 | Unsaved local edit when the agent commits | Auto-save commits the full config 1.5 s later with no `base_revision_id` (`agentAutoCommit.ts:23`, `commit.ts:240-256`), so the later write silently reverts the agent's change. /w only delays it 2 s (`agentAutoCommit.ts:27,72`). From code, not reproduced. | Same, without the 2 s delay | No silent loss: refuse or rebase the save and show a conflict. | Follow-up |
+| 7 | Agent commits mid-turn | Adopts at the commit (re-read on `tool.completed`), from code. | Nothing | Same as case 1, applied at the commit. | Yes |
+| 8 | Commit fails | Card shows the error; no change (`committedRevisions.ts:21,55-62`). Live: a refused commit left the pane alone. | Same | Same | n/a |
+| 9 | Commit from Slack, Telegram or an automation | A new session reads the latest version. An open session is stale. | Same; a pinned session stays pinned | New sessions start on the latest version. An open session shows the pill at its next check. | Yes |
+| 10 | Version drawer | Shows the cached list, up to 30 s old; no refetch on open. | Same | Refetch on every open; newer versions on top, each with Update. | Yes |
+| 11 | /m vs /w | /w has both commit listeners | /m has one, never fed | Same behavior on both | Yes |
 
 ## Goals / Non-Goals
 
-**Goals:** /m follows the agent's own commit in cases 1, 2, 4, 7 and 10, the way /w does today, with the smallest change.
+**Goals:** fix the /m regression for the session in view; make every other view aware of a newer
+version without adopting it; make the drawer current; keep backend traffic to one small read per
+user action.
 
-**Non-Goals:** cases 3, 5 and 6 (they need a new server event or a conflict model), and the /m commit notice. They are recorded as follow-ups.
+**Non-Goals:** automatic adoption anywhere the user is not watching; polling; cross-tab push;
+the conflict model for case 6.
 
 ## Decisions
 
-### Decision: reuse the records-based trigger /w already has
+### Decision 1 (OPEN, awaiting Mahmoud): the session in view when the agent commits in this turn
 
+- **Option A, recommended: adopt.** The user asked this agent to change itself, in this
+  conversation, and is watching. Adopting is what /w does today and what "used to work" means. The
+  records trigger fires only for commits after the reader's baseline, so a reload never replays
+  old commits. Cost on /m: forward `onCommittedRevision` from `useAgentConversation` to
+  `useSessionLivePreview` and handle it in `LiveConversation` with the dedupe set it already has.
+- **Option B: show the pill here too.** One rule everywhere and no automatic cache invalidation at
+  all. The user clicks Update after each self-edit, and the next send goes to the old version
+  until they do. /w's automatic adoption would be removed.
 
-1. `useAgentConversation` takes an optional `onCommittedRevision(revision)` and forwards it to its
-   `useSessionLivePreview` call. The engine still leaves the reaction to the host, as its header
-   comment says.
-2. `LiveConversation` passes a handler that calls the reaction it already has, keyed by revision
-   id, so a commit seen by both the part reader and the records reader acts once.
+Until Mahmoud answers, the spec and tasks follow Option A.
 
-Alternatives considered:
+### Decision 2: the pill instead of automatic adoption everywhere else
 
-- **Parse `data-committed-revision` in `readRunAdmission`.** This would work only in the tab that
-  sent, and only while its stream is still attached. The records path also covers other tabs and a
-  tab that was hidden. It would also add a second meaning to a function that decides admission.
-- **Move the whole reaction into the shared engine.** Both hosts would then change, and /w would
-  get a second path next to its own. That is a bigger change than this regression needs.
-- **Delete /m's part reader.** Regenerate and legacy approval resumes still stream through
-  `useChat`, and /w keeps the same reader. Keeping it costs one line in the shared handler.
+A session that the user is not watching keeps the version it has. The pill ("vN available ·
+Update") sits next to the version chip. Update pins the session to the latest version and runs the
+same adoption as Option A. Alternative rejected: automatic catch-up on return (/w's current case 2
+behavior). It invalidates caches the user did not ask to refresh and can switch a config under a
+user who is reading it.
 
-### Decision: no tool-name drift guard
+### Decision 3: detect a newer version with one check at three moments
 
-The brief suspected that `toolCacheEffects.ts` or `PLATFORM_OPS` had drifted from the SDK op names.
-They had not: the records carry `commit_revision` unprefixed (Pi), `canonicalClientToolName` strips
-the Claude and Codex wrappers, and `commit_revision` was never in `toolCacheEffects`, which covers
-trigger ops only. A drift guard would not have caught this regression, so none is added here.
+The check reads the variant's latest revision id and version (the existing
+`POST /workflows/revisions/retrieve` by variant ref, the call the latest-revision query already
+makes) and compares it with the session's version. It runs when the tab becomes visible, when a
+session becomes the active one, and when the drawer opens. Nothing runs while the tab is hidden,
+and there is no interval.
+
+Existing events considered as a replacement:
+- The session's `tool.completed` event covers only commits made in that session, only while its
+  reader is open.
+- The project watch `workflow-changed` event does not fire on revision commits.
+- **Option, not in version one:** publish `workflow-changed` from the revision commit path. Every
+  visible tab would then learn at once, with no check. The cost: a backend change, and the handler
+  must only mark "newer available" instead of invalidating the latest-revision caches, as
+  `useProjectWatch.ts:31` does now. The check stays either way, because a tab that was hidden missed
+  the event.
+
+### Decision 4: the drawer refetches on open
+
+The drawer calls `refetch()` on its revisions query each time it opens. Revisions newer than the
+session's version are listed at the top with an Update action that behaves like the pill.
+
+### Decision 5: new sessions start on the latest version
+
+A new session resolves the latest version at creation, not a cached one. Today it reads the
+latest-revision cache, which can be up to 30 s old.
 
 ## Risks / Trade-offs
 
-- The records trigger needs the shared reader to be advertised. When it is not, the durable path gives
-  /m no signal, and /w has the same limit today. Staging and cloud advertise it.
-- A commit made before the reader's first read is not reported as live. That is on purpose: it
-  stops a reload from replaying old commits. The reload already shows the latest revision.
-- Adopting a revision pins the session to it, which is what /m's part reader already does.
+- The pill makes a stale view explicit but does not remove it: a user can keep sending to an older
+  version on purpose. That is the intended contract.
+- One read per visibility change or session switch. It stays cheap only if it stays one request;
+  no fan-out per open tab of the rail.
+- Option A keeps one automatic invalidation, scoped to the session in view and to commits made in
+  its own turn.
 
 ## Migration Plan
 
-None. This is a frontend-only change and there is no data to migrate. Rollback is a revert.
+None. This is frontend only. Rollback is a revert.
 
 ## Open Questions
 
-- Should cases 3 and 5 be solved with a `revision-committed` project-watch event? That is follow-up 4.1.
+- Decision 1: Option A or B.
+- Should the `workflow-changed` option in Decision 3 replace some checks later?
