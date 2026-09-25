@@ -6,6 +6,8 @@ Requires a reachable tracing Postgres (`AGENTA_POSTGRES_URI_TRACING` or
 equivalent) and durable Redis; `conftest.py` skips this module otherwise.
 """
 
+import asyncio
+from datetime import datetime, timezone
 from uuid import uuid4
 
 import pytest
@@ -15,16 +17,22 @@ from sqlalchemy import select
 from oss.src.dbs.postgres.shared.engine import AnalyticsEngine
 from oss.src.utils.env import env
 
+from ee.src.core.measurements.dtos import ChargeDecision
 from ee.src.core.wallets.contracts import STREAM_DEBITS, STREAM_MEASUREMENTS
+from ee.src.core.wallets.streaming import serialize_debit_command
 from ee.src.dbs.redis.wallets.streams import (
     RedisDebitPublisher,
     RedisMeasurementPublisher,
 )
 from ee.src.dbs.postgres.measurements.dao import MeasurementsDAO
 from ee.src.dbs.postgres.measurements.dbes import MeasurementDBE, MeasurementValueDBE
+from ee.src.tasks.asyncio.measurements import worker as worker_module
 from ee.src.tasks.asyncio.measurements.worker import MeasurementWorker
 from ee.src.tasks.asyncio.wallets.worker import DebitWorker
-from ee.tests.pytest.utils.measurements.fakes import InMemoryOrganizationResolver
+from ee.tests.pytest.utils.measurements.fakes import (
+    InMemoryDebitPublisher,
+    InMemoryOrganizationResolver,
+)
 from ee.tests.pytest.utils.wallets.builders import build_measurement_command
 
 # Same xdist group as the wallet integration modules: this worker publishes to the same
@@ -303,11 +311,12 @@ async def test_identical_replay_is_confirmed_without_a_write(analytics_engine):
     dao = MeasurementsDAO(engine=analytics_engine)
     command = build_measurement_command(project_id=uuid4())
 
-    first = await dao.insert_measurement(command=command)
+    first = await dao.insert_measurement(command=command, charge=None)
     # `created_at` describes the envelope, not the measurement: a republish is the
     # same measurement.
     again = await dao.insert_measurement(
-        command=command.model_copy(update={"created_at": command.created_at.now()})
+        command=command.model_copy(update={"created_at": command.created_at.now()}),
+        charge=None,
     )
 
     assert first.created is True
@@ -347,3 +356,84 @@ async def test_a_failed_dead_letter_write_leaves_the_entry_pending(redis_client)
         assert len(pending) == 1
     finally:
         await redis_client.delete(stream, f"{stream}:dead")
+
+
+def _decision(amount_musd: int) -> ChargeDecision:
+    return ChargeDecision(
+        amount_musd=amount_musd,
+        pricing_version=f"test-{amount_musd}",
+        organization_id=uuid4(),
+        created_at=datetime.now(timezone.utc),
+    )
+
+
+@pytest.mark.asyncio
+async def test_concurrent_first_inserts_both_answer_with_the_committed_decision(
+    analytics_engine,
+):
+    """Codex #2: two workers racing on one unseen measurement price it independently.
+    Exactly one decision is stored, and both inserts answer with it, so both publish the
+    same debit whichever lost."""
+    command = build_measurement_command(project_id=uuid4())
+    dao = MeasurementsDAO(engine=analytics_engine)
+
+    first, second = await asyncio.gather(
+        dao.insert_measurement(command=command, charge=_decision(100)),
+        dao.insert_measurement(command=command, charge=_decision(200)),
+    )
+
+    assert {first.created, second.created} == {True, False}
+    assert first.charge == second.charge
+    stored = await dao.fetch_measurement(command=command)
+    assert stored.charge == first.charge
+
+
+class _AlwaysUnseen(MeasurementsDAO):
+    """Forces the insert path, as a worker that lost the race to a concurrent one sees
+    it: its lookup ran before the winner committed."""
+
+    async def fetch_measurement(self, *, command):
+        return None
+
+
+@pytest.mark.asyncio
+async def test_a_worker_that_loses_the_insert_race_publishes_the_winners_debit(
+    redis_client, analytics_engine, monkeypatch
+):
+    command = build_measurement_command(
+        organization_id=uuid4(), project_id=uuid4(), endpoint_kind="managed"
+    )
+    publishers = [InMemoryDebitPublisher(), InMemoryDebitPublisher()]
+
+    for publisher, amount in zip(publishers, (100, 200)):
+        monkeypatch.setattr(
+            worker_module,
+            "calculate_fake_charge",
+            lambda amount=amount, **_kwargs: (amount, f"test-{amount}"),
+        )
+        worker = MeasurementWorker(
+            measurements_dao=_AlwaysUnseen(engine=analytics_engine),
+            organization_resolver=InMemoryOrganizationResolver(),
+            debit_publisher=publisher,
+            redis_client=redis_client,
+        )
+        await worker._process_one(command)
+
+    [winner], [loser] = (publisher.published for publisher in publishers)
+    assert serialize_debit_command(loser) == serialize_debit_command(winner)
+    assert winner.amount_musd == 100
+
+
+@pytest.mark.asyncio
+async def test_a_stored_decision_survives_the_round_trip_through_postgres(
+    analytics_engine,
+):
+    """The replayed debit is built from what Postgres hands back, so the decision,
+    `created_at` to the microsecond, must come back exactly as it went in."""
+    command = build_measurement_command(project_id=uuid4())
+    decision = _decision(1234)
+    dao = MeasurementsDAO(engine=analytics_engine)
+
+    await dao.insert_measurement(command=command, charge=decision)
+
+    assert (await dao.fetch_measurement(command=command)).charge == decision

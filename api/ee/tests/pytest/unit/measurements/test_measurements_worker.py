@@ -11,7 +11,11 @@ import pytest
 from orjson import dumps
 
 from ee.src.core.wallets.contracts import DebitKind
-from ee.src.core.wallets.streaming import serialize_measurement_command
+from ee.src.core.wallets.streaming import (
+    serialize_debit_command,
+    serialize_measurement_command,
+)
+from ee.src.tasks.asyncio.measurements import worker as worker_module
 from ee.src.tasks.asyncio.measurements.worker import MeasurementWorker
 from ee.tests.pytest.utils.measurements.fakes import (
     InMemoryDebitPublisher,
@@ -77,7 +81,10 @@ async def test_resolves_organization_from_project_when_envelope_omits_it():
 
 
 @pytest.mark.asyncio
-async def test_unresolvable_organization_persists_and_dead_letters_the_charge():
+async def test_unresolvable_organization_stores_nothing_and_dead_letters_the_message():
+    """A measurement stored without its charge would be replayed as free forever, so
+    nothing is stored; the dead letter keeps the whole message for a replay once the
+    project resolves."""
     command = build_measurement_command(organization_id=None, endpoint_kind="managed")
     resolver = InMemoryOrganizationResolver(mapping={})  # never resolves
     publisher = InMemoryDebitPublisher()
@@ -87,11 +94,75 @@ async def test_unresolvable_organization_persists_and_dead_letters_the_charge():
     _, processed_ids = await worker.process_batch([_entry(command)])
 
     assert processed_ids == []
-    assert command.measurement_id in dao.rows
+    assert command.measurement_id not in dao.rows
     assert publisher.published == []
     [(_, dead)] = await _dead_letters(worker)
     assert b"resolves to no organization" in dead[b"dead_letter_reason"]
     assert dead[b"dead_letter_description"] == command.measurement_id.encode()
+
+
+class _RaisingResolver:
+    async def resolve_organization_id(self, *, project_id):
+        raise RuntimeError("core database unavailable")
+
+
+def _pricer_raises(**_kwargs):
+    raise RuntimeError("the pricer must not run for a stored measurement")
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "first_publish_fails", [True, False], ids=["after-failed-publish", "after-publish"]
+)
+async def test_a_redelivery_republishes_the_stored_decision_byte_for_byte(
+    monkeypatch, first_publish_fails
+):
+    """Codex #4 and #8: once a measurement is stored, its charge is replayed from the
+    stored decision alone. The resolver and the pricer are not consulted (both raise
+    here), and the debit envelope, `created_at` included, is identical to the first."""
+    project_id = uuid4()
+    command = build_measurement_command(
+        organization_id=None, project_id=project_id, endpoint_kind="managed"
+    )
+    dao = InMemoryMeasurementsDAO()
+    publisher = InMemoryDebitPublisher()
+    publisher.fail_next = first_publish_fails
+    worker = _make_worker(
+        dao=dao,
+        resolver=InMemoryOrganizationResolver(mapping={project_id: uuid4()}),
+        publisher=publisher,
+    )
+    await worker.process_batch([_entry(command)])
+
+    worker.organization_resolver = _RaisingResolver()
+    monkeypatch.setattr(worker_module, "calculate_fake_charge", _pricer_raises)
+    _, processed_ids = await worker.process_batch([_entry(command)])
+
+    assert processed_ids == [b"1-0"]
+    first, replayed = publisher.attempts
+    assert serialize_debit_command(replayed) == serialize_debit_command(first)
+    assert len(dao.rows) == 1
+
+
+@pytest.mark.asyncio
+async def test_a_redelivery_after_a_price_change_keeps_the_stored_price(monkeypatch):
+    command = build_measurement_command(endpoint_kind="managed")
+    publisher = InMemoryDebitPublisher()
+    publisher.fail_next = True
+    worker = _make_worker(publisher=publisher)
+    await worker.process_batch([_entry(command)])
+    [first] = publisher.attempts
+
+    monkeypatch.setattr(
+        worker_module,
+        "calculate_fake_charge",
+        lambda **_kwargs: (first.amount_musd * 10, "a-later-card"),
+    )
+    await worker.process_batch([_entry(command)])
+
+    [replayed] = publisher.published
+    assert replayed.amount_musd == first.amount_musd
+    assert replayed.pricing_version == first.pricing_version
 
 
 @pytest.mark.asyncio

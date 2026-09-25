@@ -7,11 +7,12 @@ left implicit in DAO insert calls.
 """
 
 from hashlib import sha256
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 from uuid import UUID
 
 from orjson import OPT_SORT_KEYS, dumps
 
+from ee.src.core.measurements.dtos import ChargeDecision
 from ee.src.core.wallets.contracts import MeasurementCommandV1, MeasurementComponentV1
 
 
@@ -19,11 +20,14 @@ def measurement_command_to_row(
     *,
     measurement_row_id: UUID,
     command: MeasurementCommandV1,
+    charge: Optional[ChargeDecision],
 ) -> Dict[str, Any]:
     """One `measurements` row's column values for `command`.
 
     `measurement_row_id` is the generated primary key (`measurements.id`); the
     gateway-minted `command.measurement_id` is the separate, unique business key.
+    The charge decision sits in `data` beside the fingerprint, which describes the
+    measurement alone: a decision is derived from it, never part of it.
     """
     return {
         "id": measurement_row_id,
@@ -40,6 +44,7 @@ def measurement_command_to_row(
         "data": {
             "references": command.references,
             "fingerprint": measurement_fingerprint(command),
+            "charge": charge.model_dump(mode="json") if charge else None,
         },
         "start_time": command.start_time,
         "end_time": command.end_time,
@@ -53,6 +58,11 @@ def measurement_fingerprint(command: MeasurementCommandV1) -> str:
     content = command.model_dump(mode="json", exclude={"created_at", "version"})
     content["components"] = sorted(content["components"], key=lambda c: c["key"])
     return sha256(dumps(content, option=OPT_SORT_KEYS)).hexdigest()
+
+
+def charge_from_data(data: Optional[Dict[str, Any]]) -> Optional[ChargeDecision]:
+    charge = (data or {}).get("charge")
+    return ChargeDecision.model_validate(charge) if charge else None
 
 
 def measurement_component_to_row(

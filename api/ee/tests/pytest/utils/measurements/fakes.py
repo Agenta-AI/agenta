@@ -9,7 +9,7 @@ from typing import Dict, List, Optional, Tuple
 from uuid import UUID
 import uuid_utils.compat as uuid
 
-from ee.src.core.measurements.dtos import PersistedMeasurement
+from ee.src.core.measurements.dtos import ChargeDecision, PersistedMeasurement
 from ee.src.core.measurements.interfaces import (
     MeasurementsDAOInterface,
     OrganizationResolverInterface,
@@ -21,43 +21,63 @@ from ee.src.dbs.postgres.measurements.mappings import measurement_fingerprint
 
 class InMemoryMeasurementsDAO(MeasurementsDAOInterface):
     """Mirrors the real DAO's idempotency contract: `UNIQUE (measurement_id)`
-    on the parent, children written only with a new parent, and a conflicting
-    replay rejected by content fingerprint. One call inserts parent + all
-    children together (atomicity is a property of the call signature, not of a
-    transaction this fake can offer)."""
+    on the parent, children and charge decision written only with a new parent, a
+    repeat answered with the STORED decision, and a conflicting replay rejected by
+    content fingerprint. One call inserts parent + all children together (atomicity is
+    a property of the call signature, not of a transaction this fake can offer)."""
 
     def __init__(self) -> None:
         self.rows: Dict[str, UUID] = {}  # measurement_id -> row id
         self.fingerprints: Dict[str, str] = {}  # measurement_id -> fingerprint
+        self.charges: Dict[str, Optional[ChargeDecision]] = {}
         self.values: Dict[UUID, Dict[str, Tuple[int, Optional[int]]]] = {}
         self.insert_calls: List[MeasurementCommandV1] = []
+
+    async def fetch_measurement(
+        self,
+        *,
+        command: MeasurementCommandV1,
+    ) -> Optional[PersistedMeasurement]:
+        existing_id = self.rows.get(command.measurement_id)
+        if existing_id is None:
+            return None
+        if self.fingerprints[command.measurement_id] != measurement_fingerprint(
+            command
+        ):
+            raise MeasurementConflictError(measurement_id=command.measurement_id)
+        return PersistedMeasurement(
+            id=existing_id,
+            measurement_id=command.measurement_id,
+            created=False,
+            charge=self.charges[command.measurement_id],
+        )
 
     async def insert_measurement(
         self,
         *,
         command: MeasurementCommandV1,
+        charge: Optional[ChargeDecision],
     ) -> PersistedMeasurement:
         self.insert_calls.append(command)
 
-        fingerprint = measurement_fingerprint(command)
-        existing_id = self.rows.get(command.measurement_id)
-        if existing_id is not None:
-            if self.fingerprints[command.measurement_id] != fingerprint:
-                raise MeasurementConflictError(measurement_id=command.measurement_id)
-            return PersistedMeasurement(
-                id=existing_id, measurement_id=command.measurement_id, created=False
-            )
+        stored = await self.fetch_measurement(command=command)
+        if stored is not None:
+            return stored
 
         row_id = uuid.uuid7()
         self.rows[command.measurement_id] = row_id
-        self.fingerprints[command.measurement_id] = fingerprint
+        self.fingerprints[command.measurement_id] = measurement_fingerprint(command)
+        self.charges[command.measurement_id] = charge
         self.values[row_id] = {
             component.key: (component.value, component.cost_musd)
             for component in command.components
         }
 
         return PersistedMeasurement(
-            id=row_id, measurement_id=command.measurement_id, created=True
+            id=row_id,
+            measurement_id=command.measurement_id,
+            created=True,
+            charge=charge,
         )
 
 
