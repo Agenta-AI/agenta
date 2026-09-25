@@ -17,8 +17,7 @@ Status: Draft for Mahmoud's review. Nothing here is implemented. This change rep
 - New agents get the entry from the agent template. Existing agents get it when the playground (`/w` or `/m`) loads them: the loader adds the default entry to the loaded configuration, not as an unsaved change, and the next save stores it. Nothing is committed on open. Outside the playground there is no fallback: an agent that nobody opens and saves has no Agenta tools until its next save. This is an accepted limit.
 - Add an **Agenta tools** section beside **Build kit** in the agent's tool settings, in `/w` and `/m`. It renders the entry with the same component as a gateway connection, grouped into write and read-only tools. An agent with no saved entry gets no Agenta tools.
 - The build kit does not change. It keeps all its tools, including `get_current_session` and `rename_session`, its choices stay in the browser, and it still reaches only playground runs. An explicit platform entry for a tool, the author's or the build kit's, wins over the `agenta_tools` entry, and the tool appears once. The one build kit change proposed is its copy, which says it is playground-only. Whether even that copy should change is an open point in the design.
-- Point the session link at the session's page in `/m`, the default app. People who use Classic mode are sent to the classic playground by the existing gate. A session with no agent reference still gets a link.
-- Keep the link private to signed-in project members. The agent shares it when asked, and at the end of long work in a chat app or automation.
+- `get_current_session` itself does not change: same description, endpoint and link. This change only makes it available through the `agenta_tools` entry.
 - The channel tools are out of scope. They stay automatic for agents with a connected bot, controlled by the bot's settings.
 
 ## Capabilities
@@ -27,7 +26,6 @@ Status: Draft for Mahmoud's review. Nothing here is implemented. This change rep
 
 - `agenta-tools`: which tools the entry holds, their defaults, how the entry expands into a run, and how it combines with the build kit and the author's own tools.
 - `agenta-tools-settings`: the entry's shape, how new and existing agents get it, and how the tool settings show and edit it.
-- `session-link`: what the `get_current_session` link points to, who can open it, and when the agent shares it.
 
 ### Modified Capabilities
 
@@ -35,8 +33,8 @@ None. No baseline specification covers the build kit or the platform tools. The 
 
 ## Impact
 
-- **SDK**: a new `AgentaToolsConfig` in the `ToolConfig` union (`sdks/python/agenta/sdk/agents/tools/models.py`), its expansion in the tool resolver, the list of Agenta tools, and a new `get_current_session` description.
-- **API and service**: the entry in the default agent template and the built-in templates, a read-only listing of the Agenta tools for the settings UI, and `current_session_response` builds the `/m` link.
+- **SDK**: a new `AgentaToolsConfig` in the `ToolConfig` union (`sdks/python/agenta/sdk/agents/tools/models.py`), its expansion in the tool resolver, and the list of Agenta tools.
+- **API and service**: the entry in the default agent template and the built-in templates, and a read-only listing of the Agenta tools for the settings UI.
 - **Web**: an Agenta tools section beside Build kit in `/w` and `/m`, one function that adds the default entry where the playground loads a revision, and new copy for the Build kit section.
 - **Compatibility**: older API or SDK code cannot parse the new entry type. Accepted and documented in the release notes.
 - **Existing agents**: after their next save from the playground, every run of that version gets the two default tools.

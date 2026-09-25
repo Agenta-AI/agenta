@@ -50,28 +50,26 @@ Decision 1 covers `list_deliveries` (2001, read-only), `test_subscription` (2021
 ### `get_current_session` today
 
 - It takes no model arguments. The session ID is bound from the run (`op_catalog.py:1881`). It calls `POST /api/sessions/tools/current` (`api/oss/src/apis/fastapi/sessions/router.py:421-427`, handler `:570-600`), which checks the caller can view sessions (`:574-579`).
-- It returns the session ID, name, and a link, or a reason there is none (`api/oss/src/apis/fastapi/sessions/utils.py:28-76`). The link is the classic playground tab: `/w/<ws>/p/<project>/apps/<agent>/playground?session_id=<id>` (`:59-75`). With no `workflow` reference on the session, it returns `agent_reference_missing` and no link (`:32-37`).
-- **What opening it does.** The desktop gate sends a phone to `/m`, and a desktop browser to `/m` only when its Classic-mode cookie is off. A browser with no cookie stays on `/w` (`web/packages/agenta-shared/src/utils/mobileGate/index.ts:303-314`). In `/m`, a browser with Classic mode on is sent back to the classic tab when `?agent=` is present, and to the observability drawer otherwise (`:232-241`, `:350-352`). `/m` is the default app for everyone (`openspec/config.yaml`).
-- **Who can open it.** Signed-in project members who can view sessions. Sessions are gated per project, not per person: the session list has no creator filter (`api/oss/src/core/sessions/dtos.py:39-61`), and both apps open any session ID in their URL and let the server check access.
-- **Sessions from other surfaces.** Channel and automation runs carry a token signed for a real user, with the workspace in it: the linked sender or the agent's creator for channels (`inbox.py:198-219`), the automation's creator for fires (`dispatcher.py:250`), signed at `api/oss/src/core/workflows/service.py:3099` and read by the auth middleware (`api/oss/src/middlewares/auth.py:1150-1153`). So the tool call passes its checks. These sessions appear in the web session lists, which apply no origin filter by default (`web/mobile/src/features/sessions/sessionListPolicy.ts:4-7`). A channel agent can be bound by an `application` reference instead of `workflow` (`api/oss/src/core/channels/dtos.py:380-388`). Its sessions carry no `workflow` key, so today they get no link.
+- It returns the session ID, name, and a link to the session, or a reason there is none (`api/oss/src/apis/fastapi/sessions/utils.py:28-76`). This change does not touch the tool, its description, its endpoint or its link.
+- Channel and automation runs carry a token signed for a real user, with the workspace in it (`inbox.py:198-219`, `dispatcher.py:250`, signed at `api/oss/src/core/workflows/service.py:3099`), so the tool call passes its checks in those runs once the tool is offered.
 
 ### Today and expected, by surface
 
 | Surface | Today | Expected |
 | --- | --- | --- |
-| Playground, `/w` | Build kit tools only, including `get_current_session`. The link opens the classic tab. | Build kit tools plus the Agenta tools that are on. The link opens `/m`, and a Classic-mode browser is sent to the classic tab. |
-| Playground, `/m` | Same build kit. The link points at `/w`, and the person returns to `/m` only on a phone or with Classic mode off. | Same as `/w`. The link opens the `/m` session page directly. |
+| Playground, `/w` | Build kit tools only, including `get_current_session`. | Build kit tools plus the Agenta tools that are on. |
+| Playground, `/m` | Same build kit. | Same as `/w`. |
 | API | Only tools the author listed by hand. | The author's tools plus the Agenta tools that are on. |
 | Slack | Only the author's tools and the channel tools. Asked for the session link, the agent says it has no access. | Also the Agenta tools that are on. By default it can give the link and name the session. |
 | Telegram | Same as Slack. | Same as Slack. |
-| WhatsApp | Same as Slack. | Same as Slack. The person chatting is usually a customer with no Agenta access (decision 7). |
+| WhatsApp | Same as Slack. | Same as Slack. |
 | Automations | Only the author's tools and the channel tools. | Also the Agenta tools that are on. |
 
 ## Goals / Non-Goals
 
-**Goals:** Tools the agent needs in production reach every run. Each is on or off per agent, with Allow or Ask, saved with the agent's version. The session link opens in the default app and stays private.
+**Goals:** Tools the agent needs in production reach every run. Each is on or off per agent, with Allow or Ask, saved with the agent's version.
 
-**Non-Goals:** Changing what any tool does. Moving the channel tools. Changing the build kit's tools, defaults, controls, or where its choices are saved. Public session links. Per-surface or per-environment settings. Filtering tools by run kind (test, evaluation, automation) (see Risks).
+**Non-Goals:** Changing what any tool does, including `get_current_session`, its description, its link and its endpoint. Moving the channel tools. Changing the build kit's tools, defaults, controls, or where its choices are saved. Per-surface or per-environment settings. Filtering tools by run kind (test, evaluation, automation) (see Risks).
 
 ## Decisions
 
@@ -216,39 +214,10 @@ Advanced
 | One list with a "playground only" tag | Fewer blocks, but one list would mix choices saved with the agent and choices saved in the browser. |
 | Agenta tools as ordinary rows in the agent's tools list | Looks like the author added each one by hand, and there is no kit-level choice. |
 
-### 6. Where the session link points
-
-**Decision:** The session's page in `/m`: `/m/w/<ws>/p/<project>/sessions/<id>?agent=<agent>`, without `?agent=` when the session has no agent reference.
-
-| Option | Trade-off |
-| --- | --- |
-| The classic playground tab (today) | Classic-mode users land where they expect. Everyone else on a desktop with no saved preference also lands in classic, although `/m` is the default app. A session with no agent reference gets no link. |
-| **The `/m` session page** | Opens in the default app. The `/m` gate already sends Classic-mode users to the classic tab (`mobileGate/index.ts:350-352`). The page needs only the session ID, so a Slack agent bound by application reference also gets a link, and `agent_reference_missing` goes away. |
-| A new short route that picks the app | Shortest link, but a new route for something the two gates already do. |
-
-### 7. Who can open the link, and when the agent shares it
-
-**Decision:** Signed-in project members only, as today. The agent shares the link when asked, and when it ends a long piece of work in a chat app or automation whose detail does not fit in the reply.
-
-| Option for who | Trade-off |
-| --- | --- |
-| **Project members who can view sessions** | No change. A session can hold customer messages and tool output, so it stays private. A Slack colleague without an account sees the sign-in page. |
-| A public read-only link | Anyone the link is forwarded to could read the session. Needs sharing, expiry and revocation. A separate feature. |
-
-| Option for when | Trade-off |
-| --- | --- |
-| Only when asked | Predictable, but people in Slack do not know a link exists to ask for. |
-| **When asked, and at the end of long work in a chat app or automation** | Covers "Details: <link>" after a long Slack task. One sentence in the tool description. The model decides, so it may sometimes skip it. |
-| The platform adds an "Open in Agenta" link to every channel reply | Always there, but noisy on short answers, and useless to a WhatsApp customer. A channels change. |
-
-The description also tells the agent to share the link only with people who can open it, and to say it opens in Agenta for people with access. On WhatsApp, where the person is usually a customer, it shares the link only when asked.
-
 ## Risks / Trade-offs
 
 - **Test runs and evaluations run with the author's choices.** If an author turns on `create_schedule`, a test run or an evaluation can create a real schedule. All write tools are off by default, so this needs an author's choice. A later change can drop write tools from those runs by run kind, as the earlier kit draft proposed.
 - **Anyone who can talk to a Slack bot can use the tools the author turned on.** Mitigation: off by default, Ask available per tool, and the Slack approval card.
-- **Channel sessions look person-started.** They carry no origin marker, so in the session list a Slack session reads like one started by hand. Not a blocker for the link.
-- **The sign-in return.** A person who signs in from the link should land on the session. QA checks this in both apps.
 - **Older code rejects the new entry type.** Rolling the API or SDK back past this change, or a customer running an older SDK against a newer agent, fails to parse `type: "agenta_tools"`. Accepted and documented in the release notes; we are pre-PMF, so there is no code for it.
 - **Existing agents that nobody saves have no Agenta tools outside the playground** (decision 4). Accepted. The release notes tell authors to open and save agents that run in Slack or automations.
 - **Two places save settings.** Agenta tools save with the agent, Build kit in the browser. The section copy says which is which.
@@ -262,7 +231,7 @@ The description also tells the agent to share the link only with people who can 
 
 1. Ship the `AgentaToolsConfig` type and its expansion in the resolver, and add the entry to the default agent template and the built-in templates. New agents get `get_current_session` and `rename_session` everywhere.
 2. In the same release, ship the Agenta tools section and the playground migration: loading an agent with no entry adds it to the loaded configuration, saved with the next save (decision 4). No saved version is rewritten, and nothing is committed on open.
-3. In the same release, ship the `/m` link. The build kit is unchanged, and a tool in both appears once (decision 3).
+3. The build kit is unchanged, and a tool in both appears once (decision 3).
 
 Existing agents lose nothing: in the playground the build kit is unchanged, and elsewhere they had none of these tools before. They gain the two default tools outside the playground after their next save from the playground, and after that version is deployed where the surface uses a deployed version.
 
@@ -270,8 +239,8 @@ Rollback: older code cannot parse a saved `agenta_tools` entry. This is a docume
 
 ## Verification Plan
 
-SDK unit tests cover parsing the entry, `default` and per-tool values (`allow`, `ask`, `off`), refusing `deny`, unknown names, the expansion into platform tools, the precedence rule, the session-ID condition, and the standalone case. API unit tests cover the unchanged build kit list and the `/m` link with and without an agent reference. Web unit tests cover the section, its draft edits, and the loader adding the entry to a revision without one. Live QA runs one agent from `/w`, `/m`, the API, Slack, Telegram and a schedule: it asks for the link, turns `create_schedule` on with Ask and uses it from Slack, and turns `rename_session` off and checks that Slack runs stop naming their sessions while the playground follows the build kit. It then opens the link as a member with Classic mode on and off, on a phone, signed out, and as a non-member.
+SDK unit tests cover parsing the entry, `default` and per-tool values (`allow`, `ask`, `off`), refusing `deny`, unknown names, the expansion into platform tools, the precedence rule, the session-ID condition, and the standalone case. API unit tests cover the unchanged build kit list. Web unit tests cover the section, its draft edits, and the loader adding the entry to a revision without one. Live QA runs one agent from `/w`, `/m`, the API, Slack, Telegram and a schedule: it asks for the link, turns `create_schedule` on with Ask and uses it from Slack, and turns `rename_session` off and checks that Slack runs stop naming their sessions while the playground follows the build kit.
 
 ## Effort
 
-About 5 to 7 engineer-days: entry type, resolver expansion and tests (1.5), templates, API link and tool listing (1), settings section and playground migration in `/w` and `/m` (2 to 2.5), live QA and fixes (1 to 1.5).
+About 5 to 7 engineer-days: entry type, resolver expansion and tests (1.5), templates and tool listing (0.5 to 1), settings section and playground migration in `/w` and `/m` (2 to 2.5), live QA and fixes (1 to 1.5).
