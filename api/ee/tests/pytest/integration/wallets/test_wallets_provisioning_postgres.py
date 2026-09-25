@@ -126,65 +126,39 @@ async def test_apply_plan_change_mints_credit_and_debits_outgoing_against_real_d
     try:
         await dao.provision_general_balance(organization_id=organization_id)
 
-        # Seed an outgoing plan_allowance credit + its balance row directly (mirrors how
-        # a prior plan change or a future allowance-issuance job would have created it).
-        outgoing_credit_id = uuid.uuid4()
-        engine = get_transactions_engine()
-        async with engine.session() as session:
-            await session.execute(
-                text(
-                    "INSERT INTO wallet_credits "
-                    "(id, organization_id, credit_kind, amount_musd, priority, end_time) "
-                    "VALUES (:id, :organization_id, 'plan_allowance', 310000, 10, :end_time)"
-                ),
-                {
-                    "id": outgoing_credit_id,
-                    "organization_id": organization_id,
-                    "end_time": PERIOD_END,
-                },
-            )
-            await session.execute(
-                text(
-                    "INSERT INTO wallet_balances "
-                    "(id, organization_id, wallet_credit_id, balance_musd) "
-                    "VALUES (:id, :organization_id, :credit_id, 310000)"
-                ),
-                {
-                    "id": uuid.uuid4(),
-                    "organization_id": organization_id,
-                    "credit_id": outgoing_credit_id,
-                },
-            )
-
-        found_credit = await dao.get_active_plan_allowance_credit(
-            organization_id=organization_id, now=NOW
+        # The outgoing allowance: $0.31 granted for the whole period.
+        first = await dao.apply_plan_change(
+            organization_id=organization_id,
+            idempotency_key="pg-integration-first",
+            subscription_id="sub_123",
+            incoming_credit_amount_musd=310_000,
+            incoming_end_time=PERIOD_END,
+            floor_musd=0,
+            now=PERIOD_START,
         )
-        assert found_credit is not None
-        assert found_credit.id == outgoing_credit_id
+        outgoing_credit_id = first.incoming_credit_id
 
         result = await dao.apply_plan_change(
             organization_id=organization_id,
             idempotency_key="pg-integration-plan-change",
-            outgoing_credit_id=outgoing_credit_id,
-            outgoing_debit_amount_musd=100_000,  # 10/31 of 310_000
-            incoming_credit_kind="plan_allowance",
+            subscription_id="sub_123",
             incoming_credit_amount_musd=200_000,
-            incoming_priority=10,
             incoming_end_time=PERIOD_END,
             floor_musd=-500,
-            now=NOW,
+            now=NOW,  # 10 of 31 days left
         )
 
         assert result.replayed is False
-        assert result.outgoing_debit_amount_musd == 100_000
+        assert result.outgoing_credit_id == outgoing_credit_id
+        assert result.outgoing_debit_amount_musd == 100_000  # 10/31 of 310_000
         assert result.incoming_credit_amount_musd == 200_000
-        assert result.incoming_credit_id is not None
-        assert result.incoming_credit_id != outgoing_credit_id
+        assert result.incoming_credit_id not in (None, outgoing_credit_id)
 
         general = await dao.get_general_balance(organization_id=organization_id)
-        assert general.balance_musd == 200_000 - 100_000
+        assert general.balance_musd == 310_000 - 100_000 + 200_000
         assert general.floor_musd == -500
 
+        engine = get_transactions_engine()
         async with engine.session() as session:
             outgoing_balance = await session.execute(
                 text(
@@ -206,22 +180,30 @@ async def test_apply_plan_change_mints_credit_and_debits_outgoing_against_real_d
             assert amount_musd == 310_000
             assert credit_kind == "plan_allowance"
 
+            # The minted credit records the subscription it was granted for.
+            incoming_data = await session.execute(
+                text("SELECT data FROM wallet_credits WHERE id = :id"),
+                {"id": result.incoming_credit_id},
+            )
+            assert incoming_data.scalar_one()["references"] == {
+                "plan_change_idempotency_key": "pg-integration-plan-change",
+                "subscription": {"id": "sub_123"},
+            }
+
         # Replay: the exact same idempotency_key must produce no second effect, even
-        # with different amounts passed in (simulating `now` drift on redelivery).
+        # with a different amount and instant passed in.
         replay = await dao.apply_plan_change(
             organization_id=organization_id,
             idempotency_key="pg-integration-plan-change",
-            outgoing_credit_id=outgoing_credit_id,
-            outgoing_debit_amount_musd=999_999,
-            incoming_credit_kind="plan_allowance",
+            subscription_id="sub_123",
             incoming_credit_amount_musd=999_999,
-            incoming_priority=10,
             incoming_end_time=PERIOD_END,
             floor_musd=-500,
             now=NOW + timedelta(days=3),
         )
         assert replay.replayed is True
         assert replay.incoming_credit_id == result.incoming_credit_id
+        assert replay.outgoing_debit_amount_musd == 100_000
 
         general_after_replay = await dao.get_general_balance(
             organization_id=organization_id
@@ -231,46 +213,34 @@ async def test_apply_plan_change_mints_credit_and_debits_outgoing_against_real_d
         await _cleanup(organization_id)
 
 
-async def test_get_active_plan_allowance_credit_reads_the_injected_clock(wallet_schema):
-    """The "outgoing" credit lookup judges expiry against the `now` the caller injects —
-    the same instant `apply_plan_change` prorates against — not the database clock, so a
-    plan change cannot read one clock and prorate against another."""
+async def test_an_expired_allowance_has_nothing_to_claw_back(wallet_schema):
+    """Expiry is judged against the change's own instant, not the database clock, so a
+    fixed period in a test cannot go stale as wall-clock time passes it."""
     organization_id = uuid.uuid4()
     dao = WalletsDAO()
 
     try:
-        expired_credit_id = uuid.uuid4()
-        active_credit_id = uuid.uuid4()
-
-        engine = get_transactions_engine()
-        async with engine.session() as session:
-            for credit_id, end_time in (
-                (expired_credit_id, NOW - timedelta(days=1)),
-                (active_credit_id, PERIOD_END),
-            ):
-                await session.execute(
-                    text(
-                        "INSERT INTO wallet_credits "
-                        "(id, organization_id, credit_kind, amount_musd, priority, end_time) "
-                        "VALUES (:id, :organization_id, 'plan_allowance', 310000, 10, :end_time)"
-                    ),
-                    {
-                        "id": credit_id,
-                        "organization_id": organization_id,
-                        "end_time": end_time,
-                    },
-                )
-
-        at_now = await dao.get_active_plan_allowance_credit(
-            organization_id=organization_id, now=NOW
+        await dao.apply_plan_change(
+            organization_id=organization_id,
+            idempotency_key="pg-expired-first",
+            subscription_id="sub_123",
+            incoming_credit_amount_musd=310_000,
+            incoming_end_time=PERIOD_END,
+            floor_musd=0,
+            now=PERIOD_START,
         )
-        assert at_now is not None
-        assert at_now.id == active_credit_id
 
-        # An instant past every seeded end_time: nothing is active any more.
-        after_period = await dao.get_active_plan_allowance_credit(
-            organization_id=organization_id, now=PERIOD_END + timedelta(days=1)
+        after_period = await dao.apply_plan_change(
+            organization_id=organization_id,
+            idempotency_key="pg-expired-second",
+            subscription_id="sub_123",
+            incoming_credit_amount_musd=0,
+            incoming_end_time=None,
+            floor_musd=0,
+            now=PERIOD_END + timedelta(days=1),
         )
-        assert after_period is None
+
+        assert after_period.outgoing_debit_amount_musd == 0
+        assert after_period.outgoing_debit_id is None
     finally:
         await _cleanup(organization_id)

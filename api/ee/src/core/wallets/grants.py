@@ -93,7 +93,7 @@ def compose_award_idempotency_key(
     reference: Optional[str] = None,
 ) -> str:
     """One prefix (`award`), then identifiers, `organization` spelled out — mirrors the
-    `plan_change:{subscription_id}:{period_start}` / `measurement:{measurement_id}`
+    `plan_change:{stripe_event_id}` / `measurement:{measurement_id}`
     convention elsewhere in this package. A once-per-organization activity's key omits
     `reference` entirely (there is only ever one), so two calls with different
     `reference` values for a non-repeatable activity still collide onto the same key —

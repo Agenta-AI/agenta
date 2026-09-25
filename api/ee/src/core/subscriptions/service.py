@@ -1,6 +1,9 @@
-from typing import Optional
+from contextlib import nullcontext
+from typing import Any, Optional, Tuple
 from uuid import UUID, getnode
 from datetime import datetime, timezone, timedelta
+
+import uuid_utils.compat as uuid_utils
 
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.env import env
@@ -21,12 +24,39 @@ from ee.src.core.subscriptions.settings import (
     trial_enabled,
 )
 from ee.src.core.subscriptions.interfaces import SubscriptionsDAOInterface
-from ee.src.core.wallets.proration import billing_period_bounds
 from ee.src.core.wallets.runtime import get_wallets_service
 
 log = get_module_logger(__name__)
 
 MAC_ADDRESS = ":".join(f"{(getnode() >> ele) & 0xFF:02x}" for ele in range(40, -1, -8))
+
+
+def _stripe_field(value: Any, key: str) -> Any:
+    if value is None:
+        return None
+    if isinstance(value, dict):
+        return value.get(key)
+    return getattr(value, key, None)
+
+
+def current_billing_period(
+    stripe_subscription: Any,
+) -> Tuple[Optional[datetime], Optional[datetime]]:
+    """The Stripe subscription's current billing period, read from its first item
+    (where Stripe carries it), or `(None, None)` when it is not there."""
+    items = _stripe_field(_stripe_field(stripe_subscription, "items"), "data") or []
+    if not items:
+        return None, None
+
+    start = _stripe_field(items[0], "current_period_start")
+    end = _stripe_field(items[0], "current_period_end")
+    if start is None or end is None:
+        return None, None
+
+    return (
+        datetime.fromtimestamp(int(start), tz=timezone.utc),
+        datetime.fromtimestamp(int(end), tz=timezone.utc),
+    )
 
 
 class SwitchException(Exception):
@@ -280,6 +310,9 @@ class SubscriptionsService:
         plan: Optional[str] = None,
         anchor: Optional[int] = None,
         event_id: Optional[str] = None,
+        effective_at: Optional[datetime] = None,
+        period_start: Optional[datetime] = None,
+        period_end: Optional[datetime] = None,
         # force: Optional[bool] = True,
         **kwargs,
     ) -> SubscriptionDTO:
@@ -287,11 +320,51 @@ class SubscriptionsService:
 
         `event_id` identifies the DELIVERY that carried this event — Stripe's own
         `stripe_event.id` at the webhook boundary, which is stable across Stripe's
-        retries and distinct for two genuinely different changes. It is the wallet
-        proration's idempotency identity; see `_apply_wallet_plan_change`. The direct
-        (non-webhook) plan-switch and cancel routes have no such identifier and pass
-        none.
+        retries. The direct (non-webhook) plan-switch and cancel routes have none.
+
+        `effective_at` is when the change took effect (the Stripe event's creation time
+        on the webhook; the call's own time otherwise), and `period_start`/`period_end`
+        are the new subscription's billing period on a creation. Both feed the wallet
+        proration; see `_apply_wallet_plan_change`.
+
+        With wallets enabled, every event for one organization runs under that
+        organization's subscription lock, from reading the plan to applying the wallet
+        side of the change. Two submissions of the same switch therefore cannot both
+        see the old plan: the second sees the new one and is refused as a switch to the
+        current plan. And two different changes cannot interleave their wallet
+        adjustments out of order. Open-designs item 22, option 2.
         """
+        lock = (
+            self.subscriptions_dao.lock(organization_id=organization_id)
+            if env.wallets.enabled
+            else nullcontext()
+        )
+        async with lock:
+            return await self._process_event(
+                organization_id=organization_id,
+                event=event,
+                subscription_id=subscription_id,
+                plan=plan,
+                anchor=anchor,
+                event_id=event_id,
+                effective_at=effective_at,
+                period_start=period_start,
+                period_end=period_end,
+            )
+
+    async def _process_event(
+        self,
+        *,
+        organization_id: str,
+        event: Event,
+        subscription_id: Optional[str],
+        plan: Optional[str],
+        anchor: Optional[int],
+        event_id: Optional[str],
+        effective_at: Optional[datetime],
+        period_start: Optional[datetime],
+        period_end: Optional[datetime],
+    ) -> SubscriptionDTO:
         log.info(
             "[billing] [internal] %s | %s | %s",
             organization_id,
@@ -299,7 +372,7 @@ class SubscriptionsService:
             plan,
         )
 
-        now = datetime.now(tz=timezone.utc)
+        now = effective_at or datetime.now(tz=timezone.utc)
 
         if not anchor:
             anchor = now.day
@@ -312,12 +385,6 @@ class SubscriptionsService:
             )
 
         previous_plan = subscription.plan
-        # The outgoing clawback is prorated over the window the OUTGOING allowance was
-        # granted for, so that anchor must be read before a branch below overwrites
-        # `subscription.anchor`: prorating a cancellation over a window that starts today
-        # claws back nearly the whole allowance whatever the customer used. The incoming
-        # grant uses the post-event anchor instead — see `_apply_wallet_plan_change`.
-        previous_anchor = subscription.anchor
         free_plan = get_free_plan()
 
         if event == Event.SUBSCRIPTION_CREATED:
@@ -371,6 +438,8 @@ class SubscriptionsService:
 
             subscription.active = True
             subscription.plan = plan
+            # A switch keeps the subscription and its billing period.
+            period_start, period_end = current_billing_period(_subscription)
 
             stripe.Subscription.modify(
                 subscription.subscription_id,
@@ -419,12 +488,11 @@ class SubscriptionsService:
         if subscription is not None and subscription.plan != previous_plan:
             await self._apply_wallet_plan_change(
                 organization_id=organization_id,
-                event=event,
                 subscription_id=subscription.subscription_id,
                 outgoing_plan=previous_plan,
                 incoming_plan=subscription.plan,
-                outgoing_anchor=previous_anchor,
-                incoming_anchor=subscription.anchor,
+                period_start=period_start,
+                period_end=period_end,
                 event_id=event_id,
                 now=now,
             )
@@ -435,104 +503,50 @@ class SubscriptionsService:
         self,
         *,
         organization_id: str,
-        event: Event,
         subscription_id: Optional[str],
         outgoing_plan: str,
         incoming_plan: str,
-        outgoing_anchor: Optional[int],
-        incoming_anchor: Optional[int],
+        period_start: Optional[datetime],
+        period_end: Optional[datetime],
         event_id: Optional[str],
         now: datetime,
     ) -> None:
-        """Prorate the wallet's plan-allowance credit for a mid-period plan change.
+        """Prorate the wallet's plan allowance for a mid-period plan change.
 
-        TWO ANCHORS, TWO WINDOWS. `outgoing_anchor` is the subscription's anchor day
-        BEFORE this event: it defines the period the outgoing allowance was granted for,
-        which is the only period a remainder can be clawed back out of. `incoming_anchor`
-        is the anchor the subscription now carries — on a new subscription that is
-        Stripe's own `billing_cycle_anchor`, threaded through from the webhook — and it
-        defines the period the incoming allowance will cover, so it sizes the new credit
-        and sets its expiry. `SUBSCRIPTION_SWITCHED` never moves the anchor, so both
-        windows are then the same window and the arithmetic is unchanged.
+        `now` is when the change took effect and `period_start`/`period_end` are the
+        billing period the incoming plan's allowance covers, as Stripe reports it. The
+        outgoing side needs neither: the wallet reads its window off the outgoing
+        allowance credit itself.
 
-        `idempotency_key` IDENTIFIES THE OCCURRENCE, and it has two shapes:
-
-        * `plan_change:{event_id}` whenever a delivery identifier reached us. Stripe
-          redelivers a retried event under the same `stripe_event.id`, which must be one
-          change, and gives two genuinely distinct changes different ids, which must both
-          apply. That is exactly the identity this key needs, so when it is present
-          nothing else belongs in the key — the same one-prefix-one-identifier shape as
-          `measurement:{measurement_id}` (`ee.src.tasks.asyncio.measurements.worker`).
-        * `plan_change:{subscription_id}:{incoming period start}:{outgoing}:{incoming}`
-          as the fallback, for the direct plan-switch and cancel routes, which are
-          synchronous user actions with no delivery to identify. The incoming period is
-          used because it is the one still reconstructible from the stored subscription
-          afterwards; the outgoing anchor is overwritten by this same event. The
-          TRANSITION is in the key because without it two different changes in one period
-          — an upgrade on the 4th and a downgrade on the 19th — are one key, and the
-          second moves no money while Stripe and the subscription row have both already
-          moved on (open-designs item 22's worked failure).
-
-        The fallback deliberately stays a function of the CHANGE and not of the call. A
-        fresh identifier per invocation would separate those two changes too, but it
-        would also stop deduplicating anything: `read` and `update` in this service are
-        separate sessions with no row lock, so two concurrent submissions of the SAME
-        switch both see the old plan, both pass the "already on this plan" guard, and both
-        reach this hook. Today they share a key and move money once; with a per-call
-        identifier they would move it twice. A key that is unique per call is a nonce, and
-        a nonce disables the DAO's replay guard rather than sharpening it.
-
-        The residue is now one case: the SAME transition repeated in one billing period
-        for the same subscription (Pro to Business, back to Pro, to Business again), whose
-        third leg replays the first. That case is by construction indistinguishable from
-        the concurrent double-submit above, so no key built from the change alone can
-        separate them; only a delivery identifier can, which is what the webhook path
-        already has. Recorded as open-designs item 22.
+        `idempotency_key` identifies the occurrence: `plan_change:{event_id}` when a
+        webhook delivery carried the change (Stripe reuses the id on retries), otherwise
+        a fresh identifier per call. A per-call identifier is safe only because
+        `process_event` holds the organization's subscription lock around this hook: a
+        second submission of the same switch reads the already-changed plan and never
+        gets here, so there is no double submit left for the key to absorb, and the same
+        transition repeated in one period (Pro, Business, Pro, Business) is a new change
+        each time. Open-designs item 22.
 
         Best-effort: logged and swallowed, never raised into the billing-webhook
         boundary. A wallet-side bug here must not block Stripe event acknowledgement
         (which would only cause Stripe to retry indefinitely) or roll back a subscription
-        change that already committed. A SWALLOWED FAILURE IS NOT SELF-HEALING: the caller
-        runs this hook only when the plan actually changed, so a redelivery of the same
-        webhook finds the plan already changed and skips the hook entirely, and nothing
-        durable records that the proration is still owed. Only a reconciliation job — one
-        that compares subscriptions against wallet credits and re-drives the missing
-        change — recovers it, and no such job exists yet; that is the second half of
-        open-designs item 22. `apply_plan_change` being idempotent makes such a job safe
-        to run, which is not the same as making this call converge on its own.
+        change that already committed. A SWALLOWED FAILURE IS NOT SELF-HEALING: the
+        caller runs this hook only when the plan actually changed, so a redelivery finds
+        the plan already changed and skips it, and nothing durable records that the
+        proration is still owed. That residue is accepted and recorded as open-designs
+        item 22, option 3 (deferred).
         """
         if not env.wallets.enabled:
             return
 
         try:
-            # Inside the try, not above it: the never-raises promise in the docstring
-            # covers everything this helper does, and deriving the window is as much a
-            # place for a wallet-side bug as the call it feeds.
-            outgoing_period_start, outgoing_period_end = billing_period_bounds(
-                now=now, anchor=outgoing_anchor
-            )
-            incoming_period_start, incoming_period_end = billing_period_bounds(
-                now=now, anchor=incoming_anchor
-            )
-            idempotency_key = (
-                f"plan_change:{event_id}"
-                if event_id
-                else (
-                    f"plan_change:{subscription_id or 'none'}"
-                    f":{incoming_period_start.isoformat()}"
-                    f":{outgoing_plan}:{incoming_plan}"
-                )
-            )
-
             await get_wallets_service().apply_plan_change(
                 organization_id=UUID(organization_id),
-                idempotency_key=idempotency_key,
-                outgoing_plan=outgoing_plan,
+                idempotency_key=f"plan_change:{event_id or uuid_utils.uuid7()}",
+                subscription_id=subscription_id,
                 incoming_plan=incoming_plan,
-                outgoing_period_start=outgoing_period_start,
-                outgoing_period_end=outgoing_period_end,
-                incoming_period_start=incoming_period_start,
-                incoming_period_end=incoming_period_end,
+                period_start=period_start,
+                period_end=period_end,
                 now=now,
             )
         except Exception as exc:

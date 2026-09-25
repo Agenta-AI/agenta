@@ -36,6 +36,21 @@ class WalletGeneralBalanceNotFoundError(WalletError):
         )
 
 
+class WalletCreditBalanceNotFoundError(WalletError):
+    """A credit of this organization has no per-credit balance row. Every credit is
+    minted together with its balance row in one transaction, so this is a broken
+    invariant, never a routine outcome — and it is raised rather than skipped, because
+    skipping would silently leave that credit's value unaccounted for."""
+
+    def __init__(self, *, organization_id: UUID, wallet_credit_id: UUID):
+        self.organization_id = organization_id
+        self.wallet_credit_id = wallet_credit_id
+        super().__init__(
+            f"No balance row for wallet credit {wallet_credit_id} "
+            f"of organization {organization_id}"
+        )
+
+
 # ---------------------------------------------------------------------------
 # Domain DTOs
 # ---------------------------------------------------------------------------
@@ -343,35 +358,19 @@ class WalletsDAOInterface(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    async def get_active_plan_allowance_credit(
-        self,
-        *,
-        organization_id: UUID,
-        now: Optional[datetime] = None,
-    ) -> Optional[WalletCreditDTO]:
-        """The organization's current, unexpired `plan_allowance`-kind credit, if any —
-        the "outgoing" credit a plan change prorates a remainder out of. Wave 1 assumes
-        at most one such credit is active at a time. `now` is the instant expiry is
-        judged against, so a plan change reads this and prorates against one clock;
-        implementations fall back to their own clock when it is omitted."""
-        raise NotImplementedError
-
-    @abstractmethod
     async def apply_plan_change(
         self,
         *,
         organization_id: UUID,
         idempotency_key: str,
-        outgoing_credit_id: Optional[UUID],
-        outgoing_debit_amount_musd: int,
-        incoming_credit_kind: str,
+        subscription_id: Optional[str],
         incoming_credit_amount_musd: int,
-        incoming_priority: int,
-        incoming_end_time: datetime,
+        incoming_end_time: Optional[datetime],
         floor_musd: int,
-        now: Optional[datetime] = None,
+        now: datetime,
     ) -> "PlanChangeResultDTO":
-        """Apply (or replay) one plan-change proration in a single transaction:
+        """Apply (or replay) one plan change in a single transaction, under the general
+        balance lock:
 
         1. Replay guard, keyed on `(organization_id, idempotency_key)` — a redelivered
            webhook must produce no second financial effect. There is no dedicated ledger
@@ -380,12 +379,16 @@ class WalletsDAOInterface(ABC):
            `plan_change_idempotency_key` reference already stored on the minted
            `wallet_credits` row (step 3) — reading the actual financial rows a prior
            application wrote, not a second guard.
-        2. If `outgoing_debit_amount_musd > 0` and `outgoing_credit_id` is set: write an
-           IMMUTABLE `wallet_debits` row (`debit_kind="adjustment"`) against that credit,
-           capped at the credit's current balance (a per-credit balance must never go
-           negative), and decrement that credit's balance row by the same amount.
-        3. If `incoming_credit_amount_musd > 0`: mint a NEW immutable `wallet_credits` row
-           (never mutate an existing one) plus its balance row.
+        2. Select the outgoing allowance: the newest `plan_allowance` credit of this
+           organization, unless a plan change already clawed it back. Claw back the
+           unused share of its own lifetime at `now`
+           (`ee.src.core.wallets.proration.prorate_outgoing_allowance`), capped at its
+           balance, as an IMMUTABLE `wallet_debits` row (`debit_kind="adjustment"`), and
+           decrement its balance row by the same amount. Selecting here, after the lock,
+           is what keeps two overlapping changes from clawing the same credit.
+        3. If `incoming_credit_amount_musd > 0`: mint a NEW immutable `plan_allowance`
+           credit (never mutate an existing one) plus its balance row, valid from `now`
+           to `incoming_end_time`, recording `subscription_id` as its provenance.
         4. Update the general balance projection by `(applied incoming - applied
            outgoing)`, and set its `floor_musd` to the incoming plan's floor.
 

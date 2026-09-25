@@ -3,6 +3,7 @@ adapter) against the in-memory `FakeWalletsDAO` — no Postgres, no event loop c
 """
 
 import inspect
+from datetime import datetime, timezone
 from uuid import uuid4
 
 import pytest
@@ -314,7 +315,7 @@ async def test_settle_never_funds_a_debit_from_another_organizations_credit():
 
 
 @pytest.mark.asyncio
-async def test_active_plan_allowance_is_never_read_across_organizations():
+async def test_a_plan_change_never_claws_another_organizations_allowance():
     other_organization_id = uuid4()
     foreign_candidate = build_credit_candidate(credit_kind="plan_allowance")
     dao = FakeWalletsDAO(
@@ -330,8 +331,15 @@ async def test_active_plan_allowance_is_never_read_across_organizations():
         ],
     )
 
-    found = await dao.get_active_plan_allowance_credit(
-        organization_id=dao.general_balance.organization_id
+    result = await dao.apply_plan_change(
+        organization_id=dao.general_balance.organization_id,
+        idempotency_key="pc-cross-org",
+        subscription_id=None,
+        incoming_credit_amount_musd=0,
+        incoming_end_time=None,
+        floor_musd=0,
+        now=datetime.now(timezone.utc),
     )
 
-    assert found is None
+    assert result.outgoing_credit_id is None
+    assert dao.debits == []

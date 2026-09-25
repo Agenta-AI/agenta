@@ -21,12 +21,10 @@ from ee.src.core.wallets.grants import (
 from ee.src.core.wallets.interfaces import WalletCheckPort, WalletSettlementPort
 from ee.src.core.wallets.plans import (
     LAZY_PROVISION_FLOOR_MUSD,
-    PLAN_ALLOWANCE_CREDIT_KIND,
-    PLAN_ALLOWANCE_PRIORITY,
     allowance_musd_for_plan,
     floor_musd_for_plan,
 )
-from ee.src.core.wallets.proration import compute_plan_change_proration
+from ee.src.core.wallets.proration import prorate_incoming_allowance
 from ee.src.core.wallets.types import (
     PlanChangeResultDTO,
     WalletCreditDTO,
@@ -88,52 +86,49 @@ class WalletsService(WalletCheckPort, WalletSettlementPort):
         *,
         organization_id: UUID,
         idempotency_key: str,
-        outgoing_plan: str,
+        subscription_id: Optional[str],
         incoming_plan: str,
-        outgoing_period_start: datetime,
-        outgoing_period_end: datetime,
-        incoming_period_start: datetime,
-        incoming_period_end: datetime,
-        now: Optional[datetime] = None,
+        period_start: Optional[datetime],
+        period_end: Optional[datetime],
+        now: datetime,
     ) -> PlanChangeResultDTO:
-        """Prorate the outgoing plan's unused allowance out, mint the incoming plan's
+        """Claw back the outgoing allowance's unused share, mint the incoming plan's
         prorated share, and update the general balance's floor — all as one atomic
         transaction in the DAO, replay-safe on `idempotency_key`. Never mutates an
         existing `wallet_credits` row; never issues the recurring full-period allowance
         (that is a later wave's job).
 
-        The two windows are the billing period the OUTGOING allowance was granted for and
-        the one the INCOMING allowance will cover. They differ only when the change also
-        moves the billing anchor; the caller computes both (see
-        `compute_plan_change_proration`). The incoming window's end is also the minted
-        credit's `end_time`, so a credit never outlives the period it pays for."""
-        now = now or datetime.now(timezone.utc)
+        `now` is when the change took effect, and `period_start`/`period_end` are the
+        billing period the incoming allowance covers, as the billing provider reports
+        it. The period's end is also the minted credit's `end_time`, so a credit never
+        outlives the period it pays for. A plan without a paid period (the free plan
+        after a cancellation) passes none, which is only valid when it carries no
+        allowance.
 
-        outgoing_credit = await self.wallets_dao.get_active_plan_allowance_credit(
-            organization_id=organization_id,
-            now=now,
-        )
+        The outgoing side needs no plan and no period from the caller: the DAO reads
+        both off the outgoing credit itself, under the same lock as the writes."""
+        incoming_allowance_musd = allowance_musd_for_plan(plan=incoming_plan)
 
-        proration = compute_plan_change_proration(
-            outgoing_credit_id=outgoing_credit.id if outgoing_credit else None,
-            outgoing_allowance_musd=allowance_musd_for_plan(plan=outgoing_plan),
-            incoming_allowance_musd=allowance_musd_for_plan(plan=incoming_plan),
-            outgoing_period_start=outgoing_period_start,
-            outgoing_period_end=outgoing_period_end,
-            incoming_period_start=incoming_period_start,
-            incoming_period_end=incoming_period_end,
-            now=now,
-        )
+        incoming_credit_amount_musd = 0
+        if incoming_allowance_musd > 0:
+            if period_start is None or period_end is None:
+                raise ValueError(
+                    f"Plan [{incoming_plan}] carries an allowance but no billing "
+                    "period was given to prorate it over"
+                )
+            incoming_credit_amount_musd = prorate_incoming_allowance(
+                allowance_musd=incoming_allowance_musd,
+                period_start=period_start,
+                period_end=period_end,
+                now=now,
+            )
 
         return await self.wallets_dao.apply_plan_change(
             organization_id=organization_id,
             idempotency_key=idempotency_key,
-            outgoing_credit_id=proration.outgoing_credit_id,
-            outgoing_debit_amount_musd=proration.outgoing_debit_amount_musd,
-            incoming_credit_kind=PLAN_ALLOWANCE_CREDIT_KIND,
-            incoming_credit_amount_musd=proration.incoming_credit_amount_musd,
-            incoming_priority=PLAN_ALLOWANCE_PRIORITY,
-            incoming_end_time=incoming_period_end,
+            subscription_id=subscription_id,
+            incoming_credit_amount_musd=incoming_credit_amount_musd,
+            incoming_end_time=period_end,
             floor_musd=floor_musd_for_plan(plan=incoming_plan),
             now=now,
         )
