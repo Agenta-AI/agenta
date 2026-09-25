@@ -421,7 +421,7 @@ class LLMGatewayService:
                     decision=PolicyDecision(
                         allowed=False,
                         permission=decision.permission,
-                        reason=admission.reason or "entitlement_denied",
+                        reason="entitlement_denied",
                     ),
                     outcome=GatewayOutcome(status_code=403),
                     run_id=run_id,
