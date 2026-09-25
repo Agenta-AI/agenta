@@ -498,16 +498,26 @@ class ChannelsOutboxWorker:
         self, *, project_id: UUID, thread: ChannelThread
     ) -> Optional[ChannelInboxEvent]:
         """The person's latest message in this thread's space: what the typing
-        signal points at, and where the reply window starts."""
+        signal points at, and where the reply window starts. Latest by the
+        platform's clock, so a message the platform retried and delivered late
+        does not win; the latest arrival too, since a button tap counts."""
 
-        events = await self.channels_service.channels_dao.query_inbox_events(
+        dao = self.channels_service.channels_dao
+        arrived = await dao.query_inbox_events(
             project_id=project_id,
             event=ChannelInboxEventQuery(
                 space_id=thread.space_id, origin=ChannelEventOrigin.PUSHED
             ),
             windowing=Windowing(limit=1),
         )
-        return events[0] if events else None
+        sent = await dao.query_space_inbox_messages(
+            project_id=project_id, space_id=thread.space_id, limit=1
+        )
+        candidates = [*arrived, *sent]
+        if not candidates:
+            return None
+        oldest = datetime.min.replace(tzinfo=timezone.utc)
+        return max(candidates, key=lambda e: e.sent_at or e.created_at or oldest)
 
     async def stop_progress(self, turn_id: str) -> None:
         """Cancel this turn's progress loop and wait for it, so a final edit

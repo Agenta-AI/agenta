@@ -115,6 +115,17 @@ class WhatsAppDAO(FakeChannelsDAO):
             rows = rows[: windowing.limit]
         return rows
 
+    async def query_space_inbox_messages(
+        self, *, project_id, space_id, thread_ts=None, before=None, limit
+    ):
+        rows = [
+            row
+            for row in self.inbox
+            if row.space_id == space_id and row.kind is ChannelEventKind.MESSAGE
+        ]
+        rows.sort(key=lambda row: (row.sent_at, row.id), reverse=True)
+        return rows[:limit]
+
     async def query_outbox_events(self, *, project_id, event=None, windowing=None):
         rows = [
             row
@@ -334,6 +345,23 @@ async def test_an_answer_after_the_window_is_held_and_nothing_is_sent(
     [row] = dao.rows(ChannelDeliveryState.HELD)
     assert row.status.code == "window_closed"
     assert row.data.processed["content"][0]["text"] == "Your refund failed because ..."
+
+
+async def test_a_retried_old_message_arriving_last_does_not_close_the_window(
+    service, dao, graph, records
+):
+    """Meta retried a day-old message, and it reached us after the customer's
+    newer one: the window counts from the newest message by Meta's clock."""
+
+    worker = _worker(service, records)
+    _, space, thread = dao.seed_whatsapp()
+    dao.customer_wrote(space, message_id="wamid.NEW", ago=timedelta(minutes=5))
+    dao.customer_wrote(space, message_id="wamid.OLD", sent_ago=timedelta(hours=25))
+    _answer(records, thread, "t1", "answer")
+
+    await _end(worker, thread, "t1")
+
+    assert graph.texts_to(p.CUSTOMER) == ["answer"]
 
 
 async def test_a_turn_that_started_inside_the_window_but_ended_outside_is_held(

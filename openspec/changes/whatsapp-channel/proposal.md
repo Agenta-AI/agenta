@@ -17,7 +17,7 @@ Status: Approved by Mahmoud on 2026-09-24, with D9 changed to option B (no Agent
 - Long turns show the native typing indicator, refreshed every 20 seconds. If the turn runs past 30 seconds, the agent sends one short "working on it" message. The final answer goes out as new messages, split at 4096 characters. WhatsApp cannot edit sent messages, so there is no in-place progress.
 - Approval and choice prompts use reply buttons for up to 3 options, a list message for up to 10, and a numbered text prompt beyond that. Typed answers keep working.
 - Images and documents the customer sends reach the agent. Sending files back comes later, once an agent can return a file on any channel. Voice notes, video and stickers get a fixed reply.
-- v1 only answers conversations the customer started. It sends no business-initiated messages. A customer who sends STOP is not answered again until they send START.
+- v1 only answers conversations the customer started. It sends no business-initiated messages, except the optional re-open template, which goes only to a customer who already wrote and whose reply is held. A customer who sends STOP is not answered again until they send START.
 - Agenta adds no rules of its own about what kind of agent runs on a WhatsApp number: no restriction, no confirmation checkbox, and no forced wording in the connect flow or in Agenta's terms. Each business is responsible for its own use of WhatsApp under Meta's terms.
 
 ## Capabilities
@@ -36,4 +36,4 @@ None. WhatsApp adds a new adapter. The shared Channels routing, inbox, and outbo
 
 Backend: a new `whatsapp` adapter under `api/oss/src/core/channels/adapters/`, its capability declaration, two ingress routes (a GET for Meta's verify handshake and a POST for events), a service-window check in the outbox, a new held delivery state, and a native-only turn indicator. Frontend: a WhatsApp connect card with the paste form, the webhook details, and the billing notice. Phase 2 adds Meta Tech Provider onboarding, app review, and an Embedded Signup callback.
 
-No change to Slack or Telegram behavior. No Agenta-owned WhatsApp number, no Meta credit line, no groups, and no business-initiated or marketing messages in this change.
+No change to Slack or Telegram behavior. No Agenta-owned WhatsApp number, no Meta credit line, no groups, and no business-initiated or marketing messages in this change beyond that re-open template.

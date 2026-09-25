@@ -648,7 +648,7 @@ export const ConnectFlowHost = ({
     return (
         <InlinePanel
             title={`Connect ${name}`}
-            subtitle={`${AGENT_NAME} · ${platform === "slack" ? WORKSPACE_NAME : "Telegram"}`}
+            subtitle={`${AGENT_NAME} · ${platform === "slack" ? WORKSPACE_NAME : platformLabel(platform)}`}
             onClose={() => setOpen(false)}
         >
             {capturePopups ? <CapturePopups>{flow}</CapturePopups> : flow}

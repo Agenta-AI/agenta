@@ -155,7 +155,7 @@ Documented limits:
 - Sending files the agent produces is deferred: no channel can return a file from an agent yet.
 - A turn already running when the customer sends STOP still delivers its answer.
 - STOP and START apply in the order the customer sent them, by Meta's timestamp: every one moves an order fence on the space (the send time of the last one seen), even when it changes nothing, and one sent earlier, however late it arrives, changes nothing. On a tie, STOP wins. An operator's edit of the space keeps the customer's choice.
-- The window counts from Meta's timestamp on the customer's latest message to arrive, or from its arrival time when the payload has none. A webhook Meta retried for a day therefore does not reopen the window.
+- The window counts from the customer's latest message by Meta's timestamp (the arrival time when the payload has none), also looking at the latest arrival so a button tap counts. A webhook Meta retried for a day therefore neither reopens nor closes the window.
 - The typing loop stops as soon as the turn's answer, failure notice or approval card has left, even when the turn ended on another worker.
 - A held reply shows in Settings > Channels outbound events with the state `held` and the reason `window_closed`. The session view does not show it yet.
 - A real Meta number was connected on 2026-09-25: the connect check refused a token without WhatsApp account access and passed once access was assigned. A reply sent through a real number is still to be tested. Everything else is tested against a fake Graph API that answers like Meta's for every call the adapter makes.
