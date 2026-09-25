@@ -3,6 +3,7 @@
 import type * as AgentaApi from "../index.js";
 
 export interface ChannelInboxEventQuery {
+    id?: (string | null) | undefined;
     connection_id?: (string | null) | undefined;
     space_id?: (string | null) | undefined;
     kind?: (AgentaApi.ChannelEventKind | null) | undefined;
