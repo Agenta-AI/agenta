@@ -14,10 +14,22 @@ import pytest
 from redis.asyncio import Redis
 from sqlalchemy import select
 
+from oss.src.core.gateways.dtos import GatewayEndpointNamespace
+from oss.src.core.gateways.llms.dtos import LLMProtocol
+from oss.src.core.gateways.llms.providers.passthrough.adapter import (
+    _StreamUsageReader,
+)
+from oss.src.core.gateways.policy.dtos import (
+    GatewayOutcome,
+    GatewayPlane,
+    GatewayTarget,
+)
 from oss.src.dbs.postgres.shared.engine import AnalyticsEngine
+from oss.src.utils.context import AuthScope
 from oss.src.utils.env import env
 
 from ee.src.core.measurements.dtos import ChargeDecision
+from ee.src.core.measurements.sink import measurement_from_call
 from ee.src.core.wallets.contracts import STREAM_DEBITS, STREAM_MEASUREMENTS
 from ee.src.core.wallets.streaming import serialize_debit_command
 from ee.src.dbs.redis.wallets.streams import (
@@ -34,6 +46,7 @@ from ee.tests.pytest.utils.measurements.fakes import (
     InMemoryOrganizationResolver,
 )
 from ee.tests.pytest.utils.wallets.builders import build_measurement_command
+
 
 # Same xdist group as the wallet integration modules: this worker publishes to the same
 # `STREAM_MEASUREMENTS`/`STREAM_DEBITS` Redis streams they consume, so it must not run
@@ -437,3 +450,70 @@ async def test_a_stored_decision_survives_the_round_trip_through_postgres(
     await dao.insert_measurement(command=command, charge=decision)
 
     assert (await dao.fetch_measurement(command=command)).charge == decision
+
+
+@pytest.mark.asyncio
+async def test_a_cached_messages_stream_is_stored_and_priced_with_its_cache_split(
+    redis_client, analytics_engine
+):
+    """Codex #1, end to end: a Messages stream reports input and both cached slices in its
+    first frame and the output in its last. The relayed usage, the stored measurement and
+    the charge must all keep the split, not only the frame parser."""
+    head = (
+        b'event: message_start\ndata: {"type":"message_start","message":{"id":"m",'
+        b'"usage":{"input_tokens":200,"cache_read_input_tokens":1000,'
+        b'"cache_creation_input_tokens":50,"output_tokens":1}}}\n\n'
+    )
+    tail = (
+        b'event: message_delta\ndata: {"type":"message_delta",'
+        b'"usage":{"output_tokens":380}}\n\n'
+    )
+    # The reader the relay adapter runs over every streamed frame, fed as the relay
+    # would feed it (the relay itself is covered in the gateway suite).
+    reader = _StreamUsageReader(LLMProtocol.MESSAGES)
+    for chunk in (head, tail):
+        reader.feed(chunk)
+    reader.flush()
+    scope = AuthScope(
+        organization_id=uuid4(),
+        workspace_id=uuid4(),
+        project_id=uuid4(),
+        user_id=uuid4(),
+    )
+    command = measurement_from_call(
+        scope=scope,
+        target=GatewayTarget(
+            plane=GatewayPlane.LLM,
+            namespace=GatewayEndpointNamespace.BUILTIN,
+            name="mock",
+            provider="mock",
+            model="gpt-5.5",
+        ),
+        outcome=GatewayOutcome(status_code=200, usage=reader.usage),
+        run_id=None,
+    )
+    publisher = InMemoryDebitPublisher()
+    worker = MeasurementWorker(
+        measurements_dao=MeasurementsDAO(engine=analytics_engine),
+        organization_resolver=InMemoryOrganizationResolver(),
+        debit_publisher=publisher,
+        redis_client=redis_client,
+    )
+
+    assert await worker._process_one(command) is True
+
+    row = await _fetch_one_measurement(
+        analytics_engine, measurement_id=command.measurement_id
+    )
+    values = await _fetch_values(analytics_engine, measurement_row_id=row.id)
+    assert {v.key: v.value for v in values} == {
+        "request_count": 1,
+        "input_tokens": 200,
+        "cache_read_tokens": 1000,
+        "cache_write_tokens": 50,
+        "output_tokens": 380,
+    }
+    # 200 x 1.00 + 1000 x 0.10 + 50 x 1.25 + 380 x 4.00 dollars per million tokens
+    # = 1_882.5 musd, rounded up.
+    [debit] = publisher.published
+    assert debit.amount_musd == 1883
