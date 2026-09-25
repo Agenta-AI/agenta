@@ -58,8 +58,9 @@ _EMPTY_FOLD_ATTEMPTS = 3
 _EMPTY_FOLD_BACKOFF_SECONDS = 0.8
 
 # The turn's settlement can land just after its turn_ended event. Re-read a
-# few times before leaving the request reaction as received; the reaction
-# update's 3s timeout bounds the total wait.
+# few times before leaving the request reaction as received. The re-read
+# budget is added on top of the update's own timeout, so the Slack calls keep
+# their full time.
 _SETTLE_REREAD_ATTEMPTS = 3
 _SETTLE_REREAD_BACKOFF_SECONDS = 0.5
 
@@ -649,7 +650,11 @@ class ChannelsOutboxWorker:
                 source_turn_id = ancestor.parent_execution_id if ancestor else None
 
         try:
-            await asyncio.wait_for(update(), timeout=3.0)
+            await asyncio.wait_for(
+                update(),
+                timeout=3.0
+                + (_SETTLE_REREAD_ATTEMPTS - 1) * _SETTLE_REREAD_BACKOFF_SECONDS,
+            )
         except Exception as exc:
             log.warning(
                 "[SLACK] request reaction skipped turn=%s: %s",
