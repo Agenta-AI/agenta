@@ -31,6 +31,10 @@ log = get_module_logger(__name__)
 # accepted, logged loss as a failed publish.
 USAGE_SINK_TIMEOUT_SECONDS = 0.5
 
+# The longest a wallet may take to admit a platform-funded call. It is one indexed read; a
+# wallet slower than this is treated as one that cannot answer, which refuses the call.
+SPEND_ADMISSION_TIMEOUT_SECONDS = 2.0
+
 
 class GatewayPolicyService:
     def __init__(
@@ -92,8 +96,11 @@ class GatewayPolicyService:
         # Fails closed: a wallet that cannot answer has not said the organization may
         # spend, and a platform-funded call spends money we would then not have checked.
         try:
-            return await self.spend_admission.admit(scope=scope, target=target)
-        except Exception:  # noqa: BLE001 - any failure refuses; never opens
+            return await asyncio.wait_for(
+                self.spend_admission.admit(scope=scope, target=target),
+                timeout=SPEND_ADMISSION_TIMEOUT_SECONDS,
+            )
+        except Exception:  # noqa: BLE001 - any failure, a timeout included, refuses
             log.error(
                 "[gateways] spend admission failed; refusing",
                 organization_id=str(scope.organization_id),
@@ -160,7 +167,8 @@ class GatewayPolicyService:
             )
         except Exception:  # noqa: BLE001 - usage must never affect the relay's result
             log.error(
-                "[gateways] usage hand-off failed; the call is not measured",
+                "[gateways] usage hand-off failed or timed out; publication outcome"
+                " unknown",
                 organization_id=str(scope.organization_id),
                 model=target.model,
                 exc_info=True,

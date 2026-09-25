@@ -59,15 +59,20 @@ GATEWAYS_SOURCE = (
 
 
 class _Admission(SpendAdmissionInterface):
-    def __init__(self, *, allowed: bool = True, raises: bool = False):
+    def __init__(
+        self, *, allowed: bool = True, raises: bool = False, stalls: bool = False
+    ):
         self.allowed = allowed
         self.raises = raises
+        self.stalls = stalls
         self.calls: List[GatewayTarget] = []
 
     async def admit(self, *, scope, target) -> SpendAdmission:
         self.calls.append(target)
         if self.raises:
             raise RuntimeError("wallet unavailable")
+        if self.stalls:
+            await asyncio.sleep(60)
         return SpendAdmission(
             allowed=self.allowed,
             reason=None if self.allowed else "entitlement_denied",
@@ -206,6 +211,66 @@ async def test_a_wallet_that_cannot_answer_refuses_the_builtin_call(
 
     assert adapter.calls == 0
     assert audit_events[0]["decision"].reason == "entitlement_denied"
+
+
+@pytest.mark.asyncio
+async def test_a_wallet_that_does_not_answer_in_time_refuses_the_builtin_call(
+    mocks_on, permitted, audit_events, monkeypatch
+):
+    monkeypatch.setattr(policy_service_module, "SPEND_ADMISSION_TIMEOUT_SECONDS", 0.05)
+    admission = _Admission(stalls=True)
+    service, adapter, resolver = _gateway(admission=admission, sink=_Sink())
+
+    started = time.monotonic()
+    with pytest.raises(EntitlementDeniedError):
+        await _relay(service)
+
+    assert time.monotonic() - started < 1.0
+    assert len(admission.calls) == 1
+    assert resolver.resolve_calls == []
+    assert adapter.calls == 0
+    assert audit_events[0]["decision"].reason == "entitlement_denied"
+
+
+def test_the_production_bound_on_admission_is_a_few_seconds_at_most():
+    assert 0 < policy_service_module.SPEND_ADMISSION_TIMEOUT_SECONDS <= 5
+
+
+class _AckLostSink(UsageSinkInterface):
+    """The publish lands, then the acknowledgement never arrives."""
+
+    def __init__(self) -> None:
+        self.landed: List[dict] = []
+
+    async def record(self, *, scope, target, outcome, run_id) -> None:
+        self.landed.append({"outcome": outcome, "run_id": run_id})
+        await asyncio.sleep(60)
+
+
+@pytest.mark.asyncio
+async def test_a_lost_acknowledgement_is_logged_as_unknown_and_never_retried(
+    mocks_on, permitted, audit_events, monkeypatch
+):
+    """The XADD may have landed when the bound runs out, so the gateway must neither
+    claim the call went unmeasured nor publish it again (a second publish would be a
+    second charge under a new measurement id)."""
+    monkeypatch.setattr(policy_service_module, "USAGE_SINK_TIMEOUT_SECONDS", 0.05)
+    errors: List[str] = []
+    monkeypatch.setattr(
+        policy_service_module.log,
+        "error",
+        lambda message, *args, **kwargs: errors.append(message),
+    )
+    sink = _AckLostSink()
+    service, _, _ = _gateway(sink=sink)
+
+    result, _ = await _relay(service)
+
+    assert result.status_code == 200
+    assert len(sink.landed) == 1
+    assert len(errors) == 1
+    assert "publication outcome unknown" in errors[0]
+    assert "not measured" not in errors[0]
 
 
 @pytest.mark.asyncio

@@ -109,5 +109,7 @@ These are gateway-wave deliverables, not code in this wave.
 5. **Non-reserving admission.** Admission is one read and reserves nothing, so calls already
    in flight can take an organization below its floor (items 2 and 17). Measure the overshoot
    in the ledger before a provider with material spend launches.
-6. **Best-effort first hop.** A failed or timed-out measurement publish is a lost charge,
-   logged, not recovered.
+6. **Best-effort first hop.** A refused measurement publish is a lost charge, logged, not
+   recovered. A publish that times out has an unknown outcome: the `XADD` may have landed
+   (then the call is charged normally) or not (then it is lost). Either way it is logged as
+   "publication outcome unknown", and nothing retries it, so it is never charged twice.
