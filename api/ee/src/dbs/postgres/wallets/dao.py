@@ -5,6 +5,7 @@ from uuid import UUID
 import uuid_utils.compat as uuid_utils
 from sqlalchemy import func, or_, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy.orm import aliased
 
 from oss.src.dbs.postgres.shared.engine import (
     TransactionsEngine,
@@ -20,6 +21,7 @@ from ee.src.core.wallets.types import (
     WalletCreditDTO,
     WalletDebitDTO,
     WalletGeneralBalanceNotFoundError,
+    WalletSpendableBalanceDTO,
     WalletsDAOInterface,
     compose_debit_key,
     plan_settlement,
@@ -142,6 +144,51 @@ class WalletsDAO(WalletsDAOInterface):
             balance = result.scalar_one_or_none()
 
             return balance_dbe_to_dto(balance) if balance is not None else None
+
+    async def get_spendable_balance(
+        self,
+        *,
+        organization_id: UUID,
+    ) -> Optional[WalletSpendableBalanceDTO]:
+        # The complement of settlement's `end_time > func.now()` candidate filter, on the
+        # same database clock, so admission and settlement agree on what has expired.
+        # Aliased so the subquery does not auto-correlate to the outer general row.
+        credit_balance = aliased(WalletBalanceDBE)
+        expired_remaining = (
+            select(func.coalesce(func.sum(credit_balance.balance_musd), 0))
+            .join(
+                WalletCreditDBE,
+                WalletCreditDBE.id == credit_balance.wallet_credit_id,
+            )
+            .where(
+                WalletCreditDBE.organization_id == organization_id,
+                WalletCreditDBE.end_time <= func.now(),
+            )
+            .scalar_subquery()
+        )
+
+        # One statement, one snapshot: a settlement committing between two separate
+        # reads could move value between the two terms and skew the difference.
+        stmt = select(
+            WalletBalanceDBE.balance_musd - expired_remaining,
+            WalletBalanceDBE.floor_musd,
+        ).where(
+            WalletBalanceDBE.organization_id == organization_id,
+            WalletBalanceDBE.wallet_credit_id.is_(None),
+        )
+
+        async with self.engine.session() as session:
+            row = (await session.execute(stmt)).one_or_none()
+
+        if row is None:
+            return None
+
+        spendable_musd, floor_musd = row
+        return WalletSpendableBalanceDTO(
+            organization_id=organization_id,
+            spendable_musd=spendable_musd,
+            floor_musd=floor_musd,
+        )
 
     async def settle(
         self,

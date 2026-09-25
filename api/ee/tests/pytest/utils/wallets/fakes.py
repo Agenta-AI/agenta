@@ -6,7 +6,7 @@ so `WalletsService.check()`/`settle()` and the runtime factory wiring are testab
 isolation from `ee.src.dbs.postgres.wallets.dao.WalletsDAO`.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, List, Optional, Tuple
 from uuid import UUID
 
@@ -20,6 +20,7 @@ from ee.src.core.wallets.types import (
     WalletBalanceDTO,
     WalletCreditDTO,
     WalletDebitDTO,
+    WalletSpendableBalanceDTO,
     WalletsDAOInterface,
     compose_debit_key,
     plan_settlement,
@@ -104,6 +105,29 @@ class FakeWalletsDAO(WalletsDAOInterface):
         if self.general_balance.organization_id != organization_id:
             return None
         return self.general_balance
+
+    async def get_spendable_balance(
+        self,
+        *,
+        organization_id: UUID,
+    ) -> Optional[WalletSpendableBalanceDTO]:
+        general = await self.get_general_balance(organization_id=organization_id)
+        if general is None:
+            return None
+
+        now = datetime.now(timezone.utc)
+        expired_remaining = sum(
+            balance.balance_musd
+            for candidate, balance in self._owned_credits(
+                organization_id=organization_id
+            )
+            if candidate.end_time is not None and candidate.end_time <= now
+        )
+        return WalletSpendableBalanceDTO(
+            organization_id=organization_id,
+            spendable_musd=general.balance_musd - expired_remaining,
+            floor_musd=general.floor_musd,
+        )
 
     async def settle(
         self,
