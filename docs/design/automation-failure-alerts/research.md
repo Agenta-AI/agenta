@@ -63,7 +63,7 @@ Delivery status summary:
 | `400 failed` | could not build the request | yes |
 | `409 failed` | subscription invalid | yes |
 | `500 failed` | start call failed | yes, unless the same event arrives again (F18) |
-| `200 success` | test subscription captured an event | yes; not a real run |
+| `200 success` | test subscription captured an event (F67) | yes; not a real run |
 
 ## 4. How a run ends
 
@@ -154,6 +154,8 @@ Outcome of one run, from its records:
 | F63 | `trigger_deliveries.created_at` has a server default. A re-claim of a `500` row does not change `created_at`. The table's indexes all start with `project_id`, `subscription_id` or `schedule_id`. | migration `oss000000003...py:184-189`, `:218-249`; `api/oss/src/dbs/postgres/sessions/streams/dao.py:228-234` |
 | F64 | Projects have `workspace_id` and `organization_id`. | `api/oss/src/models/db_models.py:149-157` |
 | F65 | No API config class exists for triggers or automations today. `AgentaConfig` groups feature configs such as `webhooks` and `sessions`. | `api/oss/src/utils/env.py:711-756` |
+| F66 | A run ends by its runner's hard deadline: 11 hours of run time plus 30 minutes by default. The environment variable `AGENTA_RUNNER_TURN_HARD_DEADLINE_MS` can change it. | `services/runner/src/engines/sandbox_agent/run-limits.ts:39`; `services/runner/src/sessions/turn-settle.ts:31`, `:42`, `:67-78` |
+| F67 | A test subscription writes a `200 success` delivery with `data.is_test = true` and does not run the agent. | `api/oss/src/tasks/asyncio/triggers/dispatcher.py:119-151` |
 
 ## 10. What the facts mean for the requirements
 

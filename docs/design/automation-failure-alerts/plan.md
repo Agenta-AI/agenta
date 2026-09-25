@@ -178,7 +178,7 @@ Decision table. The first matching row wins.
 
 | # | Delivery status | Condition | Outcome | `outcome_code` |
 |---|---|---|---|---|
-| D1 | `200` | (test capture, F10) | `not_tracked` | |
+| D1 | `200` | (test capture, F67) | `not_tracked` | |
 | D2 | `400` | | `failed` | `bad_request` |
 | D3 | `409` | | `failed` | `subscription_invalid` |
 | D4 | `500` | | `failed` | `start_failed` |
@@ -200,6 +200,10 @@ Notes:
 - D11 covers the failures that end with a plain `done` (F26, F27).
 - A `202` delivery without `done` after 24 hours leaves the window with `outcome = NULL`. Runs
   that never finish are out of scope.
+- The 24-hour window is longer than any run: the runner's hard deadline ends every run within
+  11 hours 30 minutes by default (F66), and the watchdog ends runs whose runner died (F27). A
+  deployment that sets `AGENTA_RUNNER_TURN_HARD_DEADLINE_MS` above 24 hours must also raise the
+  window; otherwise its failures after 24 hours send no email.
 
 The write is guarded, so a delivery that changed since it was read is left for the next pass:
 
@@ -312,7 +316,10 @@ The methods that take `transaction` run on the caller's session instead of openi
 ### 6.1 Template
 
 A new function `send_html_email(to_email, subject, html_content)` in `emailing.py` picks SMTP or
-SendGrid, like `send_email` does today (F45). `send_email` renders its invite template and then
+SendGrid, like `send_email` does today (F45). It calls the existing `_send_smtp_email` and
+`_send_sendgrid_email`, which run the blocking provider call in a thread (`asyncio.to_thread`,
+`emailing.py:128`, `:195`). So a slow provider does not block the event loop, and the 30-second
+timeout and the lease renewal in 5.3 keep working. `send_email` renders its invite template and then
 calls it. Every value in a notice email is HTML-escaped (the current template does not escape,
 F44).
 
