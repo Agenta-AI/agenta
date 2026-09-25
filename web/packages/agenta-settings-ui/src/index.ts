@@ -106,6 +106,12 @@ export {useToolsConnections, type CreateConnectionInput} from "@agenta/entities/
 export {
     ChannelsPage,
     useChannelPanel,
+    ChannelsHubView,
+    ChannelsSettingsPage,
+    CHANNEL_PLATFORMS,
+    agentConnectionsOf,
+    connectionRowText,
+    platformLogo,
     isLiveForAgent,
     ChannelConnectFlow,
     ChannelManagePanel,
@@ -125,6 +131,9 @@ export {
     type ChannelsPageProps,
     type ChannelsPanelRenderProps,
     type UseChannelPanelOptions,
+    type ChannelsRoute,
+    type ChannelsHubViewProps,
+    type ChannelsSettingsPageProps,
     type ChannelConnectFlowProps,
     type ChannelManagePanelProps,
     type ChannelRowSummary,
@@ -140,24 +149,20 @@ export type {
     ChannelSetupField,
     ChannelSetupInfo,
     ChannelsActions,
+    ChannelsPanelAgent,
     HostedTelegramLink,
 } from "./channels"
 
-// The agent header's Publish menu: Slack, Telegram and API, each opening its own drawer.
+// The agent header's Publish button and the panel it opens: Slack, Telegram and API.
 export {
-    PublishMenu,
+    PublishButton,
     AgentPublish,
     AgentApiPanel,
     AGENT_INVOKE_DOCS_URL,
     agentHostFromApiUrl,
     buildAgentSnippets,
-    buildPublishItems,
-    liveSummary,
     type AgentApiPanelProps,
     type AgentPublishProps,
     type AgentSnippetLang,
-    type BuildPublishItemsOptions,
-    type PublishMenuItem,
-    type PublishMenuProps,
-    type PublishTarget,
+    type PublishButtonProps,
 } from "./publish"

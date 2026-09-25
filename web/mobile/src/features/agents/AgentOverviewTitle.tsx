@@ -29,6 +29,7 @@ export const AgentOverviewTitle = ({
     pending,
     onOpenChat,
     onEditConfig,
+    onPublish,
 }: {
     agentId: string
     name: string
@@ -38,6 +39,8 @@ export const AgentOverviewTitle = ({
     onOpenChat: () => void
     /** Opens this agent's configuration in the session workspace — the rail card's Edit verb. */
     onEditConfig: () => void
+    /** Opens the Publish panel; the kebab offers it below `lg`, where the Channels card is hidden. */
+    onPublish?: () => void
 }) => {
     const renameAgent = useRenameAgent()
     const onCommit = useCallback(
@@ -151,6 +154,7 @@ export const AgentOverviewTitle = ({
                     // and with it the MCP servers section, which lives in the agent's
                     // configuration rather than in settings.
                     onOpen={wide ? undefined : onEditConfig}
+                    onPublish={wide ? undefined : onPublish}
                     onRename={() => handleSelect("rename")}
                     onEditDescription={wide ? () => handleSelect("describe") : undefined}
                     onCloseAutoFocus={handleCloseAutoFocus}

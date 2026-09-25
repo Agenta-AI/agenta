@@ -11,13 +11,20 @@ vi.mock("@agenta/ui/ui", () => {
         AccordionItem: Wrap,
         AccordionTrigger: Wrap,
         Alert: ({message}: {message: string}) => <div role="alert">{message}</div>,
-        Button: ({children, onClick, disabled}: React.ComponentProps<"button">) => (
-            <button disabled={disabled} onClick={onClick}>
+        Button: ({children, onClick, disabled, ...props}: React.ComponentProps<"button">) => (
+            <button disabled={disabled} onClick={onClick} data-testid={props["data-testid"]}>
                 {children}
             </button>
         ),
         Input: () => <input />,
         PasswordInput: () => <input />,
+        RadioGroup: Wrap,
+        RadioGroupItem: () => <span />,
+        Select: Wrap,
+        SelectContent: Wrap,
+        SelectItem: Wrap,
+        SelectTrigger: Wrap,
+        SelectValue: () => null,
         Spinner: () => <span />,
         Switch: () => <button />,
     }

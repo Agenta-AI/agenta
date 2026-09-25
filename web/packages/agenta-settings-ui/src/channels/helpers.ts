@@ -8,6 +8,9 @@ import type {
     ChannelToolSettings,
 } from "./types"
 
+/** A multi-line row built on Button: left-aligned, wrapping, sized by its content. */
+export const ROW_BUTTON = "h-auto justify-start whitespace-normal text-left"
+
 /** Every platform, in the order the Channels card lists them. */
 export const CHANNEL_PLATFORMS: ChannelPlatform[] = ["slack", "telegram", "whatsapp"]
 
@@ -35,6 +38,48 @@ export const botHandle = (connection: ChannelConnection, hostedHandle = "@agenta
         return connection.appId ? `Slack app ${connection.appId}` : "your Slack app"
     }
     return connection.platform === "whatsapp" ? "your number" : "your bot"
+}
+
+/** How a connection was installed: the Agenta app or bot, or the customer's own. */
+export const connectionKindLabel = (connection: ChannelConnection): string => {
+    const slack = connection.platform === "slack"
+    if (connection.kind === "hosted") return slack ? "Agenta app" : "Agenta bot"
+    if (connection.platform === "whatsapp") return "Your number"
+    return slack ? "Your app" : "Your bot"
+}
+
+/** A date as "Sep 22, 2026", or null when missing or unparseable. */
+export const formatConnectedOn = (iso: string | null | undefined): string | null => {
+    if (!iso) return null
+    const date = new Date(iso)
+    if (Number.isNaN(date.getTime())) return null
+    return date.toLocaleDateString(undefined, {day: "numeric", month: "short", year: "numeric"})
+}
+
+/** A connection's line in a list: its name, then how it was installed and where it answers. */
+export const connectionRowText = (
+    connection: ChannelConnection,
+    hostedHandle = "@agenta",
+): {title: string; detail: string} => {
+    const slack = connection.platform === "slack"
+    // A workspace holds one Agenta app but may hold several of the customer's own.
+    const title = !slack
+        ? botHandle(connection, hostedHandle)
+        : connection.kind === "hosted"
+          ? connection.workspaceName || botHandle(connection, hostedHandle)
+          : connectionLabel(connection, hostedHandle)
+    if (connection.status === "revoked") {
+        const detail = slack
+            ? "App uninstalled · reconnect"
+            : connection.platform === "whatsapp"
+              ? "Access token rejected"
+              : "Bot token revoked"
+        return {title, detail}
+    }
+    const nonDm = connection.chats.filter((chat) => chat.type !== "dm").length
+    const noun = slack ? "channel" : "group"
+    const where = nonDm ? `DMs and ${nonDm} ${noun}${nonDm > 1 ? "s" : ""}` : "DMs"
+    return {title, detail: `${connectionKindLabel(connection)} · ${where}`}
 }
 
 /** How one of several connections on a platform is told apart: its handle, and on Slack the
@@ -229,6 +274,12 @@ export const hasAnyIssue = (connections: ChannelConnections): boolean =>
                 connection.chats.some((chat) => chat.removed))
         )
     })
+
+/** How many connections answer as an agent and are live. */
+export const liveCountOf = (connections: ChannelConnections, agentId: string): number =>
+    (connections.allConnections ?? []).filter(
+        (c) => c.agent?.id === agentId && c.status === "connected",
+    ).length
 
 /** The channel tool settings of a bot that never saved any. */
 export const DEFAULT_TOOL_SETTINGS: ChannelToolSettings = {
