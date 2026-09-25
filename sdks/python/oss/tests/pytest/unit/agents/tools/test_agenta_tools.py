@@ -257,3 +257,8 @@ async def test_only_a_platform_entry_wins_and_other_name_clashes_still_fail():
                 _entry(rename_session="allow"),
             ]
         )
+
+
+def test_a_second_entry_is_refused():
+    with pytest.raises(ToolConfigurationError, match="at most one"):
+        coerce_tool_configs([_entry(), _entry(rename_agent="allow")])

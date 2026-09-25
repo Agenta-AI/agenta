@@ -4,6 +4,7 @@ import {
     agentaToolsAccessAtom,
     readAgentaTools,
     workflowAgentTemplateOverlayAtomFamily,
+    workflowBuildKitUiStateAtomFamily,
     writeAgentaTools,
     type AgentaToolsMap,
 } from "@agenta/entities/workflow"
@@ -62,7 +63,7 @@ export interface AgentaToolsSectionProps {
     onChange: (next: AgentaToolsMap) => void
     /** Every Agenta tool, marked "read" or "write". */
     access: Record<string, "read" | "write">
-    /** The tools the playground build kit also carries. */
+    /** The tools the playground build kit adds to runs right now. */
     buildKitOps: Set<string>
     disabled?: boolean
 }
@@ -151,14 +152,33 @@ export function useAgentaTools({
     revisionId: string | null
     disabled?: boolean
 }) {
-    const access = useAtomValue(agentaToolsAccessAtom).data
+    const accessQuery = useAtomValue(agentaToolsAccessAtom)
     const overlay = useAtomValue(
         useMemo(() => workflowAgentTemplateOverlayAtomFamily(revisionId ?? ""), [revisionId]),
     )
-    const buildKitOps = useMemo(
-        () => new Set(Object.keys((overlay?.op_access as Record<string, unknown>) ?? {})),
-        [overlay],
+    const buildKit = useAtomValue(
+        useMemo(() => workflowBuildKitUiStateAtomFamily(revisionId ?? ""), [revisionId]),
     )
+    // Only a tool the build kit actually adds overrides the entry in the playground.
+    const buildKitOps = useMemo(
+        () =>
+            new Set(
+                buildKit.enabled
+                    ? Object.keys((overlay?.op_access as Record<string, unknown>) ?? {}).filter(
+                          (op) => !buildKit.disabledOps.includes(op),
+                      )
+                    : [],
+            ),
+        [overlay, buildKit],
+    )
+    if (accessQuery.isError) {
+        return (
+            <span className="text-xs text-colorError">
+                Could not load the Agenta tools. Reload the page to try again.
+            </span>
+        )
+    }
+    const access = accessQuery.data
     if (!access || Object.keys(access).length === 0) return null
     const tools = Array.isArray(config.tools) ? config.tools : []
     return (
