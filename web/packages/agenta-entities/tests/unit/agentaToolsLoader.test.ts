@@ -25,9 +25,11 @@ function storeWith(tools: unknown[]) {
 }
 
 const loadedTools = (store: ReturnType<typeof createStore>) =>
-    (store.get(workflowQueryAtomFamily(REVISION)).data?.data?.parameters as {
-        agent: {tools: unknown[]}
-    }).agent.tools
+    (
+        store.get(workflowQueryAtomFamily(REVISION)).data?.data?.parameters as {
+            agent: {tools: unknown[]}
+        }
+    ).agent.tools
 
 describe("loading a revision in the playground", () => {
     it("adds the default entry to an agent saved without one, without a draft", () => {
