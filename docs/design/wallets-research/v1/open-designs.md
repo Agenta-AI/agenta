@@ -1394,6 +1394,18 @@ proves against a real Postgres that eight competing first deliveries leave exact
 that a rolled-back settlement leaves none, and that the award and plan-change paths heal
 themselves the same way.
 
+**The flag window is not the only source of row-less organizations (2026-09-25).** The admin
+account route (`POST /admin/simple/accounts/`, through `oss/src/core/accounts/service.py`)
+starts the plan with `SubscriptionsService.start_plan` directly and never calls the
+organization hooks, so its organizations have no general balance row either. That is covered
+by the same lazy provisioning, not patched per route: `check` and `settle` provision the row,
+and a debit for such an organization is booked, not dead-lettered
+(`test_wallets_debit_worker_integration.py::test_first_debit_for_an_organization_with_no_wallet_row_settles`).
+Eager provisioning in the admin route was considered and not added: it would couple the OSS
+accounts service to the EE organization hooks to write the same zero-balance row the first
+wallet call writes anyway. Those organizations also get no signup grant, which matches the
+grant's signup-only rule.
+
 ## 15. What restores the value the dark-window organizations also missed
 
 **Status:** Decided — option 2. The job is on this branch and has not been run anywhere.
