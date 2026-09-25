@@ -24,11 +24,15 @@ export const watchLatestVersion = ({
     page?: Pick<Document, "visibilityState" | "addEventListener" | "removeEventListener">
 }): (() => void) => {
     let stopped = false
+    // Only the newest check may answer: an older read landing last would offer a stale version.
+    let latestCheck = 0
     const check = () => {
         if (stopped || page.visibilityState !== "visible") return
+        const thisCheck = ++latestCheck
         void retrieveWorkflowRevision({projectId, workflowRef: {id: workflowId}, lowPriority: true})
             .then((revision) => {
-                if (!stopped && revision?.id && revision.version != null)
+                if (stopped || thisCheck !== latestCheck) return
+                if (revision?.id && revision.version != null)
                     onLatest({workflowId, id: revision.id, version: Number(revision.version)})
             })
             .catch(() => undefined)

@@ -49,4 +49,26 @@ describe("watchLatestVersion", () => {
         page.become("visible")
         expect(retrieve).toHaveBeenCalledOnce()
     })
+
+    it("drops an older check that lands after a newer one", async () => {
+        let resolveFirst!: (value: unknown) => void
+        retrieve
+            .mockReset()
+            .mockReturnValueOnce(new Promise((resolve) => (resolveFirst = resolve)))
+            .mockResolvedValueOnce({id: "rev-7", version: "7"})
+        const page = fakePage("visible")
+        const onLatest = vi.fn()
+        watchLatestVersion({
+            workflowId: "agent-1",
+            projectId: "project-1",
+            onLatest,
+            page: page as unknown as Document,
+        })
+        page.become("visible")
+        await flush()
+        resolveFirst({id: "rev-6", version: "6"})
+        await flush()
+        expect(onLatest).toHaveBeenCalledOnce()
+        expect(onLatest).toHaveBeenCalledWith({workflowId: "agent-1", id: "rev-7", version: 7})
+    })
 })
