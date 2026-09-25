@@ -1918,7 +1918,7 @@ which is where a durable pending record and the debits a plan change posts both 
 
 ### Current direction
 
-None chosen. What ships is the fallback key with the transition in it, and the residue above is
+Superseded by the Decision below; kept as the record of the state before it. None chosen. What ships is the fallback key with the transition in it, and the residue above is
 accepted: the repeated-transition case moves no money, and the concurrent double submit is
 deduplicated by the same property that causes it. Options 1 and 2 are alternatives rather than
 stages, and the choice between them is really a question of which layer owns the race, the
@@ -1952,7 +1952,8 @@ The wallet side was fixed alongside it (review findings, same date). The outgoin
 no longer found by expiry, which is not an identity: after two changes in one period both
 allowance credits end at the same instant, and the lookup could claw a downgrade out of the older,
 already-clawed credit. `WalletsDAO.apply_plan_change` now selects the newest `plan_allowance`
-credit by uuid7 id, inside its own transaction after the general-balance lock, and skips it when a
+credit (by a `created_at` the mint takes from the database clock after the lock, since a uuid7 id
+carries the clock of whichever API process minted it), inside its own transaction after the general-balance lock, and skips it when a
 plan change already clawed it back (Pro to Hobby to Pro in one period must not claw the earned
 remainder twice). The clawback is the unused share of that credit's own lifetime, so the caller no
 longer reconstructs an outgoing window. The incoming allowance is prorated from the instant the
@@ -1960,10 +1961,18 @@ change took effect (the Stripe event's `created`) over the subscription's real b
 (`current_period_start`/`current_period_end`), not over a midnight-aligned window derived from the
 anchor day at processing time. Minted allowance credits record `data.references.subscription.id`.
 
-**Option 3 is deferred.** A wallet adjustment that fails after the subscription change committed
-still has no durable record; it is logged at error level and not retried. Deferred because the
-failure needs a database error on the same core database the subscription update just used, the
-flag is off everywhere, and a pending table plus a drain job is a new subsystem for that case.
+**Option 3 is deferred, and it blocks turning the flag on for paying customers.** A wallet
+adjustment that fails after the subscription change committed still has no durable record; it is
+logged at error level and not retried. It needs a database error on the core database the
+subscription update just used, or a creation webhook without a billing period on a paid plan. The
+flag is off everywhere, and a pending table plus a drain job is a new subsystem for those cases.
 Reopen when either comes first: the flag is turned on for paying customers, or the recurring
 period-start allowance is built (item 3), since that job needs the same "compare subscriptions with
 allowance credits and re-drive" pass and should own it.
+
+**Known limits, recorded rather than fixed here.** Serialization orders changes but does not
+validate them: a delayed `customer.subscription.deleted` for an old subscription still cancels a
+replacement subscription, because the webhook does not check the deleted subscription's id against
+the stored one (a pre-existing billing behaviour, not a wallet one). And the reverse trial writes
+the trial plan straight to the subscription row, so its later creation webhook sees no plan change
+and the trial gets no allowance; that belongs with the recurring allowance in item 3.

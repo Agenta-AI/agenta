@@ -349,8 +349,9 @@ provisions each organization's general `wallet_balances` row (`wallet_credit_id 
 idempotently; migration `ee0000000005_backfill_wallet_general_balances.py` backfills it for
 organizations that predate this change. A mid-period plan change prorates a `plan_allowance`
 credit. `WalletsDAO.apply_plan_change` does it in one transaction under the general-balance lock:
-it selects the outgoing allowance (the organization's newest `plan_allowance` credit, by uuid7 id,
-unless a plan change already clawed it back), claws back the unused share of that credit's own
+it selects the outgoing allowance (the organization's newest `plan_allowance` credit, by a
+`created_at` taken from the database clock after the lock, unless a plan change already clawed it
+back), claws back the unused share of that credit's own
 lifetime (`start_time` to `end_time`), and mints a NEW `wallet_credits` row for the incoming
 plan's share of the Stripe billing period, never mutating an existing row. The arithmetic is the
 pure `ee.src.core.wallets.proration` functions. The minted credit starts at the instant the change
