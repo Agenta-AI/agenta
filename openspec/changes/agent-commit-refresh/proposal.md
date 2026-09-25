@@ -11,7 +11,7 @@ Reproduced on staging (v0.121.2, Pi with Claude Haiku 4.5): on `/m` the chip sta
 agent committed v6, and a reload showed v6. The same request on `/w` moved the chip live from v3 to
 v4 and showed "Agent updated this configuration in v4".
 
-## Root cause
+### Root cause
 
 The backend still emits the signal. The browser's own capture of the `/services/agent/v0/invoke`
 response contains
@@ -39,7 +39,7 @@ been the default since `377227fe1d` (2026-09-07), except where a deployment set
 `AGENTA_SESSIONS_QUEUE=false`; #7095 removed that fallback, so `/m` now never takes the direct
 path.
 
-## What changes
+## What Changes
 
 - `useAgentConversation` accepts `onCommittedRevision` and passes it to `useSessionLivePreview`,
   the same wiring `/w` has.
@@ -48,7 +48,23 @@ path.
   records reader share one dedupe set.
 - A unit test pins the forwarding. It fails without the fix.
 
-## Out of scope (follow-ups)
+## Capabilities
+
+### New Capabilities
+
+- `agent-self-commit-refresh`: every playground view of a session follows the agent's own `commit_revision`, on /m and /w, on every send path.
+
+### Modified Capabilities
+
+None.
+
+## Impact
+
+- Code: `web/packages/agenta-chat/src/hooks/useAgentConversation.ts` (one new optional option) and `web/mobile/src/features/chat/LiveConversation.tsx` (one handler). No backend, SDK or API change. /w is untouched.
+- Tests: one new unit test in `@agenta/chat`.
+- Out of scope, recorded as follow-ups in `design.md` and `tasks.md`: cross-tab and cross-session propagation of any revision commit, protection of an unsaved local edit against an agent commit, and the "Agent updated this configuration" notice on /m.
+
+### Deferred
 
 Cross-tab and cross-session propagation of any revision commit, protection of an unsaved local
 edit against an agent commit, and the "Agent updated this configuration" notice on `/m`. See the

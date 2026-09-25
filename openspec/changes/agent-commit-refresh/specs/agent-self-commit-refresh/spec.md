@@ -54,6 +54,13 @@ A `commit_revision` call that fails, or that answers `no_change`, SHALL NOT move
 - **WHEN** the agent's commit is refused for invalid arguments
 - **THEN** the tool card SHALL show the error and the pane SHALL stay on the current revision.
 
+### Requirement: A commit made outside the playground shows on next open
+A revision the agent commits from Slack, Telegram or an automation SHALL be what a newly opened, unpinned playground session shows.
+
+#### Scenario: Open after a channel run
+- **WHEN** the agent commits during a Slack run and the user later opens the agent's playground
+- **THEN** a new session SHALL show the committed revision.
+
 ## Deferred (NOT IMPLEMENTED in this change)
 
 - A different session of the same agent, in the same tab or another tab, learning about the commit (case 3).

@@ -1,6 +1,8 @@
 # Design: agent self-commit refresh
 
-## The two signals
+## Context
+
+### The two signals
 
 | Signal | Carried by | Reaches | Listener on /w | Listener on /m |
 | --- | --- | --- | --- | --- |
@@ -12,7 +14,7 @@ saving tab only (`agentAutoCommit.ts:187-195`). The project watch's `workflow-ch
 only on an artifact edit such as a rename (`api/oss/src/core/workflows/service.py:1298-1310`), never
 on a revision commit.
 
-## Current and expected behavior
+### Current and expected behavior, per case
 
 "Current" is what the code does today, and whether it was checked live on staging. "Fix" says
 whether this change delivers the expected behavior.
@@ -32,9 +34,16 @@ whether this change delivers the expected behavior.
 | 9 | Agent commits from Slack, Telegram or an automation, no playground open | A playground opened later reads the latest revision fresh. An already-open playground is case 5. | Same, except a session pinned to a revision (`selectedRevisionAtomFamily`) keeps showing that revision | Same | n/a |
 | 10 | /m vs /w | /w has both listeners | /m has only the stream-part listener, which the durable path never feeds | Parity | Yes |
 
-## The fix
+## Goals / Non-Goals
 
-Smallest change that gives /m the /w behavior:
+**Goals:** /m follows the agent's own commit in cases 1, 2, 4, 7 and 10, the way /w does today, with the smallest change.
+
+**Non-Goals:** cases 3, 5 and 6 (they need a new server event or a conflict model), and the /m commit notice. They are recorded as follow-ups.
+
+## Decisions
+
+### Decision: reuse the records-based trigger /w already has
+
 
 1. `useAgentConversation` takes an optional `onCommittedRevision(revision)` and forwards it to its
    `useSessionLivePreview` call. The engine still leaves the reaction to the host, as its header
@@ -42,7 +51,7 @@ Smallest change that gives /m the /w behavior:
 2. `LiveConversation` passes a handler that calls the reaction it already has, keyed by revision
    id, so a commit seen by both the part reader and the records reader acts once.
 
-Rejected alternatives:
+Alternatives considered:
 
 - **Parse `data-committed-revision` in `readRunAdmission`.** This would work only in the tab that
   sent, and only while its stream is still attached. The records path also covers other tabs and a
@@ -52,9 +61,25 @@ Rejected alternatives:
 - **Delete /m's part reader.** Regenerate and legacy approval resumes still stream through
   `useChat`, and /w keeps the same reader. Keeping it costs one line in the shared handler.
 
-## Tool-name drift guard (not added)
+### Decision: no tool-name drift guard
 
 The brief suspected that `toolCacheEffects.ts` or `PLATFORM_OPS` had drifted from the SDK op names.
 They had not: the records carry `commit_revision` unprefixed (Pi), `canonicalClientToolName` strips
 the Claude and Codex wrappers, and `commit_revision` was never in `toolCacheEffects`, which covers
 trigger ops only. A drift guard would not have caught this regression, so none is added here.
+
+## Risks / Trade-offs
+
+- The records trigger needs the shared reader to be advertised. When it is not, the durable path gives
+  /m no signal, and /w has the same limit today. Staging and cloud advertise it.
+- A commit made before the reader's first read is not reported as live. That is on purpose: it
+  stops a reload from replaying old commits. The reload already shows the latest revision.
+- Adopting a revision pins the session to it, which is what /m's part reader already does.
+
+## Migration Plan
+
+None. This is a frontend-only change and there is no data to migrate. Rollback is a revert.
+
+## Open Questions
+
+- Should cases 3 and 5 be solved with a `revision-committed` project-watch event? That is follow-up 4.1.
