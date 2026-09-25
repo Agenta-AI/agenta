@@ -150,7 +150,7 @@ class WalletsDAO(WalletsDAOInterface):
         *,
         organization_id: UUID,
     ) -> Optional[WalletSpendableBalanceDTO]:
-        # The complement of settlement's `end_time > func.now()` candidate filter, on the
+        # The complement of settlement's `end_time > now()` candidate filter, on the
         # same database clock, so admission and settlement agree on what has expired.
         # Aliased so the subquery does not auto-correlate to the outer general row.
         credit_balance = aliased(WalletBalanceDBE)
@@ -224,6 +224,9 @@ class WalletsDAO(WalletsDAOInterface):
             # 3. First delivery: select+lock unexpired, funded candidate credit balances
             #    in priority, end_time, credit_id order. Already serialized by the general
             #    balance lock above, so this snapshot cannot go stale under our feet.
+            #    Expiry is judged on the database clock, the one admission reads too;
+            #    `plan_settlement` re-filters, so it gets the same instant.
+            db_now = (await session.execute(select(func.now()))).scalar_one()
             candidates_stmt = (
                 select(WalletCreditDBE, WalletBalanceDBE)
                 .join(
@@ -234,7 +237,7 @@ class WalletsDAO(WalletsDAOInterface):
                     WalletCreditDBE.organization_id == command.organization_id,
                     or_(
                         WalletCreditDBE.end_time.is_(None),
-                        WalletCreditDBE.end_time > func.now(),
+                        WalletCreditDBE.end_time > db_now,
                     ),
                     WalletBalanceDBE.balance_musd > 0,
                 )
@@ -257,7 +260,7 @@ class WalletsDAO(WalletsDAOInterface):
 
             # 4. Plan the split: which credits fund how much, plus any deficit remainder.
             #    Pure function — no I/O, no locking decisions of its own.
-            plan = plan_settlement(command=command, candidates=candidates)
+            plan = plan_settlement(command=command, candidates=candidates, now=db_now)
 
             # 5. Insert one debit per actual funding source.
             created: List[WalletDebitDBE] = []

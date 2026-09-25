@@ -202,3 +202,49 @@ async def test_a_second_credit_for_one_award_key_is_rejected(wallet_schema):
                 )
     finally:
         await _cleanup(organization_id)
+
+
+async def test_settlement_judges_expiry_on_the_database_clock(
+    wallet_schema, monkeypatch
+):
+    """Admission judges expiry on the database clock. Settlement must too: an API host
+    whose clock runs ahead must not treat a credit the database still sees as live as
+    expired, and book the charge as deficit."""
+    import ee.src.core.wallets.types as types_module
+
+    real_datetime = types_module.datetime
+
+    class _ClockAhead(real_datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return real_datetime.now(tz) + timedelta(hours=2)
+
+    organization_id = uuid.uuid4()
+    dao = WalletsDAO()
+    now = datetime.now(timezone.utc)
+
+    try:
+        credit = await _award(
+            dao,
+            organization_id=organization_id,
+            key="live_for_an_hour",
+            amount_musd=FIVE_DOLLARS,
+            end_time=now + timedelta(hours=1),
+        )
+        assert await WalletsService(wallets_dao=dao).check(
+            organization_id=organization_id
+        )
+
+        monkeypatch.setattr(types_module, "datetime", _ClockAhead)
+        debits = await dao.settle(
+            command=build_debit_command(
+                organization_id=organization_id,
+                idempotency_key="app_clock_ahead",
+                amount_musd=1_000,
+                created_at=now,
+            )
+        )
+
+        assert [debit.wallet_credit_id for debit in debits] == [credit.id]
+    finally:
+        await _cleanup(organization_id)
