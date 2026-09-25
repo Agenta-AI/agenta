@@ -48,10 +48,12 @@ TELEGRAM_CAPABILITIES: dict = {
         # parse_mode=HTML with a small tag set; 4096 is Telegram's message
         # length ceiling.
         "text": {"format": "html", "max_chars": 4096},
-        # Files are declared off for the first cut; send/receive come later.
         "files": {
+            # The agent has no way to return a file on any channel yet.
             "send": {"supported": False, "max_bytes": 0},
-            "receive": {"supported": False, "max_bytes": 0},
+            # Inbound files are passed to the agent as attachments. The Bot
+            # API refuses downloads above 20 MB.
+            "receive": {"supported": True, "max_bytes": 20 * 1024 * 1024},
         },
     },
     "identity": {

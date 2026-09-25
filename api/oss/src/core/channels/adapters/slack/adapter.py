@@ -65,6 +65,9 @@ _LISTING_PAGE_SIZE = 200
 # tier at fetch time.
 _DEFAULT_BACKFILL_LIMIT = int(os.getenv("AGENTA_CHANNELS_BACKFILL_LIMIT") or 50)
 
+# Downloading a file is one long GET, not a quick API call.
+_MEDIA_TIMEOUT_SECONDS = 30.0
+
 # Message subtypes that are still a person's message: a reply also sent to the
 # channel, and a file shared with a comment. Every other subtype is a notice.
 # A `/me` message arrives as subtype `me_message` with the same user, channel
@@ -157,6 +160,34 @@ def _profile_fields(user: Dict[str, Any]) -> Dict[str, str]:
     )
     username = user.get("name") or ""
     return {k: v for k, v in (("name", name), ("username", username)) if v}
+
+
+def _file_media_parts(event: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Media parts for the files shared on a message. An entry without a
+    private download URL (an external or tombstoned file) is skipped; the
+    message itself still goes through."""
+
+    parts: List[Dict[str, Any]] = []
+    files = event.get("files")
+    for entry in files if isinstance(files, list) else []:
+        if not isinstance(entry, dict):
+            continue
+        url = entry.get("url_private_download") or entry.get("url_private")
+        if not entry.get("id") or not url:
+            continue
+        prefix = str(entry.get("mimetype") or "").split("/", 1)[0]
+        parts.append(
+            {
+                "type": "media",
+                "kind": prefix if prefix in ("image", "audio", "video") else "document",
+                "media_id": entry["id"],
+                "mime_type": entry.get("mimetype"),
+                "filename": entry.get("name"),
+                "size": entry.get("size"),
+                "url": url,
+            }
+        )
+    return parts
 
 
 class SlackAdapter(ChannelAdapterInterface):
@@ -387,7 +418,10 @@ class SlackAdapter(ChannelAdapterInterface):
                 _bot_handle(connection) if connection else "@Agenta",
                 text,
             )
+        # Text first, then one media part per shared file. A file share with
+        # no comment keeps the empty text part the event always had.
         content: List[Dict[str, Any]] = [{"type": "text", "text": text}]
+        content.extend(_file_media_parts(event))
 
         return ChannelInboundEvent(
             external_id=event.get("client_msg_id") or f"{channel_id}:{event_ts}",
@@ -438,6 +472,37 @@ class SlackAdapter(ChannelAdapterInterface):
             fields = {}
             _SENDER_CACHE[key] = (now + _SENDER_MISS_TTL_SECONDS, fields)
         return {**sender, **fields}
+
+    # --- media --- #
+
+    async def fetch_media(
+        self,
+        *,
+        connection: ChannelConnection,
+        media: Dict[str, Any],
+        max_bytes: Optional[int] = None,
+    ) -> Optional[Tuple[bytes, Optional[str]]]:
+        """Download a shared file from its private URL with the bot token.
+        None when Slack reports it larger than `max_bytes`. An HTML response
+        is Slack's login page, meaning the token cannot read files."""
+
+        size = media.get("size")
+        if max_bytes is not None and isinstance(size, int) and size > max_bytes:
+            return None
+        response = await self._client.get(
+            media["url"],
+            headers={"Authorization": f"Bearer {_bot_token(connection)}"},
+            follow_redirects=True,
+            timeout=_MEDIA_TIMEOUT_SECONDS,
+        )
+        response.raise_for_status()
+        if response.headers.get("content-type", "").startswith("text/html"):
+            raise _SlackApiError(
+                error="file_download_denied", status_code=response.status_code
+            )
+        if max_bytes is not None and len(response.content) > max_bytes:
+            return None
+        return response.content, media.get("mime_type")
 
     # --- egress --- #
 

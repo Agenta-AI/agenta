@@ -67,6 +67,44 @@ def _entities_text(message: Dict[str, Any]) -> str:
     return message.get("text") or message.get("caption") or ""
 
 
+# Message fields we pass to the agent as media parts, with the attachment kind
+# each maps to. A photo is a list of sizes; every other field is one object
+# carrying its own file_id.
+_MEDIA_FIELDS = (
+    ("photo", "image"),
+    ("document", "document"),
+    ("voice", "audio"),
+    ("audio", "audio"),
+    ("video", "video"),
+    ("video_note", "video"),
+)
+
+
+def media_parts(message: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Media parts for the files on a Telegram message, in `_MEDIA_FIELDS`
+    order. Each part names the file by its Telegram file_id, which
+    `fetch_media` resolves through getFile at download time."""
+
+    parts: List[Dict[str, Any]] = []
+    for field, kind in _MEDIA_FIELDS:
+        value = message.get(field)
+        if field == "photo":
+            # A photo arrives as ascending sizes; the last is the original.
+            value = value[-1] if isinstance(value, list) and value else None
+        if not isinstance(value, dict) or not value.get("file_id"):
+            continue
+        parts.append(
+            {
+                "type": "media",
+                "kind": kind,
+                "media_id": value["file_id"],
+                "mime_type": value.get("mime_type"),
+                "filename": value.get("file_name"),
+            }
+        )
+    return parts
+
+
 def is_addressed(
     message: Dict[str, Any],
     *,

@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 import json
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 from uuid import UUID
 
 import httpx
@@ -14,6 +14,7 @@ from oss.src.core.channels.adapters.telegram.mapping import (
     classify_space_kind,
     is_addressed,
     is_bot_authored,
+    media_parts,
     render_content,
     routing_token_from_path,
     MAX_CHARS,
@@ -43,6 +44,9 @@ from oss.src.utils.logging import get_module_logger
 log = get_module_logger(__name__)
 
 _TELEGRAM_API_BASE = "https://api.telegram.org"
+
+# Downloading a file is one long GET, not a quick API call.
+_MEDIA_TIMEOUT_SECONDS = 30.0
 
 
 # Split the RAW answer text at this size before html-escaping each chunk, below
@@ -278,13 +282,22 @@ class TelegramAdapter(ChannelAdapterInterface):
             bot_username=_bot_username(connection) if connection else None,
         )
 
+        # Text (or caption) first, then one media part per attached file. A
+        # message with neither keeps the empty text part it always had.
+        content: List[Dict[str, Any]] = []
+        if text:
+            content.append({"type": "text", "text": text})
+        content.extend(media_parts(message))
+        if not content:
+            content = [{"type": "text", "text": ""}]
+
         return ChannelInboundEvent(
             external_id=f"{chat_id}:{message.get('message_id')}",
             kind=ChannelEventKind.MESSAGE,
             space_kind=space_kind,
             external_locator=locator,
             processed=ChannelInboxEventProcessed(
-                content=[{"type": "text", "text": text}],
+                content=content,
                 sender=_sender_fields(sender),
                 sent_at=_telegram_time(message.get("date")),
                 message_ref=(
@@ -484,6 +497,43 @@ class TelegramAdapter(ChannelAdapterInterface):
         raise NotImplementedError(
             "Telegram has no bot-readable history; backfill is unsupported."
         )
+
+    # --- media --- #
+
+    def _media_token(self, connection: ChannelConnection) -> str:
+        # The hosted adapter overrides this with the deployment bot token.
+        return _bot_token(connection)
+
+    async def fetch_media(
+        self,
+        *,
+        connection: ChannelConnection,
+        media: Dict[str, Any],
+        max_bytes: Optional[int] = None,
+    ) -> Optional[Tuple[bytes, Optional[str]]]:
+        """Download an inbound file. Two calls: getFile resolves the file_id
+        to a path, which is fetched from the file endpoint with the same
+        token. None when Telegram reports it larger than `max_bytes`. The Bot
+        API refuses downloads above 20 MB on its own."""
+
+        token = self._media_token(connection)
+        body = await self._call_with_token(
+            token, "getFile", {"file_id": media["media_id"]}
+        )
+        result = body.get("result") or {}
+        size = result.get("file_size")
+        if max_bytes is not None and isinstance(size, int) and size > max_bytes:
+            return None
+        file_path = result.get("file_path")
+        if not file_path:
+            raise _TelegramApiError(description="no file_path", status_code=200)
+        response = await self._client.get(
+            f"/file/bot{token}/{file_path}", timeout=_MEDIA_TIMEOUT_SECONDS
+        )
+        response.raise_for_status()
+        if max_bytes is not None and len(response.content) > max_bytes:
+            return None
+        return response.content, media.get("mime_type")
 
     # --- internals --- #
 
