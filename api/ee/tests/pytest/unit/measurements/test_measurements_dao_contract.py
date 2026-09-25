@@ -5,6 +5,7 @@ suite against a live tracing DB."""
 
 import pytest
 
+from ee.src.core.wallets.errors import MeasurementConflictError
 from ee.tests.pytest.utils.measurements.fakes import InMemoryMeasurementsDAO
 from ee.tests.pytest.utils.wallets.builders import build_measurement_command
 
@@ -52,3 +53,43 @@ async def test_replay_does_not_re_derive_component_values():
     # Still exactly one value row per component key — no duplicate rows from
     # the second, redelivered attempt.
     assert len(dao.values[persisted.id]) == len(command.components)
+
+
+@pytest.mark.asyncio
+async def test_a_conflicting_replay_raises_and_leaves_the_stored_measurement_alone():
+    dao = InMemoryMeasurementsDAO()
+    command = build_measurement_command()
+    persisted = await dao.insert_measurement(command=command)
+    conflicting = command.model_copy(
+        update={
+            "components": [
+                *command.components,
+                command.components[0].model_copy(update={"key": "extra_key"}),
+            ]
+        }
+    )
+
+    with pytest.raises(MeasurementConflictError):
+        await dao.insert_measurement(command=conflicting)
+
+    assert set(dao.values[persisted.id]) == {c.key for c in command.components}
+
+
+@pytest.mark.asyncio
+async def test_component_order_does_not_make_a_replay_conflict():
+    dao = InMemoryMeasurementsDAO()
+    command = build_measurement_command()
+    command = command.model_copy(
+        update={
+            "components": [
+                *command.components,
+                command.components[0].model_copy(update={"key": "another_key"}),
+            ]
+        }
+    )
+    await dao.insert_measurement(command=command)
+
+    reordered = command.model_copy(
+        update={"components": list(reversed(command.components))}
+    )
+    assert (await dao.insert_measurement(command=reordered)).created is False

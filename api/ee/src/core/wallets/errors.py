@@ -44,3 +44,19 @@ class WalletRetryableError(WalletError):
 class SettlementUnavailableError(WalletRetryableError):
     """Retryable: the settlement backend (database, distributed lock, …) was unavailable
     or timed out."""
+
+
+class MeasurementConflictError(WalletTerminalError):
+    """Terminal: a measurement id arrived again with different content from the stored
+    measurement. The stored fact stays as it is and the new payload is not charged."""
+
+    def __init__(self, *, measurement_id: str):
+        self.measurement_id = measurement_id
+        super().__init__(
+            f"Measurement {measurement_id!r} replayed with a different payload"
+        )
+
+
+class OrganizationNotResolvedError(WalletTerminalError):
+    """Terminal: a chargeable measurement's project resolves to no organization, so there
+    is no wallet to debit."""

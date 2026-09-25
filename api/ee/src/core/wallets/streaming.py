@@ -3,8 +3,9 @@
 zlib-compress; reverse for deserialization.
 
 Also the concrete best-effort publishers (`RedisMeasurementPublisher`,
-`RedisDebitPublisher`) — same compressed `data` field, bounded approximate
-`MAXLEN`, log-and-return-`False` on any failure, never raise into the caller.
+`RedisDebitPublisher`) — same compressed `data` field, a backlog limit that refuses new
+entries rather than trimming old ones, log-and-return-`False` on any failure, never raise
+into the caller.
 """
 
 import zlib
@@ -31,9 +32,11 @@ from ee.src.core.wallets.errors import MalformedEnvelopeError, UnsupportedVersio
 
 log = get_module_logger(__name__)
 
-# Bound each stream so consumed entries are trimmed; without this it grows unbounded.
-MAXLEN_STREAMS_MEASUREMENTS = 100_000
-MAXLEN_STREAMS_DEBITS = 100_000
+# The consumers XDEL every entry they finish, so a stream's length is its unprocessed
+# backlog. A MAXLEN trim would delete the oldest of that backlog, pending or not; the limit
+# is enforced by refusing the publish instead, which the publisher reports and logs.
+MAX_BACKLOG_STREAMS_MEASUREMENTS = 100_000
+MAX_BACKLOG_STREAMS_DEBITS = 100_000
 
 
 def _orjson_default(obj: Any):
@@ -108,7 +111,7 @@ def _get_redis():
     return engine.get_redis() if engine else None
 
 
-async def _xadd(*, stream: str, payload: bytes, maxlen: int) -> bool:
+async def _xadd(*, stream: str, payload: bytes, max_backlog: int) -> bool:
     try:
         redis = _get_redis()
         if redis is None:
@@ -117,12 +120,18 @@ async def _xadd(*, stream: str, payload: bytes, maxlen: int) -> bool:
             )
             return False
 
-        await redis.xadd(
-            name=stream,
-            fields={"data": payload},
-            maxlen=maxlen,
-            approximate=True,
-        )
+        # Not atomic with the XADD: concurrent publishers can overshoot by a few entries,
+        # which is harmless for a limit whose only job is to stop unbounded growth.
+        backlog = await redis.xlen(stream)
+        if backlog >= max_backlog:
+            log.error(
+                f"[WALLETS] {stream} backlog is at its limit; not published",
+                backlog=backlog,
+                max_backlog=max_backlog,
+            )
+            return False
+
+        await redis.xadd(name=stream, fields={"data": payload})
         return True
     except Exception as e:
         log.error(f"[WALLETS] Failed to publish to {stream}: {e}", exc_info=True)
@@ -139,7 +148,7 @@ class RedisMeasurementPublisher:
         return await _xadd(
             stream=STREAM_MEASUREMENTS,
             payload=serialize_measurement_command(command),
-            maxlen=MAXLEN_STREAMS_MEASUREMENTS,
+            max_backlog=MAX_BACKLOG_STREAMS_MEASUREMENTS,
         )
 
 
@@ -151,5 +160,5 @@ class RedisDebitPublisher:
         return await _xadd(
             stream=STREAM_DEBITS,
             payload=serialize_debit_command(command),
-            maxlen=MAXLEN_STREAMS_DEBITS,
+            max_backlog=MAX_BACKLOG_STREAMS_DEBITS,
         )

@@ -71,16 +71,16 @@ its configuration interface belongs in the wallet-settlement schema decision abo
 | 12 | Open | Store classes, same-database co-location units, financial-history authority, and cross-store recovery. |
 | 13 | Open | Whether earned value expires at all, and what decides spend order between lots. |
 | 14 | Decided | How an organization provisioned while `AGENTA_WALLETS_ENABLED` was off gets its balance row. |
-| 15 | Open | What, if anything, restores the value those organizations also missed. |
+| 15 | Decided | What, if anything, restores the value those organizations also missed. |
 | 16 | Open | Which design owns the rate card, and who reviews a change to a price. |
 | 17 | Open | What the admission ceiling enforces, and on what evidence. |
 | 18 | Open | The unit and rounding of a provider-declared cost. |
 | 19 | Open | How the rate card stays in step with the model catalogue. |
-| 20 | Open | Where a stream entry this pipeline cannot accept goes, and what the stream cap protects. |
-| 21 | Open | Whether expired credit value leaves the general balance, and what admission reads. |
+| 20 | Decided | Where a stream entry this pipeline cannot accept goes, and what the stream cap protects. |
+| 21 | Decided | Whether expired credit value leaves the general balance, and what admission reads. |
 | 22 | Decided (option 2; option 3 deferred) | What identifies one plan change, so two in a billing period are not treated as one. |
 
-Items 2, 4, 7, and 14 are decided. The table is an index only; each numbered item below contains the
+Items 2, 4, 7, 14, 20, 21, and 22 are decided. The table is an index only; each numbered item below contains the
 context, examples, and consequences needed for its discussion.
 
 **What Wave 1 closed, and what it did not.** Wave 1 delivered the measurement and settlement
@@ -1396,7 +1396,7 @@ themselves the same way.
 
 ## 15. What restores the value the dark-window organizations also missed
 
-**Status:** Open
+**Status:** Decided — option 2. The job is on this branch and has not been run anywhere.
 
 ### Context
 
@@ -1447,7 +1447,43 @@ does not decide the number.
 
 ### Decision
 
-_Unresolved._
+**Option 2, as a one-off operator job:** `api/entrypoints/backfill_wallet_signup_grants.py`,
+run as `python -m entrypoints.backfill_wallet_signup_grants`. It counts by default and awards
+only with `--apply`. It walks `organizations` in keyset pages and calls
+`WalletsService.award(activity_code="signup")` once per eligible organization, each in its own
+transaction. It logs running counts and exits non-zero if any award failed. A rerun is safe:
+the award is idempotent per organization, and the job skips organizations that already hold a
+`signup_grant` credit.
+
+An organization is eligible when:
+
+- it is not deleted;
+- it holds no `signup_grant` credit;
+- it is its owner's earliest organization;
+- it falls inside `--created-from` / `--created-to`, when those are given.
+
+The earliest-organization rule stands in for "created by signup". The live flow awards the
+grant on the signup path only, never on `POST /organizations/` (`report.md` §9.2), and nothing
+on the `organizations` row records which path created it. The earliest organization is the
+one signup creates, so the rule excludes the later, explicitly created ones. It is a proxy,
+and it misfires in two rare cases: an ownership transfer, and a deployment where signup
+creates no organization. Both are accepted for a one-off job.
+An owner with any organization whose `created_at` is NULL has no provable earliest
+organization, so the job skips all of that owner's organizations. An operator can award such
+a case by hand.
+
+The grant's twelve-month lifetime starts when the job runs, not at the organization's creation
+date. A backdated start would expire part of the grant before anyone could spend it.
+
+Whether dark-window organizations should get the grant at all, and how much, remains the
+product question stated above. The job awards whatever `GRANT_CATALOG["signup"]` says when it
+runs. It is to be run by an operator once, before the flag is turned on; the procedure is in
+`v2/HANDOFF.md`.
+
+Evidence: `ee/tests/pytest/integration/wallets/test_wallets_signup_grant_backfill_postgres.py`
+(real Postgres: a dry run writes nothing; two `--apply` runs leave exactly one grant on each
+eligible organization; a later organization of the same owner, a deleted organization, one
+already granted, and one outside the window are left alone).
 
 ## 16. Which design owns the rate card
 
@@ -1668,7 +1704,7 @@ _Unresolved._
 
 ## 20. Where a stream entry this pipeline cannot accept goes
 
-**Status:** Open
+**Status:** Decided (a dead-letter stream per source stream; a backlog limit that refuses new entries instead of trimming). Implemented on this branch.
 
 ### Context
 
@@ -1752,11 +1788,78 @@ happens to be larger than the backlogs seen so far.
 
 ### Decision
 
-_Unresolved._
+**1. Unacceptable entries go to a dead-letter stream, `<stream>:dead`.** Chosen over the log
+alone (loses the envelope) and a Postgres table (a second store on the failure path, and the
+debit worker's failure is often that very store being down). The mechanism is an opt-in on the
+shared consumer (`dead_letter=True` on `StreamConsumer`, `api/oss/src/tasks/asyncio/shared/consumer.py`),
+so the other streams keep their behaviour. The wallet and measurement workers opt in.
+
+- A dead letter is the original entry's fields unchanged, plus `dead_letter_reason`,
+  `dead_letter_source_id` (the source stream id) and `dead_letter_description` (for debits
+  `organization_id:idempotency_key`, for measurements `measurement_id`). The move is the
+  `XADD` to the dead stream first, then `XDEL` and `XACK` on the source, as separate commands. A
+  MULTI would not help, because Redis runs the rest of a transaction when one command in it fails.
+  An entry is never acknowledged without its dead letter. If the `XADD` fails, the entry stays
+  pending. A crash after it leaves a duplicate dead letter, which is harmless because replay is
+  idempotent.
+- What goes there:
+  - at once, a terminal entry: a malformed or unsupported-version envelope, a debit whose
+    general balance row is neither present nor insertable, a chargeable measurement whose
+    project resolves to no organization (the measurement itself is persisted), and a
+    measurement id replayed with different content (see below);
+  - after `max_deliveries`, **any** entry that keeps failing, readable or not. This replaces
+    the delivered rule that a readable entry is retried forever. That rule existed so a
+    database outage could not drop money; a dead letter is kept, not dropped, so the rule is no
+    longer needed, and without it a deterministic write failure can no longer pin the pending
+    list. The wallet workers raise `max_deliveries` from 5 to 20, about ten minutes of retries
+    at the 30-second idle window, so a short outage still heals without an operator.
+- The dead stream is never trimmed. Its length is the number of charges waiting for a person.
+- Inspect: `XLEN streams:debits:dead`, `XRANGE streams:debits:dead - + COUNT 20` (the metadata
+  fields are plain text), or
+  `python -m oss.src.tasks.asyncio.shared.dead_letters list streams:debits`.
+- Replay: `python -m oss.src.tasks.asyncio.shared.dead_letters replay streams:debits [ID ...]`
+  moves each dead letter (all, or the given ids) back onto the source stream as a new entry. Replay
+  is always safe to run on everything: settlement is idempotent on the posting key, and the
+  measurement insert on `measurement_id`. An entry that is still unacceptable returns to the dead
+  stream with its reason.
+- Alerting is by log: every move logs an error with the reason and the descriptions. A metric or
+  alarm on the dead stream's length is not built; the log line is enough until someone runs this
+  in production at volume.
+
+**2. The cap refuses new entries instead of trimming old ones.** The consumers `XDEL` each entry
+they finish, so a stream's length is exactly its unprocessed backlog, and a `MAXLEN` trim, by
+length or by `MINID` age, can only ever delete unprocessed work. Neither option in "Decision
+needed" protects it. The publishers (`api/ee/src/core/wallets/streaming.py`) instead check
+`XLEN` against a limit (100,000, unchanged) and refuse the publish above it, logging an error and
+returning `False`:
+
+- a refused debit publish leaves its measurement pending, so the measurement worker retries it
+  and, past `max_deliveries`, dead-letters it; nothing is lost;
+- a refused measurement publish is the already-documented best-effort edge ("failed initial
+  publication: no durable recovery"), now loud at the point of loss, and the only place loss can
+  happen.
+
+The check and the `XADD` are two commands, so concurrent publishers can overshoot the limit by a
+few entries. That is harmless for a limit whose only job is to stop unbounded growth.
+
+**3. The reclaim pass walks the whole pending list.** It still reads 50 entries per page, but a
+full page now carries a cursor into the next pass, which runs at once instead of a window later.
+Entries that keep failing at the head no longer hide the rest (spec review P2). With point 1 they
+also leave after `max_deliveries`, so the head cannot stay blocked either.
+
+**Conflicting measurement replay (Codex review #5).** A stored measurement is immutable. The
+`measurements.data.fingerprint` key holds a SHA-256 of the envelope's content, without
+`created_at` and `version` and with components sorted by key. On a repeated `measurement_id`, the
+DAO compares fingerprints. If they are equal, it writes nothing and the worker prices the payload,
+which is identical to the stored fact. If they differ, it writes nothing and raises
+`MeasurementConflictError`, and the worker dead-letters the entry without pricing it. Component
+rows are inserted only with a newly inserted parent, as a plain insert, so a conflict can no
+longer be silently skipped. The envelope also rejects repeated component keys (Codex review #3),
+so the stored values and the priced components are always the same set.
 
 ## 21. Whether expired credit value leaves the general balance
 
-**Status:** Open
+**Status:** Decided — option 2, as one derived read. Implemented on this branch.
 
 ### Context
 
@@ -1820,7 +1923,55 @@ touches the organization is an implementation question that follows the decision
 
 ### Decision
 
-_Unresolved._
+**Option 2: admission derives spendable value in one read, and the general row stays as it
+is.** `WalletsService.check` now calls `WalletsDAO.get_spendable_balance`, which returns the
+general row's balance minus the remaining value of every credit whose `end_time` has passed,
+together with the floor. It is one SQL statement: the general row plus a scalar subquery
+summing the expired per-credit rows.
+
+Why this over the others:
+
+- **It removes the obligation instead of scheduling it.** Option 1 is correct only while a
+  sweep keeps up. Until it runs, admission still answers from expired value, so the job would
+  have to run on a schedule tight enough to matter, somebody would have to watch it, and its
+  failure mode is the exact bug this item describes. Wave 1 has no scheduler for wallet jobs.
+  Deriving the number needs no job and cannot fall behind.
+- **It cannot race settlement.** A sweep that posts an expiry debit is a write that must take
+  the general-row lock and agree with settlement about which credits have lapsed. The read
+  takes no lock and writes nothing. It uses the exact complement of settlement's eligibility
+  predicate (`end_time <= now()` against settlement's `end_time > now()`, both on the database
+  clock), and both terms come from one statement, so one snapshot. A settlement that commits
+  between two separate reads cannot move value from one term to the other. Settlement used a
+  second clock: `plan_settlement` re-filtered candidates on the API host's clock, so a host
+  clock running ahead could book a live credit's share as deficit. `WalletsDAO.settle` now
+  reads the database wall clock (`clock_timestamp()`) once, after taking the general-row
+  lock, and uses it for both filters. Not `now()`: that is the transaction start, which
+  comes before the lock wait, so a credit that expired while the settlement waited would
+  still count as live.
+- **It stays cheap.** Item 21's objection to option 2 was an aggregate over every credit on
+  the request path. This aggregate covers only the organization's expired credits, reached
+  through `idx_wallet_credits_org_priority_end_id` (organization leading), and an organization
+  gains roughly one credit per billing period plus its grants. It is still one round trip.
+- **Option 3 changes what the general row means** and moves every expiring credit out of the
+  one number the design uses for the floor and the credit line. That is a larger redesign than
+  the bug calls for.
+
+What it does not do. The general row still counts expired value, so `get_general_balance` is
+the raw projection and `get_spendable_balance` is what anything user-facing or admitting must
+read. No endpoint shows a balance today; the first one should read the spendable value. The
+two projections still disagree after expiry. Option 1 remains the way to reconcile them, and
+it is compatible with this read: once an expiry debit zeroes a lapsed credit's row, the
+subquery simply stops finding value there. It becomes necessary when reconciliation or
+revenue reporting needs the general row itself to be exact. It is not needed for admission.
+
+Deficit accounting is unchanged and consistent with the read. With a lapsed $20 credit and a
+live $5 credit, a $7 charge drains the $5 and books $2 as deficit. The raw general row then
+reads $18, and the spendable value reads −$2.
+
+Evidence: `ee/tests/pytest/integration/wallets/test_wallets_admission_postgres.py::test_check_does_not_count_expired_credit_value`
+(real Postgres, fails before the change) and the two expiry cases in
+`ee/tests/pytest/unit/wallets/test_wallets_service.py`, run against the in-memory fake, which
+now implements the same read.
 
 ## 22. What identifies one plan change
 

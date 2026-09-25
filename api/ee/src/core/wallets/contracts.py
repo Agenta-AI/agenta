@@ -8,7 +8,7 @@ from enum import Enum
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 # Stream names — the only two producers/consumers this package seeds.
 STREAM_MEASUREMENTS = "streams:measurements"
@@ -66,6 +66,19 @@ class MeasurementCommandV1(BaseModel):
     references: Dict[str, Any] = Field(default_factory=dict)
     #
     created_at: datetime
+
+    @field_validator("components")
+    @classmethod
+    def _component_keys_are_unique(
+        cls, components: List[MeasurementComponentV1]
+    ) -> List[MeasurementComponentV1]:
+        # Stored values are unique per key and pricing reads every component, so a
+        # repeated key would charge an amount the stored measurement cannot explain.
+        keys = [component.key for component in components]
+        duplicates = sorted({key for key in keys if keys.count(key) > 1})
+        if duplicates:
+            raise ValueError(f"duplicate component keys: {duplicates}")
+        return components
 
 
 class DebitCommandV1(BaseModel):

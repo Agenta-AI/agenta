@@ -15,8 +15,8 @@ class PersistedMeasurement(BaseModel):
 
     id: UUID
     measurement_id: str
-    # False when `measurement_id` already existed (a replayed/redelivered message);
-    # the row and its values were not re-written, just confirmed present.
+    # False when `measurement_id` already existed with identical content (a
+    # replayed/redelivered message); nothing was written.
     created: bool
 
 

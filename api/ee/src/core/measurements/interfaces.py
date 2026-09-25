@@ -19,7 +19,9 @@ class MeasurementsDAOInterface:
         rows in a single tracing transaction, keyed by `command.measurement_id`.
 
         Safe to call more than once with the same `measurement_id` (stream
-        redelivery): a repeat call neither raises nor duplicates rows.
+        redelivery): an identical repeat neither raises nor writes. A repeat whose
+        content differs from the stored measurement writes nothing and raises
+        `MeasurementConflictError`: the stored measurement never changes.
         """
         raise NotImplementedError
 

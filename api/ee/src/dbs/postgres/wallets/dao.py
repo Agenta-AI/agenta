@@ -5,6 +5,7 @@ from uuid import UUID
 import uuid_utils.compat as uuid_utils
 from sqlalchemy import func, or_, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy.orm import aliased
 
 from oss.src.dbs.postgres.shared.engine import (
     TransactionsEngine,
@@ -27,6 +28,7 @@ from ee.src.core.wallets.types import (
     WalletCreditDTO,
     WalletDebitDTO,
     WalletGeneralBalanceNotFoundError,
+    WalletSpendableBalanceDTO,
     WalletsDAOInterface,
     compose_debit_key,
     plan_settlement,
@@ -150,6 +152,51 @@ class WalletsDAO(WalletsDAOInterface):
 
             return balance_dbe_to_dto(balance) if balance is not None else None
 
+    async def get_spendable_balance(
+        self,
+        *,
+        organization_id: UUID,
+    ) -> Optional[WalletSpendableBalanceDTO]:
+        # The complement of settlement's `end_time > now()` candidate filter, on the
+        # same database clock, so admission and settlement agree on what has expired.
+        # Aliased so the subquery does not auto-correlate to the outer general row.
+        credit_balance = aliased(WalletBalanceDBE)
+        expired_remaining = (
+            select(func.coalesce(func.sum(credit_balance.balance_musd), 0))
+            .join(
+                WalletCreditDBE,
+                WalletCreditDBE.id == credit_balance.wallet_credit_id,
+            )
+            .where(
+                WalletCreditDBE.organization_id == organization_id,
+                WalletCreditDBE.end_time <= func.now(),
+            )
+            .scalar_subquery()
+        )
+
+        # One statement, one snapshot: a settlement committing between two separate
+        # reads could move value between the two terms and skew the difference.
+        stmt = select(
+            WalletBalanceDBE.balance_musd - expired_remaining,
+            WalletBalanceDBE.floor_musd,
+        ).where(
+            WalletBalanceDBE.organization_id == organization_id,
+            WalletBalanceDBE.wallet_credit_id.is_(None),
+        )
+
+        async with self.engine.session() as session:
+            row = (await session.execute(stmt)).one_or_none()
+
+        if row is None:
+            return None
+
+        spendable_musd, floor_musd = row
+        return WalletSpendableBalanceDTO(
+            organization_id=organization_id,
+            spendable_musd=spendable_musd,
+            floor_musd=floor_musd,
+        )
+
     async def settle(
         self,
         *,
@@ -184,6 +231,13 @@ class WalletsDAO(WalletsDAOInterface):
             # 3. First delivery: select+lock unexpired, funded candidate credit balances
             #    in priority, end_time, credit_id order. Already serialized by the general
             #    balance lock above, so this snapshot cannot go stale under our feet.
+            #    Expiry is judged on the database clock, the one admission reads too;
+            #    `plan_settlement` re-filters, so it gets the same instant. The wall
+            #    clock after the lock, not `now()`: that is the transaction start, which
+            #    precedes any wait above, and a credit may have expired during it.
+            db_now = (
+                await session.execute(select(func.clock_timestamp()))
+            ).scalar_one()
             candidates_stmt = (
                 select(WalletCreditDBE, WalletBalanceDBE)
                 .join(
@@ -194,7 +248,7 @@ class WalletsDAO(WalletsDAOInterface):
                     WalletCreditDBE.organization_id == command.organization_id,
                     or_(
                         WalletCreditDBE.end_time.is_(None),
-                        WalletCreditDBE.end_time > func.now(),
+                        WalletCreditDBE.end_time > db_now,
                     ),
                     WalletBalanceDBE.balance_musd > 0,
                 )
@@ -217,7 +271,7 @@ class WalletsDAO(WalletsDAOInterface):
 
             # 4. Plan the split: which credits fund how much, plus any deficit remainder.
             #    Pure function — no I/O, no locking decisions of its own.
-            plan = plan_settlement(command=command, candidates=candidates)
+            plan = plan_settlement(command=command, candidates=candidates, now=db_now)
 
             # 5. Insert one debit per actual funding source.
             created: List[WalletDebitDBE] = []

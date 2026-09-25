@@ -6,8 +6,11 @@ this module is the one place the correspondence is made explicit, rather than
 left implicit in DAO insert calls.
 """
 
+from hashlib import sha256
 from typing import Any, Dict, List
 from uuid import UUID
+
+from orjson import OPT_SORT_KEYS, dumps
 
 from ee.src.core.wallets.contracts import MeasurementCommandV1, MeasurementComponentV1
 
@@ -34,10 +37,22 @@ def measurement_command_to_row(
         "endpoint_id": command.endpoint_id,
         "endpoint_kind": command.endpoint_kind,
         "resource_locator": command.resource_locator,
-        "data": {"references": command.references},
+        "data": {
+            "references": command.references,
+            "fingerprint": measurement_fingerprint(command),
+        },
         "start_time": command.start_time,
         "end_time": command.end_time,
     }
+
+
+def measurement_fingerprint(command: MeasurementCommandV1) -> str:
+    """A digest of everything the measurement says, so a replayed `measurement_id` can be
+    told apart from a conflicting one. `created_at` and `version` describe the envelope,
+    not the measurement, and component order carries no meaning (keys are unique)."""
+    content = command.model_dump(mode="json", exclude={"created_at", "version"})
+    content["components"] = sorted(content["components"], key=lambda c: c["key"])
+    return sha256(dumps(content, option=OPT_SORT_KEYS)).hexdigest()
 
 
 def measurement_component_to_row(
