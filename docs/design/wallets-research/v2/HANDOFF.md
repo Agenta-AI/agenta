@@ -42,69 +42,109 @@ with evidence.
 
 ## State at handoff
 
+Updated 2026-09-25, after the overnight takeover run. The first handoff state (PR head
+`b0b7fe08ee`, 17 commits ahead of `main`, never accepted) is superseded.
+
 | Fact | Value |
 | --- | --- |
-| PR #6050 head | `b0b7fe08ee2a7dbda8558504bd29b0bef994f7d3`, open, not draft, no review |
-| CI on that head | 77 of 77 checks passing |
-| Against `main` | 17 commits ahead, 1072 behind |
-| Merge conflicts with `main` | `api/entrypoints/worker_streams.py` and `hosting/docker-compose/ee/env.ee.dev.example` only |
-| Migration collisions with `main` | None. `main` still ends at `core_ee` `ee0000000003` and `tracing_ee` `ee0000000001` |
-| Manual acceptance run | Never done. It is what declares checkpoint 1 |
+| `feat/add-wallets` (PR #6050) | `c7254535df`: `main` merged in (a merge commit, no force push). Open, no review |
+| `wallets/takeover` (PR #7153) | `0693b307c1`, base `feat/add-wallets`. Holds every fix below. Not yet merged into `feat/add-wallets` |
+| CI on #6050 at `c7254535df` | All code checks pass. `license/cla` is pending ("not signed yet") and needs a person with CLA access |
+| Migrations | Single-headed: `core_ee` ends at `ee0000000005`, `tracing_ee` at `ee0000000002`. `main` added no EE migrations |
+| Tests at the final code | `ee/tests/pytest/unit` 573 passed; wallet and measurement integration 43 passed, 0 skipped; OSS unit the same as `main`. Commands and counts: [review-findings.md](review-findings.md#test-evidence-at-the-final-code) |
+| Review findings | Every finding from the spec review, the Codex reviews and the acceptance run has a disposition in [review-findings.md](review-findings.md) |
+| Design changes | Every place the code now differs from the original design, and which side should move: [spec-divergences.md](spec-divergences.md) |
+| Manual acceptance | Run 1 at `144c0dec91`: sections 0, 1 and 3 to 8 pass; section 2 failed only against a wrong claim in the procedure, now corrected. Run 2 at `0693b307c1`: sections 0 to 3 and 5, lazy provisioning and the signup-grant backfill pass. Plan-change proration was not exercised on a deployment (it needs a Stripe checkout) |
+| Wave 2 | Being built on the stacked branch `wallets/wave-2`, whose PR base is `wallets/takeover`. Nothing from it is on this branch |
 | Known unrelated failure | `api/oss/tests/pytest/integration/sessions/test_records_replay_postgres.py` fails on `main` too |
 
 ## Branches
 
-- Do the work on `wallets/takeover` (this branch). Its draft PR targets `feat/add-wallets`.
-- First, merge `main` into `feat/add-wallets` (a merge commit, not a rebase: the PR is
-  shared history), resolve the two conflicts, push, then merge `feat/add-wallets` into
-  `wallets/takeover`. This keeps both PR diffs readable.
-- When the work is done, `wallets/takeover` merges into `feat/add-wallets`, and #6050 goes
-  to `main` only when Mahmoud approves.
+- `wallets/takeover` carries the foundation fixes. Its PR targets `feat/add-wallets`.
+- `feat/add-wallets` is up to date with `main` as of `c7254535df`. Sync it again with a
+  merge commit, not a rebase: the PR is shared history.
+- When the work is accepted, `wallets/takeover` merges into `feat/add-wallets`, and #6050
+  goes to `main` only when Mahmoud approves.
+- `wallets/wave-2` is stacked on `wallets/takeover`. Rebase or merge it forward when this
+  branch moves.
 
 ## Work, in order
 
-1. **Update from `main` and re-verify.** After the merge, run every suite the way
-   [v1/HANDOFF.md, "How to run the tests"](../v1/HANDOFF.md#how-to-run-the-tests) describes.
-   Its four setup traps are real; read them. Run the concurrency test first. A skipped
-   integration test means a broken environment, never a pass.
-2. **Review the exact head cold.** Compare the code against the
-   [foundation spec](openspec/changes/document-wallet-foundation/specs/wallet-foundation-baseline/spec.md).
-   Write each finding into the PR with a disposition: fixed, accepted with reason, or deferred
-   to a named change. The previous Codex and CodeRabbit findings are recorded in
-   [v1/HANDOFF.md](../v1/HANDOFF.md) as already fixed; confirm, do not assume.
-3. **Fix the open foundation items.** Each is described in full in
-   [v1/open-designs.md](../v1/open-designs.md). The recommendations are ours; record the choice
-   you make and why.
-   - **Item 21, expired value in the general balance.** Admission reads the general balance,
-     which still counts credit that has expired. Admission and any spendable-balance display
-     must exclude expired value, not only settlement.
-   - **Item 22, direct plan changes.** The webhook path is fixed. The two direct routes still
-     cannot tell a repeated transition from a double submission. Recommended: option 2, close
-     the race at the subscription row (lock or compare-and-set), because option 1 changes a
-     customer-facing endpoint contract. Also record that a failed wallet adjustment after a
-     committed plan change has no durable record; a pending-record-and-drain job (option 3) is
-     the fix, and it may be deferred with a stated reason.
-   - **Item 20, stream entries the pipeline cannot accept.** Before any real user runs with the
-     flag on, an entry that can never be processed must be inspectable and recoverable, not
-     silently dropped or retried forever.
-   - **Item 15, missed grants.** Organizations created while the flag was off have no signup
-     grant. Write the one-off backfill over the already-idempotent `WalletsService.award`, to
-     run before the flag is turned on. Do not run it anywhere shared.
-   - **Cleanup row in [v1/cus-2.md](../v1/cus-2.md):** core services call
-     `get_wallets_service()`, which builds a concrete data access object inside core. Move the
-     wiring to the entrypoint, as `api/AGENTS.md` requires.
-4. **Run the manual acceptance procedure.** Sections 0 through 8 of
-   [v1/nodes/im-1-02-pipeline/acceptance.md](../v1/nodes/im-1-02-pipeline/acceptance.md),
-   against a disposable deployment you control with the flag on. Never a shared or production
-   database. Record the commands, results, and exact commit.
-5. **Update the PR description of #6050** so it states what is verified, what is deferred, and
-   that merge leaves the flag off.
+### Done
+
+1. **Update from `main` and re-verify.** Done. `main` merged into `feat/add-wallets` and then
+   into this branch. Two conflicts, both resolved by keeping both sides:
+   `api/entrypoints/worker_streams.py` (the `sessions` stream plus the wallet streams) and
+   `hosting/docker-compose/ee/env.ee.dev.example`. Baseline after the merge: 566 EE unit
+   tests and 26 integration tests passed, 0 skipped.
+2. **Review the exact head cold.** Done. The spec review matched all 13 baseline scenarios
+   and found one P1 and two P2 bugs. The Codex general review found two P0, two P1 and six
+   P2. Each group of fixes then had its own Codex rounds, and a final Codex round over the
+   whole wallet diff found no P0 or P1.
+3. **Fix the open foundation items.** Done, each decision recorded in its item of
+   [v1/open-designs.md](../v1/open-designs.md):
+   - **Item 21.** Admission reads a spendable balance: the general balance minus the
+     remaining value of expired credits, in one statement. Settlement judges expiry on one
+     database clock read after its lock.
+   - **Item 22, option 2.** A per-organization advisory lock serializes each plan change
+     from reading the plan through the wallet adjustment. Direct routes key on a fresh id.
+     The clawback targets the newest allowance not already clawed back. Proration starts at
+     the Stripe event time and uses the subscription's real billing period.
+   - **Item 20.** Unacceptable stream entries, and any entry past 20 deliveries, go to a
+     dead-letter stream with list and replay commands. The streams are no longer trimmed;
+     publishers refuse past a 100,000-entry backlog. This changes the original rule that a
+     readable debit is retried forever.
+   - **Item 15.** The one-off signup-grant backfill job exists, with the procedure below. It
+     has not run anywhere shared.
+   - **The runtime factory.** `runtime.py` is deleted. `ee/src/main.py` builds the wallets
+     service and injects it. The Redis publishers moved out of core.
+   - **Item 14 addendum.** Organizations created by the admin route have no balance row.
+     Lazy provisioning covers them, and a test pins it.
+4. **Run the manual acceptance procedure.** Done at `144c0dec91` and again at `0693b307c1`.
+   Details are under task 1.2 of
+   [document-wallet-foundation](openspec/changes/document-wallet-foundation/tasks.md). The procedure in
+   [v1/nodes/im-1-02-pipeline/acceptance.md](../v1/nodes/im-1-02-pipeline/acceptance.md) is
+   corrected for what that run found: the Alembic version table name, the `redis-durable`
+   service on port 6381, the moved publisher imports, the admin-route row, the
+   `signup_grant` credit kind, and section 8's dead letters.
+
+### Left
+
+1. **Exercise a plan change on a deployment.** Run 2 could not: its organizations have no
+   Stripe subscription, so the switch route refuses them. Use a stack wired to Stripe test
+   mode, complete a checkout, switch plans, and check the clawback and the prorated
+   allowance against the real-Postgres plan-change tests.
+2. **Get the CLA check on #6050 signed off.** It went pending when `main` was merged in. It
+   needs a person with CLA access; it does not block the code.
+3. **Update the PR descriptions of #6050 and #7153** so they state what is verified, what is
+   deferred, and that merge leaves the flag off.
+4. **Decide the design suggestions** in [spec-divergences.md](spec-divergences.md), rows 15
+   to 22. They change design text only.
+5. **Before the flag is turned on for paying customers**, build open-designs item 22,
+   option 3: a durable record and re-drive for a wallet adjustment that fails after the
+   subscription change committed. Today it is logged and not retried. **This blocks
+   enabling for paying customers.** It belongs with the recurring allowance (item 3) if that
+   comes first.
+6. **Known limits from the plan-change work, recorded in item 22:**
+   - A delayed `customer.subscription.deleted` for an old subscription can cancel its
+     replacement, because the webhook does not compare subscription ids. This is
+     pre-existing billing behaviour.
+   - The reverse trial gets no allowance, because it writes the trial plan directly and its
+     creation webhook sees no change.
+   - No recurring period-start allowance exists. Only a plan change mints one.
+7. **Accepted P2 findings to revisit** ([review-findings.md](review-findings.md)):
+   - The measurement worker trusts a producer-supplied `organization_id` (LY-2). The Wave 2
+     producer must set it from the authenticated scope.
+   - Plan-change lock waiters each hold a database connection (LY-3). Revisit if plan changes
+     are ever automated in bulk.
+   - A retry after a pricing change re-prices a measurement (CG-6). Wave 2 persists the
+     pricing decision.
 
 ## Done means
 
 - `feat/add-wallets` is up to date with `main`, and CI is green on the new head.
 - Unit and integration suites pass with zero skipped infrastructure tests, at a recorded commit.
-- Every review finding has a disposition in the PR.
+- Every review finding has a disposition in the PR and in [review-findings.md](review-findings.md).
 - Items 20, 21, 22 and 15 are fixed or deferred with a written reason.
 - Acceptance sections 0 to 8 have been run with recorded evidence.
 - The foundation spec's tasks are checked only where evidence exists.
@@ -177,3 +217,5 @@ this foundation work.
 - [decision-register.md](decision-register.md): all 22 original design items and their status.
 - [next-steps.md](next-steps.md): the recommended order across all seven changes.
 - [validation.md](validation.md): what the OpenSpec check does and does not prove.
+- [spec-divergences.md](spec-divergences.md): where the code and the original design disagree, and which side should move.
+- [review-findings.md](review-findings.md): every review finding and its disposition, with test evidence.

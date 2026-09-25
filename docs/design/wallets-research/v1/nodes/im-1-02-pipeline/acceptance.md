@@ -22,7 +22,8 @@ one-line patch. See step 2 and step 8 below for where this surfaces during accep
 
 > **CLOSED (remedy a, plus a backfill for pre-existing organizations).**
 > `ee.src.core.organizations.service.provision_signup_subscription` / `provision_user_subscription`
-> now call `WalletsService.provision_general_balance` (via `ee.src.core.wallets.runtime.get_wallets_service`)
+> now call `WalletsService.provision_general_balance` (through the service that `ee/src/main.py` registers;
+> `ee.src.core.wallets.runtime` was deleted during the 2026-09-25 takeover)
 > after subscription provisioning, in its own transaction, idempotently guarded by the partial
 > unique index `uq_wallet_balances_org_general`. Migration `ee0000000005_backfill_wallet_general_balances.py`
 > backfills the row for every organization that predates this change. Manual step 2 below is
@@ -101,17 +102,18 @@ The `alembic` compose service runs `python -m ee.databases.postgres.migrations.r
 every start, which in order applies: `core` -> `core_oss` -> `core_ee` -> `tracing` ->
 `tracing_oss` -> `tracing_ee`. There is no manual alembic invocation.
 
-**Applied revisions to verify (both chains must reach these heads):**
+**Applied revisions to verify (both chains must reach these heads).** Both databases keep
+the EE chain's version in a table named `alembic_version_ee`:
 
 ```bash
 docker compose -p agenta-ee-dev-wallets-im-1-02 exec postgres \
   psql -U username -d agenta_ee_core -c \
-  "select version_num from alembic_version_core_ee;"
+  "select version_num from alembic_version_ee;"
 # expect: ee0000000005  (add_wallet_tables -> backfill_wallet_general_balances; WP-1-04)
 
 docker compose -p agenta-ee-dev-wallets-im-1-02 exec postgres \
   psql -U username -d agenta_ee_tracing -c \
-  "select version_num from alembic_version_tracing_ee;"
+  "select version_num from alembic_version_ee;"
 # expect: ee0000000002  (add_measurements)
 ```
 
@@ -123,8 +125,8 @@ alembic`, do not skip ahead.
 ## 1. Confirm both new workers are running
 
 The default `AGENTA_WORKER_STREAMS=""` in `docker-compose.dev.yml` selects
-`ALL_STREAMS`, which is `("records", "events", "spans", "measurements", "debits")` in the
-EE edition — both new workers already run inside the single `worker-streams` container. To
+`ALL_STREAMS`, which is `("records", "events", "spans", "sessions", "measurements", "debits")`
+in the EE edition with `AGENTA_WALLETS_ENABLED=true`. Both new workers already run inside the single `worker-streams` container. To
 isolate just the two wallet streams (e.g. to watch their logs without records/events/spans
 noise), override:
 
@@ -140,7 +142,7 @@ docker compose -p agenta-ee-dev-wallets-im-1-02 logs worker-streams | grep -E "S
 ```
 
 Expect one `[STREAMS] Starting worker-streams selected=[...]` log line listing
-`measurements` and `debits` (or all five, if left unset), and no traceback.
+`measurements` and `debits` (or all six, if left unset), and no traceback.
 
 **Failure meaning:** if `measurements`/`debits` are missing from `selected=`, the env var
 is wrong or the container is not on the EE image (`is_ee()` false). If the container
@@ -153,10 +155,18 @@ likely cause and would itself be a P0 finding.
 `provision_user_subscription` in `ee/src/core/organizations/service.py`) now provisions the
 general `wallet_balances` row itself, and migration `ee0000000005_backfill_wallet_general_balances.py`
 backfills it for organizations created before this revision. On a deployment built from this
-revision forward, every organization created via the admin endpoint already has its general row —
-this step's manual SQL is unnecessary; skip straight to step 3. The rest of this section is kept
-for a deployment built from an older revision (before WP-1-04), where the gap still applies as
-originally documented:
+revision forward, organizations created by signup already have their general row.
+
+**Correction (2026-09-25 acceptance run).** An organization created through the admin endpoint
+(`POST /admin/simple/accounts/`) does NOT get the row: that route never calls the provisioning
+hook. Its debits still settle, because every wallet write and `check()` create a missing row
+lazily (open-designs item 14). But the lazy row has a floor of 0, so with no credits the
+organization is refused at admission. For this procedure, still run the SQL below: it sets the
+deep floor that lets steps 3 to 8 settle into deficit. If the row already exists, update its
+`floor_musd` instead.
+
+The rest of this section is kept for a deployment built from an older revision (before
+WP-1-04), where the gap still applies as originally documented:
 
 **Known gap (pre-WP-1-04 deployments only):** nothing in that revision inserts a `wallet_balances`
 general row (`wallet_credit_id IS NULL`) for an organization. `WalletGeneralBalanceNotFoundError`
@@ -215,7 +225,8 @@ awards the grant), then:
 -- agenta_ee_core
 select credit_kind, amount_musd, priority, start_time, end_time, data
 from wallet_credits
-where organization_id = '<organization_id>' and credit_kind = 'award';
+where organization_id = '<organization_id>' and credit_kind = 'signup_grant';
+-- (corrected 2026-09-25: the code writes credit_kind 'signup_grant', not 'award')
 -- expect exactly 1 row: amount_musd = 1000000, priority = 20,
 -- end_time = start_time + 365 days, data->references->>'award_idempotency_key'
 -- = 'award:signup:organization:<organization_id>'
@@ -225,11 +236,17 @@ where organization_id = '<organization_id>' and wallet_credit_id is null;
 -- expect balance_musd includes the $1 grant (1000000 musd), on top of any plan_allowance
 ```
 
-**Failure meaning:** no `award`-kind credit row means `_award_signup_grant` either was
+**Failure meaning:** no `signup_grant` credit row means `_award_signup_grant` either was
 not called (check `provision_signup_subscription` wiring) or failed silently — it should
 not fail silently; check `worker`/API logs for `[wallets] Failed to award signup grant`.
-A second `award`-kind row for the same organization means the idempotency guard
-(`award_credit`'s `data.references.award_idempotency_key` lookup) is broken — a P0.
+A second `signup_grant` row for the same organization means the idempotency guard
+(`award_credit`'s `data.references.award_idempotency_key` lookup, backed by the unique
+index `uq_wallet_credits_org_award_key`) is broken. That is a P0.
+
+An organization created through the admin route gets no grant at signup. The one-off
+backfill job awards it (`python -m entrypoints.backfill_wallet_signup_grants`, dry run by
+default, `--apply` to write); a second dry run must report `eligible=0`. See
+`docs/design/wallets-research/v2/HANDOFF.md`, "Before turning the flag on".
 
 ## 3. Trigger the fake LLM path
 
@@ -242,13 +259,16 @@ the running Redis with a one-off script inside the `api` container:
 docker compose -p agenta-ee-dev-wallets-im-1-02 exec -T api python <<'PY'
 import asyncio
 from uuid import UUID
-from ee.src.core.wallets.streaming import RedisMeasurementPublisher
+from oss.src.dbs.redis.shared.engine import get_streams_engine
+from ee.src.dbs.redis.wallets.streams import RedisMeasurementPublisher
 from ee.tests.pytest.acceptance.wallets.fakes.llm import run_fake_llm_request
 
 async def main():
     result = await run_fake_llm_request(
         project_id=UUID("<project_id>"),
-        publisher=RedisMeasurementPublisher(),
+        publisher=RedisMeasurementPublisher(
+            redis_client=get_streams_engine().get_redis()
+        ),
     )
     print("published:", result.published)
     print("measurement_id:", result.measurement_command.measurement_id)
@@ -274,13 +294,16 @@ Same shape, swap the fake:
 docker compose -p agenta-ee-dev-wallets-im-1-02 exec -T api python <<'PY'
 import asyncio
 from uuid import UUID
-from ee.src.core.wallets.streaming import RedisMeasurementPublisher
+from oss.src.dbs.redis.shared.engine import get_streams_engine
+from ee.src.dbs.redis.wallets.streams import RedisMeasurementPublisher
 from ee.tests.pytest.acceptance.wallets.fakes.mcp import run_fake_mcp_request
 
 async def main():
     result = await run_fake_mcp_request(
         project_id=UUID("<project_id>"),
-        publisher=RedisMeasurementPublisher(),
+        publisher=RedisMeasurementPublisher(
+            redis_client=get_streams_engine().get_redis()
+        ),
     )
     print("published:", result.published)
     print("measurement_id:", result.measurement_command.measurement_id)
@@ -324,7 +347,8 @@ Expected MCP amount: `50` musd (flat `FIXTURE_MCP_RATE_MUSD_PER_REQUEST`).
 **Failure meaning:**
 - No measurement row: the measurement worker did not consume/insert — check `docker
   compose logs worker-streams` for `[MEASUREMENTS]` tracebacks, and confirm the stream
-  actually received the entry (`XLEN streams:measurements` in `redis-cli`).
+  actually received the entry (`XLEN streams:measurements` in `redis-cli -p 6381` on the
+  `redis-durable` service).
 - Measurement row exists but no debit and no `measurement_values`-empty: check
   `calculate_fake_charge` was reached and `endpoint_kind == "managed"` (it is, in both
   fakes) — if amount is `None`, no debit is correct, not a bug.
@@ -349,7 +373,7 @@ sharper and more direct proof is to replay the DEBIT message itself, which is wh
 `WalletSettlementPort.settle` guarantees is safe:
 
 ```bash
-docker compose -p agenta-ee-dev-wallets-im-1-02 exec -T redis redis-cli \
+docker compose -p agenta-ee-dev-wallets-im-1-02 exec -T redis-durable redis-cli -p 6381 \
   XRANGE streams:debits - + COUNT 5
 # Copy the `data` field bytes of the entry for your idempotency_key (or, simpler: use
 # XADD to publish a byte-identical DebitCommandV1 envelope — same idempotency_key,
@@ -363,7 +387,8 @@ import asyncio
 from datetime import datetime, timezone
 from uuid import UUID
 from ee.src.core.wallets.contracts import DebitCommandV1, DebitKind
-from ee.src.core.wallets.streaming import RedisDebitPublisher
+from oss.src.dbs.redis.shared.engine import get_streams_engine
+from ee.src.dbs.redis.wallets.streams import RedisDebitPublisher
 
 async def main():
     command = DebitCommandV1(
@@ -376,7 +401,8 @@ async def main():
         resource_locator={},
         created_at=datetime.now(timezone.utc),
     )
-    print("published:", await RedisDebitPublisher().publish(command))
+    publisher = RedisDebitPublisher(redis_client=get_streams_engine().get_redis())
+    print("published:", await publisher.publish(command))
 
 asyncio.run(main())
 PY
@@ -403,7 +429,7 @@ is the core exactly-once guarantee from `wave-1.md`'s replay invariant; a P0.
 docker compose -p agenta-ee-dev-wallets-im-1-02 restart worker-streams
 docker compose -p agenta-ee-dev-wallets-im-1-02 logs worker-streams | grep -c BUSYGROUP
 # any count is fine — BUSYGROUP is caught and swallowed by StreamConsumer.create_consumer_group
-docker compose -p agenta-ee-dev-wallets-im-1-02 exec redis redis-cli \
+docker compose -p agenta-ee-dev-wallets-im-1-02 exec redis-durable redis-cli -p 6381 \
   XINFO GROUPS streams:debits
 ```
 
@@ -415,44 +441,50 @@ anything that was already ACKed and deleted.
 means old, already-ACKed entries got reprocessed, which should be structurally impossible
 since `ack_and_delete` both ACKs and `XDEL`s (a re-read of a deleted entry cannot happen).
 
-## 8. Feed a poisoned message; confirm it terminally ACKs instead of wedging
+## 8. Feed a poisoned message; confirm it goes to the dead letters instead of wedging
+
+**Changed 2026-09-25 (open-designs item 20).** This step originally expected the worker to
+log the bad entry and ACK it away. The worker now moves it to a dead-letter stream,
+`streams:debits:dead`, before it acknowledges and deletes it, so the entry can be inspected
+and replayed. The Redis that holds the wallet streams is the `redis-durable` service, which
+listens on port 6381 and publishes no host port.
 
 ```bash
-docker compose -p agenta-ee-dev-wallets-im-1-02 exec redis redis-cli \
+docker compose -p agenta-ee-dev-wallets-im-1-02 exec redis-durable redis-cli -p 6381 \
   XADD streams:debits '*' data "not-a-valid-compressed-envelope"
 ```
 
 ```bash
 sleep 2
-docker compose -p agenta-ee-dev-wallets-im-1-02 exec redis redis-cli \
+docker compose -p agenta-ee-dev-wallets-im-1-02 exec redis-durable redis-cli -p 6381 \
   XLEN streams:debits
-docker compose -p agenta-ee-dev-wallets-im-1-02 exec redis redis-cli \
+docker compose -p agenta-ee-dev-wallets-im-1-02 exec redis-durable redis-cli -p 6381 \
   XPENDING streams:debits worker-debits
+docker compose -p agenta-ee-dev-wallets-im-1-02 exec -T api \
+  python -m oss.src.tasks.asyncio.shared.dead_letters list streams:debits
 ```
 
-**Expected:** `XLEN` does not grow unboundedly and `XPENDING` shows 0 pending for this
-entry — `DebitWorker.process_batch` catches the `MalformedEnvelopeError` from
-`deserialize_debit_command`, logs `[WALLETS] Terminal envelope error, ACKing without
-retry`, and includes the message id in `processed_ids`, so `ack_and_delete` removes it.
+**Expected:** `XLEN streams:debits` does not grow, `XPENDING` shows nothing pending for this
+entry, and the dead-letter listing shows one entry with a reason that starts
+`terminal: Could not decompress/parse envelope`. The worker logs
+`[WALLETS] Dead-lettered messages stream=streams:debits dead_letter_stream=streams:debits:dead`.
 
-**Failure meaning:** if the entry stays pending (`XPENDING` count grows and never clears),
-malformed-envelope handling regressed from terminal to retryable — this wedges the
-consumer group behind it and is a P0.
+To put a dead letter back on the source stream after fixing its cause:
+`python -m oss.src.tasks.asyncio.shared.dead_letters replay streams:debits [ID ...]`. Replay
+is safe to run on everything, because settlement is idempotent on the posting key. An entry
+that is still unacceptable returns to the dead letters.
 
-**CLOSED as of WP-1-04 (remedy a):** a debit for an organization with no general balance
-row raises `WalletGeneralBalanceNotFoundError`, which is NOT a `WalletTerminalError` and
-is still caught by `DebitWorker`'s broad `except Exception` in the settle stage — that
-part of the mechanism is unchanged. What closed the gap is upstream of it: organization
-creation now provisions the general balance row itself
-(`ee.src.core.organizations.service._provision_wallet_general_balance`, called from
-`provision_signup_subscription`/`provision_user_subscription`), and migration
-`ee0000000005_backfill_wallet_general_balances.py` backfills it for organizations that
-predate this change — so on a deployment built from this revision forward, an
-organization used in this procedure already has its row, and this failure mode should not
-occur in practice. It remains possible in principle (a provisioning call that failed and
-was never retried, or an organization created through a path this wave did not find) —
-remedy (b), reclassifying `WalletGeneralBalanceNotFoundError` as terminal/alerted, was not
-taken and remains open for a future wave if that residual risk needs closing too.
+**Failure meaning:** if the entry stays pending and never reaches `streams:debits:dead`,
+malformed-envelope handling regressed from terminal to retryable, and the entry would sit in
+the pending list until `max_deliveries` (20). That is a P0. If the entry leaves the source
+stream but no dead letter exists, the charge was lost, which is also a P0.
+
+**Missing general balance row (updated 2026-09-25).** The original note here said that a
+debit for an organization with no general balance row raises
+`WalletGeneralBalanceNotFoundError` and is retried. Today every wallet write path provisions
+a missing row lazily (open-designs item 14), including settlement, so such a debit settles.
+The error now means the row is neither present nor insertable. It is terminal, and the entry
+goes to the dead letters.
 
 ## 9. Pytest commands for the integration suites, and the results of the first run
 
