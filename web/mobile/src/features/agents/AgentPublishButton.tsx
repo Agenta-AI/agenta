@@ -2,7 +2,6 @@ import {useCallback, useMemo} from "react"
 
 import {agentWorkflowsListQueryStateAtom} from "@agenta/entities/workflow"
 import {AgentPublish, agentHostFromApiUrl, type ChannelsPanelRenderProps} from "@agenta/settings-ui"
-import {channelsEnabledAtom} from "@agenta/shared/state"
 import {useAtomValue} from "jotai"
 
 import {getApiUrl} from "@/lib/env"
@@ -23,8 +22,6 @@ export const AgentPublishButton = ({
     workspaceId: string
     projectId: string
 }) => {
-    const channelsEnabled = useAtomValue(channelsEnabledAtom)
-
     // The roster names the agent a connection answers as, and seeds a new Slack app's text.
     const agentsQuery = useAtomValue(agentWorkflowsListQueryStateAtom)
     const agent = useMemo(
@@ -41,7 +38,6 @@ export const AgentPublishButton = ({
 
     const {connections, loading, loadError, actions} = useAgentChannels(agentId, {
         resolveAgentName,
-        enabled: channelsEnabled,
     })
 
     return (
@@ -52,7 +48,6 @@ export const AgentPublishButton = ({
             projectId={projectId}
             workspaceId={workspaceId}
             host={agentHostFromApiUrl(getApiUrl())}
-            channelsEnabled={channelsEnabled}
             connections={connections}
             loading={loading}
             loadError={loadError}

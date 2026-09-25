@@ -11,8 +11,6 @@ export interface BuildPublishItemsOptions {
      * API live: it can always be called once the agent has a saved revision.
      */
     agentId?: string
-    /** The Channels UI preference. Off hides Slack and Telegram; API stays. */
-    channelsEnabled: boolean
     /**
      * Whether the API counts as live. Defaults to whether the agent has been saved (has an
      * `agentId`); pass explicitly to override, e.g. for a draft agent that has no id yet.
@@ -26,23 +24,18 @@ export interface BuildPublishItemsOptions {
 export const buildPublishItems = ({
     connections,
     agentId,
-    channelsEnabled,
     apiLive,
     channelsUnavailable = false,
 }: BuildPublishItemsOptions): PublishMenuItem[] => [
-    ...(channelsEnabled
-        ? ([
-              {
-                  key: "slack",
-                  live: isLiveForAgent(connections.slack, agentId),
-                  disabled: channelsUnavailable,
-              },
-              {
-                  key: "telegram",
-                  live: isLiveForAgent(connections.telegram, agentId),
-                  disabled: channelsUnavailable,
-              },
-          ] satisfies PublishMenuItem[])
-        : []),
+    {
+        key: "slack",
+        live: isLiveForAgent(connections.slack, agentId),
+        disabled: channelsUnavailable,
+    },
+    {
+        key: "telegram",
+        live: isLiveForAgent(connections.telegram, agentId),
+        disabled: channelsUnavailable,
+    },
     {key: "api", live: apiLive ?? !!agentId},
 ]

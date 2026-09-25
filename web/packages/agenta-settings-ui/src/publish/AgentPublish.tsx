@@ -16,8 +16,6 @@ export interface AgentPublishProps {
     workspaceId?: string | null
     /** The Agenta origin, without `/api`, that the API snippets call. */
     host: string
-    /** The Channels UI preference. Off hides Slack and Telegram; API stays. */
-    channelsEnabled: boolean
     /** The project's channel connections and the real actions on them, loaded by the host. */
     connections: ChannelConnections
     loading?: boolean
@@ -40,7 +38,6 @@ export const AgentPublish = ({
     projectId,
     workspaceId,
     host,
-    channelsEnabled,
     connections,
     loading = false,
     loadError = null,
@@ -63,10 +60,9 @@ export const AgentPublish = ({
             buildPublishItems({
                 connections,
                 agentId,
-                channelsEnabled,
                 channelsUnavailable: loading || !!loadError,
             }),
-        [connections, agentId, channelsEnabled, loading, loadError],
+        [connections, agentId, loading, loadError],
     )
 
     const onSelect = (target: PublishTarget) => {
@@ -77,7 +73,7 @@ export const AgentPublish = ({
     return (
         <>
             <PublishMenu items={items} onSelect={onSelect} />
-            {channelsEnabled ? channelPanel.panel : null}
+            {channelPanel.panel}
             {apiOpen
                 ? renderPanel({
                       open: true,

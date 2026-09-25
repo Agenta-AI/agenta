@@ -60,7 +60,6 @@ describe("buildPublishItems", () => {
         const items = buildPublishItems({
             connections: EMPTY_CONNECTIONS,
             agentId: AGENT,
-            channelsEnabled: true,
         })
         expect(items.map((item) => [item.key, item.live])).toEqual([
             ["slack", false],
@@ -74,7 +73,7 @@ describe("buildPublishItems", () => {
             slack: connection(),
             telegram: connection({platform: "telegram"}),
         }
-        const items = buildPublishItems({connections, agentId: AGENT, channelsEnabled: true})
+        const items = buildPublishItems({connections, agentId: AGENT})
         expect(items.filter((item) => item.live).map((item) => item.key)).toEqual([
             "slack",
             "telegram",
@@ -86,7 +85,6 @@ describe("buildPublishItems", () => {
         const [, , api] = buildPublishItems({
             connections: EMPTY_CONNECTIONS,
             agentId: undefined,
-            channelsEnabled: true,
         })
         expect(api).toMatchObject({key: "api", live: false})
     })
@@ -95,7 +93,6 @@ describe("buildPublishItems", () => {
         const [, , api] = buildPublishItems({
             connections: EMPTY_CONNECTIONS,
             agentId: AGENT,
-            channelsEnabled: true,
             apiLive: false,
         })
         expect(api).toMatchObject({key: "api", live: false})
@@ -112,26 +109,15 @@ describe("buildPublishItems", () => {
             const [item] = buildPublishItems({
                 connections: {slack, telegram: null},
                 agentId: AGENT,
-                channelsEnabled: true,
             })
             expect(item).toMatchObject({key: "slack", live: false})
         }
-    })
-
-    it("hides Slack and Telegram when Channels is off, and keeps API", () => {
-        const items = buildPublishItems({
-            connections: {slack: connection(), telegram: null},
-            agentId: AGENT,
-            channelsEnabled: false,
-        })
-        expect(items.map((item) => item.key)).toEqual(["api"])
     })
 
     it("disables the channel items while their connections are unavailable", () => {
         const items = buildPublishItems({
             connections: EMPTY_CONNECTIONS,
             agentId: AGENT,
-            channelsEnabled: true,
             channelsUnavailable: true,
         })
         expect(items.map((item) => [item.key, !!item.disabled])).toEqual([

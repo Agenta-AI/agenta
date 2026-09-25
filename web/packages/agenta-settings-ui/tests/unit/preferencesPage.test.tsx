@@ -81,7 +81,7 @@ describe("PreferencesPage", () => {
         expect(structure()).toEqual([
             {
                 title: "Feature Flags",
-                rows: ["Developer Mode", "Channels", "Agent apps", "In-process agent runtime"],
+                rows: ["Developer Mode", "Agent apps", "In-process agent runtime"],
             },
             {
                 title: "Debugging",
@@ -109,7 +109,6 @@ describe("PreferencesPage", () => {
                 "agenta:settings:u1:agent-apps",
                 "agenta:settings:u1:agenta-channel-surface",
                 "agenta:settings:u1:channel-debug",
-                "agenta:settings:u1:channels",
                 "agenta:settings:u1:inprocess-sandbox",
                 "agenta:settings:u1:playground-inspector",
             ].sort(),
@@ -117,9 +116,9 @@ describe("PreferencesPage", () => {
     })
 
     it("drops unbound rows and sections left empty", () => {
-        const bindings: PreferenceBindings = {channels: {enabled: false, onChange: () => {}}}
+        const bindings: PreferenceBindings = {"agent-apps": {enabled: false, onChange: () => {}}}
         act(() => root.render(<PreferencesPage theme={theme} bindings={bindings} />))
-        expect(structure()).toEqual([{title: "Feature Flags", rows: ["Channels"]}])
+        expect(structure()).toEqual([{title: "Feature Flags", rows: ["Agent apps"]}])
     })
 
     it("gives every row a one-line description", () => {

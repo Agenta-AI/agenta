@@ -71,13 +71,6 @@ export const playgroundInspectorEnabledAtom = userScopedFlagAtom("playground-ins
 /** Temporary channel probe page, kept separate from the permanent Channels settings tab. */
 export const agentaChannelSurfaceEnabledAtom = userScopedFlagAtom("agenta-channel-surface")
 
-/**
- * Show Channels controls; existing connections keep running when hidden. Off until a user
- * turns it on in Preferences. Only an explicit toggle is stored, so a user who never touched
- * it follows whatever this default says.
- */
-export const channelsEnabledAtom = userScopedFlagAtom("channels")
-
 /** Debug switch for the log and diagnostic sections of the Channels settings tab. */
 export const channelDebugEnabledAtom = userScopedFlagAtom("channel-debug")
 

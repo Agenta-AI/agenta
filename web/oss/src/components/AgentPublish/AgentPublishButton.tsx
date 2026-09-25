@@ -2,7 +2,6 @@ import {useMemo} from "react"
 
 import {AgentPublish, agentHostFromApiUrl} from "@agenta/settings-ui"
 import {getAgentaApiUrl} from "@agenta/shared/api"
-import {channelsEnabledAtom} from "@agenta/shared/state"
 import {useAtomValue} from "jotai"
 
 import {
@@ -24,13 +23,10 @@ const AgentPublishButton = ({
     agentName?: string
     agentDescription?: string | null
 }) => {
-    const channelsEnabled = useAtomValue(channelsEnabledAtom)
     const projectId = useAtomValue(projectIdAtom) ?? ""
     const project = useAtomValue(projectAtom)
     const host = useMemo(() => agentHostFromApiUrl(getAgentaApiUrl()), [])
-    const {connections, loading, loadError, actions} = useAgentChannels(agentId, {
-        enabled: channelsEnabled,
-    })
+    const {connections, loading, loadError, actions} = useAgentChannels(agentId)
 
     return (
         <AgentPublish
@@ -40,7 +36,6 @@ const AgentPublishButton = ({
             projectId={projectId}
             workspaceId={project?.workspace_id || project?.organization_id || null}
             host={host}
-            channelsEnabled={channelsEnabled}
             connections={connections}
             loading={loading}
             loadError={loadError}
