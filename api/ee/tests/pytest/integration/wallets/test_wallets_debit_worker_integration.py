@@ -165,17 +165,25 @@ async def test_first_debit_for_an_organization_with_no_wallet_row_settles(
     """An organization created by a path that never provisions its wallet (the admin
     account route calls `start_plan` directly) gets its general balance row from `check`
     and from `settle`, so its debits are booked, not dead-lettered."""
-    organization_id = uuid4()
     settlement_port = WalletsService(
         wallets_dao=WalletsDAO(engine=get_transactions_engine())
     )
 
-    # No credits and a hard-stop floor of 0: refused, but the row now exists.
-    assert await settlement_port.check(organization_id=organization_id) is False
-    general = await WalletsDAO().get_general_balance(organization_id=organization_id)
+    # Admission: no credits and a hard-stop floor of 0, so refused, but the row now exists.
+    admitted_organization_id = uuid4()
+    assert (
+        await settlement_port.check(organization_id=admitted_organization_id) is False
+    )
+    general = await WalletsDAO().get_general_balance(
+        organization_id=admitted_organization_id
+    )
     assert general is not None and general.balance_musd == 0
 
-    # A debit already in flight is still booked, as deficit.
+    # Settlement, for an organization that still has no row: booked, as deficit.
+    organization_id = uuid4()
+    assert (
+        await WalletsDAO().get_general_balance(organization_id=organization_id) is None
+    )
 
     group = await _make_group(redis_client, stream=STREAM_DEBITS)
     worker = DebitWorker(
