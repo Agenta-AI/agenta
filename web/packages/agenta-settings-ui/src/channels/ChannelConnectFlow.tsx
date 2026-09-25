@@ -174,7 +174,7 @@ export const ChannelConnectFlow = ({
     // failed is at its bottom: bring the error into view, or it goes unseen.
     const errorRef = useRef<HTMLDivElement>(null)
     useEffect(() => {
-        if (error) errorRef.current?.scrollIntoView({block: "nearest", behavior: "smooth"})
+        if (error) errorRef.current?.scrollIntoView?.({block: "nearest", behavior: "smooth"})
     }, [error])
     const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
     const feedbackTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
@@ -204,6 +204,8 @@ export const ChannelConnectFlow = ({
     // in-flight guard is a ref, not state: a state dependency would re-run this effect and
     // cancel the request it had just started.
     const setupRequested = useRef(false)
+    // Bumped by "Try again": WhatsApp has no mode switch to re-run the load.
+    const [setupAttempt, setSetupAttempt] = useState(0)
     useEffect(() => {
         if (mode !== "custom" || setupRequested.current) return
         setupRequested.current = true
@@ -227,7 +229,7 @@ export const ChannelConnectFlow = ({
             // The response is discarded, so the next visit must load again.
             setupRequested.current = false
         }
-    }, [mode, actions, platform, name])
+    }, [mode, actions, platform, name, setupAttempt])
 
     // --- hosted Telegram: mint, then wait for the /start ---------------------- //
     const mintingTelegramLink = useRef(false)
@@ -414,8 +416,9 @@ export const ChannelConnectFlow = ({
         try {
             const created = await actions.connectCustom(platform, values)
             if (!alive.current) return
-            if (isWhatsApp && created?.webhookUrl) setWhatsAppConnection(created)
-            else await onConnected()
+            if (isWhatsApp && created?.webhookUrl && created.webhookVerifyToken) {
+                setWhatsAppConnection(created)
+            } else await onConnected()
         } catch (e) {
             if (!alive.current) return
             setError(errorMessage(e, `${name} rejected the credentials.`))
@@ -1107,6 +1110,20 @@ export const ChannelConnectFlow = ({
                         body="We check them with Meta before saving. Secrets stay masked after you save."
                     >
                         {fieldsForm}
+                        {!setup && !setupLoading ? (
+                            <div>
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => {
+                                        setError(null)
+                                        setSetupAttempt((n) => n + 1)
+                                    }}
+                                >
+                                    Try again
+                                </Button>
+                            </div>
+                        ) : null}
                     </StepRow>
                     <p className="m-0 text-xs leading-relaxed text-colorTextSecondary">
                         Meta bills your business directly for WhatsApp messages.{" "}

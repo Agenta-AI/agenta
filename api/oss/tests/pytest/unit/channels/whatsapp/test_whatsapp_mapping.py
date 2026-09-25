@@ -161,6 +161,24 @@ def test_reactions_and_group_messages_are_dropped():
     assert mapping.parse_events(body=raw, phone_number_id=p.PHONE_NUMBER_ID) == []
 
 
+@pytest.mark.parametrize(
+    "raw",
+    [
+        b"not json",
+        b'{"entry": 5}',
+        b'{"entry": [{"changes": 5}]}',
+        b'{"entry": [{"changes": [{"field": "messages", "value": {"metadata": "x"}}]}]}',
+        b'{"entry": [{"changes": [{"field": "messages", "value": {"messages": 7}}]}]}',
+    ],
+)
+def test_malformed_bodies_name_no_number_and_raise_nothing(raw):
+    """Read before the signature check, so any caller controls it."""
+
+    assert mapping.phone_number_ids(raw) == []
+    assert mapping.parse_events(body=raw, phone_number_id=p.PHONE_NUMBER_ID) == []
+    assert mapping.failed_statuses(raw) == []
+
+
 def test_garbage_bodies_parse_to_nothing():
     assert mapping.phone_number_ids(b"not json") == []
     assert mapping.parse_events(body=b"[]", phone_number_id=p.PHONE_NUMBER_ID) == []

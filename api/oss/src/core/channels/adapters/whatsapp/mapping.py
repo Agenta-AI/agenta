@@ -56,15 +56,22 @@ def parse_body(body: bytes) -> dict[str, Any]:
     return payload if isinstance(payload, dict) else {}
 
 
+def _list(value: Any) -> list[Any]:
+    """The body is read before its signature is checked, so any caller shapes
+    it: anything but a list counts as empty."""
+
+    return value if isinstance(value, list) else []
+
+
 def _changes(payload: dict[str, Any]) -> list[dict[str, Any]]:
     """Every `value` in the body. One POST can batch several entries, each
     with several changes, and each change names its own phone number."""
 
     values: list[dict[str, Any]] = []
-    for entry in payload.get("entry") or []:
+    for entry in _list(payload.get("entry")):
         if not isinstance(entry, dict):
             continue
-        for change in entry.get("changes") or []:
+        for change in _list(entry.get("changes")):
             if not isinstance(change, dict) or change.get("field") != "messages":
                 continue
             value = change.get("value")
@@ -74,8 +81,8 @@ def _changes(payload: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 def _phone_number_id(value: dict[str, Any]) -> str | None:
-    metadata = value.get("metadata") or {}
-    pid = metadata.get("phone_number_id")
+    metadata = value.get("metadata")
+    pid = metadata.get("phone_number_id") if isinstance(metadata, dict) else None
     return str(pid) if pid else None
 
 
@@ -100,10 +107,10 @@ def parse_events(*, body: bytes, phone_number_id: str) -> list[ChannelInboundEve
             continue
         names = {
             str(contact.get("wa_id")): (contact.get("profile") or {}).get("name")
-            for contact in value.get("contacts") or []
+            for contact in _list(value.get("contacts"))
             if isinstance(contact, dict)
         }
-        for message in value.get("messages") or []:
+        for message in _list(value.get("messages")):
             if isinstance(message, dict):
                 event = _parse_message(message, names=names)
                 if event is not None:
@@ -117,7 +124,7 @@ def failed_statuses(body: bytes) -> list[dict[str, Any]]:
 
     failed: list[dict[str, Any]] = []
     for value in _changes(parse_body(body)):
-        for status in value.get("statuses") or []:
+        for status in _list(value.get("statuses")):
             if isinstance(status, dict) and status.get("status") == "failed":
                 errors = status.get("errors") or [{}]
                 failed.append(

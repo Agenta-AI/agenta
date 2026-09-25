@@ -187,6 +187,33 @@ describe("WhatsApp connect flow", () => {
         expect(onConnected).toHaveBeenCalledTimes(1)
     })
 
+    it("offers a retry when the setup does not load", async () => {
+        const loadSetup = vi
+            .fn()
+            .mockRejectedValueOnce(new Error("network down"))
+            .mockResolvedValue({manifest: null, fields: FIELDS, hostedAvailable: false})
+        await renderFlow({loadSetup})
+        expect(byTestId("channels-field-phone_number_id")).toBeNull()
+
+        await click("Try again")
+
+        expect(loadSetup).toHaveBeenCalledTimes(2)
+        expect(byTestId("channels-field-phone_number_id")).toBeTruthy()
+    })
+
+    it("finishes at once when the new connection lacks a webhook value", async () => {
+        const {onConnected} = await renderFlow({
+            connectCustom: vi.fn().mockResolvedValue({...CONNECTED, webhookVerifyToken: null}),
+        })
+        await type("channels-field-phone_number_id", "1234567890")
+        await type("channels-field-access_token", "EAAG-token")
+        await type("channels-field-app_secret", "app-secret")
+        await click("Connect to WhatsApp")
+
+        expect(byTestId("channels-whatsapp-verify-token")).toBeNull()
+        expect(onConnected).toHaveBeenCalledTimes(1)
+    })
+
     it("shows why Meta refused, in view, and keeps the form", async () => {
         const scrolled = vi.fn()
         Element.prototype.scrollIntoView = scrolled
