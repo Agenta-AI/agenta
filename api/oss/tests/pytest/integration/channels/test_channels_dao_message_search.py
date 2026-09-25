@@ -11,6 +11,7 @@ from sqlalchemy.dialects import postgresql
 from oss.src.core.channels.dtos import (
     ChannelEventKind,
     ChannelEventOrigin,
+    ChannelInboxEvent,
     ChannelInboxEventCreate,
     ChannelInboxEventData,
     ChannelInboxEventProcessed,
@@ -44,7 +45,13 @@ async def _message(dao, scope, space_id, body, *, minutes=0, kind=None):
 
 
 def _texts(rows):
-    return [r.data.processed.content[0]["text"] for r in rows]
+    # a person's message is an inbox event; the bot's post is (outbox row, thread)
+    return [
+        r.data.processed.content[0]["text"]
+        if isinstance(r, ChannelInboxEvent)
+        else r[0].data.processed["content"][0]["text"]
+        for r in rows
+    ]
 
 
 async def test_search_matches_words(channels_scope):
@@ -54,7 +61,7 @@ async def test_search_matches_words(channels_scope):
     await _message(dao, channels_scope, space, "lunch at noon")
     await _message(dao, channels_scope, space, "refund", kind=ChannelEventKind.ACTION)
 
-    rows = await dao.search_space_inbox_messages(
+    rows = await dao.search_space_messages(
         project_id=channels_scope["project_id"],
         space_ids=[space],
         query="refund policy",
@@ -71,7 +78,7 @@ async def test_search_filters_by_space_and_time(channels_scope):
     await _message(dao, channels_scope, space, "deploy late", minutes=10)
     await _message(dao, channels_scope, other, "deploy elsewhere", minutes=5)
 
-    rows = await dao.search_space_inbox_messages(
+    rows = await dao.search_space_messages(
         project_id=channels_scope["project_id"],
         space_ids=[space],
         query="deploy",
@@ -90,7 +97,7 @@ async def test_offset_pages_are_stable_for_equal_rank_and_time(channels_scope):
 
     seen = []
     for offset in range(0, 5, 2):
-        seen += await dao.search_space_inbox_messages(
+        seen += await dao.search_space_messages(
             project_id=channels_scope["project_id"],
             space_ids=[space],
             query="incident",
@@ -107,7 +114,7 @@ async def test_search_is_project_scoped(channels_scope):
     space = uuid.uuid4()
     await _message(dao, channels_scope, space, "secret roadmap")
 
-    rows = await dao.search_space_inbox_messages(
+    rows = await dao.search_space_messages(
         project_id=uuid.uuid4(), space_ids=[space], query="roadmap", limit=10
     )
 
@@ -139,32 +146,45 @@ async def test_query_uses_the_expression_index(channels_scope):
     assert "ix_channel_inbox_events_search" in lines
 
 
-async def test_search_leaves_out_fetched_copies_of_the_bots_posts(channels_scope):
+async def _bot_post(dao, scope, space_id, body, ts, *, final=True):
     from oss.src.core.channels.dtos import (
         ChannelDeliveryState,
         ChannelOutboxEventCreate,
         ChannelOutboxEventData,
     )
 
-    dao = ChannelsDAO(engine=channels_scope["engine"])
-    project_id = channels_scope["project_id"]
-    space = uuid.uuid4()
     row = await dao.record_outbox_event(
-        project_id=project_id,
+        project_id=scope["project_id"],
         event=ChannelOutboxEventCreate(
-            connection_id=channels_scope["connection_id"],
-            space_id=space,
-            turn_id="toolu_x",
+            connection_id=scope["connection_id"],
+            space_id=space_id,
+            turn_id=f"toolu_{ts}",
             key=uuid.uuid4(),
             data=ChannelOutboxEventData(),
         ),
     )
     await dao.transition_outbox_event(
-        project_id=project_id,
+        project_id=scope["project_id"],
         event_id=row.id,
         state=ChannelDeliveryState.SENT,
-        data=ChannelOutboxEventData(external_locator={"channel": "C1", "ts": "77.1"}),
+        data=ChannelOutboxEventData(
+            external_locator={"channel": "C1", "ts": ts},
+            processed={
+                "content": [{"type": "text", "text": body}],
+                **({"final": True} if final else {}),
+            },
+        ),
     )
+
+
+async def test_search_finds_the_bots_posts_once(channels_scope):
+    dao = ChannelsDAO(engine=channels_scope["engine"])
+    project_id = channels_scope["project_id"]
+    space = uuid.uuid4()
+    await _bot_post(dao, channels_scope, space, "bot said launch", "77.1")
+    # a running turn's placeholder is not something the bot said
+    await _bot_post(dao, channels_scope, space, "launch thinking", "78.1", final=False)
+    # a live read stored a copy of the bot's post; the outbox row already serves it
     await dao.record_inbox_event(
         project_id=project_id,
         event=ChannelInboxEventCreate(
@@ -185,11 +205,13 @@ async def test_search_leaves_out_fetched_copies_of_the_bots_posts(channels_scope
     )
     await _message(dao, channels_scope, space, "person said launch")
 
-    rows = await dao.search_space_inbox_messages(
+    rows = await dao.search_space_messages(
         project_id=project_id, space_ids=[space], query="launch", limit=10
     )
 
-    assert _texts(rows) == ["person said launch"]
+    assert sorted(_texts(rows)) == ["bot said launch", "person said launch"]
+    post, thread = next(r for r in rows if not isinstance(r, ChannelInboxEvent))
+    assert thread == "77.1"
 
 
 async def test_search_leaves_out_answers_consumed_by_an_approval(channels_scope):
@@ -201,7 +223,7 @@ async def test_search_leaves_out_answers_consumed_by_an_approval(channels_scope)
         project_id=channels_scope["project_id"], event_id=consumed.id
     )
 
-    rows = await dao.search_space_inbox_messages(
+    rows = await dao.search_space_messages(
         project_id=channels_scope["project_id"],
         space_ids=[space],
         query="approve",

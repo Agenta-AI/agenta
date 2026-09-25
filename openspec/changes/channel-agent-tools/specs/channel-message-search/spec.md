@@ -19,7 +19,11 @@ Let a connected agent search the messages Agenta stored from its readable channe
 
 #### Scenario: Destination from another project
 - **WHEN** a search names a destination ID from another project
-- **THEN** Agenta SHALL treat it as not found and return no matches from it.
+- **THEN** Agenta SHALL refuse the search as not found, and SHALL NOT say where the destination exists.
+
+#### Scenario: A channel name instead of a destination ID
+- **WHEN** a search names a destination that is not a destination ID the agent may read, such as `#support`
+- **THEN** Agenta SHALL refuse the search as not found and SHALL tell the agent to pass destination IDs from `list_channel_destinations`, so that nothing searched never reads as no match.
 
 #### Scenario: Direct messages
 - **WHEN** a search runs
@@ -41,7 +45,7 @@ Each search result SHALL carry a `searched` list with one entry per channel it s
 - **THEN** the search SHALL cover only messages the bot received there, and its coverage SHALL say so.
 
 ### Requirement: Search results
-Each result SHALL include the message ID, the channel destination ID and name, the thread ID when there is one, the sender's display name when known, a text excerpt, and the time. Results SHALL be ordered by relevance, then provider time, then row ID. The cursor SHALL page with an offset over that order, so that while the stored messages do not change it neither skips nor repeats results with equal rank and time. A message stored between two pages MAY shift a later page. The bot's own posts SHALL NOT be searched in version one.
+Each result SHALL include the message ID, the channel destination ID and name, the thread ID when there is one, the sender's display name when known, a text excerpt, and the time. Results SHALL be ordered by relevance, then provider time, then row ID. The cursor SHALL page with an offset over that order, so that while the stored messages do not change it neither skips nor repeats results with equal rank and time. A message stored between two pages MAY shift a later page. Search SHALL include the bot's own sent posts, each once, even when a read also stored a copy of the post.
 
 #### Scenario: Equal timestamps
 - **WHEN** several matches share the same rank and timestamp and no message is stored while paging
