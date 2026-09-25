@@ -16,6 +16,11 @@ Batch Configuration:
 Redelivery (opt-in, `reclaim_pending`):
 - reclaim_min_idle_ms: 30000 - how long an unacknowledged entry sits before it is retried
 - max_deliveries: 5 - deliveries after which an entry is dropped loudly instead of retried
+
+Dead letters (opt-in, `dead_letter`):
+- an entry the subclass cannot accept, or one past `max_deliveries`, is moved to
+  `<stream>:dead` with the reason instead of being dropped; `dead_letters.py` lists
+  and replays it
 """
 
 import time
@@ -28,6 +33,20 @@ from oss.src.tasks.taskiq.shared.broker import stable_consumer_name
 from oss.src.utils.logging import get_module_logger
 
 log = get_module_logger(__name__)
+
+# Fields a dead letter carries on top of the original entry's own fields.
+DEAD_LETTER_REASON = b"dead_letter_reason"
+DEAD_LETTER_SOURCE_ID = b"dead_letter_source_id"
+DEAD_LETTER_DESCRIPTION = b"dead_letter_description"
+
+
+def dead_letter_stream_of(stream_name: str) -> str:
+    return f"{stream_name}:dead"
+
+
+def _next_stream_id(message_id: bytes) -> str:
+    milliseconds, sequence = message_id.decode().split("-")
+    return f"{milliseconds}-{int(sequence) + 1}"
 
 
 class StreamConsumer:
@@ -57,6 +76,7 @@ class StreamConsumer:
         reclaim_pending: bool = False,
         reclaim_min_idle_ms: int = 30_000,  # 30 seconds
         max_deliveries: int = 5,
+        dead_letter: bool = False,
     ):
         self.redis = redis_client
         self.stream_name = stream_name
@@ -73,9 +93,17 @@ class StreamConsumer:
         self.reclaim_pending = reclaim_pending
         self.reclaim_min_idle_ms = reclaim_min_idle_ms
         self.max_deliveries = max_deliveries
+        self.dead_letter_stream = (
+            dead_letter_stream_of(stream_name) if dead_letter else None
+        )
         #: Messages this process gave up on. Only ever grows; read by tests and logs.
         self.dropped_messages = 0
+        #: Messages this process moved to `dead_letter_stream`. Only ever grows.
+        self.dead_lettered_messages = 0
         self._last_reclaim_at = 0.0
+        # Where the next reclaim pass reads the pending list from: "-" (the oldest entry)
+        # unless the previous pass filled a page and stopped short of the end.
+        self._reclaim_cursor = "-"
 
     async def create_consumer_group(self):
         """Create consumer group if it doesn't exist. Safe to call multiple times (idempotent)."""
@@ -179,19 +207,23 @@ class StreamConsumer:
         if not self.reclaim_pending:
             return []
 
-        # One XPENDING per idle window, not one per loop turn: a busy stream spins this loop
-        # as fast as Postgres answers, and the pending list cannot change faster than the
-        # window anyway.
+        # One walk of the pending list per idle window, not one per loop turn: a busy stream
+        # spins this loop as fast as Postgres answers, and the pending list cannot change
+        # faster than the window anyway.
         now = time.monotonic()
-        if (now - self._last_reclaim_at) * 1000 < self.reclaim_min_idle_ms:
+        if (
+            self._reclaim_cursor == "-"
+            and (now - self._last_reclaim_at) * 1000 < self.reclaim_min_idle_ms
+        ):
             return []
         self._last_reclaim_at = now
+        cursor, self._reclaim_cursor = self._reclaim_cursor, "-"
 
         try:
             pending = await self.redis.xpending_range(
                 name=self.stream_name,
                 groupname=self.consumer_group,
-                min="-",
+                min=cursor,
                 max="+",
                 count=self.max_batch_size,
                 # A zero window means "no idle filter", not "idle exactly zero".
@@ -220,6 +252,12 @@ class StreamConsumer:
             log.error(f"{self.log_prefix} Failed to claim pending entries: {e}")
             return []
 
+        # A full page may have more entries behind it: the next pass reads on from here
+        # at once instead of from the head a window later, so entries that keep failing
+        # at the head of the pending list cannot hide the rest of it.
+        if len(pending) == self.max_batch_size:
+            self._reclaim_cursor = _next_stream_id(pending[-1]["message_id"])
+
         # XCLAIM returns nothing for an entry whose stream payload is already gone (MAXLEN
         # trim), and removes it from the pending list itself.
         retry: List[Tuple[bytes, Dict[bytes, bytes]]] = []
@@ -230,7 +268,9 @@ class StreamConsumer:
                 continue
             if deliveries.get(msg_id, 1) >= self.max_deliveries:
                 over_budget += 1
-                if self.is_permanent_failure(msg_id, data):
+                # A dead letter is kept, not lost, so every over-budget entry can leave
+                # the pending list; without one only a known-permanent failure may.
+                if self.dead_letter_stream or self.is_permanent_failure(msg_id, data):
                     expired.append((msg_id, data))
                     continue
             retry.append((msg_id, data))
@@ -260,8 +300,15 @@ class StreamConsumer:
 
         This is data loss. It is preferred over an unbounded retry because a single entry the
         write path can never accept would otherwise stall every later entry in the group. The
-        log line names each lost message so the loss is countable after the fact.
+        log line names each lost message so the loss is countable after the fact. With a
+        dead-letter stream the entries are moved there instead, and nothing is lost.
         """
+        if self.dead_letter_stream:
+            await self.dead_letter(
+                entries, reason=f"failed {self.max_deliveries} deliveries"
+            )
+            return
+
         self.dropped_messages += len(entries)
         log.error(
             f"{self.log_prefix} Dropping messages after repeated delivery failures",
@@ -275,6 +322,58 @@ class StreamConsumer:
             dropped_total=self.dropped_messages,
         )
         await self.ack_and_delete([msg_id for msg_id, _ in entries])
+
+    async def dead_letter(
+        self,
+        entries: List[Tuple[bytes, Dict[bytes, bytes]]],
+        *,
+        reason: str,
+    ) -> None:
+        """Move entries to `dead_letter_stream` with `reason`, and ACK + DEL them here.
+
+        One MULTI/EXEC, so an entry is never acknowledged without its dead letter. If it
+        fails, the entries stay pending and come back through the reclaim pass.
+        """
+        if not entries:
+            return
+
+        message_ids = [msg_id for msg_id, _ in entries]
+        descriptions = [
+            self.describe_message(data) or repr(msg_id) for msg_id, data in entries
+        ]
+        try:
+            pipe = self.redis.pipeline(transaction=True)
+            for (msg_id, data), description in zip(entries, descriptions):
+                pipe.xadd(
+                    self.dead_letter_stream,
+                    {
+                        **data,
+                        DEAD_LETTER_REASON: reason,
+                        DEAD_LETTER_SOURCE_ID: msg_id,
+                        DEAD_LETTER_DESCRIPTION: description,
+                    },
+                )
+            pipe.xack(self.stream_name, self.consumer_group, *message_ids)
+            pipe.xdel(self.stream_name, *message_ids)
+            await pipe.execute()
+        except Exception as e:
+            log.error(
+                f"{self.log_prefix} Failed to dead-letter messages, leaving pending: {e}",
+                stream=self.stream_name,
+                count=len(entries),
+            )
+            return
+
+        self.dead_lettered_messages += len(entries)
+        log.error(
+            f"{self.log_prefix} Dead-lettered messages",
+            stream=self.stream_name,
+            dead_letter_stream=self.dead_letter_stream,
+            reason=reason,
+            count=len(entries),
+            messages=descriptions,
+            dead_lettered_total=self.dead_lettered_messages,
+        )
 
     async def ack_and_delete(self, message_ids: List[bytes]):
         """ACK and DELETE messages after successful processing."""

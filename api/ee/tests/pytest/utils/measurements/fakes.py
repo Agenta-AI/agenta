@@ -15,16 +15,20 @@ from ee.src.core.measurements.interfaces import (
     OrganizationResolverInterface,
 )
 from ee.src.core.wallets.contracts import DebitCommandV1, MeasurementCommandV1
+from ee.src.core.wallets.errors import MeasurementConflictError
+from ee.src.dbs.postgres.measurements.mappings import measurement_fingerprint
 
 
 class InMemoryMeasurementsDAO(MeasurementsDAOInterface):
     """Mirrors the real DAO's idempotency contract: `UNIQUE (measurement_id)`
-    on the parent, `UNIQUE (measurement_id, key)` on values, one call inserts
-    parent + all children together (atomicity is a property of the call
-    signature, not of a transaction this fake can offer)."""
+    on the parent, children written only with a new parent, and a conflicting
+    replay rejected by content fingerprint. One call inserts parent + all
+    children together (atomicity is a property of the call signature, not of a
+    transaction this fake can offer)."""
 
     def __init__(self) -> None:
         self.rows: Dict[str, UUID] = {}  # measurement_id -> row id
+        self.fingerprints: Dict[str, str] = {}  # measurement_id -> fingerprint
         self.values: Dict[UUID, Dict[str, Tuple[int, Optional[int]]]] = {}
         self.insert_calls: List[MeasurementCommandV1] = []
 
@@ -35,19 +39,22 @@ class InMemoryMeasurementsDAO(MeasurementsDAOInterface):
     ) -> PersistedMeasurement:
         self.insert_calls.append(command)
 
+        fingerprint = measurement_fingerprint(command)
         existing_id = self.rows.get(command.measurement_id)
         if existing_id is not None:
+            if self.fingerprints[command.measurement_id] != fingerprint:
+                raise MeasurementConflictError(measurement_id=command.measurement_id)
             return PersistedMeasurement(
                 id=existing_id, measurement_id=command.measurement_id, created=False
             )
 
         row_id = uuid.uuid7()
         self.rows[command.measurement_id] = row_id
-        value_rows = self.values.setdefault(row_id, {})
-        for component in command.components:
-            # UNIQUE (measurement_id, key): first write per key wins, like ON
-            # CONFLICT DO NOTHING in the real adapter.
-            value_rows.setdefault(component.key, (component.value, component.cost_musd))
+        self.fingerprints[command.measurement_id] = fingerprint
+        self.values[row_id] = {
+            component.key: (component.value, component.cost_musd)
+            for component in command.components
+        }
 
         return PersistedMeasurement(
             id=row_id, measurement_id=command.measurement_id, created=True

@@ -21,7 +21,10 @@ from ee.src.core.measurements.interfaces import (
 )
 from ee.src.core.measurements.pricing import calculate_fake_charge
 from ee.src.core.wallets.contracts import STREAM_MEASUREMENTS, DebitCommandV1, DebitKind
-from ee.src.core.wallets.errors import WalletTerminalError
+from ee.src.core.wallets.errors import (
+    OrganizationNotResolvedError,
+    WalletTerminalError,
+)
 from ee.src.core.wallets.streaming import (
     DebitPublisher,
     deserialize_measurement_command,
@@ -38,17 +41,18 @@ class MeasurementWorker(StreamConsumer):
 
     Per message:
     1. Deserialize/validate — malformed or unsupported-version envelopes are
-       terminal: logged and ACKed, since retry cannot help.
+       terminal: dead-lettered, since retry cannot help.
     2. Resolve the optional `organization_id` from project scope.
     3. Idempotently insert the measurement and its component values (one
-       tracing transaction).
+       tracing transaction). A measurement id replayed with different content is
+       terminal: the stored measurement stands and the new payload is not priced.
     4. Price the measurement with the Wave 1 fixture; a result the gateway
        does not charge (e.g. non-managed endpoint) publishes nothing.
     5. Publish `DebitCommandV1` to `streams:debits`.
     6. ACK + DEL only after both the tracing write and the debit publish (if
        any) succeed. A tracing or Redis failure leaves the message pending,
        and the consumer's reclaim pass (`reclaim_pending=True` below) brings
-       it back.
+       it back, until `max_deliveries` moves it to `streams:measurements:dead`.
     """
 
     log_prefix = "[MEASUREMENTS]"
@@ -67,7 +71,9 @@ class MeasurementWorker(StreamConsumer):
         max_delay_ms: int = 250,
         max_batch_mb: int = 50,
         reclaim_min_idle_ms: int = 30_000,
-        max_deliveries: int = 5,
+        # About ten minutes of retries at the default idle window before a measurement
+        # that keeps failing leaves the pending list for `streams:measurements:dead`.
+        max_deliveries: int = 20,
     ):
         super().__init__(
             redis_client=redis_client,
@@ -88,42 +94,26 @@ class MeasurementWorker(StreamConsumer):
             reclaim_pending=True,
             reclaim_min_idle_ms=reclaim_min_idle_ms,
             max_deliveries=max_deliveries,
+            dead_letter=True,
         )
         self.measurements_dao = measurements_dao
         self.organization_resolver = organization_resolver
         self.debit_publisher = debit_publisher
 
     def describe_message(self, data: Dict[bytes, bytes]) -> Optional[str]:
-        """`measurement_id` for the dropped-message log, so a loss is traceable."""
+        """`measurement_id` for a dead letter, so it is traceable."""
         try:
             command = deserialize_measurement_command(payload=data[b"data"])
         except Exception:
             return None
         return command.measurement_id
 
-    def is_permanent_failure(
-        self,
-        msg_id: bytes,
-        data: Dict[bytes, bytes],
-    ) -> bool:
-        """Only an entry this worker cannot even read is known not to succeed on retry.
-
-        A decodable envelope that keeps failing is failing in the tracing write or the
-        debit publish — both outages that end — and a measurement is a billing fact, so
-        it keeps its place in the pending list. An entry carrying no `data` field, or one
-        whose payload no longer parses, will never gain one and is dropped instead.
-        """
-        try:
-            deserialize_measurement_command(payload=data[b"data"])
-        except Exception:
-            return True
-        return False
-
     async def _process_one(self, command) -> bool:
         """Persist + (maybe) charge one already-deserialized command.
 
         Returns True when the message is safe to ACK (tracing write, and any
-        debit publish, both succeeded).
+        debit publish, both succeeded). Raises `WalletTerminalError` when it never
+        will be.
         """
         organization_id = command.organization_id
         if organization_id is None:
@@ -140,15 +130,10 @@ class MeasurementWorker(StreamConsumer):
         amount_musd, pricing_version = charge
 
         if organization_id is None:
-            # Can't safely bill without an organization. The measurement is
-            # already persisted; log and ACK rather than retry forever on a
-            # project that will never resolve to an org.
-            log.error(
-                "[MEASUREMENTS] Chargeable measurement has no resolvable organization",
-                measurement_id=command.measurement_id,
-                project_id=str(command.project_id),
+            # The measurement is persisted; the charge it owes is kept as a dead letter.
+            raise OrganizationNotResolvedError(
+                f"project {command.project_id} resolves to no organization"
             )
-            return True
 
         debit = DebitCommandV1(
             idempotency_key=f"measurement:{command.measurement_id}",
@@ -171,12 +156,7 @@ class MeasurementWorker(StreamConsumer):
             try:
                 command = deserialize_measurement_command(payload=data[b"data"])
             except WalletTerminalError as e:
-                log.error(
-                    "[MEASUREMENTS] Terminal envelope error, ACKing without retry",
-                    msg_id=repr(msg_id),
-                    error=str(e),
-                )
-                processed_ids.append(msg_id)
+                await self.dead_letter([(msg_id, data)], reason=f"terminal: {e}")
                 continue
             except Exception:
                 log.error(
@@ -188,6 +168,9 @@ class MeasurementWorker(StreamConsumer):
 
             try:
                 ok = await self._process_one(command)
+            except WalletTerminalError as e:
+                await self.dead_letter([(msg_id, data)], reason=f"terminal: {e}")
+                continue
             except Exception:
                 log.error(
                     "[MEASUREMENTS] Failed to process measurement, leaving pending",
