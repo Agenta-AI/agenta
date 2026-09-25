@@ -8,11 +8,15 @@ import {
 import {Alert, Button} from "@agenta/ui/ui"
 import {WarningCircle} from "@phosphor-icons/react"
 
-import {describeRunError} from "./runError"
+import {describeRunError, type RunErrorView} from "./runError"
 import {RunErrorDetails} from "./RunErrorDetails"
 
+/** The runner's class for an error the model provider returned itself (a refusal, a filter). */
+const PROVIDER_ERROR_CODE = "provider_error"
+
 /**
- * A run that stopped: a `step` on the wire when it failed partway, a `card` when it never started.
+ * A run that stopped: a `step` when it failed after recording steps, a `card` when it failed before
+ * any (which does not mean it never started).
  *
  * Which failure classes deserve which escape is the shared callout's, in one place for both apps.
  * This host answers only for position (the caller's retry) and destination: "Add your key" and
@@ -40,7 +44,10 @@ export const RunErrorCallout = ({
     onSignIn?: () => void
     variant?: "step" | "card"
 }) => {
-    const error = describeRunError(text)
+    // A provider's own error arrives as the runner's finished sentences (what the provider said,
+    // then what to do), so it is shown whole rather than cut to its first sentence.
+    const error: RunErrorView =
+        code === PROVIDER_ERROR_CODE ? {headline: text.trim(), raw: null} : describeRunError(text)
     const offerOwnKey = !!onAddKey && !!code && STARTER_CREDIT_CODES.has(code)
     const offerSignIn = !!onSignIn && !!code && SUBSCRIPTION_LOGIN_CODES.has(code)
     // An admission refusal is not a run that failed: the message never left the composer, and
@@ -73,7 +80,9 @@ export const RunErrorCallout = ({
                 showIcon
                 icon={<WarningCircle className="text-colorError" />}
                 className="max-w-[520px] px-3.5 py-3"
-                message={notSent ? "Message not sent" : "Couldn't start the run"}
+                // Not "Couldn't start the run": a card only means no step was recorded before the
+                // failure, and most such runs did start (the model refused its first request).
+                message={notSent ? "Message not sent" : "The run stopped"}
                 description={
                     <div className="flex flex-col gap-1.5">
                         {/* Not a <p>: the Alert gives every non-last paragraph a 16px margin. */}

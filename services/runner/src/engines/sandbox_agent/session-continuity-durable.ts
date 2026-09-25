@@ -8,6 +8,7 @@
  * race. It replaces the old `syncHarnessSessionDurable`, which GET-then-PUT the whole
  * `session_states.data` blob.
  */
+import { fetchControlPlane } from "../../sessions/control-plane-fetch.ts";
 import { apiBase } from "../../apiBase.ts";
 import type { ReferenceKey } from "../../sessions/interactions.ts";
 import type { SessionContinuityStore } from "./session-continuity.ts";
@@ -98,20 +99,24 @@ export async function fetchLatestSessionTurn(
   const doFetch = deps.fetchImpl ?? fetch;
   const base = deps.apiBase ?? apiBase();
   try {
-    const res = await doFetch(`${base}/sessions/turns/query`, {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        authorization: deps.authorization,
-      },
-      body: JSON.stringify({
-        query: {
-          session_id: sessionId,
-          ...(harness ? { harness_kind: harness } : {}),
-        },
-        windowing: { limit: 1, order: "descending" },
-      }),
-    });
+    const res = await fetchControlPlane(
+      (signal) =>
+        doFetch(`${base}/sessions/turns/query`, {
+          method: "POST",
+          signal,
+          headers: {
+            "content-type": "application/json",
+            authorization: deps.authorization,
+          },
+          body: JSON.stringify({
+            query: {
+              session_id: sessionId,
+              ...(harness ? { harness_kind: harness } : {}),
+            },
+            windowing: { limit: 1, order: "descending" },
+          }),
+        }),
+    );
     if (!res.ok) {
       log(
         `latest-turn HTTP ${res.status} session=${sessionId} harness=${harness ?? "-"}`,

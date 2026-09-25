@@ -2,20 +2,16 @@ import {type RefObject, useCallback, useEffect, useMemo, useRef, useState} from 
 
 import {workflowMolecule} from "@agenta/entities/workflow"
 import {type AgentSetupSelection, type AgentStarterTemplate} from "@agenta/entities/workflow"
+import {captureFirstAgentIntent, classifyAgentIntent} from "@agenta/shared/analytics"
 import {generateId} from "@agenta/shared/utils"
 import {type RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 import {type UIMessage} from "ai"
 import {useAtomValue} from "jotai"
 
 import {
-    CONNECT_STEP_MODE,
     IDE_INSTALL_COMMAND,
     TEMPLATE_STRIP_MODE,
 } from "@/oss/components/pages/agent-home/assets/constants"
-import {
-    captureFirstAgentIntent,
-    classifyAgentIntent,
-} from "@/oss/components/pages/agent-home/assets/onboardingAnalytics"
 import {useOptionalOnboardingContext} from "@/oss/components/pages/agent-home/PlaygroundOnboarding/OnboardingContext"
 import {useTemplateProvenance} from "@/oss/components/TemplateStrip/hooks/useTemplateProvenance"
 import {usePostHogAg} from "@/oss/lib/helpers/analytics/hooks/usePostHogAg"
@@ -110,23 +106,14 @@ export const useOnboardingChat = ({
                 intentValue: classifyAgentIntent(text),
             })
         }
-        // Connect step on (#6043): this click opens the step, it does not send. Leave the composer
+        // Connect step (#6043): this click opens the step, it does not send. Leave the composer
         // alone — the description stays visible and editable above the card, and nothing may look
         // sent until the step's own Create actually commits (which the `committingSeed` effect
         // below then picks up, exactly as it does for a template click).
-        if (CONNECT_STEP_MODE) {
-            onboarding.commit(text, templateName, stripProvenance.selectedTemplate ?? undefined)
-            return
-        }
-        setPendingFirstTurn(text || null)
-        // The text becomes the sent first turn — clear the composer so it doesn't linger into the chat.
-        richInputRef.current?.setMarkdown("")
         onboarding.commit(text, templateName, stripProvenance.selectedTemplate ?? undefined)
-        if (TEMPLATE_STRIP_MODE) stripProvenance.clear()
     }, [
         onboarding,
         onboardingPosthog,
-        stripProvenance.clear,
         stripProvenance.resolveTemplateName,
         stripProvenance.selectedTemplate,
     ])

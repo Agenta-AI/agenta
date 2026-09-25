@@ -108,6 +108,43 @@ class InvalidAgentHarnessError(Exception):
         }
 
 
+class InvalidAgentInstructionsError(Exception):
+    """The commit carries ``parameters.agent.instructions`` in a shape the runtime cannot read.
+
+    The runtime takes the prompt only from ``instructions.agents_md``. A bare string stored
+    there committed with 200 and the agent then ran with no prompt at all, silently. Refused
+    at the write boundary for the same reason as :class:`InvalidAgentHarnessError`, and kept
+    outside the :class:`WorkflowError` family for the same reason too.
+    """
+
+    code = "invalid_agent_instructions"
+
+    def __init__(self, *, received_type: str, message: str) -> None:
+        super().__init__(message)
+        self.received_type = received_type
+        self.message = message
+
+    def to_detail(self) -> Dict[str, Any]:
+        """The canonical agent-actionable envelope. See `api/AGENTS.md`.
+
+        The value itself is not echoed: it is usually the whole prompt.
+        """
+        return {
+            "code": self.code,
+            "message": self.message,
+            "retryable": False,
+            "next_step": (
+                'Set agent.instructions to {"agents_md": "<the full AGENTS.md text>"} '
+                "and send the commit again."
+            ),
+            "details": {
+                "field": "parameters.agent.instructions",
+                "received_type": self.received_type,
+                "expected": {"agents_md": "string"},
+            },
+        }
+
+
 class WorkflowServiceUrlMissing(WorkflowError):
     """Raised when a revision has no runnable service URL to invoke (batch or detached)."""
 

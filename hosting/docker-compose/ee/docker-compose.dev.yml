@@ -54,10 +54,7 @@ services:
         mem_limit: 8g
         mem_reservation: 3g
         # === EXECUTION ============================================ #
-        # Turbopack's dev middleware sandbox only exposes .env-file vars (not the
-        # container's process env), so mirror the gate flag into an env file the
-        # app loads. Prod standalone reads process.env at request time — dev-only.
-        command: sh -c 'echo "AGENTA_MOBILE_GATE=$${AGENTA_MOBILE_GATE:-true}" > /app/ee/.env.development.local && pnpm dev-ee'
+        command: sh -c 'pnpm dev-ee'
         # === STORAGE ============================================== #
         volumes:
             - ../../../web/ee/src:/app/ee/src
@@ -75,7 +72,6 @@ services:
             AGENTA_SERVICES_INTERNAL_KEY: ""
             DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
             WATCHPACK_POLLING: "true"
-            AGENTA_MOBILE_GATE: ${AGENTA_MOBILE_GATE:-true}
         # === NETWORK ============================================== #
         networks:
             - agenta-network
@@ -90,15 +86,14 @@ services:
     web-mobile:
         # === ACTIVATION =========================================== #
         # No profile: the mobile app (/m) starts with the stack, like api and web.
-        # Opt out with `run.sh --no-mobile`, or with `--scale web-mobile=0` on a
-        # hand-rolled `docker compose up`.
+        # Always on: /m is part of every deployment.
         # === IMAGE ================================================ #
         image: agenta-ee-dev-web:latest
         # === EXECUTION ============================================ #
         # Same dev-sandbox env mirroring as the web service (see comment there). The mobile
         # dev server reads this file for config, and its allowed hot-reload origins derive
         # from AGENTA_WEB_URL, so that variable is mirrored here too.
-        command: sh -c 'printf "AGENTA_MOBILE_GATE=%s\nAGENTA_MOBILE_REVERSE_GATE=%s\nAGENTA_WEB_URL=%s\n" "$${AGENTA_MOBILE_GATE:-true}" "$${AGENTA_MOBILE_REVERSE_GATE:-true}" "$${AGENTA_WEB_URL:-}" > /app/mobile/.env.development.local && pnpm dev-mobile'
+        command: sh -c 'printf "AGENTA_WEB_URL=%s\n" "$${AGENTA_WEB_URL:-}" > /app/mobile/.env.development.local && pnpm dev-mobile'
         # === STORAGE ============================================== #
         volumes:
             - ../../../web/packages:/app/packages
@@ -113,8 +108,6 @@ services:
             AGENTA_SERVICES_INTERNAL_KEY: ""
             DOCKER_NETWORK_MODE: ${DOCKER_NETWORK_MODE:-bridge}
             WATCHPACK_POLLING: "true"
-            AGENTA_MOBILE_GATE: ${AGENTA_MOBILE_GATE:-true}
-            AGENTA_MOBILE_REVERSE_GATE: ${AGENTA_MOBILE_REVERSE_GATE:-true}
         # === NETWORK ============================================== #
         networks:
             - agenta-network
@@ -536,13 +529,6 @@ services:
             AGENTA_RUNNER_DAYTONA_SESSION_MAX_WARM: ${AGENTA_RUNNER_DAYTONA_SESSION_MAX_WARM:-}
             AGENTA_RUNNER_DAYTONA_AUTODELETE_MINUTES: ${AGENTA_RUNNER_DAYTONA_AUTODELETE_MINUTES:-}
             AGENTA_RUNNER_DAYTONA_OPAQUE_SECRETS: ${AGENTA_RUNNER_DAYTONA_OPAQUE_SECRETS:-}
-            # This service has no env_file (see above), so the session flags must be listed
-            # here or they can never be set. Both default ON: absent or empty means on, and
-            # only the literal "false" disables. Disable AGENTA_SESSIONS_RECONSTRUCT together
-            # with the web NEXT_PUBLIC_SESSIONS_LAST_MESSAGE_ONLY, or a turn that carries
-            # only its last message loses the conversation.
-            AGENTA_SESSIONS_RECONSTRUCT: ${AGENTA_SESSIONS_RECONSTRUCT:-}
-            AGENTA_RECORDS_DURABLE: ${AGENTA_RECORDS_DURABLE:-}
             AGENTA_RUNNER_LIVE_FRAMES: ${AGENTA_RUNNER_LIVE_FRAMES:-true}
             # Also unreachable without an explicit entry (no env_file), and the runner is
             # the leg that refuses a gateway-routed run: it re-validates the transport rule

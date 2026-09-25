@@ -8,9 +8,57 @@
  * (sections 2-4). Names describe what a value IS, not the feature that first needed it.
  */
 
-/** Sandbox providers this runner can actually provision. */
-export const KNOWN_SANDBOX_PROVIDER_IDS = ["local", "daytona"] as const;
+import { clampTimerMs } from "../env.ts";
+
+/**
+ * Sandbox providers this runner can actually provision. `inprocess` runs Pi inside the runner
+ * and uses a Daytona sandbox only for shell commands.
+ */
+export const KNOWN_SANDBOX_PROVIDER_IDS = ["local", "daytona", "inprocess"] as const;
 export type SandboxProviderId = (typeof KNOWN_SANDBOX_PROVIDER_IDS)[number];
+
+/**
+ * What each provider IS, in the facts the rest of the runner branches on. Code asks these
+ * questions instead of comparing provider ids, so a new provider answers them once here rather
+ * than being missed at one of many id checks.
+ */
+export interface SandboxProviderTraits {
+  /** The harness's own files (prompt files, tool relay, extension) are on the runner host. */
+  filesOnRunner: boolean;
+  /**
+   * The runner host mounts the drive (the session and agent folders). False for `daytona`, whose
+   * sandbox mounts it at acquire, and for `inprocess`, whose command sandbox mounts it when a tool
+   * first needs it.
+   */
+  driveOnRunner: boolean;
+  /** Shell commands run in a remote sandbox that is parked and reattached per conversation. */
+  commandsInRemoteSandbox: boolean;
+  /** The harness runs inside the runner process: no daemon binary, no ACP transport. */
+  harnessInRunner: boolean;
+  /** The harnesses this provider can run; undefined means every harness. */
+  harnesses?: readonly string[];
+}
+
+export const SANDBOX_PROVIDER_TRAITS: Record<SandboxProviderId, SandboxProviderTraits> = {
+  local: { filesOnRunner: true, driveOnRunner: true, commandsInRemoteSandbox: false, harnessInRunner: false },
+  daytona: { filesOnRunner: false, driveOnRunner: false, commandsInRemoteSandbox: true, harnessInRunner: false },
+  inprocess: { filesOnRunner: true, driveOnRunner: false, commandsInRemoteSandbox: true, harnessInRunner: true, harnesses: ["pi_core"] },
+};
+
+/**
+ * Traits of `id`. An unknown provider gets the conservative answer: nothing on the runner (tool
+ * delivery fails closed) and no parked remote sandbox to reattach or apply a network policy to.
+ */
+export function sandboxProviderTraits(id: string | undefined): SandboxProviderTraits {
+  return (
+    SANDBOX_PROVIDER_TRAITS[id as SandboxProviderId] ?? {
+      filesOnRunner: false,
+      driveOnRunner: false,
+      commandsInRemoteSandbox: false,
+      harnessInRunner: false,
+    }
+  );
+}
 
 /** The runner's pinned default Daytona artifact, used when neither snapshot nor image is set. */
 export const DEFAULT_DAYTONA_SNAPSHOT = "agenta-agent-sandbox-v1";
@@ -42,8 +90,11 @@ export interface RunnerServerConfig {
 }
 
 export interface RunnerProvidersConfig {
+  /** The effective list: the configured one plus `inprocess` when `daytona` is listed. */
   enabled: readonly SandboxProviderId[];
   default: SandboxProviderId;
+  /** `inprocess` is enabled only because `daytona` is: the operator neither listed it nor made it the default. */
+  inprocessImplied: boolean;
 }
 
 export interface RunnerDaytonaConfig {
@@ -60,10 +111,31 @@ export interface RunnerCallbackConfig {
   apiInternalUrl: string | undefined;
 }
 
+/**
+ * The `inprocess` provider's operator settings: Pi in this process, a Daytona sandbox per
+ * conversation for commands. Only what an operator has a reason to change; the rest are constants
+ * of the provider (`engines/inprocess/index.ts`).
+ */
+export interface RunnerInProcessConfig {
+  /** Labels added to every command sandbox (`k=v,...`), for cost attribution and audits. */
+  sandboxLabels: Record<string, string>;
+  /** Stop a running command sandbox after this long without a command: cost against warm starts. */
+  sandboxIdleStopMs: number;
+  /** The command sandbox's snapshot, when it should differ from the `daytona` provider's (a slimmer one). */
+  sandboxSnapshot: string | undefined;
+  /** Command sandboxes this runner keeps running at once; the rest wait for a slot. */
+  maxRunningSandboxes: number;
+  /** In-process sessions this runner hosts at once; a new one past this is refused with a sentence. */
+  maxSessions: number;
+  /** Accept provider keys in the runner environment (every in-process session would see them). */
+  allowEnvironmentKeys: boolean;
+}
+
 export interface RunnerConfig {
   server: RunnerServerConfig;
   providers: RunnerProvidersConfig;
   daytona: RunnerDaytonaConfig;
+  inprocess: RunnerInProcessConfig;
   callback: RunnerCallbackConfig;
 }
 
@@ -182,15 +254,57 @@ export function parseDefaultProvider(
   return value as SandboxProviderId;
 }
 
+/**
+ * The effective enabled list: `inprocess` is on wherever `daytona` is, with no setting of its own
+ * (its commands run in a Daytona sandbox, so it needs nothing `daytona` does not already have).
+ * Who uses it is decided by the per-user preference in the web app, not by the deployment. The
+ * added entry goes last, so a default taken from the head of the list stays `daytona`. The SDK
+ * (`sandbox_providers.py`), the API mirror (`env.py`) and `web/entrypoint.sh` apply the same rule.
+ */
+export function withImpliedProviders(
+  configured: readonly SandboxProviderId[],
+): SandboxProviderId[] {
+  const enabled = [...configured];
+  if (enabled.includes("daytona") && !enabled.includes("inprocess")) enabled.push("inprocess");
+  return enabled;
+}
+
 function parseProviders(env: Env): RunnerProvidersConfig {
-  const enabled = parseEnabledProviders(
+  const configured = parseEnabledProviders(
     env.AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS,
   );
+  const enabled = withImpliedProviders(configured);
   const defaultProvider = parseDefaultProvider(
     env.AGENTA_RUNNER_DEFAULT_SANDBOX_PROVIDER,
     enabled,
   );
-  return { enabled, default: defaultProvider };
+  const inprocessImplied =
+    enabled.includes("inprocess") && !configured.includes("inprocess") && defaultProvider !== "inprocess";
+  return { enabled, default: defaultProvider, inprocessImplied };
+}
+
+/** The refusal for a run that asks for a provider this deployment has not enabled. */
+export function providerNotEnabledMessage(id: string, enabled: readonly string[]): string {
+  const hint = id === "inprocess" ? " 'inprocess' is enabled together with 'daytona'." : "";
+  return `Sandbox provider '${id}' is not enabled on this deployment (enabled: ${enabled.join(", ")}).${hint}`;
+}
+
+/**
+ * The same configuration without an implied `inprocess`: boot uses it when the runner environment
+ * holds provider keys, which an in-process session would share (`assertInProcessEnvironment`).
+ */
+export function withoutImpliedInProcess(config: RunnerConfig): RunnerConfig {
+  if (!config.providers.inprocessImplied) {
+    throw new RunnerConfigError("'inprocess' was enabled by the operator, not implied by 'daytona'.");
+  }
+  return {
+    ...config,
+    providers: {
+      ...config.providers,
+      enabled: config.providers.enabled.filter((id) => id !== "inprocess"),
+      inprocessImplied: false,
+    },
+  };
 }
 
 function parseDaytona(
@@ -237,6 +351,38 @@ function parseDaytona(
   };
 }
 
+/** `k=v,k=v` into a label map. */
+export function parseLabels(raw: string | undefined, name: string): Record<string, string> {
+  const labels: Record<string, string> = {};
+  for (const entry of (nonEmpty(raw) ?? "").split(",")) {
+    if (!entry.trim()) continue;
+    const eq = entry.indexOf("=");
+    if (eq <= 0) throw new RunnerConfigError(`${name} entry '${entry.trim()}' is not in the form key=value.`);
+    labels[entry.slice(0, eq).trim()] = entry.slice(eq + 1).trim();
+  }
+  return labels;
+}
+
+function parseInProcess(env: Env, enabled: readonly SandboxProviderId[], daytona: RunnerDaytonaConfig): RunnerInProcessConfig {
+  // A runner without the provider neither reads nor validates its settings.
+  if (!enabled.includes("inprocess")) env = {};
+  if (enabled.includes("inprocess") && !daytona.apiKey) {
+    throw new RunnerConfigError(
+      "AGENTA_RUNNER_DAYTONA_API_KEY is required when 'inprocess' is in " +
+        "AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS: its tool calls run in a Daytona sandbox.",
+    );
+  }
+  const count = (name: string, fallback: number) => parsePositiveInt(env[name], fallback, name);
+  return {
+    sandboxLabels: parseLabels(env.AGENTA_RUNNER_INPROCESS_SANDBOX_LABELS, "AGENTA_RUNNER_INPROCESS_SANDBOX_LABELS"),
+    sandboxIdleStopMs: clampTimerMs(count("AGENTA_RUNNER_INPROCESS_IDLE_STOP_MS", 5 * 60_000)),
+    sandboxSnapshot: nonEmpty(env.AGENTA_RUNNER_INPROCESS_SANDBOX_SNAPSHOT),
+    maxRunningSandboxes: count("AGENTA_RUNNER_INPROCESS_MAX_RUNNING_SANDBOXES", 40),
+    maxSessions: count("AGENTA_RUNNER_INPROCESS_MAX_SESSIONS", 200),
+    allowEnvironmentKeys: nonEmpty(env.AGENTA_RUNNER_INPROCESS_ALLOW_ENV_KEYS)?.toLowerCase() === "true",
+  };
+}
+
 function parseServer(env: Env): RunnerServerConfig {
   return {
     host: nonEmpty(env.AGENTA_RUNNER_HOST) ?? DEFAULT_RUNNER_HOST,
@@ -263,11 +409,13 @@ function parseServer(env: Env): RunnerServerConfig {
 export function parseRunnerConfig(env: Env = process.env): RunnerConfig {
   const providers = parseProviders(env);
   const daytona = parseDaytona(env, providers.enabled);
+  const inprocess = parseInProcess(env, providers.enabled, daytona);
   const server = parseServer(env);
   return {
     server,
     providers,
     daytona,
+    inprocess,
     callback: {
       apiInternalUrl: nonEmpty(env.AGENTA_API_INTERNAL_URL),
     },
@@ -284,6 +432,12 @@ let cached: RunnerConfig | undefined;
 export function loadRunnerConfig(env: Env = process.env): RunnerConfig {
   if (!cached) cached = parseRunnerConfig(env);
   return cached;
+}
+
+/** Boot only: replace the memoized config with the one boot settled on (see {@link withoutImpliedInProcess}). */
+export function replaceRunnerConfig(config: RunnerConfig): RunnerConfig {
+  cached = config;
+  return config;
 }
 
 /** Test-only: drop the memoized config so the next {@link loadRunnerConfig} re-parses. */
@@ -311,6 +465,13 @@ export function runnerConfigSummary(config: RunnerConfig): string {
     lines.push(
       `runner daytona target=${config.daytona.target ?? "default"} ` +
         `artifact=${daytonaArtifactSummary(config.daytona)}`,
+    );
+  }
+  if (config.providers.enabled.includes("inprocess")) {
+    lines.push(
+      `runner inprocess sandbox_start=on-first-tool-call ` +
+        `artifact=${config.inprocess.sandboxSnapshot ? `snapshot:${config.inprocess.sandboxSnapshot}` : daytonaArtifactSummary(config.daytona)} ` +
+        `max_running_sandboxes=${config.inprocess.maxRunningSandboxes} max_sessions=${config.inprocess.maxSessions}`,
     );
   }
   return lines.join("\n");

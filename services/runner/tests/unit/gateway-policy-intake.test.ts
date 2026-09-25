@@ -558,3 +558,31 @@ describe("a failed search never returns the API's own words", () => {
     }
   });
 });
+
+describe("run_tool with the provider's action id (QA Composio/MCP bug 1)", () => {
+  const policy = () =>
+    normalizeGatewayPolicy({
+      integrations: {
+        hackernews: {
+          provider: "composio",
+          connection: "hackernews-qa-1",
+          toolkitVersion: "20250827_00",
+          tools: { GET_MAX_ITEM_ID: { permission: "allow", readOnly: true } },
+        },
+      },
+    });
+
+  it("runs the tool the catalog lists under that action id, by its key", () => {
+    const run = planGatewayRun({ integration: "hackernews", tool: "HACKERNEWS_GET_MAX_ITEM_ID", arguments: {} }, policy());
+    assert.equal(run.ok, true);
+    if (!run.ok) return;
+    assert.equal(run.target.tool, "GET_MAX_ITEM_ID");
+    assert.equal(run.context.tool, "GET_MAX_ITEM_ID");
+    assert.equal(run.display, "hackernews.GET_MAX_ITEM_ID");
+  });
+
+  it("still refuses a key that is not configured, with or without the prefix", () => {
+    assert.equal(planGatewayRun({ integration: "hackernews", tool: "HACKERNEWS_DELETE_ITEM", arguments: {} }, policy()).ok, false);
+    assert.equal(planGatewayRun({ integration: "hackernews", tool: "GITHUB_GET_MAX_ITEM_ID", arguments: {} }, policy()).ok, false);
+  });
+});

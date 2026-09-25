@@ -1,7 +1,7 @@
 from typing import Any
 from uuid import UUID
 
-from agenta.sdk.agents import Message, ContentBlock
+from agenta.sdk.agents import ContentBlock, Message
 
 from oss.src.core.agent_templates.bindings import TemplateBindingResolver
 from oss.src.core.agent_templates.compiler import TemplateCompiler
@@ -44,7 +44,6 @@ from oss.src.core.workflows.dtos import (
 )
 from oss.src.core.workflows.service import SimpleWorkflowsService
 
-
 _TEMPLATE_LOAD_NAMESPACE = "agent-template-load"
 _AGENT_COMPONENT = "agent"
 
@@ -64,6 +63,12 @@ def template_request_fingerprint(command: TemplateLoadCommand) -> str:
         {
             "ui_build_kit_enabled": command.ui_build_kit_enabled,
             "ui_disabled_ops": sorted(set(command.ui_disabled_ops)),
+            # Preserve fingerprints of retryable requests made before this field existed.
+            **(
+                {"ui_op_permissions": command.ui_op_permissions}
+                if command.ui_op_permissions
+                else {}
+            ),
             "source": command.source.model_dump(mode="json", exclude_none=True),
             "base_revision": command.base_revision.model_dump(
                 mode="json", exclude_none=True
@@ -311,7 +316,9 @@ class AgentTemplateLoader:
             first_message=compiled.first_message,
             runtime_parameters=(
                 apply_ui_build_kit(
-                    compiled.revision_data.parameters or {}, command.ui_disabled_ops
+                    compiled.revision_data.parameters or {},
+                    command.ui_disabled_ops,
+                    command.ui_op_permissions,
                 )
                 if command.ui_build_kit_enabled
                 else None

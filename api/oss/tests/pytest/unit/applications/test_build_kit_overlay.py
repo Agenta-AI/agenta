@@ -1,64 +1,38 @@
-from os import environ
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 from uuid import uuid4
 
 import pytest
-
 from agenta.sdk.agents.adapters.agenta_builtins import (
     BUILD_AN_AGENT_SLUG,
     GETTING_STARTED_WITH_AGENTA_SLUG,
 )
+from agenta.sdk.agents.dtos import AgentTemplate
+from agenta.sdk.agents.platform import AgentaPlatformToolResolver, PlatformConnection
+from agenta.sdk.agents.platform.op_catalog import PLATFORM_OPS
 from agenta.sdk.agents.platform.workflow import (
     REQUEST_CONNECTION_WORKFLOW_SLUG,
     REQUEST_SECRET_WORKFLOW_SLUG,
 )
-from agenta.sdk.agents.dtos import AgentTemplate
-from agenta.sdk.agents.platform import AgentaPlatformToolResolver, PlatformConnection
-from agenta.sdk.agents.platform.op_catalog import PLATFORM_OPS
 from agenta.sdk.agents.tools.models import ClientToolConfig, PlatformToolConfig
-
 from oss.src.apis.fastapi.applications import router as applications_router_module
 from oss.src.apis.fastapi.applications.overlay import (
     DEFAULT_BUILD_KIT_OPS,
     build_agent_template_overlay,
 )
-from oss.src.core.workflows.build_kit import (
-    BUILD_KIT_WORKFLOW_SLUG,
-    REQUEST_INPUT_WORKFLOW_SLUG,
-    build_agent_template_overlay as build_core_agent_template_overlay,
-)
 from oss.src.apis.fastapi.applications.router import SimpleApplicationsRouter
 from oss.src.core.applications.dtos import SimpleApplication
 from oss.src.core.embeds.service import EmbedsService
+from oss.src.core.workflows.build_kit import (
+    BUILD_KIT_WORKFLOW_SLUG,
+    REQUEST_INPUT_WORKFLOW_SLUG,
+)
+from oss.src.core.workflows.build_kit import (
+    build_agent_template_overlay as build_core_agent_template_overlay,
+)
 from oss.src.core.workflows.dtos import WorkflowRevision, WorkflowRevisionData
 from oss.src.core.workflows.service import WorkflowsService
 from oss.src.core.workflows.static_catalog import StaticWorkflowCatalog
-
-# The build kit has two shapes, one per state of the ordered-operations switch: with the
-# switch on, the catalog defines `read_config` and the kit carries the read half of the
-# read-then-edit loop. Both are written out in full, and the switch is read here rather
-# than through the catalog, so this stays a statement about the flag instead of a copy of
-# the code it checks.
-EXPECTED_BUILD_KIT_OPS_WITHOUT_READ_CONFIG = (
-    "discover_tools",
-    "search_skills",
-    "check_skill_updates",
-    "apply_skill_update",
-    "commit_revision",
-    "test_run",
-    "rename_session",
-    "rename_agent",
-    "discover_triggers",
-    "create_schedule",
-    "create_subscription",
-    "list_schedules",
-    "list_deliveries",
-    "test_subscription",
-    "list_subscriptions",
-    "remove_schedule",
-    "remove_subscription",
-)
 
 EXPECTED_BUILD_KIT_OPS_WITH_READ_CONFIG = (
     "discover_tools",
@@ -68,6 +42,7 @@ EXPECTED_BUILD_KIT_OPS_WITH_READ_CONFIG = (
     "read_config",
     "commit_revision",
     "test_run",
+    "get_current_session",
     "rename_session",
     "rename_agent",
     "discover_triggers",
@@ -79,33 +54,12 @@ EXPECTED_BUILD_KIT_OPS_WITH_READ_CONFIG = (
     "list_subscriptions",
     "remove_schedule",
     "remove_subscription",
+    "list_starters",
+    "create_app",
 )
 
 
-def _ordered_operations_enabled() -> bool:
-    # Spelled out rather than imported, so the expectation cannot move with the code under
-    # test. The default (on) and the accepted spellings are pinned equal in
-    # `unit/workflows/test_ordered_operations_flag.py`.
-    value = environ.get("AGENTA_WORKFLOWS_ORDERED_OPERATIONS_ENABLED", "").strip()
-    if not value:
-        return True
-    return value.lower() in {
-        "true",
-        "1",
-        "t",
-        "y",
-        "yes",
-        "on",
-        "enable",
-        "enabled",
-    }
-
-
-EXPECTED_DEFAULT_BUILD_KIT_OPS = (
-    EXPECTED_BUILD_KIT_OPS_WITH_READ_CONFIG
-    if _ordered_operations_enabled()
-    else EXPECTED_BUILD_KIT_OPS_WITHOUT_READ_CONFIG
-)
+EXPECTED_DEFAULT_BUILD_KIT_OPS = EXPECTED_BUILD_KIT_OPS_WITH_READ_CONFIG
 
 CUT_BUILD_KIT_OPS = (
     "annotate_trace",
@@ -118,26 +72,7 @@ CUT_BUILD_KIT_OPS = (
     "list_connections",
 )
 
-EXPECTED_BUILD_KIT_PERMISSIONS = {
-    "discover_tools": "allow",
-    "search_skills": "allow",
-    "check_skill_updates": "allow",
-    "apply_skill_update": "ask",
-    "read_config": "allow",
-    "commit_revision": "allow",
-    "test_run": "allow",
-    "rename_session": "allow",
-    "rename_agent": "allow",
-    "discover_triggers": "allow",
-    "create_schedule": "ask",
-    "create_subscription": "ask",
-    "list_schedules": "allow",
-    "list_deliveries": "allow",
-    "test_subscription": "allow",
-    "list_subscriptions": "allow",
-    "remove_schedule": "ask",
-    "remove_subscription": "ask",
-}
+EXPECTED_BUILD_KIT_PERMISSIONS = {op: "allow" for op in EXPECTED_DEFAULT_BUILD_KIT_OPS}
 
 
 def _embed_slug(entry: dict) -> str | None:
@@ -226,7 +161,14 @@ def test_agent_template_overlay_contains_platform_ops_playbook_skill_and_permiss
                 "@ag.references": {"workflow": {"slug": BUILD_AN_AGENT_SLUG}},
                 "@ag.selector": {"path": "parameters.skill"},
             },
-        }
+        },
+        {
+            "name": "agenta-apps",
+            "@ag.embed": {
+                "@ag.references": {"workflow": {"slug": "__ag__agenta_apps"}},
+                "@ag.selector": {"path": "parameters.skill"},
+            },
+        },
     ]
     assert GETTING_STARTED_WITH_AGENTA_SLUG not in {
         _embed_slug(skill) for skill in overlay["skills"]
@@ -394,7 +336,10 @@ async def test_resolved_build_kit_overlay_parses_through_from_params():
     assert client_tools[1].render == {"kind": "elicitation"}
     # The secret request opens the secret dock, so it carries its own render.kind.
     assert client_tools[2].render == {"kind": "secret"}
-    assert [skill.name for skill in template.skills] == ["build-an-agent"]
+    assert [skill.name for skill in template.skills] == [
+        "build-an-agent",
+        "agenta-apps",
+    ]
 
 
 @pytest.mark.asyncio

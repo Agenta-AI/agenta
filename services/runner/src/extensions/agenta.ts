@@ -305,11 +305,11 @@ function promptGuidelines(spec: ResolvedToolSpec): string[] {
  * Returns `undefined` on any defect (unreadable file, bad JSON, non-array) after logging it: the
  * caller then registers nothing, which is the same outcome as before, but the reason is on stderr.
  */
-function loadPublicToolSpecs():
-  | { specs: ResolvedToolSpec[]; route: string }
-  | undefined {
-  const path = process.env[PUBLIC_SPECS_FILE_ENV];
-  const raw = process.env[LEGACY_PUBLIC_SPECS_ENV];
+function loadPublicToolSpecs(
+  env: AgentaExtensionEnv,
+): { specs: ResolvedToolSpec[]; route: string } | undefined {
+  const path = env[PUBLIC_SPECS_FILE_ENV];
+  const raw = env[LEGACY_PUBLIC_SPECS_ENV];
   let json: string;
   let route: string;
   if (path) {
@@ -342,10 +342,10 @@ function loadPublicToolSpecs():
 }
 
 /** Register public tool metadata as Pi tools whose execution relays to the runner. */
-function registerTools(pi: ExtensionAPI): void {
-  const relayDir = process.env.AGENTA_AGENT_TOOLS_RELAY_DIR;
+function registerTools(pi: ExtensionAPI, env: AgentaExtensionEnv): void {
+  const relayDir = env.AGENTA_AGENT_TOOLS_RELAY_DIR;
   if (!relayDir) return;
-  const loaded = loadPublicToolSpecs();
+  const loaded = loadPublicToolSpecs(env);
   if (!loaded) return;
   const specs = loaded.specs;
 
@@ -422,31 +422,48 @@ function registerTools(pi: ExtensionAPI): void {
   );
 }
 
+/**
+ * The values the extension reads. In its own Pi process this is `process.env`; in the runner
+ * process (the `inprocess` provider) it is the session's own map, because `process.env` is
+ * shared by every session there.
+ */
+export type AgentaExtensionEnv = Readonly<Record<string, string | undefined>>;
+
+/** Build the Pi ExtensionFactory for one session's configuration. */
+export function createAgentaExtension(
+  env: AgentaExtensionEnv,
+): (pi: ExtensionAPI) => void {
+  return (pi) => registerAgentaExtension(pi, env);
+}
+
 /** The Pi ExtensionFactory: tools + (env-driven) tracing + usage writeback. */
-const factory = (pi: ExtensionAPI): void => {
-  const modelProviderOverrideRaw = process.env[PI_MODEL_PROVIDER_OVERRIDE_ENV];
+const factory = (pi: ExtensionAPI): void =>
+  registerAgentaExtension(pi, process.env);
+
+function registerAgentaExtension(
+  pi: ExtensionAPI,
+  env: AgentaExtensionEnv,
+): void {
+  const modelProviderOverrideRaw = env[PI_MODEL_PROVIDER_OVERRIDE_ENV];
   const modelProviderOverride =
     modelProviderOverrideRaw === undefined
       ? undefined
       : decodePiModelProviderOverride(modelProviderOverrideRaw);
   // Fully inert unless Agenta wired this run (so it is safe to install globally in a
   // shared Pi agent dir — a normal `pi` session with no Agenta env does nothing).
-  const traceControlPath = process.env[PI_TRACE_CONTROL_ENV];
+  const traceControlPath = env[PI_TRACE_CONTROL_ENV];
   const hasTracing = !!traceControlPath;
-  const relayDir = process.env.AGENTA_AGENT_TOOLS_RELAY_DIR;
+  const relayDir = env.AGENTA_AGENT_TOOLS_RELAY_DIR;
   const hasTools = !!(
-    (process.env[PUBLIC_SPECS_FILE_ENV] ||
-      process.env[LEGACY_PUBLIC_SPECS_ENV]) &&
+    (env[PUBLIC_SPECS_FILE_ENV] || env[LEGACY_PUBLIC_SPECS_ENV]) &&
     relayDir
   );
   const hasBuiltinActivation = isTruthyFlag(
-    process.env.AGENTA_AGENT_BUILTIN_ACTIVATION,
+    env.AGENTA_AGENT_BUILTIN_ACTIVATION,
   );
-  const hasBuiltinGating = isTruthyFlag(
-    process.env.AGENTA_AGENT_BUILTIN_GATING,
-  );
-  const gatewayMcpServers = process.env[PI_GATEWAY_MCP_SERVERS_ENV];
-  const usageOut = process.env.AGENTA_AGENT_USAGE_CAPTURE_PATH;
+  const hasBuiltinGating = isTruthyFlag(env.AGENTA_AGENT_BUILTIN_GATING);
+  const gatewayMcpServers = env[PI_GATEWAY_MCP_SERVERS_ENV];
+  const usageOut = env.AGENTA_AGENT_USAGE_CAPTURE_PATH;
   if (
     !modelProviderOverride &&
     !hasTracing &&
@@ -473,7 +490,7 @@ const factory = (pi: ExtensionAPI): void => {
     });
   }
 
-  if (hasTools) registerTools(pi);
+  if (hasTools) registerTools(pi, env);
   if (gatewayMcpServers) {
     pi.on("before_agent_start", async () => {
       try {
@@ -562,6 +579,6 @@ const factory = (pi: ExtensionAPI): void => {
     }
     if (otel.config.enabled) await otel.flush();
   });
-};
+}
 
 export default factory;

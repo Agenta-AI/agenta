@@ -7,6 +7,7 @@ class SecretKind(str, Enum):
     SSO_PROVIDER = "sso_provider"
     WEBHOOK_PROVIDER = "webhook_provider"
     CUSTOM_SECRET = "custom_secret"
+    CHANNEL_SECRET = "channel_secret"
     SUBSCRIPTION_PROVIDER = "subscription_provider"
     OAUTH_PROVIDER = "oauth_provider"
     OAUTH_GRANT = "oauth_grant"
@@ -44,6 +45,14 @@ def is_always_write_only(kind) -> bool:
     except ValueError:
         # An unknown kind is not one of ours to force. It cannot be an OAuth grant.
         return False
+
+
+class ChannelSecretKind(str, Enum):
+    SLACK = "slack"
+    TELEGRAM = "telegram"
+    WHATSAPP = "whatsapp"
+    AGENTA = "agenta"
+    BRIDGE = "bridge"
 
 
 class SubscriptionProviderKind(str, Enum):
@@ -122,6 +131,7 @@ class LLMStandardProviderKind(str, Enum):
     TOGETHERAI = "together_ai"
     OPENROUTER = "openrouter"
     GEMINI = "gemini"
+    XAI = "xai"
 
 
 # The user-facing name of each standard provider, used to name an unnamed connection on create.
@@ -143,6 +153,7 @@ LLM_STANDARD_PROVIDER_DISPLAY_NAMES = {
     LLMStandardProviderKind.TOGETHERAI: "Together AI",
     LLMStandardProviderKind.OPENROUTER: "OpenRouter",
     LLMStandardProviderKind.GEMINI: "Google Gemini",
+    LLMStandardProviderKind.XAI: "xAI",
 }
 
 
@@ -183,6 +194,7 @@ class LLMCustomProviderKind(str, Enum):
     TOGETHERAI = "together_ai"
     OPENROUTER = "openrouter"
     GEMINI = "gemini"
+    XAI = "xai"
 
 
 class LLMEndpointProtocol(str, Enum):

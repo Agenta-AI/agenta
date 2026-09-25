@@ -12,17 +12,7 @@ went with it.
 
 from __future__ import annotations
 
-from ..flags import ordered_operations_enabled
-
 from ..skills import SkillFile, SkillTemplate
-
-# Read once, at import, exactly like the op catalog builds its tool descriptions. The skill
-# TEACHES the commit surface the catalog ADVERTISES, and one deployment must show one shape:
-# a model that sees the ordered form in the tool description and the legacy form in its skill
-# picks between them unpredictably. That is not hypothetical — a live agent followed a legacy
-# `delta.set` example from this skill against an ordered-operations deployment and replaced a
-# skills list it meant to append to.
-_ORDERED = ordered_operations_enabled()
 
 # Reserved slug of the platform default skill. The default agent config template embeds the
 # skill by this slug; the server-side StaticWorkflowCatalog resolves the slug to the
@@ -63,8 +53,7 @@ GETTING_STARTED_WITH_AGENTA_SKILL = SkillTemplate(
 # builtins_reference_files.py) asserts this text names every top-level template field and every
 # tool `type`, so a schema that grows without updating this file fails CI.
 #
-# Assembled in three pieces: an intro and a commit chapter that follow the deployment's commit
-# surface, around the field-by-field middle that is the same either way.
+# Assembled in three pieces: an intro, the field-by-field middle, and the commit chapter.
 _CONFIG_SCHEMA_INTRO_ORDERED = """\
 # The agent config, field by field
 
@@ -78,20 +67,6 @@ below is addressed as `["parameters", "agent", ...]`. The portable definition �
 `sandbox` — are nested sub-objects. The commit checks your target, NOT the value you write into
 it: a misplaced or misspelled field inside an entry commits fine and only bites when the agent
 next runs. Get the shape right from this reference before you commit.
-"""
-
-_CONFIG_SCHEMA_INTRO_LEGACY = """\
-# The agent config, field by field
-
-Read this before your first `commit_revision`, and whenever a run misbehaves after a commit and
-you need to check the shape.
-
-`parameters.agent` is one object. You edit it by sending only the changed fields under
-`commit_revision`'s `workflow_revision.delta.set.parameters.agent`. The portable definition —
-`instructions`, `llm`, `tools`, `mcps`, `skills` — is flat on it; the execution parts —
-`harness`, `runner`, `sandbox` — are nested sub-objects. The commit does NOT validate this shape:
-a misplaced or misspelled field commits fine and only bites when the agent next runs. Get the
-shape right from this reference before you commit.
 """
 
 _CONFIG_SCHEMA_FIELDS = """\
@@ -282,8 +257,7 @@ the run:
   "strict"|"best_effort" }`.
 """
 
-# The commit chapter for a deployment that serves the ordered-operations surface: the
-# read-then-commit loop, the target grammar, the seven operations, and the failure modes the
+# The commit chapter: the read-then-commit loop, the target grammar, the seven operations, and the failure modes the
 # contracts (docs/design/agent-config-editing/contracts/) actually produce. Every example
 # validates against the ordered arm of `_COMMIT_REVISION_INPUT_SCHEMA`; a test asserts it.
 _CONFIG_SCHEMA_COMMIT_ORDERED = """\
@@ -527,170 +501,8 @@ Don't forget:
 - Touch `harness`, `runner`, `sandbox`, and `llm` only when you are intentionally changing them.
 """
 
-_CONFIG_SCHEMA_COMMIT_LEGACY = """\
-
-## How a delta commits (merge semantics)
-
-`commit_revision` sends `workflow_revision.delta.set` and an optional `delta.remove`:
-
-- `set` **deep-merges** onto your current config: a nested object key you leave out keeps its old
-  value.
-- **Lists replace wholesale.** `tools`, `skills`, and `mcps` are NOT merged item by item — the
-  list you send REPLACES the old one. To add one tool, send the full list (your current entries
-  plus the new one). Sending only the new tool wipes the rest — every skill, MCP, and gateway
-  tool you left out is gone on your next run.
-- `remove` takes dotted paths, e.g. `parameters.agent.tools`.
-
-## Mistakes that break your agent
-
-The commit accepts whatever you send — none of these return a validation error. Each one commits
-fine and then bites later, at a different spot. Check each of these before you commit. They
-show up as a skill that fails to load on the next run, or in the `resolved` block of a
-`test_run` the person asked for.
-
-- `slug` or `content` as top-level fields on a skill entry. The skill's Markdown goes in `body`;
-  a bundled file's text goes in that file's `content` inside `files`. Bites at RUN time: skill
-  parsing rejects the unknown keys and the run fails to load the skill.
-- Any unknown or misspelled key in a skill entry or a tool entry. Same failure point: the run
-  rejects the entry when it parses the config, not the commit.
-- `harness.kind: "claude"` paired with a non-Anthropic `provider`. Claude reaches `anthropic`
-  only. Bites at RUN time: the run's Model & Harness never resolves and the agent never runs.
-- A raw model id on the `claude` harness (Claude selects by alias) or an alias like `sonnet` on a
-  `pi_core` harness (Pi selects by provider/id). Bites silently: the run falls back
-  to a default model with no error. Only the `resolved` block of a `test_run` shows the fallback.
-- Sending a short `tools`/`skills`/`mcps` list. Bites on the NEXT run: lists replace wholesale,
-  so every entry you left out is gone.
-- Rebuilding the whole `parameters.agent` object instead of a narrow delta. Prefer a `delta.set`
-  that touches only what you change, so `harness`, `runner`, `sandbox`, and `llm` survive the
-  deep merge untouched.
-
-## Example requests
-
-These are complete `commit_revision` payloads, ready to adapt. Field names match exactly; only the
-values are placeholders. Most of the time you change only `instructions` and `skills` — the first
-two examples cover the common case.
-
-Instructions only, the minimal two-step case — just a persona and a task:
-
-```json
-{
-  "workflow_revision": {
-    "message": "Set the agent's persona: triage inbound support emails.",
-    "delta": {
-      "set": {
-        "parameters": {
-          "agent": {
-            "instructions": {
-              "agents_md": "You triage inbound support emails. For each email: (1) classify it as bug, billing, or question; (2) draft a one-paragraph reply; (3) hand off billing issues instead of answering them."
-            }
-          }
-        }
-      }
-    }
-  }
-}
-```
-
-Adding a skill entry — an inline skill template with one bundled reference file. `skills` replaces
-wholesale too, so include your existing entries (this example assumes the list was empty):
-
-```json
-{
-  "workflow_revision": {
-    "message": "Add a code-review-checklist skill.",
-    "delta": {
-      "set": {
-        "parameters": {
-          "agent": {
-            "skills": [
-              {
-                "name": "code-review-checklist",
-                "description": "Use when reviewing a pull request for style and correctness issues.",
-                "body": "# Code review checklist\\n\\nWalk every changed file against `references/checklist.md` before approving.\\n",
-                "files": [
-                  {
-                    "path": "references/checklist.md",
-                    "content": "- No commented-out code\\n- Tests cover the new branch\\n- Error messages are actionable\\n"
-                  }
-                ]
-              }
-            ]
-          }
-        }
-      }
-    }
-  }
-}
-```
-
-Adding ONE gateway tool — `tools` replaces wholesale, so resend every entry you already have (any
-`@ag.embed` tool, every gateway tool) plus the new one. Leave every `platform` entry out: those
-tools are injected into your run, and a commit that carries one is refused. The gateway
-entry is copied from what `discover_tools` returned, with the `connection` slug filled in.
-New integrations always start with every tool allowed and no per-tool overrides. Do not infer a
-stricter policy from the task; only restrict it when the user explicitly asks.
-CAVEAT: the list below is SHORTENED to keep the example readable — in a real commit, resend your
-ENTIRE current tools list, every entry you have, not this subset:
-
-```json
-{
-  "workflow_revision": {
-    "message": "Add the GitHub create-issue tool.",
-    "delta": {
-      "set": {
-        "parameters": {
-          "agent": {
-            "tools": [
-              { "@ag.embed": { "@ag.references": { "workflow": { "slug": "__ag__some_tool" } },
-                                "@ag.selector": { "path": "parameters.tool" } } },
-              {
-                "type": "gateway_connection",
-                "connection": {
-                  "provider": "composio",
-                  "integration": "github",
-                  "slug": "github-7f2a"
-                },
-                "policy": { "permissions": { "default": "allow", "tools": {} } }
-              }
-            ]
-          }
-        }
-      }
-    }
-  }
-}
-```
-
-Dropping one field with `delta.remove` — a dotted path, no `set` required:
-
-```json
-{
-  "workflow_revision": {
-    "message": "Drop the reasoning_effort override; use the model's default again.",
-    "delta": {
-      "remove": ["parameters.agent.llm.extras.reasoning_effort"]
-    }
-  }
-}
-```
-
-Don't forget:
-
-- Re-send the complete list for `tools`, `skills`, and `mcps`, minus every `platform` entry. A
-  one-entry list wipes the rest.
-- Copy `@ag.embed` entries through unchanged; do not try to inline or edit what they point at.
-- `message` is a real commit message. Say what changed and why, not a placeholder.
-- After the user connects an integration, re-run `discover_tools` and copy the REAL slug it
-  reports as ready onto the `gateway_connection` entry. NEVER invent a slug: a plausible guess
-  commits without complaint and fails at run time as connection-not-found.
-- Keep `harness`, `runner`, `sandbox`, and `llm` out of `delta.set` unless you are intentionally
-  changing them; a narrow delta preserves them through the deep merge.
-"""
-
 _CONFIG_SCHEMA_REFERENCE = (
-    (_CONFIG_SCHEMA_INTRO_ORDERED if _ORDERED else _CONFIG_SCHEMA_INTRO_LEGACY)
-    + _CONFIG_SCHEMA_FIELDS
-    + (_CONFIG_SCHEMA_COMMIT_ORDERED if _ORDERED else _CONFIG_SCHEMA_COMMIT_LEGACY)
+    _CONFIG_SCHEMA_INTRO_ORDERED + _CONFIG_SCHEMA_FIELDS + _CONFIG_SCHEMA_COMMIT_ORDERED
 )
 
 # Bundled reference file: the `inputs_fields` template language. Verified against the runtime
@@ -835,8 +647,6 @@ Don't forget:
 
 
 # SKILL.md, assembled from a common spine plus the passages that describe HOW a commit is made.
-# Those follow the deployment's commit surface (see `_ORDERED` above); everything else is the
-# same either way and lives in one copy so it cannot drift between the two arms.
 #
 # WHAT THIS SKILL IS FOR, AND WHAT IT IS NOT. The platform prompt (`platform_instructions.py`)
 # owns behavior: decide and proceed, the three ask gates, show a sample before building an
@@ -876,12 +686,6 @@ one field or one list entry and leaves everything else alone. Read
 field, the operations, worked examples, and the mistakes that break an agent.
 """
 
-_BUILD_SHAPE_LEGACY = """\
-Change your configuration only with `commit_revision`, by setting `parameters.agent` fields.
-Read `references/config-schema.md` before your first commit: it gives the exact shape of every
-field, the delta merge semantics, worked examples, and the mistakes that break an agent.
-"""
-
 _BUILD_LOOP_ORDERED = """\
 
 ## How a change goes
@@ -902,7 +706,8 @@ _BUILD_LOOP_ORDERED = """\
    `references/trigger-inputs.md` first. For a schedule, cron is UTC, five fields, one-minute
    floor; convert the person's timezone yourself, then `create_schedule`. For an event,
    `discover_triggers`, check that the returned event description really fits the ask (the
-   match is keyword search), then `create_subscription`. Both are approval stops. A trigger
+   match is keyword search), then `create_subscription`. Use the configured permission gate;
+   do not add a conversational confirmation for an allowed call. A trigger
    pins the revision it was created on: after a later commit, re-point it.
 5. Say what changed in two or three sentences, offer a test, and stop. Run `test_run` only if
    the person asks. When you do, read `verdict`, `tools`, and `approvals`, not the status
@@ -911,29 +716,6 @@ _BUILD_LOOP_ORDERED = """\
 Do not ask for details you can look up or default. When you need a value only the person has,
 such as a repo, a channel, or a timezone, ask once with `request_input`, with a proposed
 default in every field you can guess.
-"""
-
-_BUILD_LOOP_LEGACY = """\
-
-## How a change goes
-
-1. If the change needs an outside app, call `discover_tools` with one short fragment per
-   capability. Read the per-integration connection state, not the headline match. If the
-   integration is not connected, call `request_connection` and stop until the person has
-   connected it; then run `discover_tools` again and take the real slug. Never invent a slug.
-2. `commit_revision` with the chosen `gateway_connection` entries in `tools` and the new
-   `instructions.agents_md`. This is an approval stop. A refused commit does not undo earlier
-   connections or triggers.
-3. Add a trigger only when the person asked for one or the job clearly repeats. Read
-   `references/trigger-inputs.md` first. Cron is UTC, five fields; convert the person's
-   timezone. For an event, `discover_triggers`, check the event fits, then
-   `create_subscription`. A trigger pins the revision it was created on: after a later commit,
-   re-point it.
-4. Say what changed in two or three sentences, offer a test, and stop. Run `test_run` only if
-   the person asks.
-
-Do not ask for details you can look up or default. When you need a value only the person has,
-ask once with `request_input`, with a proposed default in every field you can guess.
 """
 
 # NOTE for a future audit: this block deliberately CONTAINS a banned provider action name
@@ -1010,31 +792,6 @@ File tools, or raw HTTP only when your wired tools cannot do the job, and say so
   against `references/config-schema.md`.
 """
 
-_BUILD_TOOLS_AND_FAILURES_LEGACY = """\
-
-## Prefer wired tools
-
-Prefer your wired tools (`discover_tools`, `request_input`, `request_connection`, `request_secret`,
-`commit_revision`, `test_run`, `create_schedule`, `list_schedules`, `discover_triggers`,
-`create_subscription`, `test_subscription`, `list_deliveries`, `remove_schedule`,
-`remove_subscription`) over harness builtins. Touch Terminal, RemoteTrigger, File tools, or raw
-HTTP only when your wired tools cannot do the job, and say so when you do.
-
-## When something fails
-
-- A denied or failed `commit_revision` does not undo earlier connections or triggers; they still
-  exist. Do not redo them.
-- The commit does not validate your config: a wrong shape commits fine and surfaces at run time —
-  a skill fails to load, the model silently falls back, a tool goes missing. Check the shape
-  against `references/config-schema.md` before you commit, and when a run misbehaves after a
-  commit, check it again and re-commit the fix; do not start over.
-- After any commit, existing schedules and subscriptions still point at the previous revision.
-  Re-point them so they run the new config.
-- If a `test_run` the person asked for shows a `resolved` harness or model that differs from what
-  you committed, the config silently fell back (usually a harness/model/provider mismatch). Fix it
-  against `references/config-schema.md`.
-"""
-
 _BUILD_FOOTGUNS = """\
 
 ## Footguns
@@ -1050,14 +807,10 @@ _BUILD_FOOTGUNS = """\
 
 _BUILD_AN_AGENT_BODY = (
     _BUILD_HEAD
-    + (_BUILD_SHAPE_ORDERED if _ORDERED else _BUILD_SHAPE_LEGACY)
-    + (_BUILD_LOOP_ORDERED if _ORDERED else _BUILD_LOOP_LEGACY)
+    + _BUILD_SHAPE_ORDERED
+    + _BUILD_LOOP_ORDERED
     + _BUILD_INSTRUCTIONS_WRITING
-    + (
-        _BUILD_TOOLS_AND_FAILURES_ORDERED
-        if _ORDERED
-        else _BUILD_TOOLS_AND_FAILURES_LEGACY
-    )
+    + _BUILD_TOOLS_AND_FAILURES_ORDERED
     + _BUILD_FOOTGUNS
 )
 

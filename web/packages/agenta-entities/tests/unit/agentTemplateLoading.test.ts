@@ -4,14 +4,19 @@ import {getDefaultStore} from "jotai"
 import {queryClientAtom} from "jotai-tanstack-query"
 import {beforeEach, describe, expect, it, vi} from "vitest"
 
-const {createWorkflowMock, loadAgentTemplateMock} = vi.hoisted(() => ({
+const {createWorkflowMock, loadAgentTemplateMock, fetchOverlayMock} = vi.hoisted(() => ({
     createWorkflowMock: vi.fn(),
     loadAgentTemplateMock: vi.fn(),
+    fetchOverlayMock: vi.fn(),
 }))
 
 vi.mock("../../src/workflow/api", async (importOriginal) => {
     const actual = await importOriginal<typeof import("../../src/workflow/api")>()
-    return {...actual, createWorkflow: createWorkflowMock}
+    return {
+        ...actual,
+        createWorkflow: createWorkflowMock,
+        fetchAgentBuildKitOverlay: fetchOverlayMock,
+    }
 })
 
 vi.mock("../../src/workflow/api/agentTemplates", () => ({
@@ -47,6 +52,10 @@ const WORKFLOW_DATA = {
 const store = getDefaultStore()
 
 beforeEach(() => {
+    fetchOverlayMock.mockReset().mockResolvedValue({
+        tools: [{type: "platform", op: "create_schedule", permission: "allow"}],
+        op_access: {create_schedule: "write"},
+    })
     createWorkflowMock.mockReset()
     createWorkflowMock.mockResolvedValue({
         id: "ordinary-revision",
@@ -151,7 +160,7 @@ describe("template package loading", () => {
         const first = store.set(loadAgentTemplateFromEphemeralAtom, params)
         const second = store.set(loadAgentTemplateFromEphemeralAtom, params)
 
-        expect(loadAgentTemplateMock).toHaveBeenCalledTimes(1)
+        await vi.waitFor(() => expect(loadAgentTemplateMock).toHaveBeenCalledTimes(1))
         const result = {
             workflow_id: "loaded-workflow",
             workflow_slug: "pr-reviewer",
@@ -192,7 +201,9 @@ it("retries an uncertain creation with the original key and exact payload", asyn
         "response lost",
     )
     const original = loadAgentTemplateMock.mock.calls[0]
+    fetchOverlayMock.mockRejectedValue(new Error("catalog unavailable"))
     await store.set(loadAgentTemplateFromEphemeralAtom, params)
+    expect(fetchOverlayMock).toHaveBeenCalledTimes(1)
     expect(loadAgentTemplateMock.mock.calls[1]).toEqual(original)
     expect(original[0]).toMatchObject({
         staging_session_id: "staged-session",

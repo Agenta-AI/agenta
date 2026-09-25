@@ -98,6 +98,7 @@ import {
 } from "./reconciliation-router.ts";
 import { normalizeDesiredState } from "./desired-state.ts";
 import { formatPlan, type ReconcilePlan } from "./reconcile-plan.ts";
+import { normalizeRequestModel } from "../engines/sandbox_agent/model.ts";
 
 export function klog(message: string): void {
   process.stderr.write(`[keepalive] ${message}\n`);
@@ -219,15 +220,15 @@ export function resolveKeepaliveProvider(
 ): KeepaliveProviderName | undefined {
   if (resolvesToLocalProvider(request.sandbox)) return "local";
   const provider = request.sandbox ?? loadRunnerConfig().providers.default;
-  return provider === "daytona" ? "daytona" : undefined;
+  return provider === "daytona" || provider === "inprocess" ? provider : undefined;
 }
 
 export function resolveKeepaliveDispatch(
   request: AgentRunRequest,
-  configs: Record<KeepaliveProviderName, KeepaliveConfig>,
+  configs: Partial<Record<KeepaliveProviderName, KeepaliveConfig>>,
 ): KeepaliveProviderName | undefined {
   const provider = resolveKeepaliveProvider(request);
-  return provider && configs[provider].enabled ? provider : undefined;
+  return provider && configs[provider]?.enabled ? provider : undefined;
 }
 
 /**
@@ -243,6 +244,8 @@ export async function runWithKeepalive(
   ctx: KeepaliveContext,
 ): Promise<AgentRunResult> {
   const { engine, pool, config, clientGone, credential, credentialWait } = ctx;
+  // Before the fingerprint, the live model change and the env all read it (see the helper).
+  normalizeRequestModel(request);
   const turnCredential = credential ? { credential } : {};
   const sessionId = request.sessionId?.trim();
   // Every execution carries an id: callers that omit `turnId` get one minted here, so the
@@ -714,7 +717,7 @@ export async function runWithKeepalive(
         const current = pool.get(key);
         if (current !== entry || current.state !== "awaiting_approval") return;
         klog(`parked-prompt-rejected key=${key}; evict`);
-        void pool.evict(key, "parked-prompt-rejected", "failed-turn");
+        pool.evictInBackground(key, "parked-prompt-rejected", "failed-turn");
       });
     }
   };

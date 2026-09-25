@@ -511,6 +511,11 @@ _ADAPTERS: Dict[str, ProviderAdapter] = {
         url="https://api.perplexity.ai/v1/models",
         extract=_openai_style,
     ),
+    "xai": ApiKeyCatalogAdapter(
+        label="xAI",
+        url="https://api.x.ai/v1/models",
+        extract=_openai_style,
+    ),
     "minimax": UntestableAdapter(
         label="MiniMax",
         reason="publishes no model list or free credential check, so this key was saved untested.",

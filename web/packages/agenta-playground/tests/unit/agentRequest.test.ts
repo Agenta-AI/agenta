@@ -13,7 +13,7 @@
  * headers + project come from the real `executionHeadersAtom` / `projectIdAtom`.
  */
 import {createStore, type PrimitiveAtom} from "jotai"
-import {describe, expect, it, beforeEach, afterEach, vi} from "vitest"
+import {describe, expect, it, beforeEach, vi} from "vitest"
 
 vi.mock("@agenta/entities/workflow", async (importOriginal) => {
     const actual = (await importOriginal()) as any
@@ -38,17 +38,16 @@ vi.mock("@agenta/entities/workflow", async (importOriginal) => {
             },
         },
         workflowAgentTemplateOverlayAtomFamily: mk<Record<string, unknown> | null>(null),
-        workflowBuildKitEnabledAtomFamily: mk<boolean>(true),
+        workflowBuildKitUiStateAtomFamily: mk({enabled: true, disabledOps: []}),
+        migrateBuildKitStateAtom: atom(null, () => undefined),
     }
 })
 
 import {
     workflowAgentTemplateOverlayAtomFamily,
-    workflowBuildKitDisabledOpsAtomFamily,
-    workflowBuildKitEnabledAtomFamily,
+    workflowBuildKitUiStateAtomFamily,
     workflowMolecule,
 } from "@agenta/entities/workflow"
-import {processEnv} from "@agenta/shared/api"
 import {projectIdAtom} from "@agenta/shared/state"
 
 import {
@@ -62,10 +61,6 @@ import {executionHeadersAtom} from "../../src/state/execution/webWorkerIntegrati
 const REAL_APP = "11111111-1111-4111-8111-111111111111"
 const REAL_VARIANT = "22222222-2222-4222-8222-222222222222"
 const REAL_REV = "33333333-3333-4333-8333-333333333333"
-
-type TestRuntimeGlobal = typeof globalThis & {
-    __env?: Record<string, string>
-}
 
 const set = (store: any, sel: any, id: string, value: unknown) =>
     store.set(sel(id) as PrimitiveAtom<unknown>, value)
@@ -96,14 +91,10 @@ function seed(
         workflowAgentTemplateOverlayAtomFamily(id) as PrimitiveAtom<unknown>,
         over.overlay ?? null,
     )
-    store.set(
-        workflowBuildKitEnabledAtomFamily(id) as PrimitiveAtom<unknown>,
-        over.buildKitEnabled ?? true,
-    )
-    store.set(
-        workflowBuildKitDisabledOpsAtomFamily(id) as PrimitiveAtom<unknown>,
-        over.buildKitDisabledOps ?? [],
-    )
+    store.set(workflowBuildKitUiStateAtomFamily(id) as PrimitiveAtom<unknown>, {
+        enabled: over.buildKitEnabled ?? true,
+        disabledOps: over.buildKitDisabledOps ?? [],
+    })
 }
 
 /** Minimal shape of the agent template these assertions read back off the request body. */
@@ -215,20 +206,10 @@ describe("buildAgentRequest", () => {
         expect(await buildAgentRequest("e", [], {sessionId: "s1", store})).toBeNull()
     })
 
-    describe("last-message-only (NEXT_PUBLIC_SESSIONS_LAST_MESSAGE_ONLY)", () => {
+    describe("last-message-only", () => {
         const u1 = {role: "user", parts: [{type: "text", text: "q1"}]}
         const a1 = {role: "assistant", parts: [{type: "text", text: "a1"}]}
         const u2 = {role: "user", parts: [{type: "text", text: "q2"}]}
-
-        // Runtime override path (getEnv checks globalThis.__env before the build-time snapshot).
-        const setFlag = (value: string) => {
-            ;(globalThis as TestRuntimeGlobal).__env = {
-                NEXT_PUBLIC_SESSIONS_LAST_MESSAGE_ONLY: value,
-            }
-        }
-        afterEach(() => {
-            delete (globalThis as TestRuntimeGlobal).__env
-        })
 
         const outMessages = async (msgs: unknown[], sessionId = "s1") => {
             seed(store, "e", {})
@@ -236,37 +217,11 @@ describe("buildAgentRequest", () => {
             return (req!.requestBody.data as any).inputs.messages
         }
 
-        it("sends only the trailing user message by default (flag absent)", async () => {
+        it("sends only the trailing user message on a fresh user turn", async () => {
             expect(await outMessages([u1, a1, u2])).toEqual([u2])
         })
 
-        it("sends only the trailing user message when explicitly enabled", async () => {
-            setFlag("true")
-            expect(await outMessages([u1, a1, u2])).toEqual([u2])
-        })
-
-        it('an empty value (compose "${VAR:-}" passthrough) keeps the default on', async () => {
-            const buildTimeValue = processEnv.NEXT_PUBLIC_SESSIONS_LAST_MESSAGE_ONLY
-            processEnv.NEXT_PUBLIC_SESSIONS_LAST_MESSAGE_ONLY = "false"
-            setFlag("")
-            try {
-                expect(await outMessages([u1, a1, u2])).toEqual([u2])
-            } finally {
-                processEnv.NEXT_PUBLIC_SESSIONS_LAST_MESSAGE_ONLY = buildTimeValue
-            }
-        })
-
-        it('sends the full history when explicitly disabled ("false")', async () => {
-            setFlag("false")
-            expect(await outMessages([u1, a1, u2])).toEqual([u1, a1, u2])
-        })
-
-        it("treats trimmed, case-insensitive false as disabled", async () => {
-            setFlag(" FALSE ")
-            expect(await outMessages([u1, a1, u2])).toEqual([u1, a1, u2])
-        })
-
-        it("keeps the full history on a resume (trailing assistant) even when on", async () => {
+        it("keeps the full history on a resume (trailing assistant)", async () => {
             const out = await outMessages([u1, a1])
             expect(out.length).toBeGreaterThan(1)
             expect(out[out.length - 1].role).toBe("assistant")
@@ -344,7 +299,7 @@ describe("buildAgentRequest", () => {
             sandbox: {permissions: {execute_code: "allow", write_files: "allow"}},
             tools: [
                 {type: "platform", op: "find_capabilities", permission: "allow"},
-                {type: "platform", op: "commit_revision"},
+                {type: "platform", op: "commit_revision", permission: "allow"},
                 requestConnectionTool,
             ],
             skills: [authoringSkill],
@@ -363,7 +318,7 @@ describe("buildAgentRequest", () => {
             {type: "platform", op: "find_capabilities", permission: "allow"},
             {type: "client", name: "weather"},
             requestConnectionTool,
-            {type: "platform", op: "commit_revision"},
+            {type: "platform", op: "commit_revision", permission: "allow"},
         ])
         expect(template.skills).toEqual([authoringSkill])
         expect(config).toEqual(before)
@@ -382,7 +337,7 @@ describe("buildAgentRequest", () => {
         seed(store, "e", {
             config,
             overlay: {
-                tools: [{type: "platform", op: "commit_revision"}],
+                tools: [{type: "platform", op: "commit_revision", permission: "allow"}],
             },
             buildKitEnabled: true,
         })
@@ -396,7 +351,7 @@ describe("buildAgentRequest", () => {
             builtin("bash"),
             builtin("edit"),
             builtin("write"),
-            {type: "platform", op: "commit_revision"},
+            {type: "platform", op: "commit_revision", permission: "allow"},
         ])
     })
 
@@ -411,7 +366,7 @@ describe("buildAgentRequest", () => {
             config,
             overlay: {
                 sandbox: {permissions: {execute_code: "allow", write_files: "allow"}},
-                tools: [{type: "platform", op: "commit_revision"}],
+                tools: [{type: "platform", op: "commit_revision", permission: "allow"}],
                 skills: [authoringSkill],
             },
             buildKitEnabled: true,
@@ -428,7 +383,7 @@ describe("buildAgentRequest", () => {
         })
         expect(params.tools).toEqual([
             {type: "client", name: "weather"},
-            {type: "platform", op: "commit_revision"},
+            {type: "platform", op: "commit_revision", permission: "allow"},
         ])
         expect(params.skills).toEqual([authoringSkill])
     })
@@ -444,7 +399,7 @@ describe("buildAgentRequest", () => {
             config,
             overlay: {
                 sandbox: {permissions: {execute_code: "allow", write_files: "allow"}},
-                tools: [{type: "platform", op: "commit_revision"}],
+                tools: [{type: "platform", op: "commit_revision", permission: "allow"}],
                 skills: [authoringSkill],
             },
             buildKitEnabled: false,
@@ -467,8 +422,8 @@ describe("buildAgentRequest", () => {
             overlay: {
                 sandbox: {permissions: {execute_code: "allow"}},
                 tools: [
-                    {type: "platform", op: "discover_tools"},
-                    {type: "platform", op: "commit_revision"},
+                    {type: "platform", op: "discover_tools", permission: "allow"},
+                    {type: "platform", op: "commit_revision", permission: "allow"},
                     requestConnectionTool,
                 ],
                 skills: [authoringSkill],
@@ -482,7 +437,7 @@ describe("buildAgentRequest", () => {
 
         expect(template.tools).toEqual([
             {type: "client", name: "weather"},
-            {type: "platform", op: "discover_tools"},
+            {type: "platform", op: "discover_tools", permission: "allow"},
             requestConnectionTool,
         ])
         // The master switch still governs permissions and the embedded items.
@@ -497,8 +452,8 @@ describe("buildAgentRequest", () => {
             overlay: {
                 sandbox: {permissions: {write_files: "allow"}},
                 tools: [
-                    {type: "platform", op: "discover_tools"},
-                    {type: "platform", op: "commit_revision"},
+                    {type: "platform", op: "discover_tools", permission: "allow"},
+                    {type: "platform", op: "commit_revision", permission: "allow"},
                     requestConnectionTool,
                 ],
                 skills: [authoringSkill],
@@ -519,7 +474,10 @@ describe("buildAgentRequest", () => {
         const config = {agent: {tools: [{type: "client", name: "weather"}]}}
         seed(store, "e", {
             config,
-            overlay: {tools: [{type: "platform", op: "discover_tools"}], skills: [authoringSkill]},
+            overlay: {
+                tools: [{type: "platform", op: "discover_tools", permission: "allow"}],
+                skills: [authoringSkill],
+            },
             buildKitEnabled: false,
             buildKitDisabledOps: ["commit_revision"],
         })
@@ -546,7 +504,7 @@ describe("buildAgentRequest", () => {
             config,
             overlay: {
                 sandbox: {permissions: {execute_code: "allow", write_files: "allow"}},
-                tools: [{type: "platform", op: "commit_revision"}],
+                tools: [{type: "platform", op: "commit_revision", permission: "allow"}],
             },
         })
 
@@ -554,7 +512,11 @@ describe("buildAgentRequest", () => {
 
         // The run copy carries the kit (overlay applied)...
         const runTemplate = (req!.requestBody.data as any).parameters.agent
-        expect(runTemplate.tools).toContainEqual({type: "platform", op: "commit_revision"})
+        expect(runTemplate.tools).toContainEqual({
+            type: "platform",
+            op: "commit_revision",
+            permission: "allow",
+        })
         expect(runTemplate.sandbox.permissions).toMatchObject({write_files: "allow"})
 
         // ...but the persisted config the commit serializer reads is unmutated.

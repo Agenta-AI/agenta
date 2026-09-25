@@ -1,0 +1,74 @@
+---
+id: slack-install-callback
+title: "Slack Install Callback"
+description: "Slack redirects the browser here, in or out of the session that"
+sidebar_label: "Slack Install Callback"
+hide_title: true
+hide_table_of_contents: true
+api: eJztVVFv2zgM/isCn26AlvSKe8rT5briFmy3BdfuXpogVWTG1iJLnkS3zQL/9wNlO06aK1Bg2Ns92SI/kRT5kdwDqTzC5A6uCuUc2ghLCRlGHUxFxjuYwI1VeisCZiagpiioQLEO/jFiEAUGlMI44YPwNQm/SeqIMRrvBBWKFi6SCoRZ0hg+WSvevm2BJneYiUiKUJjW9mPhLXaWFk7VVPhgouJoRLJpogi+JpQi+vZooqjqtTVa/BIRF+5+Nf/yx8fZ1er607v559mn25v7N1I4fMAg7iPazWilC9Tb+5G4Sa4z1D7DKDYmRJosXO22zj86KfCpMgEzfh+pskL+D7ipI0axxo0PKJTbCXzShXI5v2HhFBGWFWE2Agm+wpBin2Uwgci5XHVJWGll7VrpLUioVFAlEgYuxh6cKhEmwEGBBMNl+FZj2IGEgN9qDgkmG2UjSoi6wFLBZA/K7T5v0n3aVXw/UjAuh0YeJK62FpqlBDJkWXDFLhpGdD5TLX6y05T0E68Ygg8/2et18tGwKGCsvIsY2dblxQV/nrG+1hpj3NRW/N2BQYL2jtBRiqCqrNGptOOvke/sh/iapmkk/HZ5eW74H2VN1rL5unv0a61CFZhOZNq4MyRlLP8ZwjKeA6zXJ9pXJM04whwDNMtG9jIVguJy9Hn86NsAoZFQxpwtn9oboH9hjCpHOBh7GZqSIW5Z2zAPqjolpFfPkqCRoOnpyIxff0VNcMxnR/hETK4zzMCnu5SbNvwOd0SUoUQdZV5Mxbu2BP/lrIe8v72dnxls+VEiFZ7HQo6UZgAVMIGx7kbxWCtS1ueDII2PcT82xiAhYnjoh0YdLF9XlUkVbY8FURUn4zHWI219nY1Ujo7USJkWuGQbug6GdsnIdD77gLv3qDIMMLlbHgNumIgttU5hh3KoynxATlDX1tN2en9v+dK1d9HealKZN/64ytMUnJjOZ/B8DZ2ouGOUTgTpPSU1yGfPHl4LErBM/QKEqvz9oOHycg5bNxejX0cXLKp8pFK5IxftIpx1G+xqGN4nge6Hdv5/df7Q6uw4xe08rqwyaeCk8u67XrmDvjWYE2238N8gTB2TlIdqcacXPhJf3+/XKuKXYJuGxe3i4TbITFRre7R6trgbFvKDsjWHlvrsBWi/R1+D7bffgF3yIRgGpy6UfddwcO2lqdZY0dGts93BVg4z5s/rW2iafwFVmWrC
+sidebar_class_name: "get api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Slack Install Callback"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"get"}
+  path={"/channels/catalog/channels/slack/callback/"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Slack redirects the browser here, in or out of the session that
+started the install -- the signed state is the whole of the
+authorisation on this route, so this is public (see
+`_PUBLIC_ENDPOINTS`), never `self._check`. State decodes first:
+unknown, expired or tampered refuses before any exchange is
+attempted.
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./slack-install-callback.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./slack-install-callback.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./slack-install-callback.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

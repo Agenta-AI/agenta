@@ -212,11 +212,30 @@ from oss.src.apis.fastapi.gateways.mcps.proxy import MCPGatewayProxy
 from oss.src.apis.fastapi.gateways.mcps.oauth_router import MCPOAuthClientMetadataRouter
 
 from oss.src.apis.fastapi.shared.utils import SupportHeadersMiddleware
+
+from oss.src.dbs.postgres.channels.dao import ChannelsDAO
+from oss.src.dbs.postgres.channels.identity_dao import ChannelIdentityDAO
+from entrypoints.channel_adapters import build_channel_adapter_registry
+from oss.src.core.channels.identity import ChannelIdentityService
+from oss.src.core.channels.queue import ChannelSessionQueue
+from oss.src.core.channels.service import ChannelsService
+from oss.src.apis.fastapi.channels.ingress import ChannelsIngressRouter
+from oss.src.apis.fastapi.channels.router import ChannelsRouter
+from oss.src.apis.fastapi.channels.tools import ChannelToolsRouter
+from oss.src.core.channels.tools.service import ChannelToolsService
+from oss.src.core.channels.telegram_binding import TelegramBindingService
+from oss.src.core.channels.adapters.telegram_hosted.capabilities import (
+    fetch_telegram_hosted_capabilities,
+)
+from oss.src.dbs.postgres.channels.telegram_bind_dao import TelegramBindingDAO
+from oss.src.tasks.asyncio.channels.inbox import InboxDispatcher
+from oss.src.tasks.taskiq.channels.inbox_worker import ChannelsInboxWorker
+
 from oss.src.dbs.postgres.mounts.dao import MountsDAO
 from oss.src.core.mounts.service import MountsService
 from oss.src.core.store.storage import ObjectStore
 from oss.src.core.sessions.mounts.service import SessionMountsService
-from oss.src.core.sessions.attachments.dtos import AttachmentLimits
+from entrypoints.session_attachments import attachment_limits
 from oss.src.core.sessions.attachments.service import SessionAttachmentsService
 from oss.src.dbs.postgres.sessions.attachments.dao import SessionAttachmentsDAO
 from oss.src.tasks.asyncio.sessions.attachment_sweep import attachment_sweep_loop
@@ -256,7 +275,6 @@ from oss.src.core.sessions.service import SessionsService
 from oss.src.tasks.asyncio.sessions.interactions_dispatcher import (
     InteractionsDispatcher,
 )
-from oss.src.tasks.taskiq.sessions.interactions_worker import InteractionsWorker
 
 # Records DAO (analytics DB)
 from oss.src.dbs.postgres.sessions.records.dao import RecordsDAO
@@ -329,6 +347,7 @@ async def lifespan(*args, **kwargs):
     validate_platform_runtime_key()
 
     await _triggers_broker.startup()
+    await _channels_inbox_broker.startup()
 
     # The store bucket is not lazily created; signed mounts need it to exist. Best-effort
     # so a store outage doesn't block API startup (mounts degrade, the rest runs).
@@ -398,6 +417,7 @@ async def lifespan(*args, **kwargs):
     )
 
     await _triggers_broker.shutdown()
+    await _channels_inbox_broker.shutdown()
 
     for adapter in _composio_adapters.values():
         await adapter.close()
@@ -507,6 +527,11 @@ _OPENAPI_TAGS = [
     },
     # --
     {
+        "name": "Channels",
+        "description": "Chat platform channels — connections, agents, spaces, grants, and the inbound event log.",
+    },
+    # --
+    {
         "name": "Sessions",
         "description": "Agent sessions — runner coordination (invoke/cancel/steer/attach/detach/heartbeat/liveness), state persistence (durable SDK state and sandbox resume pointer), records, and streams.",
     },
@@ -601,7 +626,15 @@ app.add_middleware(
     allow_methods=["*"],
     # `Idempotency-Key` rides on durable session writes (interaction answers, queued inputs);
     # without it every cross-origin client fails the preflight for those routes.
-    allow_headers=["Content-Type", "Idempotency-Key"]
+    # The HTML app bridge sends its folder scope token and conditional-write headers on mount
+    # file requests; etags come back in the response body, so nothing extra is exposed.
+    allow_headers=[
+        "Content-Type",
+        "Idempotency-Key",
+        "X-Agenta-App-Scope",
+        "If-Match",
+        "If-None-Match",
+    ]
     + get_all_supertokens_cors_headers(),
 )
 
@@ -954,7 +987,7 @@ triggers_service = TriggersService(
 
 
 # Detached workflow start: hand the run to the runner and return on the started handshake
-# (no awaiting the run). Shared by both detached consumers (triggers + interactions respond).
+# (no awaiting the run). Shared by both detached consumers (triggers + interaction continuations).
 async def _dispatch_detached_run(*, project_id, user_id, request, run_id=None) -> str:
     result = await workflows_service.invoke_workflow_detached(
         project_id=project_id,
@@ -965,16 +998,6 @@ async def _dispatch_detached_run(*, project_id, user_id, request, run_id=None) -
     return result.run_id
 
 
-# Producer side of the interactions pipeline: the respond route enqueues
-# `interactions.respond` tasks here; entrypoints/worker_queues.py consumes them.
-_interactions_broker = ProducerOnlyRedisStreamBroker(
-    url=env.redis.uri_durable,
-    queue_name="queues:interactions",
-    consumer_group_name="api-interactions-producer",
-    maxlen=100_000,
-    approximate=True,
-)
-
 _interactions_dispatcher = InteractionsDispatcher(
     workflows_service=workflows_service,
     interactions_service=interactions_service,
@@ -984,11 +1007,6 @@ _interactions_dispatcher = InteractionsDispatcher(
     turns_service=session_turns_service,
     streams_service=session_streams_service,
     dispatch_fn=_dispatch_detached_run,
-)
-
-_interactions_worker = InteractionsWorker(
-    broker=_interactions_broker,
-    dispatcher=_interactions_dispatcher,
 )
 
 # Producer side of the inbound dispatch pipeline: the ingress route enqueues
@@ -1041,16 +1059,7 @@ session_mounts_service = SessionMountsService(
 session_attachments_service = SessionAttachmentsService(
     attachments_dao=session_attachments_dao,
     original_store=mounts_service,
-    limits=AttachmentLimits(
-        max_image_bytes=env.agenta.sessions.attachments.max_image_bytes,
-        max_audio_bytes=env.agenta.sessions.attachments.max_audio_bytes,
-        max_document_bytes=env.agenta.sessions.attachments.max_document_bytes,
-        max_other_bytes=env.agenta.sessions.attachments.max_other_bytes,
-        max_per_session_count=env.agenta.sessions.attachments.max_per_session_count,
-        max_per_session_bytes=env.agenta.sessions.attachments.max_per_session_bytes,
-        max_pending_per_session=env.agenta.sessions.attachments.max_pending_per_session,
-        pending_ttl_seconds=env.agenta.sessions.attachments.pending_ttl_seconds,
-    ),
+    limits=attachment_limits(),
 )
 
 _t_services_done = time.perf_counter() - _t_services
@@ -1187,11 +1196,104 @@ tools = ToolsRouter(
     tools_service=tools_service,
     workflows_service=workflows_service,
     tracing_service=tracing_service,
+    mounts_service=mounts_service,
 )
 
 triggers = TriggersRouter(
     triggers_service=triggers_service,
     dispatch_task=_triggers_worker.dispatch_trigger,
+)
+
+channels_adapter_registry = build_channel_adapter_registry()
+
+channels_dao = ChannelsDAO(engine=_transactions_engine)
+
+channels_service = ChannelsService(
+    channels_dao=channels_dao,
+    adapter_registry=channels_adapter_registry,
+    vault_service=vault_service,
+)
+
+channels_identity_dao = ChannelIdentityDAO(engine=_transactions_engine)
+
+channels_identity_service = ChannelIdentityService(
+    identity_dao=channels_identity_dao,
+)
+
+# The hosted (Agenta-owned) Telegram bot. Built only when the deployment has the
+# shared bot configured; otherwise the ingress and the bind endpoint fall back
+# to the custom-bot path and a 404. The binding service owns the one-time link
+# and the chat-to-project map.
+_telegram_binding_service = None
+if env.channels.telegram.enabled:
+    _telegram_binding_service = TelegramBindingService(
+        store=TelegramBindingDAO(engine=_transactions_engine),
+        bot_username=env.channels.telegram.bot_username or "",
+        capabilities=fetch_telegram_hosted_capabilities(),
+    )
+
+# Producer side of the inbound chain: the ingress route enqueues
+# `channels.inbox.dispatch` here; entrypoints/worker_queues.py consumes it.
+_channels_inbox_broker = ProducerOnlyRedisStreamBroker(
+    url=env.redis.uri_durable,
+    queue_name="queues:channels-inbox",
+    consumer_group_name="api-channels-inbox-producer",
+    maxlen=100_000,
+    approximate=True,
+)
+
+
+async def _respond_channel_interaction(*, project_id, user_id, interaction_id, answer):
+    """A channel's approval answer goes to the turn that parked, like a click
+    in the playground does; the continuation runs in the same session."""
+    await _interactions_dispatcher.respond_many(
+        project_id=project_id,
+        user_id=user_id,
+        interaction_answers=[(interaction_id, answer)],
+    )
+
+
+_channels_inbox_dispatcher = InboxDispatcher(
+    channels_service=channels_service,
+    attachments_service=session_attachments_service,
+    respond_interaction_fn=_respond_channel_interaction,
+    workflows_service=workflows_service,
+    identity_service=channels_identity_service,
+    streams_service=session_streams_service,
+    session_queue=ChannelSessionQueue(
+        inputs_service=SessionInputsService(
+            inputs_dao=session_inputs_dao,
+            streams_service=session_streams_service,
+            executions_dao=session_executions_dao,
+            interactions_dao=interactions_dao,
+        ),
+    ),
+)
+
+_channels_inbox_worker = ChannelsInboxWorker(
+    broker=_channels_inbox_broker,
+    dispatcher=_channels_inbox_dispatcher,
+)
+
+channels_ingress = ChannelsIngressRouter(
+    channels_service=channels_service,
+    adapter_registry=channels_adapter_registry,
+    dispatch_task=_channels_inbox_worker.dispatch_inbox_event,
+    telegram_binding_service=_telegram_binding_service,
+)
+
+channels = ChannelsRouter(
+    channels_service=channels_service,
+    adapter_registry=channels_adapter_registry,
+    telegram_binding_service=_telegram_binding_service,
+)
+
+channel_tools = ChannelToolsRouter(
+    tools_service=ChannelToolsService(
+        channels_service=channels_service,
+        workflows_service=workflows_service,
+        telegram_binding_service=_telegram_binding_service,
+    ),
 )
 
 # Gateway storage and policy services. `llm_endpoints_dao` is built earlier, beside the
@@ -1420,7 +1522,6 @@ sessions = SessionsRouter(
     streams_service=session_streams_service,
     records_service=records_service,
     interactions_service=interactions_service,
-    workflows_service=workflows_service,
     attachments_service=session_attachments_service,
     session_mounts_service=session_mounts_service,
     mounts_service=mounts_service,
@@ -1428,8 +1529,6 @@ sessions = SessionsRouter(
     sessions_service=sessions_service,
     commands_service=session_commands_service,
     inputs_service=session_inputs_service,
-    respond_task=_interactions_worker.respond_interaction,
-    interactions_dispatcher=_interactions_dispatcher,
 )
 
 # PLATFORM ADMIN ---------------------------------------------------------------
@@ -1818,6 +1917,42 @@ app.include_router(
     prefix="/preview/triggers",
     tags=["Triggers"],
     include_in_schema=False,
+)
+
+# --- channels ---
+# Ingress paths are literal per channel (/channels/slack/events/), never a path
+# parameter: _PUBLIC_ENDPOINTS matches by prefix. The configuration router
+# mounts under the same prefix and stays authenticated.
+app.include_router(
+    router=channels_ingress.router,
+    prefix="/channels",
+    tags=["Channels"],
+)
+
+app.include_router(
+    router=channels_ingress.router,
+    prefix="/preview/channels",
+    tags=["Channels"],
+    include_in_schema=False,
+)
+
+app.include_router(
+    router=channels.router,
+    prefix="/channels",
+    tags=["Channels"],
+)
+
+app.include_router(
+    router=channels.router,
+    prefix="/preview/channels",
+    tags=["Channels"],
+    include_in_schema=False,
+)
+
+app.include_router(
+    router=channel_tools.router,
+    prefix="/channels",
+    tags=["Channels"],
 )
 
 app.include_router(

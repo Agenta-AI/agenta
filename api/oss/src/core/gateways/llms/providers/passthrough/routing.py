@@ -36,6 +36,7 @@ DIRECT_BASE_URLS: Dict[str, str] = {
     "gemini": "https://generativelanguage.googleapis.com/v1beta/openai",
     "cohere": "https://api.cohere.ai/compatibility/v1",
     "anthropic": "https://api.anthropic.com/v1",
+    "xai": "https://api.x.ai/v1",
 }
 
 

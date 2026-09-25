@@ -1,7 +1,7 @@
 """
 worker_streams - list-parameterized entrypoint hosting the stream consumer
-loops (records, events, spans, and — EE only — measurements, debits) in one
-process.
+loops (records, events, spans, sessions, and — EE only — measurements, debits)
+in one process.
 
 Reads AGENTA_WORKER_STREAMS (subset of ALL_STREAMS); empty or unset selects
 every stream for the running edition. Each selected loop keeps its own stream
@@ -31,6 +31,8 @@ from oss.src.tasks.taskiq.shared.broker import (
     prune_idle_consumers,
 )
 
+from entrypoints.channel_adapters import build_channel_adapter_registry
+from oss.src.core.channels.service import ChannelsService
 from oss.src.core.events.service import EventsService
 from oss.src.core.secrets.services import VaultService
 from oss.src.core.sessions.interactions.service import SessionInteractionsService
@@ -39,15 +41,27 @@ from oss.src.core.sessions.records.streaming import (
     LIVE_FRAME_STREAM_NAME,
     RECORD_STREAM_NAME,
 )
+from oss.src.core.sessions.turns.service import SessionTurnsService
 from oss.src.core.tracing.service import TracingService
+from oss.src.dbs.postgres.channels.dao import ChannelsDAO
 from oss.src.dbs.postgres.events.dao import EventsDAO
 from oss.src.dbs.postgres.secrets.dao import SecretsDAO
 from oss.src.dbs.postgres.sessions.interactions.dao import SessionInteractionsDAO
 from oss.src.dbs.postgres.sessions.executions.dao import SessionExecutionsDAO
+from oss.src.dbs.postgres.sessions.inputs.dao import SessionInputsDAO
 from oss.src.dbs.postgres.sessions.records.dao import RecordsDAO
+from oss.src.dbs.postgres.sessions.turns.dao import SessionTurnsDAO
+from oss.src.dbs.postgres.shared.engine import (
+    get_analytics_engine,
+    get_transactions_engine,
+)
 from oss.src.dbs.postgres.tracing.dao import TracingDAO
 from oss.src.dbs.postgres.webhooks.dao import WebhooksDAO
 from oss.src.dbs.redis.sessions.watch import SessionsWatchPublisher
+from oss.src.tasks.asyncio.channels.outbox import (
+    ChannelsOutboxStreamWorker,
+    ChannelsOutboxWorker,
+)
 from oss.src.tasks.asyncio.events.worker import EventsWorker
 from oss.src.tasks.asyncio.sessions.records_worker import RecordsWorker
 from oss.src.tasks.asyncio.shared.consumer import (
@@ -82,7 +96,7 @@ log = get_module_logger(__name__)
 # OSS build so the default (unset AGENTA_WORKER_STREAMS) selection never needs ee.*,
 # and excluded while the wallet is off so no debit is settled against a ledger that
 # is not finished.
-ALL_STREAMS = ("records", "events", "spans") + (
+ALL_STREAMS = ("records", "events", "spans", "sessions") + (
     ("measurements", "debits") if is_ee() and env.wallets.enabled else ()
 )
 
@@ -93,7 +107,7 @@ MAXLEN_QUEUES_WEBHOOKS = 100_000
 def _selected_streams() -> List[str]:
     selected = env.agenta.workers.streams
     if not selected:
-        return list(ALL_STREAMS)
+        selected = list(ALL_STREAMS)
     unknown = set(selected) - set(ALL_STREAMS)
     if unknown:
         raise ValueError(
@@ -195,6 +209,41 @@ async def _initialize_consumer(consumer: StreamConsumer) -> None:
         )
 
 
+async def _build_sessions_worker(redis_client: Redis) -> StreamConsumer:
+    transactions_engine = get_transactions_engine()
+
+    # Outbox posts/edits need the connection's credential decrypted, hence a vault.
+    channels_service = ChannelsService(
+        channels_dao=ChannelsDAO(engine=transactions_engine),
+        adapter_registry=build_channel_adapter_registry(),
+        vault_service=VaultService(secrets_dao=SecretsDAO()),
+    )
+
+    outbox = ChannelsOutboxWorker(
+        channels_service=channels_service,
+        turns_service=SessionTurnsService(
+            turns_dao=SessionTurnsDAO(engine=transactions_engine)
+        ),
+        records_service=RecordsService(
+            records_dao=RecordsDAO(engine=get_analytics_engine())
+        ),
+        executions_dao=SessionExecutionsDAO(engine=transactions_engine),
+        inputs_dao=SessionInputsDAO(engine=transactions_engine),
+        # resolves an approval card's real SessionInteraction row id, which the
+        # sessions respond path answers by
+        interactions_service=SessionInteractionsService(
+            interactions_dao=SessionInteractionsDAO(engine=transactions_engine),
+        ),
+    )
+
+    return ChannelsOutboxStreamWorker(
+        outbox=outbox,
+        redis_client=redis_client,
+        stream_name="streams:sessions",
+        consumer_group="worker-sessions-channels-outbox",
+    )
+
+
 async def _build_measurements_worker(redis_client: Redis) -> StreamConsumer:
     return MeasurementWorker(
         measurements_dao=MeasurementsDAO(),
@@ -237,6 +286,7 @@ async def main_async() -> int:
             "spans": _build_spans_worker,
             "records": _build_records_worker,
             "events": _build_events_worker,
+            "sessions": _build_sessions_worker,
         }
         if is_ee() and env.wallets.enabled:
             builders["measurements"] = _build_measurements_worker

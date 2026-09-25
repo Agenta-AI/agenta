@@ -21,6 +21,7 @@ import {
 import { join } from "node:path";
 
 import type { AgentEvent, AgentRunRequest } from "../../src/protocol.ts";
+import { SUPERSEDED_TURN_NOTE } from "../../src/engines/sandbox_agent/superseded-turn.ts";
 import {
   createSandboxAgentOtel,
   TOOL_NOT_EXECUTED_PAUSED,
@@ -248,7 +249,7 @@ describe("runSandboxAgent orchestration", () => {
         const first = await runTurn(acquired.env, request);
         assert.equal(first.ok, true);
         assert.deepEqual(calls.promptBlocks, [
-          { type: "text", text: request.turnContext },
+          { type: "text", text: `${request.turnContext}\n\n` },
           { type: "text", text: "hello" },
         ]);
 
@@ -269,7 +270,7 @@ describe("runSandboxAgent orchestration", () => {
         assert.equal(acquired.env.session, session);
         assert.equal(calls.sandboxDestroyed, 0);
         assert.deepEqual(calls.promptBlocks, [
-          { type: "text", text: next.turnContext },
+          { type: "text", text: `${next.turnContext}\n\n` },
           { type: "text", text: "continue" },
         ]);
         assert.deepEqual(calls.runStart.messages.at(-1), {
@@ -280,6 +281,85 @@ describe("runSandboxAgent orchestration", () => {
           JSON.stringify(next.messages).includes("first turn"),
           false,
         );
+      } finally {
+        await acquired.env.destroy();
+      }
+    });
+  }
+
+  it("claude: frames a message that follows an unanswered one as replacing it", async () => {
+    const { calls, deps } = fakeHarness();
+    const request: AgentRunRequest = {
+      harness: "claude",
+      turnContext: "This is not the first turn.",
+      messages: [
+        { role: "user", content: "run sleep 20" },
+        { role: "user", content: "Reply with exactly: STEERED" },
+      ],
+    };
+    const acquired = await acquireEnvironment(request, deps);
+    assert.equal(acquired.ok, true);
+    if (!acquired.ok) return;
+    try {
+      const result = await runTurn(acquired.env, request, undefined, undefined, {
+        continuation: true,
+      });
+      assert.equal(result.ok, true);
+      assert.deepEqual(calls.promptBlocks, [
+        { type: "text", text: `${request.turnContext}\n\n` },
+        { type: "text", text: SUPERSEDED_TURN_NOTE },
+        { type: "text", text: "Reply with exactly: STEERED" },
+      ]);
+      assert.equal(JSON.stringify(calls.runStart.messages).includes("no reply"), false);
+    } finally {
+      await acquired.env.destroy();
+    }
+  });
+
+  it("claude: leaves a slash command that follows an unanswered message unframed", async () => {
+    const { calls, deps } = fakeHarness();
+    const request: AgentRunRequest = {
+      harness: "claude",
+      messages: [
+        { role: "user", content: "run sleep 20" },
+        { role: "user", content: "/context" },
+      ],
+    };
+    const acquired = await acquireEnvironment(request, deps);
+    assert.equal(acquired.ok, true);
+    if (!acquired.ok) return;
+    try {
+      const result = await runTurn(acquired.env, request, undefined, undefined, {
+        continuation: true,
+      });
+      assert.equal(result.ok, true);
+      assert.deepEqual(calls.promptBlocks, [{ type: "text", text: "/context" }]);
+    } finally {
+      await acquired.env.destroy();
+    }
+  });
+
+  for (const harness of ["pi_core", "codex"] as const) {
+    it(`${harness}: leaves a message that follows an unanswered one unframed`, async () => {
+      const { calls, deps } = fakeHarness();
+      const request: AgentRunRequest = {
+        harness,
+        messages: [
+          { role: "user", content: "run sleep 20" },
+          { role: "user", content: "Reply with exactly: STEERED" },
+        ],
+      };
+      const acquired = await acquireEnvironment(request, deps);
+      assert.equal(acquired.ok, true);
+      if (!acquired.ok) return;
+      try {
+        const result = await runTurn(acquired.env, request, undefined, undefined, {
+          continuation: true,
+        });
+        assert.equal(result.ok, true);
+        assert.deepEqual(calls.promptBlocks, [
+          { type: "text", text: "Reply with exactly: STEERED" },
+        ]);
       } finally {
         await acquired.env.destroy();
       }
@@ -314,7 +394,7 @@ describe("runSandboxAgent orchestration", () => {
       assert.equal(result.ok, true);
       assert.deepEqual(calls.promptBlocks[0], {
         type: "text",
-        text: request.turnContext,
+        text: `${request.turnContext}\n\n`,
       });
       const prompt = calls.promptBlocks?.[1]?.text ?? "";
       assert.match(prompt, /^Conversation so far:/);
@@ -427,7 +507,7 @@ describe("runSandboxAgent orchestration", () => {
 
       const result = await runSandboxAgent(request, undefined, undefined, deps);
 
-      assert.equal(result.ok, true, JSON.stringify(result));
+      assert.equal(result.ok, true);
       assert.equal(platformCredentialForRequest(request), "Secret initial");
       assert.equal(calls.otelOptions.authorization(), "Secret refreshed");
       assert.deepEqual(refreshRequests, [
@@ -2549,6 +2629,76 @@ describe("runSandboxAgent orchestration", () => {
       model: "anthropic.claude-x",
       options: { strict: true },
     });
+  });
+
+  it("gives Claude the bare model id on a gateway run, in the env and in setModel", async () => {
+    // Regression: on a gateway run ANTHROPIC_MODEL / ANTHROPIC_CUSTOM_MODEL_OPTION carried
+    // `anthropic/claude-opus-5-5`, Claude Code accepted it in setModel because the custom option
+    // listed it, and sent it verbatim to the endpoint, which answered "model may not exist".
+    const { calls, deps } = fakeHarness();
+
+    const result = await runSandboxAgent(
+      {
+        harness: "claude",
+        messages: [{ role: "user", content: "hello" }],
+        model: "anthropic/claude-opus-5-5",
+        modelConnection: {
+          provider: "anthropic",
+          deployment: "direct",
+          credentialMode: "none",
+          credentials: [],
+          endpoint: {
+            baseUrl: "https://gateway.example.com/gateways/llms/standard/anthropic",
+          },
+          gatewayCredentials: {
+            header: "X-AG-Credentials",
+            value: "ApiKey mock-gateway-credentials",
+          },
+        },
+      } as AgentRunRequest,
+      undefined,
+      undefined,
+      deps,
+    );
+
+    assert.equal(result.ok, true);
+    const env = calls.providerArgs[1] as Record<string, string>;
+    assert.equal(env.ANTHROPIC_MODEL, "claude-opus-5-5");
+    assert.equal(env.ANTHROPIC_CUSTOM_MODEL_OPTION, "claude-opus-5-5");
+    assert.equal(calls.applyModelArgs.at(-1)?.model, "claude-opus-5-5");
+  });
+
+  it("keeps a custom Claude deployment's model id as the user named it", async () => {
+    const { calls, deps } = fakeHarness();
+
+    const result = await runSandboxAgent(
+      {
+        harness: "claude",
+        messages: [{ role: "user", content: "hello" }],
+        model: "anthropic/claude-opus-5-5",
+        modelConnection: {
+          provider: "anthropic",
+          deployment: "custom",
+          credentialMode: "env",
+          endpoint: { baseUrl: "https://llm-proxy.example.com" },
+          credentials: [
+            {
+              binding: { kind: "environment", name: "ANTHROPIC_API_KEY" },
+              value: "sk-ant-test",
+              usage: "local_use",
+            },
+          ],
+        },
+      } as AgentRunRequest,
+      undefined,
+      undefined,
+      deps,
+    );
+
+    assert.equal(result.ok, true, JSON.stringify(result));
+    const env = calls.providerArgs[1] as Record<string, string>;
+    assert.equal(env.ANTHROPIC_MODEL, "anthropic/claude-opus-5-5");
+    assert.equal(calls.applyModelArgs.at(-1)?.model, "anthropic/claude-opus-5-5");
   });
 
   it("sets Claude Vertex env and selected model pass-through", async () => {

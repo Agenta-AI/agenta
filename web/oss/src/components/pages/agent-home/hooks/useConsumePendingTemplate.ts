@@ -1,5 +1,6 @@
 import {useEffect, useRef, useState} from "react"
 
+import {captureFirstAgentIntent} from "@agenta/shared/analytics"
 import {useAtomValue} from "jotai"
 
 import {usePostHogAg} from "@/oss/lib/helpers/analytics/hooks/usePostHogAg"
@@ -11,8 +12,6 @@ import {
     completeTemplateClaim,
     resolveTemplate,
 } from "@/oss/state/url/template"
-
-import {captureFirstAgentIntent} from "../assets/onboardingAnalytics"
 
 import {useCreateAgent} from "./useCreateAgent"
 

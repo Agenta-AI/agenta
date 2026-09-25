@@ -257,7 +257,7 @@ export function applyClaudeConnectionEnv(
   // Our tool count is small, so deferral buys nothing and only strips the schema. The SDK
   // treats only `false`/`0`/`no`/`off` as off, so the string must be "false" (not "0"/"100").
   // This is applied after `buildDaemonEnv`'s clear and is not in `KNOWN_PROVIDER_ENV_VARS`,
-  // so it is never stripped, and it reaches the Daytona sandbox like `ANTHROPIC_BASE_URL`.
+  // so it is never stripped. `buildRuntimeEnvironment` writes it to the Daytona env on Daytona.
   env.ENABLE_TOOL_SEARCH = "false";
 
   const deployment = request.modelConnection?.deployment;

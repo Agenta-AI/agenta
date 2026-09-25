@@ -40,6 +40,10 @@ CREDENTIAL_FIELDS: Dict[str, Tuple[str, Tuple[str, ...]]] = {
     "webhook_provider": ("provider", ("key",)),
     "sso_provider": ("provider", ("client_secret",)),
     "custom_secret": ("secret", ("content",)),
+    "channel_secret": (
+        "channel",
+        ("bot_token", "signing_secret", "webhook_secret", "access_token", "app_secret"),
+    ),
     "oauth_provider": ("provider", ("client_secret",)),
     "oauth_grant": ("grant", ("access_token", "refresh_token")),
 }
@@ -51,6 +55,12 @@ CREDENTIAL_FIELDS: Dict[str, Tuple[str, Tuple[str, ...]]] = {
 PRIMARY_CREDENTIAL_FIELDS: Dict[str, Tuple[str, str]] = {
     kind: (container, fields[0])
     for kind, (container, fields) in CREDENTIAL_FIELDS.items()
+}
+
+
+# Channels updates preserve omitted transport verification credentials.
+SECONDARY_CREDENTIAL_FIELDS: Dict[str, Tuple[str, Tuple[str, ...]]] = {
+    "channel_secret": ("channel", CREDENTIAL_FIELDS["channel_secret"][1][1:]),
 }
 
 

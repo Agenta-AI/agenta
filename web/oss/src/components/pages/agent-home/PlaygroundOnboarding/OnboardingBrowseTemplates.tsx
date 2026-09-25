@@ -1,10 +1,10 @@
 import {templateBuilderMessage, type AgentStarterTemplate} from "@agenta/entities/workflow"
+import {captureFirstAgentIntent} from "@agenta/shared/analytics"
 import {ArrowLeft} from "@phosphor-icons/react"
 import {Button, Typography} from "antd"
 
 import {usePostHogAg} from "@/oss/lib/helpers/analytics/hooks/usePostHogAg"
 
-import {captureFirstAgentIntent} from "../assets/onboardingAnalytics"
 import TemplatesSection from "../components/TemplatesSection"
 
 import {useOnboardingContext} from "./OnboardingContext"

@@ -117,6 +117,7 @@ async def test_registry_builtin_block_holds_only_skill_entries():
     assert slugs == {
         "__ag__getting_started_with_agenta",
         "__ag__build_an_agent",
+        "__ag__agenta_apps",
     }
     assert all(item.is_static for item in registry.builtin)
     assert all(item.skill_description for item in registry.builtin)

@@ -9,6 +9,7 @@ import { acquireEnvironment } from "./environment.ts";
 import { runCredential } from "./runtime-policy.ts";
 import { loadDurableDecisions } from "../../sessions/interactions.ts";
 import { runTurn } from "./run-turn.ts";
+import { normalizeRequestModel } from "./model.ts";
 import {
   type RunTurnOptions,
   type SandboxAgentDeps,
@@ -88,6 +89,7 @@ export async function runSandboxAgent(
   deps: SandboxAgentDeps = {},
   turnOptions: Pick<RunTurnOptions, "credential" | "seededDecisions"> = {},
 ): Promise<AgentRunResult> {
+  normalizeRequestModel(request);
   const acquired = await acquireEnvironment(
     request,
     deps,
