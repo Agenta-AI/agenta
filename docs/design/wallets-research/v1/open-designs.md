@@ -1760,9 +1760,12 @@ so the other streams keep their behaviour. The wallet and measurement workers op
 
 - A dead letter is the original entry's fields unchanged, plus `dead_letter_reason`,
   `dead_letter_source_id` (the source stream id) and `dead_letter_description` (for debits
-  `organization_id:idempotency_key`, for measurements `measurement_id`). Moving it is one
-  MULTI/EXEC: `XADD` to the dead stream, `XACK` and `XDEL` on the source. An entry is never
-  acknowledged without its dead letter; if the move fails, the entry stays pending.
+  `organization_id:idempotency_key`, for measurements `measurement_id`). The move is the
+  `XADD` to the dead stream first, then `XDEL` and `XACK` on the source, as separate commands. A
+  MULTI would not help, because Redis runs the rest of a transaction when one command in it fails.
+  An entry is never acknowledged without its dead letter. If the `XADD` fails, the entry stays
+  pending. A crash after it leaves a duplicate dead letter, which is harmless because replay is
+  idempotent.
 - What goes there:
   - at once, a terminal entry: a malformed or unsupported-version envelope, a debit whose
     general balance row is neither present nor insertable, a chargeable measurement whose

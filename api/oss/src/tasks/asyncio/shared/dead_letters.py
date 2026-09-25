@@ -77,10 +77,11 @@ async def _move_back(
     dead_stream = dead_letter_stream_of(stream)
     for entry_id, fields in entries:
         original = {k: v for k, v in fields.items() if k not in _DEAD_LETTER_FIELDS}
-        pipe = redis.pipeline(transaction=True)
-        pipe.xadd(stream, original)
-        pipe.xdel(dead_stream, entry_id)
-        await pipe.execute()
+        # Written before the dead letter is removed, never in one MULTI: Redis runs the
+        # rest of a transaction even when a command in it fails. A crash in between leaves
+        # the entry in both streams, and replaying it twice is harmless.
+        await redis.xadd(stream, original)
+        await redis.xdel(dead_stream, entry_id)
     return len(entries)
 
 

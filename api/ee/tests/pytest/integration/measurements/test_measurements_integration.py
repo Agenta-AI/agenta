@@ -20,6 +20,7 @@ from ee.src.core.wallets.streaming import RedisDebitPublisher, RedisMeasurementP
 from ee.src.dbs.postgres.measurements.dao import MeasurementsDAO
 from ee.src.dbs.postgres.measurements.dbes import MeasurementDBE, MeasurementValueDBE
 from ee.src.tasks.asyncio.measurements.worker import MeasurementWorker
+from ee.src.tasks.asyncio.wallets.worker import DebitWorker
 from ee.tests.pytest.utils.measurements.fakes import InMemoryOrganizationResolver
 from ee.tests.pytest.utils.wallets.builders import build_measurement_command
 
@@ -305,3 +306,37 @@ async def test_identical_replay_is_confirmed_without_a_write(analytics_engine):
     assert first.created is True
     assert again.created is False
     assert again.id == first.id
+
+
+@pytest.mark.asyncio
+async def test_a_failed_dead_letter_write_leaves_the_entry_pending(redis_client):
+    """Codex round 1 (P1), on real Redis: a MULTI runs its remaining commands when one
+    fails, so XADD-to-dead, XACK and XDEL in one transaction deleted the entry when the
+    XADD failed. The dead letter must be written before anything is acknowledged."""
+    stream = f"streams:debits-test-{uuid4().hex}"
+    group = "worker-debits"
+    await redis_client.xgroup_create(
+        name=stream, groupname=group, id="0", mkstream=True
+    )
+    await redis_client.xadd(stream, {"data": b"not an envelope"})
+    # A key of the wrong type makes every XADD to the dead stream fail.
+    await redis_client.set(f"{stream}:dead", "not a stream")
+    worker = DebitWorker(
+        settlement_port=None,
+        redis_client=redis_client,
+        stream_name=stream,
+        consumer_group=group,
+        consumer_name="test-consumer",
+    )
+    try:
+        _, acked_ids = await worker.process_batch(await worker.read_batch())
+
+        assert acked_ids == []
+        assert worker.dead_lettered_messages == 0
+        assert await redis_client.xlen(stream) == 1
+        pending = await redis_client.xpending_range(
+            name=stream, groupname=group, min="-", max="+", count=10
+        )
+        assert len(pending) == 1
+    finally:
+        await redis_client.delete(stream, f"{stream}:dead")

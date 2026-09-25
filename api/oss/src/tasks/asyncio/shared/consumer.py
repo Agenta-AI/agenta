@@ -331,8 +331,11 @@ class StreamConsumer:
     ) -> None:
         """Move entries to `dead_letter_stream` with `reason`, and ACK + DEL them here.
 
-        One MULTI/EXEC, so an entry is never acknowledged without its dead letter. If it
-        fails, the entries stay pending and come back through the reclaim pass.
+        The dead letters are written first and on their own: a transaction would not help,
+        since Redis runs the rest of a MULTI even when one command in it fails. So an entry
+        is never acknowledged without its dead letter. If the process dies in between, the
+        entry stays pending and is dead-lettered again later: a duplicate dead letter, which
+        is harmless because replay is idempotent.
         """
         if not entries:
             return
@@ -342,9 +345,8 @@ class StreamConsumer:
             self.describe_message(data) or repr(msg_id) for msg_id, data in entries
         ]
         try:
-            pipe = self.redis.pipeline(transaction=True)
             for (msg_id, data), description in zip(entries, descriptions):
-                pipe.xadd(
+                await self.redis.xadd(
                     self.dead_letter_stream,
                     {
                         **data,
@@ -353,9 +355,6 @@ class StreamConsumer:
                         DEAD_LETTER_DESCRIPTION: description,
                     },
                 )
-            pipe.xack(self.stream_name, self.consumer_group, *message_ids)
-            pipe.xdel(self.stream_name, *message_ids)
-            await pipe.execute()
         except Exception as e:
             log.error(
                 f"{self.log_prefix} Failed to dead-letter messages, leaving pending: {e}",
@@ -364,6 +363,7 @@ class StreamConsumer:
             )
             return
 
+        await self.ack_and_delete(message_ids)
         self.dead_lettered_messages += len(entries)
         log.error(
             f"{self.log_prefix} Dead-lettered messages",
@@ -380,13 +380,16 @@ class StreamConsumer:
         if not message_ids:
             return
 
+        # Delete before acknowledging: a crash in between leaves a pending id without a
+        # payload, which the next XCLAIM drops from the pending list by itself. The other
+        # order leaves an acknowledged entry in the stream that nothing ever removes.
         try:
+            await self.redis.xdel(self.stream_name, *message_ids)
             await self.redis.xack(
                 self.stream_name,
                 self.consumer_group,
                 *message_ids,
             )
-            await self.redis.xdel(self.stream_name, *message_ids)
         except Exception as e:
             log.error(f"{self.log_prefix} Failed to ACK/DEL messages: {e}")
             # Don't raise - messages will remain pending and can be claimed later
