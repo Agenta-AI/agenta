@@ -97,12 +97,24 @@ const press = (label: string) => {
 
 describe("mobile TurnRow: a run that failed", () => {
     it("renders the callout with the run's own reason", () => {
-        // "Couldn't start the run" is the card form, which is what a failure with no steps behind
-        // it draws; the step form says "The run stopped".
+        // The card form, drawn for a failure with no steps behind it, says what the step form
+        // says. It used to say "Couldn't start the run", which was wrong for a run that started
+        // and was refused by the model on its first request.
         const shown = renderTurn(failedTurn("model authentication failed"))
 
-        expect(shown).toContain("Couldn't start the run")
+        expect(shown).toContain("The run stopped")
+        expect(shown).not.toContain("Couldn't start the run")
         expect(shown).toContain("model authentication failed")
+    })
+
+    it("shows a provider's own error whole, with no Try again", () => {
+        const text =
+            "The model provider (Inception) returned an error: I'm sorry, but I can't share details of my architecture or training process. You can keep going in this conversation."
+        const shown = renderTurn(failedTurn(text, "provider_error"))
+
+        expect(shown).toContain("I'm sorry, but I can't share details of my architecture")
+        expect(shown).toContain("You can keep going in this conversation.")
+        expect(shown).not.toContain("Try again")
     })
 
     it.each([...RETRYABLE_CODES])("offers Try again for %s", (code) => {

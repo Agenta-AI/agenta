@@ -220,15 +220,15 @@ export function resolveKeepaliveProvider(
 ): KeepaliveProviderName | undefined {
   if (resolvesToLocalProvider(request.sandbox)) return "local";
   const provider = request.sandbox ?? loadRunnerConfig().providers.default;
-  return provider === "daytona" ? "daytona" : undefined;
+  return provider === "daytona" || provider === "inprocess" ? provider : undefined;
 }
 
 export function resolveKeepaliveDispatch(
   request: AgentRunRequest,
-  configs: Record<KeepaliveProviderName, KeepaliveConfig>,
+  configs: Partial<Record<KeepaliveProviderName, KeepaliveConfig>>,
 ): KeepaliveProviderName | undefined {
   const provider = resolveKeepaliveProvider(request);
-  return provider && configs[provider].enabled ? provider : undefined;
+  return provider && configs[provider]?.enabled ? provider : undefined;
 }
 
 /**
@@ -717,7 +717,7 @@ export async function runWithKeepalive(
         const current = pool.get(key);
         if (current !== entry || current.state !== "awaiting_approval") return;
         klog(`parked-prompt-rejected key=${key}; evict`);
-        void pool.evict(key, "parked-prompt-rejected", "failed-turn");
+        pool.evictInBackground(key, "parked-prompt-rejected", "failed-turn");
       });
     }
   };

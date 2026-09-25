@@ -4,6 +4,7 @@ import {
     channelDebugEnabledAtom,
     channelsEnabledAtom,
     classicModeEnabledAtom,
+    inprocessSandboxEnabledAtom,
     playgroundInspectorEnabledAtom,
 } from "@agenta/shared/state"
 import {Switch} from "@agenta/ui/ui"
@@ -16,6 +17,7 @@ export type PreferenceKey =
     | "classic-mode"
     | "channels"
     | "agent-apps"
+    | "inprocess-sandbox"
     | "playground-inspector"
     | "channel-debug"
     | "agenta-channel-surface"
@@ -56,6 +58,12 @@ export const PREFERENCE_SECTIONS: PreferenceSection[] = [
                 key: "agent-apps",
                 title: "Agent apps",
                 description: "Offer Run on HTML files in an agent's drive.",
+            },
+            {
+                key: "inprocess-sandbox",
+                title: "In-process agent runtime",
+                description:
+                    "Beta: offer Inprocess as a sandbox, which runs Pi inside the agent service and starts a sandbox only for commands.",
             },
         ],
     },
@@ -98,6 +106,7 @@ export const usePreferenceBindings = (): Record<PreferenceKey, PreferenceBinding
     const [classicMode, setClassicMode] = useAtom(classicModeEnabledAtom)
     const [channels, setChannels] = useAtom(channelsEnabledAtom)
     const [agentApps, setAgentApps] = useAtom(agentAppsEnabledAtom)
+    const [inprocessSandbox, setInprocessSandbox] = useAtom(inprocessSandboxEnabledAtom)
     const [inspector, setInspector] = useAtom(playgroundInspectorEnabledAtom)
     const [channelDebug, setChannelDebug] = useAtom(channelDebugEnabledAtom)
     const [channelProbe, setChannelProbe] = useAtom(agentaChannelSurfaceEnabledAtom)
@@ -106,6 +115,7 @@ export const usePreferenceBindings = (): Record<PreferenceKey, PreferenceBinding
         "classic-mode": {enabled: classicMode, onChange: setClassicMode},
         channels: {enabled: channels, onChange: setChannels},
         "agent-apps": {enabled: agentApps, onChange: setAgentApps},
+        "inprocess-sandbox": {enabled: inprocessSandbox, onChange: setInprocessSandbox},
         "playground-inspector": {enabled: inspector, onChange: setInspector},
         "channel-debug": {enabled: channelDebug, onChange: setChannelDebug},
         "agenta-channel-surface": {enabled: channelProbe, onChange: setChannelProbe},

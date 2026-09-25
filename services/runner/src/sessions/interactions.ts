@@ -4,6 +4,7 @@
  * Posts a single interaction to /sessions/interactions authenticated AS the invoke caller.
  * Idempotent on the server (unique constraint on project+session+token), so retries are safe.
  */
+import { fetchControlPlane } from "./control-plane-fetch.ts";
 import { apiBase } from "../apiBase.ts";
 import type { StoredPermissionDecision } from "../permission-plan.ts";
 import { approvedCallKey } from "../responder.ts";
@@ -125,16 +126,18 @@ export function buildInteractionData(
   };
 }
 
-const INGEST_MAX_RETRIES = 3;
-const INGEST_RETRY_BASE_MS = 100;
+/** Attempts at most for one interaction; each is safe to repeat (the API dedupes on the token). */
+const INGEST_MAX_ATTEMPTS = 3;
 
 function log(msg: string): void {
   process.stderr.write(`[sessions/interactions] ${msg}\n`);
 }
 
 /**
- * POST one interaction to the ingest endpoint with bounded retry.
- * Never throws — swallows on final failure after logging.
+ * POST one interaction to the ingest endpoint, asked again on a failure of any kind, within one
+ * control-plane budget for all attempts together. The API deduplicates on the session and the
+ * `token`, so a repeat after a lost answer creates nothing new. Never throws: swallows on final
+ * failure after logging.
  */
 export async function createInteraction(
   sessionId: string,
@@ -145,35 +148,37 @@ export async function createInteraction(
   auth: () => string,
 ): Promise<void> {
   const url = `${apiBase()}/sessions/interactions/`;
-  let lastErr: unknown;
-  for (let attempt = 1; attempt <= INGEST_MAX_RETRIES; attempt++) {
-    try {
-      const res = await fetch(url, {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          authorization: auth(),
-        },
-        body: JSON.stringify({
-          session_id: sessionId,
-          turn_id: turnId,
-          token,
-          kind,
-          data,
-          flags: { delivered_in_band: true },
+  let failure: string;
+  try {
+    const res = await fetchControlPlane(
+      (signal) =>
+        fetch(url, {
+          method: "POST",
+          signal,
+          headers: {
+            "content-type": "application/json",
+            authorization: auth(),
+          },
+          body: JSON.stringify({
+            session_id: sessionId,
+            turn_id: turnId,
+            token,
+            kind,
+            data,
+            flags: { delivered_in_band: true },
+          }),
         }),
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      { retryFailures: true, maxAttempts: INGEST_MAX_ATTEMPTS },
+    );
+    if (res.ok) {
       log(`ingest OK session=${sessionId} token=${token} kind=${kind}`);
       return;
-    } catch (err) {
-      lastErr = err;
-      await new Promise((r) => setTimeout(r, INGEST_RETRY_BASE_MS * attempt));
     }
+    failure = `HTTP ${res.status}`;
+  } catch (err) {
+    failure = String(err instanceof Error ? err.message : err);
   }
-  log(
-    `DROPPED session=${sessionId} token=${token} after ${INGEST_MAX_RETRIES} retries: ${String(lastErr instanceof Error ? lastErr.message : lastErr).slice(0, 120)}`,
-  );
+  log(`DROPPED session=${sessionId} token=${token}: ${failure.slice(0, 120)}`);
 }
 
 /**
@@ -309,19 +314,23 @@ export async function queryInteractions(
   sessionId: string,
   auth: () => string,
 ): Promise<InteractionRow[]> {
-  // Single attempt, unlike the ingest above: this read sits on the turn's critical path, so a
-  // dead plane must cost one failed request and not a retry ladder before the turn can start.
+  // No retry ladder on a dead plane: this read sits on the turn's critical path. A throttled or
+  // restarting plane is different, it said when to come back, so that wait is bounded and taken.
   try {
-    const res = await fetch(`${apiBase()}/sessions/interactions/query`, {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        authorization: auth(),
-      },
-      // The filter is NESTED: the endpoint reads `body.query`, and a flat `session_id` is
-      // silently ignored — which returns every interaction in the PROJECT, not this session's.
-      body: JSON.stringify({ query: { session_id: sessionId } }),
-    });
+    const res = await fetchControlPlane(
+      (signal) =>
+        fetch(`${apiBase()}/sessions/interactions/query`, {
+          method: "POST",
+          signal,
+          headers: {
+            "content-type": "application/json",
+            authorization: auth(),
+          },
+          // The filter is NESTED: the endpoint reads `body.query`, and a flat `session_id` is
+          // silently ignored — which returns every interaction in the PROJECT, not this session's.
+          body: JSON.stringify({ query: { session_id: sessionId } }),
+        }),
+    );
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const rows = interactionRowsOf(await res.json());
     log(`query OK session=${sessionId} rows=${rows.length}`);
