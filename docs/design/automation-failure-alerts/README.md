@@ -11,8 +11,8 @@ each run's conversation to see that it failed.
 
 ## Goal
 
-The platform (not the agent) emails the automation owner when an automation fails on the
-server. The email is correct, is sent once, contains no private data, and does not flood the
+The platform (not the agent) emails the automation owner when an automation fails on the server
+for a reason the owner can fix, and emails the Agenta team when the platform caused it. The email is correct, repeats at most once a day while the failure continues (a rare duplicate after a crash is accepted), contains no private data, and does not flood the
 inbox.
 
 ## Reading order
@@ -23,6 +23,7 @@ inbox.
 | [research.md](./research.md) | How automations work today, verified in code, with file references. Read when you need the evidence for a design choice. |
 | [status.md](./status.md) | Decisions made, open questions, blockers, next steps. The source of truth for progress. |
 | [sizing.sql](./sizing.sql) | Read-only queries that measure production volume and failure rate. |
+| [channels-research.md](./channels-research.md) | Whether alerts can also go to Slack or Telegram (after v0). |
 
 Visual companions (private claude.ai pages, ask the owner for access):
 
@@ -39,7 +40,7 @@ Visual companions (private claude.ai pages, ask the owner for access):
   and sends Agenta a signed webhook per event. It is used only for event automations.
 - **cron container**: a container that runs `supercronic`, which calls the API every minute to
   start due schedules.
-- **Delivery**: one row in `trigger_deliveries` for each time an automation fires. It holds the
+- **Delivery**: one row in `trigger_deliveries` for each time an automation runs. It holds the
   run's status and a link to its session.
 - **Dispatcher**: `TriggersDispatcher` in the `worker-queues` process. It claims a delivery,
   creates the session and starts the run.
@@ -54,9 +55,10 @@ Visual companions (private claude.ai pages, ask the owner for access):
 - **Outcome**: the new `outcome` column on a delivery. It holds the run's real result
   (`succeeded`, `failed`, and so on). The existing `status` column keeps the dispatch stage.
 - **Automation monitor**: the new loop in the API that reads run records every 60 seconds,
-  writes outcomes, updates alert state and sends emails.
-- **Alert state**: one row per automation in the new `trigger_alerts` table: `ok` or
-  `failing`, and what the owner was last told.
-- **Shadow mode**: a setting that sends every alert email to one internal address instead of
-  the real owner, for a beta period.
-- **Fingerprint**: a short key for the cause of a failure, used to avoid repeat emails.
+  writes outcomes, and sends failure alerts to owners and to the team.
+- **Alert record**: one row per automation in the new `trigger_alerts` table: when the owner and
+  the team were last alerted about it.
+- **Shadow mode**: a setting that sends every owner alert to one internal address instead of the
+  real owner, for a beta period. Team alerts go to the team address in `shadow` and `live`.
+- **Catalog kind**: the fixed category of a failure (for example `credits_exhausted`), used for
+  the email text and to decide whether the owner or the platform must act.
