@@ -1,0 +1,8 @@
+schema: spec-driven
+context: |
+  Agenta credits and included resource usage. Documentation package only.
+  Wallet foundation is implemented on unmerged PR #6050 at b0b7fe08ee2a7dbda8558504bd29b0bef994f7d3.
+  Other changes are unimplemented proposals unless explicitly marked otherwise.
+  Original design decisions remain distinct from 2026-09-22 product direction.
+  Keep numeric commercial settings configurable. Lifetime top-ups do not require subscriptions.
+  Do not treat the backlog as mandatory scope for a release. No implementation or rollout authorization.
