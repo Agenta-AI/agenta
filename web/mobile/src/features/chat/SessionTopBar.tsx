@@ -20,12 +20,17 @@ import {NavDrawer} from "../nav/NavDrawer"
  */
 export const SessionTopBar = ({
     entityId,
+    sessionId,
+    onUpdate,
     agentId,
     workspaceId,
     projectId,
 }: {
     /** The revision under edit. Absent = a session with no turns yet (nothing committed to show). */
     entityId: string | null
+    sessionId: string
+    /** Pin this session to a newer version the user asked for. */
+    onUpdate: (revisionId: string) => void
     agentId?: string | null
     workspaceId: string
     projectId: string
@@ -45,7 +50,12 @@ export const SessionTopBar = ({
             identity={<AgentIdentity workflowId={agentId} name={name || "Agent"} />}
             revision={
                 entityId ? (
-                    <AgentRevisionStatus revisionId={entityId} historyWorkflowId={agentId} />
+                    <AgentRevisionStatus
+                        revisionId={entityId}
+                        historyWorkflowId={agentId}
+                        onUpdate={onUpdate}
+                        checkKey={sessionId}
+                    />
                 ) : undefined
             }
             // The desktop puts this at the header's right edge too, not on the tab strip.

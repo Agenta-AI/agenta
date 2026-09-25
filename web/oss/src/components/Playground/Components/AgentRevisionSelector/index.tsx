@@ -2,9 +2,10 @@ import {useEffect} from "react"
 
 import {isLocalDraftId} from "@agenta/entities/shared"
 import {workflowMolecule} from "@agenta/entities/workflow"
+import {playgroundController} from "@agenta/playground"
 import {registerAgentAutoCommitHandler} from "@agenta/playground/state"
 import {AgentRevisionStatus} from "@agenta/playground-ui/agent-page-header"
-import {useAtomValue} from "jotai"
+import {useAtomValue, useSetAtom} from "jotai"
 
 import {useCommitHostAdapter} from "../Modals/CommitVariantChangesModal/assets/useCommitHostAdapter"
 
@@ -24,6 +25,7 @@ const AgentRevisionSelector = ({variantId}: {variantId: string}) => {
     const runnableData = useAtomValue(workflowMolecule.selectors.data(variantId || ""))
     const isLocalDraftVariant = variantId ? isLocalDraftId(variantId) : false
     const workflowId = runnableData?.workflow_id ?? null
+    const switchEntity = useSetAtom(playgroundController.actions.switchEntity)
 
     // An auto-commit is still a commit, so it owes this app the same out-of-band work a manual
     // one did: the registry and evaluator tables live outside the entities layer and go stale
@@ -41,7 +43,13 @@ const AgentRevisionSelector = ({variantId}: {variantId: string}) => {
 
     if (!variantId || isLocalDraftVariant) return null
 
-    return <AgentRevisionStatus revisionId={variantId} historyWorkflowId={workflowId} />
+    return (
+        <AgentRevisionStatus
+            revisionId={variantId}
+            historyWorkflowId={workflowId}
+            onUpdate={(newEntityId) => switchEntity({currentEntityId: variantId, newEntityId})}
+        />
+    )
 }
 
 export default AgentRevisionSelector

@@ -31,9 +31,8 @@ parts from `conversation.messages`. Only the direct `useChat` stream put that pa
 
 ## What Changes
 
-- **Session in view, agent commits in this turn:** the view follows the commit. Recommended; the
-  alternative (show the pill instead) is open with Mahmoud, see `design.md`. On `/m` this is the
-  records trigger `/w` already has.
+- **Session in view, agent commits in this turn:** the view follows the commit (Decision 1,
+  decided). On `/m` this is the records trigger `/w` already has.
 - **Everywhere else, nothing upgrades by itself.** A small pill next to the version chip says
   "vN available · Update". Update switches that session to the latest version. No banner, no popup.
 - **New sessions** start from the latest version.

@@ -12,23 +12,23 @@
 
 ## 3. Session in view (Decision 1)
 
-- [ ] 3.1 `useAgentConversation` forwards `onCommittedRevision` to `useSessionLivePreview`.
-- [ ] 3.2 `LiveConversation` handles it with the part reader's dedupe set.
-- [ ] 3.3 Unit test that fails before 3.1.
+- [x] 3.1 `useAgentConversation` forwards `onCommittedRevision` to `useSessionLivePreview`.
+- [x] 3.2 `LiveConversation` handles it with the part reader's dedupe set.
+- [x] 3.3 Unit test that fails before 3.1.
 
 ## 4. Pill, check, drawer, new sessions
 
-- [ ] 4.1 A latest-version check (one request) on tab visible, session switch, and drawer open. None while hidden.
-- [ ] 4.2 The "vN available · Update" pill next to the version chip, on /m and /w. Update adopts and pins.
-- [ ] 4.3 Remove /w's automatic adoption on return from a hidden tab (case 2); it becomes the pill.
-- [ ] 4.4 The drawer refetches on open and lists newer versions on top with Update.
-- [ ] 4.5 A new session resolves the latest version at creation.
-- [ ] 4.6 Unit tests for the check triggers (no request while hidden) and the pill.
+- [x] 4.1 A latest-version check (one request) on tab visible, session switch, and drawer open. None while hidden.
+- [x] 4.2 The "vN available · Update" pill next to the version chip, on /m and /w. Update adopts and pins.
+- [x] 4.3 Remove /w's automatic adoption on return from a hidden tab (case 2); it becomes the pill.
+- [x] 4.4 The drawer refetches on open and lists newer versions on top with Update.
+- [x] 4.5 A new session resolves the latest version at creation.
+- [x] 4.6 Unit tests for the check triggers (no request while hidden) and the pill.
 
 ## 5. Verify
 
-- [ ] 5.1 `pnpm lint-fix` in `web/`, and the unit suites of the touched packages.
-- [ ] 5.2 Live on /m and /w, recorded: cases 1, 2, 3, 4, 5, 10.
+- [x] 5.1 `pnpm lint-fix` in `web/`, and the unit suites of the touched packages.
+- [x] 5.2 Live on /m and /w, recorded: cases 1, 2, 3, 10 (the drawer), with a commit made elsewhere standing in for cases 4, 5 and 9.
 - [ ] 5.3 Codex review until MERGE.
 
 ## 6. Follow-ups

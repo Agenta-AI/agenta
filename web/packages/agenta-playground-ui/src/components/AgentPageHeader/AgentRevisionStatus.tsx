@@ -6,7 +6,10 @@ import {
     agentAutoCommitScheduledAtomFamily,
     agentAutoCommitStatusAtomFamily,
     flushAgentAutoCommitAtom,
+    watchLatestVersion,
+    type LatestVersion,
 } from "@agenta/playground/state"
+import {projectIdAtom} from "@agenta/shared/state"
 import {SimpleTooltip} from "@agenta/ui/ui"
 import {ClockCounterClockwise, WarningCircle} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
@@ -32,6 +35,13 @@ export interface AgentRevisionStatusProps {
      * surface has no workflow handle (the chip then just states the version).
      */
     historyWorkflowId?: string | null
+    /**
+     * Switch this view to the agent's latest version. With it (and `historyWorkflowId`), a newer
+     * version shows as a "vN available · Update" pill; nothing is ever adopted without the click.
+     */
+    onUpdate?: (revisionId: string) => void
+    /** Re-check for a newer version when this changes: pass the session id, so a switch checks. */
+    checkKey?: string | null
     className?: string
 }
 
@@ -48,6 +58,8 @@ export interface AgentRevisionStatusProps {
 export const AgentRevisionStatus = ({
     revisionId,
     historyWorkflowId,
+    onUpdate,
+    checkKey,
     className,
 }: AgentRevisionStatusProps) => {
     // A commit can land while this surface is closed — the agent commits itself mid-session, or
@@ -73,12 +85,28 @@ export const AgentRevisionStatus = ({
     const openHistory = useSetAtom(openAgentVersionHistoryAtom)
     // Latched, not unmounted on close: tearing the drawer out mid-close skips its slide-out.
     const [historyMounted, setHistoryMounted] = useState(false)
+    const [historyOpens, setHistoryOpens] = useState(0)
     useEffect(() => {
-        if (historyOpen) setHistoryMounted(true)
+        if (!historyOpen) return
+        setHistoryMounted(true)
+        setHistoryOpens((n) => n + 1)
     }, [historyOpen])
+
+    // The only moments a newer version is looked for: the page becoming visible, a session
+    // switch (`checkKey`), and the drawer opening.
+    const projectId = useAtomValue(projectIdAtom)
+    const [latest, setLatest] = useState<LatestVersion | null>(null)
+    const offersUpdate = Boolean(onUpdate)
+    useEffect(() => {
+        if (!offersUpdate || !historyWorkflowId || !projectId) return
+        return watchLatestVersion({workflowId: historyWorkflowId, projectId, onLatest: setLatest})
+        // `checkKey` and `historyOpens` are triggers: each change is one more check.
+    }, [offersUpdate, historyWorkflowId, projectId, checkKey, historyOpens])
 
     const version = (data?.version as number | null | undefined) ?? null
     const commitMessage = data?.message?.trim() || null
+    const newer =
+        onUpdate && latest && version !== null && latest.version > Number(version) ? latest : null
 
     const failed = autoCommitStatus === "error"
     // "Saving…" must mean a save is armed or in flight. Off `isDirty` it also caught every
@@ -174,8 +202,23 @@ export const AgentRevisionStatus = ({
                 )
             ) : null}
 
+            {newer ? (
+                <button
+                    type="button"
+                    onClick={() => onUpdate?.(newer.id)}
+                    className="flex cursor-pointer items-center gap-1 rounded border-0 bg-[var(--ag-colorPrimaryBg)] px-1.5 py-0.5 text-xs text-[var(--ag-colorPrimary)] hover:bg-[var(--ag-colorPrimaryBgHover)]"
+                >
+                    v{newer.version} available · <span className="font-medium">Update</span>
+                </button>
+            ) : null}
+
             {historyWorkflowId && historyMounted ? (
-                <AgentVersionHistoryDrawer workflowId={historyWorkflowId} revisionId={revisionId} />
+                <AgentVersionHistoryDrawer
+                    workflowId={historyWorkflowId}
+                    revisionId={revisionId}
+                    currentVersion={version}
+                    onUpdate={onUpdate}
+                />
             ) : null}
 
             {/* Tooltip only on failure: there it carries the error and the retry hint. */}

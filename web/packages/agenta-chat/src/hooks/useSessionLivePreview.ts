@@ -344,6 +344,8 @@ export const useSessionLivePreview = ({
             if (document.visibilityState === "visible") open()
             else {
                 generation += 1
+                // A commit made while hidden is not adopted on return: the version pill offers it.
+                liveBaselineSequence = undefined
                 close()
             }
         }

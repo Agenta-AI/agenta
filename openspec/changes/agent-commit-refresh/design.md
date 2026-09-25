@@ -94,6 +94,22 @@ session's version are listed at the top with an Update action that behaves like 
 A new session resolves the latest version at creation, not a cached one. Today it reads the
 latest-revision cache, which can be up to 30 s old.
 
+### Decision 6: how "never by itself" is enforced
+
+- **/m** pins every session to a revision when it opens (`ChatScreen`), after one fresh read of the
+  latest revision. Before this, an unpinned session followed the latest-revision query, which
+  every commit in the tab and every project-watch `ready` (each return to the tab) re-read, so it
+  moved on its own. The pill's Update and the in-view adoption re-pin.
+- **Records reader** (`useSessionLivePreview`): hiding the tab drops the live baseline, so the
+  re-read on return sets a new one and a commit made while hidden is not reported. That removes
+  /w's automatic catch-up (case 2) and keeps /m from gaining it.
+- **Same session visible in two tabs** (case 4): both readers are live, so both adopt. A visible
+  tab on the session the agent is working in counts as the user watching it. A hidden tab, or a
+  tab on another session, gets the pill.
+- **/w session switch:** /w's playground holds one revision for all its session tabs, so a
+  session switch there changes nothing to check. /w checks on mount, on visibility and on drawer
+  open; /m also checks on each session switch.
+
 ## Risks / Trade-offs
 
 - The pill makes a stale view explicit but does not remove it: a user can keep sending to an older

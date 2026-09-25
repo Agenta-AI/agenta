@@ -39,11 +39,17 @@ export interface AgentVersionHistoryDrawerProps {
     workflowId: string
     /** The revision under edit — the side every diff compares against, and revert commits from. */
     revisionId: string
+    /** The version this view shows. A newer selected version offers Update. */
+    currentVersion?: number | null
+    /** Switch this view to a newer version. */
+    onUpdate?: (revisionId: string) => void
 }
 
 export const AgentVersionHistoryDrawer = ({
     workflowId,
     revisionId,
+    currentVersion,
+    onUpdate,
 }: AgentVersionHistoryDrawerProps) => {
     const open = useAtomValue(versionHistoryOpenAtomFamily(workflowId))
     const selectedId = useAtomValue(versionHistorySelectedAtomFamily(workflowId))
@@ -84,6 +90,13 @@ export const AgentVersionHistoryDrawer = ({
     useEffect(() => {
         if (open && !selectedId && newestId) selectVersionId(newestId)
     }, [open, selectedId, newestId, selectVersionId])
+    // The list is cached, so a version committed since the last open is missing until it re-reads;
+    // re-select once it lands, so the drawer still opens on the newest.
+    const refetchRef = useRef(query.refetch)
+    refetchRef.current = query.refetch
+    useEffect(() => {
+        if (open) void refetchRef.current().then(() => selectVersionId(null))
+    }, [open, selectVersionId])
 
     // Drawer-local: nothing outside reads either.
     const [phase, setPhase] = useState<RevertPhase>("idle")
@@ -177,6 +190,17 @@ export const AgentVersionHistoryDrawer = ({
                     onCancel={() => setPhase("idle")}
                     onConfirm={handleConfirm}
                     onClose={handleClose}
+                    onUpdate={
+                        onUpdate &&
+                        selectedRow &&
+                        currentVersion != null &&
+                        Number(selectedRow.version) > Number(currentVersion)
+                            ? () => {
+                                  onUpdate(selectedRow.id)
+                                  handleClose()
+                              }
+                            : undefined
+                    }
                 />
             }
         >

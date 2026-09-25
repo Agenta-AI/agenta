@@ -39,8 +39,12 @@ be no banner and no popup.
 - **THEN** the tab SHALL show the pill and SHALL NOT change the configuration it shows.
 
 #### Scenario: Another tab, or /m next to /w
-- **WHEN** a commit happens in one tab and another tab on the same agent becomes visible
+- **WHEN** a commit happens in one tab and another tab, showing a different session of the same agent or hidden at the time, becomes visible
 - **THEN** the other tab SHALL show the pill.
+
+#### Scenario: Same session visible in two tabs
+- **WHEN** the same session is visible in two tabs and the agent commits in it
+- **THEN** both tabs SHALL follow the commit, because the user is watching that session.
 
 #### Scenario: Manual save elsewhere
 - **WHEN** the user saves the config in one tab
