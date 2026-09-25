@@ -1877,7 +1877,10 @@ Why this over the others:
   between two separate reads cannot move value from one term to the other. Settlement used a
   second clock: `plan_settlement` re-filtered candidates on the API host's clock, so a host
   clock running ahead could book a live credit's share as deficit. `WalletsDAO.settle` now
-  reads the database clock once and uses it for both filters.
+  reads the database wall clock (`clock_timestamp()`) once, after taking the general-row
+  lock, and uses it for both filters. Not `now()`: that is the transaction start, which
+  comes before the lock wait, so a credit that expired while the settlement waited would
+  still count as live.
 - **It stays cheap.** Item 21's objection to option 2 was an aggregate over every credit on
   the request path. This aggregate covers only the organization's expired credits, reached
   through `idx_wallet_credits_org_priority_end_id` (organization leading), and an organization

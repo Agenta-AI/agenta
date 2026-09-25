@@ -225,8 +225,12 @@ class WalletsDAO(WalletsDAOInterface):
             #    in priority, end_time, credit_id order. Already serialized by the general
             #    balance lock above, so this snapshot cannot go stale under our feet.
             #    Expiry is judged on the database clock, the one admission reads too;
-            #    `plan_settlement` re-filters, so it gets the same instant.
-            db_now = (await session.execute(select(func.now()))).scalar_one()
+            #    `plan_settlement` re-filters, so it gets the same instant. The wall
+            #    clock after the lock, not `now()`: that is the transaction start, which
+            #    precedes any wait above, and a credit may have expired during it.
+            db_now = (
+                await session.execute(select(func.clock_timestamp()))
+            ).scalar_one()
             candidates_stmt = (
                 select(WalletCreditDBE, WalletBalanceDBE)
                 .join(

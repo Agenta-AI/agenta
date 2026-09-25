@@ -248,3 +248,51 @@ async def test_settlement_judges_expiry_on_the_database_clock(
         assert [debit.wallet_credit_id for debit in debits] == [credit.id]
     finally:
         await _cleanup(organization_id)
+
+
+async def test_settlement_does_not_spend_a_credit_that_expired_during_its_lock_wait(
+    wallet_schema,
+):
+    """A settlement that waits on the general-row lock past a credit's expiry must not
+    fund from it: its transaction started while the credit was live, so `now()` would
+    still call it live."""
+    organization_id = uuid.uuid4()
+    dao = WalletsDAO()
+    engine = get_transactions_engine()
+
+    try:
+        credit = await _award(
+            dao,
+            organization_id=organization_id,
+            key="expires_mid_wait",
+            amount_musd=FIVE_DOLLARS,
+            end_time=datetime.now(timezone.utc) + timedelta(seconds=1),
+        )
+
+        async with engine.session() as blocker:
+            await blocker.execute(
+                text(
+                    "SELECT 1 FROM wallet_balances WHERE organization_id ="
+                    " :organization_id AND wallet_credit_id IS NULL FOR UPDATE"
+                ),
+                {"organization_id": organization_id},
+            )
+            settling = asyncio.create_task(
+                dao.settle(
+                    command=build_debit_command(
+                        organization_id=organization_id,
+                        idempotency_key="waited_past_expiry",
+                        amount_musd=1_000,
+                        created_at=datetime.now(timezone.utc),
+                    )
+                )
+            )
+            await asyncio.sleep(1.5)
+            assert not settling.done()
+
+        debits = await settling
+
+        assert credit.id not in [debit.wallet_credit_id for debit in debits]
+        assert [debit.wallet_credit_id for debit in debits] == [None]
+    finally:
+        await _cleanup(organization_id)
