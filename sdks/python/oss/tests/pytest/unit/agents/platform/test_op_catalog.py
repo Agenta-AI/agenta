@@ -53,6 +53,7 @@ def test_catalog_ships_platform_builder_ops():
         "check_skill_updates",
         "apply_skill_update",
         "query_spans",
+        "get_current_session",
         "rename_session",
         "rename_agent",
         "test_run",
