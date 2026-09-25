@@ -57,6 +57,12 @@ log = get_module_logger(__name__)
 _EMPTY_FOLD_ATTEMPTS = 3
 _EMPTY_FOLD_BACKOFF_SECONDS = 0.8
 
+# The turn's settlement can land just after its turn_ended event. Re-read a
+# few times before leaving the request reaction as received; the reaction
+# update's 3s timeout bounds the total wait.
+_SETTLE_REREAD_ATTEMPTS = 3
+_SETTLE_REREAD_BACKOFF_SECONDS = 0.5
+
 # While a turn runs on a channel that edits in place: how often the answer so
 # far is folded and edited into the indicator, how often the platform's
 # activity signal is re-sent (Telegram's typing action fades after ~5s), and
@@ -562,11 +568,19 @@ class ChannelsOutboxWorker:
             return
 
         async def update() -> None:
-            execution = await self.executions_dao.fetch_execution(
-                project_id=project_id,
-                session_id=thread.session_id,
-                execution_id=turn_id,
-            )
+            execution = None
+            for attempt in range(_SETTLE_REREAD_ATTEMPTS):
+                if attempt:
+                    await asyncio.sleep(_SETTLE_REREAD_BACKOFF_SECONDS)
+                execution = await self.executions_dao.fetch_execution(
+                    project_id=project_id,
+                    session_id=thread.session_id,
+                    execution_id=turn_id,
+                )
+                if status != "completed" or (
+                    execution is not None and execution.terminal_outcome is not None
+                ):
+                    break
             desired_status = status
             if status == "completed":
                 if execution is None or execution.terminal_outcome in (

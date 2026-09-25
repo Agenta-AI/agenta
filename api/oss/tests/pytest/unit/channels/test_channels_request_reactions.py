@@ -196,11 +196,32 @@ async def test_failed_or_stopped_execution_never_gets_checkmark(
 
 
 @pytest.mark.parametrize("outcome", [None, "continued"])
-async def test_unsettled_or_continued_execution_keeps_eyes(reaction_worker, outcome):
+async def test_unsettled_or_continued_execution_keeps_eyes(
+    reaction_worker, outcome, monkeypatch
+):
+    import oss.src.tasks.asyncio.channels.outbox as outbox
+
+    monkeypatch.setattr(outbox, "_SETTLE_REREAD_BACKOFF_SECONDS", 0)
     h = reaction_worker
     h.executions.fetch_execution.return_value.terminal_outcome = outcome
     await finish(h)
     h.adapter.set_message_status.assert_not_awaited()
+
+
+async def test_late_settlement_is_reread_before_the_checkmark(
+    reaction_worker, monkeypatch
+):
+    import oss.src.tasks.asyncio.channels.outbox as outbox
+
+    monkeypatch.setattr(outbox, "_SETTLE_REREAD_BACKOFF_SECONDS", 0)
+    h = reaction_worker
+    settled = h.executions.fetch_execution.return_value
+    unsettled = SimpleNamespace(
+        terminal_outcome=None, error=None, parent_execution_id=None
+    )
+    h.executions.fetch_execution.side_effect = [unsettled, settled]
+    await finish(h)
+    assert h.adapter.set_message_status.call_args.kwargs["status"] == "completed"
 
 
 @pytest.mark.parametrize("reason", ["error", "cancelled"])
