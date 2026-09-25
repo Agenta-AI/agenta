@@ -418,8 +418,8 @@ export async function fetchAgentaToolsAccess(
         workflowRef: {slug: AGENTA_TOOLS_WORKFLOW_SLUG},
         lowPriority: true,
     })
-    const access = buildKitAccessSchema.safeParse(revision?.data?.parameters?.op_access)
-    return access.success ? access.data : {}
+    // Unreadable data is an error, not an empty list, so the section says it failed to load.
+    return buildKitAccessSchema.parse(revision?.data?.parameters?.op_access)
 }
 
 /**
