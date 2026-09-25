@@ -75,6 +75,9 @@ def reload_worker_streams(monkeypatch):
     flag value, and the module is reloaded again afterwards under the real one."""
 
     def _reload(*, wallets_enabled: bool):
+        # Pinned: with the OSS edition the wallet streams are absent whatever the flag
+        # says, and the flag-off cases would pass vacuously.
+        monkeypatch.setattr(env.agenta, "license", "ee")
         monkeypatch.setattr(env.wallets, "enabled", wallets_enabled)
         return importlib.reload(worker_streams_module)
 

@@ -167,6 +167,15 @@ async def test_backfill_awards_one_grant_per_signup_organization(wallet_schema):
             outside_window = await fixtures.organization(
                 session, owner_id=owner_e, created_at=WINDOW_TO + day
             )
+            # An undated organization leaves the owner with no provable earliest
+            # organization, so neither of its organizations is granted.
+            owner_f = await fixtures.user(session)
+            dated_f = await fixtures.organization(
+                session, owner_id=owner_f, created_at=WINDOW_FROM + 6 * day
+            )
+            undated_f = await fixtures.organization(
+                session, owner_id=owner_f, created_at=None
+            )
 
         await WalletsService(wallets_dao=WalletsDAO()).award(
             organization_id=already_granted, activity_code="signup"
@@ -187,7 +196,7 @@ async def test_backfill_awards_one_grant_per_signup_organization(wallet_schema):
         for organization_id in (signup_a, signup_b, already_granted):
             grants = await _signup_grants(organization_id)
             assert [row.amount_musd for row in grants] == [SIGNUP_GRANT_AMOUNT_MUSD]
-        for organization_id in (extra_a, deleted, outside_window):
+        for organization_id in (extra_a, deleted, outside_window, dated_f, undated_f):
             assert await _signup_grants(organization_id) == []
 
         general = await WalletsDAO().get_general_balance(organization_id=signup_a)

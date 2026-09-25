@@ -18,6 +18,8 @@ An organization is eligible when it is not deleted, holds no signup-grant credit
 is its owner's earliest organization. The last condition stands in for "created by
 signup": the live flow awards the grant on the signup path only, never on
 `POST /organizations/`, so a user's later organizations must not receive it here either.
+An owner with any organization lacking `created_at` has no provable earliest one and is
+skipped; award such a case by hand if it deserves the grant.
 """
 
 import argparse
@@ -54,10 +56,13 @@ _NEXT_ELIGIBLE_ORGANIZATION_IDS = text(
            OR o.created_at >= CAST(:created_from AS timestamptz))
       AND (CAST(:created_to AS timestamptz) IS NULL
            OR o.created_at < CAST(:created_to AS timestamptz))
+      AND o.created_at IS NOT NULL
       AND NOT EXISTS (
         SELECT 1 FROM organizations earlier
         WHERE earlier.owner_id = o.owner_id
-          AND (earlier.created_at, earlier.id) < (o.created_at, o.id)
+          AND earlier.id <> o.id
+          AND (earlier.created_at IS NULL
+               OR (earlier.created_at, earlier.id) < (o.created_at, o.id))
       )
       AND NOT EXISTS (
         SELECT 1 FROM wallet_credits c
