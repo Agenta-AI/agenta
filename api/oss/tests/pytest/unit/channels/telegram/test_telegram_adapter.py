@@ -799,3 +799,132 @@ async def test_a_first_chunk_rejection_is_not_uncertain():
         )
     assert not isinstance(caught.value, ChannelDeliveryUncertain)
     assert caught.value.status_code == 429
+
+
+# --- inbound media ------------------------------------------------------------ #
+
+
+@pytest.mark.asyncio
+async def test_parse_event_photo_becomes_a_media_part_after_the_caption():
+    adapter = TelegramAdapter()
+    body = json.dumps(
+        {
+            "update_id": 20,
+            "message": {
+                "message_id": 30,
+                "from": {"id": 555, "is_bot": False},
+                "chat": {"id": 999, "type": "private"},
+                "caption": "the broken part",
+                "photo": [
+                    {"file_id": "small", "file_size": 100},
+                    {"file_id": "large", "file_size": 90000},
+                ],
+            },
+        }
+    ).encode()
+    event = await adapter.parse_event(body=body, connection=_connection())
+    assert event.processed.content == [
+        {"type": "text", "text": "the broken part"},
+        {
+            "type": "media",
+            "kind": "image",
+            "media_id": "large",
+            "mime_type": None,
+            "filename": None,
+        },
+    ]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "field,kind,extra",
+    [
+        (
+            "document",
+            "document",
+            {"file_name": "invoice.pdf", "mime_type": "application/pdf"},
+        ),
+        ("voice", "audio", {"mime_type": "audio/ogg"}),
+        ("audio", "audio", {"file_name": "song.mp3", "mime_type": "audio/mpeg"}),
+        ("video", "video", {"mime_type": "video/mp4"}),
+        ("video_note", "video", {}),
+    ],
+)
+async def test_parse_event_files_become_media_parts(field, kind, extra):
+    adapter = TelegramAdapter()
+    body = json.dumps(
+        {
+            "update_id": 21,
+            "message": {
+                "message_id": 31,
+                "from": {"id": 555, "is_bot": False},
+                "chat": {"id": 999, "type": "private"},
+                field: {"file_id": "F1", **extra},
+            },
+        }
+    ).encode()
+    event = await adapter.parse_event(body=body, connection=_connection())
+    [part] = event.processed.content
+    assert part == {
+        "type": "media",
+        "kind": kind,
+        "media_id": "F1",
+        "mime_type": extra.get("mime_type"),
+        "filename": extra.get("file_name"),
+    }
+
+
+@pytest.mark.asyncio
+async def test_fetch_media_resolves_the_path_and_downloads_with_the_bot_token():
+    seen = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        if request.url.path == "/bot123:abc/getFile":
+            return httpx.Response(
+                200,
+                json={
+                    "ok": True,
+                    "result": {"file_path": "voice/file_1.oga", "file_size": 4},
+                },
+            )
+        assert request.url.path == "/file/bot123:abc/voice/file_1.oga"
+        return httpx.Response(200, content=b"OggS")
+
+    client = httpx.AsyncClient(
+        base_url="https://api.telegram.org", transport=httpx.MockTransport(handler)
+    )
+    adapter = TelegramAdapter(http_client=client)
+    data, mime_type = await adapter.fetch_media(
+        connection=_connection(),
+        media={"media_id": "F1", "mime_type": "audio/ogg"},
+    )
+    assert data == b"OggS"
+    assert mime_type == "audio/ogg"
+    assert len(seen) == 2
+
+
+@pytest.mark.asyncio
+async def test_fetch_media_refuses_a_file_larger_than_the_limit():
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/bot123:abc/getFile"
+        return httpx.Response(
+            200,
+            json={"ok": True, "result": {"file_path": "f", "file_size": 99}},
+        )
+
+    client = httpx.AsyncClient(
+        base_url="https://api.telegram.org", transport=httpx.MockTransport(handler)
+    )
+    adapter = TelegramAdapter(http_client=client)
+    fetched = await adapter.fetch_media(
+        connection=_connection(), media={"media_id": "F1"}, max_bytes=10
+    )
+    assert fetched is None
+
+
+def test_capabilities_declare_file_receive_up_to_the_bot_api_cap():
+    capabilities = fetch_telegram_capabilities()
+    assert capabilities.rendering.files.receive.supported is True
+    assert capabilities.rendering.files.receive.max_bytes == 20 * 1024 * 1024
+    assert capabilities.rendering.files.send.supported is False

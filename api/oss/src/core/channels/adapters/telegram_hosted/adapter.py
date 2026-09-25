@@ -112,10 +112,16 @@ class HostedTelegramAdapter(TelegramAdapter):
         self, connection: ChannelConnection, method: str, params: Dict[str, Any]
     ) -> Dict[str, Any]:
         # Egress for every hosted connection uses the one deployment token.
+        return await self._call_with_token(
+            self._media_token(connection), method, params
+        )
+
+    def _media_token(self, connection: ChannelConnection) -> str:
+        # The one deployment token, for API calls and file downloads alike.
         token = env.channels.telegram.bot_token
         if not token:
             raise ChannelSignatureInvalid(channel=self.channel)
-        return await self._call_with_token(token, method, params)
+        return token
 
     @staticmethod
     def deployment_bot_id() -> Optional[str]:

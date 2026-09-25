@@ -30,8 +30,8 @@ PROGRESS_CURSOR = " …"
 WORKING_TEXT = "Working on it, I'll reply here when I'm done."
 # The person sent something the channel cannot pass to the agent.
 UNSUPPORTED_TEXT = (
-    "I can read text, images and documents here. Please send your message "
-    "in one of those."
+    "I can read text, images, files, and voice notes here. Please send your "
+    "message in one of those."
 )
 # The person opted out (STOP) or back in (START).
 OPTED_OUT_TEXT = "You won't get more messages from us. Send START to chat again."
