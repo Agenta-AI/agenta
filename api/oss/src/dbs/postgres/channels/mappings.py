@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from uuid import UUID
 
 from oss.src.core.channels.dtos import (
@@ -424,6 +425,7 @@ def map_inbox_event_dto_to_dbe_create(
         kind=event.kind,
         origin=event.origin,
         space_id=event.space_id,
+        sent_at=event.data.processed.sent_at or datetime.now(timezone.utc),
         #
         data=event.data.model_dump(mode="json", exclude_none=True),
         flags=ChannelInboxEventFlags().model_dump(),
@@ -446,6 +448,7 @@ def map_inbox_event_dbe_to_dto(*, event_dbe: ChannelInboxEventDBE) -> ChannelInb
         kind=event_dbe.kind,
         origin=event_dbe.origin,
         space_id=event_dbe.space_id,
+        sent_at=event_dbe.sent_at,
         #
         status=Status.model_validate(event_dbe.status) if event_dbe.status else None,
         data=ChannelInboxEventData.model_validate(event_dbe.data),
@@ -513,6 +516,7 @@ def map_outbox_event_dto_to_dbe_create(
         #
         connection_id=event.connection_id,
         thread_id=event.thread_id,
+        space_id=event.space_id,
         turn_id=event.turn_id,
         key=event.key,
         state=event.state,
@@ -537,6 +541,7 @@ def map_outbox_event_dbe_to_dto(
         #
         connection_id=event_dbe.connection_id,
         thread_id=event_dbe.thread_id,
+        space_id=event_dbe.space_id,
         turn_id=event_dbe.turn_id,
         key=event_dbe.key,
         state=event_dbe.state,

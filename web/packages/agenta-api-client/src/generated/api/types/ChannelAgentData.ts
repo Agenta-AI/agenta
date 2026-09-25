@@ -5,4 +5,5 @@ import type * as AgentaApi from "../index.js";
 export interface ChannelAgentData {
     references: Record<string, AgentaApi.Reference>;
     policy?: (AgentaApi.ChannelPolicy | null) | undefined;
+    tools?: AgentaApi.ChannelAgentToolSettings | undefined;
 }

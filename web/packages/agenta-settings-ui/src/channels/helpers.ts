@@ -5,6 +5,7 @@ import type {
     ChannelScope,
     ChannelSetupField,
     ChannelsActions,
+    ChannelToolSettings,
 } from "./types"
 
 export const platformLabel = (platform: ChannelPlatform): string =>
@@ -210,6 +211,12 @@ export const hasAnyIssue = (connections: ChannelConnections): boolean =>
         )
     })
 
+/** The channel tool settings of a bot that never saved any. */
+export const DEFAULT_TOOL_SETTINGS: ChannelToolSettings = {
+    canPostOutsideConversation: true,
+    readableSpaceKeys: null,
+}
+
 /** Nothing connected on either platform. */
 export const EMPTY_CONNECTIONS: ChannelConnections = {slack: null, telegram: null}
 
@@ -268,6 +275,9 @@ export const NOOP_ACTIONS: ChannelsActions = {
     readAllowedUsers: async () => [],
     writeAllowedUsers: async () => {},
     updateCredentials: async () => {},
+    readToolSettings: async () => DEFAULT_TOOL_SETTINGS,
+    writeToolSettings: async () => {},
+    listReadableChannels: async () => [],
 }
 
 /** The field's declared pattern error when a non-empty value does not match it. */

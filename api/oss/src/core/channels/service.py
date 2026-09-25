@@ -1423,6 +1423,7 @@ class ChannelsService:
                 )
             except ChannelLocatorIncomplete:
                 key = None
+            candidate.external_key = key
             candidate.is_configured = key in configured_keys or (
                 _canonical_locator(candidate.external_locator) in configured_locators
             )
@@ -2727,9 +2728,14 @@ def _layer_agent_edit(
     data = existing.data
     if edit.data is not None:
         data_sent = edit.data.model_dump(exclude_unset=True)
-        data = existing.data.model_copy(
-            update={k: getattr(edit.data, k) for k in data_sent}
-        )
+        update = {k: getattr(edit.data, k) for k in data_sent if k != "tools"}
+        if edit.data.tools is not None:
+            # field by field: an edit that sends only the posting switch must
+            # not reset a narrowed readable list to "every channel"
+            update["tools"] = existing.data.tools.model_copy(
+                update=edit.data.tools.model_dump(exclude_unset=True)
+            )
+        data = existing.data.model_copy(update=update)
         # the merged data must still be a complete, valid agent data
         data = ChannelAgentData.model_validate(data.model_dump(mode="json"))
     flags = existing.flags
@@ -2743,7 +2749,9 @@ def _layer_agent_edit(
         "description": existing.description,
         "tags": existing.tags,
         "meta": existing.meta,
-        "data": ChannelAgentDataEdit(references=data.references, policy=data.policy),
+        "data": ChannelAgentDataEdit(
+            references=data.references, policy=data.policy, tools=data.tools
+        ),
         "flags": flags,
     }
     for field in ("name", "description", "tags", "meta"):

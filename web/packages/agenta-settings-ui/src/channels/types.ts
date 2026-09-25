@@ -40,6 +40,8 @@ export interface ChannelSpace {
     /** True when the backend stored no name, e.g. a place first seen through a message; `name`
      * is then a stand-in built from `externalId` that a discovered name should replace. */
     unnamed?: boolean
+    /** The space key (a uuid) the channel tool settings name this place by. */
+    externalKey?: string | null
 }
 
 /**
@@ -58,6 +60,27 @@ export interface ChannelSpaceCandidate {
     isConfigured: boolean
     /** Null when the platform does not report membership. */
     membership: ChannelSpaceMembership | null
+    /** The space key the place has or will have, when the backend reports it. */
+    externalKey?: string | null
+}
+
+/**
+ * What the agent's channel tools may do through this bot. A bot stored before these settings
+ * existed reads as the defaults: posting on, every channel the bot is in readable.
+ */
+export interface ChannelToolSettings {
+    /** The agent may post to a channel other than the conversation that woke it. */
+    canPostOutsideConversation: boolean
+    /** Space keys read and search may cover. Null = every channel the bot is in; [] = none. */
+    readableSpaceKeys: string[] | null
+}
+
+/** A channel the "Only these channels" checklist offers: one the bot is in. */
+export interface ChannelReadableChannel {
+    /** The space key stored in `ChannelToolSettings.readableSpaceKeys`. */
+    key: string
+    name: string
+    kind: ChannelSpaceKind
 }
 
 /**
@@ -205,4 +228,13 @@ export interface ChannelsActions {
     writeAllowedUsers: (connectionId: string, ids: string[]) => Promise<void>
     /** Replace the secrets of a custom app/bot (a rotated Telegram token, a new Slack pair). */
     updateCredentials: (connectionId: string, credentials: Record<string, string>) => Promise<void>
+    /** Read the channel tool settings of the bot answering on this connection. */
+    readToolSettings: (connectionId: string) => Promise<ChannelToolSettings>
+    /** Replace the channel tool settings; nothing else on the bot changes. */
+    writeToolSettings: (connectionId: string, next: ChannelToolSettings) => Promise<void>
+    /** The channels the bot is in, for the "Only these channels" checklist. */
+    listReadableChannels: (
+        platform: ChannelPlatform,
+        connectionId: string,
+    ) => Promise<ChannelReadableChannel[]>
 }

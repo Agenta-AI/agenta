@@ -2,7 +2,9 @@ export {ChannelsPage, type ChannelsPageProps, type ChannelsPanelRenderProps} fro
 export {useChannelPanel, type UseChannelPanelOptions} from "./useChannelPanel"
 export {ChannelConnectFlow, type ChannelConnectFlowProps} from "./ChannelConnectFlow"
 export {ChannelManagePanel, type ChannelManagePanelProps} from "./ChannelManagePanel"
+export {ChannelAdvancedSection, type ChannelAdvancedSectionProps} from "./ChannelAdvancedSection"
 export {
+    DEFAULT_TOOL_SETTINGS,
     EMPTY_CONNECTIONS,
     NOOP_ACTIONS,
     answeringAgentName,
@@ -41,6 +43,8 @@ export type {
     ChannelSpaceCandidate,
     ChannelSpaceKind,
     ChannelSpaceMembership,
+    ChannelReadableChannel,
+    ChannelToolSettings,
     ChannelConnection,
     ChannelConnections,
     ChannelAnsweringAgent,

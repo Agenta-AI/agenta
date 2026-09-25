@@ -511,3 +511,37 @@ async def test_discover_spaces_follows_the_listing_cursor_past_the_first_page():
     assert "cursor" not in listing_calls[0].url.params
     assert all("cursor" in r.url.params for r in listing_calls[1:])
     assert len(listing_calls) > 1
+
+
+async def test_fetch_history_records_ts_on_pulled_events():
+    adapter, workspace, _ = make_adapter_and_workspace(
+        channels=[{"id": "C1", "name": "general"}]
+    )
+    ts = workspace.seed_message(channel="C1", text="first")
+
+    [event] = await adapter.fetch_history(
+        connection=_connection(), locator={"team": "T1", "channel": "C1"}, limit=50
+    )
+
+    assert event.processed.message_ref == ts
+    assert event.processed.sent_at.timestamp() == float(ts)
+
+
+@pytest.mark.parametrize("error", ["internal_error", "fatal_error"])
+async def test_a_post_slack_may_have_taken_is_uncertain_not_failed(error):
+    """Slack returns these with HTTP 200 and says the post may still have
+    landed, so a caller must not read them as a definite failure."""
+    from oss.src.core.channels.types import ChannelDeliveryUncertain
+
+    adapter, _, transport = make_adapter_and_workspace(
+        channels=[{"id": "C1", "name": "general"}]
+    )
+    transport.force_error("chat.postMessage", error=error)
+
+    with pytest.raises(ChannelDeliveryUncertain):
+        await adapter.post_message(
+            connection=_connection(),
+            locator={"team": "T1", "channel": "C1"},
+            content=[{"type": "text", "text": "hi"}],
+            idempotency_key=uuid4(),
+        )

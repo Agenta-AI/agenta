@@ -38,6 +38,7 @@ from agenta.sdk.utils.types import CATALOG_TYPES
 from ._schema import expand_type_refs
 
 __all__ = [
+    "CHANNEL_TOOL_OPS",
     "PLATFORM_OP_NAMESPACE",
     "PlatformOp",
     "PLATFORM_OPS",
@@ -189,6 +190,11 @@ class PlatformOp(BaseModel):
     static_body: Optional[Dict[str, Any]] = None
     # Catalog hint for the runner's ``allow_reads`` policy; no hint counts as a write.
     read_only: bool = False
+    # The op's own permission when the author set none on the tool, applied only under the
+    # agent-wide ``allow_reads`` mode. An author's per-tool choice or any other agent-wide mode
+    # wins, and the runner's operator kill switch still comes first. ``deny`` is not offered: an
+    # op nobody may run does not belong in the catalog.
+    default_permission: Optional[Literal["allow", "ask"]] = None
     # Per-op execution budget for long-running server-side handlers. Emitted as `timeoutMs`.
     timeout_ms: Optional[int] = Field(default=None, gt=0)
     # Builder ops opt in to the ephemeral per-call ``description`` (R12). The model writes one
@@ -1585,9 +1591,206 @@ _LIST_STARTERS_INPUT_SCHEMA: Dict[str, Any] = {
 }
 
 
+# Channel agent tools: post, read and search through the Slack and Telegram bots the running
+# agent is connected to. The server finds the bots from the run's workflow artifact, so the model
+# never names a bot, a connection or a raw Slack or Telegram id; destinations, threads and
+# messages are opaque ids the list, read and search results hand back.
+_CHANNEL_LIST_DESCRIPTION = (
+    "List the Slack channels and Telegram groups you can post to or read through the bots this "
+    "agent is connected to. Each result has an opaque destination_id to pass to "
+    "send_channel_message, read_channel_messages or search_channel_messages, and says whether "
+    "you may post there (can_post) and read or search it (can_read). Filter by name with "
+    "`query`; page with `cursor`."
+)
+
+_CHANNEL_LIST_INPUT_SCHEMA: Dict[str, Any] = {
+    "type": "object",
+    "additionalProperties": False,
+    "properties": {
+        "type": {
+            "type": "string",
+            "enum": ["channel"],
+            "description": "Only channel destinations exist today.",
+        },
+        "query": {
+            "type": "string",
+            "maxLength": 200,
+            "description": "Case-insensitive part of the channel or group name.",
+        },
+        "limit": {"type": "integer", "minimum": 1, "maximum": 100},
+        "cursor": {
+            "type": "string",
+            "maxLength": 64,
+            "description": "The cursor from the previous page.",
+        },
+        "artifact_id": _BOUND_FROM_RUN_SCHEMA,
+    },
+}
+
+_CHANNEL_SEND_DESCRIPTION = (
+    "Post a message now to a Slack channel or Telegram group, outside the conversation you "
+    "are in. Get destination_id from list_channel_destinations. To reply in a Slack thread, "
+    "pass a thread_id returned by an earlier send, read or search in the same destination. "
+    "Returns state `sent` (with message_id and thread_id), `failed` (with a reason), or "
+    "`unknown` when the post may have reached the chat; never send it again after `unknown`."
+)
+
+_CHANNEL_SEND_INPUT_SCHEMA: Dict[str, Any] = {
+    "type": "object",
+    "additionalProperties": False,
+    "properties": {
+        "destination_id": {
+            "type": "string",
+            "maxLength": 256,
+            "description": "An opaque destination_id from list_channel_destinations.",
+        },
+        "text": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 40000,
+            "description": "The message, in Markdown.",
+        },
+        "thread_id": {
+            "type": "string",
+            "maxLength": 256,
+            "description": "Optional. Reply in this Slack thread of the same destination.",
+        },
+        "artifact_id": _BOUND_FROM_RUN_SCHEMA,
+        "session_id": _BOUND_FROM_RUN_SCHEMA,
+        "tool_call_id": _BOUND_FROM_RUN_SCHEMA,
+    },
+    "required": ["destination_id", "text"],
+}
+
+_CHANNEL_READ_DESCRIPTION = (
+    "Read a Slack channel's or Telegram group's recent messages, oldest first, or one Slack "
+    "thread's root and replies when you pass its thread_id. Default 50 messages, at most 200; "
+    "pass the returned cursor to read older ones. Messages Agenta stored come first; on Slack, "
+    "older ones are fetched live. Read the result's notes: they say what could not be read."
+)
+
+_CHANNEL_READ_INPUT_SCHEMA: Dict[str, Any] = {
+    "type": "object",
+    "additionalProperties": False,
+    "properties": {
+        "destination_id": {
+            "type": "string",
+            "maxLength": 256,
+            "description": "An opaque destination_id from list_channel_destinations.",
+        },
+        "thread_id": {
+            "type": "string",
+            "maxLength": 256,
+            "description": "Optional. Read this Slack thread instead of the channel.",
+        },
+        "limit": {"type": "integer", "minimum": 1, "maximum": 200},
+        "cursor": {
+            "type": "string",
+            "maxLength": 256,
+            "description": "The cursor from the previous page, to read older messages.",
+        },
+        "artifact_id": _BOUND_FROM_RUN_SCHEMA,
+    },
+    "required": ["destination_id"],
+}
+
+_CHANNEL_SEARCH_DESCRIPTION = (
+    "Search the messages Agenta stored from the Slack channels and Telegram groups you may "
+    "read, by words (web-search syntax: quotes for phrases, - to exclude). Covers only messages "
+    "since the bot joined each channel; the result's `searched` list says what each search "
+    "covered. Pass destination_ids to search only some channels, and a result's thread_id to "
+    "read_channel_messages to see the conversation around it."
+)
+
+_CHANNEL_SEARCH_INPUT_SCHEMA: Dict[str, Any] = {
+    "type": "object",
+    "additionalProperties": False,
+    "properties": {
+        "query": {"type": "string", "minLength": 1, "maxLength": 500},
+        "destination_ids": {
+            "type": "array",
+            "items": {"type": "string", "maxLength": 256},
+            "maxItems": 100,
+            "description": "Optional. Only these destinations; default all readable ones.",
+        },
+        "after": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Optional. Only messages at or after this time (ISO 8601).",
+        },
+        "before": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Optional. Only messages at or before this time (ISO 8601).",
+        },
+        "limit": {"type": "integer", "minimum": 1, "maximum": 50},
+        "cursor": {
+            "type": "string",
+            "maxLength": 64,
+            "description": "The cursor from the previous page.",
+        },
+        "artifact_id": _BOUND_FROM_RUN_SCHEMA,
+    },
+    "required": ["query"],
+}
+
+_CHANNEL_TOOL_OPS: tuple = (
+    PlatformOp(
+        op="list_channel_destinations",
+        description=_CHANNEL_LIST_DESCRIPTION,
+        method="POST",
+        path="/api/channels/tools/destinations/query",
+        input_schema=_CHANNEL_LIST_INPUT_SCHEMA,
+        context_bindings={"artifact_id": "$ctx.workflow.artifact.id"},
+        read_only=True,
+    ),
+    PlatformOp(
+        op="send_channel_message",
+        description=_CHANNEL_SEND_DESCRIPTION,
+        method="POST",
+        path="/api/channels/tools/messages/send",
+        input_schema=_CHANNEL_SEND_INPUT_SCHEMA,
+        # The tool call id keys the delivery record, so a retried call reports the first
+        # attempt instead of posting twice.
+        context_bindings={
+            "artifact_id": "$ctx.workflow.artifact.id",
+            "session_id": "$ctx.session.id",
+            "tool_call_id": "$ctx.tool.call_id",
+        },
+        read_only=False,
+        # Posting is the point of the tool, so it runs without a prompt by default. The
+        # bot's "Can post outside the conversation" setting is the admin's off switch.
+        default_permission="allow",
+    ),
+    PlatformOp(
+        op="read_channel_messages",
+        description=_CHANNEL_READ_DESCRIPTION,
+        method="POST",
+        path="/api/channels/tools/messages/read",
+        input_schema=_CHANNEL_READ_INPUT_SCHEMA,
+        context_bindings={"artifact_id": "$ctx.workflow.artifact.id"},
+        read_only=True,
+    ),
+    PlatformOp(
+        op="search_channel_messages",
+        description=_CHANNEL_SEARCH_DESCRIPTION,
+        method="POST",
+        path="/api/channels/tools/messages/search",
+        input_schema=_CHANNEL_SEARCH_INPUT_SCHEMA,
+        context_bindings={"artifact_id": "$ctx.workflow.artifact.id"},
+        read_only=True,
+    ),
+)
+
+# The ops the Agenta tools kit adds to a run of an agent connected to a bot. The kit reads the
+# condition from `POST /api/channels/tools/availability`.
+CHANNEL_TOOL_OPS: tuple = tuple(op.op for op in _CHANNEL_TOOL_OPS)
+
+
 PLATFORM_OPS: Dict[str, PlatformOp] = {
     op.op: op
     for op in _READ_CONFIG_OPS
+    + _CHANNEL_TOOL_OPS
     + (
         PlatformOp(
             op="create_app",

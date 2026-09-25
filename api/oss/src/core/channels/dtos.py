@@ -374,9 +374,23 @@ RESOLVABLE_AGENT_REFERENCE_KEYS = frozenset(
 )
 
 
+class ChannelAgentToolSettings(BaseModel):
+    """What the channel agent tools may do through this bot. Permissive by
+    default: a bot saved before this block existed reads as these values."""
+
+    # send_channel_message may post to any destination of this bot; replies
+    # inside the conversation that woke the agent are not affected
+    can_post_outside_conversation: bool = True
+    # the space keys read and search may cover; None is every channel the bot
+    # is in, [] turns read and search off. Keys, not row ids: the settings page
+    # picks from discovered channels, which have no row until first contact.
+    readable_space_keys: Optional[List[UUID]] = None
+
+
 class ChannelAgentData(BaseModel):
     references: Dict[str, Reference]  # the bound workflow/variant/revision
     policy: Optional[ChannelPolicy] = None
+    tools: ChannelAgentToolSettings = Field(default_factory=ChannelAgentToolSettings)
 
     @field_validator("references")
     @classmethod
@@ -476,6 +490,11 @@ class ChannelInboxEventProcessed(BaseModel):
 
     content: List[Dict[str, Any]]  # normalised parts
     sender: Dict[str, Any]  # platform user, pre-identity-link
+    # the platform's own time and reference for this message (Slack `ts`,
+    # Telegram `date` and `message_id`): the channel read tool orders by the
+    # first and matches the bot's own posts by the second
+    sent_at: Optional[datetime] = None
+    message_ref: Optional[str] = None
 
     @field_validator("content", "sender", mode="after")
     @classmethod
@@ -596,6 +615,7 @@ class ChannelAgentDataEdit(BaseModel):
 
     references: Optional[Dict[str, Reference]] = None
     policy: Optional[ChannelPolicy] = None
+    tools: Optional[ChannelAgentToolSettings] = None
 
     @model_validator(mode="before")
     @classmethod
@@ -615,6 +635,11 @@ class ChannelAgentDataEdit(BaseModel):
             raise ValueError(
                 "references cannot be null on an edit; omit it to keep the "
                 "stored workflow, or name a new one"
+            )
+        if "tools" in self.model_fields_set and self.tools is None:
+            raise ValueError(
+                "tools cannot be null on an edit; omit it to keep the stored "
+                "settings, or send the fields to change"
             )
         return self
 
@@ -692,6 +717,9 @@ class ChannelSpaceCandidate(BaseModel):
     #
     display_name: Optional[str] = None  # the platform's own name, for the list
     is_configured: bool = False  # a space row already exists for it
+    # the key a space row for it has or will have; the channel tools' readable
+    # list stores these, so a channel can be picked before it has a row
+    external_key: Optional[UUID] = None
     membership: Optional[ChannelSpaceMembership] = None
 
 
@@ -801,6 +829,8 @@ class ChannelInboxEvent(Identifier, Lifecycle):
     kind: ChannelEventKind
     origin: ChannelEventOrigin
     space_id: Optional[UUID] = None
+    # the provider's time, or the arrival time where the platform gave none
+    sent_at: Optional[datetime] = None
     #
     status: Optional[Status] = None
     data: ChannelInboxEventData
@@ -863,7 +893,10 @@ class ChannelInboxTriggerQuery(BaseModel):
 
 class ChannelOutboxEvent(Identifier, Lifecycle):
     connection_id: UUID
-    thread_id: UUID
+    # None for a send_channel_message post, which belongs to no channel thread
+    thread_id: Optional[UUID] = None
+    space_id: Optional[UUID] = None
+    # the turn for a reply, the tool call id for a send_channel_message post
     turn_id: str
     key: UUID
     state: ChannelDeliveryState
@@ -875,7 +908,8 @@ class ChannelOutboxEvent(Identifier, Lifecycle):
 
 class ChannelOutboxEventCreate(BaseModel):
     connection_id: UUID
-    thread_id: UUID
+    thread_id: Optional[UUID] = None
+    space_id: Optional[UUID] = None
     turn_id: str
     key: UUID
     state: ChannelDeliveryState = ChannelDeliveryState.CREATED
@@ -922,6 +956,27 @@ class ChannelInboundEvent(BaseModel):
     processed: ChannelInboxEventProcessed
     # the adapter's own answer to trigger-or-fill
     addressed: bool = False
+
+
+class ChannelHistoryPage(BaseModel):
+    """One live history page. `next_cursor` is the platform's own, for a
+    thread read that pages forward."""
+
+    messages: List["ChannelHistoryMessage"] = Field(default_factory=list)
+    has_more: bool = False
+    next_cursor: Optional[str] = None
+
+
+class ChannelHistoryMessage(BaseModel):
+    """One message read live from the platform for the channel read tool.
+    Returned, never stored."""
+
+    message_ref: str
+    thread_ref: Optional[str] = None
+    sent_at: Optional[datetime] = None
+    text: str = ""
+    sender: Dict[str, Any] = Field(default_factory=dict)
+    from_bot: bool = False  # this connection's own bot
 
 
 class ChannelResolution(BaseModel):

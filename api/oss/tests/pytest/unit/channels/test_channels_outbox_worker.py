@@ -88,6 +88,15 @@ class FakeChannelsDAO(ChannelsDAOInterface):
         self.threads[thread.id] = thread
         return thread
 
+    async def query_space_inbox_messages(self, **kwargs):
+        raise NotImplementedError
+
+    async def query_space_outbox_messages(self, **kwargs):
+        raise NotImplementedError
+
+    async def search_space_inbox_messages(self, **kwargs):
+        raise NotImplementedError
+
     async def fetch_space(self, *, project_id, space_id):
         return self.spaces.get(space_id)
 
@@ -1842,6 +1851,7 @@ async def test_a_stale_claim_from_a_dead_worker_is_taken_over():
         project_id=PROJECT_ID,
         connection_id=thread.space_id,
         thread_id=thread.id,
+        space_id=thread.space_id,
         turn_id="turn-stale",
         item_index=0,
     )
@@ -1894,6 +1904,7 @@ async def test_a_live_claim_that_never_releases_leaves_the_entry_for_redelivery(
         project_id=PROJECT_ID,
         connection_id=thread.space_id,
         thread_id=thread.id,
+        space_id=thread.space_id,
         turn_id="turn-busy",
         item_index=0,
     )
@@ -2682,6 +2693,7 @@ async def test_telegram_not_modified_on_one_chunk_marks_it_sent_and_posts_the_re
         project_id=PROJECT_ID,
         connection_id=connection.id,
         thread_id=thread.id,
+        space_id=thread.space_id,
         turn_id="turn-tg",
         item_index=0,
     )

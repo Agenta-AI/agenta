@@ -9,6 +9,7 @@ from sqlalchemy import (
     func,
     literal,
     not_,
+    literal_column,
     or_,
     select,
     text,
@@ -19,6 +20,8 @@ from sqlalchemy.dialects.postgresql import JSONB, insert
 
 from oss.src.core.channels.dtos import (
     CHANNEL_TRIGGER_NEVER_SENT,
+    ChannelEventKind,
+    ChannelEventOrigin,
     ChannelAgent,
     ChannelAgentCreate,
     ChannelAgentEdit,
@@ -1370,6 +1373,119 @@ class ChannelsDAO(ChannelsDAOInterface):
 
             return map_thread_dbe_to_dto(thread_dbe=thread_dbe)
 
+    # --- a space's messages, for the channel read tool ------------------- #
+
+    async def query_space_inbox_messages(
+        self,
+        *,
+        project_id: UUID,
+        space_id: UUID,
+        thread_ts: Optional[str] = None,
+        before: Optional[Tuple[datetime, Optional[UUID]]] = None,
+        limit: int,
+    ) -> List[ChannelInboxEvent]:
+        table = ChannelInboxEventDBE
+        stmt = select(table).where(
+            table.project_id == project_id,
+            table.space_id == space_id,
+            table.kind == ChannelEventKind.MESSAGE.value,
+            _not_a_copy_of_a_bot_post(),
+        )
+        if thread_ts is not None:
+            stmt = stmt.where(
+                func.json_extract_path_text(table.data, "external_locator", "thread_ts")
+                == thread_ts
+            )
+        if before is not None:
+            stmt = stmt.where(_before(table.sent_at, table.id, before))
+        stmt = stmt.order_by(table.sent_at.desc(), table.id.desc()).limit(limit)
+
+        async with self.engine.session() as session:
+            result = await session.execute(stmt)
+            return [
+                map_inbox_event_dbe_to_dto(event_dbe=dbe)
+                for dbe in result.scalars().all()
+            ]
+
+    async def query_space_outbox_messages(
+        self,
+        *,
+        project_id: UUID,
+        space_id: UUID,
+        thread_ts: Optional[str] = None,
+        before: Optional[Tuple[datetime, Optional[UUID]]] = None,
+        limit: int,
+    ) -> List[Tuple[ChannelOutboxEvent, Optional[str]]]:
+        """The bot's sent posts in a space, newest first, each with the thread
+        it belongs to: a tool send records it, a turn reply takes its channel
+        thread's, and a top-level post roots its own."""
+
+        outbox = ChannelOutboxEventDBE
+        thread = ChannelThreadDBE
+        thread_of = func.coalesce(
+            func.json_extract_path_text(outbox.data, "processed", "thread_ts"),
+            func.json_extract_path_text(thread.data, "external_locator", "thread_ts"),
+            func.json_extract_path_text(outbox.data, "external_locator", "ts"),
+        )
+        stmt = (
+            select(outbox, thread_of)
+            .outerjoin(
+                thread,
+                (thread.project_id == outbox.project_id)
+                & (thread.id == outbox.thread_id),
+            )
+            .where(
+                outbox.project_id == project_id,
+                outbox.space_id == space_id,
+                outbox.state == ChannelDeliveryState.SENT,
+                # a final post only: a running turn's "Thinking..." indicator is
+                # not something the bot said
+                func.json_extract_path_text(outbox.data, "processed", "final")
+                == "true",
+            )
+        )
+        if thread_ts is not None:
+            stmt = stmt.where(thread_of == thread_ts)
+        if before is not None:
+            stmt = stmt.where(_before(outbox.created_at, outbox.id, before))
+        stmt = stmt.order_by(outbox.created_at.desc(), outbox.id.desc()).limit(limit)
+
+        async with self.engine.session() as session:
+            result = await session.execute(stmt)
+            return [
+                (map_outbox_event_dbe_to_dto(event_dbe=dbe), thread_ts_of)
+                for dbe, thread_ts_of in result.all()
+            ]
+
+    async def search_space_inbox_messages(
+        self,
+        *,
+        project_id: UUID,
+        space_ids: List[UUID],
+        query: str,
+        after: Optional[datetime] = None,
+        before: Optional[datetime] = None,
+        limit: int,
+        offset: int = 0,
+    ) -> List[ChannelInboxEvent]:
+        if not space_ids or not query.strip():
+            return []
+        stmt = search_inbox_statement(
+            project_id=project_id,
+            space_ids=space_ids,
+            query=query,
+            after=after,
+            before=before,
+            limit=limit,
+            offset=offset,
+        )
+        async with self.engine.session() as session:
+            result = await session.execute(stmt)
+            return [
+                map_inbox_event_dbe_to_dto(event_dbe=dbe)
+                for dbe in result.scalars().all()
+            ]
+
     # --- inbox: the log --------------------------------------------------- #
 
     async def record_inbox_event(
@@ -2068,3 +2184,89 @@ class ChannelsDAO(ChannelsDAOInterface):
                 return None
 
             return (row[0], row[1])
+
+
+def _not_a_copy_of_a_bot_post():
+    """Rows that are a person's message in the conversation. A fetched history
+    page can hold a copy of the bot's own post, which
+    the outbox already serves. Read and search leave it out in the query, not
+    after paging, so a dropped copy never moves a page boundary. Pushed rows
+    never hold the bot's posts: ingress drops bot-authored events."""
+
+    table = ChannelInboxEventDBE
+    outbox = ChannelOutboxEventDBE
+    posted_by_bot = (
+        select(outbox.id)
+        .where(
+            outbox.project_id == table.project_id,
+            outbox.space_id == table.space_id,
+            outbox.state == ChannelDeliveryState.SENT,
+            func.json_extract_path_text(outbox.data, "external_locator", "ts")
+            == func.json_extract_path_text(table.data, "processed", "message_ref"),
+        )
+        .exists()
+    )
+    consumed = func.coalesce(table.flags["is_consumed"].as_boolean(), false())
+    # an answer an approval consumed went to the parked interaction, not to
+    # the conversation
+    return ((table.origin == ChannelEventOrigin.PUSHED) | ~posted_by_bot) & ~consumed
+
+
+def _before(time_column, id_column, before: Tuple[datetime, Optional[UUID]]):
+    """Strictly older than a read cursor, in the same (time, id) order the
+    query sorts by, so a page boundary never repeats or skips a row that
+    shares its time. A cursor with no id bounds by time alone."""
+
+    at, row_id = before
+    if row_id is None:
+        return time_column < at
+    return tuple_(time_column, id_column) < tuple_(at, row_id)
+
+
+# The indexed expression of `ix_channel_inbox_events_search`
+# (oss000000038). A query must repeat it exactly for Postgres to use the
+# index, so this is its only spelling.
+_SEARCH_VECTOR = literal_column(
+    "to_tsvector('simple', "
+    "coalesce(channel_inbox_events.data #>> '{processed,content,0,text}', ''))"
+)
+
+
+def search_inbox_statement(
+    *,
+    project_id: UUID,
+    space_ids: List[UUID],
+    query: str,
+    after: Optional[datetime] = None,
+    before: Optional[datetime] = None,
+    limit: int,
+    offset: int = 0,
+):
+    """Stored messages of these spaces matching `query` (web-search syntax),
+    by relevance, then provider time, then id: a total order, so an offset
+    page neither skips nor repeats a row while the set is unchanged."""
+
+    table = ChannelInboxEventDBE
+    tsquery = func.websearch_to_tsquery(literal_column("'simple'"), query)
+    stmt = (
+        select(table)
+        .where(
+            table.project_id == project_id,
+            table.space_id.in_(space_ids),
+            table.kind == ChannelEventKind.MESSAGE.value,
+            _not_a_copy_of_a_bot_post(),
+            _SEARCH_VECTOR.op("@@")(tsquery),
+        )
+        .order_by(
+            func.ts_rank(_SEARCH_VECTOR, tsquery).desc(),
+            table.sent_at.desc(),
+            table.id.desc(),
+        )
+        .limit(limit)
+        .offset(offset)
+    )
+    if after is not None:
+        stmt = stmt.where(table.sent_at >= after)
+    if before is not None:
+        stmt = stmt.where(table.sent_at <= before)
+    return stmt

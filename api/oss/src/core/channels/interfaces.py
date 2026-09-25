@@ -1,3 +1,4 @@
+from datetime import datetime
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional, Tuple
 from uuid import UUID
@@ -516,6 +517,47 @@ class ChannelsDAOInterface(ABC):
         ...
 
     # --- inbox: the log ----------------------------------------------------- #
+
+    @abstractmethod
+    async def query_space_inbox_messages(
+        self,
+        *,
+        project_id: UUID,
+        space_id: UUID,
+        thread_ts: Optional[str] = None,
+        before: Optional[Tuple[datetime, Optional[UUID]]] = None,
+        limit: int,
+    ) -> List[ChannelInboxEvent]:
+        """A space's stored messages, newest first by provider time: message
+        events only, optionally one thread's, optionally before a time."""
+
+    @abstractmethod
+    async def query_space_outbox_messages(
+        self,
+        *,
+        project_id: UUID,
+        space_id: UUID,
+        thread_ts: Optional[str] = None,
+        before: Optional[Tuple[datetime, Optional[UUID]]] = None,
+        limit: int,
+    ) -> List[Tuple[ChannelOutboxEvent, Optional[str]]]:
+        """The bot's sent posts in a space, newest first, each with its
+        thread reference."""
+
+    @abstractmethod
+    async def search_space_inbox_messages(
+        self,
+        *,
+        project_id: UUID,
+        space_ids: List[UUID],
+        query: str,
+        after: Optional[datetime] = None,
+        before: Optional[datetime] = None,
+        limit: int,
+        offset: int = 0,
+    ) -> List[ChannelInboxEvent]:
+        """Stored messages of these spaces matching a full-text query, by
+        relevance, then time, then id."""
 
     @abstractmethod
     async def record_inbox_event(

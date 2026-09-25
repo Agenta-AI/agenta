@@ -2386,3 +2386,31 @@ class TestTelegramGroupsAreMentionOnly:
 
         assert first is not None
         assert second is not None
+
+    async def test_candidates_carry_their_space_key_for_the_readable_list(self):
+        """The Advanced section's readable-channels list stores space keys, and
+        a member channel with no space row yet still needs one to be picked."""
+        from oss.src.core.channels.dtos import ChannelSpaceCandidate
+        from oss.src.core.channels.utils import compose_external_key
+
+        adapter = WellBehavedFakeAdapter()
+        capabilities = await adapter.fetch_capabilities()
+        dao = _make_fake_dao()
+        dao.query_spaces = AsyncMock(return_value=[])
+        locator = {"team": "T1", "channel": "C9"}
+        adapter.discover_spaces = AsyncMock(
+            return_value=[
+                ChannelSpaceCandidate(
+                    kind=ChannelSpaceKind.TOPIC, external_locator=locator
+                )
+            ]
+        )
+        service = _make_service(dao=dao, adapter=adapter)
+
+        [candidate] = await service.discover_spaces(
+            project_id=uuid4(), connection_id=uuid4()
+        )
+
+        assert candidate.external_key == compose_external_key(
+            capabilities, ChannelKeyGrain.SPACE, locator
+        )

@@ -425,3 +425,45 @@ async def test_claim_outbox_delivery_refuses_a_delivery_whose_outcome_is_unknown
         )
         is not None
     )
+
+
+async def test_tool_send_row_without_a_thread_round_trips(channels_scope):
+    dao = ChannelsDAO(engine=channels_scope["engine"])
+    project_id = channels_scope["project_id"]
+    space_id = uuid.uuid4()
+
+    created = await dao.record_outbox_event(
+        project_id=project_id,
+        event=ChannelOutboxEventCreate(
+            connection_id=channels_scope["connection_id"],
+            thread_id=None,
+            space_id=space_id,
+            turn_id="toolu_1",
+            key=uuid.uuid4(),
+            data=ChannelOutboxEventData(),
+        ),
+    )
+    fetched = await dao.fetch_outbox_event(project_id=project_id, event_id=created.id)
+
+    assert fetched.thread_id is None
+    assert fetched.space_id == space_id
+    assert fetched.turn_id == "toolu_1"
+
+
+async def test_duplicate_tool_key_returns_the_existing_row(channels_scope):
+    dao = ChannelsDAO(engine=channels_scope["engine"])
+    project_id = channels_scope["project_id"]
+    key = uuid.uuid4()
+    event = ChannelOutboxEventCreate(
+        connection_id=channels_scope["connection_id"],
+        thread_id=None,
+        space_id=uuid.uuid4(),
+        turn_id="toolu_1",
+        key=key,
+        data=ChannelOutboxEventData(),
+    )
+
+    first = await dao.record_outbox_event(project_id=project_id, event=event)
+    second = await dao.record_outbox_event(project_id=project_id, event=event)
+
+    assert second.id == first.id

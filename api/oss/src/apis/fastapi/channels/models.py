@@ -11,7 +11,7 @@ from datetime import datetime
 from typing import Any, Dict, List, Literal, Optional
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from oss.src.core.channels.dtos import (
     ChannelAgentEditRequest,
@@ -53,6 +53,12 @@ from oss.src.core.channels.dtos import (
 )
 
 __all__ = [
+    "ChannelDestinationsQueryRequest",
+    "ChannelMessageSendRequest",
+    "ChannelMessagesReadRequest",
+    "ChannelMessagesSearchRequest",
+    "ChannelToolsAvailabilityRequest",
+    "ChannelToolsAvailabilityResponse",
     "AgentaConversationItem",
     "AgentaConversationResponse",
     "ChannelAgentCreateRequest",
@@ -145,3 +151,57 @@ class TelegramHostedBindingsResponse(BaseModel):
     # from "chat connected".
     count: int
     bindings: List[TelegramHostedBinding]
+
+
+# --- channel agent tools ------------------------------------------------------ #
+#
+# Closed on purpose: `artifact_id`, `session_id` and `tool_call_id` are bound by
+# the runner from run context, and anything else the model adds (a connection
+# id, a raw Slack channel, a sender name) is refused before a read or a write.
+
+
+class _ChannelToolRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    artifact_id: UUID
+
+
+class ChannelToolsAvailabilityRequest(_ChannelToolRequest):
+    pass
+
+
+class ChannelToolsAvailabilityResponse(BaseModel):
+    available: bool
+    # the channel tool ops this agent's runs get, following its bots' settings
+    tools: List[str] = Field(default_factory=list)
+
+
+class ChannelDestinationsQueryRequest(_ChannelToolRequest):
+    type: Optional[Literal["channel"]] = None
+    query: Optional[str] = Field(default=None, max_length=200)
+    limit: Optional[int] = Field(default=None, ge=1, le=100)
+    cursor: Optional[str] = Field(default=None, max_length=64)
+
+
+class ChannelMessageSendRequest(_ChannelToolRequest):
+    session_id: str = Field(min_length=1, max_length=200)
+    tool_call_id: str = Field(min_length=1, max_length=200)
+    destination_id: str = Field(max_length=256)
+    text: str = Field(min_length=1, max_length=40000)
+    thread_id: Optional[str] = Field(default=None, max_length=256)
+
+
+class ChannelMessagesReadRequest(_ChannelToolRequest):
+    destination_id: str = Field(max_length=256)
+    thread_id: Optional[str] = Field(default=None, max_length=256)
+    limit: Optional[int] = Field(default=None, ge=1, le=200)
+    cursor: Optional[str] = Field(default=None, max_length=256)
+
+
+class ChannelMessagesSearchRequest(_ChannelToolRequest):
+    query: str = Field(min_length=1, max_length=500)
+    destination_ids: Optional[List[str]] = Field(default=None, max_length=100)
+    after: Optional[datetime] = None
+    before: Optional[datetime] = None
+    limit: Optional[int] = Field(default=None, ge=1, le=50)
+    cursor: Optional[str] = Field(default=None, max_length=64)

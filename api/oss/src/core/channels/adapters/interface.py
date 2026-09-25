@@ -6,12 +6,14 @@ from oss.src.core.channels.dtos import (
     ChannelCapabilities,
     ChannelConnection,
     ChannelConnectionCreate,
+    ChannelHistoryPage,
     ChannelInboundEvent,
     ChannelRequestContext,
     ChannelSetupDoc,
     ChannelSetupIdentity,
     ChannelSpaceCandidate,
 )
+from oss.src.core.channels.types import ChannelNotSupported
 
 
 class ChannelAdapterInterface(ABC):
@@ -226,6 +228,16 @@ class ChannelAdapterInterface(ABC):
         pick-list rather than a paste-the-channel-id form. Returns
         candidates, not rows — nothing is persisted until an operator chooses."""
 
+    async def list_member_spaces(
+        self, *, connection: ChannelConnection
+    ) -> List[ChannelSpaceCandidate]:
+        """The channels the bot is a member of, for the agent's destination
+        list. Group conversations only: never direct messages or group DMs.
+        Raises ChannelNotSupported where the platform cannot list them
+        (a Telegram bot cannot list its chats)."""
+
+        raise ChannelNotSupported(channel=self.channel)
+
     async def join_space(
         self, *, connection: ChannelConnection, locator: Dict[str, Any]
     ) -> None:
@@ -246,3 +258,22 @@ class ChannelAdapterInterface(ABC):
         `fill.backfill.supported`. A permission refusal raises rather than
         returning empty — an empty fetch is a legitimate result and the two must
         stay distinguishable."""
+
+    async def read_history(
+        self,
+        *,
+        connection: ChannelConnection,
+        locator: Dict[str, Any],
+        thread_ts: Optional[str] = None,
+        latest: Optional[str] = None,
+        cursor: Optional[str] = None,
+        limit: int,
+    ) -> ChannelHistoryPage:
+        """One live history page for the channel read tool, oldest first.
+        A channel page holds the newest messages strictly before `latest`; a
+        thread page (`thread_ts`) holds the root and replies from the start,
+        paging forward with `cursor`. Nothing is stored. Raises
+        ChannelRateLimited when the platform says to wait, and
+        ChannelNotSupported where bots cannot read history (Telegram)."""
+
+        raise ChannelNotSupported(channel=self.channel)

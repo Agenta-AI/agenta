@@ -22,6 +22,7 @@ from oss.src.core.channels.adapters.slack.mapping import (
     mentions_user,
     parse_block_action,
     render_buttons_or_degrade,
+    slack_time,
     split_for_max_chars,
 )
 from oss.src.core.channels.adapters.slack.oauth import hosted_app_configured
@@ -32,6 +33,8 @@ from oss.src.core.channels.dtos import (
     ChannelConnection,
     ChannelConnectionCreate,
     ChannelEventKind,
+    ChannelHistoryMessage,
+    ChannelHistoryPage,
     ChannelInboundEvent,
     ChannelInboxEventProcessed,
     ChannelRequestContext,
@@ -42,6 +45,7 @@ from oss.src.core.channels.dtos import (
     ChannelSpaceMembership,
 )
 from oss.src.core.channels.types import (
+    ChannelRateLimited,
     ChannelConnectionIncomplete,
     ChannelConnectionVerificationFailed,
     ChannelDeliveryUncertain,
@@ -67,6 +71,11 @@ _DEFAULT_BACKFILL_LIMIT = int(os.getenv("AGENTA_CHANNELS_BACKFILL_LIMIT") or 50)
 # A `/me` message arrives as subtype `me_message` with the same user, channel
 # and text fields as a plain message: it is a person speaking, so it routes.
 _MESSAGE_SUBTYPES = {"thread_broadcast", "file_share", "me_message"}
+
+# Slack answers these with HTTP 200 and `ok: false`, yet documents that the
+# call may still have taken effect: a post that failed this way may be in the
+# channel, so it must never read as a definite failure (or be retried).
+_UNCERTAIN_POST_ERRORS = {"internal_error", "fatal_error", "request_timeout"}
 
 # Slack's own signal that an installation stopped -- deactivate, never
 # route these as messages.
@@ -157,6 +166,7 @@ class SlackAdapter(ChannelAdapterInterface):
     channel = "slack"
     # Unit tests turn this off (no network); see tests' conftest.
     resolve_sender_names = True
+    _member_page_size = _LISTING_PAGE_SIZE
 
     def __init__(self, *, http_client: Optional[httpx.AsyncClient] = None) -> None:
         self._client = http_client or httpx.AsyncClient(base_url=_SLACK_API_BASE)
@@ -388,6 +398,8 @@ class SlackAdapter(ChannelAdapterInterface):
             processed=ChannelInboxEventProcessed(
                 content=content,
                 sender=sender,
+                sent_at=slack_time(event_ts),
+                message_ref=event_ts or None,
             ),
             # Addressed when the message names an agent by sigil (~agent) or
             # natively @-mentions the bot (<@bot_user_id>, the form Slack
@@ -454,9 +466,12 @@ class SlackAdapter(ChannelAdapterInterface):
                     },
                 )
             except Exception as exc:
-                if receipts:
-                    # Earlier chunks are already in the thread; a retry would
-                    # post them again.
+                if receipts or (
+                    isinstance(exc, _SlackApiError)
+                    and exc.error in _UNCERTAIN_POST_ERRORS
+                ):
+                    # Earlier chunks are already in the thread, or Slack says
+                    # the post may have landed; a retry could post it again.
                     raise ChannelDeliveryUncertain(
                         channel=self.channel, detail=str(exc)[:200]
                     ) from exc
@@ -576,6 +591,44 @@ class SlackAdapter(ChannelAdapterInterface):
                 break
         return candidates
 
+    async def list_member_spaces(
+        self, *, connection: ChannelConnection
+    ) -> List[ChannelSpaceCandidate]:
+        # users.conversations returns only the bot's own channels, where
+        # conversations.list pages the whole workspace to find them.
+        spaces: List[ChannelSpaceCandidate] = []
+        cursor = ""
+        while True:
+            params: Dict[str, Any] = {
+                "types": "public_channel,private_channel",
+                "exclude_archived": True,
+                "limit": self._member_page_size,
+            }
+            if cursor:
+                params["cursor"] = cursor
+            response = await self._call(
+                connection, "users.conversations", params, as_query=True
+            )
+            for entry in response.get("channels", []):
+                if entry.get("is_im") or entry.get("is_mpim"):
+                    continue
+                spaces.append(
+                    ChannelSpaceCandidate(
+                        kind=ChannelSpaceKind.TOPIC,
+                        external_locator={
+                            "team": entry.get("context_team_id")
+                            or _team_of(connection),
+                            "channel": entry["id"],
+                        },
+                        display_name=entry.get("name"),
+                        membership=ChannelSpaceMembership.MEMBER,
+                    )
+                )
+            cursor = (response.get("response_metadata") or {}).get("next_cursor") or ""
+            if not cursor:
+                break
+        return spaces
+
     async def join_space(
         self, *, connection: ChannelConnection, locator: Dict[str, Any]
     ) -> None:
@@ -671,10 +724,74 @@ class SlackAdapter(ChannelAdapterInterface):
                     processed=ChannelInboxEventProcessed(
                         content=[{"type": "text", "text": message.get("text") or ""}],
                         sender={"id": message.get("user") or ""},
+                        sent_at=slack_time(message.get("ts")),
+                        message_ref=message.get("ts"),
                     ),
                 )
             )
         return events
+
+    async def read_history(
+        self,
+        *,
+        connection: ChannelConnection,
+        locator: Dict[str, Any],
+        thread_ts: Optional[str] = None,
+        latest: Optional[str] = None,
+        cursor: Optional[str] = None,
+        limit: int,
+    ) -> ChannelHistoryPage:
+        # Slack caps a page for commercially distributed apps outside the
+        # Marketplace (the hosted app) at about 15 messages and one call per
+        # minute; a short page is not the end, `has_more` says whether it is.
+        params: Dict[str, Any] = {"channel": locator["channel"], "limit": limit}
+        if thread_ts:
+            # replies pages forward from the root, by Slack's own cursor
+            method = "conversations.replies"
+            params.update({"ts": thread_ts, "cursor": cursor})
+        else:
+            method = "conversations.history"
+            params.update({"latest": latest, "inclusive": False if latest else None})
+
+        try:
+            response = await self._call(connection, method, params, as_query=True)
+        except _SlackApiError as e:
+            if e.status_code == 429 or e.error == "ratelimited":
+                raise ChannelRateLimited(
+                    channel=self.channel, retry_after=e.retry_after
+                ) from e
+            if e.error == "missing_scope" or e.status_code == 403:
+                raise ChannelBackfillRefused(reason=e.error) from e
+            raise
+
+        bot_user_id = _bot_user_id(connection)
+        messages: List[ChannelHistoryMessage] = []
+        for message in response.get("messages", []):
+            ts = message.get("ts")
+            if not ts or (latest and float(ts) >= float(latest)):
+                continue
+            from_bot = bool(bot_user_id) and message.get("user") == bot_user_id
+            messages.append(
+                ChannelHistoryMessage(
+                    message_ref=ts,
+                    thread_ref=message.get("thread_ts") or ts,
+                    sent_at=slack_time(ts),
+                    text=message.get("text") or "",
+                    sender=(
+                        {}
+                        if from_bot or not message.get("user")
+                        else await self._sender(connection, message)
+                    ),
+                    from_bot=from_bot,
+                )
+            )
+        messages.sort(key=lambda m: float(m.message_ref))
+        next_cursor = (response.get("response_metadata") or {}).get("next_cursor")
+        return ChannelHistoryPage(
+            messages=messages,
+            has_more=bool(response.get("has_more") or next_cursor),
+            next_cursor=next_cursor or None,
+        )
 
     # --- test seam (optional; mirrors contract suite's fake) --- #
 
@@ -742,15 +859,26 @@ class SlackAdapter(ChannelAdapterInterface):
             raise _SlackApiError(
                 error=body.get("error", "unknown_error"),
                 status_code=response.status_code,
+                retry_after=_retry_after(response.headers.get("retry-after")),
             )
         return body
 
 
 class _SlackApiError(Exception):
-    def __init__(self, *, error: str, status_code: int):
+    def __init__(
+        self, *, error: str, status_code: int, retry_after: Optional[int] = None
+    ):
         self.error = error
         self.status_code = status_code
+        self.retry_after = retry_after
         super().__init__(f"Slack API error: {error}")
+
+
+def _retry_after(value: Optional[str]) -> Optional[int]:
+    try:
+        return int(value) if value else None
+    except ValueError:
+        return None
 
 
 def _parse_json(body: bytes) -> Dict[str, Any]:
