@@ -26,12 +26,12 @@ Nothing is implemented. The tasks assume the recommended option for each decisio
 
 ## 4. Live QA
 
-- [ ] 4.1 Create a new agent and ask it for the link to its session from `/w`, `/m`, the API, a Slack thread, a Telegram chat and a schedule fire. Each reply carries the link the tool returns today, and each session gets a name.
-- [ ] 4.2 Open an agent saved before this change: the section shows the defaults, the draft is clean, and no version is created. Slack runs have no Agenta tools. Edit something, let the playground save, deploy: Slack runs have the two defaults.
-- [ ] 4.3 Set `create_schedule` to Ask, commit, deploy, and ask for a schedule from Slack: an approval card appears.
-- [ ] 4.4 Set `rename_session` to Deactivate: Slack, API and schedule runs stop naming their sessions, and a playground run still follows the build kit.
+- [ ] 4.1 Create a new agent and ask it for the link to its session from `/w`, `/m`, the API, a Slack thread, a Telegram chat and a schedule fire. Each reply carries the link the tool returns today, and each session gets a name. Done for `/w`, `/m` (section) and the API on a local stack. Slack, Telegram and a schedule fire run on staging after the merge.
+- [x] 4.2 Open an agent saved before this change: the section shows the defaults, the draft is clean, and no version is created. Slack runs have no Agenta tools. Edit something, let the playground save, deploy: Slack runs have the two defaults. Done: the section shows the defaults, the draft stays clean, no version is created on open, and the next save stores the entry. The API run of the saved version has the defaults.
+- [ ] 4.3 Set `create_schedule` to Ask, commit, deploy, and ask for a schedule from Slack: an approval card appears. Not run live: the Ask approval path is the existing one for platform tools with `permission: ask`. It runs on staging after the merge.
+- [ ] 4.4 Set `rename_session` to Deactivate: Slack, API and schedule runs stop naming their sessions, and a playground run still follows the build kit. Done for the API and the playground (the build kit still renames). Slack and schedule runs follow on staging.
 
 ## 5. Docs
 
-- [ ] 5.1 Release notes: the Agenta tools section and its defaults, that existing agents get it only after they are opened and saved in the playground, and that older SDK versions cannot read agents saved with the new entry.
+- [x] 5.1 Release notes: the Agenta tools section and its defaults, that existing agents get it only after they are opened and saved in the playground, and that older SDK versions cannot read agents saved with the new entry. Covered by the PR description (migration and limits).
 - [ ] 5.2 Close the `docs/agenta-tools-kit` draft as replaced by this change.
