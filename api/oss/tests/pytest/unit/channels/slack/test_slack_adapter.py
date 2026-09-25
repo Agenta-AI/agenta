@@ -319,16 +319,25 @@ async def test_parse_event_ignores_the_connections_own_bot_user_id():
     assert await adapter.parse_event(body=body, connection=connection) is None
 
 
-async def test_parse_event_extracts_sigils_and_marks_addressed():
+async def test_parse_event_tilde_word_in_a_thread_reply_is_not_addressed():
+    """A pasted "~10x faster" once read as "address agent 10" and the reply
+    was dropped. Slack declares no agent sigil, so `~word` is plain text."""
+    connection = _connection(bot_user_id="UBOT1")
     adapter = SlackAdapter()
     body = _event_callback(
-        {"channel": "C1", "user": "U1", "text": "<@UBOT1> ~support !new", "ts": "1.1"}
+        {
+            "channel": "C1",
+            "user": "U1",
+            "text": "Results: ~10× faster renders",
+            "ts": "1.2",
+            "thread_ts": "1.1",
+        }
     )
 
-    event = await adapter.parse_event(body=body)
+    event = await adapter.parse_event(body=body, connection=connection)
 
     assert event is not None
-    assert event.addressed is True
+    assert event.addressed is False
 
 
 async def test_parse_event_command_alone_is_not_a_mention():

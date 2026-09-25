@@ -46,6 +46,7 @@ from oss.src.core.channels.dtos import (
     ChannelThreadFlags,
     ChannelTriggerState,
 )
+from oss.src.core.channels.adapters.slack.capabilities import SLACK_CAPABILITIES
 from oss.src.core.channels.service import ChannelsService, _channel_defaults
 from oss.src.core.channels.adapters.registry import ChannelAdapterRegistry
 from oss.src.core.channels.types import ChannelConnectionNotFound
@@ -1991,6 +1992,40 @@ class TestApprovalAnswers:
         assert result is not None
         assert result.agent.id == other.id
         dao.fetch_active_thread.assert_not_awaited()
+
+    async def test_slack_tilde_text_in_a_held_thread_stays_with_its_agent(self):
+        """An @-mentioned Slack thread reply with a pasted "~10x" was read as
+        the sigil for agent "10", skipped the thread's agent and dropped the
+        message. Slack declares no agent sigil, so the reply goes to the
+        thread's agent."""
+        adapter = WellBehavedFakeAdapter(
+            capabilities_override={"addressing": SLACK_CAPABILITIES["addressing"]}
+        )
+        capabilities = await adapter.fetch_capabilities()
+        space = _make_space(capabilities=capabilities)
+        specialist = _make_agent(slug="deployer")
+        key = compose_external_key(capabilities, ChannelKeyGrain.THREAD, _LOCATOR)
+        held = _active_thread(space=space, agent=specialist, external_key=key)
+        dao = _make_fake_dao()
+        dao.fetch_space_by_key = AsyncMock(return_value=space)
+        dao.fetch_active_thread = AsyncMock(return_value=held)
+        dao.fetch_agent = AsyncMock(return_value=specialist)
+        dao.fetch_current_thread = AsyncMock(return_value=held)
+        service = _make_service(dao=dao, adapter=adapter)
+        event = _make_event(
+            text="@Agenta Results: ~10× faster renders",
+            space_kind=ChannelSpaceKind.TOPIC,
+            addressed=True,
+        )
+
+        result = await service.resolve(
+            project_id=uuid4(), connection_id=uuid4(), event=event
+        )
+
+        assert result is not None
+        assert result.agent.id == specialist.id
+        assert result.thread.id == held.id
+        dao.fetch_agent_by_slug.assert_not_awaited()
 
     async def test_ordinary_text_does_not_hijack_the_asking_agent(self):
         adapter = WellBehavedFakeAdapter()

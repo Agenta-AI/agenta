@@ -7,7 +7,10 @@ SLACK_CAPABILITIES: dict = {
     "channel": "slack",
     "protocol": {"versions": ["0.1.0"]},
     "addressing": {
-        "sigils": {"agent": "~", "command": "!"},
+        # No agent sigil: a pasted "~10x" read as "address agent 10" and
+        # dropped the reply. Every install has one agent per connection, so
+        # routing falls through to the thread's agent or the default.
+        "sigils": {"agent": None, "command": "!"},
         "mention": True,
         "commands": {"native": True, "in_conversation": False},
     },

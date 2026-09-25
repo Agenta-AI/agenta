@@ -25,6 +25,7 @@ from oss.src.core.channels.adapters.slack.capabilities import fetch_slack_capabi
 from oss.src.core.channels.dtos import (
     ChannelAgentCreate,
     ChannelAgentData,
+    ChannelAgentFlags,
     ChannelConnectionCreate,
     ChannelConnectionFlags,
     ChannelGrantCreate,
@@ -54,7 +55,7 @@ def _slack_event_body(*, team_id: str, event_ts: str) -> bytes:
             "event": {
                 "channel": "C1",
                 "user": "U1",
-                "text": "~agent hello",
+                "text": "hello",
                 "ts": event_ts,
             },
         }
@@ -250,6 +251,7 @@ async def test_dm_through_the_real_ingress_ends_in_an_answer(slack_seam):
             data=ChannelAgentData(
                 references={"workflow_revision": {"id": str(uuid4())}}
             ),
+            flags=ChannelAgentFlags(is_default=True),
         ),
     )
     await dao.create_grant(
@@ -264,7 +266,7 @@ async def test_dm_through_the_real_ingress_ends_in_an_answer(slack_seam):
     )
 
     body = _slack_dm_event_body(
-        team_id=slack_seam["team_id"], event_ts="4.4", text="~triage hi there"
+        team_id=slack_seam["team_id"], event_ts="4.4", text="hi there"
     )
     headers = _signed_headers(body)
 
