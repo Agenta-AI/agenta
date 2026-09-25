@@ -18,7 +18,7 @@ import {projectIdAtom} from "@/oss/state/project"
  * An agent's channel connections and the real actions on them, wired to the channels API.
  * Every reload lands in this hook's state, so the entry point and its open panel agree.
  */
-export const useAgentChannels = (appId: string, {enabled = true}: {enabled?: boolean} = {}) => {
+export const useAgentChannels = (appId: string) => {
     const apps = useAtomValue(appsAtom)
     const [connections, setConnections] = useState<ChannelConnections>(EMPTY_CONNECTIONS)
     const [loading, setLoading] = useState(true)
@@ -61,7 +61,6 @@ export const useAgentChannels = (appId: string, {enabled = true}: {enabled?: boo
     }, [appId, resolveAgentName])
 
     useEffect(() => {
-        if (!enabled) return
         let alive = true
         setLoading(true)
         actions
@@ -74,7 +73,7 @@ export const useAgentChannels = (appId: string, {enabled = true}: {enabled?: boo
             alive = false
             reloadSeq.current++
         }
-    }, [actions, enabled])
+    }, [actions])
 
     return {connections, loading, loadError, actions}
 }

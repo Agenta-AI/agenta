@@ -17,10 +17,9 @@ bot of their own from [@BotFather](https://t.me/BotFather). The hosted bot only 
 
 - The deployment must be reachable from the internet over HTTPS. Telegram delivers updates to a
   public HTTPS URL and does not accept a private address.
-- Channels needs no environment feature flag. Its screens are hidden until you turn on
-  **Settings > Preferences > Feature Flags > Channels**. The switch controls only UI visibility for the
-  current user in this browser. Existing connections keep replying when hidden. Disconnect a
-  connection to stop its replies. **Channel debug** separately shows diagnostic records.
+- Channels needs no environment feature flag. Its screens (the Channels card on an agent page,
+  the Channels settings tab, and the Publish menu's Slack and Telegram entries) are always on.
+  **Channel debug** separately shows diagnostic records, behind its own Preferences switch.
 - `AGENTA_API_URL` must hold the public base URL of the API, for example
   `https://agenta.example.com/api`.
 
