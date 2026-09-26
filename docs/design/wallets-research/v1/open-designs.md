@@ -2201,3 +2201,40 @@ replacement subscription, because the webhook does not check the deleted subscri
 the stored one (a pre-existing billing behaviour, not a wallet one). And the reverse trial writes
 the trial plan straight to the subscription row, so its later creation webhook sees no plan change
 and the trial gets no allowance; that belongs with the recurring allowance in item 3.
+
+## 23. How sandbox time is billed
+
+**Status:** Decided (2026-09-26): wallet only, per running second; included allowance deferred
+
+### Context
+
+Agent turns run in Daytona sandboxes on the platform's own account, and nothing measured that
+time. `GatewayKind.SBX` existed in the stream contract, but no producer used it and the rate card
+priced only tokens and requests.
+
+### Decision
+
+Designed in [v2/sandbox-seconds.md](../v2/sandbox-seconds.md). In short:
+
+- **Wallet only.** Every running second is charged; there is no included allowance yet. The
+  option of an allowance first (the
+  [include-sandbox-usage](../v2/openspec/changes/include-sandbox-usage/) change) was set aside
+  for this slice by the owner, and stays the follow-up.
+- **Price by resource.** Daytona's list price times 1.5: 75,600 musd per vCPU-hour and 24,300
+  musd per GiB-hour of memory, charged per second, in the rate card and its version hash. Disk
+  is not charged (5 GiB, inside Daytona's free tier). Pricing by named size was rejected: the
+  runner reads the real size from Daytona, and a size change would otherwise need a card edit.
+- **Measured by the runner, from outside the sandbox**, as one-minute whole-second intervals
+  plus a final partial interval, each with a deterministic measurement id so retries are
+  charged once. Options considered: riding the session heartbeat (rejected: OSS and
+  turn-scoped, while sandboxes outlive turns), or one measurement per sandbox lifetime
+  (rejected: a crash would lose the whole lifetime).
+- **Only running seconds.** Stopped and parked sandboxes are not billed, although Daytona bills
+  their disk. Known gap.
+- **Admission before acquire.** A turn on `daytona` or `inprocess` asks the wallet first; an
+  explicit refusal ends it with `wallet_balance_exhausted` before any sandbox exists. Any other
+  answer admits it, so a metering outage never stops agents. A running turn is never stopped
+  for its balance, so a turn near the floor can settle below it (items 2 and 17).
+- **Never measured:** `local`, self-hosted, and OSS (the routes are absent, and the runner
+  reads the 404 as "not metered").
+

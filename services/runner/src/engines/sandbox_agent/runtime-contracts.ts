@@ -86,6 +86,8 @@ export interface InRunnerRunFacts {
   modelEnvironment: Record<string, string>;
   /** A custom provider the run registered through models.json, and where its key is. */
   customProvider?: { providerId: string; keyEnv: string };
+  /** Who the command sandbox's running seconds are reported for; absent without a platform credential. */
+  usage?: import("../../metering/sandbox-usage.ts").SandboxUsageContext;
 }
 
 export interface InRunnerHarnessStart {
@@ -122,6 +124,7 @@ export interface InRunnerSessionHandle {
 export interface SandboxAgentDeps extends BuildRunPlanDeps {
   startSandboxAgent?: typeof SandboxAgent.start;
   inRunnerHarness?: InRunnerHarness;
+  startSandboxMeter?: typeof import("../../metering/sandbox-usage.ts").startSandboxMeter;
   createPersist?: () => InMemorySessionPersistDriver;
   createOtel?: typeof createSandboxAgentOtel;
   buildDaemonEnv?: typeof buildDaemonEnv;
@@ -423,6 +426,11 @@ export interface SessionEnvironment {
   subscriptionPublisher?: import("./subscription-login/publisher.ts").SubscriptionPublisher;
   /** Gives back this session's hold on its runner-host login folder (`subscription-login/retention.ts`). */
   releaseSubscriptionHome?: () => void;
+  /**
+   * Reports this environment's Daytona sandbox seconds to the wallet, from acquire until the
+   * sandbox is parked or deleted. Warm time between turns is running time, so it is metered too.
+   */
+  sandboxMeter?: import("../../metering/sandbox-usage.ts").SandboxMeter;
   mountCreds: MountCredentials | null;
   agentMountCreds?: MountCredentials | null;
   /** The mount's owning project id (keep-alive pool key FALLBACK scope, preferred is

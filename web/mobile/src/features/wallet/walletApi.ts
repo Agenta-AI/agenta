@@ -35,6 +35,9 @@ export interface WalletUsageCharge {
     cache_read_tokens: number | null
     cache_write_tokens: number | null
     request_count: number | null
+    sandbox_seconds: number | null
+    vcpu: number | null
+    memory_gib: number | null
 }
 
 export interface WalletUsageDay {

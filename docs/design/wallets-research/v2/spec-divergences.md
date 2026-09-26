@@ -44,6 +44,7 @@ Paths are relative to `api/` unless they start with `docs/`. "Branch head" means
 | 20 | Recurring plan allowance | Design | Suggestion |
 | 21 | Debit kinds the stream accepts | Both | Suggestion |
 | 22 | Stale MAXLEN text in Wave 1 | Design | Suggestion |
+| 23 | Sandbox seconds before any included allowance | Design | Applied (item 23) |
 
 ## Applied: code changed, decision recorded
 
@@ -298,6 +299,21 @@ Paths are relative to `api/` unless they start with `docs/`. "Branch head" means
 - **Design says.** `v1/wave-1.md` still says both streams were delivered at `MAXLEN 100_000`.
 - **Suggestion.** That was true at delivery, so do not rewrite it. Add a "superseded by
   open-designs item 20" note, as the same file already does for the plan-change key.
+
+### 23. Sandbox seconds before any included allowance
+
+- **Design says.** [include-sandbox-usage](openspec/changes/include-sandbox-usage/): a
+  sandbox allowance is included first, as a non-monetary entitlement, and the wallet pays
+  only for overage, with a configurable hard stop.
+- **Code does now.** Every running second of a sandbox on the platform's Daytona account is
+  charged to the wallet, priced per vCPU-second and GiB-second at Daytona's list price
+  times 1.5. There is no included allowance. At the floor, a new turn is refused and a
+  running one finishes. Design: [sandbox-seconds.md](sandbox-seconds.md).
+- **Which side moves, and why.** Neither yet. The owner chose wallet-only billing for this
+  first slice (2026-09-26), so paid sandbox time is billed before the allowance exists.
+  include-sandbox-usage stays the follow-up, and it adds the included portion in front of
+  this charge rather than replacing it.
+- **Status.** Applied on `wallets/sandbox-seconds`. Decision in open-designs item 23.
 
 ## Spec validation
 

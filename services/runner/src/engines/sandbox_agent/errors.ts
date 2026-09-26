@@ -93,6 +93,9 @@ export type RunErrorCode =
   | "starter_credits_exhausted"
   | "starter_credits_program_paused"
   | "starter_credits_unavailable"
+  // The caller's wallet is at its floor, so a turn that would run a platform sandbox was refused
+  // before it started. See `metering/sandbox-usage.ts`.
+  | "wallet_balance_exhausted"
   | "credential_delivery_failed"
   | "rate_limited"
   // Not a failure: the turn was REFUSED before it started because another turn already owns

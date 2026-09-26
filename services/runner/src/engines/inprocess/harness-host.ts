@@ -143,6 +143,7 @@ export class InProcessHarnessHost {
         ...(agent ? { agentRoot: agent.root } : {}),
         skillModes: await skillModes(skillDir, this.facts.skillSources),
         signTranscriptMount: this.facts.signTranscriptMount,
+        ...(this.facts.usage ? { usage: this.facts.usage } : {}),
       });
       // The runner built the skill snapshot on its own disk; the sandbox reads it from the drive.
       if (skillDir) workspace.prepareDrive(publishSkillSnapshot(cwd, skillDir, this.runtime.registry.objects(session.credentials), this.log));

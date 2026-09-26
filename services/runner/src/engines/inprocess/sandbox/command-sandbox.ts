@@ -31,6 +31,9 @@ import { SANDBOX_CAPACITY_MESSAGE, SANDBOX_PROVIDER_CAPACITY, withPublicCode } f
 import { DEPLOYMENT_LABEL, OWNER_LABEL, type SandboxOwner } from "./sandbox-owner.ts";
 import { sandboxSlots, type SandboxSlots, type Slot } from "./sandbox-slots.ts";
 import { SerialQueue, sleep, untilAborted } from "./serial-queue.ts";
+import { startSandboxMeter, type SandboxMeter, type SandboxUsageContext } from "../../../metering/sandbox-usage.ts";
+import { startPlatformCredentialLease, type PlatformCredentialLease } from "../../../sessions/auth.ts";
+import { apiBase } from "../../../apiBase.ts";
 
 type Log = (message: string) => void;
 
@@ -51,6 +54,10 @@ export interface CommandSandboxSettings {
   slots?: SandboxSlots;
   /** Keys the credential fingerprint label, so the label cannot be brute-forced back to values. */
   fingerprintKey: string;
+  /** Reports running seconds to the wallet; tests replace it. */
+  startMeter?: typeof startSandboxMeter;
+  /** Keeps the metering credential fresh; tests replace it. */
+  startLease?: (authorization: string) => PlatformCredentialLease;
 }
 
 /** What a command needs from the sandbox: the run's network policy and custom credentials. */
@@ -185,6 +192,13 @@ export class CommandSandbox {
   private uses = 0;
   private idleTimer: NodeJS.Timeout | undefined;
   private runningSince: number | undefined;
+  /** The newest holder's usage context; without one, nothing is metered. */
+  private usage: SandboxUsageContext | undefined;
+  /** Keeps the newest holder's credential fresh while any environment holds this sandbox. */
+  private usageLease: PlatformCredentialLease | undefined;
+  private usageCredential: () => string = () => "";
+  /** Reports the running seconds of `current` while it runs. */
+  private meter: SandboxMeter | undefined;
   /** The running slot of `current` (or of the sandbox being created); goes back once it is stopped or gone. */
   private runningSlot: Slot | undefined;
   /** Without a runner-wide admission (tests), an unlimited one: its reconciliation still settles retired sandboxes. */
@@ -268,6 +282,32 @@ export class CommandSandbox {
         this.endUse();
       },
     };
+  }
+
+  /**
+   * The newest run's usage context: every meter of this sandbox, running or later, reports with
+   * its credential, which is kept fresh until the last holder lets go.
+   */
+  useUsage(usage: SandboxUsageContext | undefined): void {
+    if (!usage?.authorization) return;
+    this.usage = usage;
+    this.usageLease?.release();
+    const lease = (this.settings.startLease ?? ((authorization) => startPlatformCredentialLease(apiBase(), authorization)))(usage.authorization);
+    this.usageLease = lease;
+    this.usageCredential = () => lease.credential();
+  }
+
+  /**
+   * No environment holds this sandbox any more: stop refreshing the credential. The last value
+   * still serves the final report of a stop in progress; the next hold brings a fresh one.
+   */
+  releaseUsage(): void {
+    const lease = this.usageLease;
+    if (!lease) return;
+    this.usageLease = undefined;
+    const last = lease.credential();
+    this.usageCredential = () => last;
+    lease.release();
   }
 
   countCommand(): void {
@@ -469,7 +509,12 @@ export class CommandSandbox {
       if (!sandbox) return;
       if (!this.believedRunning) {
         // A failure made it suspect and nothing revived it: it may run or not, so ask Daytona.
-        this.runningSlot?.unresolved(`sandbox ${sandbox.id}`, () => atRest(sandbox));
+        this.runningSlot?.unresolved(`sandbox ${sandbox.id}`, async () => {
+          const rested = await atRest(sandbox);
+          // Stopped or gone, and not revived meanwhile: its running time ends here.
+          if (rested && this.current === sandbox && !this.believedRunning) this.markStopped();
+          return rested;
+        });
         return;
       }
       const t0 = Date.now();
@@ -600,9 +645,22 @@ export class CommandSandbox {
 
   private markRunning(): void {
     this.runningSince ??= Date.now();
+    if (this.meter || !this.usage || !this.current) return;
+    this.meter = (this.settings.startMeter ?? startSandboxMeter)({
+      provider: "daytona",
+      sandboxId: this.current.id,
+      resources: this.current.resources,
+      credential: () => this.usageCredential(),
+      ...(this.usage.sessionId ? { sessionId: this.usage.sessionId } : {}),
+      ...(this.usage.agentId ? { agentId: this.usage.agentId } : {}),
+      startedAtMs: this.runningSince,
+    });
   }
 
   private markStopped(): void {
+    const meter = this.meter;
+    this.meter = undefined;
+    if (meter) void this.inBackground(meter.stop());
     if (this.runningSince === undefined) return;
     this.stats.runningSeconds += (Date.now() - this.runningSince) / 1000;
     this.runningSince = undefined;
@@ -616,5 +674,6 @@ export class CommandSandbox {
   /** Stop timers; used when the registry drops the entry. */
   dispose(): void {
     this.cancelIdleStop();
+    this.releaseUsage();
   }
 }
