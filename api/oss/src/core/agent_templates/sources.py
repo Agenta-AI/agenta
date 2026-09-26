@@ -31,7 +31,7 @@ from oss.src.core.mounts.dtos import MountQuery
 from oss.src.core.mounts.service import MountsService
 from oss.src.core.mounts.types import MountFileNotFound, MountPathInvalid
 from oss.src.core.sessions.attachments.service import SessionAttachmentsService
-from oss.src.core.sessions.attachments.types import AttachmentNotFound
+from oss.src.core.sessions.attachments.types import AttachmentError
 
 _MAX_FILES = 256
 _MAX_TOTAL_BYTES = 4 * 1024 * 1024
@@ -318,14 +318,27 @@ class UploadArchiveStager:
     ) -> None:
         if not isinstance(source, UploadTemplateSource):
             raise TypeError("UploadArchiveStager stages upload sources only.")
+        not_found = TemplateSourceNotFound(f"upload:{source.attachment_id}")
         try:
+            attachment = await self._attachments.fetch_attachment(
+                project_id=project_id,
+                session_id=source.staging_session_id,
+                attachment_id=source.attachment_id,
+            )
+            # Check the recorded size before the bytes are read into memory.
+            if attachment.size > writer.limits.max_archive_bytes:
+                raise _invalid(
+                    "template_archive_too_large",
+                    "The template archive is too large.",
+                    limit=writer.limits.max_archive_bytes,
+                )
             content = await self._attachments.fetch_attachment_content(
                 project_id=project_id,
                 session_id=source.staging_session_id,
                 attachment_id=source.attachment_id,
             )
-        except AttachmentNotFound as exc:
-            raise TemplateSourceNotFound(f"upload:{source.attachment_id}") from exc
+        except (AttachmentError, MountFileNotFound) as exc:
+            raise not_found from exc
         extract_zip(content.data, writer)
 
 

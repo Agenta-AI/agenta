@@ -23,6 +23,8 @@ _READ_CHUNK_BYTES = 64 * 1024
 _IGNORED_ARCHIVE_ROOTS = {"__MACOSX"}
 _ZIP_ENCRYPTED_FLAG = 0x1
 _ZIP_UNIX_SYSTEM = 3
+# Common filesystem name limit; longer names fail on write with a host-path error.
+_MAX_SEGMENT_BYTES = 255
 
 
 @dataclass(frozen=True)
@@ -50,6 +52,15 @@ def _unsafe(name: str) -> TemplateSourceInvalid:
     )
 
 
+def _unwritable(name: str) -> TemplateSourceInvalid:
+    # The OS error names the host temp path, so it is not passed on.
+    return _invalid(
+        "template_archive_invalid",
+        "A path in the archive cannot be stored.",
+        path=name[:256],
+    )
+
+
 def _member_parts(name: str) -> tuple[str, ...]:
     """Split one archive name into safe POSIX parts, or refuse it.
 
@@ -67,7 +78,10 @@ def _member_parts(name: str) -> tuple[str, ...]:
     if not trimmed or trimmed.startswith("/"):
         raise _unsafe(name)
     parts = tuple(trimmed.split("/"))
-    if any(part in {"", ".", ".."} for part in parts):
+    if any(
+        part in {"", ".", ".."} or len(part.encode("utf-8")) > _MAX_SEGMENT_BYTES
+        for part in parts
+    ):
         raise _unsafe(name)
     if len(parts[0]) == 2 and parts[0][1] == ":" and parts[0][0].isalpha():
         raise _unsafe(name)
@@ -132,7 +146,10 @@ class PackageTreeWriter:
 
     def add_directory(self, name: str) -> None:
         parts = self._claim(name, directory=True)
-        self._root.joinpath(*parts).mkdir(mode=0o700, parents=True, exist_ok=True)
+        try:
+            self._root.joinpath(*parts).mkdir(mode=0o700, parents=True, exist_ok=True)
+        except OSError as exc:
+            raise _unwritable(name) from exc
 
     def write_file(self, name: str, chunks: Iterable[bytes]) -> None:
         parts = self._claim(name, directory=False)
@@ -145,10 +162,14 @@ class PackageTreeWriter:
         self._files.add(_collision_key(parts))
 
         target = self._root.joinpath(*parts)
-        target.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+        try:
+            target.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+            # "x" refuses to follow or replace anything already at the path.
+            handle = target.open("xb")
+        except OSError as exc:
+            raise _unwritable(name) from exc
         size = 0
-        # "x" refuses to follow or replace anything already at the path.
-        with target.open("xb") as handle:
+        with handle:
             for chunk in chunks:
                 size += len(chunk)
                 self._total_bytes += len(chunk)

@@ -119,17 +119,19 @@ class AgentTemplatesRouter:
     async def validate_template(
         self,
         request: Request,
-        project_id: UUID,
         *,
         payload: TemplateValidateRequest,
+        # Agent tool calls reach this route without a query string; the credential names the project.
+        project_id: UUID | None = None,
     ) -> JSONResponse:
         await self._authorize(
             request,
             [Permission.VIEW_WORKFLOWS, *_source_permissions(payload.source)],
         )
         authorized_project_id = UUID(str(request.state.project_id))
-        if project_id != authorized_project_id:
+        if project_id is not None and project_id != authorized_project_id:
             raise FORBIDDEN_EXCEPTION  # type: ignore
+        project_id = authorized_project_id
         if self._validator is None:
             raise RuntimeError("Template validation is not configured.")
         try:

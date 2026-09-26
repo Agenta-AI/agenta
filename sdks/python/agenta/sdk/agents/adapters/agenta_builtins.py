@@ -1094,8 +1094,8 @@ another person can load as a new agent.
    repo ids, house style) and ask, for each one, whether to keep it or replace it with an
    input the recipient supplies. Do not ask the person to review the whole package.
 3. Read `references/package-format.md`. Write the package under `templates/<key>/` in your
-   working directory, as the next section says. Use version `1.0.0`, or the next version if
-   `templates/` already holds an earlier zip of this package.
+   working directory, as the next section says. Use version `1.0.0` unless the person
+   names another version.
 4. Write `SETUP.md` from the package you actually wrote (see below).
 5. Zip the package contents, not the folder, into `templates/<key>-<version>.zip`:
 

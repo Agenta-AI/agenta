@@ -493,3 +493,27 @@ async def test_internal_source_without_kind_still_loads(monkeypatch):
 
     assert response.status_code == 201
     assert loader.load.await_args.kwargs["command"].source.kind == "internal"
+
+
+@pytest.mark.asyncio
+async def test_validate_without_query_project_uses_the_credential_project(monkeypatch):
+    # The validate_template platform op posts to the bare path.
+    validator = AsyncMock()
+    validator.validate.return_value = TemplateValidationResult(
+        valid=True,
+        version="1.0.0",
+        digest="sha256:" + "a" * 64,
+        supported_schema_versions=["ai.agenta/1"],
+    )
+    monkeypatch.setattr(
+        router_module, "check_action_access", AsyncMock(return_value=True)
+    )
+    async with AsyncClient(
+        transport=ASGITransport(app=_validation_app(validator)), base_url="http://test"
+    ) as client:
+        response = await client.post(
+            "/api/agent-templates/validate", json={"source": _SESSION_FILE}
+        )
+
+    assert response.status_code == 200
+    assert validator.validate.await_args.kwargs["project_id"] == PROJECT_ID

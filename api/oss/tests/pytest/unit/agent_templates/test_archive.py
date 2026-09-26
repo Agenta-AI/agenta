@@ -2,6 +2,7 @@ import io
 import stat
 import zipfile
 from pathlib import Path
+from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
@@ -19,12 +20,15 @@ from oss.src.core.agent_templates.dtos import (
 from oss.src.core.agent_templates.exceptions import (
     TemplateSourceDigestMismatch,
     TemplateSourceInvalid,
+    TemplateSourceNotFound,
 )
 from oss.src.core.agent_templates.parser import TemplatePackageParser
 from oss.src.core.agent_templates.sources import (
     StagedTemplateSourceResolver,
+    UploadArchiveStager,
     package_digest,
 )
+from oss.src.core.sessions.attachments.types import AttachmentNotFound
 
 
 FIXTURE = Path(__file__).parent / "fixtures" / "current"
@@ -260,3 +264,52 @@ def test_writer_never_writes_execute_bits_or_follows_existing_paths(tmp_path: Pa
 
     with pytest.raises(FileExistsError):
         PackageTreeWriter(tmp_path / "package")
+
+
+@pytest.mark.asyncio
+async def test_over_long_names_are_refused_without_a_host_path():
+    for name in ("a" * 300, "a" * 300 + "/"):
+        info = zipfile.ZipInfo("placeholder")
+        info.filename = name
+        buffer = io.BytesIO()
+        with zipfile.ZipFile(buffer, "w") as archive:
+            archive.writestr(info, b"x")
+        assert await _reason(buffer.getvalue()) == "template_archive_path_unsafe"
+
+
+class _Attachments:
+    def __init__(self, size: int) -> None:
+        self.size = size
+        self.content_reads = 0
+
+    async def fetch_attachment(self, *, project_id, session_id, attachment_id):
+        if project_id != PROJECT_ID:
+            raise AttachmentNotFound(attachment_id=attachment_id)
+        return SimpleNamespace(size=self.size)
+
+    async def fetch_attachment_content(self, **kwargs):
+        self.content_reads += 1
+        return SimpleNamespace(data=_zip(_fixture_files()))
+
+
+@pytest.mark.asyncio
+async def test_upload_stager_bounds_size_and_project_before_reading_bytes():
+    oversized = _Attachments(size=6 * 1024 * 1024)
+    resolver = StagedTemplateSourceResolver(
+        stagers={"upload": UploadArchiveStager(attachments_service=oversized)}
+    )
+    with pytest.raises(TemplateSourceInvalid) as error:
+        async with resolver.open(project_id=PROJECT_ID, source=_upload()):
+            pass
+    assert error.value.code == "template_archive_too_large"
+    assert oversized.content_reads == 0
+
+    ok = _Attachments(size=1024)
+    resolver = StagedTemplateSourceResolver(
+        stagers={"upload": UploadArchiveStager(attachments_service=ok)}
+    )
+    with pytest.raises(TemplateSourceNotFound):
+        async with resolver.open(project_id=uuid4(), source=_upload()):
+            pass
+    async with resolver.open(project_id=PROJECT_ID, source=_upload()) as resolved:
+        assert resolved.digest == package_digest(FIXTURE)
