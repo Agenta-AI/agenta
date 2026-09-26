@@ -1,11 +1,13 @@
 ## 1. Catalog and metadata
 
-- [ ] 1.1 Audit all current gallery consumers and freeze a display parity fixture
-- [ ] 1.2 Add catalog/author schema v1 and one Python reader; migrate the bundled catalog and resolver together without a legacy reader or custom-root setting
-- [ ] 1.3 Derive connection/tool summaries from packages and preserve published package versions
-- [ ] 1.4 Add POST query and GET detail using repository API conventions
+- [x] 1.1 Audit all current gallery consumers and freeze a display parity fixture
+- [x] 1.2 Add catalog/author schema v1 and one Python reader; migrate the bundled catalog and resolver together without a legacy reader or custom-root setting
+- [x] 1.3 Derive connection/tool summaries from packages and preserve published package versions
+- [x] 1.4 Add POST query and GET detail using repository API conventions
 - [ ] 1.5 Migrate every in-app consumer, prove parity, and remove the handwritten runtime catalog
 - [ ] 1.6 Generate website JSON from the same reader and prove API/build parity
+
+Evidence for 1.1-1.5: `api/oss/tests/pytest/unit/agent_templates/test_catalog.py` (frozen gallery parity, whole-graph validation, old-envelope rejection, package digests unchanged), `test_router.py` (query/detail/permissions/404s) and `web/packages/agenta-entities/tests/unit/agentTemplates.test.ts` + `agentTemplateCatalog.test.ts` (API entry to card parity, pending/error/missing states). The handwritten `AGENT_TEMPLATES` array is removed; 1.5 stays open until the gallery screenshot comparison is recorded.
 
 ## 2. Create and load
 
