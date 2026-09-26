@@ -37,7 +37,7 @@ def test_public_repo_full_commit_and_directory_are_accepted():
 def test_equivalent_spellings_normalize_to_one_identity():
     source = GitHubTemplateSource.model_validate(
         _source(
-            repo_url="https://github.com/agenta-ai/agenta.git/",
+            repo_url="https://github.com/Agenta-AI/Agenta.git/",
             commit=COMMIT.upper(),
             path="packages/code-qa/1.0.0/",
         )
