@@ -1390,6 +1390,11 @@ class LLMConfig(BaseModel):
     minimax: str = os.getenv("MINIMAX_API_KEY", "")
     xai: str = os.getenv("XAI_API_KEY", "")
 
+    # Price spans from the map bundled with the pinned litellm, never a fetch at import.
+    litellm_local_model_cost_map: bool = _parse_bool_env(
+        "LITELLM_LOCAL_MODEL_COST_MAP", default=True
+    )
+
     model_config = ConfigDict(extra="ignore")
 
     @property
