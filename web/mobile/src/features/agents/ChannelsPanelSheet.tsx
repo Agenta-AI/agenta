@@ -34,7 +34,7 @@ export const ChannelsPanelSheet = ({
                         </Button>
                     ) : null}
                     {icon ? (
-                        <span className="flex size-7 flex-none items-center justify-center rounded-md border border-solid border-border text-foreground [&_svg]:size-4">
+                        <span className="flex flex-none items-center text-foreground [&_svg]:size-4">
                             {icon}
                         </span>
                     ) : null}
