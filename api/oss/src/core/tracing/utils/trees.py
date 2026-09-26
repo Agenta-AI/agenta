@@ -20,6 +20,8 @@ log = get_module_logger(__name__)
 def parse_span_dtos_to_span_idx(
     span_dtos: List[OTelFlatSpan],
 ) -> Dict[str, OTelFlatSpan]:
+    """Index the batch's spans by span id."""
+
     span_idx = {span.span_id: span for span in span_dtos}
 
     return span_idx
@@ -210,6 +212,8 @@ def connect_children(
     spans_id_tree: OrderedDict,
     spans_idx: Dict[str, dict],
 ) -> None:
+    """Attach each span's children to its `spans` field, grouped by span name."""
+
     _connect_tree_dfs(spans_id_tree, spans_idx)
 
 
@@ -217,6 +221,8 @@ def _connect_tree_dfs(
     spans_id_tree: OrderedDict,
     spans_idx: Dict[str, OTelSpan],
 ):
+    """Fill `spans` on every span in the tree; a repeated child name becomes a list."""
+
     for span_id, children_spans_id_tree in spans_id_tree.items():
         children_spans_id_tree: OrderedDict
 
@@ -273,6 +279,8 @@ def _read_breakdown(span: OTelFlatSpan, metric: str, bucket: str) -> Dict[str, f
 
 
 def _sum_breakdowns(a: Dict[str, float], b: Dict[str, float]) -> Dict[str, float]:
+    """Add two breakdowns key by key, keeping only the keys either side reports."""
+
     if not b:
         return a
     if not a:
@@ -286,6 +294,8 @@ def _sum_breakdowns(a: Dict[str, float], b: Dict[str, float]) -> Dict[str, float
 
 
 def _write_cumulative(span: OTelFlatSpan, metric: str, values: Dict[str, float]):
+    """Store `values` as the span's cumulative `metric`. An empty breakdown writes nothing."""
+
     if not values:
         return
 
@@ -302,6 +312,8 @@ def _write_cumulative(span: OTelFlatSpan, metric: str, values: Dict[str, float])
 
 
 def _is_model_call(span: OTelFlatSpan) -> bool:
+    """Whether the span is a model call (chat, completion, embedding, query, rerank)."""
+
     return (
         span.span_type is not None and span.span_type.name.lower() in TYPES_WITH_COSTS
     )
@@ -312,6 +324,11 @@ def _combine_breakdowns(
     own: Dict[str, float],
     children: Optional[Dict[str, float]],
 ) -> Dict[str, float]:
+    """Combine a span's own breakdown with its children's summed cumulative breakdown.
+
+    A model call adds both. Any other span keeps the larger side, since its own value
+    can only summarize the calls inside it."""
+
     if not children:
         return own
     if not own:
@@ -330,6 +347,8 @@ def _cumulate_breakdown(
     spans_idx: Dict[str, OTelFlatSpan],
     metric: str,
 ) -> None:
+    """Roll `metric` (costs or tokens) up the tree, from the leaves to the roots."""
+
     _cumulate_tree_dfs(
         spans_id_tree,
         spans_idx,
@@ -345,6 +364,8 @@ def cumulate_costs(
     spans_id_tree: OrderedDict,
     spans_idx: Dict[str, OTelFlatSpan],
 ) -> None:
+    """Write each span's cumulative cost from its own cost and its children's."""
+
     _cumulate_breakdown(spans_id_tree, spans_idx, "costs")
 
 
@@ -352,6 +373,8 @@ def cumulate_tokens(
     spans_id_tree: OrderedDict,
     spans_idx: Dict[str, OTelFlatSpan],
 ) -> None:
+    """Write each span's cumulative token counts from its own and its children's."""
+
     _cumulate_breakdown(spans_id_tree, spans_idx, "tokens")
 
 
@@ -359,6 +382,8 @@ def cumulate_errors(
     spans_id_tree: OrderedDict,
     spans_idx: Dict[str, OTelFlatSpan],
 ) -> None:
+    """Write each span's cumulative error count: its own errors plus its children's."""
+
     def _get_incremental(span: OTelFlatSpan):
         if span.attributes is None:
             return 0
@@ -430,6 +455,11 @@ def _cumulate_tree_dfs(
     set_cumulative,
     combine=None,
 ):
+    """Compute a cumulative metric for every span, children before parents.
+
+    Without `combine`, a span's value is its own value accumulated with its
+    children's. With `combine`, `combine(span, own, children)` decides it."""
+
     # Iterative post-order walk: deep span chains must not hit the recursion limit.
     stack = [(span_id, children, False) for span_id, children in spans_id_tree.items()]
 
