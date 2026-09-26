@@ -11,18 +11,41 @@ vi.mock("@agenta/ui/ui", () => {
         AccordionItem: Wrap,
         AccordionTrigger: Wrap,
         Alert: ({message}: {message: string}) => <div role="alert">{message}</div>,
-        Button: ({children, onClick, disabled}: React.ComponentProps<"button">) => (
-            <button disabled={disabled} onClick={onClick}>
+        Button: ({children, onClick, disabled, ...props}: React.ComponentProps<"button">) => (
+            <button disabled={disabled} onClick={onClick} data-testid={props["data-testid"]}>
                 {children}
             </button>
         ),
         Checkbox: () => <input type="checkbox" />,
-        Input: () => <input />,
+        Input: (props: React.ComponentProps<"input">) => <input {...props} />,
         PasswordInput: () => <input />,
         RadioGroup: Wrap,
         RadioGroupItem: (props: {"data-testid"?: string}) => (
             <input type="radio" data-testid={props["data-testid"]} />
         ),
+        Select: ({
+            value,
+            onValueChange,
+            disabled,
+        }: {
+            value: string
+            onValueChange: (value: string) => void
+            disabled?: boolean
+        }) => (
+            <select
+                data-testid="allowed-mode"
+                value={value}
+                disabled={disabled}
+                onChange={(e) => onValueChange(e.target.value)}
+            >
+                <option value="everyone" />
+                <option value="specific" />
+            </select>
+        ),
+        SelectContent: Wrap,
+        SelectItem: Wrap,
+        SelectTrigger: Wrap,
+        SelectValue: () => null,
         Spinner: () => <span />,
         Switch: ({
             onCheckedChange,
@@ -89,16 +112,15 @@ it("shows an unknown allowed-user state on lookup failure and allows retry", asy
         .mockResolvedValue(["123"])
     await render({readAllowedUsers})
     expect(container.textContent).toContain("Allowed accounts unavailable")
-    expect(container.textContent).not.toContain("Everyone")
+    expect(container.textContent).toContain("Unavailable")
     expect(
-        (container.querySelector('[data-testid="channels-allowed-edit"]') as HTMLButtonElement)
-            .disabled,
+        (container.querySelector('[data-testid="allowed-mode"]') as HTMLSelectElement).disabled,
     ).toBe(true)
     const retry = [...container.querySelectorAll("button")].find(
         (b) => b.textContent === "Try again",
     )!
     await act(async () => retry.click())
-    expect(container.textContent).toContain("1 account")
+    expect(container.textContent).toContain("Only 1 account.")
     expect(container.textContent).not.toContain("Allowed accounts unavailable")
 })
 it("keeps failed-save feedback after refreshing behavior grants", async () => {
@@ -120,7 +142,7 @@ it("shows every private chat as one Direct messages row", async () => {
     const rows = [...container.querySelectorAll('[data-testid="channels-space"]')].map(
         (row) => row.textContent,
     )
-    expect(rows).toEqual(["Direct messages", "Team"])
+    expect(rows).toEqual(["Direct messages", "TeamMentions only"])
 })
 it("marks Direct messages off once the switch turns them off", async () => {
     let behavior = {dm: true, group: true}
@@ -178,4 +200,31 @@ it("shows no read-only settings: Advanced holds only editable controls and no St
         expect(text).not.toContain(gone)
     }
     expect(container.querySelector('[data-testid="channels-status"]')).toBeNull()
+})
+it("adds an allowed account and saves the list at once", async () => {
+    const writeAllowedUsers = vi.fn(async () => {})
+    await render({readAllowedUsers: vi.fn().mockResolvedValue(["111"]), writeAllowedUsers})
+    const input = container.querySelector(
+        '[data-testid="channels-allowed-input"]',
+    ) as HTMLInputElement
+    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!
+    await act(async () => {
+        setter.call(input, "222, @333")
+        input.dispatchEvent(new Event("input", {bubbles: true}))
+    })
+    const add = [...container.querySelectorAll("button")].find((b) => b.textContent === "Add")!
+    await act(async () => add.click())
+    expect(writeAllowedUsers).toHaveBeenCalledWith("connection", ["222", "333", "111"])
+    expect(container.querySelectorAll('[data-testid="channels-allowed-user"]')).toHaveLength(3)
+})
+it("clears the allowed list when access goes back to everyone", async () => {
+    const writeAllowedUsers = vi.fn(async () => {})
+    await render({readAllowedUsers: vi.fn().mockResolvedValue(["111"]), writeAllowedUsers})
+    const select = container.querySelector('[data-testid="allowed-mode"]') as HTMLSelectElement
+    await act(async () => {
+        select.value = "everyone"
+        select.dispatchEvent(new Event("change", {bubbles: true}))
+    })
+    expect(writeAllowedUsers).toHaveBeenCalledWith("connection", [])
+    expect(container.textContent).toContain("Any Telegram account can message the bot.")
 })

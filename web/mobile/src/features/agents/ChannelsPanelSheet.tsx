@@ -1,8 +1,8 @@
 import type {ChannelsPanelRenderProps} from "@agenta/settings-ui"
+import {Button, Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle} from "@agenta/ui/ui"
+import {ArrowLeft} from "@phosphor-icons/react"
 
-import {Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle} from "@/components/ui/sheet"
-
-/** The /m container for the Channels panels and every Publish panel. */
+/** The /m container for the Publish and Channels panels. */
 export const ChannelsPanelSheet = ({
     open,
     title,
@@ -10,6 +10,8 @@ export const ChannelsPanelSheet = ({
     onClose,
     children,
     wide,
+    onBack,
+    icon,
 }: ChannelsPanelRenderProps) => (
     <Sheet
         open={open}
@@ -17,20 +19,38 @@ export const ChannelsPanelSheet = ({
             if (!next) onClose()
         }}
     >
-        {/* `responsive` is this app's form-panel idiom: a bottom sheet on a phone, the
-            right-edge drawer from lg up — where the desktop shows its own Drawer. */}
+        {/* `responsive`: a bottom sheet on a phone, the right-edge drawer from lg up. */}
         <SheetContent
             side="responsive"
-            // Code needs the room: the phone sheet spans the screen, the lg drawer widens.
-            className={wide ? "max-w-none lg:w-[720px]" : undefined}
+            style={
+                wide ? ({"--ag-sheet-responsive-width": "720px"} as React.CSSProperties) : undefined
+            }
         >
-            <SheetHeader>
-                <SheetTitle>{title}</SheetTitle>
-                {subtitle ? <SheetDescription>{subtitle}</SheetDescription> : null}
+            <SheetHeader className="py-3.5">
+                <div className="flex min-w-0 items-center gap-2.5">
+                    {onBack ? (
+                        <Button variant="ghost" size="icon-sm" aria-label="Back" onClick={onBack}>
+                            <ArrowLeft />
+                        </Button>
+                    ) : null}
+                    {icon ? (
+                        <span className="flex flex-none items-center text-foreground [&_svg]:size-4">
+                            {icon}
+                        </span>
+                    ) : null}
+                    <div className="flex min-w-0 flex-1 items-center gap-2">
+                        <SheetTitle className="flex-none text-[15px]">{title}</SheetTitle>
+                        {/* A div: the subtitle may be the agent picker, a button. */}
+                        {subtitle ? (
+                            <SheetDescription asChild>
+                                <div className="min-w-0 truncate text-[13px]">{subtitle}</div>
+                            </SheetDescription>
+                        ) : null}
+                    </div>
+                </div>
             </SheetHeader>
-            {/* The connect flow is taller than a phone, so the body is the scroller.
-                `min-h-0` is what lets it shrink inside the sheet's flex column. */}
-            <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-4">{children}</div>
+            {/* The body scrolls; `min-h-0` lets it shrink inside the sheet's flex column. */}
+            <div className="min-h-0 flex-1 overflow-y-auto p-4">{children}</div>
         </SheetContent>
     </Sheet>
 )

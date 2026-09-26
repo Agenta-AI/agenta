@@ -7,6 +7,7 @@ import {
 } from "@agenta/ui/ui"
 import {
     Archive,
+    Broadcast,
     Copy,
     DotsThreeVertical,
     Note,
@@ -23,6 +24,8 @@ export interface AgentActionsMenuProps {
      * anywhere must not offer the trip.
      */
     onOpen?: () => void
+    /** Opens the agent's Publish panel. Absent means no item. */
+    onPublish?: () => void
     /**
      * Host overrides. The desktop has its own app-management modals (which also refresh its apps
      * cache), so it passes them; a host without one falls through to [[useAgentActions]].
@@ -50,6 +53,7 @@ export interface AgentActionsMenuProps {
 export const AgentActionsMenu = ({
     agent,
     onOpen,
+    onPublish,
     onRename,
     onEditDescription,
     onDelete,
@@ -83,6 +87,12 @@ export const AgentActionsMenu = ({
                     <DropdownMenuItem onSelect={onOpen}>
                         <Note size={16} />
                         Open configuration
+                    </DropdownMenuItem>
+                ) : null}
+                {onPublish ? (
+                    <DropdownMenuItem onSelect={onPublish}>
+                        <Broadcast size={16} />
+                        Publish
                     </DropdownMenuItem>
                 ) : null}
                 {onConfigure ? (

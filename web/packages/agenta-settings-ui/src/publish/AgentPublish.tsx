@@ -1,11 +1,8 @@
-import {useMemo, useState} from "react"
-
 import type {ChannelConnections, ChannelsActions} from "../channels/types"
 import {useChannelPanel, type ChannelsPanelRenderProps} from "../channels/useChannelPanel"
 
 import {AgentApiPanel} from "./AgentApiPanel"
-import {buildPublishItems} from "./items"
-import {PublishMenu, type PublishTarget} from "./PublishMenu"
+import {PublishButton} from "./PublishButton"
 
 export interface AgentPublishProps {
     agentId: string
@@ -21,15 +18,13 @@ export interface AgentPublishProps {
     loading?: boolean
     loadError?: string | null
     actions: ChannelsActions
-    /** Host-provided sliding container for every Publish panel: a drawer on /w, a sheet on /m. */
+    /** Host-provided sliding container for the Publish panel: a drawer on /w, a sheet on /m. */
     renderPanel: (props: ChannelsPanelRenderProps) => React.ReactNode
 }
 
 /**
- * The agent header's Publish control, identical on the /w playground and the /m session
- * workspace: the button, its Slack / Telegram / WhatsApp / API menu with Set up or Live per row, the
- * "Live in N places" count, the channels' connect and manage panels, and the API panel.
- * Hosts pass only data and the panel container.
+ * The agent header's Publish control: the button and the panel it opens, with the hub of
+ * places the agent answers (Slack, Telegram, WhatsApp, API).
  */
 export const AgentPublish = ({
     agentId,
@@ -44,52 +39,29 @@ export const AgentPublish = ({
     actions,
     renderPanel,
 }: AgentPublishProps) => {
-    const [apiOpen, setApiOpen] = useState(false)
-
-    const channelPanel = useChannelPanel({
+    const panel = useChannelPanel({
         agentId,
         agentName,
         agentDescription,
         connections,
+        loading,
+        loadError,
         actions,
         renderPanel,
+        api: (
+            <AgentApiPanel
+                agentId={agentId}
+                projectId={projectId}
+                workspaceId={workspaceId}
+                host={host}
+            />
+        ),
     })
-
-    const items = useMemo(
-        () =>
-            buildPublishItems({
-                connections,
-                agentId,
-                channelsUnavailable: loading || !!loadError,
-            }),
-        [connections, agentId, loading, loadError],
-    )
-
-    const onSelect = (target: PublishTarget) => {
-        if (target === "api") setApiOpen(true)
-        else channelPanel.open(target)
-    }
 
     return (
         <>
-            <PublishMenu items={items} onSelect={onSelect} />
-            {channelPanel.panel}
-            {apiOpen
-                ? renderPanel({
-                      open: true,
-                      title: "API",
-                      wide: true,
-                      onClose: () => setApiOpen(false),
-                      children: (
-                          <AgentApiPanel
-                              agentId={agentId}
-                              projectId={projectId}
-                              workspaceId={workspaceId}
-                              host={host}
-                          />
-                      ),
-                  })
-                : null}
+            <PublishButton onClick={() => panel.openRoute({view: "hub"})} />
+            {panel.panel}
         </>
     )
 }

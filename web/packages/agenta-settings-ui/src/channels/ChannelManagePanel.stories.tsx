@@ -5,6 +5,7 @@ import type {Meta, StoryObj} from "@storybook/nextjs"
 
 import {ChannelManagePanel} from "./ChannelManagePanel"
 import {platformLabel} from "./helpers"
+import {platformLogo} from "./icons"
 import {
     AGENT_ID,
     AGENT_NAME,
@@ -56,8 +57,8 @@ type Story = StoryObj
 
 const asConnections = (connection: ChannelConnection): ChannelConnections =>
     connection.platform === "slack"
-        ? {slack: connection, telegram: null}
-        : {slack: null, telegram: connection}
+        ? {slack: connection, telegram: null, whatsapp: null}
+        : {slack: null, telegram: connection, whatsapp: null}
 
 const setup = {slack: SLACK_SETUP, telegram: TELEGRAM_SETUP}
 
@@ -101,7 +102,8 @@ const ManageHost = ({
     return (
         <InlinePanel
             title={name}
-            subtitle={`${AGENT_NAME} · ${connection.platform === "slack" ? WORKSPACE_NAME : "Telegram"}`}
+            subtitle={AGENT_NAME}
+            icon={platformLogo(connection.platform, 18)}
             onClose={() => undefined}
         >
             <ChannelManagePanel
@@ -111,7 +113,8 @@ const ManageHost = ({
                 workspaceName={WORKSPACE_NAME}
                 hostedHandle={HOSTED_HANDLE}
                 actions={actions}
-                onUseOwnBot={() => setSentTo("the connect flow, on the custom tab")}
+                onAdd={() => setSentTo("the connect flow, to add another connection")}
+                onUseOwnBot={() => setSentTo("the connect flow, on the custom method")}
                 onReconnect={() => setSentTo("the connect flow, to install it again")}
                 onConnectHere={async () => {
                     await actions.connectHere(connection.platform, connection.connectionId ?? "")
@@ -122,7 +125,7 @@ const ManageHost = ({
             />
             {sentTo ? (
                 <p
-                    className="m-0 mt-4 rounded-md border border-solid border-colorBorderSecondary bg-colorFillQuaternary p-2 text-xs text-colorTextSecondary"
+                    className="m-0 mt-4 rounded-md bg-muted p-2 text-xs text-muted-foreground"
                     data-testid="story-sent-to-connect"
                 >
                     The host opens {sentTo}. In the product the panel swaps to it in place.

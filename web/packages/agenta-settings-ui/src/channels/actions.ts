@@ -253,6 +253,47 @@ export const clientErrorMessage = (error: unknown, fallback: string): string => 
     return fallback
 }
 
+/** The project's connections as one agent sees them: its summary row per platform and its own list. */
+export const connectionsForAgent = (
+    rows: ChannelConnection[],
+    appId: string,
+): ChannelConnections => {
+    // One row per platform in the design, but a platform may now hold both a hosted and a
+    // custom connection. The one that answers as this agent wins whatever its status —
+    // a revoked bot of this agent is the row the user came to fix. Among the rest, a live
+    // connection beats a pending one, and a pending one beats a revoked one.
+    const rank = (c: ChannelConnection) => {
+        const here = c.agent === undefined || c.agent?.id === appId ? 4 : 0
+        return here + (c.status === "connected" ? 2 : c.status === "pending" ? 1 : 0)
+    }
+    const out: ChannelConnections = {slack: null, telegram: null, whatsapp: null}
+    const mine: Record<ChannelPlatform, ChannelConnection[]> = {
+        slack: [],
+        telegram: [],
+        whatsapp: [],
+    }
+    for (const connection of rows) {
+        const current = out[connection.platform]
+        if (!current || rank(connection) > rank(current)) out[connection.platform] = connection
+        if (connection.agent?.id === appId) mine[connection.platform].push(connection)
+    }
+    // The summarized connection leads its platform's list; the rest keep the backend order.
+    const lead = (platform: ChannelPlatform) => {
+        const primary = out[platform]
+        const list = mine[platform]
+        return primary && list.includes(primary)
+            ? [primary, ...list.filter((c) => c !== primary)]
+            : list
+    }
+    out.agentConnections = {
+        slack: lead("slack"),
+        telegram: lead("telegram"),
+        whatsapp: lead("whatsapp"),
+    }
+    out.allConnections = rows
+    return out
+}
+
 const rethrow = (fallback: string) => (error: unknown) => {
     throw new Error(clientErrorMessage(error, fallback))
 }
@@ -577,39 +618,7 @@ export const buildAgentChannelsActions = ({
                 }
             }),
         )
-        // One row per platform in the design, but a platform may now hold both a hosted and a
-        // custom connection. The one that answers as this agent wins whatever its status —
-        // a revoked bot of this agent is the row the user came to fix. Among the rest, a live
-        // connection beats a pending one, and a pending one beats a revoked one.
-        const rank = (c: ChannelConnection) => {
-            const here = c.agent === undefined || c.agent?.id === appId ? 4 : 0
-            return here + (c.status === "connected" ? 2 : c.status === "pending" ? 1 : 0)
-        }
-        const out: ChannelConnections = {slack: null, telegram: null, whatsapp: null}
-        const mine: Record<ChannelPlatform, ChannelConnection[]> = {
-            slack: [],
-            telegram: [],
-            whatsapp: [],
-        }
-        for (const connection of rows) {
-            const current = out[connection.platform]
-            if (!current || rank(connection) > rank(current)) out[connection.platform] = connection
-            if (connection.agent?.id === appId) mine[connection.platform].push(connection)
-        }
-        // The summarized connection leads its platform's list; the rest keep the backend order.
-        const lead = (platform: ChannelPlatform) => {
-            const primary = out[platform]
-            const list = mine[platform]
-            return primary && list.includes(primary)
-                ? [primary, ...list.filter((c) => c !== primary)]
-                : list
-        }
-        out.agentConnections = {
-            slack: lead("slack"),
-            telegram: lead("telegram"),
-            whatsapp: lead("whatsapp"),
-        }
-        return out
+        return connectionsForAgent(rows, appId)
     }
 
     const loadSetup = async (

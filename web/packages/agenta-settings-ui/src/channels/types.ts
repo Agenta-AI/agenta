@@ -102,6 +102,12 @@ export interface ChannelAnsweringAgent {
     name: string | null
 }
 
+/** An agent the panel can switch to. */
+export interface ChannelsPanelAgent {
+    id: string
+    name: string
+}
+
 export interface ChannelConnection {
     /** Backend connection id, so the host can archive or retarget it. */
     connectionId?: string
@@ -139,6 +145,8 @@ export interface ChannelConnections {
     telegram: ChannelConnection | null
     whatsapp: ChannelConnection | null
     agentConnections?: Record<ChannelPlatform, ChannelConnection[]>
+    /** Every connection in the project, whichever agent it answers as. */
+    allConnections?: ChannelConnection[]
 }
 
 /**

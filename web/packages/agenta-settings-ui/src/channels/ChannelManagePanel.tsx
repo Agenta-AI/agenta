@@ -1,29 +1,49 @@
 import {useCallback, useEffect, useState} from "react"
 
-import {Alert, Button, Input, PasswordInput, Spinner, Switch} from "@agenta/ui/ui"
 import {
+    Alert,
+    Button,
+    Input,
+    PasswordInput,
+    RadioGroup,
+    RadioGroupItem,
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+    Spinner,
+    Switch,
+} from "@agenta/ui/ui"
+import {
+    ArrowSquareOut,
     ArrowsLeftRight,
     ChatCircle,
     Hash,
-    LinkBreak,
     Plus,
     UsersThree,
     Warning,
+    X,
 } from "@phosphor-icons/react"
 
 import {nameSpacesFrom} from "./actions"
 import {ChannelAdvancedSection} from "./ChannelAdvancedSection"
 import {
     NOOP_ACTIONS,
+    ROW_BUTTON,
     answeringAgentName,
     botHandle,
+    connectionKindLabel,
+    connectionRowText,
     connectionScope,
     disconnectSubject,
     errorMessage,
-    installKindLabel,
+    formatConnectedOn,
     platformLabel,
     slackInviteHandle,
 } from "./helpers"
+import {platformLogo} from "./icons"
+import {PanelFooter} from "./PanelFooter"
 import type {
     ChannelBehaviorState,
     ChannelConnection,
@@ -37,17 +57,12 @@ import type {
 import {WhatsAppWebhook} from "./WhatsAppWebhook"
 
 /**
- * The manage view for a connected channel: what is connected, where it answers, the two
- * behavior switches, who may message it, the Advanced channel tool settings, and disconnect. Shared by desktop + /m. It shows only
- * what the user can change or needs to know: fixed defaults and a status nobody can toggle
- * are left out.
+ * The manage view for a connected channel: where it answers, who may message it, its
+ * credentials, the Advanced channel tool settings, and disconnect. Every change saves through `ChannelsActions` at once; a rejected
+ * call shows its message next to the row and the row re-reads its own state.
  *
- * Every mutation is real and goes through `ChannelsActions`. A rejected call leaves the panel
- * open, shows the message it carried, and the row it belongs to re-reads its own state, so the
- * screen never claims a change the backend refused.
- *
- * When the connection answers as another agent the panel shows the retarget offer instead, plus
- * the way out of the one-per-project rule: give this agent its own bot.
+ * When the connection answers as another agent the panel offers to move it here instead, or to
+ * give this agent a bot of its own.
  */
 
 export interface ChannelManagePanelProps {
@@ -63,7 +78,9 @@ export interface ChannelManagePanelProps {
     /** Retarget this connection to the current agent. */
     onConnectHere: () => Promise<void>
     onDisconnect: () => Promise<void>
-    /** Open the connect flow on the custom tab, so this agent gets a bot of its own. */
+    /** Start another connection on this platform. */
+    onAdd?: () => void
+    /** Open the connect flow on the custom method, so this agent gets a bot of its own. */
     onUseOwnBot?: () => void
     /** Open the connect flow again for this connection, to replace a dead install. */
     onReconnect?: () => void
@@ -82,40 +99,23 @@ const FALLBACK_SECRETS: Record<ChannelPlatform, ChannelSetupField[]> = {
     ],
 }
 
-const formatDate = (iso: string | null | undefined): string | null => {
-    if (!iso) return null
-    const date = new Date(iso)
-    if (Number.isNaN(date.getTime())) return null
-    return date.toLocaleDateString(undefined, {day: "numeric", month: "short", year: "numeric"})
-}
-
 const spaceIcon = (kind: ChannelSpaceKind, isSlack: boolean) => {
-    if (kind === "private") return <ChatCircle size={16} />
-    return isSlack ? <Hash size={16} /> : <UsersThree size={16} />
+    if (kind === "private") return <ChatCircle size={15} />
+    return isSlack ? <Hash size={15} /> : <UsersThree size={15} />
 }
 
-const SECTION_TITLE = "text-[13px] font-semibold text-colorText"
-const CARD = "overflow-hidden rounded-lg border border-solid border-colorBorderSecondary"
-const DIVIDED = "border-0 border-t border-solid border-colorBorderSecondary"
-const CHIP =
-    "inline-flex h-6 flex-shrink-0 items-center justify-center whitespace-nowrap rounded-md border border-solid border-colorBorder bg-colorBgContainer px-2.5 text-xs text-colorText"
-
-const Section = ({title, action}: {title: string; action?: React.ReactNode}) => (
-    <div className="flex items-center justify-between gap-2">
-        <span className={SECTION_TITLE}>{title}</span>
-        {action}
-    </div>
-)
+const SECTION_TITLE = "pb-1 text-[13px] font-semibold text-foreground"
+const ROW = "border-0 border-b border-solid border-border py-3"
 
 export const ChannelManagePanel = ({
     connection,
     agentId,
     agentName,
-    workspaceName = "your workspace",
     hostedHandle = "@agenta",
     actions = NOOP_ACTIONS,
     onConnectHere,
     onDisconnect,
+    onAdd,
     onUseOwnBot,
     onReconnect,
 }: ChannelManagePanelProps) => {
@@ -130,8 +130,6 @@ export const ChannelManagePanel = ({
     const [confirming, setConfirming] = useState(false)
     const [busy, setBusy] = useState<"disconnect" | "connect-here" | null>(null)
     // Which action failed decides where its message shows: next to the button that ran it.
-    // The panel is taller than a phone sheet, so a message at the top of the panel is off
-    // screen when the user is at the Disconnect button at the bottom.
     const [error, setError] = useState<{
         kind: "disconnect" | "connect-here"
         message: string
@@ -142,13 +140,12 @@ export const ChannelManagePanel = ({
     const unassigned = scope === "unassigned"
     const elsewhere = scope === "elsewhere" || unassigned
     const otherAgent = unassigned ? "no agent" : answeringAgentName(connection)
-    const connectedOn = formatDate(connection.connectedAt)
-    // Only a custom install has secrets of its own to replace: a Telegram bot token, or a
-    // Slack app's token and signing secret. A hosted install has none to show.
+    const connectedOn = formatConnectedOn(connection.connectedAt)
+    // Only a custom install has secrets of its own to replace.
     const canUpdateToken = connection.kind === "custom"
-    // Slack throws the whole install away rather than one secret, so a dead Slack app is
-    // repaired by installing it again, custom or not.
+    // Slack throws the whole install away, so a dead Slack app is repaired by installing again.
     const revokedOffersToken = canUpdateToken && !isSlack
+    const [conflictChoice, setConflictChoice] = useState<"move" | "own">("move")
 
     // --- where it answers ------------------------------------------------------ //
     const [spaces, setSpaces] = useState<ChannelSpace[] | null>(null)
@@ -166,8 +163,7 @@ export const ChannelManagePanel = ({
             return
         }
         setSpaces(listed)
-        // A place first seen through a message has no stored name. Discovery knows it, so ask
-        // once; if that fails the row keeps its platform-id stand-in.
+        // A place first seen through a message has no stored name; discovery knows it.
         if (!listed.some((space) => space.unnamed)) return
         try {
             const discovered = await actions.discoverSpaces(connectionId)
@@ -254,12 +250,12 @@ export const ChannelManagePanel = ({
         }
     }
 
-    // --- allowed Telegram accounts --------------------------------------------- //
+    // --- who may message the bot (Telegram) ------------------------------------ //
     const [allowed, setAllowed] = useState<string[] | null>(null)
-    const [allowedEditing, setAllowedEditing] = useState(false)
+    // "Specific people" with nobody added yet is only local: an empty list means everyone.
+    const [restrictDraft, setRestrictDraft] = useState(false)
     const [allowedDraft, setAllowedDraft] = useState("")
     const [allowedSaving, setAllowedSaving] = useState(false)
-    const [allowedSaved, setAllowedSaved] = useState(false)
     const [allowedError, setAllowedError] = useState<string | null>(null)
 
     const loadAllowed = useCallback(async () => {
@@ -273,34 +269,32 @@ export const ChannelManagePanel = ({
         }
     }, [actions, connectionId])
 
-    useEffect(() => {
-        if (!allowedSaved) return
-        const timer = setTimeout(() => setAllowedSaved(false), 2000)
-        return () => clearTimeout(timer)
-    }, [allowedSaved])
-
-    const saveAllowed = async () => {
+    const writeAllowed = async (ids: string[]) => {
         if (!connectionId) return
-        const ids = Array.from(
-            new Set(
-                allowedDraft
-                    .split(",")
-                    .map((value) => value.trim())
-                    .filter(Boolean),
-            ),
-        )
         setAllowedSaving(true)
         setAllowedError(null)
         try {
             await actions.writeAllowedUsers(connectionId, ids)
             setAllowed(ids)
-            setAllowedEditing(false)
-            setAllowedSaved(true)
+            return true
         } catch (e) {
             setAllowedError(errorMessage(e, "Could not save the allowed accounts."))
+            return false
         } finally {
             setAllowedSaving(false)
         }
+    }
+
+    const restricted = restrictDraft || (allowed?.length ?? 0) > 0
+
+    const addAllowed = async () => {
+        const ids = allowedDraft
+            .split(",")
+            .map((value) => value.trim().replace(/^@/, ""))
+            .filter(Boolean)
+        if (!ids.length || !allowed) return
+        const next = Array.from(new Set([...ids, ...allowed]))
+        if (await writeAllowed(next)) setAllowedDraft("")
     }
 
     // --- replacing the secrets of a custom install ------------------------------ //
@@ -339,8 +333,7 @@ export const ChannelManagePanel = ({
             setTokenValues({})
             setTokenOpen(false)
             setTokenSaved(true)
-            // A good secret revives the connection, and the status row is the host's copy of
-            // it. Re-read so the red alert goes away without closing the panel.
+            // A good secret revives the connection; re-read so the revoked banner goes away.
             await actions.reload().catch(() => {
                 /* the save landed; a stale status row is not worth an error */
             })
@@ -351,15 +344,13 @@ export const ChannelManagePanel = ({
         }
     }
 
-    // Only the first secret (the token) must be re-entered: the backend keeps any
-    // secondary secret left empty (the app or signing secret), so a token rotation
-    // does not force the operator to find the other one again.
+    // Only the first secret (the token) must be re-entered: the backend keeps a secondary
+    // secret left empty, so a token rotation does not force the operator to find it again.
     const tokenValid = (tokenFields ?? []).every(
         (field, index) => index > 0 || !field.required || tokenValues[field.name]?.trim(),
     )
 
-    // The panel only owns this state when the connection answers here: everything below
-    // hangs off this agent's channel agent row, which an "elsewhere" connection does not have.
+    // Everything below hangs off this agent's channel agent row, which "elsewhere" lacks.
     useEffect(() => {
         if (elsewhere || !connectionId) return
         void loadSpaces()
@@ -387,63 +378,28 @@ export const ChannelManagePanel = ({
         }
     }
 
-    const summaryRows: {label: string; value: React.ReactNode}[] = [
-        {
-            label: isWhatsApp ? "Number" : "Bot",
-            value: `${handle} · ${installKindLabel(connection)}`,
-        },
-        ...(isSlack
-            ? [{label: "Workspace", value: connection.workspaceName || workspaceName}]
-            : isTelegram
-              ? [{label: "Account", value: "Linked to you"}]
-              : []),
-        ...(canUpdateToken
-            ? [
-                  {
-                      label: "Token",
-                      value: (
-                          <span className="inline-flex items-center gap-2">
-                              <span className="tracking-widest text-colorTextSecondary">
-                                  ••••••••••••
-                              </span>
-                              <button
-                                  type="button"
-                                  className="cursor-pointer border-0 bg-transparent p-0 text-xs text-colorTextSecondary underline underline-offset-2"
-                                  onClick={() => void openTokenForm()}
-                                  data-testid="channels-update-token"
-                              >
-                                  Update
-                              </button>
-                          </span>
-                      ),
-                  },
-              ]
-            : []),
-        ...(connectedOn ? [{label: "Connected", value: connectedOn}] : []),
-    ]
-
     const allBehaviorRows: {key: "dm" | "group"; title: string; help: string}[] = [
         {
             key: "dm",
             title: "Direct messages",
-            help: "Whether this agent answers a direct message opened with it.",
+            help: isSlack
+                ? `Anyone in the workspace can DM ${handle}.`
+                : "Private chats people open with the bot.",
         },
         {
             key: "group",
-            title: isSlack ? "Channels and group chats" : "Group chats",
+            title: isSlack ? "Channels" : "Group chats",
             help: isSlack
-                ? "Whether this agent answers when mentioned in a channel it has been added to."
-                : "Whether this agent answers in a group it has been added to.",
+                ? `Replies in a thread when someone mentions ${handle}.`
+                : "Groups the bot is added to, when it’s mentioned.",
         },
     ]
-
     // WhatsApp is one-to-one only: there is no group chat to switch.
     const behaviorRows = isWhatsApp
         ? allBehaviorRows.filter((row) => row.key === "dm")
         : allBehaviorRows
 
-    // Every private chat is its own space (one per person who messaged the bot), but they are
-    // all "Direct messages" to the reader: one row stands for them.
+    // Every private chat is its own space, but to the reader they are all "Direct messages".
     const places: ChannelSpace[] | null =
         spaces === null
             ? null
@@ -453,25 +409,30 @@ export const ChannelManagePanel = ({
                       : []),
                   ...spaces.filter((space) => space.kind !== "private"),
               ]
-    // A place whose kind a behavior switch turned off stays listed, marked off, so the switch
-    // visibly changes where the agent answers.
+    // A place a behavior switch turned off stays listed, marked off.
     const placeOff = (kind: ChannelSpaceKind): boolean =>
         behavior !== null && (kind === "private" ? !behavior.dm : !behavior.group)
 
+    const {title} = connectionRowText(connection, hostedHandle)
+    const telegramUrl =
+        isTelegram && connection.handle
+            ? `https://t.me/${connection.handle.replace(/^@/, "")}`
+            : null
+
     const tokenForm = tokenOpen ? (
         <div
-            className="flex flex-col gap-3 rounded-lg border border-solid border-colorBorderSecondary p-3"
+            className="flex flex-col gap-3 rounded-lg border border-solid border-border p-3"
             data-testid="channels-token-form"
         >
             {tokenError ? <Alert type="error" showIcon message={tokenError} /> : null}
             {tokenFields ? (
                 tokenFields.map((field, index) => (
                     <label key={field.name} className="flex flex-col gap-1.5">
-                        <span className="text-[13px] font-medium text-colorText">
+                        <span className="text-[13px] font-medium text-foreground">
                             {field.label}
                         </span>
                         {index > 0 ? (
-                            <span className="text-xs text-colorTextTertiary">
+                            <span className="text-xs text-muted-foreground">
                                 Leave empty to keep the current one.
                             </span>
                         ) : null}
@@ -489,7 +450,7 @@ export const ChannelManagePanel = ({
                     </label>
                 ))
             ) : (
-                <div className="flex items-center gap-2 text-xs text-colorTextSecondary">
+                <div className="flex items-center gap-2 text-[13px] text-muted-foreground">
                     <Spinner size="small" /> Loading the {name} setup…
                 </div>
             )}
@@ -515,27 +476,162 @@ export const ChannelManagePanel = ({
         </div>
     ) : null
 
-    return (
-        <div className="flex flex-col gap-5">
-            {error?.kind === "connect-here" ? (
-                <Alert type="error" showIcon message={error.message} />
-            ) : null}
+    // --- answering as another agent: move it here, or get a bot of its own ------------- //
+    if (elsewhere) {
+        const ownThing = isSlack ? "a Slack app" : isWhatsApp ? "a WhatsApp number" : "a bot"
+        const canOwn = !!onUseOwnBot
+        const choice = canOwn ? conflictChoice : "move"
+        return (
+            <div
+                className="flex min-h-full flex-1 flex-col gap-5.5"
+                data-testid="channels-connect-here"
+            >
+                <div className="flex gap-3 rounded-lg bg-colorWarningBg p-3.5">
+                    <ArrowsLeftRight size={18} className="mt-px flex-none text-muted-foreground" />
+                    <div className="flex min-w-0 flex-col gap-[3px]">
+                        <span className="text-sm font-medium text-foreground">
+                            {unassigned
+                                ? `${title} is connected, but answers as no agent yet`
+                                : `${title} is answering as ${otherAgent}`}
+                        </span>
+                        <span className="text-[13px] text-muted-foreground">
+                            {unassigned
+                                ? `Connect it here so ${agentName} answers.`
+                                : `A connection answers as one agent at a time. The linked chats stay linked.`}
+                        </span>
+                    </div>
+                </div>
+                {error?.kind === "connect-here" ? (
+                    <Alert type="error" showIcon message={error.message} />
+                ) : null}
+                {canOwn ? (
+                    <div className="flex flex-col gap-2">
+                        <span className="text-[13px] font-semibold text-foreground">
+                            How should {agentName} connect?
+                        </span>
+                        <RadioGroup
+                            value={choice}
+                            onValueChange={(value) => setConflictChoice(value as "move" | "own")}
+                            className="gap-0 overflow-hidden rounded-lg border border-solid border-border"
+                            data-testid="channels-own-bot-offer"
+                        >
+                            {[
+                                {
+                                    value: "move",
+                                    title: unassigned ? "Connect it here" : "Move it here",
+                                    desc: unassigned
+                                        ? `${agentName} answers on ${title}.`
+                                        : `${otherAgent} stops answering on ${title}. Linked chats stay linked.`,
+                                },
+                                {
+                                    value: "own",
+                                    title: isSlack
+                                        ? "Use your own app"
+                                        : isWhatsApp
+                                          ? "Connect another number"
+                                          : "Use your own bot",
+                                    desc: unassigned
+                                        ? `${agentName} gets ${ownThing} of its own.`
+                                        : `${otherAgent} keeps ${title}. ${agentName} gets ${ownThing} of its own.`,
+                                },
+                            ].map((option, i) => (
+                                <label
+                                    key={option.value}
+                                    className={`flex cursor-pointer gap-3 px-3.5 py-3 ${
+                                        i ? "border-0 border-t border-solid border-border" : ""
+                                    } ${choice === option.value ? "bg-muted" : "bg-background"}`}
+                                >
+                                    <RadioGroupItem value={option.value} className="mt-0.5" />
+                                    <span className="flex flex-col gap-0.5">
+                                        <span className="text-sm font-medium text-foreground">
+                                            {option.title}
+                                        </span>
+                                        <span className="text-[13px] text-muted-foreground">
+                                            {option.desc}
+                                        </span>
+                                    </span>
+                                </label>
+                            ))}
+                        </RadioGroup>
+                    </div>
+                ) : null}
+                <PanelFooter>
+                    <Button
+                        size="lg"
+                        className="w-full"
+                        disabled={busy !== null}
+                        onClick={() => {
+                            if (choice === "own") onUseOwnBot?.()
+                            else void run("connect-here", onConnectHere)
+                        }}
+                    >
+                        {busy === "connect-here" ? <Spinner size="small" /> : null}
+                        {choice === "own"
+                            ? "Continue"
+                            : unassigned
+                              ? `Connect ${agentName}`
+                              : "Move it here"}
+                    </Button>
+                </PanelFooter>
+            </div>
+        )
+    }
 
-            {revoked && !elsewhere ? (
+    return (
+        <div className="flex min-h-full flex-1 flex-col gap-6.5">
+            {/* --- what is connected --- */}
+            <div className="flex items-center gap-3 border-0 border-b border-solid border-border pb-5">
+                <span className="relative box-border flex size-10 flex-none items-center justify-center rounded-lg border border-solid border-border">
+                    {platformLogo(connection.platform, 24)}
+                    <span
+                        className={`absolute -right-0.5 -top-0.5 size-2 rounded-full border-[1.5px] border-solid border-background ${
+                            revoked ? "bg-colorError" : "bg-colorSuccess"
+                        }`}
+                    />
+                </span>
+                <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                    <span className="truncate text-[15px] font-semibold text-foreground">
+                        {title}
+                    </span>
+                    <span className="truncate text-[13px] text-muted-foreground">
+                        <span className={revoked ? "text-error" : "text-colorSuccess"}>
+                            {revoked ? "Not answering" : "Live"}
+                        </span>
+                        {` · ${connectionKindLabel(connection)}`}
+                        {isSlack && connection.handle ? ` · ${connection.handle}` : ""}
+                        {connectedOn ? ` · since ${connectedOn}` : ""}
+                    </span>
+                </div>
+                {telegramUrl ? (
+                    <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        asChild
+                        title="Open in Telegram"
+                        aria-label="Open in Telegram"
+                    >
+                        <a href={telegramUrl} target="_blank" rel="noreferrer">
+                            <ArrowSquareOut />
+                        </a>
+                    </Button>
+                ) : null}
+            </div>
+
+            {revoked ? (
                 <div
                     className="flex items-start gap-2.5 rounded-lg border border-solid border-colorErrorBorder bg-colorErrorBg p-3"
                     data-testid="channels-revoked"
                 >
-                    <Warning size={16} className="mt-0.5 flex-shrink-0 text-colorError" />
+                    <Warning size={16} className="mt-0.5 flex-none text-error" />
                     <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-                        <span className="text-[13px] font-medium text-colorText">
+                        <span className="text-[13px] font-medium text-foreground">
                             {isWhatsApp
                                 ? "Meta rejected the access token"
                                 : revokedOffersToken
                                   ? "Telegram revoked the bot token"
                                   : `${name} uninstalled the app`}
                         </span>
-                        <span className="text-xs leading-relaxed text-colorTextSecondary">
+                        <span className="text-[13px] text-muted-foreground">
                             {isWhatsApp
                                 ? `${agentName} cannot answer there until you paste a new access token.`
                                 : revokedOffersToken
@@ -561,430 +657,410 @@ export const ChannelManagePanel = ({
                 </div>
             ) : null}
 
-            {revoked && !elsewhere && tokenOpen ? tokenForm : null}
+            {revoked && tokenOpen ? tokenForm : null}
 
-            {elsewhere ? (
-                <>
-                    <div className="flex flex-col gap-4" data-testid="channels-connect-here">
-                        <div className="flex items-start gap-2.5">
-                            <ArrowsLeftRight
-                                size={18}
-                                className="mt-0.5 flex-shrink-0 text-colorTextSecondary"
-                            />
-                            <div className="flex min-w-0 flex-1 flex-col gap-1">
-                                <span className="text-[15px] font-semibold text-colorText">
-                                    {unassigned
-                                        ? `${name} is connected, but answers as no agent yet`
-                                        : `${name} is connected to ${otherAgent}`}
+            {/* --- the two switches --- */}
+            <div className="flex flex-col">
+                <span className={SECTION_TITLE}>Answers in</span>
+                {behaviorError ? <Alert type="error" showIcon message={behaviorError} /> : null}
+                {behaviorRows.map((row) => (
+                    <div key={row.key} className={`flex items-start gap-4 ${ROW}`}>
+                        <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                            <span className="text-sm text-foreground">{row.title}</span>
+                            <span className="text-[13px] text-muted-foreground">{row.help}</span>
+                        </span>
+                        {behaviorSaving === row.key ? <Spinner size="small" /> : null}
+                        <Switch
+                            size="sm"
+                            checked={behavior?.[row.key] ?? true}
+                            disabled={behavior === null || behaviorSaving !== null}
+                            onCheckedChange={(value) => void toggleBehavior(row.key, value)}
+                            aria-label={row.title}
+                            data-testid={`channels-behavior-${row.key}`}
+                        />
+                    </div>
+                ))}
+
+                {/* --- where it answers --- */}
+                <div className="flex flex-col pt-5">
+                    <div className="flex items-center justify-between pb-1">
+                        <span className="text-[13px] font-semibold text-foreground">
+                            {isSlack ? "Channels it’s in" : isWhatsApp ? "Chats" : "Groups"}
+                        </span>
+                        {isSlack && !pickerOpen ? (
+                            <Button
+                                variant="ghost"
+                                size="xs"
+                                onClick={() => void openPicker()}
+                                data-testid="channels-add-space"
+                            >
+                                <Plus weight="bold" data-icon="inline-start" />
+                                Add channel
+                            </Button>
+                        ) : null}
+                    </div>
+                    {spacesError ? <Alert type="error" showIcon message={spacesError} /> : null}
+                    {places === null ? (
+                        <div
+                            className={`flex items-center gap-2 text-[13px] text-muted-foreground ${ROW}`}
+                        >
+                            <Spinner size="small" /> Loading…
+                        </div>
+                    ) : (
+                        places.map((space) => (
+                            <div
+                                key={space.id}
+                                className={`flex items-center gap-2.5 ${ROW}`}
+                                data-testid="channels-space"
+                            >
+                                <span className="flex flex-none text-muted-foreground">
+                                    {spaceIcon(space.kind, isSlack)}
                                 </span>
-                                <span className="text-[13px] leading-relaxed text-colorTextSecondary">
-                                    One {name} connection per project, and it answers as one agent.
-                                    {unassigned
-                                        ? ` Connect it here so ${agentName} answers.`
-                                        : ` Connecting it here makes ${agentName} answer instead of ${otherAgent}. The linked chats stay linked.`}
+                                <span
+                                    className={`flex-1 truncate text-sm ${
+                                        placeOff(space.kind)
+                                            ? "text-muted-foreground"
+                                            : "text-foreground"
+                                    }`}
+                                >
+                                    {space.name}
+                                </span>
+                                <span className="flex-none text-[13px] text-muted-foreground">
+                                    {placeOff(space.kind)
+                                        ? "Off"
+                                        : space.kind === "private"
+                                          ? ""
+                                          : "Mentions only"}
                                 </span>
                             </div>
-                        </div>
-                        <Button
-                            variant="default"
-                            className="w-full"
-                            disabled={busy !== null}
-                            onClick={() => void run("connect-here", onConnectHere)}
-                        >
-                            {busy === "connect-here" ? <Spinner size="small" /> : null}
-                            {unassigned
-                                ? `Connect ${agentName}`
-                                : `Disconnect from ${otherAgent} and connect here`}
-                        </Button>
-                    </div>
+                        ))
+                    )}
 
-                    {onUseOwnBot ? (
+                    {pickerOpen ? (
                         <div
-                            className={`flex flex-col gap-3 pt-4 ${DIVIDED}`}
-                            data-testid="channels-own-bot-offer"
+                            className="mt-3 flex flex-col gap-2 rounded-lg bg-muted p-3"
+                            data-testid="channels-space-picker"
                         >
-                            <span className="text-xs leading-relaxed text-colorTextSecondary">
-                                {isWhatsApp ? (
-                                    <>{agentName} can have a WhatsApp number of its own instead.</>
-                                ) : (
-                                    <>
-                                        The one-per-project rule applies to the Agenta bot only.{" "}
-                                        {agentName} can have its own bot instead
-                                        {unassigned
-                                            ? ""
-                                            : `, and ${otherAgent} keeps the Agenta bot`}
-                                        .
-                                    </>
-                                )}
+                            <span className="text-[13px] text-muted-foreground">
+                                Pick a channel. The app joins public channels itself. For a private
+                                channel, run /invite {inviteHandle} in it first.
+                            </span>
+                            {pickerError ? (
+                                <Alert type="error" showIcon message={pickerError} />
+                            ) : null}
+                            {inviteFor ? (
+                                <Alert
+                                    type="info"
+                                    showIcon
+                                    message={`#${inviteFor.replace(/^#/, "")} is private. Run /invite ${inviteHandle} in it in Slack, then add it again.`}
+                                    data-testid="channels-space-invite-hint"
+                                />
+                            ) : null}
+                            {candidates === null ? (
+                                <div className="flex items-center gap-2 text-[13px] text-muted-foreground">
+                                    <Spinner size="small" /> Looking…
+                                </div>
+                            ) : candidates.filter((c) => !c.isConfigured).length === 0 ? (
+                                <span className="text-[13px] text-muted-foreground">
+                                    No new channels.
+                                </span>
+                            ) : (
+                                <div className="flex flex-col gap-1.5">
+                                    {candidates
+                                        .filter((candidate) => !candidate.isConfigured)
+                                        .map((candidate) => (
+                                            <Button
+                                                key={`${candidate.kind}-${candidate.displayName}`}
+                                                variant="outline"
+                                                disabled={addingName !== null}
+                                                onClick={() => void addCandidate(candidate)}
+                                                className={`${ROW_BUTTON} gap-2.5 px-2.5 py-2`}
+                                            >
+                                                <span className="flex flex-none text-muted-foreground">
+                                                    {spaceIcon(candidate.kind, isSlack)}
+                                                </span>
+                                                <span className="flex-1 truncate text-[13px] text-foreground">
+                                                    {candidate.displayName}
+                                                </span>
+                                                {candidate.membership === "member" ? (
+                                                    <span className="flex-none text-xs text-muted-foreground">
+                                                        In channel
+                                                    </span>
+                                                ) : null}
+                                                {addingName === candidate.displayName ? (
+                                                    <Spinner size="small" />
+                                                ) : null}
+                                            </Button>
+                                        ))}
+                                </div>
+                            )}
+                            <div className="flex justify-end">
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    disabled={addingName !== null}
+                                    onClick={() => setPickerOpen(false)}
+                                >
+                                    Cancel
+                                </Button>
+                            </div>
+                        </div>
+                    ) : null}
+
+                    {isWhatsApp ? null : (
+                        <span className="py-3 text-[13px] text-muted-foreground">
+                            {isSlack
+                                ? `Invite ${inviteHandle} to a channel to add it here.`
+                                : `Add ${handle} to a group and mention it once. The group appears here.`}
+                        </span>
+                    )}
+                </div>
+            </div>
+
+            {/* --- where Meta delivers messages (WhatsApp only) --- */}
+            {isWhatsApp ? (
+                <div className="flex flex-col gap-2">
+                    <span className={SECTION_TITLE}>Webhook</span>
+                    <WhatsAppWebhook connection={connection} />
+                </div>
+            ) : null}
+
+            {/* --- who may message it, and its credentials --- */}
+            {isTelegram || canUpdateToken ? (
+                <div className="flex flex-col">
+                    <span className={SECTION_TITLE}>Access</span>
+                    {!isTelegram ? null : (
+                        <>
+                            <div className={`flex items-center gap-4 ${ROW}`}>
+                                <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                                    <span className="text-sm text-foreground">
+                                        Who can message it
+                                    </span>
+                                    <span className="text-[13px] text-muted-foreground">
+                                        {allowed === null
+                                            ? allowedError
+                                                ? "Unavailable"
+                                                : "Loading…"
+                                            : !restricted
+                                              ? "Any Telegram account can message the bot."
+                                              : allowed.length
+                                                ? `Only ${allowed.length} ${allowed.length === 1 ? "account" : "accounts"}. Everyone else is ignored.`
+                                                : "Add at least one account below."}
+                                    </span>
+                                </span>
+                                {allowedSaving ? <Spinner size="small" /> : null}
+                                <Select
+                                    value={restricted ? "specific" : "everyone"}
+                                    disabled={allowed === null || allowedSaving}
+                                    onValueChange={async (value) => {
+                                        if (value === "specific") {
+                                            setRestrictDraft(true)
+                                            return
+                                        }
+                                        setRestrictDraft(false)
+                                        if (allowed?.length) await writeAllowed([])
+                                    }}
+                                >
+                                    <SelectTrigger
+                                        size="sm"
+                                        className="w-[150px]"
+                                        data-testid="channels-allowed-mode"
+                                    >
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="everyone">Everyone</SelectItem>
+                                        <SelectItem value="specific">Specific people</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            {allowedError ? (
+                                <div className="flex items-center gap-2 pt-3">
+                                    <Alert
+                                        type="error"
+                                        showIcon
+                                        message={allowedError}
+                                        className="flex-1"
+                                    />
+                                    {allowed === null ? (
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => void loadAllowed()}
+                                        >
+                                            Try again
+                                        </Button>
+                                    ) : null}
+                                </div>
+                            ) : null}
+                            {restricted && allowed !== null ? (
+                                <>
+                                    <div className={`flex flex-col gap-1.5 ${ROW}`}>
+                                        <div className="flex gap-2">
+                                            <Input
+                                                value={allowedDraft}
+                                                onChange={(e) => setAllowedDraft(e.target.value)}
+                                                onKeyDown={(e) => {
+                                                    if (e.key === "Enter") void addAllowed()
+                                                }}
+                                                placeholder="Telegram user ID"
+                                                className="min-w-0 flex-1 font-mono text-xs"
+                                                data-testid="channels-allowed-input"
+                                            />
+                                            <Button
+                                                variant="outline"
+                                                disabled={!allowedDraft.trim() || allowedSaving}
+                                                onClick={() => void addAllowed()}
+                                                data-testid="channels-allowed-save"
+                                            >
+                                                Add
+                                            </Button>
+                                        </div>
+                                        <span className="text-xs text-muted-foreground">
+                                            Numeric IDs, from @userinfobot. Separate several with
+                                            commas.
+                                        </span>
+                                    </div>
+                                    {allowed.map((id) => (
+                                        <div
+                                            key={id}
+                                            className="flex items-center gap-2.5 border-0 border-b border-solid border-border py-2.5"
+                                            data-testid="channels-allowed-user"
+                                        >
+                                            <span className="box-border flex size-6 flex-none items-center justify-center rounded-md border border-solid border-border bg-muted text-muted-foreground">
+                                                <UsersThree size={12} />
+                                            </span>
+                                            <span className="min-w-0 flex-1 truncate font-mono text-[13px] text-foreground">
+                                                {id}
+                                            </span>
+                                            <Button
+                                                variant="ghost"
+                                                size="icon-xs"
+                                                title="Remove"
+                                                aria-label={`Remove ${id}`}
+                                                disabled={allowedSaving}
+                                                onClick={() => {
+                                                    const next = allowed.filter((x) => x !== id)
+                                                    // Removing the last one keeps "Specific people" open.
+                                                    if (!next.length) setRestrictDraft(true)
+                                                    void writeAllowed(next)
+                                                }}
+                                            >
+                                                <X />
+                                            </Button>
+                                        </div>
+                                    ))}
+                                </>
+                            ) : null}
+                        </>
+                    )}
+                    {canUpdateToken ? (
+                        <div className={`flex items-center gap-4 ${ROW}`}>
+                            <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                                <span className="text-sm text-foreground">
+                                    {isSlack
+                                        ? "App credentials"
+                                        : isWhatsApp
+                                          ? "Access token"
+                                          : "Bot token"}
+                                </span>
+                                <span className="tracking-widest text-[13px] text-muted-foreground">
+                                    ••••••••••••
+                                </span>
                             </span>
                             <Button
                                 variant="outline"
-                                className="w-full"
-                                disabled={busy !== null}
-                                onClick={onUseOwnBot}
+                                size="sm"
+                                onClick={() => void openTokenForm()}
+                                data-testid="channels-update-token"
                             >
-                                {isWhatsApp
-                                    ? `Connect another number for ${agentName}`
-                                    : `Use your own bot for ${agentName}`}
+                                Update
                             </Button>
                         </div>
                     ) : null}
-                </>
-            ) : (
-                <>
-                    <div className={CARD}>
-                        {summaryRows.map(({label, value}, i) => (
-                            <div
-                                key={label}
-                                className={`flex items-center justify-between gap-3 px-3 py-2.5 ${
-                                    i ? DIVIDED : ""
-                                }`}
-                            >
-                                <span className="text-xs text-colorTextSecondary">{label}</span>
-                                <span className="truncate text-right text-[13px] text-colorText">
-                                    {value}
-                                </span>
-                            </div>
-                        ))}
-                    </div>
-
-                    {!revoked && tokenOpen ? tokenForm : null}
+                    {!revoked && tokenOpen ? <div className="pt-3">{tokenForm}</div> : null}
                     {tokenSaved ? (
-                        <Alert type="success" showIcon message="The new credentials were saved." />
-                    ) : null}
-
-                    {/* --- where it answers --- */}
-                    <div className="flex flex-col gap-2">
-                        <Section
-                            title="Answers in"
-                            action={
-                                isSlack && !pickerOpen ? (
-                                    <button
-                                        type="button"
-                                        className="flex cursor-pointer items-center gap-1 border-0 bg-transparent p-0 text-xs text-colorText"
-                                        onClick={() => void openPicker()}
-                                        data-testid="channels-add-space"
-                                    >
-                                        <Plus size={12} weight="bold" />
-                                        Add channel
-                                    </button>
-                                ) : null
-                            }
-                        />
-                        {spacesError ? <Alert type="error" showIcon message={spacesError} /> : null}
-                        <div className={CARD}>
-                            {places === null ? (
-                                <div className="flex items-center gap-2 px-3 py-2.5 text-xs text-colorTextSecondary">
-                                    <Spinner size="small" /> Loading…
-                                </div>
-                            ) : places.length === 0 ? (
-                                <div className="px-3 py-2.5 text-xs text-colorTextSecondary">
-                                    Nothing yet. {isSlack ? "Add a channel" : "Open a chat"} and it
-                                    appears here.
-                                </div>
-                            ) : (
-                                places.map((space, i) => (
-                                    <div
-                                        key={space.id}
-                                        className={`flex items-center gap-2.5 px-3 py-2.5 ${
-                                            i ? DIVIDED : ""
-                                        }`}
-                                        data-testid="channels-space"
-                                    >
-                                        <span className="flex flex-shrink-0 text-colorTextSecondary">
-                                            {spaceIcon(space.kind, isSlack)}
-                                        </span>
-                                        <span
-                                            className={`flex-1 truncate text-[13px] ${
-                                                placeOff(space.kind)
-                                                    ? "text-colorTextTertiary"
-                                                    : "text-colorText"
-                                            }`}
-                                        >
-                                            {space.name}
-                                        </span>
-                                        {placeOff(space.kind) ? (
-                                            <span className="flex-shrink-0 text-xs text-colorTextTertiary">
-                                                Off
-                                            </span>
-                                        ) : null}
-                                    </div>
-                                ))
-                            )}
-
-                            {pickerOpen ? (
-                                <div
-                                    className={`flex flex-col gap-2 bg-colorFillQuaternary p-3 ${DIVIDED}`}
-                                    data-testid="channels-space-picker"
-                                >
-                                    <span className="text-xs text-colorTextSecondary">
-                                        Pick a channel. The app joins public channels itself. For a
-                                        private channel, run /invite {inviteHandle} in it first.
-                                    </span>
-                                    {pickerError ? (
-                                        <Alert type="error" showIcon message={pickerError} />
-                                    ) : null}
-                                    {inviteFor ? (
-                                        <Alert
-                                            type="info"
-                                            showIcon
-                                            message={`#${inviteFor.replace(/^#/, "")} is private. Run /invite ${inviteHandle} in it in Slack, then add it again.`}
-                                            data-testid="channels-space-invite-hint"
-                                        />
-                                    ) : null}
-                                    {candidates === null ? (
-                                        <div className="flex items-center gap-2 text-xs text-colorTextSecondary">
-                                            <Spinner size="small" /> Looking…
-                                        </div>
-                                    ) : candidates.filter((c) => !c.isConfigured).length === 0 ? (
-                                        <span className="text-xs text-colorTextTertiary">
-                                            No new channels.
-                                        </span>
-                                    ) : (
-                                        <div className="flex flex-col gap-1.5">
-                                            {candidates
-                                                .filter((candidate) => !candidate.isConfigured)
-                                                .map((candidate) => (
-                                                    <button
-                                                        key={`${candidate.kind}-${candidate.displayName}`}
-                                                        type="button"
-                                                        disabled={addingName !== null}
-                                                        onClick={() => void addCandidate(candidate)}
-                                                        className="flex cursor-pointer items-center gap-2.5 rounded-md border border-solid border-colorBorderSecondary bg-colorBgContainer px-2.5 py-2 text-left disabled:cursor-default"
-                                                    >
-                                                        <span className="flex flex-shrink-0 text-colorTextSecondary">
-                                                            {spaceIcon(candidate.kind, isSlack)}
-                                                        </span>
-                                                        <span className="flex-1 truncate text-[13px] text-colorText">
-                                                            {candidate.displayName}
-                                                        </span>
-                                                        {candidate.membership === "member" ? (
-                                                            <span className="flex-shrink-0 text-xs text-colorTextTertiary">
-                                                                In channel
-                                                            </span>
-                                                        ) : null}
-                                                        {addingName === candidate.displayName ? (
-                                                            <Spinner size="small" />
-                                                        ) : null}
-                                                    </button>
-                                                ))}
-                                        </div>
-                                    )}
-                                    <div className="flex justify-end">
-                                        <Button
-                                            variant="outline"
-                                            size="sm"
-                                            disabled={addingName !== null}
-                                            onClick={() => setPickerOpen(false)}
-                                        >
-                                            Cancel
-                                        </Button>
-                                    </div>
-                                </div>
-                            ) : null}
-                        </div>
-                        {isTelegram ? (
-                            <span className="text-xs leading-relaxed text-colorTextTertiary">
-                                Add {handle} to a group in Telegram and mention it once. The group
-                                appears here. Private chats appear on first message.
-                            </span>
-                        ) : null}
-                    </div>
-
-                    {/* --- the two switches --- */}
-                    <div className="flex flex-col gap-2">
-                        <Section title="Behavior" />
-                        {behaviorError ? (
-                            <Alert type="error" showIcon message={behaviorError} />
-                        ) : null}
-                        <div className={CARD}>
-                            {behaviorRows.map((row, i) => (
-                                <div
-                                    key={row.key}
-                                    className={`flex items-center gap-3 px-3 py-3 ${i ? DIVIDED : ""}`}
-                                >
-                                    <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                                        <span className="text-[13px] font-medium text-colorText">
-                                            {row.title}
-                                        </span>
-                                        <span className="text-xs leading-normal text-colorTextSecondary">
-                                            {row.help}
-                                        </span>
-                                    </span>
-                                    {behaviorSaving === row.key ? <Spinner size="small" /> : null}
-                                    <Switch
-                                        size="sm"
-                                        checked={behavior?.[row.key] ?? true}
-                                        disabled={behavior === null || behaviorSaving !== null}
-                                        onCheckedChange={(value) =>
-                                            void toggleBehavior(row.key, value)
-                                        }
-                                        aria-label={row.title}
-                                        data-testid={`channels-behavior-${row.key}`}
-                                    />
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-
-                    {/* --- where Meta delivers messages (WhatsApp only) --- */}
-                    {isWhatsApp ? (
-                        <div className="flex flex-col gap-2">
-                            <Section title="Webhook" />
-                            <WhatsAppWebhook connection={connection} />
+                        <div className="pt-3">
+                            <Alert
+                                type="success"
+                                showIcon
+                                message="The new credentials were saved."
+                            />
                         </div>
                     ) : null}
+                </div>
+            ) : null}
 
-                    {/* --- who may message the bot (Telegram only) --- */}
-                    {!isTelegram ? null : (
-                        <div className={`flex flex-col gap-2 ${CARD} p-3`}>
-                            <div className="flex items-center gap-3">
-                                <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                                    <span className="text-[13px] font-medium text-colorText">
-                                        Allowed users
-                                    </span>
-                                    <span className="text-xs leading-normal text-colorTextSecondary">
-                                        Only these Telegram accounts can message the bot.
-                                    </span>
-                                </span>
-                                {allowedSaved ? (
-                                    <span className="text-xs text-colorSuccess">Saved</span>
-                                ) : null}
-                                {allowedEditing ? null : (
-                                    <>
-                                        <span className="text-[13px] text-colorText">
-                                            {allowed === null
-                                                ? allowedError
-                                                    ? "Unavailable"
-                                                    : "…"
-                                                : allowed.length === 0
-                                                  ? "Everyone"
-                                                  : `${allowed.length} account${
-                                                        allowed.length > 1 ? "s" : ""
-                                                    }`}
-                                        </span>
-                                        <button
-                                            type="button"
-                                            className={`${CHIP} cursor-pointer`}
-                                            onClick={() => {
-                                                setAllowedDraft((allowed ?? []).join(", "))
-                                                setAllowedError(null)
-                                                setAllowedEditing(true)
-                                            }}
-                                            disabled={allowed === null}
-                                            data-testid="channels-allowed-edit"
-                                        >
-                                            Edit
-                                        </button>
-                                    </>
-                                )}
-                            </div>
-                            {allowedError && !allowedEditing ? (
-                                <div className="flex flex-col gap-2">
-                                    <Alert type="error" showIcon message={allowedError} />
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={() => void loadAllowed()}
-                                    >
-                                        Try again
-                                    </Button>
-                                </div>
-                            ) : null}
-                            {allowedEditing ? (
-                                <div className="flex flex-col gap-2">
-                                    {allowedError ? (
-                                        <Alert type="error" showIcon message={allowedError} />
-                                    ) : null}
-                                    <Input
-                                        value={allowedDraft}
-                                        onChange={(e) => setAllowedDraft(e.target.value)}
-                                        placeholder="123456789, 987654321"
-                                        className="font-mono text-xs"
-                                        data-testid="channels-allowed-input"
-                                    />
-                                    <span className="text-xs text-colorTextTertiary">
-                                        Comma-separated Telegram user IDs from @userinfobot. Leave
-                                        it empty and anyone who finds the bot can talk to{" "}
-                                        {agentName}.
-                                    </span>
-                                    <div className="flex justify-end gap-2">
-                                        <Button
-                                            variant="outline"
-                                            size="sm"
-                                            disabled={allowedSaving}
-                                            onClick={() => setAllowedEditing(false)}
-                                        >
-                                            Cancel
-                                        </Button>
-                                        <Button
-                                            size="sm"
-                                            disabled={allowedSaving}
-                                            onClick={() => void saveAllowed()}
-                                            data-testid="channels-allowed-save"
-                                        >
-                                            {allowedSaving ? <Spinner size="small" /> : null}
-                                            Save
-                                        </Button>
-                                    </div>
-                                </div>
-                            ) : null}
-                        </div>
-                    )}
+            {onAdd ? (
+                <div className="flex items-center justify-between gap-3">
+                    <span className="text-[13px] text-muted-foreground">
+                        {isSlack
+                            ? "Add another workspace, or your own Slack app"
+                            : isWhatsApp
+                              ? "Add another number"
+                              : connection.kind === "hosted"
+                                ? "Add a bot of your own too"
+                                : "Add another bot"}
+                    </span>
+                    <Button variant="outline" size="sm" onClick={onAdd}>
+                        Add
+                    </Button>
+                </div>
+            ) : null}
 
-                    {connectionId ? (
-                        <ChannelAdvancedSection
-                            platform={connection.platform}
-                            connectionId={connectionId}
-                            actions={actions}
-                        />
-                    ) : null}
+            {connectionId ? (
+                <ChannelAdvancedSection
+                    platform={connection.platform}
+                    connectionId={connectionId}
+                    actions={actions}
+                />
+            ) : null}
 
-                    <div className={`flex flex-col gap-2 pt-4 ${DIVIDED}`}>
-                        {error?.kind === "disconnect" ? (
-                            <Alert type="error" showIcon message={error.message} />
-                        ) : null}
-                        {confirming ? (
-                            <div className="flex flex-col gap-3 rounded-lg border border-solid border-colorBorderSecondary p-3">
-                                <span className="text-xs leading-relaxed text-colorTextSecondary">
-                                    Disconnect {disconnectSubject(connection)}? {agentName} stops
-                                    answering there. Past conversations stay in Agenta.
-                                </span>
-                                <div className="flex gap-2">
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        disabled={busy !== null}
-                                        onClick={() => setConfirming(false)}
-                                    >
-                                        Keep
-                                    </Button>
-                                    <Button
-                                        variant="destructive"
-                                        size="sm"
-                                        disabled={busy !== null}
-                                        onClick={() => void run("disconnect", onDisconnect)}
-                                        data-testid="channels-disconnect-confirm"
-                                    >
-                                        {busy === "disconnect" ? <Spinner size="small" /> : null}
-                                        Disconnect
-                                    </Button>
-                                </div>
-                            </div>
-                        ) : (
+            <PanelFooter>
+                {error?.kind === "disconnect" ? (
+                    <Alert type="error" showIcon message={error.message} />
+                ) : null}
+                {confirming ? (
+                    <div className="flex flex-col gap-2.5">
+                        <span className="text-[13px] text-foreground">
+                            Disconnect {disconnectSubject(connection)}? {agentName} stops answering
+                            there. Past conversations stay in Agenta.
+                        </span>
+                        <div className="flex justify-end gap-2">
                             <Button
-                                variant="destructive-outline"
+                                variant="outline"
                                 disabled={busy !== null}
-                                onClick={() => setConfirming(true)}
-                                data-testid="channels-disconnect"
+                                onClick={() => setConfirming(false)}
                             >
-                                <LinkBreak size={14} />
-                                Disconnect {name}
+                                Cancel
                             </Button>
-                        )}
+                            <Button
+                                variant="destructive"
+                                disabled={busy !== null}
+                                onClick={() => void run("disconnect", onDisconnect)}
+                                data-testid="channels-disconnect-confirm"
+                            >
+                                {busy === "disconnect" ? <Spinner size="small" /> : null}
+                                Disconnect
+                            </Button>
+                        </div>
                     </div>
-                </>
-            )}
+                ) : (
+                    <div className="flex items-center justify-between">
+                        <span className="whitespace-nowrap text-[12.5px] text-muted-foreground">
+                            Saved automatically
+                        </span>
+                        <Button
+                            variant="destructive"
+                            disabled={busy !== null}
+                            onClick={() => setConfirming(true)}
+                            data-testid="channels-disconnect"
+                        >
+                            Disconnect
+                        </Button>
+                    </div>
+                )}
+            </PanelFooter>
         </div>
     )
 }

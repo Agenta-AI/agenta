@@ -1,6 +1,7 @@
 import {useEffect, useState, type ReactNode} from "react"
 
 import {Button} from "@agenta/ui/ui"
+import {ArrowLeft, X} from "@phosphor-icons/react"
 
 import {ChannelConnectFlow} from "./ChannelConnectFlow"
 import {ChannelsPage} from "./ChannelsPage"
@@ -24,6 +25,7 @@ import type {
     ChannelToolSettings,
     HostedTelegramLink,
 } from "./types"
+import type {ChannelsPanelRenderProps} from "./useChannelPanel"
 
 /**
  * Fixtures and fake actions for the Channels stories.
@@ -529,32 +531,69 @@ export const createChannelStoryActions = (
 
 export interface InlinePanelProps {
     title: string
-    subtitle?: string
+    subtitle?: React.ReactNode
     onClose: () => void
+    onBack?: () => void
+    icon?: ReactNode
     children: ReactNode
 }
 
-/**
- * The story stand-in for the host's sliding panel: a bordered box with the same title,
- * subtitle and close affordance. The product renders a drawer on desktop and a sheet on /m;
- * neither is needed to review what the panel holds.
- */
-export const InlinePanel = ({title, subtitle, onClose, children}: InlinePanelProps) => (
-    <div className="flex w-full max-w-[520px] flex-col overflow-hidden rounded-xl border border-solid border-colorBorderSecondary bg-colorBgContainer">
-        <div className="flex items-start justify-between gap-3 border-0 border-b border-solid border-colorBorderSecondary px-4 py-3">
-            <div className="flex min-w-0 flex-col gap-0.5">
-                <span className="text-sm font-medium text-colorText">{title}</span>
+/** The story stand-in for the host's drawer: the same header, a scrolling body, a pinned footer. */
+export const InlinePanel = ({
+    title,
+    subtitle,
+    onClose,
+    onBack,
+    icon,
+    children,
+}: InlinePanelProps) => (
+    <div className="flex h-[640px] w-full max-w-[480px] flex-col overflow-hidden rounded-xl border border-solid border-border bg-background">
+        <div className="flex flex-none items-center gap-2.5 border-0 border-b border-solid border-border py-3.5 pl-4 pr-3">
+            {onBack ? (
+                <Button variant="ghost" size="icon-sm" aria-label="Back" onClick={onBack}>
+                    <ArrowLeft />
+                </Button>
+            ) : null}
+            {icon ? (
+                <span className="flex size-8 flex-none items-center justify-center rounded-lg border border-solid border-border text-foreground">
+                    {icon}
+                </span>
+            ) : null}
+            <div className="flex min-w-0 flex-1 flex-col">
+                <span className="text-[15px] font-semibold text-foreground">{title}</span>
                 {subtitle ? (
-                    <span className="truncate text-xs text-colorTextSecondary">{subtitle}</span>
+                    <span className="truncate text-xs text-muted-foreground">{subtitle}</span>
                 ) : null}
             </div>
-            <Button variant="outline" size="sm" onClick={onClose}>
-                Close
+            <Button variant="ghost" size="icon-sm" aria-label="Close" onClick={onClose}>
+                <X />
             </Button>
         </div>
-        <div className="p-4">{children}</div>
+        <div className="min-h-0 flex-1 overflow-y-auto p-4">{children}</div>
     </div>
 )
+
+/** Renders the panel the channel views ask for inside the story's bordered box. */
+export const renderStoryPanel = ({
+    open,
+    title,
+    subtitle,
+    onClose,
+    onBack,
+    icon,
+    children,
+}: ChannelsPanelRenderProps) =>
+    open ? (
+        <InlinePanel
+            title={title}
+            subtitle={subtitle}
+            onClose={onClose}
+            onBack={onBack}
+            icon={icon}
+        >
+            {children}
+        </InlinePanel>
+    ) : null
 
 /**
  * Holds `window.open` for as long as the story is mounted and shows what was asked for.
@@ -577,7 +616,7 @@ export const CapturePopups = ({children}: {children: ReactNode}) => {
         <div className="flex flex-col gap-2">
             {children}
             {opened.length ? (
-                <p className="m-0 rounded-md border border-solid border-colorBorderSecondary bg-colorFillQuaternary p-2 text-xs text-colorTextSecondary">
+                <p className="m-0 rounded-md bg-muted p-2 text-xs text-muted-foreground">
                     The story held these <code>window.open</code> calls: {opened.join(", ")}
                 </p>
             ) : null}
@@ -587,7 +626,7 @@ export const CapturePopups = ({children}: {children: ReactNode}) => {
 
 export interface ConnectFlowHostProps {
     platform: ChannelPlatform
-    /** Which tab the flow opens on. */
+    /** Which method the flow opens on. */
     mode?: ChannelInstallMode
     options?: ChannelStoryActionsOptions
     pollIntervalMs?: number
@@ -646,15 +685,11 @@ export const ConnectFlowHost = ({
     )
 
     return (
-        <InlinePanel
-            title={`Connect ${name}`}
-            subtitle={`${AGENT_NAME} · ${platform === "slack" ? WORKSPACE_NAME : platformLabel(platform)}`}
-            onClose={() => setOpen(false)}
-        >
+        <InlinePanel title={`Connect ${name}`} subtitle={AGENT_NAME} onClose={() => setOpen(false)}>
             {capturePopups ? <CapturePopups>{flow}</CapturePopups> : flow}
             {connected ? (
                 <p
-                    className="m-0 mt-4 rounded-md border border-solid border-colorSuccessBorder bg-colorSuccessBg p-2 text-xs text-colorText"
+                    className="m-0 mt-4 rounded-md bg-colorSuccessBg p-2 text-xs text-foreground"
                     data-testid="story-connected"
                 >
                     The flow reported a connection. The host reloads here and the panel shows the
@@ -696,13 +731,7 @@ export const ChannelsPageHost = ({
                 connections={connections}
                 loading={loading}
                 actions={actions}
-                renderPanel={({open, title, subtitle, onClose, children}) =>
-                    open ? (
-                        <InlinePanel title={title} subtitle={subtitle} onClose={onClose}>
-                            {children}
-                        </InlinePanel>
-                    ) : null
-                }
+                renderPanel={renderStoryPanel}
             />
         </div>
     )

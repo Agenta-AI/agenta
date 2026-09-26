@@ -4,7 +4,38 @@ import React, {act, useState} from "react"
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, expect, it, vi} from "vitest"
 
+// The radio mock hands each item its group's onValueChange, as Radix does.
+const {RadioChange} = vi.hoisted(() => {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const {createContext} = require("react") as typeof import("react")
+    return {RadioChange: createContext<(value: string) => void>(() => undefined)}
+})
 vi.mock("@agenta/ui/ui", () => ({
+    RadioGroup: ({
+        children,
+        onValueChange,
+    }: {
+        children: React.ReactNode
+        onValueChange: (value: string) => void
+    }) => <RadioChange.Provider value={onValueChange}>{children}</RadioChange.Provider>,
+    RadioGroupItem: ({
+        value,
+        disabled,
+        ...props
+    }: {
+        value: string
+        disabled?: boolean
+        "data-testid"?: string
+    }) => {
+        const change = React.useContext(RadioChange)
+        return (
+            <button
+                disabled={disabled}
+                onClick={() => change(value)}
+                data-testid={props["data-testid"]}
+            />
+        )
+    },
     Alert: ({message}: {message: string}) => <div>{message}</div>,
     Button: ({children, onClick, disabled, ...props}: React.ComponentProps<"button">) => (
         <button disabled={disabled} onClick={onClick} data-testid={props["data-testid"]}>
@@ -22,16 +53,14 @@ vi.mock("@agenta/ui/ui", () => ({
     Textarea: (props: React.ComponentProps<"textarea">) => <textarea {...props} />,
     PasswordInput: () => <input />,
     Spinner: () => <span />,
-    Segmented: ({onChange}: {onChange: (value: string) => void}) => (
-        <button onClick={() => onChange("custom")}>choose-custom</button>
-    ),
 }))
 vi.mock("../../src/channels/icons", () => ({AgentaMark: () => null, platformLogo: () => null}))
 vi.mock("../../src/channels/qr", () => ({QrCode: () => null}))
 import {ChannelConnectFlow} from "../../src/channels/ChannelConnectFlow"
-import {ChannelsPage} from "../../src/channels/ChannelsPage"
 import {NOOP_ACTIONS} from "../../src/channels/helpers"
 import type {ChannelConnections, ChannelsActions} from "../../src/channels/types"
+
+import {PanelHarness} from "./channelPanelHarness"
 
 vi.mock("../../src/channels/ChannelManagePanel", () => ({
     ChannelManagePanel: () => <div>Connected management</div>,
@@ -64,6 +93,11 @@ const click = async (text: string) => {
     expect(button, text).toBeTruthy()
     await act(async () => button!.click())
 }
+const clickTestId = async (testId: string) => {
+    const el = container.querySelector(`[data-testid="${testId}"]`) as HTMLElement | null
+    expect(el, testId).toBeTruthy()
+    await act(async () => el!.click())
+}
 const advance = async (ms: number) => act(async () => vi.advanceTimersByTimeAsync(ms))
 
 it("mints one Telegram link when StrictMode replays the effect", async () => {
@@ -85,7 +119,7 @@ it("mints one Telegram link when StrictMode replays the effect", async () => {
         ),
     )
     expect(mint).toHaveBeenCalledTimes(1)
-    expect(container.textContent).toContain("Continue in Telegram")
+    expect(container.textContent).toContain("Open in Telegram")
 })
 
 it("keeps polling after copying the Telegram link", async () => {
@@ -110,7 +144,7 @@ it("keeps polling after copying the Telegram link", async () => {
         ),
     )
     expect(count).toHaveBeenCalledTimes(1)
-    await click("Copy the link instead")
+    await clickTestId("channels-copy-telegram-link")
     await advance(300)
     expect(count.mock.calls.length).toBeGreaterThan(1)
 })
@@ -147,7 +181,7 @@ it("does not finish a Telegram connect after switching to custom mode", async ()
         ),
     )
     await advance(100)
-    await click("choose-custom")
+    await clickTestId("channels-method-custom")
     await act(async () => resolvePoll(1))
     expect(connected).not.toHaveBeenCalled()
 })
@@ -218,7 +252,7 @@ it("does not retarget Slack after cancelling an in-flight poll", async () => {
     )
     await click("Add to Slack")
     await advance(100)
-    await click("cancel")
+    await click("Cancel")
     await act(async () =>
         resolveReload({
             telegram: null,
@@ -265,7 +299,7 @@ it("finishes Slack assignment when a poll publishes the installed connection", a
             },
         }))
         return (
-            <ChannelsPage
+            <PanelHarness
                 agentId="agent"
                 connections={connections}
                 actions={actions}
@@ -313,11 +347,9 @@ const openSlackNaming = async (loadSetup: ChannelsActions["loadSetup"], descript
             />,
         ),
     )
-    await click("choose-custom")
-    const newApp = Array.from(container.querySelectorAll("button")).find((b) =>
-        b.textContent?.startsWith("New app"),
-    )
-    await act(async () => newApp!.click())
+    await clickTestId("channels-method-custom")
+    // New app is the preselected choice.
+    await click("Continue")
 }
 
 it("names a new Slack app from the agent and builds the manifest from it", async () => {
@@ -342,7 +374,7 @@ it("names a new Slack app from the agent and builds the manifest from it", async
         handle: "SupportDesk",
         description: "Answers product questions.",
     })
-    expect(container.textContent).toContain("Copy the manifest")
+    expect(container.textContent).toContain("Create the app from a manifest")
 })
 
 it("stops deriving the handle once it is edited, and strips what Slack refuses", async () => {
@@ -356,4 +388,77 @@ it("stops deriving the handle once it is edited, and strips what Slack refuses",
 
     await typeInto("channels-slack-app-name", "Something Else")
     expect(valueOf("channels-slack-app-handle")).toBe("copilotbot")
+})
+
+it("finishes only on a Slack install that was not connected before", async () => {
+    const connectHere = vi.fn().mockResolvedValue(undefined)
+    const connected = vi.fn()
+    const row = (connectionId: string) => ({
+        platform: "slack" as const,
+        kind: "hosted" as const,
+        status: "connected" as const,
+        connectionId,
+        dm: "allow" as const,
+        group: "allow" as const,
+        chats: [],
+    })
+    const reload = vi
+        .fn()
+        .mockResolvedValueOnce({slack: row("old"), telegram: null, allConnections: [row("old")]})
+        .mockResolvedValue({
+            slack: row("old"),
+            telegram: null,
+            allConnections: [row("old"), row("new")],
+        })
+    await act(async () =>
+        root.render(
+            <ChannelConnectFlow
+                platform="slack"
+                agentName="QA"
+                onConnected={connected}
+                pollIntervalMs={100}
+                knownConnectionIds={["old"]}
+                adding
+                actions={{
+                    ...NOOP_ACTIONS,
+                    hostedSlackInstallUrl: async () => "https://slack.com/synthetic",
+                    reload,
+                    connectHere,
+                }}
+            />,
+        ),
+    )
+    expect(container.textContent).toContain("Your other workspaces stay connected.")
+    await click("Add to Slack")
+    await advance(100)
+    expect(connectHere).not.toHaveBeenCalled()
+    await advance(100)
+    expect(connectHere).toHaveBeenCalledWith("slack", "new")
+    expect(connected).toHaveBeenCalled()
+})
+
+it("turns the Agenta bot off when this agent already answers through it", async () => {
+    const loadSetup = vi.fn(async () => ({
+        manifest: null,
+        fields: [{name: "bot_token", label: "Bot token", secret: true, required: true}],
+        hostedAvailable: true,
+    }))
+    const mint = vi.fn()
+    await act(async () =>
+        root.render(
+            <ChannelConnectFlow
+                platform="telegram"
+                agentName="QA"
+                onConnected={vi.fn()}
+                hostedConnectedHere
+                actions={{...NOOP_ACTIONS, loadSetup, connectHostedTelegram: mint}}
+            />,
+        ),
+    )
+    const hosted = container.querySelector(
+        '[data-testid="channels-method-hosted"]',
+    ) as HTMLButtonElement
+    expect(hosted.disabled).toBe(true)
+    expect(container.textContent).toContain("Connect bot")
+    expect(mint).not.toHaveBeenCalled()
 })
