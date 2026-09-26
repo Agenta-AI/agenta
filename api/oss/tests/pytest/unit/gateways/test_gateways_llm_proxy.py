@@ -115,7 +115,16 @@ class _MockLlmGatewayService:
         self.list_models_calls: List[Dict[str, Any]] = []
 
     async def relay_chat_completion(
-        self, *, scope, namespace, name, body, headers, protocol=None, run_id=None
+        self,
+        *,
+        scope,
+        namespace,
+        name,
+        body,
+        headers,
+        protocol=None,
+        run_id=None,
+        run_labels=None,
     ) -> LLMRelayResult:
         self.relay_calls.append(
             {

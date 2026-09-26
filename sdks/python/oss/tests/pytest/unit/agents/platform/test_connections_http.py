@@ -177,6 +177,36 @@ async def test_resolve_uses_the_core_gateway_resolver(fake_http, connection):
     }
 
 
+async def test_gateway_credentials_carry_the_session_and_agent_labels(
+    fake_http, connection
+):
+    # The gateway stamps a platform-funded call's measurement with the session and agent
+    # the credential names, so the exchange must carry them from the run context.
+    capture = fake_http(
+        connections,
+        payload={
+            "connection": {
+                "namespace": "builtin",
+                "name": "agenta",
+                "provider_key": "openai",
+                "deployment_kind": "mock",
+                "model": "gpt-5.5",
+            }
+        },
+    )
+
+    await VaultConnectionResolver(connection).resolve(
+        model=_model("openai"),
+        context=RuntimeAuthContext(
+            harness="pi_core", session_id="session-1", agent_id="agent-1"
+        ),
+    )
+
+    assert [call["json"] for call in capture["gateway_credentials_requests"]] == [
+        {"plane": "llm", "session_id": "session-1", "agent_id": "agent-1"}
+    ]
+
+
 async def test_self_managed_short_circuits_without_api_base(fake_http):
     resolved = await VaultConnectionResolver(PlatformConnection()).resolve(
         model=ModelRef(

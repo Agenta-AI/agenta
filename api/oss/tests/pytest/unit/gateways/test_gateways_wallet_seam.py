@@ -85,7 +85,7 @@ class _Sink(UsageSinkInterface):
         self.stalls = stalls
         self.calls: List[dict] = []
 
-    async def record(self, *, scope, target, outcome, run_id) -> None:
+    async def record(self, *, scope, target, outcome, run_id, run_labels=None) -> None:
         self.calls.append(
             {"scope": scope, "target": target, "outcome": outcome, "run_id": run_id}
         )
@@ -242,7 +242,7 @@ class _AckLostSink(UsageSinkInterface):
     def __init__(self) -> None:
         self.landed: List[dict] = []
 
-    async def record(self, *, scope, target, outcome, run_id) -> None:
+    async def record(self, *, scope, target, outcome, run_id, run_labels=None) -> None:
         self.landed.append({"outcome": outcome, "run_id": run_id})
         await asyncio.sleep(60)
 

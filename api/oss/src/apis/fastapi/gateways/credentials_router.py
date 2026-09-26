@@ -14,14 +14,18 @@ minting another one.
 from typing import Optional
 
 from fastapi import APIRouter, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from oss.src.apis.fastapi.gateways.flags import (
     require_llm_gateway_enabled,
     require_mcp_gateway_enabled,
 )
 from oss.src.core.gateways.policy.dtos import GatewayPlane
-from oss.src.core.gateways.run_claims import gateway_run_id, gateway_tools
+from oss.src.core.gateways.run_claims import (
+    gateway_run_id,
+    gateway_run_labels,
+    gateway_tools,
+)
 from oss.src.middlewares.auth import GATEWAY_TOKEN_AUDIENCE, sign_secret_token
 from oss.src.utils.context import get_auth_scope
 from oss.src.utils.env import env
@@ -42,6 +46,10 @@ class GatewayCredentialsRequest(BaseModel):
     """
 
     plane: Optional[GatewayPlane] = None
+    # Labels for the usage the gateway records against this credential. They authorize
+    # nothing, so the caller supplies them: the runtime knows its session and agent.
+    session_id: Optional[str] = Field(default=None, max_length=128)
+    agent_id: Optional[str] = Field(default=None, max_length=128)
 
 
 class GatewayCredentialsResponse(BaseModel):
@@ -87,6 +95,13 @@ class GatewayCredentialsRouter:
 
         scope = get_auth_scope()
 
+        # A re-exchange keeps the labels its caller's credential already carries.
+        labels = dict(gateway_run_labels(request) or {})
+        if body and body.session_id:
+            labels["session_id"] = body.session_id
+        if body and body.agent_id:
+            labels["agent_id"] = body.agent_id
+
         # Carried over rather than re-derived, so the confined credential names the same
         # run as the caller's. The Agenta builtin MCP route reads this run id to decide
         # which callback tools exist, and refuses a credential that names no run at all.
@@ -97,6 +112,7 @@ class GatewayCredentialsRouter:
             organization_id=str(scope.organization_id),
             gateway_run_id=gateway_run_id(request),
             gateway_tools=gateway_tools(request),
+            gateway_run_labels=labels or None,
             audience=GATEWAY_TOKEN_AUDIENCE,
             # Its own lifetime: this credential is held inside a sandbox for the length of a
             # turn and nothing re-mints it there, so the default 15 minutes was a ceiling on

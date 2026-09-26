@@ -32,6 +32,17 @@ export interface AgentModelCandidate extends AgentModelSelection {
     source: "connection" | "subscription"
     connectionKey: string
     managed: boolean
+    /** The row name for a candidate with no stored connection behind it (a built-in model). */
+    connectionName?: string
+}
+
+/**
+ * A platform-funded (`builtin`) gateway endpoint and the models it serves. The API lists these
+ * only under its development mock switch, so a deployment without it never offers one.
+ */
+export interface BuiltinModelEndpoint {
+    slug: string
+    models: string[]
 }
 
 export interface BuildAgentModelCandidatesArgs {
@@ -41,6 +52,7 @@ export interface BuildAgentModelCandidatesArgs {
     showSubscriptions?: boolean
     subscriptionPairs?: SubscriptionPair[]
     pairModelSelection?: Record<string, string[] | undefined> | null
+    builtinEndpoints?: BuiltinModelEndpoint[]
 }
 
 /**
@@ -405,10 +417,47 @@ const liveSubscriptionCandidates = ({
     return candidates
 }
 
+/**
+ * The routes a built-in endpoint offers. The gateway answers a built-in model in Anthropic's
+ * protocol for a `claude-` id and in OpenAI's otherwise, so that is the family the harness must
+ * drive. Only harnesses that name models by id, and whose catalog knows the model, are offered
+ * it: an alias harness would send a model the endpoint's allowlist refuses.
+ */
+const builtinCandidates = ({
+    builtinEndpoints,
+    capabilities,
+    harnessIds,
+}: BuildAgentModelCandidatesArgs): AgentModelCandidate[] => {
+    const candidates: AgentModelCandidate[] = []
+    for (const endpoint of builtinEndpoints ?? []) {
+        for (const harness of harnessIds) {
+            if (agentModelSelectionMode(capabilities, harness) !== "provider/id") continue
+            for (const modelId of endpoint.models) {
+                const family = modelId.startsWith("claude-") ? "anthropic" : "openai"
+                if (!harnessSpellings(capabilities, harness, family).has(modelId.toLowerCase())) {
+                    continue
+                }
+                candidates.push({
+                    modelId,
+                    provider: family,
+                    mode: "agenta",
+                    slug: endpoint.slug,
+                    harness,
+                    source: "connection",
+                    connectionKey: `builtin:${endpoint.slug}`,
+                    connectionName: `Built-in: ${endpoint.slug}`,
+                    managed: false,
+                })
+            }
+        }
+    }
+    return candidates
+}
+
 export const buildAgentModelCandidates = (
     args: BuildAgentModelCandidatesArgs,
 ): AgentModelCandidate[] => {
-    const connections = connectionCandidates(args)
+    const connections = [...connectionCandidates(args), ...builtinCandidates(args)]
     if (args.showSubscriptions === false) return connections
     return [...connections, ...liveSubscriptionCandidates(args)]
 }

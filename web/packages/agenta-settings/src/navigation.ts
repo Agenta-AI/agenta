@@ -14,6 +14,7 @@ export type SettingsTabKey =
     | "organization"
     | "auditLog"
     | "billing"
+    | "walletUsage"
     | "account"
     | "preferences"
 
@@ -28,6 +29,8 @@ export interface SettingsAccess {
     canViewEvents: boolean
     isEE: boolean
     isOwner: boolean
+    /** Whether the credit wallet is on. Only then does its debug view have data behind it. */
+    walletsEnabled?: boolean
 }
 
 /** A tertiary docs link rendered at the far right of a settings page header. */
@@ -144,6 +147,12 @@ export const SETTINGS_TABS: SettingsTabDefinition[] = [
                 : "Track how much of your plan you have used.",
     },
     {
+        key: "walletUsage",
+        scope: "organization",
+        description:
+            "Debug view of the wallet's raw data: balance, credits, and every charge by session.",
+    },
+    {
         key: "account",
         scope: "personal",
         description:
@@ -177,6 +186,7 @@ const SETTINGS_LABELS: Record<Exclude<SettingsTabKey, "billing">, string> = {
     organizationGeneral: "Organizations",
     organization: "Access & Security",
     auditLog: "Audit Log",
+    walletUsage: "Usage (debug)",
     account: "Account",
     preferences: "Preferences",
 }
@@ -215,6 +225,8 @@ export const isSettingsTabVisible = (key: SettingsTabKey, access: SettingsAccess
             return access.isEE && access.canViewEvents
         case "billing":
             return access.isEE && access.isOwner
+        case "walletUsage":
+            return access.isEE && Boolean(access.walletsEnabled)
         case "account":
             return access.isEE
         default:

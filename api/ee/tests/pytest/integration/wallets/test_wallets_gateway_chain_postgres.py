@@ -53,7 +53,10 @@ from ee.src.core.wallets.streaming import deserialize_measurement_command
 from ee.src.dbs.postgres.measurements.dao import MeasurementsDAO
 from ee.src.dbs.postgres.measurements.dbes import MeasurementDBE, MeasurementValueDBE
 from ee.src.dbs.postgres.wallets.dao import WalletsDAO
+from ee.src.dbs.postgres.measurements.usage import MeasurementUsageDAO
 from ee.src.dbs.postgres.wallets.dbes import WalletBalanceDBE, WalletDebitDBE
+from ee.src.dbs.postgres.wallets.usage import WalletUsageDAO
+from ee.src.core.wallets.usage.service import WalletUsageService
 from ee.src.dbs.redis.wallets.streams import (
     RedisDebitPublisher,
     RedisMeasurementPublisher,
@@ -231,7 +234,12 @@ def _caller(organization_id):
         reset_auth_context(token)
 
 
-def _request(*, stream: bool = False, run_id: Optional[str] = None) -> Request:
+def _request(
+    *,
+    stream: bool = False,
+    run_id: Optional[str] = None,
+    run_labels: Optional[dict] = None,
+) -> Request:
     body = json.dumps(
         {
             "model": "gpt-5.5",
@@ -248,6 +256,8 @@ def _request(*, stream: bool = False, run_id: Optional[str] = None) -> Request:
     )
     if run_id is not None:
         request.state.gateway_run_id = run_id
+    if run_labels is not None:
+        request.state.gateway_run_labels = run_labels
     return request
 
 
@@ -517,3 +527,52 @@ async def test_with_the_wallet_off_nothing_is_checked_or_measured(
     assert chain.checks == 0
     assert await chain.run_workers() == []
     assert await _debits(organization_id) == []
+
+
+async def test_the_usage_view_reads_a_labelled_charge_back_by_session(
+    wallet_schema, redis_client, analytics_engine
+):
+    organization_id = uuid4()
+    agent_id = uuid4()
+    await _fund(organization_id)
+    chain = _Chain(redis_client=redis_client, analytics_engine=analytics_engine)
+    await chain.start_workers()
+    labels = {"session_id": "session-7", "agent_id": str(agent_id)}
+
+    await _call(chain, organization_id, run_labels=labels)
+    await _call(chain, organization_id, run_labels=labels)
+    measurements = await chain.run_workers()
+
+    service = WalletUsageService(
+        wallets_dao=WalletsDAO(engine=get_transactions_engine()),
+        usage_dao=WalletUsageDAO(engine=get_transactions_engine()),
+        measurements_dao=MeasurementUsageDAO(engine=analytics_engine),
+    )
+    usage = await service.usage(organization_id=organization_id)
+    summary = await service.summary(organization_id=organization_id)
+
+    debits = await _debits(organization_id)
+    spent = sum(debit.amount_musd for debit in debits)
+    [session] = usage.sessions
+    assert session.session_id == "session-7"
+    assert session.agent_id == agent_id
+    assert session.charge_count == 2
+    assert session.amount_musd == spent
+    assert {charge.measurement_id for charge in session.charges} == {
+        m.measurement_id for m in measurements
+    }
+    assert all(
+        charge.input_tokens and charge.output_tokens for charge in session.charges
+    )
+    [day] = usage.days
+    assert (day.category, day.amount_musd, day.charge_count) == (
+        "Model calls",
+        spent,
+        2,
+    )
+    assert summary.spendable_musd == TEN_DOLLARS - spent
+    assert summary.active_credit_total_musd == TEN_DOLLARS
+    [credit] = summary.credits
+    assert credit.remaining_musd == TEN_DOLLARS - spent
+
+    await _cleanup(organization_id)

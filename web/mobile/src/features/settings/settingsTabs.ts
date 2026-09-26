@@ -1,7 +1,13 @@
 import {useMemo} from "react"
 
 import type {SettingsAccess, SettingsTabKey} from "@agenta/settings"
-import {isBillingEnabled, isEE, isMcpGatewayEnabled, isToolsEnabled} from "@agenta/shared/api"
+import {
+    isBillingEnabled,
+    isEE,
+    isMcpGatewayEnabled,
+    isToolsEnabled,
+    isWalletsEnabled,
+} from "@agenta/shared/api"
 import {useRouter} from "next/router"
 
 /** Tabs this app has a page for. The rest are listed nowhere rather than dead-ending. */
@@ -18,6 +24,7 @@ export const AVAILABLE_SETTINGS_TABS: SettingsTabKey[] = [
     "projects",
     "auditLog",
     "billing",
+    "walletUsage",
     "account",
     "preferences",
 ]
@@ -37,6 +44,7 @@ export const useMobileSettingsAccess = (): SettingsAccess => {
     const billingEnabled = isBillingEnabled()
     const toolsEnabled = isToolsEnabled()
     const mcpGatewayEnabled = isMcpGatewayEnabled()
+    const walletsEnabled = isWalletsEnabled()
 
     return useMemo(
         () => ({
@@ -51,8 +59,9 @@ export const useMobileSettingsAccess = (): SettingsAccess => {
             // Owner-gated tabs (Access & Security, Usage) list themselves optimistically like
             // every other view flag here — their pages are read-only and the API authorizes.
             isOwner: true,
+            walletsEnabled,
         }),
-        [enterprise, billingEnabled, toolsEnabled, mcpGatewayEnabled],
+        [enterprise, billingEnabled, toolsEnabled, mcpGatewayEnabled, walletsEnabled],
     )
 }
 
@@ -76,6 +85,7 @@ export const useActiveSettingsTab = (): SettingsTabKey => {
     if (!AVAILABLE_SETTINGS_TABS.includes(requested as SettingsTabKey)) return "preferences"
     if (requested === "tools" && !access.canShowTools) return "preferences"
     if (requested === "billing" && !access.billingEnabled) return "preferences"
+    if (requested === "walletUsage" && !access.walletsEnabled) return "preferences"
     // A deployment serving no MCP gateway refuses every route behind this tab, so a deep
     // link to it would render a surface whose every action fails.
     if (requested === "mcpEndpoints" && !access.canShowMcpEndpoints) return "preferences"

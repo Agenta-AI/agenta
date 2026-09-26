@@ -9,6 +9,8 @@ from uuid import uuid4
 
 import pytest
 
+from oss.src.utils.env import env
+
 from agenta.sdk.utils.assets import supported_llm_models
 
 from oss.src.core.gateways.dtos import GatewayEndpointNamespace
@@ -194,7 +196,9 @@ class _MockPolicy:
             reason=None if self.admitted else "entitlement_denied",
         )
 
-    async def record(self, *, scope, target, decision, outcome, run_id=None):
+    async def record(
+        self, *, scope, target, decision, outcome, run_id=None, run_labels=None
+    ):
         self.record_calls.append((scope, target, decision, outcome))
         self.record_run_ids.append(run_id)
 
@@ -310,7 +314,8 @@ async def test_query_endpoints_delegates_to_dao_unchanged():
 
 
 @pytest.mark.asyncio
-async def test_list_endpoints_merges_generated_and_custom_with_two_keys():
+async def test_list_endpoints_merges_generated_and_custom_with_two_keys(monkeypatch):
+    monkeypatch.setattr(env.mock_gateways, "enabled", False)
     dao = _MockLlmEndpointsDAO()
     custom_row = _custom_row(slug="acme")
     dao.query_result = [custom_row]
@@ -325,7 +330,8 @@ async def test_list_endpoints_merges_generated_and_custom_with_two_keys():
 
 
 @pytest.mark.asyncio
-async def test_list_endpoints_with_no_keys_yields_custom_rows_only():
+async def test_list_endpoints_with_no_keys_yields_custom_rows_only(monkeypatch):
+    monkeypatch.setattr(env.mock_gateways, "enabled", False)
     dao = _MockLlmEndpointsDAO()
     custom_row = _custom_row(slug="acme")
     dao.query_result = [custom_row]
@@ -334,6 +340,22 @@ async def test_list_endpoints_with_no_keys_yields_custom_rows_only():
     result = await _service(dao=dao, resolver=resolver).list_endpoints(scope=_scope())
 
     assert result == [custom_row]
+
+
+@pytest.mark.asyncio
+async def test_list_endpoints_offers_builtin_models_only_under_the_mock_switch(
+    monkeypatch,
+):
+    resolver = _MockResolver(provider_keys=set())
+
+    monkeypatch.setattr(env.mock_gateways, "enabled", False)
+    off = await _service(resolver=resolver).list_endpoints(scope=_scope())
+    monkeypatch.setattr(env.mock_gateways, "enabled", True)
+    on = await _service(resolver=resolver).list_endpoints(scope=_scope())
+
+    builtin = GatewayEndpointNamespace.BUILTIN
+    assert [e for e in off if e.namespace == builtin] == []
+    assert {e.slug for e in on if e.namespace == builtin} == {"agenta", "mock"}
 
 
 # --- list_models (R3) ------------------------------------------------------- #

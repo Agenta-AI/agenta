@@ -3,6 +3,7 @@ import type {ReactNode} from "react"
 import type {SidebarConfig, SidebarSection, SidebarSlotContext} from "@agenta/navigation"
 import {
     Buildings,
+    Bug,
     ChatsCircle,
     ClockCounterClockwise,
     FolderSimple,
@@ -48,6 +49,8 @@ export const getSettingsSidebarIcon = (key: SettingsTabKey): ReactNode => {
             return <ClockCounterClockwise size={14} />
         case "billing":
             return <Receipt size={14} />
+        case "walletUsage":
+            return <Bug size={14} />
         case "account":
             return <User size={14} />
         case "preferences":

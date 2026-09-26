@@ -3,6 +3,7 @@ export type {
     AgentModelCandidate,
     AgentModelSelection,
     BuildAgentModelCandidatesArgs,
+    BuiltinModelEndpoint,
 } from "./agentModelCandidates"
 export {
     agentFamilyFromModelId,

@@ -476,3 +476,7 @@ class RuntimeAuthContext(BaseModel):
     backend: Optional[str] = (
         None  # sandbox-agent local / daytona / in-process / local SDK
     )
+    # Labels for the gateway's usage record, never authorization: the gateway credential
+    # carries them so a platform-funded call's measurement names its session and agent.
+    session_id: Optional[str] = None
+    agent_id: Optional[str] = None
