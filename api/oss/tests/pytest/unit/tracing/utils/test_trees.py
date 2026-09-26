@@ -140,25 +140,28 @@ def _rollup(spans):
     span_idx = parse_span_dtos_to_span_idx(spans)
     tree = parse_span_idx_to_span_id_tree(span_idx)
     cumulate_costs(tree, span_idx)
-    restating = cumulate_tokens(tree, span_idx)
+    cumulate_tokens(tree, span_idx)
     cumulate_errors(tree, span_idx)
-    return span_idx, tree, restating
+    return span_idx, tree
 
 
-@pytest.mark.parametrize("reported_cost", [0.0, 0.0042])
-def test_reported_usage_on_a_parent_adds_its_children(reported_cost):
+@pytest.mark.parametrize("reported_cost", [0.0, 0.0042, 0.01])
+def test_workflow_summary_and_its_traced_children_are_not_double_counted(
+    reported_cost,
+):
     root = _span(
         span_id=ROOT_UUID,
         span_name="_agent",
         span_type=SpanType.WORKFLOW,
-        prompt_tokens=100,
-        completion_tokens=20,
+        prompt_tokens=40,
+        completion_tokens=10,
     )
     root.attributes["ag"]["metrics"]["costs"]["incremental"] = {"total": reported_cost}
     child = _span(
         span_id=CHILD_A_UUID,
         parent_id=ROOT_UUID,
         span_name="chat",
+        span_type=SpanType.CHAT,
         prompt_tokens=40,
         completion_tokens=10,
         prompt_cost=0.003,
@@ -166,18 +169,89 @@ def test_reported_usage_on_a_parent_adds_its_children(reported_cost):
         start_offset_s=1,
     )
 
-    result, _ = calculate_and_propagate_metrics([root, child])
-    metrics = _metrics(result)
+    span_idx, _ = _rollup([root, child])
+    metrics = _metrics(span_idx[ROOT_UUID])
 
     assert metrics["tokens"]["cumulative"] == {
-        "prompt": 140,
-        "completion": 30,
-        "total": 170,
+        "prompt": 40,
+        "completion": 10,
+        "total": 50,
     }
-    costs = metrics["costs"]["cumulative"]
-    assert costs["prompt"] == pytest.approx(0.003)
-    assert costs["completion"] == pytest.approx(0.0012)
-    assert costs["total"] == pytest.approx(reported_cost + 0.0042)
+    if reported_cost >= 0.0042:
+        assert metrics["costs"]["cumulative"] == {"total": reported_cost}
+    else:
+        assert metrics["costs"]["cumulative"] == pytest.approx(
+            {"prompt": 0.003, "completion": 0.0012, "total": 0.0042}
+        )
+
+
+def test_task_summary_larger_than_traced_children_keeps_its_own_usage():
+    root = _span(
+        span_id=ROOT_UUID,
+        span_name="llm_v0",
+        prompt_tokens=100,
+        completion_tokens=20,
+        prompt_cost=0.01,
+        completion_cost=0.02,
+    )
+    child = _span(
+        span_id=CHILD_A_UUID,
+        parent_id=ROOT_UUID,
+        span_name="chat",
+        span_type=SpanType.CHAT,
+        prompt_tokens=40,
+        completion_tokens=10,
+        prompt_cost=0.004,
+        completion_cost=0.008,
+        start_offset_s=1,
+    )
+
+    span_idx, _ = _rollup([root, child])
+    metrics = _metrics(span_idx[ROOT_UUID])
+
+    assert metrics["tokens"]["cumulative"] == {
+        "prompt": 100,
+        "completion": 20,
+        "total": 120,
+    }
+    assert metrics["costs"]["cumulative"] == pytest.approx(
+        {"prompt": 0.01, "completion": 0.02, "total": 0.03}
+    )
+
+
+def test_model_call_span_sums_its_own_usage_and_its_children():
+    root = _span(
+        span_id=ROOT_UUID,
+        span_name="chat",
+        span_type=SpanType.CHAT,
+        prompt_tokens=10,
+        completion_tokens=5,
+        prompt_cost=0.1,
+        completion_cost=0.2,
+    )
+    child = _span(
+        span_id=CHILD_A_UUID,
+        parent_id=ROOT_UUID,
+        span_name="embedding",
+        span_type=SpanType.EMBEDDING,
+        prompt_tokens=10,
+        completion_tokens=5,
+        prompt_cost=0.1,
+        completion_cost=0.2,
+        start_offset_s=1,
+    )
+
+    span_idx, _ = _rollup([root, child])
+    metrics = _metrics(span_idx[ROOT_UUID])
+
+    assert metrics["tokens"]["cumulative"] == {
+        "prompt": 20,
+        "completion": 10,
+        "total": 30,
+    }
+    assert metrics["costs"]["cumulative"] == pytest.approx(
+        {"prompt": 0.2, "completion": 0.4, "total": 0.6}
+    )
 
 
 def test_reported_total_without_priced_children_has_no_invented_breakdown():
@@ -187,15 +261,15 @@ def test_reported_total_without_priced_children_has_no_invented_breakdown():
         span_id=CHILD_A_UUID, parent_id=ROOT_UUID, span_name="tool", start_offset_s=1
     )
 
-    span_idx, _, _ = _rollup([root, child])
+    span_idx, _ = _rollup([root, child])
 
     assert _metrics(span_idx[ROOT_UUID])["costs"]["cumulative"] == {"total": 0.5}
     assert "costs" not in _metrics(span_idx[CHILD_A_UUID])
 
 
-def test_nested_reported_totals_sum_through_every_level():
+def test_nested_reported_totals_take_the_larger_side_at_each_level():
     root = _bare_span(span_id=ROOT_UUID, span_name="root")
-    root.attributes["ag"]["metrics"]["costs"] = {"incremental": {"total": 1.0}}
+    root.attributes["ag"]["metrics"]["costs"] = {"incremental": {"total": 0.4}}
     mid = _bare_span(
         span_id=CHILD_A_UUID, parent_id=ROOT_UUID, span_name="mid", start_offset_s=1
     )
@@ -204,17 +278,16 @@ def test_nested_reported_totals_sum_through_every_level():
         span_id=GRANDCHILD_UUID,
         parent_id=CHILD_A_UUID,
         span_name="chat",
+        span_type=SpanType.CHAT,
         prompt_cost=0.1,
         completion_cost=0.2,
         start_offset_s=2,
     )
 
-    span_idx, _, _ = _rollup([root, mid, leaf])
+    span_idx, _ = _rollup([root, mid, leaf])
 
-    mid_costs = _metrics(span_idx[CHILD_A_UUID])["costs"]["cumulative"]
-    root_costs = _metrics(span_idx[ROOT_UUID])["costs"]["cumulative"]
-    assert mid_costs == pytest.approx({"prompt": 0.1, "completion": 0.2, "total": 0.8})
-    assert root_costs == pytest.approx({"prompt": 0.1, "completion": 0.2, "total": 1.8})
+    assert _metrics(span_idx[CHILD_A_UUID])["costs"]["cumulative"] == {"total": 0.5}
+    assert _metrics(span_idx[ROOT_UUID])["costs"]["cumulative"] == {"total": 0.5}
 
 
 def test_zero_cost_children_roll_up_as_zero():
@@ -226,7 +299,7 @@ def test_zero_cost_children_roll_up_as_zero():
         span_id=CHILD_B_UUID, parent_id=ROOT_UUID, span_name="chat", start_offset_s=2
     )
 
-    span_idx, _, _ = _rollup([root, child_a, child_b])
+    span_idx, _ = _rollup([root, child_a, child_b])
 
     assert _metrics(span_idx[ROOT_UUID])["costs"]["cumulative"] == {
         "prompt": 0.0,
@@ -247,7 +320,7 @@ def test_reported_zero_total_keeps_its_childrens_cost():
         start_offset_s=1,
     )
 
-    span_idx, _, _ = _rollup([root, child])
+    span_idx, _ = _rollup([root, child])
 
     assert _metrics(span_idx[ROOT_UUID])["costs"]["cumulative"] == pytest.approx(
         {"prompt": 0.1, "completion": 0.2, "total": 0.3}
@@ -260,7 +333,7 @@ def test_spans_without_costs_get_no_cumulative_cost():
         span_id=CHILD_A_UUID, parent_id=ROOT_UUID, span_name="tool", start_offset_s=1
     )
 
-    span_idx, _, _ = _rollup([root, child])
+    span_idx, _ = _rollup([root, child])
 
     assert _metrics(span_idx[ROOT_UUID]) == {}
     assert _metrics(span_idx[CHILD_A_UUID]) == {}
@@ -290,7 +363,7 @@ def test_batch_whose_top_span_has_its_parent_in_another_batch_still_rolls_up():
         start_offset_s=2,
     )
 
-    span_idx, tree, _ = _rollup([chat, tool, agent])
+    span_idx, tree = _rollup([chat, tool, agent])
     metrics = _metrics(span_idx[ROOT_UUID])
 
     assert list(tree.keys()) == [ROOT_UUID]
@@ -328,7 +401,7 @@ def test_two_orphan_subtrees_in_one_batch_are_separate_trees():
         start_offset_s=3,
     )
 
-    span_idx, tree, _ = _rollup([second_child, first, second, first_child])
+    span_idx, tree = _rollup([second_child, first, second, first_child])
 
     assert list(tree.keys()) == [ROOT_UUID, OTHER_ROOT_UUID]
     assert list(tree[ROOT_UUID].keys()) == [CHILD_A_UUID]
@@ -339,6 +412,25 @@ def test_two_orphan_subtrees_in_one_batch_are_separate_trees():
     assert _metrics(span_idx[OTHER_ROOT_UUID])["costs"]["cumulative"][
         "total"
     ] == pytest.approx(0.4)
+
+
+def test_deep_span_chain_rolls_up_without_recursion_error():
+    chain = [
+        _span(
+            span_id=str(UUID(int=i + 1)),
+            parent_id=str(UUID(int=i)) if i else None,
+            span_name="step",
+            span_type=SpanType.CHAT,
+            prompt_cost=0.001,
+            start_offset_s=0,
+        )
+        for i in range(3000)
+    ]
+
+    span_idx, _ = _rollup(chain)
+
+    top = _metrics(span_idx[str(UUID(int=1))])["costs"]["cumulative"]
+    assert top["total"] == pytest.approx(3.0)
 
 
 def test_tree_places_each_span_once_and_keeps_children_that_start_early():
@@ -356,43 +448,11 @@ def test_tree_places_each_span_once_and_keeps_children_that_start_early():
     assert tree == {ROOT_UUID: {CHILD_A_UUID: {}}}
 
 
-def test_cumulate_tokens_reports_a_parent_that_restates_its_children():
-    root = _span(
-        span_id=ROOT_UUID, span_name="llm_v0", prompt_tokens=40, completion_tokens=10
-    )
-    child = _span(
-        span_id=CHILD_A_UUID,
-        parent_id=ROOT_UUID,
-        span_name="chat",
-        prompt_tokens=40,
-        completion_tokens=10,
-        start_offset_s=1,
-    )
-    honest_root = _span(
-        span_id=OTHER_ROOT_UUID,
-        span_name="root",
-        prompt_tokens=1,
-        completion_tokens=1,
-        start_offset_s=2,
-    )
-    honest_child = _span(
-        span_id=OTHER_CHILD_UUID,
-        parent_id=OTHER_ROOT_UUID,
-        span_name="chat",
-        prompt_tokens=40,
-        completion_tokens=10,
-        start_offset_s=3,
-    )
-
-    _, _, restating = _rollup([root, child, honest_root, honest_child])
-
-    assert restating == [ROOT_UUID]
-
-
 def test_cumulate_tokens_and_costs_propagate_from_children_to_parent():
     root = _span(
         span_id=ROOT_UUID,
         span_name="root",
+        span_type=SpanType.CHAT,
         prompt_tokens=1,
         completion_tokens=2,
         prompt_cost=0.1,
