@@ -72,6 +72,33 @@ def test_skill_is_recipient_aware():
     assert "Do not ask the person to review the whole package." in body
 
 
+def _flat(text: str) -> str:
+    return " ".join(text.split())
+
+
+def test_recipient_form_asks_only_about_audience_and_context():
+    body = _flat(CREATE_TEMPLATE_SKILL.body)
+    # A credential-looking field makes the shared secret guard refuse the whole form (QA F2),
+    # so the form must never carry connection details; they belong in SETUP.md.
+    assert "The form asks only about audience and context." in body
+    assert (
+        "Never add a field for a connection URL, endpoint, key, token or credential"
+        in body
+    )
+    assert "Connections and MCP servers go into SETUP.md" in body
+
+
+def test_mcp_servers_without_a_url_become_setup_steps():
+    body = _flat(CREATE_TEMPLATE_SKILL.body)
+    # A custom MCP server reads as a gateway reference with no URL (QA F3); it must still reach
+    # the recipient, as a manual step, and never be dropped.
+    assert "`type: gateway`" in body and "`namespace: custom`" in body
+    assert "do not guess one, and never drop the server silently" in body
+    setup = body[body.index("## SETUP.md") :]
+    assert "MCP servers to add" in setup
+    assert '"add this MCP server in Tools"' in setup
+
+
 def test_skill_excludes_credentials_and_project_bindings():
     body = CREATE_TEMPLATE_SKILL.body
     for excluded in (

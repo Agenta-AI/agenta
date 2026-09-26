@@ -1090,9 +1090,14 @@ another person can load as a new agent.
    - general: anyone can reuse it, so company-specific details become recipient inputs;
    - team-specific: a teammate gets your company's process as it is.
    Ask once with `request_input`, with a proposed default in every field. In the same form,
-   list the company-specific content you are unsure about (names, internal URLs, channel or
-   repo ids, house style) and ask, for each one, whether to keep it or replace it with an
-   input the recipient supplies. Do not ask the person to review the whole package.
+   list the company-specific content you are unsure about (names, internal URLs in the
+   instructions, channel or repo ids, house style) and ask, for each one, whether to keep it
+   or replace it with an input the recipient supplies.
+   Do not ask the person to review the whole package.
+   The form asks only about audience and context. Never add a field for a connection URL,
+   endpoint, key, token or credential, not even to say none is needed: the form refuses such
+   a field, and the audience questions are lost with it. Connections and MCP servers go into
+   SETUP.md as steps the recipient takes.
 3. Read `references/package-format.md`. Write the package under `templates/<key>/` in your
    working directory, as the next section says. Use version `1.0.0` unless the person
    names another version.
@@ -1118,8 +1123,12 @@ another person can load as a new agent.
   embedded skill, copy its SKILL.md and files if you can read them in your skills folder;
   otherwise name it in SETUP.md as a skill the recipient installs.
 - Each `gateway_connection` tool becomes one connection requirement with a `gateway` option
-  for its integration, and its `policy`. Each MCP server becomes an `mcp` option and an
-  `mcp.json` entry with its URL only.
+  for its integration, and its `policy`. Each MCP server whose `connection` shows a `url`
+  becomes an `mcp` option and an `mcp.json` entry with its URL only. An MCP server whose
+  `connection` is a gateway reference (`type: gateway`, such as `namespace: custom` with a
+  `slug`) shows no URL: do not guess one, and never drop the server silently. Name it in
+  SETUP.md as a manual step instead: its `name`, what the agent uses it for, and "add this
+  MCP server in Tools" with the recipient's own URL and credentials.
 - Each schedule or subscription becomes an automation recipe. Loading never activates it.
 - A file that the instructions rely on (a style guide, a profile) becomes a workspace entry.
 - The template carries no model, harness, runner or sandbox settings. `code`, `client` and
@@ -1138,6 +1147,8 @@ first message. Cover, briefly and only from what the package contains:
 - prerequisites;
 - accounts to connect: each connection, what it is for, and that the recipient chooses
   their own account;
+- MCP servers to add: each one the package could not carry, by name, what it is used for,
+  and "add this MCP server in Tools";
 - inputs the recipient supplies: every value you generalized;
 - company choices kept on purpose, for a team-specific template;
 - suggested automations: each one stays inactive until the recipient reviews its schedule,
