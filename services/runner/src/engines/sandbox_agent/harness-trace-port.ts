@@ -7,6 +7,7 @@ import {
   type Redactor,
 } from "../../redaction.ts";
 import type { createSandboxAgentOtel } from "../../tracing/otel.ts";
+import { servedByCustomConnection } from "../../tracing/custom-connection.ts";
 import { createPiTraceTurnExport } from "../../tracing/pi-trace-turn-export.ts";
 import {
   PI_TRACE_CONTROL_VERSION,
@@ -155,6 +156,9 @@ function piTracePort(options: {
       },
       skills: plan.workspace.skillDirs.map((skill) => skill.name),
       skillsDropped: plan.workspace.skillsDropped,
+      ...(servedByCustomConnection(request.modelConnection)
+        ? { customConnection: true }
+        : {}),
       // Only secret values visible inside the sandbox cross this boundary. Approved public
       // model configuration and the runner OTLP authorization never enter the control file.
       redaction: {

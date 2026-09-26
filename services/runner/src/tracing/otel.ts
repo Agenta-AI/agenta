@@ -870,6 +870,8 @@ export interface RunConfig {
   skillsDropped?: string[];
   /** Per-run known-value redactor; scrubs the run's live secrets from exported spans. */
   redactor?: Redactor;
+  /** True when a custom model connection serves this turn (see CUSTOM_CONNECTION). */
+  customConnection?: boolean;
   /** Filled by the extension on agent_start so the runner can flush/return it. */
   traceId?: string;
 }
@@ -984,7 +986,7 @@ const INPUT_TOKENS_INCLUDES_CACHE = "agenta.usage.input_tokens_includes_cache";
 
 /**
  * Marks a model span whose model a custom model connection serves: the user's own gateway or
- * OpenAI-compatible deployment (`modelConnection.deployment === "custom"`). Such an endpoint
+ * OpenAI-compatible deployment (see `servedByCustomConnection`). Such an endpoint
  * charges what it charges, so the bare model id on the span must not be priced at the public
  * provider rate. Set to `true` only on those spans; absent means a standard provider route.
  */
@@ -1120,6 +1122,7 @@ export function createAgentaOtel(
     skills: init.skills,
     skillsDropped: init.skillsDropped,
     redactor: init.redactor,
+    customConnection: init.customConnection,
   };
 
   const tracer = trace.getTracer("agenta-pi-otel", "0.1.0");
@@ -1172,6 +1175,7 @@ export function createAgentaOtel(
     config.skills = next.skills;
     config.skillsDropped = next.skillsDropped;
     config.redactor = next.redactor;
+    config.customConnection = next.customConnection;
     config.traceId = undefined;
     lastAgentMessages = undefined;
     runUsage.input = 0;
@@ -1280,6 +1284,8 @@ export function createAgentaOtel(
       llmSpan.setAttribute("gen_ai.operation.name", "chat");
       if (providerName) llmSpan.setAttribute("gen_ai.system", providerName);
       if (modelId) llmSpan.setAttribute("gen_ai.request.model", modelId);
+      if (config.customConnection)
+        llmSpan.setAttribute(CUSTOM_CONNECTION, true);
       if (lastContextMessages)
         emitMessages(
           llmSpan,
@@ -1642,11 +1648,10 @@ export interface SandboxAgentOtelInit extends Omit<
   /** Resolved model id ("openai-codex/gpt-5.5"); set on the LLM span. */
   model?: string;
   /**
-   * The model connection's deployment surface (`request.modelConnection.deployment`). A
-   * `custom` one is the user's own endpoint, so the model spans say so (see
-   * CUSTOM_CONNECTION).
+   * True when the user's own model connection serves the run (`servedByCustomConnection`), so
+   * the model spans say so (see CUSTOM_CONNECTION).
    */
-  connectionDeployment?: string;
+  customConnection?: boolean;
   /**
    * Skill names actually materialized for this run — BOTH the author-supplied skills and the
    * forced Agenta platform `_agenta.*` skills the server injected. Stamped on the agent span so
@@ -1737,7 +1742,7 @@ export function createSandboxAgentOtel(
   // undefined. The shared provider keeps runner and Pi export behavior identical.
   const authorization = platformAuthorizationProvider(init.authorization);
   const { provider, id: modelId } = splitModel(init.model);
-  const customConnection = init.connectionDeployment === "custom";
+  const customConnection = init.customConnection === true;
   const tracer = trace.getTracer("agenta-sandbox-agent-otel", "0.1.0");
   const runId = mintRunId();
   const streamTrace = createStreamTrace({ harness: init.harness });

@@ -13,6 +13,7 @@ import { trace, type Span } from "@opentelemetry/api";
 
 import {
   CUSTOM_CONNECTION,
+  createAgentaOtel,
   createSandboxAgentOtel,
 } from "../../src/tracing/otel.ts";
 
@@ -61,12 +62,12 @@ function spyTracer(): FakeSpan[] {
   return spans;
 }
 
-function runOnce(connectionDeployment: string | undefined): FakeSpan[] {
+function runOnce(customConnection: boolean | undefined): FakeSpan[] {
   const spans = spyTracer();
   const otel = createSandboxAgentOtel({
     harness: "claude",
     model: "anthropic/claude-sonnet",
-    connectionDeployment,
+    customConnection,
     emitSpans: true,
   });
   otel.start({ prompt: "hi" });
@@ -95,7 +96,7 @@ afterEach(() => {
 
 describe("custom model connection marker on model spans", () => {
   it("marks every model span of a custom connection, and no other span", () => {
-    const spans = runOnce("custom");
+    const spans = runOnce(true);
     const models = modelSpans(spans);
     expect(models).toHaveLength(2);
     for (const span of models) {
@@ -107,10 +108,62 @@ describe("custom model connection marker on model spans", () => {
     expect(CUSTOM_CONNECTION).toBe("agenta.model.custom_connection");
   });
 
-  it.each([["direct"], ["bedrock"], [undefined]])(
+  it.each([[false], [undefined]])(
     "leaves a standard route (%s) unmarked",
-    (deployment) => {
-      for (const span of modelSpans(runOnce(deployment))) {
+    (customConnection) => {
+      for (const span of modelSpans(runOnce(customConnection))) {
+        expect(span.attributes[CUSTOM_CONNECTION]).toBeUndefined();
+      }
+    },
+  );
+});
+
+/** Drive one Pi turn through the extension tracer, as Pi's own lifecycle events would. */
+async function runPiTurn(customConnection: boolean | undefined) {
+  const spans = spyTracer();
+  const otel = createAgentaOtel({ captureContent: false });
+  const handlers: Record<string, (e: any, ctx?: any) => Promise<void>> = {};
+  otel.register({
+    on: (name: string, fn: (e: any, ctx?: any) => Promise<void>) => {
+      handlers[name] = fn;
+    },
+  } as any);
+  otel.beginTurn({ enabled: true, captureContent: false, customConnection });
+
+  await handlers["before_agent_start"]?.({ prompt: "hi" });
+  await handlers["agent_start"]?.({});
+  await handlers["turn_start"]?.({ turnIndex: 0 });
+  await handlers["before_provider_request"]?.(
+    {},
+    { model: { id: "gpt-5.5", provider: "openai" } },
+  );
+  await handlers["message_end"]?.({
+    message: {
+      role: "assistant",
+      model: "gpt-5.5",
+      provider: "openai",
+      content: "ok",
+      usage: { input: 10, output: 5, totalTokens: 15 },
+    },
+  });
+  return spans;
+}
+
+describe("custom model connection marker on Pi native spans", () => {
+  it("marks the chat span of a turn served by a custom connection", async () => {
+    const spans = await runPiTurn(true);
+    const chats = modelSpans(spans);
+    expect(chats).toHaveLength(1);
+    expect(chats[0].attributes[CUSTOM_CONNECTION]).toBe(true);
+    for (const span of spans.filter((s) => !s.name.startsWith("chat"))) {
+      expect(span.attributes[CUSTOM_CONNECTION]).toBeUndefined();
+    }
+  });
+
+  it.each([[false], [undefined]])(
+    "leaves a standard route (%s) unmarked",
+    async (customConnection) => {
+      for (const span of modelSpans(await runPiTurn(customConnection))) {
         expect(span.attributes[CUSTOM_CONNECTION]).toBeUndefined();
       }
     },
