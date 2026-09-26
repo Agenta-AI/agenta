@@ -554,6 +554,7 @@ export async function runTurn(
     const run = (deps.createOtel ?? createSandboxAgentOtel)({
       harness: plan.harness,
       model: env.model,
+      connectionDeployment: request.modelConnection?.deployment,
       skills: plan.workspace.skillDirs.map((s) => s.name),
       skillsDropped: plan.workspace.skillsDropped,
       traceparent: request.context?.propagation?.traceparent,
