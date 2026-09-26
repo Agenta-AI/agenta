@@ -9,14 +9,15 @@ than one request is scheduled once per delay window, then recomputed from all it
 stored spans.
 
 A claim moves the trace from the queue to a claims set with a lease deadline, in one
-transaction. The worker removes the claim after the recompute. If the recompute fails or
+transaction. Each claim has its own token. The worker removes its claim after the
+recompute. If the recompute fails or
 the worker stops, the lease expires and `recover_expired_trace_totals` puts the trace
 back in the queue.
 """
 
 import time
-from typing import Dict, Iterable, List, Set, Tuple
-from uuid import UUID
+from typing import Dict, Iterable, List, NamedTuple, Set, Tuple
+from uuid import UUID, uuid4
 
 from redis.asyncio import Redis
 
@@ -26,7 +27,19 @@ TOTALS_CLAIMS_KEY = "tracing:totals:claims"
 TOTALS_BATCHES_TTL_S = 24 * 60 * 60
 TOTALS_LEASE_MS = 60_000
 
+_CLAIM_SEP = "|"
+
 TraceKey = Tuple[UUID, UUID]
+
+
+class TraceClaim(NamedTuple):
+    project_id: UUID
+    trace_id: UUID
+    claim: str
+
+
+def _decode(value) -> str:
+    return value.decode() if isinstance(value, bytes) else value
 
 
 def _member(project_id: UUID, trace_id: UUID) -> str:
@@ -34,8 +47,7 @@ def _member(project_id: UUID, trace_id: UUID) -> str:
 
 
 def _parse_member(member) -> TraceKey:
-    if isinstance(member, bytes):
-        member = member.decode()
+    member = _decode(member)
     project_hex, trace_hex = member.split(":", 1)
     return UUID(hex=project_hex), UUID(hex=trace_hex)
 
@@ -80,44 +92,52 @@ async def claim_due_trace_totals(
     *,
     limit: int,
     lease_ms: int = TOTALS_LEASE_MS,
-) -> List[TraceKey]:
-    """Take up to `limit` due traces; a trace goes to exactly one caller.
+) -> List[TraceClaim]:
+    """Take up to `limit` due traces; a queued trace goes to exactly one caller.
 
-    Each claimed trace stays in the claims set until `complete_trace_totals` removes it,
-    or its lease expires and `recover_expired_trace_totals` queues it again.
+    Each claim has its own token, so a claim is removed only by its owner
+    (`complete_trace_totals`) or, when its lease expires, by
+    `recover_expired_trace_totals`, which queues the trace again. Two claims of one
+    trace (the trace was queued again while a recompute ran) are independent.
     """
     now = time.time()
     members: Iterable = await redis.zrangebyscore(
         TOTALS_QUEUE_KEY, "-inf", now, start=0, num=limit
     )
-    members = list(members)
+    members = [_decode(member) for member in members]
     if not members:
         return []
 
     lease = now + lease_ms / 1000
+    claims = [f"{member}{_CLAIM_SEP}{uuid4().hex}" for member in members]
     async with redis.pipeline(transaction=True) as pipe:
-        for member in members:
+        for member, claim in zip(members, claims):
             pipe.zrem(TOTALS_QUEUE_KEY, member)
-            # NX: when another caller won this member, do not extend its lease.
-            pipe.zadd(TOTALS_CLAIMS_KEY, {member: lease}, nx=True)
+            pipe.zadd(TOTALS_CLAIMS_KEY, {claim: lease})
         results = await pipe.execute()
 
+    won = [int(results[index * 2]) == 1 for index in range(len(members))]
+    lost = [claim for claim, ok in zip(claims, won) if not ok]
+    if lost:
+        # Another caller took these; if this call fails, the lease only adds a recompute.
+        await redis.zrem(TOTALS_CLAIMS_KEY, *lost)
+
     return [
-        _parse_member(member)
-        for index, member in enumerate(members)
-        if int(results[index * 2]) == 1
+        TraceClaim(*_parse_member(member), claim)
+        for member, claim, ok in zip(members, claims, won)
+        if ok
     ]
 
 
 async def complete_trace_totals(
     redis: Redis,
     *,
-    trace_keys: Iterable[TraceKey],
+    claims: Iterable[str],
 ) -> None:
-    """Remove the claims of recomputed traces."""
-    members = [_member(project_id, trace_id) for project_id, trace_id in trace_keys]
-    if members:
-        await redis.zrem(TOTALS_CLAIMS_KEY, *members)
+    """Remove the given claims after their recompute. Other claims are kept."""
+    claims = list(claims)
+    if claims:
+        await redis.zrem(TOTALS_CLAIMS_KEY, *claims)
 
 
 async def recover_expired_trace_totals(
@@ -127,18 +147,19 @@ async def recover_expired_trace_totals(
 ) -> int:
     """Queue again the claimed traces whose lease expired (a failed or lost recompute)."""
     now = time.time()
-    members: Iterable = await redis.zrangebyscore(
+    claims: Iterable = await redis.zrangebyscore(
         TOTALS_CLAIMS_KEY, "-inf", now, start=0, num=limit
     )
-    members = list(members)
-    if not members:
+    claims = [_decode(claim) for claim in claims]
+    if not claims:
         return 0
 
     async with redis.pipeline(transaction=True) as pipe:
-        for member in members:
-            pipe.zrem(TOTALS_CLAIMS_KEY, member)
+        for claim in claims:
+            pipe.zrem(TOTALS_CLAIMS_KEY, claim)
             # NX: a request that scheduled the trace again meanwhile keeps its due time.
-            pipe.zadd(TOTALS_QUEUE_KEY, {member: now}, nx=True)
+            # A race with the owner or another recovery only queues one more recompute.
+            pipe.zadd(TOTALS_QUEUE_KEY, {claim.split(_CLAIM_SEP, 1)[0]: now}, nx=True)
         results = await pipe.execute()
 
-    return sum(1 for index in range(len(members)) if int(results[index * 2]) == 1)
+    return sum(1 for index in range(len(claims)) if int(results[index * 2]) == 1)
