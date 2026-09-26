@@ -75,6 +75,7 @@ async def resolve_tools(
     platform_resolver: Optional[PlatformToolResolver] = None,
     missing_secret_policy: MissingSecretPolicy = MissingSecretPolicy.ERROR,
     permission_default: PermissionMode = "allow_reads",
+    session_id: Optional[str] = None,
 ) -> ResolvedToolSet:
     """Resolve tool declarations into runnable specs. Defaults to the Agenta platform adapters.
 
@@ -98,6 +99,7 @@ async def resolve_tools(
     ).resolve(
         coerce_tool_configs(tools).tool_configs,
         permission_default=permission_default,
+        session_id=session_id,
     )
 
 

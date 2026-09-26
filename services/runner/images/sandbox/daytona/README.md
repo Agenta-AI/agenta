@@ -64,6 +64,20 @@ The snapshot recipe therefore:
 - verifies that the Claude, Codex, and OpenCode binaries are still present; and
 - installs the FUSE and geesefs dependencies used for durable remote working directories.
 
+Every adapter pin replaces only the adapter. `sandbox-agent install-agent --reinstall` would also
+download a second copy of the agent's native CLI, which the adapters do not run (claude-agent-acp
+runs the Claude binary bundled in its SDK package, codex-acp its bundled codex), so the recipe
+removes the base adapter and installs the pinned one without `--reinstall`, and clears the npm
+cache in the same `RUN`.
+
+## Size budget
+
+Daytona refuses a snapshot over 5 GB and counts every image layer, so a file that a later `RUN`
+deletes or overwrites still counts. v0.120.0 hit the cap at 5.53 GB. The script fails the build
+when Daytona reports a size over `SIZE_BUDGET_GB` (4.85), so a staging or trial build flags lost
+headroom before a production build hits the cap. To save space, clean caches in the `RUN` that
+creates them, and do not reinstall what the base image already ships.
+
 The Pi CLI and Pi ACP adapter are separate dependencies. Keep both pins explicit. The CLI
 runs the agent; the adapter translates Pi events and dialogs onto ACP. In particular, the
 adapter version must not be inherited implicitly from the base image because older versions

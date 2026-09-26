@@ -12,6 +12,7 @@ from .errors import (
     DuplicateToolNameError,
     GatewayToolResolutionError,
     MissingToolSecretError,
+    PlatformApiUnavailableError,
     ReservedToolNameError,
     UnsupportedToolProviderError,
 )
@@ -23,6 +24,8 @@ from .interfaces import (
     WorkflowToolResolver,
 )
 from .models import (
+    AGENTA_TOOLS,
+    AgentaToolsConfig,
     BuiltinToolConfig,
     ClientToolConfig,
     ClientToolSpec,
@@ -186,6 +189,32 @@ def _drop_duplicate_reserved_client_tools(
     return kept
 
 
+# Their binding reads the run's session ID, so a run without one cannot call them.
+_SESSION_TOOLS = frozenset({"get_current_session", "rename_session"})
+
+
+def _expand_agenta_tools(
+    tool_configs: Sequence[ToolConfig], *, session_id: Optional[str]
+) -> List[PlatformToolConfig]:
+    """One platform tool per Agenta tool an ``agenta_tools`` entry lists, with its value as the
+    permission. A tool the run already has a platform entry for, the author's own or the
+    playground build kit's, keeps that entry and is not added again."""
+    present = {c.op for c in tool_configs if isinstance(c, PlatformToolConfig)}
+    added: List[PlatformToolConfig] = []
+    for entry in tool_configs:
+        if not isinstance(entry, AgentaToolsConfig):
+            continue
+        for op, permission in entry.tools.items():
+            if op not in AGENTA_TOOLS:
+                log.warning("agenta_tools: %r is not an Agenta tool; ignored", op)
+                continue
+            if op in present or (op in _SESSION_TOOLS and not session_id):
+                continue
+            present.add(op)
+            added.append(PlatformToolConfig(op=op, permission=permission))
+    return added
+
+
 def _validate_unique_names(tool_specs: Sequence[ToolSpec]) -> None:
     seen: set[str] = set()
     for tool_spec in tool_specs:
@@ -235,9 +264,11 @@ class ToolResolver:
         # other arm ignores it. ``AgentTemplate.permission_default`` owns the real default;
         # this one only keeps a resolver usable without an agent template.
         permission_default: PermissionMode = "allow_reads",
+        session_id: Optional[str] = None,
     ) -> ResolvedToolSet:
         tool_configs = _drop_duplicate_reserved_client_tools(tool_configs)
         _validate_declared_config_names(tool_configs)
+        agenta_configs = _expand_agenta_tools(tool_configs, session_id=session_id)
         for tool_config in tool_configs:
             if isinstance(tool_config, BuiltinToolConfig):
                 log.warning(
@@ -342,6 +373,23 @@ class ToolResolver:
             )
             tool_specs = [*platform_resolution.tool_specs, *tool_specs]
             tool_callback = platform_resolution.tool_callback or tool_callback
+
+        # Resolved apart from the author's platform tools so that a run with no Agenta API, a
+        # standalone SDK run, still starts: it only loses these tools.
+        if agenta_configs:
+            try:
+                if self._platform_resolver is None:
+                    raise PlatformApiUnavailableError("no platform tool resolver")
+                agenta_resolution = await self._platform_resolver.resolve(
+                    agenta_configs, permission_default=permission_default
+                )
+            except PlatformApiUnavailableError as error:
+                warning = f"Agenta tools were skipped: {error}"
+                log.warning("agent: %s", warning)
+                warnings.append(warning)
+            else:
+                tool_specs = [*agenta_resolution.tool_specs, *tool_specs]
+                tool_callback = agenta_resolution.tool_callback or tool_callback
 
         if gateway_configs:
             if self._gateway_resolver is None:
