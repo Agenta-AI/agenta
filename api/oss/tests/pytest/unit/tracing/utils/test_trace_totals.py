@@ -209,7 +209,7 @@ def test_recompute_of_an_empty_trace_is_a_no_op():
     assert recompute_cumulative_metrics([]) == {}
 
 
-def test_recompute_clears_a_stale_cumulative_that_is_now_zero():
+def test_recompute_removes_a_stale_cumulative_that_is_now_zero():
     workflow = _span(WORKFLOW_ID, None, SpanType.WORKFLOW, 0)
     workflow.attributes["ag"]["metrics"] = {
         "errors": {"incremental": 0, "cumulative": 2},
@@ -218,11 +218,9 @@ def test_recompute_clears_a_stale_cumulative_that_is_now_zero():
 
     changes = recompute_cumulative_metrics([workflow])
 
-    assert changes == {WORKFLOW_ID: {"errors": 0, "costs": {}}}
+    # Removed, not zeroed: the dashboard counts any stored errors value as a failure.
+    assert changes == {WORKFLOW_ID: {"errors": None, "costs": None}}
 
     cleared = _span(WORKFLOW_ID, None, SpanType.WORKFLOW, 0)
-    cleared.attributes["ag"]["metrics"] = {
-        "errors": {"incremental": 0, "cumulative": 0},
-        "costs": {"cumulative": {}},
-    }
+    cleared.attributes["ag"]["metrics"] = {"errors": {"incremental": 0}}
     assert recompute_cumulative_metrics([cleared]) == {}
