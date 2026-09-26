@@ -863,14 +863,12 @@ export const ChannelConnectFlow = ({
 
                     <PanelFooter>
                         <div className="flex gap-2">
-                            <Button variant="outline" size="lg" onClick={goBack}>
+                            <Button variant="outline" onClick={goBack}>
                                 <ArrowLeft data-icon="inline-start" />
                                 Back
                             </Button>
                             {slackStep === "name" ? (
                                 <Button
-                                    size="lg"
-                                    className="flex-1"
                                     disabled={!identityValid || manifestLoading}
                                     onClick={() => void buildNamedManifest()}
                                     data-testid="channels-slack-identity-next"
@@ -878,17 +876,9 @@ export const ChannelConnectFlow = ({
                                     {manifestLoading ? "Preparing…" : "Next"}
                                 </Button>
                             ) : slackStep === "guide" ? (
-                                <Button
-                                    size="lg"
-                                    className="flex-1"
-                                    onClick={() => setSlackStep("creds")}
-                                >
-                                    Next
-                                </Button>
+                                <Button onClick={() => setSlackStep("creds")}>Next</Button>
                             ) : (
                                 <Button
-                                    size="lg"
-                                    className="flex-1"
                                     disabled={!fieldsValid || saving || fields.length === 0}
                                     onClick={() => void submitCustom()}
                                     data-testid="channels-connect-custom"
@@ -916,8 +906,6 @@ export const ChannelConnectFlow = ({
         cta =
             mode === "hosted" ? (
                 <Button
-                    size="lg"
-                    className="w-full"
                     disabled={authorizing}
                     onClick={() => void startSlackInstall()}
                     data-testid="channels-add-to-slack"
@@ -926,8 +914,6 @@ export const ChannelConnectFlow = ({
                 </Button>
             ) : (
                 <Button
-                    size="lg"
-                    className="w-full"
                     onClick={() => setSlackStep(slackApp === "new" ? "name" : "creds")}
                     data-testid="channels-slack-custom-continue"
                 >
@@ -937,13 +923,9 @@ export const ChannelConnectFlow = ({
     } else if (isWhatsApp) {
         note = "Meta bills your business directly for WhatsApp messages."
         cta = whatsAppConnection ? (
-            <Button size="lg" className="w-full" onClick={() => void onConnected()}>
-                Done
-            </Button>
+            <Button onClick={() => void onConnected()}>Done</Button>
         ) : (
             <Button
-                size="lg"
-                className="w-full"
                 disabled={!fieldsValid || saving || fields.length === 0}
                 onClick={() => void submitCustom()}
                 data-testid="channels-connect-custom"
@@ -959,8 +941,6 @@ export const ChannelConnectFlow = ({
         if (mode === "custom") {
             cta = (
                 <Button
-                    size="lg"
-                    className="w-full"
                     disabled={!fieldsValid || saving || fields.length === 0}
                     onClick={() => void submitCustom()}
                     data-testid="channels-connect-custom"
@@ -970,7 +950,7 @@ export const ChannelConnectFlow = ({
             )
         } else if (tgShowsCode && tgLink) {
             cta = (
-                <Button size="lg" className="w-full" asChild>
+                <Button asChild>
                     <a
                         href={tgLink.url}
                         target="_blank"
@@ -984,20 +964,14 @@ export const ChannelConnectFlow = ({
                 </Button>
             )
         } else if (tgStep === "expired") {
-            cta = (
-                <Button size="lg" className="w-full" onClick={() => void mintTelegramLink()}>
-                    Get a new link
-                </Button>
-            )
+            cta = <Button onClick={() => void mintTelegramLink()}>Get a new link</Button>
         } else if (tgStep === "unavailable") {
             cta = (
                 <div className="flex gap-2">
-                    <Button variant="outline" size="lg" onClick={() => void mintTelegramLink()}>
+                    <Button variant="outline" onClick={() => void mintTelegramLink()}>
                         Try again
                     </Button>
-                    <Button size="lg" className="flex-1" onClick={() => changeMode("custom")}>
-                        Use your own bot
-                    </Button>
+                    <Button onClick={() => changeMode("custom")}>Use your own bot</Button>
                 </div>
             )
         }

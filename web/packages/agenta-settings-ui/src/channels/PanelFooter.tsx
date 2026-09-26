@@ -1,6 +1,11 @@
-/** The panel's action bar, pinned to the bottom of the scrolling body. */
+import {SheetFooter} from "@agenta/ui/ui"
+
+/**
+ * The panel's action bar: the kit's sheet footer, pinned to the bottom of the scrolling body.
+ * The solid layer under it keeps scrolled content from showing through its tinted band.
+ */
 export const PanelFooter = ({children}: {children: React.ReactNode}) => (
-    <div className="sticky -bottom-4 z-10 -mx-4 -mb-4 mt-auto flex flex-col gap-2 border-0 border-t border-solid border-border bg-background px-4 py-3.5">
-        {children}
+    <div className="sticky -bottom-4 z-10 -mx-4 -mb-4 mt-auto rounded-b-[inherit] bg-background">
+        <SheetFooter>{children}</SheetFooter>
     </div>
 )

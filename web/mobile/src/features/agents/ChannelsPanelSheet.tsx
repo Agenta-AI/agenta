@@ -49,8 +49,10 @@ export const ChannelsPanelSheet = ({
                     </div>
                 </div>
             </SheetHeader>
-            {/* The body scrolls; `min-h-0` lets it shrink inside the sheet's flex column. */}
-            <div className="min-h-0 flex-1 overflow-y-auto p-4">{children}</div>
+            {/* The body scrolls; its corners follow the sheet's, so the footer's band does too. */}
+            <div className="flex min-h-0 flex-1 flex-col overflow-y-auto rounded-b-[inherit] p-4">
+                {children}
+            </div>
         </SheetContent>
     </Sheet>
 )

@@ -557,8 +557,6 @@ export const ChannelManagePanel = ({
                 ) : null}
                 <PanelFooter>
                     <Button
-                        size="lg"
-                        className="w-full"
                         disabled={busy !== null}
                         onClick={() => {
                             if (choice === "own") onUseOwnBot?.()
@@ -1018,10 +1016,10 @@ export const ChannelManagePanel = ({
 
             <PanelFooter>
                 {error?.kind === "disconnect" ? (
-                    <Alert type="error" showIcon message={error.message} />
+                    <Alert type="error" showIcon message={error.message} className="w-full" />
                 ) : null}
                 {confirming ? (
-                    <div className="flex flex-col gap-2.5">
+                    <div className="flex w-full flex-col gap-2.5">
                         <span className="text-[13px] text-foreground">
                             Disconnect {disconnectSubject(connection)}? {agentName} stops answering
                             there. Past conversations stay in Agenta.
@@ -1046,7 +1044,7 @@ export const ChannelManagePanel = ({
                         </div>
                     </div>
                 ) : (
-                    <div className="flex items-center justify-between">
+                    <div className="flex w-full items-center justify-between">
                         <span className="whitespace-nowrap text-[12.5px] text-muted-foreground">
                             Saved automatically
                         </span>
