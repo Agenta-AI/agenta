@@ -70,17 +70,7 @@ function runOnce(connectionDeployment: string | undefined): FakeSpan[] {
     emitSpans: true,
   });
   otel.start({ prompt: "hi" });
-  // Two models: the main chat span and one sibling span for a subagent's model.
-  otel.setTokenDetail([
-    {
-      model: "claude-sonnet",
-      input: 10,
-      output: 5,
-      cacheRead: 0,
-      cacheWrite: 0,
-    },
-    { model: "claude-haiku", input: 4, output: 2, cacheRead: 0, cacheWrite: 0 },
-  ]);
+  otel.setTokenDetail({ input: 14, output: 7, cacheRead: 0, cacheWrite: 0 });
   otel.setUsage({ input: 14, output: 7, total: 21 });
   otel.finish();
   return spans;
@@ -94,10 +84,10 @@ afterEach(() => {
 });
 
 describe("custom model connection marker on model spans", () => {
-  it("marks every model span of a custom connection, and no other span", () => {
+  it("marks the model span of a custom connection, and no other span", () => {
     const spans = runOnce("custom");
     const models = modelSpans(spans);
-    expect(models).toHaveLength(2);
+    expect(models).toHaveLength(1);
     for (const span of models) {
       expect(span.attributes[CUSTOM_CONNECTION]).toBe(true);
     }

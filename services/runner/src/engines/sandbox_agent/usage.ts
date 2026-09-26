@@ -223,25 +223,6 @@ export function combinePromptResults(first: any, second: any): any {
   return combined;
 }
 
-/** Add two run usages. Cost stays absent only when neither side reported one. */
-export function addRunUsage(
-  a: AgentUsage | undefined,
-  b: AgentUsage | undefined,
-): AgentUsage | undefined {
-  if (!a) return b;
-  if (!b) return a;
-  const cost =
-    a.cost == null && b.cost == null
-      ? undefined
-      : (a.cost ?? 0) + (b.cost ?? 0);
-  return {
-    input: a.input + b.input,
-    output: a.output + b.output,
-    total: a.total + b.total,
-    ...(cost == null ? {} : { cost }),
-  };
-}
-
 export const COLD_PAUSE_USAGE_SETTLE_ENV =
   "AGENTA_RUNNER_COLD_PAUSE_USAGE_SETTLE_MS";
 

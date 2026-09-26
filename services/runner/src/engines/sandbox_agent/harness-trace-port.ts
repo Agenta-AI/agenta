@@ -1,6 +1,6 @@
 import { randomBytes } from "node:crypto";
 
-import type { AgentRunRequest, AgentUsage } from "../../protocol.ts";
+import type { AgentRunRequest } from "../../protocol.ts";
 import {
   modelEnvironmentSecretValues,
   sandboxVisibleSecretValues,
@@ -18,7 +18,6 @@ import {
 } from "../../tracing/telemetry-file-host.ts";
 import type { SessionEnvironment } from "./runtime-contracts.ts";
 import type { RunOtlpTarget } from "./runtime-policy.ts";
-import { readRunUsage } from "./usage.ts";
 
 type TraceRun = ReturnType<typeof createSandboxAgentOtel>;
 
@@ -35,14 +34,11 @@ export interface HarnessTracePort {
   finish(): Promise<HarnessTraceFinish | undefined>;
   /**
    * The turn's parked prompt has finished and the turn now sends a second prompt (a decision
-   * followed by fresh user text). Export what the finished prompt traced and return the usage it
-   * reported, then open the trace for the second prompt. Runner-traced harnesses do nothing here:
-   * their prompt responses carry the usage.
+   * followed by fresh user text). Export what the finished prompt traced, then open the trace for
+   * the second prompt. Runner-traced harnesses do nothing here: their prompt responses carry the
+   * usage.
    */
-  beginNextPrompt(
-    run: TraceRun,
-    redactor: Redactor,
-  ): Promise<AgentUsage | undefined>;
+  beginNextPrompt(run: TraceRun, redactor: Redactor): Promise<void>;
   emitMissingBatchFallback(run?: TraceRun, message?: string): Promise<void>;
 }
 
@@ -53,7 +49,7 @@ function runnerTracePort(): HarnessTracePort {
     traceId: (run) => run.traceId(),
     cancelBeforeDrain: async () => {},
     finish: async () => undefined,
-    beginNextPrompt: async () => undefined,
+    beginNextPrompt: async () => {},
     emitMissingBatchFallback: async () => {},
   };
 }
@@ -199,16 +195,8 @@ function piTracePort(options: {
     cancelBeforeDrain,
     finish,
     beginNextPrompt: async (run, redactor) => {
-      // Pi writes the usage sidecar right before its trace batch, so the drain is the barrier
-      // that makes the sidecar safe to read (see `runTurn`).
       await finish();
-      const usage = await readRunUsage(
-        env.sandbox,
-        plan.workspace.usageOutPath,
-        plan.isDaytona,
-      );
       await openTurnChannel(run, redactor);
-      return usage;
     },
     emitMissingBatchFallback: async (
       run,
