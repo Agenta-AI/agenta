@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pytest
 
+from oss.src.apis.fastapi.agent_templates.models import TemplatesResponse
 from oss.src.core.agent_templates.catalog import AgentTemplateCatalog, tools_summary
 from oss.src.core.agent_templates.exceptions import (
     TemplatePackageInvalid,
@@ -293,3 +294,22 @@ def test_tools_summary_joins_primary_tool_counts():
 
     assert tools_summary(entry.connections) == "2 Slack + 2 Linear tools"
     assert tools_summary([]) == ""
+
+
+def test_frontend_query_fixture_matches_the_reader():
+    # The frontend parity test maps this response to cards; keep it the reader's exact output.
+    fixture = (
+        Path(__file__).resolve().parents[6]
+        / "web"
+        / "packages"
+        / "agenta-entities"
+        / "tests"
+        / "fixtures"
+        / "agentTemplatesQuery.json"
+    )
+    entries = AgentTemplateCatalog(catalog_path=CATALOG).entries()
+    expected = TemplatesResponse(count=len(entries), templates=entries).model_dump(
+        mode="json", exclude_none=True
+    )
+
+    assert json.loads(fixture.read_text(encoding="utf-8")) == expected

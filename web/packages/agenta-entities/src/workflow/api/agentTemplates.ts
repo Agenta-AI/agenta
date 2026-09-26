@@ -16,3 +16,15 @@ export async function loadAgentTemplate(
         },
     )
 }
+
+export type AgentTemplateEntry = AgentaApi.AgentTemplateEntry
+export type AgentTemplatesQuery = AgentaApi.TemplatesQueryRequest
+
+export async function queryAgentTemplates(
+    projectId: string,
+    query: AgentTemplatesQuery = {},
+): Promise<AgentaApi.TemplatesResponse> {
+    return getWorkflowsClient().queryAgentTemplates(query, {
+        queryParams: {project_id: projectId},
+    })
+}

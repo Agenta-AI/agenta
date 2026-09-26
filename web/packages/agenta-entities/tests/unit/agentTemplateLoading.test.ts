@@ -23,7 +23,8 @@ vi.mock("../../src/workflow/api/agentTemplates", () => ({
     loadAgentTemplate: loadAgentTemplateMock,
 }))
 
-import {AGENT_TEMPLATES, templateBuilderMessage} from "../../src/workflow/agentTemplates"
+import {templateBuilderMessage} from "../../src/workflow/agentTemplates"
+import {FIXTURE_TEMPLATES as AGENT_TEMPLATES} from "./agentTemplateFixtures"
 import type {AgentTemplateLoadResult} from "../../src/workflow/api/agentTemplates"
 import {buildCreatePayloadFromEphemeral} from "../../src/workflow/state/createPayload"
 import {createWorkflowFromEphemeralAtom} from "../../src/workflow/state/commit"

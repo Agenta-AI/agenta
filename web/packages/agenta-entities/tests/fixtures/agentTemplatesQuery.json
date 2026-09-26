@@ -1,0 +1,2545 @@
+{
+  "count": 28,
+  "templates": [
+    {
+      "key": "pr-reviewer",
+      "source": {
+        "kind": "internal",
+        "key": "pr-reviewer"
+      },
+      "version": "1.0.0",
+      "latest": "1.0.0",
+      "versions": [
+        "1.0.0"
+      ],
+      "digest": "sha256:f47e0d524843f4a794d5c619a09447a1baea4336c3b569a2a453b089d8603dc0",
+      "name": "PR reviewer",
+      "summary": "Reviews PRs, comments inline, flags risky changes.",
+      "description": "Reviews every opened pull request. Comments inline on risky changes, flags missing tests, and posts a plain-English summary for the author.",
+      "category": "Engineering",
+      "tags": [
+        "engineering"
+      ],
+      "author": {
+        "schema_version": 1,
+        "id": "agenta",
+        "name": "Agenta",
+        "bio": "Starter agents built and maintained by the Agenta team.",
+        "links": [
+          {
+            "kind": "website",
+            "url": "https://agenta.ai",
+            "label": "agenta.ai"
+          },
+          {
+            "kind": "github",
+            "url": "https://github.com/Agenta-AI/agenta",
+            "label": "GitHub"
+          }
+        ]
+      },
+      "initials": "PR",
+      "color": "#5E5E08",
+      "instructions_summary": "Review each opened PR. Comment inline on risky changes, flag missing tests, summarize the diff.",
+      "trigger": "Pull request opened",
+      "trigger_description": "Runs when a pull request is opened.",
+      "seed_message": "Build a PR reviewer that comments inline on risky changes and flags missing tests.",
+      "builder_message": "Build a PR reviewer that comments inline on risky changes and flags missing tests.",
+      "model": "claude-sonnet-4-5",
+      "tools_summary": "3 GitHub tools",
+      "connections": [
+        {
+          "key": "read-the-diff-and-post-review-comments",
+          "role": "Read the diff and post review comments",
+          "required": true,
+          "primary": {
+            "slug": "github",
+            "scope": "Read PRs, post reviews & comments",
+            "tools": [
+              {
+                "name": "Get pull request",
+                "description": "Read a PR's diff, changed files, and metadata."
+              },
+              {
+                "name": "Create review comment",
+                "description": "Comment inline on specific lines of the diff."
+              },
+              {
+                "name": "Create issue comment",
+                "description": "Post the plain-English summary on the PR."
+              }
+            ]
+          },
+          "alternatives": [
+            "gitlab"
+          ]
+        }
+      ],
+      "example": {
+        "prompt": "Pull request opened: “Cache revision lookups”",
+        "steps": [
+          "Read the pull request and its diff",
+          "Flagged one risky change in the cache invalidation path",
+          "Left inline comments on the three files it touched"
+        ],
+        "reply": "Reviewed — the change looks sound apart from the invalidation path, where a stale entry can survive a revision bump. I've commented inline and summarised on the PR.",
+        "status": "Awaiting your review"
+      },
+      "media": []
+    },
+    {
+      "key": "changelog-writer",
+      "source": {
+        "kind": "internal",
+        "key": "changelog-writer"
+      },
+      "version": "1.0.0",
+      "latest": "1.0.0",
+      "versions": [
+        "1.0.0"
+      ],
+      "digest": "sha256:ad4fce740682ca0f88d729e6d8881943bf9c3472a891d57c27cad96303196ae2",
+      "name": "Changelog writer",
+      "summary": "Turns merged PRs into clean release notes.",
+      "description": "Turns merged pull requests into clean release notes and publishes them.",
+      "category": "Engineering",
+      "tags": [
+        "engineering"
+      ],
+      "author": {
+        "schema_version": 1,
+        "id": "agenta",
+        "name": "Agenta",
+        "bio": "Starter agents built and maintained by the Agenta team.",
+        "links": [
+          {
+            "kind": "website",
+            "url": "https://agenta.ai",
+            "label": "agenta.ai"
+          },
+          {
+            "kind": "github",
+            "url": "https://github.com/Agenta-AI/agenta",
+            "label": "GitHub"
+          }
+        ]
+      },
+      "initials": "CL",
+      "color": "#113955",
+      "instructions_summary": "Turn merged pull requests into clean, human-readable release notes and publish them.",
+      "trigger": "On release",
+      "trigger_description": "Runs when a release is published.",
+      "seed_message": "Build a changelog writer that turns merged pull requests into release notes and publishes them.",
+      "builder_message": "Build a changelog writer that turns merged pull requests into release notes and publishes them.",
+      "model": "claude-sonnet-4-5",
+      "tools_summary": "2 GitHub tools",
+      "connections": [
+        {
+          "key": "read-merged-pull-requests",
+          "role": "Read merged pull requests",
+          "required": true,
+          "primary": {
+            "slug": "github",
+            "scope": "Read merged PRs, publish releases",
+            "tools": [
+              {
+                "name": "List pull requests",
+                "description": "Fetch the PRs merged since the last release."
+              },
+              {
+                "name": "Create release",
+                "description": "Publish the release notes as a GitHub release."
+              }
+            ]
+          },
+          "alternatives": [
+            "gitlab"
+          ]
+        },
+        {
+          "key": "publish-the-changelog",
+          "role": "Publish the changelog",
+          "required": true,
+          "primary": {
+            "slug": "notion",
+            "scope": "Publish the changelog"
+          },
+          "alternatives": [
+            "linear"
+          ]
+        }
+      ],
+      "example": {
+        "prompt": "Draft this week's changelog",
+        "steps": [
+          "Fetched merged PRs since the last run",
+          "Grouped them by area using .github/labels.yml",
+          "Drafted release notes in your changelog format"
+        ],
+        "reply": "Draft is ready — written in your usual format. I've posted it to #releases and will publish once you approve.",
+        "artifacts": [
+          "changelog-draft.md"
+        ],
+        "status": "Awaiting approval"
+      },
+      "media": []
+    },
+    {
+      "key": "issue-triage",
+      "source": {
+        "kind": "internal",
+        "key": "issue-triage"
+      },
+      "version": "1.0.0",
+      "latest": "1.0.0",
+      "versions": [
+        "1.0.0"
+      ],
+      "digest": "sha256:d397b584353b8e4ba0bde202a9658ae2110f5d29a5ffe982a24bcaaa153c1422",
+      "name": "Issue triage",
+      "summary": "Labels new issues by area and priority, assigns an owner.",
+      "description": "Labels every new issue by area and priority and assigns it to the right owner, so nothing sits untriaged.",
+      "category": "Engineering",
+      "tags": [
+        "engineering"
+      ],
+      "author": {
+        "schema_version": 1,
+        "id": "agenta",
+        "name": "Agenta",
+        "bio": "Starter agents built and maintained by the Agenta team.",
+        "links": [
+          {
+            "kind": "website",
+            "url": "https://agenta.ai",
+            "label": "agenta.ai"
+          },
+          {
+            "kind": "github",
+            "url": "https://github.com/Agenta-AI/agenta",
+            "label": "GitHub"
+          }
+        ]
+      },
+      "initials": "IT",
+      "color": "#5E0908",
+      "instructions_summary": "Label each new issue by area and priority and assign it to an owner.",
+      "trigger": "Issue opened",
+      "trigger_description": "Runs when a new issue is opened.",
+      "seed_message": "Build an issue triager that labels new issues by area and priority and assigns an owner.",
+      "builder_message": "Build an issue triager that labels new issues by area and priority and assigns an owner.",
+      "model": "claude-sonnet-4-5",
+      "tools_summary": "2 GitHub tools",
+      "connections": [
+        {
+          "key": "read-and-label-new-issues",
+          "role": "Read and label new issues",
+          "required": true,
+          "primary": {
+            "slug": "github",
+            "scope": "Read issues, apply labels & assignees",
+            "tools": [
+              {
+                "name": "Get issue",
+                "description": "Read a new issue's title and body."
+              },
+              {
+                "name": "Update issue",
+                "description": "Apply labels and assign an owner."
+              }
+            ]
+          },
+          "alternatives": [
+            "gitlab"
+          ]
+        },
+        {
+          "key": "cross-post-the-triaged-issue",
+          "role": "Cross-post the triaged issue",
+          "required": false,
+          "primary": {
+            "slug": "linear",
+            "scope": "Cross-post the triaged issue"
+          },
+          "alternatives": [
+            "jira"
+          ]
+        }
+      ],
+      "example": {
+        "prompt": "Issue opened: “Playground hangs on large testsets”",
+        "steps": [
+          "Read the issue and matched it against the area labels",
+          "Set area:playground and priority:high",
+          "Assigned the owner listed for that area"
+        ],
+        "reply": "Labelled area:playground · priority:high and assigned it. It matches two open issues about the same load path — linked them on the thread."
+      },
+      "media": []
+    },
+    {
+      "key": "ci-failure-triage",
+      "source": {
+        "kind": "internal",
+        "key": "ci-failure-triage"
+      },
+      "version": "1.0.0",
+      "latest": "1.0.0",
+      "versions": [
+        "1.0.0"
+      ],
+      "digest": "sha256:5141696f41017ed7550eb66905b1fea40c03c7892e01d08e29f6001864199ceb",
+      "name": "CI failure triage",
+      "summary": "Summarizes failed CI runs and pings the author.",
+      "description": "Reads the logs when CI fails, summarizes the likely cause, and pings the author.",
+      "category": "Engineering",
+      "tags": [
+        "engineering"
+      ],
+      "author": {
+        "schema_version": 1,
+        "id": "agenta",
+        "name": "Agenta",
+        "bio": "Starter agents built and maintained by the Agenta team.",
+        "links": [
+          {
+            "kind": "website",
+            "url": "https://agenta.ai",
+            "label": "agenta.ai"
+          },
+          {
+            "kind": "github",
+            "url": "https://github.com/Agenta-AI/agenta",
+            "label": "GitHub"
+          }
+        ]
+      },
+      "initials": "CI",
+      "color": "#D97757",
+      "instructions_summary": "When a workflow run fails, read the logs, summarize the likely cause, and comment on the commit or PR.",
+      "trigger": "Workflow run failed",
+      "trigger_description": "Runs when a CI workflow run fails.",
+      "seed_message": "Build an agent that reads the logs when CI fails, summarizes the likely cause, and pings the author.",
+      "builder_message": "Build an agent that reads the logs when CI fails, summarizes the likely cause, and pings the author.",
+      "model": "claude-sonnet-4-5",
+      "tools_summary": "2 GitHub tools",
+      "connections": [
+        {
+          "key": "read-runs-and-post-comments",
+          "role": "Read runs and post comments",
+          "required": true,
+          "primary": {
+            "slug": "github",
+            "scope": "Read workflow runs, comment on commits",
+            "tools": [
+              {
+                "name": "Get workflow run logs",
+                "description": "Read the failing run's logs."
+              },
+              {
+                "name": "Create commit comment",
+                "description": "Post the likely cause and ping the author."
+              }
+            ]
+          },
+          "alternatives": []
+        },
+        {
+          "key": "notify-a-channel",
+          "role": "Notify a channel",
+          "required": false,
+          "primary": {
+            "slug": "slack",
+            "scope": "Notify a channel"
+          },
+          "alternatives": [
+            "discord"
+          ]
+        }
+      ],
+      "example": {
+        "prompt": "Workflow run failed on main",
+        "steps": [
+          "Pulled the failing workflow run's logs",
+          "Traced the failure to a migration that ran out of order",
+          "Commented on the commit with the cause and the failing step"
+        ],
+        "reply": "The run failed in the migration step, not the tests — one migration expects a column the previous one hasn't added yet. I've pinged the commit author with the log excerpt."
+      },
+      "media": []
+    },
+    {
+      "key": "code-qa",
+      "source": {
+        "kind": "internal",
+        "key": "code-qa"
+      },
+      "version": "1.0.0",
+      "latest": "1.0.0",
+      "versions": [
+        "1.0.0"
+      ],
+      "digest": "sha256:c92395c4bbf94dacb40b0f4d132c5d9060ac535e40d8fa2f90cfcdbdabe8e131",
+      "name": "Code Q&A",
+      "summary": "Answers questions about the repo when mentioned.",
+      "description": "Answers questions about your repo when mentioned, citing the files and lines it used.",
+      "category": "Engineering",
+      "tags": [
+        "engineering"
+      ],
+      "author": {
+        "schema_version": 1,
+        "id": "agenta",
+        "name": "Agenta",
+        "bio": "Starter agents built and maintained by the Agenta team.",
+        "links": [
+          {
+            "kind": "website",
+            "url": "https://agenta.ai",
+            "label": "agenta.ai"
+          },
+          {
+            "kind": "github",
+            "url": "https://github.com/Agenta-AI/agenta",
+            "label": "GitHub"
+          }
+        ]
+      },
+      "initials": "QA",
+      "color": "#616161",
+      "instructions_summary": "When mentioned, search the repo and answer the question with a cited reference to the relevant code.",
+      "trigger": "Mention",
+      "trigger_description": "Runs when the agent is @-mentioned.",
+      "seed_message": "Build a code Q&A agent that answers questions about our repo when mentioned.",
+      "builder_message": "Build a code Q&A agent that answers questions about our repo when mentioned.",
+      "model": "claude-sonnet-4-5",
+      "tools_summary": "2 GitHub tools",
+      "connections": [
+        {
+          "key": "read-the-code",
+          "role": "Read the code",
+          "required": true,
+          "primary": {
+            "slug": "github",
+            "scope": "Read repo files & code",
+            "tools": [
+              {
+                "name": "Search code",
+                "description": "Find files relevant to the question."
+              },
+              {
+                "name": "Get file content",
+                "description": "Read the matching file to answer accurately."
+              }
+            ]
+          },
+          "alternatives": [
+            "gitlab"
+          ]
+        },
+        {
+          "key": "answer-on-a-slack-mention",
+          "role": "Answer on a Slack mention",
+          "required": false,
+          "primary": {
+            "slug": "slack",
+            "scope": "Answer on a Slack mention"
+          },
+          "alternatives": []
+        }
+      ],
+      "example": {
+        "prompt": "@agent where do we validate API keys?",
+        "steps": [
+          "Searched the repo for the validation path",
+          "Read the two files that own it"
+        ],
+        "reply": "Validation happens in `api/oss/src/utils/auth.py` — the middleware resolves the key, then the router's dependency checks scope per request. Both are cited below.",
+        "status": "Answered in thread"
+      },
+      "media": []
+    },
+    {
+      "key": "dependency-digest",
+      "source": {
+        "kind": "internal",
+        "key": "dependency-digest"
+      },
+      "version": "1.0.0",
+      "latest": "1.0.0",
+      "versions": [
+        "1.0.0"
+      ],
+      "digest": "sha256:f045e5aad65075b8105718909d80a1daba1ad3213683c3474d9cd0f09d9cba54",
+      "name": "Dependency digest",
+      "summary": "Weekly summary of open dependency-update PRs.",
+      "description": "Every week, summarizes the open dependency-update pull requests and what changed in each.",
+      "category": "Engineering",
+      "tags": [
+        "engineering"
+      ],
+      "author": {
+        "schema_version": 1,
+        "id": "agenta",
+        "name": "Agenta",
+        "bio": "Starter agents built and maintained by the Agenta team.",
+        "links": [
+          {
+            "kind": "website",
+            "url": "https://agenta.ai",
+            "label": "agenta.ai"
+          },
+          {
+            "kind": "github",
+            "url": "https://github.com/Agenta-AI/agenta",
+            "label": "GitHub"
+          }
+        ]
+      },
+      "initials": "DD",
+      "color": "#5E5E08",
+      "instructions_summary": "Weekly, list open dependency-update PRs and summarize what changed in each.",
+      "trigger": "Weekly",
+      "trigger_description": "Runs every week on a schedule.",
+      "seed_message": "Build an agent that weekly summarizes open dependency-update PRs and what changed.",
+      "builder_message": "Build an agent that weekly summarizes open dependency-update PRs and what changed.",
+      "model": "claude-sonnet-4-5",
+      "tools_summary": "2 GitHub tools",
+      "connections": [
+        {
+          "key": "list-and-read-dependency-prs",
+          "role": "List and read dependency PRs",
+          "required": true,
+          "primary": {
+            "slug": "github",
+            "scope": "Read pull requests",
+            "tools": [
+              {
+                "name": "List pull requests",
+                "description": "Fetch open dependency-update PRs."
+              },
+              {
+                "name": "Get pull request",
+                "description": "Read what changed in each."
+              }
+            ]
+          },
+          "alternatives": [
+            "gitlab"
+          ]
+        },
+        {
+          "key": "post-the-digest",
+          "role": "Post the digest",
+          "required": false,
+          "primary": {
+            "slug": "slack",
+            "scope": "Post the digest"
+          },
+          "alternatives": []
+        }
+      ],
+      "media": []
+    },
+    {
+      "key": "support-triage",
+      "source": {
+        "kind": "internal",
+        "key": "support-triage"
+      },
+      "version": "1.0.0",
+      "latest": "1.0.0",
+      "versions": [
+        "1.0.0"
+      ],
+      "digest": "sha256:7cd7a34711e91d01afc54de476290a681945de254e40f0c1c43ec9f00a1a7417",
+      "name": "Support triage",
+      "summary": "Reads #support, tags urgency, routes to owners.",
+      "description": "Watches your #support channel. Triages every new thread by urgency, routes it to the right owner, and checks with you before closing anything.",
+      "category": "Support",
+      "tags": [
+        "support"
+      ],
+      "author": {
+        "schema_version": 1,
+        "id": "agenta",
+        "name": "Agenta",
+        "bio": "Starter agents built and maintained by the Agenta team.",
+        "links": [
+          {
+            "kind": "website",
+            "url": "https://agenta.ai",
+            "label": "agenta.ai"
+          },
+          {
+            "kind": "github",
+            "url": "https://github.com/Agenta-AI/agenta",
+            "label": "GitHub"
+          }
+        ]
+      },
+      "initials": "S",
+      "color": "#113955",
+      "instructions_summary": "Watch #support. Triage each new thread by urgency and route it to the right owner; ask before closing anything.",
+      "trigger": "New message in #support",
+      "trigger_description": "Runs whenever a new message is posted in #support.",
+      "seed_message": "Build a support triager that reads new #support threads, tags urgency, and routes to owners.",
+      "builder_message": "Build a support triager that reads new #support threads, tags urgency, and routes to owners.",
+      "model": "claude-sonnet-4-5",
+      "tools_summary": "2 Slack tools",
+      "connections": [
+        {
+          "key": "read-and-post-in-the-support-channel",
+          "role": "Read and post in the support channel",
+          "required": true,
+          "primary": {
+            "slug": "slack",
+            "scope": "Read channels, post & assign threads",
+            "tools": [
+              {
+                "name": "Fetch conversation history",
+                "description": "Read recent messages in a channel to understand the thread."
+              },
+              {
+                "name": "Send message",
+                "description": "Reply in-thread and route it to the right owner."
+              }
+            ]
+          },
+          "alternatives": [
+            "discord"
+          ]
+        }
+      ],
+      "media": []
+    },
+    {
+      "key": "support-reply-drafter",
+      "source": {
+        "kind": "internal",
+        "key": "support-reply-drafter"
+      },
+      "version": "1.0.0",
+      "latest": "1.0.0",
+      "versions": [
+        "1.0.0"
+      ],
+      "digest": "sha256:2b85bc065d8f94ff609bf6a91aa9100380c679d6b0ed3b58b7c492721a14dd51",
+      "name": "Support reply drafter",
+      "summary": "Drafts replies to new tickets using your docs.",
+      "description": "Drafts a reply to every new support ticket, using answers pulled from your docs.",
+      "category": "Support",
+      "tags": [
+        "support"
+      ],
+      "author": {
+        "schema_version": 1,
+        "id": "agenta",
+        "name": "Agenta",
+        "bio": "Starter agents built and maintained by the Agenta team.",
+        "links": [
+          {
+            "kind": "website",
+            "url": "https://agenta.ai",
+            "label": "agenta.ai"
+          },
+          {
+            "kind": "github",
+            "url": "https://github.com/Agenta-AI/agenta",
+            "label": "GitHub"
+          }
+        ]
+      },
+      "initials": "SR",
+      "color": "#5E0908",
+      "instructions_summary": "On a new ticket, draft a reply using answers from the docs workspace; leave it for review before sending.",
+      "trigger": "New ticket",
+      "trigger_description": "Runs when a new support ticket comes in.",
+      "seed_message": "Build an agent that drafts replies to new support tickets using answers from our docs.",
+      "builder_message": "Build an agent that drafts replies to new support tickets using answers from our docs.",
+      "model": "claude-sonnet-4-5",
+      "tools_summary": "2 Zendesk tools",
+      "connections": [
+        {
+          "key": "read-the-tickets",
+          "role": "Read the tickets",
+          "required": true,
+          "primary": {
+            "slug": "zendesk",
+            "scope": "Read tickets, post draft replies",
+            "tools": [
+              {
+                "name": "Get ticket",
+                "description": "Read the new ticket's subject, body, and history."
+              },
+              {
+                "name": "Add comment",
+                "description": "Post the drafted reply as an internal comment for review."
+              }
+            ]
+          },
+          "alternatives": [
+            "intercom"
+          ]
+        },
+        {
+          "key": "read-a-knowledge-source",
+          "role": "Read a knowledge source",
+          "required": false,
+          "primary": {
+            "slug": "notion",
+            "scope": "Read a knowledge source"
+          },
+          "alternatives": [
+            "confluence",
+            "googledrive"
+          ]
+        }
+      ],
+      "example": {
+        "prompt": "New ticket: “Can I export a run as CSV?”",
+        "steps": [
+          "Read the ticket and the customer's plan",
+          "Found the matching answer in your docs",
+          "Drafted a reply and left it unsent for review"
+        ],
+        "reply": "Drafted a reply pointing to the export flow, in your usual tone. It's on the ticket as an internal note — publish it when you're happy.",
+        "status": "Awaiting approval"
+      },
+      "media": []
+    },
+    {
+      "key": "bug-report-router",
+      "source": {
+        "kind": "internal",
+        "key": "bug-report-router"
+      },
+      "version": "1.0.0",
+      "latest": "1.0.0",
+      "versions": [
+        "1.0.0"
+      ],
+      "digest": "sha256:6aa67555a62ce4e55c9094eb637815b03a7c0d339fdb3716a4e7362142302fa9",
+      "name": "Bug report router",
+      "summary": "Turns complaints into Linear tickets with repro steps.",
+      "description": "Turns support complaints into Linear bug tickets, including repro steps pulled from the thread.",
+      "category": "Support",
+      "tags": [
+        "support"
+      ],
+      "author": {
+        "schema_version": 1,
+        "id": "agenta",
+        "name": "Agenta",
+        "bio": "Starter agents built and maintained by the Agenta team.",
+        "links": [
+          {
+            "kind": "website",
+            "url": "https://agenta.ai",
+            "label": "agenta.ai"
+          },
+          {
+            "kind": "github",
+            "url": "https://github.com/Agenta-AI/agenta",
+            "label": "GitHub"
+          }
+        ]
+      },
+      "initials": "BR",
+      "color": "#D97757",
+      "instructions_summary": "When a bug is reported, extract repro steps from the thread and file a Linear ticket.",
+      "trigger": "New message or mention",
+      "trigger_description": "Runs on a new support message or mention.",
+      "seed_message": "Build an agent that turns support complaints into Linear bug tickets with repro steps.",
+      "builder_message": "Build an agent that turns support complaints into Linear bug tickets with repro steps.",
+      "model": "claude-sonnet-4-5",
+      "tools_summary": "2 Slack + 2 Linear tools",
+      "connections": [
+        {
+          "key": "read-the-report",
+          "role": "Read the report",
+          "required": true,
+          "primary": {
+            "slug": "slack",
+            "scope": "Read threads, confirm filed tickets",
+            "tools": [
+              {
+                "name": "Fetch conversation history",
+                "description": "Read the complaint thread."
+              },
+              {
+                "name": "Send message",
+                "description": "Confirm the filed ticket back in-thread."
+              }
+            ]
+          },
+          "alternatives": [
+            "intercom"
+          ]
+        },
+        {
+          "key": "file-the-bug",
+          "role": "File the bug",
+          "required": true,
+          "primary": {
+            "slug": "linear",
+            "scope": "Search & create issues",
+            "tools": [
+              {
+                "name": "Search issues",
+                "description": "Check for an existing ticket on the same bug."
+              },
+              {
+                "name": "Create issue",
+                "description": "File the bug ticket with the extracted repro steps."
+              }
+            ]
+          },
+          "alternatives": [
+            "jira",
+            "github"
+          ]
+        }
+      ],
+      "media": []
+    },
+    {
+      "key": "feedback-clusterer",
+      "source": {
+        "kind": "internal",
+        "key": "feedback-clusterer"
+      },
+      "version": "1.0.0",
+      "latest": "1.0.0",
+      "versions": [
+        "1.0.0"
+      ],
+      "digest": "sha256:da087af76727080b6e2bd2c8aec390f9c27a28df63cb2e19a1abb252091bd61c",
+      "name": "Feedback clusterer",
+      "summary": "Daily clusters new feedback into themes.",
+      "description": "Each day, clusters new customer feedback into themes and logs the summary to Notion.",
+      "category": "Support",
+      "tags": [
+        "support"
+      ],
+      "author": {
+        "schema_version": 1,
+        "id": "agenta",
+        "name": "Agenta",
+        "bio": "Starter agents built and maintained by the Agenta team.",
+        "links": [
+          {
+            "kind": "website",
+            "url": "https://agenta.ai",
+            "label": "agenta.ai"
+          },
+          {
+            "kind": "github",
+            "url": "https://github.com/Agenta-AI/agenta",
+            "label": "GitHub"
+          }
+        ]
+      },
+      "initials": "FC",
+      "color": "#616161",
+      "instructions_summary": "Daily, gather new feedback, cluster it into themes, and log the summary.",
+      "trigger": "Daily",
+      "trigger_description": "Runs once a day on a schedule.",
+      "seed_message": "Build an agent that daily clusters new customer feedback into themes and logs them to Notion.",
+      "builder_message": "Build an agent that daily clusters new customer feedback into themes and logs them to Notion.",
+      "model": "claude-sonnet-4-5",
+      "tools_summary": "2 Slack + 2 Notion tools",
+      "connections": [
+        {
+          "key": "read-the-feedback",
+          "role": "Read the feedback",
+          "required": true,
+          "primary": {
+            "slug": "slack",
+            "scope": "Read channels, post theme summaries",
+            "tools": [
+              {
+                "name": "Fetch conversation history",
+                "description": "Read new feedback messages."
+              },
+              {
+                "name": "Send message",
+                "description": "Post the theme summary."
+              }
+            ]
+          },
+          "alternatives": [
+            "intercom"
+          ]
+        },
+        {
+          "key": "log-the-clusters",
+          "role": "Log the clusters",
+          "required": true,
+          "primary": {
+            "slug": "notion",
+            "scope": "Log clusters to a page or database",
+            "tools": [
+              {
+                "name": "Create page",
+                "description": "Log the day's clustered themes as a page."
+              },
+              {
+                "name": "Update database",
+                "description": "Append the themes as rows to a tracker database."
+              }
+            ]
+          },
+          "alternatives": []
+        }
+      ],
+      "media": []
+    },
+    {
+      "key": "lead-qualifier",
+      "source": {
+        "kind": "internal",
+        "key": "lead-qualifier"
+      },
+      "version": "1.0.0",
+      "latest": "1.0.0",
+      "versions": [
+        "1.0.0"
+      ],
+      "digest": "sha256:4f2b16cc9a93c74a4392ad5fb65b424973b6f516b388a904d44fc24105f66bb0",
+      "name": "Lead qualifier",
+      "summary": "Enriches and qualifies new inbound leads.",
+      "description": "Enriches each new inbound lead, qualifies it against your criteria, and adds it to HubSpot.",
+      "category": "Sales",
+      "tags": [
+        "sales"
+      ],
+      "author": {
+        "schema_version": 1,
+        "id": "agenta",
+        "name": "Agenta",
+        "bio": "Starter agents built and maintained by the Agenta team.",
+        "links": [
+          {
+            "kind": "website",
+            "url": "https://agenta.ai",
+            "label": "agenta.ai"
+          },
+          {
+            "kind": "github",
+            "url": "https://github.com/Agenta-AI/agenta",
+            "label": "GitHub"
+          }
+        ]
+      },
+      "initials": "LQ",
+      "color": "#5E5E08",
+      "instructions_summary": "On a new lead, enrich its details, qualify it, and create or update the HubSpot record.",
+      "trigger": "New lead or email",
+      "trigger_description": "Runs when a new lead or inbound email arrives.",
+      "seed_message": "Build an agent that enriches each new inbound lead, qualifies it, and adds it to HubSpot.",
+      "builder_message": "Build an agent that enriches each new inbound lead, qualifies it, and adds it to HubSpot.",
+      "model": "claude-sonnet-4-5",
+      "tools_summary": "2 HubSpot tools",
+      "connections": [
+        {
+          "key": "write-the-qualified-lead",
+          "role": "Write the qualified lead",
+          "required": true,
+          "primary": {
+            "slug": "hubspot",
+            "scope": "Read & create contacts",
+            "tools": [
+              {
+                "name": "Search contacts",
+                "description": "Check whether the lead already exists."
+              },
+              {
+                "name": "Create contact",
+                "description": "Add the qualified lead to HubSpot."
+              }
+            ]
+          },
+          "alternatives": [
+            "salesforce",
+            "attio"
+          ]
+        },
+        {
+          "key": "read-inbound-email-leads",
+          "role": "Read inbound email leads",
+          "required": false,
+          "primary": {
+            "slug": "gmail",
+            "scope": "Read inbound email leads"
+          },
+          "alternatives": []
+        }
+      ],
+      "media": []
+    },
+    {
+      "key": "crm-updater",
+      "source": {
+        "kind": "internal",
+        "key": "crm-updater"
+      },
+      "version": "1.0.0",
+      "latest": "1.0.0",
+      "versions": [
+        "1.0.0"
+      ],
+      "digest": "sha256:673f5600947c5b86c1d3f2c86cfdecd38139c80d85757de3d1e7ba13ad9dbe39",
+      "name": "CRM updater",
+      "summary": "Updates CRM records from recent email threads.",
+      "description": "Each day, updates CRM contact records using context from your recent email threads.",
+      "category": "Sales",
+      "tags": [
+        "sales"
+      ],
+      "author": {
+        "schema_version": 1,
+        "id": "agenta",
+        "name": "Agenta",
+        "bio": "Starter agents built and maintained by the Agenta team.",
+        "links": [
+          {
+            "kind": "website",
+            "url": "https://agenta.ai",
+            "label": "agenta.ai"
+          },
+          {
+            "kind": "github",
+            "url": "https://github.com/Agenta-AI/agenta",
+            "label": "GitHub"
+          }
+        ]
+      },
+      "initials": "CU",
+      "color": "#113955",
+      "instructions_summary": "Daily, review recent email threads and update the matching CRM contact records.",
+      "trigger": "Daily",
+      "trigger_description": "Runs once a day on a schedule.",
+      "seed_message": "Build an agent that updates CRM contact records from my recent email threads each day.",
+      "builder_message": "Build an agent that updates CRM contact records from my recent email threads each day.",
+      "model": "claude-sonnet-4-5",
+      "tools_summary": "2 Gmail tools",
+      "connections": [
+        {
+          "key": "read-the-threads",
+          "role": "Read the threads",
+          "required": true,
+          "primary": {
+            "slug": "gmail",
+            "scope": "Read recent email threads",
+            "tools": [
+              {
+                "name": "Fetch emails",
+                "description": "List recent threads to check for CRM-relevant updates."
+              },
+              {
+                "name": "Read thread",
+                "description": "Read a thread's content to extract contact updates."
+              }
+            ]
+          },
+          "alternatives": []
+        },
+        {
+          "key": "land-the-updates",
+          "role": "Land the updates",
+          "required": false,
+          "primary": {
+            "slug": "hubspot",
+            "scope": "Land the updates"
+          },
+          "alternatives": [
+            "salesforce",
+            "attio"
+          ]
+        }
+      ],
+      "media": []
+    },
+    {
+      "key": "outreach-drafter",
+      "source": {
+        "kind": "internal",
+        "key": "outreach-drafter"
+      },
+      "version": "1.0.0",
+      "latest": "1.0.0",
+      "versions": [
+        "1.0.0"
+      ],
+      "digest": "sha256:aa4806d7c4a1d4c7d8def12fef5cda774955aca67cea545e75bc5a05d00bff56",
+      "name": "Outreach drafter",
+      "summary": "Drafts personalized outreach for a contact list.",
+      "description": "Drafts a personalized outreach email for each contact on a CRM list, ready for review.",
+      "category": "Sales",
+      "tags": [
+        "sales"
+      ],
+      "author": {
+        "schema_version": 1,
+        "id": "agenta",
+        "name": "Agenta",
+        "bio": "Starter agents built and maintained by the Agenta team.",
+        "links": [
+          {
+            "kind": "website",
+            "url": "https://agenta.ai",
+            "label": "agenta.ai"
+          },
+          {
+            "kind": "github",
+            "url": "https://github.com/Agenta-AI/agenta",
+            "label": "GitHub"
+          }
+        ]
+      },
+      "initials": "OD",
+      "color": "#5E0908",
+      "instructions_summary": "Given a CRM contact list, draft a personalized outreach email for each contact.",
+      "trigger": "Manual",
+      "trigger_description": "Runs when you ask it to draft outreach for a list.",
+      "seed_message": "Build an agent that drafts personalized outreach emails for a list of CRM contacts.",
+      "builder_message": "Build an agent that drafts personalized outreach emails for a list of CRM contacts.",
+      "model": "claude-sonnet-4-5",
+      "tools_summary": "2 HubSpot tools",
+      "connections": [
+        {
+          "key": "read-the-contact-list",
+          "role": "Read the contact list",
+          "required": true,
+          "primary": {
+            "slug": "hubspot",
+            "scope": "Read contact lists",
+            "tools": [
+              {
+                "name": "List contacts",
+                "description": "Fetch the target contact list."
+              },
+              {
+                "name": "Get contact",
+                "description": "Read a contact's details to personalize the draft."
+              }
+            ]
+          },
+          "alternatives": [
+            "salesforce",
+            "attio"
+          ]
+        },
+        {
+          "key": "hold-the-drafts",
+          "role": "Hold the drafts",
+          "required": false,
+          "primary": {
+            "slug": "gmail",
+            "scope": "Hold the drafts"
+          },
+          "alternatives": []
+        }
+      ],
+      "media": []
+    },
+    {
+      "key": "meeting-followup",
+      "source": {
+        "kind": "internal",
+        "key": "meeting-followup"
+      },
+      "version": "1.0.0",
+      "latest": "1.0.0",
+      "versions": [
+        "1.0.0"
+      ],
+      "digest": "sha256:c4c6afbc0b08a267c9f9f7f13e53d508fea2580655a5dbb0c4dd6c53b80a52c5",
+      "name": "Meeting follow-up",
+      "summary": "Drafts a follow-up email and logs notes to the CRM.",
+      "description": "After each meeting, drafts a follow-up email and logs the meeting notes to the CRM.",
+      "category": "Sales",
+      "tags": [
+        "sales"
+      ],
+      "author": {
+        "schema_version": 1,
+        "id": "agenta",
+        "name": "Agenta",
+        "bio": "Starter agents built and maintained by the Agenta team.",
+        "links": [
+          {
+            "kind": "website",
+            "url": "https://agenta.ai",
+            "label": "agenta.ai"
+          },
+          {
+            "kind": "github",
+            "url": "https://github.com/Agenta-AI/agenta",
+            "label": "GitHub"
+          }
+        ]
+      },
+      "initials": "MF",
+      "color": "#D97757",
+      "instructions_summary": "After a meeting, draft a follow-up email and log the notes on the matching CRM contact.",
+      "trigger": "Meeting ends",
+      "trigger_description": "Runs after a calendar meeting ends, or on schedule.",
+      "seed_message": "Build an agent that drafts a follow-up email after each meeting and logs notes to the CRM.",
+      "builder_message": "Build an agent that drafts a follow-up email after each meeting and logs notes to the CRM.",
+      "model": "claude-sonnet-4-5",
+      "tools_summary": "2 Gmail tools",
+      "connections": [
+        {
+          "key": "draft-the-follow-up",
+          "role": "Draft the follow-up",
+          "required": true,
+          "primary": {
+            "slug": "gmail",
+            "scope": "Read meeting notes, draft the follow-up",
+            "tools": [
+              {
+                "name": "Read thread",
+                "description": "Read the recap or notes email for the meeting."
+              },
+              {
+                "name": "Create draft",
+                "description": "Draft the follow-up email to attendees."
+              }
+            ]
+          },
+          "alternatives": []
+        },
+        {
+          "key": "read-the-meeting",
+          "role": "Read the meeting",
+          "required": false,
+          "primary": {
+            "slug": "googlecalendar",
+            "scope": "Read the meeting"
+          },
+          "alternatives": []
+        },
+        {
+          "key": "update-the-crm",
+          "role": "Update the CRM",
+          "required": false,
+          "primary": {
+            "slug": "hubspot",
+            "scope": "Update the CRM"
+          },
+          "alternatives": [
+            "salesforce",
+            "attio"
+          ]
+        }
+      ],
+      "media": []
+    },
+    {
+      "key": "pipeline-digest",
+      "source": {
+        "kind": "internal",
+        "key": "pipeline-digest"
+      },
+      "version": "1.0.0",
+      "latest": "1.0.0",
+      "versions": [
+        "1.0.0"
+      ],
+      "digest": "sha256:fca4ed43ef918b244667e69f36446246bb13d9c0a02755e9623df58f3abdffd8",
+      "name": "Pipeline digest",
+      "summary": "Daily digest of pipeline changes and stale deals.",
+      "description": "Posts a daily digest of pipeline changes and stale deals to Slack.",
+      "category": "Sales",
+      "tags": [
+        "sales"
+      ],
+      "author": {
+        "schema_version": 1,
+        "id": "agenta",
+        "name": "Agenta",
+        "bio": "Starter agents built and maintained by the Agenta team.",
+        "links": [
+          {
+            "kind": "website",
+            "url": "https://agenta.ai",
+            "label": "agenta.ai"
+          },
+          {
+            "kind": "github",
+            "url": "https://github.com/Agenta-AI/agenta",
+            "label": "GitHub"
+          }
+        ]
+      },
+      "initials": "PD",
+      "color": "#616161",
+      "instructions_summary": "Daily, summarize pipeline changes and stale deals and post the digest.",
+      "trigger": "Daily",
+      "trigger_description": "Runs once a day on a schedule.",
+      "seed_message": "Build an agent that posts a daily digest of pipeline changes and stale deals to Slack.",
+      "builder_message": "Build an agent that posts a daily digest of pipeline changes and stale deals to Slack.",
+      "model": "claude-sonnet-4-5",
+      "tools_summary": "2 HubSpot + 2 Slack tools",
+      "connections": [
+        {
+          "key": "read-the-deals",
+          "role": "Read the deals",
+          "required": true,
+          "primary": {
+            "slug": "hubspot",
+            "scope": "Read deals",
+            "tools": [
+              {
+                "name": "List deals",
+                "description": "Fetch deals changed since yesterday."
+              },
+              {
+                "name": "Get deal",
+                "description": "Check how long a deal has been stale."
+              }
+            ]
+          },
+          "alternatives": [
+            "salesforce",
+            "attio"
+          ]
+        },
+        {
+          "key": "post-the-digest",
+          "role": "Post the digest",
+          "required": true,
+          "primary": {
+            "slug": "slack",
+            "scope": "Post the pipeline digest",
+            "tools": [
+              {
+                "name": "List channels",
+                "description": "Resolve the target channel to post to."
+              },
+              {
+                "name": "Send message",
+                "description": "Post the pipeline digest to the channel."
+              }
+            ]
+          },
+          "alternatives": []
+        }
+      ],
+      "media": []
+    },
+    {
+      "key": "incident-responder",
+      "source": {
+        "kind": "internal",
+        "key": "incident-responder"
+      },
+      "version": "1.0.0",
+      "latest": "1.0.0",
+      "versions": [
+        "1.0.0"
+      ],
+      "digest": "sha256:b9416d2546b6167ace3758ed4e3c522b6eaeea5619d239875d4b51c193fd02f0",
+      "name": "Incident responder",
+      "summary": "Watches alerts, gathers context, pages on-call.",
+      "description": "Watches your alerts. Gathers related context and logs, summarizes the likely cause, and pages the on-call engineer.",
+      "category": "Engineering",
+      "tags": [
+        "engineering"
+      ],
+      "author": {
+        "schema_version": 1,
+        "id": "agenta",
+        "name": "Agenta",
+        "bio": "Starter agents built and maintained by the Agenta team.",
+        "links": [
+          {
+            "kind": "website",
+            "url": "https://agenta.ai",
+            "label": "agenta.ai"
+          },
+          {
+            "kind": "github",
+            "url": "https://github.com/Agenta-AI/agenta",
+            "label": "GitHub"
+          }
+        ]
+      },
+      "initials": "!",
+      "color": "#5E5E08",
+      "instructions_summary": "On an alert, gather context and logs, summarize the likely cause, and page the on-call engineer.",
+      "trigger": "On alert",
+      "trigger_description": "Runs when a new alert fires.",
+      "seed_message": "Build an incident responder that gathers context on new alerts and pages on-call.",
+      "builder_message": "Build an incident responder that gathers context on new alerts and pages on-call.",
+      "model": "claude-sonnet-4-5",
+      "tools_summary": "2 Sentry + 2 Slack tools",
+      "connections": [
+        {
+          "key": "read-the-errors",
+          "role": "Read the errors",
+          "required": true,
+          "primary": {
+            "slug": "sentry",
+            "scope": "Read alerts & issues",
+            "tools": [
+              {
+                "name": "List issues",
+                "description": "Fetch recent alerts and their status."
+              },
+              {
+                "name": "Get issue",
+                "description": "Read an issue's stack trace and recent events."
+              }
+            ]
+          },
+          "alternatives": []
+        },
+        {
+          "key": "notify-or-page",
+          "role": "Notify or page",
+          "required": true,
+          "primary": {
+            "slug": "slack",
+            "scope": "Post the incident summary",
+            "tools": [
+              {
+                "name": "List channels",
+                "description": "Resolve the alerts channel to post to."
+              },
+              {
+                "name": "Send message",
+                "description": "Post the incident summary to the channel."
+              }
+            ]
+          },
+          "alternatives": [
+            "pagerduty"
+          ]
+        },
+        {
+          "key": "read-extra-context",
+          "role": "Read extra context",
+          "required": false,
+          "primary": {
+            "slug": "datadog",
+            "scope": "Read extra context"
+          },
+          "alternatives": [
+            "newrelic"
+          ]
+        }
+      ],
+      "media": []
+    },
+    {
+      "key": "error-triage",
+      "source": {
+        "kind": "internal",
+        "key": "error-triage"
+      },
+      "version": "1.0.0",
+      "latest": "1.0.0",
+      "versions": [
+        "1.0.0"
+      ],
+      "digest": "sha256:d65e6490072cd1d76dc01892a69270868d7fb94ec6bd2a57bdda01afef4ed59c",
+      "name": "Error triage",
+      "summary": "Triages new Sentry errors by severity, files real ones.",
+      "description": "Triages every new Sentry error by severity and files a ticket for the ones that are real.",
+      "category": "Engineering",
+      "tags": [
+        "engineering"
+      ],
+      "author": {
+        "schema_version": 1,
+        "id": "agenta",
+        "name": "Agenta",
+        "bio": "Starter agents built and maintained by the Agenta team.",
+        "links": [
+          {
+            "kind": "website",
+            "url": "https://agenta.ai",
+            "label": "agenta.ai"
+          },
+          {
+            "kind": "github",
+            "url": "https://github.com/Agenta-AI/agenta",
+            "label": "GitHub"
+          }
+        ]
+      },
+      "initials": "ET",
+      "color": "#113955",
+      "instructions_summary": "On a new error, assess severity; file a ticket only for errors that are real and actionable.",
+      "trigger": "New error",
+      "trigger_description": "Runs when a new Sentry error is captured.",
+      "seed_message": "Build an agent that triages new Sentry errors by severity and files a ticket for real ones.",
+      "builder_message": "Build an agent that triages new Sentry errors by severity and files a ticket for real ones.",
+      "model": "claude-sonnet-4-5",
+      "tools_summary": "2 Sentry + 2 Linear tools",
+      "connections": [
+        {
+          "key": "read-the-errors",
+          "role": "Read the errors",
+          "required": true,
+          "primary": {
+            "slug": "sentry",
+            "scope": "Read issues",
+            "tools": [
+              {
+                "name": "Get issue",
+                "description": "Read the new error's stack trace and events."
+              },
+              {
+                "name": "List issues",
+                "description": "Check whether it's a duplicate of a known error."
+              }
+            ]
+          },
+          "alternatives": []
+        },
+        {
+          "key": "file-the-issue",
+          "role": "File the issue",
+          "required": true,
+          "primary": {
+            "slug": "linear",
+            "scope": "Search & create issues",
+            "tools": [
+              {
+                "name": "Search issues",
+                "description": "Rule out a duplicate before filing."
+              },
+              {
+                "name": "Create issue",
+                "description": "File a ticket for a real, actionable error."
+              }
+            ]
+          },
+          "alternatives": [
+            "jira"
+          ]
+        }
+      ],
+      "media": []
+    },
+    {
+      "key": "uptime-reporter",
+      "source": {
+        "kind": "internal",
+        "key": "uptime-reporter"
+      },
+      "version": "1.0.0",
+      "latest": "1.0.0",
+      "versions": [
+        "1.0.0"
+      ],
+      "digest": "sha256:654763b0698d269d3035459ec8f6bbe33e5bac61ddc76fd0391d1c88cc301a38",
+      "name": "Uptime reporter",
+      "summary": "Daily uptime and error-rate summary to Slack.",
+      "description": "Posts a daily summary of uptime and error rates to Slack.",
+      "category": "Engineering",
+      "tags": [
+        "engineering"
+      ],
+      "author": {
+        "schema_version": 1,
+        "id": "agenta",
+        "name": "Agenta",
+        "bio": "Starter agents built and maintained by the Agenta team.",
+        "links": [
+          {
+            "kind": "website",
+            "url": "https://agenta.ai",
+            "label": "agenta.ai"
+          },
+          {
+            "kind": "github",
+            "url": "https://github.com/Agenta-AI/agenta",
+            "label": "GitHub"
+          }
+        ]
+      },
+      "initials": "UR",
+      "color": "#5E0908",
+      "instructions_summary": "Daily, summarize uptime and error rates and post the digest.",
+      "trigger": "Daily",
+      "trigger_description": "Runs once a day on a schedule.",
+      "seed_message": "Build an agent that posts a daily uptime and error-rate summary to Slack.",
+      "builder_message": "Build an agent that posts a daily uptime and error-rate summary to Slack.",
+      "model": "claude-sonnet-4-5",
+      "tools_summary": "2 Sentry + 2 Slack tools",
+      "connections": [
+        {
+          "key": "read-the-errors",
+          "role": "Read the errors",
+          "required": true,
+          "primary": {
+            "slug": "sentry",
+            "scope": "Read issues",
+            "tools": [
+              {
+                "name": "List issues",
+                "description": "Count errors captured in the last day."
+              },
+              {
+                "name": "Get issue",
+                "description": "Check status of ongoing errors."
+              }
+            ]
+          },
+          "alternatives": []
+        },
+        {
+          "key": "post-the-report",
+          "role": "Post the report",
+          "required": true,
+          "primary": {
+            "slug": "slack",
+            "scope": "Post the daily summary",
+            "tools": [
+              {
+                "name": "List channels",
+                "description": "Resolve the channel to post to."
+              },
+              {
+                "name": "Send message",
+                "description": "Post the daily uptime and error-rate summary."
+              }
+            ]
+          },
+          "alternatives": []
+        },
+        {
+          "key": "read-uptime-context",
+          "role": "Read uptime context",
+          "required": false,
+          "primary": {
+            "slug": "datadog",
+            "scope": "Read uptime context"
+          },
+          "alternatives": [
+            "newrelic"
+          ]
+        }
+      ],
+      "media": []
+    },
+    {
+      "key": "oncall-briefer",
+      "source": {
+        "kind": "internal",
+        "key": "oncall-briefer"
+      },
+      "version": "1.0.0",
+      "latest": "1.0.0",
+      "versions": [
+        "1.0.0"
+      ],
+      "digest": "sha256:206bb575ca499cb0dff4761babb2c3de69e8479852bfcbb4fae58979a317abdb",
+      "name": "On-call briefer",
+      "summary": "Briefs on-call with open incidents each morning.",
+      "description": "Every morning, briefs the on-call engineer with all open incidents and their status.",
+      "category": "Engineering",
+      "tags": [
+        "engineering"
+      ],
+      "author": {
+        "schema_version": 1,
+        "id": "agenta",
+        "name": "Agenta",
+        "bio": "Starter agents built and maintained by the Agenta team.",
+        "links": [
+          {
+            "kind": "website",
+            "url": "https://agenta.ai",
+            "label": "agenta.ai"
+          },
+          {
+            "kind": "github",
+            "url": "https://github.com/Agenta-AI/agenta",
+            "label": "GitHub"
+          }
+        ]
+      },
+      "initials": "OC",
+      "color": "#D97757",
+      "instructions_summary": "On schedule, list open incidents and their status and post the on-call brief.",
+      "trigger": "Daily at 09:00",
+      "trigger_description": "Runs every day at 09:00.",
+      "seed_message": "Build an agent that briefs on-call at 09:00 with all open incidents and their status.",
+      "builder_message": "Build an agent that briefs on-call at 09:00 with all open incidents and their status.",
+      "model": "claude-sonnet-4-5",
+      "tools_summary": "2 Sentry + 2 Slack tools",
+      "connections": [
+        {
+          "key": "read-the-errors",
+          "role": "Read the errors",
+          "required": true,
+          "primary": {
+            "slug": "sentry",
+            "scope": "Read issues",
+            "tools": [
+              {
+                "name": "List issues",
+                "description": "Fetch currently open incidents."
+              },
+              {
+                "name": "Get issue",
+                "description": "Read each incident's status."
+              }
+            ]
+          },
+          "alternatives": []
+        },
+        {
+          "key": "post-the-brief",
+          "role": "Post the brief",
+          "required": true,
+          "primary": {
+            "slug": "slack",
+            "scope": "Post the on-call briefing",
+            "tools": [
+              {
+                "name": "List channels",
+                "description": "Resolve the channel to post to."
+              },
+              {
+                "name": "Send message",
+                "description": "Post the on-call briefing to the channel."
+              }
+            ]
+          },
+          "alternatives": []
+        },
+        {
+          "key": "name-the-on-call-engineer",
+          "role": "Name the on-call engineer",
+          "required": false,
+          "primary": {
+            "slug": "pagerduty",
+            "scope": "Name the on-call engineer"
+          },
+          "alternatives": []
+        }
+      ],
+      "media": []
+    },
+    {
+      "key": "docs-qa",
+      "source": {
+        "kind": "internal",
+        "key": "docs-qa"
+      },
+      "version": "1.0.0",
+      "latest": "1.0.0",
+      "versions": [
+        "1.0.0"
+      ],
+      "digest": "sha256:2ec29723a6da892ca20bb696c6e04006f7f2d5152b92ac0c97677e792e047739",
+      "name": "Docs Q&A",
+      "summary": "Answers questions from your docs workspace.",
+      "description": "Answers questions from your docs workspace with concise, cited answers — in chat or on mention.",
+      "category": "Knowledge",
+      "tags": [
+        "knowledge"
+      ],
+      "author": {
+        "schema_version": 1,
+        "id": "agenta",
+        "name": "Agenta",
+        "bio": "Starter agents built and maintained by the Agenta team.",
+        "links": [
+          {
+            "kind": "website",
+            "url": "https://agenta.ai",
+            "label": "agenta.ai"
+          },
+          {
+            "kind": "github",
+            "url": "https://github.com/Agenta-AI/agenta",
+            "label": "GitHub"
+          }
+        ]
+      },
+      "initials": "Q",
+      "color": "#616161",
+      "instructions_summary": "Answer questions by searching the docs workspace; return a concise, cited answer.",
+      "trigger": "On mention",
+      "trigger_description": "Runs when the agent is @-mentioned.",
+      "seed_message": "Build a docs Q&A agent that answers questions from our workspace with cited answers.",
+      "builder_message": "Build a docs Q&A agent that answers questions from our workspace with cited answers.",
+      "model": "claude-sonnet-4-5",
+      "tools_summary": "2 Notion tools",
+      "connections": [
+        {
+          "key": "read-the-documentation",
+          "role": "Read the documentation",
+          "required": true,
+          "primary": {
+            "slug": "notion",
+            "scope": "Read pages",
+            "tools": [
+              {
+                "name": "Search",
+                "description": "Find pages relevant to the question."
+              },
+              {
+                "name": "Get page content",
+                "description": "Read a page's blocks to draft a cited answer."
+              }
+            ]
+          },
+          "alternatives": [
+            "confluence",
+            "googledrive"
+          ]
+        },
+        {
+          "key": "read-an-extra-source",
+          "role": "Read an extra source",
+          "required": false,
+          "primary": {
+            "slug": "slack",
+            "scope": "Read an extra source"
+          },
+          "alternatives": []
+        }
+      ],
+      "media": []
+    },
+    {
+      "key": "knowledge-chatbot",
+      "source": {
+        "kind": "internal",
+        "key": "knowledge-chatbot"
+      },
+      "version": "1.0.0",
+      "latest": "1.0.0",
+      "versions": [
+        "1.0.0"
+      ],
+      "digest": "sha256:e09c885adfa1e607aa5ffe0cc0b1a90df26aead03368f5e6c543480fb1b3d40e",
+      "name": "Knowledge chatbot",
+      "summary": "Customer-facing chatbot answering from your knowledge base.",
+      "description": "Answers customer questions from your knowledge base, in chat or when mentioned.",
+      "category": "Knowledge",
+      "tags": [
+        "knowledge"
+      ],
+      "author": {
+        "schema_version": 1,
+        "id": "agenta",
+        "name": "Agenta",
+        "bio": "Starter agents built and maintained by the Agenta team.",
+        "links": [
+          {
+            "kind": "website",
+            "url": "https://agenta.ai",
+            "label": "agenta.ai"
+          },
+          {
+            "kind": "github",
+            "url": "https://github.com/Agenta-AI/agenta",
+            "label": "GitHub"
+          }
+        ]
+      },
+      "initials": "KC",
+      "color": "#5E5E08",
+      "instructions_summary": "Answer customer questions by searching the knowledge base; return a concise, cited answer.",
+      "trigger": "Mention or new message",
+      "trigger_description": "Runs on mention or a new customer message.",
+      "seed_message": "Build a customer-facing chatbot that answers questions from our knowledge base.",
+      "builder_message": "Build a customer-facing chatbot that answers questions from our knowledge base.",
+      "model": "claude-sonnet-4-5",
+      "tools_summary": "2 Notion + 2 Slack tools",
+      "connections": [
+        {
+          "key": "read-the-knowledge-base",
+          "role": "Read the knowledge base",
+          "required": true,
+          "primary": {
+            "slug": "notion",
+            "scope": "Read pages",
+            "tools": [
+              {
+                "name": "Search",
+                "description": "Find pages relevant to the question."
+              },
+              {
+                "name": "Get page content",
+                "description": "Read the page to draft a cited answer."
+              }
+            ]
+          },
+          "alternatives": []
+        },
+        {
+          "key": "reply-to-the-asker",
+          "role": "Reply to the asker",
+          "required": true,
+          "primary": {
+            "slug": "slack",
+            "scope": "Reply to customer questions",
+            "tools": [
+              {
+                "name": "Fetch conversation history",
+                "description": "Read the incoming question thread."
+              },
+              {
+                "name": "Send message",
+                "description": "Reply in-thread with the cited answer."
+              }
+            ]
+          },
+          "alternatives": [
+            "discord",
+            "telegram"
+          ]
+        }
+      ],
+      "media": []
+    },
+    {
+      "key": "onboarding-buddy",
+      "source": {
+        "kind": "internal",
+        "key": "onboarding-buddy"
+      },
+      "version": "1.0.0",
+      "latest": "1.0.0",
+      "versions": [
+        "1.0.0"
+      ],
+      "digest": "sha256:497e4e9ce699d70426763d5b95d93d7f42ef7c438347db6d6de6ff62475453f2",
+      "name": "Onboarding buddy",
+      "summary": "Answers new-hire questions from your internal wiki.",
+      "description": "Answers new-hire questions by searching your internal wiki, on mention.",
+      "category": "Knowledge",
+      "tags": [
+        "knowledge"
+      ],
+      "author": {
+        "schema_version": 1,
+        "id": "agenta",
+        "name": "Agenta",
+        "bio": "Starter agents built and maintained by the Agenta team.",
+        "links": [
+          {
+            "kind": "website",
+            "url": "https://agenta.ai",
+            "label": "agenta.ai"
+          },
+          {
+            "kind": "github",
+            "url": "https://github.com/Agenta-AI/agenta",
+            "label": "GitHub"
+          }
+        ]
+      },
+      "initials": "OB",
+      "color": "#113955",
+      "instructions_summary": "When mentioned, search the internal wiki and answer the new hire's question.",
+      "trigger": "Mention",
+      "trigger_description": "Runs when the agent is @-mentioned.",
+      "seed_message": "Build an onboarding buddy that answers new-hire questions from our internal wiki.",
+      "builder_message": "Build an onboarding buddy that answers new-hire questions from our internal wiki.",
+      "model": "claude-sonnet-4-5",
+      "tools_summary": "2 Notion + 2 Slack tools",
+      "connections": [
+        {
+          "key": "read-the-onboarding-material",
+          "role": "Read the onboarding material",
+          "required": true,
+          "primary": {
+            "slug": "notion",
+            "scope": "Read pages",
+            "tools": [
+              {
+                "name": "Search",
+                "description": "Find wiki pages relevant to the question."
+              },
+              {
+                "name": "Get page content",
+                "description": "Read the page to answer accurately."
+              }
+            ]
+          },
+          "alternatives": [
+            "confluence"
+          ]
+        },
+        {
+          "key": "reply-to-the-new-starter",
+          "role": "Reply to the new starter",
+          "required": true,
+          "primary": {
+            "slug": "slack",
+            "scope": "Answer @mentions in-thread",
+            "tools": [
+              {
+                "name": "Fetch conversation history",
+                "description": "Read the new hire's mention thread."
+              },
+              {
+                "name": "Send message",
+                "description": "Reply in-thread with the cited answer."
+              }
+            ]
+          },
+          "alternatives": []
+        }
+      ],
+      "media": []
+    },
+    {
+      "key": "content-repurposer",
+      "source": {
+        "kind": "internal",
+        "key": "content-repurposer"
+      },
+      "version": "1.0.0",
+      "latest": "1.0.0",
+      "versions": [
+        "1.0.0"
+      ],
+      "digest": "sha256:dacefdbeefbc5845f1033dd6c760f26c9a3beba8dd982c20fc77af0406ceae2a",
+      "name": "Content repurposer",
+      "summary": "Turns a published doc into draft social posts.",
+      "description": "Turns a published doc into draft LinkedIn and X posts, ready for review.",
+      "category": "Knowledge",
+      "tags": [
+        "knowledge"
+      ],
+      "author": {
+        "schema_version": 1,
+        "id": "agenta",
+        "name": "Agenta",
+        "bio": "Starter agents built and maintained by the Agenta team.",
+        "links": [
+          {
+            "kind": "website",
+            "url": "https://agenta.ai",
+            "label": "agenta.ai"
+          },
+          {
+            "kind": "github",
+            "url": "https://github.com/Agenta-AI/agenta",
+            "label": "GitHub"
+          }
+        ]
+      },
+      "initials": "CR",
+      "color": "#5E0908",
+      "instructions_summary": "Given a published doc, draft a LinkedIn post and an X post from its content.",
+      "trigger": "Manual",
+      "trigger_description": "Runs when you point it at a doc to repurpose.",
+      "seed_message": "Build an agent that turns a published doc into draft LinkedIn and X posts for review.",
+      "builder_message": "Build an agent that turns a published doc into draft LinkedIn and X posts for review.",
+      "model": "claude-sonnet-4-5",
+      "tools_summary": "2 Notion tools",
+      "connections": [
+        {
+          "key": "read-the-source-and-hold-drafts",
+          "role": "Read the source and hold drafts",
+          "required": true,
+          "primary": {
+            "slug": "notion",
+            "scope": "Read & create pages",
+            "tools": [
+              {
+                "name": "Get page content",
+                "description": "Read the published doc."
+              },
+              {
+                "name": "Create page",
+                "description": "Save the drafts for review."
+              }
+            ]
+          },
+          "alternatives": []
+        },
+        {
+          "key": "read-a-swappable-source",
+          "role": "Read a swappable source",
+          "required": false,
+          "primary": {
+            "slug": "googledrive",
+            "scope": "Read a swappable source"
+          },
+          "alternatives": []
+        },
+        {
+          "key": "review-the-drafts",
+          "role": "Review the drafts",
+          "required": false,
+          "primary": {
+            "slug": "slack",
+            "scope": "Review the drafts"
+          },
+          "alternatives": []
+        }
+      ],
+      "media": []
+    },
+    {
+      "key": "newsletter-drafter",
+      "source": {
+        "kind": "internal",
+        "key": "newsletter-drafter"
+      },
+      "version": "1.0.0",
+      "latest": "1.0.0",
+      "versions": [
+        "1.0.0"
+      ],
+      "digest": "sha256:ffa4f58b2ae60a3e87d50c75e4c8a0164ab5e94f9554fff6bd6b1adb5c9eed1e",
+      "name": "Newsletter drafter",
+      "summary": "Weekly newsletter drafted from shipping activity.",
+      "description": "Each week, drafts a newsletter summarizing recent shipping activity.",
+      "category": "Knowledge",
+      "tags": [
+        "knowledge"
+      ],
+      "author": {
+        "schema_version": 1,
+        "id": "agenta",
+        "name": "Agenta",
+        "bio": "Starter agents built and maintained by the Agenta team.",
+        "links": [
+          {
+            "kind": "website",
+            "url": "https://agenta.ai",
+            "label": "agenta.ai"
+          },
+          {
+            "kind": "github",
+            "url": "https://github.com/Agenta-AI/agenta",
+            "label": "GitHub"
+          }
+        ]
+      },
+      "initials": "ND",
+      "color": "#D97757",
+      "instructions_summary": "Weekly, gather recent shipping activity and draft the newsletter.",
+      "trigger": "Weekly",
+      "trigger_description": "Runs every week on a schedule.",
+      "seed_message": "Build an agent that drafts a weekly newsletter from our recent shipping activity.",
+      "builder_message": "Build an agent that drafts a weekly newsletter from our recent shipping activity.",
+      "model": "claude-sonnet-4-5",
+      "tools_summary": "2 Notion + 2 GitHub tools",
+      "connections": [
+        {
+          "key": "hold-the-draft",
+          "role": "Hold the draft",
+          "required": true,
+          "primary": {
+            "slug": "notion",
+            "scope": "Read & create pages",
+            "tools": [
+              {
+                "name": "Search",
+                "description": "Find last week's shipping notes."
+              },
+              {
+                "name": "Create page",
+                "description": "Draft the newsletter page."
+              }
+            ]
+          },
+          "alternatives": []
+        },
+        {
+          "key": "read-what-shipped",
+          "role": "Read what shipped",
+          "required": true,
+          "primary": {
+            "slug": "github",
+            "scope": "Read merged PRs",
+            "tools": [
+              {
+                "name": "List pull requests",
+                "description": "Fetch PRs merged since the last newsletter."
+              },
+              {
+                "name": "Get pull request",
+                "description": "Read merge details to summarize what shipped."
+              }
+            ]
+          },
+          "alternatives": [
+            "linear"
+          ]
+        }
+      ],
+      "media": []
+    },
+    {
+      "key": "standup-summarizer",
+      "source": {
+        "kind": "internal",
+        "key": "standup-summarizer"
+      },
+      "version": "1.0.0",
+      "latest": "1.0.0",
+      "versions": [
+        "1.0.0"
+      ],
+      "digest": "sha256:c95cde27444bc7dc9cc7f5199a2a11b60c79b5df3aeefff5d64c42dde773828f",
+      "name": "Standup summarizer",
+      "summary": "Posts a daily digest of channel activity.",
+      "description": "Posts a daily digest of channel activity so your team starts the day with a clear standup summary.",
+      "category": "Ops",
+      "tags": [
+        "ops"
+      ],
+      "author": {
+        "schema_version": 1,
+        "id": "agenta",
+        "name": "Agenta",
+        "bio": "Starter agents built and maintained by the Agenta team.",
+        "links": [
+          {
+            "kind": "website",
+            "url": "https://agenta.ai",
+            "label": "agenta.ai"
+          },
+          {
+            "kind": "github",
+            "url": "https://github.com/Agenta-AI/agenta",
+            "label": "GitHub"
+          }
+        ]
+      },
+      "initials": "SU",
+      "color": "#616161",
+      "instructions_summary": "Each morning, summarize yesterday's channel activity into a short standup digest and post it.",
+      "trigger": "Daily at 09:00",
+      "trigger_description": "Runs every day at 09:00.",
+      "seed_message": "Build an agent that posts a daily standup digest of yesterday's channel activity.",
+      "builder_message": "Build an agent that posts a daily standup digest of yesterday's channel activity.",
+      "model": "claude-sonnet-4-5",
+      "tools_summary": "2 Slack tools",
+      "connections": [
+        {
+          "key": "read-and-post-to-the-channel",
+          "role": "Read and post to the channel",
+          "required": true,
+          "primary": {
+            "slug": "slack",
+            "scope": "Read channels, post digest",
+            "tools": [
+              {
+                "name": "Fetch conversation history",
+                "description": "Read yesterday's messages across the tracked channels."
+              },
+              {
+                "name": "Send message",
+                "description": "Post the standup digest."
+              }
+            ]
+          },
+          "alternatives": [
+            "discord"
+          ]
+        }
+      ],
+      "media": []
+    },
+    {
+      "key": "repo-slack-digest",
+      "source": {
+        "kind": "internal",
+        "key": "repo-slack-digest"
+      },
+      "version": "1.0.0",
+      "latest": "1.0.0",
+      "versions": [
+        "1.0.0"
+      ],
+      "digest": "sha256:f917a4b00f767b71f3afaad1224e20b896b878d9c399f1dde6a6238de06c9cba",
+      "name": "Repo Slack digest",
+      "summary": "Twice-daily digest of issues, commits, and PRs.",
+      "description": "Twice a day, posts a digest of new issues, commits, and PRs to Slack.",
+      "category": "Ops",
+      "tags": [
+        "ops"
+      ],
+      "author": {
+        "schema_version": 1,
+        "id": "agenta",
+        "name": "Agenta",
+        "bio": "Starter agents built and maintained by the Agenta team.",
+        "links": [
+          {
+            "kind": "website",
+            "url": "https://agenta.ai",
+            "label": "agenta.ai"
+          },
+          {
+            "kind": "github",
+            "url": "https://github.com/Agenta-AI/agenta",
+            "label": "GitHub"
+          }
+        ]
+      },
+      "initials": "RD",
+      "color": "#5E5E08",
+      "instructions_summary": "Twice daily, summarize new issues, commits, and PRs and post the digest.",
+      "trigger": "2x daily",
+      "trigger_description": "Runs twice a day on a schedule.",
+      "seed_message": "Build an agent that twice a day posts a digest of new issues, commits, and PRs to Slack.",
+      "builder_message": "Build an agent that twice a day posts a digest of new issues, commits, and PRs to Slack.",
+      "model": "claude-sonnet-4-5",
+      "tools_summary": "2 GitHub + 2 Slack tools",
+      "connections": [
+        {
+          "key": "read-repository-activity",
+          "role": "Read repository activity",
+          "required": true,
+          "primary": {
+            "slug": "github",
+            "scope": "Read issues & pull requests",
+            "tools": [
+              {
+                "name": "List issues",
+                "description": "Fetch issues opened since the last digest."
+              },
+              {
+                "name": "List pull requests",
+                "description": "Fetch PRs opened or merged since the last digest."
+              }
+            ]
+          },
+          "alternatives": [
+            "gitlab"
+          ]
+        },
+        {
+          "key": "post-the-digest",
+          "role": "Post the digest",
+          "required": true,
+          "primary": {
+            "slug": "slack",
+            "scope": "Post the repo digest",
+            "tools": [
+              {
+                "name": "List channels",
+                "description": "Resolve the channel to post to."
+              },
+              {
+                "name": "Send message",
+                "description": "Post the grouped repo digest to the channel."
+              }
+            ]
+          },
+          "alternatives": [
+            "discord"
+          ]
+        }
+      ],
+      "media": []
+    },
+    {
+      "key": "cross-tool-sync",
+      "source": {
+        "kind": "internal",
+        "key": "cross-tool-sync"
+      },
+      "version": "1.0.0",
+      "latest": "1.0.0",
+      "versions": [
+        "1.0.0"
+      ],
+      "digest": "sha256:fbbea3132bbb11236d160ef79c8f48bf410470e95ec6f4af8ee440aa33283ee9",
+      "name": "Cross-tool sync",
+      "summary": "Mirrors new Linear issues into a Notion tracker.",
+      "description": "Mirrors new Linear issues into a Notion tracker on a schedule.",
+      "category": "Ops",
+      "tags": [
+        "ops"
+      ],
+      "author": {
+        "schema_version": 1,
+        "id": "agenta",
+        "name": "Agenta",
+        "bio": "Starter agents built and maintained by the Agenta team.",
+        "links": [
+          {
+            "kind": "website",
+            "url": "https://agenta.ai",
+            "label": "agenta.ai"
+          },
+          {
+            "kind": "github",
+            "url": "https://github.com/Agenta-AI/agenta",
+            "label": "GitHub"
+          }
+        ]
+      },
+      "initials": "CS",
+      "color": "#113955",
+      "instructions_summary": "On schedule, find new Linear issues and mirror them into the Notion tracker.",
+      "trigger": "Hourly",
+      "trigger_description": "Runs every hour on a schedule.",
+      "seed_message": "Build an agent that mirrors new Linear issues into a Notion tracker every hour.",
+      "builder_message": "Build an agent that mirrors new Linear issues into a Notion tracker every hour.",
+      "model": "claude-sonnet-4-5",
+      "tools_summary": "2 Linear + 2 Notion tools",
+      "connections": [
+        {
+          "key": "read-from-the-source-tool",
+          "role": "Read from the source tool",
+          "required": true,
+          "primary": {
+            "slug": "linear",
+            "scope": "Read issues",
+            "tools": [
+              {
+                "name": "List issues",
+                "description": "Fetch issues created since the last sync."
+              },
+              {
+                "name": "Get issue",
+                "description": "Read an issue's details to mirror."
+              }
+            ]
+          },
+          "alternatives": [
+            "jira"
+          ]
+        },
+        {
+          "key": "write-to-the-destination-tool",
+          "role": "Write to the destination tool",
+          "required": true,
+          "primary": {
+            "slug": "notion",
+            "scope": "Create & update tracker pages",
+            "tools": [
+              {
+                "name": "Query database",
+                "description": "Find an existing mirror by the source issue id."
+              },
+              {
+                "name": "Create page",
+                "description": "Upsert a tracker row for each new source issue."
+              }
+            ]
+          },
+          "alternatives": [
+            "confluence",
+            "github"
+          ]
+        }
+      ],
+      "media": []
+    },
+    {
+      "key": "weekly-report",
+      "source": {
+        "kind": "internal",
+        "key": "weekly-report"
+      },
+      "version": "1.0.0",
+      "latest": "1.0.0",
+      "versions": [
+        "1.0.0"
+      ],
+      "digest": "sha256:a235190d56042221356ed5d2df43ea284304a7fe270aa2a51b9cdf3ab3e0f524",
+      "name": "Weekly report",
+      "summary": "Weekly report of shipping and product metrics.",
+      "description": "Each week, compiles a report of shipping activity and product metrics to Notion.",
+      "category": "Ops",
+      "tags": [
+        "ops"
+      ],
+      "author": {
+        "schema_version": 1,
+        "id": "agenta",
+        "name": "Agenta",
+        "bio": "Starter agents built and maintained by the Agenta team.",
+        "links": [
+          {
+            "kind": "website",
+            "url": "https://agenta.ai",
+            "label": "agenta.ai"
+          },
+          {
+            "kind": "github",
+            "url": "https://github.com/Agenta-AI/agenta",
+            "label": "GitHub"
+          }
+        ]
+      },
+      "initials": "WR",
+      "color": "#5E0908",
+      "instructions_summary": "Weekly, gather shipping activity and product metrics and compile the report.",
+      "trigger": "Weekly",
+      "trigger_description": "Runs every week on a schedule.",
+      "seed_message": "Build an agent that compiles a weekly report of shipping and product metrics to Notion.",
+      "builder_message": "Build an agent that compiles a weekly report of shipping and product metrics to Notion.",
+      "model": "claude-sonnet-4-5",
+      "tools_summary": "2 GitHub + 2 Notion tools",
+      "connections": [
+        {
+          "key": "read-the-shipped-work",
+          "role": "Read the shipped work",
+          "required": true,
+          "primary": {
+            "slug": "github",
+            "scope": "Read pull requests",
+            "tools": [
+              {
+                "name": "List pull requests",
+                "description": "Fetch what shipped this week."
+              },
+              {
+                "name": "Get pull request",
+                "description": "Read merge details for the report."
+              }
+            ]
+          },
+          "alternatives": []
+        },
+        {
+          "key": "publish-the-report",
+          "role": "Publish the report",
+          "required": true,
+          "primary": {
+            "slug": "notion",
+            "scope": "Publish the report",
+            "tools": [
+              {
+                "name": "Create page",
+                "description": "Publish the weekly report as a page."
+              },
+              {
+                "name": "Update page",
+                "description": "Update an existing report page in place."
+              }
+            ]
+          },
+          "alternatives": [
+            "slack"
+          ]
+        },
+        {
+          "key": "read-product-metrics",
+          "role": "Read product metrics",
+          "required": false,
+          "primary": {
+            "slug": "posthog",
+            "scope": "Read product metrics"
+          },
+          "alternatives": []
+        }
+      ],
+      "media": []
+    }
+  ]
+}

@@ -345,6 +345,13 @@ export {
     abandonAgentTemplateLoad,
     templateConnectionChoices,
     type LoadAgentTemplateFromEphemeralParams,
+    agentTemplatesQueryAtom,
+    agentTemplatesAtom,
+    agentTemplatesStatusAtom,
+    refetchAgentTemplatesAtom,
+    agentTemplateLookupAtomFamily,
+    type AgentTemplatesStatus,
+    type AgentTemplateLookup,
     buildCreatePayloadFromEphemeral,
     type EphemeralCreatePayload,
     archiveWorkflowRevisionAtom,
@@ -495,11 +502,11 @@ export {workflowSnapshotAdapter} from "./snapshotAdapter"
 // ============================================================================
 
 export {
-    AGENT_TEMPLATES,
     ALL_TEMPLATES_CATEGORY,
     PROVIDERS,
     TEMPLATE_CATEGORY_ORDER,
     agentTemplateByKey,
+    agentStarterTemplateFromEntry,
     agentTemplateSeed,
     categoryFromSlug,
     categorySlug,
