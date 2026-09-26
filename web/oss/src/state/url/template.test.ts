@@ -8,6 +8,7 @@ import {
     claimTemplate,
     clearTemplate,
     completeTemplateClaim,
+    handPendingTemplateToMobile,
     parseTemplateFromUrl,
     pendingTemplateDecision,
     persistTemplateToStorage,
@@ -247,6 +248,34 @@ describe("clearTemplate", () => {
         expect(win.location.href).toContain("other=1")
         // A capture after clear must not bring the key back from the URL.
         expect(captureTemplateFromUrl(new URL(win.location.href))).toBeNull()
+    })
+})
+
+describe("handPendingTemplateToMobile (Classic mode hop to /m)", () => {
+    it("moves the pending key into the /m create step and forgets it here", () => {
+        installWindow(`/w?template=${KNOWN_KEY}`)
+        persistTemplateToStorage({key: KNOWN_KEY, capturedAt: Date.now()})
+
+        expect(handPendingTemplateToMobile("/m/w/ws1/p/pr1/apps")).toBe(
+            `/m/w/ws1/p/pr1/agents/new?template=${KNOWN_KEY}`,
+        )
+        expect(readTemplateFromStorage()).toBeNull()
+    })
+
+    it("carries the key to the /m root, which resolves the project first", () => {
+        installWindow("/w")
+        persistTemplateToStorage({key: KNOWN_KEY, capturedAt: Date.now()})
+
+        expect(handPendingTemplateToMobile("/m/")).toBe(`/m/?template=${KNOWN_KEY}`)
+    })
+
+    it("leaves the target alone without a pending key or outside a project", () => {
+        installWindow("/w")
+        expect(handPendingTemplateToMobile("/m/w/ws1/p/pr1/apps")).toBe("/m/w/ws1/p/pr1/apps")
+
+        persistTemplateToStorage({key: KNOWN_KEY, capturedAt: Date.now()})
+        expect(handPendingTemplateToMobile("/m/auth")).toBe("/m/auth")
+        expect(readTemplateFromStorage()?.key).toBe(KNOWN_KEY)
     })
 })
 

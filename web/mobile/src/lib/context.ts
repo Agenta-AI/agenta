@@ -23,6 +23,10 @@ export interface LastContext {
 export const projectHomeUrl = ({workspaceId, projectId}: LastContext): string =>
     `/w/${encodeURIComponent(workspaceId)}/p/${encodeURIComponent(projectId)}/apps`
 
+/** A website template link lands on that template's create step instead of the project home. */
+export const projectTemplateUrl = ({workspaceId, projectId}: LastContext, templateKey: string) =>
+    `/w/${encodeURIComponent(workspaceId)}/p/${encodeURIComponent(projectId)}/agents/new?template=${encodeURIComponent(templateKey)}`
+
 /**
  * Settings -> LLM providers, which renders the same shared AI-providers page the desktop's
  * provider drawer opens. It is where a project's own provider key is added and where a dead
