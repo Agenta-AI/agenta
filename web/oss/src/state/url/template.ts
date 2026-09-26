@@ -297,3 +297,26 @@ export const completeTemplateClaim = async (pending: PendingTemplate): Promise<v
     }
     complete()
 }
+
+const MOBILE_PROJECT_RE = /^\/m\/w\/[^/]+\/p\/[^/]+/
+
+/**
+ * The Classic-mode hop to `/m` loads a separate app that cannot see this pending key, so hand it
+ * over in the URL (the template's create step there) and forget it here; left behind, a later
+ * desktop visit would consume it a second time. Targets `/m` cannot open a template on keep it.
+ */
+export const handPendingTemplateToMobile = (target: string): string => {
+    const pending = readTemplateFromStorage()
+    if (!pending) return target
+
+    const {pathname} = new URL(target, "http://localhost")
+    const query = `?${TEMPLATE_URL_PARAM}=${encodeURIComponent(pending.key)}`
+    const project = pathname.match(MOBILE_PROJECT_RE)?.[0]
+    let next: string
+    if (project) next = `${project}/agents/new${query}`
+    else if (pathname === "/m" || pathname === "/m/") next = `/m/${query}`
+    else return target
+
+    clearTemplate(pending)
+    return next
+}

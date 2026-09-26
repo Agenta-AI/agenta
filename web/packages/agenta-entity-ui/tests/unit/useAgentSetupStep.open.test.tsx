@@ -19,6 +19,23 @@ vi.mock("@agenta/entities/workflow", () => ({
     isAccountSatisfied: (account: DetectedAccount, connected: Set<string>) =>
         connected.has(account.slug) ||
         (account.alternatives?.some((slug: string) => connected.has(slug)) ?? false),
+    setupStepNeeded: ({
+        accounts,
+        connectedSlugs,
+        forTemplate,
+    }: {
+        accounts: DetectedAccount[]
+        connectedSlugs: string[]
+        forTemplate: boolean
+    }) => {
+        if (accounts.length === 0) return false
+        const connected = new Set(connectedSlugs)
+        const satisfied = (account: DetectedAccount) =>
+            connected.has(account.slug) ||
+            (account.alternatives?.some((slug: string) => connected.has(slug)) ?? false)
+        if (accounts.some((account) => account.required && !satisfied(account))) return true
+        return forTemplate && accounts.some((account) => account.alternatives?.length)
+    },
 }))
 
 /** Slugs the mocked workspace is already connected to. Rewritten per test. */

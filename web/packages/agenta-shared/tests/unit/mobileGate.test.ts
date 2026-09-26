@@ -148,6 +148,18 @@ describe("mapDesktopToMobile", () => {
         expect(mapDesktopToMobile("/w/ws1/p/pr1/testsets", "")).toBe("/m/")
         expect(mobileRouteFor("/w/ws1/p/pr1/testsets", "")).toBeNull()
     })
+    it("keeps a website template link on a phone that opens the app root", () => {
+        // The website CTA links to `/?template=`; the /m root then opens that template's setup.
+        expect(
+            decideDesktopGate(
+                input({
+                    pathname: "/",
+                    search: "?template=pr-reviewer",
+                    headers: docHeaders(MOBILE_UA),
+                }),
+            ),
+        ).toEqual({kind: "redirect", location: "/m/?template=pr-reviewer"})
+    })
     it("maps context-free routes to the mobile root resolver", () => {
         expect(mapDesktopToMobile("/w", "")).toBe("/m/")
         expect(mapDesktopToMobile("/w/ws1", "")).toBe("/m/")
@@ -183,6 +195,20 @@ describe("mobileRouteFor", () => {
         ["/w/ws1/p/pr1/agents/archived", "", null],
         ["/settings", "", null],
         ["/workspaces/accept", "", null],
+        // A website template link opens that template's setup step on /m.
+        ["/w", "?template=pr-reviewer", "/m/?template=pr-reviewer"],
+        [
+            "/w/ws1/p/pr1/apps",
+            "?template=pr-reviewer",
+            "/m/w/ws1/p/pr1/agents/new?template=pr-reviewer",
+        ],
+        [
+            "/w/ws1/p/pr1/apps",
+            "?new=1&template=pr-reviewer",
+            "/m/w/ws1/p/pr1/agents/new?template=pr-reviewer",
+        ],
+        ["/w/ws1/p/pr1", "?template=a%20b", "/m/w/ws1/p/pr1/agents/new?template=a%20b"],
+        ["/w/ws1/p/pr1/apps", "?template=", "/m/w/ws1/p/pr1/apps"],
     ]
 
     it.each(cases)("maps %s → %s", (pathname, search, expected) => {

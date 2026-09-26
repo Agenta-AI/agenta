@@ -49,6 +49,20 @@ export const outstandingRequired = ({
     return accounts.filter((account) => account.required && !isAccountSatisfied(account, connected))
 }
 
+/**
+ * Whether the pre-create setup step has anything to ask: a required account still unconnected,
+ * or a template slot that offers a choice of provider. Otherwise the step is skipped.
+ */
+export const setupStepNeeded = ({
+    accounts,
+    connectedSlugs,
+    forTemplate,
+}: Pick<AgentSetupSelection, "accounts" | "connectedSlugs"> & {forTemplate: boolean}): boolean => {
+    if (accounts.length === 0) return false
+    if (outstandingRequired({accounts, connectedSlugs}).length > 0) return true
+    return forTemplate && accounts.some((account) => account.alternatives?.length)
+}
+
 export const canCreateAgent = (
     selection: Pick<AgentSetupSelection, "accounts" | "connectedSlugs">,
 ): boolean => outstandingRequired(selection).length === 0

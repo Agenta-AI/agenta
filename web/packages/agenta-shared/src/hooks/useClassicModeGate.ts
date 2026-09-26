@@ -113,7 +113,12 @@ export const useClassicModeCookieSync = () => {
  * `/w` ↔ `/m` bounce instead of a stop. Leaving `/m` is the proxy's job — one cookie, and the
  * desktop gate yields to it through `wantsClassic`.
  */
-export const useClassicModeRedirect = (enabled = true, route?: string) => {
+export const useClassicModeRedirect = (
+    enabled = true,
+    route?: string,
+    /** Host hook to amend the `/m` target just before leaving; must be a stable function. */
+    prepareTarget?: (target: string) => string,
+) => {
     const userId = useAtomValue(activeUserIdAtom)
     const advancedNavHidden = useSettledAdvancedNavHidden()
 
@@ -139,8 +144,8 @@ export const useClassicModeRedirect = (enabled = true, route?: string) => {
         // cookie is missing when `/m` is asked for, its proxy sees no preference, falls through
         // to the device check, and bounces a desktop UA straight back here. That is a loop.
         writeClassicModeCookie(false)
-        window.location.replace(target)
-    }, [enabled, userId, advancedNavHidden, route])
+        window.location.replace(prepareTarget ? prepareTarget(target) : target)
+    }, [enabled, userId, advancedNavHidden, route, prepareTarget])
 }
 
 /**

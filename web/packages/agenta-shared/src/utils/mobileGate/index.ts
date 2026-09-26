@@ -117,6 +117,9 @@ export function isDesktopOnlyLink(pathname: string, search: string): boolean {
     return isTokenBearingAuthLink(pathname, search) || isPolicyAuthLink(pathname, search)
 }
 
+/** The website "Use it for free" param, also the in-app create surface's pre-selection. */
+export const TEMPLATE_QUERY_PARAM = "template"
+
 const PROJECT_PATH_RE = /^\/w\/([^/]+)\/p\/([^/]+)(?:\/(.*))?$/
 
 /**
@@ -126,6 +129,12 @@ const PROJECT_PATH_RE = /^\/w\/([^/]+)\/p\/([^/]+)(?:\/(.*))?$/
 const APPS_RESERVED = new Set(["archived", "agent-templates"])
 
 const trimSlashes = (value: string) => value.replace(/^\/+|\/+$/g, "")
+
+/** `?template=<key>` when the URL carries a website template link, else "". */
+const templateQueryFrom = (search: string): string => {
+    const templateKey = new URLSearchParams(search).get(TEMPLATE_QUERY_PARAM)?.trim()
+    return templateKey ? `?${TEMPLATE_QUERY_PARAM}=${encodeURIComponent(templateKey)}` : ""
+}
 
 /**
  * Desktop URL → the `/m` route that shows the same thing, or `null` when `/m` has no such
@@ -139,8 +148,12 @@ export function mobileRouteFor(pathname: string, search: string): string | null 
     // Mobile sign-in: /auth/callback never reaches here (handled as an exception).
     if (/^\/auth(\/|$)/.test(pathname)) return "/m/auth"
 
+    // A website template link (`?template=`) rides along: `/m` opens that template's setup step.
+    const templateKey = new URLSearchParams(search).get(TEMPLATE_QUERY_PARAM)?.trim()
+    const templateQuery = templateQueryFrom(search)
+
     // The mobile root resolves last-used workspace/project (same resolution as post-login).
-    if (/^\/w(\/[^/]+(\/p\/?)?)?\/?$/.test(pathname)) return "/m/"
+    if (/^\/w(\/[^/]+(\/p\/?)?)?\/?$/.test(pathname)) return `/m/${templateQuery}`
 
     const match = pathname.match(PROJECT_PATH_RE)
     if (!match) return null
@@ -153,7 +166,9 @@ export function mobileRouteFor(pathname: string, search: string): string | null 
 
     // The project root and /apps are both the home screen.
     if (!head || head === "apps") {
-        if (head !== "apps" || !first) return `${base}/apps`
+        if (head !== "apps" || !first) {
+            return templateKey ? `${base}/agents/new${templateQuery}` : `${base}/apps`
+        }
 
         if (first === "agent-templates") {
             return second ? `${base}/templates/${second}` : `${base}/templates`
@@ -199,7 +214,8 @@ export function mobileRouteFor(pathname: string, search: string): string | null 
  * for a page `/m` does not mirror, because the desktop page is unusable there regardless.
  */
 export function mapDesktopToMobile(pathname: string, search: string): string {
-    return mobileRouteFor(pathname, search) ?? "/m/"
+    // The `/m` root still opens a website template link (`/?template=`) on its setup step.
+    return mobileRouteFor(pathname, search) ?? `/m/${templateQueryFrom(search)}`
 }
 
 /**
