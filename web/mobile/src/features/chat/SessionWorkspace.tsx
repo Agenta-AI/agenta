@@ -327,6 +327,7 @@ export const SessionWorkspace = ({
                     <SessionTopBar
                         entityId={entityId}
                         agentId={agentId}
+                        sessionId={sessionId}
                         workspaceId={workspaceId}
                         projectId={projectId}
                     />
