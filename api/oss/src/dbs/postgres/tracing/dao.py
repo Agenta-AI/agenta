@@ -200,7 +200,7 @@ class TracingDAO(TracingDAOInterface):
 
                 # WINDOWING
                 if rate is not None:
-                    percent = max(0, min(int(rate * 100.0), 100))
+                    percent = get_sampling_percent(rate)
 
                     if percent == 0:
                         return []
