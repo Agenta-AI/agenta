@@ -475,5 +475,6 @@ export {
     revertAgentRevisionAtom,
     revertAgentRevision,
     REVERT_MESSAGE_PREFIX,
+    watchLatestVersion,
 } from "./execution"
-export type {AgentVersionRow, RevertAgentRevisionParams} from "./execution"
+export type {AgentVersionRow, LatestVersion, RevertAgentRevisionParams} from "./execution"

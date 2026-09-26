@@ -8,7 +8,7 @@ import {
 } from "@agenta/chat/model"
 import {fetchSessionRecordsAtom, isSessionFresh} from "@agenta/entities/session"
 import {projectIdAtom} from "@agenta/shared/state"
-import {useAtomValue, useSetAtom} from "jotai"
+import {useAtom, useAtomValue, useSetAtom} from "jotai"
 
 import {ContentRail} from "@/components/ContentRail"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
@@ -72,11 +72,25 @@ export const ChatScreen = ({
         entityId: latestEntityId,
         agentId: resolvedAgentId,
         resolving,
+        refetchLatest,
     } = useAgentEntity(sessionId, projectId, agentId)
     // A revision picked in the top bar pins the workspace to it — config AND the conversation's
-    // invocation target, as on the desktop. Unpinned, the agent's latest is what runs.
-    const pinnedRevisionId = useAtomValue(selectedRevisionAtomFamily(sessionId))
+    // invocation target, as on the desktop.
+    const [pinnedRevisionId, pinRevision] = useAtom(selectedRevisionAtomFamily(sessionId))
     const entityId = pinnedRevisionId ?? latestEntityId
+    // An open session never moves to a newer version by itself (the top bar offers it instead),
+    // so a session starts pinned to the server's latest at the moment it opens.
+    const hasAgent = Boolean(latestEntityId)
+    useEffect(() => {
+        if (pinnedRevisionId || !hasAgent) return
+        let live = true
+        void refetchLatest().then(({data, status}) => {
+            if (live && status === "success" && data?.revisionId) pinRevision(data.revisionId)
+        })
+        return () => {
+            live = false
+        }
+    }, [sessionId, pinnedRevisionId, hasAgent, refetchLatest, pinRevision])
     // Switching sessions re-runs the agent query, and for the moment it is pending `entityId` is
     // null and `resolving` is true. Blanking on that turned every switch into a teardown: the
     // config pane unmounted, the chat became a spinner, and the workspace visibly rebuilt to
