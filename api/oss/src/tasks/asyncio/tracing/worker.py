@@ -19,6 +19,9 @@ from oss.src.tasks.asyncio.shared.consumer import StreamConsumer
 
 log = get_module_logger(__name__)
 
+RECOMPUTE_ATTEMPTS = 3
+RECOMPUTE_BACKOFF_S = 0.5
+
 if is_ee():
     from ee.src.core.access.entitlements.service import (
         check_entitlements,
@@ -200,19 +203,27 @@ class TracingWorker(StreamConsumer):
 
         # 4. Ingest rolls metrics up per batch, so a trace split across requests or
         # batches needs its totals recomputed from all its stored spans.
+        # A transient failure is retried in place; after the last attempt the batch is
+        # still acknowledged and the trace keeps partial totals until it is touched again.
         for project_id, trace_id in sorted(touched_traces):
-            try:
-                await self.service.recompute_trace_totals(
-                    project_id=project_id,
-                    trace_id=trace_id,
-                )
-            except Exception:
-                log.error(
-                    "[INGEST] Failed to recompute trace totals",
-                    project_id=str(project_id),
-                    trace_id=str(trace_id),
-                    exc_info=True,
-                )
+            for attempt in range(1, RECOMPUTE_ATTEMPTS + 1):
+                try:
+                    await self.service.recompute_trace_totals(
+                        project_id=project_id,
+                        trace_id=trace_id,
+                    )
+                    break
+                except Exception:
+                    if attempt == RECOMPUTE_ATTEMPTS:
+                        log.error(
+                            "[INGEST] Failed to recompute trace totals",
+                            project_id=str(project_id),
+                            trace_id=str(trace_id),
+                            attempts=attempt,
+                            exc_info=True,
+                        )
+                    else:
+                        await asyncio.sleep(RECOMPUTE_BACKOFF_S * attempt)
 
         # Return count and message IDs for ACK/DEL
         return (processed_count, processed_message_ids)
