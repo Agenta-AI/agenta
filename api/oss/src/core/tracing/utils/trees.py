@@ -11,7 +11,6 @@ from oss.src.core.tracing.dtos import (
     OTelSpansTree,
     OTelTraceTree,
     Span,
-    SpanType,
     TraceType,
 )
 
@@ -21,6 +20,8 @@ log = get_module_logger(__name__)
 def parse_span_dtos_to_span_idx(
     span_dtos: List[OTelFlatSpan],
 ) -> Dict[str, OTelFlatSpan]:
+    """Index the batch's spans by span id."""
+
     span_idx = {span.span_id: span for span in span_dtos}
 
     return span_idx
@@ -32,8 +33,7 @@ def calculate_and_propagate_metrics(
     """
     Calculate and propagate costs/tokens/errors for a list of span DTOs.
 
-    This must be called BEFORE batching to ensure complete trace trees.
-    If called after batching, partial traces will fail to propagate correctly.
+    Roll-up is batch-local: a span sums only the children present in this call.
 
     Args:
         span_dtos: List of span DTOs (should be from a complete trace)
@@ -176,19 +176,34 @@ def promote_identity_by_trace(
 def parse_span_idx_to_span_id_tree(
     span_idx: Dict[str, OTelFlatSpan],
 ) -> OrderedDict:
-    span_id_tree = OrderedDict()
-    index = {}
+    """
+    Build the forest of span trees for one batch of spans.
 
-    def push(span_dto: OTelFlatSpan) -> None:
-        if span_dto.parent_id is None:
-            span_id_tree[span_dto.span_id] = OrderedDict()
-            index[span_dto.span_id] = span_id_tree[span_dto.span_id]
-        elif span_dto.parent_id in index:
-            index[span_dto.parent_id][span_dto.span_id] = OrderedDict()
-            index[span_dto.span_id] = index[span_dto.parent_id][span_dto.span_id]
+    A span whose parent is not in the batch is a root: a trace can arrive split across
+    OTLP requests (the agent runner ships its subtree under a parent from the SDK's
+    request). Each span has one parent, so it lands in at most one tree; spans in a
+    parent cycle reach no root and are left out.
+    """
+    span_id_tree = OrderedDict()
+    children_by_parent_id: Dict[str, List[OTelFlatSpan]] = {}
+    roots: List[OTelFlatSpan] = []
 
     for span_dto in sorted(span_idx.values(), key=lambda span_dto: span_dto.start_time):
-        push(span_dto)
+        if span_dto.parent_id is None or span_dto.parent_id not in span_idx:
+            roots.append(span_dto)
+        else:
+            children_by_parent_id.setdefault(span_dto.parent_id, []).append(span_dto)
+
+    stack = [(span_dto, span_id_tree) for span_dto in reversed(roots)]
+
+    while stack:
+        span_dto, siblings = stack.pop()
+
+        children = OrderedDict()
+        siblings[span_dto.span_id] = children
+
+        for child_span_dto in reversed(children_by_parent_id.get(span_dto.span_id, [])):
+            stack.append((child_span_dto, children))
 
     return span_id_tree
 
@@ -197,6 +212,8 @@ def connect_children(
     spans_id_tree: OrderedDict,
     spans_idx: Dict[str, dict],
 ) -> None:
+    """Attach each span's children to its `spans` field, grouped by span name."""
+
     _connect_tree_dfs(spans_id_tree, spans_idx)
 
 
@@ -204,14 +221,25 @@ def _connect_tree_dfs(
     spans_id_tree: OrderedDict,
     spans_idx: Dict[str, OTelSpan],
 ):
-    for span_id, children_spans_id_tree in spans_id_tree.items():
-        children_spans_id_tree: OrderedDict
+    """Fill `spans` on every span in the tree; a repeated child name becomes a list."""
+
+    # Iterative post-order walk: deep span chains must not hit the recursion limit.
+    stack = [(span_id, children, False) for span_id, children in spans_id_tree.items()]
+
+    while stack:
+        span_id, children_spans_id_tree, expanded = stack.pop()
+
+        if not expanded:
+            stack.append((span_id, children_spans_id_tree, True))
+            stack.extend(
+                (cid, grandchildren, False)
+                for cid, grandchildren in children_spans_id_tree.items()
+            )
+            continue
 
         parent_span = spans_idx[span_id]
 
         parent_span.spans = dict()
-
-        _connect_tree_dfs(children_spans_id_tree, spans_idx)
 
         for child_span_id in children_spans_id_tree.keys():
             child_span_name = spans_idx[child_span_id].span_name
@@ -229,287 +257,150 @@ def _connect_tree_dfs(
             parent_span.spans = None
 
 
-def cumulate_costs(
+BREAKDOWN_KEYS = ("prompt", "completion", "total")
+
+
+def _read_breakdown(span: OTelFlatSpan, metric: str, bucket: str) -> Dict[str, float]:
+    """The numeric prompt/completion/total values the span carries, keyed by presence.
+
+    Present-and-zero and absent are different facts: a measured 0 must roll up as 0,
+    while an unknown value must not be reported as 0.
+    """
+    node = span.attributes
+    for key in ("ag", "metrics", metric, bucket):
+        if not isinstance(node, dict):
+            return {}
+        node = node.get(key)
+
+    if not isinstance(node, dict):
+        return {}
+
+    values = {}
+    for key in BREAKDOWN_KEYS:
+        value = node.get(key)
+        if isinstance(value, (int, float)) and not isinstance(value, bool):
+            values[key] = value
+
+    if "total" not in values and ("prompt" in values or "completion" in values):
+        values["total"] = values.get("prompt", 0.0) + values.get("completion", 0.0)
+
+    return values
+
+
+def _sum_breakdowns(a: Dict[str, float], b: Dict[str, float]) -> Dict[str, float]:
+    """Add two breakdowns key by key, keeping only the keys either side reports."""
+
+    if not b:
+        return a
+    if not a:
+        return dict(b)
+
+    summed = dict(a)
+    for key, value in b.items():
+        summed[key] = summed.get(key, 0.0) + value
+
+    return summed
+
+
+def _write_cumulative(span: OTelFlatSpan, metric: str, values: Dict[str, float]):
+    """Store `values` as the span's cumulative `metric`.
+
+    An empty breakdown drops a cumulative value left from an earlier run, for example
+    when the span was priced before and is now unpriced."""
+
+    if not values:
+        node = (span.attributes or {}).get("ag", {}).get("metrics", {}).get(metric)
+        if isinstance(node, dict):
+            node.pop("cumulative", None)
+        return
+
+    if span.attributes is None:
+        span.attributes = {}
+
+    node = span.attributes
+    for key in ("ag", "metrics", metric):
+        if not isinstance(node.get(key), dict):
+            node[key] = {}
+        node = node[key]
+
+    node["cumulative"] = values
+
+
+def _reports_aggregate_usage(span: OTelFlatSpan) -> bool:
+    """Whether the producer marked the span's own usage as a summary of its subtree.
+
+    The SDK agent handler sets `ag.flags.aggregate_usage` on the workflow span it stamps
+    with the whole run's usage, whose model calls arrive as its descendants."""
+
+    ag = (span.attributes or {}).get("ag")
+    flags = ag.get("flags") if isinstance(ag, dict) else None
+    return isinstance(flags, dict) and flags.get("aggregate_usage") is True
+
+
+def _combine_breakdowns(
+    span: OTelFlatSpan,
+    own: Dict[str, float],
+    children: Optional[Dict[str, float]],
+) -> Dict[str, float]:
+    """Combine a span's own breakdown with its children's summed cumulative breakdown.
+
+    Own and children add up. A span marked as reporting aggregate usage describes the
+    same calls as its children, so it keeps the larger side: the producer's summary can
+    lack a figure (a harness that reports no cost) that the priced children carry."""
+
+    if not children:
+        return own
+    if not own:
+        return children
+    if not _reports_aggregate_usage(span):
+        return _sum_breakdowns(own, children)
+    if own.get("total", 0.0) >= children.get("total", 0.0):
+        return own
+    return children
+
+
+def _cumulate_breakdown(
     spans_id_tree: OrderedDict,
     spans_idx: Dict[str, OTelFlatSpan],
+    metric: str,
 ) -> None:
-    def _get_incremental(span: OTelFlatSpan):
-        _costs = {
-            "prompt": 0.0,
-            "completion": 0.0,
-            "total": 0.0,
-        }
-
-        if span.attributes is None:
-            return _costs
-
-        attr: dict = span.attributes
-
-        return {
-            "prompt": (
-                attr.get("ag", {})
-                .get("metrics", {})
-                .get("costs", {})
-                .get("incremental", {})
-                .get("prompt", 0.0)
-            ),
-            "completion": (
-                attr.get("ag", {})
-                .get("metrics", {})
-                .get("costs", {})
-                .get("incremental", {})
-                .get("completion", 0.0)
-            ),
-            "total": (
-                attr.get("ag", {})
-                .get("metrics", {})
-                .get("costs", {})
-                .get("incremental", {})
-                .get("total", 0.0)
-            ),
-        }
-
-    def _get_cumulative(span: OTelFlatSpan):
-        _costs = {
-            "prompt": 0.0,
-            "completion": 0.0,
-            "total": 0.0,
-        }
-
-        if span.attributes is None:
-            return _costs
-
-        attr: dict = span.attributes
-
-        return {
-            "prompt": (
-                attr.get("ag", {})
-                .get("metrics", {})
-                .get("costs", {})
-                .get("cumulative", {})
-                .get("prompt", 0.0)
-            ),
-            "completion": (
-                attr.get("ag", {})
-                .get("metrics", {})
-                .get("costs", {})
-                .get("cumulative", {})
-                .get("completion", 0.0)
-            ),
-            "total": (
-                attr.get("ag", {})
-                .get("metrics", {})
-                .get("costs", {})
-                .get("cumulative", {})
-                .get("total", 0.0)
-            ),
-        }
-
-    def _accumulate(a: dict, b: dict):
-        return {
-            "prompt": a.get("prompt", 0.0) + b.get("prompt", 0.0),
-            "completion": a.get("completion", 0.0) + b.get("completion", 0.0),
-            "total": a.get("total", 0.0) + b.get("total", 0.0),
-        }
-
-    def _set_cumulative(span: OTelFlatSpan, costs: dict):
-        if span.attributes is None:
-            span.attributes = {}
-
-        incremental = (
-            span.attributes.get("ag", {})
-            .get("metrics", {})
-            .get("costs", {})
-            .get("incremental", {})
-        )
-        has_reported_total = (
-            isinstance(incremental, dict)
-            and "total" in incremental
-            and "prompt" not in incremental
-            and "completion" not in incremental
-        )
-        if has_reported_total:
-            costs = _get_incremental(span)
-
-        if (
-            has_reported_total
-            or costs.get("prompt", 0.0) != 0.0
-            or costs.get("completion", 0.0) != 0.0
-            or costs.get("total", 0.0) != 0.0
-        ):
-            if "ag" not in span.attributes or not isinstance(
-                span.attributes["ag"],
-                dict,
-            ):
-                span.attributes["ag"] = {}
-
-            if "metrics" not in span.attributes["ag"] or not isinstance(
-                span.attributes["ag"]["metrics"],
-                dict,
-            ):
-                span.attributes["ag"]["metrics"] = {}
-
-            if "costs" not in span.attributes["ag"]["metrics"] or not isinstance(
-                span.attributes["ag"]["metrics"]["costs"],
-                dict,
-            ):
-                span.attributes["ag"]["metrics"]["costs"] = {}
-
-            span.attributes["ag"]["metrics"]["costs"]["cumulative"] = costs
+    """Roll `metric` (costs or tokens) up the tree, from the leaves to the roots."""
 
     _cumulate_tree_dfs(
         spans_id_tree,
         spans_idx,
-        _get_incremental,
-        _get_cumulative,
-        _accumulate,
-        _set_cumulative,
+        lambda span: _read_breakdown(span, metric, "incremental"),
+        lambda span: _read_breakdown(span, metric, "cumulative"),
+        _sum_breakdowns,
+        lambda span, values: _write_cumulative(span, metric, values),
+        combine=_combine_breakdowns,
     )
+
+
+def cumulate_costs(
+    spans_id_tree: OrderedDict,
+    spans_idx: Dict[str, OTelFlatSpan],
+) -> None:
+    """Write each span's cumulative cost from its own cost and its children's."""
+
+    _cumulate_breakdown(spans_id_tree, spans_idx, "costs")
 
 
 def cumulate_tokens(
     spans_id_tree: OrderedDict,
     spans_idx: Dict[str, OTelFlatSpan],
 ) -> None:
-    def _get_incremental(span: OTelFlatSpan):
-        _tokens = {
-            "prompt": 0.0,
-            "completion": 0.0,
-            "total": 0.0,
-        }
+    """Write each span's cumulative token counts from its own and its children's."""
 
-        if span.attributes is None:
-            return _tokens
-
-        attr: dict = span.attributes
-
-        return {
-            "prompt": (
-                attr.get("ag", {})
-                .get("metrics", {})
-                .get("tokens", {})
-                .get("incremental", {})
-                .get("prompt", 0.0)
-            ),
-            "completion": (
-                attr.get("ag", {})
-                .get("metrics", {})
-                .get("tokens", {})
-                .get("incremental", {})
-                .get("completion", 0.0)
-            ),
-            "total": (
-                attr.get("ag", {})
-                .get("metrics", {})
-                .get("tokens", {})
-                .get("incremental", {})
-                .get("total", 0.0)
-            ),
-        }
-
-    def _get_cumulative(span: OTelFlatSpan):
-        _tokens = {
-            "prompt": 0.0,
-            "completion": 0.0,
-            "total": 0.0,
-        }
-
-        if span.attributes is None:
-            return _tokens
-
-        attr: dict = span.attributes
-
-        return {
-            "prompt": (
-                attr.get("ag", {})
-                .get("metrics", {})
-                .get("tokens", {})
-                .get("cumulative", {})
-                .get("prompt", 0.0)
-            ),
-            "completion": (
-                attr.get("ag", {})
-                .get("metrics", {})
-                .get("tokens", {})
-                .get("cumulative", {})
-                .get("completion", 0.0)
-            ),
-            "total": (
-                attr.get("ag", {})
-                .get("metrics", {})
-                .get("tokens", {})
-                .get("cumulative", {})
-                .get("total", 0.0)
-            ),
-        }
-
-    def _accumulate(a: dict, b: dict):
-        return {
-            "prompt": a.get("prompt", 0.0) + b.get("prompt", 0.0),
-            "completion": a.get("completion", 0.0) + b.get("completion", 0.0),
-            "total": a.get("total", 0.0) + b.get("total", 0.0),
-        }
-
-    def _set_cumulative(span: OTelFlatSpan, tokens: dict):
-        if span.attributes is None:
-            span.attributes = {}
-
-        incremental = (
-            span.attributes.get("ag", {})
-            .get("metrics", {})
-            .get("tokens", {})
-            .get("incremental", {})
-        )
-        has_workflow_total = (
-            span.span_type == SpanType.WORKFLOW
-            and isinstance(incremental, dict)
-            and "total" in incremental
-        )
-        if has_workflow_total:
-            # record_usage stamps the runner's whole-run total on the workflow
-            # root. Its child model spans describe the same usage, not more usage.
-            tokens = _get_incremental(span)
-
-        if (
-            has_workflow_total
-            or tokens.get("prompt", 0.0) != 0.0
-            or tokens.get("completion", 0.0) != 0.0
-            or tokens.get("total", 0.0) != 0.0
-        ):
-            if "ag" not in span.attributes or not isinstance(
-                span.attributes["ag"],
-                dict,
-            ):
-                span.attributes["ag"] = {}
-
-            if "metrics" not in span.attributes["ag"] or not isinstance(
-                span.attributes["ag"]["metrics"],
-                dict,
-            ):
-                span.attributes["ag"]["metrics"] = {}
-
-            if "tokens" not in span.attributes["ag"]["metrics"] or not isinstance(
-                span.attributes["ag"]["metrics"]["tokens"],
-                dict,
-            ):
-                span.attributes["ag"]["metrics"]["tokens"] = {}
-
-            span.attributes["ag"]["metrics"]["tokens"]["cumulative"] = tokens
-
-    _cumulate_tree_dfs(
-        spans_id_tree,
-        spans_idx,
-        _get_incremental,
-        _get_cumulative,
-        _accumulate,
-        _set_cumulative,
-    )
+    _cumulate_breakdown(spans_id_tree, spans_idx, "tokens")
 
 
 def cumulate_errors(
     spans_id_tree: OrderedDict,
     spans_idx: Dict[str, OTelFlatSpan],
 ) -> None:
+    """Write each span's cumulative error count: its own errors plus its children's."""
+
     def _get_incremental(span: OTelFlatSpan):
         if span.attributes is None:
             return 0
@@ -579,26 +470,46 @@ def _cumulate_tree_dfs(
     get_cumulative,
     accumulate,
     set_cumulative,
+    combine=None,
 ):
-    for span_id, children_spans_id_tree in spans_id_tree.items():
-        children_spans_id_tree: OrderedDict
+    """Compute a cumulative metric for every span, children before parents.
 
-        cumulated_metric = get_incremental(spans_idx[span_id])
+    Without `combine`, a span's value is its own value accumulated with its
+    children's. With `combine`, `combine(span, own, children)` decides it."""
 
-        _cumulate_tree_dfs(
-            children_spans_id_tree,
-            spans_idx,
-            get_incremental,
-            get_cumulative,
-            accumulate,
-            set_cumulative,
-        )
+    # Iterative post-order walk: deep span chains must not hit the recursion limit.
+    stack = [(span_id, children, False) for span_id, children in spans_id_tree.items()]
 
-        for child_span_id in children_spans_id_tree.keys():
-            marginal_metric = get_cumulative(spans_idx[child_span_id])
-            cumulated_metric = accumulate(cumulated_metric, marginal_metric)
+    while stack:
+        span_id, children, expanded = stack.pop()
 
-        set_cumulative(spans_idx[span_id], cumulated_metric)
+        if not expanded:
+            stack.append((span_id, children, True))
+            stack.extend(
+                (cid, grandchildren, False) for cid, grandchildren in children.items()
+            )
+            continue
+
+        span = spans_idx[span_id]
+        own = get_incremental(span)
+
+        children_metric = None
+        for child_span_id in children:
+            child_metric = get_cumulative(spans_idx[child_span_id])
+            children_metric = (
+                child_metric
+                if children_metric is None
+                else accumulate(children_metric, child_metric)
+            )
+
+        if combine is not None:
+            cumulated_metric = combine(span, own, children_metric)
+        elif children_metric is None:
+            cumulated_metric = own
+        else:
+            cumulated_metric = accumulate(own, children_metric)
+
+        set_cumulative(span, cumulated_metric)
 
 
 TYPES_WITH_COSTS = [
