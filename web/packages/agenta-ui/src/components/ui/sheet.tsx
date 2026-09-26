@@ -137,10 +137,7 @@ function SheetHeader({
             data-slot="sheet-header"
             // A column for title and description, then the close button.
             // No rule under it: the title's spacing separates it from the body.
-            className={cn(
-                "box-border flex items-center gap-2 p-4",
-                className,
-            )}
+            className={cn("box-border flex items-center gap-2 p-4", className)}
             {...props}
         >
             <div data-slot="sheet-header-content" className="flex min-w-0 flex-1 flex-col gap-0.5">
