@@ -55,7 +55,12 @@ import type {
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 import { ATTR_SERVICE_NAME } from "@opentelemetry/semantic-conventions";
 
-import type { AgentEvent, AgentUsage, EmitEvent } from "../protocol.ts";
+import type {
+  AgentEvent,
+  AgentUsage,
+  EmitEvent,
+  ModelTokenUsage,
+} from "../protocol.ts";
 import type { Redactor } from "../redaction.ts";
 import { logExportProblem } from "./export-diagnostics.ts";
 import { createStreamTrace } from "./stream-trace.ts";
@@ -962,6 +967,21 @@ function lastAssistantText(messages: any): string {
   return "";
 }
 
+/**
+ * Declares which token contract a span's `gen_ai.usage.input_tokens` follows.
+ *
+ * The runner writes `false`: its input count is EXCLUSIVE — uncached input only, with
+ * `gen_ai.usage.cache_read.input_tokens` and `gen_ai.usage.cache_creation.input_tokens`
+ * reported beside it rather than inside it. The OpenTelemetry GenAI contract means the
+ * opposite (input already includes cached tokens), and pricing derives ordinary input by
+ * subtracting the cache details from the count it is given. Agenta ingests OTLP from
+ * third-party instrumentation as well as from this runner, so without this marker the two
+ * contracts are indistinguishable and one of them is mispriced. An ABSENT marker means
+ * inclusive, the OpenTelemetry meaning; every span this runner gives an input token count
+ * carries the marker.
+ */
+const INPUT_TOKENS_INCLUDES_CACHE = "agenta.usage.input_tokens_includes_cache";
+
 /** Fill an LLM span from a finished assistant message (model, tokens, finish, output). */
 /** Returns the error message when the assistant turn failed (stopReason/errorMessage), else
  * undefined — so the caller can emit a matching `error` event, not just stamp the span. */
@@ -983,6 +1003,7 @@ function applyAssistant(
   const u = msg.usage;
   if (u) {
     // Current GenAI names (mapped by Agenta's logfire adapter) ...
+    span.setAttribute(INPUT_TOKENS_INCLUDES_CACHE, false);
     span.setAttribute("gen_ai.usage.input_tokens", u.input ?? 0);
     span.setAttribute("gen_ai.usage.output_tokens", u.output ?? 0);
     // ... and legacy names (mapped by Agenta's semconv.py). Emit both so token
@@ -1063,7 +1084,7 @@ export interface AgentaOtel {
   /** Flush this run's trace to Agenta. Await before the process/response ends. */
   flush: () => Promise<void>;
   /** Run totals (tokens + cost) summed across turns, for roll-up onto the parent. */
-  usage: () => { input: number; output: number; total: number; cost: number };
+  usage: () => AgentUsage;
 }
 
 /**
@@ -1110,6 +1131,9 @@ export function createAgentaOtel(
   // (the agent and workflow spans are exported in separate OTLP batches, so Agenta's
   // per-batch cumulative roll-up cannot bridge them on its own).
   const runUsage = { input: 0, output: 0, total: 0, cost: 0 };
+  // Whether ANY turn reported a cost. Without it a run the harness never priced is
+  // indistinguishable from one it priced at zero, and the sum below would report the second.
+  let costReported = false;
 
   function accumulateUsage(msg: any): void {
     const u = msg?.usage;
@@ -1119,7 +1143,10 @@ export function createAgentaOtel(
     runUsage.input += input;
     runUsage.output += output;
     runUsage.total += u.totalTokens ?? input + output;
-    if (u.cost?.total != null) runUsage.cost += u.cost.total;
+    if (u.cost?.total != null) {
+      runUsage.cost += u.cost.total;
+      costReported = true;
+    }
   }
 
   function beginTurn(next: Partial<RunConfig>): void {
@@ -1343,20 +1370,9 @@ export function createAgentaOtel(
           message: finalAssistant.errorMessage,
         });
       }
-      // Stamp the run total on the agent span so it shows the agent's tokens/cost even
-      // though Agenta cannot roll the per-turn LLM spans up across batches.
-      if (runUsage.total > 0) {
-        agentSpan.setAttribute("gen_ai.usage.input_tokens", runUsage.input);
-        agentSpan.setAttribute("gen_ai.usage.output_tokens", runUsage.output);
-        agentSpan.setAttribute("gen_ai.usage.prompt_tokens", runUsage.input);
-        agentSpan.setAttribute(
-          "gen_ai.usage.completion_tokens",
-          runUsage.output,
-        );
-        agentSpan.setAttribute("gen_ai.usage.total_tokens", runUsage.total);
-        if (runUsage.cost > 0)
-          agentSpan.setAttribute("gen_ai.usage.cost", runUsage.cost);
-      }
+      // Each `chat` span owns its own tokens and cost. Ingest reads `gen_ai.usage.*` as the
+      // span's incremental value and rolls children up into the parent, so repeating the run
+      // total here would count it twice.
       agentSpan.end();
       agentSpan = undefined;
       agentCtx = undefined;
@@ -1369,8 +1385,19 @@ export function createAgentaOtel(
     config,
     beginTurn,
     flush: () => flushTrace(config.traceId, config.redactor, runId),
-    usage: () => ({ ...runUsage }),
+    // The usage writeback (`extensions/agenta.ts`) serializes this straight onto the wire, so
+    // an unreported cost has to leave the key off rather than ship the running sum's 0.
+    usage: () => (costReported ? { ...runUsage } : stripCost(runUsage)),
   };
+}
+
+/** Drop the cost key, so an unpriced run reads as unknown rather than measured-free. */
+function stripCost(usage: {
+  input: number;
+  output: number;
+  total: number;
+}): AgentUsage {
+  return { input: usage.input, output: usage.output, total: usage.total };
 }
 
 // ---------------------------------------------------------------------------
@@ -1653,6 +1680,8 @@ export interface SandboxAgentOtel {
   recordError(message: string, provider?: string): void;
   /** Set final run usage before finish/flush so events and exported spans carry final totals. */
   setUsage(usage: AgentUsage | undefined): void;
+  /** The turn's token counts (with cache reads and writes) for the model span. Not on the wire. */
+  setTokenDetail(tokens: ModelTokenUsage | undefined): void;
   /** Flush this run's trace to Agenta (invoke_agent has a remote parent). */
   flush(): Promise<void>;
   /** Trace id of the run (the caller's trace when a traceparent was passed). */
@@ -1708,6 +1737,7 @@ export function createSandboxAgentOtel(
   let accumulated = "";
   let reasoningAccumulated = "";
   let usage: AgentUsage | undefined;
+  let tokenDetail: ModelTokenUsage | undefined;
   const events: AgentEvent[] = [];
   // `inputJson` is the serialized form of the last-RECORDED input for the call, so a later
   // `tool_call_update` can refresh the recorded args whenever they genuinely change.
@@ -1735,20 +1765,68 @@ export function createSandboxAgentOtel(
     }
   }
 
-  function stampUsage(span: Span, u: AgentUsage | undefined): void {
-    if (!u) return;
-    span.setAttribute("gen_ai.usage.input_tokens", u.input);
-    span.setAttribute("gen_ai.usage.output_tokens", u.output);
-    span.setAttribute("gen_ai.usage.prompt_tokens", u.input);
-    span.setAttribute("gen_ai.usage.completion_tokens", u.output);
-    span.setAttribute("gen_ai.usage.total_tokens", u.total);
-    if (u.cost > 0) span.setAttribute("gen_ai.usage.cost", u.cost);
+  /**
+   * Stamp token counts on a LEAF model span, the one span that owns them. Input is exclusive of
+   * cache (see INPUT_TOKENS_INCLUDES_CACHE); cache reads and writes ride beside it.
+   */
+  function stampTokens(span: Span, t: ModelTokenUsage): void {
+    const total = t.input + t.output + t.cacheRead + t.cacheWrite;
+    // All zeros is the absence of a measurement, not a measured zero.
+    if (total <= 0) return;
+    span.setAttribute(INPUT_TOKENS_INCLUDES_CACHE, false);
+    span.setAttribute("gen_ai.usage.input_tokens", t.input);
+    span.setAttribute("gen_ai.usage.output_tokens", t.output);
+    span.setAttribute("gen_ai.usage.prompt_tokens", t.input);
+    span.setAttribute("gen_ai.usage.completion_tokens", t.output);
+    span.setAttribute("gen_ai.usage.total_tokens", total);
+    span.setAttribute("gen_ai.usage.cache_read.input_tokens", t.cacheRead);
+    span.setAttribute("gen_ai.usage.cache_creation.input_tokens", t.cacheWrite);
   }
 
+  /**
+   * Stamp the turn's usage on its chat span: the tokens of every model call in the turn, summed,
+   * and the harness cost when it reported one (Claude's turn share). The span stands for many
+   * calls, so without a cost the platform prices the sum as one request. Codex reports neither a
+   * cost nor per-call counts, so a Codex turn whose calls together cross a long-context price tier
+   * is priced at that tier: a known limit.
+   */
+  function stampModelUsage(span: Span): void {
+    const tokens =
+      tokenDetail ??
+      (usage
+        ? {
+            input: usage.input,
+            output: usage.output,
+            cacheRead: 0,
+            cacheWrite: 0,
+          }
+        : undefined);
+    if (tokens) stampTokens(span, tokens);
+    if (usage?.cost != null) span.setAttribute("gen_ai.usage.cost", usage.cost);
+  }
+
+  function setTokenDetail(tokens: ModelTokenUsage | undefined): void {
+    tokenDetail = tokens;
+  }
+
+  /**
+   * Set the run's final usage. With token detail set (call `setTokenDetail` first), the usage
+   * reports the counts the model span carries: every model call of the turn, and cache reads and
+   * writes in the total. A harness that traces its own spans (Pi) keeps the usage it reported.
+   */
   function setUsage(finalUsage: AgentUsage | undefined): void {
-    if (!finalUsage) return;
-    usage = finalUsage;
-    const event: AgentEvent = { type: "usage", ...finalUsage };
+    const t = emitSpans ? tokenDetail : undefined;
+    const merged: AgentUsage | undefined = t
+      ? {
+          ...finalUsage,
+          input: t.input,
+          output: t.output,
+          total: t.input + t.output + t.cacheRead + t.cacheWrite,
+        }
+      : finalUsage;
+    if (!merged) return;
+    usage = merged;
+    const event: AgentEvent = { type: "usage", ...merged };
     if (!sink) {
       const index = events.findLastIndex((e) => e.type === "usage");
       if (index !== -1) {
@@ -2040,18 +2118,23 @@ export function createSandboxAgentOtel(
     }
 
     if (kind === "usage_update") {
-      // ACP usage_update carries only `used` (context tokens) and `cost.amount`. The
-      // per-call input/output split is NOT on the stream; it rides on the PromptResponse,
-      // which the sandbox-agent engine reads. Keep total + cost here and leave the split to the caller.
+      // ACP usage_update carries `used` and `cost.amount`. `used` is the agent's CONTEXT-WINDOW
+      // occupancy at this point in the turn, NOT the tokens this run spent, so it is dropped:
+      // reporting it as a total produced runs shaped `input 0 / output 0 / total <context size>`.
+      // The token split is not on the stream at all; it rides on the PromptResponse, which the
+      // sandbox-agent engine reads and hands back through `setUsage`. Cost is the only run total
+      // here, so an update without one carries nothing worth recording.
       const cost = update.cost?.amount;
-      const total = update.used;
+      if (typeof cost !== "number") return;
       usage = {
         input: usage?.input ?? 0,
         output: usage?.output ?? 0,
-        total: typeof total === "number" ? total : (usage?.total ?? 0),
-        cost: typeof cost === "number" ? cost : (usage?.cost ?? 0),
+        total: usage?.total ?? 0,
+        cost,
       };
-      record({ type: "usage", ...usage });
+      // Claude's figure is the whole session's running total, not this turn's. The engine turns
+      // it into the turn's share at the end (`setUsage`), so do not show it live.
+      if (init.harness !== "claude") record({ type: "usage", ...usage });
     }
   }
 
@@ -2150,7 +2233,13 @@ export function createSandboxAgentOtel(
       errSpan.setAttribute("openinference.span.kind", "AGENT");
       errSpan.setAttribute("gen_ai.operation.name", "invoke_agent");
       errSpan.setAttribute("gen_ai.agent.name", init.harness ?? "agent");
-      stampUsage(errSpan, usage);
+      if (usage && usage.total > 0)
+        stampTokens(errSpan, {
+          input: usage.input,
+          output: usage.output,
+          cacheRead: 0,
+          cacheWrite: 0,
+        });
       stamp(errSpan);
       // The standalone span shares the caller's trace id; make sure the run reports it so the
       // engine flushes this trace (a self-instrumenting run otherwise only tracked it from the
@@ -2217,7 +2306,7 @@ export function createSandboxAgentOtel(
         [{ role: "assistant", content: text }],
         capture,
       );
-      stampUsage(llmSpan, usage);
+      stampModelUsage(llmSpan);
       llmSpan.end();
       llmSpan = undefined;
     }
@@ -2229,7 +2318,7 @@ export function createSandboxAgentOtel(
     }
     if (agentSpan) {
       setOutput(agentSpan, text, capture);
-      stampUsage(agentSpan, usage);
+      // The `chat` spans above own this run's usage; ingest rolls them up into this span.
       agentSpan.end();
       agentSpan = undefined;
     }
@@ -2245,6 +2334,7 @@ export function createSandboxAgentOtel(
     finish,
     recordError,
     setUsage,
+    setTokenDetail,
     flush: () => flushTrace(runTraceId, init.redactor, runId),
     traceId: () => runTraceId,
     output: () => accumulated,

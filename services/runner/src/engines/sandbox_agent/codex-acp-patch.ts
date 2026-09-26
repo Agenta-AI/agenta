@@ -78,3 +78,31 @@ export function applyCodexAcpApprovalPatch(
       source.slice(match.index + match[0].length),
   };
 }
+
+/** The per-turn usage patch: literal replacements, each expected a fixed number of times. */
+export const CODEX_ACP_USAGE_PATCH = patchSpec.usage;
+
+export type CodexAcpUsagePatchOutcome =
+  | { kind: "patched"; source: string }
+  | { kind: "already-patched" }
+  | { kind: "anchor-missing"; find: string };
+
+/**
+ * Make codex-acp report a turn's own token usage instead of its last model call's.
+ *
+ * Idempotent like the approval patch: a source that already carries the marker is left alone.
+ * Every anchor must match exactly its expected count, or nothing is written.
+ */
+export function applyCodexAcpUsagePatch(
+  source: string,
+): CodexAcpUsagePatchOutcome {
+  if (source.includes(CODEX_ACP_USAGE_PATCH.marker))
+    return { kind: "already-patched" };
+  let next = source;
+  for (const { find, replace, count } of CODEX_ACP_USAGE_PATCH.replacements) {
+    if (next.split(find).length - 1 !== count)
+      return { kind: "anchor-missing", find };
+    next = next.split(find).join(replace);
+  }
+  return { kind: "patched", source: next };
+}

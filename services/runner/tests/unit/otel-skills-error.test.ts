@@ -237,7 +237,7 @@ describe("otel skills + error tracing", () => {
     );
     expect(errSpan.attributes["ag.exception.provider"]).toBe("anthropic");
     expect(errSpan.attributes["gen_ai.usage.total_tokens"]).toBe(15);
-    expect(errSpan.attributes["gen_ai.usage.cost"]).toBe(0.001);
+    expect(errSpan.attributes["gen_ai.usage.cost"]).toBeUndefined();
     expect(errSpan.exceptions).toHaveLength(1);
     expect(errSpan.ended).toBe(true);
   });
@@ -269,7 +269,10 @@ describe("otel skills + error tracing", () => {
       await handlers["before_agent_start"]?.({ prompt: "hi" });
       await handlers["agent_start"]?.({});
       await handlers["turn_start"]?.({ turnIndex: 0 });
-      await handlers["before_provider_request"]?.({}, { model: { id: "gpt-5" } });
+      await handlers["before_provider_request"]?.(
+        {},
+        { model: { id: "gpt-5" } },
+      );
       await handlers["message_end"]?.({
         message: {
           role: "assistant",

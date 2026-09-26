@@ -151,6 +151,48 @@ console.log("codex-acp-approvals=" + patched);
     )
 
 
+def codex_usage_patch_command() -> str:
+    """A self-contained RUN that makes codex-acp report each turn's own token usage.
+
+    Same shape and the same reasons as `codex_approval_patch_command`: base64-embedded, fails on a
+    missing anchor, idempotent through its marker, and verified after the write. The replacements
+    come from the `usage` block of the shared codex-acp-patch.json.
+    """
+    usage = PATCH_SPEC["usage"]
+    script = f"""
+import {{ readFileSync, writeFileSync }} from "node:fs";
+const file = {json.dumps(CODEX_ACP_BUNDLE)};
+const marker = {json.dumps(usage["marker"])};
+const replacements = {json.dumps(usage["replacements"])};
+let source = readFileSync(file, "utf8");
+if (source.includes(marker)) {{
+  console.log("codex-acp usage patch: already per-turn");
+}} else {{
+  for (const {{ find, replace, count }} of replacements) {{
+    if (source.split(find).length - 1 !== count) {{
+      console.error(
+        "codex-acp usage patch: anchor missing in " + file + ": " + JSON.stringify(find) +
+        ". Update the usage block of services/runner/src/engines/sandbox_agent/codex-acp-patch.json."
+      );
+      process.exit(1);
+    }}
+    source = source.split(find).join(replace);
+  }}
+  writeFileSync(file, source);
+  console.log("codex-acp usage patch: usage now per-turn");
+}}
+if (!readFileSync(file, "utf8").includes(marker)) {{
+  console.error("codex-acp usage patch did not take in " + file);
+  process.exit(1);
+}}
+"""
+    blob = base64.b64encode(script.encode()).decode()
+    return (
+        f"RUN echo {blob} | base64 -d > /tmp/patch-codex-acp-usage.mjs "
+        "&& node /tmp/patch-codex-acp-usage.mjs && rm /tmp/patch-codex-acp-usage.mjs"
+    )
+
+
 def pin_agent_process_command(agent: str, version: str) -> str:
     """One RUN that replaces the base image's ACP adapter for `agent` with `version`.
 
@@ -418,6 +460,7 @@ def build_snapshot(daytona: Daytona, name: str) -> None:
             f"&& echo codex-acp-version={CODEX_ACP_VERSION}",
             # Patches AND verifies in one step; see the docstring for why it is not two.
             codex_approval_patch_command(),
+            codex_usage_patch_command(),
             # Same treatment for Claude: replace the base's stale adapter with the
             # runner's pinned claude-agent-acp, then assert version and model table.
             pin_agent_process_command("claude", CLAUDE_ACP_VERSION),
