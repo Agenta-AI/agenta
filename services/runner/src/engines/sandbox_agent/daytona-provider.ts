@@ -285,3 +285,14 @@ export function daytonaWithLifecycle(
     },
   };
 }
+
+/** The vCPUs and GiB of memory Daytona reports for a sandbox, for metering what it really has. */
+export async function readDaytonaSandboxResources(
+  config: RunnerDaytonaConfig,
+  sandboxId: string,
+  client: DaytonaClient = buildDaytonaClient(config),
+): Promise<{ vcpu: number; memoryGib: number }> {
+  const id = sandboxId.startsWith("daytona/") ? sandboxId.slice("daytona/".length) : sandboxId;
+  const sandbox = await client.get(id);
+  return { vcpu: Number(sandbox.cpu), memoryGib: Number(sandbox.memory) };
+}

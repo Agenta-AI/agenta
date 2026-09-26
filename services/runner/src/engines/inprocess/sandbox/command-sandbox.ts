@@ -31,6 +31,7 @@ import { SANDBOX_CAPACITY_MESSAGE, SANDBOX_PROVIDER_CAPACITY, withPublicCode } f
 import { DEPLOYMENT_LABEL, OWNER_LABEL, type SandboxOwner } from "./sandbox-owner.ts";
 import { sandboxSlots, type SandboxSlots, type Slot } from "./sandbox-slots.ts";
 import { SerialQueue, sleep, untilAborted } from "./serial-queue.ts";
+import { startSandboxMeter, type SandboxMeter, type SandboxUsageContext } from "../../../metering/sandbox-usage.ts";
 
 type Log = (message: string) => void;
 
@@ -51,6 +52,8 @@ export interface CommandSandboxSettings {
   slots?: SandboxSlots;
   /** Keys the credential fingerprint label, so the label cannot be brute-forced back to values. */
   fingerprintKey: string;
+  /** Reports running seconds to the wallet; tests replace it. */
+  startMeter?: typeof startSandboxMeter;
 }
 
 /** What a command needs from the sandbox: the run's network policy and custom credentials. */
@@ -185,6 +188,10 @@ export class CommandSandbox {
   private uses = 0;
   private idleTimer: NodeJS.Timeout | undefined;
   private runningSince: number | undefined;
+  /** The newest holder's usage context; without one, nothing is metered. */
+  private usage: SandboxUsageContext | undefined;
+  /** Reports the running seconds of `current` while it runs. */
+  private meter: SandboxMeter | undefined;
   /** The running slot of `current` (or of the sandbox being created); goes back once it is stopped or gone. */
   private runningSlot: Slot | undefined;
   /** Without a runner-wide admission (tests), an unlimited one: its reconciliation still settles retired sandboxes. */
@@ -270,6 +277,13 @@ export class CommandSandbox {
     };
   }
 
+  /** The newest run's usage context: the meter reports with its credential from now on. */
+  useUsage(usage: SandboxUsageContext | undefined): void {
+    if (!usage?.authorization) return;
+    this.usage = usage;
+    this.meter?.setAuthorization(usage.authorization);
+  }
+
   countCommand(): void {
     this.stats.commands += 1;
   }
@@ -340,7 +354,7 @@ export class CommandSandbox {
     }
     const sandbox = this.current!;
     await this.applyNetwork(sandbox, requirements.network);
-    this.markRunning();
+    this.markRunning(t0);
     this.stats.lastStartMs = Date.now() - t0;
     return sandbox;
   }
@@ -598,11 +612,24 @@ export class CommandSandbox {
 
   // ---- Accounting ------------------------------------------------------------------------- //
 
-  private markRunning(): void {
-    this.runningSince ??= Date.now();
+  private markRunning(since: number): void {
+    this.runningSince ??= since;
+    if (this.meter || !this.usage || !this.current) return;
+    this.meter = (this.settings.startMeter ?? startSandboxMeter)({
+      provider: "daytona",
+      sandboxId: this.current.id,
+      resources: this.current.resources,
+      authorization: this.usage.authorization,
+      ...(this.usage.sessionId ? { sessionId: this.usage.sessionId } : {}),
+      ...(this.usage.agentId ? { agentId: this.usage.agentId } : {}),
+      startedAtMs: this.runningSince,
+    });
   }
 
   private markStopped(): void {
+    const meter = this.meter;
+    this.meter = undefined;
+    if (meter) void this.inBackground(meter.stop());
     if (this.runningSince === undefined) return;
     this.stats.runningSeconds += (Date.now() - this.runningSince) / 1000;
     this.runningSince = undefined;

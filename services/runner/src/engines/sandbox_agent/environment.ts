@@ -155,7 +155,9 @@ import {
   routeSessionEventToActiveTurn,
 } from "./session-events.ts";
 import { buildSandboxProvider, daytonaNetworkFields } from "./provider.ts";
-import { sandboxProviderTraits } from "../../config/runner-config.ts";
+import { loadRunnerConfig, sandboxProviderTraits } from "../../config/runner-config.ts";
+import { readDaytonaSandboxResources } from "./daytona-provider.ts";
+import { startSandboxMeter } from "../../metering/sandbox-usage.ts";
 import {
   markSandboxDestroyed,
   readStoredSandboxPointer,
@@ -170,6 +172,7 @@ import type {
 import {
   containsTransportEndpointDisconnected,
   isTransportEndpointDisconnected,
+  platformCredentialForRequest,
   runCredential,
 } from "./runtime-policy.ts";
 import { hydrateHarnessSessionFromDurable } from "./session-continuity-durable.ts";
@@ -590,6 +593,9 @@ async function acquireEnvironmentOnce(
         ? { disposition: opts?.reason === "kill" ? ("delete" as const) : ("stop" as const) }
         : {}),
     });
+    // Parked or deleted: it no longer runs, so the last interval ends here.
+    await environment.sandboxMeter?.stop();
+    environment.sandboxMeter = undefined;
     // A parked remote sandbox keeps its own mounts; runner-host mounts always come down here.
     const sandboxKeepsMounts = parked && !traits.filesOnRunner;
     // Unmount the durable cwd BEFORE removing the dir: data lives in the store, only the host
@@ -840,6 +846,8 @@ async function acquireEnvironmentOnce(
         piModelConfig && !isPiModelRegistrationPlan(piModelConfig)
           ? { providerId: piModelConfig.providerId, keyEnv: piModelConfig.apiKeyEnv }
           : undefined;
+      const usageAuthorization = platformCredentialForRequest(request);
+      const agentId = request.runContext?.workflow?.artifact?.id;
       return {
         conversationId: sessionForMount,
         projectId: environment.projectScopeId,
@@ -870,10 +878,20 @@ async function acquireEnvironmentOnce(
         extensionEnv: piExtEnv,
         modelEnvironment: plan.credentials.modelEnvironment,
         ...(customProvider ? { customProvider } : {}),
+        ...(usageAuthorization
+          ? {
+              usage: {
+                authorization: usageAuthorization,
+                ...(sessionForMount ? { sessionId: sessionForMount } : {}),
+                ...(agentId ? { agentId } : {}),
+              },
+            }
+          : {}),
       };
     };
     // SandboxLifecycle owns the reconnect ladder, the fresh-create fallback, and both
     // `sandbox_start` timing marks. See `environment/sandbox-lifecycle.ts`.
+    const sandboxRequestedAt = Date.now();
     const acquiredSandbox = await acquireSandbox(
       {
         startOptions,
@@ -914,6 +932,29 @@ async function acquireEnvironmentOnce(
     // Track the live handle so a shutdown signal handler can delete it if `destroy` is skipped by
     // a process KILL; removed in `destroy` on every normal exit so it is never double-deleted.
     if (environment.sandbox) inFlightSandboxes.add(environment);
+    // Sandbox seconds on the platform's Daytona account, from the moment the sandbox was asked for.
+    // The in-process provider holds no sandbox here: it meters its own command sandbox.
+    const meteredSandboxId = (environment.sandbox as { sandboxId?: string } | undefined)?.sandboxId;
+    const meterAuthorization = platformCredentialForRequest(request);
+    if (
+      meteredSandboxId &&
+      meterAuthorization &&
+      providerTraits.commandsInRemoteSandbox &&
+      !providerTraits.harnessInRunner
+    ) {
+      const daytonaSandboxId = meteredSandboxId.replace(/^daytona\//, "");
+      environment.sandboxMeter = (deps.startSandboxMeter ?? startSandboxMeter)({
+        provider: "daytona",
+        sandboxId: daytonaSandboxId,
+        resources: readDaytonaSandboxResources(loadRunnerConfig().daytona, daytonaSandboxId),
+        authorization: meterAuthorization,
+        ...(sessionForMount ? { sessionId: sessionForMount } : {}),
+        ...(request.runContext?.workflow?.artifact?.id
+          ? { agentId: request.runContext.workflow.artifact.id }
+          : {}),
+        startedAtMs: sandboxRequestedAt,
+      });
+    }
 
     // CREDENTIAL PREFLIGHT (fresh Daytona sandboxes with an opaque model key and a declared
     // endpoint). Kicked off HERE, right after the sandbox exists, and awaited at the very end of

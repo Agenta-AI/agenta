@@ -267,3 +267,54 @@ describe("a running slot goes back only once its sandbox is confirmed stopped or
     await expect.poll(() => slots.running.inUse, { timeout: 3_000 }).toBe(0);
   });
 });
+
+describe("running seconds are metered for the newest holder", () => {
+  function recordingMeters() {
+    const started: Array<Record<string, unknown>> = [];
+    const events: string[] = [];
+    const startMeter = ((options: Record<string, unknown>) => {
+      started.push(options);
+      return {
+        setAuthorization: (authorization: string) => events.push(`auth ${authorization}`),
+        stop: async () => {
+          events.push(`stop ${String(options.sandboxId)}`);
+        },
+      };
+    }) as unknown as NonNullable<Parameters<typeof newSandbox>[2]>["startMeter"];
+    return { started, events, startMeter };
+  }
+
+  it("meters from bring-up to stop, with the sandbox's own id and session, and switches to a newer credential", async () => {
+    const daytona = freshDaytona();
+    const meters = recordingMeters();
+    const { sandbox } = newSandbox(daytona, testOwner(), { ...sandboxSettings(), startMeter: meters.startMeter });
+    sandbox.useUsage({ authorization: "Secret run-1", sessionId: "conv-1" });
+
+    const use = await sandbox.acquire(OPEN_NETWORK);
+    const id = use.sandbox.id;
+    sandbox.useUsage({ authorization: "Secret run-2", sessionId: "conv-1" });
+    use.release();
+    await sandbox.stop("idle");
+    await sandbox.settle(5_000);
+
+    expect(meters.started).toHaveLength(1);
+    expect(meters.started[0]).toMatchObject({
+      provider: "daytona",
+      sandboxId: id,
+      authorization: "Secret run-1",
+      sessionId: "conv-1",
+    });
+    expect(meters.events).toEqual(["auth Secret run-2", `stop ${id}`]);
+  });
+
+  it("meters nothing without a holder's credential", async () => {
+    const daytona = freshDaytona();
+    const meters = recordingMeters();
+    const { sandbox } = newSandbox(daytona, testOwner(), { ...sandboxSettings(), startMeter: meters.startMeter });
+
+    (await sandbox.acquire(OPEN_NETWORK)).release();
+    await sandbox.stop("idle");
+
+    expect(meters.started).toEqual([]);
+  });
+});
