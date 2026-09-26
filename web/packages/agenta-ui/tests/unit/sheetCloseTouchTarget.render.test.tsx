@@ -12,7 +12,7 @@ import {TOUCH_TARGET_MINIMUM_PX, touchTargetHitArea} from "../../src/components/
  * box to the minimum.
  *
  * Asserted through `touchTargetHitArea` so a later change to the button's size variant has to
- * change the expansion with it. The 8px reach to the right is exactly the header's own gap, so
+ * change the expansion with it. The 8px reach to the left is exactly the header's own gap, so
  * the box stops at the title's edge rather than covering its first characters.
  */
 afterEach(cleanup)
