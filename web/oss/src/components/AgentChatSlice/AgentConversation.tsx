@@ -9,7 +9,6 @@ import {
 import {
     describeAccepted,
     jumpGateOpen,
-    restoreRefusedDraft,
     restoreRefusedSend as restoreRefusedSendInto,
     sideEffectingToolsInRange,
 } from "@agenta/chat/assets"
@@ -69,6 +68,7 @@ import {useProjectPermissions} from "@/oss/hooks/useProjectPermissions"
 import {answerThenSteer} from "./assets/answerThenSteer"
 import {CONTENT_VISIBILITY_ENABLED} from "./assets/conversationLayout"
 import {runWithInFlightSubmit} from "./assets/inFlightSubmit"
+import {sendPendingRun} from "./assets/pendingRunSend"
 import AgentComposerDock from "./components/AgentComposerDock"
 import AgentTranscript from "./components/AgentTranscript"
 import AgentTurn from "./components/AgentTurn"
@@ -620,16 +620,14 @@ const AgentConversation = ({
         if (consumedRunNonceRef.current === pendingRun.nonce) return
         consumedRunNonceRef.current = pendingRun.nonce
         scrollIntent.follow()
-        void Promise.resolve(submit({text: pendingRun.text}))
-            .then(() =>
+        void sendPendingRun({
+            text: pendingRun.text,
+            submit,
+            editor: richInputRef.current,
+            reportRefusal: (error) => attachments.setRejections(refusedSendRejections(error)),
+            settle: () =>
                 setPendingRun((current) => (current?.nonce === pendingRun.nonce ? null : current)),
-            )
-            .catch((error: unknown) => {
-                // Hand the text back only into an empty composer: this run never came from it,
-                // so a draft the user is typing there wins (Save as template sends here).
-                void restoreRefusedDraft(richInputRef.current, pendingRun.text)
-                attachments.setRejections(refusedSendRejections(error))
-            })
+        })
     }, [pendingRun, activeSessionId, sessionId, submit, setPendingRun])
 
     // Run-level shortcuts. They live here, not in the panel's session hook, because only this
