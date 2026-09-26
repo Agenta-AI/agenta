@@ -12,6 +12,12 @@ Implemented in PR #7058. Delete automatic previews after tests and let authorize
 
 Implemented in PR #7128. In a Slack channel thread, a Slack group DM or a Telegram group, the bot answers only when it is mentioned, given a command, or answered on a pending choice. In a Telegram group, a reply to one of the bot's messages also counts. The next turn carries every message posted since the agent's last turn, up to its own mention, and every mention runs, at most once per thread (context under sub-second concurrent arrival is best effort). A 1:1 DM still answers every message.
 
+## Create, share and load templates
+
+[Handoff](changes/create-share-load-templates/HANDOFF.md), [design](changes/create-share-load-templates/design.md), [specifications and plans](changes/create-share-load-templates/README.md), and [tasks](changes/create-share-load-templates/tasks.md).
+
+Approved delivery direction, not implemented. Extend the single-agent loader with validated zip export/import and exact-commit GitHub sources. Migrate the bundled catalog, API and frontend together through one reader. Generate marketplace data from that reader; visual implementation waits for separately supplied website UI designs. No legacy catalog reader, custom-root setting or directory-only validation API.
+
 ## Agent template specifications
 
 These OpenSpec changes are proposals for PR #6944. No runtime implementation is included, and no change has been archived as a shipped capability.
