@@ -47,6 +47,7 @@ import YourAgentsTable from "./components/YourAgentsTable"
 import {useAgentHomeActions} from "./hooks/useAgentHomeActions"
 import {useAgentHomeVariants} from "./hooks/useAgentHomeVariants"
 import {useCreateAgentFromTemplate} from "./hooks/useCreateAgentFromTemplate"
+import {templateSeedYields} from "./templateSeed"
 
 // The expanded analytics view is desktop-only (tremor charts) and lazy — the shared usage
 // card takes it as a slot, so mobile simply has no Expand control.
@@ -227,9 +228,12 @@ const StripHome: React.FC = () => {
     // draft, an arrival on the URL.
     const heroTemplate = setup.draft?.template ?? pickedTemplate
     const seededTemplate = useRef<string | null>(null)
+    // The key that arrived before the catalog had it, so its seed is a late response.
+    const awaitedTemplate = useRef<string | null>(null)
     useEffect(() => {
         if (!templateParam) {
             seededTemplate.current = null
+            awaitedTemplate.current = null
             return
         }
         if (seededTemplate.current === templateParam) return
@@ -241,12 +245,24 @@ const StripHome: React.FC = () => {
             if (templatesStatus === "success") {
                 seededTemplate.current = templateParam
                 message.warning(UNAVAILABLE_TEMPLATE_MESSAGE)
+            } else {
+                awaitedTemplate.current = templateParam
             }
             return
         }
         seededTemplate.current = templateParam
-        // A late catalog must not replace a draft the user already started while it loaded.
-        if (setup.draft) return
+        // A late catalog must not replace a draft or text the user started while it loaded.
+        const late = awaitedTemplate.current === templateParam
+        awaitedTemplate.current = null
+        if (
+            templateSeedYields({
+                late,
+                hasDraft: Boolean(setup.draft),
+                composerText: composerRef.current?.getMarkdown() ?? "",
+            })
+        ) {
+            return
+        }
         provenance.pick(template)
         // A template arriving on the URL was picked on another page, so it goes straight to the
         // step — docked inside the composer, with the template's prompt seeded into the editor.
