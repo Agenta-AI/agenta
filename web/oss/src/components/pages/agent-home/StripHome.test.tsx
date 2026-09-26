@@ -4,7 +4,18 @@ import type {AgentStarterTemplate} from "@agenta/entities/workflow"
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
-const {onCreateMock, routerState, composer, templates, passthrough, nothing} = vi.hoisted(() => ({
+const {
+    onCreateMock,
+    createFromTemplateMock,
+    strip,
+    routerState,
+    composer,
+    templates,
+    passthrough,
+    nothing,
+} = vi.hoisted(() => ({
+    createFromTemplateMock: vi.fn(),
+    strip: {onPick: null as null | ((template: AgentStarterTemplate) => void)},
     passthrough: ({children}: {children?: ReactNode}) => children ?? null,
     nothing: () => null,
     onCreateMock: vi.fn(),
@@ -92,7 +103,12 @@ vi.mock("@/oss/components/pages/agents/store", async () => {
 vi.mock("@/oss/components/pages/sessions/components/SessionAutomationDrawers", () => ({
     default: nothing,
 }))
-vi.mock("@/oss/components/TemplateStrip", () => ({default: nothing}))
+vi.mock("@/oss/components/TemplateStrip", () => ({
+    default: ({onPick}: {onPick: (template: AgentStarterTemplate) => void}) => {
+        strip.onPick = onPick
+        return null
+    },
+}))
 vi.mock("@/oss/components/TemplateStrip/components/TemplateChipDock", () => ({default: nothing}))
 // A plain-text stand-in for the editor, with its Create handler exposed to the test.
 vi.mock("@/oss/components/TemplateStrip/components/StripComposer", () => ({
@@ -132,7 +148,10 @@ vi.mock("./hooks/useAgentHomeVariants", () => ({
     useAgentHomeVariants: () => ({firstRunOverride: true, creatingAgent: true}),
 }))
 vi.mock("./hooks/useCreateAgentFromTemplate", () => ({
-    useCreateAgentFromTemplate: () => ({createFromTemplate: vi.fn(), pendingKey: null}),
+    useCreateAgentFromTemplate: () => ({
+        createFromTemplate: createFromTemplateMock,
+        pendingKey: null,
+    }),
 }))
 
 import StripHome from "./StripHome"
@@ -162,6 +181,7 @@ const navigate = async (templateKey?: string) => {
 beforeEach(() => {
     templates.splice(0, templates.length, PR_REVIEWER, REPURPOSER)
     onCreateMock.mockReset()
+    createFromTemplateMock.mockReset()
     onCreateMock.mockResolvedValue(true)
     composer.text = ""
     host = document.createElement("div")
@@ -197,5 +217,16 @@ describe("StripHome template selection", () => {
         expect(name).toBe("Content repurposer")
         expect(created).toBe(REPURPOSER)
         expect(setup.connectedSlugs).toEqual(["github", "notion"])
+    })
+
+    it("binds the connected accounts when a strip card needs no setup", async () => {
+        await navigate()
+
+        act(() => strip.onPick?.(REPURPOSER))
+
+        expect(createFromTemplateMock).toHaveBeenCalledWith(REPURPOSER, {
+            accounts: [{slug: "notion", required: true}],
+            connectedSlugs: ["github", "notion"],
+        })
     })
 })

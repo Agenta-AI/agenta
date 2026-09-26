@@ -163,6 +163,14 @@ const StripHome: React.FC = () => {
                 .filter(Boolean) as string[],
         [connections],
     )
+    // What a skipped setup step would have passed, so the package binds the connected accounts.
+    const connectedSetup = useCallback(
+        (template: AgentStarterTemplate): AgentSetupSelection => ({
+            accounts: detectAccounts({description: templateBuilderMessage(template), template}),
+            connectedSlugs,
+        }),
+        [connectedSlugs],
+    )
     /**
      * The card's create gate and live selection, reported up (`onReadyChange`): the Create
      * button lives in the composer's trailing cluster (mobile parity — the step docks INSIDE
@@ -225,9 +233,17 @@ const StripHome: React.FC = () => {
                 seedComposer(templateBuilderMessage(template))
                 return
             }
-            void createFromTemplate(template)
+            void createFromTemplate(template, connectedSetup(template))
         },
-        [firstRun, router, baseAppURL, createFromTemplate, setup.open, seedComposer],
+        [
+            firstRun,
+            router,
+            baseAppURL,
+            createFromTemplate,
+            setup.open,
+            seedComposer,
+            connectedSetup,
+        ],
     )
 
     // Seed once PER TEMPLATE KEY: a boolean guard blocked every template after the first,
@@ -357,15 +373,7 @@ const StripHome: React.FC = () => {
             const ok = await onCreate(
                 templateName,
                 markdown,
-                template
-                    ? {
-                          accounts: detectAccounts({
-                              description: templateBuilderMessage(template),
-                              template,
-                          }),
-                          connectedSlugs,
-                      }
-                    : undefined,
+                template ? connectedSetup(template) : undefined,
                 template,
             )
             if (!ok) setLoading(false)
@@ -381,7 +389,7 @@ const StripHome: React.FC = () => {
             handleCreateFromSetup,
             composerRef,
             pickedTemplate,
-            connectedSlugs,
+            connectedSetup,
         ],
     )
 
