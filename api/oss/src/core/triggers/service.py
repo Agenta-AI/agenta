@@ -1,4 +1,5 @@
 import asyncio
+import base64
 import hashlib
 import hmac
 from datetime import datetime, timedelta, timezone
@@ -1870,7 +1871,9 @@ class TriggersService:
     ) -> bool:
         """Verify Composio's HMAC over ``{webhook-id}.{webhook-timestamp}.{body}``.
 
-        Confirmed against live events: Composio sends a lowercase hex digest.
+        Composio follows Standard Webhooks: ``webhook-signature`` holds one or
+        more space-separated ``v1,<base64 digest>`` entries, as its SDK's
+        ``verify_webhook`` expects.
 
         On mismatch, refresh the secret once (it rotates if the subscription is
         recreated) and retry before rejecting. Beyond the signature, rejects a
@@ -1897,7 +1900,14 @@ class TriggersService:
 
         # Byte-exact signing input: avoids the lossy utf-8 decode for non-utf-8 bodies.
         signed_bytes = f"{webhook_id}.{timestamp}.".encode("utf-8") + body
-        provided = signature.split(",")[-1].strip()
+        provided = [
+            part[len("v1,") :] for part in signature.split() if part.startswith("v1,")
+        ]
+        if not provided:
+            log.warning(
+                "[TRIGGER SIGNATURE] no v1 signature webhook_id=%r", safe_webhook_id
+            )
+            return False
 
         verified = False
         for force_refresh in (False, True):
@@ -1906,11 +1916,11 @@ class TriggersService:
             )
             if not secret:
                 return False
-            expected = hmac.new(
-                secret.encode("utf-8"), signed_bytes, hashlib.sha256
-            ).hexdigest()
+            expected = base64.b64encode(
+                hmac.new(secret.encode("utf-8"), signed_bytes, hashlib.sha256).digest()
+            ).decode("ascii")
 
-            if hmac.compare_digest(expected, provided):
+            if any(hmac.compare_digest(expected, sig) for sig in provided):
                 verified = True
                 break
 

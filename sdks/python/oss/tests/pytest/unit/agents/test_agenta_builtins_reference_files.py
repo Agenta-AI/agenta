@@ -151,8 +151,9 @@ def test_config_schema_names_every_top_level_template_field():
 def test_config_schema_names_every_tool_type_discriminator():
     content = _file("references/config-schema.md").content
     types = _tool_type_discriminators()
-    # Sanity: the union really carries the seven documented arms.
+    # Sanity: the union really carries the eight documented arms.
     assert types == {
+        "agenta_tools",
         "builtin",
         "gateway",
         "gateway_connection",

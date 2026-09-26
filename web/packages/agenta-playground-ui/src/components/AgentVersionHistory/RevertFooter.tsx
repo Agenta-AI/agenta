@@ -24,6 +24,8 @@ export interface RevertFooterProps {
     onCancel: () => void
     onConfirm: () => void
     onClose: () => void
+    /** Present when the selected version is newer than this view's: switch to it. */
+    onUpdate?: () => void
 }
 
 export const RevertFooter = ({
@@ -35,6 +37,7 @@ export const RevertFooter = ({
     onCancel,
     onConfirm,
     onClose,
+    onUpdate,
 }: RevertFooterProps) => {
     if (phase === "reverting") {
         return (
@@ -100,6 +103,7 @@ export const RevertFooter = ({
             <Button variant="outline" onClick={onClose}>
                 Cancel
             </Button>
+            {onUpdate ? <Button onClick={onUpdate}>Update to v{selectedVersion}</Button> : null}
             <Button disabled={disabled} onClick={onRequestConfirm}>
                 {selectedVersion === null ? "Revert" : `Revert to v${selectedVersion}`}
             </Button>

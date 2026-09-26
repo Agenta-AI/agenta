@@ -14,7 +14,7 @@ from agenta.sdk.agents.dtos import (
     SandboxPermission,
 )
 from agenta.sdk.agents.mcp import MCPServerConfig
-from agenta.sdk.agents.tools import ToolConfig
+from agenta.sdk.agents.tools import DEFAULT_AGENTA_TOOLS, ToolConfig
 from agenta.sdk.agents.wire_models import run_contract_schemas
 from agenta.sdk.utils.assets import supported_llm_models, model_metadata
 from agenta.sdk.utils.helpers import _PLACEHOLDER_RE
@@ -1498,8 +1498,9 @@ def build_agent_v0_default(
     template: Dict[str, Any] = {
         "instructions": {"agents_md": _DEFAULT_AGENTS_MD},
         "llm": {"provider": _DEFAULT_AGENT_PROVIDER, "model": _DEFAULT_AGENT_MODEL},
-        # Built-in tools are always active and are not configured here.
-        "tools": [],
+        # Built-in tools are always active and are not configured here. The one entry turns
+        # on the Agenta tools every new agent gets, in every run.
+        "tools": [{"type": "agenta_tools", "tools": dict(DEFAULT_AGENTA_TOOLS)}],
         "mcps": [],
     }
     if skill_slug is not None:

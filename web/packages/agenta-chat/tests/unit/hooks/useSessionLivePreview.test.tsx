@@ -185,6 +185,70 @@ describe("useSessionLivePreview", () => {
         },
     )
 
+    it("does not adopt a commit made while the tab was hidden", async () => {
+        const output = {
+            status: "committed",
+            workflow_revision: {id: "revision-2", workflow_variant_id: "variant-1", version: "2"},
+        }
+        const rows = [
+            {
+                ...record("call", {
+                    type: "tool_call",
+                    id: "commit-1",
+                    name: "commit_revision",
+                    input: {},
+                }),
+                sequence: 1,
+            },
+            {
+                ...record("result", {
+                    type: "tool_result",
+                    id: "commit-1",
+                    output: JSON.stringify(output),
+                }),
+                sequence: 2,
+            },
+        ]
+        mocks.fetchSessionSnapshot.mockResolvedValue({
+            session: {flags: {is_running: true}},
+            read: {latest_sequence: 0},
+        })
+        mocks.querySessionTranscript.mockResolvedValue([])
+        const onCommittedRevision = vi.fn()
+        const store = createStore()
+        store.set(projectIdAtom, "project-1")
+        const wrapper = ({children}: {children: ReactNode}) =>
+            createElement(Provider, {store}, children)
+        renderHook(
+            () =>
+                useSessionLivePreview({
+                    sessionId: "session-1",
+                    sharedReaderAdvertised: true,
+                    runningElsewhere: false,
+                    sender: true,
+                    onDisconnect: vi.fn().mockResolvedValue(true),
+                    onCommittedRevision,
+                }),
+            {wrapper},
+        )
+        await waitFor(() => expect(mocks.connectSessionLiveEvents).toHaveBeenCalledOnce())
+
+        const setVisibility = (value: string) => {
+            Object.defineProperty(document, "visibilityState", {configurable: true, value})
+            document.dispatchEvent(new Event("visibilitychange"))
+        }
+        act(() => setVisibility("hidden"))
+        // The agent commits while nobody is looking.
+        mocks.fetchSessionSnapshot.mockResolvedValue({
+            session: {flags: {is_running: false}},
+            read: {latest_sequence: 2},
+        })
+        mocks.querySessionTranscript.mockResolvedValue(rows)
+        act(() => setVisibility("visible"))
+        await waitFor(() => expect(mocks.connectSessionLiveEvents).toHaveBeenCalledTimes(2))
+        expect(onCommittedRevision).not.toHaveBeenCalled()
+    })
+
     it("retires an old approval preview when recovery adopts a newer running turn", async () => {
         mocks.fetchSessionSnapshot.mockResolvedValue({
             session: {flags: {is_running: false}},

@@ -157,9 +157,11 @@ export const LiveConversation = ({
     const registerLocalSession = useSetAtom(registerLocalSessionAtom)
     const markLocalSessionAccepted = useSetAtom(markLocalSessionAcceptedAtom)
     const dropUnacceptedLocalSession = useSetAtom(dropUnacceptedLocalSessionAtom)
+    const followCommitRef = useRef<(revisionId: string) => void>(() => undefined)
     const conversation = useAgentConversation({
         entityId,
         sessionId,
+        onCommittedRevision: ({revisionId}) => followCommitRef.current(revisionId),
         sharedReaderAdvertised: sharedReader,
         sharedReaderRunning: running,
         sharedReaderLivenessUpdatedAt: livenessUpdatedAt,
@@ -181,19 +183,23 @@ export const LiveConversation = ({
         [conversation.messages],
     )
 
-    // The agent committing itself: the stream carries a one-way `data-committed-revision` part.
-    // Follow it — pin the workspace and retarget the next send — and drop the latest-revision
-    // caches, or the config pane and the version chip keep showing the revision it replaced.
-    // The desktop does the same in its own host hook; the shared engine leaves it to the skin.
+    // The agent committing itself: follow it — pin the workspace and retarget the next send — and
+    // drop the latest-revision caches, or the pane and the chip keep the revision it replaced. A
+    // durable send learns it from the records reader; a `useChat` stream carries a
+    // `data-committed-revision` part. One seen-set, so a commit both report acts once.
     const committedSeenRef = useRef<Set<string>>(new Set())
+    followCommitRef.current = (revisionId: string) => {
+        if (committedSeenRef.current.has(revisionId)) return
+        committedSeenRef.current.add(revisionId)
+        // Nobody is watching a hidden tab: its version pill offers the commit on return.
+        if (document.visibilityState !== "visible") return
+        invalidateAgentCommittedRevisionCache()
+        if (revisionId !== entityId) adoptSecretRevision(revisionId)
+    }
     useEffect(() => {
-        for (const revisionId of committedRevisionIds(conversation.messages)) {
-            if (committedSeenRef.current.has(revisionId)) continue
-            committedSeenRef.current.add(revisionId)
-            invalidateAgentCommittedRevisionCache()
-            if (revisionId !== entityId) adoptSecretRevision(revisionId)
-        }
-    }, [adoptSecretRevision, conversation.messages, entityId])
+        for (const revisionId of committedRevisionIds(conversation.messages))
+            followCommitRef.current(revisionId)
+    }, [conversation.messages])
 
     // The connect-model gate — desktop parity. The engine deliberately leaves this to the skin
     // (`useAgentConversation` says so): a keyless project must be told to add a key BEFORE the
