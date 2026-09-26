@@ -61,6 +61,7 @@ def template_load_error_response(exc: Exception) -> JSONResponse | None:
                 message=exc.message,
                 retryable=True,
                 details={"reason": exc.code, **exc.details},
+                next_step="Wait a few minutes, then send the same request again.",
             )
         return _response(
             status_code=status.HTTP_404_NOT_FOUND,
