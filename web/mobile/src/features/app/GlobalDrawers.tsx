@@ -19,5 +19,6 @@ export const GlobalDrawers = () => {
     const router = useRouter()
     bindTraceDrawerSeams(router)
     registerTraceDrawerSlots()
-    return <TraceDrawer />
+    // Stacked: the desktop split (tree beside content) needs 720px and scrolled sideways here.
+    return <TraceDrawer layout="stacked" />
 }

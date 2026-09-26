@@ -14,6 +14,7 @@ import AnnotationTabItem from "./AnnotationTabItem"
 import LinkedSpansTabItem from "./LinkedSpansTabItem"
 import OverviewTabItem from "./OverviewTabItem"
 import {getTraceDrawerReferences} from "./referenceSlots"
+import type {TraceDrawerLayout} from "./TraceDrawerContent"
 import TraceSidePanel from "./TraceSidePanel"
 import TraceTypeHeader from "./TraceTypeHeader"
 
@@ -35,7 +36,9 @@ const TraceContent = ({
     isLoading,
     setSelectedTraceId,
     activeId,
-}: TraceContentProps) => {
+    layout = "split",
+}: TraceContentProps & {layout?: TraceDrawerLayout}) => {
+    const stacked = layout === "stacked"
     const {TraceSpanDrillInView: TraceSpanDrillInViewSlot} = getTraceDrawerReferences()
     const [isAnnotationsSectionOpen, setIsAnnotationsSectionOpen] = useAtom(traceSidePanelOpenAtom)
     const activeTrace = active
@@ -176,9 +179,10 @@ const TraceContent = ({
                 />
 
                 {/* antd Splitter gave a draggable 400/280 split; the side panel is a fixed
-                    280px column here — dragging was never wired to anything persisted. */}
-                <div className="flex flex-1 min-h-0">
-                    <div className="w-full flex-1 min-w-[400px]">
+                    280px column here — dragging was never wired to anything persisted. Stacked, the
+                    side panel goes under the tabs, so nothing is wider than the panel. */}
+                <div className={stacked ? "flex flex-col" : "flex flex-1 min-h-0"}>
+                    <div className={stacked ? "w-full min-w-0" : "w-full flex-1 min-w-[400px]"}>
                         <div ref={tabsWrapperRef} className="flex-1">
                             <Tabs
                                 value={tab}
@@ -207,7 +211,13 @@ const TraceContent = ({
                         </div>
                     </div>
                     {isAnnotationsSectionOpen && (
-                        <div className="w-[280px] min-w-[280px] shrink-0">
+                        <div
+                            className={
+                                stacked
+                                    ? "w-full border-0 border-t border-solid border-colorSplit"
+                                    : "w-[280px] min-w-[280px] shrink-0"
+                            }
+                        >
                             <TraceSidePanel
                                 activeTrace={activeTrace as never}
                                 activeTraceId={activeId}

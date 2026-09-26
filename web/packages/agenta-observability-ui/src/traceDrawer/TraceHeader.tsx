@@ -470,8 +470,10 @@ const TraceHeader = ({
 
     return (
         <>
-            <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2">
+            {/* flex-wrap: on a phone-width panel the queue button drops to a second line
+                instead of pushing the row past the edge. It is a no-op wherever the row fits. */}
+            <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex min-w-0 items-center gap-2">
                     {backTarget && (
                         <EnhancedButton
                             type="default"
@@ -499,9 +501,11 @@ const TraceHeader = ({
 
                     <span className="text-sm font-medium">Trace</span>
                     <TooltipWithCopyAction copyText={displayTraceId} title="Copy trace id">
+                        {/* min-w-0 + truncate: a 32-char id ends in an ellipsis on a narrow
+                            panel rather than widening the row. */}
                         <Tag
-                            className="font-mono bg-[var(--ag-c-0517290F)]"
-                            label={`# ${displayTraceId || "-"}`}
+                            className="min-w-0 font-mono bg-[var(--ag-c-0517290F)]"
+                            label={<span className="truncate">{`# ${displayTraceId || "-"}`}</span>}
                         />
                     </TooltipWithCopyAction>
                 </div>
