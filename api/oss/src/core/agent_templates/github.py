@@ -12,28 +12,23 @@ the listing, so the returned bytes are exactly the files at that commit.
 import asyncio
 import hashlib
 import json
-from typing import Any
+from typing import Any, NamedTuple
 from urllib.parse import quote
+from uuid import UUID
 
 import httpx
 
-from oss.src.core.agent_templates.dtos import GitHubTemplateSource
+from oss.src.core.agent_templates.archive import PackageLimits, PackageTreeWriter
+from oss.src.core.agent_templates.dtos import GitHubTemplateSource, TemplateSource
 from oss.src.core.agent_templates.exceptions import (
     TemplateSourceInvalid,
     TemplateSourceUnavailable,
-)
-from oss.src.core.agent_templates.sources import (
-    MAX_FILE_BYTES,
-    MAX_FILES,
-    MAX_PATH_SEGMENTS,
-    MAX_TOTAL_BYTES,
 )
 
 GITHUB_API_URL = "https://api.github.com"
 GITHUB_RAW_URL = "https://raw.githubusercontent.com"
 
 _MAX_LISTING_BYTES = 2 * 1024 * 1024
-_MAX_LISTING_ENTRIES = 2 * MAX_FILES
 _MAX_CONCURRENT_DOWNLOADS = 8
 _DEFAULT_TIMEOUT_SECONDS = 30.0
 
@@ -42,7 +37,10 @@ _SYMLINK_MODE = "120000"
 _SUBMODULE_MODE = "160000"
 _TREE_MODE = "040000"
 
-PackageEntry = tuple[str, bytes]
+
+class GitHubPackageFile(NamedTuple):
+    path: str
+    content: bytes
 
 
 def _invalid(code: str, message: str, **details: object) -> TemplateSourceInvalid:
@@ -69,7 +67,12 @@ class GitHubPackageFetcher:
         self._transport = transport
         self._timeout_seconds = timeout_seconds
 
-    async def fetch(self, source: GitHubTemplateSource) -> list[PackageEntry]:
+    async def fetch(
+        self,
+        source: GitHubTemplateSource,
+        *,
+        limits: PackageLimits | None = None,
+    ) -> list[GitHubPackageFile]:
         """Return the package files as sorted (package-relative path, bytes) pairs."""
         async with httpx.AsyncClient(
             transport=self._transport,
@@ -81,14 +84,23 @@ class GitHubPackageFetcher:
                 "User-Agent": "agenta-template-loader",
             },
         ) as client:
-            session = _FetchSession(client=client, source=source)
+            session = _FetchSession(
+                client=client, source=source, limits=limits or PackageLimits()
+            )
             return await session.run()
 
 
 class _FetchSession:
-    def __init__(self, *, client: httpx.AsyncClient, source: GitHubTemplateSource):
+    def __init__(
+        self,
+        *,
+        client: httpx.AsyncClient,
+        source: GitHubTemplateSource,
+        limits: PackageLimits,
+    ):
         self._client = client
         self._source = source
+        self._limits = limits
         self._api = (
             f"{GITHUB_API_URL}/repos/{quote(source.owner, safe='')}"
             f"/{quote(source.repo, safe='')}/git"
@@ -183,10 +195,10 @@ class _FetchSession:
                 **self._details(),
             )
         entries = listing["tree"]
-        if recursive and len(entries) > _MAX_LISTING_ENTRIES:
+        if recursive and len(entries) > self._limits.max_archive_entries:
             raise _limit(
                 "The template package contains too many entries.",
-                limit=MAX_FILES,
+                limit=self._limits.max_files,
                 **self._details(),
             )
         return [entry for entry in entries if isinstance(entry, dict)]
@@ -253,7 +265,7 @@ class _FetchSession:
                     "The template package contains an invalid path.",
                     path=path,
                 )
-            if len(parts) > MAX_PATH_SEGMENTS:
+            if len(parts) > self._limits.max_path_segments:
                 raise _limit("A template package path is too deep.", path=path)
             if entry.get("mode") == _TREE_MODE:
                 continue
@@ -261,25 +273,27 @@ class _FetchSession:
             sha = entry.get("sha")
             if not isinstance(size, int) or size < 0 or not isinstance(sha, str):
                 raise self._transport_failure()
-            if size > MAX_FILE_BYTES:
+            if size > self._limits.max_file_bytes:
                 raise _limit(
                     "A template package file is too large.",
                     path=path,
-                    limit=MAX_FILE_BYTES,
+                    limit=self._limits.max_file_bytes,
                 )
             total += size
-            if total > MAX_TOTAL_BYTES:
+            if total > self._limits.max_total_bytes:
                 raise _limit(
-                    "The template package is too large.", limit=MAX_TOTAL_BYTES
+                    "The template package is too large.",
+                    limit=self._limits.max_total_bytes,
                 )
             planned.append((path, sha, size))
-            if len(planned) > MAX_FILES:
+            if len(planned) > self._limits.max_files:
                 raise _limit(
-                    "The template package contains too many files.", limit=MAX_FILES
+                    "The template package contains too many files.",
+                    limit=self._limits.max_files,
                 )
         return sorted(planned)
 
-    async def _download(self, path: str, sha: str, size: int) -> PackageEntry:
+    async def _download(self, path: str, sha: str, size: int) -> GitHubPackageFile:
         repo_path = f"{self._source.path}/{path}"
         url = (
             f"{GITHUB_RAW_URL}/{quote(self._source.owner, safe='')}"
@@ -295,20 +309,39 @@ class _FetchSession:
                 "A downloaded file does not match the file recorded at this commit.",
                 path=path,
             )
-        return path, body
+        return GitHubPackageFile(path, body)
 
-    async def run(self) -> list[PackageEntry]:
+    async def run(self) -> list[GitHubPackageFile]:
         tree_sha = await self._package_tree_sha()
         entries = await self._tree_entries(tree_sha, recursive=True)
         planned = self._plan_downloads(entries)
 
         semaphore = asyncio.Semaphore(_MAX_CONCURRENT_DOWNLOADS)
 
-        async def bounded(item: tuple[str, str, int]) -> PackageEntry:
+        async def bounded(item: tuple[str, str, int]) -> GitHubPackageFile:
             async with semaphore:
                 return await self._download(*item)
 
         return list(await asyncio.gather(*(bounded(item) for item in planned)))
+
+
+class GitHubPackageStager:
+    """Stage a commit-pinned GitHub package directory through the shared writer."""
+
+    def __init__(self, *, fetcher: GitHubPackageFetcher | None = None) -> None:
+        self._fetcher = fetcher or GitHubPackageFetcher()
+
+    async def stage(
+        self,
+        *,
+        project_id: UUID,
+        source: TemplateSource,
+        writer: PackageTreeWriter,
+    ) -> None:
+        if not isinstance(source, GitHubTemplateSource):
+            raise TypeError("GitHubPackageStager stages GitHub sources only.")
+        for file in await self._fetcher.fetch(source, limits=writer.limits):
+            writer.write_file(file.path, [file.content])
 
 
 class _Oversized:

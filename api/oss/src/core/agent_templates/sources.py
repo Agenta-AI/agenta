@@ -33,10 +33,10 @@ from oss.src.core.mounts.types import MountFileNotFound, MountPathInvalid
 from oss.src.core.sessions.attachments.service import SessionAttachmentsService
 from oss.src.core.sessions.attachments.types import AttachmentError
 
-MAX_FILES = 256
-MAX_TOTAL_BYTES = 4 * 1024 * 1024
-MAX_FILE_BYTES = 1024 * 1024
-MAX_PATH_SEGMENTS = 12
+_MAX_FILES = 256
+_MAX_TOTAL_BYTES = 4 * 1024 * 1024
+_MAX_FILE_BYTES = 1024 * 1024
+_MAX_PATH_SEGMENTS = 12
 
 
 def _invalid(code: str, message: str, **details: object) -> TemplateSourceInvalid:
@@ -107,7 +107,7 @@ def package_digest(root: Path) -> str:
                 path=path.relative_to(root).as_posix(),
             )
         relative = path.relative_to(root).as_posix()
-        if len(PurePosixPath(relative).parts) > MAX_PATH_SEGMENTS:
+        if len(PurePosixPath(relative).parts) > _MAX_PATH_SEGMENTS:
             raise _invalid(
                 "template_source_limit_exceeded",
                 "A template package path is too deep.",
@@ -116,11 +116,11 @@ def package_digest(root: Path) -> str:
         files.append((relative, path))
 
     files.sort(key=lambda item: item[0])
-    if len(files) > MAX_FILES:
+    if len(files) > _MAX_FILES:
         raise _invalid(
             "template_source_limit_exceeded",
             "The template package contains too many files.",
-            limit=MAX_FILES,
+            limit=_MAX_FILES,
         )
 
     digest = hashlib.sha256()
@@ -128,19 +128,19 @@ def package_digest(root: Path) -> str:
     for relative, path in files:
         content = path.read_bytes()
         size = len(content)
-        if size > MAX_FILE_BYTES:
+        if size > _MAX_FILE_BYTES:
             raise _invalid(
                 "template_source_limit_exceeded",
                 "A template package file is too large.",
                 path=relative,
-                limit=MAX_FILE_BYTES,
+                limit=_MAX_FILE_BYTES,
             )
         total_bytes += size
-        if total_bytes > MAX_TOTAL_BYTES:
+        if total_bytes > _MAX_TOTAL_BYTES:
             raise _invalid(
                 "template_source_limit_exceeded",
                 "The template package is too large.",
-                limit=MAX_TOTAL_BYTES,
+                limit=_MAX_TOTAL_BYTES,
             )
         digest.update(relative.encode("utf-8"))
         digest.update(b"\0")

@@ -4,27 +4,34 @@ from typing import Any
 from pydantic import ValidationError
 
 from oss.src.core.agent_templates.dtos import (
+    GitHubTemplateSource,
     InternalTemplateSource,
     ResolvedTemplateSource,
     TemplateSourcePin,
 )
 from oss.src.core.agent_templates.exceptions import TemplateProvenanceInvalid
 
-_ORIGIN_KINDS = {"internal", "upload", "session_file"}
+_ORIGIN_KINDS = {"internal", "upload", "session_file", "github"}
+_ORIGIN_FIELDS = {"kind", "key", "version", "digest"}
+# A GitHub origin also records where the exact package bytes came from.
+_GITHUB_ORIGIN_FIELDS = {"repo_url", "commit", "path"}
 _PLATFORM_META_KEY = "_ag"
 
 
 def template_origin_meta(resolved: ResolvedTemplateSource) -> dict[str, Any]:
-    return {
-        _PLATFORM_META_KEY: {
-            "template_origin": {
-                "kind": resolved.source.kind,
-                "key": resolved.key,
-                "version": resolved.version,
-                "digest": resolved.digest,
-            }
-        }
+    origin = {
+        "kind": resolved.source.kind,
+        "key": resolved.key,
+        "version": resolved.version,
+        "digest": resolved.digest,
     }
+    if isinstance(resolved.source, GitHubTemplateSource):
+        origin.update(
+            repo_url=resolved.source.repo_url,
+            commit=resolved.source.commit,
+            path=resolved.source.path,
+        )
+    return {_PLATFORM_META_KEY: {"template_origin": origin}}
 
 
 def create_request_meta(*, key_hash: str, request_fingerprint: str) -> dict[str, Any]:
@@ -102,7 +109,9 @@ def read_template_origin(meta: dict[str, Any] | None) -> dict[str, Any] | None:
         return None
     if not isinstance(origin, dict):
         raise TemplateProvenanceInvalid()
-    required = {"kind", "key", "version", "digest"}
+    required = set(_ORIGIN_FIELDS)
+    if origin.get("kind") == "github":
+        required |= _GITHUB_ORIGIN_FIELDS
     if set(origin) != required or not all(
         isinstance(origin[key], str) and origin[key] for key in required
     ):
@@ -113,6 +122,19 @@ def read_template_origin(meta: dict[str, Any] | None) -> dict[str, Any] | None:
         # Archive origins record the package name, which follows the catalog key rule.
         InternalTemplateSource(key=origin["key"])
         TemplateSourcePin(version=origin["version"], digest=origin["digest"])
+        if origin["kind"] == "github":
+            source = GitHubTemplateSource(
+                repo_url=origin["repo_url"],
+                commit=origin["commit"],
+                path=origin["path"],
+            )
+            # Stored provenance must already be in normalized form.
+            if (source.repo_url, source.commit, source.path) != (
+                origin["repo_url"],
+                origin["commit"],
+                origin["path"],
+            ):
+                raise TemplateProvenanceInvalid()
     except ValidationError as exc:
         raise TemplateProvenanceInvalid() from exc
     return copy.deepcopy(origin)
