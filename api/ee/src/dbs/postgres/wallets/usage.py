@@ -3,10 +3,10 @@ gateway-usage postings, and the names the view shows beside them."""
 
 import json
 from datetime import datetime
-from typing import Dict, Iterable, List
+from typing import Dict, Iterable, List, Tuple
 from uuid import UUID
 
-from sqlalchemy import Text, cast, func, select
+from sqlalchemy import Text, cast, func, select, tuple_
 
 from oss.src.dbs.postgres.shared.engine import (
     TransactionsEngine,
@@ -117,19 +117,29 @@ class WalletUsageDAO(WalletUsageDAOInterface):
             ).all()
         return {user_id: email for user_id, email in rows}
 
-    async def agent_names(self, *, agent_ids: Iterable[UUID]) -> Dict[UUID, str]:
-        ids = list(agent_ids)
-        if not ids:
+    async def agent_names(
+        self, *, agents: Iterable[Tuple[UUID, UUID]]
+    ) -> Dict[Tuple[UUID, UUID], str]:
+        pairs = list(agents)
+        if not pairs:
             return {}
         async with self.engine.session() as session:
             rows = (
                 await session.execute(
-                    select(WorkflowArtifactDBE.id, WorkflowArtifactDBE.name).where(
-                        WorkflowArtifactDBE.id.in_(ids)
+                    select(
+                        WorkflowArtifactDBE.project_id,
+                        WorkflowArtifactDBE.id,
+                        WorkflowArtifactDBE.name,
+                    ).where(
+                        tuple_(
+                            WorkflowArtifactDBE.project_id, WorkflowArtifactDBE.id
+                        ).in_(pairs)
                     )
                 )
             ).all()
-        return {agent_id: name for agent_id, name in rows if name}
+        return {
+            (project_id, agent_id): name for project_id, agent_id, name in rows if name
+        }
 
 
 def _json_object(text):

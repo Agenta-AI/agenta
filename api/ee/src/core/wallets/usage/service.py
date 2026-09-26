@@ -39,13 +39,6 @@ def category_of(resource_key: str) -> str:
     return _CATEGORIES.get(resource_key.split(":", 1)[0], "Other")
 
 
-def _uuid_or_none(value) -> Optional[UUID]:
-    try:
-        return UUID(str(value)) if value else None
-    except ValueError:
-        return None
-
-
 def _charge(
     debit: WalletUsageDebit, measurement: Optional[MeasurementUsage]
 ) -> WalletUsageCharge:
@@ -81,12 +74,7 @@ def _session_key(
 
 
 def _agent_id(measurement: Optional[MeasurementUsage]) -> Optional[UUID]:
-    if measurement is None:
-        return None
-    if measurement.agent_id:
-        return measurement.agent_id
-    workflow = measurement.references.get("workflow") or {}
-    return _uuid_or_none(workflow.get("id")) if isinstance(workflow, dict) else None
+    return measurement.agent_id if measurement else None
 
 
 class WalletUsageService:
@@ -166,14 +154,16 @@ class WalletUsageService:
         user_ids = {
             m.user_id for pairs in groups.values() for _, m in pairs if m and m.user_id
         }
-        agent_ids = {
-            agent_id
+        # Keyed by project too: the agent id is a label the caller's runtime supplied, so a
+        # name is only read from the project the measurement itself belongs to.
+        agents = {
+            (m.project_id, m.agent_id)
             for pairs in groups.values()
             for _, m in pairs
-            if (agent_id := _agent_id(m))
+            if m and m.agent_id
         }
         emails = await self.usage_dao.user_emails(user_ids=user_ids)
-        names = await self.usage_dao.agent_names(agent_ids=agent_ids)
+        names = await self.usage_dao.agent_names(agents=agents)
 
         sessions = []
         for (session_id, _, _), pairs in groups.items():
@@ -184,12 +174,15 @@ class WalletUsageService:
             )
             measured = [m for _, m in pairs if m is not None]
             user_id = next((m.user_id for m in measured if m.user_id), None)
-            agent_id = next((a for m in measured if (a := _agent_id(m))), None)
+            agent = next(
+                ((m.project_id, m.agent_id) for m in measured if m.agent_id), None
+            )
+            agent_id = agent[1] if agent else None
             sessions.append(
                 WalletUsageSession(
                     session_id=session_id,
                     agent_id=agent_id,
-                    agent_name=names.get(agent_id) if agent_id else None,
+                    agent_name=names.get(agent) if agent else None,
                     user_id=user_id,
                     user_email=emails.get(user_id) if user_id else None,
                     started_at=charges[-1].created_at,

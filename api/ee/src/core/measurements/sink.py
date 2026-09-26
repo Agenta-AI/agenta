@@ -103,16 +103,11 @@ def _uuid_or_none(value: Optional[str]) -> Optional[UUID]:
 
 
 def _references(*, run_id: Optional[str], labels: Dict[str, str]) -> Dict[str, Any]:
-    # Labels from the gateway credential, never authorization: they tie a charge back to
-    # the agent session that caused it, for usage reporting.
+    # The session label comes from the gateway credential and authorizes nothing: it ties
+    # a charge back to the agent session that caused it, for usage reporting.
     references: Dict[str, Any] = {}
-    workflow: Dict[str, str] = {}
     if run_id:
-        workflow["gateway_run_id"] = run_id
-    if labels.get("agent_id"):
-        workflow["id"] = labels["agent_id"]
-    if workflow:
-        references["workflow"] = workflow
+        references["workflow"] = {"gateway_run_id": run_id}
     if labels.get("session_id"):
         references["session"] = {"id": labels["session_id"]}
     return references

@@ -2,7 +2,7 @@
 tracing DB holds the measurements the debits were priced from."""
 
 from datetime import datetime
-from typing import Dict, Iterable, List
+from typing import Dict, Iterable, List, Tuple
 from uuid import UUID
 
 from ee.src.core.wallets.usage.dtos import (
@@ -31,7 +31,11 @@ class WalletUsageDAOInterface:
     async def user_emails(self, *, user_ids: Iterable[UUID]) -> Dict[UUID, str]:
         raise NotImplementedError
 
-    async def agent_names(self, *, agent_ids: Iterable[UUID]) -> Dict[UUID, str]:
+    async def agent_names(
+        self, *, agents: Iterable[Tuple[UUID, UUID]]
+    ) -> Dict[Tuple[UUID, UUID], str]:
+        """Names keyed by `(project_id, agent_id)`; an agent outside its pair's project
+        has no name here."""
         raise NotImplementedError
 
 

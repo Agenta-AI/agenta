@@ -167,7 +167,7 @@ async def test_the_credential_labels_name_the_session_and_agent():
 
     assert command.agent_id == agent_id
     assert command.references == {
-        "workflow": {"gateway_run_id": "run-1", "id": str(agent_id)},
+        "workflow": {"gateway_run_id": "run-1"},
         "session": {"id": "session-1"},
     }
 

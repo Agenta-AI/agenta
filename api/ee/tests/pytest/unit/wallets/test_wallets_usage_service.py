@@ -52,8 +52,9 @@ class _Usage:
     async def user_emails(self, *, user_ids):
         return {USER: "user@example.com"} if USER in set(user_ids) else {}
 
-    async def agent_names(self, *, agent_ids):
-        return {AGENT: "Support agent"} if AGENT in set(agent_ids) else {}
+    async def agent_names(self, *, agents):
+        key = (PROJECT, AGENT)
+        return {key: "Support agent"} if key in set(agents) else {}
 
 
 class _Measurements:
@@ -115,9 +116,7 @@ async def test_charges_group_by_session_newest_first_with_names_and_tokens():
         ],
         measurements=[
             _measurement("m3", session="s-new", agent_id=AGENT),
-            _measurement(
-                "m2", session="s-old", references={"workflow": {"id": str(AGENT)}}
-            ),
+            _measurement("m2", session="s-old", agent_id=AGENT),
             _measurement("m1", session="s-old"),
         ],
     )
@@ -128,7 +127,6 @@ async def test_charges_group_by_session_newest_first_with_names_and_tokens():
     newest, oldest = usage.sessions
     assert (newest.amount_musd, newest.charge_count) == (7, 1)
     assert (oldest.amount_musd, oldest.charge_count) == (8, 2)
-    # The agent id falls back to the measurement's workflow reference.
     assert oldest.agent_id == AGENT and oldest.agent_name == "Support agent"
     assert oldest.user_email == "user@example.com"
     assert [c.measurement_id for c in oldest.charges] == ["m2", "m1"]
