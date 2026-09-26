@@ -1,0 +1,77 @@
+name: "check template catalog"
+
+# Validates every bundled template package, the catalog/author graph, the
+# generated website data, and that no published package version changed.
+# Contributions from forks run with a read-only token and no secrets; package
+# files are parsed as data and never executed.
+
+on:
+  pull_request:
+    paths:
+      - 'api/oss/src/resources/agent_templates/**'
+      - 'api/oss/src/core/agent_templates/**'
+      - 'web/website/src/data/templates.json'
+      - '.github/workflows/template-catalog-validation.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: template-catalog-validation-${{ github.event.pull_request.number || github.ref_name }}
+  cancel-in-progress: true
+
+env:
+  UV_VERSION: "0.11.14"
+
+jobs:
+  validate-template-catalog:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      # The default pull_request checkout is the merge commit, so comparing it
+      # with the base tip only flags changes this PR makes.
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Fetch the base branch for the published-version check
+        if: github.event_name == 'pull_request'
+        run: git fetch --no-tags --depth=1 origin "+refs/heads/${BASE_REF}:refs/remotes/origin/${BASE_REF}"
+        env:
+          BASE_REF: ${{ github.base_ref }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install uv
+        run: python -m pip install "uv==${UV_VERSION}"
+
+      - name: Cache uv
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/uv
+          key: ${{ runner.os }}-template-catalog-uv-${{ hashFiles('api/pyproject.toml', 'api/uv.lock', 'sdks/python/pyproject.toml', 'sdks/python/uv.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-template-catalog-uv-
+
+      - name: Install API dependencies
+        working-directory: api
+        run: |
+          uv sync --locked --python 3.13
+          uv pip install --python .venv/bin/python --editable ../sdks/python/
+
+      - name: Validate packages, catalog, authors and published versions
+        working-directory: api
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          args=()
+          if [ -n "${BASE_REF}" ]; then args+=(--base-ref "origin/${BASE_REF}"); fi
+          time uv run --no-sync python -m oss.src.core.agent_templates.marketplace validate "${args[@]}"
+
+      - name: Check the generated website data is current
+        working-directory: api
+        run: uv run --no-sync python -m oss.src.core.agent_templates.marketplace website --check
