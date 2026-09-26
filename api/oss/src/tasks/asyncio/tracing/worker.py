@@ -13,8 +13,10 @@ from redis.asyncio import Redis
 from oss.src.core.tracing.service import TracingService
 from oss.src.core.tracing.totals import (
     TraceKey,
+    TOTALS_LEASE_MS,
     claim_due_trace_totals,
-    requeue_trace_totals,
+    complete_trace_totals,
+    recover_expired_trace_totals,
     schedule_trace_totals,
 )
 from oss.src.utils.env import env
@@ -93,8 +95,8 @@ class TracingWorker(StreamConsumer):
         self.totals_batch_size = totals_batch_size
         #: Traces whose totals scheduling failed; tried again on the next call.
         self.unscheduled_totals: Dict[TraceKey, Set[str]] = {}
-        # Failed recomputes whose requeue also failed; the next loop requeues them.
-        self.unrequeued_totals: Set[TraceKey] = set()
+        #: How long a claimed trace waits before a failed or lost recompute is retried.
+        self.totals_lease_ms = TOTALS_LEASE_MS
 
     async def run(self):
         await asyncio.gather(super().run(), self.run_totals())
@@ -103,8 +105,6 @@ class TracingWorker(StreamConsumer):
         while True:
             if self.unscheduled_totals:
                 await self.schedule_totals({})
-            if self.unrequeued_totals:
-                await self.requeue_totals([])
             try:
                 recomputed = await self.recompute_due_totals()
             except Exception:
@@ -115,59 +115,43 @@ class TracingWorker(StreamConsumer):
                 await asyncio.sleep(self.totals_poll_s)
 
     async def recompute_due_totals(self) -> int:
+        await recover_expired_trace_totals(self.redis, limit=self.totals_batch_size)
+
         trace_keys = await claim_due_trace_totals(
-            self.redis, limit=self.totals_batch_size
+            self.redis,
+            limit=self.totals_batch_size,
+            lease_ms=self.totals_lease_ms,
         )
 
-        failed: List[TraceKey] = []
+        done: List[TraceKey] = []
         for project_id, trace_id in trace_keys:
             try:
                 await self.service.recompute_trace_totals(
                     project_id=project_id,
                     trace_id=trace_id,
                 )
+                done.append((project_id, trace_id))
             except Exception:
+                # The claim stays; the trace is queued again when its lease expires.
                 log.error(
                     "[INGEST] Failed to recompute trace totals",
                     project_id=str(project_id),
                     trace_id=str(trace_id),
                     exc_info=True,
                 )
-                failed.append((project_id, trace_id))
 
-        if failed:
-            # The claim removed these traces from the queue; put them back for a later try.
-            await self.requeue_totals(failed)
+        if done:
+            try:
+                await complete_trace_totals(self.redis, trace_keys=done)
+            except Exception:
+                # The leases expire and these traces are recomputed once more.
+                log.error(
+                    "[INGEST] Failed to complete trace totals",
+                    count=len(done),
+                    exc_info=True,
+                )
 
         return len(trace_keys)
-
-    async def requeue_totals(self, trace_keys: List[TraceKey]):
-        """Requeue failed traces. If Redis fails, keep them in memory for the next loop."""
-        pending = self.unrequeued_totals
-        pending.update(trace_keys)
-        if not pending:
-            return
-
-        self.unrequeued_totals = set()
-        try:
-            await requeue_trace_totals(
-                self.redis,
-                trace_keys=list(pending),
-                delay_ms=self.totals_delay_ms,
-            )
-        except Exception:
-            log.error(
-                "[INGEST] Failed to requeue trace totals",
-                count=len(pending),
-                exc_info=True,
-            )
-            if len(pending) > MAX_UNSCHEDULED_TRACES:
-                log.error(
-                    "[INGEST] Dropping unrequeued trace totals",
-                    count=len(pending) - MAX_UNSCHEDULED_TRACES,
-                )
-                pending = set(list(pending)[:MAX_UNSCHEDULED_TRACES])
-            self.unrequeued_totals.update(pending)
 
     async def schedule_totals(self, batches_by_trace: Dict[TraceKey, Set[str]]):
         """Schedule totals without failing the batch.

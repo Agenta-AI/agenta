@@ -203,3 +203,22 @@ def test_recompute_does_not_price_spans():
 
 def test_recompute_of_an_empty_trace_is_a_no_op():
     assert recompute_cumulative_metrics([]) == {}
+
+
+def test_recompute_clears_a_stale_cumulative_that_is_now_zero():
+    workflow = _span(WORKFLOW_ID, None, SpanType.WORKFLOW, 0)
+    workflow.attributes["ag"]["metrics"] = {
+        "errors": {"incremental": 0, "cumulative": 2},
+        "costs": {"cumulative": {"total": 0.5}},
+    }
+
+    changes = recompute_cumulative_metrics([workflow])
+
+    assert changes == {WORKFLOW_ID: {"errors": 0, "costs": {}}}
+
+    cleared = _span(WORKFLOW_ID, None, SpanType.WORKFLOW, 0)
+    cleared.attributes["ag"]["metrics"] = {
+        "errors": {"incremental": 0, "cumulative": 0},
+        "costs": {"cumulative": {}},
+    }
+    assert recompute_cumulative_metrics([cleared]) == {}
