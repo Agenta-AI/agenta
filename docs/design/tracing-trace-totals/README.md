@@ -91,8 +91,14 @@ Failure modes:
 
 - Redis loses the queue or the batch sets: split traces keep per-request totals, which
   is today's behavior. The next request for the trace schedules it again.
-- A worker crashes after it claims a trace: that recompute is lost, as above.
-- A recompute fails: it is logged and dropped. It does not block ingest.
+- A worker crashes after it claims a trace, or a recompute fails: the claim stays in
+  `tracing:totals:claims` with a lease deadline (60 s). When the lease expires, the
+  worker puts the trace back in the queue and recomputes it. A failure does not block
+  ingest.
+- Redis is down when the worker schedules a trace: the worker keeps the trace in memory
+  (at most 10,000) and tries again. If the worker also stops during the outage, those
+  traces keep per-request totals. We do not write a durable outbox at ingest, because
+  that adds a database write to the ingest path.
 - Spans that arrive more than 24 h after the first request of their trace: the batch
   set has expired, so the trace is not scheduled.
 - Messages from an API that does not send `batch_id` (during a rolling deploy): these

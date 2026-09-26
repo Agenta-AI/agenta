@@ -15,6 +15,7 @@ import pytest
 from oss.src.core.tracing.dtos import OTelFlatSpan, SpanType
 from oss.src.core.tracing.streaming import deserialize_span, serialize_span
 from oss.src.core.tracing.totals import (
+    TOTALS_CLAIMS_KEY,
     TOTALS_QUEUE_KEY,
     claim_due_trace_totals,
     schedule_trace_totals,
@@ -182,10 +183,11 @@ class _FailingOnceService(_FakeService):
         )
 
 
-async def test_worker_requeues_a_trace_whose_recompute_fails():
+async def test_worker_retries_a_trace_whose_recompute_fails():
     redis = fakeredis.FakeRedis()
     service = _FailingOnceService()
     worker = _worker(redis, service)
+    worker.totals_lease_ms = 0
     ids = dict(organization_id=uuid4(), project_id=uuid4(), user_id=uuid4())
     trace_id = uuid4()
 
@@ -199,17 +201,46 @@ async def test_worker_requeues_a_trace_whose_recompute_fails():
     assert service.recomputed == [(ids["project_id"], trace_id)]
 
 
-async def test_worker_requeues_a_failed_recompute_after_the_delay():
+async def test_worker_retries_a_failed_recompute_only_after_the_lease():
     redis = fakeredis.FakeRedis()
     worker = _worker(redis, _FailingOnceService())
-    worker.totals_delay_ms = 60_000
     key = (uuid4(), uuid4())
     await redis.zadd(TOTALS_QUEUE_KEY, {f"{key[0].hex}:{key[1].hex}": 0})
 
     assert await worker.recompute_due_totals() == 1
 
-    assert await redis.zcard(TOTALS_QUEUE_KEY) == 1
+    assert await redis.zcard(TOTALS_QUEUE_KEY) == 0
+    assert await redis.zcard(TOTALS_CLAIMS_KEY) == 1
     assert await worker.recompute_due_totals() == 0
+
+
+async def test_a_recompute_clears_its_claim():
+    redis = fakeredis.FakeRedis()
+    service = _FakeService()
+    worker = _worker(redis, service)
+    key = (uuid4(), uuid4())
+    await redis.zadd(TOTALS_QUEUE_KEY, {f"{key[0].hex}:{key[1].hex}": 0})
+
+    assert await worker.recompute_due_totals() == 1
+
+    assert service.recomputed == [key]
+    assert await redis.zcard(TOTALS_QUEUE_KEY) == 0
+    assert await redis.zcard(TOTALS_CLAIMS_KEY) == 0
+
+
+async def test_a_claim_lost_by_a_stopped_worker_is_recovered_after_its_lease():
+    redis = fakeredis.FakeRedis()
+    key = (uuid4(), uuid4())
+    await redis.zadd(TOTALS_QUEUE_KEY, {f"{key[0].hex}:{key[1].hex}": 0})
+
+    # A worker claims the trace and stops before it recomputes.
+    assert await claim_due_trace_totals(redis, limit=10, lease_ms=0) == [key]
+    assert await redis.zcard(TOTALS_QUEUE_KEY) == 0
+
+    service = _FakeService()
+    assert await _worker(redis, service).recompute_due_totals() == 1
+    assert service.recomputed == [key]
+    assert await redis.zcard(TOTALS_CLAIMS_KEY) == 0
 
 
 class _BrokenRedis:
@@ -247,34 +278,6 @@ async def test_worker_keeps_traces_whose_scheduling_fails_and_retries_them():
     assert worker.unscheduled_totals == {}
     assert await worker.recompute_due_totals() == 1
     assert service.recomputed == [(ids["project_id"], trace_id)]
-
-
-async def test_worker_keeps_a_failed_recompute_whose_requeue_fails():
-    redis = fakeredis.FakeRedis()
-    broken = _BrokenRedis(redis)
-
-    class _BreaksRedisOnFailure(_FailingOnceService):
-        async def recompute_trace_totals(self, *, project_id, trace_id):
-            if self.failures:
-                broken.broken = True
-            return await super().recompute_trace_totals(
-                project_id=project_id, trace_id=trace_id
-            )
-
-    service = _BreaksRedisOnFailure()
-    worker = _worker(broken, service)
-    key = (uuid4(), uuid4())
-    await redis.zadd(TOTALS_QUEUE_KEY, {f"{key[0].hex}:{key[1].hex}": 0})
-
-    assert await worker.recompute_due_totals() == 1
-    assert worker.unrequeued_totals == {key}
-    assert await redis.zcard(TOTALS_QUEUE_KEY) == 0
-
-    broken.broken = False
-    await worker.requeue_totals([])
-
-    assert worker.unrequeued_totals == set()
-    assert await redis.zcard(TOTALS_QUEUE_KEY) == 1
 
 
 # --- DAO ---------------------------------------------------------------------

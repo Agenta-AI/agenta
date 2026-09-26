@@ -108,9 +108,13 @@ def recompute_cumulative_metrics(
     for span_dto in span_idx.values():
         for metric in CUMULATIVE_METRICS:
             node = _metric_node(span_dto, metric)
-            if node is None or "cumulative" not in node:
+            if node is not None and "cumulative" in node:
+                value = node["cumulative"]
+            elif metric in stored[span_dto.span_id]:
+                # The roll-up writes nothing for zero, so clear the stored value.
+                value = 0 if metric == "errors" else {}
+            else:
                 continue
-            value = node["cumulative"]
             if value != stored[span_dto.span_id].get(metric):
                 changes.setdefault(span_dto.span_id, {})[metric] = value
 
