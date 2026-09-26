@@ -4,9 +4,6 @@ import {Button} from "@agenta/ui/ui"
 import {useQuery} from "@tanstack/react-query"
 import {useRouter} from "next/router"
 
-import {selectContextTarget} from "./contextTarget"
-import {groupByWorkspace, type WorkspaceGroup} from "./workspaceGroups"
-
 import {ScreenScaffold} from "@/components/ScreenScaffold"
 import {HomePageSkeleton} from "@/features/home/states/HomePageSkeleton"
 import {
@@ -17,6 +14,9 @@ import {
     readLastContext,
     type LastContext,
 } from "@/lib/context"
+
+import {selectContextTarget} from "./contextTarget"
+import {groupByWorkspace, type WorkspaceGroup} from "./workspaceGroups"
 
 interface ContextResolverProps {
     /**
