@@ -378,6 +378,12 @@ class ResolvedConnection(BaseModel):
     # environment variable Agenta binds, so the `credential_mode != env` rule below still holds.
     subscription: Optional[ResolvedSubscription] = Field(default=None, repr=False)
     gateway_credentials: Optional[GatewayCredentials] = Field(default=None, repr=False)
+    # Whether the route serves the user's own custom-provider record rather than a provider
+    # key. The resolver knows the record kind; the runner cannot infer it when a custom record
+    # uses the family's registered base URL, so it rides the wire explicitly. ``None`` means
+    # "not stated" (a resolver that does not track provenance): the runner then treats only a
+    # ``custom`` deployment as custom.
+    custom_connection: Optional[bool] = None
 
     def _require_effective_https(
         self, subject: str, *, allow_insecure_http: bool = False
@@ -453,6 +459,8 @@ class ResolvedConnection(BaseModel):
             wire["subscription"] = self.subscription.to_wire()
         if self.gateway_credentials is not None:
             wire["gatewayCredentials"] = self.gateway_credentials.to_wire()
+        if self.custom_connection is not None:
+            wire["customConnection"] = self.custom_connection
         return wire
 
 
