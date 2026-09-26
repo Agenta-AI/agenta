@@ -8,6 +8,7 @@ import Section from "./Section.astro";
 // Copy + destinations. Every field falls back to the landing CTA, but a page
 // (e.g. /pricing) can override any of them via the `cta` prop forwarded by
 // Site.astro. Without this, per-page CTA overrides were silently ignored.
+// An empty `body` or `secondaryLabel` leaves that element out.
 interface Props {
   eyebrow?: string;
   title?: string;
@@ -64,12 +65,16 @@ const btnWhite =
       >
         {title}
       </h2>
-      <p style="margin:0;font:var(--text-body-md);color:rgba(36,36,36,0.72);">
-        {body}
-      </p>
+      {
+        body && (
+          <p style="margin:0;font:var(--text-body-md);color:rgba(36,36,36,0.72);">
+            {body}
+          </p>
+        )
+      }
       <div style="display:flex;gap:12px;">
         <a class="ag-key" href={primaryHref} style={btnDark}>{primaryLabel}</a>
-        <a class="ag-key" href={secondaryHref} style={btnWhite}>{secondaryLabel}</a>
+        {secondaryLabel && <a class="ag-key" href={secondaryHref} style={btnWhite}>{secondaryLabel}</a>}
       </div>
     </div>
   </div>
