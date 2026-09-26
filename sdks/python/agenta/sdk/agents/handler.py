@@ -14,6 +14,8 @@ from dataclasses import dataclass, field
 from typing import Any, Awaitable, Callable, Dict, List, Optional
 from uuid import UUID
 
+from opentelemetry import trace as otel_trace
+
 from agenta.sdk.agents.dtos import AgentTemplate, SessionConfig, to_messages
 from agenta.sdk.agents.interfaces import Backend, Environment
 from agenta.sdk.agents.capabilities import (
@@ -388,6 +390,20 @@ def _agent_model_ref(agent_template: AgentTemplate) -> Optional[ModelRef]:
     return None
 
 
+def _bind_workflow_span(record_usage: RecordUsageFn, span: Any) -> RecordUsageFn:
+    """Run the usage recorder with the workflow span that was current at run start.
+
+    Usage is written from the run's teardown, which on the streaming path runs after many pulls,
+    possibly in another context where the workflow span is no longer current.
+    """
+
+    def _record_under_span(usage: Optional[Dict[str, Any]]) -> None:
+        with otel_trace.use_span(span, end_on_exit=False):
+            record_usage(usage)
+
+    return _record_under_span
+
+
 def make_agent_handler(composition: Optional[AgentComposition] = None):
     """Build the `agent_v0`-shaped handler bound to `composition` (defaults if omitted)."""
 
@@ -404,6 +420,10 @@ def make_agent_handler(composition: Optional[AgentComposition] = None):
             raise ForceNotSupportedV0Error()
         stream = flags.stream
         session_id = request.session_id
+
+        record_usage = _bind_workflow_span(
+            comp.record_usage, otel_trace.get_current_span()
+        )
 
         params = parameters or {}
         agent_template = AgentTemplate.from_params(
@@ -556,7 +576,7 @@ def make_agent_handler(composition: Optional[AgentComposition] = None):
             return _stream_in_redaction_scope(
                 redactor,
                 agent_event_stream(
-                    harness, session_config, msgs, record_usage=comp.record_usage
+                    harness, session_config, msgs, record_usage=record_usage
                 ),
             )
         with redaction_context(redactor):
@@ -565,7 +585,7 @@ def make_agent_handler(composition: Optional[AgentComposition] = None):
                 session_config,
                 msgs,
                 trim=flags.trim,
-                record_usage=comp.record_usage,
+                record_usage=record_usage,
             )
 
     return _agent
