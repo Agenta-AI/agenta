@@ -12,9 +12,8 @@ import type {NextRouter} from "next/router"
  * host's job. web/oss binds the same three seams from its own provider — this is the second
  * host, which is the whole reason they are seams rather than imports.
  *
- * The reference/drill-in/playground SLOTS are deliberately left unregistered here: those
- * components live in the desktop app, and their fallbacks render a plain label or nothing at
- * all, so `/m` degrades instead of crashing.
+ * The data slots are filled by `registerTraceDrawerSlots`; the reference/action slots stay on
+ * their fallbacks (a plain label, no button), which are enough on `/m`.
  */
 export const bindTraceDrawerSeams = (router: NextRouter) => {
     bindTraceDrawerNavigate((href) => {
