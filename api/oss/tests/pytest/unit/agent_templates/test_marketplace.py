@@ -3,7 +3,6 @@ import shutil
 import subprocess
 from pathlib import Path
 
-import pytest
 
 from oss.src.apis.fastapi.agent_templates.models import TemplateResponse
 from oss.src.core.agent_templates.catalog import AgentTemplateCatalog
@@ -66,7 +65,9 @@ def test_catalog_version_pointing_nowhere_is_rejected(tmp_path: Path):
     catalog_path = _copy_catalog(tmp_path)
 
     def change(value):
-        value["templates"]["pr-reviewer"]["versions"]["1.0.0"] = "packages/nope/1.0.0"
+        record = value["templates"]["pr-reviewer"]
+        record["versions"] = {"9.9.9": "packages/pr-reviewer/9.9.9"}
+        record["latest"] = "9.9.9"
 
     _rewrite(catalog_path, change)
 
@@ -112,53 +113,29 @@ def test_unsupported_package_format_is_rejected(tmp_path: Path):
 # --- published-version immutability ---------------------------------------
 
 
-def _blobs(files: dict[str, str]) -> dict[str, str]:
-    return {path: f"sha-{content}" for path, content in files.items()}
+PUBLISHED = {"pr-reviewer/1.0.0", "code-qa/1.0.0"}
 
 
-BASE = _blobs(
-    {
-        "pr-reviewer/1.0.0/plugin.json": "a",
-        "pr-reviewer/1.0.0/ai.agenta/agents.json": "b",
-        "code-qa/1.0.0/plugin.json": "c",
-    }
-)
+def test_changes_outside_published_versions_pass():
+    changed = ["pr-reviewer/1.1.0/plugin.json", "README.md"]
+
+    assert published_version_issues(published=PUBLISHED, changed=changed) == []
 
 
-def test_unchanged_published_versions_and_new_versions_pass():
-    head = dict(BASE)
-    head.update(_blobs({"pr-reviewer/1.1.0/plugin.json": "d"}))
+def test_changing_a_published_version_is_rejected():
+    changed = [
+        "pr-reviewer/1.0.0/plugin.json",
+        "pr-reviewer/1.0.0/extra.md",
+        "pr-reviewer/1.1.0/plugin.json",
+    ]
 
-    assert published_version_issues(base=BASE, head=head) == []
-
-
-@pytest.mark.parametrize(
-    "mutate, path",
-    [
-        (
-            lambda head: head.update({"pr-reviewer/1.0.0/plugin.json": "sha-z"}),
-            "pr-reviewer/1.0.0/plugin.json",
-        ),
-        (
-            lambda head: head.pop("pr-reviewer/1.0.0/ai.agenta/agents.json"),
-            "pr-reviewer/1.0.0/ai.agenta/agents.json",
-        ),
-        (
-            lambda head: head.update({"pr-reviewer/1.0.0/extra.md": "sha-e"}),
-            "pr-reviewer/1.0.0/extra.md",
-        ),
-    ],
-    ids=["modified", "removed", "added"],
-)
-def test_changing_a_published_version_is_rejected(mutate, path):
-    head = dict(BASE)
-    mutate(head)
-
-    issues = published_version_issues(base=BASE, head=head)
+    issues = published_version_issues(published=PUBLISHED, changed=changed)
 
     assert _codes(issues) == ["template_published_version_changed"]
-    assert "pr-reviewer@1.0.0" in issues[0].render()
-    assert path in issues[0].render()
+    rendered = issues[0].render()
+    assert "pr-reviewer@1.0.0" in rendered
+    assert "pr-reviewer/1.0.0/extra.md" in rendered
+    assert "1.1.0" not in rendered
 
 
 def _git(repo: Path, *args: str) -> str:
@@ -197,6 +174,86 @@ def test_unchanged_tree_passes_against_the_base_ref(tmp_path: Path):
         validate_marketplace(catalog_path=catalog_path, base_ref="main", repo_root=repo)
         == []
     )
+
+
+def test_untracked_file_in_a_published_version_fails(tmp_path: Path):
+    repo, catalog_path = _repo_with_catalog(tmp_path)
+    extra = catalog_path.parent / "packages" / "pr-reviewer" / "1.0.0" / "extra.md"
+    extra.write_text("new\n", encoding="utf-8")
+
+    issues = validate_marketplace(
+        catalog_path=catalog_path, base_ref="main", repo_root=repo
+    )
+
+    assert "template_published_version_changed" in _codes(issues)
+    assert "pr-reviewer/1.0.0/extra.md" in issues[-1].render()
+
+
+def test_ignored_files_do_not_count_as_changes(tmp_path: Path):
+    repo, catalog_path = _repo_with_catalog(tmp_path)
+    (repo / ".gitignore").write_text("*.pyc\n", encoding="utf-8")
+    package = catalog_path.parent / "packages" / "pr-reviewer" / "1.0.0"
+    (package / "cache.pyc").write_bytes(b"\0")
+
+    issues = validate_marketplace(
+        catalog_path=catalog_path, base_ref="main", repo_root=repo
+    )
+
+    assert "template_published_version_changed" not in _codes(issues)
+
+
+def test_line_ending_normalization_is_not_a_change(tmp_path: Path):
+    repo, catalog_path = _repo_with_catalog(tmp_path)
+    _git(repo, "config", "core.autocrlf", "true")
+    plugin = catalog_path.parent / "packages" / "pr-reviewer" / "1.0.0" / "plugin.json"
+    plugin.write_bytes(plugin.read_bytes().replace(b"\n", b"\r\n"))
+
+    issues = validate_marketplace(
+        catalog_path=catalog_path, base_ref="main", repo_root=repo
+    )
+
+    assert "template_published_version_changed" not in _codes(issues)
+
+
+def test_deleting_a_published_version_fails(tmp_path: Path):
+    repo, catalog_path = _repo_with_catalog(tmp_path)
+    packages = catalog_path.parent / "packages" / "pr-reviewer"
+    shutil.copytree(packages / "1.0.0", packages / "1.1.0")
+    shutil.rmtree(packages / "1.0.0")
+
+    def change(value):
+        record = value["templates"]["pr-reviewer"]
+        record["versions"] = {"1.1.0": "packages/pr-reviewer/1.1.0"}
+        record["latest"] = "1.1.0"
+
+    _rewrite(catalog_path, change)
+
+    issues = validate_marketplace(
+        catalog_path=catalog_path, base_ref="main", repo_root=repo
+    )
+
+    # The copied package still declares 1.0.0; only the deletion matters here.
+    changed = [i for i in issues if i.code == "template_published_version_changed"]
+    assert len(changed) == 1
+    assert "pr-reviewer@1.0.0" in changed[0].render()
+
+
+def test_nonstandard_package_path_is_rejected(tmp_path: Path):
+    catalog_path = _copy_catalog(tmp_path)
+    packages = catalog_path.parent / "packages"
+    shutil.move(packages / "pr-reviewer" / "1.0.0", packages / "pr-reviewer" / "v1")
+
+    def change(value):
+        value["templates"]["pr-reviewer"]["versions"]["1.0.0"] = (
+            "packages/pr-reviewer/v1"
+        )
+
+    _rewrite(catalog_path, change)
+
+    issues = validate_marketplace(catalog_path=catalog_path)
+
+    assert _codes(issues)[0] == "template_package_path_nonstandard"
+    assert "packages/pr-reviewer/v1" in issues[0].render()
 
 
 def test_unknown_base_ref_is_an_error_not_a_pass(tmp_path: Path):

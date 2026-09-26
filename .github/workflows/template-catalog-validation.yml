@@ -10,6 +10,19 @@ on:
     paths:
       - 'api/oss/src/resources/agent_templates/**'
       - 'api/oss/src/core/agent_templates/**'
+      - 'api/pyproject.toml'
+      - 'api/uv.lock'
+      - 'sdks/python/**'
+      - 'web/website/src/data/templates.json'
+      - '.github/workflows/template-catalog-validation.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'api/oss/src/resources/agent_templates/**'
+      - 'api/oss/src/core/agent_templates/**'
+      - 'api/pyproject.toml'
+      - 'api/uv.lock'
+      - 'sdks/python/**'
       - 'web/website/src/data/templates.json'
       - '.github/workflows/template-catalog-validation.yml'
   workflow_dispatch:
@@ -29,17 +42,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      # The default pull_request checkout is the merge commit, so comparing it
-      # with the base tip only flags changes this PR makes.
+      # A pull_request checkout is the merge commit and a push is the new tip,
+      # so HEAD^1 is the base this change applies to: the check flags only
+      # changes this PR or push makes, even if the base branch moved since.
       - uses: actions/checkout@v6
         with:
+          fetch-depth: 2
           persist-credentials: false
-
-      - name: Fetch the base branch for the published-version check
-        if: github.event_name == 'pull_request'
-        run: git fetch --no-tags --depth=1 origin "+refs/heads/${BASE_REF}:refs/remotes/origin/${BASE_REF}"
-        env:
-          BASE_REF: ${{ github.base_ref }}
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -66,10 +75,10 @@ jobs:
       - name: Validate packages, catalog, authors and published versions
         working-directory: api
         env:
-          BASE_REF: ${{ github.base_ref }}
+          EVENT_NAME: ${{ github.event_name }}
         run: |
           args=()
-          if [ -n "${BASE_REF}" ]; then args+=(--base-ref "origin/${BASE_REF}"); fi
+          if [ "${EVENT_NAME}" != "workflow_dispatch" ]; then args+=(--base-ref HEAD^1); fi
           time uv run --no-sync python -m oss.src.core.agent_templates.marketplace validate "${args[@]}"
 
       - name: Check the generated website data is current

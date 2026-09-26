@@ -5,28 +5,57 @@ import {getDefaultStore} from "jotai"
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
-const {createAgentMock, warningMock, replaceMock, lookups, connectionsState} = vi.hoisted(() => ({
-    createAgentMock: vi.fn(),
-    warningMock: vi.fn(),
-    replaceMock: vi.fn(),
-    lookups: new Map<string, unknown>(),
-    connectionsState: {connections: [] as unknown[], isLoading: false},
-}))
+const {createAgentMock, warningMock, replaceMock, lookups, lookupAtoms, connectionsState} =
+    vi.hoisted(() => ({
+        createAgentMock: vi.fn(),
+        warningMock: vi.fn(),
+        replaceMock: vi.fn(),
+        lookups: new Map<string, unknown>(),
+        lookupAtoms: new Map<string, unknown>(),
+        connectionsState: {connections: [] as unknown[], isLoading: false},
+    }))
 
-vi.mock("@agenta/entities/workflow", async (importOriginal) => {
-    const actual = await importOriginal<typeof import("@agenta/entities/workflow")>()
+// Only what the hook uses; setupStepNeeded has its own unit tests.
+vi.mock("@agenta/entities/workflow", async () => {
     const {atom} = await import("jotai")
+    interface Account {
+        slug: string
+        required: boolean
+    }
     return {
-        ...actual,
-        agentTemplateLookupAtomFamily: (key: string) =>
-            atom(() => lookups.get(key) ?? {status: "missing"}),
+        // Stable per key, like the real atomFamily; a fresh atom per render loops forever.
+        agentTemplateLookupAtomFamily: (key: string) => {
+            if (!lookupAtoms.has(key)) {
+                lookupAtoms.set(
+                    key,
+                    atom(() => lookups.get(key) ?? {status: "missing"}),
+                )
+            }
+            return lookupAtoms.get(key)
+        },
+        templateBuilderMessage: () => "",
+        detectAccounts: ({template}: {template: AgentStarterTemplate}) =>
+            (template.connections ?? []).map((connection) => ({
+                slug: connection.primary?.slug,
+                required: connection.required,
+            })),
+        setupStepNeeded: ({
+            accounts,
+            connectedSlugs,
+        }: {
+            accounts: Account[]
+            connectedSlugs: string[]
+        }) => accounts.some((a) => a.required && !connectedSlugs.includes(a.slug)),
     }
 })
 vi.mock("@agenta/entities/gatewayTool", () => ({
     isConnectionActive: () => true,
     useToolConnectionsQuery: () => connectionsState,
 }))
-vi.mock("next/router", () => ({useRouter: () => ({replace: replaceMock})}))
+vi.mock("next/router", () => {
+    const router = {replace: replaceMock}
+    return {useRouter: () => router}
+})
 vi.mock("@/oss/state/url", async () => {
     const {atom} = await import("jotai")
     return {urlAtom: atom({baseAppURL: "/w/ws-1/p/project-1/apps"})}
@@ -41,9 +70,10 @@ vi.mock("@/oss/lib/helpers/analytics/hooks/usePostHogAg", () => ({
 vi.mock("@agenta/shared/analytics", () => ({
     captureFirstAgentIntent: vi.fn(),
 }))
-vi.mock("antd", () => ({
-    App: {useApp: () => ({message: {warning: warningMock, error: vi.fn()}})},
-}))
+vi.mock("antd", () => {
+    const app = {message: {warning: warningMock, error: vi.fn()}}
+    return {App: {useApp: () => app}}
+})
 vi.mock("@/oss/state/appState", async () => {
     const {atom} = await import("jotai")
     return {appIdentifiersAtom: atom({workspaceId: "ws-1", projectId: "project-1"})}
@@ -97,6 +127,7 @@ beforeEach(() => {
     connectionsState.connections = [{integration_key: "github"}]
     connectionsState.isLoading = false
     lookups.clear()
+    lookupAtoms.clear()
     lookups.set(TEMPLATE.key, {status: "found", template: TEMPLATE})
     createAgentMock.mockResolvedValue(true)
     host = document.createElement("div")
