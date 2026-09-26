@@ -1170,6 +1170,7 @@ export function createAgentaOtel(
     runUsage.output = 0;
     runUsage.total = 0;
     runUsage.cost = 0;
+    costReported = false;
   }
 
   const register = (pi: ExtensionAPI): void => {
