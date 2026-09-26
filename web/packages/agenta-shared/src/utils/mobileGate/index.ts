@@ -130,6 +130,12 @@ const APPS_RESERVED = new Set(["archived", "agent-templates"])
 
 const trimSlashes = (value: string) => value.replace(/^\/+|\/+$/g, "")
 
+/** `?template=<key>` when the URL carries a website template link, else "". */
+const templateQueryFrom = (search: string): string => {
+    const templateKey = new URLSearchParams(search).get(TEMPLATE_QUERY_PARAM)?.trim()
+    return templateKey ? `?${TEMPLATE_QUERY_PARAM}=${encodeURIComponent(templateKey)}` : ""
+}
+
 /**
  * Desktop URL → the `/m` route that shows the same thing, or `null` when `/m` has no such
  * screen (evaluations, test sets, prompts, evaluators, annotations, the registry).
@@ -144,9 +150,7 @@ export function mobileRouteFor(pathname: string, search: string): string | null 
 
     // A website template link (`?template=`) rides along: `/m` opens that template's setup step.
     const templateKey = new URLSearchParams(search).get(TEMPLATE_QUERY_PARAM)?.trim()
-    const templateQuery = templateKey
-        ? `?${TEMPLATE_QUERY_PARAM}=${encodeURIComponent(templateKey)}`
-        : ""
+    const templateQuery = templateQueryFrom(search)
 
     // The mobile root resolves last-used workspace/project (same resolution as post-login).
     if (/^\/w(\/[^/]+(\/p\/?)?)?\/?$/.test(pathname)) return `/m/${templateQuery}`
@@ -210,7 +214,8 @@ export function mobileRouteFor(pathname: string, search: string): string | null 
  * for a page `/m` does not mirror, because the desktop page is unusable there regardless.
  */
 export function mapDesktopToMobile(pathname: string, search: string): string {
-    return mobileRouteFor(pathname, search) ?? "/m/"
+    // The `/m` root still opens a website template link (`/?template=`) on its setup step.
+    return mobileRouteFor(pathname, search) ?? `/m/${templateQueryFrom(search)}`
 }
 
 /**

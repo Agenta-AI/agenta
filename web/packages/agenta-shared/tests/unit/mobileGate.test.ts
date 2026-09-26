@@ -148,6 +148,18 @@ describe("mapDesktopToMobile", () => {
         expect(mapDesktopToMobile("/w/ws1/p/pr1/testsets", "")).toBe("/m/")
         expect(mobileRouteFor("/w/ws1/p/pr1/testsets", "")).toBeNull()
     })
+    it("keeps a website template link on a phone that opens the app root", () => {
+        // The website CTA links to `/?template=`; the /m root then opens that template's setup.
+        expect(
+            decideDesktopGate(
+                input({
+                    pathname: "/",
+                    search: "?template=pr-reviewer",
+                    headers: docHeaders(MOBILE_UA),
+                }),
+            ),
+        ).toEqual({kind: "redirect", location: "/m/?template=pr-reviewer"})
+    })
     it("maps context-free routes to the mobile root resolver", () => {
         expect(mapDesktopToMobile("/w", "")).toBe("/m/")
         expect(mapDesktopToMobile("/w/ws1", "")).toBe("/m/")
