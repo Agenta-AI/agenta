@@ -27,9 +27,9 @@ from agenta.sdk.agents.skills import SkillFile
 from agenta.sdk.agents.tools.models import ToolConfig
 from agenta.sdk.utils.types import AgentTemplateSchema
 
-# Repo-root-relative path to the frontend template registry. Walked up from this test file so it
-# does not depend on where the SDK checkout lives relative to the monorepo root.
-_FRONTEND_TEMPLATES_PATH = "web/packages/agenta-entities/src/workflow/agentTemplates.ts"
+# Repo-root-relative path to the bundled template catalog every app surface reads through the API.
+# Walked up from this test file so it does not depend on where the SDK checkout lives.
+_CATALOG_PATH = "api/oss/src/resources/agent_templates/catalog.json"
 
 
 def _file(path: str) -> SkillFile:
@@ -49,50 +49,21 @@ def _find_repo_root() -> "Path | None":
     return None
 
 
-def _frontend_template_keys() -> "set[str] | None":
-    """Parse ``key: "..."`` occurrences out of the ``AGENT_TEMPLATES`` array in the frontend
-    registry. Returns ``None`` (skip, do not fail) if the frontend file cannot be located, since
-    an SDK-only distribution never ships ``web/``."""
+def _catalog_template_keys() -> "set[str] | None":
+    """Keys of the templates the catalog lists in the gallery. Returns ``None`` (skip, do not
+    fail) if the catalog cannot be located, since an SDK-only distribution never ships ``api/``."""
     repo_root = _find_repo_root()
     if repo_root is None:
         return None
-    frontend_path = repo_root / _FRONTEND_TEMPLATES_PATH
-    if not frontend_path.exists():
+    catalog_path = repo_root / _CATALOG_PATH
+    if not catalog_path.exists():
         return None
-    content = frontend_path.read_text()
-    marker = "export const AGENT_TEMPLATES"
-    marker_pos = content.find(marker)
-    if marker_pos == -1:
-        pytest.fail(
-            f"{_FRONTEND_TEMPLATES_PATH} is missing the '{marker}' marker; the parity check "
-            "cannot locate the template registry"
-        )
-    array_content = _array_body_after(content, marker_pos, marker)
-    return set(re.findall(r'^ {8}key:\s*"([^"]+)"', array_content, re.MULTILINE))
-
-
-def _array_body_after(content: str, marker_pos: int, marker: str) -> str:
-    """The ``[...]`` literal assigned to ``marker``, found by counting brackets from the first
-    ``[`` after the ``=`` until they balance. Starting at the ``=`` skips the ``[]`` of the
-    ``AgentTemplate[]`` type annotation; scoping to the array body keeps a ``key:`` in code AFTER
-    the array (helpers, later exports) from leaking into the parity set."""
-    eq_index = content.find("=", marker_pos)
-    if eq_index == -1:
-        pytest.fail(f"{_FRONTEND_TEMPLATES_PATH}: no '=' found after '{marker}'")
-    open_index = content.find("[", eq_index)
-    if open_index == -1:
-        pytest.fail(f"{_FRONTEND_TEMPLATES_PATH}: no '[' found after '{marker}'")
-    depth = 0
-    for i in range(open_index, len(content)):
-        if content[i] == "[":
-            depth += 1
-        elif content[i] == "]":
-            depth -= 1
-            if depth == 0:
-                return content[open_index : i + 1]
-    pytest.fail(
-        f"{_FRONTEND_TEMPLATES_PATH}: unbalanced '[' in the AGENT_TEMPLATES array"
-    )
+    catalog = json.loads(catalog_path.read_text(encoding="utf-8"))
+    return {
+        key
+        for key, record in catalog["templates"].items()
+        if record.get("listed", True)
+    }
 
 
 def _agent_template_top_fields() -> set[str]:
@@ -315,18 +286,18 @@ def test_template_entry_rejects_table_breaking_characters(field_name, bad_value)
         _validate_entries([entry])
 
 
-def test_frontend_and_sdk_template_keys_match():
-    frontend_keys = _frontend_template_keys()
+def test_catalog_and_sdk_template_keys_match():
+    frontend_keys = _catalog_template_keys()
     if frontend_keys is None:
         pytest.skip(
-            f"{_FRONTEND_TEMPLATES_PATH} not found relative to the repo root; "
+            f"{_CATALOG_PATH} not found relative to the repo root; "
             "skipping (expected for an SDK-only distribution)"
         )
     sdk_keys = {entry.key for entry in AGENT_TEMPLATE_ENTRIES}
     missing_from_frontend = sdk_keys - frontend_keys
     missing_from_sdk = frontend_keys - sdk_keys
     assert not missing_from_frontend and not missing_from_sdk, (
-        "SDK agent templates and the frontend registry have drifted.\n"
-        f"In SDK but not frontend: {sorted(missing_from_frontend)}\n"
-        f"In frontend but not SDK: {sorted(missing_from_sdk)}"
+        "SDK agent templates and the template catalog have drifted.\n"
+        f"In SDK but not the catalog: {sorted(missing_from_frontend)}\n"
+        f"In the catalog but not SDK: {sorted(missing_from_sdk)}"
     )

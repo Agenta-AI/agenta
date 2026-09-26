@@ -1,7 +1,7 @@
-import {AGENT_TEMPLATES} from "@agenta/entities/workflow"
 import {NewAgentButton as NewAgentButtonView} from "@agenta/home-ui"
 import {useRouter} from "next/router"
 
+import {useAgentTemplateCatalog} from "@/oss/components/TemplateStrip/hooks/useAgentTemplateCatalog"
 import useURL from "@/oss/hooks/useURL"
 
 /**
@@ -12,6 +12,11 @@ import useURL from "@/oss/hooks/useURL"
 const NewAgentButton = ({label}: {label?: string}) => {
     const router = useRouter()
     const {baseAppURL} = useURL()
+    const {templates, status} = useAgentTemplateCatalog()
+    // Until the catalog loads the menu offers only the blank create: the browse link names a
+    // count, and "Browse all 0 templates" would read as an empty catalog. The gallery page shows
+    // its own loading and error states.
+    const catalogReady = status === "success"
 
     const goCreate = (templateKey?: string) =>
         void router.push(
@@ -22,10 +27,10 @@ const NewAgentButton = ({label}: {label?: string}) => {
         <NewAgentButtonView
             label={label}
             onCreateBlank={() => goCreate()}
-            templates={AGENT_TEMPLATES}
+            templates={templates}
             onPickTemplate={goCreate}
-            browseHref={`${baseAppURL}/agent-templates`}
-            totalTemplates={AGENT_TEMPLATES.length}
+            browseHref={catalogReady ? `${baseAppURL}/agent-templates` : undefined}
+            totalTemplates={templates.length}
         />
     )
 }

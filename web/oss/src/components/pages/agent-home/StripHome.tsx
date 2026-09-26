@@ -2,7 +2,8 @@ import {useCallback, useEffect, useRef, useState} from "react"
 
 import {appTemplatesQueryAtom} from "@agenta/entities/workflow"
 import {
-    AGENT_TEMPLATES,
+    agentTemplateByKey,
+    agentTemplatesAtom,
     templateBuilderMessage,
     type AgentStarterTemplate,
 } from "@agenta/entities/workflow"
@@ -77,6 +78,7 @@ const StripHome: React.FC = () => {
 
     // Warm the app-templates cache so the ephemeral-create factory resolves the agent template.
     useAtomValue(appTemplatesQueryAtom)
+    const templates = useAtomValue(agentTemplatesAtom)
 
     const agents = useAtomValue(agentsWorkflowsAtom)
     const agentsLoading = useAtomValue(agentsWorkflowsLoadingAtom)
@@ -215,9 +217,8 @@ const StripHome: React.FC = () => {
     // Seed once PER TEMPLATE KEY: a boolean guard blocked every template after the first,
     // because this surface stays mounted across ?template= navigations.
     // The template this surface was opened for, if any — the hero speaks about it by name.
-    const pickedTemplate = templateParam
-        ? AGENT_TEMPLATES.find((entry) => entry.key === templateParam)
-        : undefined
+    // Undefined until the catalog loads; the seeding effect below re-runs when it does.
+    const pickedTemplate = agentTemplateByKey(templates, templateParam)
     // The template this surface is setting up, if any — an in-place strip pick carries it on the
     // draft, an arrival on the URL.
     const heroTemplate = setup.draft?.template ?? pickedTemplate
@@ -228,7 +229,9 @@ const StripHome: React.FC = () => {
             return
         }
         if (seededTemplate.current === templateParam) return
-        const template = AGENT_TEMPLATES.find((entry) => entry.key === templateParam)
+        // Not seeded (and not latched) until the catalog has the template, so a key that arrives
+        // before the catalog loads still seeds once it does.
+        const template = agentTemplateByKey(templates, templateParam)
         if (!template) return
         seededTemplate.current = templateParam
         provenance.pick(template)
@@ -244,7 +247,7 @@ const StripHome: React.FC = () => {
             setStepReady(false)
             seedComposer(templateBuilderMessage(template))
         }
-    }, [templateParam, provenance.pick, setup.open, seedComposer])
+    }, [templateParam, templates, provenance.pick, setup.open, seedComposer])
 
     // Create, with the step's answers. The editor holds the prompt (the template's, or the
     // typed one, still editable under the docked card), so what is IN it is what gets sent.

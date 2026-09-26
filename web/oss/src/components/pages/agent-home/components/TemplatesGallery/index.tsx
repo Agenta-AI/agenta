@@ -13,6 +13,7 @@ import clsx from "clsx"
 import {useAtomValue} from "jotai"
 import {useRouter} from "next/router"
 
+import {useAgentTemplateCatalog} from "@/oss/components/TemplateStrip/hooks/useAgentTemplateCatalog"
 import {urlAtom} from "@/oss/state/url"
 
 import {BROWSE_RAIL_MODE} from "../../assets/constants"
@@ -29,13 +30,17 @@ const TemplatesGalleryPage = () => {
     const router = useRouter()
     const {baseAppURL} = useAtomValue(urlAtom)
     const [active, setActive] = useState(ALL_TEMPLATES_CATEGORY)
+    // The shared gallery shows the catalog's loading and error states itself; the page only needs
+    // the list to resolve the category deep link.
+    const {templates} = useAgentTemplateCatalog()
 
-    // Deep link: `?category=engineering` opens with that rail item active.
+    // Deep link: `?category=engineering` opens with that rail item active. The slug resolves
+    // against the categories the catalog has, so it re-resolves once the catalog loads.
     useEffect(() => {
         if (!router.isReady) return
         const slug = router.query.category
-        setActive(categoryFromSlug(Array.isArray(slug) ? slug[0] : slug))
-    }, [router.isReady, router.query.category])
+        setActive(categoryFromSlug(Array.isArray(slug) ? slug[0] : slug, templates))
+    }, [router.isReady, router.query.category, templates])
 
     const handleCategoryChange = useCallback(
         (category: string) => {

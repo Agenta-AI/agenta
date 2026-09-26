@@ -1,4 +1,4 @@
-import {AGENT_TEMPLATES} from "@agenta/entities/workflow"
+import type {AgentStarterTemplate} from "@agenta/entities/workflow"
 import {getDefaultStore} from "jotai"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
@@ -8,15 +8,18 @@ import {
     claimTemplate,
     clearTemplate,
     completeTemplateClaim,
-    isValidTemplateKey,
     parseTemplateFromUrl,
+    pendingTemplateDecision,
     persistTemplateToStorage,
     readTemplateFromStorage,
-    resolveTemplate,
     TEMPLATE_TTL_MS,
 } from "./template"
 
-const KNOWN_KEY = AGENT_TEMPLATES[0].key
+// Capture, storage and claim never read the catalog, so any key string works here.
+const KNOWN_KEY = "pr-reviewer"
+
+// Only the key matters to the decision; the rest of the card is irrelevant to these tests.
+const KNOWN_TEMPLATE = {key: KNOWN_KEY, name: "PR reviewer"} as AgentStarterTemplate
 
 class FakeStorage {
     private map = new Map<string, string>()
@@ -81,17 +84,58 @@ describe("parseTemplateFromUrl", () => {
     })
 })
 
-describe("registry validation", () => {
-    it("resolves a known key to its template and validates it", () => {
-        expect(resolveTemplate(KNOWN_KEY)?.key).toBe(KNOWN_KEY)
-        expect(isValidTemplateKey(KNOWN_KEY)).toBe(true)
+describe("pendingTemplateDecision (catalog validation at consume time)", () => {
+    it("waits, keeping the key, while the catalog is loading", () => {
+        expect(pendingTemplateDecision({status: "pending"})).toEqual({
+            action: "wait",
+            reason: "pending",
+        })
     })
 
-    it("rejects an unknown or stale key without falling back to another template", () => {
-        expect(resolveTemplate("not-a-real-template")).toBeUndefined()
-        expect(isValidTemplateKey("not-a-real-template")).toBe(false)
-        expect(resolveTemplate(null)).toBeUndefined()
-        expect(isValidTemplateKey("")).toBe(false)
+    it("waits, keeping the key, when the catalog read failed", () => {
+        expect(pendingTemplateDecision({status: "error"})).toEqual({
+            action: "wait",
+            reason: "error",
+        })
+    })
+
+    it("discards a key the loaded catalog does not have, without falling back", () => {
+        expect(pendingTemplateDecision({status: "missing"})).toEqual({action: "discard"})
+    })
+
+    it("consumes a key the catalog has, with that exact template", () => {
+        const decision = pendingTemplateDecision({status: "found", template: KNOWN_TEMPLATE})
+        expect(decision).toEqual({action: "consume", template: KNOWN_TEMPLATE})
+    })
+
+    it("keeps a captured key in storage and the atom while the catalog is pending", () => {
+        installWindow("/?template=" + KNOWN_KEY)
+        const pending = capturePending()
+        const decision = pendingTemplateDecision({status: "pending"})
+        // The consumer only clears on "discard"; a "wait" leaves the capture untouched.
+        if (decision.action === "discard") clearTemplate(pending)
+        expect(readTemplateFromStorage()).toEqual(pending)
+        expect(getDefaultStore().get(activeTemplateAtom)).toEqual(pending)
+    })
+
+    it("clears a captured key once the catalog confirms it is missing", () => {
+        const win = installWindow("/?template=not-a-real-template")
+        captureTemplateFromUrl(new URL("https://cloud.agenta.ai/?template=not-a-real-template"))
+        const pending = getDefaultStore().get(activeTemplateAtom)
+        if (!pending) throw new Error("Expected a pending template")
+        const decision = pendingTemplateDecision({status: "missing"})
+        if (decision.action === "discard") clearTemplate(pending)
+        expect(readTemplateFromStorage()).toBeNull()
+        expect(getDefaultStore().get(activeTemplateAtom)).toBeNull()
+        expect(win.location.href).not.toContain("template=")
+    })
+
+    it("lets a found key proceed to the at-most-once claim", async () => {
+        installWindow("/")
+        const pending = capturePending()
+        const decision = pendingTemplateDecision({status: "found", template: KNOWN_TEMPLATE})
+        expect(decision.action).toBe("consume")
+        expect(await claimTemplate(pending)).toBe(true)
     })
 })
 
