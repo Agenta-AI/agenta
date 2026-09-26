@@ -137,6 +137,8 @@ import { reconstructHistoryIfNeeded } from "./reconstruct-history.ts";
 import { carriesApprovalReplyOnly } from "./session-identity.ts";
 import { buildTurnText, priorMessages } from "./transcript.ts";
 import {
+  addRunUsage,
+  combinePromptResults,
   promptTokenDetail,
   resolveRunUsage,
   turnCostFromRunningTotal,
@@ -407,6 +409,7 @@ export async function runTurn(
     request: () => request,
     target: otlpTarget,
     resume: !!opts.resume,
+    nextPromptFollows: !!opts.settleApprovalsThenPrompt,
   });
   // Assigned once the turn's interaction plumbing exists; called from the `finally` so EVERY exit
   // path (done, paused, cancelled, error) settles the durable rows this turn's in-band answers
@@ -1493,6 +1496,10 @@ export async function runTurn(
         cancelled,
       ]);
     let raced = await racePrompt(promptPromise);
+    // The usage of a parked prompt this turn finished before its second prompt. Each prompt
+    // reports only its own work, so the turn reports both (the paused turn reported none).
+    let settledPromptResult: unknown;
+    let settledPromptUsage: AgentUsage | undefined;
     if (
       opts.settleApprovalsThenPrompt &&
       raced !== PAUSED &&
@@ -1505,6 +1512,8 @@ export async function runTurn(
       // prompt the runner silently answers the old denied tool call and drops the new text. The
       // old prompt was raced above, so a harness that opened another gate after the denial pauses
       // this turn instead of hanging unwatched. `continuation` makes promptBlocks the fresh tail.
+      settledPromptResult = raced;
+      settledPromptUsage = await harnessTrace.beginNextPrompt(run, runRedactor);
       promptStartedAtMs = Date.now();
       promptPromise = Promise.resolve(env.session.prompt(promptBlocks));
       promptPromise.catch(() => {});
@@ -1687,22 +1696,36 @@ export async function runTurn(
     // batch first is therefore the cross-filesystem publication barrier for both local and
     // Daytona runs. Runner-traced harnesses still need usage before trace finalization so the
     // runner can stamp it on its own span.
+    //
+    // A pause that destroyed the Pi session (no approval park) ends the prompt for good: Pi
+    // publishes the partial trace and usage of the work before the pause as it stops. Drain them
+    // here too, so this turn reports that usage instead of racing Pi's write. A parked prompt is
+    // still running and publishes on the turn that resumes it.
     let traceFinish =
-      plan.isPi && stopReason !== "paused"
+      plan.isPi && (stopReason !== "paused" || env.sessionDestroyRequested)
         ? await harnessTrace.finish()
         : undefined;
-    const resolvedUsage = await resolveRunUsage({
-      sandbox: env.sandbox,
-      usageOutPath: plan.workspace.usageOutPath,
-      isDaytona: plan.isDaytona,
-      promptResult: result,
-      streamUsage: run.usage(),
-    });
+    // Pi reports each prompt's usage in its sidecar, which `beginNextPrompt` already read.
+    const turnPromptResult = plan.isPi
+      ? result
+      : combinePromptResults(settledPromptResult, result);
+    const resolvedUsage = addRunUsage(
+      settledPromptUsage,
+      await resolveRunUsage({
+        sandbox: env.sandbox,
+        usageOutPath: plan.workspace.usageOutPath,
+        isDaytona: plan.isDaytona,
+        promptResult: turnPromptResult,
+        streamUsage: run.usage(),
+      }),
+    );
     const isClaude = harnessKindOf(plan.harness) === "claude";
     const usage = isClaude
       ? claudeTurnUsage(resolvedUsage, env)
       : resolvedUsage;
-    run.setTokenDetail?.(promptTokenDetail(result, { perModel: isClaude }));
+    run.setTokenDetail?.(
+      promptTokenDetail(turnPromptResult, { perModel: isClaude }),
+    );
     run.setUsage(usage);
     if (!plan.isPi && stopReason !== "paused") {
       traceFinish = await harnessTrace.finish();

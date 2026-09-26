@@ -159,3 +159,84 @@ export function turnCostFromRunningTotal(
   const delta = reading >= previous ? reading - previous : reading;
   return Math.round(delta * 1e10) / 1e10;
 }
+
+function sumCounts(a: any, b: any, keys: string[]): Record<string, number> {
+  return Object.fromEntries(
+    keys.map((key) => [key, count(a?.[key]) + count(b?.[key])]),
+  );
+}
+
+const PROMPT_USAGE_KEYS = [
+  "inputTokens",
+  "outputTokens",
+  "cachedReadTokens",
+  "cachedWriteTokens",
+  "totalTokens",
+];
+const MODEL_USAGE_KEYS = [
+  "inputTokens",
+  "outputTokens",
+  "cachedInputTokens",
+  "cachedWriteTokens",
+];
+
+/**
+ * Combine the PromptResponses of two ACP prompts that one turn ran back to back.
+ *
+ * A decision-then-prompt turn first lets the parked prompt finish (the work before the pause and
+ * after the decision) and then sends the fresh user text as a second prompt. Each response
+ * reports only its own prompt, so the turn's usage is their sum: `usage` field by field, and
+ * `_meta.quota.model_usage` row by row per model. The later response wins for everything else.
+ */
+export function combinePromptResults(first: any, second: any): any {
+  if (!first?.usage && !first?._meta?.quota?.model_usage) return second;
+  if (!second) return first;
+  const combined: any = {
+    ...second,
+    usage: sumCounts(first.usage, second.usage, PROMPT_USAGE_KEYS),
+  };
+  const firstRows = first._meta?.quota?.model_usage;
+  const secondRows = second._meta?.quota?.model_usage;
+  if (Array.isArray(firstRows) || Array.isArray(secondRows)) {
+    const byModel = new Map<string, any>();
+    for (const row of [
+      ...(Array.isArray(firstRows) ? firstRows : []),
+      ...(Array.isArray(secondRows) ? secondRows : []),
+    ]) {
+      const key = typeof row?.model === "string" ? row.model : "";
+      const previous = byModel.get(key);
+      byModel.set(key, {
+        ...row,
+        token_count: sumCounts(
+          previous?.token_count,
+          row?.token_count,
+          MODEL_USAGE_KEYS,
+        ),
+      });
+    }
+    combined._meta = {
+      ...second._meta,
+      quota: { ...second._meta?.quota, model_usage: [...byModel.values()] },
+    };
+  }
+  return combined;
+}
+
+/** Add two run usages. Cost stays absent only when neither side reported one. */
+export function addRunUsage(
+  a: AgentUsage | undefined,
+  b: AgentUsage | undefined,
+): AgentUsage | undefined {
+  if (!a) return b;
+  if (!b) return a;
+  const cost =
+    a.cost == null && b.cost == null
+      ? undefined
+      : (a.cost ?? 0) + (b.cost ?? 0);
+  return {
+    input: a.input + b.input,
+    output: a.output + b.output,
+    total: a.total + b.total,
+    ...(cost == null ? {} : { cost }),
+  };
+}
