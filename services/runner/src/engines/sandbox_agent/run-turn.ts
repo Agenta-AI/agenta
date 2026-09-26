@@ -1743,19 +1743,23 @@ export async function runTurn(
         : undefined;
     // Pi traces the parked prompt under the paused turn's trace, and the platform totals that trace
     // from those spans. Its usage stays out of this turn's, which would count it on a second root.
+    // A pure approval resume runs only the parked prompt, so it reports no usage at all.
     const turnPromptResult = plan.isPi
       ? result
       : combinePromptResults(
           settledPromptResult,
           result ?? cancelledPromptResult,
         );
-    const resolvedUsage = await resolveRunUsage({
-      sandbox: env.sandbox,
-      usageOutPath: plan.workspace.usageOutPath,
-      isDaytona: plan.isDaytona,
-      promptResult: turnPromptResult,
-      streamUsage: run.usage(),
-    });
+    const resolvedUsage =
+      plan.isPi && opts.resume
+        ? undefined
+        : await resolveRunUsage({
+            sandbox: env.sandbox,
+            usageOutPath: plan.workspace.usageOutPath,
+            isDaytona: plan.isDaytona,
+            promptResult: turnPromptResult,
+            streamUsage: run.usage(),
+          });
     const isClaude = harnessKindOf(plan.harness) === "claude";
     const usage = isClaude
       ? claudeTurnUsage(resolvedUsage, env)
