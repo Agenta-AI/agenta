@@ -284,44 +284,57 @@ describe("Pi's real built-in registry (the table the pinned harness runs)", () =
 });
 
 describe("models newer than the pinned Pi catalog", () => {
-  it("prices Opus 5.5 at its own rate and keeps Opus 5's adaptive thinking", async () => {
+  // Pi 0.87.1 carries Opus 5.5 and Grok 4.7 itself, so the runner registers nothing for them and
+  // Pi prices each turn from its own catalog instead of from a runner-side copy.
+  it("leaves Opus 5.5 and Grok 4.7 to the pinned catalog, which prices them", async () => {
     const registry = await loadPiBuiltinRegistry();
     assert.ok(registry);
-    // Still unknown to the pinned catalog; once a Pi bump carries it, drop the entry.
+
+    const opus = registry
+      .models("anthropic")
+      .find((model) => model.id === "claude-opus-5-5");
+    assert.deepEqual(pickRates(opus?.cost), {
+      input: 4,
+      output: 20,
+      cacheRead: 0.2,
+      cacheWrite: 5,
+    });
+    const grok = registry
+      .models("xai")
+      .find((model) => model.id === "grok-4.7");
+    assert.deepEqual(pickRates(grok?.cost), {
+      input: 2,
+      output: 6,
+      cacheRead: 0.5,
+      cacheWrite: 0,
+    });
+
     assert.equal(
-      registry.models("anthropic").some((model) => model.id === "claude-opus-5-5"),
-      false,
+      buildPiModelRegistrationPlan(
+        piRequest("anthropic/claude-opus-5-5"),
+        registry,
+      ),
+      undefined,
     );
-
-    const entry = buildPiModelRegistrationPlan(
-      piRequest("anthropic/claude-opus-5-5"),
-      registry,
-    )?.models[0];
-
-    assert.equal(entry?.id, "claude-opus-5-5");
-    assert.deepEqual(entry?.cost, { input: 4, output: 20, cacheRead: 0.2, cacheWrite: 5 });
-    assert.equal(entry?.reasoning, true);
-    assert.equal(entry?.contextWindow, 1000000);
-    assert.equal(entry?.maxTokens, 128000);
-    // Thinking cannot be switched off on Opus 5.5, so Pi must never send `disabled`.
-    assert.equal(entry?.thinkingLevelMap?.off, null);
-    assert.equal(entry?.compat?.forceAdaptiveThinking, true);
-    assert.equal(entry?.compat?.supportsTemperature, false);
-    assert.equal("supportsMidConvoEffort" in (entry?.compat ?? {}), false);
+    assert.equal(
+      buildPiModelRegistrationPlan(piRequest("xai/grok-4.7"), registry),
+      undefined,
+    );
   });
 
-  it("prices Grok 4.7 and keeps Grok 4.6's reasoning setup", async () => {
+  it("lists only models the pinned catalog still lacks", async () => {
     const registry = await loadPiBuiltinRegistry();
     assert.ok(registry);
-
-    const entry = buildPiModelRegistrationPlan(piRequest("xai/grok-4.7"), registry)?.models[0];
-    const base = registry.models("xai").find((model) => model.id === "grok-4.6");
-
-    assert.equal(entry?.id, "grok-4.7");
-    assert.deepEqual(entry?.cost, { input: 2, output: 6, cacheRead: 0.5, cacheWrite: 0 });
-    assert.equal(entry?.reasoning, true);
-    assert.deepEqual(entry?.thinkingLevelMap, base?.thinkingLevelMap);
-    assert.equal(entry?.contextWindow, 500000);
+    for (const id of Object.keys(PI_MODELS_AHEAD_OF_CATALOG)) {
+      const separator = id.indexOf("/");
+      const provider = id.slice(0, separator);
+      const modelId = id.slice(separator + 1);
+      assert.equal(
+        registry.models(provider).some((model) => model.id === modelId),
+        false,
+        `${id} is in the pinned Pi catalog now; drop its entry`,
+      );
+    }
   });
 
   it("matches the SDK's curated additions, so the picker and the run agree on price", () => {
@@ -358,6 +371,18 @@ describe("models newer than the pinned Pi catalog", () => {
     }
   });
 });
+
+function pickRates(
+  cost: Record<string, unknown> | undefined,
+): Record<string, unknown> | undefined {
+  if (!cost) return undefined;
+  return {
+    input: cost.input,
+    output: cost.output,
+    cacheRead: cost.cacheRead,
+    cacheWrite: cost.cacheWrite,
+  };
+}
 
 const dirs: string[] = [];
 
