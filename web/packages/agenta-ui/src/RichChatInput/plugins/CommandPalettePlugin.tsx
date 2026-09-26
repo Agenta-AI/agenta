@@ -271,7 +271,8 @@ export function CommandPalettePlugin({palettes, anchorRef, disabled}: CommandPal
             if (!items.length) return false
             event?.preventDefault()
             setActiveIndex((i) => (i + delta + items.length) % items.length)
-            requestAnimationFrame(() => activeRowRef.current?.scrollIntoView({block: "nearest"}))
+            // Optional call: jsdom has no scrollIntoView, and the frame can fire after a test ends.
+            requestAnimationFrame(() => activeRowRef.current?.scrollIntoView?.({block: "nearest"}))
             return true
         }
         const unregister = [
