@@ -1,11 +1,21 @@
 import {useEffect, useRef, useState} from "react"
 
-import {agentTemplateLookupAtomFamily} from "@agenta/entities/workflow"
+import {isConnectionActive, useToolConnectionsQuery} from "@agenta/entities/gatewayTool"
+import {
+    agentTemplateLookupAtomFamily,
+    detectAccounts,
+    setupStepNeeded,
+    templateBuilderMessage,
+    type AgentStarterTemplate,
+} from "@agenta/entities/workflow"
 import {captureFirstAgentIntent} from "@agenta/shared/analytics"
+import {App} from "antd"
 import {useAtomValue} from "jotai"
+import {useRouter} from "next/router"
 
 import {usePostHogAg} from "@/oss/lib/helpers/analytics/hooks/usePostHogAg"
 import {appIdentifiersAtom} from "@/oss/state/appState"
+import {urlAtom} from "@/oss/state/url"
 import {
     activeTemplateAtom,
     claimTemplate,
@@ -15,6 +25,20 @@ import {
 } from "@/oss/state/url/template"
 
 import {useCreateAgent} from "./useCreateAgent"
+
+export const UNAVAILABLE_TEMPLATE_MESSAGE =
+    "This template is not available in this version of Agenta. No agent was created."
+
+/** Same gate as the in-app setup step: does this template need accounts connected first? */
+export const templateNeedsSetup = (
+    template: AgentStarterTemplate,
+    connectedSlugs: string[],
+): boolean =>
+    setupStepNeeded({
+        accounts: detectAccounts({description: templateBuilderMessage(template), template}),
+        connectedSlugs,
+        forTemplate: true,
+    })
 
 /**
  * Consume a pending website template at whichever first-run surface the user reaches. A new user
@@ -26,8 +50,9 @@ import {useCreateAgent} from "./useCreateAgent"
  *
  * The steps mirror the plan's consume requirements: validate the key by exact catalog lookup
  * (an unknown or stale key is ignored and cleared, never creating an agent); wait for a confirmed
- * workspace and project; claim the key so it fires at most once; then create the agent with the
- * seed held behind a Start button (`autoSendSeed: false`).
+ * workspace and project; claim the key so it fires at most once. A template with accounts to
+ * connect then opens the create surface with its setup step (`?new=1&template=`), exactly as an
+ * in-app pick does; otherwise the agent is created by loading the package, never a blank agent.
  *
  * The catalog comes from the API, so the lookup can be unresolved. While it loads, the key is kept
  * and the loader held. If the read fails, the key is still kept (a failed read says nothing about
@@ -40,6 +65,10 @@ export function useConsumePendingTemplate(): boolean {
     const capturedAt = pending?.capturedAt
     const {workspaceId, projectId} = useAtomValue(appIdentifiersAtom)
     const posthog = usePostHogAg()
+    const {message} = App.useApp()
+    const router = useRouter()
+    const {baseAppURL} = useAtomValue(urlAtom)
+    const {connections, isLoading: connectionsLoading} = useToolConnectionsQuery()
     const createAgent = useCreateAgent()
     const lookup = useAtomValue(agentTemplateLookupAtomFamily(pendingKey ?? ""))
 
@@ -66,6 +95,7 @@ export function useConsumePendingTemplate(): boolean {
                 source: "website_template",
                 properties: {templateId: pendingKey, outcome: "invalid"},
             })
+            message.warning(UNAVAILABLE_TEMPLATE_MESSAGE)
             clearTemplate(pendingGeneration)
             setHolding(false)
             return
@@ -77,7 +107,7 @@ export function useConsumePendingTemplate(): boolean {
         // Do not create until the workspace and project are real; the effect re-runs when they
         // resolve. Scope the latch to this capture generation so a later template can proceed
         // while the same page component remains mounted.
-        if (!workspaceId || !projectId) return
+        if (!workspaceId || !projectId || !baseAppURL || connectionsLoading) return
         if (startedRef.current === generationId) return
         startedRef.current = generationId
 
@@ -108,12 +138,27 @@ export function useConsumePendingTemplate(): boolean {
                 intentValue: template.category || template.name,
             })
 
-            try {
-                const created = await createAgent({
-                    name: template.name,
-                    seedMessage: template.seedMessage,
-                    autoSendSeed: false,
+            const connectedSlugs = connections
+                .filter(isConnectionActive)
+                .map((connection) => connection.integration_key)
+                .filter(Boolean) as string[]
+            if (templateNeedsSetup(template, connectedSlugs)) {
+                captureFirstAgentIntent(posthog, {
+                    source: "website_template",
+                    properties: {templateId: template.key, outcome: "setup"},
                 })
+                await completeTemplateClaim(pendingGeneration)
+                clearTemplate(pendingGeneration)
+                if (startedRef.current === generationId) startedRef.current = null
+                void router.replace(
+                    `${baseAppURL}?new=1&template=${encodeURIComponent(template.key)}`,
+                )
+                return
+            }
+
+            try {
+                // Load the real package, the same path as an in-app template pick.
+                const created = await createAgent({name: template.name, template})
                 captureFirstAgentIntent(posthog, {
                     source: "website_template",
                     properties: {
@@ -132,7 +177,20 @@ export function useConsumePendingTemplate(): boolean {
                 if (startedRef.current === generationId) startedRef.current = null
             }
         })()
-    }, [pendingKey, capturedAt, lookup, workspaceId, projectId, posthog, createAgent])
+    }, [
+        pendingKey,
+        capturedAt,
+        lookup,
+        workspaceId,
+        projectId,
+        baseAppURL,
+        connections,
+        connectionsLoading,
+        router,
+        posthog,
+        createAgent,
+        message,
+    ])
 
     return holding
 }

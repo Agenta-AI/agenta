@@ -543,6 +543,7 @@ export {
     isAccountSatisfied,
     outstandingRequired,
     setupStatus,
+    setupStepNeeded,
 } from "./agentSetup"
 export type {AgentSetupSelection, AgentSetupStatus} from "./agentSetup"
 
