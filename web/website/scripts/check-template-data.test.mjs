@@ -37,6 +37,15 @@ describe("checkTemplateData", () => {
     );
   });
 
+  it("rejects missing arrays and an empty template list", () => {
+    expect(checkTemplateData({ schema_version: 1, templates: {} })).toEqual([
+      "templates and authors must both be arrays",
+    ]);
+    expect(
+      checkTemplateData({ schema_version: 1, templates: [], authors: [] }),
+    ).toEqual(["there are no templates"]);
+  });
+
   it("rejects duplicate keys and unsupported schema versions", () => {
     const data = minimal();
     data.templates.push({ key: "a", author: { id: "jane" } });

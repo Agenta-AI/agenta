@@ -19,8 +19,12 @@ export function checkTemplateData(data) {
     );
     return problems;
   }
-  const templates = Array.isArray(data.templates) ? data.templates : [];
-  const authors = Array.isArray(data.authors) ? data.authors : [];
+  if (!Array.isArray(data.templates) || !Array.isArray(data.authors)) {
+    problems.push("templates and authors must both be arrays");
+    return problems;
+  }
+  const { templates, authors } = data;
+  if (templates.length === 0) problems.push("there are no templates");
   const templateKeys = new Set();
   for (const template of templates) {
     if (!template?.key) {

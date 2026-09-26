@@ -8,7 +8,6 @@ here parses packages another way. Run from ``api/``:
 """
 
 import argparse
-import hashlib
 import json
 import subprocess
 import sys
@@ -74,6 +73,16 @@ def _package_issues(catalog_path: Path) -> tuple[list[MarketplaceIssue], set[str
     for key, record in document.templates.items():
         for version, relative in record.versions.items():
             mapped.add(PurePosixPath(relative).as_posix())
+            expected = f"packages/{key}/{version}"
+            if PurePosixPath(relative).as_posix() != expected:
+                issues.append(
+                    MarketplaceIssue(
+                        "template_package_path_nonstandard",
+                        "A catalog version must point at packages/<key>/<version>.",
+                        {"template": key, "version": version, "path": relative},
+                    )
+                )
+                continue
             try:
                 root = confined_child(catalog_path.parent, relative)
                 parser.parse(
@@ -115,91 +124,76 @@ def _unmapped_package_issues(
 
 
 def published_version_issues(
-    *, base: dict[str, str], head: dict[str, str]
+    *, published: set[str], changed: list[str]
 ) -> list[MarketplaceIssue]:
-    """Compare ``<key>/<version>/<file>`` blob ids; published versions are immutable."""
-    versions: dict[str, set[str]] = {}
-    for path in base:
+    """Report changed ``<key>/<version>/...`` paths inside versions the base already publishes."""
+    by_version: dict[str, list[str]] = {}
+    for path in changed:
         parts = PurePosixPath(path).parts
-        if len(parts) >= 3:
-            versions.setdefault(f"{parts[0]}/{parts[1]}", set())
-    for path in [*base, *head]:
-        parts = PurePosixPath(path).parts
-        prefix = f"{parts[0]}/{parts[1]}" if len(parts) >= 3 else None
-        if prefix in versions:
-            versions[prefix].add(path)
-
-    issues = []
-    for prefix, paths in sorted(versions.items()):
-        changed = sorted(path for path in paths if base.get(path) != head.get(path))
-        if changed:
-            key, version = prefix.split("/")
-            issues.append(
-                MarketplaceIssue(
-                    "template_published_version_changed",
-                    "A published package version cannot change. "
-                    "Add a new version folder and point the catalog's latest at it.",
-                    {"template": f"{key}@{version}", "paths": changed},
-                )
-            )
-    return issues
+        prefix = "/".join(parts[:2]) if len(parts) >= 3 else None
+        if prefix in published:
+            by_version.setdefault(prefix, []).append(path)
+    return [
+        MarketplaceIssue(
+            "template_published_version_changed",
+            "A published package version cannot change. "
+            "Add a new version folder and point the catalog's latest at it.",
+            {"template": "@".join(prefix.split("/")), "paths": sorted(paths)},
+        )
+        for prefix, paths in sorted(by_version.items())
+    ]
 
 
-def _git_blobs(repo_root: Path, ref: str, directory: str) -> dict[str, str]:
+def _git_paths(repo_root: Path, directory: str, *args: str) -> list[str]:
     output = subprocess.run(
-        ["git", "ls-tree", "-r", "-z", ref, "--", f"{directory}/"],
+        ["git", *args, "-z", "--", f"{directory}/"],
         cwd=repo_root,
         check=True,
         capture_output=True,
-    ).stdout.decode("utf-8")
-    blobs = {}
-    for line in filter(None, output.split("\0")):
-        meta, path = line.split("\t", 1)
-        blobs[PurePosixPath(path).relative_to(directory).as_posix()] = meta.split()[2]
-    return blobs
-
-
-def _worktree_blobs(directory: Path) -> dict[str, str]:
-    blobs = {}
-    if not directory.is_dir():
-        return blobs
-    for path in sorted(directory.rglob("*")):
-        if path.is_symlink():
-            content = str(path.readlink()).encode("utf-8")
-        elif path.is_file():
-            content = path.read_bytes()
-        else:
-            continue
-        header = f"blob {len(content)}\0".encode("utf-8")
-        blobs[path.relative_to(directory).as_posix()] = hashlib.sha1(
-            header + content
-        ).hexdigest()
-    return blobs
+    ).stdout.decode("utf-8", errors="surrogateescape")
+    return [
+        PurePosixPath(path).relative_to(directory).as_posix()
+        for path in filter(None, output.split("\0"))
+    ]
 
 
 def _immutability_issues(
     catalog_path: Path, base_ref: str, repo_root: Path
 ) -> list[MarketplaceIssue]:
-    packages = catalog_path.parent / "packages"
-    directory = packages.resolve().relative_to(repo_root.resolve()).as_posix()
+    # Git computes the change set so line-ending filters, modes and ignore rules apply.
     try:
+        packages = catalog_path.parent / "packages"
+        directory = packages.resolve().relative_to(repo_root.resolve()).as_posix()
         subprocess.run(
             ["git", "rev-parse", "--verify", "--quiet", f"{base_ref}^{{commit}}"],
             cwd=repo_root,
             check=True,
             capture_output=True,
         )
-        base = _git_blobs(repo_root, base_ref, directory)
-    except (OSError, subprocess.CalledProcessError):
+        base_files = _git_paths(
+            repo_root, directory, "ls-tree", "-r", "--name-only", base_ref
+        )
+        changed = _git_paths(
+            repo_root, directory, "diff", "--no-renames", "--name-only", base_ref
+        )
+        changed += _git_paths(
+            repo_root, directory, "ls-files", "--others", "--exclude-standard"
+        )
+    except (OSError, ValueError, subprocess.CalledProcessError):
         return [
             MarketplaceIssue(
                 "template_base_ref_unavailable",
                 "The base ref for the published-version check is not available. "
                 "Fetch it first, for example: git fetch origin main.",
-                {"base_ref": base_ref},
+                {"base_ref": base_ref, "repo_root": str(repo_root)},
             )
         ]
-    return published_version_issues(base=base, head=_worktree_blobs(packages))
+    published = {
+        "/".join(PurePosixPath(path).parts[:2])
+        for path in base_files
+        if len(PurePosixPath(path).parts) >= 3
+    }
+    return published_version_issues(published=published, changed=changed)
 
 
 def validate_marketplace(
@@ -215,10 +209,11 @@ def validate_marketplace(
         return [MarketplaceIssue.from_error(error)]
 
     issues += _unmapped_package_issues(catalog_path, mapped)
-    if not issues:
-        try:
-            AgentTemplateCatalog(catalog_path=catalog_path).validate()
-        except AgentTemplateError as error:
+    try:
+        AgentTemplateCatalog(catalog_path=catalog_path).validate()
+    except AgentTemplateError as error:
+        # The reader stops at its first problem, which may repeat a package issue above.
+        if error.code not in {issue.code for issue in issues}:
             issues.append(MarketplaceIssue.from_error(error))
     if base_ref:
         issues += _immutability_issues(catalog_path, base_ref, repo_root)
