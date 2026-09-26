@@ -703,8 +703,8 @@ async def test_first_message_display_and_run_only_build_kit(enabled):
             or skill["@ag.embed"]["@ag.references"]["workflow"]["slug"]
             for skill in agent["skills"]
         ]
-        assert len(skill_names) == 3
-        assert skill_names[-2:] == ["build-an-agent", "agenta-apps"]
+        assert len(skill_names) == 4
+        assert skill_names[-3:] == ["build-an-agent", "agenta-apps", "create-template"]
     else:
         assert call["parameters"] is None
 
