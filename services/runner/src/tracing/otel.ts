@@ -1004,6 +1004,11 @@ function applyAssistant(
       );
     if (u.cost?.total != null)
       span.setAttribute("gen_ai.usage.cost", u.cost.total);
+    // The runner's pi-ai build patch (src/tools/pi-provider-cost-patch.ts) puts the provider's
+    // billed charge (OpenRouter usage.cost) in cost.total and marks it. Name the source on the
+    // span, so a reader can tell a billed charge from Pi's price-table estimate.
+    if (typeof u.cost?.total === "number" && u.cost.source === "provider")
+      span.setAttribute("agenta.usage.cost_source", "provider");
   }
 
   // Pi keeps transport details outside errorMessage. Preserve a bounded allowlist,
