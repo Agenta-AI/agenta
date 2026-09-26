@@ -453,6 +453,11 @@ export {
     type EvaluatorTemplate,
     /** @deprecated Use EvaluatorCatalogTemplatesResponse */
     type EvaluatorTemplatesResponse,
+    validateAgentTemplate,
+    type AgentTemplateSource,
+    type AgentTemplateSourcePin,
+    type AgentTemplateValidationIssue,
+    type AgentTemplateValidationResult,
 } from "./api"
 
 // ============================================================================

@@ -70,8 +70,16 @@ export {
 
 export {
     loadAgentTemplate,
+    validateAgentTemplate,
     type AgentTemplateLoadRequest,
     type AgentTemplateLoadResult,
+    type AgentTemplateSource,
+    type AgentTemplateSourcePin,
+    type AgentTemplateValidationIssue,
+    type AgentTemplateValidationResult,
+    type InternalAgentTemplateSource,
+    type SessionFileAgentTemplateSource,
+    type UploadAgentTemplateSource,
 } from "./agentTemplates"
 
 // Runner subscription status (agent service, direct call)
