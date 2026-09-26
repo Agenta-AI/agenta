@@ -543,6 +543,28 @@ def test_connect_children_groups_duplicate_child_names_into_lists():
     assert len(root.spans["child"]) == 2
 
 
+def test_connect_children_links_a_deep_span_chain_without_recursion_error():
+    chain = [
+        _otel_span_from_flat(
+            _span(
+                span_id=str(UUID(int=i + 1)),
+                parent_id=str(UUID(int=i)) if i else None,
+                span_name="step",
+                start_offset_s=0,
+            )
+        )
+        for i in range(3000)
+    ]
+    spans_idx = {span.span_id: span for span in chain}
+    tree = parse_span_idx_to_span_id_tree(spans_idx)
+
+    connect_children(tree, spans_idx)
+
+    for parent, child in zip(chain, chain[1:]):
+        assert parent.spans == {"step": child}
+    assert chain[-1].spans is None
+
+
 def test_calculate_costs_sets_incremental_values_for_cost_supported_types(monkeypatch):
     span = _span(
         span_id=ROOT_UUID,
