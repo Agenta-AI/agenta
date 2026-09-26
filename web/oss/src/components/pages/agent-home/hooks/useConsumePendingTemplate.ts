@@ -155,8 +155,19 @@ export function useConsumePendingTemplate(): boolean {
             }
 
             try {
-                // Load the real package, the same path as an in-app template pick.
-                const created = await createAgent({name: template.name, template})
+                // Load the real package, the same path as an in-app template pick. The setup is
+                // what the skipped step would have passed, so the connected accounts get bound.
+                const created = await createAgent({
+                    name: template.name,
+                    template,
+                    setup: {
+                        accounts: detectAccounts({
+                            description: templateBuilderMessage(template),
+                            template,
+                        }),
+                        connectedSlugs,
+                    },
+                })
                 captureFirstAgentIntent(posthog, {
                     source: "website_template",
                     properties: {

@@ -169,6 +169,20 @@ describe("useConsumePendingTemplate", () => {
         expect(params.name).toBe(TEMPLATE.name)
     })
 
+    it("binds the connected accounts when it skips the setup step", async () => {
+        arm(TEMPLATE.key)
+
+        await render()
+
+        // `templateConnectionChoices` turns these connected slugs into gateway bindings; with no
+        // setup it sent `kind: "skip"` for every connection.
+        const [params] = createAgentMock.mock.calls[0]
+        expect(params.setup).toEqual({
+            accounts: [{slug: "github", required: true}],
+            connectedSlugs: ["github"],
+        })
+    })
+
     it("opens the create surface's setup step when an account still needs connecting", async () => {
         connectionsState.connections = []
         arm(TEMPLATE.key)
