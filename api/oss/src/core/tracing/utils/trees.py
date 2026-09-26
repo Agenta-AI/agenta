@@ -84,7 +84,8 @@ def recompute_cumulative_metrics(
 
     Uses the same roll-up rules as ingest, but reads incremental values only and never
     writes them. Mutates the given spans. Returns {span_id: {metric: cumulative}} for
-    the values that differ from what the spans carried.
+    the values that differ from what the spans carried; None means remove the stored
+    cumulative value.
     """
     if not span_dtos:
         return {}
@@ -111,8 +112,8 @@ def recompute_cumulative_metrics(
             if node is not None and "cumulative" in node:
                 value = node["cumulative"]
             elif metric in stored[span_dto.span_id]:
-                # The roll-up writes nothing for zero, so clear the stored value.
-                value = 0 if metric == "errors" else {}
+                # The roll-up writes nothing for zero, so remove the stored value.
+                value = None
             else:
                 continue
             if value != stored[span_dto.span_id].get(metric):

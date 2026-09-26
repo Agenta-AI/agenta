@@ -86,7 +86,7 @@ _AG = _jsonb_object(f"{_ATTRIBUTES} -> 'ag'")
 _METRICS = _jsonb_object(f"{_AG} -> 'metrics'")
 _METRIC = _jsonb_object(f"{_METRICS} -> CAST(:metric AS text)")
 
-# Sets only ag.metrics.<metric>.cumulative, so a concurrent upsert's incremental values
+# Sets (or, for a JSON null, removes) only ag.metrics.<metric>.cumulative, so a concurrent upsert's incremental values
 # are never overwritten.
 UPDATE_CUMULATIVE_METRIC_STMT = text(
     f"""
@@ -94,9 +94,13 @@ UPDATE_CUMULATIVE_METRIC_STMT = text(
     SET attributes = {_ATTRIBUTES} || jsonb_build_object(
         'ag', {_AG} || jsonb_build_object(
             'metrics', {_METRICS} || jsonb_build_object(
-                CAST(:metric AS text), {_METRIC} || jsonb_build_object(
-                    'cumulative', CAST(:value AS jsonb)
-                )
+                CAST(:metric AS text), CASE
+                    WHEN CAST(:value AS jsonb) = 'null'::jsonb
+                    THEN {_METRIC} - 'cumulative'
+                    ELSE {_METRIC} || jsonb_build_object(
+                        'cumulative', CAST(:value AS jsonb)
+                    )
+                END
             )
         )
     )
