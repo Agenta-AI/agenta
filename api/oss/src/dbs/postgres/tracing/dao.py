@@ -888,6 +888,7 @@ class TracingDAO(TracingDAOInterface):
                     SpanDBE.start_time,
                     SpanDBE.end_time,
                     SpanDBE.attributes["ag"]["metrics"].label("metrics"),
+                    SpanDBE.attributes["ag"]["flags"].label("flags"),
                 )
                 .where(
                     SpanDBE.project_id == project_id,
@@ -920,7 +921,8 @@ class TracingDAO(TracingDAOInterface):
                         "ag": {
                             "metrics": row.metrics
                             if isinstance(row.metrics, dict)
-                            else {}
+                            else {},
+                            "flags": row.flags if isinstance(row.flags, dict) else {},
                         }
                     },
                 )
