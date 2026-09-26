@@ -1,28 +1,23 @@
-"""Trace totals scheduling (worker + Redis) and the DAO recompute, without a live DB.
+"""Trace totals: the worker recomputes every trace a batch touched, and the DAO recompute.
 
-Redis is fakeredis; the DAO runs against a fake session that records statements.
+The DAO runs against a fake session that records statements.
 """
 
 import json
 from contextlib import asynccontextmanager
+from copy import deepcopy
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 from uuid import UUID, uuid4
 
-import fakeredis.aioredis as fakeredis
 import pytest
 
 from oss.src.core.tracing.dtos import OTelFlatSpan, SpanType
-from oss.src.core.tracing.streaming import deserialize_span, serialize_span
-from oss.src.core.tracing.totals import (
-    TOTALS_CLAIMS_KEY,
-    TOTALS_QUEUE_KEY,
-    claim_due_trace_totals,
-    complete_trace_totals,
-    recover_expired_trace_totals,
-    schedule_trace_totals,
+from oss.src.core.tracing.streaming import serialize_span
+from oss.src.core.tracing.utils.trees import (
+    calculate_and_propagate_metrics_by_trace,
+    recompute_cumulative_metrics,
 )
-from oss.src.core.tracing.utils.trees import recompute_cumulative_metrics
 from oss.src.dbs.postgres.tracing.dao import (
     UPDATE_CUMULATIVE_METRIC_STMT,
     TracingDAO,
@@ -32,311 +27,99 @@ from oss.src.tasks.asyncio.tracing.worker import TracingWorker
 T0 = datetime(2026, 1, 1, tzinfo=timezone.utc)
 
 
-async def _claim_keys(redis, **kwargs):
-    claims = await claim_due_trace_totals(redis, **kwargs)
-    return [(claim.project_id, claim.trace_id) for claim in claims]
-
-
-def _queue(key):
-    return {f"{key[0].hex}:{key[1].hex}": 0}
-
-
-# --- scheduling --------------------------------------------------------------
-
-
-async def test_a_trace_from_one_request_is_not_scheduled():
-    redis = fakeredis.FakeRedis()
-    key = (uuid4(), uuid4())
-
-    assert (
-        await schedule_trace_totals(redis, batches_by_trace={key: {"a"}}, delay_ms=0)
-        == 0
-    )
-    assert (
-        await schedule_trace_totals(redis, batches_by_trace={key: {"a"}}, delay_ms=0)
-        == 0
-    )
-    assert await redis.zcard(TOTALS_QUEUE_KEY) == 0
-
-
-async def test_a_trace_from_two_requests_is_claimed_once_when_due():
-    redis = fakeredis.FakeRedis()
-    key = (uuid4(), uuid4())
-
-    await schedule_trace_totals(redis, batches_by_trace={key: {"a"}}, delay_ms=60_000)
-    assert (
-        await schedule_trace_totals(
-            redis, batches_by_trace={key: {"b"}}, delay_ms=60_000
-        )
-        == 1
-    )
-    assert await _claim_keys(redis, limit=10) == []
-
-    await redis.zadd(TOTALS_QUEUE_KEY, _queue(key))
-
-    assert await _claim_keys(redis, limit=10) == [key]
-    assert await _claim_keys(redis, limit=10) == []
-
-
-async def test_a_busy_trace_keeps_its_first_due_time():
-    redis = fakeredis.FakeRedis()
-    key = (uuid4(), uuid4())
-
-    await schedule_trace_totals(redis, batches_by_trace={key: {"a", "b"}}, delay_ms=0)
-    first = await redis.zscore(TOTALS_QUEUE_KEY, f"{key[0].hex}:{key[1].hex}")
-    await schedule_trace_totals(redis, batches_by_trace={key: {"c"}}, delay_ms=60_000)
-
-    assert await redis.zscore(TOTALS_QUEUE_KEY, f"{key[0].hex}:{key[1].hex}") == first
-
-
-def test_batch_id_round_trips_and_old_messages_have_none():
-    span_dto = OTelFlatSpan(
-        trace_id=str(uuid4()),
-        span_id=str(uuid4()),
-        span_name="s",
-        start_time=T0,
-        end_time=T0,
-    )
-    ids = dict(organization_id=uuid4(), project_id=uuid4(), user_id=uuid4())
-
-    tagged = serialize_span(**ids, span_dto=span_dto, batch_id="abc")
-    untagged = serialize_span(**ids, span_dto=span_dto)
-
-    assert deserialize_span(span_bytes=tagged).batch_id == "abc"
-    assert deserialize_span(span_bytes=untagged).batch_id is None
-
-
 # --- worker ------------------------------------------------------------------
 
 
-class _FakeService:
-    def __init__(self):
-        self.ingested = []
+class _StoringService:
+    """Stores spans like ingest does and recomputes over everything stored."""
+
+    def __init__(self, fail_recompute=False):
+        self.spans = {}
         self.recomputed = []
+        self.fail_recompute = fail_recompute
 
     async def ingest(self, *, project_id, user_id, span_dtos):
-        self.ingested.extend(span_dtos)
+        for span_dto in calculate_and_propagate_metrics_by_trace(span_dtos):
+            self.spans[span_dto.span_id] = deepcopy(span_dto)
 
     async def recompute_trace_totals(self, *, project_id, trace_id):
         self.recomputed.append((project_id, trace_id))
-        return 1
+        if self.fail_recompute:
+            raise RuntimeError("db down")
+        changes = recompute_cumulative_metrics(
+            [deepcopy(span) for span in self.spans.values()]
+        )
+        for span_id, metrics in changes.items():
+            for metric, value in metrics.items():
+                self.spans[span_id].attributes["ag"]["metrics"].setdefault(metric, {})[
+                    "cumulative"
+                ] = value
+        return len(changes)
 
 
-def _message(ids, trace_id, batch_id):
-    span_dto = OTelFlatSpan(
+def _span(trace_id, span_id, parent_id, offset_s, cost=None):
+    metrics = {"costs": {"incremental": {"total": cost}}} if cost is not None else {}
+    return OTelFlatSpan(
         trace_id=str(trace_id),
-        span_id=str(uuid4()),
-        parent_id=str(uuid4()),
+        span_id=str(span_id),
+        parent_id=str(parent_id) if parent_id else None,
+        span_type=SpanType.CHAT if cost is not None else SpanType.TASK,
         span_name="s",
-        start_time=T0,
-        end_time=T0,
+        start_time=T0 + timedelta(seconds=offset_s),
+        end_time=T0 + timedelta(seconds=offset_s),
+        attributes={"ag": {"metrics": metrics}},
     )
-    data = serialize_span(**ids, span_dto=span_dto, batch_id=batch_id)
-    return (uuid4().hex.encode(), {b"data": data})
 
 
-def _worker(redis, service):
+def _message(ids, span_dto):
+    return (uuid4().hex.encode(), {b"data": serialize_span(**ids, span_dto=span_dto)})
+
+
+def _worker(service):
     return TracingWorker(
         service=service,
-        redis_client=redis,
+        redis_client=None,
         stream_name="streams:spans",
         consumer_group="worker-spans",
         consumer_name="test",
-        totals_delay_ms=0,
     )
 
 
-async def test_worker_recomputes_a_trace_split_across_requests():
-    redis = fakeredis.FakeRedis()
-    service = _FakeService()
-    worker = _worker(redis, service)
-    ids = dict(organization_id=uuid4(), project_id=uuid4(), user_id=uuid4())
-    split_trace, whole_trace = uuid4(), uuid4()
+def _root_cost(service, root_id):
+    metrics = service.spans[str(root_id)].attributes["ag"]["metrics"]
+    return metrics.get("costs", {}).get("cumulative", {}).get("total")
 
+
+async def test_trace_split_across_requests_gets_its_full_totals():
+    service = _StoringService()
+    worker = _worker(service)
+    ids = dict(organization_id=uuid4(), project_id=uuid4(), user_id=uuid4())
+    trace_id, root_id, agent_id = uuid4(), uuid4(), uuid4()
+
+    # The SDK request carries the workflow root; the runner request its subtree.
+    await worker.process_batch([_message(ids, _span(trace_id, root_id, None, 0))])
     await worker.process_batch(
         [
-            _message(ids, split_trace, "request-1"),
-            _message(ids, whole_trace, "request-1"),
+            _message(ids, _span(trace_id, agent_id, root_id, 1)),
+            _message(ids, _span(trace_id, uuid4(), agent_id, 2, cost=0.01)),
+            _message(ids, _span(trace_id, uuid4(), agent_id, 3, cost=0.02)),
         ]
     )
-    await worker.process_batch([_message(ids, split_trace, "request-2")])
 
-    assert await worker.recompute_due_totals() == 1
-    assert service.recomputed == [(ids["project_id"], split_trace)]
-    assert await worker.recompute_due_totals() == 0
+    assert service.recomputed == [(ids["project_id"], trace_id)] * 2
+    assert _root_cost(service, root_id) == pytest.approx(0.03)
 
 
-async def test_worker_skips_messages_without_a_batch_id():
-    redis = fakeredis.FakeRedis()
-    service = _FakeService()
-    worker = _worker(redis, service)
+async def test_a_failed_recompute_does_not_hold_back_the_batch():
+    service = _StoringService(fail_recompute=True)
+    worker = _worker(service)
     ids = dict(organization_id=uuid4(), project_id=uuid4(), user_id=uuid4())
-    trace_id = uuid4()
+    message = _message(ids, _span(uuid4(), uuid4(), None, 0, cost=0.01))
 
-    await worker.process_batch([_message(ids, trace_id, None)])
-    await worker.process_batch([_message(ids, trace_id, None)])
+    count, acked = await worker.process_batch([message])
 
-    assert await worker.recompute_due_totals() == 0
-    assert len(service.ingested) == 2
-
-
-class _FailingOnceService(_FakeService):
-    def __init__(self):
-        super().__init__()
-        self.failures = 1
-
-    async def recompute_trace_totals(self, *, project_id, trace_id):
-        if self.failures:
-            self.failures -= 1
-            raise RuntimeError("db down")
-        return await super().recompute_trace_totals(
-            project_id=project_id, trace_id=trace_id
-        )
-
-
-async def test_worker_retries_a_trace_whose_recompute_fails():
-    redis = fakeredis.FakeRedis()
-    service = _FailingOnceService()
-    worker = _worker(redis, service)
-    worker.totals_lease_ms = 0
-    ids = dict(organization_id=uuid4(), project_id=uuid4(), user_id=uuid4())
-    trace_id = uuid4()
-
-    await worker.process_batch([_message(ids, trace_id, "request-1")])
-    await worker.process_batch([_message(ids, trace_id, "request-2")])
-
-    assert await worker.recompute_due_totals() == 1
-    assert service.recomputed == []
-
-    assert await worker.recompute_due_totals() == 1
-    assert service.recomputed == [(ids["project_id"], trace_id)]
-
-
-async def test_worker_retries_a_failed_recompute_only_after_the_lease():
-    redis = fakeredis.FakeRedis()
-    worker = _worker(redis, _FailingOnceService())
-    key = (uuid4(), uuid4())
-    await redis.zadd(TOTALS_QUEUE_KEY, {f"{key[0].hex}:{key[1].hex}": 0})
-
-    assert await worker.recompute_due_totals() == 1
-
-    assert await redis.zcard(TOTALS_QUEUE_KEY) == 0
-    assert await redis.zcard(TOTALS_CLAIMS_KEY) == 1
-    assert await worker.recompute_due_totals() == 0
-
-
-async def test_a_recompute_clears_its_claim():
-    redis = fakeredis.FakeRedis()
-    service = _FakeService()
-    worker = _worker(redis, service)
-    key = (uuid4(), uuid4())
-    await redis.zadd(TOTALS_QUEUE_KEY, {f"{key[0].hex}:{key[1].hex}": 0})
-
-    assert await worker.recompute_due_totals() == 1
-
-    assert service.recomputed == [key]
-    assert await redis.zcard(TOTALS_QUEUE_KEY) == 0
-    assert await redis.zcard(TOTALS_CLAIMS_KEY) == 0
-
-
-async def test_a_claim_lost_by_a_stopped_worker_is_recovered_after_its_lease():
-    redis = fakeredis.FakeRedis()
-    key = (uuid4(), uuid4())
-    await redis.zadd(TOTALS_QUEUE_KEY, {f"{key[0].hex}:{key[1].hex}": 0})
-
-    # A worker claims the trace and stops before it recomputes.
-    assert await _claim_keys(redis, limit=10, lease_ms=0) == [key]
-    assert await redis.zcard(TOTALS_QUEUE_KEY) == 0
-
-    service = _FakeService()
-    assert await _worker(redis, service).recompute_due_totals() == 1
-    assert service.recomputed == [key]
-    assert await redis.zcard(TOTALS_CLAIMS_KEY) == 0
-
-
-async def test_a_caller_that_loses_the_queue_entry_gets_no_claim():
-    redis = fakeredis.FakeRedis()
-    key = (uuid4(), uuid4())
-    await redis.zadd(TOTALS_QUEUE_KEY, _queue(key))
-
-    zrangebyscore = redis.zrangebyscore
-
-    async def read_then_lose(*args, **kwargs):
-        members = await zrangebyscore(*args, **kwargs)
-        # Another worker claims the trace between this read and the transaction.
-        await redis.zrem(TOTALS_QUEUE_KEY, *members)
-        return members
-
-    redis.zrangebyscore = read_then_lose
-    assert await claim_due_trace_totals(redis, limit=10) == []
-    assert await redis.zcard(TOTALS_CLAIMS_KEY) == 0
-
-
-async def test_a_second_claim_of_a_trace_survives_the_first_claims_completion():
-    # Worker A claims a trace. A new request queues it again, and worker B claims it.
-    # A completes; B fails. B's claim must stay so the trace is recomputed again.
-    redis = fakeredis.FakeRedis()
-    key = (uuid4(), uuid4())
-    await redis.zadd(TOTALS_QUEUE_KEY, _queue(key))
-    [claim_a] = await claim_due_trace_totals(redis, limit=10, lease_ms=60_000)
-    await redis.zadd(TOTALS_QUEUE_KEY, _queue(key))
-    [claim_b] = await claim_due_trace_totals(redis, limit=10, lease_ms=0)
-    assert claim_a.claim != claim_b.claim
-
-    await complete_trace_totals(redis, claims=[claim_a.claim])
-
-    assert await redis.zcard(TOTALS_CLAIMS_KEY) == 1
-    assert await recover_expired_trace_totals(redis, limit=10) == 1
-    assert await _claim_keys(redis, limit=10) == [key]
-
-
-async def test_a_late_completion_after_recovery_only_adds_a_recompute():
-    redis = fakeredis.FakeRedis()
-    key = (uuid4(), uuid4())
-    await redis.zadd(TOTALS_QUEUE_KEY, _queue(key))
-    [slow] = await claim_due_trace_totals(redis, limit=10, lease_ms=0)
-
-    assert await recover_expired_trace_totals(redis, limit=10) == 1
-    await complete_trace_totals(redis, claims=[slow.claim])
-
-    assert await _claim_keys(redis, limit=10) == [key]
-
-
-class _BrokenRedis:
-    """Delegates to fakeredis; `broken` makes pipelines and ZADD raise."""
-
-    def __init__(self, redis):
-        self.redis = redis
-        self.broken = False
-
-    def __getattr__(self, name):
-        if self.broken and name in ("pipeline", "zadd"):
-            raise ConnectionError("redis down")
-        return getattr(self.redis, name)
-
-
-async def test_worker_keeps_traces_whose_scheduling_fails_and_retries_them():
-    redis = fakeredis.FakeRedis()
-    broken = _BrokenRedis(redis)
-    service = _FakeService()
-    worker = _worker(broken, service)
-    ids = dict(organization_id=uuid4(), project_id=uuid4(), user_id=uuid4())
-    trace_id = uuid4()
-
-    await worker.process_batch([_message(ids, trace_id, "request-1")])
-    broken.broken = True
-    processed, message_ids = await worker.process_batch(
-        [_message(ids, trace_id, "request-2")]
-    )
-    assert (processed, len(message_ids)) == (1, 1)
-    assert worker.unscheduled_totals
-
-    broken.broken = False
-    await worker.schedule_totals({})
-
-    assert worker.unscheduled_totals == {}
-    assert await worker.recompute_due_totals() == 1
-    assert service.recomputed == [(ids["project_id"], trace_id)]
+    assert (count, acked) == (1, [message[0]])
+    assert len(service.spans) == 1
 
 
 # --- DAO ---------------------------------------------------------------------
@@ -374,7 +157,7 @@ class _Engine:
         yield _Session(self)
 
 
-def _row(span_id, parent_id, span_type, offset_s, metrics):
+def _row(span_id, parent_id, span_type, offset_s, metrics, flags=None):
     return SimpleNamespace(
         span_id=span_id,
         parent_id=parent_id,
@@ -382,6 +165,7 @@ def _row(span_id, parent_id, span_type, offset_s, metrics):
         start_time=T0 + timedelta(seconds=offset_s),
         end_time=T0 + timedelta(seconds=offset_s),
         metrics=metrics,
+        flags=flags,
     )
 
 

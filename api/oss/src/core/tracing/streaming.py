@@ -1,6 +1,6 @@
 import zlib
-from typing import List, Optional
-from uuid import UUID, uuid4
+from typing import List
+from uuid import UUID
 
 from orjson import dumps, loads
 from pydantic import BaseModel
@@ -25,8 +25,6 @@ class SpanMessage(BaseModel):
     user_id: UUID
     #
     span_dto: OTelFlatSpan
-    #
-    batch_id: Optional[str] = None
 
 
 def serialize_span(
@@ -36,8 +34,6 @@ def serialize_span(
     user_id: UUID,
     #
     span_dto: OTelFlatSpan,
-    #
-    batch_id: Optional[str] = None,
 ) -> bytes:
     data = dict(
         organization_id=organization_id.hex,
@@ -45,8 +41,6 @@ def serialize_span(
         user_id=user_id.hex,
         span_dto=span_dto.model_dump(mode="json", exclude_unset=True),
     )
-    if batch_id:
-        data["batch_id"] = batch_id
 
     span_bytes = dumps(data)
 
@@ -74,7 +68,6 @@ def deserialize_span(
         project_id=UUID(hex=data["project_id"]),
         user_id=UUID(hex=data["user_id"]),
         span_dto=OTelFlatSpan(**span_payload),
-        batch_id=data.get("batch_id"),
     )
 
 
@@ -87,9 +80,6 @@ async def publish_spans(
     span_dtos: List[OTelFlatSpan],
 ) -> int:
     redis = _get_redis()
-
-    # Lets the worker tell a trace split across requests from one request split across reads.
-    batch_id = uuid4().hex
 
     count = 0
     total_bytes = 0
@@ -104,8 +94,6 @@ async def publish_spans(
                 user_id=user_id,
                 #
                 span_dto=span_dto,
-                #
-                batch_id=batch_id,
             )
 
             pipe.xadd(

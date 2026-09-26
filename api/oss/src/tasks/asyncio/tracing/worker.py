@@ -11,15 +11,6 @@ from uuid import UUID
 from redis.asyncio import Redis
 
 from oss.src.core.tracing.service import TracingService
-from oss.src.core.tracing.totals import (
-    TraceKey,
-    TOTALS_LEASE_MS,
-    claim_due_trace_totals,
-    complete_trace_totals,
-    recover_expired_trace_totals,
-    schedule_trace_totals,
-)
-from oss.src.utils.env import env
 from oss.src.core.tracing.dtos import OTelFlatSpan
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.common import is_ee
@@ -27,9 +18,6 @@ from oss.src.core.tracing.streaming import deserialize_span
 from oss.src.tasks.asyncio.shared.consumer import StreamConsumer
 
 log = get_module_logger(__name__)
-
-#: Most traces kept in memory for a later try when scheduling their totals fails.
-MAX_UNSCHEDULED_TRACES = 10_000
 
 if is_ee():
     from ee.src.core.access.entitlements.service import (
@@ -52,10 +40,8 @@ class TracingWorker(StreamConsumer):
     3. Group by organization_id → (project_id, user_id)
     4. Check entitlements per org (Layer 2 - authoritative)
     5. Bulk create spans per project/user if allowed
-    6. Schedule a totals recompute for traces split across requests
+    6. Recompute the totals of every trace the batch touched
     7. ACK + DEL messages — StreamConsumer
-
-    A second loop in `run` recomputes the scheduled traces once they are due.
     """
 
     log_prefix = "[INGEST]"
@@ -71,9 +57,6 @@ class TracingWorker(StreamConsumer):
         max_block_ms: int = 5000,  # 5 seconds
         max_delay_ms: int = 250,  # 250 milliseconds
         max_batch_mb: int = 50,  # 50 MB
-        totals_delay_ms: Optional[int] = None,
-        totals_poll_s: float = 1.0,
-        totals_batch_size: int = 50,
     ):
         super().__init__(
             redis_client=redis_client,
@@ -86,107 +69,6 @@ class TracingWorker(StreamConsumer):
             max_batch_mb=max_batch_mb,
         )
         self.service = service
-        self.totals_delay_ms = (
-            env.agenta.otlp.totals_delay_ms
-            if totals_delay_ms is None
-            else totals_delay_ms
-        )
-        self.totals_poll_s = totals_poll_s
-        self.totals_batch_size = totals_batch_size
-        #: Traces whose totals scheduling failed; tried again on the next call.
-        self.unscheduled_totals: Dict[TraceKey, Set[str]] = {}
-        #: How long a claimed trace waits before a failed or lost recompute is retried.
-        self.totals_lease_ms = TOTALS_LEASE_MS
-
-    async def run(self):
-        await asyncio.gather(super().run(), self.run_totals())
-
-    async def run_totals(self):
-        while True:
-            if self.unscheduled_totals:
-                await self.schedule_totals({})
-            try:
-                recomputed = await self.recompute_due_totals()
-            except Exception:
-                log.error("[INGEST] Error in trace totals loop", exc_info=True)
-                recomputed = 0
-
-            if recomputed < self.totals_batch_size:
-                await asyncio.sleep(self.totals_poll_s)
-
-    async def recompute_due_totals(self) -> int:
-        await recover_expired_trace_totals(self.redis, limit=self.totals_batch_size)
-
-        claims = await claim_due_trace_totals(
-            self.redis,
-            limit=self.totals_batch_size,
-            lease_ms=self.totals_lease_ms,
-        )
-
-        done: List[str] = []
-        for project_id, trace_id, claim in claims:
-            try:
-                await self.service.recompute_trace_totals(
-                    project_id=project_id,
-                    trace_id=trace_id,
-                )
-                done.append(claim)
-            except Exception:
-                # The claim stays; the trace is queued again when its lease expires.
-                log.error(
-                    "[INGEST] Failed to recompute trace totals",
-                    project_id=str(project_id),
-                    trace_id=str(trace_id),
-                    exc_info=True,
-                )
-
-        if done:
-            try:
-                await complete_trace_totals(self.redis, claims=done)
-            except Exception:
-                # The leases expire and these traces are recomputed once more.
-                log.error(
-                    "[INGEST] Failed to complete trace totals",
-                    count=len(done),
-                    exc_info=True,
-                )
-
-        return len(claims)
-
-    async def schedule_totals(self, batches_by_trace: Dict[TraceKey, Set[str]]):
-        """Schedule totals without failing the batch.
-
-        The spans are already stored and metered, so a Redis error here must not stop the
-        ACK: a redelivered batch would meter its traces again. The traces stay in memory
-        instead, and the next call (next batch or the totals loop) tries them again.
-        """
-        pending = self.unscheduled_totals
-        for key, batch_ids in batches_by_trace.items():
-            pending.setdefault(key, set()).update(batch_ids)
-        if not pending:
-            return
-
-        self.unscheduled_totals = {}
-        try:
-            await schedule_trace_totals(
-                self.redis,
-                batches_by_trace=pending,
-                delay_ms=self.totals_delay_ms,
-            )
-        except Exception:
-            log.error(
-                "[INGEST] Failed to schedule trace totals",
-                count=len(pending),
-                exc_info=True,
-            )
-            if len(pending) > MAX_UNSCHEDULED_TRACES:
-                log.error(
-                    "[INGEST] Dropping unscheduled trace totals",
-                    count=len(pending) - MAX_UNSCHEDULED_TRACES,
-                )
-                pending = dict(list(pending.items())[-MAX_UNSCHEDULED_TRACES:])
-            for key, batch_ids in pending.items():
-                self.unscheduled_totals.setdefault(key, set()).update(batch_ids)
 
     async def process_batch(
         self, batch: List[Tuple[bytes, Dict[bytes, bytes]]]
@@ -206,7 +88,6 @@ class TracingWorker(StreamConsumer):
         """
         # Group spans by org → (project, user) (same as PR #1223)
         spans_by_org: Dict[UUID, Dict[Tuple[UUID, UUID], List[OTelFlatSpan]]] = {}
-        batch_ids_by_span: Dict[int, str] = {}
         processed_message_ids: List[bytes] = []
         batch_bytes = 0
         processed_count = 0
@@ -237,8 +118,6 @@ class TracingWorker(StreamConsumer):
                 spans_by_org.setdefault(msg.organization_id, {}).setdefault(
                     (msg.project_id, msg.user_id), []
                 ).append(msg.span_dto)
-                if msg.batch_id:
-                    batch_ids_by_span[id(msg.span_dto)] = msg.batch_id
 
                 processed_message_ids.append(msg_id)
                 processed_count += 1
@@ -254,7 +133,7 @@ class TracingWorker(StreamConsumer):
         if not spans_by_org:
             return (processed_count, processed_message_ids)
 
-        batches_by_trace: Dict[TraceKey, Set[str]] = {}
+        touched_traces: Set[Tuple[UUID, UUID]] = set()
 
         # 2. Enforce entitlements per org (Layer 2, authoritative - same as PR #1223)
         for organization_id, spans_by_proj_user in spans_by_org.items():
@@ -302,12 +181,10 @@ class TracingWorker(StreamConsumer):
                         span_dtos=span_dtos,
                     )
 
-                    for span_dto in span_dtos:
-                        batch_id = batch_ids_by_span.get(id(span_dto))
-                        if batch_id:
-                            batches_by_trace.setdefault(
-                                (project_id, UUID(str(span_dto.trace_id))), set()
-                            ).add(batch_id)
+                    touched_traces.update(
+                        (project_id, UUID(str(span_dto.trace_id)))
+                        for span_dto in span_dtos
+                    )
 
                 except Exception as e:
                     log.error(
@@ -321,7 +198,21 @@ class TracingWorker(StreamConsumer):
                     # Sleep briefly to avoid hammering DB on errors
                     await asyncio.sleep(0.05)
 
-        await self.schedule_totals(batches_by_trace)
+        # 4. Ingest rolls metrics up per batch, so a trace split across requests or
+        # batches needs its totals recomputed from all its stored spans.
+        for project_id, trace_id in sorted(touched_traces):
+            try:
+                await self.service.recompute_trace_totals(
+                    project_id=project_id,
+                    trace_id=trace_id,
+                )
+            except Exception:
+                log.error(
+                    "[INGEST] Failed to recompute trace totals",
+                    project_id=str(project_id),
+                    trace_id=str(trace_id),
+                    exc_info=True,
+                )
 
         # Return count and message IDs for ACK/DEL
         return (processed_count, processed_message_ids)

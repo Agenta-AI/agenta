@@ -53,16 +53,17 @@ def _span(
 
 def _sdk_batch(*, copied_run_total: bool) -> List[OTelFlatSpan]:
     if copied_run_total:
-        return [
-            _span(
-                WORKFLOW_ID,
-                None,
-                SpanType.WORKFLOW,
-                0,
-                tokens={"prompt": 100, "completion": 200, "total": 300},
-                cost=0.03,
-            )
-        ]
+        workflow = _span(
+            WORKFLOW_ID,
+            None,
+            SpanType.WORKFLOW,
+            0,
+            tokens={"prompt": 100, "completion": 200, "total": 300},
+            cost=0.03,
+        )
+        # The SDK agent handler marks the run total it copies onto the workflow span.
+        workflow.attributes["ag"]["flags"] = {"aggregate_usage": True}
+        return [workflow]
     return [_span(WORKFLOW_ID, None, SpanType.WORKFLOW, 0)]
 
 
@@ -96,7 +97,7 @@ def _ingest(store: Dict[str, OTelFlatSpan], batch: List[OTelFlatSpan]) -> None:
 
 
 def _stored_rows(store: Dict[str, OTelFlatSpan]) -> List[OTelFlatSpan]:
-    """What the DAO hands to the recompute: structure plus ag.metrics only."""
+    """What the DAO hands to the recompute: structure plus ag.metrics and ag.flags."""
     return [
         OTelFlatSpan(
             trace_id=span_dto.trace_id,
@@ -107,7 +108,10 @@ def _stored_rows(store: Dict[str, OTelFlatSpan]) -> List[OTelFlatSpan]:
             start_time=span_dto.start_time,
             end_time=span_dto.end_time,
             attributes={
-                "ag": {"metrics": deepcopy(span_dto.attributes["ag"]["metrics"])}
+                "ag": {
+                    "metrics": deepcopy(span_dto.attributes["ag"]["metrics"]),
+                    "flags": deepcopy(span_dto.attributes["ag"].get("flags") or {}),
+                }
             },
         )
         for span_dto in store.values()
