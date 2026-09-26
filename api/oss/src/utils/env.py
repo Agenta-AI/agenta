@@ -374,6 +374,23 @@ class OTLPConfig(BaseModel):
         os.getenv("AGENTA_OTLP_MAX_BATCH_BYTES") or str(10 * 1024 * 1024)
     )
 
+    # Wait before recomputing the totals of a trace that arrived in several requests,
+    # so the other parts of the trace are stored first.
+    totals_delay_ms: int = Field(
+        default_factory=lambda: int(os.getenv("AGENTA_OTLP_TOTALS_DELAY_MS") or 5_000),
+        ge=0,
+        validate_default=True,
+    )
+
+    # Traces with more spans than this keep their per-request totals.
+    totals_max_spans: int = Field(
+        default_factory=lambda: int(
+            os.getenv("AGENTA_OTLP_TOTALS_MAX_SPANS") or 10_000
+        ),
+        ge=1,
+        validate_default=True,
+    )
+
     model_config = ConfigDict(extra="ignore")
 
 
