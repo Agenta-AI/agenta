@@ -2,7 +2,14 @@ from re import sub
 from typing import Optional, Union, List, Dict, Any
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    ValidationInfo,
+    field_validator,
+    model_validator,
+)
 
 from oss.src.core.secrets.managed import (
     PublicSecretManagementDTO,
@@ -53,7 +60,14 @@ class SecretValueRequiredError(Exception):
 # to mean "keep stored", and responses may be redacted.
 
 
-def _single_line_credential(value: Optional[str]) -> Optional[str]:
+# Validation context set when a credential is being read back from storage, not accepted from a
+# caller. A row stored before the control-character refusal existed has to stay listable.
+_STORED_CREDENTIAL = "stored_credential"
+
+
+def _single_line_credential(
+    value: Optional[str], info: ValidationInfo
+) -> Optional[str]:
     """Normalize a credential that has to survive being put in an HTTP header.
 
     Surrounding whitespace is stripped, because a key pasted from a terminal or a
@@ -69,10 +83,17 @@ def _single_line_credential(value: Optional[str]) -> Optional[str]:
     the value being storable in the first place.
 
     The error names the field and never the value.
+
+    The refusal is for what a caller submits. A value read back from storage skips it: one
+    row stored before the refusal existed would otherwise fail the read of every secret in
+    the project, and the playground's provider list with it. That row still gets its
+    surrounding whitespace stripped, and it fails at use, as it always did.
     """
     if value is None:
         return None
     stripped = value.strip()
+    if info.context and info.context.get(_STORED_CREDENTIAL):
+        return stripped
     if any(ord(character) < 0x20 or ord(character) == 0x7F for character in stripped):
         raise ValueError(
             "credential contains a control character and cannot be sent in a request "
@@ -332,7 +353,10 @@ def _validate_secret_data_based_on_kind(
     values: Dict[str, Any] | BaseModel,
     *,
     value_required: bool,
+    stored: bool = False,
 ) -> Dict[str, Any]:
+    # `stored` marks a row read back from the vault, whose credentials are not re-judged.
+    context = {_STORED_CREDENTIAL: True} if stored else None
     if isinstance(values, BaseModel):
         values = values.model_dump(mode="python")
 
@@ -369,9 +393,11 @@ def _validate_secret_data_based_on_kind(
             data["kind"] = LLMStandardProviderKind.MISTRAL.value
         provider_kind = data.get("kind")
         if provider_kind in llm_standard_provider_kinds:
-            values["data"] = StandardProviderDTO.model_validate(data)
+            values["data"] = StandardProviderDTO.model_validate(data, context=context)
         elif provider_kind in mcp_standard_provider_kinds:
-            values["data"] = MCPStandardProviderDTO.model_validate(data)
+            values["data"] = MCPStandardProviderDTO.model_validate(
+                data, context=context
+            )
         else:
             raise ValueError(
                 "The provided kind in data is not a valid LLM or MCP provider key enum"
@@ -514,7 +540,7 @@ def _validate_secret_data_based_on_kind(
             raise ValueError(
                 "The provided request secret dto is missing required fields for OAuthProviderSettingsDTO"
             )
-        values["data"] = OAuthProviderDTO.model_validate(data)
+        values["data"] = OAuthProviderDTO.model_validate(data, context=context)
     elif kind == SecretKind.OAUTH_GRANT.value:
         if not isinstance(data, dict):
             raise ValueError(
@@ -530,7 +556,7 @@ def _validate_secret_data_based_on_kind(
             raise ValueError(
                 "The provided request secret dto is missing required fields for OAuthGrantSettingsDTO"
             )
-        values["data"] = OAuthGrantDTO.model_validate(data)
+        values["data"] = OAuthGrantDTO.model_validate(data, context=context)
     else:
         raise ValueError("The provided kind is not a valid SecretKind enum")
 
@@ -681,7 +707,9 @@ class _SecretResponseBaseDTO(Identifier, Slug, BaseModel):
     @model_validator(mode="before")
     @classmethod
     def validate_secret_data_based_on_kind(cls, values: Dict[str, Any]):
-        return _validate_secret_data_based_on_kind(values, value_required=False)
+        return _validate_secret_data_based_on_kind(
+            values, value_required=False, stored=True
+        )
 
     @model_validator(mode="after")
     def force_write_only_on_unreadable_kinds(self):
