@@ -1,5 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
 
+import { envTimerMs } from "../../env.ts";
 import type {
   AgentRunResult,
   AgentUsage,
@@ -239,4 +240,50 @@ export function addRunUsage(
     total: a.total + b.total,
     ...(cost == null ? {} : { cost }),
   };
+}
+
+export const COLD_PAUSE_USAGE_SETTLE_ENV =
+  "AGENTA_RUNNER_COLD_PAUSE_USAGE_SETTLE_MS";
+
+/**
+ * How long a cold-paused turn waits for the cancelled prompt's answer.
+ *
+ * The pause already sent the cancel, and Claude and Codex answer it at once with the usage of the
+ * work before the pause. The wait only has to cover that answer. It delays the end of a paused
+ * turn, so it stays short; a harness that does not answer in time costs only this usage.
+ */
+export const DEFAULT_COLD_PAUSE_USAGE_SETTLE_MS = 2_000;
+
+export function resolveColdPauseUsageSettleMs(): number {
+  return envTimerMs(
+    COLD_PAUSE_USAGE_SETTLE_ENV,
+    DEFAULT_COLD_PAUSE_USAGE_SETTLE_MS,
+    { min: 1 },
+  );
+}
+
+/**
+ * The value of a prompt that is already ending, or `undefined` when it rejects or does not end
+ * within `timeoutMs`. Never throws.
+ */
+export async function awaitEndingPrompt(
+  prompt: Promise<unknown>,
+  timeoutMs: number,
+): Promise<unknown> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timedOut = new Promise<undefined>((resolve) => {
+    timer = setTimeout(() => resolve(undefined), timeoutMs);
+    timer.unref?.();
+  });
+  try {
+    return await Promise.race([
+      prompt.then(
+        (value) => value,
+        () => undefined,
+      ),
+      timedOut,
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
 }

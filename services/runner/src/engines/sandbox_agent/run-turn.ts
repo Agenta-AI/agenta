@@ -138,8 +138,10 @@ import { carriesApprovalReplyOnly } from "./session-identity.ts";
 import { buildTurnText, priorMessages } from "./transcript.ts";
 import {
   addRunUsage,
+  awaitEndingPrompt,
   combinePromptResults,
   promptTokenDetail,
+  resolveColdPauseUsageSettleMs,
   resolveRunUsage,
   turnCostFromRunningTotal,
 } from "./usage.ts";
@@ -725,6 +727,11 @@ export async function runTurn(
       ).catch(() => {});
     }
 
+    // A cold pause sends the harness a cancel (`destroySession`). Claude and Codex answer the open
+    // prompt with the usage of the work before the pause; the turn waits briefly for that answer
+    // and, while it waits, lets only usage updates through (see `handleUpdate`).
+    let coldPauseCancelSent = false;
+    let coldPauseSettling = false;
     const pause = new PendingApprovalPauseController(() => {
       // Do NOT force-settle open tool calls here, at first pause. With concurrent approvals a
       // second gated call may still be in flight (its permission request lands a tick after the
@@ -746,6 +753,7 @@ export async function runTurn(
       // session teardown, so its handler cannot write a result after the turn ends.
       env.mcpAbort.abort();
       env.sessionDestroyRequested = true;
+      coldPauseCancelSent = true;
       return env.sandbox.destroySession?.(env.session.id);
     });
     if (opts.resume?.carriedForward.length) {
@@ -807,6 +815,15 @@ export async function runTurn(
       pause,
       toolRelay: undefined,
       handleUpdate: (update) => {
+        // The turn is over and waits only for the cancelled prompt's usage. Anything else the
+        // harness sends now is a teardown artifact (Codex writes "*Conversation interrupted*").
+        if (
+          coldPauseSettling &&
+          (update as { sessionUpdate?: unknown })?.sessionUpdate !==
+            "usage_update"
+        ) {
+          return;
+        }
         const codexMcpFailure = codexMcpStartupFailure(plan.harness, update);
         if (codexMcpFailure) {
           // Never as a tool call (it is synthetic), always as the notice. Skipped when the
@@ -1624,6 +1641,17 @@ export async function runTurn(
         noteExecutionSettled(request.sessionId, request.turnId);
       }
     }
+    // A cold pause ended the prompt with a cancel. Its answer is the only report of the work
+    // before the pause: the session is gone, and a later resume counts only its own work. Pi
+    // reports that work in its usage sidecar instead (drained below).
+    let coldPausePromptResult: unknown;
+    if (stopReason === "paused" && coldPauseCancelSent && !plan.isPi) {
+      coldPauseSettling = true;
+      coldPausePromptResult = await awaitEndingPrompt(
+        promptPromise,
+        resolveColdPauseUsageSettleMs(),
+      );
+    }
     if (stopReason === "cancelled") {
       env.parkedApprovals.clear();
       env.parkedApproval = undefined;
@@ -1709,7 +1737,10 @@ export async function runTurn(
     // Pi reports each prompt's usage in its sidecar, which `beginNextPrompt` already read.
     const turnPromptResult = plan.isPi
       ? result
-      : combinePromptResults(settledPromptResult, result);
+      : combinePromptResults(
+          settledPromptResult,
+          result ?? coldPausePromptResult,
+        );
     const resolvedUsage = addRunUsage(
       settledPromptUsage,
       await resolveRunUsage({
