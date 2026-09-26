@@ -173,9 +173,9 @@ const description =
             View all templates
           </a>
         </div>
-        <div class="ag-tplgrid">
+        <div class="ag-tplgrid ag-tplgrid--boxed">
           {templates.map((template) => (
-            <TemplateCard template={template} showAuthor={false} />
+            <TemplateCard template={template} />
           ))}
         </div>
       </Section>

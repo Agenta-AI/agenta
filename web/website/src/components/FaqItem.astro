@@ -1,0 +1,63 @@
+---
+// One FAQ row (native <details>): the question, a plus that turns into a cross,
+// and the answer in the default slot. Used by the pricing and marketplace FAQs.
+// A page can tint the icon with `--faq-icon`.
+interface Props {
+  question: string;
+  open?: boolean;
+}
+const { question, open = false } = Astro.props;
+---
+
+<details class="faq-item" open={open}>
+  <summary>
+    <span class="faq-q">{question}</span>
+    <svg class="faq-icon" width="22" height="22" viewBox="0 0 24 24" fill="none">
+      <path
+        d="M12 5v14M5 12h14"
+        stroke="var(--faq-icon, var(--th-text-body))"
+        stroke-width="1.5"
+        stroke-linecap="round"></path>
+    </svg>
+  </summary>
+  <p class="faq-a"><slot /></p>
+</details>
+
+<style>
+  .faq-item {
+    border-top: 1px solid var(--th-border);
+    padding: 24px 0;
+  }
+  .faq-item summary {
+    list-style: none;
+    cursor: pointer;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 24px;
+  }
+  .faq-item summary::-webkit-details-marker {
+    display: none;
+  }
+  .faq-q {
+    font: 300 20px/1.3 var(--font-display, "GT Alpina", serif);
+    color: var(--th-text-hi);
+  }
+  .faq-icon {
+    flex: 0 0 auto;
+    margin-top: 2px;
+    transition: transform 0.16s ease;
+  }
+  .faq-item[open] .faq-icon {
+    transform: rotate(45deg);
+  }
+  .faq-a {
+    margin: 12px 0 0;
+    max-width: 680px;
+    font: var(--text-body-md);
+    color: var(--th-text-body);
+  }
+  .faq-item[open] .faq-a {
+    animation: accordion-in 0.2s ease both;
+  }
+</style>

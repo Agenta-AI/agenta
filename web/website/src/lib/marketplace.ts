@@ -220,3 +220,205 @@ export const mergeAuthorProfiles = (
 
   return [...profiles.values()].sort((a, b) => a.name.localeCompare(b.name));
 };
+
+// --- Apps, steps and setup (template page and index cards) -----------------
+
+// Display names for the connection slugs the catalog uses. An unknown slug
+// falls back to its own text, so a new connection never breaks a page.
+const APP_NAMES: Record<string, string> = {
+  attio: "Attio",
+  confluence: "Confluence",
+  datadog: "Datadog",
+  discord: "Discord",
+  github: "GitHub",
+  gitlab: "GitLab",
+  gmail: "Gmail",
+  googlecalendar: "Google Calendar",
+  googledrive: "Google Drive",
+  hubspot: "HubSpot",
+  intercom: "Intercom",
+  jira: "Jira",
+  linear: "Linear",
+  newrelic: "New Relic",
+  notion: "Notion",
+  pagerduty: "PagerDuty",
+  posthog: "PostHog",
+  salesforce: "Salesforce",
+  sentry: "Sentry",
+  slack: "Slack",
+  telegram: "Telegram",
+  zendesk: "Zendesk",
+};
+
+// Monochrome marks self-hosted in public/logos/tools/ (Simple Icons, CC0).
+const APP_LOGOS = new Set([
+  "confluence",
+  "datadog",
+  "discord",
+  "github",
+  "gitlab",
+  "gmail",
+  "googlecalendar",
+  "googledrive",
+  "hubspot",
+  "intercom",
+  "jira",
+  "linear",
+  "newrelic",
+  "notion",
+  "pagerduty",
+  "posthog",
+  "salesforce",
+  "sentry",
+  "slack",
+  "telegram",
+  "zendesk",
+]);
+
+export interface TemplateApp {
+  slug: string;
+  name: string;
+  /** Self-hosted logo path; undefined draws the app's initial instead. */
+  logo?: string;
+}
+
+export const appName = (slug: string): string => APP_NAMES[slug] ?? slug;
+
+const toApp = (slug: string): TemplateApp => ({
+  slug,
+  name: appName(slug),
+  logo: APP_LOGOS.has(slug) ? `/logos/tools/${slug}.svg` : undefined,
+});
+
+/** The apps a template connects to: each connection's primary app, once. */
+export const appsOf = (template: WebsiteTemplate): TemplateApp[] =>
+  [
+    ...new Set(
+      template.connections.flatMap((connection) =>
+        connection.primary ? [connection.primary.slug] : [],
+      ),
+    ),
+  ].map(toApp);
+
+/** "GitHub", "GitHub and Slack", "GitHub, Linear and Slack". */
+export const joinNames = (names: string[]): string =>
+  names.length > 1
+    ? `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`
+    : (names[0] ?? "");
+
+/** The text the index search matches: name, description and app names. */
+export const searchTextOf = (template: WebsiteTemplate): string =>
+  [
+    template.name,
+    template.description,
+    ...appsOf(template).map((app) => app.name),
+  ]
+    .join(" ")
+    .toLowerCase();
+
+/** "How it works": when it runs, then what it does with each connection. */
+export const howItWorksOf = (template: WebsiteTemplate): string[] => [
+  ...(template.trigger_description ? [template.trigger_description] : []),
+  ...template.connections.map((connection) => {
+    const app = connection.primary
+      ? ` with ${appName(connection.primary.slug)}`
+      : "";
+    return `${connection.role}${app}${connection.required ? "" : " (optional)"}.`;
+  }),
+];
+
+export interface SetupStep {
+  title: string;
+  text: string;
+}
+
+/** Generated setup steps (the catalog has no setup field). */
+export const setupStepsOf = (template: WebsiteTemplate): SetupStep[] => {
+  const names = appsOf(template).map((app) => app.name);
+  return [
+    {
+      title: "Use it for free",
+      text: "Agenta creates the agent from this template in your workspace.",
+    },
+    ...(names.length > 0
+      ? [
+          {
+            title: `Connect ${joinNames(names)}`,
+            text: "Each app connects from the setup screen.",
+          },
+        ]
+      : []),
+    {
+      title: "Test, then let it run",
+      text: template.trigger
+        ? "Run it once to check the result. Then the trigger takes over."
+        : "Run it once to check the result.",
+    },
+  ];
+};
+
+export interface Requirement {
+  label: string;
+  note?: string;
+  app?: TemplateApp;
+}
+
+/** Sidebar "What it needs": one account per connection, then a workspace. */
+export const requirementsOf = (template: WebsiteTemplate): Requirement[] => {
+  const seen = new Set<string>();
+  const accounts: Requirement[] = [];
+  for (const connection of template.connections) {
+    const slug = connection.primary?.slug;
+    if (!slug || seen.has(slug)) continue;
+    seen.add(slug);
+    accounts.push({
+      label: `${appName(slug)} account`,
+      note: connection.required ? undefined : "Optional",
+      app: toApp(slug),
+    });
+  }
+  return [...accounts, { label: "Agenta workspace", note: "Free plan" }];
+};
+
+/** Up to three other templates from the same category, in catalog order. */
+export const relatedTemplatesOf = (
+  template: WebsiteTemplate,
+  all: readonly WebsiteTemplate[],
+): WebsiteTemplate[] =>
+  all
+    .filter(
+      (other) =>
+        other.key !== template.key && other.category === template.category,
+    )
+    .slice(0, 3);
+
+export const ctaHeadlineOf = (template: WebsiteTemplate): string =>
+  `Start with the ${template.name} template`;
+
+// --- Index FAQ ---------------------------------------------------------------
+
+// Copy from the "Templates Handoff" design. The handoff swaps in a category's
+// own FAQ when one exists; none is written for the catalog's categories yet,
+// so every category keeps this general FAQ.
+export const MARKETPLACE_FAQ: { question: string; answer: string }[] = [
+  {
+    question: "What is an agent template?",
+    answer:
+      "A working agent — trigger, skills, and app connections — that you copy into your Agenta workspace and edit.",
+  },
+  {
+    question: "Do templates work on the free plan?",
+    answer:
+      "Yes. Every template runs on any Agenta plan, including the free plan.",
+  },
+  {
+    question: "Can I edit the skills?",
+    answer:
+      "Every skill is a versioned SKILL.md. Edit it in the playground, evaluate the change, then deploy.",
+  },
+  {
+    question: "Do I need API keys?",
+    answer:
+      "Most apps connect through OAuth. When a key is required, the setup step tells you which one.",
+  },
+];

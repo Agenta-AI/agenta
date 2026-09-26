@@ -1,126 +1,369 @@
 ---
-// Agent Marketplace index at /marketplace.
-//
-// A simple spec-driven listing: every catalog template grouped by category,
-// each with its detail link and "Use it for free". The designed version of this
-// page is still being drawn; replace the layout when it lands and keep the data
-// wiring (src/lib/templates.ts, src/lib/marketplace.ts).
+// Agent Marketplace index at /marketplace, per the "Templates Handoff" design
+// (index 2a): header with search, category chips, a hairline grid of every
+// catalog template, then the FAQ. Search and chips run in a small inline
+// script; without it every template stays listed.
 import Section from "../../components/Section.astro";
 import Site from "../../layouts/Site.astro";
-import Badge from "../../components/Badge.astro";
+import SectionTitle from "../../components/SectionTitle.astro";
+import FaqItem from "../../components/FaqItem.astro";
 import TemplateCard from "../../components/TemplateCard.astro";
 import { templates } from "../../lib/templates";
 import {
+  MARKETPLACE_FAQ,
   MARKETPLACE_NAME,
   categoriesOf,
-  categorySlug,
 } from "../../lib/marketplace";
 
-const categories = categoriesOf(templates).map((category) => ({
-  category,
-  slug: categorySlug(category),
-  templates: templates.filter((template) => template.category === category),
-}));
+const categories = ["All", ...categoriesOf(templates)];
+const countOf = (category: string) =>
+  category === "All"
+    ? templates.length
+    : templates.filter((template) => template.category === category).length;
 ---
 
 <Site
   title={`${MARKETPLACE_NAME} — Agenta`}
-  description="Ready-to-run agent templates for engineering, support, sales, ops and knowledge work. Pick one and start it in Agenta for free."
+  description="Start from a working agent. Connect your apps, adjust the skills, and let it run. Every template starts in Agenta for free."
 >
-  <Section tone="flat" class="ag-pad ag-mkt-head">
-    <div class="ag-mkt-head__inner">
-      <Badge>Marketplace</Badge>
-      <h1 class="ag-h1 ag-mkt-head__title">{MARKETPLACE_NAME}</h1>
-      <p class="ag-mkt-head__sub">
-        Agents you can start in one click. Each template sets up the
-        instructions, tools and trigger for a real job. Then make it yours.
-      </p>
-      <nav class="ag-mkt-cats" aria-label="Categories">
-        {
-          categories.map(({ category, slug, templates: items }) => (
-            <a href={`#${slug}`} class="ag-mkt-cats__item">
-              {category} <span>{items.length}</span>
-            </a>
-          ))
-        }
-      </nav>
+  <Section class="ag-mkt-head" data-screen-label="Index header">
+    <div class="ag-mkt-head__row">
+      <div class="ag-mkt-head__copy">
+        <h1 class="ag-mkt-head__title">{MARKETPLACE_NAME}</h1>
+        <p class="ag-mkt-head__sub">
+          Start from a working agent. Connect your apps, adjust the skills, and
+          let it run.
+        </p>
+      </div>
+      <label class="ag-mkt-search">
+        <svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true"
+          ><circle cx="7" cy="7" r="5" stroke="currentColor" stroke-width="1.5"
+          ></circle><path
+            d="m11 11 3 3"
+            stroke="currentColor"
+            stroke-width="1.5"
+            stroke-linecap="round"></path></svg
+        >
+        <span class="sr-only">Search templates</span>
+        <input
+          type="search"
+          data-mkt-search
+          placeholder="Search templates or apps"
+          autocomplete="off"
+        />
+      </label>
+    </div>
+    <div class="ag-mkt-chips" role="group" aria-label="Categories">
+      {
+        categories.map((category) => (
+          <button
+            type="button"
+            class="ag-mkt-chip"
+            data-mkt-chip={category}
+            aria-pressed={category === "All" ? "true" : "false"}
+          >
+            {category}
+            <span class="ag-mkt-chip__count" data-mkt-count>
+              {countOf(category)}
+            </span>
+          </button>
+        ))
+      }
     </div>
   </Section>
 
-  {
-    categories.map(({ category, slug, templates: items }) => (
-      <Section tone="flat" class="ag-pad ag-mkt-group" id={slug}>
-        <h2 class="ag-mkt-group__title">{category}</h2>
-        <div class="ag-tplgrid">
-          {items.map((template) => (
-            <TemplateCard template={template} />
-          ))}
-        </div>
-      </Section>
-    ))
-  }
+  <Section class="ag-mkt-grid" data-screen-label="Grid">
+    <div class="ag-tplgrid" data-mkt-grid>
+      {templates.map((template) => <TemplateCard template={template} />)}
+    </div>
+    <div class="ag-mkt-empty" data-mkt-empty hidden>
+      <p class="ag-mkt-empty__title">
+        No templates match “<span data-mkt-query></span>”
+      </p>
+      <p class="ag-mkt-empty__text">
+        Try an app name like GitHub or Slack, or browse all templates.
+      </p>
+      <button type="button" class="ag-btn ag-btn--outline" data-mkt-clear>
+        Clear search
+      </button>
+    </div>
+  </Section>
+
+  <Section class="ag-mkt-faq" data-screen-label="FAQ">
+    <SectionTitle badge="FAQ" title="Frequently asked questions" />
+    <div class="ag-mkt-faq__list">
+      {
+        MARKETPLACE_FAQ.map((item, i) => (
+          <FaqItem question={item.question} open={i === 0}>
+            {item.answer}
+          </FaqItem>
+        ))
+      }
+    </div>
+  </Section>
+
+  <script>
+    const search = document.querySelector<HTMLInputElement>("[data-mkt-search]");
+    const chips = [...document.querySelectorAll<HTMLButtonElement>("[data-mkt-chip]")];
+    const cards = [...document.querySelectorAll<HTMLElement>("[data-mkt-grid] [data-template-key]")];
+    const empty = document.querySelector<HTMLElement>("[data-mkt-empty]");
+    const query = document.querySelector<HTMLElement>("[data-mkt-query]");
+    const clear = document.querySelector<HTMLButtonElement>("[data-mkt-clear]");
+    let selected = "All";
+
+    const render = () => {
+      const q = (search?.value ?? "").trim().toLowerCase();
+      const matches = cards.filter(
+        (card) => !q || (card.dataset.search ?? "").includes(q),
+      );
+      let shown = 0;
+      for (const card of cards) {
+        const show =
+          matches.includes(card) &&
+          (selected === "All" || card.dataset.category === selected);
+        card.hidden = !show;
+        if (show) shown += 1;
+      }
+      // Chip counts follow the search; empty categories hide unless selected.
+      for (const chip of chips) {
+        const category = chip.dataset.mktChip ?? "";
+        const count =
+          category === "All"
+            ? matches.length
+            : matches.filter((card) => card.dataset.category === category).length;
+        const counter = chip.querySelector("[data-mkt-count]");
+        if (counter) counter.textContent = String(count);
+        chip.hidden = count === 0 && category !== "All" && category !== selected;
+        chip.setAttribute("aria-pressed", String(category === selected));
+      }
+      if (empty) empty.hidden = shown > 0;
+      if (query) query.textContent = search?.value.trim() ?? "";
+    };
+
+    search?.addEventListener("input", render);
+    for (const chip of chips) {
+      chip.addEventListener("click", () => {
+        selected = chip.dataset.mktChip ?? "All";
+        render();
+      });
+    }
+    clear?.addEventListener("click", () => {
+      if (search) search.value = "";
+      selected = "All";
+      render();
+      search?.focus();
+    });
+    render();
+  </script>
 
   <style is:global>
     .ag-mkt-head {
       background: var(--th-bg-1);
-      padding: 72px 64px 40px;
-    }
-    .ag-mkt-head__inner {
+      padding: 64px 56px 40px;
       display: flex;
       flex-direction: column;
-      align-items: center;
-      text-align: center;
-      gap: 18px;
+      gap: 28px;
+    }
+    .ag-mkt-head__row {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 40px;
+    }
+    .ag-mkt-head__copy {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      max-width: 600px;
     }
     .ag-mkt-head__title {
       margin: 0;
-      font: var(--text-display-xl);
+      font: var(--text-display-lg);
       color: var(--th-text-hi);
     }
     .ag-mkt-head__sub {
       margin: 0;
-      max-width: 620px;
       font: var(--text-body-md);
       color: var(--th-text-body);
       text-wrap: pretty;
     }
-    .ag-mkt-cats {
+    .ag-mkt-search {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      width: 340px;
+      height: 40px;
+      padding: 0 14px;
+      border-radius: 8px;
+      background: var(--th-ctl-bg);
+      box-shadow: inset 0 0 0 1px var(--th-ctl-ring);
+      box-sizing: border-box;
+      flex: 0 0 auto;
+      color: var(--th-text-mut);
+    }
+    .ag-mkt-search:focus-within {
+      box-shadow: inset 0 0 0 1px var(--th-text-mut);
+    }
+    .ag-mkt-search input {
+      flex: 1;
+      min-width: 0;
+      background: transparent;
+      border: 0;
+      outline: none;
+      color: var(--th-text-hi);
+      font: var(--text-body-sm);
+    }
+    .ag-mkt-search input::placeholder {
+      color: var(--th-text-mut);
+    }
+    .ag-mkt-search input::-webkit-search-cancel-button {
+      display: none;
+    }
+    .ag-mkt-chips {
       display: flex;
       flex-wrap: wrap;
-      justify-content: center;
       gap: 8px;
-      margin-top: 8px;
+      scrollbar-width: none;
     }
-    .ag-mkt-cats__item {
+    .ag-mkt-chips::-webkit-scrollbar {
+      display: none;
+    }
+    .ag-mkt-chip {
+      flex: 0 0 auto;
       display: inline-flex;
       align-items: center;
       gap: 6px;
-      padding: 6px 12px;
+      height: 32px;
+      padding: 0 13px;
+      border: 0;
       border-radius: 999px;
+      background: var(--chip-bg);
+      box-shadow: inset 0 0 0 1px var(--chip-ring);
       font: var(--text-label);
-      color: var(--th-ctl-text);
-      background: var(--th-ctl-bg);
-      box-shadow: inset 0 0 0 1px var(--th-ctl-ring);
-      text-decoration: none;
+      color: var(--chip-text);
+      cursor: pointer;
+      white-space: nowrap;
+      --chip-bg: var(--paper-0);
+      --chip-ring: var(--th-border);
+      --chip-text: var(--th-text-body);
     }
-    .ag-mkt-cats__item span {
-      color: var(--th-text-mut);
+    .ag-mkt-chip[aria-pressed="true"] {
+      --chip-bg: var(--ink-900);
+      --chip-ring: var(--ink-900);
+      --chip-text: var(--paper-0);
     }
-    .ag-mkt-cats__item:hover {
-      background: var(--th-hover);
+    [data-theme="dark"] .ag-mkt-chip {
+      --chip-bg: var(--th-ctl-bg);
+      --chip-ring: var(--th-border);
+      --chip-text: var(--th-text-body);
     }
-    .ag-mkt-group {
-      background: var(--th-bg-1);
-      padding: 32px 64px;
-      scroll-margin-top: 80px;
+    [data-theme="dark"] .ag-mkt-chip[aria-pressed="true"] {
+      --chip-bg: var(--th-active);
+      --chip-ring: var(--th-text-dim);
+      --chip-text: var(--th-text-hi);
     }
-    .ag-mkt-group:last-of-type {
-      padding-bottom: 88px;
+    .ag-mkt-chip[hidden] {
+      display: none;
     }
-    .ag-mkt-group__title {
-      margin: 0 0 20px;
-      font: var(--text-display-lg);
+    .ag-mkt-chip:focus-visible {
+      outline: 2px solid var(--th-text-hi);
+      outline-offset: 2px;
+    }
+    .ag-mkt-chip__count {
+      font: var(--text-caption);
+      opacity: 0.55;
+    }
+    .ag-mkt-grid {
+      --mkt-grid-bg: var(--th-bg-1);
+      background: var(--mkt-grid-bg);
+    }
+    [data-theme="dark"] .ag-mkt-grid {
+      --mkt-grid-bg: var(--th-bg-0);
+    }
+    /* The last column and row share the section's own border. */
+    .ag-mkt-grid .ag-tplgrid {
+      margin: 0 -1px -1px 0;
+    }
+    .ag-mkt-grid [data-template-key][hidden] {
+      display: none;
+    }
+    .ag-mkt-empty {
+      padding: 64px 56px;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 8px;
+    }
+    .ag-mkt-empty[hidden] {
+      display: none;
+    }
+    .ag-mkt-empty__title {
+      margin: 0;
+      font: var(--text-title);
       color: var(--th-text-hi);
+    }
+    .ag-mkt-empty__text {
+      margin: 0 0 8px;
+      font: var(--text-body-sm);
+      color: var(--th-text-body);
+    }
+    .ag-mkt-faq {
+      background: var(--th-bg-1);
+      padding: 96px 56px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 48px;
+    }
+    .ag-mkt-faq__list {
+      width: 768px;
+      max-width: 100%;
+    }
+
+    @media (max-width: 1199px) {
+      .ag-mkt-head {
+        padding: 48px 32px 32px;
+      }
+      .ag-mkt-head__row {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 24px;
+      }
+      .ag-mkt-search {
+        width: 100%;
+      }
+      .ag-mkt-empty {
+        padding: 56px 32px;
+      }
+      .ag-mkt-faq {
+        padding: 72px 32px;
+        gap: 40px;
+      }
+    }
+    @media (max-width: 767px) {
+      .ag-mkt-head {
+        padding: 32px 20px 24px;
+      }
+      .ag-mkt-head__row {
+        gap: 20px;
+      }
+      .ag-mkt-head__title {
+        font: 300 36px/40px var(--font-display);
+      }
+      /* One row that scrolls, bleeding to the screen edge. */
+      .ag-mkt-chips {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        margin: 0 -20px;
+        padding: 0 20px;
+      }
+      .ag-mkt-empty {
+        padding: 40px 20px;
+      }
+      .ag-mkt-faq {
+        padding: 56px 20px;
+        gap: 32px;
+      }
     }
   </style>
 </Site>

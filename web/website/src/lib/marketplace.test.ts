@@ -1,15 +1,28 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  appsOf,
   authorPath,
   categoriesOf,
   categorySlug,
+  ctaHeadlineOf,
+  howItWorksOf,
+  joinNames,
   mergeAuthorProfiles,
+  relatedTemplatesOf,
   renderableMedia,
+  requirementsOf,
+  searchTextOf,
+  setupStepsOf,
   templatePath,
   youtubeEmbedUrl,
 } from "./marketplace";
-import { authors, templates, templatesByAuthor } from "./templates";
+import {
+  authors,
+  templateByKey,
+  templates,
+  templatesByAuthor,
+} from "./templates";
 
 describe("marketplace routes", () => {
   it("gives every template a detail page and every author a profile page", () => {
@@ -163,5 +176,71 @@ describe("author profiles", () => {
       expect(ids).toContain(template.author.id);
       expect(templatesByAuthor(template.author.id)).toContain(template);
     }
+  });
+});
+
+describe("template page sections", () => {
+  const codeQa = templateByKey("code-qa")!;
+
+  it("lists each connection's primary app once, with a logo when one is hosted", () => {
+    expect(appsOf(codeQa)).toEqual([
+      { slug: "github", name: "GitHub", logo: "/logos/tools/github.svg" },
+      { slug: "slack", name: "Slack", logo: "/logos/tools/slack.svg" },
+    ]);
+    for (const template of templates) {
+      const slugs = appsOf(template).map((app) => app.slug);
+      expect(new Set(slugs).size).toBe(slugs.length);
+    }
+  });
+
+  it("joins app names the way a sentence does", () => {
+    expect(joinNames(["GitHub"])).toBe("GitHub");
+    expect(joinNames(["GitHub", "Slack"])).toBe("GitHub and Slack");
+    expect(joinNames(["GitHub", "Linear", "Slack"])).toBe(
+      "GitHub, Linear and Slack",
+    );
+  });
+
+  it("searches name, description and app names", () => {
+    const text = searchTextOf(codeQa);
+    expect(text).toContain("code q&a");
+    expect(text).toContain("slack");
+    expect(text).toContain(codeQa.description.toLowerCase());
+  });
+
+  it("builds how it works from the trigger and the connections", () => {
+    expect(howItWorksOf(codeQa)).toEqual([
+      "Runs when the agent is @-mentioned.",
+      "Read the code with GitHub.",
+      "Answer on a Slack mention with Slack (optional).",
+    ]);
+  });
+
+  it("generates setup steps and requirements from the apps", () => {
+    expect(setupStepsOf(codeQa).map((step) => step.title)).toEqual([
+      "Use it for free",
+      "Connect GitHub and Slack",
+      "Test, then let it run",
+    ]);
+    expect(requirementsOf(codeQa).map((r) => [r.label, r.note])).toEqual([
+      ["GitHub account", undefined],
+      ["Slack account", "Optional"],
+      ["Agenta workspace", "Free plan"],
+    ]);
+  });
+
+  it("relates up to three other templates from the same category", () => {
+    for (const template of templates) {
+      const related = relatedTemplatesOf(template, templates);
+      expect(related.length).toBeLessThanOrEqual(3);
+      for (const other of related) {
+        expect(other.key).not.toBe(template.key);
+        expect(other.category).toBe(template.category);
+      }
+    }
+  });
+
+  it("falls back to a CTA headline built from the name", () => {
+    expect(ctaHeadlineOf(codeQa)).toBe("Start with the Code Q&A template");
   });
 });

@@ -1,0 +1,62 @@
+---
+// Trigger pill: a yellow dot and the trigger text ("Pull request opened").
+interface Props {
+  size?: "md" | "sm";
+}
+const { size = "md" } = Astro.props;
+---
+
+<span class:list={["ag-trigger", size === "sm" && "ag-trigger--sm"]}>
+  <span class="ag-trigger__dot" aria-hidden="true"></span>
+  <slot />
+</span>
+
+<style is:global>
+  .ag-trigger {
+    width: fit-content;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    height: 30px;
+    padding: 0 12px;
+    border-radius: 8px;
+    background: var(--trigger-bg);
+    box-shadow: inset 0 0 0 1px var(--trigger-ring);
+    font: var(--text-label);
+    color: var(--th-text-hi);
+    --trigger-bg: color-mix(in srgb, var(--yellow-400) 35%, transparent);
+    --trigger-ring: color-mix(in srgb, var(--ink-900) 12%, transparent);
+    --trigger-dot: var(--yellow-500);
+  }
+  [data-theme="dark"] .ag-trigger {
+    --trigger-bg: color-mix(in srgb, var(--yellow-400) 10%, transparent);
+    --trigger-ring: color-mix(in srgb, var(--yellow-400) 25%, transparent);
+    --trigger-dot: var(--yellow-400);
+  }
+  .ag-trigger--sm {
+    gap: 7px;
+    height: 26px;
+    padding: 0 10px;
+    border-radius: 7px;
+    font: var(--text-caption);
+    color: var(--th-text-body);
+    --trigger-bg: var(--th-ctl-bg);
+    --trigger-ring: var(--th-ctl-ring);
+  }
+  [data-theme="dark"] .ag-trigger--sm {
+    --trigger-bg: var(--th-ctl-bg);
+    --trigger-ring: var(--th-ctl-ring);
+  }
+  .ag-trigger__dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--trigger-dot);
+    flex: 0 0 auto;
+  }
+  .ag-trigger--sm .ag-trigger__dot {
+    width: 6px;
+    height: 6px;
+  }
+
+</style>

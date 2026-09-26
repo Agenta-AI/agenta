@@ -1,9 +1,13 @@
 ---
-// One template in a marketplace listing (the index and an author's page).
-// Values come straight from the generated catalog data. The card is not one
-// big link because it holds two actions: the detail page and Use it for free.
+// One template cell in the marketplace grid (the index and an author's page),
+// per the "Templates Handoff" design: app marks and category, the name, a
+// three-line description and the trigger pill. The name's link covers the
+// whole cell; "Use it for free" sits above it so both stay clickable.
+// Wrap cells in `.ag-tplgrid` (hairline grid, defined below).
 import Button from "./Button.astro";
-import { authorPath, templatePath } from "../lib/marketplace";
+import AppMark from "./AppMark.astro";
+import TriggerPill from "./TriggerPill.astro";
+import { appsOf, searchTextOf, templatePath } from "../lib/marketplace";
 import {
   USE_IT_FOR_FREE_LABEL,
   useItForFreeUrl,
@@ -12,157 +16,168 @@ import {
 
 interface Props {
   template: WebsiteTemplate;
-  // Hide the author line on the author's own page.
-  showAuthor?: boolean;
 }
 
-const { template, showAuthor = true } = Astro.props;
-const href = templatePath(template.key);
+const { template } = Astro.props;
+const apps = appsOf(template);
+const shown = apps.slice(0, 3);
+const more = apps.length - shown.length;
 ---
 
-<article class="ag-tplcard" data-template-key={template.key}>
+<article
+  class="ag-tplcard"
+  data-template-key={template.key}
+  data-category={template.category}
+  data-search={searchTextOf(template)}
+>
   <div class="ag-tplcard__head">
-    <span
-      class="ag-tplcard__mark"
-      style={`background:${template.color};`}
-      aria-hidden="true">{template.initials}</span
-    >
+    <div class="ag-tplcard__apps">
+      {shown.map((app) => <AppMark app={app} />)}
+      {more > 0 && <span class="ag-tplcard__more">+{more}</span>}
+    </div>
     <span class="ag-tplcard__cat">{template.category}</span>
   </div>
-  <h3 class="ag-tplcard__title">
-    <a href={href}>{template.name}</a>
-  </h3>
-  <p class="ag-tplcard__summary">{template.summary}</p>
-  <dl class="ag-tplcard__meta">
+  <div class="ag-tplcard__text">
+    <h3 class="ag-tplcard__title">
+      <a href={templatePath(template.key)}>{template.name}</a>
+    </h3>
+    <p class="ag-tplcard__desc">{template.description}</p>
+  </div>
+  <div class="ag-tplcard__foot">
     {
       template.trigger && (
-        <div>
-          <dt>Trigger</dt>
-          <dd>{template.trigger}</dd>
-        </div>
+        <TriggerPill size="sm">{template.trigger}</TriggerPill>
       )
     }
-    {
-      template.tools_summary && (
-        <div>
-          <dt>Tools</dt>
-          <dd>{template.tools_summary}</dd>
-        </div>
-      )
-    }
-  </dl>
-  {
-    showAuthor && (
-      <p class="ag-tplcard__author">
-        By <a href={authorPath(template.author.id)}>{template.author.name}</a>
-      </p>
-    )
-  }
-  <div class="ag-tplcard__actions">
-    <Button variant="primary" href={useItForFreeUrl(template.key)}
+    <Button
+      variant="outline"
+      href={useItForFreeUrl(template.key)}
+      class="ag-tplcard__cta"
+      aria-label={`${USE_IT_FOR_FREE_LABEL}: ${template.name}`}
       >{USE_IT_FOR_FREE_LABEL}</Button
-    >
-    <Button variant="outline" href={href} aria-label={`${template.name} details`}
-      >Details</Button
     >
   </div>
 </article>
 
 <style is:global>
+  .ag-tplgrid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  /* Closed box for grids that sit inside padding (the author page). */
+  .ag-tplgrid--boxed {
+    box-shadow: inset 1px 1px 0 var(--th-border-subtle);
+  }
   .ag-tplcard {
+    position: relative;
     display: flex;
     flex-direction: column;
-    gap: 12px;
-    padding: 24px;
-    border-radius: 14px;
-    background: var(--th-bg-2);
-    box-shadow: inset 0 0 0 1px var(--th-border-subtle);
+    gap: 28px;
+    min-height: 280px;
+    padding: 36px 36px 32px;
+    box-sizing: border-box;
+    box-shadow: inset -1px -1px 0 var(--th-border-subtle);
+    transition: background 0.12s ease;
+  }
+  .ag-tplcard:hover {
+    background: var(--th-hover);
   }
   .ag-tplcard__head {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 12px;
+    gap: 10px;
   }
-  .ag-tplcard__mark {
-    width: 36px;
-    height: 36px;
+  .ag-tplcard__apps {
+    display: flex;
+    gap: 6px;
+  }
+  .ag-tplcard__more {
+    height: 34px;
+    padding: 0 9px;
     border-radius: 9px;
-    display: inline-flex;
+    display: flex;
     align-items: center;
-    justify-content: center;
-    font: 500 13px/1 var(--font-sans);
-    color: var(--text-on-dark);
+    background: var(--th-ctl-bg);
+    box-shadow: inset 0 0 0 1px var(--th-ctl-ring);
+    font: var(--text-caption);
+    color: var(--th-text-mut);
   }
   .ag-tplcard__cat {
     font: var(--text-caption);
     color: var(--th-text-mut);
   }
+  .ag-tplcard__text {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
   .ag-tplcard__title {
-    margin: 4px 0 0;
-    font: 400 24px/1.2 var(--font-display);
+    margin: 0;
+    font: 300 25px/1.2 var(--font-display, "GT Alpina", serif);
     color: var(--th-text-hi);
   }
   .ag-tplcard__title a {
     color: inherit;
     text-decoration: none;
   }
-  .ag-tplcard__title a:hover {
-    text-decoration: underline;
-    text-decoration-color: var(--th-accent-underline);
+  /* The name's link covers the whole cell. */
+  .ag-tplcard__title a::after {
+    content: "";
+    position: absolute;
+    inset: 0;
   }
-  .ag-tplcard__summary {
+  @supports selector(:has(*)) {
+    .ag-tplcard__title a:focus-visible {
+      outline: none;
+    }
+    .ag-tplcard:has(.ag-tplcard__title a:focus-visible) {
+      outline: 2px solid var(--th-text-hi);
+      outline-offset: -2px;
+    }
+  }
+  .ag-tplcard__desc {
     margin: 0;
-    font: var(--text-body-sm);
+    font: var(--text-body-md);
     color: var(--th-text-body);
+    text-wrap: pretty;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
   }
-  .ag-tplcard__meta {
-    margin: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-  }
-  .ag-tplcard__meta div {
-    display: flex;
-    gap: 8px;
-    font: var(--text-caption);
-  }
-  .ag-tplcard__meta dt {
-    color: var(--th-text-mut);
-    min-width: 56px;
-  }
-  .ag-tplcard__meta dd {
-    margin: 0;
-    color: var(--th-text-hi);
-  }
-  .ag-tplcard__author {
-    margin: 0;
-    font: var(--text-caption);
-    color: var(--th-text-mut);
-  }
-  .ag-tplcard__author a {
-    color: var(--th-link);
-  }
-  .ag-tplcard__actions {
+  .ag-tplcard__foot {
     margin-top: auto;
-    padding-top: 8px;
     display: flex;
+    align-items: center;
+    justify-content: space-between;
     flex-wrap: wrap;
-    gap: 8px;
+    gap: 12px;
   }
-  .ag-tplgrid {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 20px;
+  .ag-tplcard__cta {
+    position: relative;
+    z-index: 1;
+    margin-left: auto;
   }
-  @media (max-width: 1024px) {
+
+  @media (max-width: 1199px) {
     .ag-tplgrid {
       grid-template-columns: repeat(2, minmax(0, 1fr));
     }
+    .ag-tplcard {
+      min-height: 260px;
+      padding: 32px 28px 28px;
+      gap: 24px;
+    }
   }
-  @media (max-width: 600px) {
+  @media (max-width: 767px) {
     .ag-tplgrid {
       grid-template-columns: minmax(0, 1fr);
+    }
+    .ag-tplcard {
+      min-height: 0;
+      padding: 28px 20px 24px;
+      gap: 20px;
     }
   }
 </style>

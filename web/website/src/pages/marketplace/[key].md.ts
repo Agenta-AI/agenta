@@ -8,7 +8,15 @@ import {
   useItForFreeUrl,
   type WebsiteTemplate,
 } from "../../lib/templates";
-import { authorPath, templatePath } from "../../lib/marketplace";
+import {
+  appsOf,
+  authorPath,
+  howItWorksOf,
+  relatedTemplatesOf,
+  requirementsOf,
+  setupStepsOf,
+  templatePath,
+} from "../../lib/marketplace";
 
 export const getStaticPaths = (() =>
   templates.map((template) => ({
@@ -27,25 +35,41 @@ export const GET: APIRoute = async ({ props }) => {
     `- Version: ${template.version}`,
   ].filter(Boolean);
 
-  const connections = template.connections.map((connection) => {
-    const app = connection.primary
-      ? ` — ${connection.primary.slug}${connection.primary.scope ? ` (${connection.primary.scope})` : ""}`
-      : "";
-    return `- ${connection.role}${connection.required ? "" : " (optional)"}${app}`;
-  });
+  const apps = appsOf(template).map((app) => app.name);
+  const list = (items: string[]) => items.map((item) => `- ${item}`).join("\n");
+  const numbered = (items: string[]) =>
+    items.map((item, i) => `${i + 1}. ${item}`).join("\n");
+  const related = relatedTemplatesOf(template, templates);
+  const steps = howItWorksOf(template);
+
+  const sections = [
+    `## Overview\n\n${template.description}`,
+    steps.length > 0 && `## How it works\n\n${numbered(steps)}`,
+    template.example &&
+      `## Example output\n\n${template.example.prompt}\n\n${numbered(template.example.steps)}\n\n${template.example.reply}`,
+    `## How to set this up\n\n${numbered(
+      setupStepsOf(template).map((step) => `${step.title}. ${step.text}`),
+    )}`,
+    `## What it needs\n\n${list(
+      requirementsOf(template).map(
+        (req) => `${req.label}${req.note ? ` (${req.note})` : ""}`,
+      ),
+    )}`,
+    apps.length > 0 && `## Apps\n\n${apps.join(", ")}`,
+    related.length > 0 &&
+      `## Related templates\n\n${list(
+        related.map(
+          (other) => `[${other.name}](${SITE_URL}${templatePath(other.key)})`,
+        ),
+      )}`,
+  ].filter(Boolean);
 
   const body = `[${USE_IT_FOR_FREE_LABEL}](${useItForFreeUrl(template.key)})
 
 ${facts.join("\n")}
 
-## What it does
-
-${template.description}
-${template.trigger_description ? `\n## When it runs\n\n${template.trigger_description}\n` : ""}${
-    connections.length > 0
-      ? `\n## What it connects to\n\n${connections.join("\n")}\n`
-      : ""
-  }`;
+${sections.join("\n\n")}
+`;
 
   return markdownResponse(
     page({
