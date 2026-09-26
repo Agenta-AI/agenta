@@ -22,6 +22,7 @@ from oss.src.dbs.postgres.tracing.dao import (
     UPDATE_CUMULATIVE_METRIC_STMT,
     TracingDAO,
 )
+from oss.src.tasks.asyncio.tracing import worker as worker_module
 from oss.src.tasks.asyncio.tracing.worker import TracingWorker
 
 T0 = datetime(2026, 1, 1, tzinfo=timezone.utc)
@@ -33,10 +34,10 @@ T0 = datetime(2026, 1, 1, tzinfo=timezone.utc)
 class _StoringService:
     """Stores spans like ingest does and recomputes over everything stored."""
 
-    def __init__(self, fail_recompute=False):
+    def __init__(self, recompute_failures=0):
         self.spans = {}
         self.recomputed = []
-        self.fail_recompute = fail_recompute
+        self.recompute_failures = recompute_failures
 
     async def ingest(self, *, project_id, user_id, span_dtos):
         for span_dto in calculate_and_propagate_metrics_by_trace(span_dtos):
@@ -44,16 +45,23 @@ class _StoringService:
 
     async def recompute_trace_totals(self, *, project_id, trace_id):
         self.recomputed.append((project_id, trace_id))
-        if self.fail_recompute:
+        if self.recompute_failures:
+            self.recompute_failures -= 1
             raise RuntimeError("db down")
         changes = recompute_cumulative_metrics(
             [deepcopy(span) for span in self.spans.values()]
         )
         for span_id, metrics in changes.items():
             for metric, value in metrics.items():
-                self.spans[span_id].attributes["ag"]["metrics"].setdefault(metric, {})[
-                    "cumulative"
-                ] = value
+                node = (
+                    self.spans[span_id]
+                    .attributes["ag"]["metrics"]
+                    .setdefault(metric, {})
+                )
+                if value is None:
+                    node.pop("cumulative", None)
+                else:
+                    node["cumulative"] = value
         return len(changes)
 
 
@@ -110,8 +118,26 @@ async def test_trace_split_across_requests_gets_its_full_totals():
     assert _root_cost(service, root_id) == pytest.approx(0.03)
 
 
-async def test_a_failed_recompute_does_not_hold_back_the_batch():
-    service = _StoringService(fail_recompute=True)
+async def test_a_transient_recompute_failure_is_retried(monkeypatch):
+    monkeypatch.setattr(worker_module, "RECOMPUTE_BACKOFF_S", 0)
+    service = _StoringService()
+    worker = _worker(service)
+    ids = dict(organization_id=uuid4(), project_id=uuid4(), user_id=uuid4())
+    trace_id, root_id = uuid4(), uuid4()
+
+    await worker.process_batch([_message(ids, _span(trace_id, root_id, None, 0))])
+    service.recompute_failures = 1
+    await worker.process_batch(
+        [_message(ids, _span(trace_id, uuid4(), root_id, 1, cost=0.03))]
+    )
+
+    assert service.recomputed == [(ids["project_id"], trace_id)] * 3
+    assert _root_cost(service, root_id) == pytest.approx(0.03)
+
+
+async def test_a_failed_recompute_does_not_hold_back_the_batch(monkeypatch):
+    monkeypatch.setattr(worker_module, "RECOMPUTE_BACKOFF_S", 0)
+    service = _StoringService(recompute_failures=worker_module.RECOMPUTE_ATTEMPTS)
     worker = _worker(service)
     ids = dict(organization_id=uuid4(), project_id=uuid4(), user_id=uuid4())
     message = _message(ids, _span(uuid4(), uuid4(), None, 0, cost=0.01))
@@ -120,6 +146,7 @@ async def test_a_failed_recompute_does_not_hold_back_the_batch():
 
     assert (count, acked) == (1, [message[0]])
     assert len(service.spans) == 1
+    assert len(service.recomputed) == worker_module.RECOMPUTE_ATTEMPTS
 
 
 # --- DAO ---------------------------------------------------------------------
