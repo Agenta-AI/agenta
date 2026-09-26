@@ -72,3 +72,18 @@ Recorded on 2026-09-26 on branch `claude/project-thread-jfk9ly`, stacked on the 
 CI runs the check on pull requests and pushes to `main` that touch the catalog, the reader, the API or SDK dependencies, or the website data, and compares against `HEAD^1`. It is not a required check.
 
 Not done in this change: website index/detail/author pages and their visual design (owned by the marketplace website pages change), browser verification of signup and sign-in redirects, and guided submission.
+Not done in this change: website index/detail/author pages and their visual design (waiting for the supplied designs), the in-app migration of `web/oss/src/state/url/template.ts` off the static `AGENT_TEMPLATES` list (belongs with the catalog consumer migration), browser verification of signup and sign-in redirects, and guided submission.
+
+## Implementation evidence: marketplace pages (spec-driven, before the design import)
+
+Recorded on 2026-09-26 on branch `claude/project-thread-dmcgk1`, stacked on the marketplace data branch. Local sandbox results.
+
+**Routes chosen.** The user named the feature "Agent Marketplace". Pages: `/marketplace` (index, grouped by catalog category), `/marketplace/<key>` (template detail) and the existing `/authors/<id>` pages, now shared by blog authors and template authors (one id is one author; an author with templates gets a templates section, a blog author keeps the posts section). Every route has a markdown twin and is in both `run_worker_first` allowlists.
+
+| Task | Command (from) | Result |
+| --- | --- | --- |
+| 4.4, 5.5 | `pnpm test` (`web/website`) | 71 passed; `src/lib/marketplace.test.ts` covers routes, category order, image/video/YouTube media with fallback for unsupported kinds and bad URLs, blog/template author merge, and a profile for every template author |
+| 4.4 | `pnpm build` (`web/website`) | passed; `verify-build.mjs` now fails unless every template has `/marketplace/<key>/` with its own `?template=<key>` link and a twin, and every template author has `/authors/<id>/` and a twin |
+| 4.4 | Playwright screenshots of index, detail, template author and blog author pages at 1440 and 390, light and dark | rendered; no horizontal overflow |
+
+Not done: the supplied visual design (the design files could not be imported from this session), a template "type" field (the catalog has none), and browser verification of the signup/sign-in round trip. Tasks 4.3, 4.4 and 5.5 stay open.

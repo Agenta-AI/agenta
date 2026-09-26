@@ -1,0 +1,168 @@
+---
+// One template in a marketplace listing (the index and an author's page).
+// Values come straight from the generated catalog data. The card is not one
+// big link because it holds two actions: the detail page and Use it for free.
+import Button from "./Button.astro";
+import { authorPath, templatePath } from "../lib/marketplace";
+import {
+  USE_IT_FOR_FREE_LABEL,
+  useItForFreeUrl,
+  type WebsiteTemplate,
+} from "../lib/templates";
+
+interface Props {
+  template: WebsiteTemplate;
+  // Hide the author line on the author's own page.
+  showAuthor?: boolean;
+}
+
+const { template, showAuthor = true } = Astro.props;
+const href = templatePath(template.key);
+---
+
+<article class="ag-tplcard" data-template-key={template.key}>
+  <div class="ag-tplcard__head">
+    <span
+      class="ag-tplcard__mark"
+      style={`background:${template.color};`}
+      aria-hidden="true">{template.initials}</span
+    >
+    <span class="ag-tplcard__cat">{template.category}</span>
+  </div>
+  <h3 class="ag-tplcard__title">
+    <a href={href}>{template.name}</a>
+  </h3>
+  <p class="ag-tplcard__summary">{template.summary}</p>
+  <dl class="ag-tplcard__meta">
+    {
+      template.trigger && (
+        <div>
+          <dt>Trigger</dt>
+          <dd>{template.trigger}</dd>
+        </div>
+      )
+    }
+    {
+      template.tools_summary && (
+        <div>
+          <dt>Tools</dt>
+          <dd>{template.tools_summary}</dd>
+        </div>
+      )
+    }
+  </dl>
+  {
+    showAuthor && (
+      <p class="ag-tplcard__author">
+        By <a href={authorPath(template.author.id)}>{template.author.name}</a>
+      </p>
+    )
+  }
+  <div class="ag-tplcard__actions">
+    <Button variant="primary" href={useItForFreeUrl(template.key)}
+      >{USE_IT_FOR_FREE_LABEL}</Button
+    >
+    <Button variant="outline" href={href} aria-label={`${template.name} details`}
+      >Details</Button
+    >
+  </div>
+</article>
+
+<style is:global>
+  .ag-tplcard {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 24px;
+    border-radius: 14px;
+    background: var(--th-bg-2);
+    box-shadow: inset 0 0 0 1px var(--th-border-subtle);
+  }
+  .ag-tplcard__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .ag-tplcard__mark {
+    width: 36px;
+    height: 36px;
+    border-radius: 9px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font: 500 13px/1 var(--font-sans);
+    color: var(--text-on-dark);
+  }
+  .ag-tplcard__cat {
+    font: var(--text-caption);
+    color: var(--th-text-mut);
+  }
+  .ag-tplcard__title {
+    margin: 4px 0 0;
+    font: 400 24px/1.2 var(--font-display);
+    color: var(--th-text-hi);
+  }
+  .ag-tplcard__title a {
+    color: inherit;
+    text-decoration: none;
+  }
+  .ag-tplcard__title a:hover {
+    text-decoration: underline;
+    text-decoration-color: var(--th-accent-underline);
+  }
+  .ag-tplcard__summary {
+    margin: 0;
+    font: var(--text-body-sm);
+    color: var(--th-text-body);
+  }
+  .ag-tplcard__meta {
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .ag-tplcard__meta div {
+    display: flex;
+    gap: 8px;
+    font: var(--text-caption);
+  }
+  .ag-tplcard__meta dt {
+    color: var(--th-text-mut);
+    min-width: 56px;
+  }
+  .ag-tplcard__meta dd {
+    margin: 0;
+    color: var(--th-text-hi);
+  }
+  .ag-tplcard__author {
+    margin: 0;
+    font: var(--text-caption);
+    color: var(--th-text-mut);
+  }
+  .ag-tplcard__author a {
+    color: var(--th-link);
+  }
+  .ag-tplcard__actions {
+    margin-top: auto;
+    padding-top: 8px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .ag-tplgrid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 20px;
+  }
+  @media (max-width: 1024px) {
+    .ag-tplgrid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+  @media (max-width: 600px) {
+    .ag-tplgrid {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+</style>

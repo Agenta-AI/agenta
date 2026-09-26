@@ -1,0 +1,488 @@
+---
+// One template at /marketplace/<key>: a split hero (copy and "Use it for free"
+// on the left, the template's media or its example run on the right), then the
+// description, trigger and connections, and more templates by the same author.
+//
+// Every value comes from the generated catalog data. Missing media falls back
+// to the example run, so a template without screenshots still has a hero.
+import type { GetStaticPaths } from "astro";
+import Section from "../../components/Section.astro";
+import Site from "../../layouts/Site.astro";
+import Badge from "../../components/Badge.astro";
+import Button from "../../components/Button.astro";
+import TemplateCard from "../../components/TemplateCard.astro";
+import {
+  USE_IT_FOR_FREE_LABEL,
+  templates,
+  templatesByAuthor,
+  useItForFreeUrl,
+  type WebsiteTemplate,
+} from "../../lib/templates";
+import {
+  MARKETPLACE_NAME,
+  MARKETPLACE_PATH,
+  authorPath,
+  renderableMedia,
+} from "../../lib/marketplace";
+
+export const getStaticPaths = (() =>
+  templates.map((template) => ({
+    params: { key: template.key },
+    props: { template },
+  }))) satisfies GetStaticPaths;
+
+const { template } = Astro.props as { template: WebsiteTemplate };
+const media = renderableMedia(template.media, template.name);
+const more = templatesByAuthor(template.author.id)
+  .filter((other) => other.key !== template.key)
+  .sort(
+    (a, b) =>
+      Number(b.category === template.category) -
+      Number(a.category === template.category),
+  )
+  .slice(0, 3);
+const cta = useItForFreeUrl(template.key);
+---
+
+<Site
+  title={`${template.name} — ${MARKETPLACE_NAME}`}
+  description={template.summary}
+  cta={{
+    title: `Start ${template.name} in minutes`,
+    primaryLabel: USE_IT_FOR_FREE_LABEL,
+    primaryHref: cta,
+  }}
+>
+  <Section tone="flat" class="ag-pad ag-tpl-hero">
+    <div class="ag-tpl-hero__grid">
+      <div class="ag-tpl-hero__copy">
+        <a href={MARKETPLACE_PATH} class="ag-tpl-back">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none"
+            ><path
+              d="M8.5 3.5 5 7l3.5 3.5"
+              stroke="currentColor"
+              stroke-width="1.6"
+              stroke-linecap="round"
+              stroke-linejoin="round"></path></svg
+          >{MARKETPLACE_NAME}
+        </a>
+        <Badge>{template.category}</Badge>
+        <h1 class="ag-h1 ag-tpl-hero__title">{template.name}</h1>
+        <p class="ag-tpl-hero__summary">{template.summary}</p>
+        <a href={authorPath(template.author.id)} class="ag-tpl-author">
+          <span
+            class="ag-tplcard__mark"
+            style={`background:${template.color};`}
+            aria-hidden="true">{template.initials}</span
+          >
+          <span>
+            <span class="ag-tpl-author__by">Built by</span>
+            <span class="ag-tpl-author__name">{template.author.name}</span>
+          </span>
+        </a>
+        <div class="ag-tpl-hero__actions">
+          <Button variant="primary" href={cta}>{USE_IT_FOR_FREE_LABEL}</Button>
+        </div>
+        <dl class="ag-tpl-facts">
+          {
+            template.trigger && (
+              <div>
+                <dt>Trigger</dt>
+                <dd>{template.trigger}</dd>
+              </div>
+            )
+          }
+          {
+            template.tools_summary && (
+              <div>
+                <dt>Tools</dt>
+                <dd>{template.tools_summary}</dd>
+              </div>
+            )
+          }
+          <div>
+            <dt>Version</dt>
+            <dd>{template.version}</dd>
+          </div>
+        </dl>
+      </div>
+
+      <div class="ag-tpl-hero__visual">
+        {
+          media.length > 0 ? (
+            media.map((item) => (
+              <figure class="ag-tpl-media">
+                {item.kind === "image" && (
+                  <img src={item.url} alt={item.alt} loading="eager" decoding="async" />
+                )}
+                {item.kind === "youtube" && (
+                  <iframe
+                    src={item.embedUrl}
+                    title={item.alt}
+                    loading="lazy"
+                    allow="accelerometer; encrypted-media; gyroscope; picture-in-picture"
+                    allowfullscreen
+                  />
+                )}
+                {item.kind === "video" && (
+                  <video controls preload="metadata" poster={item.posterUrl} aria-label={item.alt}>
+                    <source src={item.url} />
+                  </video>
+                )}
+                {item.caption && <figcaption>{item.caption}</figcaption>}
+              </figure>
+            ))
+          ) : template.example ? (
+            <div class="ag-tpl-run" aria-label={`Example run of ${template.name}`}>
+              <p class="ag-tpl-run__label">Example run</p>
+              <p class="ag-tpl-run__prompt">{template.example.prompt}</p>
+              <ol class="ag-tpl-run__steps">
+                {template.example.steps.map((step) => <li>{step}</li>)}
+              </ol>
+              <p class="ag-tpl-run__reply">{template.example.reply}</p>
+              {template.example.status && (
+                <p class="ag-tpl-run__status">{template.example.status}</p>
+              )}
+            </div>
+          ) : (
+            <div class="ag-tpl-run ag-tpl-run--empty">
+              <p class="ag-tpl-run__prompt">{template.instructions_summary}</p>
+            </div>
+          )
+        }
+      </div>
+    </div>
+  </Section>
+
+  <Section tone="flat" class="ag-pad ag-tpl-body">
+    <div class="ag-tpl-body__grid">
+      <div class="ag-prose ag-tpl-about">
+        <h2>What it does</h2>
+        <p>{template.description}</p>
+        {
+          template.trigger_description && (
+            <>
+              <h3>When it runs</h3>
+              <p>{template.trigger_description}</p>
+            </>
+          )
+        }
+      </div>
+      {
+        template.connections.length > 0 && (
+          <div class="ag-tpl-conn">
+            <h2>What it connects to</h2>
+            <ul>
+              {template.connections.map((connection) => (
+                <li>
+                  <p class="ag-tpl-conn__role">
+                    {connection.role}
+                    {!connection.required && (
+                      <span class="ag-tpl-conn__opt">Optional</span>
+                    )}
+                  </p>
+                  {connection.primary && (
+                    <p class="ag-tpl-conn__app">
+                      <strong>{connection.primary.slug}</strong>
+                      {connection.primary.scope && ` · ${connection.primary.scope}`}
+                    </p>
+                  )}
+                  {(connection.primary?.tools?.length ?? 0) > 0 && (
+                    <ul class="ag-tpl-conn__tools">
+                      {connection.primary!.tools.map((tool) => (
+                        <li>
+                          <span>{tool.name}</span> {tool.description}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  {(connection.alternatives?.length ?? 0) > 0 && (
+                    <p class="ag-tpl-conn__alt">
+                      Also works with {connection.alternatives.join(", ")}
+                    </p>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )
+      }
+    </div>
+  </Section>
+
+  {
+    more.length > 0 && (
+      <Section tone="flat" class="ag-pad ag-tpl-more">
+        <div class="ag-tpl-more__head">
+          <h2>More from {template.author.name}</h2>
+          <Button variant="outline" href={authorPath(template.author.id)}>
+            View all
+          </Button>
+        </div>
+        <div class="ag-tplgrid">
+          {more.map((other) => (
+            <TemplateCard template={other} showAuthor={false} />
+          ))}
+        </div>
+      </Section>
+    )
+  }
+
+  <style is:global>
+    .ag-tpl-hero {
+      background: var(--th-bg-1);
+      padding: 56px 64px 64px;
+    }
+    .ag-tpl-hero__grid {
+      display: grid;
+      grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
+      gap: 56px;
+      align-items: start;
+    }
+    .ag-tpl-hero__copy {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 18px;
+    }
+    .ag-tpl-back {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      font: var(--text-label);
+      color: var(--th-text-mut);
+      text-decoration: none;
+    }
+    .ag-tpl-hero__title {
+      margin: 0;
+      font: var(--text-display-xl);
+      color: var(--th-text-hi);
+      text-wrap: balance;
+    }
+    .ag-tpl-hero__summary {
+      margin: 0;
+      font: var(--text-body-md);
+      color: var(--th-text-body);
+      text-wrap: pretty;
+    }
+    .ag-tpl-author {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      text-decoration: none;
+    }
+    .ag-tpl-author > span:last-child {
+      display: flex;
+      flex-direction: column;
+    }
+    .ag-tpl-author__by {
+      font: var(--text-caption);
+      color: var(--th-text-mut);
+    }
+    .ag-tpl-author__name {
+      font: var(--text-label);
+      color: var(--th-text-hi);
+    }
+    .ag-tpl-hero__actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .ag-tpl-facts {
+      margin: 8px 0 0;
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      border-top: 1px solid var(--th-border-subtle);
+    }
+    .ag-tpl-facts div {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--th-border-subtle);
+      font: var(--text-body-sm);
+    }
+    .ag-tpl-facts dt {
+      color: var(--th-text-mut);
+    }
+    .ag-tpl-facts dd {
+      margin: 0;
+      color: var(--th-text-hi);
+      text-align: right;
+    }
+    .ag-tpl-hero__visual {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .ag-tpl-media {
+      margin: 0;
+      border-radius: 14px;
+      overflow: hidden;
+      background: var(--th-bg-2);
+      box-shadow: inset 0 0 0 1px var(--th-border-subtle);
+    }
+    .ag-tpl-media img,
+    .ag-tpl-media video,
+    .ag-tpl-media iframe {
+      display: block;
+      width: 100%;
+      border: 0;
+    }
+    .ag-tpl-media iframe {
+      aspect-ratio: 16 / 9;
+      height: auto;
+    }
+    .ag-tpl-media figcaption {
+      padding: 10px 14px;
+      font: var(--text-caption);
+      color: var(--th-text-mut);
+    }
+    .ag-tpl-run {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      padding: 28px;
+      border-radius: 14px;
+      background: var(--th-bg-2);
+      box-shadow: inset 0 0 0 1px var(--th-border-subtle);
+    }
+    .ag-tpl-run p {
+      margin: 0;
+    }
+    .ag-tpl-run__label {
+      font: var(--text-caption);
+      color: var(--th-text-mut);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+    .ag-tpl-run__prompt {
+      font: var(--text-label);
+      color: var(--th-text-hi);
+    }
+    .ag-tpl-run__steps {
+      margin: 0;
+      padding-left: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      font: var(--text-body-sm);
+      color: var(--th-text-body);
+    }
+    .ag-tpl-run__reply {
+      padding: 14px 16px;
+      border-radius: 10px;
+      background: var(--th-bg-3);
+      box-shadow: inset 0 0 0 1px var(--th-border-subtle);
+      font: var(--text-body-sm);
+      color: var(--th-text-hi);
+    }
+    .ag-tpl-run__status {
+      font: var(--text-caption);
+      color: var(--th-text-mut);
+    }
+    .ag-tpl-body {
+      background: var(--th-bg-1);
+      padding: 24px 64px 56px;
+    }
+    .ag-tpl-body__grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: 56px;
+    }
+    .ag-tpl-body h2,
+    .ag-tpl-more h2 {
+      margin: 0 0 14px;
+      font: var(--text-display-lg);
+      color: var(--th-text-hi);
+    }
+    .ag-tpl-about h3 {
+      margin: 24px 0 8px;
+      font: var(--text-label);
+      color: var(--th-text-hi);
+    }
+    .ag-tpl-about p {
+      margin: 0 0 12px;
+      font: var(--text-body-md);
+      color: var(--th-text-prose);
+    }
+    .ag-tpl-conn > ul {
+      margin: 0;
+      padding: 0;
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .ag-tpl-conn > ul > li {
+      padding: 18px 20px;
+      border-radius: 12px;
+      background: var(--th-bg-2);
+      box-shadow: inset 0 0 0 1px var(--th-border-subtle);
+    }
+    .ag-tpl-conn p {
+      margin: 0;
+    }
+    .ag-tpl-conn__role {
+      font: var(--text-label);
+      color: var(--th-text-hi);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .ag-tpl-conn__opt {
+      font: var(--text-caption);
+      color: var(--th-text-mut);
+    }
+    .ag-tpl-conn__app {
+      margin-top: 4px !important;
+      font: var(--text-body-sm);
+      color: var(--th-text-body);
+    }
+    .ag-tpl-conn__app strong {
+      font-weight: 500;
+      text-transform: capitalize;
+      color: var(--th-text-hi);
+    }
+    .ag-tpl-conn__tools {
+      margin: 10px 0 0;
+      padding-left: 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      font: var(--text-caption);
+      color: var(--th-text-mut);
+    }
+    .ag-tpl-conn__tools span {
+      color: var(--th-text-hi);
+    }
+    .ag-tpl-conn__alt {
+      margin-top: 10px !important;
+      font: var(--text-caption);
+      color: var(--th-text-mut);
+    }
+    .ag-tpl-more {
+      background: var(--th-bg-1);
+      padding: 24px 64px 88px;
+    }
+    .ag-tpl-more__head {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 16px;
+      flex-wrap: wrap;
+      margin-bottom: 20px;
+    }
+    .ag-tpl-more__head h2 {
+      margin: 0;
+    }
+    @media (max-width: 1024px) {
+      .ag-tpl-hero__grid,
+      .ag-tpl-body__grid {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 32px;
+      }
+    }
+  </style>
+</Site>
