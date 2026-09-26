@@ -118,7 +118,7 @@ to change the model, provider, or connection. The rules below matter only when t
 ### tools
 
 A list of tool entries, each discriminated on `type`. Every entry except `gateway_connection`
-may also carry two shared optional fields: `render` (a UI hint) and `permission` (`allow` /
+and `agenta_tools` may also carry two shared optional fields: `render` (a UI hint) and `permission` (`allow` /
 `ask` / `deny`, overriding the runner default for that one tool). A `gateway_connection` entry
 covers a whole integration, so it takes neither: its permissions live in its own `policy`, and
 a top-level `permission` on one is refused. The `type` values, with `gateway` legacy —
@@ -178,6 +178,10 @@ read it when a revision carries one, never write a new one:
   "discover_tools" }`. The catalog owns everything else about it. You never commit one: the
   platform tools you call are injected into your run, and a commit whose `tools` carries a
   `platform` entry is refused.
+- `agenta_tools` — which Agenta tools the agent gets in every run, not only here:
+  `{ "type": "agenta_tools", "tools": { "get_current_session": "allow", "rename_session":
+  "allow" } }`. Each value is `allow` or `ask`; a tool not listed is off. Keep this entry when
+  you edit `tools`; the author manages it in the Agenta tools section.
 
 ### mcps
 

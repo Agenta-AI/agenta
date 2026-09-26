@@ -407,6 +407,21 @@ export async function fetchAgentBuildKitOverlay(
     return {...validated, op_access: access.success ? access.data : {}}
 }
 
+export const AGENTA_TOOLS_WORKFLOW_SLUG = "__ag__agenta_tools"
+
+/** Every Agenta tool an agent can turn on, each marked "read" or "write". */
+export async function fetchAgentaToolsAccess(
+    projectId: string,
+): Promise<Record<string, "read" | "write">> {
+    const revision = await retrieveWorkflowRevision({
+        projectId,
+        workflowRef: {slug: AGENTA_TOOLS_WORKFLOW_SLUG},
+        lowPriority: true,
+    })
+    // Unreadable data is an error, not an empty list, so the section says it failed to load.
+    return buildKitAccessSchema.parse(revision?.data?.parameters?.op_access)
+}
+
 /**
  * Query workflow revisions for a given variant.
  *

@@ -37,6 +37,11 @@ describe("agentConfigSummary", () => {
         })
     })
 
+    it("does not count the Agenta tools entry as a tool", () => {
+        const tools = [{name: "bash"}, {type: "agenta_tools", tools: {rename_session: "allow"}}]
+        expect(agentConfigSummary({agent: {tools}}).tools).toBe(1)
+    })
+
     it("accepts the agent object directly, not just the parameters wrapper", () => {
         expect(agentConfigSummary(parameters.agent).model).toBe("gpt-5.6-luna")
     })

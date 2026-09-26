@@ -25,6 +25,7 @@ import {nestEvaluatorConfiguration, nestEvaluatorSchema} from "../../runnable/ev
 import {syncPromptInputKeysInParameters} from "../../runnable/utils"
 import type {StoreOptions, ListQueryState} from "../../shared"
 import {generateLocalId, isLocalDraftId, isPlaceholderId} from "../../shared"
+import {withAgentaToolsEntry} from "../agentaTools"
 import type {
     InspectWorkflowResponse,
     InterfaceSchemasResponse,
@@ -38,6 +39,7 @@ import {
     fetchWorkflowRevisionsByIdsBatch,
     inspectWorkflow,
     fetchAgentBuildKitOverlay,
+    fetchAgentaToolsAccess,
     fetchSimpleApplication,
     fetchWorkflowAppOpenApiSchema,
     fetchAgTypeSchema,
@@ -1332,6 +1334,8 @@ export const workflowQueryAtomFamily = atomFamily((revisionId: string) =>
                 return persistType(await workflowRevisionBatchFetcher({projectId, revisionId}))
             },
             initialData: detailCached ?? undefined,
+            // Every result of this query, cache hits and initialData included, passes through here.
+            select: withAgentaToolsEntry,
             // detailCached/enabled evaluate synchronously; the persister restores only inside a fetch they allowed, so no race.
             persister: immutablePersister.persisterFn,
             enabled:
@@ -1482,6 +1486,18 @@ export const agentBuildKitOverlayAtom = atomWithQuery<AgentBuildKitOverlay | nul
         },
         enabled: get(sessionAtom) && !!projectId,
         // Platform-managed slug (Class B): paint from disk, revalidate when >5m old.
+        staleTime: 5 * 60_000,
+        refetchOnWindowFocus: false,
+        persister: catalogPersister.persisterFn,
+    }
+})
+
+export const agentaToolsAccessAtom = atomWithQuery<Record<string, "read" | "write">>((get) => {
+    const projectId = get(workflowProjectIdAtom)
+    return {
+        queryKey: ["agentaToolsAccess", projectId],
+        queryFn: async () => (projectId ? fetchAgentaToolsAccess(projectId) : {}),
+        enabled: get(sessionAtom) && !!projectId,
         staleTime: 5 * 60_000,
         refetchOnWindowFocus: false,
         persister: catalogPersister.persisterFn,

@@ -429,6 +429,7 @@ def make_agent_handler(composition: Optional[AgentComposition] = None):
         resolved_tools = await comp.resolve_tools(
             run_tools,
             permission_default=agent_template.permission_default,
+            session_id=session_id,
         )
         resolved_mcp = await comp.resolve_mcp_servers(
             agent_template.mcp_servers,
