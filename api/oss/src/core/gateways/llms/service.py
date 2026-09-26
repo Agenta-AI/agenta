@@ -372,6 +372,7 @@ class LLMGatewayService:
         headers: Dict[str, str],
         protocol: LLMProtocol = LLMProtocol.CHAT_COMPLETIONS,
         run_id: Optional[str] = None,
+        run_labels: Optional[Dict[str, str]] = None,
     ) -> LLMRelayResult:
         """Relay one request for the specified protocol."""
         target = await self._resolve_target(scope=scope, namespace=namespace, name=name)
@@ -480,6 +481,7 @@ class LLMGatewayService:
                 result=result,
                 secret=secret,
                 run_id=run_id,
+                run_labels=run_labels,
             )
             return result
 
@@ -498,6 +500,7 @@ class LLMGatewayService:
             result=result,
             secret=secret,
             run_id=run_id,
+            run_labels=run_labels,
         )
         return result
 
@@ -745,6 +748,7 @@ class LLMGatewayService:
         result: LLMRelayResult,
         secret: Optional[ResolvedSecret],
         run_id: Optional[str],
+        run_labels: Optional[Dict[str, str]],
     ) -> AsyncIterator[bytes]:
         """Consume a non-streaming body now, record the call, and hand back the bytes.
 
@@ -770,6 +774,7 @@ class LLMGatewayService:
                         result=result, secret=secret, target=target
                     ),
                     run_id=run_id,
+                    run_labels=run_labels,
                 )
             )
         return _replay_body(b"".join(chunks))
@@ -784,6 +789,7 @@ class LLMGatewayService:
         result: LLMRelayResult,
         secret: Optional[ResolvedSecret],
         run_id: Optional[str],
+        run_labels: Optional[Dict[str, str]],
     ) -> AsyncIterator[bytes]:
         try:
             async for chunk in body:
@@ -804,5 +810,6 @@ class LLMGatewayService:
                         result=result, secret=secret, target=target
                     ),
                     run_id=run_id,
+                    run_labels=run_labels,
                 )
             )

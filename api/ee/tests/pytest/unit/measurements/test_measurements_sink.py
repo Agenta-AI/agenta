@@ -47,13 +47,16 @@ def _outcome(**usage) -> GatewayOutcome:
     )
 
 
-async def _record(*, target=None, outcome=None, run_id=None, scope=None):
+async def _record(
+    *, target=None, outcome=None, run_id=None, scope=None, run_labels=None
+):
     publisher = InMemoryMeasurementPublisher()
     await MeasurementUsageSink(publisher=publisher).record(
         scope=scope or _scope(),
         target=target or _target(),
         outcome=outcome or _outcome(input_tokens=11, output_tokens=7),
         run_id=run_id,
+        run_labels=run_labels,
     )
     [command] = publisher.attempts
     return command
@@ -151,3 +154,27 @@ async def test_a_refused_publish_returns_rather_than_raises():
 
     assert len(publisher.attempts) == 1
     assert publisher.published == []
+
+
+@pytest.mark.asyncio
+async def test_the_credential_labels_name_the_session_and_agent():
+    agent_id = uuid4()
+
+    command = await _record(
+        run_id="run-1",
+        run_labels={"session_id": "session-1", "agent_id": str(agent_id)},
+    )
+
+    assert command.agent_id == agent_id
+    assert command.references == {
+        "workflow": {"gateway_run_id": "run-1", "id": str(agent_id)},
+        "session": {"id": "session-1"},
+    }
+
+
+@pytest.mark.asyncio
+async def test_a_call_with_no_labels_keeps_the_references_it_had():
+    assert (await _record()).references == {}
+    assert (await _record(run_id="run-1")).references == {
+        "workflow": {"gateway_run_id": "run-1"}
+    }

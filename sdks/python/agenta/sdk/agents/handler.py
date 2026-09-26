@@ -439,7 +439,10 @@ def make_agent_handler(composition: Optional[AgentComposition] = None):
         resolved_connection: Optional[ResolvedConnection] = None
         if model_ref is not None:
             ctx = RuntimeAuthContext(
-                harness=agent_template.harness, backend=agent_template.sandbox
+                harness=agent_template.harness,
+                backend=agent_template.sandbox,
+                session_id=session_id,
+                agent_id=_agent_artifact_id(comp.run_context(), request.references),
             )
             # Default is the gated+fail-closed resolve, bound to comp.resolve_connection
             # so an override of the plain resolver still flows through the capability check.

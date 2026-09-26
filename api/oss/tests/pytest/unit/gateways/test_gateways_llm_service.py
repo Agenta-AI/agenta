@@ -194,7 +194,9 @@ class _MockPolicy:
             reason=None if self.admitted else "entitlement_denied",
         )
 
-    async def record(self, *, scope, target, decision, outcome, run_id=None):
+    async def record(
+        self, *, scope, target, decision, outcome, run_id=None, run_labels=None
+    ):
         self.record_calls.append((scope, target, decision, outcome))
         self.record_run_ids.append(run_id)
 

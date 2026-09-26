@@ -1,7 +1,7 @@
 """Authorize gateway access, admit platform-funded spend, and record each call."""
 
 import asyncio
-from typing import Optional
+from typing import Dict, Optional
 
 from oss.src.core.access.permissions.service import check_action_access
 from oss.src.core.access.permissions.types import Permission
@@ -118,6 +118,7 @@ class GatewayPolicyService:
         decision: PolicyDecision,
         outcome: GatewayOutcome,
         run_id: Optional[str] = None,
+        run_labels: Optional[Dict[str, str]] = None,
     ) -> None:
         # Only a dispatched, platform-funded LLM call is a usage fact worth billing: a
         # refusal reached no provider, `standard` and `custom` spend the customer's own
@@ -133,7 +134,11 @@ class GatewayPolicyService:
             and outcome.usage is not None
         ):
             await self._hand_off_usage(
-                scope=scope, target=target, outcome=outcome, run_id=run_id
+                scope=scope,
+                target=target,
+                outcome=outcome,
+                run_id=run_id,
+                run_labels=run_labels,
             )
 
         # Publish audit events for both allowed and denied relays.
@@ -157,11 +162,16 @@ class GatewayPolicyService:
         target: GatewayTarget,
         outcome: GatewayOutcome,
         run_id: Optional[str],
+        run_labels: Optional[Dict[str, str]],
     ) -> None:
         try:
             await asyncio.wait_for(
                 self.usage_sink.record(
-                    scope=scope, target=target, outcome=outcome, run_id=run_id
+                    scope=scope,
+                    target=target,
+                    outcome=outcome,
+                    run_id=run_id,
+                    run_labels=run_labels,
                 ),
                 timeout=USAGE_SINK_TIMEOUT_SECONDS,
             )
