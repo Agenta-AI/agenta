@@ -4,7 +4,9 @@ import {appTemplatesQueryAtom} from "@agenta/entities/workflow"
 import {
     agentTemplateByKey,
     agentTemplatesAtom,
+    agentTemplatesStatusAtom,
     templateBuilderMessage,
+    UNAVAILABLE_TEMPLATE_MESSAGE,
     type AgentStarterTemplate,
 } from "@agenta/entities/workflow"
 import type {AgentSetupSelection} from "@agenta/entities/workflow"
@@ -16,7 +18,7 @@ import {pageContentWidthClass} from "@agenta/ui/components/page-width"
 import {HeightCollapse} from "@agenta/ui/height-collapse"
 import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 import {ArrowLeftIcon} from "@phosphor-icons/react"
-import {Typography} from "antd"
+import {App, Typography} from "antd"
 import clsx from "clsx"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
@@ -79,6 +81,8 @@ const StripHome: React.FC = () => {
     // Warm the app-templates cache so the ephemeral-create factory resolves the agent template.
     useAtomValue(appTemplatesQueryAtom)
     const templates = useAtomValue(agentTemplatesAtom)
+    const templatesStatus = useAtomValue(agentTemplatesStatusAtom)
+    const {message} = App.useApp()
 
     const agents = useAtomValue(agentsWorkflowsAtom)
     const agentsLoading = useAtomValue(agentsWorkflowsLoadingAtom)
@@ -232,8 +236,17 @@ const StripHome: React.FC = () => {
         // Not seeded (and not latched) until the catalog has the template, so a key that arrives
         // before the catalog loads still seeds once it does.
         const template = agentTemplateByKey(templates, templateParam)
-        if (!template) return
+        if (!template) {
+            // Only a loaded catalog can say a key is absent, e.g. a website newer than this app.
+            if (templatesStatus === "success") {
+                seededTemplate.current = templateParam
+                message.warning(UNAVAILABLE_TEMPLATE_MESSAGE)
+            }
+            return
+        }
         seededTemplate.current = templateParam
+        // A late catalog must not replace a draft the user already started while it loaded.
+        if (setup.draft) return
         provenance.pick(template)
         // A template arriving on the URL was picked on another page, so it goes straight to the
         // step — docked inside the composer, with the template's prompt seeded into the editor.
@@ -247,7 +260,16 @@ const StripHome: React.FC = () => {
             setStepReady(false)
             seedComposer(templateBuilderMessage(template))
         }
-    }, [templateParam, templates, provenance.pick, setup.open, seedComposer])
+    }, [
+        templateParam,
+        templates,
+        templatesStatus,
+        message,
+        provenance.pick,
+        setup.open,
+        setup.draft,
+        seedComposer,
+    ])
 
     // Create, with the step's answers. The editor holds the prompt (the template's, or the
     // typed one, still editable under the docked card), so what is IN it is what gets sent.

@@ -1,4 +1,5 @@
 import {projectIdAtom, sessionAtom} from "@agenta/shared/state"
+import {keepPreviousData} from "@tanstack/react-query"
 import {atom} from "jotai"
 import {atomFamily} from "jotai-family"
 import {atomWithQuery} from "jotai-tanstack-query"
@@ -18,6 +19,8 @@ export const agentTemplatesQueryAtom = atomWithQuery((get) => {
             return response.templates.map(agentStarterTemplateFromEntry)
         },
         enabled: get(sessionAtom) && !!projectId,
+        // The catalog is the same for every project; keep it on screen across a project switch.
+        placeholderData: keepPreviousData,
         staleTime: 30 * 60_000,
         refetchOnWindowFocus: false,
     }
@@ -30,10 +33,11 @@ export const agentTemplatesAtom = atom<AgentStarterTemplate[]>(
     (get) => get(agentTemplatesQueryAtom).data ?? EMPTY,
 )
 
+/** Loaded data wins: a failed background refetch must not hide a catalog already on screen. */
 export const agentTemplatesStatusAtom = atom<AgentTemplatesStatus>((get) => {
     const query = get(agentTemplatesQueryAtom)
-    if (query.isSuccess) return "success"
-    if (query.isError) return "error"
+    if (query.data !== undefined) return "success"
+    if (query.isError && !query.isFetching) return "error"
     return "pending"
 })
 

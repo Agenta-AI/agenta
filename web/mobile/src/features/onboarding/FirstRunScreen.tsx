@@ -7,6 +7,7 @@ import {
     abandonAgentTemplateLoad,
     refetchAgentTemplatesAtom,
     templateBuilderMessage,
+    UNAVAILABLE_TEMPLATE_MESSAGE,
     type AgentSetupSelection,
     type AgentStarterTemplate,
 } from "@agenta/entities/workflow"
@@ -180,6 +181,9 @@ export const FirstRunScreen = ({
     const arrivalUnresolved =
         Boolean(templateKey) &&
         (arrivalLookup.status === "pending" || arrivalLookup.status === "error")
+    // Only a pending read holds create: after a failed read the error line is on screen, so a
+    // create from the composer is the user's own choice of a blank agent.
+    const arrivalPending = Boolean(templateKey) && arrivalLookup.status === "pending"
     const seededTemplate = useRef<string | null>(null)
     useEffect(() => {
         if (!arrivedTemplate || !entityId) return
@@ -199,7 +203,7 @@ export const FirstRunScreen = ({
     const create = async (text: string, setup?: AgentSetupSelection) => {
         // A `?template=` arrival still resolving must not turn into a blank create under it: keep
         // the typed text and wait for the template (or its retry).
-        if (arrivalUnresolved && !step.draft) {
+        if (arrivalPending && !step.draft) {
             setRefill(text)
             return
         }
@@ -396,6 +400,11 @@ export const FirstRunScreen = ({
                         >
                             Try again
                         </button>
+                    </p>
+                ) : null}
+                {templateKey && arrivalLookup.status === "missing" ? (
+                    <p className="text-muted-foreground m-0 text-xs">
+                        {UNAVAILABLE_TEMPLATE_MESSAGE}
                     </p>
                 ) : null}
                 {newAgent.error ? (

@@ -261,6 +261,10 @@ export const TEMPLATE_CATEGORY_ORDER = [
 
 export const ALL_TEMPLATES_CATEGORY = "All"
 
+/** Shown when the loaded catalog has no such key, e.g. a website link newer than this instance. */
+export const UNAVAILABLE_TEMPLATE_MESSAGE =
+    "This template is not available in this version of Agenta."
+
 /** Categories actually present in the template list, in canonical order. */
 export const templateCategories = (templates: readonly AgentStarterTemplate[]): string[] =>
     TEMPLATE_CATEGORY_ORDER.filter((category) =>

@@ -8,6 +8,7 @@ import {
     agentTemplateLookupAtomFamily,
     agentTemplatesAtom,
     agentTemplatesStatusAtom,
+    refetchAgentTemplatesAtom,
 } from "../../src/workflow/state/agentTemplateCatalog"
 
 import {CATALOG_QUERY_RESPONSE, FIXTURE_TEMPLATES} from "./agentTemplateFixtures"
@@ -83,6 +84,34 @@ describe("agent template catalog atoms", () => {
         expect(store.get(agentTemplateLookupAtomFamily("not-in-this-release"))).toEqual({
             status: "missing",
         })
+    })
+
+    it("keeps a loaded catalog when a background refetch fails", async () => {
+        queryAgentTemplates.mockResolvedValueOnce(CATALOG_QUERY_RESPONSE)
+        const store = makeStore()
+        await settle(store)
+
+        queryAgentTemplates.mockRejectedValueOnce(new Error("unavailable"))
+        await store.get(queryClientAtom).refetchQueries({queryKey: ["agentTemplates"]})
+
+        expect(store.get(agentTemplatesStatusAtom)).toBe("success")
+        expect(store.get(agentTemplatesAtom)).toEqual(FIXTURE_TEMPLATES)
+        expect(store.get(agentTemplateLookupAtomFamily("pr-reviewer")).status).toBe("found")
+    })
+
+    it("shows a retry as loading, then the result", async () => {
+        queryAgentTemplates.mockRejectedValueOnce(new Error("unavailable"))
+        const store = makeStore()
+        await settle(store)
+        expect(store.get(agentTemplatesStatusAtom)).toBe("error")
+
+        let resolve: (value: unknown) => void = () => undefined
+        queryAgentTemplates.mockReturnValueOnce(new Promise((done) => (resolve = done)))
+        store.set(refetchAgentTemplatesAtom)
+        await vi.waitFor(() => expect(store.get(agentTemplatesStatusAtom)).toBe("pending"))
+
+        resolve(CATALOG_QUERY_RESPONSE)
+        await vi.waitFor(() => expect(store.get(agentTemplatesStatusAtom)).toBe("success"))
     })
 
     it("does not fetch without a project", () => {

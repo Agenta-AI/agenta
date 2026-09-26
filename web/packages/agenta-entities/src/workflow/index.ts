@@ -517,6 +517,7 @@ export {
     templatePrimaryProvider,
     templateProviderSlugs,
     templateToolCount,
+    UNAVAILABLE_TEMPLATE_MESSAGE,
 } from "./agentTemplates"
 export type {
     AgentStarterTemplate,
