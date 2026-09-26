@@ -485,6 +485,11 @@ For SBX, the same child collection holds `vcpu_core_time_msec`, `vcpu_core_cost_
 `disk_gibi_cost_musd`, `vgpu_core_time_msec`, `vgpu_core_cost_musd`,
 `blob_gibi_time_msec`, and `blob_gibi_cost_musd` when the collector has them.
 
+The delivered SBX producer (the runner's sandbox meter, 2026-09-26) uses a smaller set instead:
+`sandbox_seconds`, `vcpu_seconds` and `memory_gib_seconds` per whole-second interval, with no
+component costs; the rate card prices the resource-seconds. See
+[v2/sandbox-seconds.md](../v2/sandbox-seconds.md).
+
 Every measurement belongs to a project, so it carries `project_id`, optional `user_id` and `agent_id`,
 plus `gateway_kind`, `resource_key`, optional `endpoint_id`, `endpoint_kind`, the gateway-minted
 `request_id`, and a gateway-minted `measurement_id`. `measurement_id` is an opaque identity that the
