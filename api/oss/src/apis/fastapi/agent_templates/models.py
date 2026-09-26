@@ -4,8 +4,9 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from oss.src.core.agent_templates.dtos import (
-    InternalTemplateSource,
     TemplateLoadCommand,
+    TemplateSource,
+    TemplateSourcePin,
 )
 from oss.src.core.agent_templates.models import AgentTemplateEntry
 from oss.src.core.workflows.dtos import WorkflowRevisionData
@@ -41,8 +42,13 @@ TemplateConnectionChoiceRequest = Annotated[
 ]
 
 
+class TemplateValidateRequest(_StrictRequestModel):
+    source: TemplateSource
+    pin: TemplateSourcePin | None = None
+
+
 class TemplateLoadRequest(_StrictRequestModel):
-    source: InternalTemplateSource
+    source: TemplateSource
     base_revision: WorkflowRevisionData
     ui_build_kit_enabled: bool = False
     ui_disabled_ops: list[str] = Field(default_factory=list, max_length=128)

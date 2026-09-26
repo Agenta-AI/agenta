@@ -6,6 +6,8 @@ from typing import Any
 from agenta.sdk.agents.adapters.agenta_builtins import (
     BUILD_AN_AGENT_SKILL,
     BUILD_AN_AGENT_SLUG,
+    CREATE_TEMPLATE_SKILL,
+    CREATE_TEMPLATE_SLUG,
 )
 from agenta.sdk.agents.platform.op_catalog import PLATFORM_OPS
 from agenta.sdk.agents.platform.workflow import (
@@ -55,6 +57,8 @@ DEFAULT_BUILD_KIT_OPS: tuple[str, ...] = (
     # web flag only hides Run, so without it the app is still a previewable HTML file.
     "list_starters",
     "create_app",
+    # Checks the zip the create-template skill builds; read-only, it creates nothing.
+    "validate_template",
 )
 
 # (slug, name) pairs — reserved static client tools embedded in every build kit, in order.
@@ -123,6 +127,11 @@ def build_agent_template_overlay() -> dict[str, Any]:
             _workflow_embed(
                 AGENTA_APPS_SLUG,
                 name=AGENTA_APPS_SKILL.name,
+                selector_path="parameters.skill",
+            ),
+            _workflow_embed(
+                CREATE_TEMPLATE_SLUG,
+                name=CREATE_TEMPLATE_SKILL.name,
                 selector_path="parameters.skill",
             ),
         ],
