@@ -83,6 +83,7 @@ async def test_streaming_usage_lands_on_the_span_captured_at_run_start(make_back
         "gen_ai.usage.total_tokens": 8,
         "gen_ai.usage.cost": 0.25,
     }
+    assert span.attributes["ag.flags.aggregate_usage"] is True
 
 
 async def test_batch_usage_lands_on_the_span_captured_at_run_start(make_backend):
