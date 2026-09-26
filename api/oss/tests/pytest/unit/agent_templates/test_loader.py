@@ -1,3 +1,4 @@
+from contextlib import asynccontextmanager
 from pathlib import Path
 from uuid import uuid4
 
@@ -9,13 +10,18 @@ from oss.src.core.agent_templates.compiler import TemplateCompiler
 from oss.src.core.agent_templates.dtos import (
     InternalTemplateSource,
     ResolvedTemplateSource,
+    SessionFileTemplateSource,
     SkipTemplateChoice,
     TemplateLoadCommand,
+    TemplateSourcePin,
 )
 from oss.src.core.agent_templates.exceptions import (
     TemplateCreateConflict,
     TemplatePackageInvalid,
     TemplateSkillCreationFailed,
+    TemplateSourceDigestMismatch,
+    TemplateSourceInvalid,
+    TemplateSourceNotFound,
 )
 from oss.src.core.agent_templates.loader import (
     AgentTemplateLoader,
@@ -124,13 +130,22 @@ class _Resolver:
             (self.current.version, self.current.digest): self.current,
         }
         self.pins = []
+        self.unavailable = False
 
     async def resolve(self, *, source, pin=None):
         self.events.append("source")
         self.pins.append(pin)
+        if self.unavailable:
+            raise TemplateSourceNotFound("unavailable")
         if pin is None:
             return self.current
+        if (pin.version, pin.digest) not in self.snapshots:
+            raise TemplateSourceDigestMismatch(self.current.key, pin.version)
         return self.snapshots[(pin.version, pin.digest)]
+
+    @asynccontextmanager
+    async def open(self, *, project_id, source, pin=None):
+        yield await self.resolve(source=source, pin=pin)
 
 
 class _Parser:
@@ -219,6 +234,16 @@ class _SimpleWorkflows:
         workflow_id = resource_identity(project_id, namespace, request_key, component)
         return self.records.get(workflow_id)
 
+    async def fetch_idempotent_created(
+        self, *, project_id, namespace, request_key, component
+    ):
+        return await self.fetch_idempotent_root(
+            project_id=project_id,
+            namespace=namespace,
+            request_key=request_key,
+            component=component,
+        )
+
     async def create_idempotent(
         self,
         *,
@@ -281,6 +306,11 @@ class _Starts:
         self.fail_once = fail_once
         self.calls = []
         self.result = None
+        self.started = {}
+
+    async def fetch_started(self, *, project_id, request_key):
+        started = self.started.get((project_id, request_key))
+        return started.model_copy(update={"replayed": True}) if started else None
 
     async def start_once(self, **kwargs):
         self.events.append("session")
@@ -297,6 +327,7 @@ class _Starts:
             )
         else:
             self.result = self.result.model_copy(update={"replayed": True})
+        self.started[(kwargs["project_id"], kwargs["request_key"])] = self.result
         return self.result
 
 
@@ -615,7 +646,8 @@ async def test_load_replay_pins_source_and_returns_same_public_ids():
     assert replay.model_dump(exclude={"replayed"}) == first.model_dump(
         exclude={"replayed"}
     )
-    assert resolver.pins[-1].digest == "sha256:" + "1" * 64
+    # A completed load replays from stored records and never rereads its source.
+    assert resolver.pins == [None]
 
 
 def test_request_fingerprint_normalizes_choice_order():
@@ -756,3 +788,152 @@ def test_permission_fingerprint_preserves_legacy_retries(monkeypatch):
         command.model_copy(update={"ui_op_permissions": {"create_schedule": "ask"}})
     )
     assert captured[-1]["ui_op_permissions"] == {"create_schedule": "ask"}
+
+
+def _session_file_command(*, pin=True, initial_message="Please set yourself up."):
+    return TemplateLoadCommand(
+        source=SessionFileTemplateSource(
+            session_id="chat-session",
+            path="templates/sample.zip",
+            pin=(
+                TemplateSourcePin(version="1.0.0", digest="sha256:" + "1" * 64)
+                if pin
+                else None
+            ),
+        ),
+        base_revision=_base_revision(),
+        initial_message=initial_message,
+        request_key="archive-request",
+    )
+
+
+def _archive_loader(**kwargs):
+    loader, events, skills, workflows, resolver, mounts, starts = _loader(**kwargs)
+    resolver.current = ResolvedTemplateSource(
+        source=_session_file_command().source,
+        root=Path("/tmp/staged"),
+        version="1.0.0",
+        digest="sha256:" + "1" * 64,
+        package_key="shared-seo",
+    )
+    resolver.snapshots = {
+        (resolver.current.version, resolver.current.digest): resolver.current
+    }
+    return loader, events, skills, workflows, resolver, mounts, starts
+
+
+@pytest.mark.asyncio
+async def test_session_file_load_requires_the_validation_pin_before_any_write():
+    loader, events, _, workflows, _, _, _ = _archive_loader()
+
+    with pytest.raises(TemplateSourceInvalid) as error:
+        await loader.load(
+            project_id=PROJECT_ID,
+            user_id=USER_ID,
+            command=_session_file_command(pin=False),
+        )
+
+    assert error.value.code == "template_source_pin_required"
+    assert events == []
+    assert workflows.records == {}
+
+
+@pytest.mark.asyncio
+async def test_archive_load_records_package_origin_and_uses_its_key():
+    loader, _, _, workflows, _, _, _ = _archive_loader()
+
+    result = await loader.load(
+        project_id=PROJECT_ID,
+        user_id=USER_ID,
+        command=_session_file_command(),
+    )
+
+    [workflow] = workflows.records.values()
+    assert workflow.slug.startswith("shared-seo-")
+    assert result.workflow_slug == workflow.slug
+    assert read_template_origin(workflow.meta) == {
+        "kind": "session_file",
+        "key": "shared-seo",
+        "version": "1.0.0",
+        "digest": "sha256:" + "1" * 64,
+    }
+
+
+@pytest.mark.asyncio
+async def test_completed_archive_replay_needs_no_source():
+    loader, _, skills, workflows, resolver, mounts, starts = _archive_loader()
+    command = _session_file_command()
+    first = await loader.load(project_id=PROJECT_ID, user_id=USER_ID, command=command)
+
+    resolver.unavailable = True
+    replay = await loader.load(project_id=PROJECT_ID, user_id=USER_ID, command=command)
+
+    assert replay.replayed is True
+    assert replay.model_dump(exclude={"replayed"}) == first.model_dump(
+        exclude={"replayed"}
+    )
+    assert len(resolver.pins) == 1
+    assert len(workflows.records) == 1
+    assert len(skills.records) == 1
+    assert len(mounts.calls) == 1
+    assert len(starts.calls) == 1
+
+
+@pytest.mark.asyncio
+async def test_completed_request_with_changed_payload_conflicts_without_source():
+    loader, _, _, workflows, resolver, _, starts = _archive_loader()
+    await loader.load(
+        project_id=PROJECT_ID, user_id=USER_ID, command=_session_file_command()
+    )
+
+    for changed in (
+        _session_file_command(initial_message="Something else."),
+        _session_file_command().model_copy(
+            update={
+                "source": SessionFileTemplateSource(
+                    session_id="chat-session",
+                    path="templates/sample.zip",
+                    pin=TemplateSourcePin(version="1.0.0", digest="sha256:" + "3" * 64),
+                )
+            }
+        ),
+        _session_file_command().model_copy(
+            update={
+                "connection_choices": [
+                    SkipTemplateChoice(connection_key="mail", kind="skip")
+                ]
+            }
+        ),
+    ):
+        with pytest.raises(TemplateCreateConflict):
+            await loader.load(project_id=PROJECT_ID, user_id=USER_ID, command=changed)
+
+    assert len(resolver.pins) == 1
+    assert len(workflows.records) == 1
+    assert len(starts.calls) == 1
+
+
+@pytest.mark.asyncio
+async def test_interrupted_archive_load_recovers_only_with_the_stored_bytes():
+    loader, _, skills, workflows, resolver, mounts, starts = _archive_loader(
+        start_fail_once=True
+    )
+    command = _session_file_command()
+    with pytest.raises(RuntimeError, match="session failure"):
+        await loader.load(project_id=PROJECT_ID, user_id=USER_ID, command=command)
+
+    # The file changed after the interruption: recovery refuses the new bytes.
+    stored = resolver.snapshots
+    resolver.snapshots = {}
+    with pytest.raises(TemplateSourceDigestMismatch):
+        await loader.load(project_id=PROJECT_ID, user_id=USER_ID, command=command)
+    assert resolver.pins[-1].digest == "sha256:" + "1" * 64
+
+    # With the pinned bytes back, the same key finishes without duplicates.
+    resolver.snapshots = stored
+    result = await loader.load(project_id=PROJECT_ID, user_id=USER_ID, command=command)
+
+    assert result.replayed is True
+    assert len(workflows.records) == 1
+    assert len(skills.records) == 1
+    assert len(starts.calls) == 2

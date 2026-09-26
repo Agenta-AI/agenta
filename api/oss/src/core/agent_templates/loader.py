@@ -6,6 +6,8 @@ from agenta.sdk.agents import ContentBlock, Message
 from oss.src.core.agent_templates.bindings import TemplateBindingResolver
 from oss.src.core.agent_templates.compiler import TemplateCompiler
 from oss.src.core.agent_templates.dtos import (
+    InternalTemplateSource,
+    SessionFileTemplateSource,
     TemplateLoadCommand,
     TemplateLoadResult,
     TemplateSourcePin,
@@ -14,6 +16,7 @@ from oss.src.core.agent_templates.exceptions import (
     TemplateCreateConflict,
     TemplatePackageInvalid,
     TemplateSkillCreationFailed,
+    TemplateSourceInvalid,
     TemplateWorkflowCreationFailed,
 )
 from oss.src.core.agent_templates.interfaces import TemplateSourceResolver
@@ -141,10 +144,83 @@ class AgentTemplateLoader:
             or create_request["request_fingerprint"] != request_fingerprint
             or origin is None
             or origin["kind"] != command.source.kind
-            or origin["key"] != command.source.key
+            or (
+                isinstance(command.source, InternalTemplateSource)
+                and origin["key"] != command.source.key
+            )
         ):
             raise TemplateCreateConflict()
         return origin
+
+    @staticmethod
+    def _require_mutable_source_pin(command: TemplateLoadCommand) -> None:
+        # A session file can change after validation; only the validated bytes may load.
+        if (
+            isinstance(command.source, SessionFileTemplateSource)
+            and command.source.pin is None
+        ):
+            raise TemplateSourceInvalid(
+                "template_source_pin_required",
+                "Loading a session file needs the version and digest that validation returned.",
+                details={"field": "source.pin"},
+            )
+
+    @staticmethod
+    def _start_key(*, request_key: str, digest: str) -> str:
+        return f"{request_key}:first-message:{digest}"
+
+    async def _completed_replay(
+        self,
+        *,
+        project_id: UUID,
+        command: TemplateLoadCommand,
+        request_key: str,
+        request_fingerprint: str,
+    ) -> TemplateLoadResult | None:
+        """Replay a finished load from stored records, without reading its source.
+
+        An upload can expire and a session file can change after a load completes;
+        neither may turn a completed retry into a failure or new bytes.
+        """
+        if self._session_starts_service is None:
+            return None
+        workflow = await self._simple_workflows_service.fetch_idempotent_created(
+            project_id=project_id,
+            namespace=_TEMPLATE_LOAD_NAMESPACE,
+            request_key=request_key,
+            component=_AGENT_COMPONENT,
+        )
+        if workflow is None:
+            return None
+        origin = self._stored_origin_for_replay(
+            workflow=workflow,
+            command=command,
+            request_key=request_key,
+            request_fingerprint=request_fingerprint,
+        )
+        start = await self._session_starts_service.fetch_started(
+            project_id=project_id,
+            request_key=self._start_key(
+                request_key=request_key,
+                digest=origin["digest"],
+            ),
+        )
+        if start is None:
+            return None
+        if not all(
+            (workflow.id, workflow.slug, workflow.variant_id, workflow.revision_id)
+        ):
+            raise TemplateWorkflowCreationFailed()
+        return TemplateLoadResult(
+            workflow_id=workflow.id,
+            workflow_slug=workflow.slug,
+            variant_id=workflow.variant_id,
+            revision_id=workflow.revision_id,
+            session_id=start.session_id,
+            execution_id=start.execution_id,
+            input_id=start.input_id,
+            replayed=True,
+        )
 
     @staticmethod
     def _verify_origin(
@@ -194,6 +270,7 @@ class AgentTemplateLoader:
         command: TemplateLoadCommand,
     ) -> PreparedTemplateLoad:
         request_key = self._request_key(command)
+        self._require_mutable_source_pin(command)
         fingerprint = template_request_fingerprint(command)
 
         root = await self._simple_workflows_service.fetch_idempotent_root(
@@ -215,11 +292,12 @@ class AgentTemplateLoader:
                 digest=stored_origin["digest"],
             )
 
-        resolved = await self._source_resolver.resolve(
+        async with self._source_resolver.open(
+            project_id=project_id,
             source=command.source,
             pin=pin,
-        )
-        package = self._package_parser.parse(resolved)
+        ) as resolved:
+            package = self._package_parser.parse(resolved)
         bindings = await self._binding_resolver.resolve(
             project_id=project_id,
             package=package,
@@ -260,7 +338,7 @@ class AgentTemplateLoader:
                 request_fingerprint=fingerprint,
                 component=_AGENT_COMPONENT,
                 simple_workflow_create=SimpleWorkflowCreate(
-                    slug=command.source.key,
+                    slug=resolved.key,
                     name=compiled.workflow_name,
                     description=compiled.workflow_description,
                     flags=SimpleWorkflowFlags(is_application=True, is_agent=True),
@@ -337,6 +415,17 @@ class AgentTemplateLoader:
         if self._mounts_service is None or self._session_starts_service is None:
             raise RuntimeError("Template loader runtime services are not configured.")
 
+        request_key = self._request_key(command)
+        self._require_mutable_source_pin(command)
+        completed = await self._completed_replay(
+            project_id=project_id,
+            command=command,
+            request_key=request_key,
+            request_fingerprint=template_request_fingerprint(command),
+        )
+        if completed is not None:
+            return completed
+
         attachment_contents = []
         if command.attachment_ids:
             if not command.staging_session_id or self._attachments_service is None:
@@ -374,9 +463,9 @@ class AgentTemplateLoader:
                 for item in prepared.workspace.files
             ],
         )
-        start_key = (
-            f"{self._request_key(command)}:first-message:"
-            f"{prepared.resolved_source.digest}"
+        start_key = self._start_key(
+            request_key=request_key,
+            digest=prepared.resolved_source.digest,
         )
         message_content: str | list[ContentBlock] = prepared.first_message
         if attachment_contents:

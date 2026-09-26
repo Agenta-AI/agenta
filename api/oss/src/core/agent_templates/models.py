@@ -6,7 +6,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from agenta.sdk.agents import SkillTemplate
 
 from oss.src.core.agent_templates.dtos import (
-    InternalTemplateSource,
+    TemplateSource,
     ResolvedTemplateSource,
 )
 from oss.src.core.workflows.dtos import WorkflowRevisionData
@@ -148,7 +148,7 @@ class ParsedTemplateAgent(StrictModel):
 
 
 class ParsedTemplatePackage(StrictModel):
-    source: InternalTemplateSource
+    source: TemplateSource
     version: str
     digest: str
     agent: ParsedTemplateAgent

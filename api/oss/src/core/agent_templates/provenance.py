@@ -10,6 +10,7 @@ from oss.src.core.agent_templates.dtos import (
 )
 from oss.src.core.agent_templates.exceptions import TemplateProvenanceInvalid
 
+_ORIGIN_KINDS = {"internal", "upload", "session_file"}
 _PLATFORM_META_KEY = "_ag"
 
 
@@ -18,7 +19,7 @@ def template_origin_meta(resolved: ResolvedTemplateSource) -> dict[str, Any]:
         _PLATFORM_META_KEY: {
             "template_origin": {
                 "kind": resolved.source.kind,
-                "key": resolved.source.key,
+                "key": resolved.key,
                 "version": resolved.version,
                 "digest": resolved.digest,
             }
@@ -106,8 +107,11 @@ def read_template_origin(meta: dict[str, Any] | None) -> dict[str, Any] | None:
         isinstance(origin[key], str) and origin[key] for key in required
     ):
         raise TemplateProvenanceInvalid()
+    if origin["kind"] not in _ORIGIN_KINDS:
+        raise TemplateProvenanceInvalid()
     try:
-        InternalTemplateSource(kind=origin["kind"], key=origin["key"])
+        # Archive origins record the package name, which follows the catalog key rule.
+        InternalTemplateSource(key=origin["key"])
         TemplateSourcePin(version=origin["version"], digest=origin["digest"])
     except ValidationError as exc:
         raise TemplateProvenanceInvalid() from exc
