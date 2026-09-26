@@ -14,7 +14,7 @@ import {useCallback, useMemo, useState} from "react"
 import {isConnectionActive, useToolConnectionsQuery} from "@agenta/entities/gatewayTool"
 import {
     detectAccounts,
-    isAccountSatisfied,
+    setupStepNeeded,
     suggestionAccounts,
     type AgentStarterTemplate,
     type DetectedAccount,
@@ -77,19 +77,12 @@ export function useAgentSetupStep(): AgentSetupStep {
                 description: next.seedMessage,
                 template: next.template,
             })
-            if (detected.length === 0) return false
-            // Nothing left to ask: every need the template gates on is already met by a connection
-            // this workspace has — including one standing in for another. Stopping here would be a
-            // card with every row ticked and a button, which is a step that exists to be dismissed.
-            const outstanding = detected.filter(
-                (account) => account.required && !isAccountSatisfied(account, workspaceSlugs),
-            )
-            // …unless a template slot offers a CHOICE of provider (GitHub or GitLab). A satisfied
-            // slot still defaults to the connected provider, but the user must get the chance to
-            // pick the alternative — a second PR reviewer on GitLab beside the GitHub one.
-            const hasChoice =
-                Boolean(next.template) && detected.some((account) => account.alternatives?.length)
-            if (outstanding.length === 0 && !hasChoice) return false
+            const needed = setupStepNeeded({
+                accounts: detected,
+                connectedSlugs: [...workspaceSlugs],
+                forTemplate: Boolean(next.template),
+            })
+            if (!needed) return false
             setAccounts(detected)
             setTemplateDraft(Boolean(next.template))
             setDraft(next)
