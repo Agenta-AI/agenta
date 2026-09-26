@@ -10,6 +10,7 @@ from oss.src.core.access.permissions.types import Permission
 from oss.src.core.gateways.cleanup import run_shielded
 from oss.src.core.gateways.dtos import GatewayEndpointNamespace
 from oss.src.core.gateways.llms.catalog import (
+    BUILTIN_LLM_PROVIDERS,
     builtin_llm_endpoint,
     standard_llm_endpoint,
     standard_llm_endpoints,
@@ -271,7 +272,10 @@ class LLMGatewayService:
         )
 
     async def list_endpoints(self, *, scope: AuthScope) -> List[LLMEndpoint]:
-        """List generated standard endpoints and persisted custom endpoints.
+        """List generated standard and builtin endpoints and persisted custom endpoints.
+
+        Builtin endpoints exist only under the development mock switch, so this lists them
+        only there; that is what lets an agent picker offer a platform-funded model.
 
         Takes the scope rather than a bare project_id (R14): existence is a per-owner fact
         the moment user-owned secrets ship, and fabricating an AuthScope to satisfy the port
@@ -284,8 +288,13 @@ class LLMGatewayService:
             for endpoint in standard_llm_endpoints()
             if endpoint.provider_key in provider_keys
         ]
+        builtin = [
+            endpoint
+            for provider_key in BUILTIN_LLM_PROVIDERS
+            if (endpoint := builtin_llm_endpoint(provider_key=provider_key)) is not None
+        ]
         custom = await self.llm_endpoints_dao.query_endpoints(project_id=project_id)
-        return generated + custom
+        return generated + builtin + custom
 
     async def resolve_agent_connection(
         self,

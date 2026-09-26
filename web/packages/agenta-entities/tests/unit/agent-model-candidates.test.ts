@@ -224,3 +224,61 @@ describe("selectableAgentHarnesses", () => {
         ).toEqual(["pi_core", "claude", "codex"])
     })
 })
+
+describe("built-in model candidates", () => {
+    const capabilities = {
+        pi_core: {
+            providers: ["openai", "anthropic"],
+            model_selection: "provider/id",
+            connection_modes: ["agenta"],
+            models: {openai: ["gpt-5.5"], anthropic: ["anthropic/claude-sonnet-5"]},
+        },
+        claude: {
+            providers: ["anthropic"],
+            model_selection: "alias",
+            connection_modes: ["agenta"],
+            models: {anthropic: ["sonnet"]},
+        },
+    }
+
+    const build = (models: string[]) =>
+        buildAgentModelCandidates({
+            connections: [],
+            capabilities,
+            harnessIds: ["pi_core", "claude"],
+            showSubscriptions: false,
+            builtinEndpoints: [{slug: "agenta", models}],
+        })
+
+    it("offers each catalogued model to the id-naming harnesses, routed by the endpoint slug", () => {
+        expect(build(["mock/echo", "gpt-5.5", "claude-sonnet-5"])).toEqual([
+            {
+                modelId: "gpt-5.5",
+                provider: "openai",
+                mode: "agenta",
+                slug: "agenta",
+                harness: "pi_core",
+                source: "connection",
+                connectionKey: "builtin:agenta",
+                connectionName: "Built-in: agenta",
+                managed: false,
+            },
+            expect.objectContaining({
+                modelId: "claude-sonnet-5",
+                provider: "anthropic",
+                harness: "pi_core",
+            }),
+        ])
+    })
+
+    it("offers nothing when the deployment lists no built-in endpoint", () => {
+        expect(
+            buildAgentModelCandidates({
+                connections: [],
+                capabilities,
+                harnessIds: ["pi_core"],
+                showSubscriptions: false,
+            }),
+        ).toEqual([])
+    })
+})

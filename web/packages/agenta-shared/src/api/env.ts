@@ -31,6 +31,7 @@ export const processEnv = {
     NEXT_PUBLIC_AGENTA_BILLING_ENABLED: process.env.NEXT_PUBLIC_AGENTA_BILLING_ENABLED,
     NEXT_PUBLIC_AGENTA_TOOLS_ENABLED: process.env.NEXT_PUBLIC_AGENTA_TOOLS_ENABLED,
     NEXT_PUBLIC_AGENTA_MCP_GATEWAY_ENABLED: process.env.NEXT_PUBLIC_AGENTA_MCP_GATEWAY_ENABLED,
+    NEXT_PUBLIC_AGENTA_WALLETS_ENABLED: process.env.NEXT_PUBLIC_AGENTA_WALLETS_ENABLED,
     NEXT_PUBLIC_AGENTA_EMAIL_DELIVERY_ENABLED:
         process.env.NEXT_PUBLIC_AGENTA_EMAIL_DELIVERY_ENABLED,
     NEXT_PUBLIC_AGENTA_WEB_URL: process.env.NEXT_PUBLIC_AGENTA_WEB_URL,
@@ -153,6 +154,13 @@ export const isBillingEnabled = (): boolean =>
  */
 export const isMcpGatewayEnabled = (): boolean =>
     parseBoolEnv("NEXT_PUBLIC_AGENTA_MCP_GATEWAY_ENABLED", true)
+
+/**
+ * Whether the credit wallet is on. The API's `AGENTA_WALLETS_ENABLED` is the authority;
+ * `entrypoint.sh` mirrors it into `__env.js`. Off by default, like the API.
+ */
+export const isWalletsEnabled = (): boolean =>
+    parseBoolEnv("NEXT_PUBLIC_AGENTA_WALLETS_ENABLED", false)
 
 export const isEmailInvitationsEnabled = (): boolean =>
     getEnv("NEXT_PUBLIC_AGENTA_EMAIL_DELIVERY_ENABLED") === "true"

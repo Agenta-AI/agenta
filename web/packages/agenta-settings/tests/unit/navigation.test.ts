@@ -4,6 +4,7 @@ import {
     getSettingsSidebarTabs,
     getSettingsTabDescription,
     getSettingsTabLabel,
+    isSettingsTabVisible,
     resolveSettingsTab,
     SETTINGS_SCOPES,
     SETTINGS_TABS,
@@ -134,8 +135,16 @@ describe("settings sidebar scopes", () => {
             "organization",
             "auditLog",
             "billing",
+            "walletUsage",
         ])
         expect(keysForScope("personal")).toEqual(["account", "preferences"])
+    })
+
+    it("shows the wallet debug view only while the wallet is on", () => {
+        expect(isSettingsTabVisible("walletUsage", baseAccess)).toBe(false)
+        expect(isSettingsTabVisible("walletUsage", {...baseAccess, walletsEnabled: true})).toBe(
+            true,
+        )
     })
 
     it("exposes separate LLM and MCP pages", () => {

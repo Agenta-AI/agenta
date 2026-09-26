@@ -1,7 +1,9 @@
 import {getHostQueryClient} from "@agenta/shared/api"
+import {projectIdAtom} from "@agenta/shared/state"
 import type {LlmProvider} from "@agenta/shared/types"
 import {atom} from "jotai"
 import {atomFamily} from "jotai-family"
+import {atomWithQuery} from "jotai-tanstack-query"
 
 import {fetchVaultSecret} from "../../secret/api"
 import {
@@ -10,10 +12,12 @@ import {
     subscriptionPairsFrom,
     toProviderConnections,
     type AgentModelCandidate,
+    type BuiltinModelEndpoint,
     type ProviderConnection,
 } from "../../secret/core"
 import {subscriptionPairModelsAtom, vaultSecretsQueryAtom} from "../../secret/state"
 import {
+    fetchBuiltinModelEndpoints,
     fetchHarnessCapabilities,
     fetchSubscriptionStatus,
     type SubscriptionStatusResponse,
@@ -57,6 +61,7 @@ interface CandidateSourceState {
     subscriptionError?: unknown
     pairModelSelection?: Record<string, string[] | undefined> | null
     showSubscriptions: boolean
+    builtinEndpoints?: BuiltinModelEndpoint[]
 }
 
 export const resolveAgentModelCandidateSources = ({
@@ -69,6 +74,7 @@ export const resolveAgentModelCandidateSources = ({
     subscriptionError,
     pairModelSelection,
     showSubscriptions,
+    builtinEndpoints,
 }: CandidateSourceState): AgentModelCandidatesState => {
     const connections = toProviderConnections(vaultRows ?? [])
     if (!vaultRows || !capabilities) {
@@ -96,6 +102,7 @@ export const resolveAgentModelCandidateSources = ({
         showSubscriptions,
         subscriptionPairs,
         pairModelSelection,
+        builtinEndpoints,
     })
 
     // A check we could not MAKE is not a deployment with no subscription. Reading a rejected
@@ -123,10 +130,30 @@ export const resolveAgentModelCandidateSources = ({
     return {status: "ready", candidates, connections, capabilities, error: null}
 }
 
+const builtinModelEndpointsQueryKey = (projectId: string | null) => [
+    "gateways",
+    "llms",
+    "builtin",
+    projectId,
+]
+
+/** Built-in model endpoints; never errors (the fetcher reads a failure as none). */
+export const builtinModelEndpointsQueryAtom = atomWithQuery<BuiltinModelEndpoint[]>((get) => {
+    const projectId = get(projectIdAtom)
+    return {
+        queryKey: builtinModelEndpointsQueryKey(projectId),
+        queryFn: () => fetchBuiltinModelEndpoints(projectId as string),
+        enabled: Boolean(projectId),
+        staleTime: 5 * 60_000,
+        refetchOnWindowFocus: false,
+    }
+})
+
 export const agentModelCandidatesAtomFamily = atomFamily((showSubscriptions: boolean) =>
     atom<AgentModelCandidatesState>((get) => {
         const vault = get(vaultSecretsQueryAtom)
         const harnessCatalog = get(harnessCatalogQueryAtom)
+        const builtin = get(builtinModelEndpointsQueryAtom)
         const subscription = showSubscriptions
             ? get(subscriptionStatusQueryAtomFamily(SUBSCRIPTION_STATUS_QUERY_HARNESS))
             : null
@@ -147,6 +174,7 @@ export const agentModelCandidatesAtomFamily = atomFamily((showSubscriptions: boo
                     : undefined,
             pairModelSelection: showSubscriptions ? get(subscriptionPairModelsAtom) : null,
             showSubscriptions,
+            builtinEndpoints: builtin.data,
         })
     }),
 )
@@ -201,7 +229,7 @@ export async function loadAgentModelCandidates({
         retry: retryAgentCreationSource("provider connections"),
         retryDelay: AGENT_CREATION_SOURCE_RETRY_DELAY_MS,
     } as const
-    const [vault, capabilities, subscription] = await Promise.all([
+    const [vault, capabilities, subscription, builtinEndpoints] = await Promise.all([
         (refreshVault
             ? queryClient.fetchQuery<LlmProvider[]>({...vaultQuery, staleTime: 0})
             : queryClient.ensureQueryData<LlmProvider[]>(vaultQuery)
@@ -240,6 +268,11 @@ export async function loadAgentModelCandidates({
                   .then((data) => ({data, error: undefined}))
                   .catch((error: unknown) => ({data: undefined, error}))
             : Promise.resolve({data: null, error: undefined}),
+        queryClient.ensureQueryData<BuiltinModelEndpoint[]>({
+            queryKey: builtinModelEndpointsQueryKey(projectId),
+            queryFn: () => fetchBuiltinModelEndpoints(projectId),
+            staleTime: 5 * 60_000,
+        }),
     ])
 
     const resolved = resolveAgentModelCandidateSources({
@@ -252,6 +285,7 @@ export async function loadAgentModelCandidates({
         subscriptionError: subscription.error,
         pairModelSelection,
         showSubscriptions,
+        builtinEndpoints,
     })
 
     return {

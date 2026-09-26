@@ -45,6 +45,7 @@ import {
 import {useBindProjectContext} from "../context/useBindProjectContext"
 import {AppShell} from "../nav/AppShell"
 import {NavDrawer} from "../nav/NavDrawer"
+import {WalletUsageTab} from "../wallet/WalletUsageTab"
 
 import {AccountTab} from "./AccountTab"
 import {ApiKeysTab} from "./ApiKeysTab"
@@ -188,6 +189,9 @@ const TabBody = ({
             )
         case "billing":
             return <BillingTab projectId={projectId} />
+        case "walletUsage":
+            if (!access.walletsEnabled) return null
+            return <WalletUsageTab projectId={projectId} />
         case "webhooks":
             return <WebhooksTab />
         // Writable: the drawers' forms moved from antd to @rc-component/form, so they carry

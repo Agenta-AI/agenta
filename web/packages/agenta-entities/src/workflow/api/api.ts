@@ -1522,6 +1522,34 @@ export async function fetchHarnessCapabilities(opts?: {
     return byHarness
 }
 
+/**
+ * The platform-funded (`builtin`) LLM gateway endpoints this deployment serves, with their models.
+ * The API lists them only under its development mock switch. Any failure reads as none: this
+ * source only ever adds picker rows, so it must never block the ones the vault provides.
+ */
+export async function fetchBuiltinModelEndpoints(
+    projectId: string,
+): Promise<{slug: string; models: string[]}[]> {
+    try {
+        const response = await axios.get(`${getAgentaApiUrl()}/gateways/llms/endpoints/`, {
+            params: {project_id: projectId},
+        })
+        const endpoints = (response.data?.endpoints ?? []) as {
+            namespace?: string
+            slug?: string
+            data?: {models?: {allowlist?: string[] | null}}
+        }[]
+        return endpoints
+            .filter((endpoint) => endpoint.namespace === "builtin" && endpoint.slug)
+            .map((endpoint) => ({
+                slug: endpoint.slug as string,
+                models: endpoint.data?.models?.allowlist ?? [],
+            }))
+    } catch {
+        return []
+    }
+}
+
 // ============================================================================
 // WORKFLOW CATALOG
 // ============================================================================

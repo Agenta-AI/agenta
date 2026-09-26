@@ -76,14 +76,17 @@ export interface BuildPickerRowsArgs {
 /**
  * What a candidate's row is called.
  *
- * A candidate backed by a stored record uses the record's own name. Only a MOUNTED subscription
- * has no record, and that fallback has to say so: a project that also holds a hosted subscription
+ * A candidate backed by a stored record uses the record's own name; a built-in model carries its
+ * own. Only a MOUNTED subscription has neither, and that fallback has to say so: a project that also holds a hosted subscription
  * to the same plan would otherwise show two rows called "ChatGPT · Subscription".
  */
 const candidateRowName = (
     candidate: AgentModelCandidate,
     connection: ProviderConnection | undefined,
-): string => connection?.name ?? mountedSubscriptionName(candidate.provider ?? "")
+): string =>
+    connection?.name ??
+    candidate.connectionName ??
+    mountedSubscriptionName(candidate.provider ?? "")
 
 const rowFromCandidate = (
     candidate: AgentModelCandidate,
@@ -91,7 +94,11 @@ const rowFromCandidate = (
 ): PickerConnectionRow => ({
     key: candidate.connectionKey,
     name: candidateRowName(candidate, connection),
-    iconKey: candidate.managed ? "agenta" : (connection?.kind ?? candidate.provider ?? ""),
+    // A built-in model has no stored connection; it runs on Agenta's account.
+    iconKey:
+        candidate.managed || (!connection && candidate.connectionName)
+            ? "agenta"
+            : (connection?.kind ?? candidate.provider ?? ""),
     kind: candidate.source,
     managed: candidate.managed || undefined,
     models: [],
