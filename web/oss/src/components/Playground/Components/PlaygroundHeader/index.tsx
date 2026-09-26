@@ -80,6 +80,11 @@ const AgentPublishButton = dynamic(
     () => import("@/oss/components/AgentPublish/AgentPublishButton"),
     {ssr: false},
 )
+// Lazy: agent-only chrome.
+const SaveAsTemplateButton = dynamic(
+    () => import("@/oss/components/AgentPublish/SaveAsTemplateButton"),
+    {ssr: false},
+)
 const SelectVariant = dynamic(() => import("../Menus/SelectVariant"), {
     ssr: false,
     loading: () => (
@@ -276,6 +281,9 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className}) => {
         currentWorkflow?.id ??
         (rootWorkflowId && !isLocalDraftId(rootWorkflowId) ? rootWorkflowId : null)
     const agentName = displayAgentName || rootArtifactName || ""
+    // Same entity MainLayout keys the agent chat panel by.
+    const selectedEntityIds = useAtomValue(playgroundController.selectors.entityIds())
+    const chatEntityId = selectedEntityIds[0] ?? displayedEntities[0] ?? rootEntityId
     // Early app-id signal resolves agent-ness before the heavy node graph loads, so
     // the layout commits to the right chrome up front instead of defaulting to the
     // non-agent stack and unmounting it on reload.
@@ -857,6 +865,9 @@ const PlaygroundHeader: React.FC<PlaygroundHeaderProps> = ({className}) => {
                                     </DropdownMenu>
                                 )}
                                 <ShortcutsHelpButton className="h-8 w-8 shrink-0 p-0" />
+                                {renameWorkflowId ? (
+                                    <SaveAsTemplateButton entityId={chatEntityId} />
+                                ) : null}
                                 {renameWorkflowId ? (
                                     <AgentPublishButton
                                         agentId={renameWorkflowId}

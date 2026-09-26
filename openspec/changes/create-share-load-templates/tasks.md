@@ -9,14 +9,16 @@
 
 ## 2. Create and load
 
-- [ ] 2.1 Inspect attachment/drive authorization and use one file-reference path where supported, otherwise two thin adapters with one archive resolver
-- [ ] 2.2 Implement bounded extraction and source DTO updates; audit source.key assumptions
-- [ ] 2.3 Expose read-only zip validation through the existing parser; return structured repair issues and content pins
-- [ ] 2.4 Extend load with authorized zip inputs and preserve connection setup, first-message and no-duplicate behavior
-- [ ] 2.5 Make completed retries independent of source refetch; test interrupted and conflicting requests
+- [x] 2.1 Inspect attachment/drive authorization and use one file-reference path where supported, otherwise two thin adapters with one archive resolver
+- [x] 2.2 Implement bounded extraction and source DTO updates; audit source.key assumptions
+- [x] 2.3 Expose read-only zip validation through the existing parser; return structured repair issues and content pins
+- [x] 2.4 Extend load with authorized zip inputs and preserve connection setup, first-message and no-duplicate behavior
+- [x] 2.5 Make completed retries independent of source refetch; test interrupted and conflicting requests
 - [ ] 2.6 Add recipient-aware export skill: write files, zip, validate, repair/rebuild, and deliver the validated zip
 - [ ] 2.7 Add Save as template through normal chat; preserve draft text and prevent duplicate sends
 - [ ] 2.8 Run simple, integration and general/team-specific export/load cases with smaller and reference models
+
+Evidence for 2.1–2.3 and 2.5 (create-and-load PR): attachments are immutable ready rows with a content digest, while chat-made zips live in the mutable session drive, so two thin stagers (`UploadArchiveStager`, `SessionFileArchiveStager`) feed one `StagedTemplateSourceResolver` and one `PackageTreeWriter` (`api/oss/src/core/agent_templates/archive.py`, `sources.py`). Tests: `cd api && uv run pytest oss/tests/pytest/unit/agent_templates -q` (`test_archive.py`, `test_validation.py`, `test_loader.py`, `test_router.py`). 2.4 was also exercised against a running API, Postgres, Redis, SeaweedFS, services and runner: upload and session-file loads returned 201, same-key retries returned 200 with the same ids after the file changed, a changed message returned 409, and a stale pin returned 422 (see the PR description).
 
 ## 3. GitHub loading
 

@@ -256,7 +256,14 @@ from oss.src.core.agent_templates.bindings import TemplateBindingResolver
 from oss.src.core.agent_templates.compiler import TemplateCompiler
 from oss.src.core.agent_templates.loader import AgentTemplateLoader
 from oss.src.core.agent_templates.parser import TemplatePackageParser
-from oss.src.core.agent_templates.sources import InternalTemplateSourceResolver
+from oss.src.core.agent_templates.sources import (
+    InternalTemplateSourceResolver,
+    SessionFileArchiveStager,
+    StagedTemplateSourceResolver,
+    TemplateSources,
+    UploadArchiveStager,
+)
+from oss.src.core.agent_templates.validation import AgentTemplateValidator
 from oss.src.core.sessions.commands.service import SessionCommandsService
 from oss.src.dbs.http.sessions.control_delivery_direct import DirectControlDelivery
 from oss.src.tasks.asyncio.sessions.orphan_sweep import orphan_sweep_loop
@@ -1484,8 +1491,8 @@ session_starts_service = SessionStartsService(
     workflows_service=workflows_service,
     lock_engine=_lock_engine,
 )
-agent_template_loader = AgentTemplateLoader(
-    source_resolver=InternalTemplateSourceResolver(
+agent_template_sources = TemplateSources(
+    internal=InternalTemplateSourceResolver(
         catalog_path=(
             Path(__file__).resolve().parents[1]
             / "oss"
@@ -1495,7 +1502,19 @@ agent_template_loader = AgentTemplateLoader(
             / "catalog.json"
         )
     ),
-    package_parser=TemplatePackageParser(),
+    staged=StagedTemplateSourceResolver(
+        stagers={
+            "upload": UploadArchiveStager(
+                attachments_service=session_attachments_service,
+            ),
+            "session_file": SessionFileArchiveStager(mounts_service=mounts_service),
+        }
+    ),
+)
+agent_template_parser = TemplatePackageParser()
+agent_template_loader = AgentTemplateLoader(
+    source_resolver=agent_template_sources,
+    package_parser=agent_template_parser,
     binding_resolver=TemplateBindingResolver(
         connections_service=connections_service,
         mcp_service=mcp_gateway_service,
@@ -1507,7 +1526,13 @@ agent_template_loader = AgentTemplateLoader(
     session_starts_service=session_starts_service,
     attachments_service=session_attachments_service,
 )
-agent_templates = AgentTemplatesRouter(loader=agent_template_loader)
+agent_templates = AgentTemplatesRouter(
+    loader=agent_template_loader,
+    validator=AgentTemplateValidator(
+        source_resolver=agent_template_sources,
+        package_parser=agent_template_parser,
+    ),
+)
 workflows_service.set_session_continuation_resumer(
     session_commands_service.resume_recoverable_continuation
 )

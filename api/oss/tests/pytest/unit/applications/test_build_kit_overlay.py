@@ -56,6 +56,7 @@ EXPECTED_BUILD_KIT_OPS_WITH_READ_CONFIG = (
     "remove_subscription",
     "list_starters",
     "create_app",
+    "validate_template",
 )
 
 
@@ -166,6 +167,13 @@ def test_agent_template_overlay_contains_platform_ops_playbook_skill_and_permiss
             "name": "agenta-apps",
             "@ag.embed": {
                 "@ag.references": {"workflow": {"slug": "__ag__agenta_apps"}},
+                "@ag.selector": {"path": "parameters.skill"},
+            },
+        },
+        {
+            "name": "create-template",
+            "@ag.embed": {
+                "@ag.references": {"workflow": {"slug": "__ag__create_template"}},
                 "@ag.selector": {"path": "parameters.skill"},
             },
         },
@@ -339,6 +347,7 @@ async def test_resolved_build_kit_overlay_parses_through_from_params():
     assert [skill.name for skill in template.skills] == [
         "build-an-agent",
         "agenta-apps",
+        "create-template",
     ]
 
 

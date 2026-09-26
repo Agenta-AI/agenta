@@ -204,6 +204,41 @@ class SessionStartsService:
             resource_identity(project_id, _START_NAMESPACE, request_key, "session")
         )
 
+    async def fetch_started(
+        self,
+        *,
+        project_id: UUID,
+        request_key: str,
+    ) -> SessionStartResult | None:
+        """Return a start that already reached the session, without claiming or dispatching.
+
+        A caller that no longer holds the original first message can still replay a
+        finished start from its request key alone.
+        """
+        session_id = self.session_id_for(project_id=project_id, request_key=request_key)
+        execution_id = str(
+            resource_identity(project_id, _START_NAMESPACE, request_key, "execution")
+        )
+        claimed = await self._inputs.fetch_by_idempotency_key(
+            project_id=project_id,
+            session_id=session_id,
+            idempotency_key=request_key,
+        )
+        if claimed is None or claimed.promoted_execution_id != execution_id:
+            return None
+        if not await self._has_started(
+            project_id=project_id,
+            session_id=session_id,
+            execution_id=execution_id,
+        ):
+            return None
+        return SessionStartResult(
+            session_id=session_id,
+            execution_id=execution_id,
+            input_id=claimed.id,
+            replayed=True,
+        )
+
     async def start_once(
         self,
         *,

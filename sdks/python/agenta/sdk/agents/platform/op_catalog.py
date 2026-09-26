@@ -1503,6 +1503,42 @@ _RENAME_AGENT_INPUT_SCHEMA: Dict[str, Any] = {
     "required": ["name"],
 }
 
+# Template validation (read): check one template zip in this session's files with the loader's own
+# source resolution and parser. The source is fixed to `session_file` and its session is bound from
+# run context, so the model names only a path in its own session and cannot read another session.
+_VALIDATE_TEMPLATE_DESCRIPTION = """Validate a template package zip in this session's files, exactly as the template loader reads it.
+
+Send `path`: the zip's path relative to your working directory, such as
+`templates/seo-assistant-1.0.0.zip`. Validate the zip itself, never the folder you built it
+from. The check changes nothing: it creates no agent, session, skill or automation, so call it
+after every rebuild.
+
+When `valid` is true, the answer also has `version` and `digest`. Give both to the user with the
+zip's path: loading the zip later requires that exact version and digest.
+
+When `valid` is false, `issues` lists each problem: the package file (`path`), the manifest field
+(`field`), a `code`, a `message` and a `next_step`. Fix the package files as `next_step` says,
+rebuild the zip, and validate the new zip again. Never tell the user the template is ready, or
+offer it for download, while the last validation of that zip is invalid.
+`supported_schema_versions` lists the manifest schema versions the loader accepts."""
+
+_VALIDATE_TEMPLATE_INPUT_SCHEMA: Dict[str, Any] = {
+    "type": "object",
+    "additionalProperties": False,
+    "properties": {
+        "path": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024,
+            "description": (
+                "The zip's path relative to your working directory, e.g. "
+                "`templates/seo-assistant-1.0.0.zip`."
+            ),
+        },
+    },
+    "required": ["path"],
+}
+
 _EMPTY_INPUT_SCHEMA: Dict[str, Any] = {"type": "object", "properties": {}}
 _TRIGGER_ID_INPUT_SCHEMA: Dict[str, Any] = {
     "type": "object",
@@ -1880,6 +1916,18 @@ PLATFORM_OPS: Dict[str, PlatformOp] = {
                 "required": ["session_id"],
             },
             context_bindings={"session_id": "$ctx.session.id"},
+            read_only=True,
+        ),
+        PlatformOp(
+            op="validate_template",
+            description=_VALIDATE_TEMPLATE_DESCRIPTION,
+            method="POST",
+            path="/api/agent-templates/validate",
+            input_schema=_VALIDATE_TEMPLATE_INPUT_SCHEMA,
+            args_into="source",
+            # Fixed in code so the only source the model can reach is a file in its own session.
+            static_body={"source": {"kind": "session_file"}},
+            context_bindings={"source.session_id": "$ctx.session.id"},
             read_only=True,
         ),
         PlatformOp(
