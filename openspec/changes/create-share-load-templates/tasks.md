@@ -29,7 +29,7 @@ Evidence for 1.1-1.5: `api/oss/tests/pytest/unit/agent_templates/test_catalog.py
 
 ## 4. Marketplace
 
-- [ ] 4.1 Validate all packages and catalog/author references in CI, with a Git comparison for published-version immutability
+- [x] 4.1 Validate all packages and catalog/author references in CI, with a Git comparison for published-version immutability
 - [ ] 4.2 Document and rehearse the manual contribution path; configure the required check only with maintainer authorization
 - [ ] 4.3 Receive Mahmoud's marketplace website UI designs and resolve any data-contract conflicts before visual implementation
 - [ ] 4.4 Build template index/detail/author pages from generated data; connect each Use it for free button to actual package creation through the existing signed-in or signup/authentication flow, retaining the template selection and unavailable-version behavior
