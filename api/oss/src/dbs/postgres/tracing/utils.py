@@ -36,6 +36,7 @@ from oss.src.core.tracing.dtos import (
 from oss.src.core.tracing.dtos import (
     FilteringException,
     Fields,
+    Focus,
     Windowing,
     #
     MetricType,
@@ -1047,10 +1048,14 @@ def build_base_cte(
     stride: str,
     rate: Optional[float] = None,
     filtering: Optional[Filtering] = None,
+    focus: Optional[Focus] = None,
 ) -> Optional[FromClause]:
+    # Bucket and window by when the span ran (start_time), not by when the API
+    # stored it (created_at). Late or backfilled spans must land in the bucket of
+    # their own time, the same time the trace list filters and sorts by.
     timestamp = func.date_bin(
         text(f"'{stride}'"),
-        SpanDBE.created_at,
+        SpanDBE.start_time,
         oldest,
     ).label("timestamp")
 
@@ -1067,11 +1072,15 @@ def build_base_cte(
         .select_from(SpanDBE)
         .where(
             SpanDBE.project_id == project_id,
-            SpanDBE.created_at >= oldest,
-            SpanDBE.created_at < newest,
+            SpanDBE.start_time >= oldest,
+            SpanDBE.start_time < newest,
         )
-        .where(SpanDBE.parent_id.is_(None))
     )
+
+    # Root spans carry the cumulative metrics of the whole trace, so the default
+    # (trace focus) reads roots only. Span focus reads every span.
+    if focus != Focus.SPAN:
+        base_stmt = base_stmt.where(SpanDBE.parent_id.is_(None))
 
     # External filters
     if filtering is not None:
@@ -2145,3 +2154,52 @@ def compute_uniq(
     value["uniq"] = uniq
 
     return value
+
+
+def get_sampling_percent(
+    rate: Optional[float],
+) -> Optional[int]:
+    if rate is None:
+        return None
+
+    return max(0, min(int(rate * 100.0), 100))
+
+
+def scale_sampled_value(
+    value: Dict[str, Any],
+    percent: Optional[int],
+) -> Dict[str, Any]:
+    """Turn a count or a sum over a sample back into an estimate for all spans.
+
+    With `windowing.rate`, the query reads only `percent`% of the traces. Counts
+    and sums then grow with the sample size, so they are divided by the sample
+    fraction. Means, min, max, percentiles and distributions do not depend on the
+    sample size and stay as they are.
+    """
+    if not percent or percent >= 100:
+        return value
+
+    factor = 100.0 / percent
+
+    for key in ("count", "sum"):
+        if isinstance(value.get(key), (int, float)) and not isinstance(
+            value.get(key), bool
+        ):
+            value[key] = value[key] * factor
+
+    return value
+
+
+def fill_empty_buckets(
+    per_timestamp: Dict[datetime, Dict[str, Dict[str, Any]]],
+    timestamps: List[datetime],
+) -> Dict[datetime, Dict[str, Dict[str, Any]]]:
+    """Add an empty entry for each bucket that has no spans.
+
+    Without this, a chart skips quiet periods and its time axis is not linear.
+    """
+    for timestamp in timestamps:
+        if timestamp not in per_timestamp:
+            per_timestamp[timestamp] = dict()
+
+    return per_timestamp

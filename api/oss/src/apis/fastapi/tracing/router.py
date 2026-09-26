@@ -447,8 +447,14 @@ class TracingRouter:
 
         - `filtering` — same shape as the query endpoint, scoped to the spans
           that contribute to the analytics.
-        - `windowing` — `oldest`/`newest` for the time range and `interval`
-          for bucket width (in seconds).
+        - `windowing` — `oldest`/`newest` for the time range (matched against
+          each span's `start_time`), `interval` for bucket width (in minutes),
+          and an optional `rate` to sample a share of the traces. With a
+          `rate`, counts and sums are scaled back up to estimate all traces.
+          When `interval` is set, buckets with no spans are returned empty.
+        - `formatting.focus` — `trace` (default) summarizes root spans only,
+          which carry the cumulative metrics of their trace. `span`
+          summarizes every span.
         - `specs` — a list of `MetricSpec` entries describing which
           attributes to summarize and how. Each spec declares a `type`
           (`numeric/continuous`, `numeric/discrete`, `binary`,
