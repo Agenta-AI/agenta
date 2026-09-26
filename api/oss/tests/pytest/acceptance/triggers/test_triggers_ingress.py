@@ -20,6 +20,7 @@ too is gated on COMPOSIO_API_KEY.
 Requires a running API.
 """
 
+import base64
 import hashlib
 import hmac
 import json
@@ -52,7 +53,8 @@ def _resolve_webhook_secret() -> str:
 
 def _sign(secret: str, webhook_id: str, timestamp: str, body: bytes) -> str:
     signed = f"{webhook_id}.{timestamp}.{body.decode('utf-8')}"
-    return hmac.new(secret.encode(), signed.encode(), hashlib.sha256).hexdigest()
+    digest = hmac.new(secret.encode(), signed.encode(), hashlib.sha256).digest()
+    return "v1," + base64.b64encode(digest).decode("ascii")
 
 
 _requires_composio = pytest.mark.skipif(
