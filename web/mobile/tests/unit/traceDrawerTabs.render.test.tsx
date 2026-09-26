@@ -6,9 +6,14 @@ import type {TraceSpanNode} from "@agenta/observability"
 import {OverviewTabItem, TraceDetails} from "@agenta/observability-ui/traceDrawer"
 import {createStore, Provider} from "jotai"
 import {createRoot, type Root} from "react-dom/client"
-import {afterEach, beforeEach, describe, expect, it} from "vitest"
+import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
-import {registerTraceDrawerSlots} from "@/features/observability/registerTraceDrawerSlots"
+import {GlobalDrawers} from "@/features/app/GlobalDrawers"
+
+// GlobalDrawers binds the drawer's router seams; the tests never navigate.
+vi.mock("next/router", () => ({
+    useRouter: () => ({pathname: "/", query: {}, push: vi.fn()}),
+}))
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT: boolean}).IS_REACT_ACT_ENVIRONMENT =
     true
 
@@ -38,6 +43,8 @@ const span = {
 
 let host: HTMLDivElement
 let root: Root
+let appHost: HTMLDivElement
+let appRoot: Root
 
 const mount = async (node: React.ReactNode) => {
     await act(async () => {
@@ -45,16 +52,30 @@ const mount = async (node: React.ReactNode) => {
     })
 }
 
-beforeEach(() => {
+beforeEach(async () => {
+    // The slots are filled by the app's own wiring, not by the test: if GlobalDrawers stops
+    // registering them, the tabs render empty again and these tests fail.
+    appHost = document.createElement("div")
+    document.body.appendChild(appHost)
+    appRoot = createRoot(appHost)
+    await act(async () => {
+        appRoot.render(
+            <Provider store={createStore()}>
+                <GlobalDrawers />
+            </Provider>,
+        )
+    })
+
     host = document.createElement("div")
     document.body.appendChild(host)
     root = createRoot(host)
-    registerTraceDrawerSlots()
 })
 
 afterEach(() => {
     act(() => root.unmount())
+    act(() => appRoot.unmount())
     host.remove()
+    appHost.remove()
 })
 
 describe("trace drawer tabs on /m", () => {
