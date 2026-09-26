@@ -169,7 +169,8 @@ def _source_kind(value: Any) -> str:
 TemplateSource = Annotated[
     Annotated[InternalTemplateSource, Tag("internal")]
     | Annotated[UploadTemplateSource, Tag("upload")]
-    | Annotated[SessionFileTemplateSource, Tag("session_file")],
+    | Annotated[SessionFileTemplateSource, Tag("session_file")]
+    | Annotated[GitHubTemplateSource, Tag("github")],
     Discriminator(_source_kind),
 ]
 
@@ -189,7 +190,7 @@ class ResolvedTemplateSource(BaseModel):
         if isinstance(self.source, InternalTemplateSource):
             return self.source.key
         if not self.package_key:
-            raise ValueError("An archive template source needs its package key.")
+            raise ValueError("A staged template source needs its package key.")
         return self.package_key
 
 
