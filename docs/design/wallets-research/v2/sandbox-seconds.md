@@ -63,8 +63,8 @@ runner --usage--> API /wallets/sandboxes/usage --> streams:measurements
 The runner measures the sandbox from outside it. The sandbox is never asked anything. There
 are two kinds of sandbox on our account, and both are metered:
 
-- The `daytona` provider's agent sandbox. It is metered from the moment the runner asks for it
-  until it is parked or deleted. Warm time between turns is running time, so it is billed.
+- The `daytona` provider's agent sandbox. It is metered from the moment it is up until it is
+  parked or deleted. Warm time between turns is running time, so it is billed.
 - The `inprocess` provider's command sandbox. It is metered from each bring-up until it
   stops, is retired, or is deleted. A sandbox whose state became unknown stays metered until
   Daytona confirms it stopped or gone. The meter reports with the credential of the newest
@@ -134,8 +134,12 @@ calls. Each expanded row shows the seconds, vCPUs and GiB of memory of its inter
 
 - **Stopped and parked sandboxes.** Daytona bills their disk. Only running seconds are billed
   in this slice.
-- **Boot and stop time for the command sandbox** before bring-up finishes and after the stop
-  begins is partly unbilled. The agent sandbox is metered from the moment it is requested.
+- **Boot and stop time** is not billed: a meter starts once the sandbox is up and ends when the
+  runner starts to stop or delete it. Capacity waits, pointer reads and failed reconnects
+  before a sandbox is up are never billed.
+- **A stop or delete that Daytona refuses** ends the meter anyway, while the sandbox may still
+  run until the runner's reconciliation or Daytona's auto-stop settles it. That time is lost to
+  the platform, never charged twice.
 - **A runner killed without a shutdown** loses the minute in progress. A sandbox it leaves
   running keeps running until Daytona's auto-stop (15 minutes idle), and that time is not
   billed.

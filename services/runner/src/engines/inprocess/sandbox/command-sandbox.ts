@@ -380,7 +380,7 @@ export class CommandSandbox {
     }
     const sandbox = this.current!;
     await this.applyNetwork(sandbox, requirements.network);
-    this.markRunning(t0);
+    this.markRunning();
     this.stats.lastStartMs = Date.now() - t0;
     return sandbox;
   }
@@ -643,8 +643,8 @@ export class CommandSandbox {
 
   // ---- Accounting ------------------------------------------------------------------------- //
 
-  private markRunning(since: number): void {
-    this.runningSince ??= since;
+  private markRunning(): void {
+    this.runningSince ??= Date.now();
     if (this.meter || !this.usage || !this.current) return;
     this.meter = (this.settings.startMeter ?? startSandboxMeter)({
       provider: "daytona",

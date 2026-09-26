@@ -892,7 +892,6 @@ async function acquireEnvironmentOnce(
     };
     // SandboxLifecycle owns the reconnect ladder, the fresh-create fallback, and both
     // `sandbox_start` timing marks. See `environment/sandbox-lifecycle.ts`.
-    const sandboxRequestedAt = Date.now();
     const acquiredSandbox = await acquireSandbox(
       {
         startOptions,
@@ -933,7 +932,8 @@ async function acquireEnvironmentOnce(
     // Track the live handle so a shutdown signal handler can delete it if `destroy` is skipped by
     // a process KILL; removed in `destroy` on every normal exit so it is never double-deleted.
     if (environment.sandbox) inFlightSandboxes.add(environment);
-    // Sandbox seconds on the platform's Daytona account, from the moment the sandbox was asked for.
+    // Sandbox seconds on the platform's Daytona account, from the moment the sandbox is up: waits,
+    // pointer reads and a failed reconnect before it are not running time.
     // The in-process provider holds no sandbox here: it meters its own command sandbox.
     const meteredSandboxId = (environment.sandbox as { sandboxId?: string } | undefined)?.sandboxId;
     const meterAuthorization = platformCredentialForRequest(request);
@@ -955,7 +955,6 @@ async function acquireEnvironmentOnce(
         ...(request.runContext?.workflow?.artifact?.id
           ? { agentId: request.runContext.workflow.artifact.id }
           : {}),
-        startedAtMs: sandboxRequestedAt,
       });
       environment.sandboxMeter = {
         stop: async () => {
