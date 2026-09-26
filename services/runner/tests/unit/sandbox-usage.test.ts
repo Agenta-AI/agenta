@@ -34,11 +34,6 @@ function platform(statuses: number[] = []) {
   return { calls, fetch: fetch as unknown as typeof globalThis.fetch };
 }
 
-const noLease = (_base: string, authorization: string) => ({
-  credential: () => authorization,
-  release: () => {},
-});
-
 describe("admitSandboxTurn", () => {
   const answer = (status: number, body: unknown = {}) =>
     (async () => new Response(JSON.stringify(body), { status })) as unknown as typeof fetch;
@@ -79,7 +74,7 @@ describe("startSandboxMeter", () => {
       provider: "daytona",
       sandboxId: "sb-1",
       resources: { vcpu: 2, memoryGib: 4 },
-      authorization: "Secret run-1",
+      credential: () => "Secret run-1",
       sessionId: "session-1",
       agentId: AGENT,
       startedAtMs: START_MS,
@@ -87,7 +82,6 @@ describe("startSandboxMeter", () => {
       now: () => clock,
       baseUrl: BASE,
       log: () => {},
-      lease: noLease,
       ...overrides,
     });
 
@@ -164,16 +158,51 @@ describe("startSandboxMeter", () => {
     expect(calls.map((c) => c.body.start_time)).toEqual([iso(START_S), iso(START_S + 60)]);
   });
 
-  it("reports with the newest run's credential", async () => {
+  it("reads the owner's current credential for every report", async () => {
     const { calls, fetch } = platform();
-    const m = meter({ fetch });
+    let credential = "Secret run-1";
+    const m = meter({ fetch, credential: () => credential });
 
     await advance(60_000);
-    m.setAuthorization("Secret run-2");
+    credential = "Secret run-2";
     await advance(60_000);
     await m.stop();
 
     expect(calls.map((c) => c.authorization)).toEqual(["Secret run-1", "Secret run-2"]);
+  });
+
+  it("ends the last interval at the stop, not when a slow report in flight finishes", async () => {
+    const calls: Array<Record<string, unknown>> = [];
+    let release: () => void = () => {};
+    const slow = vi.fn(async (_url: unknown, init?: RequestInit) => {
+      calls.push(JSON.parse(String(init?.body)));
+      if (calls.length === 1) await new Promise<void>((resolve) => (release = resolve));
+      return new Response("{}", { status: 200 });
+    }) as unknown as typeof fetch;
+    const m = meter({ fetch: slow });
+
+    await advance(60_000); // the first report hangs
+    await advance(1_000);
+    const stopping = m.stop(); // stopped at second 61
+    await advance(4_000); // the hung report answers four seconds later
+    release();
+    await stopping;
+
+    expect(calls.map((c) => c.end_time)).toEqual([iso(START_S + 60), iso(START_S + 61)]);
+  });
+
+  it("meters the default size when the provider never answers", async () => {
+    const { calls, fetch } = platform();
+    const m = meter({ fetch, resources: new Promise(() => {}) });
+
+    await advance(60_000);
+    await advance(10_000);
+    await m.stop();
+
+    expect([calls[0]!.body.vcpu, calls[0]!.body.memory_gib]).toEqual([
+      DEFAULT_SANDBOX_RESOURCES.vcpu,
+      DEFAULT_SANDBOX_RESOURCES.memoryGib,
+    ]);
   });
 
   it("stops retrying at teardown after its budget and says what it lost", async () => {

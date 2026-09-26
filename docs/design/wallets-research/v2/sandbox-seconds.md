@@ -35,7 +35,7 @@ Disk is not charged: our sandboxes use 5 GiB, which is inside Daytona's free 5 G
 A live sandbox from our snapshot (`agenta-agent-sandbox-v1`) reports 2 vCPU, 4 GiB of memory
 and 5 GiB of disk (read through the Daytona SDK on 2026-09-26). The runner reads the size of
 each sandbox from Daytona rather than assuming it. It falls back to 2 vCPU and 4 GiB only when
-Daytona does not answer.
+Daytona does not answer within 10 seconds.
 
 One minute of that sandbox:
 
@@ -66,13 +66,15 @@ are two kinds of sandbox on our account, and both are metered:
 - The `daytona` provider's agent sandbox. It is metered from the moment the runner asks for it
   until it is parked or deleted. Warm time between turns is running time, so it is billed.
 - The `inprocess` provider's command sandbox. It is metered from each bring-up until it
-  stops, is retired, or is deleted. The meter reports with the credential of the newest run
-  that holds the sandbox.
+  stops, is retired, or is deleted. A sandbox whose state became unknown stays metered until
+  Daytona confirms it stopped or gone. The meter reports with the credential of the newest
+  run that holds the sandbox, kept fresh for as long as any environment holds it.
 
 Every minute the meter cuts one interval of whole seconds and reports it. When the sandbox
-stops, it cuts the final partial interval. A runner that crashes loses at most the minute in
-progress. Bounds are floored to whole seconds, so consecutive running periods of one sandbox
-never overlap; at most one second per running period is not billed.
+stops, it cuts the final partial interval at the moment of the stop, even when an earlier
+report is still in flight. A runner that crashes loses at most the minute in progress. Bounds
+are floored to whole seconds, so consecutive running periods of one sandbox never overlap; at
+most one second per running period is not billed.
 
 ### Reporting
 
@@ -100,8 +102,9 @@ component keys are the only additions to pricing.
 The runner keeps an interval the platform did not take (a network failure, 401, 403, 408, 429
 or 5xx) and sends the same bytes again on the next tick, holding at most three hours of
 intervals. A stopping meter retries for five seconds before it gives up and logs the seconds it
-lost. A 422 means the report can never be accepted, so it is dropped and logged. A 404 means the
-platform does not meter sandboxes, and the meter goes quiet.
+lost, and teardown never waits on it for more than ten. A 422 means the report can never be
+accepted, so it is dropped and logged. A 404 means the platform does not meter sandboxes, and
+the meter goes quiet.
 
 Riding the existing 30-second session heartbeat was considered and rejected. The heartbeat
 belongs to a session-owned turn in OSS, while a sandbox outlives turns (warm and parked
@@ -144,3 +147,10 @@ calls. Each expanded row shows the seconds, vCPUs and GiB of memory of its inter
 - **Admission reads the balance once per turn.** Nothing is reserved.
 - **Self-reported.** Anyone holding a run credential can post an interval, but it can only
   charge their own organization.
+- **Self-hosted EE is excluded by the wallet flag, not by account ownership.** A self-hosted EE
+  deployment that turns `AGENTA_WALLETS_ENABLED` on bills its own Daytona sandboxes to its own
+  wallets. The wallet is a cloud product and the flag stays off elsewhere; a separate gate was
+  judged not worth its configuration surface today.
+- **On OSS or with the wallet off,** the meter goes quiet after the first 404, but the
+  credential refresh that serves it keeps running for the life of the environment (one call
+  every five minutes).

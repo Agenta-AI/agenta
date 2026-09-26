@@ -16,15 +16,13 @@
  */
 import { apiBase } from "../apiBase.ts";
 import type { RunErrorCode } from "../engines/sandbox_agent/errors.ts";
-import {
-  startPlatformCredentialLease,
-  type PlatformCredentialLease,
-} from "../sessions/auth.ts";
 
 export const SANDBOX_USAGE_INTERVAL_MS = 60_000;
 const REQUEST_TIMEOUT_MS = 5_000;
 /** How long a stopping meter keeps retrying its last intervals before it gives them up. */
 const FINAL_FLUSH_BUDGET_MS = 5_000;
+/** The provider's SDK waits a day for an answer; a size that has not arrived by now is unknown. */
+const RESOURCES_TIMEOUT_MS = 10_000;
 const FINAL_FLUSH_RETRY_MS = 500;
 /** Three hours of intervals: past that, a platform that is still down loses the oldest. */
 const MAX_PENDING_INTERVALS = 180;
@@ -94,7 +92,8 @@ export interface SandboxMeterOptions {
   sandboxId: string;
   /** What the sandbox has, read from the provider. Unknown (undefined or a rejection) meters the default. */
   resources: SandboxResources | Promise<SandboxResources> | undefined;
-  authorization: string;
+  /** The current platform credential; its owner keeps it fresh for as long as the sandbox can run. */
+  credential: () => string;
   sessionId?: string;
   agentId?: string;
   /** When the sandbox started running; defaults to now. */
@@ -104,13 +103,13 @@ export interface SandboxMeterOptions {
   fetch?: Fetch;
   baseUrl?: string;
   log?: Log;
-  lease?: (baseUrl: string, authorization: string) => PlatformCredentialLease;
 }
 
 export interface SandboxMeter {
-  /** A newer run's credential for the same sandbox: the older one may expire first. */
-  setAuthorization(authorization: string): void;
-  /** Report the final partial interval and anything not yet reported. Never throws. */
+  /**
+   * The sandbox stopped now: report the final partial interval and anything not yet reported,
+   * within a bounded time. Never throws.
+   */
   stop(): Promise<void>;
 }
 
@@ -126,8 +125,10 @@ export function startSandboxMeter(options: SandboxMeterOptions): SandboxMeter {
   const log = options.log ?? defaultLog;
   const doFetch = options.fetch ?? fetch;
   const baseUrl = options.baseUrl ?? apiBase();
-  const lease = options.lease ?? ((base, authorization) => startPlatformCredentialLease(base, authorization));
-  const resources = Promise.resolve(options.resources)
+  const unknownSize = new Promise<undefined>((resolve) => {
+    setTimeout(() => resolve(undefined), RESOURCES_TIMEOUT_MS).unref?.();
+  });
+  const resources = Promise.race([Promise.resolve(options.resources), unknownSize])
     .then((size) => {
       if (!size) throw new Error("the provider reported no size");
       return wholeResources(size);
@@ -142,7 +143,6 @@ export function startSandboxMeter(options: SandboxMeterOptions): SandboxMeter {
   const agentId = options.agentId && UUID.test(options.agentId) ? options.agentId : undefined;
   const sessionId = options.sessionId && options.sessionId.length <= 128 ? options.sessionId : undefined;
 
-  let credentials = lease(baseUrl, options.authorization);
   // Bounds are floored to whole seconds, so consecutive running periods of one sandbox never
   // overlap: at most one second per running period goes unbilled.
   let cursor = Math.floor((options.startedAtMs ?? now()) / 1000);
@@ -157,8 +157,9 @@ export function startSandboxMeter(options: SandboxMeterOptions): SandboxMeter {
     return next;
   };
 
-  const cut = (): void => {
-    const end = Math.floor(now() / 1000);
+  /** Close the open interval at `until` (epoch seconds), or at now. */
+  const cut = (until?: number): void => {
+    const end = until ?? Math.floor(now() / 1000);
     if (unmetered || end <= cursor) return;
     pending.push({ start: cursor, end });
     cursor = end;
@@ -174,7 +175,7 @@ export function startSandboxMeter(options: SandboxMeterOptions): SandboxMeter {
     try {
       res = await doFetch(`${baseUrl}/wallets/sandboxes/usage`, {
         method: "POST",
-        headers: { "content-type": "application/json", authorization: credentials.credential() },
+        headers: { "content-type": "application/json", authorization: options.credential() },
         signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
         body: JSON.stringify({
           provider: options.provider,
@@ -226,18 +227,16 @@ export function startSandboxMeter(options: SandboxMeterOptions): SandboxMeter {
   timer.unref?.();
 
   return {
-    setAuthorization(authorization: string): void {
-      if (stopped || !authorization) return;
-      credentials.release();
-      credentials = lease(baseUrl, authorization);
-    },
     async stop(): Promise<void> {
       if (stopped) return;
       stopped = true;
       clearInterval(timer);
-      await serial(async () => {
-        cut();
-        const deadline = now() + FINAL_FLUSH_BUDGET_MS;
+      // Read now, not when the queue gets here: a report in flight must not stretch the last
+      // interval past the stop, or into the next running period of the same sandbox.
+      const stoppedAt = Math.floor(now() / 1000);
+      const deadline = now() + FINAL_FLUSH_BUDGET_MS;
+      const finalFlush = serial(async () => {
+        cut(stoppedAt);
         while (!(await flush()) && now() < deadline) {
           await new Promise((resolve) => setTimeout(resolve, FINAL_FLUSH_RETRY_MS));
         }
@@ -246,7 +245,15 @@ export function startSandboxMeter(options: SandboxMeterOptions): SandboxMeter {
           log(`sandbox=${options.sandboxId} ${seconds}s of running time not reported: the platform did not answer`);
         }
       }).catch(() => {});
-      credentials.release();
+      // Teardown waits for the report, not for a report stuck behind a slow one.
+      let giveUp: ReturnType<typeof setTimeout> | undefined;
+      await Promise.race([
+        finalFlush,
+        new Promise<void>((resolve) => {
+          giveUp = setTimeout(resolve, FINAL_FLUSH_BUDGET_MS + REQUEST_TIMEOUT_MS);
+        }),
+      ]);
+      clearTimeout(giveUp);
     },
   };
 }

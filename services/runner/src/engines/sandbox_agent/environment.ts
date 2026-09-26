@@ -158,6 +158,7 @@ import { buildSandboxProvider, daytonaNetworkFields } from "./provider.ts";
 import { loadRunnerConfig, sandboxProviderTraits } from "../../config/runner-config.ts";
 import { readDaytonaSandboxResources } from "./daytona-provider.ts";
 import { startSandboxMeter } from "../../metering/sandbox-usage.ts";
+import { startPlatformCredentialLease } from "../../sessions/auth.ts";
 import {
   markSandboxDestroyed,
   readStoredSandboxPointer,
@@ -943,17 +944,25 @@ async function acquireEnvironmentOnce(
       !providerTraits.harnessInRunner
     ) {
       const daytonaSandboxId = meteredSandboxId.replace(/^daytona\//, "");
-      environment.sandboxMeter = (deps.startSandboxMeter ?? startSandboxMeter)({
+      // Warm and parked-live environments outlive the run's credential; the lease outlives them.
+      const meterLease = startPlatformCredentialLease(apiBase(), meterAuthorization);
+      const meter = (deps.startSandboxMeter ?? startSandboxMeter)({
         provider: "daytona",
         sandboxId: daytonaSandboxId,
         resources: readDaytonaSandboxResources(loadRunnerConfig().daytona, daytonaSandboxId),
-        authorization: meterAuthorization,
+        credential: meterLease.credential,
         ...(sessionForMount ? { sessionId: sessionForMount } : {}),
         ...(request.runContext?.workflow?.artifact?.id
           ? { agentId: request.runContext.workflow.artifact.id }
           : {}),
         startedAtMs: sandboxRequestedAt,
       });
+      environment.sandboxMeter = {
+        stop: async () => {
+          await meter.stop();
+          meterLease.release();
+        },
+      };
     }
 
     // CREDENTIAL PREFLIGHT (fresh Daytona sandboxes with an opaque model key and a declared

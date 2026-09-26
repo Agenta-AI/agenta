@@ -270,24 +270,28 @@ describe("a running slot goes back only once its sandbox is confirmed stopped or
 
 describe("running seconds are metered for the newest holder", () => {
   function recordingMeters() {
-    const started: Array<Record<string, unknown>> = [];
+    const started: Array<{ sandboxId: string; sessionId?: string; credential: () => string }> = [];
     const events: string[] = [];
-    const startMeter = ((options: Record<string, unknown>) => {
+    const startMeter = ((options: { sandboxId: string; sessionId?: string; credential: () => string }) => {
       started.push(options);
       return {
-        setAuthorization: (authorization: string) => events.push(`auth ${authorization}`),
         stop: async () => {
-          events.push(`stop ${String(options.sandboxId)}`);
+          events.push(`stop ${options.sandboxId} as ${options.credential()}`);
         },
       };
     }) as unknown as NonNullable<Parameters<typeof newSandbox>[2]>["startMeter"];
-    return { started, events, startMeter };
+    const leases: string[] = [];
+    const startLease = (authorization: string) => {
+      leases.push(`lease ${authorization}`);
+      return { credential: () => `${authorization} (fresh)`, release: () => leases.push(`release ${authorization}`) };
+    };
+    return { started, events, leases, settings: { ...sandboxSettings(), startMeter, startLease } };
   }
 
-  it("meters from bring-up to stop, with the sandbox's own id and session, and switches to a newer credential", async () => {
+  it("meters from bring-up to stop with the sandbox's own id, reporting with the newest holder's fresh credential", async () => {
     const daytona = freshDaytona();
     const meters = recordingMeters();
-    const { sandbox } = newSandbox(daytona, testOwner(), { ...sandboxSettings(), startMeter: meters.startMeter });
+    const { sandbox } = newSandbox(daytona, testOwner(), meters.settings);
     sandbox.useUsage({ authorization: "Secret run-1", sessionId: "conv-1" });
 
     const use = await sandbox.acquire(OPEN_NETWORK);
@@ -297,20 +301,49 @@ describe("running seconds are metered for the newest holder", () => {
     await sandbox.stop("idle");
     await sandbox.settle(5_000);
 
-    expect(meters.started).toHaveLength(1);
-    expect(meters.started[0]).toMatchObject({
-      provider: "daytona",
-      sandboxId: id,
-      authorization: "Secret run-1",
-      sessionId: "conv-1",
-    });
-    expect(meters.events).toEqual(["auth Secret run-2", `stop ${id}`]);
+    expect(meters.started.map((m) => [m.sandboxId, m.sessionId])).toEqual([[id, "conv-1"]]);
+    expect(meters.events).toEqual([`stop ${id} as Secret run-2 (fresh)`]);
+    expect(meters.leases).toEqual(["lease Secret run-1", "release Secret run-1", "lease Secret run-2"]);
+  });
+
+  it("keeps the last credential for a later report once no one holds the sandbox", async () => {
+    const daytona = freshDaytona();
+    const meters = recordingMeters();
+    const { sandbox } = newSandbox(daytona, testOwner(), meters.settings);
+    sandbox.useUsage({ authorization: "Secret run-1" });
+
+    const use = await sandbox.acquire(OPEN_NETWORK);
+    sandbox.releaseUsage();
+    use.release();
+    await sandbox.stop("idle");
+    await sandbox.settle(5_000);
+
+    expect(meters.events).toEqual([`stop ${use.sandbox.id} as Secret run-1 (fresh)`]);
+    expect(meters.leases).toEqual(["lease Secret run-1", "release Secret run-1"]);
+  });
+
+  it("stops metering a suspect sandbox once Daytona confirms it stopped", async () => {
+    const daytona = freshDaytona();
+    const meters = recordingMeters();
+    const slots = sandboxSlots(10, 10, 1_000, { reconcileDelaysMs: [10] });
+    const { sandbox } = newSandbox(daytona, testOwner(), { ...meters.settings, slots });
+    sandbox.useUsage({ authorization: "Secret run-1" });
+
+    const use = await sandbox.acquire(OPEN_NETWORK);
+    const local = daytona.sandboxes.get(use.sandbox.id)!;
+    use.suspect("a command ended without an exit code");
+    use.release();
+    await sandbox.stop("parked");
+    expect(meters.events).toEqual([]); // unknown whether it runs: still metered
+    local.state = "stopped";
+
+    await expect.poll(() => meters.events, { timeout: 2_000 }).toEqual([`stop ${use.sandbox.id} as Secret run-1 (fresh)`]);
   });
 
   it("meters nothing without a holder's credential", async () => {
     const daytona = freshDaytona();
     const meters = recordingMeters();
-    const { sandbox } = newSandbox(daytona, testOwner(), { ...sandboxSettings(), startMeter: meters.startMeter });
+    const { sandbox } = newSandbox(daytona, testOwner(), meters.settings);
 
     (await sandbox.acquire(OPEN_NETWORK)).release();
     await sandbox.stop("idle");

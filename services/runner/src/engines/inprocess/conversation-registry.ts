@@ -110,6 +110,7 @@ export class ConversationRegistry {
     const sandbox = workspace.sandbox;
     sandbox.holders = Math.max(0, sandbox.holders - 1);
     if (sandbox.holders === 0) {
+      sandbox.releaseUsage();
       if (disposition === "delete") {
         if (this.entries.get(sandbox.key) === workspace) {
           this.entries.delete(sandbox.key);
