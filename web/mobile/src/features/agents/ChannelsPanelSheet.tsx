@@ -26,7 +26,7 @@ export const ChannelsPanelSheet = ({
                 wide ? ({"--ag-sheet-responsive-width": "720px"} as React.CSSProperties) : undefined
             }
         >
-            <SheetHeader className="border-0 border-b border-solid border-border py-3.5">
+            <SheetHeader className="py-3.5">
                 <div className="flex min-w-0 items-center gap-2.5">
                     {onBack ? (
                         <Button variant="ghost" size="icon-sm" aria-label="Back" onClick={onBack}>
@@ -34,16 +34,16 @@ export const ChannelsPanelSheet = ({
                         </Button>
                     ) : null}
                     {icon ? (
-                        <span className="flex size-8 flex-none items-center justify-center rounded-lg border border-solid border-border text-foreground">
+                        <span className="flex size-7 flex-none items-center justify-center rounded-md border border-solid border-border text-foreground [&_svg]:size-4">
                             {icon}
                         </span>
                     ) : null}
-                    <div className="flex min-w-0 flex-1 flex-col">
-                        <SheetTitle className="text-[15px]">{title}</SheetTitle>
+                    <div className="flex min-w-0 flex-1 items-center gap-2">
+                        <SheetTitle className="flex-none text-[15px]">{title}</SheetTitle>
                         {/* A div: the subtitle may be the agent picker, a button. */}
                         {subtitle ? (
                             <SheetDescription asChild>
-                                <div className="truncate text-xs">{subtitle}</div>
+                                <div className="min-w-0 truncate text-[13px]">{subtitle}</div>
                             </SheetDescription>
                         ) : null}
                     </div>
