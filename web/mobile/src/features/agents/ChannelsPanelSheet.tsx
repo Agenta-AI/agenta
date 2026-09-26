@@ -1,8 +1,6 @@
 import type {ChannelsPanelRenderProps} from "@agenta/settings-ui"
-import {Button} from "@agenta/ui/ui"
+import {Button, Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle} from "@agenta/ui/ui"
 import {ArrowLeft} from "@phosphor-icons/react"
-
-import {Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle} from "@/components/ui/sheet"
 
 /** The /m container for the Publish and Channels panels. */
 export const ChannelsPanelSheet = ({
@@ -24,27 +22,31 @@ export const ChannelsPanelSheet = ({
         {/* `responsive`: a bottom sheet on a phone, the right-edge drawer from lg up. */}
         <SheetContent
             side="responsive"
-            className={`gap-0 ${wide ? "max-w-none lg:w-[720px]" : ""}`}
+            style={
+                wide ? ({"--ag-sheet-responsive-width": "720px"} as React.CSSProperties) : undefined
+            }
         >
-            <SheetHeader className="flex-row items-center gap-2.5 border-0 border-b border-solid border-border py-3.5 pl-4 pr-12">
-                {onBack ? (
-                    <Button variant="ghost" size="icon-sm" aria-label="Back" onClick={onBack}>
-                        <ArrowLeft />
-                    </Button>
-                ) : null}
-                {icon ? (
-                    <span className="flex size-8 flex-none items-center justify-center rounded-lg border border-solid border-border text-foreground">
-                        {icon}
-                    </span>
-                ) : null}
-                <div className="flex min-w-0 flex-1 flex-col">
-                    <SheetTitle className="text-[15px]">{title}</SheetTitle>
-                    {/* A div: the subtitle may be the agent picker, a button. */}
-                    {subtitle ? (
-                        <SheetDescription asChild>
-                            <div className="truncate text-xs">{subtitle}</div>
-                        </SheetDescription>
+            <SheetHeader className="border-0 border-b border-solid border-border py-3.5">
+                <div className="flex min-w-0 items-center gap-2.5">
+                    {onBack ? (
+                        <Button variant="ghost" size="icon-sm" aria-label="Back" onClick={onBack}>
+                            <ArrowLeft />
+                        </Button>
                     ) : null}
+                    {icon ? (
+                        <span className="flex size-8 flex-none items-center justify-center rounded-lg border border-solid border-border text-foreground">
+                            {icon}
+                        </span>
+                    ) : null}
+                    <div className="flex min-w-0 flex-1 flex-col">
+                        <SheetTitle className="text-[15px]">{title}</SheetTitle>
+                        {/* A div: the subtitle may be the agent picker, a button. */}
+                        {subtitle ? (
+                            <SheetDescription asChild>
+                                <div className="truncate text-xs">{subtitle}</div>
+                            </SheetDescription>
+                        ) : null}
+                    </div>
                 </div>
             </SheetHeader>
             {/* The body scrolls; `min-h-0` lets it shrink inside the sheet's flex column. */}
