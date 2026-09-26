@@ -139,6 +139,24 @@ describe("author profiles", () => {
     expect(profiles[0]!.links[1]).toMatchObject({ platform: undefined });
   });
 
+  it("drops author links and avatars that are not web URLs", () => {
+    const [acme] = mergeAuthorProfiles(
+      [],
+      [
+        {
+          ...templateAuthor("acme", "Acme Labs"),
+          avatar_url: "//evil.example/a.png",
+          links: [
+            { kind: "website", url: "javascript:alert(1)", label: "x" },
+            { kind: "website", url: "https://acme.dev", label: "acme.dev" },
+          ],
+        },
+      ],
+    );
+    expect(acme!.avatar).toBeUndefined();
+    expect(acme!.links.map((link) => link.url)).toEqual(["https://acme.dev"]);
+  });
+
   it("covers every template author in the generated data", () => {
     const ids = mergeAuthorProfiles([], authors).map((profile) => profile.id);
     for (const template of templates) {

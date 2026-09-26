@@ -82,7 +82,7 @@ Recorded on 2026-09-26 on branch `claude/project-thread-dmcgk1`, stacked on the 
 
 | Task | Command (from) | Result |
 | --- | --- | --- |
-| 4.4, 5.5 | `pnpm test` (`web/website`) | 71 passed; `src/lib/marketplace.test.ts` covers routes, category order, image/video/YouTube media with fallback for unsupported kinds and bad URLs, blog/template author merge, and a profile for every template author |
+| 4.4, 5.5 | `pnpm test` (`web/website`) | 72 passed; `src/lib/marketplace.test.ts` covers routes, rejection of non-web author links and avatars, category order, image/video/YouTube media with fallback for unsupported kinds and bad URLs, blog/template author merge, and a profile for every template author |
 | 4.4 | `pnpm build` (`web/website`) | passed; `verify-build.mjs` now fails unless every template has `/marketplace/<key>/` with its own `?template=<key>` link and a twin, and every template author has `/authors/<id>/` and a twin |
 | 4.4 | Playwright screenshots of index, detail, template author and blog author pages at 1440 and 390, light and dark | rendered; no horizontal overflow |
 
