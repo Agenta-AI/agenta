@@ -1095,7 +1095,7 @@ def build_base_cte(
         )
 
     if rate is not None:
-        percent = max(0, min(int(rate * 100.0), 100))
+        percent = get_sampling_percent(rate)
 
         if percent == 0:
             return None
@@ -2162,7 +2162,8 @@ def get_sampling_percent(
     if rate is None:
         return None
 
-    return max(0, min(int(rate * 100.0), 100))
+    # A positive rate below 1% still samples 1%, instead of returning nothing.
+    return max(1 if rate > 0 else 0, min(int(rate * 100.0), 100))
 
 
 def scale_sampled_value(

@@ -54,6 +54,8 @@ def test_get_sampling_percent():
     assert get_sampling_percent(0.25) == 25
     assert get_sampling_percent(2.0) == 100
     assert get_sampling_percent(-1.0) == 0
+    assert get_sampling_percent(0.0) == 0
+    assert get_sampling_percent(0.005) == 1
 
 
 def test_scale_sampled_value_scales_counts_and_sums_only():
