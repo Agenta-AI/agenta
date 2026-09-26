@@ -12,6 +12,7 @@ import {
     projectTemplateUrl,
     readDesktopLastUsed,
     readLastContext,
+    takeTemplateKey,
     type LastContext,
 } from "@/lib/context"
 
@@ -72,8 +73,10 @@ export const ContextResolver = ({workspaceId}: ContextResolverProps = {}) => {
 
     useEffect(() => {
         if (!target?.projectId) return
+        // On the URL, or remembered by AuthGate before a sign-in dropped the query.
         const templateKey =
-            typeof router.query.template === "string" ? router.query.template.trim() : ""
+            (typeof router.query.template === "string" ? router.query.template.trim() : "") ||
+            takeTemplateKey()
         const next = templateKey ? projectTemplateUrl(target, templateKey) : projectHomeUrl(target)
         // A gate that forwards to itself would loop; nothing here ever resolves to its own
         // path, but the guard keeps that true if a route is added under a project home.

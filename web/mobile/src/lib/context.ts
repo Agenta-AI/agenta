@@ -27,6 +27,42 @@ export const projectHomeUrl = ({workspaceId, projectId}: LastContext): string =>
 export const projectTemplateUrl = ({workspaceId, projectId}: LastContext, templateKey: string) =>
     `/w/${encodeURIComponent(workspaceId)}/p/${encodeURIComponent(projectId)}/agents/new?template=${encodeURIComponent(templateKey)}`
 
+const PENDING_TEMPLATE_KEY = "agenta:mobile:pending-template"
+/** Long enough to sign up and verify an email; the desktop capture uses the same window. */
+const PENDING_TEMPLATE_TTL_MS = 30 * 60 * 1000
+
+/**
+ * Keep a website template key across sign-in. The trip through `/auth` (and an OAuth provider)
+ * drops the URL's query, so the `/m` root would otherwise land on the project home.
+ */
+export function rememberTemplateKey(key: string, now = Date.now()): void {
+    try {
+        localStorage.setItem(PENDING_TEMPLATE_KEY, JSON.stringify({key, capturedAt: now}))
+    } catch {
+        // storage unavailable (private mode / quota) — continuity is best-effort
+    }
+}
+
+/** The remembered template key, once: reading it forgets it. An expired key reads as "". */
+export function takeTemplateKey(now = Date.now()): string {
+    try {
+        const raw = localStorage.getItem(PENDING_TEMPLATE_KEY)
+        localStorage.removeItem(PENDING_TEMPLATE_KEY)
+        const parsed = raw ? (JSON.parse(raw) as {key?: unknown; capturedAt?: unknown}) : null
+        if (
+            parsed &&
+            typeof parsed.key === "string" &&
+            typeof parsed.capturedAt === "number" &&
+            now - parsed.capturedAt <= PENDING_TEMPLATE_TTL_MS
+        ) {
+            return parsed.key.trim()
+        }
+        return ""
+    } catch {
+        return ""
+    }
+}
+
 /**
  * Settings -> LLM providers, which renders the same shared AI-providers page the desktop's
  * provider drawer opens. It is where a project's own provider key is added and where a dead
