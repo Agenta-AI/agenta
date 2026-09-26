@@ -53,14 +53,7 @@ def calculate_and_propagate_metrics(
     cumulate_costs(span_id_tree, span_idx)
 
     # Propagate tokens up the tree (children to parents)
-    restating_span_ids = cumulate_tokens(span_id_tree, span_idx)
-    if restating_span_ids:
-        log.warning(
-            "Token roll-up may double count: a span's own tokens cover its children's",
-            trace_id=str(span_dtos[0].trace_id),
-            span_ids=restating_span_ids[:10],
-            count=len(restating_span_ids),
-        )
+    cumulate_tokens(span_id_tree, span_idx)
 
     # Propagate errors up the tree (children to parents)
     cumulate_errors(span_id_tree, span_idx)
@@ -308,32 +301,43 @@ def _write_cumulative(span: OTelFlatSpan, metric: str, values: Dict[str, float])
     node["cumulative"] = values
 
 
+def _is_model_call(span: OTelFlatSpan) -> bool:
+    return (
+        span.span_type is not None and span.span_type.name.lower() in TYPES_WITH_COSTS
+    )
+
+
+def _combine_breakdowns(
+    span: OTelFlatSpan,
+    own: Dict[str, float],
+    children: Optional[Dict[str, float]],
+) -> Dict[str, float]:
+    if not children:
+        return own
+    if not own:
+        return children
+    if _is_model_call(span):
+        return _sum_breakdowns(own, children)
+    # A non-model span's own usage can only summarize model calls made inside it, which
+    # may or may not be traced as its children, so the larger side is the whole picture.
+    if own.get("total", 0.0) >= children.get("total", 0.0):
+        return own
+    return children
+
+
 def _cumulate_breakdown(
     spans_id_tree: OrderedDict,
     spans_idx: Dict[str, OTelFlatSpan],
     metric: str,
-    on_cumulated=None,
 ) -> None:
-    # A span's cumulative is its own incremental plus its children's cumulative, whether
-    # its own value was reported by the producer or computed at ingest.
-    def _get_incremental(span: OTelFlatSpan):
-        return _read_breakdown(span, metric, "incremental")
-
-    def _get_cumulative(span: OTelFlatSpan):
-        return _read_breakdown(span, metric, "cumulative")
-
-    def _set_cumulative(span: OTelFlatSpan, values: Dict[str, float]):
-        if on_cumulated is not None:
-            on_cumulated(span, values)
-        _write_cumulative(span, metric, values)
-
     _cumulate_tree_dfs(
         spans_id_tree,
         spans_idx,
-        _get_incremental,
-        _get_cumulative,
+        lambda span: _read_breakdown(span, metric, "incremental"),
+        lambda span: _read_breakdown(span, metric, "cumulative"),
         _sum_breakdowns,
-        _set_cumulative,
+        lambda span, values: _write_cumulative(span, metric, values),
+        combine=_combine_breakdowns,
     )
 
 
@@ -347,25 +351,8 @@ def cumulate_costs(
 def cumulate_tokens(
     spans_id_tree: OrderedDict,
     spans_idx: Dict[str, OTelFlatSpan],
-) -> List[str]:
-    """Roll tokens up and return the span ids whose own total restates their subtree.
-
-    A span whose own incremental total is at least what its children carry most likely
-    repeats a run total (e.g. usage stamped on a parent) and is summed twice.
-    """
-    restating_span_ids: List[str] = []
-
-    def _check_restated(span: OTelFlatSpan, cumulated: Dict[str, float]):
-        own_total = _read_breakdown(span, "tokens", "incremental").get("total", 0.0)
-        if not own_total:
-            return
-        children_total = cumulated.get("total", 0.0) - own_total
-        if 0 < children_total <= own_total:
-            restating_span_ids.append(span.span_id)
-
-    _cumulate_breakdown(spans_id_tree, spans_idx, "tokens", _check_restated)
-
-    return restating_span_ids
+) -> None:
+    _cumulate_breakdown(spans_id_tree, spans_idx, "tokens")
 
 
 def cumulate_errors(
@@ -441,26 +428,41 @@ def _cumulate_tree_dfs(
     get_cumulative,
     accumulate,
     set_cumulative,
+    combine=None,
 ):
-    for span_id, children_spans_id_tree in spans_id_tree.items():
-        children_spans_id_tree: OrderedDict
+    # Iterative post-order walk: deep span chains must not hit the recursion limit.
+    stack = [(span_id, children, False) for span_id, children in spans_id_tree.items()]
 
-        cumulated_metric = get_incremental(spans_idx[span_id])
+    while stack:
+        span_id, children, expanded = stack.pop()
 
-        _cumulate_tree_dfs(
-            children_spans_id_tree,
-            spans_idx,
-            get_incremental,
-            get_cumulative,
-            accumulate,
-            set_cumulative,
-        )
+        if not expanded:
+            stack.append((span_id, children, True))
+            stack.extend(
+                (cid, grandchildren, False) for cid, grandchildren in children.items()
+            )
+            continue
 
-        for child_span_id in children_spans_id_tree.keys():
-            marginal_metric = get_cumulative(spans_idx[child_span_id])
-            cumulated_metric = accumulate(cumulated_metric, marginal_metric)
+        span = spans_idx[span_id]
+        own = get_incremental(span)
 
-        set_cumulative(spans_idx[span_id], cumulated_metric)
+        children_metric = None
+        for child_span_id in children:
+            child_metric = get_cumulative(spans_idx[child_span_id])
+            children_metric = (
+                child_metric
+                if children_metric is None
+                else accumulate(children_metric, child_metric)
+            )
+
+        if combine is not None:
+            cumulated_metric = combine(span, own, children_metric)
+        elif children_metric is None:
+            cumulated_metric = own
+        else:
+            cumulated_metric = accumulate(own, children_metric)
+
+        set_cumulative(span, cumulated_metric)
 
 
 TYPES_WITH_COSTS = [
