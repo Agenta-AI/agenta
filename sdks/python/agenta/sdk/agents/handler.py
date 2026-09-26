@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass, field
-from inspect import signature
 from typing import Any, Awaitable, Callable, Dict, List, Optional
 from uuid import UUID
 
@@ -392,23 +391,11 @@ def _agent_model_ref(agent_template: AgentTemplate) -> Optional[ModelRef]:
 
 
 def _bind_workflow_span(record_usage: RecordUsageFn, span: Any) -> RecordUsageFn:
-    """Pin the workflow span that is current at run start onto the usage recorder.
+    """Run the usage recorder with the workflow span that was current at run start.
 
     Usage is written from the run's teardown, which on the streaming path runs after many pulls,
-    possibly in another context. A recorder that takes ``span`` gets the captured span. A
-    recorder with the plain ``(usage)`` signature runs with the span made current again.
+    possibly in another context where the workflow span is no longer current.
     """
-    try:
-        accepts_span = "span" in signature(record_usage).parameters
-    except (TypeError, ValueError):
-        accepts_span = False
-
-    if accepts_span:
-
-        def _record_with_span(usage: Optional[Dict[str, Any]]) -> None:
-            record_usage(usage, span=span)  # type: ignore[call-arg]
-
-        return _record_with_span
 
     def _record_under_span(usage: Optional[Dict[str, Any]]) -> None:
         with otel_trace.use_span(span, end_on_exit=False):
