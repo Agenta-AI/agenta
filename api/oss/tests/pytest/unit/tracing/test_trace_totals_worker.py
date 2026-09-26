@@ -249,6 +249,34 @@ async def test_worker_keeps_traces_whose_scheduling_fails_and_retries_them():
     assert service.recomputed == [(ids["project_id"], trace_id)]
 
 
+async def test_worker_keeps_a_failed_recompute_whose_requeue_fails():
+    redis = fakeredis.FakeRedis()
+    broken = _BrokenRedis(redis)
+
+    class _BreaksRedisOnFailure(_FailingOnceService):
+        async def recompute_trace_totals(self, *, project_id, trace_id):
+            if self.failures:
+                broken.broken = True
+            return await super().recompute_trace_totals(
+                project_id=project_id, trace_id=trace_id
+            )
+
+    service = _BreaksRedisOnFailure()
+    worker = _worker(broken, service)
+    key = (uuid4(), uuid4())
+    await redis.zadd(TOTALS_QUEUE_KEY, {f"{key[0].hex}:{key[1].hex}": 0})
+
+    assert await worker.recompute_due_totals() == 1
+    assert worker.unrequeued_totals == {key}
+    assert await redis.zcard(TOTALS_QUEUE_KEY) == 0
+
+    broken.broken = False
+    await worker.requeue_totals([])
+
+    assert worker.unrequeued_totals == set()
+    assert await redis.zcard(TOTALS_QUEUE_KEY) == 1
+
+
 # --- DAO ---------------------------------------------------------------------
 
 

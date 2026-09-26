@@ -93,6 +93,8 @@ class TracingWorker(StreamConsumer):
         self.totals_batch_size = totals_batch_size
         #: Traces whose totals scheduling failed; tried again on the next call.
         self.unscheduled_totals: Dict[TraceKey, Set[str]] = {}
+        # Failed recomputes whose requeue also failed; the next loop requeues them.
+        self.unrequeued_totals: Set[TraceKey] = set()
 
     async def run(self):
         await asyncio.gather(super().run(), self.run_totals())
@@ -101,6 +103,8 @@ class TracingWorker(StreamConsumer):
         while True:
             if self.unscheduled_totals:
                 await self.schedule_totals({})
+            if self.unrequeued_totals:
+                await self.requeue_totals([])
             try:
                 recomputed = await self.recompute_due_totals()
             except Exception:
@@ -133,20 +137,37 @@ class TracingWorker(StreamConsumer):
 
         if failed:
             # The claim removed these traces from the queue; put them back for a later try.
-            try:
-                await requeue_trace_totals(
-                    self.redis,
-                    trace_keys=failed,
-                    delay_ms=self.totals_delay_ms,
-                )
-            except Exception:
-                log.error(
-                    "[INGEST] Failed to requeue trace totals",
-                    count=len(failed),
-                    exc_info=True,
-                )
+            await self.requeue_totals(failed)
 
         return len(trace_keys)
+
+    async def requeue_totals(self, trace_keys: List[TraceKey]):
+        """Requeue failed traces. If Redis fails, keep them in memory for the next loop."""
+        pending = self.unrequeued_totals
+        pending.update(trace_keys)
+        if not pending:
+            return
+
+        self.unrequeued_totals = set()
+        try:
+            await requeue_trace_totals(
+                self.redis,
+                trace_keys=list(pending),
+                delay_ms=self.totals_delay_ms,
+            )
+        except Exception:
+            log.error(
+                "[INGEST] Failed to requeue trace totals",
+                count=len(pending),
+                exc_info=True,
+            )
+            if len(pending) > MAX_UNSCHEDULED_TRACES:
+                log.error(
+                    "[INGEST] Dropping unrequeued trace totals",
+                    count=len(pending) - MAX_UNSCHEDULED_TRACES,
+                )
+                pending = set(list(pending)[:MAX_UNSCHEDULED_TRACES])
+            self.unrequeued_totals.update(pending)
 
     async def schedule_totals(self, batches_by_trace: Dict[TraceKey, Set[str]]):
         """Schedule totals without failing the batch.
