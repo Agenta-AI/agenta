@@ -1641,13 +1641,13 @@ export async function runTurn(
         noteExecutionSettled(request.sessionId, request.turnId);
       }
     }
-    // A cold pause ended the prompt with a cancel. Its answer is the only report of the work
-    // before the pause: the session is gone, and a later resume counts only its own work. Pi
-    // reports that work in its usage sidecar instead (drained below).
-    let coldPausePromptResult: unknown;
+    // A cold pause or a user Stop ends the prompt with a cancel. Its answer is the only report of
+    // the work before the cancel: the runner raced past the prompt, and a later turn counts only
+    // its own work. Pi reports that work in its usage sidecar instead (drained below).
+    let cancelledPromptResult: unknown;
     if (stopReason === "paused" && coldPauseCancelSent && !plan.isPi) {
       coldPauseSettling = true;
-      coldPausePromptResult = await awaitEndingPrompt(
+      cancelledPromptResult = await awaitEndingPrompt(
         promptPromise,
         resolveColdPauseUsageSettleMs(),
       );
@@ -1668,6 +1668,14 @@ export async function runTurn(
         log: logger,
       });
       cancelSettled = cancel.settled;
+      // A settled cancel means the prompt already answered, so this read does not wait. The
+      // frames of the cancel window keep their normal routing: a Stop honors real completions.
+      if (cancel.settled && !plan.isPi) {
+        cancelledPromptResult = await awaitEndingPrompt(
+          promptPromise,
+          resolveColdPauseUsageSettleMs(),
+        );
+      }
       // Codex leaves its shell child running inside the sandbox we are about to park; Pi and
       // Claude kill theirs. Reap it here, never in the bridge: the Codex shell is a child of a
       // vendored Rust binary the JS bridge holds no pid for, and a bridge patch would ship only
@@ -1739,7 +1747,7 @@ export async function runTurn(
       ? result
       : combinePromptResults(
           settledPromptResult,
-          result ?? coldPausePromptResult,
+          result ?? cancelledPromptResult,
         );
     const resolvedUsage = addRunUsage(
       settledPromptUsage,
