@@ -303,9 +303,15 @@ def _sum_breakdowns(a: Dict[str, float], b: Dict[str, float]) -> Dict[str, float
 
 
 def _write_cumulative(span: OTelFlatSpan, metric: str, values: Dict[str, float]):
-    """Store `values` as the span's cumulative `metric`. An empty breakdown writes nothing."""
+    """Store `values` as the span's cumulative `metric`.
+
+    An empty breakdown drops a cumulative value left from an earlier run, for example
+    when the span was priced before and is now unpriced."""
 
     if not values:
+        node = (span.attributes or {}).get("ag", {}).get("metrics", {}).get(metric)
+        if isinstance(node, dict):
+            node.pop("cumulative", None)
         return
 
     if span.attributes is None:

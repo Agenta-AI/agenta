@@ -346,6 +346,21 @@ def test_spans_without_costs_get_no_cumulative_cost():
     assert _metrics(span_idx[CHILD_A_UUID]) == {}
 
 
+def test_rollup_drops_a_stale_cumulative_cost_when_nothing_is_priced():
+    root = _bare_span(span_id=ROOT_UUID, span_name="root")
+    child = _bare_span(
+        span_id=CHILD_A_UUID, parent_id=ROOT_UUID, span_name="chat", start_offset_s=1
+    )
+    stale = {"prompt": 0.1, "completion": 0.2, "total": 0.3}
+    root.attributes["ag"]["metrics"]["costs"] = {"cumulative": dict(stale)}
+    child.attributes["ag"]["metrics"]["costs"] = {"cumulative": dict(stale)}
+
+    span_idx, _ = _rollup([root, child])
+
+    assert "cumulative" not in _metrics(span_idx[ROOT_UUID])["costs"]
+    assert "cumulative" not in _metrics(span_idx[CHILD_A_UUID])["costs"]
+
+
 def test_batch_whose_top_span_has_its_parent_in_another_batch_still_rolls_up():
     agent = _bare_span(
         span_id=ROOT_UUID,
