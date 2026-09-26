@@ -9,8 +9,8 @@
  *
  * INVARIANT these tests pin, for both tracers: a span that has children never carries a
  * `gen_ai.usage.*_tokens` attribute. Only the leaf model spans do, and their sum is the run
- * total. Cost is the deliberate exception — `gen_ai.usage.cost` ingests as an explicitly
- * CUMULATIVE subtree total, so a parent may carry it and `invoke_agent` still does.
+ * total. Cost follows the same rule: `gen_ai.usage.cost` ingests as the span's own
+ * incremental cost, so only the leaf that spent it carries it and `invoke_agent` carries none.
  *
  * Run: pnpm exec vitest run tests/unit/otel-usage-ownership.test.ts
  */
@@ -130,7 +130,7 @@ afterEach(() => {
 });
 
 describe("the ACP tracer stamps the run's tokens on one span only", () => {
-  it("gives the chat leaf the token split and the agent span only the cost", () => {
+  it("gives the chat leaf the token split and the agent span nothing", () => {
     const spans = spyTracer();
     const otel = createSandboxAgentOtel({
       harness: "claude",
@@ -145,7 +145,8 @@ describe("the ACP tracer stamps the run's tokens on one span only", () => {
     const chatSpan = spans.find(isLeafModelSpan);
 
     expect(chatSpan?.attributes["gen_ai.usage.total_tokens"]).toBe(3843);
-    expect(agentSpan?.attributes["gen_ai.usage.cost"]).toBe(0.0219);
+    expect(agentSpan?.attributes["gen_ai.usage.cost"]).toBeUndefined();
+    expect(chatSpan?.attributes["gen_ai.usage.cost"]).toBeUndefined();
 
     // The roll-up over this batch yields 3,843 — the real total, not 7,686.
     expect(assertOnlyLeavesOwnTokens(spans)).toBe(3843);
@@ -206,8 +207,15 @@ describe("the Pi tracer stamps each turn's tokens on that turn's chat span", () 
     expect(chatSpans).toHaveLength(turns.length);
     expect(assertOnlyLeavesOwnTokens(spans)).toBe(expectedTotal);
 
+    // Each Pi chat span owns its own cost; the parent carries none, so the roll-up sums it once.
+    expect(
+      chatSpans.reduce(
+        (sum, s) => sum + Number(s.attributes["gen_ai.usage.cost"] ?? 0),
+        0,
+      ),
+    ).toBeCloseTo(0.004, 10);
     const agentSpan = spans.find((s) => s.name === "invoke_agent");
-    expect(agentSpan?.attributes["gen_ai.usage.cost"]).toBeCloseTo(0.004, 10);
+    expect(agentSpan?.attributes["gen_ai.usage.cost"]).toBeUndefined();
   });
 
   it("still reports the run's cost on the agent span when a turn reported none", async () => {

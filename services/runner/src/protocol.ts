@@ -567,6 +567,18 @@ export interface AgentUsage {
 }
 
 /**
+ * Token counts for one model within a turn, as the tracer stamps them on a model span. Input is
+ * EXCLUSIVE of cache: reads and writes are separate counts. Runner-internal, never on the wire.
+ */
+export interface ModelTokenUsage {
+  model?: string;
+  input: number;
+  output: number;
+  cacheRead: number;
+  cacheWrite: number;
+}
+
+/**
  * WHERE a model credential has to land for the harness to pick it up.
  *
  * `environment` is the only kind today, and it is not a placeholder for a missing case: every

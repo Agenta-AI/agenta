@@ -1,6 +1,10 @@
 import { existsSync, readFileSync } from "node:fs";
 
-import type { AgentRunResult, AgentUsage } from "../../protocol.ts";
+import type {
+  AgentRunResult,
+  AgentUsage,
+  ModelTokenUsage,
+} from "../../protocol.ts";
 
 /** Read the run-total usage Pi wrote on agent_settled, from local fs or the sandbox FS API. */
 export async function readRunUsage(
@@ -76,4 +80,73 @@ export async function resolveRunUsage({
     (await readRunUsage(sandbox, usageOutPath, isDaytona)) ??
     mergePromptAndStreamUsage(promptResult, streamUsage)
   );
+}
+
+function count(value: unknown): number {
+  return typeof value === "number" && Number.isFinite(value) && value > 0
+    ? value
+    : 0;
+}
+
+/**
+ * The turn's token detail for the model spans, read from the ACP PromptResponse.
+ *
+ * `perModel` reads `_meta.quota.model_usage`, which claude-agent-acp fills with one row per model
+ * for THIS turn (subagents and compaction included, cache reads and writes split out). Codex
+ * fills the same field with its last model call only, so it must not ask for it. Otherwise the
+ * response's own `usage` gives one row, still with its cache counts.
+ */
+export function promptTokenDetail(
+  promptResult: any,
+  { perModel }: { perModel: boolean },
+): ModelTokenUsage[] | undefined {
+  const rows = promptResult?._meta?.quota?.model_usage;
+  if (perModel && Array.isArray(rows)) {
+    const detail = rows
+      .map((row: any): ModelTokenUsage => {
+        const t = row?.token_count ?? {};
+        return {
+          ...(typeof row?.model === "string" && row.model
+            ? { model: row.model }
+            : {}),
+          input: count(t.inputTokens),
+          output: count(t.outputTokens),
+          cacheRead: count(t.cachedInputTokens),
+          cacheWrite: count(t.cachedWriteTokens),
+        };
+      })
+      .filter((t) => t.input + t.output + t.cacheRead + t.cacheWrite > 0);
+    if (detail.length) return detail;
+  }
+  const u = promptResult?.usage;
+  if (!u) return undefined;
+  const row: ModelTokenUsage = {
+    input: count(u.inputTokens),
+    output: count(u.outputTokens),
+    cacheRead: count(u.cachedReadTokens),
+    cacheWrite: count(u.cachedWriteTokens),
+  };
+  return row.input + row.output + row.cacheRead + row.cacheWrite > 0
+    ? [row]
+    : undefined;
+}
+
+/**
+ * This turn's share of a harness cost that is a running total for the whole session.
+ *
+ * Claude Code reports `total_cost_usd` for the session, and a pooled session serves many turns,
+ * so the turn's cost is the new reading minus the one before it. With no earlier reading, a new
+ * session started at zero, but a session loaded from an earlier one starts at that session's
+ * total, which this runner never saw; that turn's cost is unknown. A reading below the previous
+ * one means the total restarted, so the reading itself is the turn's cost.
+ */
+export function turnCostFromRunningTotal(
+  reading: number | undefined,
+  previous: number | undefined,
+  sessionLoaded: boolean,
+): number | undefined {
+  if (reading == null || !Number.isFinite(reading)) return undefined;
+  if (previous == null) return sessionLoaded ? undefined : reading;
+  const delta = reading >= previous ? reading - previous : reading;
+  return Math.round(delta * 1e10) / 1e10;
 }

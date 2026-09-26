@@ -149,12 +149,12 @@ describe("the ACP tracer declares its input token contract", () => {
     otel.finish();
 
     const agentSpan = spans.find((s) => s.name === "invoke_agent");
-    expect(agentSpan?.attributes["gen_ai.usage.cost"]).toBe(0.01);
+    expect(agentSpan?.attributes["gen_ai.usage.cost"]).toBeUndefined();
     expect(agentSpan?.attributes[MARKER]).toBeUndefined();
     assertEveryTokenSpanDeclaresExclusiveInput(spans);
   });
 
-  it("declares the contract even when the run reported cost without a token split", () => {
+  it("stamps nothing when the run reported cost without a token split", () => {
     const spans = spyTracer();
     const otel = createSandboxAgentOtel({
       harness: "claude",
@@ -165,9 +165,12 @@ describe("the ACP tracer declares its input token contract", () => {
     otel.setUsage({ input: 0, output: 0, total: 0, cost: 0.04 });
     otel.finish();
 
+    // The harness cost is never a span attribute (the platform prices spans from tokens), and
+    // no tokens is no measurement, so the chat span stays bare.
     const chatSpan = spans.find((s) => s.name.startsWith("chat"));
-    expect(chatSpan?.attributes[INPUT_TOKENS]).toBe(0);
-    expect(assertEveryTokenSpanDeclaresExclusiveInput(spans)).toBe(1);
+    expect(chatSpan?.attributes[INPUT_TOKENS]).toBeUndefined();
+    expect(chatSpan?.attributes["gen_ai.usage.cost"]).toBeUndefined();
+    expect(assertEveryTokenSpanDeclaresExclusiveInput(spans)).toBe(0);
   });
 });
 
