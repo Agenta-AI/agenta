@@ -1,0 +1,126 @@
+---
+// Agent Marketplace index at /marketplace.
+//
+// A simple spec-driven listing: every catalog template grouped by category,
+// each with its detail link and "Use it for free". The designed version of this
+// page is still being drawn; replace the layout when it lands and keep the data
+// wiring (src/lib/templates.ts, src/lib/marketplace.ts).
+import Section from "../../components/Section.astro";
+import Site from "../../layouts/Site.astro";
+import Badge from "../../components/Badge.astro";
+import TemplateCard from "../../components/TemplateCard.astro";
+import { templates } from "../../lib/templates";
+import {
+  MARKETPLACE_NAME,
+  categoriesOf,
+  categorySlug,
+} from "../../lib/marketplace";
+
+const categories = categoriesOf(templates).map((category) => ({
+  category,
+  slug: categorySlug(category),
+  templates: templates.filter((template) => template.category === category),
+}));
+---
+
+<Site
+  title={`${MARKETPLACE_NAME} — Agenta`}
+  description="Ready-to-run agent templates for engineering, support, sales, ops and knowledge work. Pick one and start it in Agenta for free."
+>
+  <Section tone="flat" class="ag-pad ag-mkt-head">
+    <div class="ag-mkt-head__inner">
+      <Badge>Marketplace</Badge>
+      <h1 class="ag-h1 ag-mkt-head__title">{MARKETPLACE_NAME}</h1>
+      <p class="ag-mkt-head__sub">
+        Agents you can start in one click. Each template sets up the
+        instructions, tools and trigger for a real job. Then make it yours.
+      </p>
+      <nav class="ag-mkt-cats" aria-label="Categories">
+        {
+          categories.map(({ category, slug, templates: items }) => (
+            <a href={`#${slug}`} class="ag-mkt-cats__item">
+              {category} <span>{items.length}</span>
+            </a>
+          ))
+        }
+      </nav>
+    </div>
+  </Section>
+
+  {
+    categories.map(({ category, slug, templates: items }) => (
+      <Section tone="flat" class="ag-pad ag-mkt-group" id={slug}>
+        <h2 class="ag-mkt-group__title">{category}</h2>
+        <div class="ag-tplgrid">
+          {items.map((template) => (
+            <TemplateCard template={template} />
+          ))}
+        </div>
+      </Section>
+    ))
+  }
+
+  <style is:global>
+    .ag-mkt-head {
+      background: var(--th-bg-1);
+      padding: 72px 64px 40px;
+    }
+    .ag-mkt-head__inner {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      gap: 18px;
+    }
+    .ag-mkt-head__title {
+      margin: 0;
+      font: var(--text-display-xl);
+      color: var(--th-text-hi);
+    }
+    .ag-mkt-head__sub {
+      margin: 0;
+      max-width: 620px;
+      font: var(--text-body-md);
+      color: var(--th-text-body);
+      text-wrap: pretty;
+    }
+    .ag-mkt-cats {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 8px;
+      margin-top: 8px;
+    }
+    .ag-mkt-cats__item {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      border-radius: 999px;
+      font: var(--text-label);
+      color: var(--th-ctl-text);
+      background: var(--th-ctl-bg);
+      box-shadow: inset 0 0 0 1px var(--th-ctl-ring);
+      text-decoration: none;
+    }
+    .ag-mkt-cats__item span {
+      color: var(--th-text-mut);
+    }
+    .ag-mkt-cats__item:hover {
+      background: var(--th-hover);
+    }
+    .ag-mkt-group {
+      background: var(--th-bg-1);
+      padding: 32px 64px;
+      scroll-margin-top: 80px;
+    }
+    .ag-mkt-group:last-of-type {
+      padding-bottom: 88px;
+    }
+    .ag-mkt-group__title {
+      margin: 0 0 20px;
+      font: var(--text-display-lg);
+      color: var(--th-text-hi);
+    }
+  </style>
+</Site>
