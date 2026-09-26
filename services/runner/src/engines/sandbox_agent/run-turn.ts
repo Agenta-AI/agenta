@@ -47,6 +47,7 @@ import {
   INTERRUPTED_BY_USER,
   TOOL_NOT_EXECUTED_PAUSED,
 } from "../../tracing/otel.ts";
+import { servedByCustomConnection } from "../../tracing/custom-connection.ts";
 import {
   attachPermissionResponder,
   buildGateDescriptor,
@@ -555,7 +556,7 @@ export async function runTurn(
     const run = (deps.createOtel ?? createSandboxAgentOtel)({
       harness: plan.harness,
       model: env.model,
-      connectionDeployment: request.modelConnection?.deployment,
+      customConnection: servedByCustomConnection(request.modelConnection),
       skills: plan.workspace.skillDirs.map((s) => s.name),
       skillsDropped: plan.workspace.skillsDropped,
       traceparent: request.context?.propagation?.traceparent,
