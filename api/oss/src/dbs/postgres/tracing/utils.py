@@ -36,6 +36,7 @@ from oss.src.core.tracing.dtos import (
 from oss.src.core.tracing.dtos import (
     FilteringException,
     Fields,
+    Focus,
     Windowing,
     #
     MetricType,
@@ -1047,10 +1048,12 @@ def build_base_cte(
     stride: str,
     rate: Optional[float] = None,
     filtering: Optional[Filtering] = None,
+    focus: Optional[Focus] = None,
 ) -> Optional[FromClause]:
+    # start_time, not created_at: late or backfilled spans belong to when they ran.
     timestamp = func.date_bin(
         text(f"'{stride}'"),
-        SpanDBE.created_at,
+        SpanDBE.start_time,
         oldest,
     ).label("timestamp")
 
@@ -1067,11 +1070,14 @@ def build_base_cte(
         .select_from(SpanDBE)
         .where(
             SpanDBE.project_id == project_id,
-            SpanDBE.created_at >= oldest,
-            SpanDBE.created_at < newest,
+            SpanDBE.start_time >= oldest,
+            SpanDBE.start_time < newest,
         )
-        .where(SpanDBE.parent_id.is_(None))
     )
+
+    # Roots carry each trace's cumulative metrics.
+    if focus != Focus.SPAN:
+        base_stmt = base_stmt.where(SpanDBE.parent_id.is_(None))
 
     # External filters
     if filtering is not None:
@@ -1086,7 +1092,7 @@ def build_base_cte(
         )
 
     if rate is not None:
-        percent = max(0, min(int(rate * 100.0), 100))
+        percent = get_sampling_percent(rate)
 
         if percent == 0:
             return None
@@ -2145,3 +2151,24 @@ def compute_uniq(
     value["uniq"] = uniq
 
     return value
+
+
+def get_sampling_percent(
+    rate: Optional[float],
+) -> Optional[int]:
+    if rate is None:
+        return None
+
+    return max(1 if rate > 0 else 0, min(int(rate * 100.0), 100))
+
+
+def fill_empty_buckets(
+    per_timestamp: Dict[datetime, Dict[str, Dict[str, Any]]],
+    timestamps: List[datetime],
+) -> Dict[datetime, Dict[str, Dict[str, Any]]]:
+    """Keep quiet periods on the time axis."""
+    for timestamp in timestamps:
+        if timestamp not in per_timestamp:
+            per_timestamp[timestamp] = dict()
+
+    return per_timestamp
