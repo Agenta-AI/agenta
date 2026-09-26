@@ -23,6 +23,8 @@ export const agentTemplatesQueryAtom = atomWithQuery((get) => {
         placeholderData: keepPreviousData,
         staleTime: 30 * 60_000,
         refetchOnWindowFocus: false,
+        // One retry on top of the transport's none: a failed read reaches the error state fast.
+        retry: 1,
     }
 })
 

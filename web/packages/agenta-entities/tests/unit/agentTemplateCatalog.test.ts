@@ -30,7 +30,10 @@ const makeStore = () => {
 
 const settle = async (store: ReturnType<typeof makeStore>) => {
     store.sub(agentTemplatesStatusAtom, () => undefined)
-    await vi.waitFor(() => expect(store.get(agentTemplatesStatusAtom)).not.toBe("pending"))
+    // The catalog query retries once after a 1s delay.
+    await vi.waitFor(() => expect(store.get(agentTemplatesStatusAtom)).not.toBe("pending"), {
+        timeout: 3000,
+    })
 }
 
 describe("agent template catalog atoms", () => {
@@ -70,6 +73,8 @@ describe("agent template catalog atoms", () => {
         expect(store.get(agentTemplateLookupAtomFamily("pr-reviewer"))).toEqual({
             status: "error",
         })
+        // One retry, not a retry storm that keeps the error hidden behind a skeleton.
+        expect(queryAgentTemplates).toHaveBeenCalledTimes(2)
     })
 
     it("finds a catalog key and confirms an absent one only after loading", async () => {
