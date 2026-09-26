@@ -72,10 +72,12 @@ jobs:
     secrets: inherit
 
   tests:
-    needs: deploy
+    needs: [resolve, deploy]
     if: needs.deploy.outputs.preview_url != ''
     uses: ./.github/workflows/44-railway-tests.yml
     with:
+      # the images are built from the PR head, not the merge ref: test that code
+      source_sha: ${{ needs.resolve.outputs.sha }}
       agenta_web_url: ${{ needs.deploy.outputs.preview_url }}
       layers: all
       packages: all
