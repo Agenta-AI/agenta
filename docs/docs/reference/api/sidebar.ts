@@ -2676,6 +2676,18 @@ const sidebar: SidebarsConfig = {
         },
         {
           type: "doc",
+          id: "reference/api/verify-whatsapp-webhook",
+          label: "Verify Whatsapp Webhook",
+          className: "api-method get",
+        },
+        {
+          type: "doc",
+          id: "reference/api/ingest-whatsapp-event",
+          label: "Ingest Whatsapp Event",
+          className: "api-method post",
+        },
+        {
+          type: "doc",
           id: "reference/api/ingest-bridge-event",
           label: "Ingest Bridge Event",
           className: "api-method post",
@@ -2920,6 +2932,36 @@ const sidebar: SidebarsConfig = {
           label: "Read Agenta Conversation",
           className: "api-method get",
         },
+        {
+          type: "doc",
+          id: "reference/api/fetch-channel-tools-availability",
+          label: "Fetch Channel Tools Availability",
+          className: "api-method post",
+        },
+        {
+          type: "doc",
+          id: "reference/api/query-channel-destinations",
+          label: "Query Channel Destinations",
+          className: "api-method post",
+        },
+        {
+          type: "doc",
+          id: "reference/api/send-channel-message",
+          label: "Send Channel Message",
+          className: "api-method post",
+        },
+        {
+          type: "doc",
+          id: "reference/api/read-channel-messages",
+          label: "Read Channel Messages",
+          className: "api-method post",
+        },
+        {
+          type: "doc",
+          id: "reference/api/search-channel-messages",
+          label: "Search Channel Messages",
+          className: "api-method post",
+        },
       ],
     },
     {
@@ -2930,6 +2972,12 @@ const sidebar: SidebarsConfig = {
         id: "reference/api/sessions",
       },
       items: [
+        {
+          type: "doc",
+          id: "reference/api/get-current-session",
+          label: "Get Current Session",
+          className: "api-method post",
+        },
         {
           type: "doc",
           id: "reference/api/fetch-session-stream",
