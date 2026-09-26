@@ -9,6 +9,7 @@ import {
   useItForFreeUrl,
 } from "../lib/templates";
 import {
+  MARKETPLACE_FAQ,
   MARKETPLACE_NAME,
   MARKETPLACE_PATH,
   authorPath,
@@ -30,14 +31,17 @@ ${templates
   .join("\n")}`,
     )
     .join("\n\n");
+  const faq = MARKETPLACE_FAQ.map(
+    (item) => `### ${item.question}\n\n${item.answer}`,
+  ).join("\n\n");
 
   return markdownResponse(
     page({
       title: MARKETPLACE_NAME,
       description:
-        "Ready-to-run agent templates. Pick one and start it in Agenta for free.",
+        "Start from a working agent. Connect your apps, adjust the skills, and let it run. Every template starts in Agenta for free.",
       path: MARKETPLACE_PATH,
-      body,
+      body: `${body}\n\n## Frequently asked questions\n\n${faq}`,
     }),
   );
 };

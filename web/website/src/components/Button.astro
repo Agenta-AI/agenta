@@ -10,7 +10,7 @@
 // Every other attribute (id, type, disabled, aria-*, data-*, download, …)
 // passes straight through to the rendered element.
 interface Props extends astroHTML.JSX.HTMLAttributes {
-  variant?: "primary" | "outline" | "dark" | "ghost";
+  variant?: "primary" | "outline" | "dark" | "ghost" | "contrast";
   href?: string;
   // Opens the link in a new tab (for destinations that leave the marketing
   // site, e.g. the docs). No effect when rendered as a <button> (no href).

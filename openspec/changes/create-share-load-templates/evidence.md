@@ -86,3 +86,20 @@ Recorded on 2026-09-26 on branch `claude/project-thread-dmcgk1`, stacked on the 
 | 4.4 | Playwright screenshots of index, detail, template author and blog author pages at 1440 and 390, light and dark | rendered; no horizontal overflow |
 
 Not done: the supplied visual design (the design files could not be imported from this session), a template "type" field (the catalog has none), and browser verification of the signup/sign-in round trip. Tasks 4.3, 4.4 and 5.5 stay open.
+
+## Implementation evidence: marketplace design applied (Templates Handoff v1)
+
+Recorded on 2026-09-26 on branch `claude/project-thread-dmcgk1`. Source: the "Templates Handoff" design file (index 2a, template page E, metadata table and fallbacks 6a-6d), light and dark at 1440, 768 and 390. Local sandbox results.
+
+**Data contract.** The handoff's metadata table has fields the catalog does not carry: `headline`, `overview[]`, `benefits[]`, `diagram`, `steps[]`, `exampleOutput`, `audience[]`, `setup[]`, `faq[]`, `requirements[]`, `skills[]`, `updatedAt`, `ctaHeadline` and `related[]`. No field was added. Each uses the handoff's own fallback: the section is hidden, or it is generated from catalog data (apps and requirements from `connections`, setup steps from the apps, related from the same category, the CTA headline from the name, how it works from `trigger_description` and the connection roles, the example output from `example`). The handoff has no template "type" field; categories are the only grouping.
+
+**Where the specs win over the design.** Buttons read "Use it for free" (the design says "Use this template" and "Open in playground"); every index card has the button. Routes stay `/marketplace/<key>` (the design uses `/templates/<slug>`), and the index title is "Agent Marketplace".
+
+| Task | Command (from) | Result |
+| --- | --- | --- |
+| 4.4, 5.5 | `pnpm test` (`web/website`) | 80 passed; `marketplace.test.ts` adds apps, joined names, search text, how it works, generated setup and requirements, related templates and the CTA headline |
+| 4.4 | `pnpm build` (`web/website`) | passed, including `check-ui-primitives` and `verify-build` |
+| 4.4, 5.5 | Playwright screenshots of the index, a template with an example, a template without one, the Agenta author page, pricing (shared FAQ row) and the landing nav, light and dark at 1440, 768 and 390 | rendered; no horizontal overflow |
+| 5.5 | Playwright index states | search "gitlab" shows the no-results message; the Support chip shows only Support templates; chip counts follow the search ("slack": All 16, Engineering 6, Support 3, Sales 1, Knowledge 4, Ops 2) |
+
+Still open: the user's answer on the extra handoff fields and the per-category FAQs; browser verification of the signup/sign-in round trip. Tasks 4.3, 4.4 and 5.5 stay open.
