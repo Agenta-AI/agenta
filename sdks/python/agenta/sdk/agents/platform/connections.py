@@ -962,6 +962,7 @@ def _resolve_from_secrets(
             input_modalities=model_input_modalities(
                 harness, resolved_model, provider=provider
             ),
+            custom_connection=chosen.kind == "custom_provider",
         )
     namespace, name = gateway_target(
         kind=chosen.kind, provider=provider, slug=chosen.slug
@@ -978,6 +979,7 @@ def _resolve_from_secrets(
         input_modalities=model_input_modalities(
             harness, resolved_model, provider=provider
         ),
+        custom_connection=chosen.kind == "custom_provider",
     )
 
 
@@ -1227,6 +1229,9 @@ class VaultConnectionResolver:
             input_modalities=model_input_modalities(
                 context.harness, resolved_model, provider=provider
             ),
+            # The gateway names the namespace from the record kind (`gateway_target`):
+            # `custom` is a custom-provider record, `standard` a provider key.
+            custom_connection=namespace == "custom",
         )
 
 

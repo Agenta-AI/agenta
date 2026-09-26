@@ -2,15 +2,22 @@
  * Whether a run's model is served through the user's own model connection, so its model spans
  * carry CUSTOM_CONNECTION and the platform does not price them from the public price list.
  *
- * `deployment: "custom"` is not the only such case. A vault custom-provider record that names a
- * known provider family (an "openai"-kind record with its own base URL) resolves to
- * `deployment: "direct"` (`sdks/python/agenta/sdk/agents/platform/connections.py`), so the
- * route is what tells it apart:
+ * The SDK resolver knows which vault record it chose and states it as `customConnection`. When
+ * that field is present it decides. URL equality cannot tell a custom-provider record that uses
+ * the family's registered base URL (with its own key) from a provider key, so the explicit field
+ * is the only reliable signal on that route.
+ *
+ * Older SDKs omit the field, and the route is the fallback:
+ *   - `deployment: "custom"` is always the user's own endpoint;
  *   - through the Agenta LLM gateway, a custom record routes via `/gateways/llms/custom/{slug}`
- *     and a provider key via `/gateways/llms/standard/{provider}` (`gateway_target`);
- *   - without the gateway, a provider key carries the family's registered direct base URL
- *     (`_DIRECT_ENDPOINTS` in `sdks/python/agenta/sdk/agents/connections/endpoints.py`, which
- *     this table mirrors), and any other base URL is the record's own.
+ *     and a provider key via `/gateways/llms/standard/{provider}` (`gateway_target`). This is
+ *     checked for every deployment: a custom record keeps its own deployment (bedrock, azure,
+ *     ...) and still routes through the `custom` namespace;
+ *   - without the gateway, a `direct` route whose base URL differs from the family's registered
+ *     direct base URL (`_DIRECT_ENDPOINTS` in
+ *     `sdks/python/agenta/sdk/agents/connections/endpoints.py`, which this table mirrors) is the
+ *     record's own. A family with no registered URL is not marked: an unknown URL there says
+ *     nothing about the record.
  */
 import type { ModelConnection } from "../protocol.ts";
 
@@ -62,26 +69,34 @@ function gatewayNamespace(url: URL): string | undefined {
 export function servedByCustomConnection(
   connection?: Pick<
     ModelConnection,
-    "provider" | "deployment" | "endpoint" | "gatewayCredentials"
+    | "provider"
+    | "deployment"
+    | "endpoint"
+    | "gatewayCredentials"
+    | "customConnection"
   >,
 ): boolean {
   if (!connection) return false;
+  if (typeof connection.customConnection === "boolean") {
+    return connection.customConnection;
+  }
   const deployment = connection.deployment?.trim().toLowerCase();
   if (deployment === "custom") return true;
-  if (deployment !== "direct") return false;
 
   const baseUrl = connection.endpoint?.baseUrl?.trim();
-  if (!baseUrl) return false;
-  const url = parseUrl(baseUrl);
-  // An unparseable explicit URL is not a registered provider base, so it is the record's own.
-  if (!url) return true;
+  const url = baseUrl ? parseUrl(baseUrl) : undefined;
 
-  if (connection.gatewayCredentials) {
+  // The gateway namespace comes from the record kind, whatever the deployment.
+  if (url && connection.gatewayCredentials) {
     const namespace = gatewayNamespace(url);
     if (namespace) return namespace === "custom";
   }
 
+  if (deployment !== "direct" || !baseUrl) return false;
+  // An unparseable explicit URL is not a registered provider base, so it is the record's own.
+  if (!url) return true;
+
   const canonical =
     DIRECT_BASE_URLS[connection.provider?.trim().toLowerCase() ?? ""];
-  return !canonical || !sameBase(url, canonical);
+  return canonical !== undefined && !sameBase(url, canonical);
 }

@@ -1,9 +1,8 @@
 /**
  * Which model connections count as the user's own, so their model spans are not priced from
- * the public price list. `deployment: "custom"` always does. A vault custom-provider record
- * that names a known provider family resolves to `deployment: "direct"`, so for `direct` the
- * route decides: the gateway's `custom` namespace, or a base URL other than the family's
- * registered one.
+ * the public price list. The SDK's explicit `customConnection` decides when present. Without it
+ * (older SDKs) the route decides: `deployment: "custom"`, the gateway's `custom` namespace for
+ * any deployment, or a `direct` base URL other than the family's registered one.
  *
  * Run: pnpm exec vitest run tests/unit/custom-connection.test.ts
  */
@@ -52,6 +51,23 @@ describe("servedByCustomConnection", () => {
         endpoint: { region: "us-east-1" },
       },
     ],
+    [
+      "a bedrock provider key through the gateway",
+      {
+        provider: "anthropic",
+        deployment: "bedrock",
+        endpoint: { baseUrl: `${GATEWAY}/standard/anthropic/v1` },
+        gatewayCredentials,
+      },
+    ],
+    [
+      "a family with no registered base URL (fallback)",
+      {
+        provider: "deepseek",
+        deployment: "direct",
+        endpoint: { baseUrl: "https://api.deepseek.com/v1" },
+      },
+    ],
   ])("does not count %s", (_label, connection) => {
     expect(servedByCustomConnection(connection as any)).toBe(false);
   });
@@ -92,14 +108,69 @@ describe("servedByCustomConnection", () => {
       },
     ],
     [
-      "a family with no registered base URL",
+      "a bedrock-deployment record through the gateway",
       {
-        provider: "deepseek",
-        deployment: "direct",
-        endpoint: { baseUrl: "https://api.deepseek.com/v1" },
+        provider: "anthropic",
+        deployment: "bedrock",
+        endpoint: { baseUrl: `${GATEWAY}/custom/my-bedrock/v1` },
+        gatewayCredentials,
       },
     ],
   ])("counts %s", (_label, connection) => {
     expect(servedByCustomConnection(connection as any)).toBe(true);
+  });
+
+  describe("explicit customConnection from the SDK", () => {
+    it("counts a custom record at the family's registered base URL", () => {
+      expect(
+        servedByCustomConnection({
+          provider: "openai",
+          deployment: "direct",
+          endpoint: { baseUrl: "https://api.openai.com/v1" },
+          customConnection: true,
+        } as any),
+      ).toBe(true);
+    });
+
+    it("does not count a provider key whose URL the table does not know", () => {
+      expect(
+        servedByCustomConnection({
+          provider: "openai",
+          deployment: "direct",
+          endpoint: { baseUrl: "https://llm.example.com/v1" },
+          customConnection: false,
+        } as any),
+      ).toBe(false);
+    });
+
+    it("overrides the gateway namespace and the deployment", () => {
+      expect(
+        servedByCustomConnection({
+          provider: "custom",
+          deployment: "custom",
+          customConnection: false,
+        } as any),
+      ).toBe(false);
+      expect(
+        servedByCustomConnection({
+          provider: "openai",
+          deployment: "direct",
+          endpoint: { baseUrl: `${GATEWAY}/standard/openai/v1` },
+          gatewayCredentials,
+          customConnection: true,
+        } as any),
+      ).toBe(true);
+    });
+
+    it("falls back to the route when the field is not a boolean", () => {
+      expect(
+        servedByCustomConnection({
+          provider: "openai",
+          deployment: "direct",
+          endpoint: { baseUrl: "https://llm.example.com/v1" },
+          customConnection: "yes",
+        } as any),
+      ).toBe(true);
+    });
   });
 });

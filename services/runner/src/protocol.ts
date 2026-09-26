@@ -743,6 +743,12 @@ export interface ModelConnection {
   /** Our own credentials for the gateway. Independent of `credentialMode`, which describes the
    * provider's secret. Omitted when the model is not reached through a gateway. */
   gatewayCredentials?: GatewayCredentials;
+  /**
+   * True when the route serves the user's own custom-provider record, false when it serves a
+   * provider key. The SDK resolver knows the record kind and states it; omitted by older SDKs,
+   * in which case the runner infers it from the route (`servedByCustomConnection`).
+   */
+  customConnection?: boolean;
 }
 
 /**
