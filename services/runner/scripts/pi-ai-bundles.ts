@@ -15,6 +15,7 @@ import { existsSync, readdirSync, realpathSync, renameSync, writeFileSync } from
 import { dirname, join } from "node:path";
 
 const PI_AI = join("@earendil-works", "pi-ai");
+const PI_CODING_AGENT = join("@earendil-works", "pi-coding-agent");
 
 export function piAiBundlePaths(bundlePath: string): string[] {
   const found = new Set<string>();
@@ -38,6 +39,28 @@ export function piAiBundlePaths(bundlePath: string): string[] {
     }
   } catch {
     // No pnpm store (a different installer, or a pruned image); the paths above are the answer.
+  }
+  return [...found];
+}
+
+/**
+ * Find every installed copy of one file inside `@earendil-works/pi-coding-agent`: the pi CLI's own
+ * bundle, which carries a private copy of pi-ai (`patch-pi-provider-cost.ts`).
+ */
+export function piCliBundlePaths(bundlePath: string): string[] {
+  const found = new Set<string>();
+  const add = (dir: string): void => {
+    const bundle = join(dir, bundlePath);
+    if (existsSync(bundle)) found.add(realpathSync(bundle));
+  };
+  add(join("node_modules", PI_CODING_AGENT));
+  try {
+    const store = join("node_modules", ".pnpm");
+    for (const entry of readdirSync(store)) {
+      add(join(store, entry, "node_modules", PI_CODING_AGENT));
+    }
+  } catch {
+    // No pnpm store; the top-level path above is the answer.
   }
   return [...found];
 }

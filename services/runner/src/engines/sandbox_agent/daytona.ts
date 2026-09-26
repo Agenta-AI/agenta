@@ -31,7 +31,8 @@ import {
 } from "./subscription-login/files.ts";
 import {
   applyPiProviderCostPatch,
-  PI_PROVIDER_COST_BUNDLE_PATH,
+  PI_CLI_ANCHOR,
+  PI_CLI_PROVIDER_COST_BUNDLE_PATH,
 } from "../../tools/pi-provider-cost-patch.ts";
 
 type Log = (message: string) => void;
@@ -235,41 +236,31 @@ export async function ensurePiInSandbox(
 /**
  * Apply the pi-ai provider-cost patch to the Pi the pinned path runs, from the same spec the
  * runner image and the snapshot build use, so a custom image's Pi keeps OpenRouter's billed cost.
- * pi-ai sits where Node resolves it from the harness: nested under it, else hoisted beside it.
+ * The pi CLI runs its own bundled copy of pi-ai, inside the harness package.
  */
 async function patchInstalledPiProviderCost(
   sandbox: any,
   log: Log,
 ): Promise<void> {
-  const harness = await resolvePiPackageDir(sandbox);
-  for (const dir of [
-    `${harness}/node_modules/@earendil-works/pi-ai`,
-    `${harness.slice(0, harness.lastIndexOf("/"))}/pi-ai`,
-  ]) {
-    const path = `${dir}/${PI_PROVIDER_COST_BUNDLE_PATH}`;
-    let source: string;
-    try {
-      const bytes = await sandbox.readFsFile({ path });
-      source =
-        typeof bytes === "string" ? bytes : new TextDecoder().decode(bytes);
-    } catch {
-      continue;
-    }
-    const outcome = applyPiProviderCostPatch(source);
-    if (outcome.kind === "anchor-missing") {
-      throw new Error(
-        `pi-ai provider-cost patch: the parseChunkUsage anchor is missing in ${path}`,
-      );
-    }
-    if (outcome.kind === "patched") {
-      await sandbox.writeFsFile({ path }, outcome.source);
-    }
-    log(`[pi-repair] pi-ai provider-cost patch ${outcome.kind} in ${path}`);
-    return;
+  const path = `${await resolvePiPackageDir(sandbox)}/${PI_CLI_PROVIDER_COST_BUNDLE_PATH}`;
+  let source: string;
+  try {
+    const bytes = await sandbox.readFsFile({ path });
+    source =
+      typeof bytes === "string" ? bytes : new TextDecoder().decode(bytes);
+  } catch {
+    throw new Error(`pi-ai provider-cost patch: no ${path}`);
   }
-  throw new Error(
-    `pi-ai provider-cost patch: no ${PI_PROVIDER_COST_BUNDLE_PATH} for the pi-coding-agent at ${harness}`,
-  );
+  const outcome = applyPiProviderCostPatch(source, PI_CLI_ANCHOR);
+  if (outcome.kind === "anchor-missing") {
+    throw new Error(
+      `pi-ai provider-cost patch: the parseChunkUsage anchor is missing in ${path}`,
+    );
+  }
+  if (outcome.kind === "patched") {
+    await sandbox.writeFsFile({ path }, outcome.source);
+  }
+  log(`[pi-repair] pi-ai provider-cost patch ${outcome.kind} in ${path}`);
 }
 
 /**

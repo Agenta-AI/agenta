@@ -20,10 +20,9 @@ import {
 } from "../../src/engines/sandbox_agent/daytona.ts";
 import type { PiModelConfigPlan } from "../../src/engines/sandbox_agent/pi-model-config.ts";
 import {
-  PARSE_CHUNK_USAGE_START,
-  PI_PROVIDER_COST_BUNDLE_PATH,
+  PI_CLI_ANCHOR,
+  PI_CLI_PROVIDER_COST_BUNDLE_PATH,
   PROVIDER_COST_MARKER,
-  STOCK_USAGE_TAIL,
 } from "../../src/tools/pi-provider-cost-patch.ts";
 
 const MODEL_CONFIG_PLAN: PiModelConfigPlan = {
@@ -80,10 +79,10 @@ describe("ensurePiInSandbox (probe and pinned-install repair)", () => {
    * A sandbox whose pinned path answers `before` until a link or install changes it: a link makes
    * it answer `linked` (the PATH pi's version), an install makes it answer the pinned version.
    */
-  const piAiBundle = `${DAYTONA_PI_INSTALL_DIR}/node_modules/@earendil-works/pi-ai/${PI_PROVIDER_COST_BUNDLE_PATH}`;
+  const piCliBundle = `${DAYTONA_PI_INSTALL_DIR}/node_modules/@earendil-works/pi-coding-agent/${PI_CLI_PROVIDER_COST_BUNDLE_PATH}`;
   const globalScope = "/usr/local/lib/node_modules/@earendil-works";
-  const globalPiAiBundle = `${globalScope}/pi-ai/${PI_PROVIDER_COST_BUNDLE_PATH}`;
-  const stockBundle = `${PARSE_CHUNK_USAGE_START}\n    const usage = {};\n${STOCK_USAGE_TAIL}\n`;
+  const globalPiCliBundle = `${globalScope}/pi-coding-agent/${PI_CLI_PROVIDER_COST_BUNDLE_PATH}`;
+  const stockBundle = `${PI_CLI_ANCHOR.functionStart}let usage={};${PI_CLI_ANCHOR.anchor}function mapStopReason(reason){`;
 
   function fakeSandbox(options: {
     before?: string;
@@ -91,11 +90,10 @@ describe("ensurePiInSandbox (probe and pinned-install repair)", () => {
     installLeaves?: string;
   }) {
     const calls: any[] = [];
-    // What npm leaves behind, here and in a global install: the stock pi-ai bundle, hoisted
-    // beside the harness.
+    // What npm leaves behind, here and in a global install: the pi CLI's stock bundled chunk.
     const files = new Map<string, string>([
-      [piAiBundle, stockBundle],
-      [globalPiAiBundle, stockBundle],
+      [piCliBundle, stockBundle],
+      [globalPiCliBundle, stockBundle],
     ]);
     let current = options.before;
     let harnessDir = `${DAYTONA_PI_INSTALL_DIR}/node_modules/@earendil-works/pi-coding-agent`;
@@ -179,12 +177,12 @@ describe("ensurePiInSandbox (probe and pinned-install repair)", () => {
     assert.equal(install.cwd, DAYTONA_PI_INSTALL_DIR);
   });
 
-  it("patches the installed pi-ai to keep the provider's billed cost", async () => {
+  it("patches the installed pi CLI's bundled pi-ai to keep the provider's billed cost", async () => {
     const { sandbox } = fakeSandbox({ installLeaves: PINNED_PI_VERSION });
 
     await ensurePiInSandbox(sandbox);
 
-    assert.ok(sandbox.files.get(piAiBundle)!.includes(PROVIDER_COST_MARKER));
+    assert.ok(sandbox.files.get(piCliBundle)!.includes(PROVIDER_COST_MARKER));
   });
 
   it("patches a reused Pi of the pinned version (custom image, earlier install)", async () => {
@@ -192,7 +190,7 @@ describe("ensurePiInSandbox (probe and pinned-install repair)", () => {
 
     await ensurePiInSandbox(sandbox);
 
-    assert.ok(sandbox.files.get(piAiBundle)!.includes(PROVIDER_COST_MARKER));
+    assert.ok(sandbox.files.get(piCliBundle)!.includes(PROVIDER_COST_MARKER));
   });
 
   it("patches the global Pi the pinned path links to", async () => {
@@ -201,9 +199,9 @@ describe("ensurePiInSandbox (probe and pinned-install repair)", () => {
     await ensurePiInSandbox(sandbox);
 
     assert.ok(
-      sandbox.files.get(globalPiAiBundle)!.includes(PROVIDER_COST_MARKER),
+      sandbox.files.get(globalPiCliBundle)!.includes(PROVIDER_COST_MARKER),
     );
-    assert.equal(sandbox.files.get(piAiBundle), stockBundle);
+    assert.equal(sandbox.files.get(piCliBundle), stockBundle);
   });
 
   it.each([

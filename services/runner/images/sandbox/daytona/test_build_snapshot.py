@@ -214,27 +214,21 @@ def test_adapter_pins_never_reinstall_the_native_clis():
 # --- pi-ai provider-cost patch (harness cost issue H1) -------------------------------------
 
 SPEC = build_snapshot.PI_COST_PATCH_SPEC
+CLI = SPEC["cli"]
+# The shape of the pi CLI's minified chunk: the CLI runs this bundled copy of pi-ai.
 STOCK_COMPLETIONS = (
-    "function convertTools(tools) {\n    return tools;\n}\n"
-    + SPEC["functionStart"]
-    + "\n    const usage = { cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } };\n"
-    + SPEC["anchor"]
-    + "\nfunction mapStopReason(reason) {\n    return reason;\n}\n"
+    "function convertTools(tools){return tools}"
+    + CLI["functionStart"]
+    + "let usage={cost:{input:0,output:0,cacheRead:0,cacheWrite:0,total:0}};"
+    + CLI["anchor"]
+    + "function mapStopReason(reason){return reason}"
 )
 needs_node = pytest.mark.skipif(shutil.which("node") is None, reason="needs node")
 
 
 def fake_global_pi(tmp_path: Path, source: str) -> Path:
-    """A global npm root with pi-ai nested under pi-coding-agent, as `npm install -g` lays it out."""
-    bundle = (
-        tmp_path
-        / "@earendil-works"
-        / "pi-coding-agent"
-        / "node_modules"
-        / "@earendil-works"
-        / "pi-ai"
-        / SPEC["bundlePath"]
-    )
+    """A global npm root holding pi-coding-agent and its bundled chunk."""
+    bundle = tmp_path / "@earendil-works" / "pi-coding-agent" / CLI["bundlePath"]
     bundle.parent.mkdir(parents=True)
     bundle.write_text(source)
     return bundle
@@ -287,11 +281,11 @@ def test_pi_cost_patch_rewrites_parse_chunk_usage_like_the_runner(tmp_path):
     assert result.returncode == 0, result.stderr
     assert "pi-ai-provider-cost=patched" in result.stdout
     # The same text `applyPiProviderCostPatch` produces in the runner image.
-    start = STOCK_COMPLETIONS.index(SPEC["functionStart"])
+    start = STOCK_COMPLETIONS.index(CLI["functionStart"])
     expected = (
         STOCK_COMPLETIONS[:start]
         + SPEC["injected"]
-        + STOCK_COMPLETIONS[start:].replace(SPEC["anchor"], SPEC["replacement"])
+        + STOCK_COMPLETIONS[start:].replace(CLI["anchor"], CLI["replacement"])
     )
     assert bundle.read_text() == expected
 
@@ -310,7 +304,7 @@ def test_pi_cost_patch_is_idempotent(tmp_path):
 @needs_node
 def test_pi_cost_patch_fails_the_build_when_the_anchor_is_missing(tmp_path):
     bundle = fake_global_pi(
-        tmp_path, STOCK_COMPLETIONS.replace(SPEC["anchor"], "    return usage;\n}")
+        tmp_path, STOCK_COMPLETIONS.replace(CLI["anchor"], "return usage}")
     )
     before = bundle.read_text()
     result = run_pi_cost_patch(tmp_path)

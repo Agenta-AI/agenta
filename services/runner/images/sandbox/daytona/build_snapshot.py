@@ -97,21 +97,21 @@ PI_COST_PATCH_SPEC = json.loads(
 
 
 def pi_provider_cost_patch_script() -> str:
-    """The Node script that patches the global Pi install's pi-ai to keep OpenRouter's billed cost.
+    """The Node script that patches the global Pi install to keep OpenRouter's billed cost.
 
     OpenRouter returns the real charge in `usage.cost`; pi-ai's `parseChunkUsage` drops it and
-    prices the tokens from Pi's own table. The script finds the pi-ai that the global
-    `pi-coding-agent` resolves (Node's own lookup: its `node_modules`, then each parent's), and
-    applies the SAME steps as `applyPiProviderCostPatch` in the runner, from the SAME JSON spec.
-    Keep the two in step.
+    prices the tokens from Pi's own table. The pi CLI runs its own bundled copy of pi-ai, so the
+    script patches that chunk inside the global `pi-coding-agent` (`cli` in the JSON spec), with
+    the SAME steps as `applyPiProviderCostPatch(source, PI_CLI_ANCHOR)` in the runner. Keep the two
+    in step.
 
-    It fails loudly (exit 1) when pi-ai is missing or the anchor does not match inside
+    It fails loudly (exit 1) when the chunk is missing or the anchor does not match inside
     `parseChunkUsage`, re-reads the file after writing, and is idempotent.
     """
     return f"""
 import {{ execSync }} from "node:child_process";
 import {{ existsSync, readFileSync, writeFileSync }} from "node:fs";
-import {{ dirname, join }} from "node:path";
+import {{ join }} from "node:path";
 const spec = {json.dumps(PI_COST_PATCH_SPEC)};
 const fail = (message) => {{
   console.error("pi-ai provider-cost patch: " + message);
@@ -120,22 +120,18 @@ const fail = (message) => {{
 const root = process.env.PI_GLOBAL_ROOT || execSync("npm root -g").toString().trim();
 const harness = join(root, "@earendil-works", "pi-coding-agent");
 if (!existsSync(harness)) fail("no global @earendil-works/pi-coding-agent under " + root);
-let file;
-for (let dir = harness; ; dir = dirname(dir)) {{
-  const candidate = join(dir, "node_modules", "@earendil-works", "pi-ai", spec.bundlePath);
-  if (existsSync(candidate)) {{ file = candidate; break; }}
-  if (dirname(dir) === dir) break;
-}}
-if (!file) fail("pi-coding-agent resolves no @earendil-works/pi-ai " + spec.bundlePath);
+const cli = spec.cli;
+const file = join(harness, cli.bundlePath);
+if (!existsSync(file)) fail("no " + cli.bundlePath + " in " + harness);
 const source = readFileSync(file, "utf8");
 if (source.includes(spec.marker)) {{
   console.log("pi-ai provider-cost patch: already keeping the billed cost in " + file);
 }} else {{
-  const start = source.indexOf(spec.functionStart);
-  const nextFunction = start < 0 ? -1 : source.indexOf("\\nfunction ", start + spec.functionStart.length);
+  const start = source.indexOf(cli.functionStart);
+  const nextFunction = start < 0 ? -1 : source.indexOf("function ", start + cli.functionStart.length);
   const end = nextFunction < 0 ? source.length : nextFunction;
-  const at = start < 0 ? -1 : source.indexOf(spec.anchor, start);
-  if (start < 0 || source.indexOf(spec.functionStart, start + 1) >= 0 || at < 0 || at + spec.anchor.length > end) {{
+  const at = start < 0 ? -1 : source.indexOf(cli.anchor, start);
+  if (start < 0 || source.indexOf(cli.functionStart, start + 1) >= 0 || at < 0 || at + cli.anchor.length > end) {{
     fail(
       "the parseChunkUsage anchor is missing in " + file + ". pi-ai changed how it parses " +
       "OpenAI-completions usage: re-read parseChunkUsage and update " +
@@ -144,8 +140,8 @@ if (source.includes(spec.marker)) {{
   }}
   writeFileSync(
     file,
-    source.slice(0, start) + spec.injected + source.slice(start, at) + spec.replacement +
-      source.slice(at + spec.anchor.length)
+    source.slice(0, start) + spec.injected + source.slice(start, at) + cli.replacement +
+      source.slice(at + cli.anchor.length)
   );
   console.log("pi-ai provider-cost patch: OpenRouter usage.cost now wins in " + file);
 }}

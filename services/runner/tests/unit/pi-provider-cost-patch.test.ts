@@ -5,6 +5,7 @@ import {
   applyPiProviderCostPatch,
   INJECTED_PROVIDER_COST_SOURCE,
   PARSE_CHUNK_USAGE_START,
+  PI_CLI_ANCHOR,
   PATCHED_USAGE_TAIL,
   PROVIDER_COST_MARKER,
   PROVIDER_COST_SOURCE,
@@ -235,6 +236,50 @@ describe("applyPiProviderCostPatch", () => {
   it("reports anchor-missing when parseChunkUsage appears twice", () => {
     assert.equal(
       applyPiProviderCostPatch(COMPLETIONS_SECTION + COMPLETIONS_SECTION).kind,
+      "anchor-missing",
+    );
+  });
+});
+
+/**
+ * Verbatim from the pi CLI's bundle (`@earendil-works/pi-coding-agent` 0.87.1,
+ * `dist/bundle/chunks/openai-completions-OBX42CLD.js`). The `pi` subprocess runs this minified copy
+ * of pi-ai, not the pi-ai package, so patching only the package left every Pi run on Pi's estimate.
+ */
+const CLI_COMPLETIONS_SECTION =
+  ",...compat.supportsStrictMode!==!1&&{strict:strict??!1}}}})}function parseChunkUsage(rawUsage,model){let promptTokens=rawUsage.prompt_tokens||0,cacheReadTokens=rawUsage.prompt_tokens_details?.cached_tokens??rawUsage.prompt_cache_hit_tokens??rawUsage.cached_tokens??0,cacheWriteTokens=rawUsage.prompt_tokens_details?.cache_write_tokens||0,input=Math.max(0,promptTokens-cacheReadTokens-cacheWriteTokens),outputTokens=rawUsage.completion_tokens||0,usage={input,output:outputTokens,cacheRead:cacheReadTokens,cacheWrite:cacheWriteTokens,reasoning:rawUsage.completion_tokens_details?.reasoning_tokens||0,totalTokens:input+outputTokens+cacheReadTokens+cacheWriteTokens,cost:{input:0,output:0,cacheRead:0,cacheWrite:0,total:0}};return calculateCost(model,usage),usage}function mapStopReason(reason){";
+
+describe("applyPiProviderCostPatch on the pi CLI's bundled copy", () => {
+  function patchedCli(): string {
+    const outcome = applyPiProviderCostPatch(CLI_COMPLETIONS_SECTION, PI_CLI_ANCHOR);
+    assert.equal(outcome.kind, "patched");
+    return (outcome as { source: string }).source;
+  }
+
+  it("keeps OpenRouter's billed usage.cost as the total and marks its source", () => {
+    const usage = loadParseChunkUsage(patchedCli())(OPENROUTER_USAGE);
+
+    assert.equal(usage.cost.total, 0.0123);
+    assert.equal(usage.cost.source, PROVIDER_COST_SOURCE);
+    assert.equal(usage.input, 1000);
+  });
+
+  it("changes nothing else in the chunk, and is idempotent", () => {
+    const source = patchedCli();
+    const restored = source
+      .replace(INJECTED_PROVIDER_COST_SOURCE, "")
+      .replace(PI_CLI_ANCHOR.replacement, PI_CLI_ANCHOR.anchor);
+
+    assert.equal(restored, CLI_COMPLETIONS_SECTION);
+    assert.equal(
+      applyPiProviderCostPatch(source, PI_CLI_ANCHOR).kind,
+      "already-patched",
+    );
+  });
+
+  it("does not match with the pi-ai package's anchor", () => {
+    assert.equal(
+      applyPiProviderCostPatch(CLI_COMPLETIONS_SECTION).kind,
       "anchor-missing",
     );
   });

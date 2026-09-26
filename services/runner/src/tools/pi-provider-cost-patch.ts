@@ -29,15 +29,20 @@
  * endpoint reports `usage.cost` is not verified, so those spans keep Pi's estimate. The Responses
  * and native Anthropic/Google/Bedrock clients talk to first-party APIs that report no billed cost.
  *
- * WHERE IT RUNS. The anchor lives in `pi-provider-cost-patch.json`, not here, because TWO installs
- * must patch identically: the runner image (`scripts/patch-pi-provider-cost.ts`, which covers both
- * the `local` provider's `pi` subprocess and the in-process engine, since both load the runner's
- * `node_modules`) and the Daytona sandbox snapshot (`images/sandbox/daytona/build_snapshot.py`,
- * which installs Pi from npm and embeds the same spec).
+ * TWO COPIES OF PI-AI. The `pi` CLI (`dist/bundle/cli.js`) does not load the `pi-ai` package: it
+ * runs a minified copy bundled into `pi-coding-agent` (`cli.bundlePath` in the spec). The
+ * in-process engine imports `pi-coding-agent`'s unbundled entry, which loads the `pi-ai` package.
+ * So the runner image patches both, and a Daytona sandbox, which only runs the CLI, patches the
+ * bundled copy.
  *
- * VERSION-PIN FRICTION, ACCEPTED. The anchor is the exact tail of `parseChunkUsage` pi-ai 0.87.1
- * ships (also in 0.80.6). A Pi upgrade that rewrites it breaks the image build until someone
- * re-reads the function and updates the JSON. That is deliberate: a loose pattern that keeps
+ * WHERE IT RUNS. The anchors live in `pi-provider-cost-patch.json`, not here, because every install
+ * must patch identically: the runner image (`scripts/patch-pi-provider-cost.ts`), the Daytona
+ * sandbox snapshot (`images/sandbox/daytona/build_snapshot.py`, which installs Pi from npm and
+ * embeds the same spec), and a runtime Pi install in a Daytona sandbox (`ensurePiInSandbox`).
+ *
+ * VERSION-PIN FRICTION, ACCEPTED. The anchors are the exact tail of `parseChunkUsage` pi-ai 0.87.1
+ * ships, and the CLI chunk's file name carries the bundle's content hash. A Pi upgrade that changes
+ * either breaks the image build until someone re-reads the function and updates the JSON. That is deliberate: a loose pattern that keeps
  * matching after the code moved is how a patch silently rewrites the wrong line.
  *
  * RETIREMENT. If upstream Pi starts keeping `rawUsage.cost`, drop this patch. Until then,
@@ -50,6 +55,9 @@ import patchSpec from "./pi-provider-cost-patch.json" with { type: "json" };
 
 /** The file inside the pi-ai package that parses OpenAI-completions usage. */
 export const PI_PROVIDER_COST_BUNDLE_PATH = patchSpec.bundlePath;
+
+/** The pi CLI's bundled copy of that file, inside the pi-coding-agent package. */
+export const PI_CLI_PROVIDER_COST_BUNDLE_PATH = patchSpec.cli.bundlePath;
 
 /** The name the injected function takes inside Pi's module scope. Also the idempotence marker. */
 export const PROVIDER_COST_MARKER = patchSpec.marker;
@@ -68,43 +76,58 @@ export const PATCHED_USAGE_TAIL = patchSpec.replacement;
 /** The function text the patch writes into Pi, immediately before `parseChunkUsage`. */
 export const INJECTED_PROVIDER_COST_SOURCE = patchSpec.injected;
 
+/** Where the patch binds in one copy of `parseChunkUsage`. */
+export interface PiProviderCostAnchor {
+  functionStart: string;
+  anchor: string;
+  replacement: string;
+}
+
+/** The pi-ai package's `parseChunkUsage`. */
+export const PI_AI_ANCHOR: PiProviderCostAnchor = patchSpec;
+
+/** The minified `parseChunkUsage` the pi CLI bundles. */
+export const PI_CLI_ANCHOR: PiProviderCostAnchor = patchSpec.cli;
+
 export type PiProviderCostPatchOutcome =
   | { kind: "patched"; source: string }
   | { kind: "already-patched" }
   | { kind: "anchor-missing" };
 
 /**
- * Apply the patch to one `openai-completions.js` source.
+ * Apply the patch to one copy of `parseChunkUsage`: the pi-ai package's (default) or the pi CLI's
+ * bundled chunk (`PI_CLI_ANCHOR`).
  *
  * Pure and idempotent. The anchor must sit inside `parseChunkUsage` (between its header and the
- * next top-level `function`), and the header must occur exactly once, so the patch cannot bind to
- * a look-alike tail somewhere else in the bundle.
+ * next `function`), and the header must occur exactly once, so the patch cannot bind to a
+ * look-alike tail somewhere else in the bundle.
  *
  * `build_snapshot.py` embeds the same steps in JavaScript for the Daytona image; keep them in step.
  */
 export function applyPiProviderCostPatch(
   source: string,
+  { functionStart, anchor, replacement }: PiProviderCostAnchor = PI_AI_ANCHOR,
 ): PiProviderCostPatchOutcome {
   if (source.includes(PROVIDER_COST_MARKER)) return { kind: "already-patched" };
-  const start = source.indexOf(PARSE_CHUNK_USAGE_START);
+  const start = source.indexOf(functionStart);
   if (start < 0) return { kind: "anchor-missing" };
-  if (source.indexOf(PARSE_CHUNK_USAGE_START, start + 1) >= 0) {
+  if (source.indexOf(functionStart, start + 1) >= 0) {
     return { kind: "anchor-missing" };
   }
   const nextFunction = source.indexOf(
-    "\nfunction ",
-    start + PARSE_CHUNK_USAGE_START.length,
+    "function ",
+    start + functionStart.length,
   );
   const end = nextFunction < 0 ? source.length : nextFunction;
-  const at = source.indexOf(STOCK_USAGE_TAIL, start);
-  if (at < 0 || at + STOCK_USAGE_TAIL.length > end) {
+  const at = source.indexOf(anchor, start);
+  if (at < 0 || at + anchor.length > end) {
     return { kind: "anchor-missing" };
   }
   const patched =
     source.slice(0, start) +
     INJECTED_PROVIDER_COST_SOURCE +
     source.slice(start, at) +
-    PATCHED_USAGE_TAIL +
-    source.slice(at + STOCK_USAGE_TAIL.length);
+    replacement +
+    source.slice(at + anchor.length);
   return { kind: "patched", source: patched };
 }
