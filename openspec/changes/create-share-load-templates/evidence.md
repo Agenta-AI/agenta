@@ -13,7 +13,9 @@ Checked against Agenta main commit `c5c4ff1bc35f50735e5e0a49b7fb651a60610f2b` on
 | Loader retries already have fingerprints and stored provenance; resolution still occurs in the preparation path | `api/oss/src/core/agent_templates/loader.py` |
 | The existing frontend already has a template API client and unit tests | `web/packages/agenta-entities/src/workflow/api/agentTemplates.ts` and `tests/unit/agentTemplate*.test.ts` in that package |
 | Gallery presentation has a handwritten source | `web/packages/agenta-entities/src/workflow/agentTemplates.ts` |
-| Website template presentation has an existing component | `web/website/src/components/TemplateExplorer.tsx` |
+| Website template presentation already links to the app with `?template=<key>` | `web/website/src/components/TemplateExplorer.tsx` |
+| Website selection is captured alongside authentication URL state and retained with claim/lifetime safeguards | `web/oss/src/state/url/auth.ts` and `template.ts`; tests in `template.test.ts` |
+| The pending website consumer currently creates with name/seed only; the creation hook already accepts a template for package loading | `web/oss/src/components/pages/agent-home/hooks/useConsumePendingTemplate.ts` and `useCreateAgent.ts` |
 | Runtime built-in skills are packaged in SDK code | `sdks/python/agenta/sdk/agents/adapters/agenta_builtins.py` |
 | Template tests are under pytest/unit, not the path named by the earlier draft | `api/oss/tests/pytest/unit/agent_templates/` |
 
@@ -31,6 +33,7 @@ Mahmoud approved simplification items 1 through 5 and the three-part delivery pl
 - Publish only merged author/template entries; previews can show proposed entries.
 - Let website data work proceed without export/GitHub loading. Add guided submission after manual contribution works.
 - Marketplace website UI designs will be supplied to the implementing agent separately.
+- Each website template must have a "Use it for free" button. Reuse the existing authentication flow: create from the package for signed-in users, or retain the template through signup/sign-in and create afterward. This is a connection to existing behavior, not a new authentication subsystem. Source inspection confirms the current consumer-to-package-loading gap; the end-to-end flow has not been browser-tested in this documentation change.
 
 The pre-existing constraints remain: chat-triggered export, release-bundled catalog, no mandatory install preview or separate privacy audit, case-by-case useful memory, contextual setup, small-model repair tests, no catalog zip downloads, and preservation of the in-app template page.
 

@@ -39,6 +39,7 @@ Do not make website delivery wait for export or GitHub import. Keep implementati
 - **Metadata:** one Python reader owns fallbacks and derived summaries. The API and website generator use it. Remove handwritten frontend data after full parity; do not leave partial runtime fallbacks.
 - **CI:** validate every bundled package and the whole catalog/author graph. Only published-version immutability needs Git comparison. No package script execution or credentials in fork validation.
 - **Publication:** merged entries become website build input and ship with the next app catalog release. No runtime refresh, no requirement for unmerged-author pages on the published site.
+- **Use it for free:** every website template gets this button. Signed-in users continue to creation from the selected package. Signed-out users complete the existing signup/authentication flow, then resume the same creation without reselecting the template. Reuse authentication and pending-selection logic; connect it to package loading rather than create a blank agent with a prompt.
 - **Export:** normal chat request near Publish/Share; preserve composer draft; clarify recipient/context; retain useful memory; exclude secrets; write contextual setup; leave automations inactive.
 - **Tests:** archive safety, authorization, retry correctness, gallery parity, smaller-model repair and setup usefulness are mandatory, not removed scope.
 
@@ -62,6 +63,8 @@ All paths are repository-relative and were checked at the recorded baseline:
 | Gallery data / helpers | `web/packages/agenta-entities/src/workflow/agentTemplates.ts` |
 | Existing template client | `web/packages/agenta-entities/src/workflow/api/agentTemplates.ts` |
 | Key selection | `web/oss/src/components/pages/agent-home/hooks/useTemplateSelect.ts` |
+| Website key capture and auth integration | `web/oss/src/state/url/template.ts`, `template.test.ts`, and `auth.ts` |
+| Website selection consumption and creation | `web/oss/src/components/pages/agent-home/hooks/useConsumePendingTemplate.ts` and `useCreateAgent.ts` |
 | Website component | `web/website/src/components/TemplateExplorer.tsx` |
 
 Do not confuse product skill implementation with configuring your own agent. Ship create-template and submit-template through the repository's built-in skill machinery. Installing a local personal skill does not deliver the product feature.
@@ -108,6 +111,7 @@ For acceptance, attach:
 - Completed replay with the source unavailable, conflict cases and interrupted-creation recovery.
 - Invalid archive, cross-project authorization and no-durable-write validation tests.
 - Before/after gallery screenshots and website screenshots compared to the supplied designs.
+- Use it for free for a signed-in user and through signup/authentication redirects. Verify the original key survives, the created agent contains the selected package configuration, and repeated callbacks do not duplicate creation. Test unavailable keys without blank-agent fallback.
 - Full CI validation failures for an invalid package, missing author, unsupported format and overwritten published package version.
 
 Keep production release and merge evidence separate from local tests. Never mark a future release verified from a local build.

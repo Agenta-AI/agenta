@@ -11,7 +11,7 @@ Users need to export an agent, share it privately or submit it to the marketplac
 - Add POST query, GET detail and read-only validation routes using repository conventions. Preserve the existing load endpoint's permissions, creation and retry guarantees.
 - Version catalog and author formats separately from package content and package format. Migrate the bundled catalog, API and frontend together without a legacy catalog reader or custom catalog-root setting.
 - Use one Python reader for API responses and generated website data. Remove the hand-maintained frontend catalog once all consumers use the new source.
-- Preserve the in-app gallery. Build website template/author pages using the marketplace UI designs Mahmoud will supply.
+- Preserve the in-app gallery. Build website template/author pages using the marketplace UI designs Mahmoud will supply. Give each template a "Use it for free" button that creates an agent from its package through the existing signed-in or signup/authentication flow, preserving the original selection.
 - Validate every bundled package and the catalog/author graph in continuous integration (CI). Add guided pull-request submission after the manual contribution path works.
 
 ## Capabilities

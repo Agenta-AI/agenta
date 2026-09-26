@@ -18,11 +18,37 @@ Published template and author pages SHALL derive from merged catalog entries. A 
 - **WHEN** an unmerged PR adds an author and template
 - **THEN** a preview may render them, but the published site remains based on its merged catalog
 
-### Requirement: Template selection link
+### Requirement: Use it for free
 
-Use this template SHALL select a stable template key in the destination application using the existing deep-link mechanism. A website page SHALL NOT be treated as the package source. Adding a self-hosted destination picker remains a feasibility proposal, not required UI in this change.
+Each template offered on the website SHALL have a button labeled "Use it for free", including template listings and detail pages. The button SHALL carry that template's stable key through the existing destination-app deep-link flow. The destination app SHALL load the selected template package and create an agent from it, not merely create a blank agent with a seeded prompt. The website SHALL NOT implement a separate authentication or creation service.
 
-#### Scenario: Visitor selects template
+For a signed-in user, the app SHALL continue to template creation once the existing workspace/project requirements are satisfied. For a signed-out user, the app SHALL use the existing signup/authentication flow, retain the selected template through its redirects, and continue to the same creation path after successful authentication. The user SHALL NOT have to find or select the template again. Existing authorization, connection setup and creation safeguards SHALL remain in force.
 
-- **WHEN** a visitor follows Use this template
-- **THEN** the destination app receives the key, resolves its own catalog and follows its existing authentication/project selection and creation flow
+A website page SHALL NOT be treated as the package source. Adding a self-hosted destination picker remains outside this change.
+
+#### Scenario: Signed-in visitor
+
+- **WHEN** a signed-in user clicks Use it for free for a valid template
+- **THEN** the app resolves that template from its catalog, loads its package and creates an agent in the authorized project
+- **AND** it opens the created agent/session through the existing navigation flow without requiring template reselection
+
+#### Scenario: Visitor completes signup
+
+- **WHEN** a signed-out visitor clicks Use it for free and completes the existing signup flow, including any verification or provider redirect
+- **THEN** the original template selection survives authentication and required project setup
+- **AND** the app loads that template, creates the agent and opens it without a second template search or selection
+
+#### Scenario: Existing account signs in
+
+- **WHEN** a signed-out visitor follows the existing sign-in option instead of creating a new account
+- **THEN** successful authentication resumes creation from the originally selected template through the same path
+
+#### Scenario: Repeated callback or page refresh
+
+- **WHEN** the same pending website selection is consumed again by a repeated authentication callback or refresh
+- **THEN** the existing claim and backend request safeguards prevent a second agent from being created for that selection
+
+#### Scenario: Destination lacks the template
+
+- **WHEN** the destination catalog does not contain the selected key
+- **THEN** the app explains that the template is unavailable in that catalog/version and creates no blank or substitute agent

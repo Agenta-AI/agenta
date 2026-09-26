@@ -68,6 +68,8 @@ Write SETUP.md from the actual package: purpose, prerequisites, accounts to conn
 
 Use a generated JSON build input for template and author pages. Preserve stable keys and derive author membership from catalog references. The published site includes merged entries; preview builds may contain proposed entries without imposing requirements on the published site.
 
+Every template has a "Use it for free" button. Link to the destination app with its stable template key. Signed-in users continue to agent creation from that package after existing project requirements. Signed-out users complete the existing signup/authentication flow, then continue with the retained selection. Reuse the app's authentication capture and pending-template consumer; no separate website authentication flow. Connect the consumer to actual template package loading, not blank-agent prompt seeding. Preserve claim/retry safeguards and do not discard a captured key merely because the new asynchronous catalog query has not completed.
+
 CI validates all bundled packages and the entire catalog/author graph. Use Git history only to detect changes to already-published package versions. Preserve safe execution on untrusted fork PRs: parse files as data; never execute contributed package scripts or expose credentials. Optimize package selection only after measuring a material cost.
 
 The website data pipeline and pages depend on the catalog reader, not on export or GitHub loading. Build and prove the manual contribution path before adding submit-template guidance. The guided flow obtains approval before opening a PR and includes the exact source triple for review.

@@ -30,7 +30,7 @@
 - [ ] 4.1 Validate all packages and catalog/author references in CI, with a Git comparison for published-version immutability
 - [ ] 4.2 Document and rehearse the manual contribution path; configure the required check only with maintainer authorization
 - [ ] 4.3 Receive Mahmoud's marketplace website UI designs and resolve any data-contract conflicts before visual implementation
-- [ ] 4.4 Build template index/detail/author pages from generated data; preserve key links and unavailable-version behavior
+- [ ] 4.4 Build template index/detail/author pages from generated data; connect each Use it for free button to actual package creation through the existing signed-in or signup/authentication flow, retaining the template selection and unavailable-version behavior
 - [ ] 4.5 Add guided submission after the manual path and exact-head testing work
 - [ ] 4.6 Verify merge-to-website-build and merge-to-next-bundled-release behavior without manual registration
 
@@ -40,7 +40,7 @@
 - [ ] 5.2 Test unsafe archives, cross-project references and validation with no durable side effects
 - [ ] 5.3 Test catalog format rejection separately from preserved package schema support
 - [ ] 5.4 Record export repair attempts and setup usefulness; turn failures into fixtures and rerun
-- [ ] 5.5 Verify website data parity, author membership, media fallbacks and page states against supplied UI designs
+- [ ] 5.5 Verify website data parity, author membership, media fallbacks and page states against supplied UI designs; test Use it for free for signed-in users, signup/sign-in redirects, project setup, pending catalog lookup, duplicate callbacks and unavailable keys
 - [ ] 5.6 Record actual test commands/results and limitations; never mark a task complete from document validation alone
 
 ## 6. Deferred research

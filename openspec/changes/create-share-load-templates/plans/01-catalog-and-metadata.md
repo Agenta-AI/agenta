@@ -54,7 +54,8 @@ Proposed additions: `core/agent_templates/catalog.py` for the reader, a focused 
 - [ ] Write failing frontend tests for card parity, loading/empty/error/retry states, ordering and `?template=<key>` behavior.
 - [ ] Extend the existing API client and use the repository's state/query conventions. Inspect `web/AGENTS.md` before choosing fetch/cache behavior.
 - [ ] Migrate gallery, template strip, onboarding, first-run/mobile and any consumers found by the audit. Preserve behavior, not a synchronous helper signature that no longer fits asynchronous reads.
-- [ ] Return a clear unavailable-version state for a missing key; never choose a different template silently.
+- [ ] Migrate the website pending-template lookup in `web/oss/src/state/url/template.ts` and `useConsumePendingTemplate.ts` too. Retain captured selections while the catalog query is pending; do not interpret a loading state as a missing key. Preserve authentication capture and claim safeguards.
+- [ ] Return a clear unavailable-version state for a confirmed missing key; never choose a different template or create a blank agent silently.
 - [ ] Remove the handwritten runtime array and partial fallback paths only when every consumer uses the new source.
 - [ ] Run package tests, compare gallery screenshots, and commit. Frozen test fixtures may remain.
 
