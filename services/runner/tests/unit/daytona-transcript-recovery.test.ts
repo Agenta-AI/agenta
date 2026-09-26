@@ -26,6 +26,7 @@ import {
   findSwallowedPiError,
   type PiTranscriptCursor,
 } from "../../src/engines/sandbox_agent/pi-error.ts";
+import { PINNED_PI_VERSION } from "../../src/engines/sandbox_agent/daytona.ts";
 import { piSessionWorkspaceDir } from "../../src/engines/sandbox_agent/pi-assets.ts";
 import {
   enableDaytonaProvider,
@@ -282,6 +283,8 @@ function fakeRemoteSandbox(files: Array<[name: string, file: FakeRemoteFile]>) {
             `${new TextEncoder().encode(file.content ?? "").length}\n`,
         };
       }
+      if (input?.args?.[0] === "--version")
+        return { exitCode: 0, stdout: `${PINNED_PI_VERSION}\n` };
       return {
         exitCode: 0,
         stdout: files.map(([name]) => name).join("\n") + "\n",

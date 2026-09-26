@@ -196,8 +196,14 @@ def test_pi_publishes_current_models_for_both_openai_providers():
 
     for harness in ("pi_core",):
         models = HARNESS_CONNECTION_CAPABILITIES[harness].models
+        assert models["openai"][:4] == expected
+        # The ChatGPT subscription set mirrors the pinned Pi catalog (pi-ai 0.87.1 adds GPT-6 Sol
+        # and Luna and drops GPT-5.4 and GPT-5.4 mini from `openai-codex`).
+        codex = models["openai-codex"]
+        assert codex[:3] == ["gpt-6-sol", "gpt-6-astra", "gpt-6-luna"]
+        assert codex[3:6] == expected[1:]
+        assert "gpt-5.4" not in codex and "gpt-5.4-mini" not in codex
         for provider in ("openai", "openai-codex"):
-            assert models[provider][:4] == expected
             assert "gpt-5.6" not in models[provider]
 
 

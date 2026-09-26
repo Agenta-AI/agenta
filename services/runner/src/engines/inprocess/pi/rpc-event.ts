@@ -1,5 +1,5 @@
 /**
- * A Pi session event in the shape Pi's RPC mode writes it to stdout (Pi 0.85.1
+ * A Pi session event in the shape Pi's RPC mode writes it to stdout (Pi 0.87.1
  * `modes/json-event.js`, which the package does not export). pi-acp's mapping was written against
  * that shape, and it differs from the in-memory event in one way that shows in the chat: streamed
  * message updates carry no `partial` message, so pi-acp announces a tool call at `toolcall_end`,
