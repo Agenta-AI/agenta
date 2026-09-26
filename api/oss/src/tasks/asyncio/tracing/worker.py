@@ -117,20 +117,20 @@ class TracingWorker(StreamConsumer):
     async def recompute_due_totals(self) -> int:
         await recover_expired_trace_totals(self.redis, limit=self.totals_batch_size)
 
-        trace_keys = await claim_due_trace_totals(
+        claims = await claim_due_trace_totals(
             self.redis,
             limit=self.totals_batch_size,
             lease_ms=self.totals_lease_ms,
         )
 
-        done: List[TraceKey] = []
-        for project_id, trace_id in trace_keys:
+        done: List[str] = []
+        for project_id, trace_id, claim in claims:
             try:
                 await self.service.recompute_trace_totals(
                     project_id=project_id,
                     trace_id=trace_id,
                 )
-                done.append((project_id, trace_id))
+                done.append(claim)
             except Exception:
                 # The claim stays; the trace is queued again when its lease expires.
                 log.error(
@@ -142,7 +142,7 @@ class TracingWorker(StreamConsumer):
 
         if done:
             try:
-                await complete_trace_totals(self.redis, trace_keys=done)
+                await complete_trace_totals(self.redis, claims=done)
             except Exception:
                 # The leases expire and these traces are recomputed once more.
                 log.error(
@@ -151,7 +151,7 @@ class TracingWorker(StreamConsumer):
                     exc_info=True,
                 )
 
-        return len(trace_keys)
+        return len(claims)
 
     async def schedule_totals(self, batches_by_trace: Dict[TraceKey, Set[str]]):
         """Schedule totals without failing the batch.

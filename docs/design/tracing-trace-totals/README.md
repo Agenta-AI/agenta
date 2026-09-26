@@ -95,6 +95,10 @@ Failure modes:
   `tracing:totals:claims` with a lease deadline (60 s). When the lease expires, the
   worker puts the trace back in the queue and recomputes it. A failure does not block
   ingest.
+- A trace is queued again while a recompute of it runs, and a second worker claims it:
+  each claim has its own token (`<project>:<trace>|<token>`), so one worker's
+  completion does not remove the other worker's claim. A race between a completion and
+  a recovery can only queue one extra recompute, which is idempotent.
 - Redis is down when the worker schedules a trace: the worker keeps the trace in memory
   (at most 10,000) and tries again. If the worker also stops during the outage, those
   traces keep per-request totals. We do not write a durable outbox at ingest, because

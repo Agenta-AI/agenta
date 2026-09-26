@@ -18,6 +18,8 @@ from oss.src.core.tracing.totals import (
     TOTALS_CLAIMS_KEY,
     TOTALS_QUEUE_KEY,
     claim_due_trace_totals,
+    complete_trace_totals,
+    recover_expired_trace_totals,
     schedule_trace_totals,
 )
 from oss.src.core.tracing.utils.trees import recompute_cumulative_metrics
@@ -28,6 +30,15 @@ from oss.src.dbs.postgres.tracing.dao import (
 from oss.src.tasks.asyncio.tracing.worker import TracingWorker
 
 T0 = datetime(2026, 1, 1, tzinfo=timezone.utc)
+
+
+async def _claim_keys(redis, **kwargs):
+    claims = await claim_due_trace_totals(redis, **kwargs)
+    return [(claim.project_id, claim.trace_id) for claim in claims]
+
+
+def _queue(key):
+    return {f"{key[0].hex}:{key[1].hex}": 0}
 
 
 # --- scheduling --------------------------------------------------------------
@@ -59,12 +70,12 @@ async def test_a_trace_from_two_requests_is_claimed_once_when_due():
         )
         == 1
     )
-    assert await claim_due_trace_totals(redis, limit=10) == []
+    assert await _claim_keys(redis, limit=10) == []
 
-    await redis.zadd(TOTALS_QUEUE_KEY, {f"{key[0].hex}:{key[1].hex}": 0})
+    await redis.zadd(TOTALS_QUEUE_KEY, _queue(key))
 
-    assert await claim_due_trace_totals(redis, limit=10) == [key]
-    assert await claim_due_trace_totals(redis, limit=10) == []
+    assert await _claim_keys(redis, limit=10) == [key]
+    assert await _claim_keys(redis, limit=10) == []
 
 
 async def test_a_busy_trace_keeps_its_first_due_time():
@@ -234,13 +245,61 @@ async def test_a_claim_lost_by_a_stopped_worker_is_recovered_after_its_lease():
     await redis.zadd(TOTALS_QUEUE_KEY, {f"{key[0].hex}:{key[1].hex}": 0})
 
     # A worker claims the trace and stops before it recomputes.
-    assert await claim_due_trace_totals(redis, limit=10, lease_ms=0) == [key]
+    assert await _claim_keys(redis, limit=10, lease_ms=0) == [key]
     assert await redis.zcard(TOTALS_QUEUE_KEY) == 0
 
     service = _FakeService()
     assert await _worker(redis, service).recompute_due_totals() == 1
     assert service.recomputed == [key]
     assert await redis.zcard(TOTALS_CLAIMS_KEY) == 0
+
+
+async def test_a_caller_that_loses_the_queue_entry_gets_no_claim():
+    redis = fakeredis.FakeRedis()
+    key = (uuid4(), uuid4())
+    await redis.zadd(TOTALS_QUEUE_KEY, _queue(key))
+
+    zrangebyscore = redis.zrangebyscore
+
+    async def read_then_lose(*args, **kwargs):
+        members = await zrangebyscore(*args, **kwargs)
+        # Another worker claims the trace between this read and the transaction.
+        await redis.zrem(TOTALS_QUEUE_KEY, *members)
+        return members
+
+    redis.zrangebyscore = read_then_lose
+    assert await claim_due_trace_totals(redis, limit=10) == []
+    assert await redis.zcard(TOTALS_CLAIMS_KEY) == 0
+
+
+async def test_a_second_claim_of_a_trace_survives_the_first_claims_completion():
+    # Worker A claims a trace. A new request queues it again, and worker B claims it.
+    # A completes; B fails. B's claim must stay so the trace is recomputed again.
+    redis = fakeredis.FakeRedis()
+    key = (uuid4(), uuid4())
+    await redis.zadd(TOTALS_QUEUE_KEY, _queue(key))
+    [claim_a] = await claim_due_trace_totals(redis, limit=10, lease_ms=60_000)
+    await redis.zadd(TOTALS_QUEUE_KEY, _queue(key))
+    [claim_b] = await claim_due_trace_totals(redis, limit=10, lease_ms=0)
+    assert claim_a.claim != claim_b.claim
+
+    await complete_trace_totals(redis, claims=[claim_a.claim])
+
+    assert await redis.zcard(TOTALS_CLAIMS_KEY) == 1
+    assert await recover_expired_trace_totals(redis, limit=10) == 1
+    assert await _claim_keys(redis, limit=10) == [key]
+
+
+async def test_a_late_completion_after_recovery_only_adds_a_recompute():
+    redis = fakeredis.FakeRedis()
+    key = (uuid4(), uuid4())
+    await redis.zadd(TOTALS_QUEUE_KEY, _queue(key))
+    [slow] = await claim_due_trace_totals(redis, limit=10, lease_ms=0)
+
+    assert await recover_expired_trace_totals(redis, limit=10) == 1
+    await complete_trace_totals(redis, claims=[slow.claim])
+
+    assert await _claim_keys(redis, limit=10) == [key]
 
 
 class _BrokenRedis:
