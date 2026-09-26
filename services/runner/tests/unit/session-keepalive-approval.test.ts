@@ -4549,4 +4549,63 @@ describe("runTurn: usage across an approval pause", () => {
     assert.ok(readFileSync(join(telemetryDir, ".agenta-usage.json")));
     await env.destroy();
   });
+
+  it.each([
+    ["claude", engineReq],
+    ["codex", codexEngineReq],
+  ])(
+    "%s cold pause: reports the usage the harness answers the cancelled prompt with",
+    async (_harness, request) => {
+      vi.stubEnv("AGENTA_RUNNER_COLD_PAUSE_USAGE_SETTLE_MS", "5000");
+      try {
+        const { calls, deps, captured } = pausableHarness();
+        const acquired = await acquireEnvironment(request, deps);
+        assert.equal(acquired.ok, true);
+        if (!acquired.ok) return;
+        const env = acquired.env;
+        // `destroySession` sends session/cancel. The harness ends the open prompt as cancelled,
+        // with the usage of the work before the pause, a moment after the cancel.
+        const destroySession = env.sandbox.destroySession.bind(env.sandbox);
+        env.sandbox.destroySession = async (id: string) => {
+          await destroySession(id);
+          setTimeout(() => {
+            captured.onEvent!(
+              updateEvent({
+                sessionUpdate: "agent_message_chunk",
+                content: { type: "text", text: "*Conversation interrupted*" },
+              }),
+            );
+            captured.onEvent!(
+              updateEvent({
+                sessionUpdate: "usage_update",
+                used: 900,
+                size: 200000,
+                cost: { amount: 0.3, currency: "USD" },
+              }),
+            );
+            calls.resolvePrompt!({
+              stopReason: "cancelled",
+              usage: { inputTokens: 40, outputTokens: 8, cachedReadTokens: 3 },
+            });
+          }, 20);
+        };
+
+        const paused = await pauseOnGate(env, captured, request, false);
+        assert.equal(paused.stopReason, "paused");
+        assert.equal(calls.sessionDestroyed, 1);
+        assert.equal(paused.usage?.input, 40);
+        assert.equal(paused.usage?.output, 8);
+        assert.deepEqual(calls.runs[0].tokenDetails.at(-1), [
+          { input: 40, output: 8, cacheRead: 3, cacheWrite: 0 },
+        ]);
+        // Only the usage update reaches the run; the cancel's text is a teardown artifact.
+        const kinds = calls.runs[0].handled.map((u: any) => u?.sessionUpdate);
+        assert.ok(kinds.includes("usage_update"));
+        assert.ok(!kinds.includes("agent_message_chunk"));
+        await env.destroy();
+      } finally {
+        vi.unstubAllEnvs();
+      }
+    },
+  );
 });
