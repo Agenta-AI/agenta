@@ -38,6 +38,13 @@ export interface HomeEntityListProps {
     loadingSlot?: ReactNode
     emptySlot?: ReactNode
     errorSlot?: ReactNode
+    /**
+     * The templates tab's states. The catalogue is fetched, so an empty list before it answers is
+     * "not yet" (the loading slot), and a failed read is the host's error slot with its retry —
+     * never an empty tab or "Browse all 0 templates".
+     */
+    templatesLoading?: boolean
+    templatesErrorSlot?: ReactNode
 }
 
 /** The mobile theme's focus recipe. No `ring-offset`: this theme provides none. */
@@ -114,6 +121,8 @@ export const HomeEntityList = ({
     loadingSlot,
     emptySlot,
     errorSlot,
+    templatesLoading,
+    templatesErrorSlot,
 }: HomeEntityListProps) => {
     const scrollerRef = useRef<HTMLDivElement>(null)
     const [mask, setMask] = useState<string>("none")
@@ -158,6 +167,7 @@ export const HomeEntityList = ({
     // hiding the tab hid the retry along with it.
     const hasAgentsTab = agents.length > 0 || agentsBody !== null
     const showAgents = hasAgentsTab && tab === "agents"
+    const templatesBody = templatesErrorSlot ?? (templatesLoading ? loadingSlot : null)
 
     return (
         // `-mt-1` closes 4px of the column's 26px gap: the tabs read as the composer's own
@@ -225,6 +235,8 @@ export const HomeEntityList = ({
                             onClick={() => onSelectAgent(agent.id)}
                         />
                     )))
+                ) : templatesBody ? (
+                    templatesBody
                 ) : (
                     <>
                         {templates.slice(0, TEMPLATE_SHORTLIST).map((template) => (

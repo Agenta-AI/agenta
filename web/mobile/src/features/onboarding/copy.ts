@@ -17,6 +17,11 @@ export const FIRST_RUN_COPY = {
     tryLabel: "Try",
     templates: "Templates",
     browseAll: (total: number) => `Browse all ${total}`,
+    /** Before the catalogue has a count to give (loading, or a failed read). */
+    browseAllUncounted: "Browse all",
+    templatesLoadError: "Could not load templates",
+    /** A `?template=` arrival whose catalogue read failed. */
+    templateLoadError: "Could not load this template.",
     /** En dash, matching the desktop strip's counter exactly. */
     templateCounter: (from: number, to: number, total: number) => `${from}–${to} of ${total}`,
     prevTemplates: "Previous templates",

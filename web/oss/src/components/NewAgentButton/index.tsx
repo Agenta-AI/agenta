@@ -12,11 +12,7 @@ import useURL from "@/oss/hooks/useURL"
 const NewAgentButton = ({label}: {label?: string}) => {
     const router = useRouter()
     const {baseAppURL} = useURL()
-    const {templates, status} = useAgentTemplateCatalog()
-    // Until the catalog loads the menu offers only the blank create: the browse link names a
-    // count, and "Browse all 0 templates" would read as an empty catalog. The gallery page shows
-    // its own loading and error states.
-    const catalogReady = status === "success"
+    const {templates, status, retry} = useAgentTemplateCatalog()
 
     const goCreate = (templateKey?: string) =>
         void router.push(
@@ -29,7 +25,9 @@ const NewAgentButton = ({label}: {label?: string}) => {
             onCreateBlank={() => goCreate()}
             templates={templates}
             onPickTemplate={goCreate}
-            browseHref={catalogReady ? `${baseAppURL}/agent-templates` : undefined}
+            templatesStatus={status}
+            onRetryTemplates={retry}
+            browseHref={`${baseAppURL}/agent-templates`}
             totalTemplates={templates.length}
         />
     )

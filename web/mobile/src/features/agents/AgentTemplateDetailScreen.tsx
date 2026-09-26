@@ -1,14 +1,15 @@
-import {agentTemplateByKey} from "@agenta/entities/workflow"
+import {agentTemplateLookupAtomFamily} from "@agenta/entities/workflow"
 import {TemplateDetail} from "@agenta/home-ui"
-
-import {PageTitle} from "@/components/PageTitle"
-import {ScreenScaffold} from "@/components/ScreenScaffold"
+import {useAtomValue} from "jotai"
 
 import {AssistantMarkdown} from "../chat/AssistantMarkdown"
 import {useBindProjectContext} from "../context/useBindProjectContext"
 import {AppShell} from "../nav/AppShell"
 
 import {useNewAgentAction} from "./useNewAgentAction"
+
+import {PageTitle} from "@/components/PageTitle"
+import {ScreenScaffold} from "@/components/ScreenScaffold"
 
 /**
  * One template, in full — the SHARED detail view (the desktop page renders the same one), under
@@ -31,7 +32,9 @@ export const AgentTemplateDetailScreen = ({
     useBindProjectContext(projectId)
     const base = `/w/${workspaceId}/p/${projectId}`
     const newAgent = useNewAgentAction(base)
-    const template = agentTemplateByKey(templateKey)
+    // Absent while the catalogue loads or after a failed read too — `TemplateDetail` reads the
+    // catalogue's status and shows loading / retry, keeping "Template not found" for a real miss.
+    const template = useAtomValue(agentTemplateLookupAtomFamily(templateKey)).template
 
     return (
         <>

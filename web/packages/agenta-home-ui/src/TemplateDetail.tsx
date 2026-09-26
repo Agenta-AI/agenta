@@ -18,17 +18,32 @@
  */
 import type {ReactNode} from "react"
 
-import {PROVIDERS, templateConnections, type AgentStarterTemplate} from "@agenta/entities/workflow"
+import {
+    PROVIDERS,
+    agentTemplatesStatusAtom,
+    refetchAgentTemplatesAtom,
+    templateConnections,
+    type AgentStarterTemplate,
+} from "@agenta/entities/workflow"
 import {pageContentWidthClass, pageGutterClass} from "@agenta/ui/components/page-width"
-import {EnhancedButton, FilterRailLayout, Tag} from "@agenta/ui/components/presentational"
+import {
+    EnhancedButton,
+    FilterRailLayout,
+    LoadError,
+    Tag,
+} from "@agenta/ui/components/presentational"
 import {useMediaQuery} from "@agenta/ui/hooks"
-import {EmptyState, SimpleTooltip} from "@agenta/ui/ui"
+import {EmptyState, SimpleTooltip, SkeletonBlock} from "@agenta/ui/ui"
 import {ArrowLeftIcon, ArrowRightIcon, CheckCircleIcon, LightningIcon} from "@phosphor-icons/react"
 import clsx from "clsx"
+import {useAtomValue, useSetAtom} from "jotai"
 import Link from "next/link"
 
 export interface TemplateDetailProps {
-    /** Absent = an unknown key in the URL; the view says so rather than rendering blanks. */
+    /**
+     * Absent = the key is not (yet) in the catalogue. The view reads the catalogue's status to
+     * tell loading and a failed read (retry) from an unknown key ("Template not found").
+     */
     template: AgentStarterTemplate | undefined
     /** Back to the gallery. */
     allTemplatesHref: string
@@ -56,15 +71,18 @@ const SectionLabel = ({children}: {children: ReactNode}) => (
 )
 
 /** One boxed row — a connection, or the trigger. Label left, its scope truncated right. */
-const DetailRow = ({icon, label, detail}: {icon?: ReactNode; label: string; detail: string}) => (
+const DetailRow = ({icon, label, detail}: {icon?: ReactNode; label: string; detail?: string}) => (
     <div className="box-border flex items-center gap-2 rounded-lg border border-solid border-colorBorderSecondary bg-colorBgElevated px-3 py-2">
         {icon}
         <span className="shrink-0 text-sm text-colorText">{label}</span>
-        <SimpleTooltip title={detail}>
-            <span className="ml-auto min-w-0 truncate text-right text-xs text-colorTextTertiary">
-                {detail}
-            </span>
-        </SimpleTooltip>
+        {/* A scope line is optional in the catalogue — no line, no empty tooltip. */}
+        {detail ? (
+            <SimpleTooltip title={detail}>
+                <span className="ml-auto min-w-0 truncate text-right text-xs text-colorTextTertiary">
+                    {detail}
+                </span>
+            </SimpleTooltip>
+        ) : null}
     </div>
 )
 
@@ -78,6 +96,36 @@ export const TemplateDetail = ({
 }: TemplateDetailProps) => {
     // Which shell to BUILD. Declared above the early return, because hooks cannot follow one.
     const wide = useMediaQuery("(min-width: 1024px)")
+    // An absent template only means "unknown key" once the catalogue has loaded; before that it
+    // means "not yet", and after a failed read it means "could not tell".
+    const catalogStatus = useAtomValue(agentTemplatesStatusAtom)
+    const refetchTemplates = useSetAtom(refetchAgentTemplatesAtom)
+
+    if (!template && catalogStatus === "pending") {
+        return (
+            <div
+                aria-busy
+                className="flex min-h-0 flex-1 flex-col gap-3 p-6 lg:mx-auto lg:w-full lg:max-w-3xl"
+            >
+                <SkeletonBlock className="size-12 rounded-xl" />
+                <SkeletonBlock className="h-7 w-2/3" />
+                <SkeletonBlock className="h-4 w-full" />
+                <SkeletonBlock className="h-4 w-5/6" />
+                <SkeletonBlock className="mt-4 h-24 w-full rounded-lg" />
+            </div>
+        )
+    }
+
+    if (!template && catalogStatus === "error") {
+        return (
+            <div className="flex min-h-0 flex-1 items-center justify-center p-6">
+                <LoadError
+                    title="Could not load this template"
+                    onRetry={() => refetchTemplates()}
+                />
+            </div>
+        )
+    }
 
     if (!template) {
         return (
@@ -124,7 +172,7 @@ export const TemplateDetail = ({
         </div>
     )
 
-    const useButton = (block?: boolean) => (
+    const renderUseButton = (block?: boolean) => (
         <EnhancedButton
             type="primary"
             size="large"
@@ -324,7 +372,7 @@ export const TemplateDetail = ({
                     {renderBody()}
                 </div>
                 <div className="box-border shrink-0 border-x-0 border-b-0 border-t border-solid border-colorBorderSecondary bg-colorBgContainer px-4 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3">
-                    {useButton(true)}
+                    {renderUseButton(true)}
                 </div>
             </div>
         )
@@ -338,7 +386,7 @@ export const TemplateDetail = ({
                 <>
                     {backLink}
                     {identity}
-                    {useButton()}
+                    {renderUseButton()}
                     {meta}
                 </>
             }
@@ -372,7 +420,7 @@ export const TemplateDetail = ({
                         </h1>
                     </div>
 
-                    {useButton()}
+                    {renderUseButton()}
                 </div>
             </div>
 

@@ -1,16 +1,20 @@
 import {useState} from "react"
 
 import {
-    AGENT_TEMPLATES,
     ALL_TEMPLATES_CATEGORY,
-    TEMPLATE_CATEGORY_ORDER,
+    agentTemplatesAtom,
+    agentTemplatesStatusAtom,
+    refetchAgentTemplatesAtom,
+    templateCategories,
     type AgentStarterTemplate,
 } from "@agenta/entities/workflow"
 import {TemplateCard} from "@agenta/home-ui"
-import {useAtom} from "jotai"
+import {LoadError} from "@agenta/ui/components/presentational"
+import {useAtom, useAtomValue, useSetAtom} from "jotai"
 import {ChevronLeft, ChevronRight, EyeOff} from "lucide-react"
 
 import {FIRST_RUN_COPY} from "./copy"
+import {FirstRunTemplatesSkeleton} from "./states/FirstRunTemplatesSkeleton"
 import {TemplatePagerButton} from "./TemplatePagerButton"
 import {templatesHiddenAtom} from "./templatesHidden"
 
@@ -38,11 +42,16 @@ export const FirstRunTemplates = ({
     const [category, setCategory] = useState<string>(ALL_TEMPLATES_CATEGORY)
     const [hidden, setHidden] = useAtom(templatesHiddenAtom)
     const [page, setPage] = useState(0)
-    const categories = [ALL_TEMPLATES_CATEGORY, ...TEMPLATE_CATEGORY_ORDER]
+    // The catalogue is fetched: counts, chips and the pager only exist once it has loaded.
+    const templates = useAtomValue(agentTemplatesAtom)
+    const status = useAtomValue(agentTemplatesStatusAtom)
+    const refetchTemplates = useSetAtom(refetchAgentTemplatesAtom)
+    const loaded = status === "success"
+    const categories = [ALL_TEMPLATES_CATEGORY, ...templateCategories(templates)]
     const shown =
         category === ALL_TEMPLATES_CATEGORY
-            ? AGENT_TEMPLATES
-            : AGENT_TEMPLATES.filter((template) => template.category === category)
+            ? templates
+            : templates.filter((template) => template.category === category)
 
     // Clamped rather than stored raw: a narrower category can have fewer pages than the one that
     // set `page`, and the counter would then name a window with no cards in it.
@@ -88,7 +97,7 @@ export const FirstRunTemplates = ({
                          * snap scroller with no discrete pages, so a "1–3 of 28" counter would name a
                          * window the user is not in.
                          */}
-                        <div className="hidden items-center gap-1.5 lg:flex">
+                        <div className={`hidden items-center gap-1.5 ${loaded ? "lg:flex" : ""}`}>
                             <span className="text-muted-foreground mr-0.5 text-xs">
                                 {FIRST_RUN_COPY.templateCounter(
                                     pageStart + 1,
@@ -116,7 +125,9 @@ export const FirstRunTemplates = ({
                             onClick={onBrowseAll}
                             className="text-muted-foreground hover:text-foreground cursor-pointer border-0 bg-transparent p-0 text-xs underline-offset-2 hover:underline"
                         >
-                            {FIRST_RUN_COPY.browseAll(AGENT_TEMPLATES.length)}
+                            {loaded
+                                ? FIRST_RUN_COPY.browseAll(templates.length)
+                                : FIRST_RUN_COPY.browseAllUncounted}
                         </button>
                         {/* The desktop hides this behind a `⋯` menu holding exactly one item; on touch
                         that is two taps for one action, so it is a labelled button here. */}
@@ -137,7 +148,7 @@ export const FirstRunTemplates = ({
                     in the header row instead, and `min-w-0` keeps it scrolling rather than pushing
                     the controls off the end. */}
                 <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 lg:order-2 lg:mx-0 lg:min-w-0 lg:flex-1 lg:px-0 lg:pb-0">
-                    {categories.map((entry) => (
+                    {(loaded ? categories : []).map((entry) => (
                         <button
                             key={entry}
                             type="button"
@@ -155,8 +166,8 @@ export const FirstRunTemplates = ({
                             {entry}
                             <span className="ml-1.5 opacity-60">
                                 {entry === ALL_TEMPLATES_CATEGORY
-                                    ? AGENT_TEMPLATES.length
-                                    : AGENT_TEMPLATES.filter((t) => t.category === entry).length}
+                                    ? templates.length
+                                    : templates.filter((t) => t.category === entry).length}
                             </span>
                         </button>
                     ))}
@@ -170,26 +181,36 @@ export const FirstRunTemplates = ({
              * `pt-7` is headroom for the monogram: it overhangs the card's top edge by 20px and
              * carries a 2px ring, so at pt-5 it sat flush against the row and the ring clipped.
              */}
-            <div className="-mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-2 pt-7 lg:mx-0 lg:grid lg:grid-cols-3 lg:overflow-visible lg:px-0">
-                {shown.map((template, index) => (
-                    <div
-                        key={template.key}
-                        // Every card stays mounted so the narrow scroller keeps the whole set; at
-                        // `lg` only the current page's three are shown and the arrows move the
-                        // window. `lg:min-w-0`: a grid child defaults to min-width:auto, so the
-                        // card's long footer string sets a min-content floor and the track
-                        // overflows, clipping the cards on the right.
-                        className={`w-62 shrink-0 snap-start lg:w-auto lg:min-w-0 ${
-                            index >= pageStart && index < pageEnd ? "" : "lg:hidden"
-                        }`}
-                    >
-                        <TemplateCard
-                            template={template}
-                            onSelect={disabled ? () => undefined : onPick}
-                        />
-                    </div>
-                ))}
-            </div>
+            {status === "pending" ? (
+                <FirstRunTemplatesSkeleton />
+            ) : status === "error" ? (
+                <LoadError
+                    title={FIRST_RUN_COPY.templatesLoadError}
+                    onRetry={refetchTemplates}
+                    className="py-6"
+                />
+            ) : (
+                <div className="-mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-2 pt-7 lg:mx-0 lg:grid lg:grid-cols-3 lg:overflow-visible lg:px-0">
+                    {shown.map((template, index) => (
+                        <div
+                            key={template.key}
+                            // Every card stays mounted so the narrow scroller keeps the whole set; at
+                            // `lg` only the current page's three are shown and the arrows move the
+                            // window. `lg:min-w-0`: a grid child defaults to min-width:auto, so the
+                            // card's long footer string sets a min-content floor and the track
+                            // overflows, clipping the cards on the right.
+                            className={`w-62 shrink-0 snap-start lg:w-auto lg:min-w-0 ${
+                                index >= pageStart && index < pageEnd ? "" : "lg:hidden"
+                            }`}
+                        >
+                            <TemplateCard
+                                template={template}
+                                onSelect={disabled ? () => undefined : onPick}
+                            />
+                        </div>
+                    ))}
+                </div>
+            )}
         </div>
     )
 }

@@ -1,5 +1,10 @@
-import {AGENT_TEMPLATES} from "@agenta/entities/workflow"
+import {
+    agentTemplatesAtom,
+    agentTemplatesStatusAtom,
+    refetchAgentTemplatesAtom,
+} from "@agenta/entities/workflow"
 import {NewAgentButton} from "@agenta/home-ui"
+import {useAtomValue, useSetAtom} from "jotai"
 
 /**
  * The SHARED create button, bound to this app's create — blank or from a starter template, off the
@@ -35,19 +40,26 @@ export const NewAgentAction = ({
     align?: "end" | "stretch"
     /** On the trigger — the roster toolbar sizes it down on a phone. */
     className?: string
-}) => (
-    <span
-        className={`flex flex-col gap-1 ${align === "end" ? "shrink-0 items-end" : "items-stretch"}`}
-    >
-        <NewAgentButton
-            className={className}
-            label={label}
-            loading={creating}
-            onCreateBlank={create}
-            templates={AGENT_TEMPLATES}
-            onPickTemplate={createFromTemplate}
-            browseHref={`${base}/templates`}
-        />
-        {error ? <span className="text-destructive text-[11px]">{error}</span> : null}
-    </span>
-)
+}) => {
+    const templates = useAtomValue(agentTemplatesAtom)
+    const templatesStatus = useAtomValue(agentTemplatesStatusAtom)
+    const refetchTemplates = useSetAtom(refetchAgentTemplatesAtom)
+    return (
+        <span
+            className={`flex flex-col gap-1 ${align === "end" ? "shrink-0 items-end" : "items-stretch"}`}
+        >
+            <NewAgentButton
+                className={className}
+                label={label}
+                loading={creating}
+                onCreateBlank={create}
+                templates={templates}
+                templatesStatus={templatesStatus}
+                onRetryTemplates={refetchTemplates}
+                onPickTemplate={createFromTemplate}
+                browseHref={`${base}/templates`}
+            />
+            {error ? <span className="text-destructive text-[11px]">{error}</span> : null}
+        </span>
+    )
+}
