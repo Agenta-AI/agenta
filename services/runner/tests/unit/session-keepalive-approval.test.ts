@@ -4608,4 +4608,53 @@ describe("runTurn: usage across an approval pause", () => {
       }
     },
   );
+
+  it.each([
+    ["claude", engineReq],
+    ["codex", codexEngineReq],
+  ])(
+    "%s user Stop: reports the usage the harness answers the cancelled prompt with",
+    async (_harness, request) => {
+      const { calls, deps, captured } = pausableHarness();
+      const acquired = await acquireEnvironment(request, deps);
+      assert.equal(acquired.ok, true);
+      if (!acquired.ok) return;
+      const env = acquired.env;
+      // `cancelSession` sends session/cancel. The harness ends the open prompt as cancelled, with
+      // the usage of the work before the Stop.
+      env.sandbox.cancelSession = async () => {
+        setTimeout(() => {
+          captured.onEvent!(
+            updateEvent({
+              sessionUpdate: "usage_update",
+              used: 900,
+              size: 200000,
+              cost: { amount: 0.3, currency: "USD" },
+            }),
+          );
+          calls.resolvePrompt!({
+            stopReason: "cancelled",
+            usage: { inputTokens: 50, outputTokens: 9, cachedWriteTokens: 4 },
+          });
+        }, 20);
+      };
+
+      const controller = new AbortController();
+      const turn = runTurn(env, request, undefined, controller.signal, {
+        approvalParkMode: true,
+      });
+      await flush();
+      controller.abort();
+      const result = await turn;
+
+      assert.equal(result.stopReason, "cancelled");
+      assert.equal(result.cancelSettled, true);
+      assert.equal(result.usage?.input, 50);
+      assert.equal(result.usage?.output, 9);
+      assert.deepEqual(calls.runs[0].tokenDetails.at(-1), [
+        { input: 50, output: 9, cacheRead: 0, cacheWrite: 4 },
+      ]);
+      await env.destroy();
+    },
+  );
 });
