@@ -139,6 +139,8 @@ export const useChannelPanel = ({
     onAgentChange,
 }: UseChannelPanelOptions) => {
     const [stack, setStack] = useState<ChannelsRoute[]>([])
+    // Closing keeps the stack, so the last view stays mounted while the drawer animates out.
+    const [isOpen, setIsOpen] = useState(false)
     // Which way the last move went, so the next view slides in from that side.
     const [direction, setDirection] = useState(1)
     const top = stack.at(-1) ?? null
@@ -152,7 +154,7 @@ export const useChannelPanel = ({
 
     const close = useCallback(() => {
         reloadAfterConnect()
-        setStack([])
+        setIsOpen(false)
     }, [reloadAfterConnect])
 
     const back = useCallback(() => {
@@ -173,6 +175,7 @@ export const useChannelPanel = ({
     const openRoute = useCallback((...routes: ChannelsRoute[]) => {
         setDirection(1)
         setStack(routes)
+        setIsOpen(true)
     }, [])
 
     const connectRoute = useCallback(
@@ -266,7 +269,7 @@ export const useChannelPanel = ({
         if (remaining.length > 1) replace({view: "platform", platform})
         else if (remaining[0]?.connectionId)
             replace({view: "manage", platform, connectionId: remaining[0].connectionId})
-        else setStack([])
+        else setIsOpen(false)
     }
 
     const renderView = (route: ChannelsRoute) => {
@@ -448,7 +451,7 @@ export const useChannelPanel = ({
     const panel =
         top && header
             ? renderPanel({
-                  open: true,
+                  open: isOpen,
                   title: header.title,
                   subtitle,
                   icon: header.icon,
