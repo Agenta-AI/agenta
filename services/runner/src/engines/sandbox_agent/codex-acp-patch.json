@@ -1,7 +1,28 @@
 {
-  "_comment": "Single source of truth for the codex-acp approval-decoupling anchor (D-008 amendment, 2026-07-31). Consumed by codex-acp-patch.ts (the runner image, via scripts/patch-codex-acp-approvals.ts) AND by services/runner/images/sandbox/daytona/build_snapshot.py (the Daytona snapshot image). Both surfaces MUST patch identically, or a Daytona run silently keeps cold approvals while a local run is warm. Keep the anchor here and nowhere else.",
+  "_comment": "Single source of truth for the codex-acp patches: the approval-decoupling anchor (top-level keys) and the per-turn usage patch (`usage`) (D-008 amendment, 2026-07-31). Consumed by codex-acp-patch.ts (the runner image, via scripts/patch-codex-acp-approvals.ts) AND by services/runner/images/sandbox/daytona/build_snapshot.py (the Daytona snapshot image). Both surfaces MUST patch identically, or a Daytona run silently keeps cold approvals while a local run is warm. Keep the anchor here and nowhere else.",
   "pattern": "(AgentFullAccess\\s*=\\s*new\\s+\\w+\\(\\s*\"agent-full-access\",[\\s\\S]{0,600}?)\"(never|on-request)\"(\\s*,\\s*\\{\\s*\"?type\"?\\s*:\\s*\"dangerFullAccess\"\\s*\\})",
   "stock": "never",
   "patched": "on-request",
-  "bundlePath": "bin/agent_processes/codex/node_modules/@agentclientprotocol/codex-acp/dist/index.js"
+  "bundlePath": "bin/agent_processes/codex/node_modules/@agentclientprotocol/codex-acp/dist/index.js",
+  "usage": {
+    "_comment": "codex-acp reports a turn's PromptResponse.usage from tokenUsage.last, the LAST model call only, so a turn with tool calls is under-counted. These literal replacements make it report the turn's own share of the running tokenUsage.total instead: the baseline is taken at the turn's first update (total minus that call), which also holds for a resumed session. Applied by the same two surfaces as the approval patch.",
+    "marker": "/* agenta:turn-usage */",
+    "replacements": [
+      {
+        "find": "  handleTokenUsageUpdated(params) {\n    this.sessionState.lastTokenUsage = toTokenCount(params.tokenUsage.last);\n",
+        "replace": "  handleTokenUsageUpdated(params) {\n    /* agenta:turn-usage */ {\n      const usage = params.tokenUsage;\n      const state = this.sessionState;\n      const keys = [\"totalTokens\", \"inputTokens\", \"cachedInputTokens\", \"outputTokens\", \"reasoningOutputTokens\"];\n      if (state.lastTokenUsage == null) {\n        state.agentaTurnBase = Object.fromEntries(keys.map((k) => [k, (usage.total?.[k] ?? 0) - (usage.last?.[k] ?? 0)]));\n      }\n      state.agentaTurnTokenUsage = toTokenCount(Object.fromEntries(keys.map((k) => [k, Math.max(0, (usage.total?.[k] ?? 0) - (state.agentaTurnBase?.[k] ?? 0))])));\n    }\n    this.sessionState.lastTokenUsage = toTokenCount(params.tokenUsage.last);\n",
+        "count": 1
+      },
+      {
+        "find": "    sessionState.currentTurnId = null;\n    sessionState.lastTokenUsage = null;\n",
+        "replace": "    sessionState.currentTurnId = null;\n    sessionState.lastTokenUsage = null;\n    sessionState.agentaTurnTokenUsage = null;\n",
+        "count": 1
+      },
+      {
+        "find": "this.buildPromptUsage(sessionState.lastTokenUsage)",
+        "replace": "this.buildPromptUsage(sessionState.agentaTurnTokenUsage ?? sessionState.lastTokenUsage)",
+        "count": 3
+      }
+    ]
+  }
 }
