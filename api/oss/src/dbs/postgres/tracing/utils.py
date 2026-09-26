@@ -1050,9 +1050,7 @@ def build_base_cte(
     filtering: Optional[Filtering] = None,
     focus: Optional[Focus] = None,
 ) -> Optional[FromClause]:
-    # Bucket and window by when the span ran (start_time), not by when the API
-    # stored it (created_at). Late or backfilled spans must land in the bucket of
-    # their own time, the same time the trace list filters and sorts by.
+    # start_time, not created_at: late or backfilled spans belong to when they ran.
     timestamp = func.date_bin(
         text(f"'{stride}'"),
         SpanDBE.start_time,
@@ -1077,8 +1075,7 @@ def build_base_cte(
         )
     )
 
-    # Root spans carry the cumulative metrics of the whole trace, so the default
-    # (trace focus) reads roots only. Span focus reads every span.
+    # Roots carry each trace's cumulative metrics.
     if focus != Focus.SPAN:
         base_stmt = base_stmt.where(SpanDBE.parent_id.is_(None))
 
@@ -2162,7 +2159,6 @@ def get_sampling_percent(
     if rate is None:
         return None
 
-    # A positive rate below 1% still samples 1%, instead of returning nothing.
     return max(1 if rate > 0 else 0, min(int(rate * 100.0), 100))
 
 
@@ -2170,13 +2166,7 @@ def scale_sampled_value(
     value: Dict[str, Any],
     percent: Optional[int],
 ) -> Dict[str, Any]:
-    """Turn a count or a sum over a sample back into an estimate for all spans.
-
-    With `windowing.rate`, the query reads only `percent`% of the traces. Counts
-    and sums then grow with the sample size, so they are divided by the sample
-    fraction. Means, min, max, percentiles and distributions do not depend on the
-    sample size and stay as they are.
-    """
+    """Estimate counts and sums for all traces from a `percent`% sample."""
     if not percent or percent >= 100:
         return value
 
@@ -2195,10 +2185,7 @@ def fill_empty_buckets(
     per_timestamp: Dict[datetime, Dict[str, Dict[str, Any]]],
     timestamps: List[datetime],
 ) -> Dict[datetime, Dict[str, Dict[str, Any]]]:
-    """Add an empty entry for each bucket that has no spans.
-
-    Without this, a chart skips quiet periods and its time axis is not linear.
-    """
+    """Keep quiet periods on the time axis."""
     for timestamp in timestamps:
         if timestamp not in per_timestamp:
             per_timestamp[timestamp] = dict()

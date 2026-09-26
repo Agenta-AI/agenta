@@ -677,8 +677,7 @@ class TracingDAO(TracingDAOInterface):
                         )
                     )
 
-                # The exception condition must hold whatever the caller's operator
-                # is. Inside an "or" it would match every span of the filter.
+                # Outside the caller's operator, so an "or" filter cannot bypass it.
                 errors_stmt = errors_stmt.filter(
                     *filter(
                         [
