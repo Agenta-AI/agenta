@@ -4262,9 +4262,9 @@ describe("runTurn: the in-band settle lands before the terminal record", () => {
 /**
  * B18: a turn that pauses for an approval must report each model call's usage exactly once.
  *
- * - A pure warm resume continues the SAME prompt, so its PromptResponse (or Pi's usage sidecar)
- *   covers the work before the pause too. The paused turn reports no tokens; the resume reports
- *   them all.
+ * - A pure warm resume continues the SAME prompt, so its PromptResponse covers the work before
+ *   the pause too. The paused turn reports no tokens; the resume reports them all. Pi traces that
+ *   prompt under the paused turn's trace, so a Pi resume reports none.
  * - A decision followed by fresh user text finishes the parked prompt and then sends a SECOND
  *   prompt. Each prompt reports only its own work, so a runner-traced turn (Claude, Codex) reports
  *   the sum. The runner used to keep only the second prompt's usage and lose the first. Pi traces
@@ -4518,6 +4518,57 @@ describe("runTurn: usage across an approval pause", () => {
       total: 36,
       cost: 0.25,
     });
+    await env.destroy();
+  });
+
+  it("Pi warm resume: reports no usage; the parked prompt's stays on its own trace", async () => {
+    const { calls, deps, captured } = pausableHarness();
+    const telemetryDir = uniqueCwdDeps(deps);
+    const request: AgentRunRequest = {
+      harness: "pi_core",
+      messages: [{ role: "user", content: "do X" }],
+    };
+    const acquired = await acquireEnvironment(request, deps);
+    assert.equal(acquired.ok, true);
+    if (!acquired.ok) return;
+    const env = acquired.env;
+
+    const paused = await pauseOnGate(env, captured, request);
+    assert.equal(paused.stopReason, "paused");
+    assert.equal(paused.usage?.total ?? 0, 0);
+
+    const held = env.parkedApproval!.promptPromise!;
+    env.clearTurn();
+    const resumed = runTurn(env, request, undefined, undefined, {
+      approvalParkMode: true,
+      resume: {
+        decisions: [
+          {
+            permissionId: "perm-1",
+            reply: "once",
+            toolCallId: "tc-gate",
+            toolName: "commit",
+            args: {},
+            interactionToken: "tc-gate",
+            promptPromise: held,
+          },
+        ],
+        carriedForward: [],
+      },
+    });
+    await flush();
+    // Pi settles the parked prompt under the paused turn's trace, which its spans total.
+    writeFileSync(
+      join(telemetryDir, ".agenta-usage.json"),
+      JSON.stringify({ input: 100, output: 20, total: 120, cost: 0.5 }),
+    );
+    calls.resolvePrompt!({ stopReason: "end_turn" });
+    const result = await resumed;
+
+    assert.equal(result.stopReason, "end_turn");
+    // Reporting it here would count it on this turn's root as well.
+    assert.equal(result.usage?.total ?? 0, 0);
+    assert.equal(result.usage?.cost ?? 0, 0);
     await env.destroy();
   });
 
