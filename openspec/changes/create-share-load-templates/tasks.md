@@ -22,10 +22,12 @@ Evidence for 2.1–2.3 and 2.5 (create-and-load PR): attachments are immutable r
 
 ## 3. GitHub loading
 
-- [ ] 3.1 Accept public repository + full commit + directory only; reject branches, tags, abbreviated commits and ref fields
-- [ ] 3.2 Fetch the selected directory with bounded traversal/downloads and no whole-repository fallback
+- [x] 3.1 Accept public repository + full commit + directory only; reject branches, tags, abbreviated commits and ref fields
+- [x] 3.2 Fetch the selected directory with bounded traversal/downloads and no whole-repository fallback
 - [ ] 3.3 Record source provenance and test fork heads, missing paths, private sources, invalid paths and a small package in the real monorepo
-- [ ] 3.4 Test replay after remote unavailability and exact-pin recovery after interruption
+- [x] 3.4 Test replay after remote unavailability and exact-pin recovery after interruption
+
+Evidence for 3.1, 3.2 and 3.4 (GitHub import PR): `GitHubTemplateSource` (`api/oss/src/core/agent_templates/dtos.py`) accepts `https://github.com/<owner>/<repo>`, a full 40-hex commit and a relative package directory, and rejects branches, tags, abbreviated SHAs and `ref`/`branch`/`tag` fields with instructions to supply the resolved commit. `GitHubPackageStager` (`api/oss/src/core/agent_templates/github.py`) feeds the shared `PackageTreeWriter`: one commit read, one tree listing per path segment, one recursive listing of the package directory, then one commit-pinned raw download per file, each checked against its blob SHA. Limits are enforced from the listing before any download and again on bytes written; symlinks, submodules and truncated listings are rejected; no archive is downloaded. Completed replays do not contact GitHub; interrupted loads refetch the same commit and must match the stored pin. Tests: `cd api && uv run pytest oss/tests/pytest/unit/agent_templates -q` (`test_github_source.py`, `test_github_fetcher.py`, `test_github_loading.py`). 3.3 stays open until the live load of a real monorepo package is recorded.
 
 ## 4. Marketplace
 

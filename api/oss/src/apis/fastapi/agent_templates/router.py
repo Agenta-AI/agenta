@@ -14,6 +14,7 @@ from oss.src.apis.fastapi.shared.exceptions import FORBIDDEN_EXCEPTION
 from oss.src.core.access.permissions.service import check_action_access
 from oss.src.core.access.permissions.types import Permission
 from oss.src.core.agent_templates.dtos import (
+    GitHubTemplateSource,
     SessionFileTemplateSource,
     TemplateLoadResult,
     TemplateSource,
@@ -41,7 +42,15 @@ def _source_permissions(source: TemplateSource) -> list[Permission]:
 
 
 def _source_log(source: TemplateSource) -> dict[str, str]:
-    # Session paths and attachment ids stay out of logs; the key is a catalog slug.
+    # Session paths and attachment ids stay out of logs; the key is a catalog slug
+    # and a GitHub source is a public repository location.
+    if isinstance(source, GitHubTemplateSource):
+        return {
+            "source_kind": source.kind,
+            "source_repo_url": source.repo_url,
+            "source_commit": source.commit,
+            "source_path": source.path,
+        }
     return {
         "source_kind": source.kind,
         **({"source_key": source.key} if source.kind == "internal" else {}),
