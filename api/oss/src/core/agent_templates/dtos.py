@@ -1,8 +1,17 @@
-from pathlib import Path
+import re
+from pathlib import Path, PurePosixPath
 from typing import Annotated, Any, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Discriminator, Field, Tag
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Discriminator,
+    Field,
+    Tag,
+    field_validator,
+    model_validator,
+)
 
 from oss.src.core.workflows.dtos import WorkflowRevisionData
 
@@ -12,6 +21,103 @@ class InternalTemplateSource(BaseModel):
 
     kind: Literal["internal"] = "internal"
     key: str = Field(pattern=r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+
+
+_GITHUB_REPO_URL = re.compile(
+    r"^https://github\.com/"
+    r"(?P<owner>[A-Za-z0-9](?:[A-Za-z0-9-]{0,38}))/"
+    r"(?P<repo>[A-Za-z0-9._-]{1,100}?)(?:\.git)?/?$"
+)
+_FULL_COMMIT = re.compile(r"^[0-9a-fA-F]{40}$")
+_ABBREVIATED_COMMIT = re.compile(r"^[0-9a-fA-F]{4,39}$")
+_MAX_GITHUB_PATH_SEGMENTS = 32
+_MAX_GITHUB_PATH_CHARACTERS = 1024
+_COMMIT_INSTRUCTIONS = (
+    "Supply the full 40-character commit SHA the branch, tag or pull request head "
+    "points to (for example the output of `git rev-parse <ref>`)."
+)
+
+
+class GitHubTemplateSource(BaseModel):
+    """A package directory in a public GitHub repository at one exact commit.
+
+    Branches, tags and abbreviated SHAs are rejected, never resolved: the caller
+    resolves a mutable revision before loading, so the backend fetches only
+    immutable content.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    kind: Literal["github"] = "github"
+    repo_url: str = Field(max_length=256)
+    commit: str
+    path: str = Field(max_length=_MAX_GITHUB_PATH_CHARACTERS)
+
+    @model_validator(mode="before")
+    @classmethod
+    def reject_mutable_revision_fields(cls, value: Any) -> Any:
+        if isinstance(value, dict):
+            for field in ("ref", "branch", "tag"):
+                if field in value:
+                    raise ValueError(
+                        f"'{field}' is not supported; GitHub templates load from "
+                        f"'commit' only. {_COMMIT_INSTRUCTIONS}"
+                    )
+        return value
+
+    @field_validator("repo_url")
+    @classmethod
+    def normalize_repo_url(cls, value: str) -> str:
+        match = _GITHUB_REPO_URL.match(value.strip())
+        if not match or match.group("repo") in {".", ".."}:
+            raise ValueError(
+                "repo_url must be a public repository URL of the form "
+                "https://github.com/<owner>/<repo>."
+            )
+        return f"https://github.com/{match.group('owner')}/{match.group('repo')}"
+
+    @field_validator("commit")
+    @classmethod
+    def require_full_commit(cls, value: str) -> str:
+        value = value.strip()
+        if _FULL_COMMIT.match(value):
+            return value.lower()
+        if _ABBREVIATED_COMMIT.match(value):
+            raise ValueError(
+                f"commit {value!r} looks like an abbreviated SHA, which is not "
+                f"accepted. {_COMMIT_INSTRUCTIONS}"
+            )
+        raise ValueError(
+            f"commit {value!r} is not a commit SHA; a branch or tag name is not "
+            f"accepted. {_COMMIT_INSTRUCTIONS}"
+        )
+
+    @field_validator("path")
+    @classmethod
+    def require_package_directory(cls, value: str) -> str:
+        normalized = value[:-1] if value.endswith("/") else value
+        parts = normalized.split("/")
+        if (
+            not normalized
+            or normalized.startswith("/")
+            or "\\" in normalized
+            or any(ord(char) < 32 for char in normalized)
+            or any(part in {"", ".", ".."} for part in parts)
+            or len(parts) > _MAX_GITHUB_PATH_SEGMENTS
+        ):
+            raise ValueError(
+                "path must name the package directory as a relative path inside "
+                "the repository, such as 'packages/my-template/1.0.0'."
+            )
+        return PurePosixPath(normalized).as_posix()
+
+    @property
+    def owner(self) -> str:
+        return self.repo_url.split("/")[3]
+
+    @property
+    def repo(self) -> str:
+        return self.repo_url.split("/")[4]
 
 
 class TemplateSourcePin(BaseModel):
