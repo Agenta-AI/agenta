@@ -72,7 +72,6 @@ Recorded on 2026-09-26 on branch `claude/project-thread-jfk9ly`, stacked on the 
 CI runs the check on pull requests and pushes to `main` that touch the catalog, the reader, the API or SDK dependencies, or the website data, and compares against `HEAD^1`. It is not a required check.
 
 Not done in this change: website index/detail/author pages and their visual design (owned by the marketplace website pages change), browser verification of signup and sign-in redirects, and guided submission.
-Not done in this change: website index/detail/author pages and their visual design (waiting for the supplied designs), the in-app migration of `web/oss/src/state/url/template.ts` off the static `AGENT_TEMPLATES` list (belongs with the catalog consumer migration), browser verification of signup and sign-in redirects, and guided submission.
 
 ## Implementation evidence: marketplace pages (spec-driven, before the design import)
 
@@ -82,7 +81,7 @@ Recorded on 2026-09-26 on branch `claude/project-thread-dmcgk1`, stacked on the 
 
 | Task | Command (from) | Result |
 | --- | --- | --- |
-| 4.4, 5.5 | `pnpm test` (`web/website`) | 72 passed; `src/lib/marketplace.test.ts` covers routes, rejection of non-web author links and avatars, category order, image/video/YouTube media with fallback for unsupported kinds and bad URLs, blog/template author merge, and a profile for every template author |
+| 4.4, 5.5 | `pnpm test` (`web/website`) | 73 passed; `src/lib/marketplace.test.ts` covers routes, rejection of non-web author links and avatars, category order, image/video/YouTube media with fallback for unsupported kinds and bad URLs, blog/template author merge, and a profile for every template author |
 | 4.4 | `pnpm build` (`web/website`) | passed; `verify-build.mjs` now fails unless every template has `/marketplace/<key>/` with its own `?template=<key>` link and a twin, and every template author has `/authors/<id>/` and a twin |
 | 4.4 | Playwright screenshots of index, detail, template author and blog author pages at 1440 and 390, light and dark | rendered; no horizontal overflow |
 
