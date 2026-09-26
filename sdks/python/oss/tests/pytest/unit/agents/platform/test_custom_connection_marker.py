@@ -83,6 +83,41 @@ def test_a_provider_key_is_marked_not_custom():
     assert resolved.to_wire()["customConnection"] is False
 
 
+def test_the_agenta_managed_starter_credits_record_is_marked_not_custom():
+    # A custom-provider record Agenta manages serves a public model at a public price.
+    managed = _custom_provider(
+        connections.STARTER_CREDITS_SLUG, url="https://credits.agenta.ai/v1"
+    )
+    managed["management"] = {"policy": "read_only"}
+    for gateway in (
+        {},
+        {
+            "gateway_base_url": _GATEWAY_BASE,
+            "gateway_credentials_value": _GATEWAY_CREDENTIALS,
+        },
+    ):
+        resolved = connections._resolve_from_secrets(
+            secrets=[managed],
+            model=_model(connections.STARTER_CREDITS_SLUG),
+            harness="pi_core",
+            **gateway,
+        )
+        assert resolved.custom_connection is False
+
+
+def test_a_user_record_saved_under_the_starter_credits_slug_is_marked_custom():
+    resolved = connections._resolve_from_secrets(
+        secrets=[
+            _custom_provider(
+                connections.STARTER_CREDITS_SLUG, url="https://llm.example.com/v1"
+            )
+        ],
+        model=_model(connections.STARTER_CREDITS_SLUG),
+        harness="pi_core",
+    )
+    assert resolved.custom_connection is True
+
+
 # Through the gateway, from the secrets list
 
 
@@ -128,18 +163,23 @@ def test_a_provider_key_through_the_gateway_is_marked_not_custom():
 
 
 @pytest.mark.parametrize(
-    ("namespace", "expected"),
-    [("custom", True), ("standard", False), ("builtin", False)],
+    ("namespace", "name", "expected"),
+    [
+        ("custom", "my-openai", True),
+        ("custom", "starter-credits", False),
+        ("standard", "openai", False),
+        ("builtin", "openai", False),
+    ],
 )
 async def test_the_live_gateway_namespace_sets_the_marker(
-    fake_http, connection, namespace, expected
+    fake_http, connection, namespace, name, expected
 ):
     fake_http(
         connections,
         payload={
             "connection": {
                 "namespace": namespace,
-                "name": "openai" if namespace != "custom" else "my-openai",
+                "name": name,
                 "provider_key": "openai",
                 "deployment_kind": "direct",
                 "model": "gpt-5.5",

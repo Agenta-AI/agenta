@@ -68,6 +68,23 @@ describe("servedByCustomConnection", () => {
         endpoint: { baseUrl: "https://api.deepseek.com/v1" },
       },
     ],
+    [
+      "an unparseable URL for a family with no registered base URL (fallback)",
+      {
+        provider: "deepseek",
+        deployment: "direct",
+        endpoint: { baseUrl: "not a url" },
+      },
+    ],
+    [
+      "the Agenta-funded starter-credits record through the gateway",
+      {
+        provider: "openai",
+        deployment: "direct",
+        endpoint: { baseUrl: `${GATEWAY}/custom/starter-credits/v1` },
+        gatewayCredentials,
+      },
+    ],
   ])("does not count %s", (_label, connection) => {
     expect(servedByCustomConnection(connection as any)).toBe(false);
   });

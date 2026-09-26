@@ -55,12 +55,21 @@ function sameBase(url: URL, canonical: string): boolean {
   );
 }
 
-/** The gateway namespace (`standard` / `custom`) of a gateway LLM route, if it is one. */
-function gatewayNamespace(url: URL): string | undefined {
+/**
+ * The Agenta-funded starter-credits record (`STARTER_CREDITS_SLUG` in the SDK). It is a
+ * custom-provider record that Agenta manages and that serves a public model, so its spans keep
+ * public-list pricing.
+ */
+const STARTER_CREDITS_SLUG = "starter-credits";
+
+/** The gateway namespace (`standard` / `custom`) and name of a gateway LLM route, if it is one. */
+function gatewayRoute(
+  url: URL,
+): { namespace: string; name?: string } | undefined {
   const segments = url.pathname.split("/").filter(Boolean);
   for (let i = 0; i + 2 < segments.length; i++) {
     if (segments[i] === "gateways" && segments[i + 1] === "llms") {
-      return segments[i + 2];
+      return { namespace: segments[i + 2], name: segments[i + 3] };
     }
   }
   return undefined;
@@ -88,15 +97,20 @@ export function servedByCustomConnection(
 
   // The gateway namespace comes from the record kind, whatever the deployment.
   if (url && connection.gatewayCredentials) {
-    const namespace = gatewayNamespace(url);
-    if (namespace) return namespace === "custom";
+    const route = gatewayRoute(url);
+    if (route) {
+      return (
+        route.namespace === "custom" && route.name !== STARTER_CREDITS_SLUG
+      );
+    }
   }
 
   if (deployment !== "direct" || !baseUrl) return false;
-  // An unparseable explicit URL is not a registered provider base, so it is the record's own.
-  if (!url) return true;
-
   const canonical =
     DIRECT_BASE_URLS[connection.provider?.trim().toLowerCase() ?? ""];
-  return canonical !== undefined && !sameBase(url, canonical);
+  // A family with no registered URL: no URL, parseable or not, says the record is custom.
+  if (canonical === undefined) return false;
+  // An unparseable explicit URL is not the registered provider base, so it is the record's own.
+  if (!url) return true;
+  return !sameBase(url, canonical);
 }
