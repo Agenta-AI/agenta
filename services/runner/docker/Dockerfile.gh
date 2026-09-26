@@ -93,6 +93,14 @@ RUN pnpm run build:extension
 # installs later.
 RUN node_modules/.bin/tsx scripts/patch-pi-validation-message.ts
 
+# Keep OpenRouter's billed cost. OpenRouter returns the real charge in `usage.cost`, and pi-ai's
+# OpenAI-completions client drops it and prices the tokens from Pi's own table instead. The patch
+# keeps the billed charge in `usage.cost.total` and marks it `source: "provider"`, which the tracer
+# stamps on the chat span. The `local` provider's `pi` and the in-process engine both load this
+# copy. It exits non-zero if `parseChunkUsage` no longer matches, so a pi-ai bump breaks the build.
+# The Daytona snapshot applies the same spec (images/sandbox/daytona/build_snapshot.py).
+RUN node_modules/.bin/tsx scripts/patch-pi-provider-cost.ts
+
 ENV NODE_ENV=production \
     AGENTA_RUNNER_PORT=8765
 
