@@ -12,6 +12,7 @@ from ee.src.core.measurements.components import (
     INPUT_TOKENS,
     OUTPUT_TOKENS,
     REQUEST_COUNT,
+    SANDBOX_SECONDS,
 )
 from ee.src.core.wallets.types import WalletsDAOInterface
 from ee.src.core.wallets.usage.dtos import (
@@ -58,6 +59,9 @@ def _charge(
         cache_read_tokens=components.get(CACHE_READ_TOKENS),
         cache_write_tokens=components.get(CACHE_WRITE_TOKENS),
         request_count=components.get(REQUEST_COUNT),
+        sandbox_seconds=components.get(SANDBOX_SECONDS),
+        vcpu=debit.resource_locator.get("vcpu"),
+        memory_gib=debit.resource_locator.get("memory_gib"),
     )
 
 

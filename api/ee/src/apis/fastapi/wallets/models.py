@@ -17,3 +17,11 @@ class WalletSummaryResponse(BaseModel):
 
 class WalletUsageResponse(BaseModel):
     usage: WalletUsage
+
+
+class SandboxAdmissionResponse(BaseModel):
+    allowed: bool
+
+
+class SandboxUsageRecordResponse(BaseModel):
+    measurement_id: str
