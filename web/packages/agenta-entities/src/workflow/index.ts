@@ -503,6 +503,7 @@ export {
     AGENT_TEMPLATES,
     ALL_TEMPLATES_CATEGORY,
     PROVIDERS,
+    SAVE_AS_TEMPLATE_MESSAGE,
     TEMPLATE_CATEGORY_ORDER,
     agentTemplateByKey,
     agentTemplateSeed,

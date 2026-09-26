@@ -9,6 +9,7 @@ import {
 import {
     describeAccepted,
     jumpGateOpen,
+    restoreRefusedDraft,
     restoreRefusedSend as restoreRefusedSendInto,
     sideEffectingToolsInRange,
 } from "@agenta/chat/assets"
@@ -624,7 +625,9 @@ const AgentConversation = ({
                 setPendingRun((current) => (current?.nonce === pendingRun.nonce ? null : current)),
             )
             .catch((error: unknown) => {
-                richInputRef.current?.setMarkdown(pendingRun.text)
+                // Hand the text back only into an empty composer: this run never came from it,
+                // so a draft the user is typing there wins (Save as template sends here).
+                void restoreRefusedDraft(richInputRef.current, pendingRun.text)
                 attachments.setRejections(refusedSendRejections(error))
             })
     }, [pendingRun, activeSessionId, sessionId, submit, setPendingRun])

@@ -241,6 +241,13 @@ export const agentTemplateSeed = (
     seedMessage: templateBuilderMessage(template),
 })
 
+/**
+ * The one chat message Save as template sends; the create-template skill handles it. Shared so
+ * the desktop playground and mobile send the same request; only its delivery is per-app.
+ */
+export const SAVE_AS_TEMPLATE_MESSAGE =
+    "Save this agent as a template I can share. Use the create-template skill."
+
 /** Look a template up by key — surfaces receive a key from a menu, a URL or a card. */
 export const agentTemplateByKey = (key: string | undefined): AgentStarterTemplate | undefined =>
     key ? AGENT_TEMPLATES.find((template) => template.key === key) : undefined

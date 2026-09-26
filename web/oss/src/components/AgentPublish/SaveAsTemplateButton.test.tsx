@@ -1,6 +1,7 @@
 /**
- * Save as template sends one chat request through the playground's run-this-turn seam.
- * The chat panel consumes each request nonce once, so one request is one visible user message.
+ * Save as template sends one chat request through the playground's run-this-turn seam, in the
+ * current session. The active conversation consumes each request nonce once, so one request is
+ * one visible user message, and the composer's unsent draft is never touched.
  */
 import {act, createElement} from "react"
 
@@ -9,6 +10,7 @@ import {
     sessionStatusAtomFamily,
     setSessionStatusAtom,
 } from "@agenta/chat/state"
+import {SAVE_AS_TEMPLATE_MESSAGE} from "@agenta/entities/workflow"
 import {
     projectIdAtom,
     simulatedAgentRunAtomFamily,
@@ -22,7 +24,6 @@ import {AgentChatScopeProvider} from "@/oss/components/AgentChatSlice/state/scop
 import {setActiveSessionAtomFamily} from "@/oss/components/AgentChatSlice/state/sessions"
 
 import SaveAsTemplateButton from "./SaveAsTemplateButton"
-import {SAVE_AS_TEMPLATE_MESSAGE} from "./useSaveAsTemplate"
 ;(globalThis as {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
 
 const SCOPE = "app-save-as-template"
@@ -89,8 +90,8 @@ describe("SaveAsTemplateButton", () => {
 
         expect(sent).toHaveLength(1)
         expect(sent[0].text).toBe(SAVE_AS_TEMPLATE_MESSAGE)
-        // A fresh session: the request never lands in the composer the user is typing in.
-        expect(sent[0].newSession).toBe(true)
+        // The current session: switching to a new one would leave the unsent draft behind.
+        expect(sent[0].newSession).toBeFalsy()
         expect(button()?.disabled).toBe(true)
     })
 
@@ -105,12 +106,13 @@ describe("SaveAsTemplateButton", () => {
         expect(sent).toHaveLength(1)
     })
 
-    it("leaves the unsent composer draft unchanged", () => {
+    it("sends in the current session and leaves its unsent composer draft unchanged", () => {
         composerDraftBySession.set(SESSION, "half-written question")
         mount()
         act(() => button()?.click())
 
         expect(sent).toHaveLength(1)
+        expect(sent[0].newSession).toBeFalsy()
         expect(composerDraftBySession.get(SESSION)).toBe("half-written question")
     })
 
