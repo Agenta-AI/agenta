@@ -2,6 +2,7 @@ import {TraceDrawer} from "@agenta/observability-ui/traceDrawer"
 import {useRouter} from "next/router"
 
 import {bindTraceDrawerSeams} from "@/features/observability/bindTraceDrawerSeams"
+import {registerTraceDrawerSlots} from "@/features/observability/registerTraceDrawerSlots"
 
 /**
  * Drawers any screen can open, mounted once for the whole app.
@@ -12,10 +13,12 @@ import {bindTraceDrawerSeams} from "@/features/observability/bindTraceDrawerSeam
  * on that page. web/oss mounts it globally in AppGlobalWrappers for exactly this reason.
  *
  * The router seams move with it: they must be bound wherever the drawer can open, not only where
- * the traces table lives.
+ * the traces table lives. The data slots are registered here for the same reason.
  */
 export const GlobalDrawers = () => {
     const router = useRouter()
     bindTraceDrawerSeams(router)
-    return <TraceDrawer />
+    registerTraceDrawerSlots()
+    // Stacked: the desktop split (tree beside content) needs 720px and scrolled sideways here.
+    return <TraceDrawer layout="stacked" />
 }

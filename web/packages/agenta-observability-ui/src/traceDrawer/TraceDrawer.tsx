@@ -5,9 +5,18 @@ import {closeTraceDrawerAtom, isDrawerOpenAtom} from "@agenta/observability/trac
 import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {useAtomValue, useSetAtom} from "jotai"
 
-import TraceDrawerContent from "./TraceDrawerContent"
+import TraceDrawerContent, {type TraceDrawerLayout} from "./TraceDrawerContent"
 
-const TraceDrawer = () => {
+interface TraceDrawerProps {
+    /**
+     * `split` (default): the span tree beside the span content, sized for a desktop drawer.
+     * `stacked`: the tree above the content, both at the panel's width, for a phone-width host
+     * (`web/mobile`). The split columns need at least 720px, so on a phone they scrolled sideways.
+     */
+    layout?: TraceDrawerLayout
+}
+
+const TraceDrawer = ({layout = "split"}: TraceDrawerProps) => {
     const open = useAtomValue(isDrawerOpenAtom)
     const closeDrawer = useSetAtom(closeTraceDrawerAtom)
 
@@ -49,6 +58,7 @@ const TraceDrawer = () => {
                     onClose={handleClose}
                     onToggleWidth={toggleWidth}
                     isExpanded={drawerWidth !== initialWidth}
+                    layout={layout}
                 />
             )}
         </EnhancedDrawer>
