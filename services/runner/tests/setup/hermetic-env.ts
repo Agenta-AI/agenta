@@ -64,6 +64,15 @@ vi.mock("../../src/sessions/records-query.ts", () => ({
   fetchSessionRecords: async () => [],
 }));
 
+// A Daytona run with a run credential meters its sandbox and asks the wallet before the turn,
+// both over the network. Engine suites are not metering tests: admit every turn and meter
+// nothing. The meter's own suite calls `vi.unmock` on this module.
+vi.mock("../../src/metering/sandbox-usage.ts", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../src/metering/sandbox-usage.ts")>()),
+  admitSandboxTurn: async () => "admitted",
+  startSandboxMeter: () => ({ stop: async () => {} }),
+}));
+
 // Re-scrub per test: a prior test may have set one and not restored it. Also drop the memoized
 // runner config so the next `loadRunnerConfig()` re-parses the scrubbed environment.
 beforeEach(() => {

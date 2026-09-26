@@ -7,6 +7,8 @@ import {
   type SandboxMeterOptions,
 } from "../../src/metering/sandbox-usage.ts";
 
+vi.unmock("../../src/metering/sandbox-usage.ts");
+
 const BASE = "http://api.test/api";
 const AGENT = "0198f4e2-6a1b-7c3d-9e8f-0a1b2c3d4e5f";
 const START_MS = Date.UTC(2026, 8, 26, 12, 0, 0, 400);
