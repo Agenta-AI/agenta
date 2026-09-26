@@ -77,14 +77,18 @@ for (const template of templateData.templates) {
     );
   }
 }
-for (const author of templateData.authors) {
+const templateAuthorIds = new Set([
+  ...templateData.authors.map((author) => author.id),
+  ...templateData.templates.map((template) => template.author.id),
+]);
+for (const id of templateAuthorIds) {
   check(
-    existsSync(resolve(dist, `authors/${author.id}/index.html`)),
-    `missing template author page: dist/authors/${author.id}/`,
+    existsSync(resolve(dist, `authors/${id}/index.html`)),
+    `missing template author page: dist/authors/${id}/`,
   );
   check(
-    existsSync(resolve(dist, `authors/${author.id}.md`)),
-    `missing markdown twin: dist/authors/${author.id}.md`,
+    existsSync(resolve(dist, `authors/${id}.md`)),
+    `missing markdown twin: dist/authors/${id}.md`,
   );
 }
 

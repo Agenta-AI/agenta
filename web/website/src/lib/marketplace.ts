@@ -188,16 +188,22 @@ export const mergeAuthorProfiles = (
   }
 
   for (const author of templateAuthors) {
-    const links: AuthorLink[] = author.links.map((link) => ({
-      label: link.label ?? link.kind,
-      url: link.url,
-      platform: SOCIAL_PLATFORMS.has(link.kind) ? link.kind : undefined,
-    }));
-    const avatar = (author as { avatar_url?: string | null }).avatar_url;
+    const links: AuthorLink[] = author.links
+      .filter((link) => isHttpUrl(link.url))
+      .map((link) => ({
+        label: link.label ?? link.kind,
+        url: link.url,
+        platform: SOCIAL_PLATFORMS.has(link.kind) ? link.kind : undefined,
+      }));
+    const rawAvatar = (author as { avatar_url?: string | null }).avatar_url;
+    const avatar =
+      isHttpUrl(rawAvatar) || /^\/(?!\/)/.test(rawAvatar ?? "")
+        ? (rawAvatar ?? undefined)
+        : undefined;
     const existing = profiles.get(author.id);
     if (existing) {
       existing.bio ??= author.bio;
-      existing.avatar ??= avatar ?? undefined;
+      existing.avatar ??= avatar;
       const known = new Set(existing.links.map((link) => link.url));
       existing.links.push(...links.filter((link) => !known.has(link.url)));
     } else {
@@ -205,8 +211,7 @@ export const mergeAuthorProfiles = (
         id: author.id,
         name: author.name,
         bio: author.bio,
-        avatar:
-          isHttpUrl(avatar) || avatar?.startsWith("/") ? avatar : undefined,
+        avatar,
         initials: initialsOf(author.name),
         links,
       });
