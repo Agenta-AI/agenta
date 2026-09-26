@@ -2,16 +2,15 @@ import {useCallback, useState} from "react"
 
 import {useApiKeys} from "@agenta/settings"
 import {ApiKeysPage} from "@agenta/settings-ui"
-import {Button} from "@agenta/ui/ui"
-
 import {
+    Button,
     Sheet,
     SheetContent,
     SheetDescription,
     SheetFooter,
     SheetHeader,
     SheetTitle,
-} from "@/components/ui/sheet"
+} from "@agenta/ui/ui"
 
 import {useProjectPermission} from "../context/useProjectPermission"
 
@@ -120,7 +119,7 @@ export const ApiKeysTab = ({
                     if (!next) closeReveal()
                 }}
             >
-                <SheetContent side="responsive">
+                <SheetContent side="responsive" className="gap-4 overflow-y-auto">
                     <SheetHeader>
                         <SheetTitle>Save your API key</SheetTitle>
                         <SheetDescription>
@@ -137,7 +136,7 @@ export const ApiKeysTab = ({
                             {copyError}
                         </p>
                     ) : null}
-                    <SheetFooter>
+                    <SheetFooter className="sm:flex-row-reverse sm:justify-start">
                         <Button
                             onClick={async () => {
                                 if (!createdKey) return
