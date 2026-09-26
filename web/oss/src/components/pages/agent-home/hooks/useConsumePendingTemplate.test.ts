@@ -34,6 +34,7 @@ vi.mock("@agenta/entities/workflow", async () => {
             return lookupAtoms.get(key)
         },
         templateBuilderMessage: () => "",
+        UNAVAILABLE_TEMPLATE_MESSAGE: "This template is not available.",
         detectAccounts: ({template}: {template: AgentStarterTemplate}) =>
             (template.connections ?? []).map((connection) => ({
                 slug: connection.primary?.slug,
@@ -81,7 +82,7 @@ vi.mock("@/oss/state/appState", async () => {
 
 import {activeTemplateAtom, persistTemplateToStorage} from "@/oss/state/url/template"
 
-import {UNAVAILABLE_TEMPLATE_MESSAGE, useConsumePendingTemplate} from "./useConsumePendingTemplate"
+import {useConsumePendingTemplate} from "./useConsumePendingTemplate"
 ;(globalThis as {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
 
 const TEMPLATE = {
@@ -214,7 +215,7 @@ describe("useConsumePendingTemplate", () => {
         await render()
 
         expect(createAgentMock).not.toHaveBeenCalled()
-        expect(warningMock).toHaveBeenCalledWith(UNAVAILABLE_TEMPLATE_MESSAGE)
+        expect(warningMock).toHaveBeenCalledWith("This template is not available.")
         expect(getDefaultStore().get(activeTemplateAtom)).toBeNull()
     })
 })
