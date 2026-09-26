@@ -1,0 +1,9 @@
+{
+  "_comment": "Single source of truth for the pi-ai provider-cost patch (harness cost issue H1). Consumed by pi-provider-cost-patch.ts (the runner image and the in-process engine, via scripts/patch-pi-provider-cost.ts) AND by services/runner/images/sandbox/daytona/build_snapshot.py (the Daytona snapshot, which installs Pi from npm). Both surfaces MUST patch identically, or a Daytona Pi run reports Pi's price-table estimate while a local run reports the billed charge. Keep the anchor and the injected function here and nowhere else.",
+  "bundlePath": "dist/api/openai-completions.js",
+  "marker": "__agentaProviderCost",
+  "functionStart": "function parseChunkUsage(rawUsage, model) {",
+  "anchor": "    calculateCost(model, usage);\n    return usage;\n}",
+  "replacement": "    calculateCost(model, usage);\n    __agentaProviderCost(usage, rawUsage);\n    return usage;\n}",
+  "injected": "function __agentaProviderCost(usage, rawUsage) {\n    // Agenta build patch (services/runner/src/tools/pi-provider-cost-patch.ts): keep the charge\n    // the provider billed (OpenRouter usage.cost) instead of Pi's price-table estimate.\n    const billed = rawUsage ? rawUsage.cost : undefined;\n    if (typeof billed !== \"number\" || !Number.isFinite(billed) || billed < 0)\n        return;\n    const estimated = usage.cost.total;\n    if (estimated > 0) {\n        const scale = billed / estimated;\n        usage.cost.input *= scale;\n        usage.cost.output *= scale;\n        usage.cost.cacheRead *= scale;\n        usage.cost.cacheWrite *= scale;\n    }\n    usage.cost.total = billed;\n    usage.cost.source = \"provider\";\n}\n"
+}

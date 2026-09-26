@@ -19,6 +19,12 @@ import {
   uploadPiModelsConfigToSandbox,
 } from "../../src/engines/sandbox_agent/daytona.ts";
 import type { PiModelConfigPlan } from "../../src/engines/sandbox_agent/pi-model-config.ts";
+import {
+  PARSE_CHUNK_USAGE_START,
+  PI_PROVIDER_COST_BUNDLE_PATH,
+  PROVIDER_COST_MARKER,
+  STOCK_USAGE_TAIL,
+} from "../../src/tools/pi-provider-cost-patch.ts";
 
 const MODEL_CONFIG_PLAN: PiModelConfigPlan = {
   providerId: "my-ollama",
@@ -74,15 +80,33 @@ describe("ensurePiInSandbox (probe and pinned-install repair)", () => {
    * A sandbox whose pinned path answers `before` until a link or install changes it: a link makes
    * it answer `linked` (the PATH pi's version), an install makes it answer the pinned version.
    */
+  const piAiBundle = `${DAYTONA_PI_INSTALL_DIR}/node_modules/@earendil-works/pi-ai/${PI_PROVIDER_COST_BUNDLE_PATH}`;
+
   function fakeSandbox(options: {
     before?: string;
     linked?: string;
     installLeaves?: string;
   }) {
     const calls: any[] = [];
+    // What npm leaves behind: the stock pi-ai bundle, hoisted beside the harness.
+    const files = new Map<string, string>([
+      [
+        piAiBundle,
+        `${PARSE_CHUNK_USAGE_START}\n    const usage = {};\n${STOCK_USAGE_TAIL}\n`,
+      ],
+    ]);
     let current = options.before;
     const sandbox = {
+      files,
       mkdirFs: async () => {},
+      readFsFile: async ({ path }: { path: string }) => {
+        const body = files.get(path);
+        if (body === undefined) throw new Error(`ENOENT: ${path}`);
+        return new TextEncoder().encode(body);
+      },
+      writeFsFile: async ({ path }: { path: string }, body: string) => {
+        files.set(path, body);
+      },
       runProcess: async (input: any) => {
         calls.push(input);
         if (isProbe(input)) return version(current);
@@ -140,6 +164,14 @@ describe("ensurePiInSandbox (probe and pinned-install repair)", () => {
       `@earendil-works/pi-coding-agent@${PINNED_PI_VERSION}`,
     ]);
     assert.equal(install.cwd, DAYTONA_PI_INSTALL_DIR);
+  });
+
+  it("patches the installed pi-ai to keep the provider's billed cost", async () => {
+    const { sandbox } = fakeSandbox({ installLeaves: PINNED_PI_VERSION });
+
+    await ensurePiInSandbox(sandbox);
+
+    assert.ok(sandbox.files.get(piAiBundle)!.includes(PROVIDER_COST_MARKER));
   });
 
   it.each([

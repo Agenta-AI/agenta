@@ -46,6 +46,13 @@ The snapshot recipe therefore:
   script asserts its own pin and fails the build otherwise; the pins live at the top of that file;
 - installs `@earendil-works/pi-coding-agent@0.87.1`;
 - fails the build unless `pi --version` succeeds;
+- applies the pi-ai provider-cost patch: Pi's OpenAI-completions client keeps OpenRouter's
+  billed `usage.cost` instead of replacing it with Pi's price-table estimate, so a Daytona Pi
+  chat span carries the same billed cost as a local one. The spec is single-sourced from
+  `services/runner/src/tools/pi-provider-cost-patch.json` (shared with the runner image
+  build), the step verifies its own write, and the build fails loudly if `parseChunkUsage`
+  drifts. When a custom image lacks Pi, the runner installs it at session time and applies the
+  same patch there;
 - reinstalls the private Pi ACP adapter at `pi-acp@0.0.29` through
   `sandbox-agent install-agent`, rather than installing a global package that the daemon
   would not resolve;

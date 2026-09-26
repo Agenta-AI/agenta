@@ -29,6 +29,10 @@ import {
   materializeSubscriptionLoginForRun,
   type SubscriptionSandboxFs,
 } from "./subscription-login/files.ts";
+import {
+  applyPiProviderCostPatch,
+  PI_PROVIDER_COST_BUNDLE_PATH,
+} from "../../tools/pi-provider-cost-patch.ts";
 
 type Log = (message: string) => void;
 
@@ -75,7 +79,8 @@ export function configureDaytonaSubscriptionEnv(
   plan: DaytonaSubscriptionPlan,
   daytonaEnv: Record<string, string>,
 ): void {
-  if (!plan.isDaytona || !plan.isPi || !plan.credentials.subscriptionHome) return;
+  if (!plan.isDaytona || !plan.isPi || !plan.credentials.subscriptionHome)
+    return;
   daytonaEnv.PI_CODING_AGENT_DIR = plan.credentials.subscriptionHome;
 }
 
@@ -211,6 +216,47 @@ export async function ensurePiInSandbox(
       `pi ${PINNED_PI_VERSION} is not available at ${DAYTONA_PI_COMMAND} after install.`,
     );
   }
+  await patchInstalledPiProviderCost(sandbox, log);
+}
+
+/**
+ * Apply the pi-ai provider-cost patch to the Pi just installed from npm, from the same spec the
+ * runner image and the snapshot build use, so a custom image's Pi keeps OpenRouter's billed cost.
+ * pi-ai sits where Node resolves it from the harness: nested under it, else hoisted beside it.
+ */
+async function patchInstalledPiProviderCost(
+  sandbox: any,
+  log: Log,
+): Promise<void> {
+  const scope = `${DAYTONA_PI_INSTALL_DIR}/node_modules/@earendil-works`;
+  for (const dir of [
+    `${scope}/pi-coding-agent/node_modules/@earendil-works/pi-ai`,
+    `${scope}/pi-ai`,
+  ]) {
+    const path = `${dir}/${PI_PROVIDER_COST_BUNDLE_PATH}`;
+    let source: string;
+    try {
+      const bytes = await sandbox.readFsFile({ path });
+      source =
+        typeof bytes === "string" ? bytes : new TextDecoder().decode(bytes);
+    } catch {
+      continue;
+    }
+    const outcome = applyPiProviderCostPatch(source);
+    if (outcome.kind === "anchor-missing") {
+      throw new Error(
+        `pi-ai provider-cost patch: the parseChunkUsage anchor is missing in ${path}`,
+      );
+    }
+    if (outcome.kind === "patched") {
+      await sandbox.writeFsFile({ path }, outcome.source);
+    }
+    log(`[pi-repair] pi-ai provider-cost patch ${outcome.kind} in ${path}`);
+    return;
+  }
+  throw new Error(
+    `pi-ai provider-cost patch: no ${PI_PROVIDER_COST_BUNDLE_PATH} under ${DAYTONA_PI_INSTALL_DIR}`,
+  );
 }
 
 /**
@@ -329,12 +375,7 @@ export async function prepareDaytonaPiAssets({
   // file so a reused sandbox keeps no earlier configuration. Upload failure THROWS here and is
   // terminal in the engine's acquire try.
   if (piModelConfig) {
-    await uploadPiModelsConfigToSandbox(
-      sandbox,
-      agentDir,
-      piModelConfig,
-      log,
-    );
+    await uploadPiModelsConfigToSandbox(sandbox, agentDir, piModelConfig, log);
   } else {
     await removePiModelsConfigFromSandbox(sandbox, agentDir, log);
   }
