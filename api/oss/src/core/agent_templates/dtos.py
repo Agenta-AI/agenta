@@ -74,7 +74,10 @@ class GitHubTemplateSource(BaseModel):
                 "repo_url must be a public repository URL of the form "
                 "https://github.com/<owner>/<repo>."
             )
-        return f"https://github.com/{match.group('owner')}/{match.group('repo')}"
+        # GitHub owner and repository names are case-insensitive.
+        return (
+            f"https://github.com/{match.group('owner')}/{match.group('repo')}".lower()
+        )
 
     @field_validator("commit")
     @classmethod

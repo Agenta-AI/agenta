@@ -7,11 +7,16 @@ repository archive, so a small package in a large monorepo stays small.
 
 Every download is pinned to the commit and checked against the blob SHA from
 the listing, so the returned bytes are exactly the files at that commit.
+
+GitHub serves every commit of a fork network through each repository in it, so
+``repo_url`` records where the bytes were fetched, not who authored the commit;
+the commit and digest identify the content.
 """
 
 import asyncio
 import hashlib
 import json
+import re
 from typing import Any, NamedTuple
 from urllib.parse import quote
 from uuid import UUID
@@ -21,6 +26,7 @@ import httpx
 from oss.src.core.agent_templates.archive import PackageLimits, PackageTreeWriter
 from oss.src.core.agent_templates.dtos import GitHubTemplateSource, TemplateSource
 from oss.src.core.agent_templates.exceptions import (
+    TemplatePackageInvalid,
     TemplateSourceInvalid,
     TemplateSourceUnavailable,
 )
@@ -31,6 +37,8 @@ GITHUB_RAW_URL = "https://raw.githubusercontent.com"
 _MAX_LISTING_BYTES = 2 * 1024 * 1024
 _MAX_CONCURRENT_DOWNLOADS = 8
 _DEFAULT_TIMEOUT_SECONDS = 30.0
+_DEFAULT_TOTAL_TIMEOUT_SECONDS = 120.0
+_GIT_OBJECT_SHA = re.compile(r"^[0-9a-f]{40}$")
 
 _FILE_MODES = {"100644", "100755"}
 _SYMLINK_MODE = "120000"
@@ -63,9 +71,11 @@ class GitHubPackageFetcher:
         *,
         transport: httpx.AsyncBaseTransport | None = None,
         timeout_seconds: float = _DEFAULT_TIMEOUT_SECONDS,
+        total_timeout_seconds: float = _DEFAULT_TOTAL_TIMEOUT_SECONDS,
     ) -> None:
         self._transport = transport
         self._timeout_seconds = timeout_seconds
+        self._total_timeout_seconds = total_timeout_seconds
 
     async def fetch(
         self,
@@ -82,12 +92,18 @@ class GitHubPackageFetcher:
                 "Accept": "application/vnd.github+json",
                 "X-GitHub-Api-Version": "2022-11-28",
                 "User-Agent": "agenta-template-loader",
+                # Size limits count bytes as received, so refuse compressed bodies.
+                "Accept-Encoding": "identity",
             },
         ) as client:
             session = _FetchSession(
                 client=client, source=source, limits=limits or PackageLimits()
             )
-            return await session.run()
+            try:
+                async with asyncio.timeout(self._total_timeout_seconds):
+                    return await session.run()
+            except TimeoutError as exc:
+                raise session.transport_failure() from exc
 
 
 class _FetchSession:
@@ -131,7 +147,14 @@ class _FetchSession:
             details=self._details(),
         )
 
-    def _transport_failure(
+    def _malformed(self) -> TemplateSourceUnavailable:
+        return TemplateSourceUnavailable(
+            "template_source_github_response_invalid",
+            "GitHub returned a listing this loader cannot read for this source.",
+            details=self._details(),
+        )
+
+    def transport_failure(
         self, status_code: int | None = None
     ) -> TemplateSourceUnavailable:
         return TemplateSourceUnavailable(
@@ -151,10 +174,13 @@ class _FetchSession:
                     return response, None
                 rate_limited = response.status_code == 429 or (
                     response.status_code == 403
-                    and response.headers.get("x-ratelimit-remaining") == "0"
+                    and (
+                        response.headers.get("x-ratelimit-remaining") == "0"
+                        or "retry-after" in response.headers
+                    )
                 )
                 if rate_limited or response.status_code >= 500:
-                    raise self._transport_failure(response.status_code)
+                    raise self.transport_failure(response.status_code)
                 if response.status_code != 200:
                     # 403 without rate limiting, 409 (empty repository), 422 (bad sha)
                     # and redirects all mean this exact source cannot be served.
@@ -166,7 +192,7 @@ class _FetchSession:
                         return response, _OVERSIZED
                 return response, bytes(received)
         except httpx.HTTPError as exc:
-            raise self._transport_failure() from exc
+            raise self.transport_failure() from exc
 
     async def _get_json(self, url: str, *, params: dict | None = None) -> Any:
         _, body = await self._get(url, max_bytes=_MAX_LISTING_BYTES, params=params)
@@ -179,10 +205,12 @@ class _FetchSession:
             return None
         try:
             return json.loads(body)
-        except (UnicodeDecodeError, json.JSONDecodeError):
-            raise self._transport_failure() from None
+        except (UnicodeDecodeError, json.JSONDecodeError, RecursionError):
+            raise self._malformed() from None
 
     async def _tree_entries(self, tree_sha: str, *, recursive: bool) -> list[dict]:
+        if not _GIT_OBJECT_SHA.match(tree_sha):
+            raise self._malformed()
         listing = await self._get_json(
             f"{self._api}/trees/{quote(tree_sha, safe='')}",
             params={"recursive": "1"} if recursive else None,
@@ -198,7 +226,7 @@ class _FetchSession:
         if recursive and len(entries) > self._limits.max_archive_entries:
             raise _limit(
                 "The template package contains too many entries.",
-                limit=self._limits.max_files,
+                limit=self._limits.max_archive_entries,
                 **self._details(),
             )
         return [entry for entry in entries if isinstance(entry, dict)]
@@ -256,7 +284,7 @@ class _FetchSession:
         for entry in entries:
             path = entry.get("path")
             if not isinstance(path, str) or not path:
-                raise self._transport_failure()
+                raise self._malformed()
             self._reject_special(entry, path=path, package=True)
             parts = path.split("/")
             if any(part in {"", ".", ".."} for part in parts) or "\\" in path:
@@ -271,8 +299,13 @@ class _FetchSession:
                 continue
             size = entry.get("size")
             sha = entry.get("sha")
-            if not isinstance(size, int) or size < 0 or not isinstance(sha, str):
-                raise self._transport_failure()
+            if (
+                type(size) is not int
+                or size < 0
+                or not isinstance(sha, str)
+                or not _GIT_OBJECT_SHA.match(sha)
+            ):
+                raise self._malformed()
             if size > self._limits.max_file_bytes:
                 raise _limit(
                     "A template package file is too large.",
@@ -291,6 +324,14 @@ class _FetchSession:
                     "The template package contains too many files.",
                     limit=self._limits.max_files,
                 )
+        if not any(path == "plugin.json" for path, _, _ in planned):
+            # The directory must be the package root; a parent folder is not accepted.
+            raise TemplatePackageInvalid(
+                "plugin_manifest_invalid",
+                "plugin.json is missing from the package directory. Supply the "
+                "directory that contains plugin.json.",
+                details={"path": "plugin.json"},
+            )
         return sorted(planned)
 
     async def _download(self, path: str, sha: str, size: int) -> GitHubPackageFile:
@@ -322,7 +363,13 @@ class _FetchSession:
             async with semaphore:
                 return await self._download(*item)
 
-        return list(await asyncio.gather(*(bounded(item) for item in planned)))
+        # A task group cancels the remaining downloads when one fails.
+        try:
+            async with asyncio.TaskGroup() as group:
+                tasks = [group.create_task(bounded(item)) for item in planned]
+        except* (TemplateSourceInvalid, TemplateSourceUnavailable) as errors:
+            raise errors.exceptions[0] from None
+        return [task.result() for task in tasks]
 
 
 class GitHubPackageStager:

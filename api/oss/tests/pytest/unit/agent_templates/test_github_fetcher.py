@@ -1,8 +1,12 @@
+import asyncio
+
 import httpx
 import pytest
 
+from oss.src.core.agent_templates.archive import PackageLimits
 from oss.src.core.agent_templates.dtos import GitHubTemplateSource
 from oss.src.core.agent_templates.exceptions import (
+    TemplatePackageInvalid,
     TemplateSourceInvalid,
     TemplateSourceUnavailable,
 )
@@ -285,3 +289,107 @@ async def test_oversized_listing_response_is_rejected(fake):
         await _fetcher(fake).fetch(_source())
 
     assert exc_info.value.code == "template_source_limit_exceeded"
+
+
+async def test_one_failed_download_cancels_the_rest():
+    fake = FakeGitHub()
+    files = {"plugin.json": b"{}", **{f"doc-{i:02}.md": b"x" for i in range(40)}}
+    fake.add_commit("agenta-ai/agenta", COMMIT, nest(PACKAGE_PATH, files))
+    fake.raw_overrides[f"{PACKAGE_PATH}/doc-00.md"] = b"tampered"
+
+    async def handler(request):
+        if not request.url.path.endswith("/doc-00.md"):
+            await asyncio.sleep(0.01)
+        return fake.handler(request)
+
+    fetcher = GitHubPackageFetcher(transport=httpx.MockTransport(handler))
+    with pytest.raises(TemplateSourceInvalid) as exc_info:
+        await fetcher.fetch(_source())
+    after_failure = len(fake.requests)
+    await asyncio.sleep(0.05)
+
+    assert exc_info.value.code == "template_source_github_content_mismatch"
+    assert len(fake.requests) == after_failure
+    raw = [r for r in fake.requests if r.url.host == "raw.githubusercontent.com"]
+    assert len(raw) <= 8
+
+
+async def test_secondary_rate_limit_is_retryable(fake):
+    fake.fail_with = httpx.Response(
+        403,
+        headers={"retry-after": "60", "x-ratelimit-remaining": "42"},
+        json={"message": "You have exceeded a secondary rate limit."},
+    )
+
+    with pytest.raises(TemplateSourceUnavailable) as exc_info:
+        await _fetcher(fake).fetch(_source())
+
+    assert exc_info.value.retryable is True
+
+
+async def test_a_parent_of_the_package_directory_is_rejected(fake):
+    with pytest.raises(TemplatePackageInvalid) as exc_info:
+        await _fetcher(fake).fetch(_source(path="api/resources/packages/code-qa"))
+
+    assert exc_info.value.code == "plugin_manifest_invalid"
+    assert not any(r.url.host == "raw.githubusercontent.com" for r in fake.requests)
+
+
+@pytest.mark.parametrize(
+    ("override", "code"),
+    [
+        ({"path": "../escape"}, "template_source_path_invalid"),
+        ({"path": "a\\b"}, "template_source_path_invalid"),
+        ({"size": True}, "template_source_github_response_invalid"),
+        ({"size": "12"}, "template_source_github_response_invalid"),
+        ({"sha": "../../x"}, "template_source_github_response_invalid"),
+        ({"path": None}, "template_source_github_response_invalid"),
+    ],
+)
+async def test_hostile_listing_entries_are_rejected(override, code):
+    fake = FakeGitHub()
+    fake.add_commit("agenta-ai/agenta", COMMIT, nest(PACKAGE_PATH, package_files()))
+    original = fake.handler
+
+    def handler(request):
+        response = original(request)
+        if request.url.params.get("recursive") == "1":
+            listing = response.json()
+            index = next(
+                i for i, e in enumerate(listing["tree"]) if e["path"] == "plugin.json"
+            )
+            listing["tree"][index] = {**listing["tree"][index], **override}
+            return httpx.Response(200, json=listing)
+        return response
+
+    fetcher = GitHubPackageFetcher(transport=httpx.MockTransport(handler))
+    with pytest.raises((TemplateSourceInvalid, TemplateSourceUnavailable)) as exc_info:
+        await fetcher.fetch(_source())
+
+    assert exc_info.value.code == code
+    assert exc_info.value.retryable is False
+
+
+async def test_listing_entry_bound_applies_to_the_recursive_listing(fake):
+    with pytest.raises(TemplateSourceInvalid) as exc_info:
+        await _fetcher(fake).fetch(
+            _source(), limits=PackageLimits(max_archive_entries=2)
+        )
+
+    assert exc_info.value.code == "template_source_limit_exceeded"
+    assert exc_info.value.details["limit"] == 2
+
+
+async def test_whole_fetch_has_a_total_time_bound(fake):
+    async def slow(request):
+        await asyncio.sleep(1)
+        return fake.handler(request)
+
+    fetcher = GitHubPackageFetcher(
+        transport=httpx.MockTransport(slow), total_timeout_seconds=0.05
+    )
+    with pytest.raises(TemplateSourceUnavailable) as exc_info:
+        await fetcher.fetch(_source())
+
+    assert exc_info.value.code == "template_source_github_fetch_failed"
+    assert exc_info.value.retryable is True
