@@ -1,8 +1,6 @@
 from collections import OrderedDict
 from typing import Dict, List, Optional
 
-from litellm import cost_calculator
-
 from oss.src.utils.logging import get_module_logger
 from oss.src.core.shared.dtos import Trace, Traces
 from oss.src.core.tracing.dtos import (
@@ -14,6 +12,7 @@ from oss.src.core.tracing.dtos import (
     SpanType,
     TraceType,
 )
+from oss.src.core.tracing.utils.pricing import price_tokens, resolve_pricing_model
 
 log = get_module_logger(__name__)
 
@@ -604,137 +603,203 @@ def _cumulate_tree_dfs(
 TYPES_WITH_COSTS = [
     "embedding",
     "query",
+    "llm",
     "completion",
     "chat",
     "rerank",
 ]
 
-# Prompt tokens served from a provider's cache, which price at a much lower rate than fresh
-# input (a tenth of it, for some models). The ingest adapters disagree on the field name:
-# `logfire_adapter` writes `cache_read` (matching the `gen_ai.usage.cache_read.input_tokens`
-# the runner emits), while `vercelai_adapter` writes `cached` (from `ai.usage.cachedInputTokens`).
-# Read every alias, or the cost is right for one integration and overstated for the other.
-CACHE_READ_TOKEN_KEYS = ("cache_read", "cached")
+# Prompt tokens served from a provider's cache, which price far below fresh input. The
+# adapters disagree on where they land: logfire writes `cache_read`, Vercel AI `cached`,
+# and OpenInference `prompt_details.cache_read` (from `llm.token_count.prompt_details.*`).
+CACHE_READ_TOKEN_KEYS = ("cache_read", "cached", ("prompt_details", "cache_read"))
+CACHE_WRITE_TOKEN_KEYS = ("cache_creation", ("prompt_details", "cache_write"))
+
+
+def _token_count(tokens: dict, keys) -> int:
+    for key in keys:
+        if isinstance(key, tuple):
+            parent = tokens.get(key[0])
+            value = parent.get(key[1]) if isinstance(parent, dict) else None
+        else:
+            value = tokens.get(key)
+
+        # Non-numeric or negative garbage from a foreign OTLP source counts as absent.
+        if (
+            isinstance(value, (int, float))
+            and not isinstance(value, bool)
+            and value > 0
+        ):
+            return int(value)
+
+    return 0
+
+
+def _input_tokens_include_cache(meta: dict) -> bool:
+    """Whether the prompt count already includes the cached tokens.
+
+    Absent means True, the OpenTelemetry GenAI meaning of `gen_ai.usage.input_tokens`.
+    The Agenta runner reports input without cache and says so with
+    `agenta.usage.input_tokens_includes_cache = false`.
+    """
+    usage = meta.get("usage")
+    marker = (
+        usage.get("input_tokens_includes_cache") if isinstance(usage, dict) else None
+    )
+
+    if isinstance(marker, str):
+        return marker.strip().lower() not in ("false", "0")
+
+    return marker is not False
+
+
+def _served_by_custom_connection(meta: dict) -> bool:
+    model_meta = meta.get("model") if isinstance(meta, dict) else None
+    if not isinstance(model_meta, dict):
+        return False
+
+    marker = model_meta.get("custom_connection")
+    if isinstance(marker, str):
+        return marker.strip().lower() in ("true", "1")
+
+    return marker is True
+
+
+def _set_pricing_status(span: OTelFlatSpan, reason: Optional[str], model) -> None:
+    ag = span.attributes.setdefault("ag", {})
+    meta = ag.get("meta")
+
+    if reason is None:
+        if isinstance(meta, dict):
+            meta.pop("pricing", None)
+        return
+
+    if not isinstance(meta, dict):
+        meta = ag["meta"] = {}
+
+    meta["pricing"] = {"error": reason, "model": model}
+
+    # A cost this function stored on an earlier run is stale once the span is unpriced.
+    # A reported cost (a total with no split) never reaches this point.
+    metrics = ag.get("metrics")
+    costs = metrics.get("costs") if isinstance(metrics, dict) else None
+    if isinstance(costs, dict):
+        costs.pop("incremental", None)
 
 
 def calculate_costs(span_idx: Dict[str, OTelFlatSpan]):
     for span in span_idx.values():
-        if (
+        if not (
             span.span_type
             and span.span_type.name.lower() in TYPES_WITH_COSTS
             and span.attributes
         ):
-            attr: dict = span.attributes
-            model = attr.get("ag", {}).get("meta", {}).get("response", {}).get(
-                "model"
-            ) or attr.get("ag", {}).get("data", {}).get("parameters", {}).get("model")
+            continue
 
-            tokens: dict = (
-                attr.get("ag", {})
-                .get("metrics", {})
-                .get("tokens", {})
-                .get("incremental", {})
+        attr: dict = span.attributes
+        ag: dict = attr.get("ag", {})
+        meta: dict = ag.get("meta", {})
+        metrics: dict = ag.get("metrics", {})
+
+        incremental_costs = metrics.get("costs", {}).get("incremental", {})
+        if (
+            isinstance(incremental_costs, dict)
+            and "total" in incremental_costs
+            and "prompt" not in incremental_costs
+            and "completion" not in incremental_costs
+        ):
+            continue
+
+        model = (
+            meta.get("response", {}).get("model")
+            or ag.get("data", {}).get("parameters", {}).get("model")
+            or meta.get("request", {}).get("model")
+        )
+
+        tokens: dict = metrics.get("tokens", {}).get("incremental", {})
+
+        # A custom model connection has its own prices. The public price list would
+        # give a wrong cost, so the span stays unpriced and says why.
+        if _served_by_custom_connection(meta):
+            if tokens:
+                _set_pricing_status(span, "custom_connection", model)
+            continue
+
+        prompt_tokens = _token_count(tokens, ("prompt",))
+        completion_tokens = _token_count(tokens, ("completion",))
+        cache_read_tokens = _token_count(tokens, CACHE_READ_TOKEN_KEYS)
+        cache_write_tokens = _token_count(tokens, CACHE_WRITE_TOKEN_KEYS)
+
+        # Cache counts can stand in for an input count, but not for a total that is
+        # larger than them: the rest of that total has no known split.
+        if (
+            prompt_tokens <= 0
+            and completion_tokens <= 0
+            and _token_count(tokens, ("total",))
+            > cache_read_tokens + cache_write_tokens
+        ):
+            _set_pricing_status(span, "missing_token_split", model)
+            continue
+
+        # litellm reads `prompt_tokens` as INCLUDING both cache buckets and prices the
+        # rest at the input rate. An inclusive count can never be smaller than its cached
+        # part, so a smaller one is exclusive whatever the producer claims.
+        if (
+            not _input_tokens_include_cache(meta)
+            or prompt_tokens < cache_read_tokens + cache_write_tokens
+        ):
+            prompt_tokens += cache_read_tokens + cache_write_tokens
+
+        if prompt_tokens <= 0 and completion_tokens <= 0:
+            continue
+
+        resolved_model = (
+            resolve_pricing_model(model) if isinstance(model, str) and model else None
+        )
+
+        if resolved_model is None:
+            _set_pricing_status(
+                span, "unknown_model" if model else "missing_model", model
             )
+            continue
 
-            incremental_costs = (
-                attr.get("ag", {})
-                .get("metrics", {})
-                .get("costs", {})
-                .get("incremental", {})
+        try:
+            prompt_cost, completion_cost = price_tokens(
+                model=resolved_model,
+                prompt_tokens=prompt_tokens,
+                completion_tokens=completion_tokens,
+                cache_read_tokens=cache_read_tokens,
+                cache_write_tokens=cache_write_tokens,
             )
-            if (
-                isinstance(incremental_costs, dict)
-                and "total" in incremental_costs
-                and "prompt" not in incremental_costs
-                and "completion" not in incremental_costs
-            ):
-                continue
-
-            prompt_tokens = tokens.get("prompt", 0.0)
-
-            completion_tokens = tokens.get("completion", 0.0)
-
-            # Only a real positive number qualifies. Non-numeric or negative garbage from a
-            # foreign OTLP source must degrade to "no cache kwarg", not reach the int() below
-            # and turn into a swallowed exception that drops the span's ENTIRE cost.
-            cache_read_tokens = next(
-                (
-                    value
-                    for key in CACHE_READ_TOKEN_KEYS
-                    if isinstance((value := tokens.get(key)), (int, float))
-                    and not isinstance(value, bool)
-                    and value > 0
-                ),
-                0.0,
+        except Exception:  # pylint: disable=broad-exception-caught
+            log.warn(
+                "Failed to calculate costs",
+                model=model,
+                prompt_tokens=prompt_tokens,
+                completion_tokens=completion_tokens,
+                cache_read_tokens=cache_read_tokens,
+                cache_write_tokens=cache_write_tokens,
             )
+            _set_pricing_status(span, "pricing_failed", model)
+            continue
 
-            try:
-                # litellm's convention is that `prompt_tokens` INCLUDES the cached tokens and
-                # that it prices the cached slice separately (it normalizes Anthropic-style
-                # usage, where the input count excludes them, on the way in). So the cached
-                # count is passed ALONGSIDE the prompt total and must not be subtracted from
-                # it first -- doing that would understate cost instead of overstating it.
-                #
-                # Passed only when non-zero so a span with no caching calls exactly the
-                # signature it always did: the SDK pins `litellm>=1,<2`, and on a 1.x old
-                # enough to lack the parameter an unconditional kwarg would raise TypeError,
-                # which the `except` below would swallow into "no costs at all" for EVERY span.
-                #
-                # int(), and not incidentally: litellm reads the cached slice back off
-                # `Usage.prompt_tokens_details.cached_tokens`, and its `Usage` model only
-                # derives that wrapper from an int. Hand it the float this metric is stored
-                # as and `prompt_tokens_details` comes back None, so the cached tokens are
-                # billed at the full input rate again -- silently, with no error to catch.
-                cache_kwargs = (
-                    {"cache_read_input_tokens": int(cache_read_tokens)}
-                    if cache_read_tokens
-                    else {}
-                )
+        if "ag" not in span.attributes or not isinstance(span.attributes["ag"], dict):
+            span.attributes["ag"] = {}
+        if "metrics" not in span.attributes["ag"] or not isinstance(
+            span.attributes["ag"]["metrics"], dict
+        ):
+            span.attributes["ag"]["metrics"] = {}
+        if "costs" not in span.attributes["ag"]["metrics"] or not isinstance(
+            span.attributes["ag"]["metrics"]["costs"], dict
+        ):
+            span.attributes["ag"]["metrics"]["costs"] = {}
 
-                costs = cost_calculator.cost_per_token(
-                    model=model,
-                    prompt_tokens=prompt_tokens,
-                    completion_tokens=completion_tokens,
-                    **cache_kwargs,
-                )
-
-                if not costs:
-                    continue
-
-                prompt_cost, completion_cost = costs
-                total_cost = prompt_cost + completion_cost
-
-                if "ag" not in span.attributes or not isinstance(
-                    span.attributes["ag"],
-                    dict,
-                ):
-                    span.attributes["ag"] = {}
-                if "metrics" not in span.attributes["ag"] or not isinstance(
-                    span.attributes["ag"]["metrics"],
-                    dict,
-                ):
-                    span.attributes["ag"]["metrics"] = {}
-
-                if "costs" not in span.attributes["ag"]["metrics"] or not isinstance(
-                    span.attributes["ag"]["metrics"]["costs"],
-                    dict,
-                ):
-                    span.attributes["ag"]["metrics"]["costs"] = {}
-
-                span.attributes["ag"]["metrics"]["costs"]["incremental"] = {
-                    "prompt": prompt_cost,
-                    "completion": completion_cost,
-                    "total": total_cost,
-                }
-
-            except Exception:  # pylint: disable=bare-except
-                log.warn(
-                    "Failed to calculate costs",
-                    model=model,
-                    prompt_tokens=prompt_tokens,
-                    completion_tokens=completion_tokens,
-                    cache_read_tokens=cache_read_tokens,
-                )
+        span.attributes["ag"]["metrics"]["costs"]["incremental"] = {
+            "prompt": prompt_cost,
+            "completion": completion_cost,
+            "total": prompt_cost + completion_cost,
+        }
+        _set_pricing_status(span, None, model)
 
 
 def trace_map_to_traces(trace_map: OTelTraceTree) -> Traces:
