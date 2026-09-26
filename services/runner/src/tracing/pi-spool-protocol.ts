@@ -28,6 +28,8 @@ export interface PiTurnTraceControl {
   redaction: {
     knownValues: string[];
   };
+  /** True when a custom model connection serves the turn; Pi marks its model spans. */
+  customConnection?: boolean;
 }
 
 export function isPiTraceChannelId(value: unknown): value is string {
@@ -103,5 +105,6 @@ export function parsePiTurnTraceControl(value: unknown): PiTurnTraceControl {
     skills,
     skillsDropped,
     redaction: { knownValues },
+    ...(raw.customConnection === true ? { customConnection: true } : {}),
   };
 }

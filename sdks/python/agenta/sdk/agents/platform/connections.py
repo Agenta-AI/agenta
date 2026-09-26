@@ -398,6 +398,14 @@ class _ConnectionCandidate:
             return self._funded_starter_credits_model(model) or stripped
         return self._funded_starter_credits_model(model) or model.model
 
+    def serves_custom_connection(self) -> bool:
+        """Whether spans served by this record skip public-list pricing.
+
+        A user's own custom-provider record does. A record Agenta manages (the funded
+        starter-credits connection) serves a public model at a public price, so it does not.
+        """
+        return self.kind == "custom_provider" and not self.managed
+
     def _funded_starter_credits_model(self, model: ModelRef) -> Optional[str]:
         """The funded model, when a saved id names one this connection no longer offers.
 
@@ -962,6 +970,7 @@ def _resolve_from_secrets(
             input_modalities=model_input_modalities(
                 harness, resolved_model, provider=provider
             ),
+            custom_connection=chosen.serves_custom_connection(),
         )
     namespace, name = gateway_target(
         kind=chosen.kind, provider=provider, slug=chosen.slug
@@ -978,6 +987,7 @@ def _resolve_from_secrets(
         input_modalities=model_input_modalities(
             harness, resolved_model, provider=provider
         ),
+        custom_connection=chosen.serves_custom_connection(),
     )
 
 
@@ -1227,6 +1237,10 @@ class VaultConnectionResolver:
             input_modalities=model_input_modalities(
                 context.harness, resolved_model, provider=provider
             ),
+            # The gateway names the namespace from the record kind (`gateway_target`):
+            # `custom` is a custom-provider record, `standard` a provider key. The response
+            # carries no management flag, so the Agenta-funded record is known by its slug.
+            custom_connection=namespace == "custom" and name != STARTER_CREDITS_SLUG,
         )
 
 

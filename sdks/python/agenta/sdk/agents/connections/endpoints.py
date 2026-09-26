@@ -135,6 +135,7 @@ def build_resolved_connection(
     endpoint: Optional[Endpoint] = None,
     input_modalities: Optional[List[str]] = None,
     subscription: Optional[ResolvedSubscription] = None,
+    custom_connection: Optional[bool] = None,
 ) -> ResolvedConnection:
     """Build a classified connection and attach the resolver-owned effective route.
 
@@ -179,6 +180,7 @@ def build_resolved_connection(
         endpoint=route,
         input_modalities=input_modalities,
         subscription=subscription,
+        custom_connection=custom_connection,
     )
 
 
@@ -218,6 +220,7 @@ def build_gateway_resolved_connection(
     gateway_base_url: str,
     gateway_credentials_value: str,
     input_modalities: Optional[List[str]] = None,
+    custom_connection: Optional[bool] = None,
 ) -> ResolvedConnection:
     """Build a resolved connection that routes through the gateway (D36/D30/D31).
 
@@ -252,4 +255,5 @@ def build_gateway_resolved_connection(
         endpoint=Endpoint(base_url=route),
         gateway_credentials=GatewayCredentials(value=gateway_credentials_value),
         input_modalities=input_modalities,
+        custom_connection=custom_connection,
     )
