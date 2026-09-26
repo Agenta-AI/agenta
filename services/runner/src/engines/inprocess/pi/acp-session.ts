@@ -272,7 +272,9 @@ export class InProcessAcpSession {
     if (keepTo === null) manager.resetLeaf();
     else manager.branch(keepTo);
     manager.appendCustomEntry(FAILED_TURN_ROLLBACK_ENTRY, { abandonedLeafId: failedFrom });
-    this.session.agent.state.messages = manager.buildSessionContext().messages;
+    // Pi 0.87 makes the session manager canonical for provider context: assigning
+    // `agent.state.messages` no longer changes the next request, so re-project from the manager.
+    this.session.refreshContext();
     this.parts.log(`[inprocess] failed turn rolled back session=${this.id}`);
     return this.saveTranscript();
   }
