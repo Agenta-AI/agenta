@@ -81,6 +81,9 @@ describe("ensurePiInSandbox (probe and pinned-install repair)", () => {
    * it answer `linked` (the PATH pi's version), an install makes it answer the pinned version.
    */
   const piAiBundle = `${DAYTONA_PI_INSTALL_DIR}/node_modules/@earendil-works/pi-ai/${PI_PROVIDER_COST_BUNDLE_PATH}`;
+  const globalScope = "/usr/local/lib/node_modules/@earendil-works";
+  const globalPiAiBundle = `${globalScope}/pi-ai/${PI_PROVIDER_COST_BUNDLE_PATH}`;
+  const stockBundle = `${PARSE_CHUNK_USAGE_START}\n    const usage = {};\n${STOCK_USAGE_TAIL}\n`;
 
   function fakeSandbox(options: {
     before?: string;
@@ -88,14 +91,14 @@ describe("ensurePiInSandbox (probe and pinned-install repair)", () => {
     installLeaves?: string;
   }) {
     const calls: any[] = [];
-    // What npm leaves behind: the stock pi-ai bundle, hoisted beside the harness.
+    // What npm leaves behind, here and in a global install: the stock pi-ai bundle, hoisted
+    // beside the harness.
     const files = new Map<string, string>([
-      [
-        piAiBundle,
-        `${PARSE_CHUNK_USAGE_START}\n    const usage = {};\n${STOCK_USAGE_TAIL}\n`,
-      ],
+      [piAiBundle, stockBundle],
+      [globalPiAiBundle, stockBundle],
     ]);
     let current = options.before;
+    let harnessDir = `${DAYTONA_PI_INSTALL_DIR}/node_modules/@earendil-works/pi-coding-agent`;
     const sandbox = {
       files,
       mkdirFs: async () => {},
@@ -110,12 +113,19 @@ describe("ensurePiInSandbox (probe and pinned-install repair)", () => {
       runProcess: async (input: any) => {
         calls.push(input);
         if (isProbe(input)) return version(current);
+        if (input.command === "sh" && input.args[1].includes("readlink")) {
+          return { exitCode: 0, stdout: `${harnessDir}\n` };
+        }
         if (input.command === "sh") {
           if (!options.linked) return { exitCode: 1 }; // no pi on PATH
           current = options.linked;
+          harnessDir = `${globalScope}/pi-coding-agent`;
           return { exitCode: 0 };
         }
-        if (input.command === "npm") current = options.installLeaves;
+        if (input.command === "npm") {
+          current = options.installLeaves;
+          harnessDir = `${DAYTONA_PI_INSTALL_DIR}/node_modules/@earendil-works/pi-coding-agent`;
+        }
         return { exitCode: 0 };
       },
     };
@@ -127,9 +137,12 @@ describe("ensurePiInSandbox (probe and pinned-install repair)", () => {
 
     await ensurePiInSandbox(sandbox);
 
-    assert.equal(calls.length, 1);
     assert.deepEqual(calls[0].args, ["--version"]);
     assert.equal(calls[0].command, DAYTONA_PI_COMMAND);
+    assert.equal(
+      calls.some((c) => c.command === "npm" || c.command === "rm"),
+      false,
+    );
   });
 
   it("links a PATH-baked pi to the pinned path instead of reinstalling (recipe snapshot)", async () => {
@@ -172,6 +185,25 @@ describe("ensurePiInSandbox (probe and pinned-install repair)", () => {
     await ensurePiInSandbox(sandbox);
 
     assert.ok(sandbox.files.get(piAiBundle)!.includes(PROVIDER_COST_MARKER));
+  });
+
+  it("patches a reused Pi of the pinned version (custom image, earlier install)", async () => {
+    const { sandbox } = fakeSandbox({ before: PINNED_PI_VERSION });
+
+    await ensurePiInSandbox(sandbox);
+
+    assert.ok(sandbox.files.get(piAiBundle)!.includes(PROVIDER_COST_MARKER));
+  });
+
+  it("patches the global Pi the pinned path links to", async () => {
+    const { sandbox } = fakeSandbox({ linked: PINNED_PI_VERSION });
+
+    await ensurePiInSandbox(sandbox);
+
+    assert.ok(
+      sandbox.files.get(globalPiAiBundle)!.includes(PROVIDER_COST_MARKER),
+    );
+    assert.equal(sandbox.files.get(piAiBundle), stockBundle);
   });
 
   it.each([

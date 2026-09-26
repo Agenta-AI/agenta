@@ -189,9 +189,22 @@ export async function ensurePiInSandbox(
   sandbox: any,
   log: Log = () => {},
 ): Promise<void> {
-  if (await probePinnedPi(sandbox)) return;
+  // The patch is idempotent, so a reused Pi (a custom image's stock install, or one an earlier
+  // session installed) gets it too. A Pi this runner did not install may be laid out differently;
+  // failing to patch it costs the billed cost figure, not the run.
+  const patchReusedPi = () =>
+    patchInstalledPiProviderCost(sandbox, log).catch((err) =>
+      log(
+        `[pi-repair] ${(err as Error).message}; Pi keeps its own cost estimate`,
+      ),
+    );
+  if (await probePinnedPi(sandbox)) {
+    await patchReusedPi();
+    return;
+  }
   if ((await linkGlobalPi(sandbox)) && (await probePinnedPi(sandbox))) {
     log(`[pi-repair] linked snapshot-baked pi to ${DAYTONA_PI_COMMAND}`);
+    await patchReusedPi();
     return;
   }
   log(
@@ -220,7 +233,7 @@ export async function ensurePiInSandbox(
 }
 
 /**
- * Apply the pi-ai provider-cost patch to the Pi just installed from npm, from the same spec the
+ * Apply the pi-ai provider-cost patch to the Pi the pinned path runs, from the same spec the
  * runner image and the snapshot build use, so a custom image's Pi keeps OpenRouter's billed cost.
  * pi-ai sits where Node resolves it from the harness: nested under it, else hoisted beside it.
  */
@@ -228,10 +241,10 @@ async function patchInstalledPiProviderCost(
   sandbox: any,
   log: Log,
 ): Promise<void> {
-  const scope = `${DAYTONA_PI_INSTALL_DIR}/node_modules/@earendil-works`;
+  const harness = await resolvePiPackageDir(sandbox);
   for (const dir of [
-    `${scope}/pi-coding-agent/node_modules/@earendil-works/pi-ai`,
-    `${scope}/pi-ai`,
+    `${harness}/node_modules/@earendil-works/pi-ai`,
+    `${harness.slice(0, harness.lastIndexOf("/"))}/pi-ai`,
   ]) {
     const path = `${dir}/${PI_PROVIDER_COST_BUNDLE_PATH}`;
     let source: string;
@@ -255,8 +268,32 @@ async function patchInstalledPiProviderCost(
     return;
   }
   throw new Error(
-    `pi-ai provider-cost patch: no ${PI_PROVIDER_COST_BUNDLE_PATH} under ${DAYTONA_PI_INSTALL_DIR}`,
+    `pi-ai provider-cost patch: no ${PI_PROVIDER_COST_BUNDLE_PATH} for the pi-coding-agent at ${harness}`,
   );
+}
+
+/**
+ * The pi-coding-agent package directory behind the pinned path: this runner's npm install, or the
+ * global install a snapshot's link points to.
+ */
+async function resolvePiPackageDir(sandbox: any): Promise<string> {
+  const res = await sandbox.runProcess({
+    command: "sh",
+    args: [
+      "-c",
+      `p=$(readlink -f ${DAYTONA_PI_COMMAND}) && ` +
+        `while [ -n "$p" ] && [ "\${p##*/}" != pi-coding-agent ]; do p="\${p%/*}"; done && ` +
+        `[ -n "$p" ] && echo "$p"`,
+    ],
+    timeoutMs: 15_000,
+  });
+  const dir = String(res?.stdout ?? "").trim();
+  if (res?.exitCode !== 0 || !dir) {
+    throw new Error(
+      `pi-ai provider-cost patch: cannot resolve the pi-coding-agent package behind ${DAYTONA_PI_COMMAND}`,
+    );
+  }
+  return dir;
 }
 
 /**
