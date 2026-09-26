@@ -22,3 +22,13 @@ export const formatCount = (value: number | null | undefined): string =>
 
 export const formatDateTime = (iso: string | null | undefined): string =>
     iso ? new Date(iso).toLocaleString() : "—"
+
+/** A sandbox interval's time and size: "60 s · 2 vCPU · 4 GiB". */
+export const formatSandbox = (
+    seconds: number | null | undefined,
+    vcpu: number | null | undefined,
+    memoryGib: number | null | undefined,
+): string =>
+    seconds === null || seconds === undefined
+        ? "—"
+        : `${seconds.toLocaleString()} s · ${vcpu ?? "?"} vCPU · ${memoryGib ?? "?"} GiB`

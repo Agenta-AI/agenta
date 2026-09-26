@@ -3,11 +3,17 @@ import {useState} from "react"
 import {CaretDown, CaretRight} from "@phosphor-icons/react"
 
 import type {WalletUsageSession} from "./walletApi"
-import {formatCount, formatDateTime, formatMusd, formatUsdExact} from "./walletFormat"
+import {
+    formatCount,
+    formatDateTime,
+    formatMusd,
+    formatSandbox,
+    formatUsdExact,
+} from "./walletFormat"
 
 const CELL = "px-2 py-1.5 text-left align-top"
 
-/** One session's totals; expands to every charge in it with the raw token counts. */
+/** One session's totals; expands to every charge in it with its raw token or sandbox counts. */
 export const WalletUsageSessionRow = ({session}: {session: WalletUsageSession}) => {
     const [open, setOpen] = useState(false)
 
@@ -51,6 +57,7 @@ export const WalletUsageSessionRow = ({session}: {session: WalletUsageSession}) 
                                         <th className={`${CELL} text-right`}>Output</th>
                                         <th className={`${CELL} text-right`}>Cache read</th>
                                         <th className={`${CELL} text-right`}>Cache write</th>
+                                        <th className={`${CELL} text-right`}>Sandbox</th>
                                         <th className={`${CELL} text-right`}>Amount</th>
                                         <th className={CELL}>Price version</th>
                                     </tr>
@@ -78,6 +85,15 @@ export const WalletUsageSessionRow = ({session}: {session: WalletUsageSession}) 
                                             </td>
                                             <td className={`${CELL} text-right tabular-nums`}>
                                                 {formatCount(charge.cache_write_tokens)}
+                                            </td>
+                                            <td
+                                                className={`${CELL} text-right whitespace-nowrap tabular-nums`}
+                                            >
+                                                {formatSandbox(
+                                                    charge.sandbox_seconds,
+                                                    charge.vcpu,
+                                                    charge.memory_gib,
+                                                )}
                                             </td>
                                             <td
                                                 className={`${CELL} text-right whitespace-nowrap tabular-nums`}
