@@ -982,6 +982,14 @@ function lastAssistantText(messages: any): string {
  */
 const INPUT_TOKENS_INCLUDES_CACHE = "agenta.usage.input_tokens_includes_cache";
 
+/**
+ * Marks a model span whose model a custom model connection serves: the user's own gateway or
+ * OpenAI-compatible deployment (`modelConnection.deployment === "custom"`). Such an endpoint
+ * charges what it charges, so the bare model id on the span must not be priced at the public
+ * provider rate. Set to `true` only on those spans; absent means a standard provider route.
+ */
+export const CUSTOM_CONNECTION = "agenta.model.custom_connection";
+
 /** Fill an LLM span from a finished assistant message (model, tokens, finish, output). */
 /** Returns the error message when the assistant turn failed (stopReason/errorMessage), else
  * undefined — so the caller can emit a matching `error` event, not just stamp the span. */
@@ -1635,6 +1643,12 @@ export interface SandboxAgentOtelInit extends Omit<
   /** Resolved model id ("openai-codex/gpt-5.5"); set on the LLM span. */
   model?: string;
   /**
+   * The model connection's deployment surface (`request.modelConnection.deployment`). A
+   * `custom` one is the user's own endpoint, so the model spans say so (see
+   * CUSTOM_CONNECTION).
+   */
+  connectionDeployment?: string;
+  /**
    * Skill names actually materialized for this run — BOTH the author-supplied skills and the
    * forced Agenta platform `_agenta.*` skills the server injected. Stamped on the agent span so
    * a trace shows which skills loaded (F-029), not just the author config echoed elsewhere.
@@ -1724,6 +1738,7 @@ export function createSandboxAgentOtel(
   // undefined. The shared provider keeps runner and Pi export behavior identical.
   const authorization = platformAuthorizationProvider(init.authorization);
   const { provider, id: modelId } = splitModel(init.model);
+  const customConnection = init.connectionDeployment === "custom";
   const tracer = trace.getTracer("agenta-sandbox-agent-otel", "0.1.0");
   const runId = mintRunId();
   const streamTrace = createStreamTrace({ harness: init.harness });
@@ -1992,6 +2007,7 @@ export function createSandboxAgentOtel(
     llmSpan.setAttribute("gen_ai.operation.name", "chat");
     if (provider) llmSpan.setAttribute("gen_ai.system", provider);
     if (modelId) llmSpan.setAttribute("gen_ai.request.model", modelId);
+    if (customConnection) llmSpan.setAttribute(CUSTOM_CONNECTION, true);
     if (init.harness === "codex" && modelId) {
       // Codex-only: codex-acp reports no response model and its ACP usage carries no cost, so stamp the
       // resolved model as the response model too; the platform cost calculator reads ag.meta.response.model.

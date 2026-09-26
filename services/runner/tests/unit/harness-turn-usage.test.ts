@@ -12,6 +12,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { trace, type Span } from "@opentelemetry/api";
 
 import {
+  awaitEndingPrompt,
   promptTokenDetail,
   turnCostFromRunningTotal,
 } from "../../src/engines/sandbox_agent/usage.ts";
@@ -249,5 +250,22 @@ describe("the ACP tracer stamps the turn's usage on one chat span", () => {
     expect(chats[0]!.attributes["gen_ai.usage.input_tokens"]).toBe(800);
     expect(chats[0]!.attributes["gen_ai.usage.cost"]).toBeUndefined();
     expect(chats[0]!.attributes["gen_ai.response.model"]).toBe("gpt-5.3-codex");
+  });
+});
+
+describe("awaitEndingPrompt (the cancelled prompt of a cold pause)", () => {
+  it("returns the prompt's answer when it arrives in time", async () => {
+    const answer = { stopReason: "cancelled", usage: { inputTokens: 5 } };
+    await expect(
+      awaitEndingPrompt(Promise.resolve(answer), 1000),
+    ).resolves.toBe(answer);
+  });
+
+  it("returns nothing when the prompt rejects or never ends", async () => {
+    const rejected = Promise.reject(new Error("transport closed"));
+    await expect(awaitEndingPrompt(rejected, 1000)).resolves.toBeUndefined();
+    await expect(
+      awaitEndingPrompt(new Promise(() => {}), 10),
+    ).resolves.toBeUndefined();
   });
 });

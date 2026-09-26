@@ -137,7 +137,10 @@ import { reconstructHistoryIfNeeded } from "./reconstruct-history.ts";
 import { carriesApprovalReplyOnly } from "./session-identity.ts";
 import { buildTurnText, priorMessages } from "./transcript.ts";
 import {
+  awaitEndingPrompt,
+  combinePromptResults,
   promptTokenDetail,
+  resolveColdPauseUsageSettleMs,
   resolveRunUsage,
   turnCostFromRunningTotal,
 } from "./usage.ts";
@@ -407,6 +410,7 @@ export async function runTurn(
     request: () => request,
     target: otlpTarget,
     resume: !!opts.resume,
+    nextPromptFollows: !!opts.settleApprovalsThenPrompt,
   });
   // Assigned once the turn's interaction plumbing exists; called from the `finally` so EVERY exit
   // path (done, paused, cancelled, error) settles the durable rows this turn's in-band answers
@@ -551,6 +555,7 @@ export async function runTurn(
     const run = (deps.createOtel ?? createSandboxAgentOtel)({
       harness: plan.harness,
       model: env.model,
+      connectionDeployment: request.modelConnection?.deployment,
       skills: plan.workspace.skillDirs.map((s) => s.name),
       skillsDropped: plan.workspace.skillsDropped,
       traceparent: request.context?.propagation?.traceparent,
@@ -721,6 +726,11 @@ export async function runTurn(
       ).catch(() => {});
     }
 
+    // A cold pause sends the harness a cancel (`destroySession`). Claude and Codex answer the open
+    // prompt with the usage of the work before the pause; the turn waits briefly for that answer
+    // and, while it waits, lets only usage updates through (see `handleUpdate`).
+    let coldPauseCancelSent = false;
+    let coldPauseSettling = false;
     const pause = new PendingApprovalPauseController(() => {
       // Do NOT force-settle open tool calls here, at first pause. With concurrent approvals a
       // second gated call may still be in flight (its permission request lands a tick after the
@@ -742,6 +752,7 @@ export async function runTurn(
       // session teardown, so its handler cannot write a result after the turn ends.
       env.mcpAbort.abort();
       env.sessionDestroyRequested = true;
+      coldPauseCancelSent = true;
       return env.sandbox.destroySession?.(env.session.id);
     });
     if (opts.resume?.carriedForward.length) {
@@ -803,6 +814,15 @@ export async function runTurn(
       pause,
       toolRelay: undefined,
       handleUpdate: (update) => {
+        // The turn is over and waits only for the cancelled prompt's usage. Anything else the
+        // harness sends now is a teardown artifact (Codex writes "*Conversation interrupted*").
+        if (
+          coldPauseSettling &&
+          (update as { sessionUpdate?: unknown })?.sessionUpdate !==
+            "usage_update"
+        ) {
+          return;
+        }
         const codexMcpFailure = codexMcpStartupFailure(plan.harness, update);
         if (codexMcpFailure) {
           // Never as a tool call (it is synthetic), always as the notice. Skipped when the
@@ -1493,6 +1513,10 @@ export async function runTurn(
         cancelled,
       ]);
     let raced = await racePrompt(promptPromise);
+    // The response of a parked prompt this turn finished before its second prompt. Each prompt
+    // reports only its own work, so a runner-traced turn reports both (the paused turn reported
+    // none).
+    let settledPromptResult: unknown;
     if (
       opts.settleApprovalsThenPrompt &&
       raced !== PAUSED &&
@@ -1505,6 +1529,8 @@ export async function runTurn(
       // prompt the runner silently answers the old denied tool call and drops the new text. The
       // old prompt was raced above, so a harness that opened another gate after the denial pauses
       // this turn instead of hanging unwatched. `continuation` makes promptBlocks the fresh tail.
+      settledPromptResult = raced;
+      await harnessTrace.beginNextPrompt(run, runRedactor);
       promptStartedAtMs = Date.now();
       promptPromise = Promise.resolve(env.session.prompt(promptBlocks));
       promptPromise.catch(() => {});
@@ -1614,6 +1640,17 @@ export async function runTurn(
         noteExecutionSettled(request.sessionId, request.turnId);
       }
     }
+    // A cold pause or a user Stop ends the prompt with a cancel. Its answer is the only report of
+    // the work before the cancel: the runner raced past the prompt, and a later turn counts only
+    // its own work. Pi reports that work in its usage sidecar instead (drained below).
+    let cancelledPromptResult: unknown;
+    if (stopReason === "paused" && coldPauseCancelSent && !plan.isPi) {
+      coldPauseSettling = true;
+      cancelledPromptResult = await awaitEndingPrompt(
+        promptPromise,
+        resolveColdPauseUsageSettleMs(),
+      );
+    }
     if (stopReason === "cancelled") {
       env.parkedApprovals.clear();
       env.parkedApproval = undefined;
@@ -1630,6 +1667,14 @@ export async function runTurn(
         log: logger,
       });
       cancelSettled = cancel.settled;
+      // A settled cancel means the prompt already answered, so this read does not wait. The
+      // frames of the cancel window keep their normal routing: a Stop honors real completions.
+      if (cancel.settled && !plan.isPi) {
+        cancelledPromptResult = await awaitEndingPrompt(
+          promptPromise,
+          resolveColdPauseUsageSettleMs(),
+        );
+      }
       // Codex leaves its shell child running inside the sandbox we are about to park; Pi and
       // Claude kill theirs. Reap it here, never in the bridge: the Codex shell is a child of a
       // vendored Rust binary the JS bridge holds no pid for, and a bridge patch would ship only
@@ -1687,22 +1732,41 @@ export async function runTurn(
     // batch first is therefore the cross-filesystem publication barrier for both local and
     // Daytona runs. Runner-traced harnesses still need usage before trace finalization so the
     // runner can stamp it on its own span.
+    //
+    // A pause that destroyed the Pi session (no approval park) ends the prompt for good: Pi
+    // publishes the partial trace and usage of the work before the pause as it stops. Drain them
+    // here too, so this turn reports that usage instead of racing Pi's write. A parked prompt is
+    // still running and publishes on the turn that resumes it.
     let traceFinish =
-      plan.isPi && stopReason !== "paused"
+      plan.isPi && (stopReason !== "paused" || env.sessionDestroyRequested)
         ? await harnessTrace.finish()
         : undefined;
-    const resolvedUsage = await resolveRunUsage({
-      sandbox: env.sandbox,
-      usageOutPath: plan.workspace.usageOutPath,
-      isDaytona: plan.isDaytona,
-      promptResult: result,
-      streamUsage: run.usage(),
-    });
+    // Pi traces the parked prompt under the paused turn's trace, and the platform totals that trace
+    // from those spans. Its usage stays out of this turn's, which would count it on a second root.
+    // A pure approval resume runs only the parked prompt, so it reports no usage at all.
+    const turnPromptResult = plan.isPi
+      ? result
+      : combinePromptResults(
+          settledPromptResult,
+          result ?? cancelledPromptResult,
+        );
+    const resolvedUsage =
+      plan.isPi && opts.resume
+        ? undefined
+        : await resolveRunUsage({
+            sandbox: env.sandbox,
+            usageOutPath: plan.workspace.usageOutPath,
+            isDaytona: plan.isDaytona,
+            promptResult: turnPromptResult,
+            streamUsage: run.usage(),
+          });
     const isClaude = harnessKindOf(plan.harness) === "claude";
     const usage = isClaude
       ? claudeTurnUsage(resolvedUsage, env)
       : resolvedUsage;
-    run.setTokenDetail?.(promptTokenDetail(result, { perModel: isClaude }));
+    run.setTokenDetail?.(
+      promptTokenDetail(turnPromptResult, { perModel: isClaude }),
+    );
     run.setUsage(usage);
     if (!plan.isPi && stopReason !== "paused") {
       traceFinish = await harnessTrace.finish();
