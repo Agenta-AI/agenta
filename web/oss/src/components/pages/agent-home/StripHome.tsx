@@ -1,8 +1,10 @@
-import {useCallback, useEffect, useRef, useState} from "react"
+import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
+import {isConnectionActive, useToolConnectionsQuery} from "@agenta/entities/gatewayTool"
 import {appTemplatesQueryAtom} from "@agenta/entities/workflow"
 import {
     agentTemplateByKey,
+    detectAccounts,
     agentTemplatesAtom,
     agentTemplatesStatusAtom,
     templateBuilderMessage,
@@ -152,6 +154,15 @@ const StripHome: React.FC = () => {
 
     // The pre-create connect step (#6043). `open` replaces create.
     const setup = useAgentSetupStep()
+    const {connections} = useToolConnectionsQuery()
+    const connectedSlugs = useMemo(
+        () =>
+            connections
+                .filter(isConnectionActive)
+                .map((connection) => connection.integration_key)
+                .filter(Boolean) as string[],
+        [connections],
+    )
     /**
      * The card's create gate and live selection, reported up (`onReadyChange`): the Create
      * button lives in the composer's trailing cluster (mobile parity — the step docks INSIDE
@@ -275,6 +286,10 @@ const StripHome: React.FC = () => {
         ) {
             setStepReady(false)
             seedComposer(templateBuilderMessage(template))
+        } else {
+            // Nothing to connect for this pick: drop an earlier template's step, or Create would
+            // still build that one.
+            setup.close()
         }
     }, [
         templateParam,
@@ -283,6 +298,7 @@ const StripHome: React.FC = () => {
         message,
         provenance.pick,
         setup.open,
+        setup.close,
         setup.draft,
         seedComposer,
     ])
@@ -333,7 +349,25 @@ const StripHome: React.FC = () => {
             }
             if (!message) return
             setLoading(true)
-            const ok = await onCreate(provenance.resolveTemplateName(), markdown)
+            // A `?template=` pick with nothing to connect still loads its package, binding the
+            // accounts the workspace already has, unless the user edited its prompt away.
+            const templateName = provenance.resolveTemplateName()
+            const template =
+                pickedTemplate && templateName === pickedTemplate.name ? pickedTemplate : undefined
+            const ok = await onCreate(
+                templateName,
+                markdown,
+                template
+                    ? {
+                          accounts: detectAccounts({
+                              description: templateBuilderMessage(template),
+                              template,
+                          }),
+                          connectedSlugs,
+                      }
+                    : undefined,
+                template,
+            )
             if (!ok) setLoading(false)
         },
         [
@@ -346,6 +380,8 @@ const StripHome: React.FC = () => {
             seedComposer,
             handleCreateFromSetup,
             composerRef,
+            pickedTemplate,
+            connectedSlugs,
         ],
     )
 
