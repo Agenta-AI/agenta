@@ -127,6 +127,12 @@ async function runPiTurn(
   cost?: { total: number; source?: string },
 ) {
   const spans = spyTracer();
+  const pi = registerPi();
+  await piTurn(pi, customConnection, cost);
+  return Object.assign(spans, { usage: pi.otel.usage() });
+}
+
+function registerPi() {
   const otel = createAgentaOtel({ captureContent: false });
   const handlers: Record<string, (e: any, ctx?: any) => Promise<void>> = {};
   otel.register({
@@ -134,6 +140,14 @@ async function runPiTurn(
       handlers[name] = fn;
     },
   } as any);
+  return { otel, handlers };
+}
+
+async function piTurn(
+  { otel, handlers }: ReturnType<typeof registerPi>,
+  customConnection: boolean | undefined,
+  cost?: { total: number; source?: string },
+) {
   otel.beginTurn({ enabled: true, captureContent: false, customConnection });
 
   await handlers["before_agent_start"]?.({ prompt: "hi" });
@@ -157,7 +171,7 @@ async function runPiTurn(
       },
     },
   });
-  return Object.assign(spans, { usage: otel.usage() });
+  await handlers["agent_settled"]?.({});
 }
 
 describe("custom model connection marker on Pi native spans", () => {
@@ -196,5 +210,15 @@ describe("custom model connection marker on Pi native spans", () => {
     const spans = await runPiTurn(true, { total: 0.03, source: "provider" });
     expect(modelSpans(spans)[0].attributes["gen_ai.usage.cost"]).toBe(0.03);
     expect(spans.usage.cost).toBe(0.03);
+  });
+
+  it("reports no cost for a custom-connection turn after a priced turn", async () => {
+    spyTracer();
+    const pi = registerPi();
+    await piTurn(pi, false, { total: 0.01 });
+    expect(pi.otel.usage().cost).toBe(0.01);
+
+    await piTurn(pi, true, { total: 0.02 });
+    expect(pi.otel.usage()).toEqual({ input: 10, output: 5, total: 15 });
   });
 });
