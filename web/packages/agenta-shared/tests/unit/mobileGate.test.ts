@@ -183,6 +183,20 @@ describe("mobileRouteFor", () => {
         ["/w/ws1/p/pr1/agents/archived", "", null],
         ["/settings", "", null],
         ["/workspaces/accept", "", null],
+        // A website template link opens that template's setup step on /m.
+        ["/w", "?template=pr-reviewer", "/m/?template=pr-reviewer"],
+        [
+            "/w/ws1/p/pr1/apps",
+            "?template=pr-reviewer",
+            "/m/w/ws1/p/pr1/agents/new?template=pr-reviewer",
+        ],
+        [
+            "/w/ws1/p/pr1/apps",
+            "?new=1&template=pr-reviewer",
+            "/m/w/ws1/p/pr1/agents/new?template=pr-reviewer",
+        ],
+        ["/w/ws1/p/pr1", "?template=a%20b", "/m/w/ws1/p/pr1/agents/new?template=a%20b"],
+        ["/w/ws1/p/pr1/apps", "?template=", "/m/w/ws1/p/pr1/apps"],
     ]
 
     it.each(cases)("maps %s → %s", (pathname, search, expected) => {

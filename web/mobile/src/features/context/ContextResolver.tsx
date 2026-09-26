@@ -4,18 +4,19 @@ import {Button} from "@agenta/ui/ui"
 import {useQuery} from "@tanstack/react-query"
 import {useRouter} from "next/router"
 
+import {selectContextTarget} from "./contextTarget"
+import {groupByWorkspace, type WorkspaceGroup} from "./workspaceGroups"
+
 import {ScreenScaffold} from "@/components/ScreenScaffold"
 import {HomePageSkeleton} from "@/features/home/states/HomePageSkeleton"
 import {
     fetchProjects,
     projectHomeUrl,
+    projectTemplateUrl,
     readDesktopLastUsed,
     readLastContext,
     type LastContext,
 } from "@/lib/context"
-
-import {selectContextTarget} from "./contextTarget"
-import {groupByWorkspace, type WorkspaceGroup} from "./workspaceGroups"
 
 interface ContextResolverProps {
     /**
@@ -71,7 +72,9 @@ export const ContextResolver = ({workspaceId}: ContextResolverProps = {}) => {
 
     useEffect(() => {
         if (!target?.projectId) return
-        const next = projectHomeUrl(target)
+        const templateKey =
+            typeof router.query.template === "string" ? router.query.template.trim() : ""
+        const next = templateKey ? projectTemplateUrl(target, templateKey) : projectHomeUrl(target)
         // A gate that forwards to itself would loop; nothing here ever resolves to its own
         // path, but the guard keeps that true if a route is added under a project home.
         if (router.asPath.split("?")[0] === next) return
