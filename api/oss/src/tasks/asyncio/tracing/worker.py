@@ -14,6 +14,7 @@ from oss.src.core.tracing.service import TracingService
 from oss.src.core.tracing.totals import (
     TraceKey,
     claim_due_trace_totals,
+    requeue_trace_totals,
     schedule_trace_totals,
 )
 from oss.src.utils.env import env
@@ -24,6 +25,9 @@ from oss.src.core.tracing.streaming import deserialize_span
 from oss.src.tasks.asyncio.shared.consumer import StreamConsumer
 
 log = get_module_logger(__name__)
+
+#: Most traces kept in memory for a later try when scheduling their totals fails.
+MAX_UNSCHEDULED_TRACES = 10_000
 
 if is_ee():
     from ee.src.core.access.entitlements.service import (
@@ -87,12 +91,16 @@ class TracingWorker(StreamConsumer):
         )
         self.totals_poll_s = totals_poll_s
         self.totals_batch_size = totals_batch_size
+        #: Traces whose totals scheduling failed; tried again on the next call.
+        self.unscheduled_totals: Dict[TraceKey, Set[str]] = {}
 
     async def run(self):
         await asyncio.gather(super().run(), self.run_totals())
 
     async def run_totals(self):
         while True:
+            if self.unscheduled_totals:
+                await self.schedule_totals({})
             try:
                 recomputed = await self.recompute_due_totals()
             except Exception:
@@ -107,6 +115,7 @@ class TracingWorker(StreamConsumer):
             self.redis, limit=self.totals_batch_size
         )
 
+        failed: List[TraceKey] = []
         for project_id, trace_id in trace_keys:
             try:
                 await self.service.recompute_trace_totals(
@@ -114,27 +123,65 @@ class TracingWorker(StreamConsumer):
                     trace_id=trace_id,
                 )
             except Exception:
-                # Dropped: the next request for this trace schedules it again.
                 log.error(
                     "[INGEST] Failed to recompute trace totals",
                     project_id=str(project_id),
                     trace_id=str(trace_id),
                     exc_info=True,
                 )
+                failed.append((project_id, trace_id))
+
+        if failed:
+            # The claim removed these traces from the queue; put them back for a later try.
+            try:
+                await requeue_trace_totals(
+                    self.redis,
+                    trace_keys=failed,
+                    delay_ms=self.totals_delay_ms,
+                )
+            except Exception:
+                log.error(
+                    "[INGEST] Failed to requeue trace totals",
+                    count=len(failed),
+                    exc_info=True,
+                )
 
         return len(trace_keys)
 
     async def schedule_totals(self, batches_by_trace: Dict[TraceKey, Set[str]]):
-        if not batches_by_trace:
+        """Schedule totals without failing the batch.
+
+        The spans are already stored and metered, so a Redis error here must not stop the
+        ACK: a redelivered batch would meter its traces again. The traces stay in memory
+        instead, and the next call (next batch or the totals loop) tries them again.
+        """
+        pending = self.unscheduled_totals
+        for key, batch_ids in batches_by_trace.items():
+            pending.setdefault(key, set()).update(batch_ids)
+        if not pending:
             return
+
+        self.unscheduled_totals = {}
         try:
             await schedule_trace_totals(
                 self.redis,
-                batches_by_trace=batches_by_trace,
+                batches_by_trace=pending,
                 delay_ms=self.totals_delay_ms,
             )
         except Exception:
-            log.error("[INGEST] Failed to schedule trace totals", exc_info=True)
+            log.error(
+                "[INGEST] Failed to schedule trace totals",
+                count=len(pending),
+                exc_info=True,
+            )
+            if len(pending) > MAX_UNSCHEDULED_TRACES:
+                log.error(
+                    "[INGEST] Dropping unscheduled trace totals",
+                    count=len(pending) - MAX_UNSCHEDULED_TRACES,
+                )
+                pending = dict(list(pending.items())[-MAX_UNSCHEDULED_TRACES:])
+            for key, batch_ids in pending.items():
+                self.unscheduled_totals.setdefault(key, set()).update(batch_ids)
 
     async def process_batch(
         self, batch: List[Tuple[bytes, Dict[bytes, bytes]]]

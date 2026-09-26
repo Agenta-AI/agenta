@@ -168,6 +168,87 @@ async def test_worker_skips_messages_without_a_batch_id():
     assert len(service.ingested) == 2
 
 
+class _FailingOnceService(_FakeService):
+    def __init__(self):
+        super().__init__()
+        self.failures = 1
+
+    async def recompute_trace_totals(self, *, project_id, trace_id):
+        if self.failures:
+            self.failures -= 1
+            raise RuntimeError("db down")
+        return await super().recompute_trace_totals(
+            project_id=project_id, trace_id=trace_id
+        )
+
+
+async def test_worker_requeues_a_trace_whose_recompute_fails():
+    redis = fakeredis.FakeRedis()
+    service = _FailingOnceService()
+    worker = _worker(redis, service)
+    ids = dict(organization_id=uuid4(), project_id=uuid4(), user_id=uuid4())
+    trace_id = uuid4()
+
+    await worker.process_batch([_message(ids, trace_id, "request-1")])
+    await worker.process_batch([_message(ids, trace_id, "request-2")])
+
+    assert await worker.recompute_due_totals() == 1
+    assert service.recomputed == []
+
+    assert await worker.recompute_due_totals() == 1
+    assert service.recomputed == [(ids["project_id"], trace_id)]
+
+
+async def test_worker_requeues_a_failed_recompute_after_the_delay():
+    redis = fakeredis.FakeRedis()
+    worker = _worker(redis, _FailingOnceService())
+    worker.totals_delay_ms = 60_000
+    key = (uuid4(), uuid4())
+    await redis.zadd(TOTALS_QUEUE_KEY, {f"{key[0].hex}:{key[1].hex}": 0})
+
+    assert await worker.recompute_due_totals() == 1
+
+    assert await redis.zcard(TOTALS_QUEUE_KEY) == 1
+    assert await worker.recompute_due_totals() == 0
+
+
+class _BrokenRedis:
+    """Delegates to fakeredis; `broken` makes pipelines and ZADD raise."""
+
+    def __init__(self, redis):
+        self.redis = redis
+        self.broken = False
+
+    def __getattr__(self, name):
+        if self.broken and name in ("pipeline", "zadd"):
+            raise ConnectionError("redis down")
+        return getattr(self.redis, name)
+
+
+async def test_worker_keeps_traces_whose_scheduling_fails_and_retries_them():
+    redis = fakeredis.FakeRedis()
+    broken = _BrokenRedis(redis)
+    service = _FakeService()
+    worker = _worker(broken, service)
+    ids = dict(organization_id=uuid4(), project_id=uuid4(), user_id=uuid4())
+    trace_id = uuid4()
+
+    await worker.process_batch([_message(ids, trace_id, "request-1")])
+    broken.broken = True
+    processed, message_ids = await worker.process_batch(
+        [_message(ids, trace_id, "request-2")]
+    )
+    assert (processed, len(message_ids)) == (1, 1)
+    assert worker.unscheduled_totals
+
+    broken.broken = False
+    await worker.schedule_totals({})
+
+    assert worker.unscheduled_totals == {}
+    assert await worker.recompute_due_totals() == 1
+    assert service.recomputed == [(ids["project_id"], trace_id)]
+
+
 # --- DAO ---------------------------------------------------------------------
 
 
