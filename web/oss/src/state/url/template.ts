@@ -1,8 +1,12 @@
-import {AGENT_TEMPLATES, type AgentStarterTemplate} from "@agenta/entities/workflow"
+import type {AgentStarterTemplate, AgentTemplateLookup} from "@agenta/entities/workflow"
 import {atom, getDefaultStore} from "jotai"
 
 // Capture / storage / TTL / validation / claim for a website template deep-link. Kept out of
 // auth.ts so that module does not become a registry of unrelated features; auth.ts only calls in.
+//
+// Capture, storage and claim never read the template catalog: it is served by the API and may not
+// have loaded yet (or may have failed) when the key arrives. Validation happens at consume time,
+// against `agentTemplateLookupAtomFamily(key)`, through `pendingTemplateDecision` below.
 
 const hasWindow = () => typeof window !== "undefined"
 
@@ -42,18 +46,27 @@ interface TemplateClaim extends PendingTemplate {
 
 export const activeTemplateAtom = atom<PendingTemplate | null>(null)
 
-const validTemplateKeys = new Set(AGENT_TEMPLATES.map((template) => template.key))
+export type PendingTemplateDecision =
+    | {action: "wait"; reason: "pending" | "error"}
+    | {action: "discard"}
+    | {action: "consume"; template: AgentStarterTemplate}
 
-/** Exact-match lookup against the app registry; an unknown or stale key resolves to undefined. */
-export const resolveTemplate = (
-    key: string | null | undefined,
-): AgentStarterTemplate | undefined => {
-    if (!key) return undefined
-    return AGENT_TEMPLATES.find((template) => template.key === key)
+/**
+ * What to do with a captured key, given its exact-match lookup in the catalog. The key is kept
+ * ("wait") while the catalog is loading or its read failed: neither says the key is unknown. Only
+ * a confirmed miss — the catalog loaded without it — discards it, and it never falls back to
+ * another template.
+ */
+export const pendingTemplateDecision = (lookup: AgentTemplateLookup): PendingTemplateDecision => {
+    switch (lookup.status) {
+        case "found":
+            return {action: "consume", template: lookup.template}
+        case "missing":
+            return {action: "discard"}
+        default:
+            return {action: "wait", reason: lookup.status}
+    }
 }
-
-export const isValidTemplateKey = (key: string | null | undefined): boolean =>
-    !!key && validTemplateKeys.has(key)
 
 export const parseTemplateFromUrl = (url: URL): string | null => {
     const key = url.searchParams.get(TEMPLATE_URL_PARAM)?.trim()

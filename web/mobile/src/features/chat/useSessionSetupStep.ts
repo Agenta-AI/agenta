@@ -1,7 +1,7 @@
 import {useCallback, useEffect, useState} from "react"
 
 import {useToolConnectionsQuery} from "@agenta/entities/gatewayTool"
-import {agentTemplateByKey} from "@agenta/entities/workflow"
+import {agentTemplateLookupAtomFamily} from "@agenta/entities/workflow"
 import {useAgentSetupStep} from "@agenta/entity-ui/onboarding"
 import {useAtomValue} from "jotai"
 
@@ -48,6 +48,11 @@ export const useSessionSetupStep = (sessionId: string): SessionSetupStep => {
 
     const templateKey = task?.templateKey
     const seedMessage = task?.text ?? ""
+    // The catalogue is fetched: a key reads as "names no template" only once it has LOADED.
+    // Until then (or after a failed read) the decision waits, under the same bounded wait.
+    const lookup = useAtomValue(agentTemplateLookupAtomFamily(templateKey ?? ""))
+    const catalogueWaiting = lookup.status === "pending" || lookup.status === "error"
+    const waiting = connectionsLoading || catalogueWaiting
 
     // Whether this session's open-or-skip decision has been made. State, not a ref: the held
     // message is released by a re-render, so a ref would hold it until something else moved.
@@ -59,12 +64,12 @@ export const useSessionSetupStep = (sessionId: string): SessionSetupStep => {
     }, [sessionId])
 
     // The bounded half of the wait. Armed only while a template create is actually waiting on the
-    // query, so an ordinary session never sets a timer.
+    // queries (connections, template catalogue), so an ordinary session never sets a timer.
     useEffect(() => {
-        if (decided || !templateKey || !connectionsLoading) return
+        if (decided || !templateKey || !waiting) return
         const timer = setTimeout(() => setWaitedOut(true), SETUP_CONNECTIONS_WAIT_LIMIT_MS)
         return () => clearTimeout(timer)
-    }, [decided, templateKey, connectionsLoading])
+    }, [decided, templateKey, waiting])
 
     const {open: openStep} = step
     useEffect(() => {
@@ -74,12 +79,13 @@ export const useSessionSetupStep = (sessionId: string): SessionSetupStep => {
             setDecided(true)
             return
         }
-        if (connectionsLoading && !waitedOut) return
-        const template = agentTemplateByKey(templateKey)
-        // A key that names no template is not a reason to hold a message.
+        if (waiting && !waitedOut) return
+        const template = lookup.template
+        // A key that names no template is not a reason to hold a message — nor is a catalogue
+        // that never answered within the wait.
         if (template) openStep({seedMessage, name: template.name, template})
         setDecided(true)
-    }, [decided, templateKey, seedMessage, connectionsLoading, waitedOut, openStep])
+    }, [decided, templateKey, seedMessage, waiting, waitedOut, lookup.template, openStep])
 
     const {close} = step
     const resolve = useCallback(() => close(), [close])

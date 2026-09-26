@@ -3,9 +3,11 @@ import {useEffect, useRef, useState} from "react"
 import {stagedFilesToParts, useComposerAttachments} from "@agenta/chat/hooks"
 import {markSessionFresh} from "@agenta/chat/state"
 import {
-    agentTemplateByKey,
+    agentTemplateLookupAtomFamily,
     abandonAgentTemplateLoad,
+    refetchAgentTemplatesAtom,
     templateBuilderMessage,
+    UNAVAILABLE_TEMPLATE_MESSAGE,
     type AgentSetupSelection,
     type AgentStarterTemplate,
 } from "@agenta/entities/workflow"
@@ -13,7 +15,7 @@ import {AgentSetupCard, useAgentSetupStep} from "@agenta/entity-ui/onboarding"
 import {classifyAgentIntent} from "@agenta/shared/analytics"
 import {HeightCollapse} from "@agenta/ui/height-collapse"
 import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
-import {useAtom} from "jotai"
+import {useAtom, useAtomValue, useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 
 import {captureIntent} from "@/features/analytics/client"
@@ -26,6 +28,7 @@ import {SessionWorkspace} from "../chat/SessionWorkspace"
 import {FIRST_RUN_COPY} from "./copy"
 import {FirstRunComposer} from "./FirstRunComposer"
 import {FirstRunTemplates} from "./FirstRunTemplates"
+import {FirstRunHeroSkeleton} from "./states/FirstRunHeroSkeleton"
 import {useEphemeralAgent} from "./useEphemeralAgent"
 
 /**
@@ -168,7 +171,19 @@ export const FirstRunScreen = ({
     // A `?template=` arrival was picked on another page, so the step opens on landing — once per
     // key, because this surface stays mounted across query-only navigations. `open` declining
     // means there is nothing to connect, and the navigation here already meant "use it".
-    const arrivedTemplate = agentTemplateByKey(templateKey)
+    //
+    // The catalogue is fetched, so the key resolves in three steps: pending (the hero waits), an
+    // error (a retry), and only after a successful load "missing" — the existing not-found path,
+    // which offers blank create as before. Never a different template, never a silent blank.
+    const arrivalLookup = useAtomValue(agentTemplateLookupAtomFamily(templateKey ?? ""))
+    const refetchTemplates = useSetAtom(refetchAgentTemplatesAtom)
+    const arrivedTemplate = templateKey ? arrivalLookup.template : undefined
+    const arrivalUnresolved =
+        Boolean(templateKey) &&
+        (arrivalLookup.status === "pending" || arrivalLookup.status === "error")
+    // Only a pending read holds create: after a failed read the error line is on screen, so a
+    // create from the composer is the user's own choice of a blank agent.
+    const arrivalPending = Boolean(templateKey) && arrivalLookup.status === "pending"
     const seededTemplate = useRef<string | null>(null)
     useEffect(() => {
         if (!arrivedTemplate || !entityId) return
@@ -183,10 +198,15 @@ export const FirstRunScreen = ({
             parts: arrival?.parts,
             entityId,
         })
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [arrivedTemplate, entityId])
 
     const create = async (text: string, setup?: AgentSetupSelection) => {
+        // A `?template=` arrival still resolving must not turn into a blank create under it: keep
+        // the typed text and wait for the template (or its retry).
+        if (arrivalPending && !step.draft) {
+            setRefill(text)
+            return
+        }
         if (text.trim()) {
             captureIntent({source: "composer", intentValue: classifyAgentIntent(text)})
         }
@@ -260,17 +280,26 @@ export const FirstRunScreen = ({
         <div className="flex h-full min-h-0 flex-col overflow-y-auto px-4 pb-4 lg:px-8">
             <div className="mx-auto flex w-full max-w-[880px] flex-1 flex-col gap-6 pt-8 lg:pt-14">
                 <div className="flex flex-col gap-2">
-                    <h1 className="m-0 text-2xl font-semibold leading-tight lg:text-[32px]">
-                        {template
-                            ? FIRST_RUN_COPY.templateTitle(template.name)
-                            : FIRST_RUN_COPY.title}
-                    </h1>
-                    {/* A template hero DESCRIBES ("Reviews PRs, comments inline…"), it does not
-                        repeat the build prompt — that sits in the editor below. `description` is
-                        the card's one-liner; the clamp guards a template that overruns it. */}
-                    <p className="text-muted-foreground m-0 line-clamp-2 text-sm lg:text-base">
-                        {template ? template.description : FIRST_RUN_COPY.subtitle}
-                    </p>
+                    {/* A `?template=` arrival still loading: the hero will name it, so it holds
+                        the hero's shape rather than asking the blank-create question first. */}
+                    {!template && arrivalUnresolved && arrivalLookup.status === "pending" ? (
+                        <FirstRunHeroSkeleton />
+                    ) : (
+                        <>
+                            <h1 className="m-0 text-2xl font-semibold leading-tight lg:text-[32px]">
+                                {template
+                                    ? FIRST_RUN_COPY.templateTitle(template.name)
+                                    : FIRST_RUN_COPY.title}
+                            </h1>
+                            {/* A template hero DESCRIBES ("Reviews PRs, comments inline…"), it
+                                does not repeat the build prompt — that sits in the editor below.
+                                `description` is the card's one-liner; the clamp guards a template
+                                that overruns it. */}
+                            <p className="text-muted-foreground m-0 line-clamp-2 text-sm lg:text-base">
+                                {template ? template.description : FIRST_RUN_COPY.subtitle}
+                            </p>
+                        </>
+                    )}
                 </div>
 
                 {/* Pushes everything below to the bottom of the panel, as the desktop does. */}
@@ -359,6 +388,23 @@ export const FirstRunScreen = ({
                         >
                             Try again
                         </button>
+                    </p>
+                ) : null}
+                {!template && arrivalUnresolved && arrivalLookup.status === "error" ? (
+                    <p className="text-destructive m-0 text-xs">
+                        {FIRST_RUN_COPY.templateLoadError}{" "}
+                        <button
+                            type="button"
+                            onClick={() => refetchTemplates()}
+                            className="text-foreground cursor-pointer border-0 bg-transparent p-0 text-xs underline"
+                        >
+                            Try again
+                        </button>
+                    </p>
+                ) : null}
+                {templateKey && arrivalLookup.status === "missing" ? (
+                    <p className="text-muted-foreground m-0 text-xs">
+                        {UNAVAILABLE_TEMPLATE_MESSAGE}
                     </p>
                 ) : null}
                 {newAgent.error ? (

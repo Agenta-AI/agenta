@@ -1,5 +1,6 @@
 import {useEffect, useRef, useState} from "react"
 
+import {agentTemplateLookupAtomFamily} from "@agenta/entities/workflow"
 import {captureFirstAgentIntent} from "@agenta/shared/analytics"
 import {useAtomValue} from "jotai"
 
@@ -10,7 +11,7 @@ import {
     claimTemplate,
     clearTemplate,
     completeTemplateClaim,
-    resolveTemplate,
+    pendingTemplateDecision,
 } from "@/oss/state/url/template"
 
 import {useCreateAgent} from "./useCreateAgent"
@@ -23,10 +24,15 @@ import {useCreateAgent} from "./useCreateAgent"
  * Returns `true` while a valid template is being consumed, so the caller can hold the onboarding
  * loader instead of flashing the normal surface (which would fire its own redirect and race this).
  *
- * The steps mirror the plan's consume requirements: validate the key by exact registry lookup
+ * The steps mirror the plan's consume requirements: validate the key by exact catalog lookup
  * (an unknown or stale key is ignored and cleared, never creating an agent); wait for a confirmed
  * workspace and project; claim the key so it fires at most once; then create the agent with the
  * seed held behind a Start button (`autoSendSeed: false`).
+ *
+ * The catalog comes from the API, so the lookup can be unresolved. While it loads, the key is kept
+ * and the loader held. If the read fails, the key is still kept (a failed read says nothing about
+ * the key) but the loader is released, so the user is not stuck on a skeleton; the key is consumed
+ * once a later catalog read succeeds. Only a catalog that loaded without the key clears it.
  */
 export function useConsumePendingTemplate(): boolean {
     const pending = useAtomValue(activeTemplateAtom)
@@ -35,6 +41,7 @@ export function useConsumePendingTemplate(): boolean {
     const {workspaceId, projectId} = useAtomValue(appIdentifiersAtom)
     const posthog = usePostHogAg()
     const createAgent = useCreateAgent()
+    const lookup = useAtomValue(agentTemplateLookupAtomFamily(pendingKey ?? ""))
 
     const startedRef = useRef<string | null>(null)
     const [holding, setHolding] = useState<boolean>(() => Boolean(pending))
@@ -48,8 +55,13 @@ export function useConsumePendingTemplate(): boolean {
 
         const pendingGeneration = {key: pendingKey, capturedAt}
         const generationId = pendingKey + ":" + capturedAt
-        const template = resolveTemplate(pendingKey)
-        if (!template) {
+        const decision = pendingTemplateDecision(lookup)
+        if (decision.action === "wait") {
+            // Keep the key; never create or clear on an unresolved lookup.
+            setHolding(decision.reason === "pending")
+            return
+        }
+        if (decision.action === "discard") {
             captureFirstAgentIntent(posthog, {
                 source: "website_template",
                 properties: {templateId: pendingKey, outcome: "invalid"},
@@ -59,6 +71,7 @@ export function useConsumePendingTemplate(): boolean {
             return
         }
 
+        const {template} = decision
         setHolding(true)
 
         // Do not create until the workspace and project are real; the effect re-runs when they
@@ -119,7 +132,7 @@ export function useConsumePendingTemplate(): boolean {
                 if (startedRef.current === generationId) startedRef.current = null
             }
         })()
-    }, [pendingKey, capturedAt, workspaceId, projectId, posthog, createAgent])
+    }, [pendingKey, capturedAt, lookup, workspaceId, projectId, posthog, createAgent])
 
     return holding
 }

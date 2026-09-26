@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "id": "agenta",
+  "name": "Agenta",
+  "bio": "Starter agents built and maintained by the Agenta team.",
+  "avatar_url": null,
+  "links": [
+    {
+      "kind": "website",
+      "url": "https://agenta.ai",
+      "label": "agenta.ai"
+    },
+    {
+      "kind": "github",
+      "url": "https://github.com/Agenta-AI/agenta",
+      "label": "GitHub"
+    }
+  ]
+}

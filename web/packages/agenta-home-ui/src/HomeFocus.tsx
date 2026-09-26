@@ -57,6 +57,9 @@ export interface HomeFocusProps {
     loadingSlot?: ReactNode
     emptySlot?: ReactNode
     errorSlot?: ReactNode
+    /** The templates tab's states: the catalogue is still loading, or failed (with a retry). */
+    templatesLoading?: boolean
+    templatesErrorSlot?: ReactNode
 }
 
 /**
@@ -84,6 +87,8 @@ export const HomeFocus = ({
     loadingSlot,
     emptySlot,
     errorSlot,
+    templatesLoading,
+    templatesErrorSlot,
 }: HomeFocusProps) => {
     // Both DERIVE from the roster until someone chooses otherwise, rather than snapshotting it at
     // mount: the list can arrive empty and fill a moment later, and a snapshot left the page stuck
@@ -221,6 +226,8 @@ export const HomeFocus = ({
                     loadingSlot={loadingSlot}
                     emptySlot={emptySlot}
                     errorSlot={errorSlot}
+                    templatesLoading={templatesLoading}
+                    templatesErrorSlot={templatesErrorSlot}
                 />
             </div>
         </div>

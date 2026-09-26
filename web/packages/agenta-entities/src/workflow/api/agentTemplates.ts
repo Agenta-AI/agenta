@@ -16,3 +16,17 @@ export async function loadAgentTemplate(
         },
     )
 }
+
+export type AgentTemplateEntry = AgentaApi.AgentTemplateEntry
+export type AgentTemplatesQuery = AgentaApi.TemplatesQueryRequest
+
+export async function queryAgentTemplates(
+    projectId: string,
+    query: AgentTemplatesQuery = {},
+): Promise<AgentaApi.TemplatesResponse> {
+    // maxRetries 0: the catalog query retries; transport retries on top multiplied into a 40s wait.
+    return getWorkflowsClient().queryAgentTemplates(query, {
+        queryParams: {project_id: projectId},
+        maxRetries: 0,
+    })
+}

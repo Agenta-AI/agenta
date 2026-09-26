@@ -1,16 +1,23 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Request, status
+from fastapi import APIRouter, Query, Request, status
 from fastapi.responses import JSONResponse
 
 from oss.src.apis.fastapi.agent_templates.exceptions import (
     template_load_error_response,
 )
-from oss.src.apis.fastapi.agent_templates.models import TemplateLoadRequest
+from oss.src.apis.fastapi.agent_templates.models import (
+    TemplateLoadRequest,
+    TemplateResponse,
+    TemplatesQueryRequest,
+    TemplatesResponse,
+)
 from oss.src.apis.fastapi.shared.exceptions import FORBIDDEN_EXCEPTION
 from oss.src.core.access.permissions.service import check_action_access
 from oss.src.core.access.permissions.types import Permission
+from oss.src.core.agent_templates.catalog import AgentTemplateCatalog
 from oss.src.core.agent_templates.dtos import TemplateLoadResult
+from oss.src.core.agent_templates.exceptions import TemplateSourceNotFound
 from oss.src.core.agent_templates.loader import AgentTemplateLoader
 from oss.src.core.shared.idempotency import request_key_hash
 from oss.src.utils.exceptions import intercept_exceptions
@@ -22,9 +29,24 @@ _MAX_IDEMPOTENCY_KEY_CHARACTERS = 255
 
 
 class AgentTemplatesRouter:
-    def __init__(self, *, loader: AgentTemplateLoader) -> None:
+    def __init__(
+        self,
+        *,
+        loader: AgentTemplateLoader,
+        catalog: AgentTemplateCatalog,
+    ) -> None:
         self._loader = loader
+        self._catalog = catalog
         self.router = APIRouter()
+        self.router.add_api_route(
+            "/query",
+            self.query_templates,
+            methods=["POST"],
+            operation_id="query_agent_templates",
+            status_code=status.HTTP_200_OK,
+            response_model=TemplatesResponse,
+            response_model_exclude_none=True,
+        )
         self.router.add_api_route(
             "/load",
             self.load_template,
@@ -42,6 +64,59 @@ class AgentTemplatesRouter:
                 503: {"description": "Load handoff not durable"},
             },
         )
+
+        self.router.add_api_route(
+            "/{key}",
+            self.fetch_template,
+            methods=["GET"],
+            operation_id="fetch_agent_template",
+            status_code=status.HTTP_200_OK,
+            response_model=TemplateResponse,
+            response_model_exclude_none=True,
+            responses={404: {"description": "Template not found"}},
+        )
+
+    @staticmethod
+    async def _require_view(request: Request) -> None:
+        if not await check_action_access(  # type: ignore
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.VIEW_WORKFLOWS,
+        ):
+            raise FORBIDDEN_EXCEPTION  # type: ignore
+
+    @intercept_exceptions()
+    async def query_templates(
+        self,
+        request: Request,
+        *,
+        query: TemplatesQueryRequest | None = None,
+    ) -> TemplatesResponse:
+        await self._require_view(request)
+        query = query or TemplatesQueryRequest()
+        templates = self._catalog.query(
+            search=query.search,
+            category=query.category,
+            author_id=query.author_id,
+        )
+        return TemplatesResponse(count=len(templates), templates=templates)
+
+    @intercept_exceptions()
+    async def fetch_template(
+        self,
+        request: Request,
+        key: str,
+        *,
+        version: str | None = Query(default=None, min_length=1, max_length=128),
+    ) -> TemplateResponse | JSONResponse:
+        await self._require_view(request)
+        try:
+            template = self._catalog.fetch(key=key, version=version)
+        except TemplateSourceNotFound as exc:
+            response = template_load_error_response(exc)
+            assert response is not None
+            return response
+        return TemplateResponse(template=template)
 
     @staticmethod
     def _idempotency_error(*, code: str, message: str) -> JSONResponse:
