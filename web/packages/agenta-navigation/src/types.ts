@@ -75,15 +75,6 @@ export type SidebarWorkflowCategory = "app" | "agent" | "evaluator"
 
 export type SidebarMenuMode = "horizontal" | "vertical" | "inline"
 
-export interface SidebarMenuProps {
-    items: SidebarConfig[]
-    collapsed: boolean
-    mode?: SidebarMenuMode
-    openKeys?: string[]
-    onToggleOpenKey?: (key: string) => void
-    onPopupOpenChange?: (key: string, open: boolean) => void
-}
-
 export type SidebarSelection =
     | {mode: "route"; selectedKeyOverride?: string}
     | {mode: "controlled"; selectedKey: string; onSelect: (key: string) => void}

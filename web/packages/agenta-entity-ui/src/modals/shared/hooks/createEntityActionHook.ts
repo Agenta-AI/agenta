@@ -42,18 +42,6 @@ export interface UseEntityActionReturn<TOpenArgs extends unknown[] = []> {
     isOpen: boolean
 }
 
-/**
- * Return type for typed entity action hook (e.g., useTestsetCommit)
- */
-export interface UseTypedEntityActionReturn<TOpenArgs extends unknown[] = []> {
-    /** Trigger action for specific entity type */
-    action: (id: string, name?: string, ...args: TOpenArgs) => void
-    /** Whether the action is in progress */
-    isActioning: boolean
-    /** Whether the modal is open */
-    isOpen: boolean
-}
-
 // ============================================================================
 // FACTORY FUNCTIONS
 // ============================================================================
@@ -105,45 +93,6 @@ export function createEntityActionHook<TOpenArgs extends unknown[] = []>(
         return {
             actionEntity,
             actionEntityRef,
-            isActioning,
-            isOpen,
-        }
-    }
-}
-
-/**
- * Create a typed entity action hook for a specific entity type
- *
- * @param baseHook - The base entity action hook
- * @param entityType - The entity type this hook is for
- * @returns A hook function for the specific entity type
- *
- * @example
- * ```typescript
- * const useEntityCommit = createEntityActionHook({...})
- * const useTestsetCommit = createTypedEntityActionHook(useEntityCommit, "testset")
- *
- * // Usage in component
- * const { action, isActioning, isOpen } = useTestsetCommit()
- * action("id-123", "My Testset")
- * ```
- */
-export function createTypedEntityActionHook<TOpenArgs extends unknown[] = []>(
-    baseHook: () => UseEntityActionReturn<TOpenArgs>,
-    entityType: EntityType,
-): () => UseTypedEntityActionReturn<TOpenArgs> {
-    return function useTypedEntityAction(): UseTypedEntityActionReturn<TOpenArgs> {
-        const {actionEntity, isActioning, isOpen} = baseHook()
-
-        const action = useCallback(
-            (id: string, name?: string, ...args: TOpenArgs) => {
-                actionEntity(entityType, id, name, ...args)
-            },
-            [actionEntity],
-        )
-
-        return {
-            action,
             isActioning,
             isOpen,
         }

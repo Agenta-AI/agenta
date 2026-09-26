@@ -17,7 +17,7 @@ Must run from `sdks/python` so the SDK resolves, and NOT from a directory holdin
 shadows a stdlib name (the script's own directory goes on `sys.path`):
 
     cd sdks/python
-    FIX=../../web/oss/src/components/AgentChatSlice/assets/__fixtures__
+    FIX=../../web/packages/agenta-chat/tests/unit/assets/__fixtures__
     for n in arabicPoetrySession testRunApprovalsSession connectAndFormsSession abandonedFormSession; do
         uv run --no-sync python $FIX/generate/build_live_chunks.py $FIX/$n.json $FIX/$n.liveChunks.json
     done

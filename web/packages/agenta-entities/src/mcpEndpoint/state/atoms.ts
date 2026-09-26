@@ -1,8 +1,7 @@
 /**
  * MCP endpoint entity — Jotai atoms.
  *
- * Ported from `web/oss/src/state/mcpEndpoints/atoms.ts` so that both the Settings dashboard and
- * the agent config form read one cache. The query key is byte-identical with the one the agent
+ * Shared so that both the Settings dashboard and the agent config form read one cache. The query key is byte-identical with the one the agent
  * form's registration invalidates (`["mcp-endpoints", ...]`), so a server registered from the
  * playground shows up in Settings without a reload.
  */

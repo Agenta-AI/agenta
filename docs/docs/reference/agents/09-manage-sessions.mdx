@@ -7,16 +7,18 @@ sidebar_position: 10
 
 Session management endpoints use the authenticated project from the request context.
 
-| Operation            | Endpoint                                                  |
-| -------------------- | --------------------------------------------------------- |
-| Query sessions       | `POST /api/sessions/query`                                |
-| Inspect a session    | `GET /api/sessions/{session_id}`                          |
-| Rename               | `PATCH /api/sessions/{session_id}`                        |
-| Archive or unarchive | `POST /api/sessions/{session_id}/archive` or `/unarchive` |
-| Cancel active work   | `POST /api/sessions/{session_id}/cancel`                  |
-| Delete               | `DELETE /api/sessions/{session_id}`                       |
-| Query interactions   | `POST /api/sessions/interactions/query`                   |
-| Query queued inputs  | `POST /api/sessions/inputs/query`                         |
+| Operation                     | Endpoint                                                             |
+| ----------------------------- | -------------------------------------------------------------------- |
+| Query sessions                | `POST /api/sessions/query`                                           |
+| Inspect a session             | `GET /api/sessions/{session_id}`                                     |
+| Rename                        | `POST /api/sessions/streams/header?session_id={session_id}`          |
+| Archive or unarchive          | `POST /api/sessions/archive?session_id={session_id}` or `/unarchive` |
+| Cancel active work            | `POST /api/sessions/{session_id}/cancel`                             |
+| Delete                        | `DELETE /api/sessions/?session_id={session_id}`                      |
+| Query interactions            | `POST /api/sessions/interactions/query`                              |
+| Edit or remove a queued input | `PATCH` or `DELETE /api/sessions/{session_id}/inputs/{input_id}`     |
+
+The session snapshot from `GET /api/sessions/{session_id}` includes the inputs queued for that session.
 
 ## Query
 

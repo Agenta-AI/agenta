@@ -57,10 +57,10 @@ const TEST_TRACE_ID = process.env.AGENTA_TEST_TRACE_ID || ""
 // would wrongly enable the EE-only rate-limit assertion path.
 const EXPECT_RATELIMIT = /^(1|true|yes)$/i.test(process.env.AGENTA_TEST_EXPECT_RATELIMIT ?? "")
 
-// Seed the lazy Fern SDK singleton with the test backend + key BEFORE any api
-// function runs. getTracesClient() calls getAgentaSdkClient() argless, so the
-// first (seeding) call here fixes the host/auth for the whole worker. Also set
-// the env vars so any argless init elsewhere resolves to the same backend.
+// Point the SDK at the test backend + key BEFORE any api function runs.
+// getTracesClient() builds its client from buildClientOptions(), which reads the
+// AGENTA_HOST / AGENTA_API_KEY env vars — those are what fix the backend here.
+// The singleton is seeded too, for any code that goes through getAgentaSdkClient().
 beforeAll(() => {
     if (!hasBackend) return
     process.env.AGENTA_HOST = TEST_CONFIG.apiUrl

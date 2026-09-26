@@ -5,10 +5,10 @@
  *
  * @example
  * ```typescript
- * import { getSchemaAtPath, parseISODate, isLocalId } from './utils'
+ * import { getSchemaAtPath, parseISODate } from './utils'
  *
  * // Zod schema utilities
- * import { createEntitySchemaSet, createLocalEntityFactory } from './utils'
+ * import { createEntitySchemaSet } from './utils'
  * ```
  */
 
@@ -20,17 +20,10 @@ export {
     type EntitySchema,
     // Navigation
     getSchemaAtPath,
-    getSchemaKeys,
-    isArrayPath,
     // Defaults
     getDefaultValue,
-    createDefaultArrayItem,
     // Conversion
     evaluatorFieldToSchema,
-    evaluatorFieldsToSchema,
-    // Extraction
-    extractPromptSchema,
-    extractCustomPropertiesSchema,
     // Message schemas
     messageSchema,
     messagesSchema,
@@ -43,23 +36,13 @@ export {
     type EntitySchemaSetConfig,
     type EntitySchemaSet,
     type LocalEntityFactory,
-    type InferBase,
-    type InferCreate,
-    type InferUpdate,
-    type InferLocal,
     // Schema set factory
     createEntitySchemaSet,
     // Local entity factory
-    createLocalEntityFactory,
-    createTrackedEntityFactory,
     defaultIdGenerator,
     // Safe parsing
     safeParseWithErrors,
     safeParseWithLogging,
-    parseOrThrow,
-    // Response schemas
-    createPaginatedResponseSchema,
-    createBatchOperationSchema,
     // Common field schemas
     timestampFieldsSchema,
     auditFieldsSchema,
@@ -74,11 +57,8 @@ export {
     type DateParser,
     // Factories
     createTimestampNormalizer,
-    createFieldTransformer,
-    composeTransforms,
     // Built-in
     parseISODate,
-    normalizeTimestampsBasic,
 } from "./transforms"
 
 // Date formatting utilities
@@ -91,26 +71,9 @@ export {
 // Helper utilities
 export {
     // ID utilities
-    isLocalId,
-    isServerId,
     generateLocalId,
     // Batch utilities
     batchUpdate,
-    batchCreate,
-    batchDelete,
-    // Cache utilities (advanced)
-    createCacheConfig,
-    populateChildCache,
-    // Composition utilities (advanced)
-    createRelation,
-    getChildIds,
-    getChildData,
-    createChildIdsAtom,
-    createChildrenAtom,
-    // Typing utilities (internal)
-    hasRequiredFields,
-    assertSchema,
-    safeParseSchema,
 } from "./helpers"
 
 // Latest entity query factory
@@ -168,15 +131,10 @@ export {
     // URI parsing
     type ParsedUriInfo,
     parseRevisionUri,
-    extractRuntimePrefix,
-    extractRoutePath,
     // Revision parameter extraction
     type RawAgConfig,
     extractRevisionParameters,
     extractRevisionParametersFromApiRevision,
-    // Deprecated agConfig aliases
-    extractAgConfig,
-    extractAgConfigFromApiRevision,
     // List item types
     type AppListItem,
     type VariantListItem,
@@ -184,9 +142,4 @@ export {
     // API response types
     type ApiVariant,
     type ApiRevisionListItem,
-    type ApiApp,
-    // Transform utilities
-    transformAppToListItem,
-    transformVariantToListItem,
-    transformRevisionToListItem,
 } from "./revisionUtils"

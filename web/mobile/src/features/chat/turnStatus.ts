@@ -1,4 +1,4 @@
-import {deriveRemoteTurnPresentation, type SessionRunStatus} from "@agenta/chat/model"
+import {deriveRemoteTurnPresentation} from "@agenta/chat/model"
 import {runKey} from "@agenta/chat/state"
 
 /** Mobile presentation for a remote/shared-path run. */
@@ -18,14 +18,6 @@ export const runIdFor = (
     }
     return undefined
 }
-
-export const showRunningElsewhere = ({
-    running,
-    localStatus,
-}: {
-    running: boolean
-    localStatus: SessionRunStatus
-}): boolean => running && localStatus !== "running" && localStatus !== "awaiting"
 
 /** Whether the turn at `index` is the session's first response, the one that boots the agent. */
 export const isFirstResponse = (turns: {isUser: boolean}[], index: number): boolean =>

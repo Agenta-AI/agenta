@@ -44,9 +44,6 @@ const extractPromptMessages = (promptConfig: unknown): unknown[] => {
     return []
 }
 
-/** @deprecated Alias kept for backward compatibility */
-export type GenerationChatProps = ChatModeProps
-
 const ChatMode = ({entityId, renderLastTurnFooter, renderControlsBar}: ChatModeProps) => {
     // Completion-style variable inputs for chat use normalized input rows with a derived fallback
     const variableRowIds = useAtomValue(

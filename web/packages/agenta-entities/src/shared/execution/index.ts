@@ -28,20 +28,12 @@ export type {
     Merge,
     ObjectSchema,
     Base,
-    CompoundOption,
     SchemaType,
     BaseSchema,
     BaseSchemaProperties,
     WithEnum,
     SchemaProperty,
-    PrimitiveSchema,
-    ArraySchema,
-    AnyOfSchema,
     ObjectWithConstSchema,
-    ConstDiscriminatedSchema,
-    PrimitiveSchemaType,
-    ExtractedSchema,
-    OpenAPISpecStrict,
 } from "./types"
 
 // Value extraction

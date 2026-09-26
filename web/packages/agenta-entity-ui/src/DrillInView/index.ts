@@ -202,19 +202,13 @@ export {
     TextField,
     // Field utilities
     getNestedValue,
-    getArrayItemValue,
     canExpandValue,
     canExpandAsArray,
-    canExpand,
     isChatMessageObject,
     isMessagesArray,
     parseMessages,
-    canShowTextMode,
     getTextModeValue,
     textModeToStorageValue,
-    formatForJsonDisplay,
-    parseFromJsonDisplay,
-    MAX_NESTED_DEPTH,
 } from "@agenta/ui/drill-in"
 
 // NOTE: For tryParseAsObject, tryParseAsArray, SimpleChatMessage, import from @agenta/shared

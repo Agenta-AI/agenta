@@ -6,10 +6,6 @@ export interface TurnGrouping {
     reserveActive: boolean
 }
 
-// Copied verbatim from web/oss/src/components/AgentChatSlice/AgentConversation.tsx (2026-07-25);
-// the OSS original remains authoritative for the desktop chat until the re-plumb PR deletes it.
-// Keep byte-parity if either side changes. Adapted only to take `messages` as a parameter and
-// return the three values instead of assigning them to component-scope consts.
 // Group the ACTIVE turn (the last user message + its response) into one wrapper that carries the
 // fill. Keeping the fill on a STABLE element — not hopping it from the user bubble to the assistant
 // bubble when the answer arrives — avoids the mid-stream layout jump.

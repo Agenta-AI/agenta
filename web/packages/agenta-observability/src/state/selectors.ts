@@ -1,5 +1,4 @@
 import {formatCurrency, formatLatency, formatTokenUsage} from "@agenta/shared/utils"
-import {getStringOrJson} from "@agenta/shared/utils"
 import {dayjs} from "@agenta/shared/utils/dateTime"
 import {atom} from "jotai"
 import {atomFamily} from "jotai-family"
@@ -43,12 +42,12 @@ export const getTokens = (span?: TraceSpanNode) => {
     return tokens?.cumulative?.total ?? tokens?.incremental?.total ?? null
 }
 
-export const getPromptTokens = (span?: TraceSpanNode) => {
+const getPromptTokens = (span?: TraceSpanNode) => {
     const tokens = getTokenMetrics(span)
     return tokens?.cumulative?.prompt ?? tokens?.incremental?.prompt ?? null
 }
 
-export const getCompletionTokens = (span?: TraceSpanNode) => {
+const getCompletionTokens = (span?: TraceSpanNode) => {
     const tokens = getTokenMetrics(span)
     return tokens?.cumulative?.completion ?? tokens?.incremental?.completion ?? null
 }
@@ -91,8 +90,7 @@ export const getTraceOutputs = (span?: TraceSpanNode): unknown => {
 }
 
 // General attribute helpers ----------------------------------------------------
-export const getAgMetaConfiguration = (span?: TraceSpanNode) =>
-    getAg(span)?.meta?.configuration ?? null
+const getAgMetaConfiguration = (span?: TraceSpanNode) => getAg(span)?.meta?.configuration ?? null
 
 export const getAgData = (span?: TraceSpanNode) => getAg(span)?.data ?? null
 
@@ -100,26 +98,16 @@ export const getAgDataInputs = (span?: TraceSpanNode) => getAgData(span)?.inputs
 
 export const getAgDataOutputs = (span?: TraceSpanNode) => getAgData(span)?.outputs ?? null
 
-export const getAgDataInternals = (span?: TraceSpanNode) => getAgData(span)?.internals ?? null
+const getAgDataInternals = (span?: TraceSpanNode) => getAgData(span)?.internals ?? null
 
-export const getAgDataParameters = (span?: TraceSpanNode) => getAgData(span)?.parameters ?? null
+const getAgDataParameters = (span?: TraceSpanNode) => getAgData(span)?.parameters ?? null
 
-export const getAgNodeType = (span?: TraceSpanNode) => getAg(span)?.node?.type ?? null
+const getAgNodeType = (span?: TraceSpanNode) => getAg(span)?.node?.type ?? null
 
-export const getSpanException = (span?: TraceSpanNode) =>
+const getSpanException = (span?: TraceSpanNode) =>
     span?.events?.find((event) => event.name === "exception") ?? null
 
 // Raw metric selectors ---------------------------------------------------------
-export const spanTokensAtomFamily = atomFamily((span?: TraceSpanNode) =>
-    atom(() => getTokens(span)),
-)
-
-export const spanCostAtomFamily = atomFamily((span?: TraceSpanNode) => atom(() => getCost(span)))
-
-export const spanLatencyAtomFamily = atomFamily((span?: TraceSpanNode) =>
-    atom(() => getLatency(span)),
-)
-
 export const spanStartTimeAtomFamily = atomFamily((span?: TraceSpanNode) =>
     atom(() => dayjs(span?.start_time).utc().format("DD/MM/YYYY, hh:mm:ss A")),
 )
@@ -128,20 +116,8 @@ export const spanEndTimeAtomFamily = atomFamily((span?: TraceSpanNode) =>
     atom(() => dayjs(span?.end_time).utc().format("DD/MM/YYYY, hh:mm:ss A")),
 )
 
-export const spanTraceInputsAtomFamily = atomFamily((span?: TraceSpanNode) =>
-    atom(() => getStringOrJson(getTraceInputs(span))),
-)
-
-export const spanTraceOutputsAtomFamily = atomFamily((span?: TraceSpanNode) =>
-    atom(() => getStringOrJson(getTraceOutputs(span))),
-)
-
 export const spanMetaConfigurationAtomFamily = atomFamily((span?: TraceSpanNode) =>
     atom(() => getAgMetaConfiguration(span)),
-)
-
-export const spanAgDataAtomFamily = atomFamily((span?: TraceSpanNode) =>
-    atom(() => getAgData(span)),
 )
 
 export const spanDataInputsAtomFamily = atomFamily((span?: TraceSpanNode) =>

@@ -7,7 +7,7 @@ import {useSetAtom} from "jotai"
 import {ObservabilityEmpty, ObservabilityListSkeleton} from "./states/ObservabilityStates"
 
 /**
- * The traces table — the SAME component web/oss renders, through the SAME shell.
+ * The traces table — the shared component, through the shared shell.
  *
  * The shell owns sizing (`autoHeight` fills the flex parent), so nothing is threaded through
  * here; passing a height once made the body a fixed few hundred pixels with dead space below.
@@ -31,7 +31,7 @@ export const TracesTable = ({
                 selectedRowKeys,
                 onChange: (keys) => onSelectionChange(keys),
             }}
-            // Tapping a row opens the same drawer web/oss opens.
+            // Tapping a row opens the trace drawer.
             onRowClick={(record) =>
                 openTraceDrawer({
                     traceId: record.trace_id || record.key,

@@ -30,7 +30,6 @@ components/
 │   ├── ModalContent.tsx     # Standardized modal content
 │   ├── ModalFooter.tsx      # Standardized modal footer
 │   └── index.ts
-├── CopyButtonDropdown.tsx   # Copy button with dropdown options
 ├── EnhancedModal.tsx        # Modal wrapper with lazy rendering
 └── index.ts
 ```
@@ -60,9 +59,6 @@ import {
     EnhancedModal,
     ModalContent,
     ModalFooter,
-
-    // Actions
-    CopyButtonDropdown,
 } from "@agenta/ui"
 ```
 
@@ -160,12 +156,6 @@ function MyModalContent({onClose, ...props}) {
 - `destroyOnHidden` (default: true): Content unmounts when closed
 - Auto-contained height with internal scrolling (default: 90vh max)
 - Smart style merging for container/body/footer
-
-## Action Components
-
-| Component            | Description                                         |
-| -------------------- | --------------------------------------------------- |
-| `CopyButtonDropdown` | Copy button with dropdown for multiple copy options |
 
 ## Adding New Components
 

@@ -756,8 +756,7 @@ export const useAgentConversation = ({
         stopped,
         continuationExecutionId,
         // Not wired on this host yet: the composer lives below this hook and has no handle here,
-        // so a late refusal keeps its flagged row instead of restoring the draft. Pass a restorer
-        // in to unify it with the desktop.
+        // so a late refusal keeps its flagged row instead of restoring the draft.
         restoreRefusedSend,
         onSendAccepted,
         onSendFailed,
@@ -1250,8 +1249,7 @@ export const useAgentConversation = ({
         [regenerate, sessionId, setMessages],
     )
 
-    // Per-mount executed-identity cache — the desktop's per-message toolSignature memo,
-    // recreated hook-side so the identity JSON.stringify doesn't re-run per streamed token.
+    // Per-mount executed-identity cache, so the identity JSON.stringify doesn't re-run per streamed token.
     const [executedFor] = useState(() => createExecutedToolIdentityCache())
     // Per-mount view-model cache: unchanged turns keep object identity, so `TurnRow`'s memo holds.
     const [turnCache] = useState(() => createTurnViewModelCache())

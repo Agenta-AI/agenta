@@ -453,26 +453,6 @@ export class CodeLineNode extends ElementNode {
         return this.getLatest().__isCollapsed
     }
 
-    // /**
-    //  * Exports this node to a DOM representation.
-    //  * Creates a new DOM element with current folding state
-    //  * and styling for external use.
-    //  *
-    //  * @returns Object containing the DOM element
-    //  */
-    // exportDOM(): DOMExportOutput {
-    //     return {
-    //         element: this.createDOM(),
-    //     }
-    // }
-
-    // importDOM(): void {
-    //     this.setDiffType(null)
-    //     this.setOldLineNumber(undefined)
-    //     this.setNewLineNumber(undefined)
-    //     this.setValidationErrors([])
-    // }
-
     /**
      * Serializes this node to JSON format.
      * Includes all folding state for persistence and

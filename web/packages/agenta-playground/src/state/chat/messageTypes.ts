@@ -99,63 +99,6 @@ export interface MessageExecution {
 }
 
 // ============================================================================
-// STATE SHAPE
-// ============================================================================
-
-/**
- * Flat message-based chat state for a single loadable instance.
- *
- * Replaces the turn-based `ChatState` with:
- * - An ordered message list (messages are the atoms, not turns)
- * - A separate execution map (keeps messages pure/serializable)
- */
-export interface FlatChatState {
-    /** Message IDs in conversation order */
-    messageIds: string[]
-    /** All messages by ID */
-    messagesById: Record<string, ChatMessage>
-    /** Execution state per response message ID */
-    executionByMessageId: Record<string, MessageExecution>
-}
-
-/**
- * Initial flat chat state factory
- */
-export function createInitialFlatChatState(): FlatChatState {
-    return {
-        messageIds: [],
-        messagesById: {},
-        executionByMessageId: {},
-    }
-}
-
-// ============================================================================
-// DERIVED TURN (UI-only, not stored)
-// ============================================================================
-
-/**
- * A derived turn for UI rendering.
- *
- * Computed from the flat message list by grouping on `parentId`.
- * This is NOT stored — it's derived at render time via selectors.
- */
-export interface DerivedTurn {
-    /** ID of the user message (or a synthetic ID for orphan responses) */
-    id: string
-    /** The user message, or null if this is a pending-input slot */
-    userMessage: ChatMessage | null
-    /** Per-session responses grouped for side-by-side rendering in compare mode */
-    responses: Record<
-        string,
-        {
-            assistant: ChatMessage | null
-            tools: ChatMessage[]
-            execution: MessageExecution | null
-        }
-    >
-}
-
-// ============================================================================
 // ACTION PAYLOADS
 // ============================================================================
 
@@ -199,16 +142,6 @@ export interface ClearSessionResponsesPayload {
 }
 
 /**
- * Payload for starting execution on a response message.
- */
-export interface StartExecutionPayload {
-    /** Message ID of the response being executed */
-    messageId: string
-    /** Run ID from the web worker */
-    runId: string
-}
-
-/**
  * Payload for completing execution on a response message.
  */
 export interface CompleteExecutionPayload {
@@ -237,11 +170,6 @@ export interface FailExecutionPayload {
 // ============================================================================
 
 export type {SimpleChatMessage}
-
-/**
- * @deprecated Use `SimpleChatMessage` from `@agenta/shared/types` instead.
- */
-export type ChatMessageNode = SimpleChatMessage
 
 /**
  * Payload for adding a user message.

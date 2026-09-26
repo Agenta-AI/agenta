@@ -23,7 +23,6 @@ export type {
     // Entity types
     EntityType,
     RunnableType,
-    RunnableExecutionMode,
     EntitySelection,
     EntitySelectorConfig,
     // Connection types
@@ -48,12 +47,9 @@ export type {
     RunnableData,
     // Path types
     PathInfo,
-    ExtendedPathInfo,
     PathItem,
     // Request payload
     RequestPayloadData,
-    // State types
-    PlaygroundState,
     PlaygroundAction,
     // Node types
     PlaygroundNode,
@@ -66,7 +62,6 @@ export type {
 // ============================================================================
 
 export {loadableController, testsetLoadable} from "../loadable"
-export type {ConnectedSource} from "../loadable"
 
 // Loadable atoms (pure state)
 export {
@@ -119,11 +114,8 @@ export type {RunnablePort} from "../shared"
 // ============================================================================
 
 export {
-    computeTopologicalOrder,
     computeTopologicalLevels,
     resolveChainInputs,
-    resolveInputsFromMappings,
-    autoMapInputs,
     executeRunnable,
     buildEvaluatorExecutionInputs,
     validateEvaluatorInputs,
@@ -134,7 +126,6 @@ export {
     extractVariablesFromPrompts,
     extractVariablesFromConfig,
     extractSectionOpenersFromConfig,
-    extractVariablesFromEnhancedPrompts,
     resolveTemplateFormat,
     syncPromptInputKeysInParameters,
 } from "./utils"
@@ -168,13 +159,9 @@ export type {ShallowDiffOptions} from "./snapshotDiff"
 export type {
     PlaygroundEntityProviders,
     EntityRevisionSelectors,
-    EvaluatorSelectors,
     EntityQueryState,
     SettingsPreset,
-    AppRevisionRawData,
     EvaluatorRawData,
-    AppRevisionListSelectors,
-    AppRevisionActions,
     AppRevisionCreateVariantPayload,
     AppRevisionCommitPayload,
     AppRevisionCrudResult,

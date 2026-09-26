@@ -5,11 +5,17 @@ import {
     sessionRecordsQueryFamily,
     type SessionRecord,
 } from "@agenta/entities/session"
-import {Button, SimpleTooltip} from "@agenta/ui/ui"
+import {
+    Button,
+    Sheet,
+    SheetContent,
+    SheetDescription,
+    SheetHeader,
+    SheetTitle,
+    SimpleTooltip,
+} from "@agenta/ui/ui"
 import {ArrowClockwise, DownloadSimple} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
-
-import {Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle} from "@/components/ui/sheet"
 
 const EMPTY_RECORDS: SessionRecord[] = []
 
@@ -49,7 +55,7 @@ export const SessionInspectorSheet = ({
     return (
         <Sheet open={open} onOpenChange={onOpenChange}>
             <SheetContent side="responsive" className="gap-0 overflow-hidden p-0">
-                <SheetHeader className="border-b pr-12">
+                <SheetHeader>
                     <SheetTitle>Session inspector</SheetTitle>
                     <SheetDescription className="break-all font-mono text-xs">
                         {sessionId}

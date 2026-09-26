@@ -17,8 +17,8 @@ a `… <N chars elided>` marker. Structure is never touched.
 
 Read-only. Run against a deployment that still holds these sessions:
 
-    uv run web/oss/src/components/AgentChatSlice/assets/__fixtures__/generate/pull_session_fixtures.py \\
-        web/oss/src/components/AgentChatSlice/assets/__fixtures__
+    uv run web/packages/agenta-chat/tests/unit/assets/__fixtures__/generate/pull_session_fixtures.py \\
+        web/packages/agenta-chat/tests/unit/assets/__fixtures__
 """
 
 import json

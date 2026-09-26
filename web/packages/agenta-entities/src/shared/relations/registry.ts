@@ -23,13 +23,13 @@ import type {EntityRelation} from "../molecule/types"
  * @example
  * ```typescript
  * // Register relations
- * entityRelationRegistry.register(appToVariantRelation)
- * entityRelationRegistry.register(variantToRevisionRelation)
+ * entityRelationRegistry.register(workflowToVariantRelation)
+ * entityRelationRegistry.register(workflowVariantToRevisionRelation)
  *
  * // Query hierarchy
- * const children = entityRelationRegistry.getChildren("app") // ["variant"]
- * const path = entityRelationRegistry.getPath("app", "appRevision")
- * // Returns: ["app", "variant", "appRevision"]
+ * const children = entityRelationRegistry.getChildren("workflowVariant") // ["workflowRevision"]
+ * const path = entityRelationRegistry.getPath("testset", "testcase")
+ * // Returns: ["testset", "revision", "testcase"]
  * ```
  */
 export interface RelationRegistry {
@@ -74,8 +74,8 @@ export interface RelationRegistry {
      *
      * @example
      * ```typescript
-     * getPath("app", "appRevision")
-     * // Returns: ["app", "variant", "appRevision"]
+     * getPath("testset", "testcase")
+     * // Returns: ["testset", "revision", "testcase"]
      * ```
      */
     getPath(root: string, leaf: string): string[] | null

@@ -8,10 +8,6 @@
 export {
     APP_SERVICE_TYPES,
     SERVICE_ROUTE_PATHS,
-    resolveServiceType,
-    createEmptySchemaState,
-    endpointSchemaSchema,
-    revisionSchemaStateSchema,
     type AppServiceType,
     type EndpointSchema,
     type RevisionSchemaState,

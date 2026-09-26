@@ -2,7 +2,7 @@
 import {type KeyboardEvent, useCallback} from "react"
 
 import {type Mount} from "@agenta/entities/session"
-import {Skeleton} from "@agenta/ui/ui"
+import {SkeletonBlock} from "@agenta/ui/ui"
 
 import {DownloadCard} from "./renderers"
 
@@ -21,7 +21,7 @@ export const useDriveSaveKey = (onSave: () => void) =>
 export const DriveEditorSkeleton = ({lines}: {lines: number}) => (
     <div className="flex flex-col gap-2 p-5">
         {Array.from({length: lines}).map((_, i) => (
-            <Skeleton key={i} className="h-4 w-full" />
+            <SkeletonBlock key={i} className="h-4 w-full" />
         ))}
     </div>
 )

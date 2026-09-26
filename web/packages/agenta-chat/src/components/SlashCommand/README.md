@@ -1,8 +1,7 @@
 # Slash-command panels
 
 The panels the composer's `/` palette drills into. `SlashCommandPlugin` (in `@agenta/ui`) owns the
-palette itself; these are the surfaces a command opens. Both hosts render them: the desktop dock
-(`AgentComposerDock`) and `/m`'s `Composer`.
+palette itself; these are the surfaces a command opens, rendered by `/m`'s `Composer`.
 
 ## Keyboard contract
 

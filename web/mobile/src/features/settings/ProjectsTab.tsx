@@ -18,9 +18,8 @@ import {
     DialogFooter,
     DialogHeader,
     DialogTitle,
+    Input,
 } from "@agenta/ui/ui"
-
-import {Input} from "@/components/ui/input"
 
 interface Props {
     projects: ProjectsResponse[]

@@ -12,9 +12,8 @@ const getAuthHeaders = async (): Promise<Record<string, string>> => {
 }
 
 /**
- * Registers the auth-header provider the playground's run requests use. web/oss does the same in
- * DeferredAppBoot; /m never did, and the consequence was not a 401 — it was a run against the
- * WRONG PROJECT.
+ * Registers the auth-header provider the playground's run requests use. Without it the
+ * consequence is not a 401 — it is a run against the WRONG PROJECT.
  *
  * `buildAgentRequest` appends `project_id` to the invoke URL only alongside an Authorization
  * header, so with no provider registered /m sent `/invoke?application_id=…` and nothing else. The

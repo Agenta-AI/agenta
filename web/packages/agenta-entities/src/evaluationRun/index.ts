@@ -54,18 +54,14 @@ export {
 export {
     // Enums
     evaluationRunStepTypeSchema,
-    type EvaluationRunStepType,
     evaluationRunStepOriginSchema,
-    type EvaluationRunStepOrigin,
     evaluationRunMappingKindSchema,
-    type EvaluationRunMappingKind,
     // Sub-schemas
     evaluationRunDataStepSchema,
     type EvaluationRunDataStep,
     evaluationRunDataMappingSchema,
     type EvaluationRunDataMapping,
     evaluationRunDataSchema,
-    type EvaluationRunData,
     evaluationRunFlagsSchema,
     type EvaluationRunFlags,
     // Entity

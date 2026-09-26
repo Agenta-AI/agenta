@@ -1,8 +1,6 @@
 /**
  * Secret Entity — Jotai Atoms
  *
- * Ported verbatim from `web/oss/src/state/app/atoms/vault.ts`.
- *
  * Pattern: minimal molecule — query + mutation only. No draft semantics,
  * no isDirty, no imperative get/set scaffolding. Vault is not an artifact,
  * it has no revision lineage; the molecule shape would only contribute

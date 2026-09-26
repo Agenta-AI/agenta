@@ -1,14 +1,14 @@
-import {Skeleton} from "@/components/ui/skeleton"
+import {SkeletonBlock} from "@agenta/ui/ui"
 
 /** Row geometry, not a spinner: the real rows replace these without shifting the list. */
 export const HomeListSkeleton = () => (
     <div className="flex flex-col gap-0.5">
         {[70, 55, 62, 48, 58].map((width, index) => (
             <div key={index} className="flex items-center gap-3.5 px-3.5 py-2">
-                <Skeleton className="size-[34px] shrink-0 rounded-[10px]" />
+                <SkeletonBlock className="size-[34px] shrink-0 rounded-[10px]" />
                 <div className="flex min-w-0 flex-1 flex-col gap-1">
-                    <Skeleton className="h-3.5 w-24" />
-                    <Skeleton className="h-3" style={{width: `${width}%`}} />
+                    <SkeletonBlock className="h-3.5 w-24" />
+                    <SkeletonBlock className="h-3" style={{width: `${width}%`}} />
                 </div>
             </div>
         ))}

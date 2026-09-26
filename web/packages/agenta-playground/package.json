@@ -18,7 +18,6 @@
     "exports": {
         ".": "./src/index.ts",
         "./state": "./src/state/index.ts",
-        "./react": "./src/react/index.ts",
         "./snapshot": "./src/snapshot/index.ts",
         "./utils": "./src/utils/index.ts",
         "./agent-chat": "./src/agentChat.ts"

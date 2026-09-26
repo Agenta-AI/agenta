@@ -86,7 +86,6 @@ import {
     workflowQueryAtomFamily,
     workflowInspectAtomFamily,
     workflowAppSchemaAtomFamily,
-    workflowInterfaceSchemasAtomFamily,
     workflowDraftAtomFamily,
     workflowArtifactQueryAtomFamily,
     workflowVariantsQueryAtomFamily,
@@ -1483,8 +1482,6 @@ export const workflowMolecule = {
         inspect: workflowInspectAtomFamily,
         /** Per-entity app schema query (app workflows — resolves schema via OpenAPI) */
         appSchema: workflowAppSchemaAtomFamily,
-        /** Per-entity interface schemas query (builtin workflows — resolves schema via URI) */
-        interfaceSchemas: workflowInterfaceSchemasAtomFamily,
         /** Per-entity draft */
         draft: workflowDraftAtomFamily,
         /** Per-entity base data (no inspect/OpenAPI subscriptions) */

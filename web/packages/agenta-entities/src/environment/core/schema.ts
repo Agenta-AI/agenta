@@ -276,39 +276,3 @@ export function normalizeEnvironmentRevision(raw: unknown): EnvironmentRevision 
 
     return parsed
 }
-
-// ============================================================================
-// HELPER UTILITIES
-// ============================================================================
-
-/**
- * Extract deployed app revision ID from environment revision data for a given app key.
- *
- * @param data - Environment revision data
- * @param appKey - App-scoped key (e.g., "myapp.default")
- * @returns The application_revision reference ID, or null
- */
-export function getDeployedRevisionId(
-    data: EnvironmentRevisionData | null | undefined,
-    appKey: string,
-): string | null {
-    if (!data?.references) return null
-    const appRefs = data.references[appKey]
-    if (!appRefs) return null
-    return appRefs.application_revision?.id ?? null
-}
-
-/**
- * Get all app keys from environment revision data
- */
-export function getDeployedAppKeys(data: EnvironmentRevisionData | null | undefined): string[] {
-    if (!data?.references) return []
-    return Object.keys(data.references)
-}
-
-/**
- * Check if an environment is guarded
- */
-export function isGuardedEnvironment(env: Environment): boolean {
-    return env.flags?.is_guarded === true
-}

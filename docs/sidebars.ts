@@ -75,7 +75,7 @@ const sidebars: SidebarsConfig = {
       link: {
         type: "generated-index",
         title: "APIs",
-        description: "This is a sample server Agenta.io server.",
+        description: "Endpoints of the Agenta REST API, generated from its OpenAPI specification.",
         slug: "/reference/api/category",
       },
       // @ts-ignore

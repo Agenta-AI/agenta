@@ -1,4 +1,4 @@
-export type {ConfirmDestructive, DestructiveConfirmProps} from "./confirm"
+export type {ConfirmDestructive} from "./confirm"
 export {default as SettingsPageShell, type SettingsPageShellProps} from "./SettingsPageShell"
 export {ThemePicker, type ThemePickerProps, type ThemeChoice} from "./ThemePicker"
 export {
@@ -95,8 +95,6 @@ export {
     type GatewayToolsSectionCopy,
     type GatewayToolsSectionProps,
 } from "./tools/GatewayToolsSection"
-export {default as IntegrationGrid} from "./tools/IntegrationGrid"
-export {default as IntegrationDetail} from "./tools/IntegrationDetail"
 // Re-exported, not owned: the hook moved down to the entity layer so the client-tool connect flow
 // in @agenta/entity-ui can run it without depending on this package (that direction is a cycle —
 // see `web/packages/agenta-shared/tests/unit/workspaceGraph.test.ts`). Kept here so this package's

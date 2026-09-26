@@ -38,10 +38,7 @@ export type {
     CommitContext,
     SaveParams,
     EntityModalAdapter,
-    DeleteModalState,
     EntityDeleteModalProps,
-    CommitModalState,
-    SaveModalState,
 } from "./types"
 
 export {groupEntitiesByType, getEntityTypeLabel} from "./types"
@@ -53,9 +50,6 @@ export {groupEntitiesByType, getEntityTypeLabel} from "./types"
 export {
     registerEntityAdapter,
     getEntityAdapter,
-    hasEntityAdapter,
-    getRegisteredEntityTypes,
-    clearAdapterRegistry,
     createEntityAdapter,
     createAndRegisterEntityAdapter,
 } from "./adapters"
@@ -74,9 +68,6 @@ export {
     createDeleteHandler,
     // Hooks
     useEntityDelete,
-    useTestsetDelete,
-    useVariantDelete,
-    useEvaluatorDelete,
     // State atoms
     deleteModalOpenAtom,
     deleteModalEntitiesAtom,
@@ -109,9 +100,6 @@ export {
     AgentChangesSummary,
     // Hooks
     useEntityCommit,
-    useRevisionCommit,
-    useVariantCommit,
-    useBoundCommit,
     // State atoms
     commitModalOpenAtom,
     commitModalEntityAtom,
@@ -140,8 +128,6 @@ export type {
     CommitCreateFieldsConfig,
     AgentChangesSummaryProps,
     UseEntityCommitReturn,
-    UseBoundCommitOptions,
-    UseBoundCommitReturn,
 } from "./commit"
 export type {CommitDeployOption} from "./types"
 
@@ -187,12 +173,7 @@ export type {EntitySaveModalProps, UseEntitySaveReturn} from "./save"
 // UNIFIED SAVE/COMMIT HOOK
 // ============================================================================
 
-export {
-    useSaveOrCommit,
-    createBoundSaveOrCommit,
-    getSaveOrCommitLabel,
-    getSaveOrCommitIconName,
-} from "./useSaveOrCommit"
+export {useSaveOrCommit} from "./useSaveOrCommit"
 export type {EntityState, SaveOrCommitOptions, UseSaveOrCommitReturn} from "./useSaveOrCommit"
 
 // ============================================================================
@@ -204,10 +185,8 @@ export {EnhancedModal, type EnhancedModalProps, type EnhancedModalStyles} from "
 // Hook factories for creating entity action hooks
 export {
     createEntityActionHook,
-    createTypedEntityActionHook,
     type CreateEntityActionHookConfig,
     type UseEntityActionReturn,
-    type UseTypedEntityActionReturn,
 } from "./shared"
 
 // ============================================================================
@@ -224,11 +203,7 @@ export {
     // Reducer
     reduceEntityModalAction,
     // Action creators
-    commitAction,
-    saveAction,
-    createAction,
     deleteAction,
-    saveOrCommitAction,
 } from "./actions"
 export type {
     // Action types

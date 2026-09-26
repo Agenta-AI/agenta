@@ -233,20 +233,6 @@ import {
 } from '@agenta/playground/snapshot'
 ```
 
-### Entity Context (Dependency Injection)
-
-```typescript
-import { PlaygroundEntityProvider, usePlaygroundEntities } from '@agenta/playground'
-
-// In app root
-<PlaygroundEntityProvider value={providers}>
-  <App />
-</PlaygroundEntityProvider>
-
-// In components
-const { appRevisionSelectors, evaluatorRevisionSelectors } = usePlaygroundEntities()
-```
-
 ## API
 
 ### Controllers
@@ -297,8 +283,6 @@ These types transform controller state for UI consumption:
 │   ├── RunnableNode
 │   ├── OutputReceiverInfo
 │   └── EntityInfo
-└── Context
-    └── PlaygroundEntityProvider
 
         ↑
 @agenta/playground-ui (UI package)
@@ -445,7 +429,6 @@ import {
   usePlaygroundState,
   useChainExecution,
   useDerivedState,
-  PlaygroundEntityProvider,
 } from '@agenta/playground'
 
 // React subpath (recommended for React components)

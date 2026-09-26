@@ -31,23 +31,17 @@ export type {DrillInFieldRendererProps} from "./DrillInFieldRenderer"
 export {
     // Parsing utilities
     getNestedValue,
-    getArrayItemValue,
     canExpandValue,
     canExpandAsArray,
-    canExpand,
     // Message utilities
     isChatMessageObject,
     isMessagesArray,
     parseMessages,
     // Data type utilities
     detectDataType,
-    canShowTextMode,
     getTextModeValue,
     textModeToStorageValue,
-    formatForJsonDisplay,
-    parseFromJsonDisplay,
     // Constants
-    MAX_NESTED_DEPTH,
 } from "./fieldUtils"
 
 // NOTE: tryParseAsObject, tryParseAsArray, SimpleChatMessage should be imported

@@ -43,26 +43,26 @@ import {
     EntityCommitModal,
     // Types
     type DrillInMoleculeConfig,
-    type AppRevisionSelectionResult,
+    type WorkflowRevisionSelectionResult,
 } from "@agenta/entity-ui"
 ```
 
 ### Entity Selection
 
 ```tsx
-import { EntityPicker, type AppRevisionSelectionResult } from '@agenta/entity-ui'
+import { EntityPicker, type WorkflowRevisionSelectionResult } from '@agenta/entity-ui'
 
 // Cascading dropdowns
-<EntityPicker<AppRevisionSelectionResult>
+<EntityPicker<WorkflowRevisionSelectionResult>
   variant="cascading"
-  adapter="appRevision"
+  adapter="workflowRevision"
   onSelect={handleSelect}
 />
 
 // Breadcrumb navigation
-<EntityPicker<AppRevisionSelectionResult>
+<EntityPicker<WorkflowRevisionSelectionResult>
   variant="breadcrumb"
-  adapter="appRevision"
+  adapter="workflowRevision"
   onSelect={handleSelect}
   showSearch
   showBreadcrumb
@@ -83,23 +83,14 @@ For full documentation, see: [selection/README.md](./selection/README.md)
 
 ## Path Utilities
 
-> **Note:** Path utilities are available from `@agenta/shared` for direct import,
-> or from `@agenta/entity-ui` as a convenience re-export.
->
-> ```typescript
-> // Direct import from @agenta/shared
-> import {getValueAtPath, setValueAtPath, parsePath} from "@agenta/shared"
->
-> // Or via @agenta/entity-ui (re-export)
-> import {getValueAtPath, setValueAtPath, parsePath} from "@agenta/entity-ui"
-> ```
+> **Note:** Path utilities live in `@agenta/shared` (not re-exported by `@agenta/entity-ui`).
 
 Pure functions for navigating and manipulating nested data structures.
 
 ### Path Operations
 
 ```typescript
-import {getValueAtPath, setValueAtPath, deleteValueAtPath, hasValueAtPath} from "@agenta/entity-ui"
+import {getValueAtPath, setValueAtPath, deleteValueAtPath, hasValueAtPath} from "@agenta/shared"
 
 const data = {user: {name: "Alice", tags: ["admin", "active"]}}
 
@@ -122,37 +113,23 @@ hasValueAtPath(data, ["user", "email"]) // false
 ### Path Parsing
 
 ```typescript
-import {parsePath, pathToString, getParentPath, getLastSegment} from "@agenta/entity-ui"
+import {parsePath} from "@agenta/shared"
 
 // Parse string path to segments
 parsePath("user.name") // ['user', 'name']
 parsePath("tags[0]") // ['tags', 0]
 parsePath("user.tags[1]") // ['user', 'tags', 1]
-
-// Convert segments to string
-pathToString(["user", "name"]) // 'user.name'
-
-// Get parent path
-getParentPath(["user", "name"]) // ['user']
-
-// Get last segment
-getLastSegment(["user", "name"]) // 'name'
 ```
 
 ### Inspection Utilities
 
 ```typescript
-import {isExpandable, getValueType, getChildCount, collectPaths} from "@agenta/entity-ui"
+import {isExpandable, getChildCount, collectPaths} from "@agenta/shared"
 
 // Check if value can be expanded (object/array)
 isExpandable({name: "test"}) // true
 isExpandable([1, 2, 3]) // true
 isExpandable("string") // false
-
-// Get value type
-getValueType({name: "test"}) // 'object'
-getValueType([1, 2, 3]) // 'array'
-getValueType("hello") // 'string'
 
 // Get child count
 getChildCount({a: 1, b: 2}) // 2
@@ -319,9 +296,9 @@ Access drill-in state in child components:
 import {useDrillIn, MoleculeDrillInProvider} from "@agenta/entity-ui"
 
 function CustomField() {
-    const {entity, currentPath, updateValue, navigateTo} = useDrillIn()
+    const {entity, currentPath, updateValue, setPath} = useDrillIn()
 
-    return <button onClick={() => navigateTo(["nested", "path"])}>Go to nested</button>
+    return <button onClick={() => setPath(["nested", "path"])}>Go to nested</button>
 }
 ```
 

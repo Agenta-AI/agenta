@@ -274,7 +274,6 @@ const cellValue = testcase.get.cell(record.id, columnKey)
 ```
 
 This ensures consistent data access regardless of whether data is local-only or server-synced.
-See `LoadableDataTable` for the reference implementation.
 
 ## Best Practices
 
@@ -355,14 +354,8 @@ const loadableIdForRevisionAtomFamily = atomFamily((revisionId: string) =>
     })
 )
 
-// ✅ CORRECT - Pass context via metadata
-const {commit} = useBoundCommit({
-    type: "revision",
-    id: revisionId,
-    metadata: { loadableId }, // Context flows up from UI
-})
-
-// The adapter receives metadata and can query derived state
+// ✅ CORRECT - Pass context via the entity's metadata (e.g. { loadableId }).
+// The commit adapter receives it in commitContextAtom(id, metadata) and can query derived state
 const derivedChanges = loadableId
     ? get(derivedColumnChangesAtomFamily(loadableId))
     : { added: [], removed: [] }
@@ -413,33 +406,25 @@ useEffect(() => {
     }
 }, [schemaLoaded, hasMappings])
 
-// ✅ CORRECT - Reactive effect atom
+// ✅ CORRECT - Reactive effect atom (see controller.ts)
 // 1. Pure selector determines if init should happen
-const shouldAutoInitAtomFamily = atomFamily((loadableId) =>
-    atom((get) => {
-        const state = get(loadableStateAtomFamily(loadableId))
-        if (state.outputMappings.length > 0) return false
-        const schema = get(schemaQuery(state.linkedRunnableId))
-        return !schema.isPending && hasRealOutputPorts(schema)
-    })
+const shouldAutoInitOutputMappingsAtomFamily = atomFamily((loadableId) =>
+    atom((get) => /* conditions, including "no mappings yet" */ false),
 )
 
 // 2. Effect atom triggers initialization when conditions are met
-const autoInitEffectAtomFamily = atomFamily((loadableId) =>
+const autoInitOutputMappingsEffectAtomFamily = atomFamily((loadableId) =>
     atom((get) => {
-        const shouldInit = get(shouldAutoInitAtomFamily(loadableId))
+        const shouldInit = get(shouldAutoInitOutputMappingsAtomFamily(loadableId))
         if (shouldInit) {
-            getDefaultStore().set(initializeDefaultMappingsAtom, loadableId)
+            getDefaultStore().set(initializeDefaultOutputMappingsAtom, loadableId)
         }
         return shouldInit
     })
 )
 
-// 3. Wire into selector chain (e.g., rows selector)
-const rowsSelector = (loadableId) => atom((get) => {
-    get(autoInitEffectAtomFamily(loadableId))  // Trigger effect
-    return get(connectedRowsAtomFamily(loadableId))
-})
+// 3. Wire into a frequently read selector (e.g. rows)
+get(autoInitOutputMappingsEffectAtomFamily(loadableId))
 ```
 
 **Why this pattern:**

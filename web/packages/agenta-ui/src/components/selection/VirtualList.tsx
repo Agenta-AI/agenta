@@ -344,8 +344,3 @@ export function AdaptiveList<T>({virtualizeThreshold = 50, ...props}: AdaptiveLi
 
 // Also export with "Entity" prefix for backward compatibility
 export {VirtualList as VirtualEntityList}
-export {SimpleList as SimpleEntityList}
-export {AdaptiveList as AdaptiveEntityList}
-export type {VirtualListProps as VirtualEntityListProps}
-export type {SimpleListProps as SimpleEntityListProps}
-export type {AdaptiveListProps as AdaptiveEntityListProps}

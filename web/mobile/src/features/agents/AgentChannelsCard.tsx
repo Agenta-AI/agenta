@@ -6,9 +6,6 @@ import {useAgentChannels} from "./useAgentChannels"
 /**
  * The agent page's Channels section on /m: the shared designed screen, wired to the real
  * channels API through `buildAgentChannelsActions`, in a bottom sheet.
- *
- * Same logic as the desktop host (`web/oss/.../overview/agent/AgentChannelsCard`); only the
- * panel container and the agent-name lookup differ.
  */
 export const AgentChannelsCard = ({
     appId,

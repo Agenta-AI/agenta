@@ -366,7 +366,6 @@ const testcaseIds = revision.data?.testcase_ids ?? []
 
 // In state/revisionMolecule.ts — BAD: imports from relations.ts
 import { revisionToTestcaseRelation } from "../relations"
-const testcaseIds = getChildIds(revision, revisionToTestcaseRelation)
 ```
 
 ### Batch Fetching Architecture

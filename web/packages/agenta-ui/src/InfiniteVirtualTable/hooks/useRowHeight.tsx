@@ -1,7 +1,7 @@
 import {useMemo} from "react"
 
 import {Rows} from "@phosphor-icons/react"
-import {atom, useAtom, useAtomValue} from "jotai"
+import {useAtom} from "jotai"
 import {atomWithStorage} from "jotai/utils"
 
 import type {TableMenuItem} from "../tableMenu"
@@ -55,36 +55,6 @@ export const DEFAULT_ROW_HEIGHT_CONFIG: Omit<RowHeightConfig, "storageKey"> = {
  */
 export function createRowHeightAtom(storageKey: string, defaultSize: RowHeightSize = "medium") {
     return atomWithStorage<RowHeightSize>(storageKey, defaultSize)
-}
-
-/**
- * Creates a derived atom that returns the pixel height for the current size
- * @param sizeAtom - The row height size atom
- * @param config - Row height configuration with size definitions
- */
-export function createRowHeightPxAtom(
-    sizeAtom: ReturnType<typeof createRowHeightAtom>,
-    config: RowHeightConfig["sizes"],
-) {
-    return atom((get) => {
-        const size = get(sizeAtom)
-        return config[size].height
-    })
-}
-
-/**
- * Creates a derived atom that returns the max lines for the current size
- * @param sizeAtom - The row height size atom
- * @param config - Row height configuration with size definitions
- */
-export function createRowHeightMaxLinesAtom(
-    sizeAtom: ReturnType<typeof createRowHeightAtom>,
-    config: RowHeightConfig["sizes"],
-) {
-    return atom((get) => {
-        const size = get(sizeAtom)
-        return config[size].maxLines ?? 10
-    })
 }
 
 /**
@@ -166,27 +136,4 @@ export function useRowHeight(
         maxLines,
         menuItems,
     }
-}
-
-/**
- * Simplified hook when you only need to read the row height values (not set them)
- * Useful in child components that just need the current height/maxLines
- *
- * @param sizeAtom - Persisted atom for row height size
- * @param config - Row height configuration (just the sizes)
- */
-export function useRowHeightValue(
-    sizeAtom: ReturnType<typeof createRowHeightAtom>,
-    config: RowHeightConfig["sizes"],
-) {
-    const size = useAtomValue(sizeAtom)
-
-    return useMemo(
-        () => ({
-            size,
-            heightPx: config[size].height,
-            maxLines: config[size].maxLines ?? 10,
-        }),
-        [size, config],
-    )
 }
