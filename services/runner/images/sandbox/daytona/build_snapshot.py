@@ -151,6 +151,24 @@ console.log("codex-acp-approvals=" + patched);
     )
 
 
+def pin_agent_process_command(agent: str, version: str) -> str:
+    """One RUN that replaces the base image's ACP adapter for `agent` with `version`.
+
+    Not `install-agent --reinstall`: that also re-downloads the agent's native CLI, which the
+    adapters never run (claude-agent-acp runs the Claude binary bundled in its SDK package,
+    codex-acp the codex binary bundled in its npm package). The base layer keeps its own copy
+    either way, so each reinstall added a second one, about 230 MB for Claude and 280 MB for
+    Codex. Removing only the adapter makes install-agent keep the native CLI ("already
+    installed") and fetch just the pinned adapter. The npm cache it leaves is dropped in the same
+    RUN, because a later RUN cannot shrink this layer.
+    """
+    return (
+        f"RUN rm -rf {PI_ACP_INSTALL_DIR}/{agent} {PI_ACP_INSTALL_DIR}/{agent}-acp "
+        f"&& sandbox-agent install-agent {agent} --agent-process-version {version} "
+        "&& rm -rf /home/sandbox/.npm/_cacache"
+    )
+
+
 # Durable session cwd: geesefs (FUSE-over-S3) mounts the store prefix INSIDE the sandbox for
 # remote runs. fuse provides fusermount + /etc/fuse.conf; geesefs is the static mount binary.
 # amd64 is correct here regardless of the builder's local arch: the snapshot is built and run
@@ -201,6 +219,29 @@ def install_agent_tools_commands() -> list[str]:
         "RUN sh /tmp/install-agent-tools.sh "
         "&& rm /tmp/install-agent-tools.sh /tmp/agent-requirements.txt",
     ]
+
+
+# Daytona refuses a snapshot whose image is over 5 GB, counting every layer, so a file a later
+# RUN deletes or overwrites still counts. v0.120.0 crossed the cap (5.53 GB) in its US account.
+# Failing the build at a lower budget keeps the headroom visible: a staging or trial build fails
+# here, with the size in the message, before a production build fails at Daytona's cap.
+SIZE_BUDGET_GB = 4.85
+
+
+def check_size_budget(name: str, size_gb: float | None) -> None:
+    if size_gb is None:
+        print(
+            f"Daytona reported no size for snapshot '{name}'; size budget not checked."
+        )
+        return
+    print(f"snapshot '{name}' size: {size_gb:.2f} GB (budget {SIZE_BUDGET_GB} GB)")
+    if size_gb > SIZE_BUDGET_GB:
+        raise RuntimeError(
+            f"snapshot '{name}' is {size_gb:.2f} GB, over the {SIZE_BUDGET_GB} GB budget "
+            "(Daytona's hard cap is 5 GB). Shrink the recipe before raising the budget: "
+            "clean caches in the RUN that creates them, and do not reinstall what the base "
+            "image already ships."
+        )
 
 
 # A snapshot in one of these states never served a sandbox, so replacing it cannot break a run.
@@ -335,7 +376,7 @@ def build_snapshot(daytona: Daytona, name: str) -> None:
     image = Image.base(SANDBOX_AGENT_IMAGE).dockerfile_commands(
         [
             "USER root",
-            f"RUN npm install -g --ignore-scripts {PI_PACKAGE}",
+            f"RUN npm install -g --ignore-scripts {PI_PACKAGE} && npm cache clean --force",
             "RUN pi --version",
             "RUN test -x /home/sandbox/.local/share/sandbox-agent/bin/claude "
             "&& echo claude-baked-in-base-image",
@@ -364,16 +405,14 @@ def build_snapshot(daytona: Daytona, name: str) -> None:
             "| grep -q '<html'",
             # Replace the base image's private Pi adapter. sandbox-agent resolves this launcher
             # before PATH, so a global pi-acp install would leave the stale adapter active.
-            f"RUN sandbox-agent install-agent pi --reinstall "
-            f"--agent-process-version {PI_ACP_VERSION}",
+            pin_agent_process_command("pi", PI_ACP_VERSION),
             # Assert the private launcher and its installed npm package, not a global package.
             f"RUN test -x {PI_ACP_INSTALL_DIR}/pi-acp "
             f'&& test "$(node -p "require(\'{PI_ACP_PACKAGE_JSON}\').version")" '
             f'= "{PI_ACP_VERSION}" '
             f"&& echo pi-acp-version={PI_ACP_VERSION}",
             # Same treatment for Codex: pin the adapter to the runner's version, then assert it.
-            f"RUN sandbox-agent install-agent codex --reinstall "
-            f"--agent-process-version {CODEX_ACP_VERSION}",
+            pin_agent_process_command("codex", CODEX_ACP_VERSION),
             f'RUN test "$(node -p "require(\'{CODEX_ACP_PACKAGE_JSON}\').version")" '
             f'= "{CODEX_ACP_VERSION}" '
             f"&& echo codex-acp-version={CODEX_ACP_VERSION}",
@@ -381,8 +420,7 @@ def build_snapshot(daytona: Daytona, name: str) -> None:
             codex_approval_patch_command(),
             # Same treatment for Claude: replace the base's stale adapter with the
             # runner's pinned claude-agent-acp, then assert version and model table.
-            f"RUN sandbox-agent install-agent claude --reinstall "
-            f"--agent-process-version {CLAUDE_ACP_VERSION}",
+            pin_agent_process_command("claude", CLAUDE_ACP_VERSION),
             f'RUN test "$(node -p "require(\'{CLAUDE_ACP_PACKAGE_JSON}\').version")" '
             f'= "{CLAUDE_ACP_VERSION}" '
             f"&& echo claude-acp-version={CLAUDE_ACP_VERSION}",
@@ -397,7 +435,7 @@ def build_snapshot(daytona: Daytona, name: str) -> None:
 
     print(f"building snapshot '{name}' from {SANDBOX_AGENT_IMAGE} (+ pi)...")
     started = time.monotonic()
-    daytona.snapshot.create(
+    snapshot = daytona.snapshot.create(
         CreateSnapshotParams(
             name=name,
             image=image,
@@ -410,6 +448,7 @@ def build_snapshot(daytona: Daytona, name: str) -> None:
         on_logs=print,
     )
     print(f"\nsnapshot '{name}' built in {time.monotonic() - started:.1f}s")
+    check_size_budget(name, getattr(snapshot, "size", None))
 
 
 if __name__ == "__main__":

@@ -67,12 +67,13 @@ def test_parse_args():
 class FakeSnapshots:
     """Records every create/delete in order; a create whose name matches `fail` raises."""
 
-    def __init__(self, existing: dict[str, str], fail=lambda _name: False):
+    def __init__(self, existing: dict[str, str], fail=lambda _name: False, size_gb=4.0):
         self.existing = {
             name: SimpleNamespace(name=name, state=state)
             for name, state in existing.items()
         }
         self.fail = fail
+        self.size_gb = size_gb
         self.events: list[tuple[str, str]] = []
 
     def get(self, name):
@@ -91,15 +92,17 @@ class FakeSnapshots:
                 name=params.name, state="build_failed"
             )
             raise RuntimeError("build assertion failed")
-        self.existing[params.name] = SimpleNamespace(name=params.name, state="active")
+        created = SimpleNamespace(name=params.name, state="active", size=self.size_gb)
+        self.existing[params.name] = created
+        return created
 
 
 def is_trial(name: str) -> bool:
     return name.startswith(f"{SNAPSHOT_NAME}-candidate-")
 
 
-def run_main(monkeypatch, argv, existing, fail=lambda _name: False):
-    snapshots = FakeSnapshots(existing, fail)
+def run_main(monkeypatch, argv, existing, fail=lambda _name: False, size_gb=4.0):
+    snapshots = FakeSnapshots(existing, fail, size_gb)
     monkeypatch.setattr(
         build_snapshot, "Daytona", lambda _config: SimpleNamespace(snapshot=snapshots)
     )
@@ -176,6 +179,34 @@ def test_forced_rebuild_replaces_a_failed_build_directly(monkeypatch):
     )
     build_snapshot.main()
     assert snapshots.events == [("delete", "snap-next"), ("create", "snap-next")]
+
+
+def test_size_budget():
+    build_snapshot.check_size_budget("snap", None)
+    build_snapshot.check_size_budget("snap", build_snapshot.SIZE_BUDGET_GB)
+    with pytest.raises(RuntimeError, match="over the"):
+        build_snapshot.check_size_budget("snap", build_snapshot.SIZE_BUDGET_GB + 0.01)
+
+
+def test_trial_over_the_size_budget_never_touches_the_live_snapshot(monkeypatch):
+    snapshots = run_main(
+        monkeypatch, ["--force"], {SNAPSHOT_NAME: "active"}, size_gb=5.3
+    )
+    with pytest.raises(SystemExit) as failed:
+        build_snapshot.main()
+    assert "over the" in str(failed.value)
+    assert "was not touched" in str(failed.value)
+    assert ("delete", SNAPSHOT_NAME) not in snapshots.events
+    assert set(snapshots.existing) == {SNAPSHOT_NAME}
+
+
+def test_adapter_pins_never_reinstall_the_native_clis():
+    for agent, version in [("pi", "0.0.29"), ("codex", "1.1.7"), ("claude", "0.81.0")]:
+        command = build_snapshot.pin_agent_process_command(agent, version)
+        assert "--reinstall" not in command
+        assert f"install-agent {agent} --agent-process-version {version}" in command
+        # The npm cache is cleared in the same RUN, or it stays in the layer.
+        assert command.endswith("rm -rf /home/sandbox/.npm/_cacache")
 
 
 if __name__ == "__main__":
