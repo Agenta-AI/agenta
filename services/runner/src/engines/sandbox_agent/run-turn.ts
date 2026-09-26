@@ -137,7 +137,6 @@ import { reconstructHistoryIfNeeded } from "./reconstruct-history.ts";
 import { carriesApprovalReplyOnly } from "./session-identity.ts";
 import { buildTurnText, priorMessages } from "./transcript.ts";
 import {
-  addRunUsage,
   awaitEndingPrompt,
   combinePromptResults,
   promptTokenDetail,
@@ -1514,10 +1513,10 @@ export async function runTurn(
         cancelled,
       ]);
     let raced = await racePrompt(promptPromise);
-    // The usage of a parked prompt this turn finished before its second prompt. Each prompt
-    // reports only its own work, so the turn reports both (the paused turn reported none).
+    // The response of a parked prompt this turn finished before its second prompt. Each prompt
+    // reports only its own work, so a runner-traced turn reports both (the paused turn reported
+    // none).
     let settledPromptResult: unknown;
-    let settledPromptUsage: AgentUsage | undefined;
     if (
       opts.settleApprovalsThenPrompt &&
       raced !== PAUSED &&
@@ -1531,7 +1530,7 @@ export async function runTurn(
       // old prompt was raced above, so a harness that opened another gate after the denial pauses
       // this turn instead of hanging unwatched. `continuation` makes promptBlocks the fresh tail.
       settledPromptResult = raced;
-      settledPromptUsage = await harnessTrace.beginNextPrompt(run, runRedactor);
+      await harnessTrace.beginNextPrompt(run, runRedactor);
       promptStartedAtMs = Date.now();
       promptPromise = Promise.resolve(env.session.prompt(promptBlocks));
       promptPromise.catch(() => {});
@@ -1742,23 +1741,21 @@ export async function runTurn(
       plan.isPi && (stopReason !== "paused" || env.sessionDestroyRequested)
         ? await harnessTrace.finish()
         : undefined;
-    // Pi reports each prompt's usage in its sidecar, which `beginNextPrompt` already read.
+    // Pi traces the parked prompt under the paused turn's trace, and the platform totals that trace
+    // from those spans. Its usage stays out of this turn's, which would count it on a second root.
     const turnPromptResult = plan.isPi
       ? result
       : combinePromptResults(
           settledPromptResult,
           result ?? cancelledPromptResult,
         );
-    const resolvedUsage = addRunUsage(
-      settledPromptUsage,
-      await resolveRunUsage({
-        sandbox: env.sandbox,
-        usageOutPath: plan.workspace.usageOutPath,
-        isDaytona: plan.isDaytona,
-        promptResult: turnPromptResult,
-        streamUsage: run.usage(),
-      }),
-    );
+    const resolvedUsage = await resolveRunUsage({
+      sandbox: env.sandbox,
+      usageOutPath: plan.workspace.usageOutPath,
+      isDaytona: plan.isDaytona,
+      promptResult: turnPromptResult,
+      streamUsage: run.usage(),
+    });
     const isClaude = harnessKindOf(plan.harness) === "claude";
     const usage = isClaude
       ? claudeTurnUsage(resolvedUsage, env)

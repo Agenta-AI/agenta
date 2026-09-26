@@ -1807,8 +1807,16 @@ function pausableHarness(
       emitEvent(event: AgentEvent) {
         run.emitted.push(event);
       },
+      // Like the real tracer: the stream's usage until the engine sets the final one.
       usage() {
-        return { input: 0, output: 0, total: 0, cost: 0 };
+        return (
+          (run.usages.findLast((usage) => usage) as any) ?? {
+            input: 0,
+            output: 0,
+            total: 0,
+            cost: 0,
+          }
+        );
       },
       usages: [] as unknown[],
       setUsage(usage: unknown) {
@@ -4258,8 +4266,9 @@ describe("runTurn: the in-band settle lands before the terminal record", () => {
  *   covers the work before the pause too. The paused turn reports no tokens; the resume reports
  *   them all.
  * - A decision followed by fresh user text finishes the parked prompt and then sends a SECOND
- *   prompt. Each prompt reports only its own work, so the turn reports the sum. The runner used to
- *   keep only the second prompt's usage and lose the first (before and after the pause).
+ *   prompt. Each prompt reports only its own work, so a runner-traced turn (Claude, Codex) reports
+ *   the sum. The runner used to keep only the second prompt's usage and lose the first. Pi traces
+ *   the parked prompt under the paused turn's trace, so its usage stays there.
  * - A cold pause destroys a Pi session. Pi publishes the pre-pause usage as it stops; the paused
  *   turn drains it instead of racing that write.
  */
@@ -4376,9 +4385,12 @@ describe("runTurn: usage across an approval pause", () => {
     assert.equal(result.stopReason, "end_turn");
     assert.equal(result.usage?.input, 100);
     assert.equal(result.usage?.output, 20);
-    assert.deepEqual(calls.runs[1].tokenDetails.at(-1), [
-      { input: 100, output: 20, cacheRead: 7, cacheWrite: 0 },
-    ]);
+    assert.deepEqual(calls.runs[1].tokenDetails.at(-1), {
+      input: 100,
+      output: 20,
+      cacheRead: 7,
+      cacheWrite: 0,
+    });
     await env.destroy();
   });
 
@@ -4443,34 +4455,27 @@ describe("runTurn: usage across an approval pause", () => {
       assert.equal(result.usage?.total, 156);
       const detail = calls.runs[1].tokenDetails.at(-1);
       if (harness === "claude") {
-        // One row per model, summed across both prompts.
-        assert.deepEqual(detail, [
-          {
-            model: "main-model",
-            input: 120,
-            output: 24,
-            cacheRead: 0,
-            cacheWrite: 0,
-          },
-          {
-            model: "small-model",
-            input: 10,
-            output: 2,
-            cacheRead: 0,
-            cacheWrite: 0,
-          },
-        ]);
+        // Every model's rows, summed across both prompts.
+        assert.deepEqual(detail, {
+          input: 130,
+          output: 26,
+          cacheRead: 0,
+          cacheWrite: 0,
+        });
       } else {
         // Codex fills model_usage with its last call only, so the summed `usage` row is used.
-        assert.deepEqual(detail, [
-          { input: 130, output: 26, cacheRead: 5, cacheWrite: 0 },
-        ]);
+        assert.deepEqual(detail, {
+          input: 130,
+          output: 26,
+          cacheRead: 5,
+          cacheWrite: 0,
+        });
       }
       await env.destroy();
     },
   );
 
-  it("Pi decision-then-prompt: reads the parked prompt's usage sidecar before the new prompt replaces it", async () => {
+  it("Pi decision-then-prompt: reports only the new prompt's usage; the parked prompt's stays on its own trace", async () => {
     const { calls, deps, captured } = pausableHarness();
     const telemetryDir = uniqueCwdDeps(deps);
     const usagePath = join(telemetryDir, ".agenta-usage.json");
@@ -4490,7 +4495,7 @@ describe("runTurn: usage across an approval pause", () => {
 
     const turn = decisionThenPrompt(env, request);
     await waitFor(() => calls.permissionReplies.length > 0);
-    // Pi settles the parked prompt: the sidecar holds that prompt's usage, pause included.
+    // Pi settles the parked prompt under the paused turn's trace, which its spans total.
     writeFileSync(
       usagePath,
       JSON.stringify({ input: 100, output: 20, total: 120, cost: 0.5 }),
@@ -4506,11 +4511,12 @@ describe("runTurn: usage across an approval pause", () => {
     const result = await turn;
 
     assert.equal(result.stopReason, "end_turn");
+    // Adding the parked prompt's usage here would count it on this turn's root as well.
     assert.deepEqual(result.usage, {
-      input: 130,
-      output: 26,
-      total: 156,
-      cost: 0.75,
+      input: 30,
+      output: 6,
+      total: 36,
+      cost: 0.25,
     });
     await env.destroy();
   });
@@ -4595,9 +4601,12 @@ describe("runTurn: usage across an approval pause", () => {
         assert.equal(calls.sessionDestroyed, 1);
         assert.equal(paused.usage?.input, 40);
         assert.equal(paused.usage?.output, 8);
-        assert.deepEqual(calls.runs[0].tokenDetails.at(-1), [
-          { input: 40, output: 8, cacheRead: 3, cacheWrite: 0 },
-        ]);
+        assert.deepEqual(calls.runs[0].tokenDetails.at(-1), {
+          input: 40,
+          output: 8,
+          cacheRead: 3,
+          cacheWrite: 0,
+        });
         // Only the usage update reaches the run; the cancel's text is a teardown artifact.
         const kinds = calls.runs[0].handled.map((u: any) => u?.sessionUpdate);
         assert.ok(kinds.includes("usage_update"));
@@ -4651,9 +4660,12 @@ describe("runTurn: usage across an approval pause", () => {
       assert.equal(result.cancelSettled, true);
       assert.equal(result.usage?.input, 50);
       assert.equal(result.usage?.output, 9);
-      assert.deepEqual(calls.runs[0].tokenDetails.at(-1), [
-        { input: 50, output: 9, cacheRead: 0, cacheWrite: 4 },
-      ]);
+      assert.deepEqual(calls.runs[0].tokenDetails.at(-1), {
+        input: 50,
+        output: 9,
+        cacheRead: 0,
+        cacheWrite: 4,
+      });
       await env.destroy();
     },
   );
