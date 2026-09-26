@@ -6,7 +6,7 @@
  */
 import {act, createElement} from "react"
 
-import {composerDraftBySession, setSessionStatusAtom} from "@agenta/chat/state"
+import {composerDraftBySession} from "@agenta/chat/state"
 import {SAVE_AS_TEMPLATE_MESSAGE} from "@agenta/entities/workflow"
 import {createStore, Provider} from "jotai"
 import {createRoot, type Root} from "react-dom/client"
@@ -82,15 +82,6 @@ describe("SaveAsTemplateButton (/m)", () => {
         act(() => button()?.click())
 
         expect(composerDraftBySession.get(SESSION)).toBe("half-written question")
-    })
-
-    it("sends nothing while the agent is running", () => {
-        store.set(setSessionStatusAtom, {id: SESSION, status: "running"})
-        mount()
-        expect(button()?.disabled).toBe(true)
-        act(() => button()?.click())
-
-        expect(store.get(pendingTasksAtom)).toEqual({})
     })
 
     it("is available again once the conversation took the request", () => {

@@ -5,11 +5,7 @@
  */
 import {act, createElement} from "react"
 
-import {
-    composerDraftBySession,
-    sessionStatusAtomFamily,
-    setSessionStatusAtom,
-} from "@agenta/chat/state"
+import {composerDraftBySession} from "@agenta/chat/state"
 import {SAVE_AS_TEMPLATE_MESSAGE} from "@agenta/entities/workflow"
 import {
     projectIdAtom,
@@ -114,16 +110,6 @@ describe("SaveAsTemplateButton", () => {
         expect(sent).toHaveLength(1)
         expect(sent[0].newSession).toBeFalsy()
         expect(composerDraftBySession.get(SESSION)).toBe("half-written question")
-    })
-
-    it("sends nothing while the agent is running", () => {
-        store.set(setSessionStatusAtom, {id: SESSION, status: "running"})
-        mount()
-        expect(store.get(sessionStatusAtomFamily(SESSION))).toBe("running")
-        expect(button()?.disabled).toBe(true)
-        act(() => button()?.click())
-
-        expect(sent).toHaveLength(0)
     })
 
     it("is available again once the chat consumed the request and the run settled", () => {

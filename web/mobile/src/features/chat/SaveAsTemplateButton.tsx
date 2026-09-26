@@ -1,4 +1,3 @@
-import {sessionStatusAtomFamily} from "@agenta/chat/state"
 import {SAVE_AS_TEMPLATE_MESSAGE} from "@agenta/entities/workflow"
 import {Button, SimpleTooltip} from "@agenta/ui/ui"
 import {Export} from "@phosphor-icons/react"
@@ -6,13 +5,14 @@ import {useAtomValue, useStore} from "jotai"
 
 import {pendingTasksAtom, stashPendingTaskAtom} from "../home/pendingTask"
 
-const isBusy = (status: string) => status === "running" || status === "awaiting"
-
 /**
  * The /w playground header's Save as template, on this surface. The request is shared
  * (`SAVE_AS_TEMPLATE_MESSAGE`); the delivery is this app's: it parks the message as the CURRENT
  * session's pending task, which the conversation sends like a typed message without touching the
  * composer, so an unsent draft stays where it is.
+ *
+ * Only an unsent request disables it. While the agent runs, a second tap queues a second message
+ * behind the run, which is visible and removable like any queued message.
  */
 export const SaveAsTemplateButton = ({
     agentId,
@@ -23,12 +23,10 @@ export const SaveAsTemplateButton = ({
 }) => {
     const store = useStore()
     const pending = useAtomValue(pendingTasksAtom)[sessionId] !== undefined
-    const agentBusy = isBusy(useAtomValue(sessionStatusAtomFamily(sessionId)))
 
     const saveAsTemplate = () => {
         // Read the store, not the render: a double tap lands before the re-render.
         if (store.get(pendingTasksAtom)[sessionId]) return
-        if (isBusy(store.get(sessionStatusAtomFamily(sessionId)))) return
         store.set(stashPendingTaskAtom, {
             sessionId,
             task: {agentId, text: SAVE_AS_TEMPLATE_MESSAGE},
@@ -41,7 +39,7 @@ export const SaveAsTemplateButton = ({
                 <Button
                     variant="outline"
                     size="sm"
-                    disabled={pending || agentBusy}
+                    disabled={pending}
                     onClick={saveAsTemplate}
                     aria-label="Save as template"
                     data-testid="save-as-template-button"
