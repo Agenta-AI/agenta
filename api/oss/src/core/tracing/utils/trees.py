@@ -223,14 +223,23 @@ def _connect_tree_dfs(
 ):
     """Fill `spans` on every span in the tree; a repeated child name becomes a list."""
 
-    for span_id, children_spans_id_tree in spans_id_tree.items():
-        children_spans_id_tree: OrderedDict
+    # Iterative post-order walk: deep span chains must not hit the recursion limit.
+    stack = [(span_id, children, False) for span_id, children in spans_id_tree.items()]
+
+    while stack:
+        span_id, children_spans_id_tree, expanded = stack.pop()
+
+        if not expanded:
+            stack.append((span_id, children_spans_id_tree, True))
+            stack.extend(
+                (cid, grandchildren, False)
+                for cid, grandchildren in children_spans_id_tree.items()
+            )
+            continue
 
         parent_span = spans_idx[span_id]
 
         parent_span.spans = dict()
-
-        _connect_tree_dfs(children_spans_id_tree, spans_idx)
 
         for child_span_id in children_spans_id_tree.keys():
             child_span_name = spans_idx[child_span_id].span_name
