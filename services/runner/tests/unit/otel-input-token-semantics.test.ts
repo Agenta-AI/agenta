@@ -154,7 +154,7 @@ describe("the ACP tracer declares its input token contract", () => {
     assertEveryTokenSpanDeclaresExclusiveInput(spans);
   });
 
-  it("stamps nothing when the run reported cost without a token split", () => {
+  it("stamps no tokens when the run reported cost without a token split", () => {
     const spans = spyTracer();
     const otel = createSandboxAgentOtel({
       harness: "claude",
@@ -165,11 +165,10 @@ describe("the ACP tracer declares its input token contract", () => {
     otel.setUsage({ input: 0, output: 0, total: 0, cost: 0.04 });
     otel.finish();
 
-    // The harness cost is never a span attribute (the platform prices spans from tokens), and
-    // no tokens is no measurement, so the chat span stays bare.
+    // No tokens is no measurement, so the chat span carries the harness cost and no token count.
     const chatSpan = spans.find((s) => s.name.startsWith("chat"));
     expect(chatSpan?.attributes[INPUT_TOKENS]).toBeUndefined();
-    expect(chatSpan?.attributes["gen_ai.usage.cost"]).toBeUndefined();
+    expect(chatSpan?.attributes["gen_ai.usage.cost"]).toBe(0.04);
     expect(assertEveryTokenSpanDeclaresExclusiveInput(spans)).toBe(0);
   });
 });

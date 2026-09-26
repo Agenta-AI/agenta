@@ -1680,8 +1680,8 @@ export interface SandboxAgentOtel {
   recordError(message: string, provider?: string): void;
   /** Set final run usage before finish/flush so events and exported spans carry final totals. */
   setUsage(usage: AgentUsage | undefined): void;
-  /** Per-model token detail (with cache reads and writes) for the model spans. Not on the wire. */
-  setTokenDetail(rows: ModelTokenUsage[] | undefined): void;
+  /** The turn's token counts (with cache reads and writes) for the model span. Not on the wire. */
+  setTokenDetail(tokens: ModelTokenUsage | undefined): void;
   /** Flush this run's trace to Agenta (invoke_agent has a remote parent). */
   flush(): Promise<void>;
   /** Trace id of the run (the caller's trace when a traceparent was passed). */
@@ -1737,7 +1737,7 @@ export function createSandboxAgentOtel(
   let accumulated = "";
   let reasoningAccumulated = "";
   let usage: AgentUsage | undefined;
-  let tokenDetail: ModelTokenUsage[] | undefined;
+  let tokenDetail: ModelTokenUsage | undefined;
   const events: AgentEvent[] = [];
   // `inputJson` is the serialized form of the last-RECORDED input for the call, so a later
   // `tool_call_update` can refresh the recorded args whenever they genuinely change.
@@ -1766,11 +1766,8 @@ export function createSandboxAgentOtel(
   }
 
   /**
-   * Stamp one model's tokens on a LEAF model span, the one span that owns them.
-   *
-   * No harness cost goes on the span. Claude Code reports a running total for the whole session
-   * and Codex reports none, so the platform prices each span from its model and tokens. Input is
-   * exclusive of cache (see INPUT_TOKENS_INCLUDES_CACHE); cache reads and writes ride beside it.
+   * Stamp token counts on a LEAF model span, the one span that owns them. Input is exclusive of
+   * cache (see INPUT_TOKENS_INCLUDES_CACHE); cache reads and writes ride beside it.
    */
   function stampTokens(span: Span, t: ModelTokenUsage): void {
     const total = t.input + t.output + t.cacheRead + t.cacheWrite;
@@ -1784,55 +1781,52 @@ export function createSandboxAgentOtel(
     span.setAttribute("gen_ai.usage.total_tokens", total);
     span.setAttribute("gen_ai.usage.cache_read.input_tokens", t.cacheRead);
     span.setAttribute("gen_ai.usage.cache_creation.input_tokens", t.cacheWrite);
-    if (t.model) span.setAttribute("gen_ai.response.model", t.model);
   }
 
-  /** Stamp the run's usage on the chat span, plus one sibling span per extra model it used. */
+  /**
+   * Stamp the turn's usage on its chat span: the tokens of every model call in the turn, summed,
+   * and the harness cost when it reported one (Claude's turn share). The span stands for many
+   * calls, so without a cost the platform prices the sum as one request. Codex reports neither a
+   * cost nor per-call counts, so a Codex turn whose calls together cross a long-context price tier
+   * is priced at that tier: a known limit.
+   */
   function stampModelUsage(span: Span): void {
-    const rows: ModelTokenUsage[] = tokenDetail?.length
-      ? tokenDetail
-      : usage
-        ? [
-            {
-              input: usage.input,
-              output: usage.output,
-              cacheRead: 0,
-              cacheWrite: 0,
-            },
-          ]
-        : [];
-    if (!rows.length) return;
-    const primaryIndex = Math.max(
-      0,
-      rows.findIndex((row) => row.model && row.model === modelId),
-    );
-    stampTokens(span, rows[primaryIndex]!);
-    rows.forEach((row, index) => {
-      if (index === primaryIndex || !turnCtx) return;
-      // Subagents and compaction can run on another model (for example a small one). Give each
-      // its own span so it is priced at its own rate.
-      const extra = tracer.startSpan(
-        row.model ? `chat ${row.model}` : "chat",
-        undefined,
-        turnCtx,
-      );
-      extra.setAttribute("openinference.span.kind", "LLM");
-      extra.setAttribute("gen_ai.operation.name", "chat");
-      if (provider) extra.setAttribute("gen_ai.system", provider);
-      if (row.model) extra.setAttribute("gen_ai.request.model", row.model);
-      stampTokens(extra, row);
-      extra.end();
-    });
+    const tokens =
+      tokenDetail ??
+      (usage
+        ? {
+            input: usage.input,
+            output: usage.output,
+            cacheRead: 0,
+            cacheWrite: 0,
+          }
+        : undefined);
+    if (tokens) stampTokens(span, tokens);
+    if (usage?.cost != null) span.setAttribute("gen_ai.usage.cost", usage.cost);
   }
 
-  function setTokenDetail(rows: ModelTokenUsage[] | undefined): void {
-    tokenDetail = rows;
+  function setTokenDetail(tokens: ModelTokenUsage | undefined): void {
+    tokenDetail = tokens;
   }
 
+  /**
+   * Set the run's final usage. With token detail set (call `setTokenDetail` first), the usage
+   * reports the counts the model span carries: every model call of the turn, and cache reads and
+   * writes in the total. A harness that traces its own spans (Pi) keeps the usage it reported.
+   */
   function setUsage(finalUsage: AgentUsage | undefined): void {
-    if (!finalUsage) return;
-    usage = finalUsage;
-    const event: AgentEvent = { type: "usage", ...finalUsage };
+    const t = emitSpans ? tokenDetail : undefined;
+    const merged: AgentUsage | undefined = t
+      ? {
+          ...finalUsage,
+          input: t.input,
+          output: t.output,
+          total: t.input + t.output + t.cacheRead + t.cacheWrite,
+        }
+      : finalUsage;
+    if (!merged) return;
+    usage = merged;
+    const event: AgentEvent = { type: "usage", ...merged };
     if (!sink) {
       const index = events.findLastIndex((e) => e.type === "usage");
       if (index !== -1) {

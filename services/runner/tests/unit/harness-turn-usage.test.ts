@@ -2,9 +2,9 @@
  * Per-turn harness usage for the ACP harnesses (Claude, Codex).
  *
  * Claude Code reports `total_cost_usd` as a running total for the whole session, and one pooled
- * session serves many turns, so the runner reports each turn's share. The model spans carry
- * tokens only (with cache reads and writes), one span per model, so the platform prices each at
- * its own rate.
+ * session serves many turns, so the runner reports each turn's share. The turn's one chat span
+ * carries the tokens of every model call (with cache reads and writes) and that share, and the
+ * run's usage reports the same token counts.
  *
  * Run: pnpm exec vitest run tests/unit/harness-turn-usage.test.ts
  */
@@ -126,30 +126,23 @@ describe("turnCostFromRunningTotal", () => {
 });
 
 describe("promptTokenDetail", () => {
-  it("reads one row per model, with cache reads and writes, when asked", () => {
-    expect(promptTokenDetail(claudeResponse, { perModel: true })).toEqual([
-      {
-        model: "claude-sonnet-4-5",
-        input: 10,
-        output: 200,
-        cacheRead: 5000,
-        cacheWrite: 1200,
-      },
-      {
-        model: "claude-haiku-4-5",
-        input: 300,
-        output: 40,
-        cacheRead: 0,
-        cacheWrite: 0,
-      },
-    ]);
+  it("sums the per-model rows, subagents and cache included, when asked", () => {
+    expect(promptTokenDetail(claudeResponse, { perModel: true })).toEqual({
+      input: 310,
+      output: 240,
+      cacheRead: 5000,
+      cacheWrite: 1200,
+    });
   });
 
   it("reads the response usage, cache included, when per-model rows are not trusted", () => {
     // Codex fills model_usage with its LAST model call only.
-    expect(promptTokenDetail(claudeResponse, { perModel: false })).toEqual([
-      { input: 10, output: 200, cacheRead: 5000, cacheWrite: 1200 },
-    ]);
+    expect(promptTokenDetail(claudeResponse, { perModel: false })).toEqual({
+      input: 10,
+      output: 200,
+      cacheRead: 5000,
+      cacheWrite: 1200,
+    });
   });
 
   it("returns nothing when the harness reported no usage", () => {
@@ -159,8 +152,8 @@ describe("promptTokenDetail", () => {
   });
 });
 
-describe("the ACP tracer stamps per-model token detail", () => {
-  it("gives each model its own chat span with cache counts and no harness cost", () => {
+describe("the ACP tracer stamps the turn's usage on one chat span", () => {
+  it("sums every model's tokens on the chat span and carries Claude's turn cost", () => {
     const spans = spyTracer();
     const otel = createSandboxAgentOtel({
       harness: "claude",
@@ -168,34 +161,70 @@ describe("the ACP tracer stamps per-model token detail", () => {
       emitSpans: true,
     });
     otel.start({ prompt: "hi" });
-    otel.setUsage({ input: 10, output: 200, total: 210, cost: 0.02 });
     otel.setTokenDetail(promptTokenDetail(claudeResponse, { perModel: true }));
+    otel.setUsage({ input: 310, output: 240, total: 6750, cost: 0.02 });
     otel.finish();
 
-    const main = spans.find((s) => s.name === "chat claude-sonnet-4-5")!;
-    expect(main.attributes["gen_ai.response.model"]).toBe("claude-sonnet-4-5");
-    expect(main.attributes["gen_ai.usage.input_tokens"]).toBe(10);
-    expect(main.attributes["gen_ai.usage.cache_read.input_tokens"]).toBe(5000);
-    expect(main.attributes["gen_ai.usage.cache_creation.input_tokens"]).toBe(
+    const chats = spans.filter((s) => s.name.startsWith("chat"));
+    expect(chats).toHaveLength(1);
+    const chat = chats[0]!;
+    expect(chat.attributes["gen_ai.usage.input_tokens"]).toBe(310);
+    expect(chat.attributes["gen_ai.usage.output_tokens"]).toBe(240);
+    expect(chat.attributes["gen_ai.usage.cache_read.input_tokens"]).toBe(5000);
+    expect(chat.attributes["gen_ai.usage.cache_creation.input_tokens"]).toBe(
       1200,
     );
-    expect(main.attributes["gen_ai.usage.total_tokens"]).toBe(6410);
-    expect(main.attributes["agenta.usage.input_tokens_includes_cache"]).toBe(
+    expect(chat.attributes["gen_ai.usage.total_tokens"]).toBe(6750);
+    expect(chat.attributes["agenta.usage.input_tokens_includes_cache"]).toBe(
       false,
     );
-    expect(main.attributes["gen_ai.usage.cost"]).toBeUndefined();
-
-    const extra = spans.find((s) => s.name === "chat claude-haiku-4-5")!;
-    expect(extra.attributes["gen_ai.request.model"]).toBe("claude-haiku-4-5");
-    expect(extra.attributes["gen_ai.usage.input_tokens"]).toBe(300);
-    expect(extra.attributes["gen_ai.usage.total_tokens"]).toBe(340);
+    expect(chat.attributes["gen_ai.usage.cost"]).toBe(0.02);
 
     const agent = spans.find((s) => s.name === "invoke_agent")!;
     expect(agent.attributes["gen_ai.usage.total_tokens"]).toBeUndefined();
     expect(agent.attributes["gen_ai.usage.cost"]).toBeUndefined();
   });
 
-  it("stamps the Codex response usage with its cache reads on the one chat span", () => {
+  it("reports the chat span's counts as the run's usage, cache and subagents included", () => {
+    spyTracer();
+    const otel = createSandboxAgentOtel({
+      harness: "claude",
+      model: "anthropic/claude-sonnet-4-5",
+      emitSpans: true,
+    });
+    otel.start({ prompt: "hi" });
+    otel.setTokenDetail(promptTokenDetail(claudeResponse, { perModel: true }));
+    // The prompt response's own usage: the main agent only, cache left out of the total.
+    otel.setUsage({ input: 10, output: 200, total: 210, cost: 0.02 });
+
+    expect(otel.usage()).toEqual({
+      input: 310,
+      output: 240,
+      total: 6750,
+      cost: 0.02,
+    });
+  });
+
+  it("keeps the usage a self-tracing harness reported", () => {
+    spyTracer();
+    const otel = createSandboxAgentOtel({
+      harness: "pi",
+      model: "anthropic/claude-sonnet-4-5",
+      emitSpans: false,
+    });
+    otel.start({ prompt: "hi" });
+    otel.setTokenDetail({ input: 1, output: 1, cacheRead: 1, cacheWrite: 1 });
+    otel.setUsage({ input: 40, output: 8, total: 48, cost: 0.01 });
+
+    expect(otel.usage()).toEqual({
+      input: 40,
+      output: 8,
+      total: 48,
+      cost: 0.01,
+    });
+  });
+
+  it("stamps the Codex response usage with its cache reads and no cost", () => {
     const spans = spyTracer();
     const otel = createSandboxAgentOtel({
       harness: "codex",
@@ -203,10 +232,13 @@ describe("the ACP tracer stamps per-model token detail", () => {
       emitSpans: true,
     });
     otel.start({ prompt: "hi" });
-    otel.setUsage({ input: 800, output: 90, total: 890 });
-    otel.setTokenDetail([
-      { input: 800, output: 90, cacheRead: 7000, cacheWrite: 0 },
-    ]);
+    otel.setTokenDetail({
+      input: 800,
+      output: 90,
+      cacheRead: 7000,
+      cacheWrite: 0,
+    });
+    otel.setUsage({ input: 800, output: 90, total: 7890 });
     otel.finish();
 
     const chats = spans.filter((s) => s.name.startsWith("chat"));
@@ -215,6 +247,7 @@ describe("the ACP tracer stamps per-model token detail", () => {
       7000,
     );
     expect(chats[0]!.attributes["gen_ai.usage.input_tokens"]).toBe(800);
+    expect(chats[0]!.attributes["gen_ai.usage.cost"]).toBeUndefined();
     expect(chats[0]!.attributes["gen_ai.response.model"]).toBe("gpt-5.3-codex");
   });
 });

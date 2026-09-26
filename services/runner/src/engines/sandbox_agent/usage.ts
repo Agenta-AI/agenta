@@ -89,45 +89,54 @@ function count(value: unknown): number {
 }
 
 /**
- * The turn's token detail for the model spans, read from the ACP PromptResponse.
+ * The turn's token counts for its model span, read from the ACP PromptResponse.
  *
- * `perModel` reads `_meta.quota.model_usage`, which claude-agent-acp fills with one row per model
+ * `perModel` sums `_meta.quota.model_usage`, which claude-agent-acp fills with one row per model
  * for THIS turn (subagents and compaction included, cache reads and writes split out). Codex
  * fills the same field with its last model call only, so it must not ask for it. Otherwise the
- * response's own `usage` gives one row, still with its cache counts.
+ * response's own `usage` gives the counts, still with its cache counts.
  */
 export function promptTokenDetail(
   promptResult: any,
   { perModel }: { perModel: boolean },
-): ModelTokenUsage[] | undefined {
+): ModelTokenUsage | undefined {
   const rows = promptResult?._meta?.quota?.model_usage;
   if (perModel && Array.isArray(rows)) {
-    const detail = rows
-      .map((row: any): ModelTokenUsage => {
+    const summed = sumTokens(
+      rows.map((row: any) => {
         const t = row?.token_count ?? {};
         return {
-          ...(typeof row?.model === "string" && row.model
-            ? { model: row.model }
-            : {}),
           input: count(t.inputTokens),
           output: count(t.outputTokens),
           cacheRead: count(t.cachedInputTokens),
           cacheWrite: count(t.cachedWriteTokens),
         };
-      })
-      .filter((t) => t.input + t.output + t.cacheRead + t.cacheWrite > 0);
-    if (detail.length) return detail;
+      }),
+    );
+    if (summed) return summed;
   }
   const u = promptResult?.usage;
   if (!u) return undefined;
-  const row: ModelTokenUsage = {
-    input: count(u.inputTokens),
-    output: count(u.outputTokens),
-    cacheRead: count(u.cachedReadTokens),
-    cacheWrite: count(u.cachedWriteTokens),
-  };
-  return row.input + row.output + row.cacheRead + row.cacheWrite > 0
-    ? [row]
+  return sumTokens([
+    {
+      input: count(u.inputTokens),
+      output: count(u.outputTokens),
+      cacheRead: count(u.cachedReadTokens),
+      cacheWrite: count(u.cachedWriteTokens),
+    },
+  ]);
+}
+
+function sumTokens(rows: ModelTokenUsage[]): ModelTokenUsage | undefined {
+  const sum = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 };
+  for (const row of rows) {
+    sum.input += row.input;
+    sum.output += row.output;
+    sum.cacheRead += row.cacheRead;
+    sum.cacheWrite += row.cacheWrite;
+  }
+  return sum.input + sum.output + sum.cacheRead + sum.cacheWrite > 0
+    ? sum
     : undefined;
 }
 

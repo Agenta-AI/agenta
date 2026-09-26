@@ -1884,7 +1884,8 @@ export async function runTurn(
       output,
       messages: output ? [{ role: "assistant", content: output }] : [],
       events: emit ? [] : run.events(),
-      usage,
+      // The tracer's usage: the counts its model span carries (see `setUsage`).
+      usage: run.usage(),
       stopReason,
       ...(stopReason === "cancelled" ? { cancelSettled } : {}),
       capabilities: {
