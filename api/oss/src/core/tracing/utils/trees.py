@@ -1,5 +1,5 @@
 from collections import OrderedDict
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from litellm import cost_calculator
 
@@ -62,6 +62,64 @@ def calculate_and_propagate_metrics(
 
     # Return updated span DTOs
     return list(span_idx.values())
+
+
+CUMULATIVE_METRICS = ("costs", "tokens", "errors")
+
+
+def _metric_node(span: OTelFlatSpan, metric: str) -> Optional[dict]:
+    node = span.attributes
+    for key in ("ag", "metrics", metric):
+        if not isinstance(node, dict):
+            return None
+        node = node.get(key)
+    return node if isinstance(node, dict) else None
+
+
+def recompute_cumulative_metrics(
+    span_dtos: List[OTelFlatSpan],
+) -> Dict[str, Dict[str, Any]]:
+    """
+    Recompute cumulative costs/tokens/errors over every stored span of one trace.
+
+    Uses the same roll-up rules as ingest, but reads incremental values only and never
+    writes them. Mutates the given spans. Returns {span_id: {metric: cumulative}} for
+    the values that differ from what the spans carried; None means remove the stored
+    cumulative value.
+    """
+    if not span_dtos:
+        return {}
+
+    stored: Dict[str, Dict[str, Any]] = {}
+    for span_dto in span_dtos:
+        stored[span_dto.span_id] = {}
+        for metric in CUMULATIVE_METRICS:
+            node = _metric_node(span_dto, metric)
+            if node is not None and "cumulative" in node:
+                stored[span_dto.span_id][metric] = node.pop("cumulative")
+
+    span_idx = parse_span_dtos_to_span_idx(span_dtos)
+    span_id_tree = parse_span_idx_to_span_id_tree(span_idx)
+
+    cumulate_costs(span_id_tree, span_idx)
+    cumulate_tokens(span_id_tree, span_idx)
+    cumulate_errors(span_id_tree, span_idx)
+
+    changes: Dict[str, Dict[str, Any]] = {}
+    for span_dto in span_idx.values():
+        for metric in CUMULATIVE_METRICS:
+            node = _metric_node(span_dto, metric)
+            if node is not None and "cumulative" in node:
+                value = node["cumulative"]
+            elif metric in stored[span_dto.span_id]:
+                # The roll-up writes nothing for zero, so remove the stored value.
+                value = None
+            else:
+                continue
+            if value != stored[span_dto.span_id].get(metric):
+                changes.setdefault(span_dto.span_id, {})[metric] = value
+
+    return changes
 
 
 def calculate_and_propagate_metrics_by_trace(

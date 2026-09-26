@@ -1,4 +1,14 @@
-from typing import Tuple, Any, Dict, Optional, List, Literal, cast as type_cast
+import json
+from typing import (
+    Tuple,
+    Any,
+    Callable,
+    Dict,
+    Optional,
+    List,
+    Literal,
+    cast as type_cast,
+)
 from uuid import UUID
 from traceback import format_exc
 from datetime import datetime, timezone
@@ -67,6 +77,40 @@ from oss.src.dbs.postgres.tracing.utils import (
 log = get_module_logger(__name__)
 
 
+def _jsonb_object(expr: str) -> str:
+    return f"(CASE WHEN jsonb_typeof({expr}) = 'object' THEN {expr} ELSE '{{}}'::jsonb END)"
+
+
+_ATTRIBUTES = "COALESCE(attributes, '{}'::jsonb)"
+_AG = _jsonb_object(f"{_ATTRIBUTES} -> 'ag'")
+_METRICS = _jsonb_object(f"{_AG} -> 'metrics'")
+_METRIC = _jsonb_object(f"{_METRICS} -> CAST(:metric AS text)")
+
+# Sets (or, for a JSON null, removes) only ag.metrics.<metric>.cumulative, so a concurrent upsert's incremental values
+# are never overwritten.
+UPDATE_CUMULATIVE_METRIC_STMT = text(
+    f"""
+    UPDATE spans
+    SET attributes = {_ATTRIBUTES} || jsonb_build_object(
+        'ag', {_AG} || jsonb_build_object(
+            'metrics', {_METRICS} || jsonb_build_object(
+                CAST(:metric AS text), CASE
+                    WHEN CAST(:value AS jsonb) = 'null'::jsonb
+                    THEN {_METRIC} - 'cumulative'
+                    ELSE {_METRIC} || jsonb_build_object(
+                        'cumulative', CAST(:value AS jsonb)
+                    )
+                END
+            )
+        )
+    )
+    WHERE project_id = :project_id
+      AND trace_id = :trace_id
+      AND span_id = :span_id
+    """
+)
+
+
 class TracingDAO(TracingDAOInterface):
     def __init__(self, engine: AnalyticsEngine = None):
         if engine is None:
@@ -91,7 +135,11 @@ class TracingDAO(TracingDAOInterface):
         async with self.engine.session() as session:
             link_dtos: List[OTelLink] = []
 
-            for span_dto in span_dtos:
+            # Same row order as recompute_trace_metrics, so the two never deadlock.
+            for span_dto in sorted(
+                span_dtos,
+                key=lambda span_dto: (UUID(span_dto.trace_id), UUID(span_dto.span_id)),
+            ):
                 span_dbe = map_span_dto_to_span_dbe(
                     project_id=project_id,
                     user_id=user_id,
@@ -814,6 +862,99 @@ class TracingDAO(TracingDAOInterface):
             await session.commit()
 
             return link_dtos
+
+    async def recompute_trace_metrics(
+        self,
+        *,
+        project_id: UUID,
+        trace_id: UUID,
+        #
+        recompute: Callable[[List[OTelFlatSpan]], Dict[str, Dict[str, Any]]],
+        max_spans: int,
+    ) -> Optional[int]:
+        """Rewrite the cumulative metrics of one trace from all its stored spans.
+
+        Returns the number of cumulative values written, or None when the trace has more
+        than `max_spans` spans and is skipped.
+        """
+        async with self.engine.session() as session:
+            # Serializes recomputes of one trace, so an older read never lands last.
+            await session.execute(
+                text("SELECT pg_advisory_xact_lock(hashtextextended(:key, 0))"),
+                {"key": f"spans:metrics:{project_id}:{trace_id}"},
+            )
+
+            stmt = (
+                select(
+                    SpanDBE.span_id,
+                    SpanDBE.parent_id,
+                    SpanDBE.span_type,
+                    SpanDBE.start_time,
+                    SpanDBE.end_time,
+                    SpanDBE.attributes["ag"]["metrics"].label("metrics"),
+                    SpanDBE.attributes["ag"]["flags"].label("flags"),
+                )
+                .where(
+                    SpanDBE.project_id == project_id,
+                    SpanDBE.trace_id == trace_id,
+                )
+                .limit(max_spans + 1)
+            )
+
+            rows = (await session.execute(stmt)).all()
+
+            if len(rows) > max_spans:
+                log.warning(
+                    "[TRACING] Trace too large to recompute metrics",
+                    project_id=str(project_id),
+                    trace_id=str(trace_id),
+                    max_spans=max_spans,
+                )
+                return None
+
+            span_dtos = [
+                OTelFlatSpan(
+                    trace_id=str(trace_id),
+                    span_id=str(row.span_id),
+                    parent_id=str(row.parent_id) if row.parent_id else None,
+                    span_type=row.span_type,
+                    span_name="",
+                    start_time=row.start_time,
+                    end_time=row.end_time,
+                    attributes={
+                        "ag": {
+                            "metrics": row.metrics
+                            if isinstance(row.metrics, dict)
+                            else {},
+                            "flags": row.flags if isinstance(row.flags, dict) else {},
+                        }
+                    },
+                )
+                for row in rows
+            ]
+
+            changes = recompute(span_dtos)
+
+            params = [
+                {
+                    "project_id": project_id,
+                    "trace_id": trace_id,
+                    "span_id": UUID(span_id),
+                    "metric": metric,
+                    "value": json.dumps(value),
+                }
+                for span_id, metrics in sorted(
+                    changes.items(), key=lambda item: UUID(item[0])
+                )
+                for metric, value in metrics.items()
+            ]
+
+            if params:
+                await session.execute(UPDATE_CUMULATIVE_METRIC_STMT, params)
+
+            await session.commit()
+
+            return len(params)
 
     ### SESSIONS AND USERS
 

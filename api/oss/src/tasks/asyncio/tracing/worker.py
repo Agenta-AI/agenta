@@ -6,7 +6,7 @@ Keeps the same batching, grouping, and entitlements logic.
 """
 
 import asyncio
-from typing import Dict, List, Tuple, Optional
+from typing import Dict, List, Set, Tuple, Optional
 from uuid import UUID
 from redis.asyncio import Redis
 
@@ -18,6 +18,9 @@ from oss.src.core.tracing.streaming import deserialize_span
 from oss.src.tasks.asyncio.shared.consumer import StreamConsumer
 
 log = get_module_logger(__name__)
+
+RECOMPUTE_ATTEMPTS = 3
+RECOMPUTE_BACKOFF_S = 0.5
 
 if is_ee():
     from ee.src.core.access.entitlements.service import (
@@ -40,7 +43,8 @@ class TracingWorker(StreamConsumer):
     3. Group by organization_id → (project_id, user_id)
     4. Check entitlements per org (Layer 2 - authoritative)
     5. Bulk create spans per project/user if allowed
-    6. ACK + DEL messages — StreamConsumer
+    6. Recompute the totals of every trace the batch touched
+    7. ACK + DEL messages — StreamConsumer
     """
 
     log_prefix = "[INGEST]"
@@ -132,6 +136,8 @@ class TracingWorker(StreamConsumer):
         if not spans_by_org:
             return (processed_count, processed_message_ids)
 
+        touched_traces: Set[Tuple[UUID, UUID]] = set()
+
         # 2. Enforce entitlements per org (Layer 2, authoritative - same as PR #1223)
         for organization_id, spans_by_proj_user in spans_by_org.items():
             # Count root spans (delta)
@@ -178,6 +184,11 @@ class TracingWorker(StreamConsumer):
                         span_dtos=span_dtos,
                     )
 
+                    touched_traces.update(
+                        (project_id, UUID(str(span_dto.trace_id)))
+                        for span_dto in span_dtos
+                    )
+
                 except Exception as e:
                     log.error(
                         "[INGEST] Failed to create spans",
@@ -189,6 +200,30 @@ class TracingWorker(StreamConsumer):
                     )
                     # Sleep briefly to avoid hammering DB on errors
                     await asyncio.sleep(0.05)
+
+        # 4. Ingest rolls metrics up per batch, so a trace split across requests or
+        # batches needs its totals recomputed from all its stored spans.
+        # A transient failure is retried in place; after the last attempt the batch is
+        # still acknowledged and the trace keeps partial totals until it is touched again.
+        for project_id, trace_id in sorted(touched_traces):
+            for attempt in range(1, RECOMPUTE_ATTEMPTS + 1):
+                try:
+                    await self.service.recompute_trace_totals(
+                        project_id=project_id,
+                        trace_id=trace_id,
+                    )
+                    break
+                except Exception:
+                    if attempt == RECOMPUTE_ATTEMPTS:
+                        log.error(
+                            "[INGEST] Failed to recompute trace totals",
+                            project_id=str(project_id),
+                            trace_id=str(trace_id),
+                            attempts=attempt,
+                            exc_info=True,
+                        )
+                    else:
+                        await asyncio.sleep(RECOMPUTE_BACKOFF_S * attempt)
 
         # Return count and message IDs for ACK/DEL
         return (processed_count, processed_message_ids)

@@ -4,6 +4,7 @@ from datetime import datetime
 
 from genson import SchemaBuilder
 
+from oss.src.utils.env import env
 from oss.src.utils.logging import get_module_logger
 
 from oss.src.core.evaluators.dtos import (
@@ -24,6 +25,7 @@ from oss.src.core.tracing.utils.trees import (
     calculate_and_propagate_metrics_by_trace,
     infer_and_propagate_trace_type_by_trace,
     promote_identity_by_trace,
+    recompute_cumulative_metrics,
     trace_map_to_traces,
 )
 from oss.src.core.tracing.streaming import publish_spans
@@ -125,6 +127,21 @@ class TracingService:
             user_id=user_id,
             #
             span_dtos=span_dtos,
+        )
+
+    async def recompute_trace_totals(
+        self,
+        *,
+        project_id: UUID,
+        trace_id: UUID,
+    ) -> Optional[int]:
+        """Recompute cumulative metrics of one trace from all its stored spans."""
+        return await self.tracing_dao.recompute_trace_metrics(
+            project_id=project_id,
+            trace_id=trace_id,
+            #
+            recompute=recompute_cumulative_metrics,
+            max_spans=env.agenta.otlp.totals_max_spans,
         )
 
     async def ingest_span_dtos(
