@@ -254,6 +254,7 @@ from oss.src.core.sessions.inputs.service import SessionInputsService
 from oss.src.core.sessions.starts.service import SessionStartsService
 from oss.src.core.agent_templates.bindings import TemplateBindingResolver
 from oss.src.core.agent_templates.compiler import TemplateCompiler
+from oss.src.core.agent_templates.github import GitHubPackageStager
 from oss.src.core.agent_templates.loader import AgentTemplateLoader
 from oss.src.core.agent_templates.parser import TemplatePackageParser
 from oss.src.core.agent_templates.sources import (
@@ -1508,6 +1509,7 @@ agent_template_sources = TemplateSources(
                 attachments_service=session_attachments_service,
             ),
             "session_file": SessionFileArchiveStager(mounts_service=mounts_service),
+            "github": GitHubPackageStager(),
         }
     ),
 )

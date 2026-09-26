@@ -6,6 +6,7 @@ from agenta.sdk.agents import ContentBlock, Message
 from oss.src.core.agent_templates.bindings import TemplateBindingResolver
 from oss.src.core.agent_templates.compiler import TemplateCompiler
 from oss.src.core.agent_templates.dtos import (
+    GitHubTemplateSource,
     InternalTemplateSource,
     SessionFileTemplateSource,
     TemplateLoadCommand,
@@ -147,6 +148,15 @@ class AgentTemplateLoader:
             or (
                 isinstance(command.source, InternalTemplateSource)
                 and origin["key"] != command.source.key
+            )
+            or (
+                isinstance(command.source, GitHubTemplateSource)
+                and (origin["repo_url"], origin["commit"], origin["path"])
+                != (
+                    command.source.repo_url,
+                    command.source.commit,
+                    command.source.path,
+                )
             )
         ):
             raise TemplateCreateConflict()
