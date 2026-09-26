@@ -2,14 +2,14 @@ import {agentTemplateLookupAtomFamily} from "@agenta/entities/workflow"
 import {TemplateDetail} from "@agenta/home-ui"
 import {useAtomValue} from "jotai"
 
+import {PageTitle} from "@/components/PageTitle"
+import {ScreenScaffold} from "@/components/ScreenScaffold"
+
 import {AssistantMarkdown} from "../chat/AssistantMarkdown"
 import {useBindProjectContext} from "../context/useBindProjectContext"
 import {AppShell} from "../nav/AppShell"
 
 import {useNewAgentAction} from "./useNewAgentAction"
-
-import {PageTitle} from "@/components/PageTitle"
-import {ScreenScaffold} from "@/components/ScreenScaffold"
 
 /**
  * One template, in full — the SHARED detail view (the desktop page renders the same one), under
