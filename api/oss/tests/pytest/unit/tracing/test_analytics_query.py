@@ -9,7 +9,6 @@ from oss.src.dbs.postgres.tracing.utils import (
     build_base_cte,
     fill_empty_buckets,
     get_sampling_percent,
-    scale_sampled_value,
 )
 
 
@@ -56,19 +55,6 @@ def test_get_sampling_percent():
     assert get_sampling_percent(-1.0) == 0
     assert get_sampling_percent(0.0) == 0
     assert get_sampling_percent(0.005) == 1
-
-
-def test_scale_sampled_value_scales_counts_and_sums_only():
-    value = {"count": 5, "sum": 2.5, "mean": 0.5, "min": 0.1, "max": 1.0}
-
-    scaled = scale_sampled_value(value, 25)
-
-    assert scaled == {"count": 20.0, "sum": 10.0, "mean": 0.5, "min": 0.1, "max": 1.0}
-
-
-def test_scale_sampled_value_is_a_no_op_without_sampling():
-    assert scale_sampled_value({"count": 5}, None) == {"count": 5}
-    assert scale_sampled_value({"count": 5}, 100) == {"count": 5}
 
 
 def test_fill_empty_buckets_adds_missing_timestamps_only():

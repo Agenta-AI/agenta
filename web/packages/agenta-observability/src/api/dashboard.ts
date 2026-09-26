@@ -67,7 +67,8 @@ export const fetchDashboardAnalytics = async ({
         focus: "trace",
         interval,
         oldest: startTime,
-        newest: endTime,
+        // Send the end we sized the interval from, so the API does not pad to midnight.
+        newest: endDayjs.toISOString(),
         filter: conditions.length ? {conditions} : undefined,
         abortSignal: signal,
     })

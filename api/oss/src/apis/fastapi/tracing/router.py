@@ -449,9 +449,8 @@ class TracingRouter:
           that contribute to the analytics.
         - `windowing` — `oldest`/`newest` for the time range (matched against
           each span's `start_time`), `interval` for bucket width (in minutes),
-          and an optional `rate` to sample a share of the traces. With a
-          `rate`, counts and sums are scaled back up to estimate all traces.
-          When `interval` is set, buckets with no spans are returned empty.
+          and an optional `rate` to sample a share of the traces. Figures
+          describe the sample only. When `interval` is set, buckets with no spans are returned empty.
         - `formatting.focus` — `trace` (default) summarizes root spans only,
           which carry the cumulative metrics of their trace. `span`
           summarizes every span.
