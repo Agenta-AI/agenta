@@ -91,3 +91,19 @@ async def claim_due_trace_totals(
         for member, count in zip(members, removed)
         if int(count) == 1
     ]
+
+
+async def requeue_trace_totals(
+    redis: Redis,
+    *,
+    trace_keys: Iterable[TraceKey],
+    delay_ms: int,
+) -> None:
+    """Put claimed traces back in the queue, due after `delay_ms`, after a failed recompute."""
+    due = time.time() + delay_ms / 1000
+    scheduled = {
+        _member(project_id, trace_id): due for project_id, trace_id in trace_keys
+    }
+    if scheduled:
+        # NX: a request that scheduled the trace again meanwhile keeps its due time.
+        await redis.zadd(TOTALS_QUEUE_KEY, scheduled, nx=True)
