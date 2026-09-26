@@ -6,6 +6,7 @@ import {
     detectAccounts,
     setupStepNeeded,
     templateBuilderMessage,
+    UNAVAILABLE_TEMPLATE_MESSAGE,
     type AgentStarterTemplate,
 } from "@agenta/entities/workflow"
 import {captureFirstAgentIntent} from "@agenta/shared/analytics"
@@ -25,9 +26,6 @@ import {
 } from "@/oss/state/url/template"
 
 import {useCreateAgent} from "./useCreateAgent"
-
-export const UNAVAILABLE_TEMPLATE_MESSAGE =
-    "This template is not available in this version of Agenta. No agent was created."
 
 /** Same gate as the in-app setup step: does this template need accounts connected first? */
 export const templateNeedsSetup = (
