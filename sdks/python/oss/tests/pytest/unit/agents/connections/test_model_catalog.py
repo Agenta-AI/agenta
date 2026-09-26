@@ -392,13 +392,13 @@ def test_curated_default_models_exist_in_the_pinned_pi_catalog():
     for provider, models in PROVIDER_DEFAULT_MODELS.items():
         for model_id in models:
             assert model_id in catalog_ids, (provider, model_id)
-    # Opus 5.5 postdates the pinned pi-ai snapshot, so it reaches the catalog through the curated
-    # `additions` list rather than the generated file. The loop above is what proves it arrived.
+    # pi-ai 0.87.1 carries Opus 5.5, so the generated file supplies it and the curated addition
+    # that bridged the older snapshot is retired.
     assert "anthropic/claude-opus-5-5" in catalog_ids
     entry = next(
         e for e in pi_model_catalog().models if e.id == "anthropic/claude-opus-5-5"
     )
-    assert entry.name == "Claude Opus 5.5" and entry.source == "curated"
+    assert entry.name == "Claude Opus 5.5" and entry.source == "pi_generated"
 
 
 def test_fable_5_1_keeps_its_own_claude_request_value():
