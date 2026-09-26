@@ -1,12 +1,15 @@
 /** The Files pane's body for an editable markdown / text file: the shared {@link MarkdownEditor} over the draft. */
-import {useCallback, useState} from "react"
+import {useCallback, useRef, useState} from "react"
 
 import {type DriveEditorMode, useDriveFileDraft} from "@agenta/entities/drive"
 import {type Mount} from "@agenta/entities/session"
+import {QuoteSelectionLayer} from "@agenta/ui/quote-selection"
 
 import {MarkdownEditor} from "../DrillInView/SchemaControls/MarkdownEditor"
 
 import {DriveEditorPlaceholder, DriveEditorSkeleton, useDriveSaveKey} from "./DriveEditorFrame"
+import {useDriveSessionId} from "./driveSessionContext"
+import {useQuotableFile} from "./quotable"
 import {useDriveLinkClick} from "./useDriveLinkClick"
 
 interface DriveMarkdownEditorProps {
@@ -45,16 +48,23 @@ export function DriveMarkdownEditor({
     // Lexical paints its default view before the requested one lands; keep the skeleton up until then.
     const [ready, setReady] = useState(false)
     const onViewApplied = useCallback(() => setReady(true), [])
+    // Quote-to-reply reads the draft, so a quote's line range matches what is on screen.
+    const quoteRootRef = useRef<HTMLDivElement>(null)
+    const quoteSessionId = useDriveSessionId()
+    const quotable = useQuotableFile(path, displayPath, value ?? undefined)
     if (failed || loading || value === null)
         return <DriveEditorPlaceholder mount={mount} path={path} failed={failed} lines={7} />
     return (
         <>
             {ready ? null : <DriveEditorSkeleton lines={7} />}
             <div
-                className="flex min-h-0 flex-1 flex-col text-sm"
+                ref={quoteRootRef}
+                className="relative flex min-h-0 flex-1 flex-col text-sm"
                 hidden={!ready}
                 onKeyDown={onKeyDown}
+                {...quotable}
             >
+                <QuoteSelectionLayer rootRef={quoteRootRef} sessionId={quoteSessionId} />
                 <MarkdownEditor
                     value={value}
                     onChange={onChange}

@@ -130,6 +130,16 @@ const TurnRowInner = ({
         .join("\n")
         .trim()
 
+    // Quoting is offered on settled answers only; mid-stream the text is still being written.
+    const quoteProps =
+        !turn.isUser && !turn.isStreamingTurn
+            ? ({
+                  "data-quotable": "true",
+                  "data-quote-kind": "message",
+                  "data-quote-message-id": turn.message.id,
+              } as const)
+            : undefined
+
     const footer = {
         messageId: turn.message.id,
         traceId,
@@ -216,12 +226,14 @@ const TurnRowInner = ({
                 renderClientTool={renderClientTool}
             />
             {activity.answer ? (
-                <AnswerReveal animate={live}>
-                    <AssistantMarkdown
-                        streaming={isLiveTextItem(turn, activity.answerIndex)}
-                        text={activity.answer.text}
-                    />
-                </AnswerReveal>
+                <div {...quoteProps}>
+                    <AnswerReveal animate={live}>
+                        <AssistantMarkdown
+                            streaming={isLiveTextItem(turn, activity.answerIndex)}
+                            text={activity.answer.text}
+                        />
+                    </AnswerReveal>
+                </div>
             ) : null}
             {errorText ? (
                 <RunErrorCallout

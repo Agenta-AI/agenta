@@ -9,8 +9,17 @@
  */
 import {Suspense, lazy, useEffect, useRef, type ReactNode, type RefObject} from "react"
 
+import {quotesToMarkdown} from "@agenta/shared/quotes"
 import {isOverlayOpen} from "@agenta/shared/utils"
 import {HeightCollapse} from "@agenta/ui/height-collapse"
+import {
+    clearQuotes,
+    getQuotes,
+    registerQuoteSubmit,
+    removeQuote,
+    restoreQuotes,
+    useStagedQuotes,
+} from "@agenta/ui/quote-selection"
 import type {RichChatInputHandle, SlashCommandSection} from "@agenta/ui/rich-chat-input"
 import {Button, SimpleTooltip} from "@agenta/ui/ui"
 import {Paperclip} from "@phosphor-icons/react"
@@ -21,6 +30,7 @@ import {useFilePalette} from "../hooks/useFilePalette"
 import {useHardwareKeyboard} from "../hooks/useHardwareKeyboard"
 
 import ComposerAttachments from "./ComposerAttachments"
+import ComposerQuotes from "./ComposerQuotes"
 import ComposerRejections from "./ComposerRejections"
 import RecordingWaveform from "./RecordingWaveform"
 
@@ -31,7 +41,8 @@ const RichChatInput = lazy(() =>
 )
 
 export interface ChatComposerProps {
-    onSubmit: (text: string) => void | Promise<void>
+    /** Resolve `false` when the message did not go out, so staged quotes can be handed back. */
+    onSubmit: (text: string) => void | boolean | Promise<void | boolean>
     /** The attachment engine — staging, guardrails, uploads (see useComposerAttachments). */
     attachments: ReturnType<typeof useComposerAttachments>
     inputRef?: RefObject<RichChatInputHandle | null>
@@ -148,6 +159,41 @@ export const ChatComposer = ({
     const hasKeyboard = useHardwareKeyboard()
     const filePalette = useFilePalette({enabled: fileMentions})
 
+    // Staged quotes ride out as a blockquote lead-in, so no host send path needs to know them.
+    const quoteSessionId = attachments.sessionId
+    const quotes = useStagedQuotes(quoteSessionId)
+    const ownInputRef = useRef<RichChatInputHandle | null>(null)
+    const editorRef = inputRef ?? ownInputRef
+    const withQuotes =
+        (send: (text: string) => unknown) =>
+        (text: string): unknown => {
+            const staged = getQuotes(quoteSessionId).filter((quote) => quote.staged)
+            if (!staged.length) return send(text)
+            clearQuotes(quoteSessionId)
+            // A send that did not go out gets the chips and the typed text back, not the markdown.
+            return Promise.resolve(send(quotesToMarkdown(staged, text))).then((sent) => {
+                if (sent !== false) return
+                restoreQuotes(quoteSessionId, staged)
+                void editorRef.current?.setMarkdown(text)
+            })
+        }
+
+    // The note box's Enter: send the whole message now, as the Send button would.
+    const submitNowRef = useRef<() => boolean>(() => false)
+    submitNowRef.current = () => {
+        const editor = editorRef.current
+        if (!editor || disabled || composerDisabled) return false
+        if (files.length > 0 && !attachmentsSettled) return false
+        const text = editor.getMarkdown()
+        editor.clear()
+        void withQuotes(onSubmit)(text)
+        return true
+    }
+    useEffect(
+        () => registerQuoteSubmit(quoteSessionId, () => submitNowRef.current()),
+        [quoteSessionId],
+    )
+
     useEffect(() => {
         if (!streaming || !onStop || !stopShortcutEnabled) return
         const stopOnEscape = (event: KeyboardEvent) => {
@@ -185,7 +231,7 @@ export const ChatComposer = ({
                 </HeightCollapse>
             </div>
             <RichChatInput
-                ref={inputRef}
+                ref={editorRef}
                 autoFocus={autoFocus}
                 dictating={dictating}
                 dictationWave={
@@ -198,7 +244,7 @@ export const ChatComposer = ({
                 }
                 className={className}
                 maxHeightClassName={maxHeightClassName}
-                onSubmit={onSubmit}
+                onSubmit={withQuotes(onSubmit)}
                 disabled={disabled}
                 hideSendButton={hideSendButton}
                 hideShortcutHints={hideShortcutHints ?? !hasKeyboard}
@@ -207,13 +253,15 @@ export const ChatComposer = ({
                 submitOnEnter={hasKeyboard}
                 placeholder={
                     placeholder ??
-                    (waitingOnUser
-                        ? // The parked interaction is docked directly above, so point at it rather
-                          // than describing the wait in the abstract.
-                          "Answer above, or type to queue a message"
-                        : hasKeyboard
-                          ? "Ask the agent… (Enter to send, ⌘/Ctrl+Enter for newline)"
-                          : "Ask the agent…")
+                    (quotes.length > 0
+                        ? "What should change about the quoted part?"
+                        : waitingOnUser
+                          ? // The parked interaction is docked directly above, so point at it rather
+                            // than describing the wait in the abstract.
+                            "Answer above, or type to queue a message"
+                          : hasKeyboard
+                            ? "Ask the agent… (Enter to send, ⌘/Ctrl+Enter for newline)"
+                            : "Ask the agent…")
                 }
                 initialMarkdown={initialMarkdown}
                 slashCommands={slashCommands}
@@ -222,14 +270,18 @@ export const ChatComposer = ({
                 onPasteFile={(pasted) => {
                     if (!attachmentsBlocked?.()) addFiles(Array.from(pasted))
                 }}
-                sendForceEnabled={files.length > 0}
+                // A quote carries a reply on its own, so it can be sent with no text at all.
+                sendForceEnabled={files.length > 0 || quotes.length > 0}
                 sendDisabled={files.length > 0 && !attachmentsSettled}
                 sendDisabledReason={uploadBlockReason}
                 sending={sending}
                 streaming={streaming}
                 stopping={stopping}
                 onStop={onStop}
-                busyActions={busyActions}
+                busyActions={busyActions?.map((action) => ({
+                    ...action,
+                    onSubmit: withQuotes(action.onSubmit),
+                }))}
                 prefix={
                     // Tight: these are one cluster of composer tools, not separate controls.
                     <div className="flex items-center gap-0.5">
@@ -257,11 +309,24 @@ export const ChatComposer = ({
                                 </Button>
                             </SimpleTooltip>
                         )}
+                        {/* Design puts the quote count on the action row, not over the chips. */}
+                        {quotes.length > 0 ? (
+                            <span className="ml-1 text-[11px] text-colorTextTertiary">
+                                {quotes.length} {quotes.length === 1 ? "quote" : "quotes"} attached
+                            </span>
+                        ) : null}
                     </div>
                 }
                 header={
                     <>
                         {headerExtra}
+                        <HeightCollapse open={quotes.length > 0}>
+                            <ComposerQuotes
+                                quotes={quotes}
+                                onRemove={(id) => removeQuote(quoteSessionId, id)}
+                                touch={!hasKeyboard}
+                            />
+                        </HeightCollapse>
                         <HeightCollapse open={files.length > 0}>
                             <ComposerAttachments
                                 files={files}
