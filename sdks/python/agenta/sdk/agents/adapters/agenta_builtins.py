@@ -1,6 +1,6 @@
 """Agenta-shipped platform skills.
 
-The platform skills (getting started, build-an-agent) live here as concrete inline packages.
+The platform skills (getting started, build-an-agent, create-template) live here as concrete inline packages.
 The canonical skill content is defined here (the SDK, the lowest layer); the server-side
 ``StaticWorkflowCatalog`` imports the same constants so the embed path and the catalog stay
 one source of truth.
@@ -19,6 +19,7 @@ from ..skills import SkillFile, SkillTemplate
 # SkillTemplate below. Kept here so the catalogue and the forced path share one slug constant.
 GETTING_STARTED_WITH_AGENTA_SLUG = "__ag__getting_started_with_agenta"
 BUILD_AN_AGENT_SLUG = "__ag__build_an_agent"
+CREATE_TEMPLATE_SLUG = "__ag__create_template"
 
 # RETIRED on 2026-09-07. Two of the four conventions this skill carried moved into the platform
 # prompt (`platform_instructions.py`), which every harness reads first: state assumptions, and
@@ -828,6 +829,335 @@ BUILD_AN_AGENT_SKILL = SkillTemplate(
         SkillFile(path="references/config-schema.md", content=_CONFIG_SCHEMA_REFERENCE),
         SkillFile(
             path="references/trigger-inputs.md", content=_TRIGGER_INPUTS_REFERENCE
+        ),
+    ],
+)
+
+
+# create-template: package this agent as a portable template zip, validate the zip, deliver it.
+#
+# The format reference is sourced from the API's single-agent template parser
+# (api/oss/src/core/agent_templates/parser.py + models.py and the JSON schemas under
+# api/oss/src/resources/agent_templates/schemas/), and its example copies the structure of the
+# bundled packages. The SDK cannot import the API, so the drift test lives on the API side
+# (api/oss/tests/pytest/unit/agent_templates/test_create_template_reference.py): it parses the
+# example package with the real parser and asserts the reference names every manifest field.
+_TEMPLATE_PACKAGE_FORMAT_REFERENCE = """\
+# The template package format
+
+Read this before you write the package files, and again when `validate_template` reports an
+issue. It is the only format the template loader accepts: one agent, no subagents.
+
+## The tree
+
+```
+<key>/                                  the package root; zip its CONTENTS, not the folder
+  plugin.json                           required
+  ai.agenta/agents.json                 required: the Agenta manifest
+  ai.agenta/agents/<key>/AGENTS.md      required: the agent's instructions
+  ai.agenta/agents/<key>/SETUP.md       setup guidance for the recipient
+  ai.agenta/agents/<key>/files/...      optional seed files for the agent's working files
+  skills/<skill-name>/SKILL.md          one folder per skill named in the manifest
+  skills/<skill-name>/references/...    optional files bundled with that skill
+  mcp.json                              only when a connection offers an MCP server
+```
+
+`<key>` is kebab-case: lowercase letters, digits and single hyphens, at most 64 characters.
+
+## plugin.json
+
+- `$schema`: exactly `https://agent-plugins.org/schemas/1.0.0/plugin.schema.json`.
+- `name`: the package key.
+- `version`: a version string such as `1.0.0`. Validation reports it back with the digest.
+- `description`: one sentence.
+- `extensions`: exactly `{ "ai.agenta": { "manifest": "./ai.agenta/agents.json" } }`.
+- Optional: `author` (`name`, `email`, `url` only), `license`, `keywords`, `homepage`,
+  `repository`. No other keys are allowed.
+
+## ai.agenta/agents.json
+
+- `schema_version`: `1`.
+- `entry`: the agent key. It must equal the one key under `agents`.
+- `agents`: an object with exactly one agent, keyed by the agent key. The agent has:
+  - `name` (required): the display name.
+  - `description` (required): one sentence.
+  - `instructions` (required): `./ai.agenta/agents/<key>/AGENTS.md`.
+  - `setup`: `./ai.agenta/agents/<key>/SETUP.md`.
+  - `skills`: a list of skill names. Each needs `skills/<name>/SKILL.md`.
+  - `connections`: a list of connection requirements (below).
+  - `automations`: a list of automation recipes (below). They are never activated on load.
+  - `workspace`: `{ "entries": [...] }`, the seed files (below).
+
+No other keys are allowed anywhere in the manifest, and there is no `subagents` key. Every
+package path (`instructions`, `setup`, a workspace `source`) starts with `./ai.agenta/`, stays
+inside the package, and names a regular file.
+
+### A connection requirement
+
+- `key`: kebab-case, unique in the agent.
+- `required`: `true` or `false`.
+- `purpose`: what the agent does with this account, in one sentence.
+- `options`: one or more of
+  - `{ "kind": "gateway", "provider": "composio", "integration": "<integration>" }`, for
+    example `github`, `slack`, `gmail`;
+  - `{ "kind": "mcp", "server": "<server name in mcp.json>" }`.
+- `policy` (optional): `{ "permissions": { "default": "allow", "tools": { "<TOOL>": "ask" } } }`.
+  Each value is `inherit`, `allow`, `ask` or `deny`.
+- `setup_notes` (optional): what the recipient chooses or checks when they connect it.
+
+A requirement never names an account, a connection slug, an id or a credential. The recipient
+connects their own account when they load the template.
+
+### An automation recipe
+
+- `key`: kebab-case, unique in the agent.
+- `name`: a display name.
+- `required`: `true` or `false`.
+- `trigger`: one of
+  - `{ "type": "schedule", "schedule": "<five-field cron, UTC>" }`;
+  - `{ "type": "subscription", "connection": "<connection requirement key>", "event_key":
+    "<provider event key>", "trigger_config": { ... } }`.
+- `inputs_fields` (optional): the run inputs template, for example
+  `{ "messages": [ { "role": "user", "content": "Run the weekly report now." } ] }`.
+- `setup_notes` (optional): what the recipient confirms before they turn it on.
+
+### A workspace entry
+
+- `{ "type": "file", "source": "./ai.agenta/agents/<key>/files/<name>", "path": "<name>" }`
+  copies a package file into the agent's working files.
+- `{ "type": "directory", "path": "<folder>" }` creates an empty folder.
+
+`path` is relative, has no `..` segment, and does not start with `.agenta`, `.agents`,
+`.claude`, `.env`, `.github`, `.pi`, `AGENTS.md` or `CLAUDE.md`. Each `path` is unique.
+
+## skills/<name>/SKILL.md
+
+YAML frontmatter with `name` (the folder name) and `description` (when to use the skill), then
+a non-empty Markdown body. Other files in the folder travel with the skill. Every file is UTF-8
+text.
+
+## mcp.json
+
+Only for an MCP option: `{ "$schema": "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json",
+"mcpServers": { "<server>": { "type": "streamable-http", "url": "<url>" } } }`. Never add
+`headers`: a package cannot carry MCP credentials.
+
+## Limits and file rules
+
+- At most 256 files, 1 MiB per file, 4 MiB in total, 12 path segments.
+- Regular files only: no symbolic links, and no executable files.
+- Paths use `/`, never `\\`, and never start with `/`.
+
+## A complete example
+
+This package passes validation. Copy its shape; replace every value.
+
+#### `plugin.json`
+
+```json
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "seo-assistant",
+  "version": "1.0.0",
+  "description": "Plans and reviews SEO articles for a content team.",
+  "author": { "name": "Content team" },
+  "keywords": ["marketing", "seo", "agent-template"],
+  "extensions": { "ai.agenta": { "manifest": "./ai.agenta/agents.json" } }
+}
+```
+
+#### `ai.agenta/agents.json`
+
+```json
+{
+  "schema_version": 1,
+  "entry": "seo-assistant",
+  "agents": {
+    "seo-assistant": {
+      "name": "SEO assistant",
+      "description": "Plans and reviews SEO articles for a content team.",
+      "instructions": "./ai.agenta/agents/seo-assistant/AGENTS.md",
+      "setup": "./ai.agenta/agents/seo-assistant/SETUP.md",
+      "skills": ["article-brief"],
+      "connections": [
+        {
+          "key": "article-docs",
+          "required": false,
+          "purpose": "Read drafts and save article briefs.",
+          "options": [
+            { "kind": "gateway", "provider": "composio", "integration": "googledocs" },
+            { "kind": "gateway", "provider": "composio", "integration": "notion" }
+          ],
+          "policy": { "permissions": { "default": "allow", "tools": {} } },
+          "setup_notes": "Choose the workspace that holds your drafts. Without it, briefs are saved as files."
+        }
+      ],
+      "automations": [
+        {
+          "key": "weekly-plan",
+          "name": "Weekly article plan",
+          "required": false,
+          "trigger": { "type": "schedule", "schedule": "0 8 * * 1" },
+          "inputs_fields": {
+            "messages": [
+              { "role": "user", "content": "Plan next week's articles from the saved style guide." }
+            ]
+          },
+          "setup_notes": "Confirm the day, time and timezone before you turn this on."
+        }
+      ],
+      "workspace": {
+        "entries": [
+          {
+            "type": "file",
+            "source": "./ai.agenta/agents/seo-assistant/files/style-guide.md",
+            "path": "style-guide.md"
+          },
+          { "type": "directory", "path": "briefs" }
+        ]
+      }
+    }
+  }
+}
+```
+
+#### `ai.agenta/agents/seo-assistant/AGENTS.md`
+
+```markdown
+# SEO assistant
+
+You plan and review SEO articles. For each request: (1) read `style-guide.md`; (2) use the
+article-brief skill to write a brief; (3) save it under `briefs/`.
+
+## Memory
+
+- Keep titles under 60 characters.
+```
+
+#### `ai.agenta/agents/seo-assistant/SETUP.md`
+
+```markdown
+# SEO assistant setup
+
+Purpose: plans and reviews SEO articles against your style guide.
+
+1. Optional: connect Google Docs or Notion so the agent can read drafts. You choose your own
+   account.
+2. Fill in your audience and tone in `style-guide.md`.
+3. The weekly plan is a suggestion and is not active. Confirm its day, time and timezone
+   before you turn it on.
+
+First-use check: ask "Write a brief for an article about onboarding checklists." Expect a
+brief in `briefs/` that follows the style guide.
+```
+
+#### `ai.agenta/agents/seo-assistant/files/style-guide.md`
+
+```markdown
+# Style guide
+
+- Audience: <your audience>
+- Tone: <your tone>
+```
+
+#### `skills/article-brief/SKILL.md`
+
+```markdown
+---
+name: article-brief
+description: Use when asked to plan an SEO article. Writes a one-page brief.
+---
+
+# Article brief
+
+Write the target query, the reader's question, an outline of three to five sections, and two
+internal links to suggest.
+```
+"""
+
+_CREATE_TEMPLATE_BODY = """\
+# Create a template from this agent
+
+Read this when the person asks to save, export or share this agent as a template, including
+the "Save as template" request. The result is a validated zip in this session's files that
+another person can load as a new agent.
+
+## Steps
+
+1. `read_config` with no path to read your own configuration. For triggers, call
+   `list_schedules` and `list_subscriptions` and keep only the ones that run this agent.
+2. Establish the audience, unless the request already says it:
+   - general: anyone can reuse it, so company-specific details become recipient inputs;
+   - team-specific: a teammate gets your company's process as it is.
+   Ask once with `request_input`, with a proposed default in every field. In the same form,
+   list the company-specific content you are unsure about (names, internal URLs, channel or
+   repo ids, house style) and ask, for each one, whether to keep it or replace it with an
+   input the recipient supplies. Do not ask the person to review the whole package.
+3. Read `references/package-format.md`. Write the package under `templates/<key>/` in your
+   working directory, as the next section says. Use version `1.0.0`, or the next version if
+   `templates/` already holds an earlier zip of this package.
+4. Write `SETUP.md` from the package you actually wrote (see below).
+5. Zip the package contents, not the folder, into `templates/<key>-<version>.zip`:
+
+       cd templates/<key> && rm -f ../<key>-<version>.zip && python3 -m zipfile -c ../<key>-<version>.zip .
+
+6. Call `validate_template` with `path` set to `templates/<key>-<version>.zip`.
+7. If `valid` is false, fix each issue as its `next_step` says, then do steps 5 and 6 again.
+   Stop after three failed rounds and report the issues that remain. Never say the template
+   is ready, and never offer the zip, while its last validation is invalid.
+8. When `valid` is true, reply with the zip's path in the session files, its `version` and
+   its `digest`, one line on what the package keeps, and what the recipient must set up.
+
+## What goes into the package
+
+- `instructions.agents_md` becomes `AGENTS.md`. Keep the useful memory under `## Memory`:
+  lessons, preferences and conventions that help the recipient. Drop only the entries that
+  are secret, about one person, or about one past run. Do not drop the whole section.
+- Each inline skill becomes `skills/<name>/SKILL.md` with its `files`. Skip every
+  `@ag.embed` entry whose slug starts with `__ag__`: the platform supplies those. For another
+  embedded skill, copy its SKILL.md and files if you can read them in your skills folder;
+  otherwise name it in SETUP.md as a skill the recipient installs.
+- Each `gateway_connection` tool becomes one connection requirement with a `gateway` option
+  for its integration, and its `policy`. Each MCP server becomes an `mcp` option and an
+  `mcp.json` entry with its URL only.
+- Each schedule or subscription becomes an automation recipe. Loading never activates it.
+- A file that the instructions rely on (a style guide, a profile) becomes a workspace entry.
+- The template carries no model, harness, runner or sandbox settings. `code`, `client` and
+  `reference` tools have no place in the format: name them in SETUP.md and tell the person.
+
+Never copy credentials, secret values, API keys, tokens or MCP headers. Never copy a project
+binding: no connection slug or id, no vault reference, no schedule or subscription id, no
+account name. A connection is a requirement that the recipient meets with their own account.
+
+## SETUP.md
+
+Write it for this package version and this audience. The loaded agent also reads it in its
+first message. Cover, briefly and only from what the package contains:
+
+- purpose: what the agent does;
+- prerequisites;
+- accounts to connect: each connection, what it is for, and that the recipient chooses
+  their own account;
+- inputs the recipient supplies: every value you generalized;
+- company choices kept on purpose, for a team-specific template;
+- suggested automations: each one stays inactive until the recipient reviews its schedule,
+  timezone and inputs and turns it on;
+- one first-use check: a message to send and what a good answer looks like.
+"""
+
+CREATE_TEMPLATE_SKILL = SkillTemplate(
+    name="create-template",
+    description=(
+        "How to save this agent as a shareable template: a validated zip in the session "
+        "files that another person loads as a new agent. Read it when the person asks to "
+        "save, export or share this agent as a template, including the Save as template "
+        "request."
+    ),
+    body=_CREATE_TEMPLATE_BODY,
+    files=[
+        SkillFile(
+            path="references/package-format.md",
+            content=_TEMPLATE_PACKAGE_FORMAT_REFERENCE,
         ),
     ],
 )
