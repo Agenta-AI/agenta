@@ -50,9 +50,12 @@ model calls.
   arrived in one request usually produce no update.
 - Traces over `AGENTA_OTLP_TOTALS_MAX_SPANS` (default 10 000) are skipped and keep
   their per-request totals.
-- A failed recompute is logged and the batch is still acknowledged (a redelivery would
+- A failed recompute is retried in place, three attempts with a short backoff. After
+  the last attempt it is logged and the batch is still acknowledged (a redelivery would
   meter the traces again). The trace keeps its partial totals until another batch
   touches it.
+- A cumulative value that rolls up to nothing is removed, not written as 0: the
+  dashboard counts any stored `errors.cumulative` as a failed trace.
 
 ## Options not taken
 
