@@ -136,6 +136,11 @@ def _bare_span(**kwargs) -> OTelFlatSpan:
     return span
 
 
+def _mark_aggregate(span: OTelFlatSpan) -> OTelFlatSpan:
+    span.attributes["ag"]["flags"] = {"aggregate_usage": True}
+    return span
+
+
 def _rollup(spans):
     span_idx = parse_span_dtos_to_span_idx(spans)
     tree = parse_span_idx_to_span_id_tree(span_idx)
@@ -157,6 +162,7 @@ def test_workflow_summary_and_its_traced_children_are_not_double_counted(
         completion_tokens=10,
     )
     root.attributes["ag"]["metrics"]["costs"]["incremental"] = {"total": reported_cost}
+    _mark_aggregate(root)
     child = _span(
         span_id=CHILD_A_UUID,
         parent_id=ROOT_UUID,
@@ -185,24 +191,23 @@ def test_workflow_summary_and_its_traced_children_are_not_double_counted(
         )
 
 
-def test_task_summary_larger_than_traced_children_keeps_its_own_usage():
+def test_task_usage_adds_to_its_traced_children():
+    # A RAG task returns its untraced completion's usage; its traced embedding is extra.
     root = _span(
         span_id=ROOT_UUID,
-        span_name="llm_v0",
-        prompt_tokens=100,
-        completion_tokens=20,
+        span_name="rag",
+        prompt_tokens=900,
+        completion_tokens=100,
         prompt_cost=0.01,
         completion_cost=0.02,
     )
     child = _span(
         span_id=CHILD_A_UUID,
         parent_id=ROOT_UUID,
-        span_name="chat",
-        span_type=SpanType.CHAT,
-        prompt_tokens=40,
-        completion_tokens=10,
-        prompt_cost=0.004,
-        completion_cost=0.008,
+        span_name="embedding",
+        span_type=SpanType.EMBEDDING,
+        prompt_tokens=100,
+        prompt_cost=0.001,
         start_offset_s=1,
     )
 
@@ -210,12 +215,12 @@ def test_task_summary_larger_than_traced_children_keeps_its_own_usage():
     metrics = _metrics(span_idx[ROOT_UUID])
 
     assert metrics["tokens"]["cumulative"] == {
-        "prompt": 100,
-        "completion": 20,
-        "total": 120,
+        "prompt": 1000,
+        "completion": 100,
+        "total": 1100,
     }
     assert metrics["costs"]["cumulative"] == pytest.approx(
-        {"prompt": 0.01, "completion": 0.02, "total": 0.03}
+        {"prompt": 0.011, "completion": 0.02, "total": 0.031}
     )
 
 
@@ -267,11 +272,13 @@ def test_reported_total_without_priced_children_has_no_invented_breakdown():
     assert "costs" not in _metrics(span_idx[CHILD_A_UUID])
 
 
-def test_nested_reported_totals_take_the_larger_side_at_each_level():
-    root = _bare_span(span_id=ROOT_UUID, span_name="root")
+def test_nested_aggregate_totals_take_the_larger_side_at_each_level():
+    root = _mark_aggregate(_bare_span(span_id=ROOT_UUID, span_name="root"))
     root.attributes["ag"]["metrics"]["costs"] = {"incremental": {"total": 0.4}}
-    mid = _bare_span(
-        span_id=CHILD_A_UUID, parent_id=ROOT_UUID, span_name="mid", start_offset_s=1
+    mid = _mark_aggregate(
+        _bare_span(
+            span_id=CHILD_A_UUID, parent_id=ROOT_UUID, span_name="mid", start_offset_s=1
+        )
     )
     mid.attributes["ag"]["metrics"]["costs"] = {"incremental": {"total": 0.5}}
     leaf = _span(

@@ -320,12 +320,15 @@ def _write_cumulative(span: OTelFlatSpan, metric: str, values: Dict[str, float])
     node["cumulative"] = values
 
 
-def _is_model_call(span: OTelFlatSpan) -> bool:
-    """Whether the span is a model call (chat, completion, embedding, query, rerank)."""
+def _reports_aggregate_usage(span: OTelFlatSpan) -> bool:
+    """Whether the producer marked the span's own usage as a summary of its subtree.
 
-    return (
-        span.span_type is not None and span.span_type.name.lower() in TYPES_WITH_COSTS
-    )
+    The SDK agent handler sets `ag.flags.aggregate_usage` on the workflow span it stamps
+    with the whole run's usage, whose model calls arrive as its descendants."""
+
+    ag = (span.attributes or {}).get("ag")
+    flags = ag.get("flags") if isinstance(ag, dict) else None
+    return isinstance(flags, dict) and flags.get("aggregate_usage") is True
 
 
 def _combine_breakdowns(
@@ -335,17 +338,16 @@ def _combine_breakdowns(
 ) -> Dict[str, float]:
     """Combine a span's own breakdown with its children's summed cumulative breakdown.
 
-    A model call adds both. Any other span keeps the larger side, since its own value
-    can only summarize the calls inside it."""
+    Own and children add up. A span marked as reporting aggregate usage describes the
+    same calls as its children, so it keeps the larger side: the producer's summary can
+    lack a figure (a harness that reports no cost) that the priced children carry."""
 
     if not children:
         return own
     if not own:
         return children
-    if _is_model_call(span):
+    if not _reports_aggregate_usage(span):
         return _sum_breakdowns(own, children)
-    # A non-model span's own usage can only summarize model calls made inside it, which
-    # may or may not be traced as its children, so the larger side is the whole picture.
     if own.get("total", 0.0) >= children.get("total", 0.0):
         return own
     return children
