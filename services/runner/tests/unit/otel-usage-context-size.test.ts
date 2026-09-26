@@ -115,12 +115,11 @@ describe("usage_update carries context size, not tokens", () => {
 
     expect(otel.usage()).toEqual({ input: 0, output: 0, total: 0, cost: 0.04 });
     otel.finish();
-    // The cost still reaches the usage event and the run result. It is never a span
-    // attribute: the platform prices model spans from their tokens.
+    // The cost reaches the usage event, the run result and the chat span, but no token count.
     const agentSpan = spans.find((s) => s.name === "invoke_agent");
     expect(usageKeys(agentSpan)).toEqual([]);
     const chatSpan = spans.find((s) => s.name.startsWith("chat"));
-    expect(usageKeys(chatSpan)).toEqual([]);
+    expect(usageKeys(chatSpan)).toEqual(["gen_ai.usage.cost"]);
   });
 
   it("emits a token-only usage event with no cost key when the harness priced nothing", () => {
@@ -173,7 +172,7 @@ describe("usage_update carries context size, not tokens", () => {
     expect(chatSpan?.attributes["gen_ai.usage.input_tokens"]).toBe(12);
     expect(chatSpan?.attributes["gen_ai.usage.output_tokens"]).toBe(3);
     expect(chatSpan?.attributes["gen_ai.usage.total_tokens"]).toBe(15);
-    expect(chatSpan?.attributes["gen_ai.usage.cost"]).toBeUndefined();
+    expect(chatSpan?.attributes["gen_ai.usage.cost"]).toBe(0.04);
 
     const agentSpan = spans.find((s) => s.name === "invoke_agent");
     expect(usageKeys(agentSpan)).toEqual([]);

@@ -146,7 +146,7 @@ describe("the ACP tracer stamps the run's tokens on one span only", () => {
 
     expect(chatSpan?.attributes["gen_ai.usage.total_tokens"]).toBe(3843);
     expect(agentSpan?.attributes["gen_ai.usage.cost"]).toBeUndefined();
-    expect(chatSpan?.attributes["gen_ai.usage.cost"]).toBeUndefined();
+    expect(chatSpan?.attributes["gen_ai.usage.cost"]).toBe(0.0219);
 
     // The roll-up over this batch yields 3,843 — the real total, not 7,686.
     expect(assertOnlyLeavesOwnTokens(spans)).toBe(3843);

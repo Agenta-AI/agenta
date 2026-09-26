@@ -183,6 +183,8 @@ export function fakeHarness(options: FakeOptions = {}) {
     },
   };
 
+  // Like the real tracer, the usage getter reports the stream until the engine sets final usage.
+  let finalUsage: any;
   const run = {
     start(input: any) {
       calls.runStart = input;
@@ -195,10 +197,12 @@ export function fakeHarness(options: FakeOptions = {}) {
     },
     usage() {
       return (
+        finalUsage ??
         options.streamUsage ?? { input: 0, output: 0, total: 0, cost: 0.25 }
       );
     },
     setUsage(usage: unknown) {
+      if (usage) finalUsage = usage;
       events.push({ type: "usage", ...(usage as any) });
     },
     finish() {
