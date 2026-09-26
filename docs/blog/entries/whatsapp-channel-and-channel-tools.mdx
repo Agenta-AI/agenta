@@ -1,0 +1,60 @@
+---
+title: "WhatsApp channel and channel tools for agents"
+slug: whatsapp-channel-and-channel-tools
+date: 2026-09-25
+tags: [v0.121.2]
+description: "Connect a WhatsApp business number to an agent, and give connected agents tools to read, search, and send channel messages from any run."
+---
+
+{/* NOTE: Do NOT add an H1 heading here. The frontmatter title is automatically rendered as H1 by Docusaurus. */}
+
+<Summary>
+
+Agents can now answer your customers on WhatsApp. Connect your WhatsApp business number to an agent, and it replies to every customer who writes to that number, with typing indicators, approval buttons, and support for images and documents.
+
+Connected agents also get channel tools. An agent can read, search, and send messages on the channels it is connected to, from any run. A scheduled agent can post its morning report to Slack, and a support agent can look up what a customer asked last week.
+
+</Summary>
+
+{/* truncate */}
+
+## Put an agent behind your WhatsApp number
+
+You can connect a WhatsApp business number to an agent. The agent answers every customer who messages that number. Each customer's phone number is one conversation, so the agent keeps context across their messages.
+
+The channel handles the details of WhatsApp for you:
+
+- **Read receipts and typing**: The customer sees their message marked as read and a typing indicator while the agent works.
+- **Approvals**: When the agent needs approval to run a tool, the customer gets **Approve** and **Deny** reply buttons.
+- **Media**: The agent receives images and documents the customer sends, with their captions.
+- **The 24-hour window**: Meta only allows free-form replies within 24 hours of the customer's last message. A reply that is ready after that is held, and Agenta sends it when the customer writes again. You can set an approved re-open template to prompt them.
+- **Opting out**: A customer who sends `STOP` is not answered until they send `START`.
+
+You bring your own number through Meta's WhatsApp Cloud API. Setup takes a phone number ID, an access token, and an app secret. The guide walks you through it: [Connect a WhatsApp number to an agent](/guides/connect-whatsapp).
+
+## Channel tools: agents can read, search, and send
+
+Until now, a channel was one-way from the agent's point of view: a message came in, the agent answered it. Agents connected to a channel now get tools to work with that channel directly:
+
+- **Send a message** to a channel from any run, not only as the reply to an incoming message. A scheduled agent can post a daily summary to Slack on its own.
+- **Read the recent messages** of a channel the agent can see, so it can catch up on context beyond the message that triggered it.
+- **Search past messages** by keyword, so it can find what a customer or teammate said earlier.
+- **List its destinations**, so it knows which channels it can post to.
+
+The tools come automatically with every connected agent. You control them per agent in the channel's **Advanced** settings: which tools are available and where the agent may send. Sending to a destination outside the agent's list is refused.
+
+## Slack: completion reactions and quieter threads
+
+Two improvements for agents connected to Slack:
+
+- **Completion reactions**: The agent marks your request with a reaction when it has finished working on it, so you can see the state of a request at a glance.
+- **Only answer when addressed**: In threads and group conversations, the agent replies only when it is addressed, instead of answering every message. It still never drops a mention.
+
+## Agents know their session link
+
+Agents can now retrieve the link to their current session. When an agent posts a result to a channel or files an issue, it can include a link back to the conversation that produced it, so you can open the full context in one click.
+
+## Getting started
+
+- [Connect a WhatsApp number to an agent](/guides/connect-whatsapp)
+- Open an agent's **Channels** section to connect a channel and review its tool settings.
