@@ -2162,25 +2162,6 @@ def get_sampling_percent(
     return max(1 if rate > 0 else 0, min(int(rate * 100.0), 100))
 
 
-def scale_sampled_value(
-    value: Dict[str, Any],
-    percent: Optional[int],
-) -> Dict[str, Any]:
-    """Estimate counts and sums for all traces from a `percent`% sample."""
-    if not percent or percent >= 100:
-        return value
-
-    factor = 100.0 / percent
-
-    for key in ("count", "sum"):
-        if isinstance(value.get(key), (int, float)) and not isinstance(
-            value.get(key), bool
-        ):
-            value[key] = value[key] * factor
-
-    return value
-
-
 def fill_empty_buckets(
     per_timestamp: Dict[datetime, Dict[str, Dict[str, Any]]],
     timestamps: List[datetime],

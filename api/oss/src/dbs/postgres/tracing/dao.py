@@ -52,7 +52,6 @@ from oss.src.dbs.postgres.tracing.utils import (
     build_type_flags,
     build_statistics_stmt,
     get_sampling_percent,
-    scale_sampled_value,
     fill_empty_buckets,
     #
     compute_range,
@@ -485,9 +484,6 @@ class TracingDAO(TracingDAOInterface):
 
             elif kind == "json_count":
                 value = r["value"] or {}
-
-            if kind.endswith("_count") or kind.endswith("_basics"):
-                value = scale_sampled_value(value, percent)
 
             r["value"] = value
 
