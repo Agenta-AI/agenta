@@ -211,6 +211,7 @@ const AppWithVariants = memo(
     }) => {
         const baseAppURL = useAtomValue(baseAppURLAtom)
         const appState = useAtomValue(appRouteSliceAtom)
+        const isOnboardingRoute = /\/p\/[^/]+\/playground\/?$/.test(appState.pathname)
         const isAnnotations = appState.pathname.includes("/annotations")
         const lastBasePathRef = useRef<string | null>(null)
         const lastNonSettingsPathRef = useRef<string | null>(null)
@@ -354,7 +355,7 @@ const AppWithVariants = memo(
                     </>
                 )}
                 <Layout hasSider className={classes.layout}>
-                    <SidebarIsland view={sidebarView} />
+                    {!isOnboardingRoute && <SidebarIsland view={sidebarView} />}
 
                     <Layout className={classes.layout}>
                         <div
