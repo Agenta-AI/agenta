@@ -138,8 +138,9 @@ const builtinModelEndpointsQueryKey = (projectId: string | null) => [
 ]
 
 /**
- * Built-in model endpoints; never errors (the fetcher reads a failure as none). Gated on the
- * session: a pre-auth request fails, and that "none" would stay cached for the stale window.
+ * Built-in model endpoints. A failed read leaves `data` undefined, which the candidate builder
+ * treats as no built-in source, so the vault rows still show. Gated on the session so a
+ * pre-auth request is not sent at all.
  */
 export const builtinModelEndpointsQueryAtom = atomWithQuery<BuiltinModelEndpoint[]>((get) => {
     const projectId = get(projectIdAtom)
@@ -271,11 +272,15 @@ export async function loadAgentModelCandidates({
                   .then((data) => ({data, error: undefined}))
                   .catch((error: unknown) => ({data: undefined, error}))
             : Promise.resolve({data: null, error: undefined}),
-        queryClient.ensureQueryData<BuiltinModelEndpoint[]>({
-            queryKey: builtinModelEndpointsQueryKey(projectId),
-            queryFn: () => fetchBuiltinModelEndpoints(projectId),
-            staleTime: 5 * 60_000,
-        }),
+        queryClient
+            .ensureQueryData<BuiltinModelEndpoint[]>({
+                queryKey: builtinModelEndpointsQueryKey(projectId),
+                queryFn: () => fetchBuiltinModelEndpoints(projectId),
+                staleTime: 5 * 60_000,
+                retry: false,
+            })
+            // Only adds picker rows, so a failure must not block the vault's.
+            .catch(() => undefined),
     ])
 
     const resolved = resolveAgentModelCandidateSources({

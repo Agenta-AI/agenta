@@ -22,10 +22,24 @@ export const WalletUsageSessionRow = ({session}: {session: WalletUsageSession}) 
             <tr
                 className="border-border hover:bg-accent/50 cursor-pointer border-t"
                 onClick={() => setOpen((value) => !value)}
-                aria-expanded={open}
             >
                 <td className={CELL}>
-                    {open ? <CaretDown size={12} /> : <CaretRight size={12} />}
+                    <button
+                        type="button"
+                        aria-expanded={open}
+                        aria-label={open ? "Hide charges" : "Show charges"}
+                        className="focus-visible:ring-ring flex rounded-sm focus-visible:ring-2 focus-visible:outline-none"
+                        onClick={(event) => {
+                            event.stopPropagation()
+                            setOpen((value) => !value)
+                        }}
+                    >
+                        {open ? (
+                            <CaretDown size={12} aria-hidden />
+                        ) : (
+                            <CaretRight size={12} aria-hidden />
+                        )}
+                    </button>
                 </td>
                 <td className={`${CELL} whitespace-nowrap tabular-nums`}>
                     {formatDateTime(session.last_at)}
