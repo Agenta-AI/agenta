@@ -92,7 +92,7 @@ def test_whole_bundled_catalog_and_every_package_version_validate():
     }
     assert set(document["templates"]) - listed == UNLISTED_KEYS
     assert {entry.key for entry in catalog.entries()} == listed
-    assert {author.id for author in catalog.authors()} == {"mahmoud-mabrouk"}
+    assert {author.id for author in catalog.authors()} == {"agenta"}
 
 
 def test_unlisted_template_is_hidden_from_query_and_detail():
@@ -113,7 +113,7 @@ def test_query_filters_by_search_category_and_author():
         entry.key for entry in everything if entry.category == "Engineering"
     ]
     assert [entry.key for entry in catalog.query(search="PR REVIEW")] == ["pr-reviewer"]
-    assert catalog.query(author_id="mahmoud-mabrouk") == everything
+    assert catalog.query(author_id="agenta") == everything
     assert catalog.query(author_id="someone-else") == []
 
 
@@ -165,7 +165,7 @@ def test_missing_author_is_rejected(tmp_path: Path):
 def test_author_file_name_must_match_its_id(tmp_path: Path):
     catalog_path = _copy_catalog(tmp_path)
     authors = catalog_path.parent / "authors"
-    (authors / "mahmoud-mabrouk.json").rename(authors / "someone.json")
+    (authors / "agenta.json").rename(authors / "someone.json")
 
     with pytest.raises(TemplateSourceInvalid) as error:
         AgentTemplateCatalog(catalog_path=catalog_path).validate()
