@@ -88,6 +88,7 @@ export const renderChannelsDrawer = ({
     children,
     wide,
     onBack,
+    icon,
 }: ChannelsPanelRenderProps) => (
     <Drawer
         open={open}
@@ -101,6 +102,9 @@ export const renderChannelsDrawer = ({
                         icon={<ArrowLeft size={16} />}
                         onClick={onBack}
                     />
+                ) : null}
+                {icon ? (
+                    <span className="flex flex-none items-center [&_svg]:size-4">{icon}</span>
                 ) : null}
                 <div className="flex min-w-0 flex-col">
                     <span>{title}</span>
