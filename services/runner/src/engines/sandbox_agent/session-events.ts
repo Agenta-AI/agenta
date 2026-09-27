@@ -1,3 +1,4 @@
+import { harnessKindOf } from "../../harness-kind.ts";
 import { conciseError } from "./errors.ts";
 import type { SessionEnvironment } from "./runtime-contracts.ts";
 
@@ -28,6 +29,18 @@ function routeSessionEventToActiveTurn(
     // (session-scoped; a lookup CONSUMES its matched id).
     environment.toolCallIndex.record(update);
     const turn = environment.currentTurn;
+    // Claude's running cost total can land on the SSE stream after the prompt response settled
+    // the turn's usage, or after the turn ended. The turn keeps what it reported; the reading
+    // only moves the baseline the next turn's share is measured from.
+    const costReading = update.cost?.amount;
+    if (
+      update.sessionUpdate === "usage_update" &&
+      typeof costReading === "number" &&
+      harnessKindOf(plan.harness) === "claude" &&
+      (!turn || turn.usageSettled)
+    ) {
+      environment.harnessCostReading = costReading;
+    }
     if (turn) {
       turn.handleUpdate(update);
     } else {

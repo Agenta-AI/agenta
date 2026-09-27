@@ -194,6 +194,8 @@ export interface CurrentTurn {
   handleUpdate: (update: unknown) => void;
   /** Route a permission reverse-RPC for the active turn (built by attachPermissionResponder). */
   onPermissionRequest?: (req: unknown) => void;
+  /** The turn handed its final usage to the tracer; a later cost reading no longer belongs to it. */
+  usageSettled?: boolean;
 }
 
 /**

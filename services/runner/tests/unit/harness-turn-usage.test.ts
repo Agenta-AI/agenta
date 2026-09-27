@@ -206,6 +206,30 @@ describe("the ACP tracer stamps the turn's usage on one chat span", () => {
     });
   });
 
+  it("keeps a Claude cost reading that lands after the turn's usage off the span and the run's usage", () => {
+    const spans = spyTracer();
+    const otel = createSandboxAgentOtel({
+      harness: "claude",
+      model: "anthropic/claude-haiku-4-5",
+      emitSpans: true,
+    });
+    otel.start({ prompt: "hi" });
+    // The prompt response resolved before the SSE usage_update, so the turn carries tokens only.
+    otel.setUsage({ input: 18, output: 220, total: 80779 });
+    const lateReading = {
+      sessionUpdate: "usage_update",
+      used: 80000,
+      cost: { amount: 0.0366692 },
+    };
+    otel.handleUpdate(lateReading);
+    otel.finish();
+    otel.handleUpdate(lateReading);
+
+    const chat = spans.find((s) => s.name.startsWith("chat"))!;
+    expect(chat.attributes["gen_ai.usage.cost"]).toBeUndefined();
+    expect(otel.usage()).toEqual({ input: 18, output: 220, total: 80779 });
+  });
+
   it("keeps the usage a self-tracing harness reported", () => {
     spyTracer();
     const otel = createSandboxAgentOtel({

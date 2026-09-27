@@ -22,7 +22,7 @@ MODEL_ALIASES: Dict[str, str] = {
     "haiku": "claude-haiku-4-5",
 }
 
-# Models the bundled litellm price map does not carry yet, as (base key, per-token
+# Models litellm's price map does not carry yet, as (base key, per-token
 # prices). Each entry copies its base's metadata and replaces the prices. Only a price
 # from the provider's published list goes here; drop an entry once litellm ships it.
 PRICE_MAP_ADDITIONS: Dict[str, Tuple[str, Dict[str, float]]] = {
