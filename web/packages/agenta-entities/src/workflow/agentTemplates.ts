@@ -257,8 +257,7 @@ export const SHARE_TEMPLATE_IN_MARKETPLACE_MESSAGE =
     "First use the create-template skill to create and validate the template zip. " +
     "Then guide me through submitting it, step by step, by following the template " +
     "contribution guide: " +
-    "https://github.com/Agenta-AI/agenta/blob/main/api/oss/src/resources/agent_templates/CONTRIBUTING.md. " +
-    "Never ask me for GitHub credentials or tokens in this chat."
+    "https://github.com/Agenta-AI/agenta/blob/main/api/oss/src/resources/agent_templates/CONTRIBUTING.md."
 
 /** Look a template up by key — surfaces receive a key from a menu, a URL or a card. */
 export const agentTemplateByKey = (key: string | undefined): AgentStarterTemplate | undefined =>
