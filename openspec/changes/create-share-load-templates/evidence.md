@@ -82,7 +82,7 @@ Recorded on 2026-09-26 on branch `claude/project-thread-dmcgk1`, stacked on the 
 | Task | Command (from) | Result |
 | --- | --- | --- |
 | 4.4, 5.5 | `pnpm test` (`web/website`) | 73 passed; `src/lib/marketplace.test.ts` covers routes, rejection of non-web author links and avatars, category order, image/video/YouTube media with fallback for unsupported kinds and bad URLs, blog/template author merge, and a profile for every template author |
-| 4.4 | `pnpm build` (`web/website`) | passed; `verify-build.mjs` now fails unless every template has `/marketplace/<key>/` with its own `?template=<key>` link and a twin, and every template author has `/authors/<id>/` and a twin |
+| 4.4 | `pnpm build` (`web/website`) | passed; `verify-build.mjs` now fails unless every template has `/marketplace/<key>/` with its own `?template=<key>` link and a twin, and every template author has `/creators/<id>/` and a twin |
 | 4.4 | Playwright screenshots of index, detail, template author and blog author pages at 1440 and 390, light and dark | rendered; no horizontal overflow |
 
 Not done: the supplied visual design (the design files could not be imported from this session), a template "type" field (the catalog has none), and browser verification of the signup/sign-in round trip. Tasks 4.3, 4.4 and 5.5 stay open.

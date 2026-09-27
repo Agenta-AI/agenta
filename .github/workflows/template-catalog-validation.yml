@@ -10,6 +10,7 @@ on:
     paths:
       - 'api/oss/src/resources/agent_templates/**'
       - 'api/oss/src/core/agent_templates/**'
+      - 'api/oss/src/apis/fastapi/agent_templates/**'
       - 'api/pyproject.toml'
       - 'api/uv.lock'
       - 'sdks/python/**'
@@ -20,6 +21,7 @@ on:
     paths:
       - 'api/oss/src/resources/agent_templates/**'
       - 'api/oss/src/core/agent_templates/**'
+      - 'api/oss/src/apis/fastapi/agent_templates/**'
       - 'api/pyproject.toml'
       - 'api/uv.lock'
       - 'sdks/python/**'
