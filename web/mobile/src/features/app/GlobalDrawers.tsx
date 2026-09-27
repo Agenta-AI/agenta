@@ -1,4 +1,5 @@
 import {TraceDrawer} from "@agenta/observability-ui/traceDrawer"
+import {useMediaQuery} from "@agenta/ui/hooks"
 import {useRouter} from "next/router"
 
 import {bindTraceDrawerSeams} from "@/features/observability/bindTraceDrawerSeams"
@@ -19,6 +20,7 @@ export const GlobalDrawers = () => {
     const router = useRouter()
     bindTraceDrawerSeams(router)
     registerTraceDrawerSlots()
-    // Stacked: the desktop split (tree beside content) needs 720px and scrolled sideways here.
-    return <TraceDrawer layout="stacked" />
+    // The split (tree beside content) needs 720px; below the app's 640px breakpoint it stacks.
+    const wide = useMediaQuery("(min-width: 640px)")
+    return <TraceDrawer layout={wide ? "split" : "stacked"} />
 }
