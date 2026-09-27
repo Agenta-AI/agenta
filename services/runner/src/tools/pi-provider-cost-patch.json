@@ -1,5 +1,6 @@
 {
   "_comment": "Single source of truth for the pi-ai provider-cost patch (harness cost issue H1). Pi ships pi-ai twice: the @earendil-works/pi-ai package (top-level fields, loaded by the in-process engine) and a minified copy bundled into the pi CLI (`cli`, relative to @earendil-works/pi-coding-agent; every `pi` subprocess, local or Daytona, runs it). Consumed by pi-provider-cost-patch.ts (the runner image via scripts/patch-pi-provider-cost.ts, and a Daytona runtime install) AND by services/runner/images/sandbox/daytona/build_snapshot.py (the Daytona snapshot). Every surface MUST patch identically, or a Pi run reports Pi's price-table estimate instead of the billed charge. Keep the anchors and the injected function here and nowhere else.",
+  "piVersion": "0.87.1",
   "bundlePath": "dist/api/openai-completions.js",
   "marker": "__agentaProviderCost",
   "functionStart": "function parseChunkUsage(rawUsage, model) {",
