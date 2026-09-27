@@ -460,6 +460,11 @@ export {
     type EvaluatorTemplate,
     /** @deprecated Use EvaluatorCatalogTemplatesResponse */
     type EvaluatorTemplatesResponse,
+    validateAgentTemplate,
+    type AgentTemplateSource,
+    type AgentTemplateSourcePin,
+    type AgentTemplateValidationIssue,
+    type AgentTemplateValidationResult,
 } from "./api"
 
 // ============================================================================
@@ -504,6 +509,8 @@ export {workflowSnapshotAdapter} from "./snapshotAdapter"
 export {
     ALL_TEMPLATES_CATEGORY,
     PROVIDERS,
+    SAVE_AS_TEMPLATE_MESSAGE,
+    SHARE_TEMPLATE_IN_MARKETPLACE_MESSAGE,
     TEMPLATE_CATEGORY_ORDER,
     agentTemplateByKey,
     agentStarterTemplateFromEntry,

@@ -43,24 +43,14 @@ export const liveSummary = (count: number): string =>
 
 /**
  * The agent header's Publish button: one menu of the places an agent can be reached from,
- * each opening its own drawer. The host owns the drawers and what "live" means for each.
+ * each opening its own drawer. The host owns the drawers and what "live" means for each. The
+ * menu rows say which places are live; the header itself carries no live count.
  */
 export const PublishMenu = ({items, onSelect, disabled, className}: PublishMenuProps) => {
     const liveCount = items.filter((item) => item.live).length
 
     return (
         <div className={`flex shrink-0 items-center gap-2 ${className ?? ""}`}>
-            {/* A phone header has no room for the sentence beside the agent name and revision, so
-            below `sm` the count moves onto the button as a dot and a number. */}
-            {liveCount > 0 ? (
-                <span
-                    className="hidden items-center gap-1.5 whitespace-nowrap text-xs text-colorTextSecondary sm:inline-flex"
-                    data-testid="publish-live-summary"
-                >
-                    <span className="inline-block h-1.5 w-1.5 rounded-full bg-colorSuccess" />
-                    {liveSummary(liveCount)}
-                </span>
-            ) : null}
             <DropdownMenu>
                 <DropdownMenuTrigger asChild disabled={disabled}>
                     <Button
@@ -74,16 +64,6 @@ export const PublishMenu = ({items, onSelect, disabled, className}: PublishMenuP
                                 : undefined
                         }
                     >
-                        {liveCount > 0 ? (
-                            <span
-                                aria-hidden
-                                className="inline-flex items-center gap-1 text-xs tabular-nums sm:hidden"
-                                data-testid="publish-live-count"
-                            >
-                                <span className="inline-block h-1.5 w-1.5 rounded-full bg-colorSuccess" />
-                                {liveCount}
-                            </span>
-                        ) : null}
                         Publish
                         <CaretDown size={12} />
                     </Button>

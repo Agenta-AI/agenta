@@ -20,6 +20,8 @@ from uuid import UUID, uuid5, NAMESPACE_DNS
 from agenta.sdk.agents.adapters.agenta_builtins import (
     BUILD_AN_AGENT_SKILL,
     BUILD_AN_AGENT_SLUG,
+    CREATE_TEMPLATE_SKILL,
+    CREATE_TEMPLATE_SLUG,
     GETTING_STARTED_WITH_AGENTA_SKILL,
     GETTING_STARTED_WITH_AGENTA_SLUG,
 )
@@ -381,6 +383,14 @@ _STATIC_WORKFLOWS: Dict[str, Dict[str, Any]] = {
         "latest": "v1",
         "versions": {
             "v1": _skill_revision(AGENTA_APPS_SKILL),
+        },
+    },
+    CREATE_TEMPLATE_SLUG: {
+        "kind": "skill",
+        "embeddable": True,
+        "latest": "v1",
+        "versions": {
+            "v1": _skill_revision(CREATE_TEMPLATE_SKILL),
         },
     },
 }

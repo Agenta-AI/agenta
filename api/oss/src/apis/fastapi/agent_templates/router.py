@@ -11,14 +11,23 @@ from oss.src.apis.fastapi.agent_templates.models import (
     TemplateResponse,
     TemplatesQueryRequest,
     TemplatesResponse,
+    TemplateValidateRequest,
 )
 from oss.src.apis.fastapi.shared.exceptions import FORBIDDEN_EXCEPTION
 from oss.src.core.access.permissions.service import check_action_access
 from oss.src.core.access.permissions.types import Permission
 from oss.src.core.agent_templates.catalog import AgentTemplateCatalog
-from oss.src.core.agent_templates.dtos import TemplateLoadResult
+from oss.src.core.agent_templates.dtos import (
+    GitHubTemplateSource,
+    SessionFileTemplateSource,
+    TemplateLoadResult,
+    TemplateSource,
+    TemplateValidationResult,
+    UploadTemplateSource,
+)
 from oss.src.core.agent_templates.exceptions import TemplateSourceNotFound
 from oss.src.core.agent_templates.loader import AgentTemplateLoader
+from oss.src.core.agent_templates.validation import AgentTemplateValidator
 from oss.src.core.shared.idempotency import request_key_hash
 from oss.src.utils.exceptions import intercept_exceptions
 from oss.src.utils.logging import get_module_logger
@@ -28,16 +37,57 @@ log = get_module_logger(__name__)
 _MAX_IDEMPOTENCY_KEY_CHARACTERS = 255
 
 
+def _source_permissions(source: TemplateSource) -> list[Permission]:
+    """Reading a staged upload or a session file needs access to that session's files."""
+    if isinstance(source, UploadTemplateSource):
+        return [Permission.VIEW_SESSIONS]
+    if isinstance(source, SessionFileTemplateSource):
+        return [Permission.VIEW_SESSIONS, Permission.VIEW_MOUNTS]
+    return []
+
+
+def _source_log(source: TemplateSource) -> dict[str, str]:
+    # Session paths and attachment ids stay out of logs; the key is a catalog slug
+    # and a GitHub source is a public repository location.
+    if isinstance(source, GitHubTemplateSource):
+        return {
+            "source_kind": source.kind,
+            "source_repo_url": source.repo_url,
+            "source_commit": source.commit,
+            "source_path": source.path,
+        }
+    return {
+        "source_kind": source.kind,
+        **({"source_key": source.key} if source.kind == "internal" else {}),
+    }
+
+
 class AgentTemplatesRouter:
     def __init__(
         self,
         *,
         loader: AgentTemplateLoader,
         catalog: AgentTemplateCatalog,
+        validator: AgentTemplateValidator | None = None,
     ) -> None:
         self._loader = loader
         self._catalog = catalog
+        self._validator = validator
         self.router = APIRouter()
+        if validator is not None:
+            self.router.add_api_route(
+                "/validate",
+                self.validate_template,
+                methods=["POST"],
+                operation_id="validate_agent_template",
+                status_code=status.HTTP_200_OK,
+                response_model=TemplateValidationResult,
+                responses={
+                    403: {"description": "Forbidden"},
+                    404: {"description": "Template source not found"},
+                    422: {"description": "Invalid request"},
+                },
+            )
         self.router.add_api_route(
             "/query",
             self.query_templates,
@@ -134,6 +184,58 @@ class AgentTemplatesRouter:
             },
         )
 
+    async def _authorize(self, request: Request, permissions: list[Permission]) -> None:
+        for permission in permissions:
+            if not await check_action_access(  # type: ignore
+                user_uid=request.state.user_id,
+                project_id=request.state.project_id,
+                permission=permission,
+            ):
+                raise FORBIDDEN_EXCEPTION  # type: ignore
+
+    @intercept_exceptions()
+    async def validate_template(
+        self,
+        request: Request,
+        *,
+        payload: TemplateValidateRequest,
+        # Agent tool calls reach this route without a query string; the credential names the project.
+        project_id: UUID | None = None,
+    ) -> JSONResponse:
+        await self._authorize(
+            request,
+            [Permission.VIEW_WORKFLOWS, *_source_permissions(payload.source)],
+        )
+        authorized_project_id = UUID(str(request.state.project_id))
+        if project_id is not None and project_id != authorized_project_id:
+            raise FORBIDDEN_EXCEPTION  # type: ignore
+        project_id = authorized_project_id
+        if self._validator is None:
+            raise RuntimeError("Template validation is not configured.")
+        try:
+            result = await self._validator.validate(
+                project_id=project_id,
+                source=payload.source,
+                pin=payload.pin,
+            )
+        except Exception as exc:
+            response = template_load_error_response(exc)
+            if response is None:
+                raise
+            return response
+
+        log.info(
+            "agent template validated",
+            project_id=str(project_id),
+            valid=result.valid,
+            issue_codes=[issue.code for issue in result.issues],
+            **_source_log(payload.source),
+        )
+        return JSONResponse(
+            status_code=status.HTTP_200_OK,
+            content=result.model_dump(mode="json"),
+        )
+
     @intercept_exceptions()
     async def load_template(
         self,
@@ -145,13 +247,12 @@ class AgentTemplatesRouter:
         permissions = [Permission.EDIT_WORKFLOWS, Permission.RUN_SESSIONS]
         if payload.attachment_ids:
             permissions.extend([Permission.VIEW_SESSIONS, Permission.EDIT_SESSIONS])
-        for permission in permissions:
-            if not await check_action_access(  # type: ignore
-                user_uid=request.state.user_id,
-                project_id=request.state.project_id,
-                permission=permission,
-            ):
-                raise FORBIDDEN_EXCEPTION  # type: ignore
+        permissions.extend(
+            permission
+            for permission in _source_permissions(payload.source)
+            if permission not in permissions
+        )
+        await self._authorize(request, permissions)
 
         request_key = (request.headers.get("Idempotency-Key") or "").strip()
         if not request_key:
@@ -183,8 +284,8 @@ class AgentTemplatesRouter:
                 "agent template load failed",
                 project_id=str(project_id),
                 request_key_hash=request_key_hash(request_key),
-                source_key=payload.source.key,
                 status_code=response.status_code,
+                **_source_log(payload.source),
             )
             return response
 
@@ -192,11 +293,11 @@ class AgentTemplatesRouter:
             "agent template load complete",
             project_id=str(project_id),
             request_key_hash=request_key_hash(request_key),
-            source_key=payload.source.key,
             workflow_id=str(result.workflow_id),
             revision_id=str(result.revision_id),
             session_id=result.session_id,
             replayed=result.replayed,
+            **_source_log(payload.source),
         )
         return JSONResponse(
             status_code=(

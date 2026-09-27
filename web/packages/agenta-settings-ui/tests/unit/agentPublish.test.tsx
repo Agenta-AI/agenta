@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import React, {act} from "react"
+
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
@@ -111,7 +112,7 @@ describe("AgentPublish", () => {
 
     it("opens the Slack manage panel from the Publish menu when Slack is live", async () => {
         await render()
-        expect(document.body.textContent).toContain("Live in 3 places")
+        expect(document.body.textContent).not.toContain("Live in 3 places")
         await choose("slack")
         expect(dialog()?.dataset.title).toBe("Slack")
         expect(document.querySelector('[data-testid="manage-panel-body"]')?.textContent).toBe(
