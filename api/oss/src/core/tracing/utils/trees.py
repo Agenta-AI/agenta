@@ -1,3 +1,4 @@
+import math
 from collections import OrderedDict
 from typing import Dict, List, Optional
 
@@ -376,22 +377,29 @@ def _combine_breakdowns(
 ) -> Dict[str, float]:
     """Combine a span's own breakdown with its children's summed cumulative breakdown.
 
-    Own and children add up. A span marked as reporting aggregate usage describes the
-    same calls as its children, so it keeps the larger side: the producer's summary can
-    lack a figure (a harness that reports no cost) that the priced children carry."""
+    Own and children add up, except when a span that is not a model call carries the
+    children's total: its usage then repeats the calls traced below it (a handler that
+    returns its model call's `usage` and `cost`, or a run summary), so it counts once.
+    A model call span's own usage is its own call. A span marked as
+    reporting aggregate usage describes the same calls as its children, so it keeps the
+    larger side: the producer's summary can lack a figure (a harness that reports no
+    cost) that the priced children carry."""
 
     if not children:
         return own
     if not own:
         return children
+    is_model_call = span.span_type and span.span_type.name.lower() in TYPES_WITH_COSTS
+    if not is_model_call and math.isclose(
+        own.get("total", 0.0), children.get("total", 0.0), rel_tol=1e-9
+    ):
+        # Keep the cache split the copied usage does not carry.
+        cache = {k: v for k, v in children.items() if k in CACHE_BREAKDOWN_ALIASES}
+        return {**cache, **own}
     if not _reports_aggregate_usage(span):
         return _sum_breakdowns(own, children)
     if own.get("total", 0.0) > children.get("total", 0.0):
         return own
-    if own.get("total", 0.0) == children.get("total", 0.0):
-        # Same calls, same total: keep the cache split the summary does not carry.
-        cache = {k: v for k, v in children.items() if k in CACHE_BREAKDOWN_ALIASES}
-        return {**cache, **own}
     return children
 
 

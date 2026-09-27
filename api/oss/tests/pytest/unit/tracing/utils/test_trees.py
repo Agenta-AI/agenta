@@ -259,6 +259,102 @@ def test_model_call_span_sums_its_own_usage_and_its_children():
     )
 
 
+def test_llm_v0_usage_copied_from_its_traced_call_counts_once():
+    # llm_v0 returns its litellm call's `usage` (no cost); the callback traces that call.
+    root = _bare_span(
+        span_id=ROOT_UUID, span_name="llm_v0", span_type=SpanType.WORKFLOW
+    )
+    root.attributes["ag"]["metrics"]["tokens"] = {
+        "incremental": {"prompt": 12.0, "completion": 1.0, "total": 13.0}
+    }
+    chat = _bare_span(
+        span_id=CHILD_A_UUID,
+        parent_id=ROOT_UUID,
+        span_name="litellm_client",
+        span_type=SpanType.CHAT,
+        start_offset_s=1,
+    )
+    chat.attributes["ag"]["metrics"] = {
+        "tokens": {"incremental": {"prompt": 12.0, "completion": 1.0, "total": 13.0}},
+        "costs": {"incremental": {"total": 2.4e-06}},
+    }
+
+    span_idx, _ = _rollup([root, chat])
+    metrics = _metrics(span_idx[ROOT_UUID])
+
+    assert metrics["tokens"]["cumulative"] == {
+        "prompt": 12.0,
+        "completion": 1.0,
+        "total": 13.0,
+    }
+    assert metrics["costs"]["cumulative"] == {"total": 2.4e-06}
+
+
+def test_app_returning_its_traced_calls_cost_and_usage_counts_them_once():
+    # A custom SDK app returns {"message", "cost", "usage"} summed over two litellm calls
+    # that the litellm callback also traces, below a task span that returns the same.
+    usage = {"prompt": 30.0, "completion": 6.0, "total": 36.0}
+    root = _bare_span(span_id=ROOT_UUID, span_name="app", span_type=SpanType.WORKFLOW)
+    root.attributes["ag"]["metrics"] = {
+        "tokens": {"incremental": dict(usage)},
+        "costs": {"incremental": {"total": 0.1 + 0.2}},
+    }
+    task = _bare_span(
+        span_id=CHILD_A_UUID, parent_id=ROOT_UUID, span_name="step", start_offset_s=1
+    )
+    task.attributes["ag"]["metrics"] = deepcopy(root.attributes["ag"]["metrics"])
+    calls = []
+    for span_id, tokens, cost in (
+        (GRANDCHILD_UUID, {"prompt": 10.0, "completion": 2.0, "total": 12.0}, 0.2),
+        (CHILD_B_UUID, {"prompt": 20.0, "completion": 4.0, "total": 24.0}, 0.1),
+    ):
+        call = _bare_span(
+            span_id=span_id,
+            parent_id=CHILD_A_UUID,
+            span_name="litellm_client",
+            span_type=SpanType.CHAT,
+            start_offset_s=2,
+        )
+        call.attributes["ag"]["metrics"] = {
+            "tokens": {"incremental": tokens},
+            "costs": {"incremental": {"total": cost}},
+        }
+        calls.append(call)
+
+    span_idx, _ = _rollup([root, task, *calls])
+
+    for span_id in (ROOT_UUID, CHILD_A_UUID):
+        metrics = _metrics(span_idx[span_id])
+        assert metrics["tokens"]["cumulative"] == usage
+        assert metrics["costs"]["cumulative"] == pytest.approx({"total": 0.3})
+
+
+def test_unmarked_run_summary_equal_to_its_children_counts_once():
+    # An agent root from a services build that does not set the aggregate flag yet.
+    usage = {"prompt": 4, "completion": 340, "total": 226059}
+    root = _bare_span(
+        span_id=ROOT_UUID, span_name="_agent", span_type=SpanType.WORKFLOW
+    )
+    root.attributes["ag"]["metrics"]["tokens"] = {"incremental": dict(usage)}
+    chat = _bare_span(
+        span_id=CHILD_A_UUID,
+        parent_id=ROOT_UUID,
+        span_name="chat",
+        span_type=SpanType.CHAT,
+        start_offset_s=1,
+    )
+    chat.attributes["ag"]["metrics"]["tokens"] = {
+        "incremental": {**usage, "cache_read": 197594}
+    }
+
+    span_idx, _ = _rollup([root, chat])
+
+    assert _metrics(span_idx[ROOT_UUID])["tokens"]["cumulative"] == {
+        **usage,
+        "cache_read": 197594,
+    }
+
+
 def test_reported_total_without_priced_children_has_no_invented_breakdown():
     root = _bare_span(span_id=ROOT_UUID, span_name="root")
     root.attributes["ag"]["metrics"]["costs"] = {"incremental": {"total": 0.5}}
