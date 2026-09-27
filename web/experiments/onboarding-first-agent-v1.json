@@ -1,0 +1,14 @@
+{
+    "name": "First agent: name first vs task first",
+    "feature_flag_key": "onboarding-first-agent-v1",
+    "rollout_percentage": 100,
+    "variants": [
+        {"key": "control", "name": "Name first", "rollout_percentage": 50},
+        {"key": "task-first", "name": "Task first", "rollout_percentage": 50}
+    ],
+    "primary_metric": {
+        "type": "funnel",
+        "events": ["onboarding_started", "onboarding_agent_created"]
+    },
+    "secondary_events": ["onboarding_step_completed", "onboarding_create_clicked"]
+}
