@@ -285,6 +285,9 @@ def test_website_templates_match_the_api_detail_response():
 
 def test_author_pages_list_every_template_that_references_them(tmp_path: Path):
     catalog_path = _copy_catalog(tmp_path)
+    original_author = json.loads(catalog_path.read_text(encoding="utf-8"))["templates"][
+        "pr-reviewer"
+    ]["metadata"]["author_id"]
     authors = catalog_path.parent / "authors"
     (authors / "jane-doe.json").write_text(
         json.dumps(
@@ -309,7 +312,7 @@ def test_author_pages_list_every_template_that_references_them(tmp_path: Path):
     by_id = {author["id"]: author for author in data["authors"]}
 
     assert by_id["jane-doe"]["template_keys"] == ["pr-reviewer", "code-qa"]
-    assert "pr-reviewer" not in by_id["agenta"]["template_keys"]
+    assert "pr-reviewer" not in by_id[original_author]["template_keys"]
 
 
 def test_unlisted_templates_are_not_published(tmp_path: Path):
