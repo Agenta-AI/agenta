@@ -9,6 +9,7 @@
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { remoteMediaUrls } from "./remote-media.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const dist = resolve(root, "dist");
@@ -41,7 +42,22 @@ const posts = readdirSync(resolve(root, "src/content/posts")).filter((file) =>
   file.endsWith(".mdx"),
 );
 for (const post of posts) {
-  const twin = `blog/${post.replace(/\.mdx$/, "")}.md`;
+  const source = readFileSync(resolve(root, "src/content/posts", post), "utf8");
+  const slug = post.replace(/\.mdx$/, "");
+  const builtHtmlPath = resolve(dist, "blog", slug, "index.html");
+  const builtHtml = existsSync(builtHtmlPath)
+    ? readFileSync(builtHtmlPath, "utf8")
+    : "";
+  const remoteMedia = new Set([
+    ...remoteMediaUrls(source),
+    ...remoteMediaUrls(builtHtml),
+  ]);
+  check(
+    remoteMedia.size === 0,
+    `${post} embeds remote media (${[...remoteMedia].join(", ")}); mirror it to the R2-backed /media/ path`,
+  );
+
+  const twin = `blog/${slug}.md`;
   check(existsSync(resolve(dist, twin)), `missing markdown twin: dist/${twin}`);
 }
 
