@@ -392,6 +392,13 @@ BASH_PROMPT = (
 # the tool.
 BASH_TOKEN_RE = re.compile(r"QA-BASH-[A-Za-z0-9][A-Za-z0-9.-]{5,}-\w+")
 
+# Extraction from the tool's OWN output runs the match on to the end of the token, because
+# `\w` stops at a dot and would hand back a truncated value for an architecture like
+# "x86_64.v2". The reply would then only have to carry that shorter string. The pattern above
+# stays unanchored and is what scans REPLY prose, where the deny journey has to find a
+# fabricated token wherever the model put it.
+BASH_TOKEN_FULL_RE = re.compile(BASH_TOKEN_RE.pattern + r"[A-Za-z0-9._-]*")
+
 
 def reply_carries_token(reply: str, token: str) -> bool:
     """Does ``reply`` carry exactly ``token``, and not a longer run of token characters?
@@ -435,7 +442,7 @@ def bash_token_from_output(t: "Turn", tool_call_id: str) -> str | None:
     if output is None:
         return None
     text = output if isinstance(output, str) else json.dumps(output, default=str)
-    found = BASH_TOKEN_RE.search(text)
+    found = BASH_TOKEN_FULL_RE.search(text)
     return found.group(0) if found else None
 
 # For the APPROVAL journeys the command must MUTATE. Claude Code classifies bash commands and
