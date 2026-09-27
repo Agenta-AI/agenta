@@ -392,6 +392,28 @@ BASH_PROMPT = (
 # the tool.
 BASH_TOKEN_RE = re.compile(r"QA-BASH-[A-Za-z0-9][A-Za-z0-9.-]{5,}-\w+")
 
+
+def bash_token_from_output(t: "Turn") -> str | None:
+    """The QA-BASH token as the SHELL printed it, read off a tool-output frame.
+
+    A token found only in the reply proves nothing on its own: the model writes the reply, so it
+    can write a plausible token without running anything. That is the failure this journey was
+    built around. Reading the token off the tool's own output and then requiring the REPLY to
+    carry that exact string ties the two together, so a fabricated value cannot pass however
+    well shaped it is.
+    """
+    for payload in t.tool_payloads.values():
+        if not isinstance(payload, dict):
+            continue
+        output = payload.get("output")
+        if output is None:
+            continue
+        text = output if isinstance(output, str) else json.dumps(output, default=str)
+        found = BASH_TOKEN_RE.search(text)
+        if found:
+            return found.group(0)
+    return None
+
 # For the APPROVAL journeys the command must MUTATE. Claude Code classifies bash commands and
 # auto-approves read-only ones (a bare `echo`) no matter what the permission policy says, so
 # approving a read-only echo tests nothing on Claude — and a user approving an action is, by
@@ -744,7 +766,8 @@ def j3_tool(cell: dict) -> dict:
             permission_default="allow",
         ),
     )
-    ok = tool_ran(t) and bool(BASH_TOKEN_RE.search(t.reply)) and not t.errors
+    shell_token = bash_token_from_output(t)
+    ok = tool_ran(t) and bool(shell_token) and shell_token in t.reply and not t.errors
     return {
         "pass": ok,
         "why": "wire shows tool-output-available AND the reply carries a token only a real shell could emit, with no wire errors",
@@ -2073,6 +2096,9 @@ def j_rule_deny(cell: dict) -> dict:
     # outcome at all, and reading that as a refusal would pass this journey on a broken run.
     refused = outcome is not None and outcome != "available"
     no_card = t.approval is None
+    # Absence is asserted on the REPLY here, not on a tool output: a denied call produces no
+    # output to match against, and the point of this journey is that the model did not invent a
+    # token to cover the refusal. Any shaped token in the reply is a failure.
     no_token = not BASH_TOKEN_RE.search(t.reply)
     ok = attempted and refused and no_card and no_token and not t.errors
     return {
@@ -2101,10 +2127,12 @@ def _allow_rule_flow(cell: dict, rule: str) -> dict:
         ),
     )
     _, outcome = _bash_call_outcome(t)
+    shell_token = bash_token_from_output(t)
     ok = (
         t.approval is None
         and outcome == "available"
-        and bool(BASH_TOKEN_RE.search(t.reply))
+        and shell_token is not None
+        and shell_token in t.reply
         and not t.errors
     )
     return {
