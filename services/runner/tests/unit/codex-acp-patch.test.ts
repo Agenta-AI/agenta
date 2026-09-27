@@ -4,29 +4,54 @@ import { describe, it } from "vitest";
 import { applyCodexAcpApprovalPatch } from "../../src/engines/sandbox_agent/codex-acp-patch.ts";
 
 /**
- * Verbatim from the pinned bundle (`@agentclientprotocol/codex-acp` 1.1.7,
+ * Verbatim from the pinned bundle (`@agentclientprotocol/codex-acp` 1.13.1,
  * `dist/index.js`, `src/AgentMode.ts` section). Keep it byte-exact: the patch's only job
  * is to rewrite this shape, so a fixture that drifts from the real bundle proves nothing.
  */
 const AGENT_MODE_SECTION = `// src/AgentMode.ts
 var MODE_CONFIG_ID = "mode";
 var AgentMode = class _AgentMode {
+  id;
+  name;
+  description;
+  kind;
+  approvalPolicy;
+  approvalsReviewer;
+  sandboxPolicy;
+  sandboxMode;
+  constructor(id, name, description, kind, approvalPolicy, approvalsReviewer, sandboxPolicy, sandboxMode) {
+    this.id = id;
+    this.name = name;
+    this.description = description;
+    this.kind = kind;
+    this.approvalPolicy = approvalPolicy;
+    this.approvalsReviewer = approvalsReviewer;
+    this.sandboxPolicy = sandboxPolicy;
+    this.sandboxMode = sandboxMode;
+  }
   static ReadOnly = new _AgentMode(
     "read-only",
-    "Read-only",
-    "Requires approval to edit files and run commands.",
+    "Ask for approval",
+    "Always ask to edit external files and use the internet",
+    "standard",
     "on-request",
+    "user",
     {
-      "type": "readOnly",
-      "networkAccess": false
+      type: "workspaceWrite",
+      writableRoots: [],
+      networkAccess: false,
+      excludeTmpdirEnvVar: false,
+      excludeSlashTmp: false
     },
-    "read-only"
+    "workspace-write"
   );
   static Agent = new _AgentMode(
     "agent",
-    "Agent",
-    "Read and edit files, and run commands.",
+    "Approve for me",
+    "Only ask for actions detected as potentially unsafe",
+    "auto_review",
     "on-request",
+    "auto_review",
     {
       type: "workspaceWrite",
       writableRoots: [],
@@ -38,9 +63,11 @@ var AgentMode = class _AgentMode {
   );
   static AgentFullAccess = new _AgentMode(
     "agent-full-access",
-    "Agent (full access)",
-    "Codex can edit files outside this workspace and run commands with network access. Exercise caution when using.",
+    "Full access",
+    "Unrestricted access to the internet and any file on your computer",
+    "full_access",
     "never",
+    "user",
     { "type": "dangerFullAccess" },
     "danger-full-access"
   );
@@ -59,7 +86,7 @@ describe("applyCodexAcpApprovalPatch", () => {
     const patched = patchedSource(AGENT_MODE_SECTION);
     assert.match(
       patched,
-      /"agent-full-access",[\s\S]*?"on-request",\s*\{ "type": "dangerFullAccess" \}/,
+      /"agent-full-access",[\s\S]*?"on-request",\s*"user",\s*\{ "type": "dangerFullAccess" \}/,
     );
     assert.equal(patched.includes('"never"'), false);
   });
@@ -71,7 +98,6 @@ describe("applyCodexAcpApprovalPatch", () => {
     assert.equal(patched.includes('"danger-full-access"'), true);
     // read-only and agent were already on-request; the patch must not duplicate or drop them.
     assert.equal(patched.split('"on-request"').length - 1, 3);
-    assert.equal(patched.includes('"type": "readOnly"'), true);
     assert.equal(patched.includes('type: "workspaceWrite"'), true);
   });
 
@@ -80,8 +106,8 @@ describe("applyCodexAcpApprovalPatch", () => {
     assert.equal(
       patched,
       AGENT_MODE_SECTION.replace(
-        `    "never",\n    { "type": "dangerFullAccess" },`,
-        `    "on-request",\n    { "type": "dangerFullAccess" },`,
+        `    "never",\n    "user",\n    { "type": "dangerFullAccess" },`,
+        `    "on-request",\n    "user",\n    { "type": "dangerFullAccess" },`,
       ),
     );
   });
@@ -98,6 +124,17 @@ describe("applyCodexAcpApprovalPatch", () => {
     );
     assert.equal(applyCodexAcpApprovalPatch(drifted).kind, "anchor-missing");
     assert.equal(applyCodexAcpApprovalPatch("").kind, "anchor-missing");
+  });
+
+  it("refuses a full-access preset whose approvals are not reviewed by the user", () => {
+    // `on-request` only parks the approval for us when the user is the reviewer; an automatic
+    // reviewer would answer it inside Codex.
+    const autoReviewed = AGENT_MODE_SECTION.replace(
+      `    "never",\n    "user",\n    { "type": "dangerFullAccess" },`,
+      `    "never",\n    "auto_review",\n    { "type": "dangerFullAccess" },`,
+    );
+    assert.notEqual(autoReviewed, AGENT_MODE_SECTION);
+    assert.equal(applyCodexAcpApprovalPatch(autoReviewed).kind, "anchor-missing");
   });
 
   it("never rewrites a `never` that is not the full-access approval argument", () => {

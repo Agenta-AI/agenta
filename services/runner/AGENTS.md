@@ -78,6 +78,13 @@ and CLI behavior can be tested with a fake engine (no live Pi/Claude/sandbox-age
 through those seams over importing the real engines. Engine-internal logic that is pure
 (`tracing/otel.ts` state machine, `tools/*`, `engines/skills.ts`) is unit-tested directly.
 
+## Bumping Pi
+
+When you bump `@earendil-works/pi-coding-agent` or `pi-ai`, re-check
+`src/tools/pi-provider-cost-patch.json` against the new Pi: the file name of the CLI's bundled
+chunk (`cli.bundlePath`) and both anchors. Then update `piVersion`, and rebuild the runner image
+and the Daytona snapshot. `tests/unit/pi-provider-cost-patch-pi-version.test.ts` fails until you do.
+
 ## Before committing
 
 There is no eslint here yet (deferred); `tsc --strict` + the repo-wide prettier hook are the
