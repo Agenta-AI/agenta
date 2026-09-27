@@ -10,9 +10,9 @@ export interface PublishButtonProps {
 /** The agent header's Publish button; it opens the Publish panel. */
 export const PublishButton = ({onClick, disabled, className}: PublishButtonProps) => (
     <Button
-        variant="outline"
         size="sm"
-        className={className}
+        // The design's one yellow action per screen: the hero-action token.
+        className={`bg-hero-action text-hero-action-foreground hover:bg-hero-action-hover ${className ?? ""}`}
         disabled={disabled}
         onClick={onClick}
         data-testid="publish-button"
