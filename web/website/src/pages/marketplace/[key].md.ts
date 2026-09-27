@@ -41,6 +41,7 @@ export const GET: APIRoute = async ({ props }) => {
     items.map((item, i) => `${i + 1}. ${item}`).join("\n");
   const related = relatedTemplatesOf(template, templates);
   const steps = howItWorksOf(template);
+  const requirements = requirementsOf(template);
 
   const sections = [
     `## Overview\n\n${template.description}`,
@@ -50,11 +51,12 @@ export const GET: APIRoute = async ({ props }) => {
     `## How to set this up\n\n${numbered(
       setupStepsOf(template).map((step) => `${step.title}. ${step.text}`),
     )}`,
-    `## What it needs\n\n${list(
-      requirementsOf(template).map(
-        (req) => `${req.label}${req.note ? ` (${req.note})` : ""}`,
-      ),
-    )}`,
+    requirements.length > 0 &&
+      `## What it needs\n\n${list(
+        requirements.map(
+          (req) => `${req.label}${req.note ? ` (${req.note})` : ""}`,
+        ),
+      )}`,
     apps.length > 0 && `## Apps\n\n${apps.join(", ")}`,
     related.length > 0 &&
       `## Related templates\n\n${list(

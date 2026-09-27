@@ -313,10 +313,10 @@ export const setupStepsOf = (template: WebsiteTemplate): SetupStep[] => {
 export interface Requirement {
   label: string;
   note?: string;
-  app?: TemplateApp;
+  app: TemplateApp;
 }
 
-/** Sidebar "What it needs": one account per connection, then a workspace. */
+/** Sidebar "What it needs": one account per connection. */
 export const requirementsOf = (template: WebsiteTemplate): Requirement[] => {
   const seen = new Set<string>();
   const accounts: Requirement[] = [];
@@ -330,7 +330,7 @@ export const requirementsOf = (template: WebsiteTemplate): Requirement[] => {
       app: toApp(slug),
     });
   }
-  return [...accounts, { label: "Agenta workspace", note: "Free plan" }];
+  return accounts;
 };
 
 /** Up to three other templates from the same category, in catalog order. */

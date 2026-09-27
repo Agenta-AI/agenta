@@ -205,27 +205,22 @@ const isAgenta = template.author.id === "agenta";
       </div>
 
       <aside class="ag-tpl-side">
-        <div class="ag-tpl-side__group">
-          <h2 class="ag-tpl-side__label">What it needs</h2>
-          <ul class="ag-tpl-reqs">
-            {
-              requirements.map((req) => (
-                <li>
-                  {req.app ? (
+        {
+          requirements.length > 0 && (
+            <div class="ag-tpl-side__group">
+              <h2 class="ag-tpl-side__label">What it needs</h2>
+              <ul class="ag-tpl-reqs">
+                {requirements.map((req) => (
+                  <li>
                     <AppMark app={req.app} />
-                  ) : (
-                    <span class="ag-appmark" aria-hidden="true">
-                      <img class="th-dark-only" src="/logos/Agenta-symbol-dark-accent.svg" alt="" width="15" />
-                      <img class="th-light-only" src="/logos/Agenta-symbol-light.svg" alt="" width="15" />
-                    </span>
-                  )}
-                  <span class="ag-tpl-reqs__label">{req.label}</span>
-                  {req.note && <span class="ag-tpl-reqs__note">{req.note}</span>}
-                </li>
-              ))
-            }
-          </ul>
-        </div>
+                    <span class="ag-tpl-reqs__label">{req.label}</span>
+                    {req.note && <span class="ag-tpl-reqs__note">{req.note}</span>}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )
+        }
         {
           apps.length > 0 && (
             <div class="ag-tpl-side__group">

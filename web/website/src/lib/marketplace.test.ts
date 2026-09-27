@@ -196,7 +196,6 @@ describe("template page sections", () => {
     expect(requirementsOf(codeQa).map((r) => [r.label, r.note])).toEqual([
       ["GitHub account", undefined],
       ["Slack account", "Optional"],
-      ["Agenta workspace", "Free plan"],
     ]);
   });
 
