@@ -2,6 +2,7 @@
 credential in anything the model can read."""
 
 import json
+from uuid import uuid4
 
 import httpx
 import pytest
@@ -14,7 +15,24 @@ from oss.src.core.managed_tools.mock.mcp_upstream import (
     MockManagedMCPUpstream,
 )
 from oss.src.core.managed_tools.mock.providers import build_mock_providers
-from oss.src.core.managed_tools.providers.mcp import MCPActionProvider
+from oss.src.core.gateways.policy.dtos import (
+    ResolvedSecret,
+    SecretOrigin,
+    SecretOwner,
+    SecretOwnerKind,
+)
+from oss.src.core.managed_tools.providers.mcp import (
+    MCPActionOutcomeUnknownError,
+    MCPActionProvider,
+)
+from oss.src.core.secrets.dtos import (
+    CustomSecretDTO,
+    CustomSecretFormat,
+    CustomSecretSettingsDTO,
+    SecretResponseDTO,
+)
+from oss.src.core.secrets.enums import SecretKind
+from oss.src.core.shared.dtos import Header
 from oss.src.core.managed_tools.providers.rest import RestActionProvider
 from oss.src.core.managed_tools.types import ManagedActionNotSentError
 from oss.tests.pytest.unit.managed_tools.fakes import context
@@ -278,4 +296,128 @@ async def test_mcp_a_refused_connection_on_the_call_is_not_sent():
     upstream = _Recording(on_call=refuse)
 
     with pytest.raises(ManagedActionNotSentError):
+        await _invoke(_mcp(upstream), operation="search_companies")
+
+
+# --- review round 1: decoded credentials, the handshake's end, event streams, cookies -- #
+
+
+def _escaped(value: str) -> str:
+    return "".join(f"\\u{ord(ch):04x}" for ch in value)
+
+
+async def test_rest_withholds_a_success_whose_decoded_output_carries_the_key():
+    body = '{"person": {"name": "' + _escaped(KEY) + '"}}'
+    provider, _ = _rest(
+        lambda request: httpx.Response(
+            200, content=body.encode(), headers={"content-type": "application/json"}
+        )
+    )
+
+    response = await _invoke(provider)
+
+    assert response.output is None
+    assert response.failure.message == "the answer was withheld"
+
+
+async def test_rest_carries_no_cookie_from_one_organization_to_the_next():
+    provider, requests = _rest(
+        lambda request: httpx.Response(
+            200, json={"ok": True}, headers={"set-cookie": "session=org-a; Path=/"}
+        )
+    )
+
+    await _invoke(provider)
+    await _invoke(provider)
+
+    assert "cookie" not in requests[1].headers
+
+
+def _mcp_with_key(upstream, key):
+    secret = ResolvedSecret(
+        secret=SecretResponseDTO(
+            id=uuid4(),
+            kind=SecretKind.CUSTOM_SECRET,
+            data=CustomSecretDTO(
+                secret=CustomSecretSettingsDTO(
+                    format=CustomSecretFormat.TEXT, content=key
+                )
+            ),
+            header=Header(name="key"),
+        ),
+        owner=SecretOwner(kind=SecretOwnerKind.PROJECT),
+        origin=SecretOrigin.LOCAL,
+    )
+    return MCPActionProvider(
+        name="acme_mcp",
+        upstream=upstream,
+        route=MCPResolvedRoute(url=MOCK_MCP_URL),
+        auth=MCPDirectAuth(secret=secret),
+    )
+
+
+async def test_mcp_withholds_a_decoded_answer_that_carries_the_key():
+    found = {"companies": [{"name": KEY, "domain": "x.example", "employees": 1}]}
+    upstream = _Recording(
+        on_call=lambda: MCPRelayResult(
+            status_code=200,
+            headers={"content-type": "application/json"},
+            body=(
+                '{"jsonrpc": "2.0", "id": 2, "result": {"structuredContent": '
+                + json.dumps(found).replace(KEY, _escaped(KEY))
+                + "}}"
+            ).encode(),
+        )
+    )
+
+    response = await _invoke(_mcp_with_key(upstream, KEY), operation="search_companies")
+
+    assert response.failure.message == "the answer was withheld"
+
+
+async def test_mcp_a_refused_end_of_handshake_never_sends_the_paid_call():
+    class _Refusing(_Recording):
+        async def relay(self, *, route, auth, context, body, headers):
+            if json.loads(body).get("method") == "notifications/initialized":
+                self.methods.append("notifications/initialized")
+                return MCPRelayResult(status_code=415, headers={}, body=b"")
+            return await super().relay(
+                route=route, auth=auth, context=context, body=body, headers=headers
+            )
+
+    upstream = _Refusing()
+
+    with pytest.raises(ManagedActionNotSentError):
+        await _invoke(_mcp(upstream), operation="search_companies")
+    assert "tools/call" not in upstream.methods
+
+
+async def test_mcp_reads_an_answer_split_over_several_data_lines():
+    found = {"companies": [{"name": "A", "domain": "a.example", "employees": 1}]}
+    message = {"jsonrpc": "2.0", "id": 2, "result": {"structuredContent": found}}
+    lines = json.dumps(message, indent=1).split("\n")
+    body = "event: message\n" + "".join(f"data: {line}\n" for line in lines) + "\n"
+    upstream = _Recording(
+        on_call=lambda: MCPRelayResult(
+            status_code=200,
+            headers={"content-type": "text/event-stream"},
+            body=body.encode(),
+        )
+    )
+
+    response = await _invoke(_mcp(upstream), operation="search_companies")
+
+    assert response.output == found
+
+
+async def test_mcp_a_stream_that_ends_without_the_answer_is_an_unknown_outcome():
+    upstream = _Recording(
+        on_call=lambda: MCPRelayResult(
+            status_code=200,
+            headers={"content-type": "text/event-stream"},
+            body=b'event: message\ndata: {"jsonrpc": "2.0", "id": 2, "res',
+        )
+    )
+
+    with pytest.raises(MCPActionOutcomeUnknownError):
         await _invoke(_mcp(upstream), operation="search_companies")

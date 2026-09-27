@@ -73,6 +73,9 @@ class MockManagedMCPUpstream(MCPUpstreamInterface):
         payload = json.loads(body)
         method, request_id = payload.get("method"), payload.get("id")
         lowered = {key.lower(): value for key, value in headers.items()}
+        # Every POST carries JSON, as a strict server insists.
+        if lowered.get("content-type") != "application/json":
+            return MCPRelayResult(status_code=415, headers={}, body=b"")
         if method == "initialize":
             return _json(
                 {

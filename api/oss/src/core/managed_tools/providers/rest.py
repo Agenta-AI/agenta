@@ -1,9 +1,11 @@
 """A direct REST API on an Agenta-owned key."""
 
+import json
 from typing import Any, Dict, Optional
 
 import httpx
 
+from oss.src.core.gateways.dtos import no_cookie_jar
 from oss.src.core.gateways.mcps.echo import credential_echo_scanner
 from oss.src.core.managed_tools.dtos import (
     ManagedActionContext,
@@ -44,6 +46,8 @@ class RestActionProvider(ManagedActionProviderInterface):
             base_url=base_url.rstrip("/") + "/",
             transport=transport or httpx.AsyncHTTPTransport(retries=0),
             follow_redirects=False,
+            # One client serves every organization, so no upstream state may ride along.
+            cookies=no_cookie_jar(),
         )
 
     async def invoke(
@@ -64,31 +68,37 @@ class RestActionProvider(ManagedActionProviderInterface):
             raise ManagedActionNotSentError(f"could not connect: {exc}") from exc
 
         reference = response.headers.get("x-request-id")
-        # An upstream that answers with our key would hand it to the model.
-        if self._echo.contains(response.content) or self._echo.detects_headers(
-            response.headers
+        answer = self._answer(response)
+        # An upstream that answers with our key would hand it to the model. Checked on the
+        # raw bytes and on what they decode to, since JSON escapes hide it from the first.
+        decoded = json.dumps(answer.model_dump(mode="json")).encode()
+        if (
+            self._echo.detects_headers(response.headers)
+            or self._echo.contains(response.content)
+            or self._echo.contains(decoded)
         ):
             return ManagedActionResponse(
                 failure=ManagedActionUpstreamFailure(
                     kind="rejected", message="the answer was withheld"
                 )
             )
-        if response.is_success:
-            try:
-                payload = response.json()
-            except ValueError:
-                payload = None
-            if not isinstance(payload, dict):
-                return ManagedActionResponse(
-                    failure=ManagedActionUpstreamFailure(
-                        kind="rejected", message="the answer is not a JSON object"
-                    ),
-                    provider_reference=reference,
+        return answer.model_copy(update={"provider_reference": reference})
+
+    @staticmethod
+    def _answer(response: httpx.Response) -> ManagedActionResponse:
+        if not response.is_success:
+            return ManagedActionResponse(failure=_failure(response))
+        try:
+            payload = response.json()
+        except ValueError:
+            payload = None
+        if not isinstance(payload, dict):
+            return ManagedActionResponse(
+                failure=ManagedActionUpstreamFailure(
+                    kind="rejected", message="the answer is not a JSON object"
                 )
-            return ManagedActionResponse(output=payload, provider_reference=reference)
-        return ManagedActionResponse(
-            failure=_failure(response), provider_reference=reference
-        )
+            )
+        return ManagedActionResponse(output=payload)
 
 
 def _failure(response: httpx.Response) -> ManagedActionUpstreamFailure:
