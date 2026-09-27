@@ -226,7 +226,8 @@ export function EnhancedDrawer(props: EnhancedDrawerProps) {
             : {}
         : isHorizontal
           ? effWidth != null
-              ? {width: effWidth, maxWidth: "100%"}
+              ? // The panel floats 8px in from each edge, so the clamp leaves room for both.
+                {width: effWidth, maxWidth: "calc(100% - 1rem)"}
               : {}
           : effHeight != null
             ? {height: effHeight, maxHeight: "100%"}
