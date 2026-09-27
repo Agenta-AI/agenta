@@ -1075,6 +1075,62 @@ internal links to suggest.
 ```
 """
 
+_TEMPLATE_MARKETPLACE_REFERENCE = """\
+# Submit a template to the Agenta marketplace
+
+Read this only when the person asked to submit the template to the marketplace, and only
+after `validate_template` said the zip is valid. The marketplace is the bundled catalog in
+the Agenta repository; one pull request adds a template. Open it yourself.
+
+## Where things go
+
+Everything lives under `api/oss/src/resources/agent_templates/` in `Agenta-AI/agenta`:
+
+- `packages/<key>/<version>/`: the package, the same files as your validated zip.
+- `catalog.json`: one record per key under `templates`: `latest`, `versions`
+  (`{"<version>": "packages/<key>/<version>"}`) and `metadata`. Copy the shape of an
+  existing record. Set `metadata.author_id`. Keys in `display.connection_tools` must be
+  connection keys your package declares. Add `media` only with hosted URLs.
+- `authors/<id>.json`: `{"schema_version": 1, "id": "<id>", "name": "...", "bio": "...",
+  "links": [{"kind": "github", "url": "https://github.com/<login>"}]}`. The file name must
+  equal its `id`.
+
+Published versions never change, and a key belongs to its author. If the key is already in
+`catalog.json`, pick a new key; never add a version to someone else's template. A new key
+means a new `plugin.json` `name`: change it, then zip and validate again.
+
+## Steps
+
+1. Run `gh auth status`. If it fails, call `request_secret` with `env_var: "GITHUB_TOKEN"`
+   and tell the person to create a token at https://github.com/settings/tokens. Never ask
+   them to paste a token in the chat.
+2. Fork and clone into `/tmp` with a shallow clone:
+
+       cd /tmp && gh repo fork Agenta-AI/agenta --clone -- --depth 1
+
+   Always `--depth 1`. Never clone with `--filter=blob:none`: every `git show` or `grep`
+   then fetches blobs one by one.
+3. `cd /tmp/agenta && git checkout -b template/<key>`.
+4. Copy the contents of your `templates/<key>/` folder to
+   `api/oss/src/resources/agent_templates/packages/<key>/<version>/`. Add the catalog record. Reuse
+   an `authors/<id>.json` that matches the person (`gh api user` gives the login and name);
+   otherwise add one.
+5. If `uv` is available, from `api/`:
+
+       git fetch --depth 1 upstream main
+       uv run python -m oss.src.core.agent_templates.marketplace validate --base-ref upstream/main
+       uv run python -m oss.src.core.agent_templates.marketplace website
+
+   The second command regenerates `web/website/src/data/templates.json`; commit it, never
+   edit it by hand. If you cannot run them, say so in the PR: the `check template catalog`
+   workflow runs both and reports what to fix.
+6. Commit, push with `git push -u origin template/<key>`, then
+   `gh pr create --repo Agenta-AI/agenta --base main`. The body states the head repository,
+   the commit and the package path, so a reviewer can load the package in Agenta.
+7. Reply with the PR URL. Say that the author may need to sign the CLA on the PR.
+"""
+
+
 _CREATE_TEMPLATE_BODY = """\
 # Create a template from this agent
 
@@ -1112,6 +1168,8 @@ another person can load as a new agent.
    is ready, and never offer the zip, while its last validation is invalid.
 8. When `valid` is true, reply with the zip's path in the session files, its `version` and
    its `digest`, one line on what the package keeps, and what the recipient must set up.
+9. Only when the person asked to submit the template to the Agenta marketplace: read
+   `references/marketplace.md` and follow it to open the pull request yourself.
 
 ## What goes into the package
 
@@ -1162,13 +1220,17 @@ CREATE_TEMPLATE_SKILL = SkillTemplate(
         "How to save this agent as a shareable template: a validated zip in the session "
         "files that another person loads as a new agent. Read it when the person asks to "
         "save, export or share this agent as a template, including the Save as template "
-        "request."
+        "request, or to submit it to the Agenta marketplace."
     ),
     body=_CREATE_TEMPLATE_BODY,
     files=[
         SkillFile(
             path="references/package-format.md",
             content=_TEMPLATE_PACKAGE_FORMAT_REFERENCE,
+        ),
+        SkillFile(
+            path="references/marketplace.md",
+            content=_TEMPLATE_MARKETPLACE_REFERENCE,
         ),
     ],
 )

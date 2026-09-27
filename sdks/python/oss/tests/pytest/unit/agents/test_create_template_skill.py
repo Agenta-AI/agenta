@@ -15,13 +15,14 @@ from agenta.sdk.agents.platform import PLATFORM_OPS
 from agenta.sdk.agents.skills import SkillFile
 
 _REFERENCE_PATH = "references/package-format.md"
+_MARKETPLACE_PATH = "references/marketplace.md"
 
 
-def _reference() -> str:
+def _reference(path: str = _REFERENCE_PATH) -> str:
     for bundled in CREATE_TEMPLATE_SKILL.files:
-        if bundled.path == _REFERENCE_PATH:
+        if bundled.path == path:
             return bundled.content
-    raise AssertionError(f"{_REFERENCE_PATH!r} is not bundled with create-template")
+    raise AssertionError(f"{path!r} is not bundled with create-template")
 
 
 def test_skill_identity():
@@ -34,8 +35,9 @@ def test_bundled_file_paths_revalidate_and_ride_the_wire():
     for bundled in CREATE_TEMPLATE_SKILL.files:
         SkillFile(path=bundled.path, content=bundled.content)
     wire_paths = {entry["path"] for entry in CREATE_TEMPLATE_SKILL.to_wire()["files"]}
-    assert _REFERENCE_PATH in wire_paths
-    assert _REFERENCE_PATH in CREATE_TEMPLATE_SKILL.body
+    for path in (_REFERENCE_PATH, _MARKETPLACE_PATH):
+        assert path in wire_paths
+        assert path in CREATE_TEMPLATE_SKILL.body
 
 
 def test_every_tool_the_skill_names_exists():
@@ -150,3 +152,39 @@ def test_reference_names_the_parser_contract():
         "no symbolic links, and no executable files",
     ):
         assert required in reference, required
+
+
+def test_marketplace_step_applies_only_when_asked():
+    body = _flat(CREATE_TEMPLATE_SKILL.body)
+    assert (
+        "Only when the person asked to submit the template to the Agenta marketplace: read "
+        "`references/marketplace.md`" in body
+    )
+    assert "marketplace" in CREATE_TEMPLATE_SKILL.description
+
+
+def test_marketplace_reference_opens_the_pr_itself():
+    reference = _flat(_reference(_MARKETPLACE_PATH))
+    # GitHub access goes through request_secret, never through the chat.
+    assert "`gh auth status`" in reference
+    assert '`request_secret` with `env_var: "GITHUB_TOKEN"`' in reference
+    assert "Never ask them to paste a token in the chat." in reference
+    # A shallow fork clone in /tmp; a blobless clone makes every read a network fetch.
+    assert "gh repo fork Agenta-AI/agenta --clone -- --depth 1" in reference
+    assert "Never clone with `--filter=blob:none`" in reference
+    # The catalog layout the marketplace CI validates.
+    for part in (
+        "api/oss/src/resources/agent_templates/",
+        "packages/<key>/<version>/",
+        "`catalog.json`",
+        "authors/<id>.json",
+        "pick a new key",
+        "marketplace validate --base-ref upstream/main",
+        "marketplace website",
+        "`check template catalog`",
+    ):
+        assert part in reference, part
+    assert "gh pr create --repo Agenta-AI/agenta --base main" in reference
+    assert "the head repository, the commit and the package path" in reference
+    assert "Reply with the PR URL." in reference
+    assert "CLA" in reference
