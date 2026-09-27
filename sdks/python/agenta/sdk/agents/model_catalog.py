@@ -197,6 +197,14 @@ def _catalog_id(provider: Optional[str], model_id: str) -> str:
     return f"{provider.lower()}/{model_id}"
 
 
+# Exact upstream identities served by the OpenAI-compatible starter-credits bridge.
+# These aliases affect capability lookup only; the upstream request keeps its model id.
+# Do not infer capabilities from arbitrary custom names or provider prefixes.
+_PI_INPUT_MODALITY_ALIASES = {
+    "openai/vertex_ai/gemini-3.7-flash": "gemini/gemini-3.7-flash",
+}
+
+
 def model_input_modalities(
     harness: Optional[str], model_id: str, *, provider: Optional[str] = None
 ) -> Optional[List[str]]:
@@ -216,6 +224,9 @@ def model_input_modalities(
         return None
 
     entry = next((item for item in catalog.models if item.id == catalog_id), None)
+    if harness == "pi_core" and entry is None:
+        alias = _PI_INPUT_MODALITY_ALIASES.get(catalog_id)
+        entry = next((item for item in catalog.models if item.id == alias), None)
     if harness == "claude" and entry is None:
         # Reuse the same sourced Anthropic fact from Pi's generated catalog; do not guess.
         pi_catalog_id = _catalog_id("anthropic", model_id)

@@ -427,3 +427,65 @@ def test_opus_5_5_is_a_prompt_model_and_a_default():
     assert "anthropic/claude-fable-5-1" in supported_llm_models["anthropic"]
     assert "anthropic/claude-opus-5-5" in PROVIDER_DEFAULT_MODELS["anthropic"]
     assert "anthropic/claude-fable-5-1" in PROVIDER_DEFAULT_MODELS["anthropic"]
+
+
+@pytest.mark.parametrize(
+    "model_id,provider,expected",
+    [
+        ("vertex_ai/gemini-3.7-flash", "openai", ["text", "image"]),
+        ("vertex_ai/gemini-3.7-flash", "OpenAI", ["text", "image"]),
+        ("openai/vertex_ai/gemini-3.7-flash", None, ["text", "image"]),
+        ("vertex_ai/unknown-model", "openai", None),
+        ("company-vision-v2", "openai", None),
+        ("other/gemini-3.7-flash", "openai", None),
+        ("vertex_ai/gemini-3.7-flash", "anthropic", None),
+    ],
+)
+def test_bridge_input_modalities_use_only_verified_aliases(
+    model_id, provider, expected
+):
+    assert model_input_modalities("pi_core", model_id, provider=provider) == expected
+
+
+@pytest.mark.parametrize("modalities", [["text"], None])
+def test_bridge_alias_uses_catalog_facts(monkeypatch, modalities):
+    catalog = model_catalog_module.ModelCatalog(
+        models=[
+            ModelCatalogEntry(
+                id="gemini/gemini-3.7-flash",
+                provider="gemini",
+                source="curated",
+                modalities=modalities,
+            )
+        ]
+    )
+    monkeypatch.setattr(model_catalog_module, "_PI_CATALOG", catalog)
+    assert (
+        model_input_modalities(
+            "pi_core", "vertex_ai/gemini-3.7-flash", provider="openai"
+        )
+        == modalities
+    )
+
+
+def test_bridge_alias_does_not_override_an_exact_entry(monkeypatch):
+    catalog = model_catalog_module.ModelCatalog(
+        models=[
+            ModelCatalogEntry(
+                id="openai/vertex_ai/gemini-3.7-flash",
+                provider="openai",
+                source="curated",
+                modalities=["text"],
+            ),
+            ModelCatalogEntry(
+                id="gemini/gemini-3.7-flash",
+                provider="gemini",
+                source="curated",
+                modalities=["text", "image"],
+            ),
+        ]
+    )
+    monkeypatch.setattr(model_catalog_module, "_PI_CATALOG", catalog)
+    assert model_input_modalities(
+        "pi_core", "vertex_ai/gemini-3.7-flash", provider="openai"
+    ) == ["text"]
