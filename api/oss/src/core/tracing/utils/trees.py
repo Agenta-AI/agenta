@@ -653,6 +653,17 @@ def _input_tokens_include_cache(meta: dict) -> bool:
     return marker is not False
 
 
+def _one_hour_cache_writes(meta: dict) -> bool:
+    """Whether the span's cache writes used the 1-hour TTL (`agenta.usage.cache_write_ttl`).
+
+    Absent means the 5-minute TTL, the Anthropic default.
+    """
+    usage = meta.get("usage")
+    ttl = usage.get("cache_write_ttl") if isinstance(usage, dict) else None
+
+    return isinstance(ttl, str) and ttl.strip().lower() == "1h"
+
+
 def _served_by_custom_connection(meta: dict) -> bool:
     model_meta = meta.get("model") if isinstance(meta, dict) else None
     if not isinstance(model_meta, dict):
@@ -770,6 +781,7 @@ def calculate_costs(span_idx: Dict[str, OTelFlatSpan]):
                 completion_tokens=completion_tokens,
                 cache_read_tokens=cache_read_tokens,
                 cache_write_tokens=cache_write_tokens,
+                one_hour_cache_writes=_one_hour_cache_writes(meta),
             )
         except Exception:  # pylint: disable=broad-exception-caught
             log.warn(

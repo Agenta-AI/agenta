@@ -101,6 +101,36 @@ def test_runner_span_is_priced_by_its_cache_contract(marker, prompt_tokens):
     assert _costs(span)["completion"] == pytest.approx(0.0015)
 
 
+@pytest.mark.parametrize(
+    "ttl, prompt_cost",
+    [
+        # Claude Code writes 1-hour cache entries and the runner says so.
+        ("1h", 0.0022),
+        # Absent means the 5-minute TTL.
+        (None, 0.00175),
+    ],
+)
+def test_runner_span_prices_cache_writes_at_their_ttl(ttl, prompt_cost):
+    attributes = {
+        "openinference.span.kind": "LLM",
+        "gen_ai.operation.name": "chat",
+        "gen_ai.system": "anthropic",
+        "gen_ai.request.model": "claude-sonnet-5",
+        "gen_ai.usage.prompt_tokens": 500,
+        "gen_ai.usage.completion_tokens": 100,
+        "gen_ai.usage.cache_read.input_tokens": 0,
+        "gen_ai.usage.cache_creation.input_tokens": 300,
+        "agenta.usage.input_tokens_includes_cache": False,
+    }
+    if ttl is not None:
+        attributes["agenta.usage.cache_write_ttl"] = ttl
+
+    span = _ingest(attributes)
+
+    # 500 input at 2e-6, 300 writes at 4e-6 (1h) or 2.5e-6 (5m).
+    assert _costs(span)["prompt"] == pytest.approx(prompt_cost)
+
+
 @pytest.mark.parametrize("prefix", ["llm.usage", "gen_ai.usage"])
 def test_openllmetry_prompt_and_completion_tokens_are_priced(prefix):
     span = _ingest(

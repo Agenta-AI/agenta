@@ -111,3 +111,20 @@ def test_resolve_pricing_model_is_cached():
     resolve_pricing_model("anthropic/claude-sonnet-4.5")
 
     assert resolve_pricing_model.cache_info().hits == 1
+
+
+def test_one_hour_cache_writes_use_the_one_hour_rate():
+    # claude-sonnet-5: $2 input, $10 output, $0.20 cache read, $2.50 5-minute write,
+    # $4 1-hour write per million tokens.
+    kwargs = dict(
+        model="claude-sonnet-5",
+        prompt_tokens=3_000_000,
+        completion_tokens=1_000_000,
+        cache_read_tokens=1_000_000,
+        cache_write_tokens=1_000_000,
+    )
+
+    assert price_tokens(**kwargs) == pytest.approx((2.0 + 0.2 + 2.5, 10.0))
+    assert price_tokens(**kwargs, one_hour_cache_writes=True) == pytest.approx(
+        (2.0 + 0.2 + 4.0, 10.0)
+    )

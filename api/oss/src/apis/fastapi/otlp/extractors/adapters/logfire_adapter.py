@@ -201,6 +201,9 @@ GENAI_SEMCONV_ATTRIBUTES_EXACT: List[Tuple[str, str]] = [
         "agenta.usage.input_tokens_includes_cache",
         "ag.meta.usage.input_tokens_includes_cache",
     ),
+    # "1h" when the cache writes used Anthropic's 1-hour TTL (Claude Code); absent
+    # means the 5-minute TTL.
+    ("agenta.usage.cache_write_ttl", "ag.meta.usage.cache_write_ttl"),
     # "provider" when `gen_ai.usage.cost` is the charge the provider billed (OpenRouter
     # `usage.cost`), not an estimate from a price list.
     ("agenta.usage.cost_source", "ag.meta.usage.cost_source"),

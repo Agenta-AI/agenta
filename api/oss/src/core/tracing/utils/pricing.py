@@ -4,6 +4,11 @@ from typing import Dict, Iterator, Optional, Tuple
 
 import litellm
 from litellm import cost_calculator
+from litellm.types.utils import (
+    CacheCreationTokenDetails,
+    PromptTokensDetailsWrapper,
+    Usage,
+)
 
 from oss.src.utils.logging import get_module_logger
 
@@ -129,12 +134,30 @@ def price_tokens(
     completion_tokens: int,
     cache_read_tokens: int = 0,
     cache_write_tokens: int = 0,
+    one_hour_cache_writes: bool = False,
 ) -> Tuple[float, float]:
     """(prompt cost, completion cost) in USD, with litellm's inclusive prompt count.
 
-    Every cache write is priced at litellm's 5-minute rate. Anthropic bills 1-hour cache
-    writes higher, but the spans do not say which TTL a write used.
+    Cache writes are priced at litellm's 5-minute rate unless `one_hour_cache_writes`
+    says they used Anthropic's 1-hour TTL, which bills higher.
     """
+    if one_hour_cache_writes and cache_write_tokens:
+        # litellm prices the 1-hour rate only from a usage object's TTL split.
+        usage = Usage(
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
+            total_tokens=prompt_tokens + completion_tokens,
+            prompt_tokens_details=PromptTokensDetailsWrapper(
+                cached_tokens=cache_read_tokens,
+                cache_creation_tokens=cache_write_tokens,
+                cache_creation_token_details=CacheCreationTokenDetails(
+                    ephemeral_1h_input_tokens=cache_write_tokens,
+                    ephemeral_5m_input_tokens=0,
+                ),
+            ),
+        )
+        return cost_calculator.cost_per_token(model=model, usage_object=usage)
+
     # Cache kwargs only when non-zero, so an uncached span keeps the legacy call shape.
     cache_kwargs = {}
     if cache_read_tokens:
