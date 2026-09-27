@@ -579,6 +579,10 @@ async function acquireEnvironmentOnce(
     // SandboxLifecycle owns park-versus-delete. It returns `parked` because the mount teardown
     // below is gated on it: a parked Daytona sandbox keeps its agent mount.
     const traits = sandboxProviderTraits(plan.sandboxId);
+    // The last interval ends as the stop begins: Daytona's stop latency is not running time.
+    // Awaited after the teardown, so a slow report never delays it.
+    const meterStopped = environment.sandboxMeter?.stop();
+    environment.sandboxMeter = undefined;
     const { parked } = await teardownSandbox({
       sandbox: environment.sandbox,
       plannedSandboxId: plan.sandboxId,
@@ -592,9 +596,7 @@ async function acquireEnvironmentOnce(
         ? { disposition: opts?.reason === "kill" ? ("delete" as const) : ("stop" as const) }
         : {}),
     });
-    // Parked or deleted: it no longer runs, so the last interval ends here.
-    await environment.sandboxMeter?.stop();
-    environment.sandboxMeter = undefined;
+    await meterStopped;
     // A parked remote sandbox keeps its own mounts; runner-host mounts always come down here.
     const sandboxKeepsMounts = parked && !traits.filesOnRunner;
     // Unmount the durable cwd BEFORE removing the dir: data lives in the store, only the host
