@@ -50,7 +50,10 @@ import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 import {isAltChord} from "@agenta/ui/shortcuts"
 import {Button} from "@agenta/ui/ui"
 import {useQueryClient} from "@tanstack/react-query"
-import {useAtomValue, useSetAtom} from "jotai"
+import {useAtomValue, useSetAtom, useStore} from "jotai"
+
+import {ContentRail} from "@/components/ContentRail"
+import {ScreenScaffold} from "@/components/ScreenScaffold"
 
 import {useProjectPermission} from "../context/useProjectPermission"
 import {failPendingTaskAtom, pendingTasksAtom, sendPendingTaskAtom} from "../home/pendingTask"
@@ -58,14 +61,11 @@ import {AppShell} from "../nav/AppShell"
 import {livenessQueryKey, useLivenessUpdatedAt} from "../sessions/useLivenessPoll"
 
 import {ApprovalDock} from "./ApprovalDock"
+import {waitForBuildKit} from "./buildKitWait"
 import {committedRevisionIds} from "./committedRevisionIds"
 import {Composer} from "./Composer"
 import {ConnectModelStrip} from "./ConnectModelStrip"
-import {
-    BUILD_KIT_WAIT_LIMIT_MS,
-    MODEL_KEY_WAIT_LIMIT_MS,
-    pendingTaskDecision,
-} from "./pendingTaskPolicy"
+import {MODEL_KEY_WAIT_LIMIT_MS, pendingTaskDecision} from "./pendingTaskPolicy"
 import {selectedRevisionAtomFamily} from "./selectedRevision"
 import {ChatLoading} from "./states/ChatStates"
 import {cancelledStopAction} from "./stopHereState"
@@ -78,9 +78,6 @@ import {useSessionSetupStep} from "./useSessionSetupStep"
 import {useSessionWatch} from "./useSessionWatch"
 import {useStartBlankSession} from "./useStartBlankSession"
 import {useTranscriptAutoScroll} from "./useTranscriptAutoScroll"
-
-import {ContentRail} from "@/components/ContentRail"
-import {ScreenScaffold} from "@/components/ScreenScaffold"
 
 /**
  * The LIVE conversation screen — the same engine the desktop chat runs on
@@ -279,8 +276,15 @@ export const LiveConversation = ({
         stop,
         voidPendingResume,
     } = conversation
+    // Subscribed here so the build-kit overlay loads while the user types the first message.
+    const buildKitReadyAtom = workflowBuildKitOverlayReadyAtomFamily(entityId)
+    useAtomValue(buildKitReadyAtom)
+    const store = useStore()
+    const firstTurn = conversation.messages.length === 0
     // A fresh session becomes real on the server only once this first message is admitted, which
     // can take seconds on a cold runner. Note it locally first, so the rail lists it now (#6776).
+    // Every first send (composer, Home task, retry) comes through here, so it is also where the
+    // first turn waits for the build kit.
     const send = useCallback(
         async (input: Parameters<typeof sendToConversation>[0]) => {
             if (isSessionFresh(sessionId)) {
@@ -290,6 +294,11 @@ export const LiveConversation = ({
                     agentId: agentId ?? null,
                     name: input.text,
                 })
+            }
+            if (firstTurn && !(await waitForBuildKit(store, buildKitReadyAtom))) {
+                console.warn(
+                    "[mobile chat] build-kit overlay not ready after 10s; sending without it",
+                )
             }
             try {
                 await sendToConversation(input)
@@ -301,30 +310,20 @@ export const LiveConversation = ({
         },
         [
             agentId,
+            buildKitReadyAtom,
             dropUnacceptedLocalSession,
+            firstTurn,
             projectId,
             registerLocalSession,
             sendToConversation,
             sessionId,
+            store,
         ],
     )
     // A template create asks for its accounts here, on arrival, instead of on a create surface of
     // its own. Holds the first message while it does; declines silently when there is nothing to
     // ask, which is every other way into this screen.
     const setup = useSessionSetupStep(sessionId)
-    // The first turn carries the build kit, so the parked task waits for its overlay, bounded
-    // like desktop's first-run seed (`pendingTaskPolicy`).
-    const buildKitReady = useAtomValue(workflowBuildKitOverlayReadyAtomFamily(entityId))
-    const [buildKitWaitElapsed, setBuildKitWaitElapsed] = useState(false)
-    const taskParked = Boolean(pendingTask) && !pendingTask?.delivery
-    useEffect(() => {
-        if (!taskParked || buildKitReady || buildKitWaitElapsed) return
-        const timer = setTimeout(() => {
-            console.warn("[mobile chat] build-kit overlay not ready after 10s; sending without it")
-            setBuildKitWaitElapsed(true)
-        }, BUILD_KIT_WAIT_LIMIT_MS)
-        return () => clearTimeout(timer)
-    }, [taskParked, buildKitReady, buildKitWaitElapsed])
     useEffect(() => {
         if (!pendingTask || pendingTask.delivery) return
         const decision = pendingTaskDecision({
@@ -335,7 +334,6 @@ export const LiveConversation = ({
             modelKeyWaitedMs,
             modelBlocked,
             setupBlocking: setup.blocking,
-            buildKitSettled: buildKitReady || buildKitWaitElapsed,
         })
         if (decision === "hold") return
         if (decision === "abandon") {
@@ -353,8 +351,6 @@ export const LiveConversation = ({
         modelKeyWaitedMs,
         modelBlocked,
         setup.blocking,
-        buildKitReady,
-        buildKitWaitElapsed,
         send,
         sessionId,
         sendPendingTask,

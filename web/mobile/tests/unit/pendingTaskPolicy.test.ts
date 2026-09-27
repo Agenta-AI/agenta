@@ -14,7 +14,6 @@ const gate = (overrides: Partial<PendingTaskGate> = {}): PendingTaskGate => ({
     modelKeyWaitedMs: 0,
     modelBlocked: false,
     setupBlocking: false,
-    buildKitSettled: true,
     ...overrides,
 })
 
@@ -161,33 +160,5 @@ describe("pendingTaskDecision — the connect step", () => {
 
     it("still holds for hydration first — a send now would race the fill", () => {
         expect(pendingTaskDecision(gate({hydrating: true, setupBlocking: false}))).toBe("hold")
-    })
-})
-
-// A new agent's first turn must carry the build kit; sent without it, the next turn's full config
-// evicts the warm sandbox.
-describe("pendingTaskDecision — the build kit", () => {
-    it("holds until the build-kit overlay settles", () => {
-        expect(pendingTaskDecision(gate({buildKitSettled: false}))).toBe("hold")
-    })
-
-    it("sends once it has settled", () => {
-        expect(pendingTaskDecision(gate({buildKitSettled: true}))).toBe("send")
-    })
-
-    it("still holds on an active model gate after the build kit settles", () => {
-        expect(pendingTaskDecision(gate({modelBlocked: true, buildKitSettled: true}))).toBe("hold")
-    })
-
-    it("lets a vault outage abandon the task while the build kit is still loading", () => {
-        expect(
-            pendingTaskDecision(
-                gate({
-                    modelKeyLoading: true,
-                    modelKeyWaitedMs: MODEL_KEY_WAIT_LIMIT_MS,
-                    buildKitSettled: false,
-                }),
-            ),
-        ).toBe("abandon")
     })
 })
