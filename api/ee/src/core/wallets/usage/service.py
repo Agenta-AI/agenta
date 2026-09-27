@@ -68,11 +68,12 @@ def _charge(
 def _session_key(
     debit: WalletUsageDebit, measurement: Optional[MeasurementUsage]
 ) -> Tuple[Optional[str], Optional[UUID], Optional[str]]:
-    """A named session groups on its id alone; unnamed charges group per user and day."""
+    """A named session groups on its id within its project, since the id is a label its
+    runtime supplied; unnamed charges group per user and day."""
     session = (measurement.references.get("session") or {}) if measurement else {}
     session_id = session.get("id") if isinstance(session, dict) else None
     if session_id:
-        return str(session_id), None, None
+        return str(session_id), measurement.project_id, None
     user_id = measurement.user_id if measurement else None
     return None, user_id, debit.created_at.date().isoformat()
 

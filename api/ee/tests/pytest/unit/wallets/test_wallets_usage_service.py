@@ -155,6 +155,23 @@ async def test_charges_group_by_session_newest_first_with_names_and_tokens():
     assert (charge.model, charge.pricing_version) == ("gpt-5.5", "rc-1")
 
 
+async def test_one_session_label_in_two_projects_is_two_sessions():
+    # The session id is a label the runtime supplied, unique only within its project.
+    other = _measurement("m2", session="s-1").model_copy(
+        update={"project_id": uuid4(), "user_id": uuid4()}
+    )
+    service = _service(
+        debits=[_debit("m1", 3, at=NOW), _debit("m2", 5, at=NOW)],
+        measurements=[_measurement("m1", session="s-1"), other],
+    )
+
+    usage = await service.usage(organization_id=ORG, end=NOW + timedelta(seconds=1))
+
+    assert sorted((s.amount_musd, s.user_id) for s in usage.sessions) == sorted(
+        [(3, USER), (5, other.user_id)], key=lambda pair: pair[0]
+    )
+
+
 async def test_unlabelled_charges_group_per_user_and_day():
     yesterday = NOW - timedelta(days=1)
     service = _service(
