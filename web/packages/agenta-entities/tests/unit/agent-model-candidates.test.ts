@@ -257,6 +257,7 @@ describe("built-in model candidates", () => {
                 provider: "openai",
                 mode: "agenta",
                 slug: "agenta",
+                namespace: "builtin",
                 harness: "pi_core",
                 source: "connection",
                 connectionKey: "builtin:agenta",
@@ -269,6 +270,15 @@ describe("built-in model candidates", () => {
                 harness: "pi_core",
             }),
         ])
+    })
+
+    it("tells a built-in pick apart from a custom connection of the same slug", () => {
+        // A custom endpoint may be named `agenta` too; only the namespace says which one runs.
+        const [builtin] = build(["gpt-5.5"])
+        const customPick = {...builtin, namespace: null}
+
+        expect(agentModelSelectionIsRunnable([builtin], builtin)).toBe(true)
+        expect(agentModelSelectionIsRunnable([builtin], customPick)).toBe(false)
     })
 
     it("offers nothing when the deployment lists no built-in endpoint", () => {

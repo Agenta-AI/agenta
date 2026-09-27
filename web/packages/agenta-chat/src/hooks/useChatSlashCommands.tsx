@@ -193,6 +193,7 @@ export function useChatSlashCommands({
                     provider,
                     mode: selection.mode,
                     slug: selection.slug,
+                    namespace: selection.namespace,
                 }),
                 selection.harness && selection.harness !== currentHarness
                     ? `Model set to ${label} · ${harnessMetaFor(selection.harness).label}`

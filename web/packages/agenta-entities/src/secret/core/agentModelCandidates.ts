@@ -20,11 +20,22 @@ import {LlmEndpointProtocol, SecretKind, SecretManagementPolicy} from "./types"
 
 export type AgentConnectionMode = "agenta" | "self_managed"
 
+/**
+ * The gateway namespace an `agenta` slug was picked from. Unset, the gateway infers it from the
+ * slug, which is ambiguous where a custom endpoint shares a built-in endpoint's name.
+ */
+export type AgentConnectionNamespace = "standard" | "custom" | "builtin"
+
+/** A stored gateway namespace, or null when it names none this build knows. */
+export const connectionNamespaceFrom = (value: unknown): AgentConnectionNamespace | null =>
+    value === "standard" || value === "custom" || value === "builtin" ? value : null
+
 export interface AgentModelSelection {
     modelId: string
     provider: string | null
     mode: AgentConnectionMode
     slug: string | null
+    namespace?: AgentConnectionNamespace | null
     harness: string
 }
 
@@ -442,6 +453,8 @@ const builtinCandidates = ({
                     provider: family,
                     mode: "agenta",
                     slug: endpoint.slug,
+                    // Platform-funded: without it a custom endpoint of the same name takes the call.
+                    namespace: "builtin",
                     harness,
                     source: "connection",
                     connectionKey: `builtin:${endpoint.slug}`,
@@ -473,6 +486,7 @@ const findRunnableAgentModel = <T extends AgentModelSelection>(
                   candidate.provider === selection.provider &&
                   candidate.mode === selection.mode &&
                   candidate.slug === selection.slug &&
+                  (candidate.namespace ?? null) === (selection.namespace ?? null) &&
                   candidate.harness === selection.harness,
           ) ?? null)
         : null

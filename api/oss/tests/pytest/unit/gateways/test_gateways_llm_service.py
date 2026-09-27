@@ -495,6 +495,57 @@ async def test_a_custom_endpoint_row_still_owns_the_slug_it_is_stored_under():
 
 
 @pytest.mark.asyncio
+async def test_a_named_namespace_wins_over_a_custom_row_sharing_the_builtin_slug(
+    monkeypatch,
+):
+    """A custom `mock` must not take a call the author routed to builtin `mock`.
+
+    The two differ in who pays: builtin runs on the platform wallet, custom on the
+    customer's credential. Without the namespace the stored row wins the slug.
+    """
+    monkeypatch.setattr(env.mock_gateways, "enabled", True)
+    dao = _MockLlmEndpointsDAO()
+    dao.rows_by_slug["mock"] = _custom_row(slug="mock")
+    service = _service(dao=dao)
+
+    builtin = await service.resolve_agent_connection(
+        scope=_scope(),
+        model="gpt-5.5",
+        provider_key="openai",
+        connection_slug="mock",
+        connection_namespace=GatewayEndpointNamespace.BUILTIN,
+    )
+    inferred = await service.resolve_agent_connection(
+        scope=_scope(), model="gpt-4o", provider_key=None, connection_slug="mock"
+    )
+
+    assert (builtin.namespace, builtin.name) == (
+        GatewayEndpointNamespace.BUILTIN,
+        "mock",
+    )
+    assert (inferred.namespace, inferred.name) == (
+        GatewayEndpointNamespace.CUSTOM,
+        "mock",
+    )
+
+
+@pytest.mark.asyncio
+async def test_a_named_namespace_that_does_not_hold_the_slug_is_not_found(monkeypatch):
+    monkeypatch.setattr(env.mock_gateways, "enabled", False)
+    dao = _MockLlmEndpointsDAO()
+    dao.rows_by_slug["mock"] = _custom_row(slug="mock")
+
+    with pytest.raises(LLMEndpointNotFoundError):
+        await _service(dao=dao).resolve_agent_connection(
+            scope=_scope(),
+            model="gpt-5.5",
+            provider_key="openai",
+            connection_slug="mock",
+            connection_namespace=GatewayEndpointNamespace.BUILTIN,
+        )
+
+
+@pytest.mark.asyncio
 async def test_relaying_through_a_named_standard_connection_uses_that_connection():
     """The explicit choice survives to the vault read, which is the point of naming it.
 

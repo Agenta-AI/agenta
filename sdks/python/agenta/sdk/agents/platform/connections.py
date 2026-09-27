@@ -1144,6 +1144,7 @@ class VaultConnectionResolver:
                         "model": model.model,
                         "provider_key": model.provider,
                         "connection_slug": model.connection.slug,
+                        "connection_namespace": model.connection.namespace,
                     },
                 )
         except Exception as exc:  # pylint: disable=broad-except

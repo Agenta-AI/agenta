@@ -178,6 +178,7 @@ export function useOnboardingProviderSetup(
                     providerForModel(fresh.capabilities, harness, selection.modelId),
                 mode: selection.mode,
                 slug: selection.slug,
+                namespace: selection.namespace,
             })
             if (!next) return
             setConfiguration(entityId, next)
