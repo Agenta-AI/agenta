@@ -532,9 +532,10 @@ publishes it on this branch: the only producers are the Wave 1 fakes under
 `api/ee/tests/pytest/acceptance/wallets/fakes/`, and wiring the real one is a gateway-wave deliverable,
 so no managed request is billed yet. It is the only producer-side loss boundary: if its `XADD` fails,
 no measurement and no charge are created.
-`organization_id` follows the existing events/records convention: it is optional on this envelope.
-When absent, the measurement worker resolves organization from `project_id` before it emits the debit
-message. The persisted measurement does not duplicate organization; project remains the analytics
+`organization_id` is the payer the producer authenticated. The envelope field is optional in shape,
+but the measurement worker requires it: an entry without it is dead-lettered before anything is
+persisted or charged, and the organization is never looked up from `project_id` (open-designs
+item 20). The persisted measurement does not duplicate organization; project remains the analytics
 hierarchy anchor.
 
 ```json
