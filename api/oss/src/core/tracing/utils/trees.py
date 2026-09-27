@@ -259,12 +259,41 @@ def _connect_tree_dfs(
 
 BREAKDOWN_KEYS = ("prompt", "completion", "total")
 
+# Cache token counts roll up under the runner's names. Vercel AI writes the cache read
+# as `cached`, OpenInference writes both under `prompt_details`.
+CACHE_BREAKDOWN_ALIASES = {
+    "cache_read": ("cache_read", "cached", ("prompt_details", "cache_read")),
+    "cache_creation": ("cache_creation", ("prompt_details", "cache_write")),
+}
+
+
+def _is_number(value) -> bool:
+    return isinstance(value, (int, float)) and not isinstance(value, bool)
+
+
+def _read_cache_counts(node: dict) -> Dict[str, float]:
+    """The positive cache read/write counts in `node`, under their canonical names."""
+
+    values = {}
+    for name, aliases in CACHE_BREAKDOWN_ALIASES.items():
+        for alias in aliases:
+            if isinstance(alias, tuple):
+                parent = node.get(alias[0])
+                value = parent.get(alias[1]) if isinstance(parent, dict) else None
+            else:
+                value = node.get(alias)
+            if _is_number(value) and value > 0:
+                values[name] = value
+                break
+    return values
+
 
 def _read_breakdown(span: OTelFlatSpan, metric: str, bucket: str) -> Dict[str, float]:
     """The numeric prompt/completion/total values the span carries, keyed by presence.
 
     Present-and-zero and absent are different facts: a measured 0 must roll up as 0,
-    while an unknown value must not be reported as 0.
+    while an unknown value must not be reported as 0. Token breakdowns also carry the
+    cache read/write counts, only when positive.
     """
     node = span.attributes
     for key in ("ag", "metrics", metric, bucket):
@@ -278,11 +307,14 @@ def _read_breakdown(span: OTelFlatSpan, metric: str, bucket: str) -> Dict[str, f
     values = {}
     for key in BREAKDOWN_KEYS:
         value = node.get(key)
-        if isinstance(value, (int, float)) and not isinstance(value, bool):
+        if _is_number(value):
             values[key] = value
 
     if "total" not in values and ("prompt" in values or "completion" in values):
         values["total"] = values.get("prompt", 0.0) + values.get("completion", 0.0)
+
+    if metric == "tokens" and values:
+        values.update(_read_cache_counts(node))
 
     return values
 
@@ -354,8 +386,12 @@ def _combine_breakdowns(
         return children
     if not _reports_aggregate_usage(span):
         return _sum_breakdowns(own, children)
-    if own.get("total", 0.0) >= children.get("total", 0.0):
+    if own.get("total", 0.0) > children.get("total", 0.0):
         return own
+    if own.get("total", 0.0) == children.get("total", 0.0):
+        # Same calls, same total: keep the cache split the summary does not carry.
+        cache = {k: v for k, v in children.items() if k in CACHE_BREAKDOWN_ALIASES}
+        return {**cache, **own}
     return children
 
 

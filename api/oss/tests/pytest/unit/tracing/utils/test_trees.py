@@ -361,6 +361,104 @@ def test_rollup_drops_a_stale_cumulative_cost_when_nothing_is_priced():
     assert "cumulative" not in _metrics(span_idx[CHILD_A_UUID])["costs"]
 
 
+def test_cache_counts_roll_up_under_one_name_per_bucket():
+    root = _bare_span(span_id=ROOT_UUID, span_name="_agent", span_type=SpanType.AGENT)
+    runner = _bare_span(
+        span_id=CHILD_A_UUID,
+        parent_id=ROOT_UUID,
+        span_name="chat",
+        span_type=SpanType.CHAT,
+        start_offset_s=1,
+    )
+    runner.attributes["ag"]["metrics"]["tokens"] = {
+        "incremental": {
+            "prompt": 956,
+            "completion": 39,
+            "cache_read": 0,
+            "cache_creation": 82116,
+            "total": 83111,
+        }
+    }
+    openinference = _bare_span(
+        span_id=CHILD_B_UUID,
+        parent_id=ROOT_UUID,
+        span_name="llm",
+        span_type=SpanType.LLM,
+        start_offset_s=2,
+    )
+    openinference.attributes["ag"]["metrics"]["tokens"] = {
+        "incremental": {
+            "prompt": 1000,
+            "completion": 10,
+            "total": 1010,
+            "prompt_details": {"cache_read": 600, "cache_write": 100},
+        }
+    }
+
+    span_idx, _ = _rollup([root, runner, openinference])
+
+    assert _metrics(span_idx[CHILD_A_UUID])["tokens"]["cumulative"] == {
+        "prompt": 956,
+        "completion": 39,
+        "cache_creation": 82116,
+        "total": 83111,
+    }
+    assert _metrics(span_idx[ROOT_UUID])["tokens"]["cumulative"] == {
+        "prompt": 1956,
+        "completion": 49,
+        "cache_read": 600,
+        "cache_creation": 82216,
+        "total": 84121,
+    }
+
+
+def test_run_summary_keeps_its_childrens_cache_split_at_the_same_total():
+    usage = {"prompt": 4, "completion": 340, "total": 226059}
+    root = _mark_aggregate(
+        _bare_span(span_id=ROOT_UUID, span_name="_agent", span_type=SpanType.WORKFLOW)
+    )
+    root.attributes["ag"]["metrics"]["tokens"] = {"incremental": dict(usage)}
+    chat = _bare_span(
+        span_id=CHILD_A_UUID,
+        parent_id=ROOT_UUID,
+        span_name="chat",
+        span_type=SpanType.CHAT,
+        start_offset_s=1,
+    )
+    chat.attributes["ag"]["metrics"]["tokens"] = {
+        "incremental": {**usage, "cache_read": 197594, "cache_creation": 28121}
+    }
+
+    span_idx, _ = _rollup([root, chat])
+
+    assert _metrics(span_idx[ROOT_UUID])["tokens"]["cumulative"] == {
+        **usage,
+        "cache_read": 197594,
+        "cache_creation": 28121,
+    }
+
+
+def test_cached_alias_rolls_up_as_cache_read():
+    span = _span(
+        span_id=ROOT_UUID,
+        span_name="chat",
+        span_type=SpanType.CHAT,
+        prompt_tokens=100,
+        completion_tokens=5,
+        cache_read_tokens=80,
+        cache_token_key="cached",
+    )
+
+    span_idx, _ = _rollup([span])
+
+    assert _metrics(span_idx[ROOT_UUID])["tokens"]["cumulative"] == {
+        "prompt": 100,
+        "completion": 5,
+        "cache_read": 80,
+        "total": 105,
+    }
+
+
 def test_batch_whose_top_span_has_its_parent_in_another_batch_still_rolls_up():
     agent = _bare_span(
         span_id=ROOT_UUID,
