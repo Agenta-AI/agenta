@@ -421,3 +421,59 @@ async def test_mcp_a_stream_that_ends_without_the_answer_is_an_unknown_outcome()
 
     with pytest.raises(MCPActionOutcomeUnknownError):
         await _invoke(_mcp(upstream), operation="search_companies")
+
+
+# --- review round 2: the key in an error answer ---------------------------------------- #
+
+
+async def test_rest_withholds_an_error_answer_whose_decoded_body_carries_the_key():
+    body = '{"error": "bad key ' + _escaped(KEY) + '"}'
+    provider, _ = _rest(
+        lambda request: httpx.Response(
+            400, content=body.encode(), headers={"content-type": "application/json"}
+        )
+    )
+
+    response = await _invoke(provider)
+
+    assert response.failure.message == "the answer was withheld"
+
+
+async def test_mcp_withholds_an_error_whose_key_crosses_the_truncation_point():
+    text = "x" * 290 + _escaped(KEY)
+    upstream = _Recording(
+        on_call=lambda: MCPRelayResult(
+            status_code=200,
+            headers={"content-type": "application/json"},
+            body=(
+                '{"jsonrpc": "2.0", "id": 2, "result": {"isError": true, "content": '
+                '[{"type": "text", "text": "' + text + '"}]}}'
+            ).encode(),
+        )
+    )
+
+    response = await _invoke(_mcp_with_key(upstream, KEY), operation="search_companies")
+
+    assert response.failure.message == "the answer was withheld"
+
+
+async def test_mcp_withholds_a_key_hidden_in_json_text_content():
+    inner = json.dumps(
+        {"companies": [{"name": _escaped(KEY), "domain": "x", "employees": 1}]}
+    ).replace("\\\\u", "\\u")
+    message = {
+        "jsonrpc": "2.0",
+        "id": 2,
+        "result": {"content": [{"type": "text", "text": inner}], "isError": False},
+    }
+    upstream = _Recording(
+        on_call=lambda: MCPRelayResult(
+            status_code=200,
+            headers={"content-type": "application/json"},
+            body=json.dumps(message).encode(),
+        )
+    )
+
+    response = await _invoke(_mcp_with_key(upstream, KEY), operation="search_companies")
+
+    assert response.failure.message == "the answer was withheld"

@@ -252,7 +252,9 @@ The three transports:
   upstream for the mock. `HttpMCPAdapter` is a raw relay, so the provider holds a small
   provider-local MCP client: `initialize`, `notifications/initialized`, then `tools/call`
   carrying the negotiated `MCP-Protocol-Version` and any `Mcp-Session-Id`, reading a JSON or an
-  event-stream answer. `structuredContent` is the output; `isError: true` is a failure. The
+  event-stream answer (data lines joined per event). The paid `tools/call` is sent only after
+the server accepted `notifications/initialized`. A `tools/call` answer that cannot be read is an
+unknown outcome, not a failure. `structuredContent` is the output; `isError: true` is a failure. The
   credential is `MCPDirectAuth(secret=...)`: an Agenta API key, or an OAuth grant Agenta holds.
   The mock upstream (`mock/mcp_upstream.py`) is not the shared mock MCP server: other suites pin
   that server's exact tool list, and an agent using "Mock Tools" would see a free twin of a paid
@@ -543,8 +545,10 @@ in the platform's agent-actionable envelope, `{code, message, retryable, next_st
 
 **Failure messages are safe to show the model.** A provider never puts a credential, a header or
 a raw exception string in a failure. `RestActionProvider` scans the whole answer for the key it
-sent with the gateway's existing credential-echo scanner and withholds an answer that carries
-it; `MCPActionProvider` inherits the same check from `HttpMCPAdapter`.
+sent with the gateway's existing credential-echo scanner, on the raw bytes and on what they
+decode to (a JSON escape hides a key from a byte scan), and withholds an answer that carries it.
+`MCPActionProvider` gets the raw check from `HttpMCPAdapter` and adds the decoded one. The shared
+REST client keeps no cookies, so no upstream state rides from one organization to the next.
 
 **Not sent means provably not sent.** Only a failure to connect is `provider_unavailable`. A
 connection lost after the request was written is an unknown outcome.

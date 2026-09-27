@@ -68,21 +68,22 @@ class RestActionProvider(ManagedActionProviderInterface):
             raise ManagedActionNotSentError(f"could not connect: {exc}") from exc
 
         reference = response.headers.get("x-request-id")
-        answer = self._answer(response)
-        # An upstream that answers with our key would hand it to the model. Checked on the
-        # raw bytes and on what they decode to, since JSON escapes hide it from the first.
-        decoded = json.dumps(answer.model_dump(mode="json")).encode()
+        # An upstream that answers with our key would hand it to the model, on success or
+        # in an error. Checked before anything is extracted or truncated, on the raw bytes
+        # and on what they decode to, since a JSON escape hides a key from a byte scan.
         if (
             self._echo.detects_headers(response.headers)
             or self._echo.contains(response.content)
-            or self._echo.contains(decoded)
+            or self._echo.contains(_decoded(response))
         ):
             return ManagedActionResponse(
                 failure=ManagedActionUpstreamFailure(
                     kind="rejected", message="the answer was withheld"
                 )
             )
-        return answer.model_copy(update={"provider_reference": reference})
+        return self._answer(response).model_copy(
+            update={"provider_reference": reference}
+        )
 
     @staticmethod
     def _answer(response: httpx.Response) -> ManagedActionResponse:
@@ -99,6 +100,13 @@ class RestActionProvider(ManagedActionProviderInterface):
                 )
             )
         return ManagedActionResponse(output=payload)
+
+
+def _decoded(response: httpx.Response) -> bytes:
+    try:
+        return json.dumps(response.json()).encode()
+    except ValueError:
+        return b""
 
 
 def _failure(response: httpx.Response) -> ManagedActionUpstreamFailure:

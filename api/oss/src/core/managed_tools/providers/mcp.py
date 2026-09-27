@@ -86,13 +86,18 @@ class MCPActionProvider(ManagedActionProviderInterface):
                 raise ManagedActionNotSentError(str(exc)) from exc
             raise
 
-        response = _call_response(result)
-        if self._echo.contains(json.dumps(response.model_dump(mode="json")).encode()):
-            return ManagedActionResponse(
-                failure=ManagedActionUpstreamFailure(
-                    kind="rejected", message="the answer was withheld"
-                )
+        withheld = ManagedActionResponse(
+            failure=ManagedActionUpstreamFailure(
+                kind="rejected", message="the answer was withheld"
             )
+        )
+        # Before anything is extracted or truncated: the whole answer, raw and decoded.
+        if self._echo.contains(result.body) or self._echo.contains(_decoded(result)):
+            return withheld
+        response = _call_response(result)
+        # A tool's text content can itself be JSON, decoded once more into the output.
+        if self._echo.contains(json.dumps(response.model_dump(mode="json")).encode()):
+            return withheld
         return response
 
     async def _handshake(self) -> Dict[str, str]:
@@ -158,18 +163,31 @@ class MCPActionProvider(ManagedActionProviderInterface):
         )
 
 
-def _message(result: MCPRelayResult, *, request_id: int) -> Optional[Dict[str, Any]]:
-    """The JSON-RPC message answering `request_id`, from a JSON or an event-stream body.
-    A stream may carry notifications before the answer."""
+def _candidates(result: MCPRelayResult) -> List[str]:
     content_type = next(
         (v for k, v in result.headers.items() if k.lower() == "content-type"), ""
     )
     try:
         text = result.body.decode()
     except UnicodeDecodeError:
-        return None
-    candidates = _events(text) if "text/event-stream" in content_type else [text]
-    for candidate in candidates:
+        return []
+    return _events(text) if "text/event-stream" in content_type else [text]
+
+
+def _decoded(result: MCPRelayResult) -> bytes:
+    decoded = []
+    for candidate in _candidates(result):
+        try:
+            decoded.append(json.dumps(json.loads(candidate)))
+        except json.JSONDecodeError:
+            continue
+    return "\n".join(decoded).encode()
+
+
+def _message(result: MCPRelayResult, *, request_id: int) -> Optional[Dict[str, Any]]:
+    """The JSON-RPC message answering `request_id`, from a JSON or an event-stream body.
+    A stream may carry notifications before the answer."""
+    for candidate in _candidates(result):
         try:
             message = json.loads(candidate)
         except json.JSONDecodeError:
