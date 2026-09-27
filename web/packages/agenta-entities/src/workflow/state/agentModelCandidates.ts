@@ -1,5 +1,5 @@
 import {getHostQueryClient} from "@agenta/shared/api"
-import {projectIdAtom} from "@agenta/shared/state"
+import {projectIdAtom, sessionAtom} from "@agenta/shared/state"
 import type {LlmProvider} from "@agenta/shared/types"
 import {atom} from "jotai"
 import {atomFamily} from "jotai-family"
@@ -137,13 +137,16 @@ const builtinModelEndpointsQueryKey = (projectId: string | null) => [
     projectId,
 ]
 
-/** Built-in model endpoints; never errors (the fetcher reads a failure as none). */
+/**
+ * Built-in model endpoints; never errors (the fetcher reads a failure as none). Gated on the
+ * session: a pre-auth request fails, and that "none" would stay cached for the stale window.
+ */
 export const builtinModelEndpointsQueryAtom = atomWithQuery<BuiltinModelEndpoint[]>((get) => {
     const projectId = get(projectIdAtom)
     return {
         queryKey: builtinModelEndpointsQueryKey(projectId),
         queryFn: () => fetchBuiltinModelEndpoints(projectId as string),
-        enabled: Boolean(projectId),
+        enabled: get(sessionAtom) && Boolean(projectId),
         staleTime: 5 * 60_000,
         refetchOnWindowFocus: false,
     }
