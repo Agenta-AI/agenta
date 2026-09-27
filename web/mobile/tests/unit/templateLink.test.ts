@@ -3,8 +3,9 @@ import {beforeEach, describe, expect, it, vi} from "vitest"
 import {
     projectHomeUrl,
     projectTemplateUrl,
+    forgetTemplateKey,
+    peekTemplateKey,
     rememberTemplateKey,
-    takeTemplateKey,
 } from "../../src/lib/context"
 
 describe("projectTemplateUrl", () => {
@@ -31,14 +32,16 @@ describe("template key across sign-in", () => {
         })
     })
 
-    it("hands the key back once after the auth redirect dropped the query", () => {
+    it("hands the key back on every read until the template screen forgets it", () => {
         rememberTemplateKey("issue-triage", 1_000)
-        expect(takeTemplateKey(2_000)).toBe("issue-triage")
-        expect(takeTemplateKey(3_000)).toBe("")
+        expect(peekTemplateKey(2_000)).toBe("issue-triage")
+        expect(peekTemplateKey(3_000)).toBe("issue-triage")
+        forgetTemplateKey()
+        expect(peekTemplateKey(4_000)).toBe("")
     })
 
     it("drops a key older than the capture window", () => {
         rememberTemplateKey("issue-triage", 0)
-        expect(takeTemplateKey(31 * 60 * 1000)).toBe("")
+        expect(peekTemplateKey(31 * 60 * 1000)).toBe("")
     })
 })
