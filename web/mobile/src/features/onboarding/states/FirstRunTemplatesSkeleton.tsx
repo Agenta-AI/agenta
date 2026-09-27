@@ -1,4 +1,4 @@
-import {Skeleton} from "@/components/ui/skeleton"
+import {SkeletonBlock} from "@agenta/ui/ui"
 
 /**
  * The template strip while the catalogue loads — the card row's own geometry (the monogram
@@ -11,7 +11,7 @@ export const FirstRunTemplatesSkeleton = () => (
         className="-mx-4 flex gap-3 overflow-hidden px-4 pb-2 pt-7 lg:mx-0 lg:grid lg:grid-cols-3 lg:px-0"
     >
         {[0, 1, 2].map((index) => (
-            <Skeleton key={index} className="h-36 w-62 shrink-0 rounded-lg lg:w-auto" />
+            <SkeletonBlock key={index} className="h-36 w-62 shrink-0 rounded-lg lg:w-auto" />
         ))}
     </div>
 )

@@ -25,18 +25,16 @@ export const SessionTopBar = ({
     sessionId,
     onUpdate,
     agentId,
-    sessionId,
     workspaceId,
     projectId,
 }: {
     /** The revision under edit. Absent = a session with no turns yet (nothing committed to show). */
     entityId: string | null
+    /** The session on screen; Save as template sends its request here. */
     sessionId: string
     /** Pin this session to a newer version the user asked for. */
     onUpdate: (revisionId: string) => void
     agentId?: string | null
-    /** The session on screen; Save as template sends its request here. */
-    sessionId: string
     workspaceId: string
     projectId: string
 }) => {
