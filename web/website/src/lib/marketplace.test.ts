@@ -27,7 +27,7 @@ import {
 describe("marketplace routes", () => {
   it("gives every template a detail page and every author a profile page", () => {
     expect(templatePath("pr-reviewer")).toBe("/marketplace/pr-reviewer");
-    expect(authorPath("mahmoud-mabrouk")).toBe("/creators/mahmoud-mabrouk");
+    expect(authorPath("agenta")).toBe("/creators/agenta");
   });
 
   it("lists categories once, in catalog order", () => {
