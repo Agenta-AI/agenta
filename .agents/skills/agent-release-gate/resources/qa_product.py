@@ -393,6 +393,23 @@ BASH_PROMPT = (
 BASH_TOKEN_RE = re.compile(r"QA-BASH-[A-Za-z0-9][A-Za-z0-9.-]{5,}-\w+")
 
 
+def reply_carries_token(reply: str, token: str) -> bool:
+    """Does ``reply`` carry exactly ``token``, and not a longer run of token characters?
+
+    A plain ``in`` test also accepts the token with more hostname or architecture characters
+    glued to it, so a mangled value would pass. Boundaries reject that. The boundary classes
+    leave punctuation out on purpose: a reply that ends the sentence with a full stop, or wraps
+    the token in backticks, is still reporting the right value.
+    """
+    return (
+        re.search(
+            rf"(?<![A-Za-z0-9_-]){re.escape(token)}(?![A-Za-z0-9_-])",
+            reply,
+        )
+        is not None
+    )
+
+
 def bash_token_from_output(t: "Turn") -> str | None:
     """The QA-BASH token as the SHELL printed it, read off a tool-output frame.
 
@@ -767,7 +784,12 @@ def j3_tool(cell: dict) -> dict:
         ),
     )
     shell_token = bash_token_from_output(t)
-    ok = tool_ran(t) and bool(shell_token) and shell_token in t.reply and not t.errors
+    ok = (
+        tool_ran(t)
+        and shell_token is not None
+        and reply_carries_token(t.reply, shell_token)
+        and not t.errors
+    )
     return {
         "pass": ok,
         "why": "wire shows tool-output-available AND the reply carries a token only a real shell could emit, with no wire errors",
@@ -2132,7 +2154,7 @@ def _allow_rule_flow(cell: dict, rule: str) -> dict:
         t.approval is None
         and outcome == "available"
         and shell_token is not None
-        and shell_token in t.reply
+        and reply_carries_token(t.reply, shell_token)
         and not t.errors
     )
     return {
