@@ -4,10 +4,12 @@ import {
     formattedSpanLatencyAtomFamily,
     formattedSpanPromptTokensAtomFamily,
     formattedSpanTokensAtomFamily,
+    getTokenBreakdown,
     spanEndTimeAtomFamily,
     spanStartTimeAtomFamily,
 } from "@agenta/observability"
 import type {TraceSpanNode} from "@agenta/observability"
+import {formatTokens} from "@agenta/shared/utils"
 import {useAtomValue} from "jotai"
 import {PlusCircle, Timer} from "lucide-react"
 
@@ -30,6 +32,18 @@ const TraceDetails = ({activeTrace}: {activeTrace: TraceSpanNode}) => {
     const formattedCompletionTokens = useAtomValue(
         formattedSpanCompletionTokensAtomFamily(activeTrace),
     )
+    const tokenBreakdown = getTokenBreakdown(activeTrace)
+    const tokenRows = tokenBreakdown
+        ? [
+              [formatTokens(tokenBreakdown.input), "Input tokens"],
+              [formatTokens(tokenBreakdown.cacheRead), "Cache read tokens"],
+              [formatTokens(tokenBreakdown.cacheWrite), "Cache write tokens"],
+              [formatTokens(tokenBreakdown.output), "Output tokens"],
+          ]
+        : [
+              [formattedPromptTokens, "Prompt tokens"],
+              [formattedCompletionTokens, "Completion tokens"],
+          ]
     const traceStartTime = useAtomValue(spanStartTimeAtomFamily(activeTrace))
     const traceEndTime = useAtomValue(spanEndTimeAtomFamily(activeTrace))
     return (
@@ -106,14 +120,15 @@ const TraceDetails = ({activeTrace}: {activeTrace: TraceSpanNode}) => {
                     }
                     popoverContent={
                         <div className="flex flex-col gap-2 items-start">
-                            <div className={`flex items-center gap-2 ${tokenContainerClass}`}>
-                                <div>{formattedPromptTokens}</div>
-                                <div>Prompt tokens</div>
-                            </div>
-                            <div className={`flex items-center gap-2 ${tokenContainerClass}`}>
-                                <div>{formattedCompletionTokens}</div>
-                                <div>Completion tokens</div>
-                            </div>
+                            {tokenRows.map(([value, label]) => (
+                                <div
+                                    key={label}
+                                    className={`flex items-center gap-2 ${tokenContainerClass}`}
+                                >
+                                    <div>{value}</div>
+                                    <div>{label}</div>
+                                </div>
+                            ))}
                         </div>
                     }
                 />

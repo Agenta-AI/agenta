@@ -160,6 +160,10 @@ export {
 } from "./formatters/index"
 export type {Formatter, FormatterOptions} from "./formatters/index"
 
+// Token usage split into input, cache and output
+export {splitTokenUsage} from "./tokenBreakdown"
+export type {TokenBreakdown, TokenCounts} from "./tokenBreakdown"
+
 // Enum label utilities
 export {formatEnumLabel} from "./formatEnumLabel"
 export {splitCuratedLabel, type CuratedLabel} from "./curatedLabel"
