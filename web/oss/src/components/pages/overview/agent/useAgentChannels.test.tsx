@@ -70,7 +70,22 @@ describe("renderChannelsDrawer", () => {
     it("pads its body 16px, the bleed the panels' footer band assumes", () => {
         mount(undefined)
 
-        const body = document.querySelector<HTMLElement>(".ant-drawer-body")
-        expect(body?.style.padding).toBe("16px")
+        const body = [...document.querySelectorAll<HTMLElement>('[role="dialog"] div')].find(
+            (el) => el.textContent === "body" && el.classList.contains("overflow-y-auto"),
+        )
+        expect(body?.className.split(/\s+/)).toContain("p-4")
+    })
+
+    it("floats like the other drawers, with Back first and Close at the right edge", () => {
+        mount(() => undefined)
+
+        const panel = document.querySelector<HTMLElement>('[role="dialog"]')!
+        expect(panel.className).toContain("lg:right-2")
+        expect(panel.style.getPropertyValue("--ag-sheet-responsive-width")).toBe("460px")
+        const buttons = [
+            ...document.querySelectorAll<HTMLButtonElement>('[data-slot="sheet-header"] button'),
+        ]
+        expect(buttons[0].getAttribute("aria-label")).toBe("Back")
+        expect(buttons.at(-1)!.getAttribute("aria-label")).toBe("Close")
     })
 })

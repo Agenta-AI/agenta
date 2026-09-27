@@ -2,6 +2,7 @@ import {useCallback} from "react"
 
 import {
     AgentApiPanel,
+    ChannelsPanelSheet,
     agentHostFromApiUrl,
     useChannelPanel,
     type ChannelsPanelRenderProps,
@@ -9,7 +10,6 @@ import {
 
 import {getApiUrl} from "@/lib/env"
 
-import {ChannelsPanelSheet} from "./ChannelsPanelSheet"
 import {useAgentChannels} from "./useAgentChannels"
 
 /**

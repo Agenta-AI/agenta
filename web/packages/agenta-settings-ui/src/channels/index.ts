@@ -1,5 +1,6 @@
 export {ChannelsPage, type ChannelsPageProps, type ChannelsPanelRenderProps} from "./ChannelsPage"
 export {useChannelPanel, type ChannelsRoute, type UseChannelPanelOptions} from "./useChannelPanel"
+export {ChannelsPanelSheet, type ChannelsPanelSheetProps} from "./ChannelsPanelSheet"
 export {ChannelsHubView, type ChannelsHubViewProps} from "./ChannelsHubView"
 export {ChannelsSettingsPage, type ChannelsSettingsPageProps} from "./ChannelsSettingsPage"
 export {ChannelConnectFlow, type ChannelConnectFlowProps} from "./ChannelConnectFlow"

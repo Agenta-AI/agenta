@@ -105,6 +105,7 @@ export {useToolsConnections, type CreateConnectionInput} from "@agenta/entities/
 // hosts (web/oss, /m) wire to the generated channels client.
 export {
     ChannelsPage,
+    ChannelsPanelSheet,
     useChannelPanel,
     ChannelsHubView,
     ChannelsSettingsPage,
@@ -130,6 +131,7 @@ export {
     type ChannelsClientLike,
     type ChannelsPageProps,
     type ChannelsPanelRenderProps,
+    type ChannelsPanelSheetProps,
     type UseChannelPanelOptions,
     type ChannelsRoute,
     type ChannelsHubViewProps,
