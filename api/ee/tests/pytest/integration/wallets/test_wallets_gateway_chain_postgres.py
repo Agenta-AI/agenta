@@ -226,11 +226,11 @@ class _Chain:
 
 
 @contextmanager
-def _caller(organization_id):
+def _caller(organization_id, project_id=None):
     scope = AuthScope(
         organization_id=organization_id,
         workspace_id=uuid4(),
-        project_id=uuid4(),
+        project_id=project_id or uuid4(),
         user_id=uuid4(),
     )
     token = set_auth_context(
@@ -270,10 +270,16 @@ def _request(
 
 
 async def _call(
-    chain, organization_id, *, namespace="builtin", name="mock", **request_kwargs
+    chain,
+    organization_id,
+    *,
+    namespace="builtin",
+    name="mock",
+    project_id=None,
+    **request_kwargs,
 ):
     relay = getattr(chain.proxy, f"chat_completions_{namespace}")
-    with _caller(organization_id):
+    with _caller(organization_id, project_id):
         response = await relay(_request(**request_kwargs), name)
         if hasattr(response, "body_iterator"):
             body = b"".join([chunk async for chunk in response.body_iterator])
@@ -605,9 +611,10 @@ async def test_the_usage_view_reads_a_labelled_charge_back_by_session(
     chain = _Chain(redis_client=redis_client, analytics_engine=analytics_engine)
     await chain.start_workers()
     labels = {"session_id": "session-7", "agent_id": str(agent_id)}
+    project_id = uuid4()
 
-    await _call(chain, organization_id, run_labels=labels)
-    await _call(chain, organization_id, run_labels=labels)
+    await _call(chain, organization_id, project_id=project_id, run_labels=labels)
+    await _call(chain, organization_id, project_id=project_id, run_labels=labels)
     measurements = await chain.run_workers()
 
     service = WalletUsageService(
