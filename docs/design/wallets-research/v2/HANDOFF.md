@@ -127,6 +127,18 @@ Updated 2026-09-25, after the overnight takeover run. The first handoff state (P
    subscription change committed. Today it is logged and not retried. **This blocks
    enabling for paying customers.** It belongs with the recurring allowance (item 3) if that
    comes first.
+   The whole-stack review (WS-4) rates it P1. It stays the top launch blocker.
+   Two more P1s from that review also block enabling for paying customers. Both are
+   open-design items with a recommendation, and neither changes this branch, because the
+   debit envelope and ports are frozen for the coverage-contract design:
+   - **Open-designs item 23 (WS-2).** A plan-change clawback reads the settled balance and
+     cannot see usage still queued in the streams, so the result depends on processing
+     order ($50 allowance, $40 used, halfway cancel: $0 or -$15). Recommended: document
+     the bound now, reconcile late usage by occurrence time once item 24 lands.
+   - **Open-designs item 24 (WS-3).** Settlement picks credits by settlement time, so
+     usage that happened before an allowance expired but settles after it is charged to
+     other credit or to deficit. Recommended: carry occurrence time on the debit and judge
+     eligibility by it, in the coverage-contract design.
 6. **Known limits from the plan-change work, recorded in item 22:**
    - A delayed `customer.subscription.deleted` for an old subscription can cancel its
      replacement, because the webhook does not compare subscription ids. This is
@@ -135,8 +147,9 @@ Updated 2026-09-25, after the overnight takeover run. The first handoff state (P
      creation webhook sees no change.
    - No recurring period-start allowance exists. Only a plan change mints one.
 7. **Accepted P2 findings to revisit** ([review-findings.md](review-findings.md)):
-   - The measurement worker trusts a producer-supplied `organization_id` (LY-2). The Wave 2
-     producer must set it from the authenticated scope.
+   - The measurement worker trusts a producer-supplied `organization_id` (LY-2). Both
+     producers set it from the authenticated scope, and the worker now requires it and
+     never looks it up (WS-8). Keep that rule for any new producer.
    - Plan-change lock waiters each hold a database connection (LY-3). Revisit if plan changes
      are ever automated in bulk.
    - A retry after a pricing change re-prices a measurement (CG-6). Wave 2 persists the

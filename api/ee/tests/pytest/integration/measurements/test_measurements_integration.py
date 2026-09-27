@@ -43,7 +43,6 @@ from ee.src.tasks.asyncio.measurements.worker import MeasurementWorker
 from ee.src.tasks.asyncio.wallets.worker import DebitWorker
 from ee.tests.pytest.utils.measurements.fakes import (
     InMemoryDebitPublisher,
-    InMemoryOrganizationResolver,
 )
 from ee.tests.pytest.utils.wallets.builders import build_measurement_command
 
@@ -160,7 +159,6 @@ async def test_full_consume_persist_publish(redis_client, analytics_engine):
 
     worker = MeasurementWorker(
         measurements_dao=MeasurementsDAO(engine=analytics_engine),
-        organization_resolver=InMemoryOrganizationResolver(),
         debit_publisher=RedisDebitPublisher(redis_client=redis_client),
         redis_client=redis_client,
         stream_name=STREAM_MEASUREMENTS,
@@ -213,7 +211,6 @@ async def test_transient_debit_publish_failure_converges_to_one_of_each(
     )
     worker = MeasurementWorker(
         measurements_dao=MeasurementsDAO(engine=analytics_engine),
-        organization_resolver=InMemoryOrganizationResolver(),
         debit_publisher=failing_publisher,
         redis_client=redis_client,
         stream_name=STREAM_MEASUREMENTS,
@@ -290,7 +287,6 @@ async def test_conflicting_replay_keeps_the_stored_measurement_and_is_dead_lette
     last_debit_id = last_debit_id[0][0]
     worker = MeasurementWorker(
         measurements_dao=MeasurementsDAO(engine=analytics_engine),
-        organization_resolver=InMemoryOrganizationResolver(),
         debit_publisher=RedisDebitPublisher(redis_client=redis_client),
         redis_client=redis_client,
         stream_name=STREAM_MEASUREMENTS,
@@ -426,7 +422,6 @@ async def test_a_worker_that_loses_the_insert_race_publishes_the_winners_debit(
         )
         worker = MeasurementWorker(
             measurements_dao=_AlwaysUnseen(engine=analytics_engine),
-            organization_resolver=InMemoryOrganizationResolver(),
             debit_publisher=publisher,
             redis_client=redis_client,
         )
@@ -495,7 +490,6 @@ async def test_a_cached_messages_stream_is_stored_and_priced_with_its_cache_spli
     publisher = InMemoryDebitPublisher()
     worker = MeasurementWorker(
         measurements_dao=MeasurementsDAO(engine=analytics_engine),
-        organization_resolver=InMemoryOrganizationResolver(),
         debit_publisher=publisher,
         redis_client=redis_client,
     )

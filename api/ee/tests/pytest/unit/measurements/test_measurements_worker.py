@@ -1,4 +1,4 @@
-"""MeasurementWorker.process_batch — organization resolution, malformed/
+"""MeasurementWorker.process_batch — required organization, malformed/
 unsupported-version terminal dead letter, pending retry on publish failure, and
 per-message ACK ordering within a batch. No Postgres: all ports are in-memory
 fakes, Redis is fakeredis."""
@@ -20,15 +20,13 @@ from ee.src.tasks.asyncio.measurements.worker import MeasurementWorker
 from ee.tests.pytest.utils.measurements.fakes import (
     InMemoryDebitPublisher,
     InMemoryMeasurementsDAO,
-    InMemoryOrganizationResolver,
 )
 from ee.tests.pytest.utils.wallets.builders import build_measurement_command
 
 
-def _make_worker(*, dao=None, resolver=None, publisher=None) -> MeasurementWorker:
+def _make_worker(*, dao=None, publisher=None) -> MeasurementWorker:
     return MeasurementWorker(
         measurements_dao=dao or InMemoryMeasurementsDAO(),
-        organization_resolver=resolver or InMemoryOrganizationResolver(),
         debit_publisher=publisher or InMemoryDebitPublisher(),
         redis_client=fakeredis.FakeRedis(),
     )
@@ -63,33 +61,18 @@ async def test_happy_path_persists_and_publishes_then_acks():
     assert debit.idempotency_key == f"measurement:{command.measurement_id}"
 
 
+@pytest.mark.parametrize("endpoint_kind", ["builtin", "custom"])
 @pytest.mark.asyncio
-async def test_resolves_organization_from_project_when_envelope_omits_it():
-    project_id = uuid4()
-    org_id = uuid4()
+async def test_measurement_without_organization_is_dead_lettered_unpersisted(
+    endpoint_kind,
+):
+    # The payer is whoever the producer authenticated; it is never inferred later.
     command = build_measurement_command(
-        organization_id=None, project_id=project_id, endpoint_kind="builtin"
+        organization_id=None, endpoint_kind=endpoint_kind
     )
-    resolver = InMemoryOrganizationResolver(mapping={project_id: org_id})
-    publisher = InMemoryDebitPublisher()
-    worker = _make_worker(resolver=resolver, publisher=publisher)
-
-    _, processed_ids = await worker.process_batch([_entry(command)])
-
-    assert processed_ids == [b"1-0"]
-    assert publisher.published[0].organization_id == org_id
-
-
-@pytest.mark.asyncio
-async def test_unresolvable_organization_stores_nothing_and_dead_letters_the_message():
-    """A measurement stored without its charge would be replayed as free forever, so
-    nothing is stored; the dead letter keeps the whole message for a replay once the
-    project resolves."""
-    command = build_measurement_command(organization_id=None, endpoint_kind="builtin")
-    resolver = InMemoryOrganizationResolver(mapping={})  # never resolves
     publisher = InMemoryDebitPublisher()
     dao = InMemoryMeasurementsDAO()
-    worker = _make_worker(dao=dao, resolver=resolver, publisher=publisher)
+    worker = _make_worker(dao=dao, publisher=publisher)
 
     _, processed_ids = await worker.process_batch([_entry(command)])
 
@@ -97,13 +80,8 @@ async def test_unresolvable_organization_stores_nothing_and_dead_letters_the_mes
     assert command.measurement_id not in dao.rows
     assert publisher.published == []
     [(_, dead)] = await _dead_letters(worker)
-    assert b"resolves to no organization" in dead[b"dead_letter_reason"]
+    assert b"carries no organization" in dead[b"dead_letter_reason"]
     assert dead[b"dead_letter_description"] == command.measurement_id.encode()
-
-
-class _RaisingResolver:
-    async def resolve_organization_id(self, *, project_id):
-        raise RuntimeError("core database unavailable")
 
 
 def _pricer_raises(**_kwargs):
@@ -118,23 +96,15 @@ async def test_a_redelivery_republishes_the_stored_decision_byte_for_byte(
     monkeypatch, first_publish_fails
 ):
     """Codex #4 and #8: once a measurement is stored, its charge is replayed from the
-    stored decision alone. The resolver and the pricer are not consulted (both raise
-    here), and the debit envelope, `created_at` included, is identical to the first."""
-    project_id = uuid4()
-    command = build_measurement_command(
-        organization_id=None, project_id=project_id, endpoint_kind="builtin"
-    )
+    stored decision alone. The pricer is not consulted (it raises here), and the debit
+    envelope, `created_at` included, is identical to the first."""
+    command = build_measurement_command(endpoint_kind="builtin")
     dao = InMemoryMeasurementsDAO()
     publisher = InMemoryDebitPublisher()
     publisher.fail_next = first_publish_fails
-    worker = _make_worker(
-        dao=dao,
-        resolver=InMemoryOrganizationResolver(mapping={project_id: uuid4()}),
-        publisher=publisher,
-    )
+    worker = _make_worker(dao=dao, publisher=publisher)
     await worker.process_batch([_entry(command)])
 
-    worker.organization_resolver = _RaisingResolver()
     monkeypatch.setattr(worker_module, "calculate_charge", _pricer_raises)
     _, processed_ids = await worker.process_batch([_entry(command)])
 

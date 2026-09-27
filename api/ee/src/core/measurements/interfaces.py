@@ -1,9 +1,8 @@
-"""Ports for gateway measurement persistence and org resolution. Implemented by
-the Postgres adapters in `ee.src.dbs.postgres.measurements`.
+"""Port for gateway measurement persistence. Implemented by
+the Postgres adapter in `ee.src.dbs.postgres.measurements`.
 """
 
 from typing import Optional
-from uuid import UUID
 
 from ee.src.core.measurements.dtos import ChargeDecision, PersistedMeasurement
 from ee.src.core.wallets.contracts import MeasurementCommandV1
@@ -36,15 +35,4 @@ class MeasurementsDAOInterface:
         content differs from the stored measurement writes nothing and raises
         `MeasurementConflictError`: the stored measurement never changes.
         """
-        raise NotImplementedError
-
-
-class OrganizationResolverInterface:
-    async def resolve_organization_id(
-        self,
-        *,
-        project_id: UUID,
-    ) -> Optional[UUID]:
-        """Look up `project_id`'s owning organization in the core DB. Returns
-        `None` when the project cannot be resolved."""
         raise NotImplementedError

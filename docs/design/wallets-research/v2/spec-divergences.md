@@ -92,11 +92,13 @@ Paths are relative to `api/` unless they start with `docs/`. "Branch head" means
 
 - **Design says.** Wave 1: the measurement worker persists the measurement and ACKs an entry
   whose project resolves to no organization, with a log line and no debit.
-- **Code does now.** The measurement is still persisted. The entry also goes to the dead
-  letters, which record the uncharged amount.
+- **Code does now.** The worker no longer looks the organization up from the project. Every
+  producer stamps the authenticated organization, and a measurement without one is
+  dead-lettered before it is persisted or charged (whole-stack review finding 8, 2026-09-27).
 - **Which side moves, and why.** The design. A log line is not a record an operator can
-  replay once the organization is resolvable.
-- **Status.** Applied in `9f8675313b`. Decision in open-designs item 20.
+  replay, and a payer inferred after the fact is a second attribution rule.
+- **Status.** Applied in `9f8675313b`, then the lookup was removed in `de376c525a`.
+  Decision in open-designs item 20.
 
 ### 5. Measurement replay with different content
 
