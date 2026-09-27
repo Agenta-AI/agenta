@@ -38,12 +38,14 @@ export const ChannelsPanelSheet = ({
                             {icon}
                         </span>
                     ) : null}
-                    <div className="flex min-w-0 flex-1 items-center gap-2">
+                    {/* On a phone the subtitle goes under the title, where it has the width to
+                        be read; beside the title it was cut to a few words. */}
+                    <div className="flex min-w-0 flex-1 flex-col gap-0.5 sm:flex-row sm:items-center sm:gap-2">
                         <SheetTitle className="flex-none text-[15px]">{title}</SheetTitle>
                         {/* A div: the subtitle may be the agent picker, a button. */}
                         {subtitle ? (
                             <SheetDescription asChild>
-                                <div className="min-w-0 truncate text-[13px]">{subtitle}</div>
+                                <div className="min-w-0 text-[13px] sm:truncate">{subtitle}</div>
                             </SheetDescription>
                         ) : null}
                     </div>
