@@ -12,6 +12,7 @@ import pytest
 from agenta.sdk.agents import model_catalog as model_catalog_module
 from agenta.sdk.agents.capabilities import (
     CLAUDE_MODEL_ALIASES,
+    CODEX_MODELS,
     HARNESS_CONNECTION_CAPABILITIES,
     MODEL_ID_ALIASES,
     PROVIDER_DEFAULT_MODELS,
@@ -346,6 +347,8 @@ def test_default_models_are_published_per_harness_in_its_own_spelling():
     # follow the accepted set rather than the curated list's canonical spelling.
     assert pi_defaults["openai"] == [
         "gpt-6-astra",
+        "gpt-6-sol",
+        "gpt-6-luna",
         "gpt-5.6-luna",
         "gpt-5.6-terra",
         "gpt-5.6-sol",
@@ -358,7 +361,7 @@ def test_default_models_are_published_per_harness_in_its_own_spelling():
         "anthropic/claude-haiku-4-5",
     ]
     assert pi_defaults["openrouter"] == PROVIDER_DEFAULT_MODELS["openrouter"]
-    assert len(pi_defaults["openrouter"]) == 10
+    assert len(pi_defaults["openrouter"]) == 12
 
     # Claude selects by alias: `claude-fable-5-1` is its own request value, and the versioned
     # opus, sonnet and haiku ids arrive under the tier alias Claude actually accepts. Opus arrives
@@ -366,9 +369,13 @@ def test_default_models_are_published_per_harness_in_its_own_spelling():
     assert catalog["claude"]["capabilities"]["default_models"] == {
         "anthropic": ["opus[1m]", "claude-fable-5-1", "sonnet", "haiku"]
     }
-    # Codex reaches openai only, and names its models bare.
+    # Codex reaches openai only, names its models bare, and offers only the curated ids it runs.
     assert catalog["codex"]["capabilities"]["default_models"] == {
-        "openai": ["gpt-6-astra", "gpt-5.6-luna", "gpt-5.6-terra", "gpt-5.6-sol"]
+        "openai": [
+            model_id.split("/", 1)[1]
+            for model_id in PROVIDER_DEFAULT_MODELS["openai"]
+            if model_id.split("/", 1)[1] in CODEX_MODELS
+        ]
     }
 
 
@@ -392,13 +399,13 @@ def test_curated_default_models_exist_in_the_pinned_pi_catalog():
     for provider, models in PROVIDER_DEFAULT_MODELS.items():
         for model_id in models:
             assert model_id in catalog_ids, (provider, model_id)
-    # Opus 5.5 postdates the pinned pi-ai snapshot, so it reaches the catalog through the curated
-    # `additions` list rather than the generated file. The loop above is what proves it arrived.
+    # pi-ai 0.87.1 carries Opus 5.5, so the generated file supplies it and the curated addition
+    # that bridged the older snapshot is retired.
     assert "anthropic/claude-opus-5-5" in catalog_ids
     entry = next(
         e for e in pi_model_catalog().models if e.id == "anthropic/claude-opus-5-5"
     )
-    assert entry.name == "Claude Opus 5.5" and entry.source == "curated"
+    assert entry.name == "Claude Opus 5.5" and entry.source == "pi_generated"
 
 
 def test_fable_5_1_keeps_its_own_claude_request_value():

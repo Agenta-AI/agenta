@@ -65,40 +65,51 @@ describe("daytonaEnvVars", () => {
 });
 
 describe("ensurePiInSandbox (probe and pinned-install repair)", () => {
-  it("skips the install when the pinned Pi executable is already present (baked snapshot)", async () => {
+  const isProbe = (input: any) =>
+    input.command === DAYTONA_PI_COMMAND && input.args?.[0] === "--version";
+  const version = (v: string | undefined) =>
+    v ? { exitCode: 0, stdout: `${v}\n` } : { exitCode: 127, stdout: "" };
+
+  /**
+   * A sandbox whose pinned path answers `before` until a link or install changes it: a link makes
+   * it answer `linked` (the PATH pi's version), an install makes it answer the pinned version.
+   */
+  function fakeSandbox(options: {
+    before?: string;
+    linked?: string;
+    installLeaves?: string;
+  }) {
     const calls: any[] = [];
+    let current = options.before;
     const sandbox = {
       mkdirFs: async () => {},
       runProcess: async (input: any) => {
         calls.push(input);
-        // `test -x <pinned path>` succeeds: Pi is already baked in.
+        if (isProbe(input)) return version(current);
+        if (input.command === "sh") {
+          if (!options.linked) return { exitCode: 1 }; // no pi on PATH
+          current = options.linked;
+          return { exitCode: 0 };
+        }
+        if (input.command === "npm") current = options.installLeaves;
         return { exitCode: 0 };
       },
     };
+    return { calls, sandbox };
+  }
+
+  it("skips the install when the pinned Pi version is already present (baked snapshot)", async () => {
+    const { calls, sandbox } = fakeSandbox({ before: PINNED_PI_VERSION });
 
     await ensurePiInSandbox(sandbox);
 
     assert.equal(calls.length, 1);
-    assert.equal(calls[0].command, "test");
-    assert.deepEqual(calls[0].args, ["-x", DAYTONA_PI_COMMAND]);
+    assert.deepEqual(calls[0].args, ["--version"]);
+    assert.equal(calls[0].command, DAYTONA_PI_COMMAND);
   });
 
   it("links a PATH-baked pi to the pinned path instead of reinstalling (recipe snapshot)", async () => {
-    const calls: any[] = [];
-    let probed = 0;
-    const sandbox = {
-      mkdirFs: async () => {},
-      runProcess: async (input: any) => {
-        calls.push(input);
-        if (input.command === "test") {
-          probed += 1;
-          // Pinned path missing before the link, present after it.
-          return { exitCode: probed === 1 ? 1 : 0 };
-        }
-        // The `sh -lc command -v pi && ln -sf ...` link succeeds.
-        return { exitCode: 0 };
-      },
-    };
+    const { calls, sandbox } = fakeSandbox({ linked: PINNED_PI_VERSION });
 
     await ensurePiInSandbox(sandbox);
 
@@ -114,19 +125,9 @@ describe("ensurePiInSandbox (probe and pinned-install repair)", () => {
   });
 
   it("installs the pinned Pi version when the probe and PATH both miss (custom image)", async () => {
-    const calls: any[] = [];
-    const sandbox = {
-      mkdirFs: async () => {},
-      runProcess: async (input: any) => {
-        calls.push(input);
-        if (input.command === "test") {
-          // Missing until the install completes.
-          return { exitCode: calls.some((c) => c.command === "npm") ? 0 : 1 };
-        }
-        if (input.command === "sh") return { exitCode: 1 }; // no pi on PATH
-        return { exitCode: 0 };
-      },
-    };
+    const { calls, sandbox } = fakeSandbox({
+      installLeaves: PINNED_PI_VERSION,
+    });
 
     await ensurePiInSandbox(sandbox);
 
@@ -141,17 +142,28 @@ describe("ensurePiInSandbox (probe and pinned-install repair)", () => {
     assert.equal(install.cwd, DAYTONA_PI_INSTALL_DIR);
   });
 
+  it.each([
+    ["at the pinned path", { before: "0.85.1" }],
+    ["on PATH", { linked: "0.85.1" }],
+  ])(
+    "replaces an older Pi %s with the pinned version",
+    async (_where, options) => {
+      const { calls, sandbox } = fakeSandbox({
+        ...options,
+        installLeaves: PINNED_PI_VERSION,
+      });
+
+      await ensurePiInSandbox(sandbox);
+
+      const commands = calls.map((c) => c.command);
+      assert.ok(commands.includes("npm"), "expected a pinned npm install");
+      // The stale link goes first, so npm can write its own bin link.
+      assert.ok(commands.indexOf("rm") < commands.indexOf("npm"));
+    },
+  );
+
   it("fails the run when Pi is still missing after the install attempt", async () => {
-    const sandbox = {
-      mkdirFs: async () => {},
-      runProcess: async (input: any) => {
-        // Probe and PATH both always miss; install "succeeds" but leaves nothing behind.
-        if (input.command === "test" || input.command === "sh") {
-          return { exitCode: 1 };
-        }
-        return { exitCode: 0 };
-      },
-    };
+    const { sandbox } = fakeSandbox({});
 
     await assert.rejects(
       () => ensurePiInSandbox(sandbox),
