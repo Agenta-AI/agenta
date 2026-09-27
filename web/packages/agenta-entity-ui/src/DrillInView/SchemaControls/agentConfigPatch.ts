@@ -13,7 +13,12 @@
 import type {AgentConnectionNamespace} from "@agenta/entities/secret"
 import deepEqual from "fast-deep-equal"
 
-import {composeModelValue, connectionFromConfig, type ConnectionMode} from "./connectionUtils"
+import {
+    composeModelValue,
+    connectionFromConfig,
+    type ConnectionFields,
+    type ConnectionMode,
+} from "./connectionUtils"
 import {isPermissionPolicy, type PermissionPolicy} from "./permissionPolicy"
 import {locateTemplate} from "./toolPermission"
 
@@ -156,6 +161,12 @@ export function readRunnerPermission(parameters: unknown): PermissionPolicy | nu
 export function readModelConnectionSlug(parameters: unknown): string | null {
     if (!isRecord(parameters)) return null
     return connectionFromConfig(locateTemplate(parameters).template.llm).slug || null
+}
+
+/** The stored connection fields (mode, slug, namespace), as the picker reads them. */
+export function readModelConnection(parameters: unknown): ConnectionFields | null {
+    if (!isRecord(parameters)) return null
+    return connectionFromConfig(locateTemplate(parameters).template.llm)
 }
 
 /** The stored model id, or null. Reads the ModelRef the same way the picker does. */
