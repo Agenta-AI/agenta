@@ -1,11 +1,11 @@
-import {
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  rmSync,
-  symlinkSync,
-  writeFileSync,
-} from "node:fs";
+/**
+ * Inprocess attachment copies go to the session folder's prefix of the drive through the store,
+ * not to the runner's disk. The sandbox's drive is kept apart from the runner's folder here (as in
+ * production, where the runner mounts nothing), so a copy left on the runner's disk cannot pass.
+ * That the sandbox's geesefs view shows a direct store write after the turn-start refresh is
+ * pinned against a real store by `sandbox-drive.test.ts`; here the view is filled from the store.
+ */
+import { existsSync, mkdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
@@ -16,6 +16,7 @@ import {
   restoreReferencedWorkingCopies,
 } from "../../../src/engines/sandbox_agent/attachments.ts";
 import { createHostFixture } from "../../utils/inprocess-host.ts";
+import { TEST_CREDENTIALS } from "../../utils/local-drive.ts";
 import { startScriptedModel } from "../../utils/scripted-model.ts";
 import type { AgentEvent, ChatMessage } from "../../../src/protocol.ts";
 
@@ -23,9 +24,9 @@ const ref = {
   attachmentId: "11111111-1111-4111-8111-111111111111",
   filename: "report.txt",
 };
+const auth = () => "ApiKey test";
 const cleanups: Array<() => Promise<void>> = [];
 afterEach(async () => {
-  vi.unstubAllGlobals();
   for (const cleanup of cleanups.splice(0).reverse()) await cleanup();
   vi.restoreAllMocks();
 });
@@ -34,221 +35,116 @@ async function setup() {
   const model = await startScriptedModel();
   cleanups.push(() => model.close());
   const fixture = createHostFixture(model.baseUrl);
-  const drive = join(fixture.base, "store");
-  // Production has no mount on the runner. Keep its disk separate from the sandbox's drive.
-  vi.spyOn(fixture.mounter, "mount").mockImplementation(
-    async (sandbox, path) => {
-      const stored = join(
-        drive,
-        path === fixture.daytona.prefix + fixture.cwd ? "session" : "agent",
-      );
-      mkdirSync(stored, { recursive: true });
-      mkdirSync(dirname(path), { recursive: true });
-      symlinkSync(stored, path);
-      fixture.daytona.sandboxes
-        .get(sandbox.id)!
-        .onStop.push(() => rmSync(path, { force: true }));
-      return true;
-    },
-  );
+  const drive = join(fixture.base, "drive");
+  vi.spyOn(fixture.mounter, "mount").mockImplementation(async (sandbox, path) => {
+    const view = join(drive, path.endsWith("-agent") ? "agent" : "session");
+    mkdirSync(view, { recursive: true });
+    mkdirSync(dirname(path), { recursive: true });
+    symlinkSync(view, path);
+    fixture.daytona.sandboxes.get(sandbox.id)!.onStop.push(() => rmSync(path, { force: true }));
+    return true;
+  });
   const runner = fixture.runner();
   const { host } = runner.host();
-  const session = await host.createSession({
-    agent: "pi",
-    cwd: fixture.cwd,
-    sessionInit: { cwd: fixture.cwd, mcpServers: [] },
-  });
+  const session = await host.createSession({ agent: "pi", cwd: fixture.cwd, sessionInit: { cwd: fixture.cwd, mcpServers: [] } });
   await session.setModel("mock/mock-1");
   cleanups.push(async () => {
     await host.destroySandbox();
     rmSync(fixture.base, { recursive: true, force: true });
   });
-  const plan = {
-    workspace: { cwd: fixture.cwd },
-    isDaytona: false,
-    acpAgent: "pi",
-    harness: "pi_core" as const,
-  };
+  const plan = { workspace: { cwd: fixture.cwd }, isDaytona: false, acpAgent: "pi", harness: "pi_core" as const };
   const path = attachmentWorkingPath(fixture.cwd, ref);
-  const stored = join(drive, "session", path.relative);
-  const fetchAttachment = (
-    body: Uint8Array = Buffer.from("attachment proof 7198"),
-    mediaType = "text/plain",
-    filename = ref.filename,
-  ) => {
+  const store = () => {
+    if (!fixture.objects.has(TEST_CREDENTIALS.prefix)) fixture.objects.set(TEST_CREDENTIALS.prefix, new Map());
+    return fixture.objects.get(TEST_CREDENTIALS.prefix)!;
+  };
+  /** What the sandbox's mount shows after its refresh: the store's objects. */
+  const refreshView = () => {
+    for (const [rel, body] of store()) {
+      const file = join(drive, "session", rel);
+      mkdirSync(dirname(file), { recursive: true });
+      writeFileSync(file, body);
+    }
+  };
+  const fetchAttachment = (body = "attachment proof 7198") => {
     const realFetch = globalThis.fetch;
-    return vi
-      .spyOn(globalThis, "fetch")
-      .mockImplementation(async (input, init) =>
-        String(input).includes("/content?")
-          ? new Response(Buffer.from(body), {
-              headers: {
-                "content-type": mediaType,
-                "content-disposition": `attachment; filename="${filename}"`,
-              },
-            })
-          : realFetch(input, init),
-      );
+    return vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) =>
+      String(input).includes("/content?")
+        ? new Response(body, { headers: { "content-type": "text/plain", "content-disposition": `attachment; filename="${ref.filename}"` } })
+        : realFetch(input, init),
+    );
   };
-  return {
-    fixture,
-    runner,
-    host,
-    session,
-    plan,
-    path,
-    stored,
-    model,
-    fetchAttachment,
-  };
+  return { fixture, runner, host, session, plan, path, store, refreshView, model, fetchAttachment };
 }
 
-describe("inprocess attachments on a separate drive", () => {
-  it("delivers a workspace-only document that Pi's read tool can read", async () => {
-    const {
-      fixture,
-      host,
-      session,
-      plan,
-      path,
-      stored,
-      model,
-      fetchAttachment,
-    } = await setup();
+describe("inprocess attachments on the drive", () => {
+  it("puts a workspace-only document in the store, where Pi's read tool finds it", async () => {
+    const { host, session, plan, path, store, refreshView, model, fetchAttachment } = await setup();
     fetchAttachment();
     const events: AgentEvent[] = [];
     const resolved = await resolveCurrentTurnAttachments({
       message: { role: "user", content: [{ type: "attachment", ...ref }] },
       sessionId: "test",
-      auth: () => "ApiKey test",
+      auth,
       sandbox: host,
       plan,
       capabilities: { images: true },
       emit: (event) => events.push(event),
     });
-    expect(events).toMatchObject([
-      { outcome: "workspace_only", workingPath: path.relative },
-    ]);
+    expect(events).toMatchObject([{ outcome: "workspace_only", workingPath: path.relative }]);
+    expect(store().get(path.relative)?.toString()).toBe("attachment proof 7198");
     expect(existsSync(path.absolute)).toBe(false);
-    expect(readFileSync(stored, "utf8")).toBe("attachment proof 7198");
-    model.script([
-      { tool: "read", args: { path: path.relative } },
-      { text: "read completed" },
-    ]);
+
+    refreshView();
+    model.script([{ tool: "read", args: { path: path.relative } }, { text: "read completed" }]);
     await session.prompt(buildPromptBlocks("Read the attachment", resolved));
-    const toolReplies = model.requests
-      .at(-1)!
-      .messages.filter((m: any) => m.role === "tool");
-    expect(JSON.stringify(toolReplies)).toContain("attachment proof 7198");
-    expect(JSON.stringify(toolReplies)).not.toContain("ENOENT");
-    expect(fixture.daytona.creates).toBe(1);
+    const toolReplies = JSON.stringify(model.requests.at(-1)!.messages.filter((m: any) => m.role === "tool"));
+    expect(toolReplies).toContain("attachment proof 7198");
+    expect(toolReplies).not.toContain("ENOENT");
   }, 30_000);
 
-  it("delivers image fallback bytes and transfers large attachments without inline arguments", async () => {
-    const { host, runner, plan, path, stored, fetchAttachment, fixture } =
-      await setup();
-    const bytes = Buffer.alloc(200 * 1024, 42);
-    fetchAttachment(bytes, "image/png");
-    const resolved = await resolveCurrentTurnAttachments({
-      message: { role: "user", content: [{ type: "attachment", ...ref }] },
-      sessionId: "test",
-      auth: () => "ApiKey test",
-      sandbox: host,
-      plan,
-      capabilities: { images: true },
-      emit: () => {},
-    });
-    expect(resolved[0].gate).toMatchObject({
-      outcome: "workspace_only",
-      reasonCode: "model_modality_unknown",
-    });
-    expect(readFileSync(stored)).toEqual(bytes);
-    expect(existsSync(path.absolute)).toBe(false);
-    expect([...fixture.daytona.sandboxes.values()][0].calls).toContain(
-      "upload",
-    );
-  }, 30_000);
-
-  it("restores missing history, preserves edited copies, and reads them after a sandbox restart", async () => {
-    const { host, runner, plan, path, stored, fetchAttachment, fixture } =
-      await setup();
+  it("restores a missing copy from history and keeps an edited one", async () => {
+    const { host, plan, path, store, fetchAttachment } = await setup();
     const fetch = fetchAttachment();
-    const messages: ChatMessage[] = [
-      { role: "user", content: [{ type: "attachment", ...ref }] },
-    ];
-    // A stale runner copy must not make restoration skip the actual drive.
+    const messages: ChatMessage[] = [{ role: "user", content: [{ type: "attachment", ...ref }] }];
+    // A stale copy on the runner's disk must not make restoration skip the drive.
     mkdirSync(dirname(path.absolute), { recursive: true });
     writeFileSync(path.absolute, "wrong runner disk");
-    await restoreReferencedWorkingCopies(
-      host,
-      plan,
-      messages,
-      "test",
-      () => "ApiKey test",
-    );
-    expect(readFileSync(stored, "utf8")).toBe("attachment proof 7198");
-    writeFileSync(stored, "user edit");
+
+    await restoreReferencedWorkingCopies(host, plan, messages, "test", auth);
+    expect(store().get(path.relative)?.toString()).toBe("attachment proof 7198");
+
+    store().set(path.relative, Buffer.from("user edit"));
     fetch.mockClear();
-    await host.pauseSandbox();
-    const resumed = runner.host().host;
-    await resumed.createSession({
-      agent: "pi",
-      cwd: fixture.cwd,
-      sessionInit: { cwd: fixture.cwd, mcpServers: [] },
-    });
-    cleanups.push(() => resumed.destroySandbox());
-    await restoreReferencedWorkingCopies(
-      resumed,
-      plan,
-      messages,
-      "test",
-      () => "ApiKey test",
-    );
+    await restoreReferencedWorkingCopies(host, plan, messages, "test", auth);
     expect(fetch).not.toHaveBeenCalled();
-    expect(readFileSync(stored, "utf8")).toBe("user edit");
-    expect(
-      await materializeWorkingCopy(resumed, plan, ref, Buffer.from("original")),
-    ).toBe("exists");
-    expect(readFileSync(stored, "utf8")).toBe("user edit");
+    expect(await materializeWorkingCopy(host, plan, ref, Buffer.from("original"))).toBe("exists");
+    expect(store().get(path.relative)?.toString()).toBe("user edit");
   }, 30_000);
 
-  it.each(["root", "directory", "absolute"] as const)(
-    "rejects symbolic links at %s",
-    async (component) => {
-      const { host, plan, path, fixture } = await setup();
-      await host.attachmentFiles.exists(path); // Mount the separate drive.
-      const remote = fixture.daytona.prefix + path[component];
-      mkdirSync(dirname(remote), { recursive: true });
-      symlinkSync(join(fixture.base, "outside"), remote);
-      await expect(
-        materializeWorkingCopy(host, plan, ref, Buffer.from("no")),
-      ).rejects.toThrow("symbolic link");
-      expect(existsSync(join(fixture.base, "outside"))).toBe(false);
-    },
-    30_000,
-  );
+  it("does not mistake a sibling file for the copy", async () => {
+    const { host, plan, path, store } = await setup();
+    store().set(`${path.relative}.bak`, Buffer.from("other"));
+    expect(await materializeWorkingCopy(host, plan, ref, Buffer.from("new"))).toBe("written");
+    expect(store().get(path.relative)?.toString()).toBe("new");
+  }, 30_000);
 
-  it("reports materialization failure when the command sandbox cannot mount its drive", async () => {
+  it("reports materialize_failed when the store refuses the write", async () => {
     const { host, plan, fixture, fetchAttachment } = await setup();
     fetchAttachment();
-    vi.mocked(fixture.mounter.mount).mockRejectedValue(
-      new Error("drive unavailable"),
-    );
+    fixture.faults.beforePut = async () => {
+      throw new Error("store unavailable");
+    };
     const events: AgentEvent[] = [];
     await resolveCurrentTurnAttachments({
       message: { role: "user", content: [{ type: "attachment", ...ref }] },
       sessionId: "test",
-      auth: () => "ApiKey test",
+      auth,
       sandbox: host,
       plan,
       capabilities: { images: true },
       emit: (event) => events.push(event),
     });
-    expect(events).toMatchObject([
-      { outcome: "failed", reasonCode: "materialize_failed" },
-    ]);
-    expect(existsSync(attachmentWorkingPath(fixture.cwd, ref).absolute)).toBe(
-      false,
-    );
+    expect(events).toMatchObject([{ outcome: "failed", reasonCode: "materialize_failed" }]);
   }, 30_000);
 });

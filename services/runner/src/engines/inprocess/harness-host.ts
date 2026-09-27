@@ -35,6 +35,7 @@ import { createSandboxBashTool } from "./tools/bash-tool.ts";
 import { EditDiffs } from "./tools/edit-diffs.ts";
 import { buildFileTools, type SandboxToolAccess } from "./tools/file-tools.ts";
 import { attachmentFiles } from "./workspace/attachment-files.ts";
+import type { ObjectStore } from "./workspace/drive-objects.ts";
 import { publishSkillSnapshot } from "./workspace/skill-snapshot.ts";
 import { withPublicCode } from "../sandbox_agent/errors.ts";
 import type { SessionLedger } from "./session-ledger.ts";
@@ -98,6 +99,8 @@ export class InProcessHarnessHost {
   private readonly preparations: SandboxPreparation[] = [];
   private workspace: ConversationWorkspace | undefined;
   private leasing: Promise<ConversationWorkspace> | undefined;
+  /** The session folder's prefix of the drive, as objects: what the runner itself puts there. */
+  private sessionObjects: ObjectStore | undefined;
   private released = false;
 
   constructor(
@@ -147,7 +150,8 @@ export class InProcessHarnessHost {
         signTranscriptMount: this.facts.signTranscriptMount,
       });
       // The runner built the skill snapshot on its own disk; the sandbox reads it from the drive.
-      if (skillDir) workspace.prepareDrive(publishSkillSnapshot(cwd, skillDir, this.runtime.registry.objects(session.credentials), this.log));
+      this.sessionObjects = this.runtime.registry.objects(session.credentials);
+      if (skillDir) workspace.prepareDrive(publishSkillSnapshot(cwd, skillDir, this.sessionObjects, this.log));
       this.workspace = workspace;
       return workspace;
     })();
@@ -329,10 +333,10 @@ export class InProcessHarnessHost {
     return session.toRecord();
   }
 
-  /** Attachment copies belong to the same drive as the model's file tools. */
+  /** Attachment copies go to the drive the model's file tools read, never to the runner's disk. */
   get attachmentFiles(): AttachmentFiles {
-    if (!this.workspace) throw new Error("inprocess: no session workspace for attachments");
-    return attachmentFiles(this.workspace, this.requirements);
+    if (!this.sessionObjects) throw new Error("inprocess: no session is open, so there is no drive for attachments");
+    return attachmentFiles(this.sessionObjects);
   }
 
   // ---- Runner files: callers are runner code, never the model; the runner's own disk ---------- //
