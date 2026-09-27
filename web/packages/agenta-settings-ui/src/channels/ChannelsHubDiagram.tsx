@@ -25,7 +25,7 @@ export const ChannelsHubDiagram = ({
     const ys = targets.map((_, i) => ROW / 2 + i * (ROW + GAP))
     return (
         <div
-            className="flex items-center justify-center rounded-lg border border-solid border-border bg-muted bg-[radial-gradient(var(--color-border)_1px,transparent_1px)] bg-[size:14px_14px] px-5 py-3.5"
+            className="flex items-center justify-center rounded-lg border border-solid border-border bg-muted bg-[radial-gradient(var(--ag-colorBorder)_1px,transparent_1px)] bg-[size:14px_14px] px-5 py-3.5"
             data-testid="channels-hub-diagram"
         >
             <div className="relative flex w-[76px] flex-none justify-center">
