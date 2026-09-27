@@ -16,6 +16,7 @@ import dynamic from "next/dynamic"
 import AgentChatPanel from "@/oss/components/AgentChatSlice/AgentChatPanel"
 import {AgentChatScopeProvider} from "@/oss/components/AgentChatSlice/state/scope"
 import SimpleSharedEditor from "@/oss/components/EditorViews/SimpleSharedEditor"
+import OnboardingFlow from "@/oss/components/OnboardingFlow/OnboardingFlow"
 import {OnboardingContext} from "@/oss/components/pages/agent-home/PlaygroundOnboarding/OnboardingContext"
 import OnboardingLoader from "@/oss/components/pages/agent-home/PlaygroundOnboarding/OnboardingLoader"
 import {useAgentOnboarding} from "@/oss/components/pages/agent-home/PlaygroundOnboarding/useAgentOnboarding"
@@ -101,13 +102,18 @@ const Playground: FC<{onboarding?: boolean}> = ({onboarding = false}) => {
             <PlaygroundPageTitle onboarding={onboarding} />
             <div className="flex flex-col w-full h-[var(--ag-viewport-height,100dvh)] overflow-hidden">
                 {prefetchAgentCatalogs ? <AgentCatalogPrefetcher /> : null}
-                <PlaygroundOnboarding />
-                <PlaygroundHeader key={`${uri}-header`} />
-                <PlaygroundMainView
-                    key={`${uri}-main`}
-                    renderConfigOverride={agentOnboarding.renderConfigOverride}
-                />
-                <CatalogDrawer />
+                {onboarding && <OnboardingFlow />}
+                {(!onboarding || agentOnboarding.contextValue?.realEntityId) && (
+                    <>
+                        <PlaygroundOnboarding />
+                        <PlaygroundHeader key={`${uri}-header`} />
+                        <PlaygroundMainView
+                            key={`${uri}-main`}
+                            renderConfigOverride={agentOnboarding.renderConfigOverride}
+                        />
+                        <CatalogDrawer />
+                    </>
+                )}
             </div>
         </OSSPlaygroundShell>
     )

@@ -104,8 +104,8 @@ export const useToolCatalogIntegrations = () => {
 
     // Sentinel callback — user scrolled to the prefetch point, request PREFETCH more pages
     const requestMore = useCallback(() => {
-        setTargetPages((t) => t + PREFETCH)
-    }, [])
+        setTargetPages((t) => Math.max(t, loadedPages) + PREFETCH)
+    }, [loadedPages])
 
     // Keep fetching until loaded >= target
     useEffect(() => {
