@@ -241,3 +241,37 @@ describe("the Pi tracer declares its input token contract", () => {
     expect(assertEveryTokenSpanDeclaresExclusiveInput(spans)).toBe(1);
   });
 });
+
+describe("the ACP tracer names the TTL of Claude's cache writes", () => {
+  const run = (harness: string, cacheWrite: number) => {
+    const spans = spyTracer();
+    const otel = createSandboxAgentOtel({
+      harness,
+      model: "anthropic/claude-sonnet-5",
+      emitSpans: true,
+    });
+    otel.start({ prompt: "hi" });
+    otel.setTokenDetail({
+      input: 4,
+      output: 315,
+      cacheRead: 112573,
+      cacheWrite,
+    });
+    otel.setUsage({ input: 4, output: 315, total: 0 });
+    otel.finish();
+    return spans.find((s) => s.name.startsWith("chat"))?.attributes;
+  };
+
+  it("marks a Claude chat span that wrote cache as 1-hour", () => {
+    const attributes = run("claude", 113229);
+    expect(attributes?.["gen_ai.usage.cache_creation.input_tokens"]).toBe(
+      113229,
+    );
+    expect(attributes?.["agenta.usage.cache_write_ttl"]).toBe("1h");
+  });
+
+  it("leaves a turn without cache writes, or another harness, unmarked", () => {
+    expect(run("claude", 0)?.["agenta.usage.cache_write_ttl"]).toBeUndefined();
+    expect(run("codex", 500)?.["agenta.usage.cache_write_ttl"]).toBeUndefined();
+  });
+});

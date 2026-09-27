@@ -968,6 +968,13 @@ function lastAssistantText(messages: any): string {
 }
 
 /**
+ * The TTL of a span's cache writes, which Anthropic bills at different rates. Claude Code writes
+ * 1-hour entries, and claude-agent-acp reports only the total written, so the runner stamps "1h"
+ * on a Claude chat span that wrote cache. Absent means the 5-minute TTL, the Anthropic default.
+ */
+const CACHE_WRITE_TTL = "agenta.usage.cache_write_ttl";
+
+/**
  * Declares which token contract a span's `gen_ai.usage.input_tokens` follows.
  *
  * The runner writes `false`: its input count is EXCLUSIVE — uncached input only, with
@@ -1803,6 +1810,8 @@ export function createSandboxAgentOtel(
           }
         : undefined);
     if (tokens) stampTokens(span, tokens);
+    if (init.harness === "claude" && tokens && tokens.cacheWrite > 0)
+      span.setAttribute(CACHE_WRITE_TTL, "1h");
     if (usage?.cost != null) span.setAttribute("gen_ai.usage.cost", usage.cost);
   }
 
