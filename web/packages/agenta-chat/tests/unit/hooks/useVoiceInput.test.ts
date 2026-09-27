@@ -252,6 +252,38 @@ describe("useVoiceInput", () => {
         expect(live()).toHaveLength(0)
     })
 
+    it("explains an empty dictation after the browser finishes stopping", () => {
+        const {result} = renderHook(() => useVoiceInput())
+        act(() => result.current.start())
+        act(() => result.current.stop())
+        expect(result.current.error).toBeNull()
+        act(() => vi.advanceTimersByTime(TEARDOWN_MS))
+        expect(result.current.error).toContain("No speech was recognized")
+    })
+
+    it("accepts words that arrive only after stop without reporting empty dictation", () => {
+        const {result} = renderHook(() => useVoiceInput())
+        act(() => result.current.start())
+        act(() => result.current.stop())
+        act(() =>
+            FakeRecognition.instances[0].onresult?.({
+                resultIndex: 0,
+                results: {length: 1, 0: {isFinal: true, 0: {transcript: "mobile message"}}},
+            }),
+        )
+        act(() => vi.advanceTimersByTime(TEARDOWN_MS))
+        expect(result.current.finalText).toBe("mobile message")
+        expect(result.current.error).toBeNull()
+    })
+
+    it("preserves the permission error when the empty session ends", () => {
+        const {result} = renderHook(() => useVoiceInput())
+        act(() => result.current.start())
+        act(() => FakeRecognition.instances[0].onerror?.({error: "not-allowed"}))
+        act(() => FakeRecognition.instances[0].endOnSilence())
+        expect(result.current.error).toBe("Microphone access denied")
+    })
+
     it("reports unsupported where the API is absent, and start is inert", () => {
         delete recognitionWindow().SpeechRecognition
         delete recognitionWindow().webkitSpeechRecognition

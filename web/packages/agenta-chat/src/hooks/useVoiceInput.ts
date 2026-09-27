@@ -93,6 +93,7 @@ export function useVoiceInput(): VoiceInput {
 
     const recRef = useRef<SpeechRecognitionLike | null>(null)
     const finalRef = useRef("")
+    const hasWordsRef = useRef(false)
     /** The person's intent, read by every callback below. The recogniser's events lag it. */
     const wantRef = useRef(false)
     const relaunchTimerRef = useRef<number | undefined>(undefined)
@@ -147,6 +148,7 @@ export function useVoiceInput(): VoiceInput {
                     interim += result[0].transcript
                 }
             }
+            if (finalRef.current.trim() || interim.trim()) hasWordsRef.current = true
             setTranscript({finalText: finalRef.current, interimText: interim.trim()})
         }
 
@@ -163,6 +165,13 @@ export function useVoiceInput(): VoiceInput {
             if (recRef.current === rec) recRef.current = null
             if (!wantRef.current) {
                 setActive(false)
+                if (!hasWordsRef.current) {
+                    setError(
+                        (previous) =>
+                            previous ??
+                            "No speech was recognized. Try again or use your keyboard's microphone.",
+                    )
+                }
                 return
             }
             // Chrome ends on silence even with `continuous`, and a queued start waits here too.
@@ -182,6 +191,7 @@ export function useVoiceInput(): VoiceInput {
 
     const reset = useCallback(() => {
         finalRef.current = ""
+        hasWordsRef.current = false
         setTranscript({finalText: "", interimText: ""})
         setError(null)
     }, [])
@@ -192,6 +202,7 @@ export function useVoiceInput(): VoiceInput {
         attemptsRef.current = 0
         setError(null)
         finalRef.current = ""
+        hasWordsRef.current = false
         setTranscript({finalText: "", interimText: ""})
         // Intent, not the recogniser's `onstart` — the control must latch on the press.
         setRecording(true)
