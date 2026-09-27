@@ -1,14 +1,19 @@
 export {ChannelsPage, type ChannelsPageProps, type ChannelsPanelRenderProps} from "./ChannelsPage"
-export {useChannelPanel, type UseChannelPanelOptions} from "./useChannelPanel"
+export {useChannelPanel, type ChannelsRoute, type UseChannelPanelOptions} from "./useChannelPanel"
+export {ChannelsHubView, type ChannelsHubViewProps} from "./ChannelsHubView"
+export {ChannelsSettingsPage, type ChannelsSettingsPageProps} from "./ChannelsSettingsPage"
 export {ChannelConnectFlow, type ChannelConnectFlowProps} from "./ChannelConnectFlow"
 export {ChannelManagePanel, type ChannelManagePanelProps} from "./ChannelManagePanel"
 export {ChannelAdvancedSection, type ChannelAdvancedSectionProps} from "./ChannelAdvancedSection"
 export {
+    CHANNEL_PLATFORMS,
     DEFAULT_TOOL_SETTINGS,
     EMPTY_CONNECTIONS,
     NOOP_ACTIONS,
+    agentConnectionsOf,
     answeringAgentName,
     botHandle,
+    connectionRowText,
     defaultSlackIdentity,
     slackInviteHandle,
     connectionScope,
@@ -22,6 +27,7 @@ export {
 export {
     buildAgentChannelsActions,
     channelKey,
+    connectionsForAgent,
     chatTypeOf,
     clientErrorMessage,
     groupKindsOf,
@@ -31,6 +37,7 @@ export {
     type ChannelsClientLike,
 } from "./actions"
 export {QrCode, encodeQr} from "./qr"
+export {platformLogo} from "./icons"
 export type {
     ChannelPlatform,
     ChannelInstallMode,
@@ -53,5 +60,6 @@ export type {
     ChannelSetupIdentity,
     ChannelSetupInfo,
     ChannelsActions,
+    ChannelsPanelAgent,
     HostedTelegramLink,
 } from "./types"
