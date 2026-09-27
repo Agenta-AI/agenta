@@ -12,7 +12,7 @@ renders them as dropdowns (SchemaPropertyRenderer -> EnumSelectControl). WP-8 po
 import os
 import httpx
 
-BASE = os.getenv("AGENTA_HOST", "http://144.76.237.122:8280").rstrip("/")
+BASE = os.getenv("AGENTA_HOST", "http://<dev-host>:8280").rstrip("/")
 KEY = os.environ["AGENTA_API_KEY"]
 PROJ = os.getenv("AGENTA_PROJECT_ID", "019ecbaf-5f3f-7d12-9aef-f49272dfd82e")
 REV = os.getenv("AGENT_REVISION_ID", "019ecfc9-1ea0-7293-aa1c-350c029cb118")

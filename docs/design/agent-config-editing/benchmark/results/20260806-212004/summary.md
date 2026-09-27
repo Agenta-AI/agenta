@@ -1,6 +1,6 @@
 # One-shot config editing — 2026-08-06T21:20:04Z
 
-threshold 95% one-shot · deployment `http://144.76.237.122:8580` · HEAD `e2a0a3d1f7f1`
+threshold 95% one-shot · deployment `http://<dev-host>:8580` · HEAD `e2a0a3d1f7f1`
 
 ## One-shot rate by cell and scenario
 
