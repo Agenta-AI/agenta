@@ -29,7 +29,9 @@ from agenta.sdk.agents.platform.workflow import (
     REQUEST_SECRET_TOOL_NAME,
     REQUEST_SECRET_WORKFLOW_SLUG,
 )
+from agenta.sdk.agents.platform.op_catalog import PLATFORM_OPS
 from agenta.sdk.agents.skills.models import SkillTemplate
+from agenta.sdk.agents.tools import AGENTA_TOOLS
 from agenta.sdk.engines.running.utils import (
     AGENTA_BUILTIN_SKILL_URI,
     infer_flags_from_data,
@@ -327,6 +329,27 @@ def _build_kit_revision() -> WorkflowRevision:
     )
 
 
+# The Agenta tools the settings UI lists, with each tool's read-only flag. The tools themselves
+# and the defaults live in the SDK and in each agent's saved `agenta_tools` entry.
+AGENTA_TOOLS_WORKFLOW_SLUG = "__ag__agenta_tools"
+
+
+def _agenta_tools_revision() -> WorkflowRevision:
+    return WorkflowRevision(
+        name="Agenta tools",
+        description="The Agenta tools an agent can turn on for every run.",
+        data=WorkflowRevisionData(
+            uri=AGENTA_BUILTIN_AGENT_URI,
+            parameters={
+                "op_access": {
+                    op: "read" if PLATFORM_OPS[op].read_only else "write"
+                    for op in AGENTA_TOOLS
+                }
+            },
+        ),
+    )
+
+
 # Each entry: a reserved slug -> {latest: <ver>, versions: {<ver>: WorkflowRevision factory}}.
 _STATIC_WORKFLOWS: Dict[str, Dict[str, Any]] = {
     GETTING_STARTED_WITH_AGENTA_SLUG: {
@@ -374,6 +397,12 @@ _STATIC_WORKFLOWS: Dict[str, Dict[str, Any]] = {
         "versions": {
             "v1": _build_kit_revision,
         },
+    },
+    AGENTA_TOOLS_WORKFLOW_SLUG: {
+        "kind": "agent_config",
+        "embeddable": False,
+        "latest": "v1",
+        "versions": {"v1": _agenta_tools_revision},
     },
     AGENTA_APPS_SLUG: {
         "kind": "skill",

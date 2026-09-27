@@ -25,6 +25,7 @@ import {nestEvaluatorConfiguration, nestEvaluatorSchema} from "../../runnable/ev
 import {syncPromptInputKeysInParameters} from "../../runnable/utils"
 import type {StoreOptions, ListQueryState} from "../../shared"
 import {generateLocalId, isLocalDraftId, isPlaceholderId} from "../../shared"
+import {withAgentaToolsEntry} from "../agentaTools"
 import type {
     InspectWorkflowResponse,
     AppOpenApiSchemas,
@@ -37,6 +38,7 @@ import {
     fetchWorkflowRevisionsByIdsBatch,
     inspectWorkflow,
     fetchAgentBuildKitOverlay,
+    fetchAgentaToolsAccess,
     fetchSimpleApplication,
     fetchWorkflowAppOpenApiSchema,
     fetchAgTypeSchema,
@@ -1331,6 +1333,8 @@ export const workflowQueryAtomFamily = atomFamily((revisionId: string) =>
                 return persistType(await workflowRevisionBatchFetcher({projectId, revisionId}))
             },
             initialData: detailCached ?? undefined,
+            // Every result of this query, cache hits and initialData included, passes through here.
+            select: withAgentaToolsEntry,
             // detailCached/enabled evaluate synchronously; the persister restores only inside a fetch they allowed, so no race.
             persister: immutablePersister.persisterFn,
             enabled:
@@ -1487,6 +1491,18 @@ export const agentBuildKitOverlayAtom = atomWithQuery<AgentBuildKitOverlay | nul
     }
 })
 
+export const agentaToolsAccessAtom = atomWithQuery<Record<string, "read" | "write">>((get) => {
+    const projectId = get(workflowProjectIdAtom)
+    return {
+        queryKey: ["agentaToolsAccess", projectId],
+        queryFn: async () => (projectId ? fetchAgentaToolsAccess(projectId) : {}),
+        enabled: get(sessionAtom) && !!projectId,
+        staleTime: 5 * 60_000,
+        refetchOnWindowFocus: false,
+        persister: catalogPersister.persisterFn,
+    }
+})
+
 export const workflowAgentTemplateOverlayAtomFamily = atomFamily((revisionId: string) =>
     atom<AgentTemplate | null>((get) => {
         const revisionData = get(workflowQueryAtomFamily(revisionId)).data ?? null
@@ -1636,8 +1652,11 @@ export const workflowBuildKitDisabledOpsAtomFamily = atomFamily((revisionId: str
  */
 export const workflowBuildKitOverlayReadyAtomFamily = atomFamily((revisionId: string) =>
     atom<boolean>((get) => {
-        const revisionData = get(workflowQueryAtomFamily(revisionId)).data ?? null
+        const revisionQuery = get(workflowQueryAtomFamily(revisionId))
+        const revisionData = revisionQuery.data ?? null
         const baseEntity = get(workflowBaseEntityAtomFamily(revisionId))
+        // Agent-ness is unknown until the revision loads; without a local entity, keep waiting.
+        if (!baseEntity && revisionQuery.isLoading) return false
         const explicitIsAgent = revisionData?.flags?.is_agent ?? baseEntity?.flags?.is_agent
         const targetUri = revisionData?.data?.uri ?? baseEntity?.data?.uri
         const isAgent = explicitIsAgent ?? isAgentBuiltinUri(targetUri)

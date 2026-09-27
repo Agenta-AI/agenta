@@ -12,6 +12,9 @@
  */
 import { describe, it, vi } from "vitest";
 import assert from "node:assert/strict";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { basename, join } from "node:path";
 
 // What `commitApplied` accepts: a lifecycle action's RESULT, both halves together.
 type AppliedCommit = Parameters<AppliedState["commitApplied"]>[0];
@@ -1648,6 +1651,9 @@ interface FakeRun {
     message: string;
     isExcluded: (id: string) => boolean;
   }>;
+  /** Every `setUsage` / `setTokenDetail` the turn made, in order. */
+  usages: unknown[];
+  tokenDetails: unknown[];
 }
 
 interface PiBatchCall {
@@ -1801,10 +1807,25 @@ function pausableHarness(
       emitEvent(event: AgentEvent) {
         run.emitted.push(event);
       },
+      // Like the real tracer: the stream's usage until the engine sets the final one.
       usage() {
-        return { input: 0, output: 0, total: 0, cost: 0 };
+        return (
+          (run.usages.findLast((usage) => usage) as any) ?? {
+            input: 0,
+            output: 0,
+            total: 0,
+            cost: 0,
+          }
+        );
       },
-      setUsage() {},
+      usages: [] as unknown[],
+      setUsage(usage: unknown) {
+        run.usages.push(usage);
+      },
+      tokenDetails: [] as unknown[],
+      setTokenDetail(rows: unknown) {
+        run.tokenDetails.push(rows);
+      },
       finish() {
         // The real otel hands the terminal `done` straight to its sink here.
         calls.journal.push("done");
@@ -4236,4 +4257,467 @@ describe("runTurn: the in-band settle lands before the terminal record", () => {
         "files a decision the human actually made as an abandonment",
     );
   });
+});
+
+/**
+ * B18: a turn that pauses for an approval must report each model call's usage exactly once.
+ *
+ * - A pure warm resume continues the SAME prompt, so its PromptResponse covers the work before
+ *   the pause too. The paused turn reports no tokens; the resume reports them all. Pi traces that
+ *   prompt under the paused turn's trace, so a Pi resume reports none.
+ * - A decision followed by fresh user text finishes the parked prompt and then sends a SECOND
+ *   prompt. Each prompt reports only its own work, so a runner-traced turn (Claude, Codex) reports
+ *   the sum. The runner used to keep only the second prompt's usage and lose the first. Pi traces
+ *   the parked prompt under the paused turn's trace, so its usage stays there.
+ * - A cold pause destroys a Pi session. Pi publishes the pre-pause usage as it stops; the paused
+ *   turn drains it instead of racing that write.
+ */
+describe("runTurn: usage across an approval pause", () => {
+  function uniqueCwdDeps(deps: SandboxAgentDeps): string {
+    const cwd = mkdtempSync(join(tmpdir(), "agenta-pause-usage-"));
+    deps.createLocalCwd = () => cwd;
+    return join(tmpdir(), "agenta", "telemetry", basename(cwd));
+  }
+
+  async function pauseOnGate(
+    env: SessionEnvironment,
+    captured: ReturnType<typeof pausableHarness>["captured"],
+    request: AgentRunRequest,
+    approvalParkMode = true,
+  ): Promise<AgentRunResult> {
+    const turn = runTurn(env, request, undefined, undefined, {
+      approvalParkMode,
+    });
+    await flush();
+    captured.onEvent!(
+      updateEvent({
+        sessionUpdate: "tool_call",
+        toolCallId: "tc-gate",
+        title: "commit",
+        rawInput: {},
+      }),
+    );
+    captured.onPermissionRequest!({
+      id: "perm-1",
+      availableReplies: ["once", "reject"],
+      toolCall: { toolCallId: "tc-gate", name: "commit", rawInput: {} },
+    });
+    await flush();
+    return turn;
+  }
+
+  function decisionThenPrompt(
+    env: SessionEnvironment,
+    request: AgentRunRequest,
+  ): Promise<AgentRunResult> {
+    const parked = env.parkedApproval!;
+    env.clearTurn();
+    return runTurn(
+      env,
+      { ...request, messages: [{ role: "user", content: "and now this" }] },
+      undefined,
+      undefined,
+      {
+        approvalParkMode: true,
+        continuation: true,
+        settleApprovalsThenPrompt: {
+          decisions: [
+            {
+              permissionId: parked.permissionId,
+              reply: "reject",
+              toolCallId: parked.toolCallId,
+              toolName: parked.toolName,
+              args: parked.args,
+              interactionToken: parked.interactionToken,
+              promptPromise: parked.promptPromise,
+            },
+          ],
+        },
+      },
+    );
+  }
+
+  async function waitFor(check: () => boolean): Promise<void> {
+    for (let i = 0; i < 200 && !check(); i += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 5));
+    }
+    assert.ok(check(), "the awaited condition never became true");
+  }
+
+  it("Claude warm resume: the paused turn reports no tokens, the resume reports the whole prompt once", async () => {
+    const { calls, deps, captured } = pausableHarness();
+    const acquired = await acquireEnvironment(engineReq, deps);
+    assert.equal(acquired.ok, true);
+    if (!acquired.ok) return;
+    const env = acquired.env;
+
+    const paused = await pauseOnGate(env, captured, engineReq);
+    assert.equal(paused.stopReason, "paused");
+    assert.equal(paused.usage?.total ?? 0, 0);
+    assert.equal(calls.runs[0].tokenDetails.at(-1), undefined);
+
+    const held = env.parkedApproval!.promptPromise!;
+    env.clearTurn();
+    const resumed = runTurn(env, approveResume(true), undefined, undefined, {
+      approvalParkMode: true,
+      resume: {
+        decisions: [
+          {
+            permissionId: "perm-1",
+            reply: "once",
+            toolCallId: "tc-gate",
+            toolName: "commit",
+            args: {},
+            interactionToken: "tc-gate",
+            promptPromise: held,
+          },
+        ],
+        carriedForward: [],
+      },
+    });
+    await flush();
+    // claude-agent-acp tallies the whole prompt, the calls before the pause included.
+    calls.resolvePrompt!({
+      stopReason: "end_turn",
+      usage: { inputTokens: 100, outputTokens: 20, cachedReadTokens: 7 },
+    });
+    const result = await resumed;
+    assert.equal(result.stopReason, "end_turn");
+    assert.equal(result.usage?.input, 100);
+    assert.equal(result.usage?.output, 20);
+    assert.deepEqual(calls.runs[1].tokenDetails.at(-1), {
+      input: 100,
+      output: 20,
+      cacheRead: 7,
+      cacheWrite: 0,
+    });
+    await env.destroy();
+  });
+
+  it.each([
+    ["claude", engineReq],
+    ["codex", codexEngineReq],
+  ])(
+    "%s decision-then-prompt: reports the parked prompt's usage and the new prompt's, once each",
+    async (harness, request) => {
+      const { calls, deps, captured } = pausableHarness();
+      const acquired = await acquireEnvironment(request, deps);
+      assert.equal(acquired.ok, true);
+      if (!acquired.ok) return;
+      const env = acquired.env;
+
+      const paused = await pauseOnGate(env, captured, request);
+      assert.equal(paused.stopReason, "paused");
+      assert.equal(paused.usage?.total ?? 0, 0);
+      const resolveParkedPrompt = calls.resolvePrompt!;
+
+      const turn = decisionThenPrompt(env, request);
+      await waitFor(() => calls.permissionReplies.length > 0);
+      // The parked prompt ends: its usage covers the work before the pause and after the decision.
+      resolveParkedPrompt({
+        stopReason: "end_turn",
+        usage: { inputTokens: 100, outputTokens: 20, cachedReadTokens: 5 },
+        _meta: {
+          quota: {
+            model_usage: [
+              {
+                model: "main-model",
+                token_count: { inputTokens: 90, outputTokens: 18 },
+              },
+              {
+                model: "small-model",
+                token_count: { inputTokens: 10, outputTokens: 2 },
+              },
+            ],
+          },
+        },
+      });
+      await waitFor(() => calls.promptCount === 2);
+      calls.resolvePrompt!({
+        stopReason: "end_turn",
+        usage: { inputTokens: 30, outputTokens: 6 },
+        _meta: {
+          quota: {
+            model_usage: [
+              {
+                model: "main-model",
+                token_count: { inputTokens: 30, outputTokens: 6 },
+              },
+            ],
+          },
+        },
+      });
+      const result = await turn;
+
+      assert.equal(result.stopReason, "end_turn");
+      assert.equal(result.usage?.input, 130);
+      assert.equal(result.usage?.output, 26);
+      assert.equal(result.usage?.total, 156);
+      const detail = calls.runs[1].tokenDetails.at(-1);
+      if (harness === "claude") {
+        // Every model's rows, summed across both prompts.
+        assert.deepEqual(detail, {
+          input: 130,
+          output: 26,
+          cacheRead: 0,
+          cacheWrite: 0,
+        });
+      } else {
+        // Codex fills model_usage with its last call only, so the summed `usage` row is used.
+        assert.deepEqual(detail, {
+          input: 130,
+          output: 26,
+          cacheRead: 5,
+          cacheWrite: 0,
+        });
+      }
+      await env.destroy();
+    },
+  );
+
+  it("Pi decision-then-prompt: reports only the new prompt's usage; the parked prompt's stays on its own trace", async () => {
+    const { calls, deps, captured } = pausableHarness();
+    const telemetryDir = uniqueCwdDeps(deps);
+    const usagePath = join(telemetryDir, ".agenta-usage.json");
+    const request: AgentRunRequest = {
+      harness: "pi_core",
+      messages: [{ role: "user", content: "do X" }],
+    };
+    const acquired = await acquireEnvironment(request, deps);
+    assert.equal(acquired.ok, true);
+    if (!acquired.ok) return;
+    const env = acquired.env;
+
+    const paused = await pauseOnGate(env, captured, request);
+    assert.equal(paused.stopReason, "paused");
+    assert.equal(paused.usage?.total ?? 0, 0);
+    const resolveParkedPrompt = calls.resolvePrompt!;
+
+    const turn = decisionThenPrompt(env, request);
+    await waitFor(() => calls.permissionReplies.length > 0);
+    // Pi settles the parked prompt under the paused turn's trace, which its spans total.
+    writeFileSync(
+      usagePath,
+      JSON.stringify({ input: 100, output: 20, total: 120, cost: 0.5 }),
+    );
+    resolveParkedPrompt({ stopReason: "end_turn" });
+    await waitFor(() => calls.promptCount === 2);
+    // The new prompt's `before_agent_start` cleared the sidecar; its settle writes its own.
+    writeFileSync(
+      usagePath,
+      JSON.stringify({ input: 30, output: 6, total: 36, cost: 0.25 }),
+    );
+    calls.resolvePrompt!({ stopReason: "end_turn" });
+    const result = await turn;
+
+    assert.equal(result.stopReason, "end_turn");
+    // Adding the parked prompt's usage here would count it on this turn's root as well.
+    assert.deepEqual(result.usage, {
+      input: 30,
+      output: 6,
+      total: 36,
+      cost: 0.25,
+    });
+    await env.destroy();
+  });
+
+  it("Pi warm resume: reports no usage; the parked prompt's stays on its own trace", async () => {
+    const { calls, deps, captured } = pausableHarness();
+    const telemetryDir = uniqueCwdDeps(deps);
+    const request: AgentRunRequest = {
+      harness: "pi_core",
+      messages: [{ role: "user", content: "do X" }],
+    };
+    const acquired = await acquireEnvironment(request, deps);
+    assert.equal(acquired.ok, true);
+    if (!acquired.ok) return;
+    const env = acquired.env;
+
+    const paused = await pauseOnGate(env, captured, request);
+    assert.equal(paused.stopReason, "paused");
+    assert.equal(paused.usage?.total ?? 0, 0);
+
+    const held = env.parkedApproval!.promptPromise!;
+    env.clearTurn();
+    const resumed = runTurn(env, request, undefined, undefined, {
+      approvalParkMode: true,
+      resume: {
+        decisions: [
+          {
+            permissionId: "perm-1",
+            reply: "once",
+            toolCallId: "tc-gate",
+            toolName: "commit",
+            args: {},
+            interactionToken: "tc-gate",
+            promptPromise: held,
+          },
+        ],
+        carriedForward: [],
+      },
+    });
+    await flush();
+    // Pi settles the parked prompt under the paused turn's trace, which its spans total.
+    writeFileSync(
+      join(telemetryDir, ".agenta-usage.json"),
+      JSON.stringify({ input: 100, output: 20, total: 120, cost: 0.5 }),
+    );
+    calls.resolvePrompt!({ stopReason: "end_turn" });
+    const result = await resumed;
+
+    assert.equal(result.stopReason, "end_turn");
+    // Reporting it here would count it on this turn's root as well.
+    assert.equal(result.usage?.total ?? 0, 0);
+    assert.equal(result.usage?.cost ?? 0, 0);
+    await env.destroy();
+  });
+
+  it("Pi cold pause: drains the pre-pause usage Pi publishes as its session stops", async () => {
+    const { deps, captured } = pausableHarness();
+    const telemetryDir = uniqueCwdDeps(deps);
+    const request: AgentRunRequest = {
+      harness: "pi_core",
+      messages: [{ role: "user", content: "do X" }],
+    };
+    const acquired = await acquireEnvironment(request, deps);
+    assert.equal(acquired.ok, true);
+    if (!acquired.ok) return;
+    const env = acquired.env;
+    // Pi writes its sidecar as the destroyed prompt settles, a moment after the destroy returns.
+    const destroySession = env.sandbox.destroySession.bind(env.sandbox);
+    env.sandbox.destroySession = async (id: string) => {
+      await destroySession(id);
+      setTimeout(() => {
+        writeFileSync(
+          join(telemetryDir, ".agenta-usage.json"),
+          JSON.stringify({ input: 40, output: 8, total: 48, cost: 0.2 }),
+        );
+      }, 20);
+    };
+
+    const paused = await pauseOnGate(env, captured, request, false);
+    assert.equal(paused.stopReason, "paused");
+    assert.deepEqual(paused.usage, {
+      input: 40,
+      output: 8,
+      total: 48,
+      cost: 0.2,
+    });
+    assert.ok(readFileSync(join(telemetryDir, ".agenta-usage.json")));
+    await env.destroy();
+  });
+
+  it.each([
+    ["claude", engineReq],
+    ["codex", codexEngineReq],
+  ])(
+    "%s cold pause: reports the usage the harness answers the cancelled prompt with",
+    async (_harness, request) => {
+      vi.stubEnv("AGENTA_RUNNER_COLD_PAUSE_USAGE_SETTLE_MS", "5000");
+      try {
+        const { calls, deps, captured } = pausableHarness();
+        const acquired = await acquireEnvironment(request, deps);
+        assert.equal(acquired.ok, true);
+        if (!acquired.ok) return;
+        const env = acquired.env;
+        // `destroySession` sends session/cancel. The harness ends the open prompt as cancelled,
+        // with the usage of the work before the pause, a moment after the cancel.
+        const destroySession = env.sandbox.destroySession.bind(env.sandbox);
+        env.sandbox.destroySession = async (id: string) => {
+          await destroySession(id);
+          setTimeout(() => {
+            captured.onEvent!(
+              updateEvent({
+                sessionUpdate: "agent_message_chunk",
+                content: { type: "text", text: "*Conversation interrupted*" },
+              }),
+            );
+            captured.onEvent!(
+              updateEvent({
+                sessionUpdate: "usage_update",
+                used: 900,
+                size: 200000,
+                cost: { amount: 0.3, currency: "USD" },
+              }),
+            );
+            calls.resolvePrompt!({
+              stopReason: "cancelled",
+              usage: { inputTokens: 40, outputTokens: 8, cachedReadTokens: 3 },
+            });
+          }, 20);
+        };
+
+        const paused = await pauseOnGate(env, captured, request, false);
+        assert.equal(paused.stopReason, "paused");
+        assert.equal(calls.sessionDestroyed, 1);
+        assert.equal(paused.usage?.input, 40);
+        assert.equal(paused.usage?.output, 8);
+        assert.deepEqual(calls.runs[0].tokenDetails.at(-1), {
+          input: 40,
+          output: 8,
+          cacheRead: 3,
+          cacheWrite: 0,
+        });
+        // Only the usage update reaches the run; the cancel's text is a teardown artifact.
+        const kinds = calls.runs[0].handled.map((u: any) => u?.sessionUpdate);
+        assert.ok(kinds.includes("usage_update"));
+        assert.ok(!kinds.includes("agent_message_chunk"));
+        await env.destroy();
+      } finally {
+        vi.unstubAllEnvs();
+      }
+    },
+  );
+
+  it.each([
+    ["claude", engineReq],
+    ["codex", codexEngineReq],
+  ])(
+    "%s user Stop: reports the usage the harness answers the cancelled prompt with",
+    async (_harness, request) => {
+      const { calls, deps, captured } = pausableHarness();
+      const acquired = await acquireEnvironment(request, deps);
+      assert.equal(acquired.ok, true);
+      if (!acquired.ok) return;
+      const env = acquired.env;
+      // `cancelSession` sends session/cancel. The harness ends the open prompt as cancelled, with
+      // the usage of the work before the Stop.
+      env.sandbox.cancelSession = async () => {
+        setTimeout(() => {
+          captured.onEvent!(
+            updateEvent({
+              sessionUpdate: "usage_update",
+              used: 900,
+              size: 200000,
+              cost: { amount: 0.3, currency: "USD" },
+            }),
+          );
+          calls.resolvePrompt!({
+            stopReason: "cancelled",
+            usage: { inputTokens: 50, outputTokens: 9, cachedWriteTokens: 4 },
+          });
+        }, 20);
+      };
+
+      const controller = new AbortController();
+      const turn = runTurn(env, request, undefined, controller.signal, {
+        approvalParkMode: true,
+      });
+      await flush();
+      controller.abort();
+      const result = await turn;
+
+      assert.equal(result.stopReason, "cancelled");
+      assert.equal(result.cancelSettled, true);
+      assert.equal(result.usage?.input, 50);
+      assert.equal(result.usage?.output, 9);
+      assert.deepEqual(calls.runs[0].tokenDetails.at(-1), {
+        input: 50,
+        output: 9,
+        cacheRead: 0,
+        cacheWrite: 4,
+      });
+      await env.destroy();
+    },
+  );
 });

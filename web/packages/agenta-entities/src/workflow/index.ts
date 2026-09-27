@@ -93,6 +93,7 @@ export {
 export {
     workflowAgentTemplateOverlayAtomFamily,
     workflowBuildKitUiStateAtomFamily,
+    agentaToolsAccessAtom,
     workflowBuildKitScopeAtomFamily,
     migrateBuildKitStateAtom,
     workflowBuildKitEnabledAtomFamily,
@@ -536,3 +537,4 @@ export {
 } from "./state/agentCredentials"
 
 export {buildKitDefaultPermission, resolveBuildKitPermissions} from "./buildKitPolicy"
+export {readAgentaTools, writeAgentaTools, type AgentaToolsMap} from "./agentaTools"

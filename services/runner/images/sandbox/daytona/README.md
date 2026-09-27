@@ -44,8 +44,16 @@ The snapshot recipe therefore:
   data, and the web, and one headless Chromium installed by Playwright under
   `PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers` and linked as `chromium`. Every section of the
   script asserts its own pin and fails the build otherwise; the pins live at the top of that file;
-- installs `@earendil-works/pi-coding-agent@0.85.1`;
+- installs `@earendil-works/pi-coding-agent@0.87.1`;
 - fails the build unless `pi --version` succeeds;
+- applies the pi-ai provider-cost patch to the copy of pi-ai bundled into the `pi` CLI: Pi's
+  OpenAI-completions client keeps OpenRouter's billed `usage.cost` instead of replacing it with
+  Pi's price-table estimate, so a Daytona Pi
+  chat span carries the same billed cost as a local one. The spec is single-sourced from
+  `services/runner/src/tools/pi-provider-cost-patch.json` (shared with the runner image
+  build), the step verifies its own write, and the build fails loudly if `parseChunkUsage`
+  drifts. When a custom image lacks Pi, the runner installs it at session time and applies the
+  same patch there;
 - reinstalls the private Pi ACP adapter at `pi-acp@0.0.29` through
   `sandbox-agent install-agent`, rather than installing a global package that the daemon
   would not resolve;
@@ -63,6 +71,20 @@ The snapshot recipe therefore:
   drifts;
 - verifies that the Claude, Codex, and OpenCode binaries are still present; and
 - installs the FUSE and geesefs dependencies used for durable remote working directories.
+
+Every adapter pin replaces only the adapter. `sandbox-agent install-agent --reinstall` would also
+download a second copy of the agent's native CLI, which the adapters do not run (claude-agent-acp
+runs the Claude binary bundled in its SDK package, codex-acp its bundled codex), so the recipe
+removes the base adapter and installs the pinned one without `--reinstall`, and clears the npm
+cache in the same `RUN`.
+
+## Size budget
+
+Daytona refuses a snapshot over 5 GB and counts every image layer, so a file that a later `RUN`
+deletes or overwrites still counts. v0.120.0 hit the cap at 5.53 GB. The script fails the build
+when Daytona reports a size over `SIZE_BUDGET_GB` (4.85), so a staging or trial build flags lost
+headroom before a production build hits the cap. To save space, clean caches in the `RUN` that
+creates them, and do not reinstall what the base image already ships.
 
 The Pi CLI and Pi ACP adapter are separate dependencies. Keep both pins explicit. The CLI
 runs the agent; the adapter translates Pi events and dialogs onto ACP. In particular, the

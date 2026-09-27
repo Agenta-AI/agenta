@@ -326,6 +326,8 @@ export const SessionWorkspace = ({
                 <div className="ag-app-ground flex h-[var(--ag-viewport-height,100dvh)] min-w-0 flex-col pt-[env(safe-area-inset-top)]">
                     <SessionTopBar
                         entityId={entityId}
+                        sessionId={sessionId}
+                        onUpdate={pinRevision}
                         agentId={agentId}
                         workspaceId={workspaceId}
                         projectId={projectId}

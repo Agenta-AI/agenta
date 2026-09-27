@@ -1,4 +1,4 @@
-from typing import List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 from uuid import UUID
 from abc import ABC, abstractmethod
 from datetime import datetime
@@ -83,6 +83,18 @@ class TracingDAOInterface(ABC):
         #
         trace_ids: List[UUID],
     ) -> List[OTelLink]:
+        raise NotImplementedError
+
+    @abstractmethod
+    async def recompute_trace_metrics(
+        self,
+        *,
+        project_id: UUID,
+        trace_id: UUID,
+        #
+        recompute: Callable[[List[OTelFlatSpan]], Dict[str, Dict[str, Any]]],
+        max_spans: int,
+    ) -> Optional[int]:
         raise NotImplementedError
 
     ### SESSIONS AND USERS

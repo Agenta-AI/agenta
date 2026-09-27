@@ -604,6 +604,8 @@ export const useAgentChatSession = ({
             const key = data?.revisionId ?? JSON.stringify(data ?? {}) ?? "committed"
             if (committedRevisionsSeenRef.current.has(key)) return
             committedRevisionsSeenRef.current.add(key)
+            // Nobody is watching a hidden tab: its version pill offers the commit on return.
+            if (document.visibilityState !== "visible") return
             invalidateAgentCommittedRevisionCache()
             if (data?.revisionId && data.revisionId !== entityId) {
                 const prevParameters = store.get(workflowMolecule.selectors.configuration(entityId))

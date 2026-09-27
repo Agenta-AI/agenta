@@ -11,8 +11,8 @@ import type {NextRouter} from "next/router"
  * The drawer keeps its open trace in `?trace`/`?span` and links out to evaluators; both are the
  * host's job, which is why they are seams rather than imports.
  *
- * The reference/drill-in/playground SLOTS are deliberately left unregistered here: their
- * fallbacks render a plain label or nothing at all, so `/m` degrades instead of crashing.
+ * The data slots are filled by `registerTraceDrawerSlots`; the reference/action slots stay on
+ * their fallbacks (a plain label, no button), which are enough on `/m`.
  */
 export const bindTraceDrawerSeams = (router: NextRouter) => {
     bindTraceDrawerNavigate((href) => {

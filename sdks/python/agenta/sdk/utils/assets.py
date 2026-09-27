@@ -93,6 +93,8 @@ supported_llm_models = {
         # and then pick nothing in particular. A guard test pins this (see
         # test_pi_publishes_concrete_gpt_5_6_models_for_both_openai_providers).
         "gpt-6-astra",
+        "gpt-6-sol",
+        "gpt-6-luna",
         "gpt-5.6-sol",
         "gpt-5.6-terra",
         "gpt-5.6-luna",
@@ -131,9 +133,12 @@ supported_llm_models = {
     # OpenRouter's 10 most-used tool-capable text models as of 2026-09-10, from
     # GET /api/v1/models?sort=most-popular&supported_parameters=tools&output_modalities=text.
     # Every id below is also a valid key in Pi's vendored OpenRouter catalog
-    # (drop the "openrouter/" prefix), so it is settable by the Pi harness picker.
+    # (drop the "openrouter/" prefix), so it is settable by the Pi harness picker. GPT-6 Sol and
+    # Luna (released 2026-09-22) are added by hand ahead of the next popularity refresh.
     "openrouter": [
         "openrouter/tencent/hy4-preview",
+        "openrouter/openai/gpt-6-sol",
+        "openrouter/openai/gpt-6-luna",
         "openrouter/openai/gpt-5.6-luna",
         "openrouter/deepseek/deepseek-v4-flash-0731",
         "openrouter/z-ai/glm-5.3-flash",

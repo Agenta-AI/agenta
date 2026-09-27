@@ -1,4 +1,9 @@
-import {formatCurrency, formatLatency, formatTokenUsage} from "@agenta/shared/utils"
+import {
+    formatCurrency,
+    formatLatency,
+    formatTokenUsage,
+    splitTokenUsage,
+} from "@agenta/shared/utils"
 import {dayjs} from "@agenta/shared/utils/dateTime"
 import {atom} from "jotai"
 import {atomFamily} from "jotai-family"
@@ -27,7 +32,11 @@ interface AgAttributes {
         parameters?: unknown
         [key: string]: unknown
     }
-    meta?: {configuration?: unknown; [key: string]: unknown}
+    meta?: {
+        configuration?: unknown
+        usage?: {input_tokens_includes_cache?: boolean | string}
+        [key: string]: unknown
+    }
     node?: {type?: string; [key: string]: unknown}
     [key: string]: unknown
 }
@@ -50,6 +59,25 @@ const getPromptTokens = (span?: TraceSpanNode) => {
 const getCompletionTokens = (span?: TraceSpanNode) => {
     const tokens = getTokenMetrics(span)
     return tokens?.cumulative?.completion ?? tokens?.incremental?.completion ?? null
+}
+
+/**
+ * The span's tokens as input, cache read, cache write and output, or null without cache counts.
+ * Reads one bucket, the roll-up when the span has one, so the parts add up to its total.
+ */
+export const getTokenBreakdown = (span?: TraceSpanNode) => {
+    const tokens = getTokenMetrics(span)
+    const bucket = tokens?.cumulative ?? tokens?.incremental
+    if (!bucket) return null
+    const num = (value: unknown) => (typeof value === "number" ? value : undefined)
+    return splitTokenUsage({
+        prompt: num(bucket.prompt),
+        completion: num(bucket.completion),
+        cacheRead: num(bucket.cache_read),
+        cacheWrite: num(bucket.cache_creation),
+        total: num(bucket.total),
+        inputIncludesCache: getAg(span)?.meta?.usage?.input_tokens_includes_cache,
+    })
 }
 
 export const getCost = (span?: TraceSpanNode) => {
