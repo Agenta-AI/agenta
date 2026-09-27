@@ -1780,6 +1780,8 @@ export function createSandboxAgentOtel(
   let accumulated = "";
   let reasoningAccumulated = "";
   let usage: AgentUsage | undefined;
+  // Set once the engine hands over the turn's final usage; a later stream reading must not replace it.
+  let usageSettled = false;
   let tokenDetail: ModelTokenUsage | undefined;
   const events: AgentEvent[] = [];
   // `inputJson` is the serialized form of the last-RECORDED input for the call, so a later
@@ -1860,6 +1862,7 @@ export function createSandboxAgentOtel(
    * writes in the total. A harness that traces its own spans (Pi) keeps the usage it reported.
    */
   function setUsage(finalUsage: AgentUsage | undefined): void {
+    usageSettled = true;
     const t = emitSpans ? tokenDetail : undefined;
     let merged: AgentUsage | undefined = t
       ? {
@@ -2176,8 +2179,10 @@ export function createSandboxAgentOtel(
       // The token split is not on the stream at all; it rides on the PromptResponse, which the
       // sandbox-agent engine reads and hands back through `setUsage`. Cost is the only run total
       // here, so an update without one carries nothing worth recording.
+      // The ACP HTTP client reads notifications from SSE and the prompt response from the POST
+      // body, so a reading can land after the engine settled the turn's usage.
       const cost = update.cost?.amount;
-      if (typeof cost !== "number") return;
+      if (typeof cost !== "number" || usageSettled) return;
       usage = {
         input: usage?.input ?? 0,
         output: usage?.output ?? 0,
