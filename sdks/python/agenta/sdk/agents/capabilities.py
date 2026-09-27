@@ -256,14 +256,9 @@ def _pi_models() -> Dict[str, List[str]]:
     (mostly provider-prefixed like ``anthropic/...``; some, e.g. ``openai``, are bare like
     ``gpt-5.5``), the same shape the playground model picker already renders.
     """
-    catalog = _model_catalog("pi_core")
-    accepted = {str(entry.get("id")) for entry in catalog}
+    accepted = {str(entry.get("id")) for entry in _model_catalog("pi_core")}
 
     def runnable(provider: str, ids: Iterable[str]) -> List[str]:
-        # An empty catalog means the data file failed to load: keep every id rather than
-        # publishing no Pi models at all.
-        if not catalog:
-            return list(ids)
         return [
             model_id
             for model_id in ids

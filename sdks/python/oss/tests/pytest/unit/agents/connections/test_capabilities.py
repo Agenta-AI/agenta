@@ -266,16 +266,3 @@ def test_hosted_subscription_pairs_need_no_new_capability():
         assert harness_allows_mode(harness, "self_managed") is True
         assert harness_allows_provider(harness, provider) is True
         assert harness_allows_pair(harness, provider, "direct") is True
-
-
-def test_pi_models_keep_every_id_when_the_pi_catalog_fails_to_load(monkeypatch):
-    # A missing or malformed Pi catalog must not empty the picker: the filter is skipped.
-    from agenta.sdk.agents import capabilities
-
-    monkeypatch.setattr(capabilities, "_model_catalog", lambda harness: [])
-    models = capabilities._pi_models()
-    for provider in PI_VAULT_PROVIDERS:
-        if provider in supported_llm_models:
-            assert models[provider] == list(supported_llm_models[provider])
-    for provider, ids in PI_SUBSCRIPTION_MODELS.items():
-        assert models[provider] == list(ids)
