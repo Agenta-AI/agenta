@@ -83,9 +83,6 @@ if is_ee():
     from ee.src.core.wallets.contracts import STREAM_DEBITS, STREAM_MEASUREMENTS
     from ee.src.core.wallets.service import WalletsService
     from ee.src.dbs.postgres.measurements.dao import MeasurementsDAO
-    from ee.src.dbs.postgres.measurements.organization import (
-        ProjectOrganizationResolver,
-    )
     from ee.src.dbs.postgres.wallets.dao import WalletsDAO
     from ee.src.dbs.redis.wallets.streams import RedisDebitPublisher
     from ee.src.tasks.asyncio.measurements.worker import MeasurementWorker
@@ -246,7 +243,6 @@ async def _build_sessions_worker(redis_client: Redis) -> StreamConsumer:
 async def _build_measurements_worker(redis_client: Redis) -> StreamConsumer:
     return MeasurementWorker(
         measurements_dao=MeasurementsDAO(),
-        organization_resolver=ProjectOrganizationResolver(),
         debit_publisher=RedisDebitPublisher(redis_client=redis_client),
         redis_client=redis_client,
         stream_name=STREAM_MEASUREMENTS,

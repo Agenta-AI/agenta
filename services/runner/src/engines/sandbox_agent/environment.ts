@@ -157,8 +157,7 @@ import {
 import { buildSandboxProvider, daytonaNetworkFields } from "./provider.ts";
 import { loadRunnerConfig, sandboxProviderTraits } from "../../config/runner-config.ts";
 import { readDaytonaSandboxResources } from "./daytona-provider.ts";
-import { startSandboxMeter } from "../../metering/sandbox-usage.ts";
-import { startPlatformCredentialLease } from "../../sessions/auth.ts";
+import { sandboxUsageContext, startLeasedSandboxMeter } from "../../metering/sandbox-usage.ts";
 import {
   markSandboxDestroyed,
   readStoredSandboxPointer,
@@ -173,7 +172,6 @@ import type {
 import {
   containsTransportEndpointDisconnected,
   isTransportEndpointDisconnected,
-  platformCredentialForRequest,
   runCredential,
 } from "./runtime-policy.ts";
 import { hydrateHarnessSessionFromDurable } from "./session-continuity-durable.ts";
@@ -581,6 +579,10 @@ async function acquireEnvironmentOnce(
     // SandboxLifecycle owns park-versus-delete. It returns `parked` because the mount teardown
     // below is gated on it: a parked Daytona sandbox keeps its agent mount.
     const traits = sandboxProviderTraits(plan.sandboxId);
+    // The last interval ends as the stop begins: Daytona's stop latency is not running time.
+    // Awaited after the teardown, so a slow report never delays it.
+    const meterStopped = environment.sandboxMeter?.stop();
+    environment.sandboxMeter = undefined;
     const { parked } = await teardownSandbox({
       sandbox: environment.sandbox,
       plannedSandboxId: plan.sandboxId,
@@ -594,9 +596,7 @@ async function acquireEnvironmentOnce(
         ? { disposition: opts?.reason === "kill" ? ("delete" as const) : ("stop" as const) }
         : {}),
     });
-    // Parked or deleted: it no longer runs, so the last interval ends here.
-    await environment.sandboxMeter?.stop();
-    environment.sandboxMeter = undefined;
+    await meterStopped;
     // A parked remote sandbox keeps its own mounts; runner-host mounts always come down here.
     const sandboxKeepsMounts = parked && !traits.filesOnRunner;
     // Unmount the durable cwd BEFORE removing the dir: data lives in the store, only the host
@@ -847,8 +847,7 @@ async function acquireEnvironmentOnce(
         piModelConfig && !isPiModelRegistrationPlan(piModelConfig)
           ? { providerId: piModelConfig.providerId, keyEnv: piModelConfig.apiKeyEnv }
           : undefined;
-      const usageAuthorization = platformCredentialForRequest(request);
-      const agentId = request.runContext?.workflow?.artifact?.id;
+      const usage = sandboxUsageContext(request, sessionForMount);
       return {
         conversationId: sessionForMount,
         projectId: environment.projectScopeId,
@@ -879,15 +878,7 @@ async function acquireEnvironmentOnce(
         extensionEnv: piExtEnv,
         modelEnvironment: plan.credentials.modelEnvironment,
         ...(customProvider ? { customProvider } : {}),
-        ...(usageAuthorization
-          ? {
-              usage: {
-                authorization: usageAuthorization,
-                ...(sessionForMount ? { sessionId: sessionForMount } : {}),
-                ...(agentId ? { agentId } : {}),
-              },
-            }
-          : {}),
+        ...(usage ? { usage } : {}),
       };
     };
     // SandboxLifecycle owns the reconnect ladder, the fresh-create fallback, and both
@@ -936,32 +927,21 @@ async function acquireEnvironmentOnce(
     // pointer reads and a failed reconnect before it are not running time.
     // The in-process provider holds no sandbox here: it meters its own command sandbox.
     const meteredSandboxId = (environment.sandbox as { sandboxId?: string } | undefined)?.sandboxId;
-    const meterAuthorization = platformCredentialForRequest(request);
+    const meterUsage = sandboxUsageContext(request, sessionForMount);
     if (
       meteredSandboxId &&
-      meterAuthorization &&
+      meterUsage &&
       providerTraits.commandsInRemoteSandbox &&
       !providerTraits.harnessInRunner
     ) {
       const daytonaSandboxId = meteredSandboxId.replace(/^daytona\//, "");
-      // Warm and parked-live environments outlive the run's credential; the lease outlives them.
-      const meterLease = startPlatformCredentialLease(apiBase(), meterAuthorization);
-      const meter = (deps.startSandboxMeter ?? startSandboxMeter)({
+      environment.sandboxMeter = startLeasedSandboxMeter({
+        ...meterUsage,
+        ...(deps.startSandboxMeter ? { startMeter: deps.startSandboxMeter } : {}),
         provider: "daytona",
         sandboxId: daytonaSandboxId,
         resources: () => readDaytonaSandboxResources(loadRunnerConfig().daytona, daytonaSandboxId),
-        credential: meterLease.credential,
-        ...(sessionForMount ? { sessionId: sessionForMount } : {}),
-        ...(request.runContext?.workflow?.artifact?.id
-          ? { agentId: request.runContext.workflow.artifact.id }
-          : {}),
       });
-      environment.sandboxMeter = {
-        stop: async () => {
-          await meter.stop();
-          meterLease.release();
-        },
-      };
     }
 
     // CREDENTIAL PREFLIGHT (fresh Daytona sandboxes with an opaque model key and a declared

@@ -1144,6 +1144,7 @@ class VaultConnectionResolver:
                         "model": model.model,
                         "provider_key": model.provider,
                         "connection_slug": model.connection.slug,
+                        "connection_namespace": model.connection.namespace,
                     },
                 )
         except Exception as exc:  # pylint: disable=broad-except
@@ -1171,6 +1172,10 @@ class VaultConnectionResolver:
                 body=body,
             )
             if _llm_gateway_is_unavailable(body=body, refusal=refusal):
+                # A built-in model has no vault record, and the vault may hold a custom
+                # connection of the same slug that the customer pays for instead.
+                if model.connection.namespace == "builtin":
+                    raise refusal
                 return await self._resolve_from_vault(
                     api_base=api_base,
                     authorization=authorization,

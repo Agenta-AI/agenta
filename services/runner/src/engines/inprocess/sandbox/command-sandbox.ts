@@ -652,6 +652,8 @@ export class CommandSandbox {
       sandboxId: current.id,
       resources: () => current.resources,
       credential: () => this.usageCredential(),
+      // Nothing to report to, so nothing to keep fresh either.
+      onUnmetered: () => this.releaseUsage(),
       ...(this.usage.sessionId ? { sessionId: this.usage.sessionId } : {}),
       ...(this.usage.agentId ? { agentId: this.usage.agentId } : {}),
       startedAtMs: this.runningSince,

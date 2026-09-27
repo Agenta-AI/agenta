@@ -52,6 +52,8 @@ const SCRUBBED = [
   // The per-run export credential the trace exporter falls back to. Present in a dev shell, it
   // flips the credential-less export paths (skip vs send) that otel export tests assert on.
   "AGENTA_CREDENTIALS",
+  // The wallet switch: on, a Daytona run with a credential would ask the network for admission.
+  "AGENTA_WALLETS_ENABLED",
 ];
 
 for (const name of SCRUBBED) delete process.env[name];

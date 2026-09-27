@@ -17,6 +17,8 @@ from oss.src.utils.context import (
     set_auth_context,
 )
 
+from oss.src.apis.fastapi.shared import runner_auth
+
 from ee.src.apis.fastapi.wallets.router import WalletsRouter
 from ee.src.core.measurements.sandboxes import (
     SandboxUsageInterval,
@@ -120,3 +122,95 @@ async def test_a_failed_publish_is_a_503_the_runner_retries():
 
     assert response.status_code == 503
     assert json.loads(response.body)["detail"]
+
+
+def _app(publisher, scope):
+    """The routes over HTTP, behind a stand-in for the auth middleware that resolves
+    every request to `scope`: the tenant credential is valid, the question is the runner."""
+    from fastapi import FastAPI
+
+    app = FastAPI()
+
+    @app.middleware("http")
+    async def _authenticated(request, call_next):
+        token = set_auth_context(
+            AuthContext(credentials=SecretCredentials(value="user-key"), scope=scope)
+        )
+        try:
+            return await call_next(request)
+        finally:
+            reset_auth_context(token)
+
+    app.include_router(_router(publisher=publisher).router, prefix="/wallets")
+    return app
+
+
+_REPORT = {
+    "provider": "daytona",
+    "sandbox_id": "sb-1",
+    "start_time": "2026-09-26T12:00:00Z",
+    "end_time": "2026-09-26T12:01:00Z",
+    "vcpu": 2,
+    "memory_gib": 4,
+}
+
+
+@pytest.mark.parametrize(
+    "path", ["/wallets/sandboxes/admit", "/wallets/sandboxes/usage"]
+)
+@pytest.mark.parametrize(
+    "headers",
+    [{}, {"X-Agenta-Runner-Token": "not-the-token"}],
+    ids=["tenant-credential-only", "wrong-runner-token"],
+)
+def test_a_tenant_credential_without_the_runner_token_is_refused(
+    monkeypatch, path, headers
+):
+    from fastapi.testclient import TestClient
+
+    # Through the module that reads it: another suite may have reloaded the env module.
+    monkeypatch.setattr(runner_auth.env.runner, "token", "runner-secret")
+    publisher = InMemoryMeasurementPublisher()
+    scope = AuthScope(
+        organization_id=uuid4(),
+        workspace_id=uuid4(),
+        project_id=uuid4(),
+        user_id=uuid4(),
+    )
+
+    response = TestClient(_app(publisher, scope)).post(
+        path, json=_REPORT, headers={"Authorization": "ApiKey user-key", **headers}
+    )
+
+    assert response.status_code == 401
+    assert publisher.published == []
+
+
+def test_the_runner_reports_for_the_credential_tenant_not_the_body(monkeypatch):
+    from fastapi.testclient import TestClient
+
+    # Through the module that reads it: another suite may have reloaded the env module.
+    monkeypatch.setattr(runner_auth.env.runner, "token", "runner-secret")
+    publisher = InMemoryMeasurementPublisher()
+    scope = AuthScope(
+        organization_id=uuid4(),
+        workspace_id=uuid4(),
+        project_id=uuid4(),
+        user_id=uuid4(),
+    )
+
+    response = TestClient(_app(publisher, scope)).post(
+        "/wallets/sandboxes/usage",
+        json={**_REPORT, "organization_id": str(uuid4()), "project_id": str(uuid4())},
+        headers={
+            "Authorization": "Access run-token",
+            "X-Agenta-Runner-Token": "runner-secret",
+        },
+    )
+
+    assert response.status_code == 200
+    [published] = publisher.published
+    assert (published.organization_id, published.project_id) == (
+        scope.organization_id,
+        scope.project_id,
+    )

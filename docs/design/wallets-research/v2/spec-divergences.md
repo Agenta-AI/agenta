@@ -44,8 +44,8 @@ Paths are relative to `api/` unless they start with `docs/`. "Branch head" means
 | 20 | Recurring plan allowance | Design | Suggestion |
 | 21 | Debit kinds the stream accepts | Both | Suggestion |
 | 22 | Stale MAXLEN text in Wave 1 | Design | Suggestion |
-| 23 | Sandbox seconds before any included allowance | Design | Applied (item 23) |
-| 24 | Managed actions: a repeated request is a new purchase | Code, later | Applied (item 24) |
+| 23 | Sandbox seconds before any included allowance | Design | Applied (item 25) |
+| 24 | Managed actions: a repeated request is a new purchase | Code, later | Applied (item 26) |
 
 ## Applied: code changed, decision recorded
 
@@ -94,11 +94,13 @@ Paths are relative to `api/` unless they start with `docs/`. "Branch head" means
 
 - **Design says.** Wave 1: the measurement worker persists the measurement and ACKs an entry
   whose project resolves to no organization, with a log line and no debit.
-- **Code does now.** The measurement is still persisted. The entry also goes to the dead
-  letters, which record the uncharged amount.
+- **Code does now.** The worker no longer looks the organization up from the project. Every
+  producer stamps the authenticated organization, and a measurement without one is
+  dead-lettered before it is persisted or charged (whole-stack review finding 8, 2026-09-27).
 - **Which side moves, and why.** The design. A log line is not a record an operator can
-  replay once the organization is resolvable.
-- **Status.** Applied in `9f8675313b`. Decision in open-designs item 20.
+  replay, and a payer inferred after the fact is a second attribution rule.
+- **Status.** Applied in `9f8675313b`, then the lookup was removed in `de376c525a`.
+  Decision in open-designs item 20.
 
 ### 5. Measurement replay with different content
 
@@ -314,7 +316,7 @@ Paths are relative to `api/` unless they start with `docs/`. "Branch head" means
   first slice (2026-09-26), so paid sandbox time is billed before the allowance exists.
   include-sandbox-usage stays the follow-up, and it adds the included portion in front of
   this charge rather than replacing it.
-- **Status.** Applied on `wallets/sandbox-seconds`. Decision in open-designs item 23.
+- **Status.** Applied on `wallets/sandbox-seconds`. Decision in open-designs item 25.
 
 ### 24. Managed actions: a repeated request is a new purchase
 
@@ -332,7 +334,7 @@ Paths are relative to `api/` unless they start with `docs/`. "Branch head" means
 - **Acceptance condition.** Required before any consumer that retries a paid call on its own,
   for example a REST entry point with an `Idempotency-Key` header.
 - **Status.** Applied on `wallets/managed-tools` for the mock slice. Decision in open-designs
-  item 24.
+  item 26.
 
 ## Spec validation
 

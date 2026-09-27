@@ -542,9 +542,10 @@ publishes it on this branch: the only producers are the Wave 1 fakes under
 `api/ee/tests/pytest/acceptance/wallets/fakes/`, and wiring the real one is a gateway-wave deliverable,
 so no managed request is billed yet. It is the only producer-side loss boundary: if its `XADD` fails,
 no measurement and no charge are created.
-`organization_id` follows the existing events/records convention: it is optional on this envelope.
-When absent, the measurement worker resolves organization from `project_id` before it emits the debit
-message. The persisted measurement does not duplicate organization; project remains the analytics
+`organization_id` is the payer the producer authenticated. The envelope field is optional in shape,
+but the measurement worker requires it: an entry without it is dead-lettered before anything is
+persisted or charged, and the organization is never looked up from `project_id` (open-designs
+item 20). The persisted measurement does not duplicate organization; project remains the analytics
 hierarchy anchor.
 
 ```json
@@ -584,17 +585,16 @@ an SBX observation can provide `vcpu_core_time_msec`, `vmem_gibi_time_msec`, and
 component cost. Their metric-specific unit is encoded by the stable key. `resource_locator` and
 `references` are structured objects; neither is an unbounded raw provider payload or secret store.
 
-The measurement worker validates the envelope and first looks the measurement up. An unseen one
-is priced, its organization resolved when it is charged, and inserted as exactly one immutable
+The measurement worker validates the envelope, requires its `organization_id`, and first looks the
+measurement up. An unseen one is priced and inserted as exactly one immutable
 `measurements` row with its `measurement_values` and its charge decision in one tracing
 transaction; the second message is then published from that decision. A measurement already
-stored is replayed from its stored decision alone, without the organization lookup or the pricer.
+stored is replayed from its stored decision alone, without the pricer.
 It ACKs the measurement message only after those actions complete.
 Envelope validation rejects repeated component keys. Entries the worker can never accept go to
 `streams:measurements:dead` with their reason (open-designs item 20): a malformed or unsupported
-version, which there is no way to safely price; a chargeable measurement whose `project_id` resolves
-to no organization, which is not stored, since a stored measurement without its charge would replay
-as free; and a `measurement_id` seen again with different content, which leaves the stored
+version, which there is no way to safely price; a measurement without the organization its producer
+authenticated, which is not stored; and a `measurement_id` seen again with different content, which leaves the stored
 measurement unchanged and is not priced. A `builtin` measurement the rate card cannot price is not
 stored either: it is retried and, after `max_deliveries`, dead-lettered (item 19). An identical
 replay is a no-op, detected by the content fingerprint in `measurements.data.fingerprint`.

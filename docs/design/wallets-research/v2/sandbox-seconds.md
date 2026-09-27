@@ -2,8 +2,9 @@
 
 Every second a sandbox runs on the platform's own Daytona account costs wallet credit. This
 page is the design of that first slice: what is measured, how it reaches the wallet, what it
-costs, and what it leaves out. It sits behind `AGENTA_WALLETS_ENABLED` (EE only). With the flag
-off, nothing is measured and nothing is charged.
+costs, and what it leaves out. It sits behind `AGENTA_WALLETS_ENABLED` (EE only), which the API
+and the runner both read. With the flag off, nothing is measured and nothing is charged, and the
+runner makes no admission call and starts no meter or credential lease.
 
 ## Decisions
 
@@ -78,10 +79,12 @@ most one second per running period is not billed.
 
 ### Reporting
 
-The runner posts each interval to `POST /wallets/sandboxes/usage`, authenticated with the run's
-own platform credential. The runner gets no Redis or database access. The API takes the
-organization, project and user from that credential, never from the report, and publishes one
-`MeasurementCommandV1`:
+The runner posts each interval to `POST /wallets/sandboxes/usage` with two credentials. The
+runner token (`X-Agenta-Runner-Token`, the `AGENTA_RUNNER_TOKEN` both sides already share for
+`/run` and for releasing a session's ownership) proves the runner is reporting a sandbox it
+runs on the platform's account. The run's own platform credential names the payer. The runner
+gets no Redis or database access. The API takes the organization, project and user from that
+credential, never from the report, and publishes one `MeasurementCommandV1`:
 
 | Field | Value |
 | --- | --- |
@@ -103,8 +106,9 @@ The runner keeps an interval the platform did not take (a network failure, 401, 
 or 5xx) and sends the same bytes again on the next tick, holding at most three hours of
 intervals. A stopping meter retries for five seconds before it gives up and logs the seconds it
 lost, and teardown never waits on it for more than ten. A 422 means the report can never be
-accepted, so it is dropped and logged. A 404 means the platform does not meter sandboxes, and
-the meter goes quiet.
+accepted, so it is dropped and logged. A 404 means the API does not meter sandboxes although
+the runner's switch is on (a misconfiguration): the meter goes quiet and gives back its
+credential lease.
 
 Riding the existing 30-second session heartbeat was considered and rejected. The heartbeat
 belongs to a session-owned turn in OSS, while a sandbox outlives turns (warm and parked
@@ -117,13 +121,25 @@ Before a turn on `daytona` or `inprocess` starts, the runner asks `POST
 /wallets/sandboxes/admit`, which answers the same spendable check the gateway uses for a
 `builtin` call. Only an explicit `allowed: false` refuses the turn. The runner then emits an
 error with the code `wallet_balance_exhausted` and the message "Your Agenta credits are used
-up, so this turn did not start. Add credits to keep going." No sandbox is acquired. A 404 (the
-wallet off, or OSS), an error, or no answer admits the turn: a metering outage must not stop
-agents. A turn that is already running is never stopped for its balance, so a turn admitted
+up, so this turn did not start. Add credits to keep going." No sandbox is acquired. A 404, an
+error, or no answer admits the turn: a metering outage must not stop agents. A turn that is already running is never stopped for its balance, so a turn admitted
 near the floor can settle below it, as a gateway call can (open-designs items 2 and 17).
 
-Both routes are mounted only while the wallet is on. Neither needs a permission beyond the
-credential, because a report can only charge the caller's own organization.
+Both routes are mounted only while the wallet is on, and both refuse a request without the
+runner token with a 401, whatever tenant credential it carries. A tenant credential alone would
+let any member of an organization post invented intervals and debit the shared wallet. Binding
+each report to a session turn that recorded the sandbox id was considered and rejected: runs
+without a session and the in-process command sandbox write no such row, so real usage would be
+refused, and the runner token already limits reporting to the process that created the sandbox.
+
+### The switch on the runner
+
+The runner reads the same `AGENTA_WALLETS_ENABLED` as the API, passed through by the compose
+files like `AGENTA_GATEWAYS_INSECURE_HTTP_ALLOWED`. The alternative, the API telling the runner
+per turn, needs a new field through the SDK and the run request for a deployment-level switch
+that never varies per turn. The cost of the mirror is drift: a deployment that turns the wallet
+on for the API alone meters no sandboxes. That fails toward not charging, never toward a charge,
+and the deployment checklist sets both.
 
 ### Usage view
 
@@ -149,12 +165,13 @@ calls. Each expanded row shows the seconds, vCPUs and GiB of memory of its inter
   credential, so its sandbox is neither admitted nor metered. Cloud runs always carry one.
 - **The runner CLI** (`src/cli.ts`, a local development tool) does not admit or meter.
 - **Admission reads the balance once per turn.** Nothing is reserved.
-- **Self-reported.** Anyone holding a run credential can post an interval, but it can only
-  charge their own organization.
+- **Runner-reported.** The runner token is the trust root: whoever holds it can report an
+  interval for the tenant whose credential it also holds. It never enters a Daytona sandbox
+  (`daytona-secret-plan.ts` withholds it).
 - **Self-hosted EE is excluded by the wallet flag, not by account ownership.** A self-hosted EE
   deployment that turns `AGENTA_WALLETS_ENABLED` on bills its own Daytona sandboxes to its own
   wallets. The wallet is a cloud product and the flag stays off elsewhere; a separate gate was
   judged not worth its configuration surface today.
-- **On OSS or with the wallet off,** the meter goes quiet after the first 404, but the
-  credential refresh that serves it keeps running for the life of the environment (one call
-  every five minutes).
+- **API and runner switches out of step.** API on, runner off: sandboxes run unmetered. Runner
+  on, API off: each turn's admission and each meter's first report get a 404, then the meter
+  stops and releases its lease.

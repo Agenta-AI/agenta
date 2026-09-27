@@ -1,15 +1,16 @@
 """The wallet's routes: what the caller's organization holds and what it spent, and the
 runner's sandbox admission and usage reports.
 
-Mounted only while the wallet is on, so with the flag off every route here is a 404, and
-the runner reads that 404 as "sandboxes are not metered here".
+Mounted only while the wallet is on, so with the flag off every route here is a 404. The
+runner is told the same switch (`AGENTA_WALLETS_ENABLED`) and does not call them then.
 """
 
 from typing import Optional
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse
 
+from oss.src.apis.fastapi.shared.runner_auth import assert_runner_token
 from oss.src.core.access.permissions.service import check_action_access
 from oss.src.core.access.permissions.types import Permission
 from oss.src.utils.context import get_auth_scope
@@ -61,8 +62,10 @@ class WalletsRouter:
             operation_id="query_wallet_usage",
             response_model=WalletUsageResponse,
         )
-        # Called by the runner with the run's own credential. No permission beyond it:
-        # the organization is the credential's, so a report can only charge the caller.
+        # Runner-only: the runner token proves the platform's runner is reporting a sandbox
+        # it runs on the platform's account, and the run's own credential names the payer.
+        # A tenant credential alone would let any member charge its organization for
+        # sandboxes that never ran.
         self.router.add_api_route(
             "/sandboxes/admit",
             self.admit_sandbox,
@@ -70,6 +73,7 @@ class WalletsRouter:
             operation_id="admit_wallet_sandbox",
             response_model=SandboxAdmissionResponse,
             include_in_schema=False,
+            dependencies=[Depends(assert_runner_token)],
         )
         self.router.add_api_route(
             "/sandboxes/usage",
@@ -78,6 +82,7 @@ class WalletsRouter:
             operation_id="record_wallet_sandbox_usage",
             response_model=SandboxUsageRecordResponse,
             include_in_schema=False,
+            dependencies=[Depends(assert_runner_token)],
         )
 
     async def _allowed(self, request: Request) -> bool:

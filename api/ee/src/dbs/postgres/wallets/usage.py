@@ -16,7 +16,11 @@ from oss.src.dbs.postgres.workflows.dbes import WorkflowArtifactDBE
 from oss.src.models.db_models import UserDB
 
 from ee.src.core.wallets.contracts import DebitKind
-from ee.src.core.wallets.usage.dtos import WalletCreditUsage, WalletUsageDebit
+from ee.src.core.wallets.usage.dtos import (
+    WalletCreditUsage,
+    WalletUsageDebit,
+    WalletUsagePlaneDay,
+)
 from ee.src.core.wallets.usage.interfaces import WalletUsageDAOInterface
 from ee.src.dbs.postgres.wallets.dbes import (
     WalletBalanceDBE,
@@ -68,25 +72,18 @@ class WalletUsageDAO(WalletUsageDAOInterface):
     ) -> List[WalletUsageDebit]:
         created_at = func.min(WalletDebitDBE.created_at)
         stmt = (
-            select(
-                WalletDebitDBE.idempotency_key,
-                func.sum(WalletDebitDBE.amount_musd),
-                WalletDebitDBE.resource_key,
-                func.min(cast(WalletDebitDBE.resource_locator, Text)),
-                WalletDebitDBE.pricing_version,
-                created_at,
-            )
-            .where(
-                WalletDebitDBE.organization_id == organization_id,
-                WalletDebitDBE.debit_kind == DebitKind.GATEWAY_USAGE.value,
-                WalletDebitDBE.created_at >= start,
-                WalletDebitDBE.created_at < end,
-                WalletDebitDBE.deleted_at.is_(None),
-            )
-            .group_by(
-                WalletDebitDBE.idempotency_key,
-                WalletDebitDBE.resource_key,
-                WalletDebitDBE.pricing_version,
+            _usage_postings(
+                organization_id=organization_id,
+                start=start,
+                end=end,
+                columns=(
+                    WalletDebitDBE.idempotency_key,
+                    func.sum(WalletDebitDBE.amount_musd),
+                    WalletDebitDBE.resource_key,
+                    func.min(cast(WalletDebitDBE.resource_locator, Text)),
+                    WalletDebitDBE.pricing_version,
+                    created_at,
+                ),
             )
             .order_by(created_at.desc())
             .limit(limit)
@@ -103,6 +100,40 @@ class WalletUsageDAO(WalletUsageDAOInterface):
                 created_at=created,
             )
             for key, amount, resource_key, locator, pricing_version, created in rows
+        ]
+
+    async def list_usage_days(
+        self,
+        *,
+        organization_id: UUID,
+        start: datetime,
+        end: datetime,
+    ) -> List[WalletUsagePlaneDay]:
+        postings = _usage_postings(
+            organization_id=organization_id,
+            start=start,
+            end=end,
+            columns=(
+                WalletDebitDBE.resource_key.label("resource_key"),
+                func.sum(WalletDebitDBE.amount_musd).label("amount_musd"),
+                func.min(WalletDebitDBE.created_at).label("created_at"),
+            ),
+        ).subquery()
+        day = func.date(func.timezone("UTC", postings.c.created_at))
+        plane = func.split_part(postings.c.resource_key, ":", 1)
+        stmt = select(
+            day, plane, func.sum(postings.c.amount_musd), func.count()
+        ).group_by(day, plane)
+        async with self.engine.session() as session:
+            rows = (await session.execute(stmt)).all()
+        return [
+            WalletUsagePlaneDay(
+                day=row_day,
+                plane=row_plane,
+                amount_musd=int(amount),
+                charge_count=count,
+            )
+            for row_day, row_plane, amount, count in rows
         ]
 
     async def user_emails(self, *, user_ids: Iterable[UUID]) -> Dict[UUID, str]:
@@ -140,6 +171,26 @@ class WalletUsageDAO(WalletUsageDAOInterface):
         return {
             (project_id, agent_id): name for project_id, agent_id, name in rows if name
         }
+
+
+def _usage_postings(*, organization_id: UUID, start: datetime, end: datetime, columns):
+    """One row per posting: a settlement split across credits writes several debit rows
+    under one idempotency key, and the view counts it once."""
+    return (
+        select(*columns)
+        .where(
+            WalletDebitDBE.organization_id == organization_id,
+            WalletDebitDBE.debit_kind == DebitKind.GATEWAY_USAGE.value,
+            WalletDebitDBE.created_at >= start,
+            WalletDebitDBE.created_at < end,
+            WalletDebitDBE.deleted_at.is_(None),
+        )
+        .group_by(
+            WalletDebitDBE.idempotency_key,
+            WalletDebitDBE.resource_key,
+            WalletDebitDBE.pricing_version,
+        )
+    )
 
 
 def _json_object(text):
