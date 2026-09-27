@@ -5,7 +5,7 @@ import { applyCodexAcpUsagePatch } from "../../src/engines/sandbox_agent/codex-a
 
 /**
  * `toTokenCount`, `toPromptUsage`, `handleTokenUsageUpdated` and `buildPromptUsage` are verbatim
- * from the pinned bundle (`@agentclientprotocol/codex-acp` 1.1.7, `dist/index.js`). The turn
+ * from the pinned bundle (`@agentclientprotocol/codex-acp` 1.13.1, `dist/index.js`). The turn
  * methods keep the bundle's exact anchor lines inside a smaller body, so the patched source can
  * run here.
  */
@@ -46,19 +46,37 @@ var Agent = class {
   getSessionState() {
     return this.state;
   }
+  startCommandTurn(sessionState) {
+    const callbacks = {
+      onTurnStartPending: () => {
+          sessionState.lastTokenUsage = null;
+      }
+    };
+    callbacks.onTurnStartPending();
+  }
+  commandTurnResponse(sessionState) {
+    return {
+          usage: this.buildPromptUsage(sessionState.lastTokenUsage),
+    };
+  }
   startTurn(params) {
     const sessionState = this.getSessionState(params.sessionId);
-    sessionState.currentTurnId = null;
-    sessionState.lastTokenUsage = null;
+      sessionState.lastTokenUsage = null;
   }
   endTurn(sessionState) {
-    return { usage: this.buildPromptUsage(sessionState.lastTokenUsage) };
+    return {
+        usage: this.buildPromptUsage(sessionState.lastTokenUsage),
+    };
   }
   cancelledPromptResponse(sessionState) {
-    return { usage: this.buildPromptUsage(sessionState.lastTokenUsage) };
+    return {
+      usage: this.buildPromptUsage(sessionState.lastTokenUsage),
+    };
   }
-  failedPromptResponse(sessionState) {
-    return { usage: this.buildPromptUsage(sessionState.lastTokenUsage) };
+  terminalFailurePromptResponse(sessionState) {
+    return {
+      usage: this.buildPromptUsage(sessionState.lastTokenUsage),
+    };
   }
   buildPromptUsage(lastTokenUsage) {
     if (lastTokenUsage == null) {
