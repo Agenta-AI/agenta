@@ -1,0 +1,18 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "crm-updater",
+  "version": "1.0.1",
+  "description": "Reviews recent Gmail conversations and applies evidence-backed updates to matching Attio contacts.",
+  "keywords": [
+    "crm",
+    "gmail",
+    "attio",
+    "sales",
+    "agent-template"
+  ],
+  "extensions": {
+    "ai.agenta": {
+      "manifest": "./ai.agenta/agents.json"
+    }
+  }
+}

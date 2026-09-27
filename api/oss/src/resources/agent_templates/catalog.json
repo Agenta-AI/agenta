@@ -66,9 +66,10 @@
     }
   },
   "crm-updater": {
-    "latest": "1.0.0",
+    "latest": "1.0.1",
     "versions": {
-      "1.0.0": "packages/crm-updater/1.0.0"
+      "1.0.0": "packages/crm-updater/1.0.0",
+      "1.0.1": "packages/crm-updater/1.0.1"
     }
   },
   "outreach-drafter": {

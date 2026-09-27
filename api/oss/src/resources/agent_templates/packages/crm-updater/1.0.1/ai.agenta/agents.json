@@ -1,0 +1,63 @@
+{
+  "schema_version": 1,
+  "entry": "crm-updater",
+  "agents": {
+    "crm-updater": {
+      "name": "CRM updater",
+      "description": "Reviews recent Gmail conversations and applies evidence-backed updates to matching Attio contacts.",
+      "instructions": "./ai.agenta/agents/crm-updater/AGENTS.md",
+      "setup": "./ai.agenta/agents/crm-updater/SETUP.md",
+      "connections": [
+        {
+          "key": "gmail",
+          "required": true,
+          "purpose": "Read recent received and sent email conversations.",
+          "options": [
+            {
+              "kind": "gateway",
+              "provider": "composio",
+              "integration": "gmail"
+            }
+          ],
+          "setup_notes": "Connect the Gmail account whose prospect and business conversations should be reviewed."
+        },
+        {
+          "key": "attio",
+          "required": true,
+          "purpose": "Find matching people and update contact attributes supported by email evidence.",
+          "options": [
+            {
+              "kind": "gateway",
+              "provider": "composio",
+              "integration": "attio"
+            }
+          ],
+          "setup_notes": "Connect the Attio workspace that contains the people records to maintain."
+        }
+      ],
+      "automations": [
+        {
+          "key": "daily-crm-email-review",
+          "name": "Daily CRM email review",
+          "required": false,
+          "trigger": {
+            "type": "schedule",
+            "schedule": "0 9 * * *"
+          },
+          "inputs_fields": {
+            "messages": [
+              {
+                "role": "user",
+                "content": "Run the daily Gmail-to-Attio contact review now. Review the preceding 24 hours, prepare exact evidence-backed updates, and stop for my approval without writing or sending anything."
+              }
+            ]
+          },
+          "setup_notes": "This recipe is inactive when loaded. Confirm the 09:00 UTC schedule, timezone, 24-hour review window, and whether the run should use automatic or approval-first updates before enabling it."
+        }
+      ],
+      "workspace": {
+        "entries": []
+      }
+    }
+  }
+}
