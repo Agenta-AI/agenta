@@ -26,7 +26,7 @@ const countOf = (category: string) =>
   title={`${MARKETPLACE_NAME} — Agenta`}
   description="Start from a working agent. Connect your apps, adjust the skills, and let it run. Every template starts in Agenta for free."
 >
-  <Section class="ag-mkt-head" data-screen-label="Index header">
+  <Section class="ag-mkt-head ag-pad" data-screen-label="Index header">
     <div class="ag-mkt-head__row">
       <div class="ag-mkt-head__copy">
         <h1 class="ag-mkt-head__title">{MARKETPLACE_NAME}</h1>
@@ -72,8 +72,8 @@ const countOf = (category: string) =>
     </div>
   </Section>
 
-  <Section class="ag-mkt-grid" data-screen-label="Grid">
-    <div class="ag-tplgrid" data-mkt-grid>
+  <Section class="ag-mkt-grid ag-pad" data-screen-label="Grid">
+    <div class="ag-tplgrid ag-tplgrid--boxed" data-mkt-grid>
       {templates.map((template) => <TemplateCard template={template} />)}
     </div>
     <div class="ag-mkt-empty" data-mkt-empty hidden>
@@ -89,7 +89,7 @@ const countOf = (category: string) =>
     </div>
   </Section>
 
-  <Section class="ag-mkt-faq" data-screen-label="FAQ">
+  <Section class="ag-mkt-faq ag-pad" data-screen-label="FAQ">
     <SectionTitle badge="FAQ" title="Frequently asked questions" />
     <div class="ag-mkt-faq__list">
       {
@@ -159,7 +159,8 @@ const countOf = (category: string) =>
   <style is:global>
     .ag-mkt-head {
       background: var(--th-bg-1);
-      padding: 64px 56px 40px;
+      /* The blog's page header and section spacing. */
+      padding: 120px 64px 56px;
       display: flex;
       flex-direction: column;
       gap: 28px;
@@ -274,15 +275,12 @@ const countOf = (category: string) =>
       opacity: 0.55;
     }
     .ag-mkt-grid {
+      padding: 32px 64px 88px;
       --mkt-grid-bg: var(--th-bg-1);
       background: var(--mkt-grid-bg);
     }
     [data-theme="dark"] .ag-mkt-grid {
       --mkt-grid-bg: var(--th-bg-0);
-    }
-    /* The last column and row share the section's own border. */
-    .ag-mkt-grid .ag-tplgrid {
-      margin: 0 -1px -1px 0;
     }
     .ag-mkt-grid [data-template-key][hidden] {
       display: none;
@@ -309,7 +307,7 @@ const countOf = (category: string) =>
     }
     .ag-mkt-faq {
       background: var(--th-bg-1);
-      padding: 96px 56px;
+      padding: 96px 64px;
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -321,9 +319,6 @@ const countOf = (category: string) =>
     }
 
     @media (max-width: 1199px) {
-      .ag-mkt-head {
-        padding: 48px 32px 32px;
-      }
       .ag-mkt-head__row {
         flex-direction: column;
         align-items: stretch;
@@ -336,14 +331,10 @@ const countOf = (category: string) =>
         padding: 56px 32px;
       }
       .ag-mkt-faq {
-        padding: 72px 32px;
         gap: 40px;
       }
     }
     @media (max-width: 767px) {
-      .ag-mkt-head {
-        padding: 32px 20px 24px;
-      }
       .ag-mkt-head__row {
         gap: 20px;
       }
@@ -361,7 +352,6 @@ const countOf = (category: string) =>
         padding: 40px 20px;
       }
       .ag-mkt-faq {
-        padding: 56px 20px;
         gap: 32px;
       }
     }

@@ -60,7 +60,7 @@ const isAgenta = template.author.id === "agenta";
   description={template.summary}
   showCta={false}
 >
-  <Section class="ag-tpl-hero" data-screen-label="Hero">
+  <Section class="ag-tpl-hero ag-pad" data-screen-label="Hero">
     <nav class="ag-tpl-crumb" aria-label="Breadcrumb">
       <a href={MARKETPLACE_PATH}>{MARKETPLACE_NAME}</a>
       <svg width="10" height="10" viewBox="0 0 12 12" fill="none" aria-hidden="true"
@@ -125,7 +125,7 @@ const isAgenta = template.author.id === "agenta";
     </div>
   </Section>
 
-  <Section class="ag-tpl-body" data-screen-label="Body">
+  <Section class="ag-tpl-body ag-pad" data-screen-label="Body">
     <div class="ag-tpl-body__grid">
       <div class="ag-tpl-main">
         <section class="ag-tpl-block">
@@ -269,7 +269,7 @@ const isAgenta = template.author.id === "agenta";
 
   {
     related.length > 0 && (
-      <Section class="ag-tpl-related" data-screen-label="Related">
+      <Section class="ag-tpl-related ag-pad" data-screen-label="Related">
         <h2 class="ag-tpl-related__title">Related templates</h2>
         <div class="ag-tpl-related__grid">
           {related.map((other) => (
@@ -286,7 +286,8 @@ const isAgenta = template.author.id === "agenta";
   <style is:global>
     .ag-tpl-hero {
       background: var(--th-bg-1);
-      padding: 44px 56px 64px;
+      /* The blog post's spacing: 56px above the header, 64px gutters. */
+      padding: 56px 64px 64px;
     }
     .ag-tpl-crumb {
       display: flex;
@@ -393,7 +394,7 @@ const isAgenta = template.author.id === "agenta";
     .ag-tpl-body {
       --tpl-body-bg: var(--th-bg-1);
       background: var(--tpl-body-bg);
-      padding: 64px 56px 88px;
+      padding: 64px 64px 88px;
     }
     [data-theme="dark"] .ag-tpl-body {
       --tpl-body-bg: var(--th-bg-0);
@@ -563,17 +564,17 @@ const isAgenta = template.author.id === "agenta";
 
     .ag-tpl-related {
       background: var(--th-bg-1);
-      padding: 64px 56px 80px;
+      padding: 72px 64px 88px;
     }
     .ag-tpl-related__title {
-      margin: 0 0 24px;
+      margin: 0 0 32px;
       font: 300 26px/1.2 var(--font-display);
       color: var(--th-text-hi);
     }
     .ag-tpl-related__grid {
       display: grid;
       grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: 12px;
+      gap: 20px;
     }
     .ag-tpl-related__card {
       display: flex;
@@ -598,9 +599,6 @@ const isAgenta = template.author.id === "agenta";
     }
 
     @media (max-width: 1199px) {
-      .ag-tpl-hero {
-        padding: 32px 32px 48px;
-      }
       .ag-tpl-crumb {
         margin-bottom: 24px;
       }
@@ -611,9 +609,6 @@ const isAgenta = template.author.id === "agenta";
       }
       .ag-tpl-panel {
         padding: 28px;
-      }
-      .ag-tpl-body {
-        padding: 48px 32px 64px;
       }
       .ag-tpl-body__grid {
         grid-template-columns: minmax(0, 1fr);
@@ -628,14 +623,8 @@ const isAgenta = template.author.id === "agenta";
         order: -1;
         grid-template-columns: repeat(2, minmax(0, 1fr));
       }
-      .ag-tpl-related {
-        padding: 48px 32px 64px;
-      }
     }
     @media (max-width: 767px) {
-      .ag-tpl-hero {
-        padding: 24px 20px 36px;
-      }
       .ag-tpl-crumb {
         margin-bottom: 20px;
       }
@@ -649,17 +638,11 @@ const isAgenta = template.author.id === "agenta";
       .ag-tpl-panel {
         padding: 16px;
       }
-      .ag-tpl-body {
-        padding: 36px 20px 48px;
-      }
       .ag-tpl-body__grid {
         gap: 36px;
       }
       .ag-tpl-side {
         grid-template-columns: minmax(0, 1fr);
-      }
-      .ag-tpl-related {
-        padding: 36px 20px 48px;
       }
       .ag-tpl-related__grid {
         grid-template-columns: minmax(0, 1fr);
