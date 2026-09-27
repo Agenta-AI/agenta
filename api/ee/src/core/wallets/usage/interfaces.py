@@ -9,6 +9,7 @@ from ee.src.core.wallets.usage.dtos import (
     MeasurementUsage,
     WalletCreditUsage,
     WalletUsageDebit,
+    WalletUsagePlaneDay,
 )
 
 
@@ -26,6 +27,17 @@ class WalletUsageDAOInterface:
     ) -> List[WalletUsageDebit]:
         """Gateway-usage postings in `[start, end)`, newest first, one per idempotency
         key, at most `limit`."""
+        raise NotImplementedError
+
+    async def list_usage_days(
+        self,
+        *,
+        organization_id: UUID,
+        start: datetime,
+        end: datetime,
+    ) -> List[WalletUsagePlaneDay]:
+        """Totals of the same postings over the whole of `[start, end)`, per UTC day and
+        resource plane. Unlimited: a chart over a truncated list reads as low usage."""
         raise NotImplementedError
 
     async def user_emails(self, *, user_ids: Iterable[UUID]) -> Dict[UUID, str]:

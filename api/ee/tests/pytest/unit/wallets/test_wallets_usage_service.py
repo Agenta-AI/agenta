@@ -12,6 +12,7 @@ from ee.src.core.wallets.usage.dtos import (
     MeasurementUsage,
     WalletCreditUsage,
     WalletUsageDebit,
+    WalletUsagePlaneDay,
 )
 from ee.src.core.wallets.usage.service import WalletUsageService, category_of
 
@@ -48,6 +49,17 @@ class _Usage:
     async def list_usage_debits(self, *, organization_id, start, end, limit):
         self.limit = limit
         return self.debits[:limit]
+
+    async def list_usage_days(self, *, organization_id, start, end):
+        totals = {}
+        for debit in self.debits:
+            key = (debit.created_at.date(), debit.resource_key.split(":", 1)[0])
+            amount, count = totals.get(key, (0, 0))
+            totals[key] = (amount + debit.amount_musd, count + 1)
+        return [
+            WalletUsagePlaneDay(day=day, plane=plane, amount_musd=a, charge_count=c)
+            for (day, plane), (a, c) in totals.items()
+        ]
 
     async def user_emails(self, *, user_ids):
         return {USER: "user@example.com"} if USER in set(user_ids) else {}
@@ -193,6 +205,8 @@ async def test_the_window_is_capped_and_says_so(monkeypatch):
 
     assert usage.truncated is True
     assert sum(s.charge_count for s in usage.sessions) == 2
+    # Only the detail rows are capped; the daily totals still count every posting.
+    assert [(d.amount_musd, d.charge_count) for d in usage.days] == [(3, 3)]
 
 
 async def test_summary_totals_only_the_credits_active_now():
