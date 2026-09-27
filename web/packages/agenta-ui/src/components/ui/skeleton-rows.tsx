@@ -6,14 +6,14 @@ import {cn} from "./utils"
 /**
  * SkeletonRows — the loading state for a list of rows: N bars at the row's own height.
  *
- * Shared so that two surfaces loading the same kind of list do not shimmer differently. The
+ * Shared so that two surfaces loading the same kind of list do not pulse differently. The
  * placeholder is decorative, so the whole block is hidden from assistive technology and the
  * surface announces its loading state itself.
  */
 export interface SkeletonRowsProps extends React.HTMLAttributes<HTMLDivElement> {
     /** How many rows to draw. Three is what the list surfaces use. */
     count?: number
-    /** antd's shimmer. */
+    /** Pulse animation. */
     active?: boolean
     /** Height and radius of one row; the default is the list row's 48px. */
     rowClassName?: string

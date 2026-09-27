@@ -11,15 +11,6 @@ import {cn} from "./utils"
  * (React 19 passes `ref` as a prop) and a `data-slot` on each root.
  */
 
-type SizeVariant = NonNullable<InputProps["size"]>
-
-/** The inner borderless input needs the size's type ramp; the wrapper carries the box. */
-const fontBySize: Record<SizeVariant, string> = {
-    sm: "text-field-sm",
-    default: "text-field-md",
-    lg: "text-field-lg",
-}
-
 /**
  * InputAffix — input with prefix/suffix and/or a clear button (replaces antd's
  * prefix/suffix + allowClear). The wrapper carries the border/bg and the input sits
@@ -95,7 +86,7 @@ export function InputAffix({
             )}
         >
             {prefix ? (
-                <span className="flex shrink-0 items-center text-placeholder">{prefix}</span>
+                <span className="flex shrink-0 items-center text-muted-foreground">{prefix}</span>
             ) : null}
             <input
                 ref={(node) => {
@@ -107,13 +98,12 @@ export function InputAffix({
                 {...(isControlled ? {value} : {defaultValue})}
                 onChange={handleChange}
                 className={cn(
-                    "min-w-0 flex-1 border-0 bg-transparent p-0 font-[inherit] text-foreground outline-none placeholder:text-placeholder",
-                    fontBySize[size],
+                    "min-w-0 flex-1 border-0 bg-transparent p-0 text-base text-foreground outline-none placeholder:text-muted-foreground md:text-sm",
                 )}
                 {...rest}
             />
             {suffix ? (
-                <span className="flex shrink-0 items-center text-placeholder">{suffix}</span>
+                <span className="flex shrink-0 items-center text-muted-foreground">{suffix}</span>
             ) : null}
             {showClear ? (
                 <button
@@ -121,9 +111,7 @@ export function InputAffix({
                     tabIndex={-1}
                     onClick={handleClear}
                     aria-label="clear"
-                    // antd's clear icon is colorTextQuaternary, NOT colorTextPlaceholder — the two
-                    // share a value in light but not in dark (input/style/index.js L356).
-                    className="flex shrink-0 items-center border-0 bg-transparent p-0 text-colorTextQuaternary hover:text-foreground"
+                    className="flex shrink-0 items-center border-0 bg-transparent p-0 text-muted-foreground hover:text-foreground"
                 >
                     <XCircle size={14} weight="fill" />
                 </button>
@@ -136,7 +124,7 @@ export function InputAffix({
  * SearchInput — a prefixed, clearable input.
  *
  * NOT a reproduction of antd's `Input.Search`, which also renders a trailing search
- * button; that button was deliberately dropped. See antd-inventory/migrations/Input.md.
+ * button; that button was deliberately dropped. See docs/design/antd-migration/migrations/Input.md.
  */
 export function SearchInput({prefix, ...props}: InputAffixProps) {
     return (
@@ -162,7 +150,7 @@ export function PasswordInput(props: InputAffixProps) {
                     tabIndex={-1}
                     onClick={() => setShow((s) => !s)}
                     aria-label={show ? "hide" : "show"}
-                    className="flex items-center border-0 bg-transparent p-0 text-placeholder hover:text-foreground"
+                    className="flex items-center border-0 bg-transparent p-0 text-muted-foreground hover:text-foreground"
                 >
                     {show ? <EyeSlash size={14} /> : <Eye size={14} />}
                 </button>
@@ -223,9 +211,9 @@ export function AutosizeTextarea({
             // rows=1 while autosizing: the effect sets the real height, and Textarea's
             // rows=3 default would otherwise flash a 3-row box on first paint.
             rows={autoSize ? 1 : rows}
-            // antd's autoSize TextArea is NOT user-resizable (the effect owns the height); without
-            // this the native corner grabber shows and dragging it fights the autosize.
-            className={cn(autoSize && "resize-none", className)}
+            // The effect owns the height: no resize grabber to fight it, and no min-height floor
+            // under a one-row autosize.
+            className={cn(autoSize && "min-h-0 resize-none", className)}
             onKeyDown={(event) => {
                 if (event.key === "Enter") onPressEnter?.(event)
                 onKeyDown?.(event)

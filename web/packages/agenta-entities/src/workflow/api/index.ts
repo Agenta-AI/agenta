@@ -27,9 +27,6 @@ export {
     // Simple application fetch (carries the playground build-kit overlay)
     fetchSimpleApplication,
     type SimpleApplicationFetchResponse,
-    // Interface schemas fetch (builtin workflow fallback)
-    fetchInterfaceSchemas,
-    type InterfaceSchemasResponse,
     // OpenAPI schema fetch (app workflow fallback)
     fetchWorkflowAppOpenApiSchema,
     type AppOpenApiSchemas,
@@ -103,7 +100,5 @@ export {
     type EvaluatorCatalogPreset,
     type EvaluatorCatalogPresetsResponse,
     /** @deprecated Use EvaluatorCatalogTemplate */
-    type EvaluatorTemplate,
     /** @deprecated Use EvaluatorCatalogTemplatesResponse */
-    type EvaluatorTemplatesResponse,
 } from "./templates"

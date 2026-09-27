@@ -1,6 +1,6 @@
 import type {ReactNode} from "react"
 
-/** The square chevron button in the templates header, mirroring the desktop strip's `HeaderButton`. */
+/** The square chevron button in the templates header. */
 export const TemplatePagerButton = ({
     label,
     disabled,

@@ -109,7 +109,7 @@ interface UseEntitySaveReturn {
 | `saveModalNameModifiedAtom` | `boolean`            | Whether name was changed       |
 | `saveModalCanProceedAtom`   | `boolean`            | Can submit (has valid name)    |
 | `saveModalTitleAtom`        | `string`             | Dynamic modal title            |
-| `saveModalStateAtom`        | `SaveModalState`     | Combined state object          |
+| `saveModalStateAtom`        | object     | Combined state object          |
 
 ### Action Atoms
 

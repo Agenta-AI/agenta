@@ -28,12 +28,11 @@ interface ContextResolverProps {
 
 /**
  * `/m/` root flow: resolve a project (remembered → desktop continuity → first) and forward to
- * its home. There is no picker page — switching lives in the drawer, exactly like the desktop
- * rail. This route only ever shows the home skeleton, an error, or leaves.
+ * its home. There is no picker page — switching lives in the drawer. This route only ever shows
+ * the home skeleton, an error, or leaves.
  *
- * Also the body of every `/w/...` index gate — the desktop's `WorkspaceSelection` /
- * `WorkspaceRedirect` / `WorkspaceProjectRedirect` trio, collapsed into one resolver because
- * mobile answers all three questions from the same project list.
+ * Also the body of every `/w/...` index gate, collapsed into one resolver because mobile answers
+ * all of them from the same project list.
  */
 export const ContextResolver = ({workspaceId}: ContextResolverProps = {}) => {
     const router = useRouter()

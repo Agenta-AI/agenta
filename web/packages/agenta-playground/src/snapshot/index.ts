@@ -19,7 +19,6 @@
 export {
     SNAPSHOT_VERSION,
     validateSnapshot,
-    createEmptySnapshot,
     type PlaygroundSnapshot,
     type SelectionItem,
     type CommitSelectionItem,
@@ -38,7 +37,6 @@ export {
     encodeSnapshot,
     decodeSnapshot,
     parseSnapshot,
-    checkEncodedSize,
     type EncodeResult,
     type DecodeResult,
 } from "./snapshotCodec"

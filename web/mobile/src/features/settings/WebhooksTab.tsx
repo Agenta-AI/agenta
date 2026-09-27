@@ -6,17 +6,16 @@ import {
     webhookToDeleteAtom,
 } from "@agenta/entities/webhook"
 import {WebhooksPage} from "@agenta/settings-ui"
-import {Button} from "@agenta/ui/ui"
-import {useAtom, useSetAtom} from "jotai"
-
 import {
+    Button,
     Sheet,
     SheetContent,
     SheetDescription,
     SheetFooter,
     SheetHeader,
     SheetTitle,
-} from "@/components/ui/sheet"
+} from "@agenta/ui/ui"
+import {useAtom, useSetAtom} from "jotai"
 
 import {ConfirmModal} from "./ConfirmModal"
 import {WebhookFormSheet} from "./WebhookFormSheet"
@@ -79,7 +78,7 @@ export const WebhooksTab = () => {
                         }
                     }}
                 >
-                    <SheetContent side="responsive">
+                    <SheetContent side="responsive" className="gap-4 overflow-y-auto">
                         <SheetHeader>
                             <SheetTitle>Save your webhook secret</SheetTitle>
                             <SheetDescription>
@@ -97,7 +96,7 @@ export const WebhooksTab = () => {
                                 {copyError}
                             </p>
                         ) : null}
-                        <SheetFooter>
+                        <SheetFooter className="sm:flex-row-reverse sm:justify-start">
                             <Button
                                 onClick={async () => {
                                     if (!createdSecret) return

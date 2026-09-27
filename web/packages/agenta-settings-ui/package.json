@@ -34,7 +34,6 @@
         "@tanstack/react-query": ">=5.0.0",
         "jotai": ">=2.9.0",
         "jotai-family": ">=0.1.0",
-        "next": ">=14.0.0",
         "react": ">=18.0.0"
     },
     "devDependencies": {
@@ -47,7 +46,6 @@
         "jotai": "^2.15.0",
         "jotai-family": "^1.0.1",
         "jsdom": "^26.1.0",
-        "next": "15.5.18",
         "react": "^19.0.0",
         "react-dom": "^19.0.0",
         "typescript": "^5.9.3",

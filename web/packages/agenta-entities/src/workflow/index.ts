@@ -110,7 +110,6 @@ export {
 export {
     // Sub-schemas
     jsonSchemasSchema,
-    type JsonSchemas,
     workflowFlagsSchema,
     type WorkflowFlags,
     workflowDataSchema,
@@ -119,9 +118,6 @@ export {
     workflowSchema,
     workflowSchemas,
     type Workflow,
-    type CreateWorkflow,
-    type UpdateWorkflow,
-    type LocalWorkflow,
     // Variant schema (for 3-level hierarchy)
     workflowVariantSchema,
     type WorkflowVariant,
@@ -148,7 +144,6 @@ export {
     type WorkflowTypeColor,
     // Evaluator-specific utilities (for evaluator-type workflows)
     parseEvaluatorKeyFromUri,
-    buildEvaluatorUri,
     isOnlineCapableEvaluator,
     hasFullPagePlaygroundUX,
     collectEvaluatorCandidates,
@@ -377,9 +372,6 @@ export {
     evaluatorsListQueryAtom,
     evaluatorsListDataAtom,
     nonArchivedEvaluatorsAtom,
-    llmEvaluatorsAtom,
-    fullPagePlaygroundEvaluatorsAtom,
-    nonHumanEvaluatorsAtom,
     nonDeterministicEvaluatorsAtom,
     // Lazy enrichment gate (defers the per-evaluator latest-revision fan-out)
     evaluatorEnrichmentActivatedAtom,
@@ -451,9 +443,7 @@ export {
     type EvaluatorCatalogPreset,
     type EvaluatorCatalogPresetsResponse,
     /** @deprecated Use EvaluatorCatalogTemplate */
-    type EvaluatorTemplate,
     /** @deprecated Use EvaluatorCatalogTemplatesResponse */
-    type EvaluatorTemplatesResponse,
 } from "./api"
 
 // ============================================================================

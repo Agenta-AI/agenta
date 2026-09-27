@@ -24,9 +24,6 @@ export interface CompletionModeProps {
     }) => React.ReactNode
 }
 
-/** @deprecated Alias kept for backward compatibility */
-export type GenerationCompletionProps = CompletionModeProps
-
 const CompletionMode = ({
     className,
     entityId,

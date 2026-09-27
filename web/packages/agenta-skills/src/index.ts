@@ -2,8 +2,8 @@
  * @agenta/skills — headless skill-registry logic: schema, API calls, atoms, and the
  * embed writer. UI lives in @agenta/skills-ui; hosts wire both together.
  *
- * Subpath exports (`./state`, `./api`, `./embed`) are the preferred entry points;
- * this barrel re-exports them for convenience.
+ * The `./state` subpath export exposes the atoms on their own; this barrel re-exports
+ * everything, including the API calls and the embed writer.
  */
 export * from "./core/schema"
 export * from "./api"
