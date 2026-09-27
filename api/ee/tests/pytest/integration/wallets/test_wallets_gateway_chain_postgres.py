@@ -60,7 +60,6 @@ from ee.src.dbs.redis.wallets.streams import (
 )
 from ee.src.tasks.asyncio.measurements.worker import MeasurementWorker
 from ee.src.tasks.asyncio.wallets.worker import DebitWorker
-from ee.tests.pytest.utils.measurements.fakes import InMemoryOrganizationResolver
 
 from oss.tests.pytest.unit.gateways.test_gateways_llm_service import (
     _MockLlmEndpointsDAO,
@@ -186,7 +185,6 @@ class _Chain:
             )
         self.measurement_worker = MeasurementWorker(
             measurements_dao=MeasurementsDAO(engine=self.analytics_engine),
-            organization_resolver=InMemoryOrganizationResolver(),
             debit_publisher=RedisDebitPublisher(redis_client=self.redis_client),
             redis_client=self.redis_client,
             stream_name=STREAM_MEASUREMENTS,

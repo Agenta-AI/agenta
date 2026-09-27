@@ -79,6 +79,8 @@ its configuration interface belongs in the wallet-settlement schema decision abo
 | 20 | Decided | Where a stream entry this pipeline cannot accept goes, and what the stream cap protects. |
 | 21 | Decided | Whether expired credit value leaves the general balance, and what admission reads. |
 | 22 | Decided (option 2; option 3 deferred) | What identifies one plan change, so two in a billing period are not treated as one. |
+| 23 | Open | Whether a plan-change clawback depends on usage still queued in the streams. |
+| 24 | Open | Whether settlement funds usage from the credits alive when it happened or when it settled. |
 
 Items 2, 4, 7, 14, 15, 16, 17, 18, 19, 20, 21, and 22 are decided. The table is an index only; each numbered item below contains the
 context, examples, and consequences needed for its discussion.
@@ -1878,8 +1880,8 @@ so the other streams keep their behaviour. The wallet and measurement workers op
   idempotent.
 - What goes there:
   - at once, a terminal entry: a malformed or unsupported-version envelope, a debit whose
-    general balance row is neither present nor insertable, a chargeable measurement whose
-    project resolves to no organization (the measurement itself is persisted), and a
+    general balance row is neither present nor insertable, a measurement without the
+    organization its producer authenticated (see below; nothing is persisted), and a
     measurement id replayed with different content (see below);
   - after `max_deliveries`, **any** entry that keeps failing, readable or not. This replaces
     the delivered rule that a readable entry is retried forever. That rule existed so a
@@ -1920,6 +1922,19 @@ few entries. That is harmless for a limit whose only job is to stop unbounded gr
 full page now carries a cursor into the next pass, which runs at once instead of a window later.
 Entries that keep failing at the head no longer hide the rest (spec review P2). With point 1 they
 also leave after `max_deliveries`, so the head cannot stay blocked either.
+
+**A measurement without an organization (whole-stack review, finding 8, 2026-09-27).** The worker
+used to accept either a producer-stamped `organization_id` or, when it was absent, a project to
+organization lookup in the core database. Every production producer stamps the organization from
+the authenticated `AuthScope`, where it is a required field: the gateway sink
+(`measurement_from_call`, `wallets/wave-2` and above) and the sandbox-seconds report
+(`sandbox_measurement`, `wallets/sandbox-seconds`). No producer relied on the lookup. It is
+removed, with its port, its Postgres adapter and its fake. A measurement without an organization
+is now terminal: it is dead-lettered before anything is persisted or charged
+(`MeasurementWithoutOrganizationError`). Why: the payer is whoever the producer authenticated, and
+inferring it later is a second attribution rule that a future producer could fall into silently.
+The envelope field stays optional, because the envelope shape is frozen for the coverage-contract
+design; the worker enforces the requirement.
 
 **Conflicting measurement replay (Codex review #5).** A stored measurement is immutable. The
 `measurements.data.fingerprint` key holds a SHA-256 of the envelope's content, without
@@ -2201,3 +2216,117 @@ replacement subscription, because the webhook does not check the deleted subscri
 the stored one (a pre-existing billing behaviour, not a wallet one). And the reverse trial writes
 the trial plan straight to the subscription row, so its later creation webhook sees no plan change
 and the trial gets no allowance; that belongs with the recurring allowance in item 3.
+
+## 23. Whether a plan-change clawback depends on usage still queued in the streams
+
+**Status:** Open (recorded 2026-09-27 from the whole-stack review, finding 2; P1). Blocks enabling
+for paying customers.
+
+### Context
+
+A downgrade or cancellation claws back the unused share of the outgoing allowance credit.
+`WalletsDAO.apply_plan_change` (`api/ee/src/dbs/postgres/wallets/dao.py`) computes that share from
+the credit's lifetime, then caps it at the credit's settled balance, since a per-credit balance
+never goes negative. The settled balance is what the database holds at that instant. Usage that
+already happened but still sits in `streams:measurements` or `streams:debits` is invisible to it.
+
+So the result depends on which arrives first. A $50 monthly allowance, $40 of usage in the first
+half, a cancellation at the halfway point. The earned share is $25, so the unused share is $25.
+
+- Usage settles first. The balance is $10. The clawback is capped at $10. The wallet ends at $0.
+- The cancellation lands first. The balance is $50. The clawback is $25, leaving $25. The $40 of
+  usage then settles: $25 from the allowance and $15 as deficit. The wallet ends at **-$15**.
+
+The row locks serialize the writes. They do not put them in the order the events happened. The
+gap is the usage in flight at the moment of the change: normally a few seconds of worker lag, but
+up to the full `max_deliveries` retry window during an outage, and longer after a dead letter is
+replayed. Sandbox intervals (`wallets/sandbox-seconds`) are reported up to an hour after they
+start, which widens it.
+
+### Decision needed
+
+Which outcome is the intended one, and how to make every processing order reach it.
+
+1. **Settle outstanding usage before finalizing the adjustment.** The plan change waits until the
+   organization's queued measurements and debits have settled, then computes the clawback. The
+   result is the settled-first outcome every time. The cost is large: the subscription path would
+   have to observe per-organization stream progress across processes, a Stripe webhook would
+   block on worker health, and usage not yet published (a sandbox interval still open, a gateway
+   call still running) is still missed.
+2. **Reconcile late usage by occurrence time.** Keep the clawback immediate. When usage settles
+   later, compare its occurrence time with the change: usage that happened before the change is
+   charged as if it had settled first, against the outgoing allowance's pre-clawback remainder,
+   and the clawback is reduced by the same amount. This is order-independent by construction. It
+   needs the debit to carry when the usage happened, which is item 24's contract change.
+3. **Accept and document the bound.** The two outcomes differ by at most the usage in flight at
+   the change, and only when that usage exceeds the earned share. Record the bound, and alert on
+   stream backlog so the window stays small.
+
+### Why it matters
+
+The customer's balance after a plan change should not depend on worker timing. In the example
+the difference is $15 on a $50 plan, and it lands as a deficit the customer sees as a charge.
+Support cannot explain it from the ledger, because every row in it is individually correct.
+
+### Current direction
+
+**Recommended: option 3 now, option 2 with item 24.** Option 2 is the only one that is correct in
+every order without coupling the subscription path to the stream workers, and it rides on the
+occurrence time item 24 already needs, so it costs one contract change rather than two. Option 1
+is rejected: it makes a Stripe acknowledgement wait on worker health and still misses usage that
+has not been published. Until item 24 lands, the flag is off everywhere, so the bound is recorded
+here rather than engineered around. The debit envelope and the ports are frozen for the
+coverage-contract design, so nothing changes on this branch.
+
+## 24. Whether settlement funds usage from the credits alive when it happened or when it settled
+
+**Status:** Open (recorded 2026-09-27 from the whole-stack review, finding 3; P1). Blocks enabling
+for paying customers. Needs a debit-envelope change, owned by the coverage-contract design.
+
+### Context
+
+`WalletsDAO.settle` (`api/ee/src/dbs/postgres/wallets/dao.py`) picks funding credits that are
+unexpired at the database clock after its lock (`clock_timestamp()`, see BL-2 and BL-5 in
+`v2/review-findings.md`). That is settlement time, not the time the usage happened.
+`DebitCommandV1` carries no occurrence time: its `created_at` is the publish time, which on a
+retry is the republish time (SR-8), and the measurement's `start_time` and `end_time` stop at the
+measurement worker.
+
+So usage that happened before a credit expired but settles after it cannot spend that credit. It
+consumes another credit, or records a deficit although the customer had enough credit when the
+usage happened. A monthly allowance that expires at midnight and a gateway call that finished at
+23:59:58 is enough; no outage is needed. A sandbox interval reported after the boundary does it
+routinely. Replaying a dead letter days later makes it certain.
+
+### Decision needed
+
+1. **Carry occurrence time on the debit and judge eligibility by it.** The measurement worker
+   copies an occurrence time into the debit envelope. Settlement selects credits that were live
+   at that instant, and still only those with a positive balance. The rule for an interval that
+   spans an expiry needs one sentence: take the measurement's `start_time` when present, else its
+   `end_time`, and do not split, which bounds the error to one interval (at most an hour for
+   sandboxes). Replay then funds usage from the credits it was entitled to. This is a contract
+   change to `DebitCommandV1` and to what settlement reads, so it belongs to the coverage-contract
+   design, not to this branch.
+2. **A grace window at expiry.** Keep a credit spendable for a fixed time after `end_time`. This
+   needs no contract change, but it also lets usage that happened after expiry spend expired
+   credit, and it does nothing for replay beyond the window. It moves the boundary rather than
+   removing it.
+3. **Accept and document.** Usage settling after its credit expired is funded by other credit or
+   becomes deficit, and the customer loses the expired credit's share of it.
+
+### Why it matters
+
+Expiring credit is the plan allowance, so every customer crosses this boundary every period. The
+loss is small per call and systematic in aggregate, and it always goes against the customer.
+Item 21 already removes expired value from the general balance; charging on-time usage to newer
+credit takes it a second time.
+
+### Current direction
+
+**Recommended: option 1, owned by the coverage-contract design; option 3 until then.** It is the
+only option that is correct for replay and for late sandbox intervals, and item 23's
+order-independent reconciliation needs the same field. Option 2 is rejected: it trades one wrong
+charge for another and still fails replay. The debit envelope and the settlement port are frozen
+while the coverage contract is designed, so this branch records the gap and changes nothing. The
+flag is off everywhere, so no customer is charged under the current rule.

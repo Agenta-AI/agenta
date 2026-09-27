@@ -16,10 +16,7 @@ from oss.src.tasks.asyncio.shared.consumer import StreamConsumer
 from oss.src.utils.logging import get_module_logger
 
 from ee.src.core.measurements.dtos import ChargeDecision
-from ee.src.core.measurements.interfaces import (
-    MeasurementsDAOInterface,
-    OrganizationResolverInterface,
-)
+from ee.src.core.measurements.interfaces import MeasurementsDAOInterface
 from ee.src.core.measurements.charges import calculate_charge
 from ee.src.core.wallets.contracts import (
     STREAM_MEASUREMENTS,
@@ -28,7 +25,7 @@ from ee.src.core.wallets.contracts import (
     MeasurementCommandV1,
 )
 from ee.src.core.wallets.errors import (
-    OrganizationNotResolvedError,
+    MeasurementWithoutOrganizationError,
     WalletTerminalError,
 )
 from ee.src.core.wallets.streaming import (
@@ -48,17 +45,19 @@ class MeasurementWorker(StreamConsumer):
     Per message:
     1. Deserialize/validate — malformed or unsupported-version envelopes are
        terminal: dead-lettered, since retry cannot help.
-    2. Look the measurement up. A measurement id already stored with different
+    2. Require the producer-stamped `organization_id`, the payer the producer
+       authenticated. A measurement without one is terminal: dead-lettered
+       before anything is persisted or charged.
+    3. Look the measurement up. A measurement id already stored with different
        content is terminal: the stored measurement stands and is not re-priced.
-    3. An unseen measurement is priced, its organization resolved when it is
-       charged, and inserted with its values and that charge decision in one
+    4. An unseen measurement is priced and inserted with its values and that charge decision in one
        tracing transaction. A seen one keeps the decision it was stored with.
        A platform-funded measurement the rate card cannot price is not stored:
        it stays pending and is retried, and dead-lettered if it never prices.
-    4. A measurement with no charge publishes nothing.
-    5. Publish `DebitCommandV1`, built from the stored decision, to
+    5. A measurement with no charge publishes nothing.
+    6. Publish `DebitCommandV1`, built from the stored decision, to
        `streams:debits`.
-    6. ACK + DEL only after both the tracing write and the debit publish (if
+    7. ACK + DEL only after both the tracing write and the debit publish (if
        any) succeed. A tracing or Redis failure leaves the message pending,
        and the consumer's reclaim pass (`reclaim_pending=True` below) brings
        it back, until `max_deliveries` moves it to `streams:measurements:dead`.
@@ -69,7 +68,6 @@ class MeasurementWorker(StreamConsumer):
     def __init__(
         self,
         measurements_dao: MeasurementsDAOInterface,
-        organization_resolver: OrganizationResolverInterface,
         debit_publisher: DebitPublisher,
         redis_client: Redis,
         stream_name: str = STREAM_MEASUREMENTS,
@@ -106,7 +104,6 @@ class MeasurementWorker(StreamConsumer):
             dead_letter=True,
         )
         self.measurements_dao = measurements_dao
-        self.organization_resolver = organization_resolver
         self.debit_publisher = debit_publisher
 
     def describe_message(self, data: Dict[bytes, bytes]) -> Optional[str]:
@@ -125,9 +122,14 @@ class MeasurementWorker(StreamConsumer):
         will be.
 
         A measurement already stored is replayed from its stored decision alone: the
-        organization lookup and the pricer are not consulted again, so a redelivery
-        after a failed debit publish recovers even when either has changed or is down.
+        pricer is not consulted again, so a redelivery after a failed debit publish
+        recovers even when the rate card has changed.
         """
+        if command.organization_id is None:
+            raise MeasurementWithoutOrganizationError(
+                measurement_id=command.measurement_id
+            )
+
         persisted = await self.measurements_dao.fetch_measurement(command=command)
         if persisted is None:
             persisted = await self.measurements_dao.insert_measurement(
@@ -158,22 +160,10 @@ class MeasurementWorker(StreamConsumer):
             return None
         amount_musd, pricing_version = priced
 
-        organization_id = command.organization_id
-        if organization_id is None:
-            organization_id = await self.organization_resolver.resolve_organization_id(
-                project_id=command.project_id
-            )
-        if organization_id is None:
-            # Nothing is stored: a measurement stored without its charge would be replayed
-            # as free forever. The dead letter keeps the whole message for a replay.
-            raise OrganizationNotResolvedError(
-                f"project {command.project_id} resolves to no organization"
-            )
-
         return ChargeDecision(
             amount_musd=amount_musd,
             pricing_version=pricing_version,
-            organization_id=organization_id,
+            organization_id=command.organization_id,
             created_at=datetime.now(timezone.utc),
         )
 

@@ -9,6 +9,7 @@ from uuid import uuid4
 import pytest
 
 import entrypoints.worker_streams as worker_streams_module
+import oss.src.utils.common as common_module
 import oss.src.utils.env as env_module
 from ee.src.core.subscriptions.service import SubscriptionsService
 from ee.src.core.subscriptions.types import Event, SubscriptionDTO
@@ -91,6 +92,9 @@ def reload_worker_streams(monkeypatch):
         # Pinned: with the OSS edition the wallet streams are absent whatever the flag
         # says, and the flag-off cases would pass vacuously.
         monkeypatch.setattr(env_module.env.agenta, "license", "ee")
+        # `is_ee()` reads the `env` its own module bound at import, which is the stale
+        # singleton once another test has reloaded the env module.
+        monkeypatch.setattr(common_module, "env", env_module.env)
         monkeypatch.setattr(env_module.env.wallets, "enabled", wallets_enabled)
         return importlib.reload(worker_streams_module)
 
