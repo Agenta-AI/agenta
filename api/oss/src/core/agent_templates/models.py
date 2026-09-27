@@ -190,9 +190,16 @@ class PreparedTemplateLoad(StrictModel):
     replayed: bool
 
 
+# Clients render these as links and image sources, so no other scheme gets through.
+HTTPS_URL = r"^https://\S+$"
+# Media may also be committed beside the catalog under media/. No segment starts
+# with a dot, so the path cannot climb out of that folder.
+MEDIA_URL = r"^(https://\S+|media(/[A-Za-z0-9_-][A-Za-z0-9._-]*)+)$"
+
+
 class CatalogAuthorLink(StrictModel):
     kind: str = Field(min_length=1, max_length=64)
-    url: str = Field(min_length=1, max_length=2048)
+    url: str = Field(min_length=1, max_length=2048, pattern=HTTPS_URL)
     label: str | None = Field(default=None, max_length=128)
 
 
@@ -201,16 +208,16 @@ class CatalogAuthor(StrictModel):
     id: str = Field(pattern=r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
     name: str = Field(min_length=1, max_length=128)
     bio: str = Field(min_length=1, max_length=2000)
-    avatar_url: str | None = Field(default=None, max_length=2048)
+    avatar_url: str | None = Field(default=None, max_length=2048, pattern=MEDIA_URL)
     links: list[CatalogAuthorLink] = Field(default_factory=list)
 
 
 class CatalogMedia(StrictModel):
     kind: Literal["image", "video"]
-    url: str = Field(min_length=1, max_length=2048)
+    url: str = Field(min_length=1, max_length=2048, pattern=MEDIA_URL)
     alt: str = Field(min_length=1, max_length=500)
     caption: str | None = Field(default=None, max_length=500)
-    poster_url: str | None = Field(default=None, max_length=2048)
+    poster_url: str | None = Field(default=None, max_length=2048, pattern=MEDIA_URL)
 
 
 class CatalogTemplateTool(StrictModel):
